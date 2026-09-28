@@ -1292,7 +1292,7 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
       elm.classList.add("fmdoc-image-frame--empty");
       const hint = document.createElement("span");
       hint.className = "fmdoc-image-empty-hint";
-      hint.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg><span>${(globalThis.PlatformLanguage?.text("doc-renderer","m_1c63591771736b","Double-click to add media") ?? "Double-click to add media")}</span>`;
+      hint.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg><span>${(globalThis.PlatformLanguage?.htmlText("doc-renderer","m_1c63591771736b","Double-click to add media") ?? "Double-click to add media")}</span>`;
       elm.appendChild(hint);
       return;
     }

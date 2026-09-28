@@ -2811,33 +2811,33 @@
       <div class="${String(pageClass)} ob-channels-preview" style="--ob-ch-primary:${String(esc(readableVariant(brandState.primary)))};--ob-ch-primary-rgb:${String(esc(hexToRgbCsv(readableVariant(brandState.primary)) || '217,48,37'))}">
         <div class="ob-ch-shell">
           <aside class="ob-ch-org-rail">
-            <div class="ob-ch-brand"><div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.text("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div></div>
+            <div class="ob-ch-brand"><div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div></div>
             <div class="ob-ch-org-channels">
               <div class="ob-ch-quick">
-                <div class="ob-ch-nav-item"><i class="fas fa-inbox"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_e9a006d430a9a6","All Unreads") ?? "All Unreads")}</span></div>
-                <div class="ob-ch-nav-item"><i class="fas fa-bell"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_37fc206eefac3e","Activity") ?? "Activity")}</span></div>
-                <div class="ob-ch-nav-item"><i class="fas fa-comments"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_3201c97f6b38ff","Threads") ?? "Threads")}</span></div>
+                <div class="ob-ch-nav-item"><i class="fas fa-inbox"></i><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_e9a006d430a9a6","All Unreads") ?? "All Unreads")}</span></div>
+                <div class="ob-ch-nav-item"><i class="fas fa-bell"></i><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_37fc206eefac3e","Activity") ?? "Activity")}</span></div>
+                <div class="ob-ch-nav-item"><i class="fas fa-comments"></i><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_3201c97f6b38ff","Threads") ?? "Threads")}</span></div>
               </div>
-              <div class="ob-ch-section"><span>${(globalThis.PlatformLanguage?.text("onboarding","m_dc8b4f6c066b30","Channels") ?? "Channels")}</span><b>+</b><i class="fas fa-chevron-down"></i></div>
-              <div class="ob-ch-nav-item active"><i class="fas fa-hashtag"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_d18c631c8e1203","general") ?? "general")}</span></div>
-              <div class="ob-ch-nav-item"><i class="fas fa-hashtag"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_28c50346c6d5d4","announcements") ?? "announcements")}</span></div>
-              <div class="ob-ch-section"><span>${(globalThis.PlatformLanguage?.text("onboarding","m_f304f7d46421ed","Direct messages") ?? "Direct messages")}</span><b>+</b><i class="fas fa-chevron-down"></i></div>
-              <div class="ob-ch-nav-item"><span class="ob-ch-assistant-mark"></span><span>${(globalThis.PlatformLanguage?.text("onboarding","m_4aaef822b47692","FirstMate Assistant") ?? "FirstMate Assistant")}</span></div>
+              <div class="ob-ch-section"><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_dc8b4f6c066b30","Channels") ?? "Channels")}</span><b>+</b><i class="fas fa-chevron-down"></i></div>
+              <div class="ob-ch-nav-item active"><i class="fas fa-hashtag"></i><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_d18c631c8e1203","general") ?? "general")}</span></div>
+              <div class="ob-ch-nav-item"><i class="fas fa-hashtag"></i><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_28c50346c6d5d4","announcements") ?? "announcements")}</span></div>
+              <div class="ob-ch-section"><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_f304f7d46421ed","Direct messages") ?? "Direct messages")}</span><b>+</b><i class="fas fa-chevron-down"></i></div>
+              <div class="ob-ch-nav-item"><span class="ob-ch-assistant-mark"></span><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_4aaef822b47692","FirstMate Assistant") ?? "FirstMate Assistant")}</span></div>
             </div>
-            <div class="ob-ch-settings"><i class="fas fa-gear"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_7d461dc7d355cc","Settings") ?? "Settings")}</span></div>
+            <div class="ob-ch-settings"><i class="fas fa-gear"></i><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_7d461dc7d355cc","Settings") ?? "Settings")}</span></div>
             <div class="ob-ch-account"><div class="ob-ch-avatar">${String(ownerInitial)}</div><div class="ob-ch-account-copy"><strong>${String(esc(ME_NAME || 'You'))}</strong><span>${String(esc(ME_EMAIL || 'you@company.com'))}</span></div><i class="fas fa-chevron-up"></i></div>
           </aside>
           <section class="ob-ch-app">
-            <header class="ob-ch-topbar"><div class="ob-ch-search"><i class="fas fa-magnifying-glass"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_874bb2f35611fe","Search channels and messages") ?? "Search channels and messages")}</span></div><div class="ob-ch-top-actions"><i class="fas fa-wand-magic-sparkles"></i><i class="fas fa-comment"></i><i class="fas fa-bell"></i></div></header>
+            <header class="ob-ch-topbar"><div class="ob-ch-search"><i class="fas fa-magnifying-glass"></i><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_874bb2f35611fe","Search channels and messages") ?? "Search channels and messages")}</span></div><div class="ob-ch-top-actions"><i class="fas fa-wand-magic-sparkles"></i><i class="fas fa-comment"></i><i class="fas fa-bell"></i></div></header>
             <div class="ob-ch-workspace">
               <section class="ob-ch-main">
-                <header class="ob-ch-head"><i class="fas fa-arrow-left"></i><div class="ob-ch-title"><i class="fas fa-hashtag"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_d18c631c8e1203","general") ?? "general")}</div><div class="ob-ch-topic">${(globalThis.PlatformLanguage?.text("onboarding","m_12902fd6e80c3d","Company-wide announcements and chatter.") ?? "Company-wide announcements and chatter.")}</div><div class="ob-ch-actions"><i class="fas fa-bell"></i><i class="fas fa-bolt"></i><i class="fas fa-wand-magic-sparkles"></i><i class="fas fa-ellipsis"></i></div></header>
-                <div class="ob-ch-tabs"><div class="ob-ch-tab active">${(globalThis.PlatformLanguage?.text("onboarding","m_820b9cb136d6ed","Messages") ?? "Messages")}</div><div class="ob-ch-tab">${(globalThis.PlatformLanguage?.text("onboarding","m_357a58f2b3675d","Files") ?? "Files")}</div><div class="ob-ch-tab">${(globalThis.PlatformLanguage?.text("onboarding","m_5d7c7ad6033624","Documents") ?? "Documents")}</div><div class="ob-ch-tab">${(globalThis.PlatformLanguage?.text("onboarding","m_4bec39f8fa90dd","To Dos") ?? "To Dos")}</div><div class="ob-ch-tab">${(globalThis.PlatformLanguage?.text("onboarding","m_576cd53c8d929f","Pins") ?? "Pins")}</div></div>
+                <header class="ob-ch-head"><i class="fas fa-arrow-left"></i><div class="ob-ch-title"><i class="fas fa-hashtag"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_d18c631c8e1203","general") ?? "general")}</div><div class="ob-ch-topic">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_12902fd6e80c3d","Company-wide announcements and chatter.") ?? "Company-wide announcements and chatter.")}</div><div class="ob-ch-actions"><i class="fas fa-bell"></i><i class="fas fa-bolt"></i><i class="fas fa-wand-magic-sparkles"></i><i class="fas fa-ellipsis"></i></div></header>
+                <div class="ob-ch-tabs"><div class="ob-ch-tab active">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_820b9cb136d6ed","Messages") ?? "Messages")}</div><div class="ob-ch-tab">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_357a58f2b3675d","Files") ?? "Files")}</div><div class="ob-ch-tab">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_5d7c7ad6033624","Documents") ?? "Documents")}</div><div class="ob-ch-tab">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_4bec39f8fa90dd","To Dos") ?? "To Dos")}</div><div class="ob-ch-tab">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_576cd53c8d929f","Pins") ?? "Pins")}</div></div>
                 <div class="ob-ch-messages">
-                  <div class="ob-ch-message"><div class="ob-ch-avatar">A</div><div class="ob-ch-message-copy"><div class="ob-ch-message-head">${(globalThis.PlatformLanguage?.text("onboarding","m_0bbbc46fe72d5d","Alex Morgan ") ?? "Alex Morgan ")}<span class="ob-ch-time">${(globalThis.PlatformLanguage?.text("onboarding","m_f68605820f0efc","9:42 AM") ?? "9:42 AM")}</span></div><div class="ob-ch-text">${((v7) => globalThis.PlatformLanguage?.text("onboarding","m_f942751806fe4a",`Welcome to ${v7}! This channel is for company-wide updates and conversation.`,{v7}) ?? `Welcome to ${v7}! This channel is for company-wide updates and conversation.`)(esc(ORG_NAME || 'the team'))}</div><div class="ob-ch-reaction"><i class="fas fa-thumbs-up"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_e51b7d28a83ccc","&nbsp; 4") ?? "&nbsp; 4")}</div></div></div>
-                  <div class="ob-ch-message"><div class="ob-ch-avatar">J</div><div class="ob-ch-message-copy"><div class="ob-ch-message-head">${(globalThis.PlatformLanguage?.text("onboarding","m_24ef52dbeb1cc7","Jordan Lee ") ?? "Jordan Lee ")}<span class="ob-ch-time">${(globalThis.PlatformLanguage?.text("onboarding","m_d09fb9b7b2a99b","10:08 AM") ?? "10:08 AM")}</span></div><div class="ob-ch-text">${(globalThis.PlatformLanguage?.text("onboarding","m_930e0901f46176","I added the launch notes to the Files tab.") ?? "I added the launch notes to the Files tab.")}</div></div></div>
+                  <div class="ob-ch-message"><div class="ob-ch-avatar">A</div><div class="ob-ch-message-copy"><div class="ob-ch-message-head">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_0bbbc46fe72d5d","Alex Morgan ") ?? "Alex Morgan ")}<span class="ob-ch-time">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_f68605820f0efc","9:42 AM") ?? "9:42 AM")}</span></div><div class="ob-ch-text">${((v7) => globalThis.PlatformLanguage?.htmlText("onboarding","m_f942751806fe4a",`Welcome to ${v7}! This channel is for company-wide updates and conversation.`,{v7}) ?? `Welcome to ${v7}! This channel is for company-wide updates and conversation.`)(esc(ORG_NAME || 'the team'))}</div><div class="ob-ch-reaction"><i class="fas fa-thumbs-up"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_e51b7d28a83ccc","&nbsp; 4") ?? "&nbsp; 4")}</div></div></div>
+                  <div class="ob-ch-message"><div class="ob-ch-avatar">J</div><div class="ob-ch-message-copy"><div class="ob-ch-message-head">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_24ef52dbeb1cc7","Jordan Lee ") ?? "Jordan Lee ")}<span class="ob-ch-time">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_d09fb9b7b2a99b","10:08 AM") ?? "10:08 AM")}</span></div><div class="ob-ch-text">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_930e0901f46176","I added the launch notes to the Files tab.") ?? "I added the launch notes to the Files tab.")}</div></div></div>
                 </div>
-                <div class="ob-ch-composer"><div class="ob-ch-formatbar"><b>B</b><i>I</i><i class="fas fa-code"></i><i class="fas fa-list"></i></div><div class="ob-ch-compose"><span>${(globalThis.PlatformLanguage?.text("onboarding","m_182728baf40759","Message general") ?? "Message general")}</span><i class="fas fa-face-smile"></i><i class="fas fa-paperclip"></i><div class="ob-ch-send">${(globalThis.PlatformLanguage?.text("onboarding","m_c23a056552a09f","Send") ?? "Send")}</div></div></div>
+                <div class="ob-ch-composer"><div class="ob-ch-formatbar"><b>B</b><i>I</i><i class="fas fa-code"></i><i class="fas fa-list"></i></div><div class="ob-ch-compose"><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_182728baf40759","Message general") ?? "Message general")}</span><i class="fas fa-face-smile"></i><i class="fas fa-paperclip"></i><div class="ob-ch-send">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_c23a056552a09f","Send") ?? "Send")}</div></div></div>
               </section>
             </div>
           </section>
@@ -2851,17 +2851,17 @@
       <div class="${String(pageClass)} ob-workspace-preview" style="--ob-ws-primary:${String(esc(readableVariant(brandState.primary)))};--ob-ws-primary-rgb:${String(esc(hexToRgbCsv(readableVariant(brandState.primary)) || '217,48,37'))}">
         <div class="ob-ws-shell">
           <aside class="ob-ws-rail">
-            <div class="ob-ws-brand"><div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.text("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div></div>
-            <nav class="ob-ws-nav" aria-label="${(globalThis.PlatformLanguage?.text("onboarding","m_680abe10428803","Sample navigation") ?? "Sample navigation")}">
-              <div class="ob-ws-nav-item active"><i class="fas fa-house"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_b69161f38dacdf","Overview") ?? "Overview")}</span></div>
-              <div class="ob-ws-nav-item"><i class="fas fa-briefcase"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_222066ef57ae0e","Work") ?? "Work")}</span></div>
-              <div class="ob-ws-nav-item"><i class="fas fa-user-group"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_9830fe947c8db6","Customers") ?? "Customers")}</span></div>
-              <div class="ob-ws-nav-item"><i class="fas fa-calendar"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_77882a9c01fabf","Calendar") ?? "Calendar")}</span></div>
+            <div class="ob-ws-brand"><div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div></div>
+            <nav class="ob-ws-nav" aria-label="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_680abe10428803","Sample navigation") ?? "Sample navigation")}">
+              <div class="ob-ws-nav-item active"><i class="fas fa-house"></i><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_b69161f38dacdf","Overview") ?? "Overview")}</span></div>
+              <div class="ob-ws-nav-item"><i class="fas fa-briefcase"></i><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_222066ef57ae0e","Work") ?? "Work")}</span></div>
+              <div class="ob-ws-nav-item"><i class="fas fa-user-group"></i><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_9830fe947c8db6","Customers") ?? "Customers")}</span></div>
+              <div class="ob-ws-nav-item"><i class="fas fa-calendar"></i><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_77882a9c01fabf","Calendar") ?? "Calendar")}</span></div>
             </nav>
             <div class="ob-ws-profile"><div class="ob-ws-avatar">${String(esc((ME_NAME || 'Y').slice(0, 1).toUpperCase()))}</div><div class="ob-ws-profile-lines"><span class="ob-ws-line"></span><span class="ob-ws-line short"></span></div></div>
           </aside>
           <section class="ob-ws-app">
-            <header class="ob-ws-topbar"><div class="ob-ws-search"><i class="fas fa-magnifying-glass"></i><span>${(globalThis.PlatformLanguage?.text("onboarding","m_55524759bb89e3","Search") ?? "Search")}</span></div><div class="ob-ws-tools"><i class="fas fa-wand-magic-sparkles"></i><i class="fas fa-bell"></i><i class="fas fa-gear"></i></div></header>
+            <header class="ob-ws-topbar"><div class="ob-ws-search"><i class="fas fa-magnifying-glass"></i><span>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_55524759bb89e3","Search") ?? "Search")}</span></div><div class="ob-ws-tools"><i class="fas fa-wand-magic-sparkles"></i><i class="fas fa-bell"></i><i class="fas fa-gear"></i></div></header>
             <div class="ob-ws-content">
               <div class="ob-ws-page-head"><span class="ob-ws-heading"></span><span class="ob-ws-action"></span></div>
               <div class="ob-ws-cards"><div class="ob-ws-card"><span class="ob-ws-line"></span><span class="ob-ws-line"></span></div><div class="ob-ws-card"><span class="ob-ws-line"></span><span class="ob-ws-line"></span></div><div class="ob-ws-card"><span class="ob-ws-line"></span><span class="ob-ws-line"></span></div></div>
@@ -2930,16 +2930,16 @@
           <div class="ob-preview-bar-p" style="background:${String(esc(brandState.primary))}"></div>
           <div class="ob-preview-bar-s" style="background:${String(esc(brandState.secondary))}"></div>
           <div class="ob-preview-inner">
-            <div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.text("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div>
-            <div class="ob-prev-diagram"><img src="${String(esc(SAMPLE_DIAGRAM))}" alt="${(globalThis.PlatformLanguage?.text("onboarding","m_77fc722124c288","Sample report") ?? "Sample report")}"></div>
+            <div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div>
+            <div class="ob-prev-diagram"><img src="${String(esc(SAMPLE_DIAGRAM))}" alt="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_77fc722124c288","Sample report") ?? "Sample report")}"></div>
             <div class="ob-prev-info">
               <div class="ob-prev-box left" style="border-left-color:${String(esc(brandState.primary))}">
-                <div class="ob-prev-label">${(globalThis.PlatformLanguage?.text("onboarding","m_bad7dada05af1a","Prepared for") ?? "Prepared for")}</div>
+                <div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_bad7dada05af1a","Prepared for") ?? "Prepared for")}</div>
                 <div class="ob-prev-value ob-prev-orgname">${String(esc(ORG_NAME || 'Your Company'))}</div>
               </div>
               <div class="ob-prev-box right" style="border-left-color:${String(esc(brandState.primary))}">
-                <div class="ob-prev-label">${(globalThis.PlatformLanguage?.text("onboarding","m_ae873abaa56707","Measurements") ?? "Measurements")}</div>
-                <div class="ob-prev-value">${(globalThis.PlatformLanguage?.text("onboarding","m_8658b6cca50dd1","Squares") ?? "Squares")}</div>
+                <div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_ae873abaa56707","Measurements") ?? "Measurements")}</div>
+                <div class="ob-prev-value">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_8658b6cca50dd1","Squares") ?? "Squares")}</div>
                 <div class="ob-prev-big" style="color:${String(esc(brandState.primary))}">23.5</div>
               </div>
             </div>
@@ -2977,11 +2977,11 @@
         <div class="ob-preview-bar-p" style="background:${String(esc(brandState.primary))}"></div>
         <div class="ob-preview-bar-s" style="background:${String(esc(brandState.secondary))}"></div>
         <div class="ob-preview-inner">
-          <div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.text("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div>
-          <div class="ob-prev-diagram"><img id="obSampleDiagram" src="${String(esc(SAMPLE_DIAGRAM))}" alt="${(globalThis.PlatformLanguage?.text("onboarding","m_77fc722124c288","Sample report") ?? "Sample report")}"></div>
+          <div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div>
+          <div class="ob-prev-diagram"><img id="obSampleDiagram" src="${String(esc(SAMPLE_DIAGRAM))}" alt="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_77fc722124c288","Sample report") ?? "Sample report")}"></div>
           <div class="ob-prev-info">
-            <div class="ob-prev-box left"><div class="ob-prev-label">${(globalThis.PlatformLanguage?.text("onboarding","m_bad7dada05af1a","Prepared for") ?? "Prepared for")}</div><div class="ob-prev-value ob-prev-orgname">${String(esc(ORG_NAME || 'Your Company'))}</div></div>
-            <div class="ob-prev-box right"><div class="ob-prev-label">${(globalThis.PlatformLanguage?.text("onboarding","m_ae873abaa56707","Measurements") ?? "Measurements")}</div><div class="ob-prev-value">${(globalThis.PlatformLanguage?.text("onboarding","m_8658b6cca50dd1","Squares") ?? "Squares")}</div><div class="ob-prev-big">23.5</div></div>
+            <div class="ob-prev-box left"><div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_bad7dada05af1a","Prepared for") ?? "Prepared for")}</div><div class="ob-prev-value ob-prev-orgname">${String(esc(ORG_NAME || 'Your Company'))}</div></div>
+            <div class="ob-prev-box right"><div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_ae873abaa56707","Measurements") ?? "Measurements")}</div><div class="ob-prev-value">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_8658b6cca50dd1","Squares") ?? "Squares")}</div><div class="ob-prev-big">23.5</div></div>
           </div>
         </div>
       </div>`;
@@ -2989,28 +2989,28 @@
     page.innerHTML = `
       <div class="ob-progress"></div>
       <div class="ob-step-label">${String(stepLabel(0))}</div>
-      <h1 class="ob-h1">${(globalThis.PlatformLanguage?.text("onboarding","m_2e992f8bee9c08","Welcome") ?? "Welcome")}</h1>
+      <h1 class="ob-h1">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_2e992f8bee9c08","Welcome") ?? "Welcome")}</h1>
       <div class="ob-welcome-names">
         <div class="ob-name-user">${String(esc(ME_NAME || ME_EMAIL))}</div>
         <div class="ob-name-org">${String(esc(ORG_NAME || 'Your Company'))}</div>
       </div>
 
       <div class="ob-row">
-        <label class="ob-lbl">${(globalThis.PlatformLanguage?.text("onboarding","m_6ab3729e8bcb2e","Company website") ?? "Company website")}</label>
+        <label class="ob-lbl">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_6ab3729e8bcb2e","Company website") ?? "Company website")}</label>
         <div class="ob-website-row">
-          <input class="ob-input" id="obWebsite" placeholder="${(globalThis.PlatformLanguage?.text("onboarding","m_992a2b48510215","yourcompany.com") ?? "yourcompany.com")}" autocomplete="url" spellcheck="false" value="${String(esc(brandState.website))}">
+          <input class="ob-input" id="obWebsite" placeholder="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_992a2b48510215","yourcompany.com") ?? "yourcompany.com")}" autocomplete="url" spellcheck="false" value="${String(esc(brandState.website))}">
           <button class="ob-btn primary ob-btn-icon" id="obWebsiteGo" type="button">
             <i class="fas fa-arrow-right"></i>
           </button>
         </div>
         <button class="ob-alt-btn ${String(brandState.noWebsite ? 'active' : '')}" id="obNoWebsiteBtn" type="button">
-          <i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_9cd6f3c7841cbf","\n          I don't have a website\n            ") ?? "\n          I don't have a website\n            ")}<span class="ob-check-sub">${(globalThis.PlatformLanguage?.text("onboarding","m_5aae5f95d8814d","I'll choose my colors manually.") ?? "I'll choose my colors manually.")}</span>
+          <i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_9cd6f3c7841cbf","\n          I don't have a website\n            ") ?? "\n          I don't have a website\n            ")}<span class="ob-check-sub">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_5aae5f95d8814d","I'll choose my colors manually.") ?? "I'll choose my colors manually.")}</span>
         </button>
       </div>
 
       <div class="ob-brand-section ${String(brandState.logoUrl || brandState.colorsExtracted ? 'open' : '')}" id="obBrandSection">
         <div class="ob-brand-copy">
-          <div class="ob-brand-copy-title">${(globalThis.PlatformLanguage?.text("onboarding","m_427462d62692c7","Set your colors") ?? "Set your colors")}</div>
+          <div class="ob-brand-copy-title">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_427462d62692c7","Set your colors") ?? "Set your colors")}</div>
           <div class="ob-brand-copy-sub">${String(channelsMode ? 'Preview how your logo and colors will look in Channels.' : workspaceMode ? 'Preview your logo and colors in a sample company workspace.' : 'These colors will show up across your FirstMate workspace.')}</div>
         </div>
         <div class="ob-logo-area" id="obLogoArea">
@@ -3019,7 +3019,7 @@
               ? `<img src="${esc(brandState.logoUrl)}" id="obLogoImg">`
               : '')}
             <div class="ob-logo-placeholder" id="obLogoPlaceholder">
-              <i class="fas fa-cloud-arrow-up"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_eeed03da94eb62","\n              Tap to upload your own logo\n            ") ?? "\n              Tap to upload your own logo\n            ")}</div>
+              <i class="fas fa-cloud-arrow-up"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_eeed03da94eb62","\n              Tap to upload your own logo\n            ") ?? "\n              Tap to upload your own logo\n            ")}</div>
             <span class="ob-logo-mini-label"><i class="fas fa-pen" style="font-size:9px;"></i> ${String(brandState.logoUrl ? 'Tap to change' : 'Tap to upload your own logo')}</span>
             <input type="file" id="obLogoFile" accept="image/*">
           </div>
@@ -3038,19 +3038,19 @@
           <div class="ob-preview-col">
             <div class="ob-preview-wrap" id="obPreviewWrap">
               ${String(inlinePreview)}
-              <div class="ob-preview-tap"><i class="fas fa-expand"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_15bd98c986ce3d"," Expand preview") ?? " Expand preview")}</div>
+              <div class="ob-preview-tap"><i class="fas fa-expand"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_15bd98c986ce3d"," Expand preview") ?? " Expand preview")}</div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="ob-hint" id="obBrandHint" style="${String(brandState.noWebsite || brandState.domain ? '' : 'display:none;')}"><i class="fas fa-info-circle"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_678738328a6129"," You can adjust your logo and colors anytime from Company Settings.") ?? " You can adjust your logo and colors anytime from Company Settings.")}</div>
+      <div class="ob-hint" id="obBrandHint" style="${String(brandState.noWebsite || brandState.domain ? '' : 'display:none;')}"><i class="fas fa-info-circle"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_678738328a6129"," You can adjust your logo and colors anytime from Company Settings.") ?? " You can adjust your logo and colors anytime from Company Settings.")}</div>
 
       <div class="ob-footer">
         <div></div>
         <div class="ob-footer-right">
-          <button class="ob-btn ghost" id="obSkip0" type="button">${(globalThis.PlatformLanguage?.text("onboarding","m_2e3ee6f1c0203f","Skip") ?? "Skip")}</button>
-          <button class="ob-btn primary" id="obNext0" type="button">${(globalThis.PlatformLanguage?.text("onboarding","m_dc6a60d7bb3581","Next ") ?? "Next ")}<i class="fas fa-arrow-right"></i></button>
+          <button class="ob-btn ghost" id="obSkip0" type="button">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_2e3ee6f1c0203f","Skip") ?? "Skip")}</button>
+          <button class="ob-btn primary" id="obNext0" type="button">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_dc6a60d7bb3581","Next ") ?? "Next ")}<i class="fas fa-arrow-right"></i></button>
         </div>
       </div>
     `;
@@ -3277,7 +3277,7 @@
       /* Show searching spinner */
       const spinner = document.createElement('div');
       spinner.className = 'ob-logo-spinner';
-      spinner.innerHTML = `<i class="fas fa-spinner fa-spin"></i><span class="ob-spinner-text">${(globalThis.PlatformLanguage?.text("onboarding","m_c3a01404101ce8","Searching for logo…") ?? "Searching for logo…")}</span>`;
+      spinner.innerHTML = `<i class="fas fa-spinner fa-spin"></i><span class="ob-spinner-text">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_c3a01404101ce8","Searching for logo…") ?? "Searching for logo…")}</span>`;
       logoZone.appendChild(spinner);
 
       const gen = ++logoSearchGen;
@@ -3317,8 +3317,8 @@
 
         /* Buttons OUTSIDE the zone */
         logoActions.innerHTML = `
-          <button class="ob-logo-action-btn yes" type="button"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_f01d0e54dfe853"," Yes") ?? " Yes")}</button>
-          <button class="ob-logo-action-btn" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_9b9eae6fc72fdb"," No") ?? " No")}</button>
+          <button class="ob-logo-action-btn yes" type="button"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_f01d0e54dfe853"," Yes") ?? " Yes")}</button>
+          <button class="ob-logo-action-btn" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_9b9eae6fc72fdb"," No") ?? " No")}</button>
         `;
 
         const [btnYes, btnNo] = logoActions.querySelectorAll('.ob-logo-action-btn');
@@ -3376,7 +3376,7 @@
         const applyLabel = brandState.logoUrl ? 'Keep this logo' : 'Yes, use this';
         logoActions.innerHTML = `
           <button class="ob-logo-action-btn yes" type="button"><i class="fas fa-check"></i> ${String(applyLabel)}</button>
-          <button class="ob-logo-action-btn" type="button"><i class="fas fa-upload"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_79af7cef452dc0"," Upload different") ?? " Upload different")}</button>
+          <button class="ob-logo-action-btn" type="button"><i class="fas fa-upload"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_79af7cef452dc0"," Upload different") ?? " Upload different")}</button>
         `;
         const [btnKeep, btnChange] = logoActions.querySelectorAll('.ob-logo-action-btn');
         btnKeep.addEventListener('click', () => {
@@ -3666,8 +3666,8 @@
     page.innerHTML = `
       <div class="ob-progress"></div>
       <div class="ob-step-label">${String(stepLabel(1))}</div>
-      <h2 class="ob-h2">${(globalThis.PlatformLanguage?.text("onboarding","m_d7433f84bf9cdf","Invite your team") ?? "Invite your team")}</h2>
-      <p class="ob-sub">${(globalThis.PlatformLanguage?.text("onboarding","m_fb95d611553579","Add users who need access to the platform. You can set their permission levels now or adjust them later in Company Settings.") ?? "Add users who need access to the platform. You can set their permission levels now or adjust them later in Company Settings.")}</p>
+      <h2 class="ob-h2">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_d7433f84bf9cdf","Invite your team") ?? "Invite your team")}</h2>
+      <p class="ob-sub">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_fb95d611553579","Add users who need access to the platform. You can set their permission levels now or adjust them later in Company Settings.") ?? "Add users who need access to the platform. You can set their permission levels now or adjust them later in Company Settings.")}</p>
 
       <div class="ob-user-me">
         <div class="ob-avatar">${String(esc(initial))}</div>
@@ -3675,20 +3675,20 @@
           <div class="ob-user-name">${String(esc(ME_NAME || ME_EMAIL))}</div>
           <div class="ob-user-email">${String(esc(ME_EMAIL))}</div>
         </div>
-        <div class="ob-role-tag"><i class="fas fa-shield-halved"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_77d6550d8a0aa9"," Super Admin") ?? " Super Admin")}</div>
+        <div class="ob-role-tag"><i class="fas fa-shield-halved"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_77d6550d8a0aa9"," Super Admin") ?? " Super Admin")}</div>
       </div>
 
       <div class="ob-invite-list" id="obInviteList"></div>
 
       <button class="ob-add-user-btn" id="obAddUser" type="button">
-        <i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_d131ad7aadedbb"," Add a team member\n      ") ?? " Add a team member\n      ")}</button>
+        <i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_d131ad7aadedbb"," Add a team member\n      ") ?? " Add a team member\n      ")}</button>
 
-      <div class="ob-hint"><i class="fas fa-info-circle"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_163c9e8ccdb047"," You can manage users anytime from the Users section in Company Settings.") ?? " You can manage users anytime from the Users section in Company Settings.")}</div>
+      <div class="ob-hint"><i class="fas fa-info-circle"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_163c9e8ccdb047"," You can manage users anytime from the Users section in Company Settings.") ?? " You can manage users anytime from the Users section in Company Settings.")}</div>
 
       <div class="ob-footer">
-        <button class="ob-btn ghost" id="obBack1" type="button"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_206d31a7c795c4"," Back") ?? " Back")}</button>
+        <button class="ob-btn ghost" id="obBack1" type="button"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_206d31a7c795c4"," Back") ?? " Back")}</button>
         <div class="ob-footer-right">
-          <button class="ob-btn ghost" id="obSkip1" type="button">${(globalThis.PlatformLanguage?.text("onboarding","m_2e3ee6f1c0203f","Skip") ?? "Skip")}</button>
+          <button class="ob-btn ghost" id="obSkip1" type="button">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_2e3ee6f1c0203f","Skip") ?? "Skip")}</button>
           <button class="ob-btn primary" id="obNext1" type="button">
             ${String(invites.length > 0 ? 'Send invites' : 'Next')} <i class="fas fa-arrow-right"></i>
           </button>
@@ -3771,7 +3771,7 @@
         </button>`
       ).join('') +
       `<button class="ob-role-btn ${String(inv.role === 'custom' ? 'active' : '')}" data-inv="${String(inv.id)}" data-role="custom" type="button">
-        <i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_2b39214759d91a"," Custom\n      ") ?? " Custom\n      ")}</button>`;
+        <i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_2b39214759d91a"," Custom\n      ") ?? " Custom\n      ")}</button>`;
 
       const permButtons = PERM_META.map(pm => {
         const on = !!effectivePerms[pm.k];
@@ -3783,13 +3783,13 @@
       return `
         <div class="ob-invite-row ${String(isNew ? 'ob-new' : '')}" data-inv="${String(inv.id)}">
           <div class="ob-invite-top">
-            <input class="ob-input" placeholder="${(globalThis.PlatformLanguage?.text("onboarding","m_8cf345002184e5","Name") ?? "Name")}" data-inv="${String(inv.id)}" data-field="name" value="${String(esc(inv.name))}">
-            <input class="ob-input" placeholder="${(globalThis.PlatformLanguage?.text("onboarding","m_83cc567bdd3fa7","email@company.com") ?? "email@company.com")}" data-inv="${String(inv.id)}" data-field="email" value="${String(esc(inv.email))}" inputmode="email">
+            <input class="ob-input" placeholder="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_8cf345002184e5","Name") ?? "Name")}" data-inv="${String(inv.id)}" data-field="name" value="${String(esc(inv.name))}">
+            <input class="ob-input" placeholder="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_83cc567bdd3fa7","email@company.com") ?? "email@company.com")}" data-inv="${String(inv.id)}" data-field="email" value="${String(esc(inv.email))}" inputmode="email">
             <button class="ob-invite-remove" data-inv="${String(inv.id)}" type="button"><i class="fas fa-xmark"></i></button>
           </div>
           <div class="ob-role-presets">${String(roleButtons)}</div>
           <div class="ob-perms-grid" data-inv="${String(inv.id)}">
-            <div class="ob-perms-label">${(globalThis.PlatformLanguage?.text("onboarding","m_0ded144729a113","Permissions") ?? "Permissions")}</div>
+            <div class="ob-perms-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_0ded144729a113","Permissions") ?? "Permissions")}</div>
             ${String(permButtons)}
           </div>
         </div>
@@ -3885,8 +3885,8 @@
     const loadTiers = activeLoadTiers();
     const bonusMinimum = bonusMinimumLoadAmount();
     const bonusIntroHtml = bonusOfferEnabled()
-      ? `<p class="ob-sub ob-bonus-copy"><i class="fas fa-gift" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_95ed713993880f","As a new customer, we're offering a ") ?? "As a new customer, we're offering a ")}<strong>${(globalThis.PlatformLanguage?.text("onboarding","m_dbf7ed5d0bf61d","one time bonus match") ?? "one time bonus match")}</strong>${((v0) => globalThis.PlatformLanguage?.text("onboarding","m_71f966e787feb1",` on your first load of more than ${v0}.`,{v0}) ?? ` on your first load of more than ${v0}.`)(esc(`$${bonusMinimum}`))}</p>`
-      : `<p class="ob-sub">${(globalThis.PlatformLanguage?.text("onboarding","m_8f203cf0d6d287","Load your account now, then add your card in our secure checkout.") ?? "Load your account now, then add your card in our secure checkout.")}</p>`;
+      ? `<p class="ob-sub ob-bonus-copy"><i class="fas fa-gift" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_95ed713993880f","As a new customer, we're offering a ") ?? "As a new customer, we're offering a ")}<strong>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_dbf7ed5d0bf61d","one time bonus match") ?? "one time bonus match")}</strong>${((v0) => globalThis.PlatformLanguage?.htmlText("onboarding","m_71f966e787feb1",` on your first load of more than ${v0}.`,{v0}) ?? ` on your first load of more than ${v0}.`)(esc(`$${bonusMinimum}`))}</p>`
+      : `<p class="ob-sub">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_8f203cf0d6d287","Load your account now, then add your card in our secure checkout.") ?? "Load your account now, then add your card in our secure checkout.")}</p>`;
     const tiersHtml = loadTiers.map(t => {
       const bonusText = bonusDollarsText(t.amount);
       return `
@@ -3904,7 +3904,7 @@
     const customPreviewAmount = parseInt(customAmount, 10) || 0;
     const customTileHtml = `
       <div class="ob-tier ob-tier-custom ${String(customSelected ? 'selected' : '')}" id="obCustomTile">
-        <div class="ob-tier-custom-label">${(globalThis.PlatformLanguage?.text("onboarding","m_6edcf7d7d41112","Custom") ?? "Custom")}</div>
+        <div class="ob-tier-custom-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_6edcf7d7d41112","Custom") ?? "Custom")}</div>
         <div style="display:flex;align-items:center;gap:3px;">
           <span style="font-size:16px;font-weight:900;color:rgba(0,0,0,.35);">$</span>
           <input class="ob-tier-custom-input" id="obCustomAmount" placeholder="—" inputmode="numeric" value="${String(esc(customAmount))}">
@@ -3916,7 +3916,7 @@
     page.innerHTML = `
       <div class="ob-progress"></div>
       <div class="ob-step-label">${String(stepLabel(2))}</div>
-      <h2 class="ob-h2">${(globalThis.PlatformLanguage?.text("onboarding","m_3460e2ac6317dc","Load your account") ?? "Load your account")}</h2>
+      <h2 class="ob-h2">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_3460e2ac6317dc","Load your account") ?? "Load your account")}</h2>
       ${String(bonusIntroHtml)}
 
       <div class="ob-tier-grid" id="obTierGrid">${String(tiersHtml)}${String(customTileHtml)}</div>
@@ -3926,15 +3926,15 @@
       <div class="ob-topup-config ob-topup-config-gated ${autoTopupSectionUnlocked || selectedTier || customAmount ? 'is-visible' : ''}" id="obTopupConfig">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
           <div>
-            <div class="ob-h2" style="font-size:20px;margin:0;">Auto Top-up</div>
-            <div class="ob-sub" style="margin:6px 0 0;">Keep my account funded automatically.</div>
+            <div class="ob-h2" style="font-size:20px;margin:0;">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_bc9847e2ca77cb","Auto Top-up") ?? "Auto Top-up")}</div>
+            <div class="ob-sub" style="margin:6px 0 0;">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_db0d748a115fcb","Keep my account funded automatically.") ?? "Keep my account funded automatically.")}</div>
           </div>
           <button class="ob-toggle-switch ${autoTopupEnabled ? 'on' : ''}" id="obAutoToggle" type="button"></button>
         </div>
 
         <div id="obTopupControls" style="opacity:${autoTopupEnabled ? '1' : '.4'};pointer-events:${autoTopupEnabled ? 'auto' : 'none'};">
           <div class="ob-topup-row" style="margin-top:14px;">
-            <div class="ob-topup-label"><i class="fas fa-arrow-down"></i> Top up when below</div>
+            <div class="ob-topup-label"><i class="fas fa-arrow-down"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_cc2003d4e4237c"," Top up when below") ?? " Top up when below")}</div>
             <div class="ob-topup-ctrl">
               <button class="ob-topup-step" id="obThMinus" type="button"><i class="fas fa-minus"></i></button>
               <span class="ob-usd" style="color:rgba(0,0,0,.4);font-weight:900;">$</span>
@@ -3943,7 +3943,7 @@
             </div>
           </div>
           <div class="ob-topup-row">
-            <div class="ob-topup-label"><i class="fas fa-cart-plus"></i> Auto top-up amount</div>
+            <div class="ob-topup-label"><i class="fas fa-cart-plus"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_56c6c9cbb10acb"," Auto top-up amount") ?? " Auto top-up amount")}</div>
             <div class="ob-topup-ctrl">
               <button class="ob-topup-step" id="obAmtMinus" type="button"><i class="fas fa-minus"></i></button>
               <span class="ob-usd" style="color:rgba(0,0,0,.4);font-weight:900;">$</span>
@@ -3958,10 +3958,10 @@
       ` : '')}
 
       <div class="ob-footer">
-        <button class="ob-btn ghost" id="obBack2" type="button"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_206d31a7c795c4"," Back") ?? " Back")}</button>
+        <button class="ob-btn ghost" id="obBack2" type="button"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_206d31a7c795c4"," Back") ?? " Back")}</button>
         <div class="ob-footer-right">
-          <button class="ob-btn ghost" id="obSkip2" type="button">${(globalThis.PlatformLanguage?.text("onboarding","m_2e3ee6f1c0203f","Skip") ?? "Skip")}</button>
-          <button class="ob-btn primary" id="obNext2" type="button" ${String(!selectedTier && !customAmount ? 'disabled' : '')}>${(globalThis.PlatformLanguage?.text("onboarding","m_8fd20318945f78","\n            Checkout ") ?? "\n            Checkout ")}<i class="fas fa-arrow-right"></i>
+          <button class="ob-btn ghost" id="obSkip2" type="button">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_2e3ee6f1c0203f","Skip") ?? "Skip")}</button>
+          <button class="ob-btn primary" id="obNext2" type="button" ${String(!selectedTier && !customAmount ? 'disabled' : '')}>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_8fd20318945f78","\n            Checkout ") ?? "\n            Checkout ")}<i class="fas fa-arrow-right"></i>
           </button>
         </div>
       </div>
@@ -4285,26 +4285,26 @@
     page.innerHTML = `
       <div class="ob-progress"></div>
       <div class="ob-step-label">${String(stepLabel(VERIFY_PAGE))}</div>
-      <h2 class="ob-h2">${(globalThis.PlatformLanguage?.text("onboarding","m_f1aa26aee43e0e","Verify your email") ?? "Verify your email")}</h2>
-      <p class="ob-sub">${(globalThis.PlatformLanguage?.text("onboarding","m_8342e19eddc030","We will send a code to this email before opening the portal. You can correct the address here if it was entered wrong.") ?? "We will send a code to this email before opening the portal. You can correct the address here if it was entered wrong.")}</p>
+      <h2 class="ob-h2">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_f1aa26aee43e0e","Verify your email") ?? "Verify your email")}</h2>
+      <p class="ob-sub">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_8342e19eddc030","We will send a code to this email before opening the portal. You can correct the address here if it was entered wrong.") ?? "We will send a code to this email before opening the portal. You can correct the address here if it was entered wrong.")}</p>
 
       <div class="ob-verification-card">
-        <label class="ob-label" for="obVerifyEmail">${(globalThis.PlatformLanguage?.text("onboarding","m_2fbb4b11eb7b6f","Email address") ?? "Email address")}</label>
+        <label class="ob-label" for="obVerifyEmail">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_2fbb4b11eb7b6f","Email address") ?? "Email address")}</label>
         <div class="ob-email-row">
           <input class="ob-input" id="obVerifyEmail" value="${String(esc(verificationEmail || ME_EMAIL))}" inputmode="email" autocomplete="email">
           <button class="ob-btn ghost" id="obSendOtp" type="button">
             ${String(verificationSent ? '<i class="fas fa-rotate"></i> Resend' : '<i class="fas fa-paper-plane"></i> Send code')}
           </button>
         </div>
-        <label class="ob-label" for="obVerifyOtp">${(globalThis.PlatformLanguage?.text("onboarding","m_3a7c6bd31cf96e","Verification code") ?? "Verification code")}</label>
+        <label class="ob-label" for="obVerifyOtp">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_3a7c6bd31cf96e","Verification code") ?? "Verification code")}</label>
         <input class="ob-input ob-otp-input" id="obVerifyOtp" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" maxlength="6">
         <div class="ob-topup-msg" id="obVerifyMsg" aria-live="polite">${String(esc(verificationMessage))}</div>
       </div>
 
       <div class="ob-footer">
-        <button class="ob-btn ghost" id="obBackVerify" type="button"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("onboarding","m_206d31a7c795c4"," Back") ?? " Back")}</button>
+        <button class="ob-btn ghost" id="obBackVerify" type="button"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_206d31a7c795c4"," Back") ?? " Back")}</button>
         <div class="ob-footer-right">
-          <button class="ob-btn primary" id="obVerifyFinish" type="button">${(globalThis.PlatformLanguage?.text("onboarding","m_a455a4668ee54d","\n            Verify &amp; enter portal ") ?? "\n            Verify &amp; enter portal ")}<i class="fas fa-check"></i>
+          <button class="ob-btn primary" id="obVerifyFinish" type="button">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_a455a4668ee54d","\n            Verify &amp; enter portal ") ?? "\n            Verify &amp; enter portal ")}<i class="fas fa-check"></i>
           </button>
         </div>
       </div>

@@ -224,9 +224,9 @@
           <strong>${String(esc(firstText(options.name, 'Theme')))}${String(options.current ? ' <i class="fas fa-circle-check"></i>' : '')}</strong>
           ${String(fonts ? `<small>${esc(fonts)}</small>` : '')}
           <span class="fmdx-theme-dots">
-            <i style="background:var(--fm-primary,#2563EB)" title="${(globalThis.PlatformLanguage?.text("documents","m_2436076ece8629","Primary") ?? "Primary")}"></i>
-            <i style="background:var(--fm-accent,#0EA5E9)" title="${(globalThis.PlatformLanguage?.text("documents","m_12ab6737efe605","Accent") ?? "Accent")}"></i>
-            <i style="background:var(--fm-text,#111827)" title="${(globalThis.PlatformLanguage?.text("documents","m_124287f184b88b","Text") ?? "Text")}"></i>
+            <i style="background:var(--fm-primary,#2563EB)" title="${(globalThis.PlatformLanguage?.htmlText("documents","m_2436076ece8629","Primary") ?? "Primary")}"></i>
+            <i style="background:var(--fm-accent,#0EA5E9)" title="${(globalThis.PlatformLanguage?.htmlText("documents","m_12ab6737efe605","Accent") ?? "Accent")}"></i>
+            <i style="background:var(--fm-text,#111827)" title="${(globalThis.PlatformLanguage?.htmlText("documents","m_124287f184b88b","Text") ?? "Text")}"></i>
           </span>
         </span>
       </button>`;
@@ -324,7 +324,7 @@
   function openModal(contentHtml, options = {}){
     const back = document.createElement('div');
     back.className = 'fmdx-modal-back';
-    back.innerHTML = `<div class="fmdx-modal ${String(esc(options.className || ''))}" role="dialog" aria-modal="true">${String(contentHtml)}<button type="button" class="fmdx-modal-close" aria-label="${(globalThis.PlatformLanguage?.text("documents","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>`;
+    back.innerHTML = `<div class="fmdx-modal ${String(esc(options.className || ''))}" role="dialog" aria-modal="true">${String(contentHtml)}<button type="button" class="fmdx-modal-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("documents","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>`;
     const close = () => { back.remove(); options.onClose?.(); };
     back.querySelector('.fmdx-modal-close').addEventListener('click', close);
     back.addEventListener('mousedown', (event) => { if (event.target === back && options.dismissable !== false) close(); });
@@ -666,7 +666,7 @@
     }
     if (type === 'list' || type === 'object' || type === 'signature_request') {
       const json = value === null || value === undefined ? '' : (typeof value === 'string' ? value : JSON.stringify(value, null, 2));
-      return `<label class="fmdx-field wide">${String(head)}<textarea ${String(attrs)} data-param-json="1" placeholder="${(globalThis.PlatformLanguage?.text("documents","m_be0c75317a1197","JSON value") ?? "JSON value")}" spellcheck="false">${String(esc(json))}</textarea></label>`;
+      return `<label class="fmdx-field wide">${String(head)}<textarea ${String(attrs)} data-param-json="1" placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_be0c75317a1197","JSON value") ?? "JSON value")}" spellcheck="false">${String(esc(json))}</textarea></label>`;
     }
     return `<label class="fmdx-field">${head}<input type="text" ${attrs} value="${esc(value)}" placeholder="${esc(def.placeholder || '')}"></label>`;
   }
@@ -718,7 +718,7 @@
   }
 
   function richJsonToggleHtml(){
-    return `<button type="button" class="fmdx-btn ghost tiny" data-rich-json-toggle><i class="fas fa-code"></i>${(globalThis.PlatformLanguage?.text("documents","m_7a25664f092e7e"," Edit JSON") ?? " Edit JSON")}</button>`;
+    return `<button type="button" class="fmdx-btn ghost tiny" data-rich-json-toggle><i class="fas fa-code"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_7a25664f092e7e"," Edit JSON") ?? " Edit JSON")}</button>`;
   }
 
   function bindRichJsonToggle(holder, state, rerender){
@@ -820,7 +820,7 @@
       holder.innerHTML = `
         <div class="fmdx-rich-card">
           ${String(neededKeys.length ? `
-            <p class="fmdx-data-hint" style="margin:0"><i class="fas fa-ruler-combined"></i> These measurements drive this document’s line-item pricing:</p>
+            <p class="fmdx-data-hint" style="margin:0"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_77f0e7c9e9d01d"," These measurements drive this document’s line-item pricing:") ?? " These measurements drive this document’s line-item pricing:")}</p>
             <div class="fmdx-meas-grid">
               ${neededKeys.map((key) => {
                 const filled = !(current[key] === undefined || current[key] === null || current[key] === '');
@@ -831,13 +831,13 @@
                   </label>`;
               }).join('')}
             </div>
-            ${missing.length ? `<p class="fmdx-meas-note"><i class="fas fa-triangle-exclamation"></i> ${missing.length} measurement${missing.length === 1 ? '' : 's'} still needed</p>` : ''}` : '')}
+            ${missing.length ? `<p class="fmdx-meas-note"><i class="fas fa-triangle-exclamation"></i>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("documents","m_5d86a0fb6c1652",` ${v0} measurement${v1} still needed`,{v0,v1}) ?? ` ${v0} measurement${v1} still needed`)(missing.length,missing.length === 1 ? '' : 's')}</p>` : ''}` : '')}
           ${String(chips.length
             ? `<div class="fmdx-stat-grid">${chips.map((chip) => `<span class="fmdx-stat"><i>${esc(chip.label)}</i><b>${esc(chip.value)}</b></span>`).join('')}</div>`
-            : (neededKeys.length ? '' : '<p class="fmdx-data-hint">No measurements yet. Load them from the project, or paste JSON.</p>'))}
+            : (neededKeys.length ? '' : `<p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_ebfc9ac0d87754","No measurements yet. Load them from the project, or paste JSON.") ?? "No measurements yet. Load them from the project, or paste JSON.")}</p>`))}
           <div class="fmdx-rich-actions">
-            <button type="button" class="fmdx-btn ghost tiny" data-measure-reload ${String(hasProject ? '' : 'disabled title="This project has no stored measurements yet"')}><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("documents","m_641beeb7a2ff91"," Load from project") ?? " Load from project")}</button>
-            ${String(chips.length || neededKeys.length ? '<button type="button" class="fmdx-btn ghost tiny" data-measure-clear><i class="fas fa-xmark"></i> Clear</button>' : '')}
+            <button type="button" class="fmdx-btn ghost tiny" data-measure-reload ${String(hasProject ? '' : 'disabled title="This project has no stored measurements yet"')}><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_641beeb7a2ff91"," Load from project") ?? " Load from project")}</button>
+            ${String(chips.length || neededKeys.length ? `<button type="button" class="fmdx-btn ghost tiny" data-measure-clear><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_687e1653230514"," Clear") ?? " Clear")}</button>` : '')}
             ${String(richJsonToggleHtml())}
           </div>
         </div>`;
@@ -894,7 +894,7 @@
             <div class="fmdx-sched-rows">
               ${rows.map((row, index) => `
                 <div class="fmdx-sched-row" data-sched-index="${index}">
-                  <input type="text" data-sched-label placeholder="Label" value="${esc(row.label)}">
+                  <input type="text" data-sched-label placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_9fd79f4276d659","Label") ?? "Label")}" value="${esc(row.label)}">
                   <select data-sched-kind>
                     <option value="percent" ${row.kind === 'percent' ? 'selected' : ''}>%</option>
                     <option value="fixed" ${row.kind === 'fixed' ? 'selected' : ''}>$</option>
@@ -906,14 +906,14 @@
                     ${SCHEDULE_DUE_OPTIONS.map((opt) => `<option value="${esc(opt.value)}" ${row.due_rule === opt.value ? 'selected' : ''}>${esc(opt.label)}</option>`).join('')}
                   </select>
                   ${row.due_rule === 'on_date' ? `<input type="date" data-sched-date value="${esc(row.due_date)}">` : ''}
-                  <button type="button" class="fmdx-icon-btn" data-sched-remove title="Remove"><i class="fas fa-trash"></i></button>
+                  <button type="button" class="fmdx-icon-btn" data-sched-remove title="${(globalThis.PlatformLanguage?.htmlText("documents","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-trash"></i></button>
                 </div>`).join('')}
             </div>
             <p class="fmdx-data-hint">${percentTotal ? `${percentTotal}% scheduled` : ''}${percentTotal && fixedTotal ? ' · ' : ''}${fixedTotal ? `$${(fixedTotal / 100).toFixed(2)} fixed` : ''}${percentTotal > 100 ? ' — over 100%' : ''}</p>`
-            : '<p class="fmdx-data-hint">No payment schedule. Add milestones, or use the quick preset.</p>')}
+            : `<p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_13991f0e0abcf7","No payment schedule. Add milestones, or use the quick preset.") ?? "No payment schedule. Add milestones, or use the quick preset.")}</p>`)}
           <div class="fmdx-rich-actions">
-            <button type="button" class="fmdx-btn ghost tiny" data-sched-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_00a6dac3bb30c9"," Add milestone") ?? " Add milestone")}</button>
-            ${String(rows.length ? '' : '<button type="button" class="fmdx-btn ghost tiny" data-sched-preset><i class="fas fa-wand-magic-sparkles"></i> 30% deposit / 70% completion</button>')}
+            <button type="button" class="fmdx-btn ghost tiny" data-sched-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_00a6dac3bb30c9"," Add milestone") ?? " Add milestone")}</button>
+            ${String(rows.length ? '' : `<button type="button" class="fmdx-btn ghost tiny" data-sched-preset><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_e718d425696681"," 30% deposit / 70% completion") ?? " 30% deposit / 70% completion")}</button>`)}
             ${String(richJsonToggleHtml())}
           </div>
         </div>`;
@@ -973,9 +973,9 @@
                   ${photo.media_id === selectedId ? '<i class="fas fa-circle-check"></i>' : ''}
                 </button>`).join('')}
             </div>`
-            : `<p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.text("documents","m_5a86caef245f9c","No project photos yet — upload photos to the project to pick one here.") ?? "No project photos yet — upload photos to the project to pick one here.")}</p>`}
+            : `<p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_5a86caef245f9c","No project photos yet — upload photos to the project to pick one here.") ?? "No project photos yet — upload photos to the project to pick one here.")}</p>`}
           <div class="fmdx-rich-actions">
-            ${selectedId ? `<button type="button" class="fmdx-btn ghost tiny" data-pick-clear><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.text("documents","m_f4875af91310b6"," Remove selection") ?? " Remove selection")}</button>` : ''}
+            ${selectedId ? `<button type="button" class="fmdx-btn ghost tiny" data-pick-clear><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_f4875af91310b6"," Remove selection") ?? " Remove selection")}</button>` : ''}
             ${richJsonToggleHtml()}
           </div>
         </div>`;
@@ -1252,26 +1252,26 @@
         <div class="fmdx-shell">
           <header class="fmdx-top">
             <div class="fmdx-top-title">
-              <strong><i class="fas fa-file-signature" style="color:var(--fmdx-primary)"></i>${(globalThis.PlatformLanguage?.text("documents","m_fab6ec5986f912"," Documents") ?? " Documents")}</strong>
+              <strong><i class="fas fa-file-signature" style="color:var(--fmdx-primary)"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_fab6ec5986f912"," Documents") ?? " Documents")}</strong>
               <span>${String(docs.length ? `${docs.length} document${docs.length === 1 ? '' : 's'} on this project` : 'Proposals, contracts, invoices & more')}</span>
             </div>
             <div class="fmdx-top-actions">
-              ${String(capabilityEnabled('documents.ingestion') ? '<label class="fmdx-btn fmdx-upload-btn"><i class="fas fa-arrow-up-from-bracket"></i> Upload<input type="file" data-fmdx-upload accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf,image/*" multiple></label>' : '')}
-              <button type="button" class="fmdx-btn primary" data-fmdx-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_7754e23bbfc088"," New document") ?? " New document")}</button>
+              ${String(capabilityEnabled('documents.ingestion') ? `<label class="fmdx-btn fmdx-upload-btn"><i class="fas fa-arrow-up-from-bracket"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_9ca9dace4f122f"," Upload") ?? " Upload")}<input type="file" data-fmdx-upload accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf,image/*" multiple></label>` : '')}
+              <button type="button" class="fmdx-btn primary" data-fmdx-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_7754e23bbfc088"," New document") ?? " New document")}</button>
             </div>
           </header>
           <div class="fmdx-body" data-fmdx-list></div>
         </div>`;
       const listEl = root.querySelector('[data-fmdx-list]');
       if (state.loading && !state.loaded) {
-        listEl.innerHTML = `<div class="fmdx-state"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.text("documents","m_34768a8382fa48","Loading documents") ?? "Loading documents")}</strong></div>`;
+        listEl.innerHTML = `<div class="fmdx-state"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_34768a8382fa48","Loading documents") ?? "Loading documents")}</strong></div>`;
       } else if (state.loadError?.missing || !api()) {
-        listEl.innerHTML = `<div class="fmdx-state"><i class="fas fa-plug-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_ba70ff7085cae0","Documents service unavailable") ?? "Documents service unavailable")}</strong><span>${(globalThis.PlatformLanguage?.text("documents","m_4643897f23dcba","The documents API client is not loaded for this session.") ?? "The documents API client is not loaded for this session.")}</span></div>`;
+        listEl.innerHTML = `<div class="fmdx-state"><i class="fas fa-plug-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_ba70ff7085cae0","Documents service unavailable") ?? "Documents service unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_4643897f23dcba","The documents API client is not loaded for this session.") ?? "The documents API client is not loaded for this session.")}</span></div>`;
       } else if (state.loadError) {
-        listEl.innerHTML = `<div class="fmdx-state"><i class="fas fa-cloud-bolt"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_3c874fe4c55ac0","Couldn’t load documents") ?? "Couldn’t load documents")}</strong><span>${String(esc(errorMessage(state.loadError, '')))}</span><button type="button" class="fmdx-btn" data-fmdx-retry><i class="fas fa-rotate-right"></i>${(globalThis.PlatformLanguage?.text("documents","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button></div>`;
+        listEl.innerHTML = `<div class="fmdx-state"><i class="fas fa-cloud-bolt"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_3c874fe4c55ac0","Couldn’t load documents") ?? "Couldn’t load documents")}</strong><span>${String(esc(errorMessage(state.loadError, '')))}</span><button type="button" class="fmdx-btn" data-fmdx-retry><i class="fas fa-rotate-right"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button></div>`;
         listEl.querySelector('[data-fmdx-retry]')?.addEventListener('click', () => loadDocs());
       } else if (!docs.length) {
-        listEl.innerHTML = `<div class="fmdx-state"><i class="fas fa-file-medical"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_23a05531a1d864","No documents yet") ?? "No documents yet")}</strong><span>${(globalThis.PlatformLanguage?.text("documents","m_85443b85cda373","Create a document from an approved template.") ?? "Create a document from an approved template.")}</span><button type="button" class="fmdx-btn primary" data-fmdx-empty-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_7754e23bbfc088"," New document") ?? " New document")}</button></div>`;
+        listEl.innerHTML = `<div class="fmdx-state"><i class="fas fa-file-medical"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_23a05531a1d864","No documents yet") ?? "No documents yet")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_85443b85cda373","Create a document from an approved template.") ?? "Create a document from an approved template.")}</span><button type="button" class="fmdx-btn primary" data-fmdx-empty-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_7754e23bbfc088"," New document") ?? " New document")}</button></div>`;
         listEl.querySelector('[data-fmdx-empty-new]')?.addEventListener('click', () => openCreateModal());
       } else {
         listEl.innerHTML = `<div class="fmdx-doc-list">${docs.map(docRowHtml).join('')}</div>`;
@@ -1279,8 +1279,8 @@
       }
       root.querySelector('[data-fmdx-new]')?.addEventListener('click', () => openCreateModal());
       if (projectId()) {
-        const launch = document.createElement('button'); launch.type = 'button'; launch.className = 'fmdx-btn'; launch.textContent = 'Documents & workflows';
-        launch.onclick = async () => { try { const { openModuleInstances } = await import('/libraries/apps/documents/program-panel.js'); await openModuleInstances(orgId(), projectId()); } catch(error) { showToast('Documents',errorMessage(error),false); } };
+        const launch = document.createElement('button'); launch.type = 'button'; launch.className = 'fmdx-btn'; launch.textContent = (globalThis.PlatformLanguage?.text("documents","m_abe699167c0dad","Documents & workflows") ?? "Documents & workflows");
+        launch.onclick = async () => { try { const { openModuleInstances } = await import('/libraries/apps/documents/program-panel.js'); await openModuleInstances(orgId(), projectId()); } catch(error) { showToast((globalThis.PlatformLanguage?.text("documents","m_5d7c7ad6033624","Documents") ?? "Documents"),errorMessage(error),false); } };
         root.querySelector('[data-fmdx-new]')?.before(launch);
       }
       root.querySelector('[data-fmdx-upload]')?.addEventListener('change', (event) => {
@@ -1300,28 +1300,28 @@
       const readOnly = isReadOnlyStatus(doc.status);
       const metaBits = [
         `<span class="fmdx-badge" style="--fmdx-doc-color:${esc(meta.color)}">${esc(meta.label)}</span>`,
-        uploaded ? `<span class="fmdx-badge" style="--fmdx-doc-color:#b54708"><i class="fas fa-arrow-up-from-bracket"></i>${(globalThis.PlatformLanguage?.text("documents","m_303e8fa1e345f5"," Uploaded") ?? " Uploaded")}</span>` : '',
-        needsReview && cleanText(doc.status).toLowerCase() !== 'needs_review' ? `<span class="fmdx-chip needs_review">${(globalThis.PlatformLanguage?.text("documents","m_00c9ae159a1656","Needs review") ?? "Needs review")}</span>` : '',
+        uploaded ? `<span class="fmdx-badge" style="--fmdx-doc-color:#b54708"><i class="fas fa-arrow-up-from-bracket"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_303e8fa1e345f5"," Uploaded") ?? " Uploaded")}</span>` : '',
+        needsReview && cleanText(doc.status).toLowerCase() !== 'needs_review' ? `<span class="fmdx-chip needs_review">${(globalThis.PlatformLanguage?.htmlText("documents","m_00c9ae159a1656","Needs review") ?? "Needs review")}</span>` : '',
         updated ? `<span><i class="far fa-clock"></i> ${esc(timeAgo(updated))}</span>` : '',
-        pageCount ? `<span><i class="far fa-file"></i>${((v0,v1) => globalThis.PlatformLanguage?.text("documents","m_01f08ac1f4370c",` ${v0} page${v1}`,{v0,v1}) ?? ` ${v0} page${v1}`)(pageCount,pageCount === 1 ? '' : 's')}</span>` : '',
-        pdf.latest_media_id ? `<span><i class="far fa-file-pdf"></i>${(globalThis.PlatformLanguage?.text("documents","m_fffdbbba28616b"," PDF ready") ?? " PDF ready")}</span>` : ''
+        pageCount ? `<span><i class="far fa-file"></i>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("documents","m_01f08ac1f4370c",` ${v0} page${v1}`,{v0,v1}) ?? ` ${v0} page${v1}`)(pageCount,pageCount === 1 ? '' : 's')}</span>` : '',
+        pdf.latest_media_id ? `<span><i class="far fa-file-pdf"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_fffdbbba28616b"," PDF ready") ?? " PDF ready")}</span>` : ''
       ].filter(Boolean).join('');
       return `
         <div class="fmdx-doc-row" data-doc-id="${String(esc(doc.id))}" style="--fmdx-doc-color:${String(esc(meta.color))}">
           <span class="fmdx-doc-icon"><i class="fas ${String(esc(meta.icon))}"></i></span>
-          <div class="fmdx-doc-main" data-doc-open title="${(globalThis.PlatformLanguage?.text("documents","m_c25cc66b28cc9d","Open") ?? "Open")}">
+          <div class="fmdx-doc-main" data-doc-open title="${(globalThis.PlatformLanguage?.htmlText("documents","m_c25cc66b28cc9d","Open") ?? "Open")}">
             <strong>${String(esc(firstText(doc.title, meta.label)))}</strong>
             <div class="fmdx-doc-meta">${String(metaBits)}</div>
           </div>
           ${String(totalCents ? `<span class="fmdx-doc-total">${esc(moneyFromCents(totalCents))}</span>` : '')}
           ${String(statusChip(doc.status))}
           <div class="fmdx-doc-actions">
-            <button type="button" class="fmdx-btn" data-doc-open-btn><i class="fas ${String(readOnly ? 'fa-eye' : 'fa-pen')}"></i>${(globalThis.PlatformLanguage?.text("documents","m_c47557fbf9d3f5"," Open") ?? " Open")}</button>
-            <button type="button" class="fmdx-icon-btn" data-doc-preview title="${(globalThis.PlatformLanguage?.text("documents","m_afff48796c3165","Preview") ?? "Preview")}"><i class="fas fa-eye"></i></button>
-            <button type="button" class="fmdx-icon-btn" data-doc-send title="${(globalThis.PlatformLanguage?.text("documents","m_c23a056552a09f","Send") ?? "Send")}"><i class="fas fa-paper-plane"></i></button>
-            <button type="button" class="fmdx-icon-btn" data-doc-pdf title="${(globalThis.PlatformLanguage?.text("documents","m_4944e59816b60a","Download PDF") ?? "Download PDF")}"><i class="fas fa-file-pdf"></i></button>
-            <button type="button" class="fmdx-icon-btn" data-doc-duplicate title="${(globalThis.PlatformLanguage?.text("documents","m_24fc1d3519ef6a","Duplicate") ?? "Duplicate")}"><i class="fas fa-copy"></i></button>
-            ${String(readOnly ? '' : '<button type="button" class="fmdx-icon-btn danger" data-doc-archive title="Void"><i class="fas fa-ban"></i></button>')}
+            <button type="button" class="fmdx-btn" data-doc-open-btn><i class="fas ${String(readOnly ? 'fa-eye' : 'fa-pen')}"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c47557fbf9d3f5"," Open") ?? " Open")}</button>
+            <button type="button" class="fmdx-icon-btn" data-doc-preview title="${(globalThis.PlatformLanguage?.htmlText("documents","m_afff48796c3165","Preview") ?? "Preview")}"><i class="fas fa-eye"></i></button>
+            <button type="button" class="fmdx-icon-btn" data-doc-send title="${(globalThis.PlatformLanguage?.htmlText("documents","m_c23a056552a09f","Send") ?? "Send")}"><i class="fas fa-paper-plane"></i></button>
+            <button type="button" class="fmdx-icon-btn" data-doc-pdf title="${(globalThis.PlatformLanguage?.htmlText("documents","m_4944e59816b60a","Download PDF") ?? "Download PDF")}"><i class="fas fa-file-pdf"></i></button>
+            <button type="button" class="fmdx-icon-btn" data-doc-duplicate title="${(globalThis.PlatformLanguage?.htmlText("documents","m_24fc1d3519ef6a","Duplicate") ?? "Duplicate")}"><i class="fas fa-copy"></i></button>
+            ${String(readOnly ? '' : `<button type="button" class="fmdx-icon-btn danger" data-doc-archive title="${(globalThis.PlatformLanguage?.htmlText("documents","m_ce16922c5208b8","Void") ?? "Void")}"><i class="fas fa-ban"></i></button>`)}
           </div>
         </div>`;
     }
@@ -1407,7 +1407,7 @@
       const type = cleanText(def.type) || 'string';
       const id = `upf_${key}`;
       if (type === 'boolean') {
-        return `<select class="fmdx-input" id="${String(esc(id))}" data-upload-field="${String(esc(key))}"><option value=""></option><option value="true" ${String(value === true ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("documents","m_549ccd0e27a3d4","Yes") ?? "Yes")}</option><option value="false" ${String(value === false ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("documents","m_2f0222913078f4","No") ?? "No")}</option></select>`;
+        return `<select class="fmdx-input" id="${String(esc(id))}" data-upload-field="${String(esc(key))}"><option value=""></option><option value="true" ${String(value === true ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("documents","m_549ccd0e27a3d4","Yes") ?? "Yes")}</option><option value="false" ${String(value === false ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("documents","m_2f0222913078f4","No") ?? "No")}</option></select>`;
       }
       if (type === 'text') {
         return `<textarea class="fmdx-input" id="${esc(id)}" data-upload-field="${esc(key)}" rows="3">${esc(cleanText(value))}</textarea>`;
@@ -1438,7 +1438,7 @@
         const detail = await api().documents.get(orgId(), doc.id);
         doc = objectValue(detail.document || detail);
       } catch (error) { /* render with what we have */ }
-      const modal = openModal(`<h2><i class="fas fa-file-import"></i> <span data-upload-title-label>${(globalThis.PlatformLanguage?.text("documents","m_3baf296daabc9e","Review paper upload") ?? "Review paper upload")}</span></h2><div data-upload-body></div>`, { className: 'wide' });
+      const modal = openModal(`<h2><i class="fas fa-file-import"></i> <span data-upload-title-label>${(globalThis.PlatformLanguage?.htmlText("documents","m_3baf296daabc9e","Review paper upload") ?? "Review paper upload")}</span></h2><div data-upload-body></div>`, { className: 'wide' });
       const body = modal.el.querySelector('[data-upload-body]');
       const ingestion = objectValue(doc.ingestion);
       const extraction = objectValue(ingestion.extraction);
@@ -1490,14 +1490,14 @@
         body.innerHTML = `
           <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
             <div style="flex:1 1 320px;min-width:280px">
-              <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.text("documents","m_80c06f8c43b553","Original file") ?? "Original file")}</p>
+              <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_80c06f8c43b553","Original file") ?? "Original file")}</p>
               ${String(mediaUrl
                 ? (isImage
-                  ? `<a href="${esc(mediaUrl)}" target="_blank" rel="noopener"><img src="${esc(mediaUrl)}" alt="Uploaded document" style="max-width:100%;border:1px solid var(--fmdx-border,#d0d5dd);border-radius:10px"></a>`
-                  : `<iframe src="${esc(mediaUrl)}" title="Uploaded document" style="width:100%;height:420px;border:1px solid var(--fmdx-border,#d0d5dd);border-radius:10px;background:#fff"></iframe>`)
-                : '<div class="fmdx-state" style="min-height:120px"><span>The original file preview is unavailable.</span></div>')}
-              ${String(mediaUrl ? `<a class="fmdx-btn" style="margin-top:8px" href="${esc(mediaUrl)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Open original</a>` : '')}
-              <p class="fmdx-section-label" style="margin-top:14px">${(globalThis.PlatformLanguage?.text("documents","m_5e3ecdbdf50134","Extraction") ?? "Extraction")}</p>
+                  ? `<a href="${esc(mediaUrl)}" target="_blank" rel="noopener"><img src="${esc(mediaUrl)}" alt="${(globalThis.PlatformLanguage?.htmlText("documents","m_813b8ed311685d","Uploaded document") ?? "Uploaded document")}" style="max-width:100%;border:1px solid var(--fmdx-border,#d0d5dd);border-radius:10px"></a>`
+                  : `<iframe src="${esc(mediaUrl)}" title="${(globalThis.PlatformLanguage?.htmlText("documents","m_813b8ed311685d","Uploaded document") ?? "Uploaded document")}" style="width:100%;height:420px;border:1px solid var(--fmdx-border,#d0d5dd);border-radius:10px;background:#fff"></iframe>`)
+                : `<div class="fmdx-state" style="min-height:120px"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_a455a7684d29a0","The original file preview is unavailable.") ?? "The original file preview is unavailable.")}</span></div>`)}
+              ${String(mediaUrl ? `<a class="fmdx-btn" style="margin-top:8px" href="${esc(mediaUrl)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_fec4097d4bf7d9"," Open original") ?? " Open original")}</a>` : '')}
+              <p class="fmdx-section-label" style="margin-top:14px">${(globalThis.PlatformLanguage?.htmlText("documents","m_5e3ecdbdf50134","Extraction") ?? "Extraction")}</p>
               <small style="color:#667085;display:block;line-height:1.5">
                 ${String(cleanText(extraction.method) === 'heuristic_filename' ? 'Automatic extraction was unavailable — fill the fields manually.' : `The agent read this document${confidence ? ` (confidence ${(confidence * 100).toFixed(0)}%)` : ''}. Review every field before confirming.`)}
                 ${String(cleanText(extraction.notes) ? `<br>${esc(cleanText(extraction.notes))}` : '')}
@@ -1505,13 +1505,13 @@
               ${String(warnings.length ? `<div class="fmdx-state" style="min-height:0;padding:10px 12px;margin-top:8px;text-align:left"><small style="color:#b54708">${warnings.map((w) => `<i class="fas fa-triangle-exclamation"></i> ${esc(w)}`).join('<br>')}</small></div>` : '')}
             </div>
             <div style="flex:1 1 360px;min-width:300px">
-              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.text("documents","m_29dbd3d8b69f55","Title") ?? "Title")}</span><input class="fmdx-input" data-upload-title value="${String(esc(firstText(doc.title, 'Uploaded document')))}"></label>
-              <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.text("documents","m_3fb0ccaf330e5c","Fields") ?? "Fields")}</p>
+              <label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_29dbd3d8b69f55","Title") ?? "Title")}</span><input class="fmdx-input" data-upload-title value="${String(esc(firstText(doc.title, 'Uploaded document')))}"></label>
+              <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_3fb0ccaf330e5c","Fields") ?? "Fields")}</p>
               ${String(simpleDefs.length ? simpleDefs.map(([key, def]) => `
                 <label class="fmdx-field"><span>${esc(firstText(objectValue(def).label, key))}${objectValue(def).required === true ? ' *' : ''}</span>${uploadFieldInputHtml(key, objectValue(def), local.params[key])}</label>`).join('')
-                : '<small style="color:#667085">No fields yet — add the ones this contract should capture.</small>')}
-              <button type="button" class="fmdx-btn" data-upload-add-field style="margin-top:6px"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_d20af8e8ec43c2"," Add field") ?? " Add field")}</button>
-              <p class="fmdx-section-label" style="margin-top:14px">${(globalThis.PlatformLanguage?.text("documents","m_3f44e36c22a79e","Signatures") ?? "Signatures")}</p>
+                : `<small style="color:#667085">${(globalThis.PlatformLanguage?.htmlText("documents","m_bca8cdb5e1c6ee","No fields yet — add the ones this contract should capture.") ?? "No fields yet — add the ones this contract should capture.")}</small>`)}
+              <button type="button" class="fmdx-btn" data-upload-add-field style="margin-top:6px"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_d20af8e8ec43c2"," Add field") ?? " Add field")}</button>
+              <p class="fmdx-section-label" style="margin-top:14px">${(globalThis.PlatformLanguage?.htmlText("documents","m_3f44e36c22a79e","Signatures") ?? "Signatures")}</p>
               ${String(signatureDefs.length ? signatureDefs.map(([key, defValue]) => {
                 const def = objectValue(defValue);
                 const stored = objectValue(local.outputs[key]);
@@ -1520,22 +1520,22 @@
                 <div class="fmdx-state" style="min-height:0;padding:10px 12px;margin-bottom:8px;text-align:left" data-upload-signature="${esc(key)}">
                   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                     <strong style="flex:1">${esc(firstText(def.label, key))}${def.required === true ? ' *' : ''}</strong>
-                    <label style="display:inline-flex;align-items:center;gap:6px"><input type="radio" name="upsig_${esc(key)}" value="signed" ${signed ? 'checked' : ''} data-upload-verdict="${esc(key)}"> Signed on paper</label>
-                    <label style="display:inline-flex;align-items:center;gap:6px"><input type="radio" name="upsig_${esc(key)}" value="unsigned" ${signed ? '' : 'checked'} data-upload-verdict="${esc(key)}"> Not signed</label>
+                    <label style="display:inline-flex;align-items:center;gap:6px"><input type="radio" name="upsig_${esc(key)}" value="signed" ${signed ? 'checked' : ''} data-upload-verdict="${esc(key)}">${(globalThis.PlatformLanguage?.htmlText("documents","m_190d905262b4b5"," Signed on paper") ?? " Signed on paper")}</label>
+                    <label style="display:inline-flex;align-items:center;gap:6px"><input type="radio" name="upsig_${esc(key)}" value="unsigned" ${signed ? '' : 'checked'} data-upload-verdict="${esc(key)}">${(globalThis.PlatformLanguage?.htmlText("documents","m_538911e46eb471"," Not signed") ?? " Not signed")}</label>
                   </div>
                   <div style="display:${signed ? 'flex' : 'none'};gap:8px;margin-top:8px;flex-wrap:wrap" data-upload-signature-detail="${esc(key)}">
-                    <input class="fmdx-input" style="flex:2;min-width:160px" placeholder="Signer name" data-upload-signer="${esc(key)}" value="${esc(cleanText(stored.signer_name || stored.text))}">
+                    <input class="fmdx-input" style="flex:2;min-width:160px" placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_460ba393b619a1","Signer name") ?? "Signer name")}" data-upload-signer="${esc(key)}" value="${esc(cleanText(stored.signer_name || stored.text))}">
                     <input class="fmdx-input" style="flex:1;min-width:130px" type="date" data-upload-signdate="${esc(key)}" value="${esc(cleanText(stored.signed_at).slice(0, 10))}">
                   </div>
                 </div>`;
-              }).join('') : '<small style="color:#667085">This document has no signature fields.</small>')}
+              }).join('') : `<small style="color:#667085">${(globalThis.PlatformLanguage?.htmlText("documents","m_76cc5b3407a65a","This document has no signature fields.") ?? "This document has no signature fields.")}</small>`)}
             </div>
           </div>
           <div class="fmdx-modal-foot" style="display:flex;gap:8px;flex-wrap:wrap">
-            <button type="button" class="fmdx-btn" data-upload-save><i class="fas fa-floppy-disk"></i>${(globalThis.PlatformLanguage?.text("documents","m_f1adbc86bd9029"," Save fields") ?? " Save fields")}</button>
-            <button type="button" class="fmdx-btn" data-upload-save-template><i class="fas fa-clone"></i>${(globalThis.PlatformLanguage?.text("documents","m_c43329c1c5cfe4"," Save as upload template") ?? " Save as upload template")}</button>
+            <button type="button" class="fmdx-btn" data-upload-save><i class="fas fa-floppy-disk"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_f1adbc86bd9029"," Save fields") ?? " Save fields")}</button>
+            <button type="button" class="fmdx-btn" data-upload-save-template><i class="fas fa-clone"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c43329c1c5cfe4"," Save as upload template") ?? " Save as upload template")}</button>
             <span style="flex:1"></span>
-            ${String(reviewed ? '' : '<button type="button" class="fmdx-btn primary" data-upload-confirm><i class="fas fa-circle-check"></i> Confirm &amp; apply</button>')}
+            ${String(reviewed ? '' : `<button type="button" class="fmdx-btn primary" data-upload-confirm><i class="fas fa-circle-check"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_a213af3a6be2cc"," Confirm &amp; apply") ?? " Confirm &amp; apply")}</button>`)}
           </div>`;
 
         body.querySelectorAll('[data-upload-verdict]').forEach((input) => input.addEventListener('change', () => {
@@ -1949,7 +1949,7 @@
     async function mountWfRunAgent(host){
       destroyWfRunAgent();
       if (!window.FMDocAgentPanel?.create) {
-        host.innerHTML = `<div class="fmdx-state" style="margin:14px"><span>${(globalThis.PlatformLanguage?.text("documents","m_b81cd219469c9b","The document copilot library is not loaded.") ?? "The document copilot library is not loaded.")}</span></div>`;
+        host.innerHTML = `<div class="fmdx-state" style="margin:14px"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_b81cd219469c9b","The document copilot library is not loaded.") ?? "The document copilot library is not loaded.")}</span></div>`;
         return;
       }
       await ensureAgentWorkingDefinition();
@@ -2108,7 +2108,7 @@
     // flows fill the modal's right panel) instead of a floating modal.
     async function openCreateModal(prefill = {}, options = {}){
       if (!api()) { showToast((globalThis.PlatformLanguage?.text("documents","m_5d7c7ad6033624","Documents") ?? "Documents"), (globalThis.PlatformLanguage?.text("documents","m_85a81051cef7b8","The documents service is not available.") ?? "The documents service is not available."), false); return; }
-      const contentHtml = `<h2><i class="fas fa-file-medical"></i>${(globalThis.PlatformLanguage?.text("documents","m_7754e23bbfc088"," New document") ?? " New document")}</h2><div data-create-body><div class="fmdx-state" style="min-height:140px"><div class="fmdx-spinner"></div></div></div>`;
+      const contentHtml = `<h2><i class="fas fa-file-medical"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_7754e23bbfc088"," New document") ?? " New document")}</h2><div data-create-body><div class="fmdx-state" style="min-height:140px"><div class="fmdx-spinner"></div></div></div>`;
       let modal;
       if (options.inlineHost) {
         ensureInlineStyles();
@@ -2151,11 +2151,11 @@
           ? arrayValue(templates).filter((t) => cleanText(t.document_type) === wizard.type && cleanText(t.status).toLowerCase() !== 'archived')
           : [];
         const templateCards = wizard.type ? `
-          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.text("documents","m_587d96db750df7","Template") ?? "Template")}</p>
+          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_587d96db750df7","Template") ?? "Template")}</p>
           <div class="fmdx-pick-grid">
             <button type="button" class="fmdx-pick-card ${String(wizard.template === null ? 'selected' : '')}" data-pick-template="">
               <span class="fmdx-pick-icon"><i class="fas fa-file"></i></span>
-              <strong>${(globalThis.PlatformLanguage?.text("documents","m_7860b2aaae1cb5","Blank") ?? "Blank")}</strong><small>${(globalThis.PlatformLanguage?.text("documents","m_16e49e1ae8de06","Start from an empty page") ?? "Start from an empty page")}</small>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_7860b2aaae1cb5","Blank") ?? "Blank")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("documents","m_16e49e1ae8de06","Start from an empty page") ?? "Start from an empty page")}</small>
             </button>
             ${String(typeTemplates.map((tpl) => {
               const isUpload = cleanText(objectValue(tpl.metadata).intake) === 'upload';
@@ -2168,16 +2168,16 @@
             }).join(''))}
             <button type="button" class="fmdx-pick-card ${String(wizard.template === '__upload__' ? 'selected' : '')}" data-pick-template="__upload__">
               <span class="fmdx-pick-icon"><i class="fas fa-arrow-up-from-bracket"></i></span>
-              <strong>${(globalThis.PlatformLanguage?.text("documents","m_38387e00ca292b","Upload a paper contract") ?? "Upload a paper contract")}</strong>
-              <small>${(globalThis.PlatformLanguage?.text("documents","m_c67e5a6a1dff96","Free-form — scan or photo; add fields during review") ?? "Free-form — scan or photo; add fields during review")}</small>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_38387e00ca292b","Upload a paper contract") ?? "Upload a paper contract")}</strong>
+              <small>${(globalThis.PlatformLanguage?.htmlText("documents","m_c67e5a6a1dff96","Free-form — scan or photo; add fields during review") ?? "Free-form — scan or photo; add fields during review")}</small>
             </button>
           </div>` : '';
         body.innerHTML = `
-          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.text("documents","m_61cd09102e4af8","Document type") ?? "Document type")}</p>
+          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_61cd09102e4af8","Document type") ?? "Document type")}</p>
           <div class="fmdx-pick-grid" style="margin-bottom:14px">${String(typeCards)}</div>
           ${String(templateCards)}
           <div class="fmdx-modal-foot">
-            <button type="button" class="fmdx-btn primary" data-create-next ${String(wizard.type ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.text("documents","m_854c72abba5166","Continue ") ?? "Continue ")}<i class="fas fa-arrow-right"></i></button>
+            <button type="button" class="fmdx-btn primary" data-create-next ${String(wizard.type ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.htmlText("documents","m_854c72abba5166","Continue ") ?? "Continue ")}<i class="fas fa-arrow-right"></i></button>
           </div>`;
         body.querySelectorAll('[data-pick-type]').forEach((btn) => btn.addEventListener('click', () => {
           wizard.type = btn.dataset.pickType;
@@ -2300,12 +2300,12 @@
           .join('');
         body.innerHTML = `
           <div class="fmdx-form-grid">
-            <label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.text("documents","m_29dbd3d8b69f55","Title") ?? "Title")}</span><input type="text" data-create-title value="${String(esc(firstText(prefill.title, firstText(project().name, project().customer_name) ? `${meta.label} — ${firstText(project().name, project().customer_name)}` : meta.label)))}"></label>
-            ${String(fieldsHtml || '<p class="fmdx-data-hint wide">This template has no inputs — you can add data later from the editor’s Data panel.</p>')}
+            <label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_29dbd3d8b69f55","Title") ?? "Title")}</span><input type="text" data-create-title value="${String(esc(firstText(prefill.title, firstText(project().name, project().customer_name) ? `${meta.label} — ${firstText(project().name, project().customer_name)}` : meta.label)))}"></label>
+            ${String(fieldsHtml || `<p class="fmdx-data-hint wide">${(globalThis.PlatformLanguage?.htmlText("documents","m_8c43f5efc8b00c","This template has no inputs — you can add data later from the editor’s Data panel.") ?? "This template has no inputs — you can add data later from the editor’s Data panel.")}</p>`)}
           </div>
           <div class="fmdx-modal-foot">
-            <button type="button" class="fmdx-btn ghost spacer" data-create-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("documents","m_206d31a7c795c4"," Back") ?? " Back")}</button>
-            <button type="button" class="fmdx-btn primary" data-create-go><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_af2b65d24b9260"," Create document") ?? " Create document")}</button>
+            <button type="button" class="fmdx-btn ghost spacer" data-create-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_206d31a7c795c4"," Back") ?? " Back")}</button>
+            <button type="button" class="fmdx-btn primary" data-create-go><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_af2b65d24b9260"," Create document") ?? " Create document")}</button>
           </div>`;
         let richHandles = new Map();
         body.querySelectorAll('[data-scope-editor-for]').forEach((holder) => {
@@ -2447,7 +2447,7 @@
       } catch (error) {
         if (state.destroyed) return;
         const canvas = root.querySelector('[data-fmdx-canvas]');
-        if (canvas) canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-cloud-bolt"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_804ccab73a4f98","Couldn’t open this document") ?? "Couldn’t open this document")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
+        if (canvas) canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-cloud-bolt"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_804ccab73a4f98","Couldn’t open this document") ?? "Couldn’t open this document")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
       } finally {
         state.editorLoading = false;
       }
@@ -2569,7 +2569,7 @@
     function mountDocAgent(host){
       destroyDocAgent();
       if (!window.FMDocAgentPanel?.create) {
-        host.innerHTML = `<div class="fmdx-state" style="margin:14px"><span>${(globalThis.PlatformLanguage?.text("documents","m_b81cd219469c9b","The document copilot library is not loaded.") ?? "The document copilot library is not loaded.")}</span></div>`;
+        host.innerHTML = `<div class="fmdx-state" style="margin:14px"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_b81cd219469c9b","The document copilot library is not loaded.") ?? "The document copilot library is not loaded.")}</span></div>`;
         return;
       }
       state.docAgent = window.FMDocAgentPanel.create(host, {
@@ -2647,40 +2647,40 @@
         <div class="fmdx-shell">
           <div class="fmdx-editor-screen ${String(!readOnly && state.dataPanelOpen ? 'data-open' : '')}" data-fmdx-editor-screen data-readonly="${String(readOnly)}">
             <header class="fmdx-editor-top">
-              <button type="button" class="fmdx-icon-btn" data-fmdx-back title="${(globalThis.PlatformLanguage?.text("documents","m_2e600c57ddd018","Back to documents") ?? "Back to documents")}"><i class="fas fa-arrow-left"></i></button>
+              <button type="button" class="fmdx-icon-btn" data-fmdx-back title="${(globalThis.PlatformLanguage?.htmlText("documents","m_2e600c57ddd018","Back to documents") ?? "Back to documents")}"><i class="fas fa-arrow-left"></i></button>
               ${String(readOnly
                 ? `<strong class="fmdx-doc-title-input" style="border-color:transparent">${esc(firstText(doc.title, 'Document'))}</strong>`
                 : `<input class="fmdx-doc-title-input" data-fmdx-title value="${esc(firstText(doc.title, 'Untitled document'))}" spellcheck="false">`)}
               ${String(statusChip(doc.status))}
               <span class="fmdx-save-state" data-fmdx-save-state></span>
               <div class="fmdx-mode-toggle" data-fmdx-mode-toggle hidden>
-                <button type="button" data-fmdx-mode="workflow"><i class="fas fa-list-check"></i>${(globalThis.PlatformLanguage?.text("documents","m_6d5cbceb09ad8e"," Workflow") ?? " Workflow")}</button>
-                <button type="button" data-fmdx-mode="editor"><i class="fas fa-pen-ruler"></i>${(globalThis.PlatformLanguage?.text("documents","m_cf117560db33b2"," Editor") ?? " Editor")}</button>
+                <button type="button" data-fmdx-mode="workflow"><i class="fas fa-list-check"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6d5cbceb09ad8e"," Workflow") ?? " Workflow")}</button>
+                <button type="button" data-fmdx-mode="editor"><i class="fas fa-pen-ruler"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_cf117560db33b2"," Editor") ?? " Editor")}</button>
               </div>
               <div style="margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
-                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn ${state.dataPanelOpen ? 'active' : ''}" data-fmdx-data-toggle><i class="fas fa-database"></i> Data</button>`)}
-                ${String(readOnly || !capabilityEnabled('documents.agent') ? '' : '<button type="button" class="fmdx-btn" data-fmdx-agent-btn><i class="fas fa-wand-magic-sparkles"></i> Agent</button>')}
-                ${String(readOnly ? '' : '<button type="button" class="fmdx-btn" data-fmdx-theme><i class="fas fa-palette"></i> Theme</button>')}
-                <button type="button" class="fmdx-btn" data-fmdx-history><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.text("documents","m_b78c21a6c3a083"," History") ?? " History")}</button>
-                <button type="button" class="fmdx-btn" data-fmdx-preview><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.text("documents","m_a48897118cb076"," Preview") ?? " Preview")}</button>
-                <button type="button" class="fmdx-btn" data-fmdx-pdf><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.text("documents","m_ff8d3e1189f812"," PDF") ?? " PDF")}</button>
+                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn ${state.dataPanelOpen ? 'active' : ''}" data-fmdx-data-toggle><i class="fas fa-database"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_afc71019d2978d"," Data") ?? " Data")}</button>`)}
+                ${String(readOnly || !capabilityEnabled('documents.agent') ? '' : `<button type="button" class="fmdx-btn" data-fmdx-agent-btn><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6132f8a9f6606d"," Agent") ?? " Agent")}</button>`)}
+                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn" data-fmdx-theme><i class="fas fa-palette"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_3f7a6d0c7b9c29"," Theme") ?? " Theme")}</button>`)}
+                <button type="button" class="fmdx-btn" data-fmdx-history><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_b78c21a6c3a083"," History") ?? " History")}</button>
+                <button type="button" class="fmdx-btn" data-fmdx-preview><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_a48897118cb076"," Preview") ?? " Preview")}</button>
+                <button type="button" class="fmdx-btn" data-fmdx-pdf><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_ff8d3e1189f812"," PDF") ?? " PDF")}</button>
                 ${String(readOnly && isAmendableStatus(doc.status)
-                  ? '<button type="button" class="fmdx-btn primary" data-fmdx-amend><i class="fas fa-file-medical"></i> Amend → Change Order</button>'
-                  : '<button type="button" class="fmdx-btn primary" data-fmdx-send><i class="fas fa-paper-plane"></i> Send</button>')}
+                  ? `<button type="button" class="fmdx-btn primary" data-fmdx-amend><i class="fas fa-file-medical"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_4986fc99e268e8"," Amend → Change Order") ?? " Amend → Change Order")}</button>`
+                  : `<button type="button" class="fmdx-btn primary" data-fmdx-send><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c66c415b0e5570"," Send") ?? " Send")}</button>`)}
               </div>
             </header>
-            ${String(readOnly ? `<div class="fmdx-locked-banner"><i class="fas fa-lock"></i> This document is ${esc(statusLabel.toLowerCase())} and locked. ${isAmendableStatus(doc.status) ? 'Amend it with a change order to make revisions.' : 'It can no longer be edited.'}</div>` : '')}
+            ${String(readOnly ? `<div class="fmdx-locked-banner"><i class="fas fa-lock"></i>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("documents","m_a919d34f0dcde5",` This document is ${v0} and locked. ${v1}`,{v0,v1}) ?? ` This document is ${v0} and locked. ${v1}`)(esc(statusLabel.toLowerCase()),isAmendableStatus(doc.status) ? 'Amend it with a change order to make revisions.' : 'It can no longer be edited.')}</div>` : '')}
             <div class="fmdx-doc-card-row" data-fmdx-doc-card-row>
               <div class="fmdx-doc-card" data-fmdx-doc-card></div>
             </div>
             <div class="fmdx-editor-main" data-fmdx-editor-body>
               <div class="fmdx-editor-canvas" data-fmdx-canvas>
-                <div class="fmdx-state" style="margin:20px"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.text("documents","m_b86508131600f7","Opening document") ?? "Opening document")}</strong></div>
+                <div class="fmdx-state" style="margin:20px"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_b86508131600f7","Opening document") ?? "Opening document")}</strong></div>
               </div>
               ${String(readOnly ? '' : `<aside class="fmdx-data-panel ${state.dataPanelOpen ? '' : 'collapsed'}" data-fmdx-data-panel>
                 <div class="fmdx-tray-tabs">
-                  <button type="button" class="fmdx-tray-tab ${state.trayTab === 'agent' ? '' : 'active'}" data-fmdx-tray-tab="data"><i class="fas fa-database"></i> Setup</button>
-                  ${capabilityEnabled('documents.agent') ? `<button type="button" class="fmdx-tray-tab ${state.trayTab === 'agent' ? 'active' : ''}" data-fmdx-tray-tab="agent"><i class="fas fa-wand-magic-sparkles"></i> Agent</button>` : ''}
+                  <button type="button" class="fmdx-tray-tab ${state.trayTab === 'agent' ? '' : 'active'}" data-fmdx-tray-tab="data"><i class="fas fa-database"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6b124d14be8596"," Setup") ?? " Setup")}</button>
+                  ${capabilityEnabled('documents.agent') ? `<button type="button" class="fmdx-tray-tab ${state.trayTab === 'agent' ? 'active' : ''}" data-fmdx-tray-tab="agent"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6132f8a9f6606d"," Agent") ?? " Agent")}</button>` : ''}
                 </div>
                 <div class="fmdx-tray-pane" data-fmdx-tray-data ${state.trayTab === 'agent' ? 'hidden' : ''}></div>
                 ${capabilityEnabled('documents.agent') ? `<div class="fmdx-tray-pane" data-fmdx-tray-agent ${state.trayTab === 'agent' ? '' : 'hidden'}></div>` : ''}
@@ -2844,18 +2844,18 @@
           </div>
           ${String(statusChip(doc.status))}
         </div>
-        <div class="fmdx-doc-card-total"><span>${(globalThis.PlatformLanguage?.text("documents","m_9403c7637d4905","Total") ?? "Total")}</span><b data-card-total>${String(total ? esc(moneyFromCents(total)) : '—')}</b></div>
+        <div class="fmdx-doc-card-total"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_9403c7637d4905","Total") ?? "Total")}</span><b data-card-total>${String(total ? esc(moneyFromCents(total)) : '—')}</b></div>
         ${String(filled.length ? `
           <div class="fmdx-doc-card-variants">
             ${filled.map((slot) => `
               <span class="fmdx-variant-chip ${readOnly ? 'static' : ''}" data-variant-chip="${esc(slot.slot)}">
                 <button type="button" class="jump" data-variant-jump="${esc(slot.slot)}" ${readOnly ? 'disabled' : ''} title="${readOnly ? esc(slot.label) : `Open ${esc(slot.label)} · double-click to rename`}">${esc(slot.label)}</button>
-                ${!readOnly && slot.slot !== 'a' ? `<button type="button" class="x" data-variant-remove="${esc(slot.slot)}" title="Remove ${esc(slot.label)}"><i class="fas fa-xmark"></i></button>` : ''}
+                ${!readOnly && slot.slot !== 'a' ? `<button type="button" class="x" data-variant-remove="${esc(slot.slot)}" title="${((v1) => globalThis.PlatformLanguage?.htmlText("documents","m_ade5cd0266b010",`Remove ${v1}`,{v1}) ?? `Remove ${v1}`)(esc(slot.label))}"><i class="fas fa-xmark"></i></button>` : ''}
               </span>`).join('')}
           </div>` : '')}
         <div class="fmdx-doc-card-actions">
-          ${String(!readOnly && isProposal ? `<button type="button" class="fmdx-btn tiny" data-card-add-variant title="${multi ? 'Add another option to this proposal' : 'Turn this into a multi-option (Good/Better/Best) proposal'}"><i class="fas fa-code-branch"></i> Add variant</button>` : '')}
-          <button type="button" class="fmdx-btn tiny" data-card-duplicate title="${(globalThis.PlatformLanguage?.text("documents","m_eab1f6b49f7769","Create a draft copy of this document") ?? "Create a draft copy of this document")}"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.text("documents","m_7eec37dfa2be3f"," Duplicate") ?? " Duplicate")}</button>
+          ${String(!readOnly && isProposal ? `<button type="button" class="fmdx-btn tiny" data-card-add-variant title="${multi ? 'Add another option to this proposal' : 'Turn this into a multi-option (Good/Better/Best) proposal'}"><i class="fas fa-code-branch"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_95299bfa43bab3"," Add variant") ?? " Add variant")}</button>` : '')}
+          <button type="button" class="fmdx-btn tiny" data-card-duplicate title="${(globalThis.PlatformLanguage?.htmlText("documents","m_eab1f6b49f7769","Create a draft copy of this document") ?? "Create a draft copy of this document")}"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_7eec37dfa2be3f"," Duplicate") ?? " Duplicate")}</button>
         </div>`;
       card.querySelector('[data-card-duplicate]')?.addEventListener('click', async (event) => {
         const button = event.currentTarget;
@@ -3051,7 +3051,7 @@
       const currentId = firstText(objectValue(doc.theme_ref).theme_id);
       const branding = objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding);
       const menu = openMenu(anchor, `
-        <div class="fmdx-menu-note">${(globalThis.PlatformLanguage?.text("documents","m_d056fb485eea2e","Org themes restyle the whole document") ?? "Org themes restyle the whole document")}</div>
+        <div class="fmdx-menu-note">${(globalThis.PlatformLanguage?.htmlText("documents","m_d056fb485eea2e","Org themes restyle the whole document") ?? "Org themes restyle the whole document")}</div>
         ${String(themeCardHtml({
           definition: null,
           branding,
@@ -3066,7 +3066,7 @@
           value: firstText(theme.id, theme.theme_id),
           name: firstText(theme.name, theme.id, 'Theme'),
           current: firstText(theme.id, theme.theme_id) === currentId
-        })).join('') : '<div class="fmdx-menu-note">No published themes yet — create them in Doc Studio.</div>')}`);
+        })).join('') : `<div class="fmdx-menu-note">${(globalThis.PlatformLanguage?.htmlText("documents","m_0fceeb48a2f9ea","No published themes yet — create them in Doc Studio.") ?? "No published themes yet — create them in Doc Studio.")}</div>`)}`);
       menu.el.classList.add('fmdx-theme-menu');
       // The card layout is wider than the default menu — re-clamp to viewport.
       menu.el.style.left = `${Math.max(8, Math.min(parseFloat(menu.el.style.left) || 8, window.innerWidth - menu.el.offsetWidth - 8))}px`;
@@ -3098,11 +3098,11 @@
           .map(objectValue)
           .sort((a, b) => Number(b.snapshot_number || 0) - Number(a.snapshot_number || 0));
         if (!snapshots.length) {
-          menu.el.innerHTML = `<div class="fmdx-menu-note">${(globalThis.PlatformLanguage?.text("documents","m_bb8fd5a06bd600","No snapshots yet. A snapshot freezes the document each time you send it or print a PDF.") ?? "No snapshots yet. A snapshot freezes the document each time you send it or print a PDF.")}</div>`;
+          menu.el.innerHTML = `<div class="fmdx-menu-note">${(globalThis.PlatformLanguage?.htmlText("documents","m_bb8fd5a06bd600","No snapshots yet. A snapshot freezes the document each time you send it or print a PDF.") ?? "No snapshots yet. A snapshot freezes the document each time you send it or print a PDF.")}</div>`;
           return;
         }
         menu.el.innerHTML = `
-          <div class="fmdx-menu-note">${(globalThis.PlatformLanguage?.text("documents","m_3f1e9a05720693","Frozen versions of this document") ?? "Frozen versions of this document")}</div>
+          <div class="fmdx-menu-note">${(globalThis.PlatformLanguage?.htmlText("documents","m_3f1e9a05720693","Frozen versions of this document") ?? "Frozen versions of this document")}</div>
           ${String(snapshots.map((snapshot, index) => `
             <button type="button" class="fmdx-menu-item" data-menu-snapshot="${index}">
               <i class="fas fa-camera"></i>
@@ -3129,7 +3129,7 @@
           });
         }));
       }).catch((error) => {
-        if (menu.el.isConnected) menu.el.innerHTML = `<div class="fmdx-menu-note">${((v0) => globalThis.PlatformLanguage?.text("documents","m_70b4daaf4f6666",`Snapshots unavailable: ${v0}`,{v0}) ?? `Snapshots unavailable: ${v0}`)(esc(errorMessage(error, '')))}</div>`;
+        if (menu.el.isConnected) menu.el.innerHTML = `<div class="fmdx-menu-note">${((v0) => globalThis.PlatformLanguage?.htmlText("documents","m_70b4daaf4f6666",`Snapshots unavailable: ${v0}`,{v0}) ?? `Snapshots unavailable: ${v0}`)(esc(errorMessage(error, '')))}</div>`;
       });
     }
 
@@ -3206,7 +3206,7 @@
     // exactly what the customer sees, straight from the resolver.
     function mountReadOnlyCanvas(canvas){
       if (!window.FMDocRenderer?.render) {
-        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-eye-slash"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</strong><span>${(globalThis.PlatformLanguage?.text("documents","m_97e3a8c68504bb","The document renderer library is not loaded.") ?? "The document renderer library is not loaded.")}</span></div>`;
+        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-eye-slash"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_97e3a8c68504bb","The document renderer library is not loaded.") ?? "The document renderer library is not loaded.")}</span></div>`;
         return;
       }
       canvas.innerHTML = '<div class="fmdx-readonly-scroll" data-fmdx-readonly-stage></div>';
@@ -3224,7 +3224,7 @@
           scale
         });
       } catch (error) {
-        stage.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_315a295c7205d8","Render failed") ?? "Render failed")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
+        stage.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_315a295c7205d8","Render failed") ?? "Render failed")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
       }
     }
 
@@ -3233,7 +3233,7 @@
       if (!canvas || !state.resolved) return;
       if (isReadOnlyStatus(state.doc?.status)) { mountReadOnlyCanvas(canvas); return; }
       if (!window.FMDocEditor?.mount) {
-        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-pen-ruler"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_d08399aef41777","Editor unavailable") ?? "Editor unavailable")}</strong><span>${(globalThis.PlatformLanguage?.text("documents","m_ef10e4987f32bc","The document editor library is not loaded. You can still preview, send, and download this document.") ?? "The document editor library is not loaded. You can still preview, send, and download this document.")}</span></div>`;
+        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-pen-ruler"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_d08399aef41777","Editor unavailable") ?? "Editor unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_ef10e4987f32bc","The document editor library is not loaded. You can still preview, send, and download this document.") ?? "The document editor library is not loaded. You can still preview, send, and download this document.")}</span></div>`;
         return;
       }
       canvas.innerHTML = '';
@@ -3339,11 +3339,11 @@
           });
         }
         if (!fromTemplate) {
-          canvas.insertAdjacentHTML('afterbegin', `<div class="fmdx-float-note"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.text("documents","m_c8553a97311096"," Editing a resolved copy — the source template could not be loaded, so data bindings are baked in for this session.") ?? " Editing a resolved copy — the source template could not be loaded, so data bindings are baked in for this session.")}</div>`);
+          canvas.insertAdjacentHTML('afterbegin', `<div class="fmdx-float-note"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c8553a97311096"," Editing a resolved copy — the source template could not be loaded, so data bindings are baked in for this session.") ?? " Editing a resolved copy — the source template could not be loaded, so data bindings are baked in for this session.")}</div>`);
         }
       } catch (error) {
         console.warn('FMDocEditor mount failed', error);
-        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.text("documents","m_61445ee660b4e6","Editor failed to start") ?? "Editor failed to start")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
+        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_61445ee660b4e6","Editor failed to start") ?? "Editor failed to start")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
       }
       // Dock the Data tray under the editor's toolbar row (owner bug #1).
       syncTrayOffset();
@@ -3586,17 +3586,17 @@
       const extraScope = !hasScopeParam && (Array.isArray(params.scope_items) || state.forceScopeSection === true);
       pane.innerHTML = `
         <div class="fmdx-data-head">
-          <strong><i class="fas fa-database"></i>${(globalThis.PlatformLanguage?.text("documents","m_afc71019d2978d"," Data") ?? " Data")}</strong>
-          <button type="button" class="fmdx-icon-btn" data-data-close title="${(globalThis.PlatformLanguage?.text("documents","m_2c2a1aeb49b92d","Hide panel") ?? "Hide panel")}"><i class="fas fa-xmark"></i></button>
+          <strong><i class="fas fa-database"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_afc71019d2978d"," Data") ?? " Data")}</strong>
+          <button type="button" class="fmdx-icon-btn" data-data-close title="${(globalThis.PlatformLanguage?.htmlText("documents","m_2c2a1aeb49b92d","Hide panel") ?? "Hide panel")}"><i class="fas fa-xmark"></i></button>
         </div>
         <div class="fmdx-data-body" data-data-fields>
-          ${String(entries.length || extraScope ? '' : '<p class="fmdx-data-hint">This document has no data inputs. Params defined on its template will appear here.</p>')}
+          ${String(entries.length || extraScope ? '' : `<p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_1c093aace018f2","This document has no data inputs. Params defined on its template will appear here.") ?? "This document has no data inputs. Params defined on its template will appear here.")}</p>`)}
           ${String(entries.map(([key, def]) => paramFieldHtml(key, objectValue(def), params[key], { project: project() })).join(''))}
-          ${String(extraScope ? paramFieldHtml('scope_items', { type: 'list', items: { type: 'pricebook_line' }, label: 'Scope line items' }, params.scope_items, { project: project() }) : '')}
-          <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.text("documents","m_081725d329b5ee","Values here feed the document’s bound fields and widgets — line items, totals, customer info — wherever the template references them.") ?? "Values here feed the document’s bound fields and widgets — line items, totals, customer info — wherever the template references them.")}</p>
+          ${String(extraScope ? paramFieldHtml('scope_items', { type: 'list', items: { type: 'pricebook_line' }, label: (globalThis.PlatformLanguage?.htmlText("documents","m_3b9617d28d534e","Scope line items") ?? "Scope line items") }, params.scope_items, { project: project() }) : '')}
+          <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_081725d329b5ee","Values here feed the document’s bound fields and widgets — line items, totals, customer info — wherever the template references them.") ?? "Values here feed the document’s bound fields and widgets — line items, totals, customer info — wherever the template references them.")}</p>
         </div>
         <div class="fmdx-data-foot">
-          <button type="button" class="fmdx-btn primary" data-data-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("documents","m_f88972b3f98242"," Save & refresh") ?? " Save & refresh")}</button>
+          <button type="button" class="fmdx-btn primary" data-data-save><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_f88972b3f98242"," Save & refresh") ?? " Save & refresh")}</button>
         </div>`;
       let richHandles = new Map();
       panel.querySelectorAll('[data-scope-editor-for]').forEach((holder) => {
@@ -3683,27 +3683,27 @@
                   ${String(attachThumbHtml(item))}
                   <strong>${String(esc(firstText(item.display_name, item.name, 'Line item')))}</strong>
                 </span>
-                ${String(item.description ? `<small>${esc(item.description)}</small>` : (item.included ? '<small>Included</small>' : ''))}
+                ${String(item.description ? `<small>${esc(item.description)}</small>` : (item.included ? `<small>${(globalThis.PlatformLanguage?.htmlText("documents","m_f02be43cb91cd2","Included") ?? "Included")}</small>` : ''))}
               </div>
-              <input class="qty" type="number" step="any" min="0" value="${String(esc(item.quantity))}" data-scope-qty title="${(globalThis.PlatformLanguage?.text("documents","m_9c689ddee2f502","Quantity") ?? "Quantity")}">
+              <input class="qty" type="number" step="any" min="0" value="${String(esc(item.quantity))}" data-scope-qty title="${(globalThis.PlatformLanguage?.htmlText("documents","m_9c689ddee2f502","Quantity") ?? "Quantity")}">
               <span class="unit">${String(esc(item.unit || 'ea'))}</span>
-              <input type="number" step="0.01" min="0" value="${String(esc(Number(item.unit_price || 0).toFixed(2)))}" data-scope-price title="${(globalThis.PlatformLanguage?.text("documents","m_c68827ddeaf565","Unit price ($)") ?? "Unit price ($)")}">
-              <button type="button" class="fmdx-icon-btn ${String(itemHasAttachment(item) ? 'has-media' : '')}" data-scope-attach title="${(globalThis.PlatformLanguage?.text("documents","m_74c8aa88118d1c","Attach photo or video") ?? "Attach photo or video")}"><i class="fas fa-camera"></i></button>
-              <button type="button" class="fmdx-icon-btn danger" data-scope-remove title="${(globalThis.PlatformLanguage?.text("documents","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>
+              <input type="number" step="0.01" min="0" value="${String(esc(Number(item.unit_price || 0).toFixed(2)))}" data-scope-price title="${(globalThis.PlatformLanguage?.htmlText("documents","m_c68827ddeaf565","Unit price ($)") ?? "Unit price ($)")}">
+              <button type="button" class="fmdx-icon-btn ${String(itemHasAttachment(item) ? 'has-media' : '')}" data-scope-attach title="${(globalThis.PlatformLanguage?.htmlText("documents","m_74c8aa88118d1c","Attach photo or video") ?? "Attach photo or video")}"><i class="fas fa-camera"></i></button>
+              <button type="button" class="fmdx-icon-btn danger" data-scope-remove title="${(globalThis.PlatformLanguage?.htmlText("documents","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>
             </div>`);
           arrayValue(item.children).forEach((child) => pushRow(child, depth + 1));
         };
         items.forEach((item) => pushRow(item, 0));
         holder.innerHTML = `
           <div class="fmdx-scope-toolbar">
-            <button type="button" class="fmdx-btn" data-scope-load><i class="fas fa-clipboard-list"></i>${(globalThis.PlatformLanguage?.text("documents","m_f3cabca64844e0"," Load from scope") ?? " Load from scope")}</button>
-            <button type="button" class="fmdx-btn" data-scope-pricebook><i class="fas fa-book-open"></i>${(globalThis.PlatformLanguage?.text("documents","m_c38fcf1b64a2ea"," Pricebook") ?? " Pricebook")}</button>
-            <button type="button" class="fmdx-btn" data-scope-manual><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("documents","m_8e13db264d4c9f"," Add row") ?? " Add row")}</button>
+            <button type="button" class="fmdx-btn" data-scope-load><i class="fas fa-clipboard-list"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_f3cabca64844e0"," Load from scope") ?? " Load from scope")}</button>
+            <button type="button" class="fmdx-btn" data-scope-pricebook><i class="fas fa-book-open"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c38fcf1b64a2ea"," Pricebook") ?? " Pricebook")}</button>
+            <button type="button" class="fmdx-btn" data-scope-manual><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_8e13db264d4c9f"," Add row") ?? " Add row")}</button>
           </div>
           <div class="fmdx-scope-list">
-            ${String(rows.length ? rows.join('') : '<div class="fmdx-scope-empty">No line items yet. Load them from the project scope, pick from the pricebook, or add a row.</div>')}
+            ${String(rows.length ? rows.join('') : `<div class="fmdx-scope-empty">${(globalThis.PlatformLanguage?.htmlText("documents","m_aded42d45a9ae8","No line items yet. Load them from the project scope, pick from the pricebook, or add a row.") ?? "No line items yet. Load them from the project scope, pick from the pricebook, or add a row.")}</div>`)}
           </div>
-          ${String(rows.length ? `<div class="fmdx-scope-total"><span>Total</span> ${esc(moneyFromDollars(scopeItemsTotal(items)))}</div>` : '')}`;
+          ${String(rows.length ? `<div class="fmdx-scope-total"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_9403c7637d4905","Total") ?? "Total")}</span> ${esc(moneyFromDollars(scopeItemsTotal(items)))}</div>` : '')}`;
         bindRows();
       }
 
@@ -3825,7 +3825,7 @@
         showToast((globalThis.PlatformLanguage?.text("documents","m_f574625863d5b7","Pricebook") ?? "Pricebook"), (globalThis.PlatformLanguage?.text("documents","m_76fed630572456","The pricebook is not loaded for this session.") ?? "The pricebook is not loaded for this session."), false);
         return;
       }
-      const modal = openModal(`<h2><i class="fas fa-book-open"></i>${(globalThis.PlatformLanguage?.text("documents","m_f9a23e8ae26123"," Add from pricebook") ?? " Add from pricebook")}</h2><div data-pb-body><div class="fmdx-state" style="min-height:120px"><div class="fmdx-spinner"></div></div></div>`);
+      const modal = openModal(`<h2><i class="fas fa-book-open"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_f9a23e8ae26123"," Add from pricebook") ?? " Add from pricebook")}</h2><div data-pb-body><div class="fmdx-state" style="min-height:120px"><div class="fmdx-spinner"></div></div></div>`);
       const body = modal.el.querySelector('[data-pb-body]');
       const picked = [];
       Promise.resolve(pricebook.loadState?.() || null).catch(() => null).then(() => {
@@ -3848,9 +3848,9 @@
           const list = filteredItems();
           body.innerHTML = `
             <div class="fmdx-pb-controls">
-              <input type="search" placeholder="${(globalThis.PlatformLanguage?.text("documents","m_f8e59b2816f580","Search pricebook items…") ?? "Search pricebook items…")}" value="${String(esc(filters.search))}" data-pb-search>
+              <input type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_f8e59b2816f580","Search pricebook items…") ?? "Search pricebook items…")}" value="${String(esc(filters.search))}" data-pb-search>
               <select data-pb-category>
-                <option value="">${(globalThis.PlatformLanguage?.text("documents","m_0abe1295afa55b","All categories") ?? "All categories")}</option>
+                <option value="">${(globalThis.PlatformLanguage?.htmlText("documents","m_0abe1295afa55b","All categories") ?? "All categories")}</option>
                 ${String(categories.map((cat) => `<option value="${esc(cat)}" ${filters.category === cat ? 'selected' : ''}>${esc(pricebook.getCategoryLabel?.(cat) || cat.replace(/_/g, ' '))}</option>`).join(''))}
               </select>
             </div>
@@ -3862,13 +3862,13 @@
                     <small>${esc([pricebook.getCategoryLabel?.(item.category) || item.category, item.description].filter(Boolean).join(' · '))}</small>
                   </div>
                   <span class="price">${esc(moneyFromDollars(item.unit_price ?? item.base_price ?? item.basePrice ?? 0))}${item.unit ? ` / ${esc(item.unit)}` : ''}</span>
-                  <input class="qty" type="number" step="any" min="0" value="1" data-pb-qty title="Quantity">
-                  <button type="button" class="fmdx-btn" data-pb-add><i class="fas fa-plus"></i> Add</button>
-                </div>`).join('') : '<div class="fmdx-scope-empty">No pricebook items matched.</div>')}
+                  <input class="qty" type="number" step="any" min="0" value="1" data-pb-qty title="${(globalThis.PlatformLanguage?.htmlText("documents","m_9c689ddee2f502","Quantity") ?? "Quantity")}">
+                  <button type="button" class="fmdx-btn" data-pb-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_8803dece55359d"," Add") ?? " Add")}</button>
+                </div>`).join('') : `<div class="fmdx-scope-empty">${(globalThis.PlatformLanguage?.htmlText("documents","m_18c4bf2309f871","No pricebook items matched.") ?? "No pricebook items matched.")}</div>`)}
             </div>
             <div class="fmdx-modal-foot">
               <span class="fmdx-data-hint spacer" data-pb-count>${String(picked.length ? `${picked.length} item${picked.length === 1 ? '' : 's'} queued` : '')}</span>
-              <button type="button" class="fmdx-btn primary" data-pb-done ${String(picked.length ? '' : 'disabled')}><i class="fas fa-check"></i>${((v5) => globalThis.PlatformLanguage?.text("documents","m_620963be2953a9",` Add ${v5} to document`,{v5}) ?? ` Add ${v5} to document`)(picked.length || '')}</button>
+              <button type="button" class="fmdx-btn primary" data-pb-done ${String(picked.length ? '' : 'disabled')}><i class="fas fa-check"></i>${((v5) => globalThis.PlatformLanguage?.htmlText("documents","m_620963be2953a9",` Add ${v5} to document`,{v5}) ?? ` Add ${v5} to document`)(picked.length || '')}</button>
             </div>`;
           body.querySelector('[data-pb-search]')?.addEventListener('input', (event) => {
             filters.search = event.target.value;
@@ -3929,19 +3929,19 @@
           <strong>${String(esc(firstText(options.title, doc.title, 'Document preview')))}</strong>
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <span class="fmdx-preview-zoom">
-              <button type="button" data-zoom-out title="${(globalThis.PlatformLanguage?.text("documents","m_acf282d479dddf","Zoom out") ?? "Zoom out")}"><i class="fas fa-minus"></i></button>
-              <span class="pct" data-zoom-pct>${(globalThis.PlatformLanguage?.text("documents","m_2d8510904d5879","Fit") ?? "Fit")}</span>
-              <button type="button" data-zoom-in title="${(globalThis.PlatformLanguage?.text("documents","m_a593d968057ce9","Zoom in") ?? "Zoom in")}"><i class="fas fa-plus"></i></button>
-              <button type="button" data-zoom-fit title="${(globalThis.PlatformLanguage?.text("documents","m_b4e9fa5595e7cf","Fit width") ?? "Fit width")}"><i class="fas fa-arrows-left-right-to-line"></i></button>
+              <button type="button" data-zoom-out title="${(globalThis.PlatformLanguage?.htmlText("documents","m_acf282d479dddf","Zoom out") ?? "Zoom out")}"><i class="fas fa-minus"></i></button>
+              <span class="pct" data-zoom-pct>${(globalThis.PlatformLanguage?.htmlText("documents","m_2d8510904d5879","Fit") ?? "Fit")}</span>
+              <button type="button" data-zoom-in title="${(globalThis.PlatformLanguage?.htmlText("documents","m_a593d968057ce9","Zoom in") ?? "Zoom in")}"><i class="fas fa-plus"></i></button>
+              <button type="button" data-zoom-fit title="${(globalThis.PlatformLanguage?.htmlText("documents","m_b4e9fa5595e7cf","Fit width") ?? "Fit width")}"><i class="fas fa-arrows-left-right-to-line"></i></button>
             </span>
-            <button type="button" class="fmdx-btn" data-preview-print><i class="fas fa-print"></i>${(globalThis.PlatformLanguage?.text("documents","m_6331c8921612bb"," Print") ?? " Print")}</button>
-            <button type="button" class="fmdx-btn" data-preview-pdf><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.text("documents","m_932226afd1106e"," Download PDF") ?? " Download PDF")}</button>
-            <button type="button" class="fmdx-btn" data-preview-close><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.text("documents","m_373bd9180a7ee3"," Close") ?? " Close")}</button>
+            <button type="button" class="fmdx-btn" data-preview-print><i class="fas fa-print"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6331c8921612bb"," Print") ?? " Print")}</button>
+            <button type="button" class="fmdx-btn" data-preview-pdf><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_932226afd1106e"," Download PDF") ?? " Download PDF")}</button>
+            <button type="button" class="fmdx-btn" data-preview-close><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_373bd9180a7ee3"," Close") ?? " Close")}</button>
           </div>
         </header>
         <div class="fmdx-preview-scroll" data-preview-scroll>
           <div class="fmdx-preview-stage" data-preview-stage>
-            <div class="fmdx-state" style="min-width:320px"><div class="fmdx-spinner"></div><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.text("documents","m_6c82cfd4965b22","Rendering preview") ?? "Rendering preview")}</strong></div>
+            <div class="fmdx-state" style="min-width:320px"><div class="fmdx-spinner"></div><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.htmlText("documents","m_6c82cfd4965b22","Rendering preview") ?? "Rendering preview")}</strong></div>
           </div>
         </div>`;
       document.body.appendChild(overlay);
@@ -3972,7 +3972,7 @@
         try {
           resolved = objectValue(await api().documents.resolve(orgId(), doc.id));
         } catch (error) {
-          overlay.querySelector('[data-preview-stage]').innerHTML = `<div class="fmdx-state" style="min-width:320px"><i class="fas fa-cloud-bolt"></i><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.text("documents","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</strong><span style="color:#9aa6bd">${String(esc(errorMessage(error, '')))}</span></div>`;
+          overlay.querySelector('[data-preview-stage]').innerHTML = `<div class="fmdx-state" style="min-width:320px"><i class="fas fa-cloud-bolt"></i><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.htmlText("documents","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</strong><span style="color:#9aa6bd">${String(esc(errorMessage(error, '')))}</span></div>`;
           return;
         }
       }
@@ -4003,7 +4003,7 @@
             scale
           });
         } catch (error) {
-          stage.innerHTML = `<div class="fmdx-state" style="min-width:320px"><i class="fas fa-triangle-exclamation"></i><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.text("documents","m_315a295c7205d8","Render failed") ?? "Render failed")}</strong><span style="color:#9aa6bd">${String(esc(errorMessage(error, '')))}</span></div>`;
+          stage.innerHTML = `<div class="fmdx-state" style="min-width:320px"><i class="fas fa-triangle-exclamation"></i><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.htmlText("documents","m_315a295c7205d8","Render failed") ?? "Render failed")}</strong><span style="color:#9aa6bd">${String(esc(errorMessage(error, '')))}</span></div>`;
         }
       }
       overlay.querySelector('[data-zoom-in]').addEventListener('click', () => { zoom = Math.min(2, (zoom || currentScale()) + 0.15); renderStage(); });
@@ -4053,23 +4053,23 @@
             <label class="fmdx-check fmdx-recipient-row">
               <input type="checkbox" data-send-contact="${index}" ${emailValid(contact.email) ? 'checked' : 'disabled'}>
               <span class="who"><strong>${esc(contact.name)}</strong><small>${esc(contact.email || 'No email on file — add one below')}</small></span>
-              ${contact.primary ? `<span class="fmdx-chip plain">${(globalThis.PlatformLanguage?.text("documents","m_2436076ece8629","Primary") ?? "Primary")}</span>` : ''}
+              ${contact.primary ? `<span class="fmdx-chip plain">${(globalThis.PlatformLanguage?.htmlText("documents","m_2436076ece8629","Primary") ?? "Primary")}</span>` : ''}
             </label>`).join('')
-        : `<p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.text("documents","m_176b9c549a6bd9","No project contacts with an email yet — add an address below.") ?? "No project contacts with an email yet — add an address below.")}</p>`;
+        : `<p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_176b9c549a6bd9","No project contacts with an email yet — add an address below.") ?? "No project contacts with an email yet — add an address below.")}</p>`;
       const modal = openModal(`
-        <h2><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.text("documents","m_bb59e0b2a090e3"," Send document") ?? " Send document")}</h2>
-        <p class="fmdx-modal-sub">${((v0) => globalThis.PlatformLanguage?.text("documents","m_5ae7520a0cb450",`${v0} — a snapshot is frozen and delivered to your customer.`,{v0}) ?? `${v0} — a snapshot is frozen and delivered to your customer.`)(esc(firstText(doc.title, 'Document')))}</p>
+        <h2><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_bb59e0b2a090e3"," Send document") ?? " Send document")}</h2>
+        <p class="fmdx-modal-sub">${((v0) => globalThis.PlatformLanguage?.htmlText("documents","m_5ae7520a0cb450",`${v0} — a snapshot is frozen and delivered to your customer.`,{v0}) ?? `${v0} — a snapshot is frozen and delivered to your customer.`)(esc(firstText(doc.title, 'Document')))}</p>
         <div class="fmdx-form-grid">
-          <div class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.text("documents","m_c1791596944182","Recipients") ?? "Recipients")}</span>
+          <div class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_c1791596944182","Recipients") ?? "Recipients")}</span>
             <div class="fmdx-recipient-list">${String(contactRows)}</div>
           </div>
-          <label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.text("documents","m_2346d86fbb7dfd","Add another email (optional)") ?? "Add another email (optional)")}</span><input type="email" data-send-extra placeholder="${(globalThis.PlatformLanguage?.text("documents","m_ee9cc9ca2a8b83","name@email.com") ?? "name@email.com")}"></label>
-          <label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.text("documents","m_1cc093ae43d736","Message (optional)") ?? "Message (optional)")}</span><textarea data-send-message placeholder="${(globalThis.PlatformLanguage?.text("documents","m_c6b7216b3e2a6c","A short note included with the email…") ?? "A short note included with the email…")}"></textarea></label>
-          <label class="fmdx-check"><input type="checkbox" data-send-portal checked>${(globalThis.PlatformLanguage?.text("documents","m_948ada5da279bb"," Include portal link (view, sign & pay online)") ?? " Include portal link (view, sign & pay online)")}</label>
-          <label class="fmdx-check"><input type="checkbox" data-send-pdf checked>${(globalThis.PlatformLanguage?.text("documents","m_c96d1087aa82e3"," Attach PDF") ?? " Attach PDF")}</label>
+          <label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_2346d86fbb7dfd","Add another email (optional)") ?? "Add another email (optional)")}</span><input type="email" data-send-extra placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_ee9cc9ca2a8b83","name@email.com") ?? "name@email.com")}"></label>
+          <label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_1cc093ae43d736","Message (optional)") ?? "Message (optional)")}</span><textarea data-send-message placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_c6b7216b3e2a6c","A short note included with the email…") ?? "A short note included with the email…")}"></textarea></label>
+          <label class="fmdx-check"><input type="checkbox" data-send-portal checked>${(globalThis.PlatformLanguage?.htmlText("documents","m_948ada5da279bb"," Include portal link (view, sign & pay online)") ?? " Include portal link (view, sign & pay online)")}</label>
+          <label class="fmdx-check"><input type="checkbox" data-send-pdf checked>${(globalThis.PlatformLanguage?.htmlText("documents","m_c96d1087aa82e3"," Attach PDF") ?? " Attach PDF")}</label>
         </div>
         <div class="fmdx-modal-foot">
-          <button type="button" class="fmdx-btn primary" data-send-go><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.text("documents","m_c66c415b0e5570"," Send") ?? " Send")}</button>
+          <button type="button" class="fmdx-btn primary" data-send-go><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c66c415b0e5570"," Send") ?? " Send")}</button>
         </div>`, { className: 'narrow' });
       modal.el.querySelector('[data-send-go]')?.addEventListener('click', async (event) => {
         const button = event.currentTarget;
@@ -4117,9 +4117,9 @@
       const wrap = document.createElement('div');
       wrap.className = 'fmdx-send-success';
       wrap.innerHTML = `
-        <div class="headline"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("documents","m_73ac601e395a23"," Document sent") ?? " Document sent")}</div>
-        <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.text("documents","m_dd1890d2df48f8","The email is on its way.") ?? "The email is on its way.")}</p>
-        <div class="fmdx-modal-foot"><button type="button" class="fmdx-btn" data-send-done>${(globalThis.PlatformLanguage?.text("documents","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`;
+        <div class="headline"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_73ac601e395a23"," Document sent") ?? " Document sent")}</div>
+        <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_dd1890d2df48f8","The email is on its way.") ?? "The email is on its way.")}</p>
+        <div class="fmdx-modal-foot"><button type="button" class="fmdx-btn" data-send-done>${(globalThis.PlatformLanguage?.htmlText("documents","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`;
       body.appendChild(wrap);
       wrap.querySelector('[data-send-done]')?.addEventListener('click', () => modal.close());
     }

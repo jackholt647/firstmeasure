@@ -266,7 +266,7 @@
       return `${(value >> 16) & 255},${(value >> 8) & 255},${value & 255}`;
     }
 
-    host.innerHTML = `<div class="fb-root"><div class="fb-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_2799365eb998f2"," Loading your feedback system…") ?? " Loading your feedback system…")}</span></div></div>`;
+    host.innerHTML = `<div class="fb-root"><div class="fb-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2799365eb998f2"," Loading your feedback system…") ?? " Loading your feedback system…")}</span></div></div>`;
     const rootEl = host.querySelector('.fb-root');
     render();
 
@@ -284,7 +284,7 @@
           .sort((a, b) => text(b?.rated_at, b?.last_sent_at, b?.created_at).localeCompare(text(a?.rated_at, a?.last_sent_at, a?.created_at)));
       } catch (error) {
         if (destroyed) return;
-        rootEl.innerHTML = `<div class="fb-error">${((v0) => globalThis.PlatformLanguage?.text("settings","m_0ed9f5595c82be",`Could not load the feedback system. ${v0}`,{v0}) ?? `Could not load the feedback system. ${v0}`)(esc(error?.message || ''))}</div>`;
+        rootEl.innerHTML = `<div class="fb-error">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_0ed9f5595c82be",`Could not load the feedback system. ${v0}`,{v0}) ?? `Could not load the feedback system. ${v0}`)(esc(error?.message || ''))}</div>`;
         return;
       }
       render();
@@ -345,7 +345,7 @@
       deliveryTimingInsight?.destroy?.();
       deliveryTimingInsight = null;
       if (!state.settings) {
-        rootEl.innerHTML = (String(chrome()) + "<div class=\"fb-loading\"><span><i class=\"fas fa-spinner fa-spin\"></i>" + (globalThis.PlatformLanguage?.text("settings","m_2799365eb998f2"," Loading your feedback system…") ?? " Loading your feedback system…") + "</span></div>");
+        rootEl.innerHTML = (String(chrome()) + "<div class=\"fb-loading\"><span><i class=\"fas fa-spinner fa-spin\"></i>" + (globalThis.PlatformLanguage?.htmlText("settings","m_2799365eb998f2"," Loading your feedback system…") ?? " Loading your feedback system…") + "</span></div>");
         bindShell();
         return;
       }
@@ -356,10 +356,10 @@
           <div class="fb-col">
             ${String(state.tab === 'delivery' ? deliveryView() : workflowView(scale))}
             <div class="fb-savebar" data-fb-savebar>
-              <span>${(globalThis.PlatformLanguage?.text("settings","m_4deabcbe613943","You have unsaved changes.") ?? "You have unsaved changes.")}</span>
+              <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4deabcbe613943","You have unsaved changes.") ?? "You have unsaved changes.")}</span>
               <div class="actions">
-                <button class="fb-btn ghost" type="button" data-fb-discard>${(globalThis.PlatformLanguage?.text("settings","m_4ab5419992b0f7","Discard") ?? "Discard")}</button>
-                <button class="fb-btn primary" type="button" data-fb-save>${(globalThis.PlatformLanguage?.text("settings","m_1d368860f0287e","Save changes") ?? "Save changes")}</button>
+                <button class="fb-btn ghost" type="button" data-fb-discard>${(globalThis.PlatformLanguage?.htmlText("settings","m_4ab5419992b0f7","Discard") ?? "Discard")}</button>
+                <button class="fb-btn primary" type="button" data-fb-save>${(globalThis.PlatformLanguage?.htmlText("settings","m_1d368860f0287e","Save changes") ?? "Save changes")}</button>
               </div>
             </div>
           </div>
@@ -381,13 +381,13 @@
       return `
         <div class="fb-head">
           <div class="fb-head-copy">
-            <h3><span class="fb-head-icon"><i class="fas fa-star"></i></span>${(globalThis.PlatformLanguage?.text("settings","m_5ed41495facc6a"," Feedback System") ?? " Feedback System")}</h3>
-            <p>${(globalThis.PlatformLanguage?.text("settings","m_27c91807f153a9","Ask every customer how the job went, capture the rating on the project, and invite your happiest customers to share it where it counts.") ?? "Ask every customer how the job went, capture the rating on the project, and invite your happiest customers to share it where it counts.")}</p>
+            <h3><span class="fb-head-icon"><i class="fas fa-star"></i></span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5ed41495facc6a"," Feedback System") ?? " Feedback System")}</h3>
+            <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_27c91807f153a9","Ask every customer how the job went, capture the rating on the project, and invite your happiest customers to share it where it counts.") ?? "Ask every customer how the job went, capture the rating on the project, and invite your happiest customers to share it where it counts.")}</p>
           </div>
         </div>
         <div class="fb-subtabs">
-          <button type="button" data-fb-tab="delivery" class="${String(state.tab === 'delivery' ? 'on' : '')}"><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.text("settings","m_dbae5e9697315f"," Delivery") ?? " Delivery")}</button>
-          <button type="button" data-fb-tab="workflow" class="${String(state.tab === 'workflow' ? 'on' : '')}"><i class="fas fa-route"></i>${(globalThis.PlatformLanguage?.text("settings","m_6d5cbceb09ad8e"," Workflow") ?? " Workflow")}</button>
+          <button type="button" data-fb-tab="delivery" class="${String(state.tab === 'delivery' ? 'on' : '')}"><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_dbae5e9697315f"," Delivery") ?? " Delivery")}</button>
+          <button type="button" data-fb-tab="workflow" class="${String(state.tab === 'workflow' ? 'on' : '')}"><i class="fas fa-route"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_6d5cbceb09ad8e"," Workflow") ?? " Workflow")}</button>
           <button type="button" data-fb-tab="responses" class="${String(state.tab === 'responses' ? 'on' : '')}"><i class="fas fa-comments"></i> Responses ${String(respondedCount ? `<span class="count">${respondedCount}</span>` : '')}</button>
         </div>`;
     }
@@ -395,7 +395,7 @@
     // ---------------- setup cards ----------------
     function deliveryView(){
       return `
-        <div class="fb-page-intro"><span class="icon"><i class="fas fa-paper-plane"></i></span><div><h4>${(globalThis.PlatformLanguage?.text("settings","m_44d90cd58e1f59","Choose when and where the request is delivered") ?? "Choose when and where the request is delivered")}</h4><p>${(globalThis.PlatformLanguage?.text("settings","m_40a101d3dc3cec","Set the moment that starts the request, then tailor the message for every channel your customer can receive it through.") ?? "Set the moment that starts the request, then tailor the message for every channel your customer can receive it through.")}</p></div></div>
+        <div class="fb-page-intro"><span class="icon"><i class="fas fa-paper-plane"></i></span><div><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_44d90cd58e1f59","Choose when and where the request is delivered") ?? "Choose when and where the request is delivered")}</h4><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_40a101d3dc3cec","Set the moment that starts the request, then tailor the message for every channel your customer can receive it through.") ?? "Set the moment that starts the request, then tailor the message for every channel your customer can receive it through.")}</p></div></div>
         ${String(deliveryTimingCard())}
         ${String(channelChooserCard())}
         ${String(channelMessagesCard())}
@@ -404,7 +404,7 @@
 
     function workflowView(scale){
       return `
-        <div class="fb-page-intro"><span class="icon"><i class="fas fa-route"></i></span><div><h4>${(globalThis.PlatformLanguage?.text("settings","m_37583c5f088fe4","Design the customer feedback journey") ?? "Design the customer feedback journey")}</h4><p>${(globalThis.PlatformLanguage?.text("settings","m_1b03ec923f1e15","Control the first question, the follow-up prompt, and what happens after each possible rating.") ?? "Control the first question, the follow-up prompt, and what happens after each possible rating.")}</p></div></div>
+        <div class="fb-page-intro"><span class="icon"><i class="fas fa-route"></i></span><div><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_37583c5f088fe4","Design the customer feedback journey") ?? "Design the customer feedback journey")}</h4><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_1b03ec923f1e15","Control the first question, the follow-up prompt, and what happens after each possible rating.") ?? "Control the first question, the follow-up prompt, and what happens after each possible rating.")}</p></div></div>
         ${String(surveyCard())}
         ${String(reviewCard(scale))}
       `;
@@ -421,10 +421,10 @@
         { key:'manual', icon:'fas fa-hand-pointer', label:(globalThis.PlatformLanguage?.text("settings","m_5832abd7cf0637","Manually only") ?? "Manually only"), note:'Only send when a team member explicitly requests it.' }
       ];
       return `<div class="fb-card wide">
-        <div class="fb-card-head"><strong><i class="fas fa-clock"></i>${(globalThis.PlatformLanguage?.text("settings","m_4dcdaed478d0bf"," When should this be sent?") ?? " When should this be sent?")}</strong><span data-feedback-timing-insight></span></div>
-        <p class="fb-sub">${(globalThis.PlatformLanguage?.text("settings","m_456f88328e8a58","Choose the event that makes the feedback request available. Each project receives one request, so repeat events will not send duplicates.") ?? "Choose the event that makes the feedback request available. Each project receives one request, so repeat events will not send duplicates.")}</p>
+        <div class="fb-card-head"><strong><i class="fas fa-clock"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4dcdaed478d0bf"," When should this be sent?") ?? " When should this be sent?")}</strong><span data-feedback-timing-insight></span></div>
+        <p class="fb-sub">${(globalThis.PlatformLanguage?.htmlText("settings","m_456f88328e8a58","Choose the event that makes the feedback request available. Each project receives one request, so repeat events will not send duplicates.") ?? "Choose the event that makes the feedback request available. Each project receives one request, so repeat events will not send duplicates.")}</p>
         <div class="fb-trigger-grid">${String(options.map((option) => `<button type="button" class="fb-trigger ${selected === option.key ? 'on' : ''}" data-fb-trigger="${option.key}"><i class="${option.icon}"></i><span><b>${option.label}</b><span>${option.note}</span></span></button>`).join(''))}</div>
-        <div class="fb-scope-todo"><i class="fas fa-diagram-project"></i><span><strong>${(globalThis.PlatformLanguage?.text("settings","m_479768d58a038e","Scope-aware timing is still being connected.") ?? "Scope-aware timing is still being connected.")}</strong>${(globalThis.PlatformLanguage?.text("settings","m_75c3ffbc0df087"," Workflows and scope sets can already request feedback with the feedback automation action; their triggers are configured in the workflow, not with a button here. This list will later reflect the triggers available to this branch.") ?? " Workflows and scope sets can already request feedback with the feedback automation action; their triggers are configured in the workflow, not with a button here. This list will later reflect the triggers available to this branch.")}</span></div>
+        <div class="fb-scope-todo"><i class="fas fa-diagram-project"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_479768d58a038e","Scope-aware timing is still being connected.") ?? "Scope-aware timing is still being connected.")}</strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_75c3ffbc0df087"," Workflows and scope sets can already request feedback with the feedback automation action; their triggers are configured in the workflow, not with a button here. This list will later reflect the triggers available to this branch.") ?? " Workflows and scope sets can already request feedback with the feedback automation action; their triggers are configured in the workflow, not with a button here. This list will later reflect the triggers available to this branch.")}</span></div>
       </div>`;
     }
 
@@ -435,8 +435,8 @@
         return `<button class="fb-choice ${on ? 'on' : ''}" type="button" data-fb-channel="${key}" aria-pressed="${on}"><span class="choice-icon"><i class="${icon}"></i></span><span><b>${label}</b><span>${note}</span></span>${on ? '<i class="fas fa-circle-check check"></i>' : ''}</button>`;
       };
       return `<div class="fb-card wide">
-        <div class="fb-card-head"><strong><i class="fas fa-share-nodes"></i>${(globalThis.PlatformLanguage?.text("settings","m_9a5412305bd598"," How do you want to send the message?") ?? " How do you want to send the message?")}</strong></div>
-        <p class="fb-sub">${(globalThis.PlatformLanguage?.text("settings","m_0f43e2feaab957","Use any combination. A channel is only used when the customer has the required contact information or portal access.") ?? "Use any combination. A channel is only used when the customer has the required contact information or portal access.")}</p>
+        <div class="fb-card-head"><strong><i class="fas fa-share-nodes"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9a5412305bd598"," How do you want to send the message?") ?? " How do you want to send the message?")}</strong></div>
+        <p class="fb-sub">${(globalThis.PlatformLanguage?.htmlText("settings","m_0f43e2feaab957","Use any combination. A channel is only used when the customer has the required contact information or portal access.") ?? "Use any combination. A channel is only used when the customer has the required contact information or portal access.")}</p>
         <div class="fb-choice-grid">
           ${String(choice('sms', 'fas fa-message', 'Text message', 'Send a short link to their mobile phone.'))}
           ${String(choice('email', 'fas fa-envelope', 'Email', 'Send a branded request to their inbox.'))}
@@ -454,25 +454,25 @@
       const active = ['sms', 'email', 'portal'].includes(state.previewTab) ? state.previewTab : 'sms';
       const off = !enabled(active);
       const tabs = `<div class="fb-message-tabs">
-        <button type="button" data-fb-message-tab="sms" class="${String(active === 'sms' ? 'on' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_124287f184b88b","Text") ?? "Text")}</button>
-        <button type="button" data-fb-message-tab="email" class="${String(active === 'email' ? 'on' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_5d2b9327181e33","Email") ?? "Email")}</button>
-        <button type="button" data-fb-message-tab="portal" class="${String(active === 'portal' ? 'on' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_a4cd44bc12f332","Portal") ?? "Portal")}</button>
+        <button type="button" data-fb-message-tab="sms" class="${String(active === 'sms' ? 'on' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_124287f184b88b","Text") ?? "Text")}</button>
+        <button type="button" data-fb-message-tab="email" class="${String(active === 'email' ? 'on' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_5d2b9327181e33","Email") ?? "Email")}</button>
+        <button type="button" data-fb-message-tab="portal" class="${String(active === 'portal' ? 'on' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_a4cd44bc12f332","Portal") ?? "Portal")}</button>
       </div>`;
       let editor = '';
       if (active === 'email') {
-        editor = `<div class="fb-message-head"><div class="fb-message-title"><span class="icon"><i class="fas fa-envelope"></i></span><b>${(globalThis.PlatformLanguage?.text("settings","m_dd8addd86a5eb5","Email message") ?? "Email message")}</b></div>${String(status('email'))}</div>
-          <p class="fb-message-note">${(globalThis.PlatformLanguage?.text("settings","m_1c1074d948b624","The subject and full message customers receive in their inbox.") ?? "The subject and full message customers receive in their inbox.")}</p>
-          <div class="fb-field"><label>${(globalThis.PlatformLanguage?.text("settings","m_bfb9f300f17496","Subject") ?? "Subject")}</label><input type="text" data-fb-set="messages.email_subject" data-fb-input="email_subject" value="${String(esc(messageState.email_subject))}" ${String(off ? 'disabled' : '')}></div>
-          <div class="fb-field"><label>${(globalThis.PlatformLanguage?.text("settings","m_63ea7578d93f41","Email body") ?? "Email body")}</label><textarea rows="7" data-fb-set="messages.email_body" data-fb-input="email_body" ${String(off ? 'disabled' : '')}>${String(esc(messageState.email_body))}</textarea>${String(tags('email_body', off))}</div>`;
+        editor = `<div class="fb-message-head"><div class="fb-message-title"><span class="icon"><i class="fas fa-envelope"></i></span><b>${(globalThis.PlatformLanguage?.htmlText("settings","m_dd8addd86a5eb5","Email message") ?? "Email message")}</b></div>${String(status('email'))}</div>
+          <p class="fb-message-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_1c1074d948b624","The subject and full message customers receive in their inbox.") ?? "The subject and full message customers receive in their inbox.")}</p>
+          <div class="fb-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_bfb9f300f17496","Subject") ?? "Subject")}</label><input type="text" data-fb-set="messages.email_subject" data-fb-input="email_subject" value="${String(esc(messageState.email_subject))}" ${String(off ? 'disabled' : '')}></div>
+          <div class="fb-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_63ea7578d93f41","Email body") ?? "Email body")}</label><textarea rows="7" data-fb-set="messages.email_body" data-fb-input="email_body" ${String(off ? 'disabled' : '')}>${String(esc(messageState.email_body))}</textarea>${String(tags('email_body', off))}</div>`;
       } else if (active === 'portal') {
-        editor = `<div class="fb-message-head"><div class="fb-message-title"><span class="icon"><i class="fas fa-window-maximize"></i></span><b>${(globalThis.PlatformLanguage?.text("settings","m_8f4e084f019658","Customer portal message") ?? "Customer portal message")}</b></div>${String(status('portal'))}</div>
-          <p class="fb-message-note">${(globalThis.PlatformLanguage?.text("settings","m_fd3cea1c6a9d1b","The feedback card displayed on the customer's project overview.") ?? "The feedback card displayed on the customer's project overview.")}</p>
-          <div class="fb-grid2"><div class="fb-field"><label>${(globalThis.PlatformLanguage?.text("settings","m_f2b1764fc05842","Headline") ?? "Headline")}</label><input type="text" data-fb-set="messages.portal_title" data-fb-input="portal_title" value="${String(esc(text(messageState.portal_title, 'How did we do?')))}" ${String(off ? 'disabled' : '')}>${String(tags('portal_title', off))}</div><div class="fb-field"><label>${(globalThis.PlatformLanguage?.text("settings","m_f709f2734ba4ad","Button label") ?? "Button label")}</label><input type="text" data-fb-set="messages.portal_cta" value="${String(esc(text(messageState.portal_cta, 'Leave feedback')))}" ${String(off ? 'disabled' : '')}></div></div>
-          <div class="fb-field"><label>${(globalThis.PlatformLanguage?.text("settings","m_dd88bd427da29a","Supporting message") ?? "Supporting message")}</label><textarea rows="3" data-fb-set="messages.portal_body" data-fb-input="portal_body" ${String(off ? 'disabled' : '')}>${String(esc(text(messageState.portal_body, 'Tell us how everything went — it only takes a few seconds.')))}</textarea>${String(tags('portal_body', off))}</div>`;
+        editor = `<div class="fb-message-head"><div class="fb-message-title"><span class="icon"><i class="fas fa-window-maximize"></i></span><b>${(globalThis.PlatformLanguage?.htmlText("settings","m_8f4e084f019658","Customer portal message") ?? "Customer portal message")}</b></div>${String(status('portal'))}</div>
+          <p class="fb-message-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_fd3cea1c6a9d1b","The feedback card displayed on the customer's project overview.") ?? "The feedback card displayed on the customer's project overview.")}</p>
+          <div class="fb-grid2"><div class="fb-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_f2b1764fc05842","Headline") ?? "Headline")}</label><input type="text" data-fb-set="messages.portal_title" data-fb-input="portal_title" value="${String(esc(text(messageState.portal_title, 'How did we do?')))}" ${String(off ? 'disabled' : '')}>${String(tags('portal_title', off))}</div><div class="fb-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_f709f2734ba4ad","Button label") ?? "Button label")}</label><input type="text" data-fb-set="messages.portal_cta" value="${String(esc(text(messageState.portal_cta, 'Leave feedback')))}" ${String(off ? 'disabled' : '')}></div></div>
+          <div class="fb-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_dd88bd427da29a","Supporting message") ?? "Supporting message")}</label><textarea rows="3" data-fb-set="messages.portal_body" data-fb-input="portal_body" ${String(off ? 'disabled' : '')}>${String(esc(text(messageState.portal_body, 'Tell us how everything went — it only takes a few seconds.')))}</textarea>${String(tags('portal_body', off))}</div>`;
       } else {
-        editor = `<div class="fb-message-head"><div class="fb-message-title"><span class="icon"><i class="fas fa-message"></i></span><b>${(globalThis.PlatformLanguage?.text("settings","m_def279b4381c15","Text message") ?? "Text message")}</b></div>${String(status('sms'))}</div>
-          <p class="fb-message-note">${(globalThis.PlatformLanguage?.text("settings","m_8dee195d1a2ca6","Keep it personal and concise. The feedback link is inserted automatically with the link tag.") ?? "Keep it personal and concise. The feedback link is inserted automatically with the link tag.")}</p>
-          <div class="fb-field"><label>${(globalThis.PlatformLanguage?.text("settings","m_a16cfd85cfd122","Message") ?? "Message")}</label><textarea rows="6" data-fb-set="messages.sms_text" data-fb-input="sms" ${String(off ? 'disabled' : '')}>${String(esc(messageState.sms_text))}</textarea>${String(tags('sms', off))}</div>`;
+        editor = `<div class="fb-message-head"><div class="fb-message-title"><span class="icon"><i class="fas fa-message"></i></span><b>${(globalThis.PlatformLanguage?.htmlText("settings","m_def279b4381c15","Text message") ?? "Text message")}</b></div>${String(status('sms'))}</div>
+          <p class="fb-message-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_8dee195d1a2ca6","Keep it personal and concise. The feedback link is inserted automatically with the link tag.") ?? "Keep it personal and concise. The feedback link is inserted automatically with the link tag.")}</p>
+          <div class="fb-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_a16cfd85cfd122","Message") ?? "Message")}</label><textarea rows="6" data-fb-set="messages.sms_text" data-fb-input="sms" ${String(off ? 'disabled' : '')}>${String(esc(messageState.sms_text))}</textarea>${String(tags('sms', off))}</div>`;
       }
       return `<div class="fb-message-card ${off ? 'off' : ''}">${tabs}${editor}</div>`;
     }
@@ -480,19 +480,19 @@
     function surveyCard(){
       const surveyState = survey();
       return `<div class="fb-card">
-        <div class="fb-card-head"><strong><i class="fas fa-star-half-stroke"></i>${(globalThis.PlatformLanguage?.text("settings","m_417595701f5efd"," Rating page") ?? " Rating page")}</strong></div>
-        <p class="fb-sub">${(globalThis.PlatformLanguage?.text("settings","m_aded7846960631","The branded page your customer lands on — your colors and logo, automatically.") ?? "The branded page your customer lands on — your colors and logo, automatically.")}</p>
+        <div class="fb-card-head"><strong><i class="fas fa-star-half-stroke"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_417595701f5efd"," Rating page") ?? " Rating page")}</strong></div>
+        <p class="fb-sub">${(globalThis.PlatformLanguage?.htmlText("settings","m_aded7846960631","The branded page your customer lands on — your colors and logo, automatically.") ?? "The branded page your customer lands on — your colors and logo, automatically.")}</p>
         <div class="fb-field">
-          <label>${(globalThis.PlatformLanguage?.text("settings","m_bc5c2002760d4b","Question") ?? "Question")}</label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_bc5c2002760d4b","Question") ?? "Question")}</label>
           <input type="text" data-fb-set="survey.question" value="${String(esc(surveyState.question))}">
         </div>
         <div class="fb-grid2">
           <div class="fb-field">
-            <label>${(globalThis.PlatformLanguage?.text("settings","m_693b3024ec2d2a","Comment prompt") ?? "Comment prompt")}</label>
+            <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_693b3024ec2d2a","Comment prompt") ?? "Comment prompt")}</label>
             <input type="text" data-fb-set="survey.comment_prompt" value="${String(esc(surveyState.comment_prompt))}">
           </div>
           <div class="fb-field">
-            <label>${(globalThis.PlatformLanguage?.text("settings","m_f26e99eeec4727","Low-rating prompt") ?? "Low-rating prompt")}</label>
+            <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_f26e99eeec4727","Low-rating prompt") ?? "Low-rating prompt")}</label>
             <input type="text" data-fb-set="survey.low_comment_prompt" value="${String(esc(surveyState.low_comment_prompt))}">
           </div>
         </div>
@@ -509,44 +509,44 @@
         return `<div class="fb-dest" data-fb-dest="${String(index)}">
           <span class="fb-dest-icon"><i class="${String(esc(text(destination.icon, 'fas fa-star')))}"></i></span>
           <div class="fb-dest-fields">
-            <input type="text" data-fb-dest-label="${String(index)}" value="${String(esc(destination.label))}" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_9fd79f4276d659","Label") ?? "Label")}">
+            <input type="text" data-fb-dest-label="${String(index)}" value="${String(esc(destination.label))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_9fd79f4276d659","Label") ?? "Label")}">
             <input type="url" data-fb-dest-url="${String(index)}" value="${String(esc(destination.url))}" placeholder="${String(esc(preset?.hint || 'https://…'))}">
           </div>
-          <button class="fb-dest-remove" type="button" data-fb-dest-remove="${String(index)}" title="${(globalThis.PlatformLanguage?.text("settings","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>
+          <button class="fb-dest-remove" type="button" data-fb-dest-remove="${String(index)}" title="${(globalThis.PlatformLanguage?.htmlText("settings","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>
         </div>`;
       };
       return `<div class="fb-card wide">
-        <div class="fb-card-head"><strong><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.text("settings","m_586f8486ebf025"," Review invitations") ?? " Review invitations")}</strong></div>
-        <p class="fb-sub">${(globalThis.PlatformLanguage?.text("settings","m_876704370a30a6","After a customer rates you, invite them to post it publicly. Choose who sees the invitation and where it sends them.") ?? "After a customer rates you, invite them to post it publicly. Choose who sees the invitation and where it sends them.")}</p>
+        <div class="fb-card-head"><strong><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_586f8486ebf025"," Review invitations") ?? " Review invitations")}</strong></div>
+        <p class="fb-sub">${(globalThis.PlatformLanguage?.htmlText("settings","m_876704370a30a6","After a customer rates you, invite them to post it publicly. Choose who sees the invitation and where it sends them.") ?? "After a customer rates you, invite them to post it publicly. Choose who sees the invitation and where it sends them.")}</p>
         <div class="fb-seg" data-fb-mode>
-          <button type="button" data-fb-mode-value="threshold" class="${String(mode === 'threshold' ? 'on' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_ee49d54fa637c1","At a rating") ?? "At a rating")}</button>
-          <button type="button" data-fb-mode-value="always" class="${String(mode === 'always' ? 'on' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</button>
-          <button type="button" data-fb-mode-value="never" class="${String(mode === 'never' ? 'on' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_273e689aeb0785","Off") ?? "Off")}</button>
+          <button type="button" data-fb-mode-value="threshold" class="${String(mode === 'threshold' ? 'on' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_ee49d54fa637c1","At a rating") ?? "At a rating")}</button>
+          <button type="button" data-fb-mode-value="always" class="${String(mode === 'always' ? 'on' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</button>
+          <button type="button" data-fb-mode-value="never" class="${String(mode === 'never' ? 'on' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_273e689aeb0785","Off") ?? "Off")}</button>
         </div>
         ${String(mode === 'threshold' ? `<div class="fb-threshold">
           <span class="fb-threshold-stars" data-fb-threshold>${starRow(scale, threshold, 'fb-tstar', 'data-fb-tstar')}</span>
-          <span class="fb-threshold-note">Invite customers who rate <b>${threshold}${threshold < scale ? '+' : ''}</b> stars &middot; everyone else lands on the private thank-you</span>
+          <span class="fb-threshold-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_d37d1ea8014ce9","Invite customers who rate ") ?? "Invite customers who rate ")}<b>${threshold}${threshold < scale ? '+' : ''}</b>${(globalThis.PlatformLanguage?.htmlText("settings","m_6389d8e47068f3"," stars &middot; everyone else lands on the private thank-you") ?? " stars &middot; everyone else lands on the private thank-you")}</span>
         </div>` : '')}
         <div class="fb-field" style="margin-top:18px">
-          <label>${(globalThis.PlatformLanguage?.text("settings","m_2f7b6ce949eb0e","Closing message &mdash; the customer only ever sees one of these") ?? "Closing message &mdash; the customer only ever sees one of these")}</label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_2f7b6ce949eb0e","Closing message &mdash; the customer only ever sees one of these") ?? "Closing message &mdash; the customer only ever sees one of these")}</label>
         </div>
         <div class="fb-grid2" style="margin-top:-6px">
           ${String(mode !== 'never' ? `<div class="fb-field" style="margin-top:8px">
-            <label style="color:#3538cd">With review invitation</label>
+            <label style="color:#3538cd">${(globalThis.PlatformLanguage?.htmlText("settings","m_3a0286aa106f2b","With review invitation") ?? "With review invitation")}</label>
             <input type="text" data-fb-set="review.prompt" value="${esc(reviewState.prompt)}">
           </div>` : '')}
           <div class="fb-field" style="margin-top:8px">
-            <label style="color:#b42318">${(globalThis.PlatformLanguage?.text("settings","m_fa780a47499428","Low rating (kept private)") ?? "Low rating (kept private)")}</label>
+            <label style="color:#b42318">${(globalThis.PlatformLanguage?.htmlText("settings","m_fa780a47499428","Low rating (kept private)") ?? "Low rating (kept private)")}</label>
             <input type="text" data-fb-set="review.low_note" value="${String(esc(reviewState.low_note))}">
           </div>
           <div class="fb-field" style="margin-top:8px">
-            <label>${(globalThis.PlatformLanguage?.text("settings","m_b7ef67005d0484","Default thank-you") ?? "Default thank-you")}</label>
+            <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_b7ef67005d0484","Default thank-you") ?? "Default thank-you")}</label>
             <input type="text" data-fb-set="survey.thank_you" value="${String(esc(object(state.settings.survey).thank_you))}">
           </div>
         </div>
         ${String(mode !== 'never' ? `<div class="fb-field">
-          <label>Destinations</label>
-          ${destinations.map((destination, index) => destRow(object(destination), index)).join('') || '<div class="fb-empty">No destinations yet — add where great reviews should go.</div>'}
+          <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_52830c4072ae13","Destinations") ?? "Destinations")}</label>
+          ${destinations.map((destination, index) => destRow(object(destination), index)).join('') || `<div class="fb-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_1dad4c0b509712","No destinations yet — add where great reviews should go.") ?? "No destinations yet — add where great reviews should go.")}</div>`}
           <div class="fb-dest-add">
             ${DESTINATION_PRESETS.map((preset) => `<button type="button" data-fb-dest-add="${preset.id}"><i class="${preset.icon}"></i> ${preset.label}</button>`).join('')}
           </div>
@@ -583,14 +583,14 @@
       for (let index = scale; index >= 1; index -= 1) starChips.push(chip(String(index), `${index}`, '<i class="fas fa-star"></i> '));
       return `
         <div class="fb-stats">
-          <div class="fb-stat"><b>${String(Number(totals.sent || 0))}</b><span>${(globalThis.PlatformLanguage?.text("settings","m_56fe4e1ce79d70","Requests sent") ?? "Requests sent")}</span></div>
-          <div class="fb-stat"><b>${String(Number(totals.rated || 0))}</b><span>${(globalThis.PlatformLanguage?.text("settings","m_00c47f7a0e881d","Ratings") ?? "Ratings")}</span></div>
-          <div class="fb-stat"><b>${String(totals.average_rating ? `${Number(totals.average_rating).toFixed(1)}<span class="max"> / ${scale}</span>` : '—')}</b><span>${(globalThis.PlatformLanguage?.text("settings","m_eb12b605c5ff63","Avg rating") ?? "Avg rating")}</span></div>
-          <div class="fb-stat ${String(attention ? 'alert' : '')}"><b>${String(attention)}</b><span>${(globalThis.PlatformLanguage?.text("settings","m_aeaf0897bce2d4","Needs attention") ?? "Needs attention")}</span></div>
-          <div class="fb-stat"><b>${String(Number(totals.review_clicks || 0))}</b><span>${(globalThis.PlatformLanguage?.text("settings","m_2da71c09981b1e","Review clicks") ?? "Review clicks")}</span></div>
+          <div class="fb-stat"><b>${String(Number(totals.sent || 0))}</b><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_56fe4e1ce79d70","Requests sent") ?? "Requests sent")}</span></div>
+          <div class="fb-stat"><b>${String(Number(totals.rated || 0))}</b><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_00c47f7a0e881d","Ratings") ?? "Ratings")}</span></div>
+          <div class="fb-stat"><b>${String(totals.average_rating ? `${Number(totals.average_rating).toFixed(1)}<span class="max"> / ${scale}</span>` : '—')}</b><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_eb12b605c5ff63","Avg rating") ?? "Avg rating")}</span></div>
+          <div class="fb-stat ${String(attention ? 'alert' : '')}"><b>${String(attention)}</b><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_aeaf0897bce2d4","Needs attention") ?? "Needs attention")}</span></div>
+          <div class="fb-stat"><b>${String(Number(totals.review_clicks || 0))}</b><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_2da71c09981b1e","Review clicks") ?? "Review clicks")}</span></div>
         </div>
         <div class="fb-toolbar">
-          <div class="fb-search"><i class="fas fa-magnifying-glass"></i><input type="text" data-fb-search placeholder="${(globalThis.PlatformLanguage?.text("settings","m_c216b4e1d94213","Search customers, projects, or comments…") ?? "Search customers, projects, or comments…")}" value="${String(esc(state.query))}"></div>
+          <div class="fb-search"><i class="fas fa-magnifying-glass"></i><input type="text" data-fb-search placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_c216b4e1d94213","Search customers, projects, or comments…") ?? "Search customers, projects, or comments…")}" value="${String(esc(state.query))}"></div>
           <div class="fb-filters">
             ${String(chip('all', 'All'))}
             ${String(chip('attention', 'Needs attention', '<i class="fas fa-star"></i> '))}
@@ -615,18 +615,18 @@
       const when = text(request.rated_at, request.last_sent_at, request.created_at).slice(0, 10);
       return `<div class="fb-row ${low ? 'low' : ''} ${rating ? '' : 'pending'}">
         <div class="fb-row-stars">
-          ${rating ? `<span class="stars">${stars}</span><span class="num">${rating}/${scale}</span>` : `<span class="awaiting" title="${(globalThis.PlatformLanguage?.text("settings","m_113acb668de4b5","Awaiting reply") ?? "Awaiting reply")}"><i class="fas fa-hourglass-half"></i></span>`}
+          ${rating ? `<span class="stars">${stars}</span><span class="num">${rating}/${scale}</span>` : `<span class="awaiting" title="${(globalThis.PlatformLanguage?.htmlText("settings","m_113acb668de4b5","Awaiting reply") ?? "Awaiting reply")}"><i class="fas fa-hourglass-half"></i></span>`}
         </div>
         <div class="fb-row-main">
           <div class="fb-row-top">
             <b>${esc(text(contact.name, 'Customer'))}</b>
             ${text(request.project_title) ? `<span class="proj">${esc(request.project_title)}</span>` : ''}
           </div>
-          ${text(request.comment) ? `<p class="fb-row-comment">${((v0) => globalThis.PlatformLanguage?.text("settings","m_318ed57bbe192b",`&ldquo;${v0}&rdquo;`,{v0}) ?? `&ldquo;${v0}&rdquo;`)(esc(request.comment))}</p>` : (rating ? '' : `<p class="fb-row-comment" style="color:#98a2b3">${(globalThis.PlatformLanguage?.text("settings","m_2c1250ca3d67ef","Invitation sent — no response yet.") ?? "Invitation sent — no response yet.")}</p>`)}
+          ${text(request.comment) ? `<p class="fb-row-comment">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_318ed57bbe192b",`&ldquo;${v0}&rdquo;`,{v0}) ?? `&ldquo;${v0}&rdquo;`)(esc(request.comment))}</p>` : (rating ? '' : `<p class="fb-row-comment" style="color:#98a2b3">${(globalThis.PlatformLanguage?.htmlText("settings","m_2c1250ca3d67ef","Invitation sent — no response yet.") ?? "Invitation sent — no response yet.")}</p>`)}
           <div class="fb-row-meta">
-            ${low ? `<span class="fb-meta-chip low"><i class="fas fa-flag"></i>${(globalThis.PlatformLanguage?.text("settings","m_48ae8a24acd3d5"," Needs attention") ?? " Needs attention")}</span>` : ''}
+            ${low ? `<span class="fb-meta-chip low"><i class="fas fa-flag"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_48ae8a24acd3d5"," Needs attention") ?? " Needs attention")}</span>` : ''}
             ${sendChips}
-            ${request.opened_at && !rating ? `<span class="fb-meta-chip">${(globalThis.PlatformLanguage?.text("settings","m_af42634af9d6f3","opened") ?? "opened")}</span>` : ''}
+            ${request.opened_at && !rating ? `<span class="fb-meta-chip">${(globalThis.PlatformLanguage?.htmlText("settings","m_af42634af9d6f3","opened") ?? "opened")}</span>` : ''}
             ${clickChips}
           </div>
         </div>
@@ -676,31 +676,31 @@
             ? text(reviewState.low_note)
             : text(surveyState.thank_you);
         const buttons = showsInvite
-          ? linkedDestinations.map((destination) => `<div class="fb-pv-dest"><span><i class="brand ${String(esc(text(object(destination).icon, 'fas fa-star')))}"></i>${((v1) => globalThis.PlatformLanguage?.text("settings","m_0d5439f565ef39",`&nbsp; ${v1}`,{v1}) ?? `&nbsp; ${v1}`)(esc(object(destination).label))}</span><span class="go">${(globalThis.PlatformLanguage?.text("settings","m_dcba86d629271a","&rarr;") ?? "&rarr;")}</span></div>`).join('')
+          ? linkedDestinations.map((destination) => `<div class="fb-pv-dest"><span><i class="brand ${String(esc(text(object(destination).icon, 'fas fa-star')))}"></i>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_0d5439f565ef39",`&nbsp; ${v1}`,{v1}) ?? `&nbsp; ${v1}`)(esc(object(destination).label))}</span><span class="go">${(globalThis.PlatformLanguage?.htmlText("settings","m_dcba86d629271a","&rarr;") ?? "&rarr;")}</span></div>`).join('')
           : '';
         const warn = qualifies && !linkedDestinations.length
-          ? `<div class="fb-pv-warn"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.text("settings","m_e1a4221377482a"," This rating qualifies for a review invitation, but no destination has a link yet — customers see the default thank-you until you add one.") ?? " This rating qualifies for a review invitation, but no destination has a link yet — customers see the default thank-you until you add one.")}</div>`
+          ? `<div class="fb-pv-warn"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e1a4221377482a"," This rating qualifies for a review invitation, but no destination has a link yet — customers see the default thank-you until you add one.") ?? " This rating qualifies for a review invitation, but no destination has a link yet — customers see the default thank-you until you add one.")}</div>`
           : '';
         screen = (String(brand) + "<div class=\"fb-pv-card\">\n          <div class=\"fb-pv-check\"><i class=\"fas fa-check\"></i></div>\n          <h4>" + (globalThis.PlatformLanguage?.text("settings","m_1d9048d24b091e","Thank you!") ?? "Thank you!") + "</h4>\n          <p class=\"fb-pv-sub\">" + String(esc(message)) + "</p>\n          " + String(buttons) + "\n          " + String(warn) + "\n          <button class=\"fb-pv-reset\" type=\"button\" data-fb-pv-reset>" + (globalThis.PlatformLanguage?.text("settings","m_5dcd8b0803f48a","Preview a different rating") ?? "Preview a different rating") + "</button>\n        </div>");
         caption = `${rating} star${rating === 1 ? '' : 's'} ${showsInvite ? '→ review invitation' : rating < threshold ? '→ private feedback' : '→ default thank-you'}`;
       }
 
       const smsScreen = `<div class="fb-sms-thread">
-        <div class="fb-sms-from">${((v0) => globalThis.PlatformLanguage?.text("settings","m_12629ab4bb91ce",`${v0} &middot; TEXT MESSAGE`,{v0}) ?? `${v0} &middot; TEXT MESSAGE`)(esc(theme.name.toUpperCase()))}</div>
+        <div class="fb-sms-from">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_12629ab4bb91ce",`${v0} &middot; TEXT MESSAGE`,{v0}) ?? `${v0} &middot; TEXT MESSAGE`)(esc(theme.name.toUpperCase()))}</div>
         <div class="fb-sms-bubble">${String(previewMessageHtml(text(messages().sms_text), 'fb-sms-link'))}</div>
-        <div class="fb-sms-time">${(globalThis.PlatformLanguage?.text("settings","m_08395ff7aa8e3a","Delivered") ?? "Delivered")}</div>
+        <div class="fb-sms-time">${(globalThis.PlatformLanguage?.htmlText("settings","m_08395ff7aa8e3a","Delivered") ?? "Delivered")}</div>
       </div>`;
 
       const emailScreen = `<div class="fb-email">
         <div class="fb-email-bar"><i class="fas fa-circle"></i><i class="fas fa-circle"></i><i class="fas fa-circle"></i></div>
-        <div class="fb-email-head"><b>${String(esc(mergeSample(text(messages().email_subject))))}</b><span>${((v1) => globalThis.PlatformLanguage?.text("settings","m_685b5b9075b04a",`${v1} &lt;notifications@firstmatemail.com&gt; &nbsp; to Sarah`,{v1}) ?? `${v1} &lt;notifications@firstmatemail.com&gt; &nbsp; to Sarah`)(esc(theme.name))}</span></div>
+        <div class="fb-email-head"><b>${String(esc(mergeSample(text(messages().email_subject))))}</b><span>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_685b5b9075b04a",`${v1} &lt;notifications@firstmatemail.com&gt; &nbsp; to Sarah`,{v1}) ?? `${v1} &lt;notifications@firstmatemail.com&gt; &nbsp; to Sarah`)(esc(theme.name))}</span></div>
         <div class="fb-email-body">${String(previewMessageHtml(text(messages().email_body), 'fb-email-link'))}</div>
       </div>`;
 
       const portalScreen = `<div class="fb-portal-shell">
         <div class="fb-portal-head">${String(theme.logo ? `<img src="${esc(theme.logo)}" alt="">` : '')}<b>${String(esc(theme.name))}</b></div>
-        <div class="fb-portal-nav"><span>${(globalThis.PlatformLanguage?.text("settings","m_b69161f38dacdf","Overview") ?? "Overview")}</span><span>${(globalThis.PlatformLanguage?.text("settings","m_fc05a804bd034c","Schedule") ?? "Schedule")}</span><span>${(globalThis.PlatformLanguage?.text("settings","m_5d7c7ad6033624","Documents") ?? "Documents")}</span></div>
-        <div class="fb-portal-content"><p class="fb-portal-project">${(globalThis.PlatformLanguage?.text("settings","m_e582e6c2daa378","Roof replacement") ?? "Roof replacement")}</p><div class="fb-portal-card">
+        <div class="fb-portal-nav"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_b69161f38dacdf","Overview") ?? "Overview")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_fc05a804bd034c","Schedule") ?? "Schedule")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5d7c7ad6033624","Documents") ?? "Documents")}</span></div>
+        <div class="fb-portal-content"><p class="fb-portal-project">${(globalThis.PlatformLanguage?.htmlText("settings","m_e582e6c2daa378","Roof replacement") ?? "Roof replacement")}</p><div class="fb-portal-card">
           <div class="fb-portal-stars">★★★★★</div><div class="fb-portal-copy"><b>${String(esc(mergeSample(text(messages().portal_title, 'How did we do?'))))}</b><span>${String(esc(mergeSample(text(messages().portal_body, 'Tell us how everything went — it only takes a few seconds.'))))}</span></div><div class="fb-portal-btn">${String(esc(text(messages().portal_cta, 'Leave feedback')))}</div>
         </div></div>
       </div>`;
@@ -709,9 +709,9 @@
 
       wrap.innerHTML = `
         ${onDeliveryPage ? `<div class="fb-preview-tabs delivery">
-          <button type="button" data-fb-pv-tab="sms" class="${String(state.previewTab === 'sms' ? 'on' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_124287f184b88b","Text") ?? "Text")}</button>
-          <button type="button" data-fb-pv-tab="email" class="${String(state.previewTab === 'email' ? 'on' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_5d2b9327181e33","Email") ?? "Email")}</button>
-          <button type="button" data-fb-pv-tab="portal" class="${String(state.previewTab === 'portal' ? 'on' : '')}">${(globalThis.PlatformLanguage?.text("settings","m_a4cd44bc12f332","Portal") ?? "Portal")}</button>
+          <button type="button" data-fb-pv-tab="sms" class="${String(state.previewTab === 'sms' ? 'on' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_124287f184b88b","Text") ?? "Text")}</button>
+          <button type="button" data-fb-pv-tab="email" class="${String(state.previewTab === 'email' ? 'on' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_5d2b9327181e33","Email") ?? "Email")}</button>
+          <button type="button" data-fb-pv-tab="portal" class="${String(state.previewTab === 'portal' ? 'on' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_a4cd44bc12f332","Portal") ?? "Portal")}</button>
         </div>` : ''}
         <div class="fb-phone" style="--fb-pv-brand:${esc(theme.primary)};${rgb ? `--fb-pv-brand-rgb:${rgb};` : ''}">
           <div class="fb-phone-notch"></div>

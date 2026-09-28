@@ -278,7 +278,7 @@
       if (gesture.revision !== sidebarResizeRevision) return;
       applySidebarWidth(gesture.startWidth);
       if (!gesture.wasExpanded) setSidebarCompactExpanded(false);
-      window.Portal?.ui?.showToast?.('Could not save sidebar width', error?.message || 'Please try again.', false);
+      window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("platform","m_9a00fb620ffc1d","Could not save sidebar width") ?? "Could not save sidebar width"), error?.message || 'Please try again.', false);
       console.error('Could not save sidebar width', error);
     }
   }
@@ -2103,7 +2103,7 @@
     notice.id = 'fmManagementAccessDenied';
     notice.setAttribute('role', 'alert');
     notice.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:24px;background:#f8fafc;color:#101828;font-family:inherit';
-    notice.innerHTML = `<div style="width:min(520px,100%);padding:28px;border:1px solid #e4e7ec;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.14);text-align:center"><div style="font-size:34px;margin-bottom:12px"><i class="fas fa-lock"></i></div><h1 style="margin:0 0 8px;font-size:22px">${(globalThis.PlatformLanguage?.text("platform","m_b126ae2c9d98e9","App access is not enabled") ?? "App access is not enabled")}</h1><p style="margin:0 0 20px;color:#667085;line-height:1.5">${(globalThis.PlatformLanguage?.text("platform","m_9281c219072ec2","Your account is active, but no FirstMate application is enabled for it. Ask a company administrator to update your app access.") ?? "Your account is active, but no FirstMate application is enabled for it. Ask a company administrator to update your app access.")}</p><a href="/logout.php" style="display:inline-flex;padding:10px 16px;border-radius:10px;background:#111827;color:#fff;text-decoration:none;font-weight:900">${(globalThis.PlatformLanguage?.text("platform","m_4a4225b26dcc30","Sign out") ?? "Sign out")}</a></div>`;
+    notice.innerHTML = `<div style="width:min(520px,100%);padding:28px;border:1px solid #e4e7ec;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.14);text-align:center"><div style="font-size:34px;margin-bottom:12px"><i class="fas fa-lock"></i></div><h1 style="margin:0 0 8px;font-size:22px">${(globalThis.PlatformLanguage?.htmlText("platform","m_b126ae2c9d98e9","App access is not enabled") ?? "App access is not enabled")}</h1><p style="margin:0 0 20px;color:#667085;line-height:1.5">${(globalThis.PlatformLanguage?.htmlText("platform","m_9281c219072ec2","Your account is active, but no FirstMate application is enabled for it. Ask a company administrator to update your app access.") ?? "Your account is active, but no FirstMate application is enabled for it. Ask a company administrator to update your app access.")}</p><a href="/logout.php" style="display:inline-flex;padding:10px 16px;border-radius:10px;background:#111827;color:#fff;text-decoration:none;font-weight:900">${(globalThis.PlatformLanguage?.htmlText("platform","m_4a4225b26dcc30","Sign out") ?? "Sign out")}</a></div>`;
     document.body.appendChild(notice);
   }
 
@@ -2266,7 +2266,7 @@
     el.innerHTML = `
       <div class="ic" id="fmToastIc"><i class="fas fa-check"></i></div>
       <div class="tx">
-        <div class="t1" id="fmToastT1">${(globalThis.PlatformLanguage?.text("platform","m_8cb6b086a0e69c","Done") ?? "Done")}</div>
+        <div class="t1" id="fmToastT1">${(globalThis.PlatformLanguage?.htmlText("platform","m_8cb6b086a0e69c","Done") ?? "Done")}</div>
         <div class="t2" id="fmToastT2">—</div>
       </div>
       <button class="x" id="fmToastX" data-fm-tooltip="Dismiss"><i class="fas fa-times"></i></button>
@@ -2596,7 +2596,7 @@
     if (!container) return;
     const orgId = cleanText(APP.userOrgId, APP.orgId, window.__APP?.userOrgId, window.__APP?.orgId);
     if (!orgId || !window.PlatformActionItems?.renderTodayList) {
-      container.innerHTML = `<div class="pai-today-list"><div class="pai-state">${(globalThis.PlatformLanguage?.text("platform","m_b46ce5290a86bd","To-dos are not available.") ?? "To-dos are not available.")}</div></div>`;
+      container.innerHTML = `<div class="pai-today-list"><div class="pai-state">${(globalThis.PlatformLanguage?.htmlText("platform","m_b46ce5290a86bd","To-dos are not available.") ?? "To-dos are not available.")}</div></div>`;
       return;
     }
     if (!sidebarTodoController) {
@@ -2660,7 +2660,7 @@
     const container = document.getElementById('sidebarAgentsList');
     if (!container) return;
     if (!window.PlatformAssistant?.mountSidebar) {
-      container.textContent = 'Agent conversations are loading…';
+      container.textContent = (globalThis.PlatformLanguage?.text("platform","m_854ab579641f94","Agent conversations are loading…") ?? "Agent conversations are loading…");
       return;
     }
     window.PlatformAssistant.mountSidebar(container);
@@ -2676,7 +2676,7 @@
     }
     const orgId = cleanText(APP.userOrgId, APP.orgId, window.__APP?.userOrgId, window.__APP?.orgId);
     if (!orgId || !window.FirstMateChannels?.create || !window.ChannelsAPI) {
-      container.innerHTML = `<div style="padding:14px 8px;color:#667085;font-size:12px;font-weight:850">${(globalThis.PlatformLanguage?.text("platform","m_ab82fba58e1b16","Channels are not available.") ?? "Channels are not available.")}</div>`;
+      container.innerHTML = `<div style="padding:14px 8px;color:#667085;font-size:12px;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("platform","m_ab82fba58e1b16","Channels are not available.") ?? "Channels are not available.")}</div>`;
       return;
     }
     container.innerHTML = '';
@@ -3007,23 +3007,23 @@
             <h3>${String(escapeHtml(entry.label))}</h3>
             ${String(entry.category ? `<span class="fm-app-catalog-category">${escapeHtml(entry.category)}</span>` : '')}
           </div>
-          <button type="button" class="fm-app-catalog-close" data-app-catalog-close aria-label="${(globalThis.PlatformLanguage?.text("platform","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+          <button type="button" class="fm-app-catalog-close" data-app-catalog-close aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
         </header>
         <div class="fm-app-catalog-body">
           <div class="fm-app-catalog-preview" aria-hidden="true">
             <span class="fm-app-catalog-preview-icon"><i class="fas ${String(escapeHtml(entry.icon))}"></i></span>
           </div>
           <div class="fm-app-catalog-details">
-            <h4>${((v5) => globalThis.PlatformLanguage?.text("platform","m_661c04e299660b",`About ${v5}`,{v5}) ?? `About ${v5}`)(escapeHtml(entry.label))}</h4>
+            <h4>${((v5) => globalThis.PlatformLanguage?.htmlText("platform","m_661c04e299660b",`About ${v5}`,{v5}) ?? `About ${v5}`)(escapeHtml(entry.label))}</h4>
             <p>${String(escapeHtml(entry.description || 'No description yet.'))}</p>
           <p class="fm-app-catalog-state">${String(entry.enabled ? escapeHtml(setupStateCopy) : 'Included with your FirstMate plan — add it to start using it.')}</p>
           </div>
         </div>
         <footer>
           <span class="fm-app-catalog-status" data-app-catalog-status></span>
-          <button type="button" class="fm-app-catalog-btn ghost" data-app-catalog-close>${(globalThis.PlatformLanguage?.text("platform","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+          <button type="button" class="fm-app-catalog-btn ghost" data-app-catalog-close>${(globalThis.PlatformLanguage?.htmlText("platform","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
           ${String(entry.enabled
-            ? `${setupNeeded ? `<button type="button" class="fm-app-catalog-btn primary" data-app-catalog-setup><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i> ${escapeHtml(setupActionLabel)}</button>` : ''}<button type="button" class="fm-app-catalog-btn danger" data-app-catalog-remove>Turn Off</button>`
+            ? `${setupNeeded ? `<button type="button" class="fm-app-catalog-btn primary" data-app-catalog-setup><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i> ${escapeHtml(setupActionLabel)}</button>` : ''}<button type="button" class="fm-app-catalog-btn danger" data-app-catalog-remove>${(globalThis.PlatformLanguage?.htmlText("platform","m_86ec40fa3f9758","Turn Off") ?? "Turn Off")}</button>`
             : `<button type="button" class="fm-app-catalog-btn primary" data-app-catalog-add><i class="fas fa-plus" aria-hidden="true"></i> ${setup.mode === 'required' ? 'Add & Set Up' : 'Add to Platform'}</button>`)}
         </footer>
       </div>`;
@@ -3143,8 +3143,8 @@
       const statusPills = entry.statusPills || [];
       return `
       <article class="fm-advanced-app-tile${entry.pinned ? ' is-pinned' : ' is-unpinned'}" data-advanced-app-tile="${escapeHtml(entry.key)}">
-        ${!entry.pinnable ? '' : `<button type="button" class="fm-advanced-app-pin${String(entry.pinned ? ' is-pinned' : '')}" data-advanced-app-pin="${String(escapeHtml(entry.appId))}" aria-label="${((v2,v3,v4) => globalThis.PlatformLanguage?.text("platform","m_be9d2ffc499cb4",`${v2} ${v3} ${v4} the sidebar`,{v2,v3,v4}) ?? `${v2} ${v3} ${v4} the sidebar`)(entry.pinned ? 'Unpin' : 'Pin',escapeHtml(entry.label),entry.pinned ? 'from' : 'to')}" title="${String(entry.pinned ? 'Unpin from sidebar' : 'Pin to sidebar')}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>`}
-        ${statusPills.length ? ("<div class=\"fm-advanced-app-status-pills\" aria-label=\"" + (globalThis.PlatformLanguage?.text("platform","m_bd09496c83ccd1","App status") ?? "App status") + "\">" + String(statusPills.map((pill) => `<span class="fm-advanced-app-status-pill is-${escapeHtml(pill.tone)}" data-status-pill="${escapeHtml(pill.id)}">${escapeHtml(pill.label)}</span>`).join('')) + "</div>") : ''}
+        ${!entry.pinnable ? '' : `<button type="button" class="fm-advanced-app-pin${String(entry.pinned ? ' is-pinned' : '')}" data-advanced-app-pin="${String(escapeHtml(entry.appId))}" aria-label="${((v2,v3,v4) => globalThis.PlatformLanguage?.htmlText("platform","m_be9d2ffc499cb4",`${v2} ${v3} ${v4} the sidebar`,{v2,v3,v4}) ?? `${v2} ${v3} ${v4} the sidebar`)(entry.pinned ? 'Unpin' : 'Pin',escapeHtml(entry.label),entry.pinned ? 'from' : 'to')}" title="${String(entry.pinned ? 'Unpin from sidebar' : 'Pin to sidebar')}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>`}
+        ${statusPills.length ? ("<div class=\"fm-advanced-app-status-pills\" aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("platform","m_bd09496c83ccd1","App status") ?? "App status") + "\">" + String(statusPills.map((pill) => `<span class="fm-advanced-app-status-pill is-${escapeHtml(pill.tone)}" data-status-pill="${escapeHtml(pill.id)}">${escapeHtml(pill.label)}</span>`).join('')) + "</div>") : ''}
         <div class="fm-advanced-app-icon-wrap">
           <button type="button" class="fm-advanced-app-icon-button" data-advanced-app-open="${escapeHtml(entry.key)}" aria-label="${setupRequired ? 'Set up' : 'Open'} ${escapeHtml(entry.label)}">
             <span class="fm-advanced-app-icon"><i class="fas ${escapeHtml(entry.icon)}" aria-hidden="true"></i></span>
@@ -3168,12 +3168,12 @@
     setSidebarEdge();
     window.setTimeout(setSidebarEdge, 210);
     overlay.innerHTML = `
-      <section class="fm-advanced-apps-panel" aria-label="${(globalThis.PlatformLanguage?.text("platform","m_a151b65da51bfd","All apps") ?? "All apps")}">
-        <button type="button" class="fm-advanced-apps-close" data-advanced-apps-close aria-label="${(globalThis.PlatformLanguage?.text("platform","m_0838136c759dc3","Close apps") ?? "Close apps")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+      <section class="fm-advanced-apps-panel" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_a151b65da51bfd","All apps") ?? "All apps")}">
+        <button type="button" class="fm-advanced-apps-close" data-advanced-apps-close aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_0838136c759dc3","Close apps") ?? "Close apps")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
         <div class="fm-advanced-apps-scroll">
-          <nav class="fm-advanced-apps-grid" aria-label="${(globalThis.PlatformLanguage?.text("platform","m_290b7f9d844e1e","Active apps") ?? "Active apps")}">${String(enabled.map((entry) => appTile(entry)).join(''))}</nav>
+          <nav class="fm-advanced-apps-grid" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_290b7f9d844e1e","Active apps") ?? "Active apps")}">${String(enabled.map((entry) => appTile(entry)).join(''))}</nav>
         </div>
-        <footer><button type="button" data-advanced-apps-manage><i class="fas fa-sliders" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.text("platform","m_1575b4a4cbcb3d"," Manage apps and features") ?? " Manage apps and features")}</button></footer>
+        <footer><button type="button" data-advanced-apps-manage><i class="fas fa-sliders" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_1575b4a4cbcb3d"," Manage apps and features") ?? " Manage apps and features")}</button></footer>
       </section>`;
 
     overlay.addEventListener('mousedown', (event) => {
@@ -3413,14 +3413,14 @@
         if (count <= 23) return 6;
         return 7;
       };
-      const assistantTile = assistantApp ? `<div style="position:relative"><button type="button" class="fm-more-app" role="menuitem" data-active-app="assistant"><span class="fm-more-app-icon"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i></span><span class="fm-more-app-name">FirstMate Assistant</span></button><button type="button" data-assistant-pin="${assistantApp.placement === 'sidebar' ? 'unpin' : 'pin'}" aria-label="${assistantApp.placement === 'sidebar' ? 'Unpin' : 'Pin'} FirstMate Assistant" title="${assistantApp.placement === 'sidebar' ? 'Unpin' : 'Pin'} FirstMate Assistant" style="position:absolute;top:0;right:0;border:0;background:transparent;padding:8px;cursor:pointer;color:#667085"><i class="fas fa-thumbtack" aria-hidden="true"></i></button></div>` : '';
+      const assistantTile = assistantApp ? `<div style="position:relative"><button type="button" class="fm-more-app" role="menuitem" data-active-app="assistant"><span class="fm-more-app-icon"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i></span><span class="fm-more-app-name">${(globalThis.PlatformLanguage?.htmlText("platform","m_4aaef822b47692","FirstMate Assistant") ?? "FirstMate Assistant")}</span></button><button type="button" data-assistant-pin="${assistantApp.placement === 'sidebar' ? 'unpin' : 'pin'}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform","m_c411108185658e",`${v1} FirstMate Assistant`,{v1}) ?? `${v1} FirstMate Assistant`)(assistantApp.placement === 'sidebar' ? 'Unpin' : 'Pin')}" title="${((v2) => globalThis.PlatformLanguage?.htmlText("platform","m_75157fa1305ecd",`${v2} FirstMate Assistant`,{v2}) ?? `${v2} FirstMate Assistant`)(assistantApp.placement === 'sidebar' ? 'Unpin' : 'Pin')}" style="position:absolute;top:0;right:0;border:0;background:transparent;padding:8px;cursor:pointer;color:#667085"><i class="fas fa-thumbtack" aria-hidden="true"></i></button></div>` : '';
       const catalogGrid = (catalogApps.length || assistantApp) ? `<nav class="fm-more-apps-grid">${assistantTile}${catalogApps.map((entry) => `
         <button type="button" class="fm-more-app" role="menuitem" data-catalog-app="${escapeHtml(entry.key)}">
           <span class="fm-more-app-icon"><i class="fas ${escapeHtml(entry.icon)}" aria-hidden="true"></i></span>
           <span class="fm-more-app-name">${escapeHtml(entry.label)}</span>
           <span class="fm-more-app-desc">${escapeHtml(entry.stub)}</span>
-        </button>`).join('')}</nav>` : `<div class="fm-more-apps-empty">${(globalThis.PlatformLanguage?.text("platform","m_5f329f8bb1c9f0","Every available app is already on your platform.") ?? "Every available app is already on your platform.")}</div>`;
-      popover.innerHTML = `<header class="fm-more-apps-head"><strong class="fm-more-apps-title">${(globalThis.PlatformLanguage?.text("platform","m_cba67dfaef4579","More FirstMate apps") ?? "More FirstMate apps")}</strong><button type="button" data-more-apps-close aria-label="${(globalThis.PlatformLanguage?.text("platform","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark" aria-hidden="true"></i></button></header>${String(catalogGrid)}<footer class="fm-more-apps-foot"><button type="button" data-more-apps-manage role="menuitem"><i class="fas fa-sliders" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.text("platform","m_c2d1b0f24c343f"," Manage my apps") ?? " Manage my apps")}</button></footer>`;
+        </button>`).join('')}</nav>` : `<div class="fm-more-apps-empty">${(globalThis.PlatformLanguage?.htmlText("platform","m_5f329f8bb1c9f0","Every available app is already on your platform.") ?? "Every available app is already on your platform.")}</div>`;
+      popover.innerHTML = `<header class="fm-more-apps-head"><strong class="fm-more-apps-title">${(globalThis.PlatformLanguage?.htmlText("platform","m_cba67dfaef4579","More FirstMate apps") ?? "More FirstMate apps")}</strong><button type="button" data-more-apps-close aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark" aria-hidden="true"></i></button></header>${String(catalogGrid)}<footer class="fm-more-apps-foot"><button type="button" data-more-apps-manage role="menuitem"><i class="fas fa-sliders" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_c2d1b0f24c343f"," Manage my apps") ?? " Manage my apps")}</button></footer>`;
       let closeTimer = 0;
       const finishClose = () => {
         window.clearTimeout(closeTimer);
@@ -3765,7 +3765,7 @@
       item.className = 'fm-link';
       item.dataset.tab = t.id;
       item.innerHTML = `
-        ${advancedAppMenuEnabled() && t.placement === 'sidebar' ? `<button type="button" class="fm-sidebar-app-pin is-pinned" data-sidebar-app-pin="${String(escapeHtml(t.appId))}" aria-label="${((v1) => globalThis.PlatformLanguage?.text("platform","m_db4217ef113961",`Unpin ${v1} from the sidebar`,{v1}) ?? `Unpin ${v1} from the sidebar`)(escapeHtml(title))}" title="${(globalThis.PlatformLanguage?.text("platform","m_faf31575fe991d","Unpin from sidebar") ?? "Unpin from sidebar")}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>` : ''}
+        ${advancedAppMenuEnabled() && t.placement === 'sidebar' ? `<button type="button" class="fm-sidebar-app-pin is-pinned" data-sidebar-app-pin="${String(escapeHtml(t.appId))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform","m_db4217ef113961",`Unpin ${v1} from the sidebar`,{v1}) ?? `Unpin ${v1} from the sidebar`)(escapeHtml(title))}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_faf31575fe991d","Unpin from sidebar") ?? "Unpin from sidebar")}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>` : ''}
         <div class="ic"><i class="fas ${escapeHtml(t.icon)}"></i></div>
         <div class="tx">${escapeHtml(title)}</div>
       `;
@@ -4721,7 +4721,7 @@
       window.PlatformCommerce.set(commerce.commerce || commerce);
     } catch(error) {
       const cover=document.getElementById('fmPlatformBootCover');
-      if(cover){cover.textContent='Billing settings could not be loaded. ';const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>location.reload();cover.appendChild(retry);}
+      if(cover){cover.textContent=(globalThis.PlatformLanguage?.text("platform","m_20117f24d2d135","Billing settings could not be loaded. ") ?? "Billing settings could not be loaded. ");const retry=document.createElement('button');retry.textContent=(globalThis.PlatformLanguage?.text("platform","m_48a9cdd2af44f4","Retry") ?? "Retry");retry.onclick=()=>location.reload();cover.appendChild(retry);}
       console.error('Billing initialization failed',error);return;
     }
     TabRegistry.routesReady = true;

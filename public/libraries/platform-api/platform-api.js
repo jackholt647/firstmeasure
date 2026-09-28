@@ -2953,6 +2953,13 @@
   };
 
   const api = {
+    terminologyConfiguration(orgId,branchId='default'){return request(orgPath(orgId,`/branch/${enc(branchId)}/terminology`));},
+    terminologyAssistant: {
+      context(orgId){return request(orgPath(orgId,'/terminology-assistant'));},
+      createThread(orgId,body={}){return request(orgPath(orgId,'/terminology-assistant/threads'),{method:'POST',body});},
+      thread(orgId,id){return request(orgPath(orgId,`/terminology-assistant/threads/${enc(id)}`));},
+      send(orgId,id,body,options={}){return request(orgPath(orgId,`/terminology-assistant/threads/${enc(id)}/messages`),{method:'POST',body,signal:options.signal});}
+    },
     notificationAssistant: {
       context(orgId){return request(orgPath(orgId,'/notification-assistant'));},
       createThread(orgId,body={}){return request(orgPath(orgId,'/notification-assistant/threads'),{method:'POST',body});},
@@ -3034,8 +3041,8 @@
         branchModuleListPending.set(key, pending);
         return pending;
       },
-      async get(orgId, branchId, moduleId){
-        if (api.branchModules?.list) {
+      async get(orgId, branchId, moduleId, options = {}){
+        if (api.branchModules?.list && options.refresh !== true) {
           try {
             const modules = await api.branchModules.list(orgId, branchId);
             const found = modules.find((module) => cleanText(module?.module || module?.id) === cleanText(moduleId));

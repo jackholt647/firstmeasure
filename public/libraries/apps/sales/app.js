@@ -86,7 +86,7 @@
   function modal(content, onClose){
     const back = document.createElement('div');
     back.className = 'sales-modal-back';
-    back.innerHTML = `<div class="sales-modal" role="dialog" aria-modal="true">${String(content)}<button type="button" class="sales-modal-close" aria-label="${(globalThis.PlatformLanguage?.text("sales","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>`;
+    back.innerHTML = `<div class="sales-modal" role="dialog" aria-modal="true">${String(content)}<button type="button" class="sales-modal-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("sales","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>`;
     const close = () => { back.remove(); onClose?.(); };
     back.querySelector('.sales-modal-close')?.addEventListener('click', close);
     back.addEventListener('click', (event) => { if (event.target === back) close(); });
@@ -101,8 +101,8 @@
   function confirmationPill(appointment){
     const confirmation = obj(appointment.confirmation);
     const status = clean(confirmation.status || appointment.confirmation_status).toLowerCase();
-    if (['confirmed','yes'].includes(status)) return `<span class="sales-pill good">${(globalThis.PlatformLanguage?.text("sales","m_2ac28976b8db5d","Confirmed") ?? "Confirmed")}</span>`;
-    if (['declined','no','canceled'].includes(status)) return `<span class="sales-pill bad">${(globalThis.PlatformLanguage?.text("sales","m_bf5390659e3677","Declined") ?? "Declined")}</span>`;
+    if (['confirmed','yes'].includes(status)) return `<span class="sales-pill good">${(globalThis.PlatformLanguage?.htmlText("sales","m_2ac28976b8db5d","Confirmed") ?? "Confirmed")}</span>`;
+    if (['declined','no','canceled'].includes(status)) return `<span class="sales-pill bad">${(globalThis.PlatformLanguage?.htmlText("sales","m_bf5390659e3677","Declined") ?? "Declined")}</span>`;
     if (status) return `<span class="sales-pill warn">${esc(status.replace(/_/g,' '))}</span>`;
     return '';
   }
@@ -121,9 +121,9 @@
         <div class="sales-appt-time"><strong>${esc(dateLabel ? `${dateLabel}` : time)}</strong><span>${esc(dateLabel ? time : (timed ? 'Scheduled' : 'All day'))}</span></div>
       </div>
       <div class="sales-appt-actions">
-        ${phone ? `<a href="tel:${String(esc(phone))}"><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.text("sales","m_34ac7f9c427ea4"," Call") ?? " Call")}</a>` : ''}
-        ${phone ? `<a href="sms:${String(esc(phone))}"><i class="fas fa-message"></i>${(globalThis.PlatformLanguage?.text("sales","m_d54c6c88f8e154"," Text") ?? " Text")}</a>` : ''}
-        ${address ? `<a href="${String(esc(mapsUrl(address)))}" target="_blank" rel="noopener"><i class="fas fa-diamond-turn-right"></i>${(globalThis.PlatformLanguage?.text("sales","m_3367a4d77d65fd"," Directions") ?? " Directions")}</a>` : ''}
+        ${phone ? `<a href="tel:${String(esc(phone))}"><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.htmlText("sales","m_34ac7f9c427ea4"," Call") ?? " Call")}</a>` : ''}
+        ${phone ? `<a href="sms:${String(esc(phone))}"><i class="fas fa-message"></i>${(globalThis.PlatformLanguage?.htmlText("sales","m_d54c6c88f8e154"," Text") ?? " Text")}</a>` : ''}
+        ${address ? `<a href="${String(esc(mapsUrl(address)))}" target="_blank" rel="noopener"><i class="fas fa-diamond-turn-right"></i>${(globalThis.PlatformLanguage?.htmlText("sales","m_3367a4d77d65fd"," Directions") ?? " Directions")}</a>` : ''}
         ${stage ? `<span class="sales-pill">${esc(stage)}</span>` : ''}
         ${confirmationPill(appointment)}
       </div>
@@ -171,8 +171,8 @@
     const meta = followUpDueMeta(item);
     const sub = [clean(first(item.project_title, item.project_address)), clean(item.description)].filter(Boolean).join(' · ');
     const actions = options.claim
-      ? `<button type="button" class="sales-btn small" data-fu-claim="${String(esc(clean(item.id)))}"><i class="fas fa-hand"></i>${(globalThis.PlatformLanguage?.text("sales","m_37d72291d3fdcc"," Claim") ?? " Claim")}</button>`
-      : `<button type="button" class="sales-btn small" data-fu-done="${String(esc(clean(item.id)))}"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("sales","m_224bc948fd9fdf"," Done") ?? " Done")}</button>`;
+      ? `<button type="button" class="sales-btn small" data-fu-claim="${String(esc(clean(item.id)))}"><i class="fas fa-hand"></i>${(globalThis.PlatformLanguage?.htmlText("sales","m_37d72291d3fdcc"," Claim") ?? " Claim")}</button>`
+      : `<button type="button" class="sales-btn small" data-fu-done="${String(esc(clean(item.id)))}"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("sales","m_224bc948fd9fdf"," Done") ?? " Done")}</button>`;
     return `<div class="sales-fu ${meta.past ? 'past' : ''}">
       <div class="sales-fu-copy"><strong>${esc(first(item.title, 'Follow-up'))}</strong>${sub ? `<span>${esc(sub)}</span>` : ''}</div>
       ${meta.text ? `<span class="sales-fu-due ${meta.past ? 'past' : ''}">${esc(meta.text)}</span>` : ''}
@@ -183,13 +183,13 @@
   function outcomeModal(item, context, reload){
     const tomorrow = addLocalDays(nowDate(), 1);
     const handle = modal(`<h2>${String(esc(first(item.title, 'Follow-up')))}</h2>
-      <p class="sales-sub">${(globalThis.PlatformLanguage?.text("sales","m_68fa6f35b11153","How did it go?") ?? "How did it go?")}</p>
+      <p class="sales-sub">${(globalThis.PlatformLanguage?.htmlText("sales","m_68fa6f35b11153","How did it go?") ?? "How did it go?")}</p>
       <div class="sales-form">
-        <div class="sales-field wide">${(globalThis.PlatformLanguage?.text("sales","m_48f6e986c5a7fb","Reschedule for") ?? "Reschedule for")}<input type="date" value="${String(esc(tomorrow))}" data-outcome-date></div>
+        <div class="sales-field wide">${(globalThis.PlatformLanguage?.htmlText("sales","m_48f6e986c5a7fb","Reschedule for") ?? "Reschedule for")}<input type="date" value="${String(esc(tomorrow))}" data-outcome-date></div>
         <div class="sales-form-actions" style="justify-content:stretch;display:grid;gap:8px">
-          <button type="button" class="sales-btn" data-outcome="reschedule"><i class="fas fa-rotate-right"></i>${(globalThis.PlatformLanguage?.text("sales","m_6d0d95f6b13838"," Reschedule") ?? " Reschedule")}</button>
-          <button type="button" class="sales-btn primary" data-outcome="scheduled"><i class="fas fa-calendar-check"></i>${(globalThis.PlatformLanguage?.text("sales","m_3d6ff50913e97b"," Appointment booked") ?? " Appointment booked")}</button>
-          <button type="button" class="sales-btn danger" data-outcome="lost"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.text("sales","m_ee24fc01e458db"," Mark lost") ?? " Mark lost")}</button>
+          <button type="button" class="sales-btn" data-outcome="reschedule"><i class="fas fa-rotate-right"></i>${(globalThis.PlatformLanguage?.htmlText("sales","m_6d0d95f6b13838"," Reschedule") ?? " Reschedule")}</button>
+          <button type="button" class="sales-btn primary" data-outcome="scheduled"><i class="fas fa-calendar-check"></i>${(globalThis.PlatformLanguage?.htmlText("sales","m_3d6ff50913e97b"," Appointment booked") ?? " Appointment booked")}</button>
+          <button type="button" class="sales-btn danger" data-outcome="lost"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("sales","m_ee24fc01e458db"," Mark lost") ?? " Mark lost")}</button>
         </div>
       </div>`);
     handle.el.querySelectorAll('[data-outcome]').forEach((button) => button.addEventListener('click', async () => {
@@ -232,16 +232,16 @@
     let dashboard = null;
     const showPulse = context.params?.show_pipeline_pulse !== false;
     const canManageFollowups = context.params?.can_manage_followups === true;
-    root.innerHTML = `<div class="sales-shell"><div class="sales-page"><div class="sales-head"><div><div class="sales-eyebrow">${(globalThis.PlatformLanguage?.text("sales","m_239c94a2b44bff","Sales overview") ?? "Sales overview")}</div><h1 class="sales-title">${(globalThis.PlatformLanguage?.text("sales","m_23929ba4ba84dd","Today") ?? "Today")}</h1><p class="sales-sub">${String(esc(new Date().toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })))}</p></div></div><div data-pulse></div><div class="sales-dashboard" data-dashboard>${String(stateHtml('loading','Loading your day'))}</div></div></div>`;
+    root.innerHTML = `<div class="sales-shell"><div class="sales-page"><div class="sales-head"><div><div class="sales-eyebrow">${(globalThis.PlatformLanguage?.htmlText("sales","m_239c94a2b44bff","Sales overview") ?? "Sales overview")}</div><h1 class="sales-title">${(globalThis.PlatformLanguage?.htmlText("sales","m_23929ba4ba84dd","Today") ?? "Today")}</h1><p class="sales-sub">${String(esc(new Date().toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })))}</p></div></div><div data-pulse></div><div class="sales-dashboard" data-dashboard>${String(stateHtml('loading','Loading your day'))}</div></div></div>`;
     const pulseRoot = root.querySelector('[data-pulse]');
     const dashboardRoot = root.querySelector('[data-dashboard]');
     const renderPulse = () => {
       if (!pulseRoot || !showPulse || !dashboard) { if (pulseRoot) pulseRoot.innerHTML = ''; return; }
       const pulse = obj(dashboard.pulse);
       pulseRoot.innerHTML = `<div class="sales-pulse">
-        <div class="sales-pulse-chip"><i class="fas fa-handshake"></i><div class="sales-pulse-copy"><span>${(globalThis.PlatformLanguage?.text("sales","m_7316f560df772e","Appointments today") ?? "Appointments today")}</span><strong>${String(Number(pulse.appointments_today || 0))}</strong></div></div>
-        <div class="sales-pulse-chip"><i class="fas fa-calendar-week"></i><div class="sales-pulse-copy"><span>${(globalThis.PlatformLanguage?.text("sales","m_c807cbebf700fa","This week") ?? "This week")}</span><strong>${String(Number(pulse.appointments_week || 0))}</strong></div></div>
-        <div class="sales-pulse-chip ${String(Number(pulse.followups_overdue || 0) > 0 ? 'warn' : '')}"><i class="fas fa-phone"></i><div class="sales-pulse-copy"><span>${(globalThis.PlatformLanguage?.text("sales","m_c7ef448d322276","Open follow-ups") ?? "Open follow-ups")}</span><strong>${String(Number(pulse.followups_open || 0))}${String(Number(pulse.followups_overdue || 0) ? ` <small style="color:#d92d20;font-size:10px">(${Number(pulse.followups_overdue)} late)</small>` : '')}</strong></div></div>
+        <div class="sales-pulse-chip"><i class="fas fa-handshake"></i><div class="sales-pulse-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_7316f560df772e","Appointments today") ?? "Appointments today")}</span><strong>${String(Number(pulse.appointments_today || 0))}</strong></div></div>
+        <div class="sales-pulse-chip"><i class="fas fa-calendar-week"></i><div class="sales-pulse-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_c807cbebf700fa","This week") ?? "This week")}</span><strong>${String(Number(pulse.appointments_week || 0))}</strong></div></div>
+        <div class="sales-pulse-chip ${String(Number(pulse.followups_overdue || 0) > 0 ? 'warn' : '')}"><i class="fas fa-phone"></i><div class="sales-pulse-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_c7ef448d322276","Open follow-ups") ?? "Open follow-ups")}</span><strong>${String(Number(pulse.followups_open || 0))}${String(Number(pulse.followups_overdue || 0) ? ` <small style="color:#d92d20;font-size:10px">${((v0) => globalThis.PlatformLanguage?.htmlText("sales","m_1390c17284de2d",`(${v0} late)`,{v0}) ?? `(${v0} late)`)(Number(pulse.followups_overdue))}</small>` : '')}</strong></div></div>
       </div>`;
     };
     const renderDashboard = () => {
@@ -252,13 +252,13 @@
       const mine = arr(followups.mine);
       const unclaimed = arr(followups.unclaimed);
       dashboardRoot.innerHTML = `
-        <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.text("sales","m_e90a3398222f9d","Today's appointments") ?? "Today's appointments")}</h3><small>${String(appointments.length)}</small></div>${String(appointments.length ? `<div class="sales-appt-list">${appointments.map((item) => appointmentCard(item)).join('')}</div>` : stateHtml('empty','No appointments scheduled today.'))}</section>
-        ${String(upcoming.length ? `<section class="sales-card"><div class="sales-card-title"><h3>Coming up</h3><small>${upcoming.length}</small></div><div class="sales-appt-list">${upcoming.map((item) => appointmentCard(item, { showDate:true })).join('')}</div></section>` : '')}
-        <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.text("sales","m_40d434de84f84c","Your follow-ups") ?? "Your follow-ups")}</h3>${String(canManageFollowups ? '<button type="button" class="sales-btn small" data-fu-new><i class="fas fa-plus"></i> New</button>' : `<small>${mine.length}</small>`)}</div>
-          ${String(canManageFollowups ? `<div class="sales-inline-form sales-form" data-fu-form style="margin-bottom:11px"><div class="sales-form-grid"><div class="sales-field wide">What needs doing?<input type="text" placeholder="Call the customer back" data-fu-title></div><div class="sales-field">Due<input type="date" value="${esc(addLocalDays(nowDate(), 1))}" data-fu-due></div><div class="sales-field">Channel<select data-fu-channel><option value="call">Call</option><option value="text">Text</option><option value="email">Email</option><option value="visit">Visit</option></select></div></div><div class="sales-form-actions"><button type="button" class="sales-btn" data-fu-cancel>Cancel</button><button type="button" class="sales-btn primary" data-fu-save>Add follow-up</button></div></div>` : '')}
+        <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_e90a3398222f9d","Today's appointments") ?? "Today's appointments")}</h3><small>${String(appointments.length)}</small></div>${String(appointments.length ? `<div class="sales-appt-list">${appointments.map((item) => appointmentCard(item)).join('')}</div>` : stateHtml('empty','No appointments scheduled today.'))}</section>
+        ${String(upcoming.length ? `<section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_7d814e419cd412","Coming up") ?? "Coming up")}</h3><small>${upcoming.length}</small></div><div class="sales-appt-list">${upcoming.map((item) => appointmentCard(item, { showDate:true })).join('')}</div></section>` : '')}
+        <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_40d434de84f84c","Your follow-ups") ?? "Your follow-ups")}</h3>${String(canManageFollowups ? `<button type="button" class="sales-btn small" data-fu-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("sales","m_5fe01108f83039"," New") ?? " New")}</button>` : `<small>${mine.length}</small>`)}</div>
+          ${String(canManageFollowups ? `<div class="sales-inline-form sales-form" data-fu-form style="margin-bottom:11px"><div class="sales-form-grid"><div class="sales-field wide">${(globalThis.PlatformLanguage?.htmlText("sales","m_da96fc7ac6b2fa","What needs doing?") ?? "What needs doing?")}<input type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("sales","m_bf01c40d236456","Call the customer back") ?? "Call the customer back")}" data-fu-title></div><div class="sales-field">${(globalThis.PlatformLanguage?.htmlText("sales","m_3dac4d5769efeb","Due") ?? "Due")}<input type="date" value="${esc(addLocalDays(nowDate(), 1))}" data-fu-due></div><div class="sales-field">${(globalThis.PlatformLanguage?.htmlText("sales","m_ed28d6fb9ea58c","Channel") ?? "Channel")}<select data-fu-channel><option value="call">${(globalThis.PlatformLanguage?.htmlText("sales","m_8d4eaa0da004be","Call") ?? "Call")}</option><option value="text">${(globalThis.PlatformLanguage?.htmlText("sales","m_124287f184b88b","Text") ?? "Text")}</option><option value="email">${(globalThis.PlatformLanguage?.htmlText("sales","m_5d2b9327181e33","Email") ?? "Email")}</option><option value="visit">${(globalThis.PlatformLanguage?.htmlText("sales","m_d8d2e84c5e4d8b","Visit") ?? "Visit")}</option></select></div></div><div class="sales-form-actions"><button type="button" class="sales-btn" data-fu-cancel>${(globalThis.PlatformLanguage?.htmlText("sales","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="sales-btn primary" data-fu-save>${(globalThis.PlatformLanguage?.htmlText("sales","m_cd06f62a7707a3","Add follow-up") ?? "Add follow-up")}</button></div></div>` : '')}
           ${String(mine.length ? `<div class="sales-row-list">${mine.map((item) => followUpRow(item)).join('')}</div>` : stateHtml('empty','No open follow-ups. Nice.'))}
         </section>
-        ${String(unclaimed.length ? `<section class="sales-card"><div class="sales-card-title"><h3>Unclaimed (your role)</h3><small>${unclaimed.length}</small></div><div class="sales-row-list">${unclaimed.map((item) => followUpRow(item, { claim:canManageFollowups })).join('')}</div></section>` : '')}`;
+        ${String(unclaimed.length ? `<section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_b41d2411422a87","Unclaimed (your role)") ?? "Unclaimed (your role)")}</h3><small>${unclaimed.length}</small></div><div class="sales-row-list">${unclaimed.map((item) => followUpRow(item, { claim:canManageFollowups })).join('')}</div></section>` : '')}`;
       bindAppointmentCards(dashboardRoot, [...appointments, ...upcoming], context);
       bindFollowUps(dashboardRoot, followups, context, load);
       const form = dashboardRoot.querySelector('[data-fu-form]');
@@ -290,7 +290,7 @@
         renderDashboard();
       } catch (error) {
         if (!destroyed) {
-          dashboardRoot.innerHTML = (String(stateHtml('error', statusError(error, 'Could not load your day.'))) + "<div style=\"display:grid;place-items:center;padding-bottom:20px\"><button type=\"button\" class=\"sales-btn\" data-sales-retry><i class=\"fas fa-rotate-right\"></i>" + (globalThis.PlatformLanguage?.text("sales","m_cbfbb44ff35f0f"," Try again") ?? " Try again") + "</button></div>");
+          dashboardRoot.innerHTML = (String(stateHtml('error', statusError(error, 'Could not load your day.'))) + "<div style=\"display:grid;place-items:center;padding-bottom:20px\"><button type=\"button\" class=\"sales-btn\" data-sales-retry><i class=\"fas fa-rotate-right\"></i>" + (globalThis.PlatformLanguage?.htmlText("sales","m_cbfbb44ff35f0f"," Try again") ?? " Try again") + "</button></div>");
           dashboardRoot.querySelector('[data-sales-retry]')?.addEventListener('click', () => { void load(); });
         }
       }
@@ -406,7 +406,7 @@
         render();
       } catch (error) {
         if (!destroyed && version === requestVersion && mount) {
-          mount.innerHTML = (String(stateHtml('error', statusError(error,'Could not load your appointments.'))) + "<div style=\"display:grid;place-items:center;padding-bottom:20px\"><button type=\"button\" class=\"sales-btn\" data-sales-retry><i class=\"fas fa-rotate-right\"></i>" + (globalThis.PlatformLanguage?.text("sales","m_cbfbb44ff35f0f"," Try again") ?? " Try again") + "</button></div>");
+          mount.innerHTML = (String(stateHtml('error', statusError(error,'Could not load your appointments.'))) + "<div style=\"display:grid;place-items:center;padding-bottom:20px\"><button type=\"button\" class=\"sales-btn\" data-sales-retry><i class=\"fas fa-rotate-right\"></i>" + (globalThis.PlatformLanguage?.htmlText("sales","m_cbfbb44ff35f0f"," Try again") ?? " Try again") + "</button></div>");
           mount.querySelector('[data-sales-retry]')?.addEventListener('click', () => { void load(); });
         }
       }
@@ -456,7 +456,7 @@
 
   function mountSalesEarnings(root, context = {}){
     let destroyed = false;
-    root.innerHTML = `<div class="sales-shell"><div class="sales-page"><div class="sales-head"><div><div class="sales-eyebrow">${(globalThis.PlatformLanguage?.text("sales","m_a65c881ea565c9","My commissions") ?? "My commissions")}</div><h1 class="sales-title">${(globalThis.PlatformLanguage?.text("sales","m_685ff0ff145929","Earnings") ?? "Earnings")}</h1><p class="sales-sub">${(globalThis.PlatformLanguage?.text("sales","m_665dff0f24c0b6","Commission on every deal: what is pending, what is in payroll, and what has been paid.") ?? "Commission on every deal: what is pending, what is in payroll, and what has been paid.")}</p></div></div><div data-earnings>${String(stateHtml('loading','Loading your commissions'))}</div></div></div>`;
+    root.innerHTML = `<div class="sales-shell"><div class="sales-page"><div class="sales-head"><div><div class="sales-eyebrow">${(globalThis.PlatformLanguage?.htmlText("sales","m_a65c881ea565c9","My commissions") ?? "My commissions")}</div><h1 class="sales-title">${(globalThis.PlatformLanguage?.htmlText("sales","m_685ff0ff145929","Earnings") ?? "Earnings")}</h1><p class="sales-sub">${(globalThis.PlatformLanguage?.htmlText("sales","m_665dff0f24c0b6","Commission on every deal: what is pending, what is in payroll, and what has been paid.") ?? "Commission on every deal: what is pending, what is in payroll, and what has been paid.")}</p></div></div><div data-earnings>${String(stateHtml('loading','Loading your commissions'))}</div></div></div>`;
     const mount = root.querySelector('[data-earnings]');
     const render = (result) => {
       const report = obj(result.earnings || result.report || result);
@@ -466,13 +466,13 @@
       const commissions = entries.filter(isCommissionEntry);
       const others = entries.filter((entry) => !isCommissionEntry(entry));
       mount.innerHTML = `<div class="sales-summary-grid">
-          <div class="sales-summary"><span>${(globalThis.PlatformLanguage?.text("sales","m_5f59818bf1cb7d","Owed") ?? "Owed")}</span><strong>${String(esc(currency(Math.max(0, Number(totals.owed_cents || 0)))))}</strong><small>${(globalThis.PlatformLanguage?.text("sales","m_3d6345f45141a8","Accrued and currently in payroll") ?? "Accrued and currently in payroll")}</small></div>
-          <div class="sales-summary"><span>${(globalThis.PlatformLanguage?.text("sales","m_956173c8527121","Paid") ?? "Paid")}</span><strong>${String(esc(currency(Math.max(0, Number(totals.paid_cents || 0)))))}</strong><small>${(globalThis.PlatformLanguage?.text("sales","m_192360a7033431","Completed payroll") ?? "Completed payroll")}</small></div>
-          <div class="sales-summary"><span>${(globalThis.PlatformLanguage?.text("sales","m_929d3bd2149645","Projected") ?? "Projected")}</span><strong>${String(esc(currency(Math.max(0, Number(totals.projected_cents || 0)))))}</strong><small>${(globalThis.PlatformLanguage?.text("sales","m_047c1d69a096b3","Not owed until accrued") ?? "Not owed until accrued")}</small></div>
+          <div class="sales-summary"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_5f59818bf1cb7d","Owed") ?? "Owed")}</span><strong>${String(esc(currency(Math.max(0, Number(totals.owed_cents || 0)))))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("sales","m_3d6345f45141a8","Accrued and currently in payroll") ?? "Accrued and currently in payroll")}</small></div>
+          <div class="sales-summary"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_956173c8527121","Paid") ?? "Paid")}</span><strong>${String(esc(currency(Math.max(0, Number(totals.paid_cents || 0)))))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("sales","m_192360a7033431","Completed payroll") ?? "Completed payroll")}</small></div>
+          <div class="sales-summary"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_929d3bd2149645","Projected") ?? "Projected")}</span><strong>${String(esc(currency(Math.max(0, Number(totals.projected_cents || 0)))))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("sales","m_047c1d69a096b3","Not owed until accrued") ?? "Not owed until accrued")}</small></div>
         </div>
-        <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.text("sales","m_612cec7371695b","Commissions") ?? "Commissions")}</h3><small>${String(commissions.length)}</small></div>${String(commissions.length ? `<div class="sales-row-list">${commissions.slice(0, 100).map(commissionEntryCard).join('')}</div>` : stateHtml('empty','No commissions yet — go close something.'))}</section>
-        ${String(others.length ? `<section class="sales-card"><div class="sales-card-title"><h3>Other earnings</h3><small>${others.length}</small></div><div class="sales-row-list">${others.slice(0, 50).map(otherEarningCard).join('')}</div></section>` : '')}
-        ${String(!entries.length && projects.length ? `<section class="sales-card"><div class="sales-card-title"><h3>Earnings by project</h3><small>${projects.length}</small></div><div class="sales-row-list">${projects.map((item) => {
+        <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_612cec7371695b","Commissions") ?? "Commissions")}</h3><small>${String(commissions.length)}</small></div>${String(commissions.length ? `<div class="sales-row-list">${commissions.slice(0, 100).map(commissionEntryCard).join('')}</div>` : stateHtml('empty','No commissions yet — go close something.'))}</section>
+        ${String(others.length ? `<section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_8726cf189a9d40","Other earnings") ?? "Other earnings")}</h3><small>${others.length}</small></div><div class="sales-row-list">${others.slice(0, 50).map(otherEarningCard).join('')}</div></section>` : '')}
+        ${String(!entries.length && projects.length ? `<section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_e48ae8574d9d08","Earnings by project") ?? "Earnings by project")}</h3><small>${projects.length}</small></div><div class="sales-row-list">${projects.map((item) => {
           const project = obj(item);
           const projectTotals = obj(project.totals);
           return `<div class="sales-row"><div class="sales-row-copy"><strong>${esc(first(project.title, project.project_title, project.project_id, 'Project'))}</strong></div><div class="sales-row-value">${esc(currency(Math.max(0, Number(projectTotals.owed_cents || projectTotals.projected_cents || projectTotals.paid_cents || 0))))}</div></div>`;
@@ -513,17 +513,17 @@
       const phone = clean(first(project.customer_phone, obj(project.customer).phone, seed.customer_phone));
       const address = clean(first(project.address, seed.address));
       const chips = [
-        address ? `<a class="sales-strip-chip" href="${String(esc(mapsUrl(address)))}" target="_blank" rel="noopener"><i class="fas fa-location-dot"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.text("sales","m_53d803cdbe9ab1","Address") ?? "Address")}</span><strong>${String(esc(address))}</strong></div></a>` : '',
-        customer ? `<div class="sales-strip-chip"><i class="fas fa-user"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.text("sales","m_ae8e4953e07d70","Customer") ?? "Customer")}</span><strong>${String(esc(customer))}</strong></div></div>` : '',
-        phone ? `<a class="sales-strip-chip" href="tel:${String(esc(phone.replace(/[^0-9+]/g,'')))}"><i class="fas fa-phone"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.text("sales","m_ed04c65845180f","Phone") ?? "Phone")}</span><strong>${String(esc(phone))}</strong></div></a>` : ''
+        address ? `<a class="sales-strip-chip" href="${String(esc(mapsUrl(address)))}" target="_blank" rel="noopener"><i class="fas fa-location-dot"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_53d803cdbe9ab1","Address") ?? "Address")}</span><strong>${String(esc(address))}</strong></div></a>` : '',
+        customer ? `<div class="sales-strip-chip"><i class="fas fa-user"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_ae8e4953e07d70","Customer") ?? "Customer")}</span><strong>${String(esc(customer))}</strong></div></div>` : '',
+        phone ? `<a class="sales-strip-chip" href="tel:${String(esc(phone.replace(/[^0-9+]/g,'')))}"><i class="fas fa-phone"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_ed04c65845180f","Phone") ?? "Phone")}</span><strong>${String(esc(phone))}</strong></div></a>` : ''
       ].filter(Boolean).join('');
       const stage = clean(project.stage);
       root.innerHTML = `<div class="sales-project-page"><div class="sales-page">
         ${String(chips ? `<div class="sales-strip">${chips}</div>` : '')}
-        ${String(stage || clean(project.lead_status) ? `<div class="sales-strip">${stage ? `<div class="sales-strip-chip"><i class="fas fa-flag-checkered"></i><div class="sales-strip-copy"><span>Stage</span><strong>${esc(stage)}</strong></div></div>` : ''}${clean(project.lead_status) ? `<div class="sales-strip-chip"><i class="fas fa-circle-info"></i><div class="sales-strip-copy"><span>Lead status</span><strong>${esc(project.lead_status)}</strong></div></div>` : ''}</div>` : '')}
-        <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.text("sales","m_17bb11ec04c41f","Appointments") ?? "Appointments")}</h3><small>${String(appointments.length)}</small></div>${String(appointments.length ? `<div class="sales-row-list">${appointments.map(appointmentRow).join('')}</div>` : stateHtml('empty','No sales appointments on this project.'))}</section>
-        <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.text("sales","m_6d21d1db92b8a6","Follow-ups") ?? "Follow-ups")}</h3><small>${String(followups.length)}</small></div>${String(followups.length ? `<div class="sales-row-list">${followups.map((item) => followUpRow(item, { claim: item.mine !== true })).join('')}</div>` : stateHtml('empty','No open follow-ups on this project.'))}</section>
-        <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.text("sales","m_de7d6168ae1ad6","Notes") ?? "Notes")}</h3></div><div class="sales-notes">${String(esc(clean(project.notes) || 'No notes have been added.'))}</div></section>
+        ${String(stage || clean(project.lead_status) ? `<div class="sales-strip">${stage ? `<div class="sales-strip-chip"><i class="fas fa-flag-checkered"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_43f2c4d59757a1","Stage") ?? "Stage")}</span><strong>${esc(stage)}</strong></div></div>` : ''}${clean(project.lead_status) ? `<div class="sales-strip-chip"><i class="fas fa-circle-info"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_012735d675a8d5","Lead status") ?? "Lead status")}</span><strong>${esc(project.lead_status)}</strong></div></div>` : ''}</div>` : '')}
+        <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_17bb11ec04c41f","Appointments") ?? "Appointments")}</h3><small>${String(appointments.length)}</small></div>${String(appointments.length ? `<div class="sales-row-list">${appointments.map(appointmentRow).join('')}</div>` : stateHtml('empty','No sales appointments on this project.'))}</section>
+        <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_6d21d1db92b8a6","Follow-ups") ?? "Follow-ups")}</h3><small>${String(followups.length)}</small></div>${String(followups.length ? `<div class="sales-row-list">${followups.map((item) => followUpRow(item, { claim: item.mine !== true })).join('')}</div>` : stateHtml('empty','No open follow-ups on this project.'))}</section>
+        <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_de7d6168ae1ad6","Notes") ?? "Notes")}</h3></div><div class="sales-notes">${String(esc(clean(project.notes) || 'No notes have been added.'))}</div></section>
       </div></div>`;
       bindFollowUps(root, { mine: followups.filter((item) => item.mine === true), unclaimed: followups.filter((item) => item.mine !== true) }, context, load);
     };

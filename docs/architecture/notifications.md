@@ -50,7 +50,7 @@ Unknown declarations fail; code is never scanned or executed to discover alerts.
 
 Renaming a scope, changing message text, or publishing a new version keeps explicit
 notification preferences. Current templates plus declarations from active pinned
-versions are shown. Archived scopes with declarations remain visible; empty scope categories are hidden in settings. Organization
+versions are shown. Archived and empty installed scopes remain visible. Organization
 notification rules appear under Company automations for administrators.
 
 Preferences are per organization member, with branch-scoped workflow keys. Partial
@@ -62,14 +62,8 @@ Turning off a notification never disables the underlying workflow or its effects
 
 The preferences GET endpoint returns `catalog` and effective `preferences`; it is
 read-only and does not install scope templates. Both GET/PATCH accept `branch_id`.
-The UI renders the authorized catalog with General and Workflows & scopes views,
-cross-view search, collapsible groups, tooltips and accessible switches. Presentation
-grouping is independent of app ownership: related events share activity categories,
-while broad direct-app controls appear under Miscellaneous. Cron and mock-payment
-events are omitted from the end-user settings, without changing automation events.
-Workflow categories and preference keys are preserved. All categories use the same
-responsive column count (three at 840px, two at 560px, otherwise one), with vertical
-dividers and balanced rows. Widths refer to the notification list area. Template placeholders are humanized only for settings labels; delivery templates and preference keys are unchanged.
+The UI renders this catalog with Apps and Workflows & scopes views, cross-view
+search, collapsible groups, 1–3 responsive columns, tooltips and accessible switches.
 Saves are serialized; failures retain pending changes and expose a Retry control.
 
 Native OS channels remain the existing broad categories. The larger catalog lives
@@ -83,43 +77,3 @@ categories, branch isolation and preservation through renaming. Browser checks c
 1/2/3 columns, search across views, collapse, keyboard operation, rapid toggle saves
 and retry. Run `npm run check`, `npm run test:publication`, and the notification,
 automation-engine and scope-artifact tests after changing these contracts.
-
-## Notification assistant and curated settings
-
-Notifications provides All, General, Workflows & scopes, and Custom views, plus
-sorting and search. General contains the standard direct notification controls;
-optional Work event subscriptions are potential triggers until selected. Selected
-triggers remain in Custom when disabled through the stored `custom_keys` list.
-Existing enabled event subscriptions also appear in Custom. Tabs, search, and the
-right-hand assistant (a wider mini tray with the shared chat styling and rounded bottom composer, without history or docking controls) stay outside the notification list's scroll container. On
-narrow screens Add custom switches to the chat without scrolling away the toolbar.
-
-`assistant/agent/notifications.ts` defines inspection and configuration tools used
-by the global FirstMate assistant and its focused `notification_assistant` entry
-point. Both use the shared agent runtime, action adapter, user-owned threads,
-settings, model, instruction layers, and chat renderer. The focused entry point is
-available through Notifications without expanded platform access and exposes only
-notification tools and `report_result` (`platformTools: false`). Its routes under
-`/v1/platform/organizations/:orgId/notification-assistant` enforce membership,
-Notifications capability, thread ownership and CSRF. It never enables other apps.
-The company assistant enabled/allow_actions settings still apply. Its ability to
-edit notification preferences does not depend on the global cross-app Assistant
-Actions feature; general assistant actions retain that feature gate.
-
-Inspection lists only the authorized catalog, current choices, accessible scope
-and task identities, and visible automation rules. The assistant must inspect
-before configuring, explain likely matches and discuss using them before creating
-new behavior. Exact event/filter/recipient duplicates are rejected by the tool.
-Unfiltered triggers reuse their existing event preference. Filtered notifications
-require company-settings permission and create a recipient-specific Work automation
-rule with a deterministic identity, revision-checked save and no user-supplied code.
-Only declared payload fields and a small set of project/scope/task equality filters
-are accepted. Delivery rechecks the recipient's membership, branch, domain
-permission and enabled application. Saved notification text cannot contain template
-expressions. Rule channels use the normal personal notification preferences.
-
-Custom scope/task notifications created here are filtered Work rules shown in
-Custom; existing scope declarations remain in their scope category. This does not
-rewrite or republish a scope template, change existing project workflows, or provide
-arbitrary custom-code authoring. Unsupported trigger/filter requests must be
-explained by the assistant rather than claimed as configured.

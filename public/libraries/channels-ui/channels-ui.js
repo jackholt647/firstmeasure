@@ -244,20 +244,20 @@
         editor.focus();
         if (command === 'table') {
           showPopover(button, pop => {
-            pop.innerHTML = `<label>${(globalThis.PlatformLanguage?.text("channels-ui","m_9cc744f8d3e3a9","Rows ") ?? "Rows ")}<input type="number" min="2" max="20" value="3" data-rows></label><label>${(globalThis.PlatformLanguage?.text("channels-ui","m_911191f5b684ff","Columns ") ?? "Columns ")}<input type="number" min="2" max="8" value="3" data-columns></label>`;
+            pop.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_9cc744f8d3e3a9","Rows ") ?? "Rows ")}<input type="number" min="2" max="20" value="3" data-rows></label><label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_911191f5b684ff","Columns ") ?? "Columns ")}<input type="number" min="2" max="8" value="3" data-columns></label>`;
             const range = root.getSelection()?.rangeCount ? root.getSelection().getRangeAt(0).cloneRange() : null;
             const insert = el('button', 'fm-ch-btn', 'Insert table');
             insert.onclick = () => {
               const rows = Math.max(2, Math.min(20, Number(pop.querySelector('[data-rows]').value) || 3));
               const columns = Math.max(2, Math.min(8, Number(pop.querySelector('[data-columns]').value) || 3));
               editor.focus(); if (range) { root.getSelection().removeAllRanges(); root.getSelection().addRange(range); }
-              document.execCommand('insertHTML', false, '<table>' + Array.from({length:rows}, (_, r) => '<tr>' + Array.from({length:columns}, () => r ? '<td><br></td>' : `<th>${(globalThis.PlatformLanguage?.text("channels-ui","m_a81c579f34f382","Heading") ?? "Heading")}</th>`).join('') + '</tr>').join('') + '</table><div><br></div>');
+              document.execCommand('insertHTML', false, '<table>' + Array.from({length:rows}, (_, r) => '<tr>' + Array.from({length:columns}, () => r ? '<td><br></td>' : `<th>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_a81c579f34f382","Heading") ?? "Heading")}</th>`).join('') + '</tr>').join('') + '</table><div><br></div>');
               editor.dispatchEvent(new Event('input', {bubbles:true})); closePopover();
             }; pop.append(insert);
           });
         } else if (command === 'link') {
           const range = root.getSelection()?.rangeCount ? root.getSelection().getRangeAt(0).cloneRange() : null;
-          showModal('Insert link', body => { body.innerHTML = `<label>${(globalThis.PlatformLanguage?.text("channels-ui","m_b90b7e637a2076","URL") ?? "URL")}</label><input type="url" placeholder="https://" data-url>`; }, [{label:(globalThis.PlatformLanguage?.text("channels-ui","m_900227393b1fd1","Insert") ?? "Insert"), primary:true, onClick:(close, body) => {
+          showModal('Insert link', body => { body.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_b90b7e637a2076","URL") ?? "URL")}</label><input type="url" placeholder="https://" data-url>`; }, [{label:(globalThis.PlatformLanguage?.text("channels-ui","m_900227393b1fd1","Insert") ?? "Insert"), primary:true, onClick:(close, body) => {
             const url = body.querySelector('[data-url]').value.trim();
             if (!/^https?:\/\/\S+$/i.test(url)) return body.querySelector('[data-url]').setCustomValidity('Enter an http or https URL.');
             editor.focus(); if (range) { root.getSelection().removeAllRanges(); root.getSelection().addRange(range); }
@@ -1073,7 +1073,7 @@
         quick.appendChild(item);
       }
       if (mode === 'full' && features.attention) {
-        const sections = el('button', 'fm-ch-side-item', `<span class="fm-ch-hash"><i class="fas fa-layer-group"></i></span><span class="fm-ch-side-label">${(globalThis.PlatformLanguage?.text("channels-ui","m_49091612e47337","Edit sections") ?? "Edit sections")}</span>`);
+        const sections = el('button', 'fm-ch-side-item', `<span class="fm-ch-hash"><i class="fas fa-layer-group"></i></span><span class="fm-ch-side-label">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_49091612e47337","Edit sections") ?? "Edit sections")}</span>`);
         sections.addEventListener('click', openSidebarSectionsModal);
         quick.appendChild(sections);
       }
@@ -1200,7 +1200,7 @@
       if (features.ai && channel.type === 'dm' && channel.members?.some(member => String(member.id).startsWith('agent_'))) {
         addAction('New assistant conversation', '<i class="fas fa-comment-medical"></i>', () => {
           showModal('New assistant conversation', body => {
-            body.innerHTML = `<label>${(globalThis.PlatformLanguage?.text("channels-ui","m_352a847350c8e8","Conversation name") ?? "Conversation name")}</label><input data-name maxlength="80" placeholder="${(globalThis.PlatformLanguage?.text("channels-ui","m_687b63fdcdf9a9","What are you working on?") ?? "What are you working on?")}">`;
+            body.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_352a847350c8e8","Conversation name") ?? "Conversation name")}</label><input data-name maxlength="80" placeholder="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_687b63fdcdf9a9","What are you working on?") ?? "What are you working on?")}">`;
           }, [{label:(globalThis.PlatformLanguage?.text("channels-ui","m_91c3716587c959","Create conversation") ?? "Create conversation"), primary:true, onClick:async (close, body) => {
             try {
               const data = await api.channels.create(orgId, {type:'dm', new_conversation:true, name:body.querySelector('[data-name]').value.trim() || 'New assistant conversation', member_user_ids:channel.members.filter(member => String(member.id).startsWith('agent_')).map(member => member.id)});
@@ -1323,7 +1323,7 @@
         || state.collaborationPreferences.default_notify_level
         || 'mentions';
       showModal('Conversation notifications', (body) => {
-        body.innerHTML = `<label>${(globalThis.PlatformLanguage?.text("channels-ui","m_06b46f515eff14","Notify me about") ?? "Notify me about")}</label><select data-notify-level><option value="all">${(globalThis.PlatformLanguage?.text("channels-ui","m_6275935eadd8a4","All new messages") ?? "All new messages")}</option><option value="mentions">${(globalThis.PlatformLanguage?.text("channels-ui","m_722ecd47834278","Mentions and replies") ?? "Mentions and replies")}</option><option value="muted">${(globalThis.PlatformLanguage?.text("channels-ui","m_3c7c4f2cd743b8","Nothing") ?? "Nothing")}</option></select>`;
+        body.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_06b46f515eff14","Notify me about") ?? "Notify me about")}</label><select data-notify-level><option value="all">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6275935eadd8a4","All new messages") ?? "All new messages")}</option><option value="mentions">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_722ecd47834278","Mentions and replies") ?? "Mentions and replies")}</option><option value="muted">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_3c7c4f2cd743b8","Nothing") ?? "Nothing")}</option></select>`;
         body.querySelector('[data-notify-level]').value = current;
       }, [{ label:(globalThis.PlatformLanguage?.text("channels-ui","m_5bab3e72de1ebf","Save") ?? "Save"), primary:true, onClick:async (close, body) => {
         try {
@@ -1340,13 +1340,13 @@
       showModal('Workflow shortcuts', (body, close) => {
         const latest = [...state.messages].reverse().find((message) => !message.deleted_at && message.kind !== 'system');
         const shortcuts = el('div', 'fm-ch-workflow-list');
-        const todo = el('button', 'fm-ch-resource', `<span class="fm-ch-resource-icon"><i class="fas fa-square-check"></i></span><span class="fm-ch-resource-copy"><strong>${(globalThis.PlatformLanguage?.text("channels-ui","m_cf158e3d6b6368","Create To Do from latest message") ?? "Create To Do from latest message")}</strong><span>${(globalThis.PlatformLanguage?.text("channels-ui","m_95f15902640767","Keep the channel and project context attached.") ?? "Keep the channel and project context attached.")}</span></span>`);
+        const todo = el('button', 'fm-ch-resource', `<span class="fm-ch-resource-icon"><i class="fas fa-square-check"></i></span><span class="fm-ch-resource-copy"><strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cf158e3d6b6368","Create To Do from latest message") ?? "Create To Do from latest message")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_95f15902640767","Keep the channel and project context attached.") ?? "Keep the channel and project context attached.")}</span></span>`);
         todo.disabled = !latest;
         todo.addEventListener('click', () => {
           close();
           if (latest) openCreateTodoModal(latest);
         });
-        const recap = el('button', 'fm-ch-resource', `<span class="fm-ch-resource-icon"><i class="fas fa-wand-magic-sparkles"></i></span><span class="fm-ch-resource-copy"><strong>${(globalThis.PlatformLanguage?.text("channels-ui","m_7c97c63718af8a","Generate a channel recap") ?? "Generate a channel recap")}</strong><span>${(globalThis.PlatformLanguage?.text("channels-ui","m_1d0527c667a73b","Ask FirstMate for decisions and action items.") ?? "Ask FirstMate for decisions and action items.")}</span></span>`);
+        const recap = el('button', 'fm-ch-resource', `<span class="fm-ch-resource-icon"><i class="fas fa-wand-magic-sparkles"></i></span><span class="fm-ch-resource-copy"><strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_7c97c63718af8a","Generate a channel recap") ?? "Generate a channel recap")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_1d0527c667a73b","Ask FirstMate for decisions and action items.") ?? "Ask FirstMate for decisions and action items.")}</span></span>`);
         recap.addEventListener('click', () => {
           close();
           requestChannelRecap();
@@ -1395,7 +1395,7 @@
         renderResourceLikeMessages(data.messages || []);
         return;
       }
-      list.innerHTML = `<div class="fm-ch-empty"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.text("channels-ui","m_c5b83d77acbf15"," Loading resources...") ?? " Loading resources...")}</div>`;
+      list.innerHTML = `<div class="fm-ch-empty"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_c5b83d77acbf15"," Loading resources...") ?? " Loading resources...")}</div>`;
       try {
         const type = state.activeTab === 'files' ? 'files'
           : state.activeTab === 'documents' ? 'documents'
@@ -1413,7 +1413,7 @@
     function renderResourceLikeMessages(messages){
       list.innerHTML = '';
       if (!messages.length) {
-        list.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.text("channels-ui","m_8c9f8b0c815337","Nothing here yet.") ?? "Nothing here yet.")}</div>`;
+        list.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_8c9f8b0c815337","Nothing here yet.") ?? "Nothing here yet.")}</div>`;
         return;
       }
       for (const message of messages) list.appendChild(messageRow(message));
@@ -1430,7 +1430,7 @@
     function renderResources(resources, tabKind){
       list.innerHTML = '';
       if (!resources.length) {
-        list.innerHTML = `<div class="fm-ch-empty">${((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_1d86dd5d32c030",`No ${v0} have been shared here yet.`,{v0}) ?? `No ${v0} have been shared here yet.`)(esc(tabKind))}</div>`;
+        list.innerHTML = `<div class="fm-ch-empty">${((v0) => globalThis.PlatformLanguage?.htmlText("channels-ui","m_1d86dd5d32c030",`No ${v0} have been shared here yet.`,{v0}) ?? `No ${v0} have been shared here yet.`)(esc(tabKind))}</div>`;
         return;
       }
       const grid = el('div', 'fm-ch-resource-grid');
@@ -1467,16 +1467,16 @@
       const defaults = channelHuddleDefaults();
       showModal('Start or join huddle', (body) => {
         body.innerHTML = `
-          <p style="margin:0;color:#667085;font-size:11.5px;line-height:1.5">${(globalThis.PlatformLanguage?.text("channels-ui","m_7a57f0bd2cce89","Huddles begin audio-only. Anyone can turn on a camera or share a screen after joining.") ?? "Huddles begin audio-only. Anyone can turn on a camera or share a screen after joining.")}</p>
+          <p style="margin:0;color:#667085;font-size:11.5px;line-height:1.5">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_7a57f0bd2cce89","Huddles begin audio-only. Anyone can turn on a camera or share a screen after joining.") ?? "Huddles begin audio-only. Anyone can turn on a camera or share a screen after joining.")}</p>
           ${String(features.recording ? `<div class="fm-ch-setting-group">
-            <strong>Recording for this huddle</strong>
-            <p>These choices apply if this starts a new huddle. An existing huddle keeps the recording policy it started with.</p>
+            <strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_55e29000de24ef","Recording for this huddle") ?? "Recording for this huddle")}</strong>
+            <p>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_4dda343a2c2609","These choices apply if this starts a new huddle. An existing huddle keeps the recording policy it started with.") ?? "These choices apply if this starts a new huddle. An existing huddle keeps the recording policy it started with.")}</p>
             <label class="fm-ch-check-row">
-              <span><strong>Record this huddle</strong><small>Everyone sees a recording indicator while retention is active.</small></span>
+              <span><strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_d6b91b318d8042","Record this huddle") ?? "Record this huddle")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_9aa73a62da062e","Everyone sees a recording indicator while retention is active.") ?? "Everyone sees a recording indicator while retention is active.")}</small></span>
               <input type="checkbox" data-huddle-record ${defaults.recordingEnabled && features.recording ? 'checked' : ''} ${features.recording ? '' : 'disabled'}>
             </label>
             <label class="fm-ch-check-row">
-              <span><strong>Include video and shared screens</strong><small>When off, the retained recording contains mixed audio only.</small></span>
+              <span><strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_c0fafd4c71c164","Include video and shared screens") ?? "Include video and shared screens")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_4834f9fc9896d5","When off, the retained recording contains mixed audio only.") ?? "When off, the retained recording contains mixed audio only.")}</small></span>
               <input type="checkbox" data-huddle-record-video ${defaults.recordVideo && features.recordVideo ? 'checked' : ''}>
             </label>
           </div>` : '')}`;
@@ -2076,7 +2076,7 @@
       const channelId = state.huddle.channel_id;
       const link = `${String(root.location.href).split(/[?#]/)[0]}?tab=channels&channel=${encodeURIComponent(channelId)}`;
       showModal('Invite to this call', body => {
-        body.innerHTML = `<p>${(globalThis.PlatformLanguage?.text("channels-ui","m_6c8a4c405347f8","Share this link with a teammate. They can open the conversation and choose Join call. Channel access is still required.") ?? "Share this link with a teammate. They can open the conversation and choose Join call. Channel access is still required.")}</p><label>${(globalThis.PlatformLanguage?.text("channels-ui","m_2f7e0e85304cb2","Conversation link") ?? "Conversation link")}</label><input data-call-link readonly><p data-copy-status role="status"></p>`;
+        body.innerHTML = `<p>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6c8a4c405347f8","Share this link with a teammate. They can open the conversation and choose Join call. Channel access is still required.") ?? "Share this link with a teammate. They can open the conversation and choose Join call. Channel access is still required.")}</p><label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_2f7e0e85304cb2","Conversation link") ?? "Conversation link")}</label><input data-call-link readonly><p data-copy-status role="status"></p>`;
         body.querySelector('input').value = link;
       }, [{label:(globalThis.PlatformLanguage?.text("channels-ui","m_978593789ac461","Copy invite link") ?? "Copy invite link"), primary:true, onClick:async (_close, body) => {
         try { await navigator.clipboard.writeText(link); body.querySelector('[data-copy-status]').textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_58f26b2d816185","Invite link copied.") ?? "Invite link copied."); }
@@ -2095,7 +2095,7 @@
           panel.innerHTML = '';
           for (const button of tabs.children) button.setAttribute('aria-selected', String(button.dataset.tab === kind));
           if (kind === 'audio') {
-            panel.innerHTML = `<label>${(globalThis.PlatformLanguage?.text("channels-ui","m_cedfacd7206bc5","Microphone") ?? "Microphone")}</label><select data-mic></select><label>${(globalThis.PlatformLanguage?.text("channels-ui","m_543edcbe09e9aa","Speaker") ?? "Speaker")}</label><select data-speaker></select><label class="fm-ch-check-row"><span><strong>${(globalThis.PlatformLanguage?.text("channels-ui","m_b6c695bc2ccfc9","Noise suppression") ?? "Noise suppression")}</strong><small>${(globalThis.PlatformLanguage?.text("channels-ui","m_b783439dfb8937","Reduce background sound and echo using your browser's audio processing.") ?? "Reduce background sound and echo using your browser's audio processing.")}</small></span><input type="checkbox" data-noise ${String(state.huddleNoiseSuppression ? 'checked' : '')}></label>`;
+            panel.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cedfacd7206bc5","Microphone") ?? "Microphone")}</label><select data-mic></select><label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_543edcbe09e9aa","Speaker") ?? "Speaker")}</label><select data-speaker></select><label class="fm-ch-check-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_b6c695bc2ccfc9","Noise suppression") ?? "Noise suppression")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_b783439dfb8937","Reduce background sound and echo using your browser's audio processing.") ?? "Reduce background sound and echo using your browser's audio processing.")}</small></span><input type="checkbox" data-noise ${String(state.huddleNoiseSuppression ? 'checked' : '')}></label>`;
             const note = status();
             try {
               const devices = await navigator.mediaDevices.enumerateDevices();
@@ -2137,7 +2137,7 @@
               panel.querySelector('[data-noise]').onchange = updateMicrophone;
             } catch (error) { note.textContent = error.message; }
           } else if (kind === 'video') {
-            panel.innerHTML = `<label>${(globalThis.PlatformLanguage?.text("channels-ui","m_4fc089007391b2","Camera") ?? "Camera")}</label><select data-camera></select><label>${(globalThis.PlatformLanguage?.text("channels-ui","m_986685f23ed459","Background") ?? "Background")}</label><select data-background><option value="off">${(globalThis.PlatformLanguage?.text("channels-ui","m_2d4ff8a83b1b5c","None") ?? "None")}</option><option value="blur">${(globalThis.PlatformLanguage?.text("channels-ui","m_25e31e6df3932b","Blur background") ?? "Blur background")}</option><option value="image">${(globalThis.PlatformLanguage?.text("channels-ui","m_dded30d0d11aa4","Custom image") ?? "Custom image")}</option></select><label>${(globalThis.PlatformLanguage?.text("channels-ui","m_ba52df24a42201","Background image") ?? "Background image")}</label><input type="file" data-background-file accept="image/png,image/jpeg,image/webp"><p>${(globalThis.PlatformLanguage?.text("channels-ui","m_6b53ab1f380683","Effects are applied to the video other people see. Your image stays on this device for this call.") ?? "Effects are applied to the video other people see. Your image stays on this device for this call.")}</p>`;
+            panel.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_4fc089007391b2","Camera") ?? "Camera")}</label><select data-camera></select><label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_986685f23ed459","Background") ?? "Background")}</label><select data-background><option value="off">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_2d4ff8a83b1b5c","None") ?? "None")}</option><option value="blur">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_25e31e6df3932b","Blur background") ?? "Blur background")}</option><option value="image">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_dded30d0d11aa4","Custom image") ?? "Custom image")}</option></select><label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_ba52df24a42201","Background image") ?? "Background image")}</label><input type="file" data-background-file accept="image/png,image/jpeg,image/webp"><p>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6b53ab1f380683","Effects are applied to the video other people see. Your image stays on this device for this call.") ?? "Effects are applied to the video other people see. Your image stays on this device for this call.")}</p>`;
             const note = status();
             panel.querySelector('[data-background]').value = state.huddleBackground || 'off';
             const apply = async mode => {
@@ -2166,7 +2166,7 @@
               };
             } catch (error) { note.textContent = error.message; }
           } else {
-            panel.innerHTML = `<p>${(globalThis.PlatformLanguage?.text("channels-ui","m_04f8c6b251c5a9","Check browser permissions and the selected devices first. If screen sharing stops, choose the window or tab again. Headphones can help prevent echo.") ?? "Check browser permissions and the selected devices first. If screen sharing stops, choose the window or tab again. Headphones can help prevent echo.")}</p><ul><li>${(globalThis.PlatformLanguage?.text("channels-ui","m_a902b5e18d940f","Microphone or camera blocked: allow access using the browser address bar.") ?? "Microphone or camera blocked: allow access using the browser address bar.")}</li><li>${(globalThis.PlatformLanguage?.text("channels-ui","m_475289e103df8d","No screen audio: choose a browser tab and enable the browser’s share-audio option.") ?? "No screen audio: choose a browser tab and enable the browser’s share-audio option.")}</li><li>${(globalThis.PlatformLanguage?.text("channels-ui","m_9bdc55fd8ac4a4","Choppy video: stop sharing, turn off background effects, or turn off your camera.") ?? "Choppy video: stop sharing, turn off background effects, or turn off your camera.")}</li></ul>`;
+            panel.innerHTML = `<p>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_04f8c6b251c5a9","Check browser permissions and the selected devices first. If screen sharing stops, choose the window or tab again. Headphones can help prevent echo.") ?? "Check browser permissions and the selected devices first. If screen sharing stops, choose the window or tab again. Headphones can help prevent echo.")}</p><ul><li>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_a902b5e18d940f","Microphone or camera blocked: allow access using the browser address bar.") ?? "Microphone or camera blocked: allow access using the browser address bar.")}</li><li>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_475289e103df8d","No screen audio: choose a browser tab and enable the browser’s share-audio option.") ?? "No screen audio: choose a browser tab and enable the browser’s share-audio option.")}</li><li>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_9bdc55fd8ac4a4","Choppy video: stop sharing, turn off background effects, or turn off your camera.") ?? "Choppy video: stop sharing, turn off background effects, or turn off your camera.")}</li></ul>`;
             const run = el('button', 'fm-ch-btn', 'Run connection check');
             const speakerTest = el('button', 'fm-ch-btn', 'Test speaker');
             const microphoneTest = el('button', 'fm-ch-btn', 'Test microphone level');
@@ -2279,7 +2279,7 @@
       for (const participant of activeParticipants) {
         const name = cleanText(participant.display_name || participant.name || participant.user_id) || 'Participant';
         const person = el('div', 'fm-ch-huddle-person');
-        person.innerHTML = `${avatarHtml({ id:participant.user_id, name }, 'sm')}<span class="fm-ch-huddle-person-name">${esc(name)}${cleanText(participant.user_id) === cleanText(state.huddle.started_by) ? ` <small>${(globalThis.PlatformLanguage?.text("channels-ui","m_523563ae2fd488","Host") ?? "Host")}</small>` : ''}</span><span class="fm-ch-huddle-person-media"><i class="fas fa-microphone${participant.microphone_enabled === false ? '-slash off' : ' on'}" title="${participant.microphone_enabled === false ? 'Muted' : 'Microphone on'}"></i><i class="fas fa-video${participant.camera_enabled ? ' on' : '-slash off'}" title="${participant.camera_enabled ? 'Camera on' : 'Camera off'}"></i>${participant.screen_enabled ? ("<i class=\"fas fa-desktop on\" title=\"" + (globalThis.PlatformLanguage?.text("channels-ui","m_b7aad2d2258653","Sharing screen") ?? "Sharing screen") + "\"></i>") : ''}</span>`;
+        person.innerHTML = `${avatarHtml({ id:participant.user_id, name }, 'sm')}<span class="fm-ch-huddle-person-name">${esc(name)}${cleanText(participant.user_id) === cleanText(state.huddle.started_by) ? ` <small>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_523563ae2fd488","Host") ?? "Host")}</small>` : ''}</span><span class="fm-ch-huddle-person-media"><i class="fas fa-microphone${participant.microphone_enabled === false ? '-slash off' : ' on'}" title="${participant.microphone_enabled === false ? 'Muted' : 'Microphone on'}"></i><i class="fas fa-video${participant.camera_enabled ? ' on' : '-slash off'}" title="${participant.camera_enabled ? 'Camera on' : 'Camera off'}"></i>${participant.screen_enabled ? ("<i class=\"fas fa-desktop on\" title=\"" + (globalThis.PlatformLanguage?.htmlText("channels-ui","m_b7aad2d2258653","Sharing screen") ?? "Sharing screen") + "\"></i>") : ''}</span>`;
         roster.appendChild(person);
         if (state.huddle.started_by === currentUser.id && participant.user_id !== currentUser.id) {
           const remove = el('button', '', 'Remove'); remove.title = ((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_9d9046b4248149",`Remove ${v0}`,{v0}) ?? `Remove ${v0}`)(name);
@@ -2290,7 +2290,7 @@
         }
       }
       if (!roster.childElementCount) {
-        roster.innerHTML = `<div class="fm-ch-huddle-person">${String(avatarHtml(currentUser, 'sm'))}<span class="fm-ch-huddle-person-name">${String(esc(currentUser.name || 'You'))} <small>${(globalThis.PlatformLanguage?.text("channels-ui","m_523563ae2fd488","Host") ?? "Host")}</small></span></div>`;
+        roster.innerHTML = `<div class="fm-ch-huddle-person">${String(avatarHtml(currentUser, 'sm'))}<span class="fm-ch-huddle-person-name">${String(esc(currentUser.name || 'You'))} <small>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_523563ae2fd488","Host") ?? "Host")}</small></span></div>`;
       }
       const elapsedSeconds = Math.max(0, Math.floor((Date.now() - new Date(state.huddle.started_at || Date.now()).getTime()) / 1000));
       const connection = state.huddleLivekitRoom?.state || ([...state.huddlePeers.values()].some(peer => peer.connectionState === 'connected') ? 'connected' : activeParticipants.length > 1 ? 'connecting' : 'Waiting for others');
@@ -2635,7 +2635,7 @@
       const panel = el('aside', 'fm-ch-profile-panel'); panel.dataset.userId = user.id; profilePanel = panel;
       panel.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_489a5044534481","Member profile") ?? "Member profile"));
       panel.addEventListener('keydown', event => { if (event.key === 'Escape') { event.stopPropagation(); closeProfilePanel(); } });
-      const header = el('div', 'fm-ch-profile-panel-head', `<strong>${(globalThis.PlatformLanguage?.text("channels-ui","m_6f5dea53bf13f4","Profile") ?? "Profile")}</strong>`);
+      const header = el('div', 'fm-ch-profile-panel-head', `<strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6f5dea53bf13f4","Profile") ?? "Profile")}</strong>`);
       const close = el('button', 'fm-ch-icon-btn', '<i class="fas fa-xmark"></i>'); close.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("channels-ui","m_c0934dcff7a79f","Close profile") ?? "Close profile")); close.onclick = () => closeProfilePanel(); header.append(close);
       const body = el('div', 'fm-ch-profile-panel-body'); panel.append(header,body); shell.append(panel);
       const render = person => {
@@ -2689,7 +2689,7 @@
       if (message.deleted_at) {
         gutter.innerHTML = '';
         const tomb = el('div', 'fm-ch-msg-deleted');
-        tomb.innerHTML = `<span>${(globalThis.PlatformLanguage?.text("channels-ui","m_98170a72aa7e52","Message removed") ?? "Message removed")}</span>${String(message.can_restore && features.deleteRestore ? '<button class="fm-ch-restore-link" data-act="restore">Restore</button>' : '')}`;
+        tomb.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_98170a72aa7e52","Message removed") ?? "Message removed")}</span>${String(message.can_restore && features.deleteRestore ? `<button class="fm-ch-restore-link" data-act="restore">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_954a04d61ae9d6","Restore") ?? "Restore")}</button>` : '')}`;
         content.appendChild(tomb);
         wireRowActions(row, message);
         return row;
@@ -2710,7 +2710,7 @@
       const head = el('div', 'fm-ch-msg-head', `
         <button type="button" class="fm-ch-msg-author fm-ch-profile-trigger">${esc(message.author?.name || 'Unknown')}</button>
         <span class="fm-ch-msg-time">${esc(fmtTime(message.created_at))}</span>
-        ${message.edited_at && features.editHistory ? `<a class="fm-ch-msg-edited" data-act="history">${(globalThis.PlatformLanguage?.text("channels-ui","m_cd7e9c529b0a41","(edited)") ?? "(edited)")}</a>` : (message.edited_at ? `<span class="fm-ch-msg-edited">${(globalThis.PlatformLanguage?.text("channels-ui","m_cd7e9c529b0a41","(edited)") ?? "(edited)")}</span>` : '')}
+        ${message.edited_at && features.editHistory ? `<a class="fm-ch-msg-edited" data-act="history">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cd7e9c529b0a41","(edited)") ?? "(edited)")}</a>` : (message.edited_at ? `<span class="fm-ch-msg-edited">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cd7e9c529b0a41","(edited)") ?? "(edited)")}</span>` : '')}
         ${(message.tags || []).map(tagChipHtml).join('')}
         ${audience ? `<span class="fm-ch-audience-note">${esc(audience)}</span>` : ''}
         ${translation.available ? `<button type="button" class="fm-ch-translate${shouldShowTranslation ? ' on' : ''}${message._translation_loading ? ' loading' : ''}" data-act="translate" title="${shouldShowTranslation ? 'Show original' : `Translate to ${esc(translationLabel(translation.target_language))}`}" aria-label="${shouldShowTranslation ? 'Show original message' : 'Translate message'}" aria-pressed="${shouldShowTranslation ? 'true' : 'false'}"><i class="fas ${message._translation_loading ? 'fa-circle-notch' : 'fa-language'}"></i></button>` : ''}
@@ -3078,7 +3078,7 @@
       composer.innerHTML = '';
       if (state.view !== 'channel' || state.activeTab !== 'messages' || !state.activeChannel) return;
       if (state.activeChannel.archived_at) {
-        composer.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.text("channels-ui","m_14199c5517db0f","This channel is archived.") ?? "This channel is archived.")}</div>`;
+        composer.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_14199c5517db0f","This channel is archived.") ?? "This channel is archived.")}</div>`;
         return;
       }
       const editNote = el('div', 'fm-ch-edit-note');
@@ -3144,7 +3144,7 @@
             try {
               const data = await api.uploads.send(orgId, file, state.activeChannelId);
               state.pendingAttachments.push(data.attachment);
-              chip.innerHTML = `<i class="fas fa-paperclip"></i> ${String(esc(file.name))} <button title="${(globalThis.PlatformLanguage?.text("channels-ui","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>`;
+              chip.innerHTML = `<i class="fas fa-paperclip"></i> ${String(esc(file.name))} <button title="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>`;
               chip.querySelector('button').addEventListener('click', () => {
                 state.pendingAttachments = state.pendingAttachments.filter((item) => item.id !== data.attachment.id);
                 chip.remove();
@@ -3201,7 +3201,7 @@
       if (features.clips && features.attachments && root.MediaRecorder && navigator.mediaDevices) {
         const addClipAttachment = (attachment) => {
           state.pendingAttachments.push(attachment);
-          const chip = el('span', 'fm-ch-chip', `<i class="fas fa-video"></i> ${String(esc(attachment.file_name || 'Clip'))} <button title="${(globalThis.PlatformLanguage?.text("channels-ui","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>`);
+          const chip = el('span', 'fm-ch-chip', `<i class="fas fa-video"></i> ${String(esc(attachment.file_name || 'Clip'))} <button title="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>`);
           chip.querySelector('button').addEventListener('click', () => {
             state.pendingAttachments = state.pendingAttachments.filter((item) => item.id !== attachment.id);
             chip.remove();
@@ -3322,7 +3322,7 @@
         showModal('Schedule message', (body) => {
           const defaultDate = new Date(Date.now() + 60 * 60_000);
           defaultDate.setMinutes(Math.ceil(defaultDate.getMinutes() / 15) * 15, 0, 0);
-          body.innerHTML = `<label>${(globalThis.PlatformLanguage?.text("channels-ui","m_3d9611987867da","Send at") ?? "Send at")}</label><input type="datetime-local" data-field="scheduled" value="${String(new Date(defaultDate.getTime() - defaultDate.getTimezoneOffset() * 60000).toISOString().slice(0,16))}">`;
+          body.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_3d9611987867da","Send at") ?? "Send at")}</label><input type="datetime-local" data-field="scheduled" value="${String(new Date(defaultDate.getTime() - defaultDate.getTimezoneOffset() * 60000).toISOString().slice(0,16))}">`;
         }, [{ label:(globalThis.PlatformLanguage?.text("channels-ui","m_fc05a804bd034c","Schedule") ?? "Schedule"), primary:true, onClick:async (close, body) => {
           try {
             const date = new Date(body.querySelector('[data-field=scheduled]')?.value);
@@ -3370,7 +3370,7 @@
         state.editingMessageId = message.id;
         state.editingThread = false;
         editNote.style.display = 'flex';
-        editNote.innerHTML = `<span>${(globalThis.PlatformLanguage?.text("channels-ui","m_6a6c0d2dcfcb47","Editing message") ?? "Editing message")}</span><button>${(globalThis.PlatformLanguage?.text("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
+        editNote.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6a6c0d2dcfcb47","Editing message") ?? "Editing message")}</span><button>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
         editNote.querySelector('button').addEventListener('click', cancelEdit);
         textarea.value = message.text;
         composerState.audience = [...(message.audience || [])];
@@ -3429,7 +3429,7 @@
       if (state.thread) {
         panel.style.display = 'flex';
         panel.innerHTML = '';
-        const head = el('div', 'fm-ch-panel-head', `<span>${(globalThis.PlatformLanguage?.text("channels-ui","m_13f4d69b6c2991","Thread") ?? "Thread")}</span>`);
+        const head = el('div', 'fm-ch-panel-head', `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_13f4d69b6c2991","Thread") ?? "Thread")}</span>`);
         const close = el('button', 'fm-ch-icon-btn', '<i class="fas fa-xmark"></i>');
         close.addEventListener('click', closePanel);
         head.appendChild(close);
@@ -3448,12 +3448,12 @@
       if (state.panelMode === 'pins') {
         panel.style.display = 'flex';
         panel.innerHTML = '';
-        const head = el('div', 'fm-ch-panel-head', `<span><i class="fas fa-thumbtack"></i>${(globalThis.PlatformLanguage?.text("channels-ui","m_55feed3cbfa4d3"," Pinned") ?? " Pinned")}</span>`);
+        const head = el('div', 'fm-ch-panel-head', `<span><i class="fas fa-thumbtack"></i>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_55feed3cbfa4d3"," Pinned") ?? " Pinned")}</span>`);
         const close = el('button', 'fm-ch-icon-btn', '<i class="fas fa-xmark"></i>');
         close.addEventListener('click', closePanel);
         head.appendChild(close);
         const body = el('div', 'fm-ch-panel-body');
-        if (!state.pinned?.length) body.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.text("channels-ui","m_e630876ee9eca9","Nothing pinned yet.") ?? "Nothing pinned yet.")}</div>`;
+        if (!state.pinned?.length) body.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_e630876ee9eca9","Nothing pinned yet.") ?? "Nothing pinned yet.")}</div>`;
         for (const message of state.pinned || []) {
           const result = el('div', 'fm-ch-result');
           result.innerHTML = `<div class="fm-ch-result-meta">${esc(message.author?.name || '')} · ${esc(fmtDateTime(message.created_at))}</div><div>${renderBody(message)}</div>`;
@@ -3532,7 +3532,7 @@
       panel._startEdit = (message) => {
         editingId = message.id;
         editNote.style.display = 'flex';
-        editNote.innerHTML = `<span>${(globalThis.PlatformLanguage?.text("channels-ui","m_34e633033239eb","Editing reply") ?? "Editing reply")}</span><button>${(globalThis.PlatformLanguage?.text("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
+        editNote.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_34e633033239eb","Editing reply") ?? "Editing reply")}</span><button>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
         editNote.querySelector('button').addEventListener('click', () => {
           editingId = '';
           editNote.style.display = 'none';
@@ -3557,7 +3557,7 @@
       renderSidebar();
       composer.innerHTML = '';
       typingBar.textContent = '';
-      list.innerHTML = `<div class="fm-ch-empty"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.text("channels-ui","m_b0f32b15b02e72"," Loading...") ?? " Loading...")}</div>`;
+      list.innerHTML = `<div class="fm-ch-empty"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_b0f32b15b02e72"," Loading...") ?? " Loading...")}</div>`;
     }
 
     async function openUnreadsView(){
@@ -3566,7 +3566,7 @@
         const data = await api.readState.messages(orgId, { limit:100 });
         list.innerHTML = '';
         const toolbar = el('div', 'fm-ch-view-toolbar');
-        toolbar.innerHTML = `<span><strong>${String(Number(data.total_unread || 0))}</strong>${(globalThis.PlatformLanguage?.text("channels-ui","m_d6f1ae5e7d9a04"," unread messages") ?? " unread messages")}</span><span class="fm-ch-view-summary">${(globalThis.PlatformLanguage?.text("channels-ui","m_7f3dff4cdd30a9","Grouped by conversation") ?? "Grouped by conversation")}</span>`;
+        toolbar.innerHTML = `<span><strong>${String(Number(data.total_unread || 0))}</strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_d6f1ae5e7d9a04"," unread messages") ?? " unread messages")}</span><span class="fm-ch-view-summary">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_7f3dff4cdd30a9","Grouped by conversation") ?? "Grouped by conversation")}</span>`;
         list.appendChild(toolbar);
         if (!data.conversations?.length) {
           list.appendChild(el('div', 'fm-ch-empty', '<i class="fas fa-circle-check"></i><br>You are all caught up.'));
@@ -3663,7 +3663,7 @@
             const previewText = cleanText(item.text);
             const showPreview = previewText && previewText.toLocaleLowerCase() !== label.toLocaleLowerCase();
             const row = el('div', `fm-ch-attention-row${item.read_at ? '' : ' unread'}`);
-            row.innerHTML = `<span class="fm-ch-attention-icon"><i class="fas ${String(icon)}"></i></span><span class="fm-ch-attention-main"><span class="fm-ch-attention-heading"><span class="fm-ch-attention-title">${((v1,v2) => globalThis.PlatformLanguage?.text("channels-ui","m_c59a4df2d5e7e9",`${v1} in ${v2}`,{v1,v2}) ?? `${v1} in ${v2}`)(esc(label),esc(item.channel_name || 'a conversation'))}</span><span class="fm-ch-result-meta">${String(esc(fmtDateTime(item.created_at)))}</span></span>${String(showPreview ? `<span class="fm-ch-attention-copy">${renderBody({ text:previewText })}</span>` : '')}</span><span class="fm-ch-attention-actions">${String(item.read_at ? '' : '<span class="fm-ch-attention-dot" title="Unread"></span>')}</span>`;
+            row.innerHTML = `<span class="fm-ch-attention-icon"><i class="fas ${String(icon)}"></i></span><span class="fm-ch-attention-main"><span class="fm-ch-attention-heading"><span class="fm-ch-attention-title">${((v1,v2) => globalThis.PlatformLanguage?.htmlText("channels-ui","m_c59a4df2d5e7e9",`${v1} in ${v2}`,{v1,v2}) ?? `${v1} in ${v2}`)(esc(label),esc(item.channel_name || 'a conversation'))}</span><span class="fm-ch-result-meta">${String(esc(fmtDateTime(item.created_at)))}</span></span>${String(showPreview ? `<span class="fm-ch-attention-copy">${renderBody({ text:previewText })}</span>` : '')}</span><span class="fm-ch-attention-actions">${String(item.read_at ? '' : `<span class="fm-ch-attention-dot" title="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_e6bd48170f22a4","Unread") ?? "Unread")}"></span>`)}</span>`;
             row.addEventListener('click', async (event) => {
               if (event.target.closest('button')) return;
               await api.activity.update(orgId, item.id, { read:true }).catch(() => {});
@@ -3728,7 +3728,7 @@
             const channel = state.channelsById.get(thread.root.channel_id);
             const latest = (thread.replies || []).at(-1);
             const card = el('article', `fm-ch-thread-card${Number(thread.unread_count) ? ' unread' : ''}`);
-            const head = el('div', 'fm-ch-thread-card-head', `<strong>${String(esc(channel?.display_name || channel?.name || 'Conversation'))}</strong><span>${((v1) => globalThis.PlatformLanguage?.text("channels-ui","m_4d41aac4ff52eb",`${v1} replies`,{v1}) ?? `${v1} replies`)(Number(thread.root.reply_count || thread.replies?.length || 0))}</span><span>${String(esc(fmtDateTime(thread.root.last_reply_at || latest?.created_at || thread.root.created_at)))}</span>`);
+            const head = el('div', 'fm-ch-thread-card-head', `<strong>${String(esc(channel?.display_name || channel?.name || 'Conversation'))}</strong><span>${((v1) => globalThis.PlatformLanguage?.htmlText("channels-ui","m_4d41aac4ff52eb",`${v1} replies`,{v1}) ?? `${v1} replies`)(Number(thread.root.reply_count || thread.replies?.length || 0))}</span><span>${String(esc(fmtDateTime(thread.root.last_reply_at || latest?.created_at || thread.root.created_at)))}</span>`);
             if (Number(thread.unread_count)) {
               const markRead = el('button', 'fm-ch-btn', 'Mark read');
               markRead.style.marginLeft = 'auto';
@@ -3767,7 +3767,7 @@
         list.innerHTML = '';
         const reminders = reminderData.reminders || [];
         if (!data.messages?.length && !reminders.length) {
-          list.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.text("channels-ui","m_b96e086a77005b","Nothing saved yet. Hover a message and choose the bookmark to save it.") ?? "Nothing saved yet. Hover a message and choose the bookmark to save it.")}</div>`;
+          list.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_b96e086a77005b","Nothing saved yet. Hover a message and choose the bookmark to save it.") ?? "Nothing saved yet. Hover a message and choose the bookmark to save it.")}</div>`;
           return;
         }
         for (const reminder of reminders) {
@@ -3829,7 +3829,7 @@
         typingBar.textContent = '';
         list.innerHTML = '';
         if (!data.messages?.length) {
-          list.innerHTML = `<div class="fm-ch-empty">${((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_b6f14625c56412",`No matches for “${v0}”.`,{v0}) ?? `No matches for “${v0}”.`)(esc(q))}</div>`;
+          list.innerHTML = `<div class="fm-ch-empty">${((v0) => globalThis.PlatformLanguage?.htmlText("channels-ui","m_b6f14625c56412",`No matches for “${v0}”.`,{v0}) ?? `No matches for “${v0}”.`)(esc(q))}</div>`;
           return;
         }
         for (const message of data.messages) {
@@ -3875,9 +3875,9 @@
 
     function openSidebarSectionsModal(){
       const modal = showModal('Edit sidebar sections', (body) => {
-        body.innerHTML = `<label>${(globalThis.PlatformLanguage?.text("channels-ui","m_586f9a248e27e5","Section") ?? "Section")}</label><select data-section-id></select><label>${(globalThis.PlatformLanguage?.text("channels-ui","m_59ef362ab40231","Section name") ?? "Section name")}</label><input data-section-label maxlength="80" placeholder="${(globalThis.PlatformLanguage?.text("channels-ui","m_12978eee46da51","For example: Install team") ?? "For example: Install team")}"><label>${(globalThis.PlatformLanguage?.text("channels-ui","m_ee81752261cfa1","Conversations") ?? "Conversations")}</label><div data-section-channels></div>`;
+        body.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_586f9a248e27e5","Section") ?? "Section")}</label><select data-section-id></select><label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_59ef362ab40231","Section name") ?? "Section name")}</label><input data-section-label maxlength="80" placeholder="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_12978eee46da51","For example: Install team") ?? "For example: Install team")}"><label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_ee81752261cfa1","Conversations") ?? "Conversations")}</label><div data-section-channels></div>`;
         const select = body.querySelector('[data-section-id]');
-        select.innerHTML = `<option value="">${(globalThis.PlatformLanguage?.text("channels-ui","m_3eea1424539334","New section") ?? "New section")}</option>`;
+        select.innerHTML = `<option value="">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_3eea1424539334","New section") ?? "New section")}</option>`;
         for (const section of state.sidebarSections) {
           const option = document.createElement('option');
           option.value = section.id;
@@ -3932,14 +3932,14 @@
     function openCreateChannelModal(){
       showModal('Create a channel', (body) => {
         body.innerHTML = `
-          <label>${(globalThis.PlatformLanguage?.text("channels-ui","m_8cf345002184e5","Name") ?? "Name")}</label>
-          <input type="text" data-field="name" placeholder="${(globalThis.PlatformLanguage?.text("channels-ui","m_764c04db3ecb32","e.g. installs") ?? "e.g. installs")}">
-          <label>${(globalThis.PlatformLanguage?.text("channels-ui","m_e23660d62b184c","Topic (optional)") ?? "Topic (optional)")}</label>
-          <input type="text" data-field="topic" placeholder="${(globalThis.PlatformLanguage?.text("channels-ui","m_726dc4834a1366","What is this channel about?") ?? "What is this channel about?")}">
-          <label>${(globalThis.PlatformLanguage?.text("channels-ui","m_d1621d1dbd55f1","Visibility") ?? "Visibility")}</label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_8cf345002184e5","Name") ?? "Name")}</label>
+          <input type="text" data-field="name" placeholder="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_764c04db3ecb32","e.g. installs") ?? "e.g. installs")}">
+          <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_e23660d62b184c","Topic (optional)") ?? "Topic (optional)")}</label>
+          <input type="text" data-field="topic" placeholder="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_726dc4834a1366","What is this channel about?") ?? "What is this channel about?")}">
+          <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_d1621d1dbd55f1","Visibility") ?? "Visibility")}</label>
           <select data-field="type">
-            <option value="public">${(globalThis.PlatformLanguage?.text("channels-ui","m_605d0d4be17eba","Public — anyone in the company can join") ?? "Public — anyone in the company can join")}</option>
-            <option value="private">${(globalThis.PlatformLanguage?.text("channels-ui","m_577f103c68de9e","Private — invite only") ?? "Private — invite only")}</option>
+            <option value="public">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_605d0d4be17eba","Public — anyone in the company can join") ?? "Public — anyone in the company can join")}</option>
+            <option value="private">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_577f103c68de9e","Private — invite only") ?? "Private — invite only")}</option>
           </select>`;
       }, [{ label: (globalThis.PlatformLanguage?.text("channels-ui","m_3c21a9590eb762","Create") ?? "Create"), primary: true, onClick: async (close, body) => {
         try {
@@ -3958,12 +3958,12 @@
 
     function openResourcePickerModal(){
       showModal('Share a resource', (body, close) => {
-        body.innerHTML = `<div class="fm-ch-empty"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.text("channels-ui","m_e67b602876c30e"," Loading project and channel resources...") ?? " Loading project and channel resources...")}</div>`;
+        body.innerHTML = `<div class="fm-ch-empty"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_e67b602876c30e"," Loading project and channel resources...") ?? " Loading project and channel resources...")}</div>`;
         api.resources.list(orgId, state.activeChannelId).then((data) => {
           body.innerHTML = '';
           const resources = data.resources || [];
           if (!resources.length) {
-            body.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.text("channels-ui","m_b95c74804804aa","No resources are available in this conversation yet.") ?? "No resources are available in this conversation yet.")}</div>`;
+            body.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_b95c74804804aa","No resources are available in this conversation yet.") ?? "No resources are available in this conversation yet.")}</div>`;
             return;
           }
           const grid = el('div', 'fm-ch-resource-grid');
@@ -3997,7 +3997,7 @@
         const date = new Date(Date.now() + 60 * 60_000);
         date.setSeconds(0, 0);
         const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-        body.innerHTML = `<label>${(globalThis.PlatformLanguage?.text("channels-ui","m_5d0ffda53615be","Reminder time") ?? "Reminder time")}</label><input type="datetime-local" data-reminder-at value="${String(local)}">`;
+        body.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_5d0ffda53615be","Reminder time") ?? "Reminder time")}</label><input type="datetime-local" data-reminder-at value="${String(local)}">`;
       }, [{ label:(globalThis.PlatformLanguage?.text("channels-ui","m_9b6a0832346dfa","Save reminder") ?? "Save reminder"), primary:true, onClick:async (close, body) => {
         try {
           const value = body.querySelector('[data-reminder-at]')?.value;
@@ -4017,7 +4017,7 @@
 
     function openForwardModal(message){
       showModal('Forward message', (body) => {
-        body.innerHTML = `<label>${(globalThis.PlatformLanguage?.text("channels-ui","m_8ea15c3c9b6b15","Send to") ?? "Send to")}</label><select data-forward-channel></select><label>${(globalThis.PlatformLanguage?.text("channels-ui","m_2badf4ec55e985","Add a note") ?? "Add a note")}</label><textarea data-forward-note rows="3" placeholder="${(globalThis.PlatformLanguage?.text("channels-ui","m_532cbb7a6d1e29","Optional context") ?? "Optional context")}"></textarea>`;
+        body.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_8ea15c3c9b6b15","Send to") ?? "Send to")}</label><select data-forward-channel></select><label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_2badf4ec55e985","Add a note") ?? "Add a note")}</label><textarea data-forward-note rows="3" placeholder="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_532cbb7a6d1e29","Optional context") ?? "Optional context")}"></textarea>`;
         const select = body.querySelector('[data-forward-channel]');
         for (const channel of state.channels.filter((item) => !item.archived_at)) {
           const option = document.createElement('option');
@@ -4049,12 +4049,12 @@
       showModal('Create To Do from message', (body) => {
         const title = cleanText(message.text).split(/\r?\n/).find(Boolean)?.slice(0, 120) || 'Message follow-up';
         body.innerHTML = `
-          <label>${(globalThis.PlatformLanguage?.text("channels-ui","m_29dbd3d8b69f55","Title") ?? "Title")}</label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_29dbd3d8b69f55","Title") ?? "Title")}</label>
           <input type="text" data-field="title" value="${String(esc(title))}">
-          <label>${(globalThis.PlatformLanguage?.text("channels-ui","m_b08ed1ca094f1a","Due date (optional)") ?? "Due date (optional)")}</label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_b08ed1ca094f1a","Due date (optional)") ?? "Due date (optional)")}</label>
           <input type="datetime-local" data-field="due">
-          <label>${(globalThis.PlatformLanguage?.text("channels-ui","m_6484e03a4531ae","Priority") ?? "Priority")}</label>
-          <select data-field="priority"><option value="normal">${(globalThis.PlatformLanguage?.text("channels-ui","m_9a27adafe8f638","Normal") ?? "Normal")}</option><option value="high">${(globalThis.PlatformLanguage?.text("channels-ui","m_56935738631420","High") ?? "High")}</option><option value="urgent">${(globalThis.PlatformLanguage?.text("channels-ui","m_dc457ed9b0546e","Urgent") ?? "Urgent")}</option><option value="low">${(globalThis.PlatformLanguage?.text("channels-ui","m_faf9ac4c2c4b3f","Low") ?? "Low")}</option></select>`;
+          <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6484e03a4531ae","Priority") ?? "Priority")}</label>
+          <select data-field="priority"><option value="normal">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_9a27adafe8f638","Normal") ?? "Normal")}</option><option value="high">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_56935738631420","High") ?? "High")}</option><option value="urgent">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_dc457ed9b0546e","Urgent") ?? "Urgent")}</option><option value="low">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_faf9ac4c2c4b3f","Low") ?? "Low")}</option></select>`;
       }, [{ label:(globalThis.PlatformLanguage?.text("channels-ui","m_ffae27506c46f3","Create To Do") ?? "Create To Do"), primary:true, onClick:async (close, body) => {
         try {
           const dueValue = body.querySelector('[data-field=due]')?.value;
@@ -4080,7 +4080,7 @@
       const selected = new Set();
       showModal('New direct message', (body) => {
         if (!users.length) {
-          body.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.text("channels-ui","m_a9019ea1900564","No teammates found.") ?? "No teammates found.")}</div>`;
+          body.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_a9019ea1900564","No teammates found.") ?? "No teammates found.")}</div>`;
           return;
         }
         body.appendChild(el('p', 'fm-ch-dm-help', 'Choose one teammate for a direct message, or select multiple people to start a group conversation.'));
@@ -4089,7 +4089,7 @@
           rowNode.type = 'button';
           rowNode.setAttribute('aria-pressed', 'false');
           rowNode.setAttribute('aria-label', ((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_65bb5febcad942",`Select ${v0}`,{v0}) ?? `Select ${v0}`)(user.name));
-          rowNode.innerHTML = `${avatarHtml(user, 'sm')}<span class="name">${esc(user.name)}${user.agent ? ` <span class="fm-ch-tag"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("channels-ui","m_7011e28be0ee19"," AI") ?? " AI")}</span>` : ''}</span><span class="fm-ch-member-check" aria-hidden="true"><i class="fas fa-check"></i></span>`;
+          rowNode.innerHTML = `${avatarHtml(user, 'sm')}<span class="name">${esc(user.name)}${user.agent ? ` <span class="fm-ch-tag"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_7011e28be0ee19"," AI") ?? " AI")}</span>` : ''}</span><span class="fm-ch-member-check" aria-hidden="true"><i class="fas fa-check"></i></span>`;
           rowNode.addEventListener('click', () => {
             const nextSelected = !selected.has(user.id);
             if (nextSelected) selected.add(user.id);
@@ -4196,19 +4196,19 @@
       const huddleDefaults = channelHuddleDefaults(channel);
       showModal(`Channel settings — #${channel.name}`, (body) => {
         body.innerHTML = `
-          <label>${(globalThis.PlatformLanguage?.text("channels-ui","m_8cf345002184e5","Name") ?? "Name")}</label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_8cf345002184e5","Name") ?? "Name")}</label>
           <input type="text" data-field="name" value="${String(esc(channel.name))}">
-          <label>${(globalThis.PlatformLanguage?.text("channels-ui","m_b0afebe3886365","Topic") ?? "Topic")}</label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_b0afebe3886365","Topic") ?? "Topic")}</label>
           <input type="text" data-field="topic" value="${String(esc(channel.topic))}">
           ${String(features.recording ? `<div class="fm-ch-setting-group">
-            <strong>Huddle recording defaults</strong>
-            <p>People can override these defaults before starting each huddle.</p>
+            <strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_d755d71a468c5b","Huddle recording defaults") ?? "Huddle recording defaults")}</strong>
+            <p>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_bf4b6a6fbea876","People can override these defaults before starting each huddle.") ?? "People can override these defaults before starting each huddle.")}</p>
             <label class="fm-ch-check-row">
-              <span><strong>Record huddles by default</strong><small>Retain the conversation recording in this channel.</small></span>
+              <span><strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_0827b63560c6ad","Record huddles by default") ?? "Record huddles by default")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_d9afd0516e2f66","Retain the conversation recording in this channel.") ?? "Retain the conversation recording in this channel.")}</small></span>
               <input type="checkbox" data-field="huddle-recording" ${huddleDefaults.recordingEnabled ? 'checked' : ''}>
             </label>
             <label class="fm-ch-check-row">
-              <span><strong>Include video and shared screens by default</strong><small>Turn this off to retain mixed audio only unless the starter opts in.</small></span>
+              <span><strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_1a1fcea0103f82","Include video and shared screens by default") ?? "Include video and shared screens by default")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_3f8ca37e692c8c","Turn this off to retain mixed audio only unless the starter opts in.") ?? "Turn this off to retain mixed audio only unless the starter opts in.")}</small></span>
               <input type="checkbox" data-field="huddle-record-video" ${huddleDefaults.recordVideo ? 'checked' : ''}>
             </label>
           </div>` : '')}`;

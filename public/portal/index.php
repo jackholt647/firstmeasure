@@ -2152,6 +2152,7 @@ session_write_close();
   <script src="../libraries/platform-scheduling/platform-scheduling.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-language/platform-language.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-terminology/platform-terminology.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/platform-terminology/editor.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-schedule-view/platform-schedule-view.js?v=<?= $ver ?>"></script>
   <script src="../libraries/firstmeasure-api/firstmeasure-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/statsig/firstmate-statsig.js?v=<?= $ver ?>"></script>
@@ -2285,6 +2286,7 @@ session_write_close();
 <script src="../libraries/phone-features/app-download.js?v=<?= $ver ?>"></script>
 <script src="../libraries/apps/settings/firstmeasure-users.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/settings/platform-billing.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/brand-kit/brand-kit.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/settings/company.js?v=<?= $ver ?>"></script>
   <script src="scripts/dev_overlay.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/promo-inject/app.js?v=<?= $ver ?>"></script>

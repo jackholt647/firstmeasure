@@ -98,12 +98,12 @@
       <div class="${String(PREFIX)}-panel">
         <div class="${String(PREFIX)}-head">
           <strong><i class="fas fa-wand-magic-sparkles"></i> ${String(esc(clean(options.title) || 'Design copilot'))}</strong>
-          <button type="button" class="${String(PREFIX)}-head-btn" data-da-new title="${(globalThis.PlatformLanguage?.text("doc-agent","m_e7f0edd8a4b5be","Start a new conversation") ?? "Start a new conversation")}"><i class="fas fa-plus"></i></button>
+          <button type="button" class="${String(PREFIX)}-head-btn" data-da-new title="${(globalThis.PlatformLanguage?.htmlText("doc-agent","m_e7f0edd8a4b5be","Start a new conversation") ?? "Start a new conversation")}"><i class="fas fa-plus"></i></button>
         </div>
         <div class="${String(PREFIX)}-msgs" data-da-msgs></div>
         <div class="${String(PREFIX)}-composer">
           <textarea class="${String(PREFIX)}-input" data-da-input rows="1" placeholder="${String(esc(clean(options.placeholder) || 'Describe the change you want…'))}"></textarea>
-          <button type="button" class="${String(PREFIX)}-send" data-da-send title="${(globalThis.PlatformLanguage?.text("doc-agent","m_c23a056552a09f","Send") ?? "Send")}"><i class="fas fa-paper-plane"></i></button>
+          <button type="button" class="${String(PREFIX)}-send" data-da-send title="${(globalThis.PlatformLanguage?.htmlText("doc-agent","m_c23a056552a09f","Send") ?? "Send")}"><i class="fas fa-paper-plane"></i></button>
         </div>
       </div>`;
     const msgsEl = host.querySelector('[data-da-msgs]');
@@ -170,13 +170,13 @@
 
     async function boot(){
       if (!available()) {
-        msgsEl.innerHTML = `<div class="${String(PREFIX)}-unavailable"><i class="fas fa-wand-magic-sparkles"></i><span>${(globalThis.PlatformLanguage?.text("doc-agent","m_2bc4619571c6d8","The Document Designer agent is turned off for this workspace.") ?? "The Document Designer agent is turned off for this workspace.")}<br>${(globalThis.PlatformLanguage?.text("doc-agent","m_b5271e6ee249a2","Enable it under Company Settings → AI Agents.") ?? "Enable it under Company Settings → AI Agents.")}</span></div>`;
+        msgsEl.innerHTML = `<div class="${String(PREFIX)}-unavailable"><i class="fas fa-wand-magic-sparkles"></i><span>${(globalThis.PlatformLanguage?.htmlText("doc-agent","m_2bc4619571c6d8","The Document Designer agent is turned off for this workspace.") ?? "The Document Designer agent is turned off for this workspace.")}<br>${(globalThis.PlatformLanguage?.htmlText("doc-agent","m_b5271e6ee249a2","Enable it under Company Settings → AI Agents.") ?? "Enable it under Company Settings → AI Agents.")}</span></div>`;
         inputEl.disabled = true;
         sendBtn.disabled = true;
         return;
       }
       if (!api()) {
-        msgsEl.innerHTML = `<div class="${String(PREFIX)}-unavailable"><i class="fas fa-plug-circle-xmark"></i><span>${(globalThis.PlatformLanguage?.text("doc-agent","m_580ec3477e2c69","The agents service is not loaded for this session.") ?? "The agents service is not loaded for this session.")}</span></div>`;
+        msgsEl.innerHTML = `<div class="${String(PREFIX)}-unavailable"><i class="fas fa-plug-circle-xmark"></i><span>${(globalThis.PlatformLanguage?.htmlText("doc-agent","m_580ec3477e2c69","The agents service is not loaded for this session.") ?? "The agents service is not loaded for this session.")}</span></div>`;
         return;
       }
       try {

@@ -449,7 +449,7 @@
             <label class="fmdw-check">
               <input type="checkbox" value="${esc(opt.value)}" ${selected.includes(opt.value) ? 'checked' : ''} ${ctx.readonly ? 'disabled' : ''}>
               <span>${esc(opt.label)}</span>
-            </label>`).join('') : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.text("doc-workflow","m_2eeb0742b30735","No options are configured for this question.") ?? "No options are configured for this question.")}</p>`}
+            </label>`).join('') : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_2eeb0742b30735","No options are configured for this question.") ?? "No options are configured for this question.")}</p>`}
         </div>
         <span class="fmdw-field-error" data-fmdw-error hidden></span>
       </div>`;
@@ -489,7 +489,7 @@
                 ${opt.price_cents !== null && opt.price_cents !== undefined ? `<span class="fmdw-choice-price">${esc(moneyFromCents(opt.price_cents))}</span>` : ''}
                 <span class="fmdw-choice-tick"><i class="fas fa-check"></i></span>
               </button>`;
-          }).join('') : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.text("doc-workflow","m_2eeb0742b30735","No options are configured for this question.") ?? "No options are configured for this question.")}</p>`}
+          }).join('') : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_2eeb0742b30735","No options are configured for this question.") ?? "No options are configured for this question.")}</p>`}
         </div>
         <span class="fmdw-field-error" data-fmdw-error hidden></span>
       </div>`;
@@ -592,7 +592,7 @@
       if (optionals.length) {
         sections.push(`
           <div class="fmdw-scg-group">
-            <span class="fmdw-field-label">${(globalThis.PlatformLanguage?.text("doc-workflow","m_1ad84cd7f804e7","Optional add-ons") ?? "Optional add-ons")}</span>
+            <span class="fmdw-field-label">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_1ad84cd7f804e7","Optional add-ons") ?? "Optional add-ons")}</span>
             <div class="fmdw-choice-grid">${String(optionals.map((item) => optionCard(item, '')).join(''))}</div>
           </div>`);
       }
@@ -602,7 +602,7 @@
           ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
           ${sections.length
             ? sections.join('')
-            : `<div class="fmdw-card"><p class="fmdw-hint" style="margin:0"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_7bbfcb28626c80"," No customer-facing options in this scope yet. Options come from the line items’ choice groups and customer-optional rows.") ?? " No customer-facing options in this scope yet. Options come from the line items’ choice groups and customer-optional rows.")}</p></div>`}
+            : `<div class="fmdw-card"><p class="fmdw-hint" style="margin:0"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_7bbfcb28626c80"," No customer-facing options in this scope yet. Options come from the line items’ choice groups and customer-optional rows.") ?? " No customer-facing options in this scope yet. Options come from the line items’ choice groups and customer-optional rows.")}</p></div>`}
           <span class="fmdw-field-error" data-fmdw-error hidden></span>
         </div>`;
       if (ctx.readonly) return;
@@ -677,7 +677,7 @@
           ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
           <div class="fmdw-card">
             ${neededKeys.length ? `
-              <p class="fmdw-hint" style="margin:0"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_bcbe13786c818e"," These measurements drive this document's pricing:") ?? " These measurements drive this document's pricing:")}</p>
+              <p class="fmdw-hint" style="margin:0"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_bcbe13786c818e"," These measurements drive this document's pricing:") ?? " These measurements drive this document's pricing:")}</p>
               <div class="fmdw-meas-grid">
                 ${String(neededKeys.map((key) => {
                   const filled = !(current[key] === undefined || current[key] === null || current[key] === '');
@@ -688,16 +688,16 @@
                     </label>`;
                 }).join(''))}
               </div>
-              ${String(missing.length ? `<p class="fmdw-meas-note"><i class="fas fa-triangle-exclamation"></i> ${missing.length} measurement${missing.length === 1 ? '' : 's'} still needed</p>` : '')}` : ''}
+              ${String(missing.length ? `<p class="fmdw-meas-note"><i class="fas fa-triangle-exclamation"></i>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("doc-workflow","m_5d86a0fb6c1652",` ${v0} measurement${v1} still needed`,{v0,v1}) ?? ` ${v0} measurement${v1} still needed`)(missing.length,missing.length === 1 ? '' : 's')}</p>` : '')}` : ''}
             ${otherEntries.length ? `
               <div class="fmdw-stat-grid">
                 ${otherEntries.slice(0, 12).map(([key, value]) => `<span class="fmdw-stat"><i>${esc(prettyKey(key))}</i><b>${esc(typeof value === 'object' ? `${Object.keys(obj(value)).length || arr(value).length} entries` : String(value))}</b></span>`).join('')}
-                ${otherEntries.length > 12 ? `<span class="fmdw-stat"><i>${((v0) => globalThis.PlatformLanguage?.text("doc-workflow","m_1d44c767357f4a",`+${v0} more`,{v0}) ?? `+${v0} more`)(otherEntries.length - 12)}</i><b></b></span>` : ''}
-              </div>` : (neededKeys.length ? '' : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.text("doc-workflow","m_08781c4c9e5c9b","No measurements yet.") ?? "No measurements yet.")}</p>`)}
+                ${otherEntries.length > 12 ? `<span class="fmdw-stat"><i>${((v0) => globalThis.PlatformLanguage?.htmlText("doc-workflow","m_1d44c767357f4a",`+${v0} more`,{v0}) ?? `+${v0} more`)(otherEntries.length - 12)}</i><b></b></span>` : ''}
+              </div>` : (neededKeys.length ? '' : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_08781c4c9e5c9b","No measurements yet.") ?? "No measurements yet.")}</p>`)}
             ${ctx.readonly ? '' : `
               <div class="fmdw-row-actions">
-                <button type="button" class="fmdw-btn ghost" data-fmdw-meas-reload ${String(hasPrefill ? '' : 'disabled')}><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_641beeb7a2ff91"," Load from project") ?? " Load from project")}</button>
-                ${String(Object.keys(current).length ? '<button type="button" class="fmdw-btn ghost" data-fmdw-meas-clear><i class="fas fa-xmark"></i> Clear</button>' : '')}
+                <button type="button" class="fmdw-btn ghost" data-fmdw-meas-reload ${String(hasPrefill ? '' : 'disabled')}><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_641beeb7a2ff91"," Load from project") ?? " Load from project")}</button>
+                ${String(Object.keys(current).length ? `<button type="button" class="fmdw-btn ghost" data-fmdw-meas-clear><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_687e1653230514"," Clear") ?? " Clear")}</button>` : '')}
               </div>`}
           </div>
           <span class="fmdw-field-error" data-fmdw-error hidden></span>
@@ -753,8 +753,8 @@
                     </button>`;
                 }).join('')}
               </div>`
-              : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.text("doc-workflow","m_f236362c34b933","No project photos are available to choose from yet.") ?? "No project photos are available to choose from yet.")}</p>`}
-            ${!ctx.readonly && selectedIds.length ? `<div class="fmdw-row-actions"><button type="button" class="fmdw-btn ghost" data-fmdw-photo-clear><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_4f893b8c92cc5a"," Clear selection") ?? " Clear selection")}</button></div>` : ''}
+              : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f236362c34b933","No project photos are available to choose from yet.") ?? "No project photos are available to choose from yet.")}</p>`}
+            ${!ctx.readonly && selectedIds.length ? `<div class="fmdw-row-actions"><button type="button" class="fmdw-btn ghost" data-fmdw-photo-clear><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_4f893b8c92cc5a"," Clear selection") ?? " Clear selection")}</button></div>` : ''}
           </div>
           <span class="fmdw-field-error" data-fmdw-error hidden></span>
         </div>`;
@@ -837,13 +837,13 @@
           <div class="fmdw-cb-card" data-fmdw-cb="${String(esc(block.id))}">
             <div class="fmdw-cb-head">
               <span class="fmdw-cb-index">${String(index + 1)}</span>
-              <input type="text" class="fmdw-cb-title" data-fmdw-cb-title value="${String(esc(block.title))}" placeholder="${(globalThis.PlatformLanguage?.text("doc-workflow","m_09242ff7fde37f","Block title") ?? "Block title")}" ${String(ctx.readonly ? 'disabled' : '')}>
+              <input type="text" class="fmdw-cb-title" data-fmdw-cb-title value="${String(esc(block.title))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_09242ff7fde37f","Block title") ?? "Block title")}" ${String(ctx.readonly ? 'disabled' : '')}>
               ${String(ctx.readonly ? '' : `
-                <button type="button" class="fmdw-icon-btn" data-fmdw-cb-up title="Move up" ${index === 0 ? 'disabled' : ''}><i class="fas fa-arrow-up"></i></button>
-                <button type="button" class="fmdw-icon-btn" data-fmdw-cb-down title="Move down" ${index === blocks.length - 1 ? 'disabled' : ''}><i class="fas fa-arrow-down"></i></button>
-                <button type="button" class="fmdw-icon-btn danger" data-fmdw-cb-remove title="Remove block"><i class="fas fa-xmark"></i></button>`)}
+                <button type="button" class="fmdw-icon-btn" data-fmdw-cb-up title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f51d0d563b4d76","Move up") ?? "Move up")}" ${index === 0 ? 'disabled' : ''}><i class="fas fa-arrow-up"></i></button>
+                <button type="button" class="fmdw-icon-btn" data-fmdw-cb-down title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8dda6677ff0f34","Move down") ?? "Move down")}" ${index === blocks.length - 1 ? 'disabled' : ''}><i class="fas fa-arrow-down"></i></button>
+                <button type="button" class="fmdw-icon-btn danger" data-fmdw-cb-remove title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_e635189453de2e","Remove block") ?? "Remove block")}"><i class="fas fa-xmark"></i></button>`)}
             </div>
-            <textarea class="fmdw-cb-body" data-fmdw-cb-body placeholder="${(globalThis.PlatformLanguage?.text("doc-workflow","m_8b606c39e02eaa","Body text — what should the customer read here?") ?? "Body text — what should the customer read here?")}" ${String(ctx.readonly ? 'disabled' : '')}>${String(esc(block.body))}</textarea>
+            <textarea class="fmdw-cb-body" data-fmdw-cb-body placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8b606c39e02eaa","Body text — what should the customer read here?") ?? "Body text — what should the customer read here?")}" ${String(ctx.readonly ? 'disabled' : '')}>${String(esc(block.body))}</textarea>
             <div class="fmdw-cb-media-row">
               <div class="fmdw-cb-thumb ${String(thumb ? '' : 'empty')}">
                 ${String(thumb ? `<img src="${esc(thumb)}" alt="">` : '<i class="fas fa-image"></i>')}
@@ -852,10 +852,10 @@
                 ${String(ctx.readonly ? '' : `
                   <div class="fmdw-row-actions">
                     <button type="button" class="fmdw-btn ghost" data-fmdw-cb-pick><i class="fas fa-images"></i> ${pickerOpenFor === block.id ? 'Hide photos' : 'Pick photo'}</button>
-                    ${block.media ? '<button type="button" class="fmdw-btn ghost" data-fmdw-cb-clear-media><i class="fas fa-xmark"></i> Clear</button>' : ''}
+                    ${block.media ? `<button type="button" class="fmdw-btn ghost" data-fmdw-cb-clear-media><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_687e1653230514"," Clear") ?? " Clear")}</button>` : ''}
                   </div>`)}
-                <input type="text" data-fmdw-cb-media-url value="${String(esc(firstText(obj(block.media).url)))}" placeholder="${(globalThis.PlatformLanguage?.text("doc-workflow","m_bec0e58a594874","…or paste an image URL") ?? "…or paste an image URL")}" ${String(ctx.readonly ? 'disabled' : '')}>
-                <input type="text" data-fmdw-cb-video value="${String(esc(firstText(obj(block.video).url)))}" placeholder="${(globalThis.PlatformLanguage?.text("doc-workflow","m_d4f98e183ac3e7","Video URL (YouTube, Vimeo, or file)") ?? "Video URL (YouTube, Vimeo, or file)")}" ${String(ctx.readonly ? 'disabled' : '')}>
+                <input type="text" data-fmdw-cb-media-url value="${String(esc(firstText(obj(block.media).url)))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_bec0e58a594874","…or paste an image URL") ?? "…or paste an image URL")}" ${String(ctx.readonly ? 'disabled' : '')}>
+                <input type="text" data-fmdw-cb-video value="${String(esc(firstText(obj(block.video).url)))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_d4f98e183ac3e7","Video URL (YouTube, Vimeo, or file)") ?? "Video URL (YouTube, Vimeo, or file)")}" ${String(ctx.readonly ? 'disabled' : '')}>
               </div>
             </div>
             ${String(pickerOpenFor === block.id ? `
@@ -868,14 +868,14 @@
                       <img src="${esc(photoUrl(photo))}" alt="${esc(photo.label || 'Photo')}" loading="lazy">
                       ${active ? '<i class="fas fa-circle-check"></i>' : ''}
                     </button>`;
-                }).join('') : '<p class="fmdw-hint">No project photos are available — paste an image URL instead.</p>'}
+                }).join('') : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8c7d055c8d2a9d","No project photos are available — paste an image URL instead.") ?? "No project photos are available — paste an image URL instead.")}</p>`}
               </div>` : '')}
             <div class="fmdw-cb-settings">
-              <label>${(globalThis.PlatformLanguage?.text("doc-workflow","m_414b43a606b221","Layout\n                ") ?? "Layout\n                ")}<select data-fmdw-cb-layout ${String(ctx.readonly ? 'disabled' : '')}>
+              <label>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_414b43a606b221","Layout\n                ") ?? "Layout\n                ")}<select data-fmdw-cb-layout ${String(ctx.readonly ? 'disabled' : '')}>
                   ${String(CONTENT_BLOCK_LAYOUTS.map(([value, label]) => `<option value="${esc(value)}" ${block.layout === value ? 'selected' : ''}>${esc(label)}</option>`).join(''))}
                 </select>
               </label>
-              <label>${(globalThis.PlatformLanguage?.text("doc-workflow","m_0a1b926b9ae7f2","Media display\n                ") ?? "Media display\n                ")}<select data-fmdw-cb-display ${String(ctx.readonly ? 'disabled' : '')}>
+              <label>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_0a1b926b9ae7f2","Media display\n                ") ?? "Media display\n                ")}<select data-fmdw-cb-display ${String(ctx.readonly ? 'disabled' : '')}>
                   ${String(CONTENT_BLOCK_DISPLAYS.map(([value, label]) => `<option value="${esc(value)}" ${block.display === value ? 'selected' : ''}>${esc(label)}</option>`).join(''))}
                 </select>
               </label>
@@ -887,9 +887,9 @@
           <span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>
           ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
           <div class="fmdw-cb-list">
-            ${cards.length ? cards.join('') : `<div class="fmdw-card"><p class="fmdw-hint" style="margin:0"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_9b58eb110cbbc5"," No content blocks yet — add one to pair photos and text on the document.") ?? " No content blocks yet — add one to pair photos and text on the document.")}</p></div>`}
+            ${cards.length ? cards.join('') : `<div class="fmdw-card"><p class="fmdw-hint" style="margin:0"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9b58eb110cbbc5"," No content blocks yet — add one to pair photos and text on the document.") ?? " No content blocks yet — add one to pair photos and text on the document.")}</p></div>`}
           </div>
-          ${ctx.readonly ? '' : `<div class="fmdw-row-actions"><button type="button" class="fmdw-btn" data-fmdw-cb-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_d2da9449c9549c"," Add block") ?? " Add block")}</button></div>`}
+          ${ctx.readonly ? '' : `<div class="fmdw-row-actions"><button type="button" class="fmdw-btn" data-fmdw-cb-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_d2da9449c9549c"," Add block") ?? " Add block")}</button></div>`}
           <span class="fmdw-field-error" data-fmdw-error hidden></span>
         </div>`;
 
@@ -1005,7 +1005,7 @@
     pop.className = 'fmdw-attach-pop';
     const renderPop = () => {
       pop.innerHTML = `
-        <div class="fmdw-attach-head"><i class="fas fa-paperclip"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_b4c6eb9bd49fcc"," Photo & video") ?? " Photo & video")}</div>
+        <div class="fmdw-attach-head"><i class="fas fa-paperclip"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_b4c6eb9bd49fcc"," Photo & video") ?? " Photo & video")}</div>
         ${String(photos.length ? `
           <div class="fmdw-photo-grid fmdw-attach-grid">
             ${photos.slice(0, 18).map((photo) => {
@@ -1017,20 +1017,20 @@
                   ${active ? '<i class="fas fa-circle-check"></i>' : ''}
                 </button>`;
             }).join('')}
-          </div>` : '<p class="fmdw-hint">No project photos available — paste an image URL below.</p>')}
-        <label class="fmdw-attach-field"><span>${(globalThis.PlatformLanguage?.text("doc-workflow","m_e834f5774af181","Image URL") ?? "Image URL")}</span><input type="text" data-fmdw-attach-url value="${String(esc(state.media_url))}" placeholder="https://…"></label>
-        <label class="fmdw-attach-field"><span>${(globalThis.PlatformLanguage?.text("doc-workflow","m_8e5d22e5fc5931","Caption") ?? "Caption")}</span><input type="text" data-fmdw-attach-caption value="${String(esc(state.caption))}" placeholder="${(globalThis.PlatformLanguage?.text("doc-workflow","m_68f76580b578dd","Optional caption") ?? "Optional caption")}"></label>
-        <label class="fmdw-attach-field"><span>${(globalThis.PlatformLanguage?.text("doc-workflow","m_ab0945e21b5b82","Video URL") ?? "Video URL")}</span><input type="text" data-fmdw-attach-video value="${String(esc(state.video_url))}" placeholder="${(globalThis.PlatformLanguage?.text("doc-workflow","m_41259d9663ed29","YouTube, Vimeo, or file URL") ?? "YouTube, Vimeo, or file URL")}"></label>
-        <label class="fmdw-attach-field"><span>${(globalThis.PlatformLanguage?.text("doc-workflow","m_92999b4236dd11","Display") ?? "Display")}</span>
+          </div>` : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_4adeb3f53bdf71","No project photos available — paste an image URL below.") ?? "No project photos available — paste an image URL below.")}</p>`)}
+        <label class="fmdw-attach-field"><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_e834f5774af181","Image URL") ?? "Image URL")}</span><input type="text" data-fmdw-attach-url value="${String(esc(state.media_url))}" placeholder="https://…"></label>
+        <label class="fmdw-attach-field"><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8e5d22e5fc5931","Caption") ?? "Caption")}</span><input type="text" data-fmdw-attach-caption value="${String(esc(state.caption))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_68f76580b578dd","Optional caption") ?? "Optional caption")}"></label>
+        <label class="fmdw-attach-field"><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_ab0945e21b5b82","Video URL") ?? "Video URL")}</span><input type="text" data-fmdw-attach-video value="${String(esc(state.video_url))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_41259d9663ed29","YouTube, Vimeo, or file URL") ?? "YouTube, Vimeo, or file URL")}"></label>
+        <label class="fmdw-attach-field"><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_92999b4236dd11","Display") ?? "Display")}</span>
           <select data-fmdw-attach-display>
-            <option value="inline" ${String(state.display === 'inline' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("doc-workflow","m_05687b313f334d","Inline (row grows)") ?? "Inline (row grows)")}</option>
-            <option value="popup" ${String(state.display === 'popup' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("doc-workflow","m_f7737190739c74","Popup (lightbox chip)") ?? "Popup (lightbox chip)")}</option>
+            <option value="inline" ${String(state.display === 'inline' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_05687b313f334d","Inline (row grows)") ?? "Inline (row grows)")}</option>
+            <option value="popup" ${String(state.display === 'popup' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f7737190739c74","Popup (lightbox chip)") ?? "Popup (lightbox chip)")}</option>
           </select>
         </label>
         <div class="fmdw-attach-actions">
-          <button type="button" class="fmdw-btn ghost" data-fmdw-attach-remove><i class="fas fa-trash-can"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_09a65903b3217c"," Remove") ?? " Remove")}</button>
-          <button type="button" class="fmdw-btn" data-fmdw-attach-cancel>${(globalThis.PlatformLanguage?.text("doc-workflow","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-          <button type="button" class="fmdw-btn primary" data-fmdw-attach-save>${(globalThis.PlatformLanguage?.text("doc-workflow","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
+          <button type="button" class="fmdw-btn ghost" data-fmdw-attach-remove><i class="fas fa-trash-can"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_09a65903b3217c"," Remove") ?? " Remove")}</button>
+          <button type="button" class="fmdw-btn" data-fmdw-attach-cancel>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+          <button type="button" class="fmdw-btn primary" data-fmdw-attach-save>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
         </div>`;
       pop.querySelectorAll('[data-fmdw-attach-photo]').forEach((button) => button.addEventListener('click', () => {
         const id = button.dataset.fmdwAttachPhoto;
@@ -1117,13 +1117,13 @@
             <div class="fmdw-li-name">
               ${String(ctx.readonly
                 ? `<strong>${esc(firstText(item.display_name, item.name, 'Line item'))}</strong>`
-                : `<input type="text" data-fmdw-li-name value="${esc(firstText(item.display_name, item.name))}" placeholder="Line item">`)}
+                : `<input type="text" data-fmdw-li-name value="${esc(firstText(item.display_name, item.name))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_83915801b47db5","Line item") ?? "Line item")}">`)}
               ${String(item.description ? `<small>${esc(item.description)}</small>` : '')}
             </div>
-            <input class="fmdw-li-qty" type="number" step="any" min="0" data-fmdw-li-qty value="${String(esc(item.quantity))}" ${String(ctx.readonly ? 'disabled' : '')} title="${(globalThis.PlatformLanguage?.text("doc-workflow","m_9c689ddee2f502","Quantity") ?? "Quantity")}">
+            <input class="fmdw-li-qty" type="number" step="any" min="0" data-fmdw-li-qty value="${String(esc(item.quantity))}" ${String(ctx.readonly ? 'disabled' : '')} title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c689ddee2f502","Quantity") ?? "Quantity")}">
             <span class="fmdw-li-unit">${String(esc(item.unit || 'ea'))}</span>
-            <input class="fmdw-li-price" type="number" step="0.01" min="0" data-fmdw-li-price value="${String(esc(Number(item.unit_price || 0).toFixed(2)))}" ${String(ctx.readonly ? 'disabled' : '')} title="${(globalThis.PlatformLanguage?.text("doc-workflow","m_c68827ddeaf565","Unit price ($)") ?? "Unit price ($)")}">
-            ${String(ctx.readonly ? '' : '<button type="button" class="fmdw-icon-btn danger" data-fmdw-li-remove title="Remove"><i class="fas fa-xmark"></i></button>')}
+            <input class="fmdw-li-price" type="number" step="0.01" min="0" data-fmdw-li-price value="${String(esc(Number(item.unit_price || 0).toFixed(2)))}" ${String(ctx.readonly ? 'disabled' : '')} title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c68827ddeaf565","Unit price ($)") ?? "Unit price ($)")}">
+            ${String(ctx.readonly ? '' : `<button type="button" class="fmdw-icon-btn danger" data-fmdw-li-remove title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>`)}
           </div>`);
         arr(item.children).forEach((child) => pushRow(child, depth + 1));
       };
@@ -1135,13 +1135,13 @@
           <div class="fmdw-card">
             ${ctx.readonly ? '' : `
               <div class="fmdw-row-actions" style="margin-bottom:2px">
-                ${String(services.pricebook && typeof services.pricebook.pick === 'function' ? '<button type="button" class="fmdw-btn" data-fmdw-li-pricebook><i class="fas fa-book-open"></i> Pricebook</button>' : '')}
-                <button type="button" class="fmdw-btn" data-fmdw-li-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_8e13db264d4c9f"," Add row") ?? " Add row")}</button>
+                ${String(services.pricebook && typeof services.pricebook.pick === 'function' ? `<button type="button" class="fmdw-btn" data-fmdw-li-pricebook><i class="fas fa-book-open"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c38fcf1b64a2ea"," Pricebook") ?? " Pricebook")}</button>` : '')}
+                <button type="button" class="fmdw-btn" data-fmdw-li-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8e13db264d4c9f"," Add row") ?? " Add row")}</button>
               </div>`}
             <div class="fmdw-li-list">
-              ${rows.length ? rows.join('') : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.text("doc-workflow","m_0b854052709977","No line items yet.") ?? "No line items yet.")}</p>`}
+              ${rows.length ? rows.join('') : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_0b854052709977","No line items yet.") ?? "No line items yet.")}</p>`}
             </div>
-            ${rows.length ? `<div class="fmdw-li-total"><span>${(globalThis.PlatformLanguage?.text("doc-workflow","m_9403c7637d4905","Total") ?? "Total")}</span><b>${String(esc(moneyFromDollars(scopeItemsTotal(items))))}</b></div>` : ''}
+            ${rows.length ? `<div class="fmdw-li-total"><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9403c7637d4905","Total") ?? "Total")}</span><b>${String(esc(moneyFromDollars(scopeItemsTotal(items))))}</b></div>` : ''}
           </div>
           <span class="fmdw-field-error" data-fmdw-error hidden></span>
         </div>`;
@@ -1270,7 +1270,7 @@
           <span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>
           ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
           ${catalog === null
-            ? `<p class="fmdw-hint"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_900d0404687053"," Loading project types…") ?? " Loading project types…")}</p>`
+            ? `<p class="fmdw-hint"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_900d0404687053"," Loading project types…") ?? " Loading project types…")}</p>`
             : (catalog.length ? `
           <div class="fmdw-choice-grid fmdw-piece-grid">
             ${catalog.map((piece) => `
@@ -1280,7 +1280,7 @@
                 ${piece.description ? `<small>${esc(piece.description)}</small>` : ''}
                 <span class="fmdw-choice-tick"><i class="fas fa-check"></i></span>
               </button>`).join('')}
-          </div>` : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.text("doc-workflow","m_0a1a27b7480d52","No project types are available in this session.") ?? "No project types are available in this session.")}</p>`)}
+          </div>` : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_0a1a27b7480d52","No project types are available in this session.") ?? "No project types are available in this session.")}</p>`)}
           <span class="fmdw-field-error" data-fmdw-error hidden></span>
         </div>`;
       el.querySelectorAll('[data-fmdw-piece-type]').forEach((button) => button.addEventListener('click', () => toggle(button.dataset.fmdwPieceType)));
@@ -1348,9 +1348,9 @@
       const sel = obj(item.selection);
       const by = arr(sel.selectable_by).map(cleanText);
       const mode = cleanText(sel.mode);
-      if (mode === 'optional' && by.includes('customer')) return `<span class="fmdw-li-flag optional">${(globalThis.PlatformLanguage?.text("doc-workflow","m_d02510a1664f87","Customer optional") ?? "Customer optional")}</span>`;
+      if (mode === 'optional' && by.includes('customer')) return `<span class="fmdw-li-flag optional">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_d02510a1664f87","Customer optional") ?? "Customer optional")}</span>`;
       if (mode === 'choice') return `<span class="fmdw-li-flag choice">${by.includes('customer') ? 'Customer choice' : 'Choice'}</span>`;
-      if (item.included === true) return `<span class="fmdw-li-flag included">${(globalThis.PlatformLanguage?.text("doc-workflow","m_f02be43cb91cd2","Included") ?? "Included")}</span>`;
+      if (item.included === true) return `<span class="fmdw-li-flag included">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f02be43cb91cd2","Included") ?? "Included")}</span>`;
       return '';
     }
 
@@ -1385,11 +1385,11 @@
               </span>
               ${String(item.description ? `<small>${esc(item.description)}</small>` : '')}
             </div>
-            <input class="fmdw-li-qty" type="number" step="any" min="0" data-fmdw-lir-qty value="${String(esc(item.quantity))}" ${String(ctx.readonly ? 'disabled' : '')} title="${(globalThis.PlatformLanguage?.text("doc-workflow","m_9c689ddee2f502","Quantity") ?? "Quantity")}">
+            <input class="fmdw-li-qty" type="number" step="any" min="0" data-fmdw-lir-qty value="${String(esc(item.quantity))}" ${String(ctx.readonly ? 'disabled' : '')} title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c689ddee2f502","Quantity") ?? "Quantity")}">
             <span class="fmdw-li-unit">${String(esc(item.unit || 'ea'))}</span>
-            <input class="fmdw-li-price" type="number" step="0.01" min="0" data-fmdw-lir-price value="${String(esc(Number(item.unit_price || 0).toFixed(2)))}" ${String(ctx.readonly ? 'disabled' : '')} title="${(globalThis.PlatformLanguage?.text("doc-workflow","m_c68827ddeaf565","Unit price ($)") ?? "Unit price ($)")}">
-            ${String(ctx.readonly ? '' : `<button type="button" class="fmdw-icon-btn ${hasAttachment(item) ? 'has-media' : ''}" data-fmdw-lir-attach title="Attach photo or video"><i class="fas fa-camera"></i></button>`)}
-            ${String(ctx.readonly ? '' : '<button type="button" class="fmdw-icon-btn danger" data-fmdw-lir-remove title="Remove"><i class="fas fa-xmark"></i></button>')}
+            <input class="fmdw-li-price" type="number" step="0.01" min="0" data-fmdw-lir-price value="${String(esc(Number(item.unit_price || 0).toFixed(2)))}" ${String(ctx.readonly ? 'disabled' : '')} title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c68827ddeaf565","Unit price ($)") ?? "Unit price ($)")}">
+            ${String(ctx.readonly ? '' : `<button type="button" class="fmdw-icon-btn ${hasAttachment(item) ? 'has-media' : ''}" data-fmdw-lir-attach title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_74c8aa88118d1c","Attach photo or video") ?? "Attach photo or video")}"><i class="fas fa-camera"></i></button>`)}
+            ${String(ctx.readonly ? '' : `<button type="button" class="fmdw-icon-btn danger" data-fmdw-lir-remove title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>`)}
           </div>`);
         arr(item.children).forEach((child) => pushRow(child, depth + 1));
       };
@@ -1404,14 +1404,14 @@
                 <button type="button" class="fmdw-btn ${String(rows.length ? '' : 'primary')}" data-fmdw-lir-generate ${String(generating ? 'disabled' : '')}>
                   <i class="fas ${String(generating ? 'fa-circle-notch fa-spin' : 'fa-rotate')}"></i> ${String(generating ? 'Generating…' : (rows.length ? 'Regenerate' : 'Generate line items'))}
                 </button>
-                ${String(services.pricebook && typeof services.pricebook.pick === 'function' ? '<button type="button" class="fmdw-btn" data-fmdw-lir-pricebook><i class="fas fa-book-open"></i> Pricebook</button>' : '')}
-                <button type="button" class="fmdw-btn" data-fmdw-lir-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_8e13db264d4c9f"," Add row") ?? " Add row")}</button>
+                ${String(services.pricebook && typeof services.pricebook.pick === 'function' ? `<button type="button" class="fmdw-btn" data-fmdw-lir-pricebook><i class="fas fa-book-open"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c38fcf1b64a2ea"," Pricebook") ?? " Pricebook")}</button>` : '')}
+                <button type="button" class="fmdw-btn" data-fmdw-lir-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8e13db264d4c9f"," Add row") ?? " Add row")}</button>
               </div>`}
             ${generateNote ? `<p class="fmdw-hint"><i class="fas fa-circle-info"></i> ${esc(generateNote)}</p>` : ''}
             <div class="fmdw-li-list">
-              ${rows.length ? rows.join('') : (generating ? `<p class="fmdw-hint"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_2b766d3ceb94da"," Generating line items…") ?? " Generating line items…")}</p>` : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.text("doc-workflow","m_0b854052709977","No line items yet.") ?? "No line items yet.")}</p>`)}
+              ${rows.length ? rows.join('') : (generating ? `<p class="fmdw-hint"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_2b766d3ceb94da"," Generating line items…") ?? " Generating line items…")}</p>` : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_0b854052709977","No line items yet.") ?? "No line items yet.")}</p>`)}
             </div>
-            ${rows.length ? `<div class="fmdw-li-total"><span>${(globalThis.PlatformLanguage?.text("doc-workflow","m_9403c7637d4905","Total") ?? "Total")}</span><b data-fmdw-lir-total>${String(esc(moneyFromDollars(scopeItemsTotal(items))))}</b></div>` : ''}
+            ${rows.length ? `<div class="fmdw-li-total"><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9403c7637d4905","Total") ?? "Total")}</span><b data-fmdw-lir-total>${String(esc(moneyFromDollars(scopeItemsTotal(items))))}</b></div>` : ''}
           </div>
           <span class="fmdw-field-error" data-fmdw-error hidden></span>
         </div>`;
@@ -1500,11 +1500,11 @@
         <div class="fmdw-card fmdw-review">
           ${rows.length ? rows.map((row) => `
             <div class="fmdw-review-row ${row.hidden ? 'muted' : ''}">
-              <span>${esc(row.label)}${row.hidden ? ` <em>${(globalThis.PlatformLanguage?.text("doc-workflow","m_b355543c278b0d","(set by your project team)") ?? "(set by your project team)")}</em>` : ''}</span>
+              <span>${esc(row.label)}${row.hidden ? ` <em>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_b355543c278b0d","(set by your project team)") ?? "(set by your project team)")}</em>` : ''}</span>
               <b>${esc(row.value)}</b>
-            </div>`).join('') : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.text("doc-workflow","m_c36246dea049d6","Nothing has been filled in yet.") ?? "Nothing has been filled in yet.")}</p>`}
+            </div>`).join('') : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c36246dea049d6","Nothing has been filled in yet.") ?? "Nothing has been filled in yet.")}</p>`}
         </div>
-        ${ctx.hasPreview ? `<p class="fmdw-hint"><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_eff08b0fc06db7"," The live preview shows the finished document with these answers.") ?? " The live preview shows the finished document with these answers.")}</p>` : ''}
+        ${ctx.hasPreview ? `<p class="fmdw-hint"><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_eff08b0fc06db7"," The live preview shows the finished document with these answers.") ?? " The live preview shows the finished document with these answers.")}</p>` : ''}
       </div>`;
     return {};
   });
@@ -1556,8 +1556,8 @@
             <span class="fmdw-field-label">${String(esc(label))}</span>
             <div class="fmdw-gen-doc done">
               <i class="fas fa-file-circle-check"></i>
-              <span class="fmdw-gen-doc-copy"><strong>${String(esc(firstText(current.title, label)))}</strong><small>${((v2) => globalThis.PlatformLanguage?.text("doc-workflow","m_7cda0ae68e2436",`Generated ${v2}`,{v2}) ?? `Generated ${v2}`)(esc(cleanText(current.generated_at).slice(0, 10)))}</small></span>
-              ${String(canOpen ? '<button type="button" class="fmdw-gen-doc-open" data-fmdw-gen-open>Open</button>' : '')}
+              <span class="fmdw-gen-doc-copy"><strong>${String(esc(firstText(current.title, label)))}</strong><small>${((v2) => globalThis.PlatformLanguage?.htmlText("doc-workflow","m_7cda0ae68e2436",`Generated ${v2}`,{v2}) ?? `Generated ${v2}`)(esc(cleanText(current.generated_at).slice(0, 10)))}</small></span>
+              ${String(canOpen ? `<button type="button" class="fmdw-gen-doc-open" data-fmdw-gen-open>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c25cc66b28cc9d","Open") ?? "Open")}</button>` : '')}
             </div>
           </div>`;
         el.querySelector('[data-fmdw-gen-open]')?.addEventListener('click', () => {
@@ -1569,7 +1569,7 @@
             <span class="fmdw-field-label">${String(esc(label))}</span>
             <div class="fmdw-gen-doc pending">
               <i class="fas fa-file-circle-plus"></i>
-              <span class="fmdw-gen-doc-copy"><strong>${String(esc(firstText(config.title, label)))}</strong><small>${(globalThis.PlatformLanguage?.text("doc-workflow","m_3aae9c62ecf927","Created automatically when this step is completed.") ?? "Created automatically when this step is completed.")}</small></span>
+              <span class="fmdw-gen-doc-copy"><strong>${String(esc(firstText(config.title, label)))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_3aae9c62ecf927","Created automatically when this step is completed.") ?? "Created automatically when this step is completed.")}</small></span>
             </div>
           </div>`;
       }
@@ -1789,24 +1789,24 @@
           <header class="fmdw-step-head" data-fmdw-step-head></header>
           <div class="fmdw-items" data-fmdw-items></div>
           <footer class="fmdw-foot">
-            <button type="button" class="fmdw-btn" data-fmdw-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_9c5b830c019950"," Previous") ?? " Previous")}</button>
+            <button type="button" class="fmdw-btn" data-fmdw-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c5b830c019950"," Previous") ?? " Previous")}</button>
             <span class="fmdw-foot-note" data-fmdw-foot-note></span>
-            <button type="button" class="fmdw-btn primary" data-fmdw-continue>${(globalThis.PlatformLanguage?.text("doc-workflow","m_854c72abba5166","Continue ") ?? "Continue ")}<i class="fas fa-arrow-right"></i></button>
+            <button type="button" class="fmdw-btn primary" data-fmdw-continue>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_854c72abba5166","Continue ") ?? "Continue ")}<i class="fas fa-arrow-right"></i></button>
           </footer>
         </section>
         ${String(preview ? `
         <aside class="fmdw-preview" data-fmdw-preview>
           <div class="fmdw-preview-head" data-fmdw-preview-head>
-            <strong><i class="fas fa-eye"></i> Live preview</strong>
+            <strong><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_a979f59edfcd90"," Live preview") ?? " Live preview")}</strong>
             <div class="fmdw-preview-zoom">
-              <button type="button" class="fmdw-icon-btn" data-fmdw-zoom-out title="Zoom out"><i class="fas fa-magnifying-glass-minus"></i></button>
-              <button type="button" class="fmdw-zoom-pct" data-fmdw-zoom-fit title="Fit width" data-fmdw-zoom-pct>Fit</button>
-              <button type="button" class="fmdw-icon-btn" data-fmdw-zoom-in title="Zoom in"><i class="fas fa-magnifying-glass-plus"></i></button>
-              <button type="button" class="fmdw-icon-btn" data-fmdw-preview-refresh title="Refresh preview"><i class="fas fa-rotate"></i></button>
+              <button type="button" class="fmdw-icon-btn" data-fmdw-zoom-out title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_acf282d479dddf","Zoom out") ?? "Zoom out")}"><i class="fas fa-magnifying-glass-minus"></i></button>
+              <button type="button" class="fmdw-zoom-pct" data-fmdw-zoom-fit title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_b4e9fa5595e7cf","Fit width") ?? "Fit width")}" data-fmdw-zoom-pct>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_2d8510904d5879","Fit") ?? "Fit")}</button>
+              <button type="button" class="fmdw-icon-btn" data-fmdw-zoom-in title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_a593d968057ce9","Zoom in") ?? "Zoom in")}"><i class="fas fa-magnifying-glass-plus"></i></button>
+              <button type="button" class="fmdw-icon-btn" data-fmdw-preview-refresh title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_acf1841e689f24","Refresh preview") ?? "Refresh preview")}"><i class="fas fa-rotate"></i></button>
             </div>
           </div>
           <div class="fmdw-preview-stage" data-fmdw-preview-stage>
-            <div class="fmdw-preview-empty"><i class="fas fa-file-lines"></i><span>The preview updates as you answer.</span></div>
+            <div class="fmdw-preview-empty"><i class="fas fa-file-lines"></i><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_cec49be42c7614","The preview updates as you answer.") ?? "The preview updates as you answer.")}</span></div>
           </div>
         </aside>` : '')}
       </div>`;
@@ -1856,8 +1856,8 @@
       if (st.destroyed) return;
       const steps = visibleSteps();
       if (!steps.length) {
-        el.stepHead.innerHTML = `<h2>${(globalThis.PlatformLanguage?.text("doc-workflow","m_cdf312ca4a3b4e","Nothing to fill in") ?? "Nothing to fill in")}</h2><p>${(globalThis.PlatformLanguage?.text("doc-workflow","m_44399b69b88f2d","This workflow has no steps for you right now.") ?? "This workflow has no steps for you right now.")}</p>`;
-        el.items.innerHTML = `<div class="fmdw-empty"><i class="fas fa-circle-check"></i><span>${(globalThis.PlatformLanguage?.text("doc-workflow","m_b4700fabfa5e9b","You are all set.") ?? "You are all set.")}</span></div>`;
+        el.stepHead.innerHTML = `<h2>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_cdf312ca4a3b4e","Nothing to fill in") ?? "Nothing to fill in")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_44399b69b88f2d","This workflow has no steps for you right now.") ?? "This workflow has no steps for you right now.")}</p>`;
+        el.items.innerHTML = `<div class="fmdw-empty"><i class="fas fa-circle-check"></i><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_b4700fabfa5e9b","You are all set.") ?? "You are all set.")}</span></div>`;
         el.back.hidden = true;
         el.cont.hidden = true;
         return;
@@ -1874,7 +1874,7 @@
       const sections = stepSections(step);
       const items = sections.flatMap((section) => arr(section.items));
       if (!items.length) {
-        el.items.innerHTML = `<div class="fmdw-empty"><i class="fas fa-circle-info"></i><span>${(globalThis.PlatformLanguage?.text("doc-workflow","m_8a8fecd55b2bdc","Nothing to answer on this step.") ?? "Nothing to answer on this step.")}</span></div>`;
+        el.items.innerHTML = `<div class="fmdw-empty"><i class="fas fa-circle-info"></i><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8a8fecd55b2bdc","Nothing to answer on this step.") ?? "Nothing to answer on this step.")}</span></div>`;
       }
       const renderItem = (item, parent) => {
         const holder = document.createElement('div');
@@ -1910,7 +1910,7 @@
           helpers: { esc, cleanText, moneyFromCents, moneyFromDollars, prettyKey, clone }
         };
         if (!renderer) {
-          holder.innerHTML = `<div class="fmdw-card"><p class="fmdw-hint"><i class="fas fa-puzzle-piece"></i>${((v0) => globalThis.PlatformLanguage?.text("doc-workflow","m_2060888166e53b",` This question type ("${v0}") is not supported in this view.`,{v0}) ?? ` This question type ("${v0}") is not supported in this view.`)(esc(item.kind))}</p></div>`;
+          holder.innerHTML = `<div class="fmdw-card"><p class="fmdw-hint"><i class="fas fa-puzzle-piece"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("doc-workflow","m_2060888166e53b",` This question type ("${v0}") is not supported in this view.`,{v0}) ?? ` This question type ("${v0}") is not supported in this view.`)(esc(item.kind))}</p></div>`;
           st.itemHandles.push({ item, el: holder, handle: {} });
           return;
         }
@@ -1918,7 +1918,7 @@
         try { handle = obj(renderer(holder, ctx)); }
         catch (error) {
           console.warn('FMDocWorkflow kind renderer failed', item.kind, error);
-          holder.innerHTML = `<div class="fmdw-card"><p class="fmdw-hint"><i class="fas fa-triangle-exclamation"></i>${(globalThis.PlatformLanguage?.text("doc-workflow","m_63c83caf528f7c"," This question could not be displayed.") ?? " This question could not be displayed.")}</p></div>`;
+          holder.innerHTML = `<div class="fmdw-card"><p class="fmdw-hint"><i class="fas fa-triangle-exclamation"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_63c83caf528f7c"," This question could not be displayed.") ?? " This question could not be displayed.")}</p></div>`;
         }
         st.itemHandles.push({ item, el: holder, ctx, handle });
       };
@@ -2046,7 +2046,7 @@
       if (!el.previewStage) return;
       try { st.previewHandle?.destroy?.(); } catch (e) {}
       st.previewHandle = null;
-      el.previewStage.innerHTML = `<div class="fmdw-preview-empty"><i class="fas fa-eye-slash"></i><span>${(globalThis.PlatformLanguage?.text("doc-workflow","m_4478f7b14b3b0c","Preview unavailable right now.") ?? "Preview unavailable right now.")}</span></div>`;
+      el.previewStage.innerHTML = `<div class="fmdw-preview-empty"><i class="fas fa-eye-slash"></i><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_4478f7b14b3b0c","Preview unavailable right now.") ?? "Preview unavailable right now.")}</span></div>`;
     }
     function previewFitScale(definition){
       const dims = root.FMDocModel?.paperDimensions?.(definition) || { w_pt: 612 };

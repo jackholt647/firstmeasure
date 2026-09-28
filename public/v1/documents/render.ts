@@ -112,8 +112,8 @@ export async function buildRenderHarnessHtml(input: {
   });
   const title = String(input.title || "Document").replace(/[<>&"]/g, "");
   const language = input.language_snapshot;
-  const languageBoot = language && language.locale !== "en-US"
-    ? `<script>${escapeInlineScript(await readLibraryFile("platform-language/platform-language.js"))}</script><script>${(await frozenCatalogs(language, DOCUMENT_NAMESPACES)).map(bundle => `PlatformLanguage.register(${escapeJsonPayload(bundle)});`).join("")}PlatformLanguage.configure({context:${escapeJsonPayload(language)}});</script>`
+  const languageBoot = language && (language.locale !== "en-US" || Object.keys(language.terminology?.labels || {}).length || Object.keys(language.terminology?.localized_labels || {}).length)
+    ? `<script>${escapeInlineScript(await readLibraryFile("platform-language/platform-language.js"))}</script><script>${(await frozenCatalogs(language, DOCUMENT_NAMESPACES)).map(bundle => `PlatformLanguage.register(${escapeJsonPayload(bundle)});`).join("")}PlatformLanguage.configure({context:${escapeJsonPayload(language)}});PlatformLanguage.setTerminology(${escapeJsonPayload(language.terminology || {})});</script>`
     : "";
   const boot = `
 (function () {

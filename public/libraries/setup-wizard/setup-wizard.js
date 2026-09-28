@@ -343,7 +343,7 @@
       const isLast = index >= steps.length - 1;
       const rawNext = typeof step.nextLabel === 'function' ? step.nextLabel(ctx) : step.nextLabel;
       const nextLabel = clean(rawNext) || (isLast ? (clean(config.submitLabel) || 'Submit') : 'Continue');
-      const back = index > 0 ? `<button class="fm-wizard-btn" type="button" data-fm-back>${(globalThis.PlatformLanguage?.text("setup-wizard","m_121372231b5699","Back") ?? "Back")}</button>` : '';
+      const back = index > 0 ? `<button class="fm-wizard-btn" type="button" data-fm-back>${(globalThis.PlatformLanguage?.htmlText("setup-wizard","m_121372231b5699","Back") ?? "Back")}</button>` : '';
       const disabled = isLast && isLocked() ? 'disabled' : '';
       return `${back}<button class="fm-wizard-btn primary" type="button" data-fm-next ${disabled}>${esc(nextLabel)} <i class="fas fa-arrow-right"></i></button>`;
     }
@@ -360,14 +360,14 @@
       let railNote = '';
       try { railNote = String((typeof config.railNote === 'function' ? config.railNote(ctx) : config.railNote) ?? ''); } catch (error) { railNote = ''; }
       overlay.innerHTML = `
-        <div class="fm-wizard" role="dialog" aria-modal="true" aria-label="${String(esc(config.title || 'Setup'))}">
+        <div class="fm-wizard" role="dialog" aria-modal="true" aria-label="${String(esc(config.title || (globalThis.PlatformLanguage?.text("setup-wizard","m_b06faf127e1505","Setup") ?? "Setup")))}">
           <header class="fm-wizard-head">
-            <div class="fm-wizard-title"><span class="fm-wizard-title-icon"><i class="fas ${String(esc(clean(config.icon) || 'fa-wand-magic-sparkles'))}"></i></span><div><strong>${String(esc(config.title || 'Setup'))}</strong>${String(subtitle ? `<span class="fm-wizard-subtitle">${esc(subtitle)}</span>` : '')}</div></div>
-            <button class="fm-wizard-close" type="button" data-fm-close aria-label="${(globalThis.PlatformLanguage?.text("setup-wizard","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
+            <div class="fm-wizard-title"><span class="fm-wizard-title-icon"><i class="fas ${String(esc(clean(config.icon) || 'fa-wand-magic-sparkles'))}"></i></span><div><strong>${String(esc(config.title || (globalThis.PlatformLanguage?.text("setup-wizard","m_b06faf127e1505","Setup") ?? "Setup")))}</strong>${String(subtitle ? `<span class="fm-wizard-subtitle">${esc(subtitle)}</span>` : '')}</div></div>
+            <button class="fm-wizard-close" type="button" data-fm-close aria-label="${(globalThis.PlatformLanguage?.htmlText("setup-wizard","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
           </header>
           <div class="fm-wizard-body">
             <aside class="fm-wizard-rail"><div class="fm-wizard-steps">${String(railHtml(steps, index))}</div>${String(railNote ? `<div class="fm-wizard-rail-foot">${railNote}</div>` : '')}</aside>
-            <section class="fm-wizard-main"><div class="fm-wizard-pane"><div data-fm-alerts>${String(issues.length ? `<div class="fm-wizard-issues" role="alert"><i class="fas fa-circle-exclamation"></i><div><strong>Finish this step:</strong><ul>${issues.map((issue) => `<li>${esc(issue)}</li>`).join('')}</ul></div></div>` : '')}</div><div data-fm-step-body></div></div></section>
+            <section class="fm-wizard-main"><div class="fm-wizard-pane"><div data-fm-alerts>${String(issues.length ? `<div class="fm-wizard-issues" role="alert"><i class="fas fa-circle-exclamation"></i><div><strong>${(globalThis.PlatformLanguage?.htmlText("setup-wizard","m_db664f55e13784","Finish this step:") ?? "Finish this step:")}</strong><ul>${issues.map((issue) => `<li>${esc(issue)}</li>`).join('')}</ul></div></div>` : '')}</div><div data-fm-step-body></div></div></section>
           </div>
           <footer class="fm-wizard-foot"><span class="fm-wizard-foot-note" data-fm-note>${String(esc(statusText))}</span><div class="fm-wizard-foot-actions" data-fm-actions></div></footer>
         </div>`;

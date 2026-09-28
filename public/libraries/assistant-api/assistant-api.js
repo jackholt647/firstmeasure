@@ -99,6 +99,17 @@
       remove(orgId, id){ return request(orgPath(orgId, `/memories/${enc(id)}`), { method:'DELETE' }); },
       clear(orgId){ return request(orgPath(orgId, '/memories'), { method:'DELETE' }); }
     },
+    agents:{
+      list(orgId){ return request(orgPath(orgId, '/agents')); },
+      get(orgId, agentId){ return request(orgPath(orgId, `/agents/${enc(agentId)}`)); },
+      update(orgId, agentId, patch){ return request(orgPath(orgId, `/agents/${enc(agentId)}`), { method:'PATCH', body:object(patch) }); },
+      remove(orgId, agentId){ return request(orgPath(orgId, `/agents/${enc(agentId)}`), { method:'DELETE' }); },
+      run(orgId, agentId){ return request(orgPath(orgId, `/agents/${enc(agentId)}/run`), { method:'POST', body:{} }); }
+    },
+    dashboard:{
+      list(orgId){ return request(orgPath(orgId, '/dashboard')); },
+      remove(orgId, itemId){ return request(orgPath(orgId, `/dashboard/${enc(itemId)}`), { method:'DELETE' }); }
+    },
     threads(orgId){ return request(orgPath(orgId, '/threads')); },
     search(orgId, query){ return request(orgPath(orgId, `/search?q=${enc(query)}`)); },
     createThread(orgId, body){ return request(orgPath(orgId, '/threads'), { method:'POST', body:object(body) }); },

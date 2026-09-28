@@ -137,10 +137,10 @@
       back.className = 'fmve-confirm-back';
       back.innerHTML = `
         <div class="fmve-confirm" role="dialog" aria-modal="true">
-          <h2><i class="fas ${String(esc(options.icon || 'fa-circle-question'))}"></i> ${String(esc(options.title || 'Are you sure?'))}</h2>
+          <h2><i class="fas ${String(esc(options.icon || 'fa-circle-question'))}"></i> ${String(esc(options.title || (globalThis.PlatformLanguage?.text("visual-editor","m_63c86c5bf4a1b7","Are you sure?") ?? "Are you sure?")))}</h2>
           <p>${String(esc(message))}</p>
           <div class="foot">
-            <button type="button" data-fmve-cancel>${(globalThis.PlatformLanguage?.text("visual-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+            <button type="button" data-fmve-cancel>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
             <button type="button" class="${String(options.danger ? 'danger' : 'primary')}" data-fmve-ok>${String(esc(options.confirmLabel || 'Confirm'))}</button>
           </div>
         </div>`;
@@ -2475,7 +2475,7 @@
     rootEl.className = `fmve-chrome fmve-kind-${contentKind}`;
     rootEl.innerHTML = `
       <div class="fmve-main">
-        <nav class="fmwe-ch-rail" data-ch-rail aria-label="${(globalThis.PlatformLanguage?.text("visual-editor","m_f334262d9394a1","Editor tools") ?? "Editor tools")}">
+        <nav class="fmwe-ch-rail" data-ch-rail aria-label="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_f334262d9394a1","Editor tools") ?? "Editor tools")}">
           ${String(tabs.map((tab) => `
             <button type="button" class="fmwe-ch-railbtn ${state.chromeTab === tab.id ? 'active' : ''}" data-ch-tab="${esc(tab.id)}" title="${esc(tab.label)}">
               <i class="fas ${esc(tab.icon)}"></i><span>${esc(tab.label)}</span>
@@ -2485,37 +2485,37 @@
           <div class="fmwe-ch-panel-clip">
             <div class="fmwe-ch-panel-body" data-ch-panel-body></div>
           </div>
-          <button type="button" class="fmwe-ch-collapse" data-ch-collapse title="${(globalThis.PlatformLanguage?.text("visual-editor","m_fc21a1d372a9b3","Close panel") ?? "Close panel")}"><i class="fas fa-chevron-left"></i></button>
+          <button type="button" class="fmwe-ch-collapse" data-ch-collapse title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_fc21a1d372a9b3","Close panel") ?? "Close panel")}"><i class="fas fa-chevron-left"></i></button>
         </aside>
         <div class="fmwe-ch-center">
           ${String(bannerHtml || '')}
           <div class="fmwe-editor-canvas" data-ed-canvas></div>
           <div class="fmwe-ch-under" data-ch-under>
-            ${String(addSectionEnabled ? '<button type="button" class="fmwe-ch-addsection" data-ch-add-section><i class="fas fa-plus"></i> Add section</button>' : '')}
+            ${String(addSectionEnabled ? `<button type="button" class="fmwe-ch-addsection" data-ch-add-section><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_d2439aea71763b"," Add section") ?? " Add section")}</button>` : '')}
             ${String(pagesApi ? `<div class="fmwe-ch-pstrip ${state.pagesStripOpen ? '' : 'hidden'}" data-ch-pages-strip></div>` : '')}
           </div>
         </div>
       </div>
       <footer class="fmwe-ch-bottom" data-ch-bottom>
-        ${String(notesOpts ? '<button type="button" class="fmwe-ch-bbtn" data-ch-notes><i class="fas fa-edit"></i> Notes</button><span class="fmwe-ch-bsep"></span>' : '')}
+        ${String(notesOpts ? `<button type="button" class="fmwe-ch-bbtn" data-ch-notes><i class="fas fa-edit"></i>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_c72b58e579a8da"," Notes") ?? " Notes")}</button><span class="fmwe-ch-bsep"></span>` : '')}
         <div class="fmwe-ch-bspacer"></div>
-        <button type="button" class="fmwe-ch-bbtn icon" data-ch-zoom-fit title="${(globalThis.PlatformLanguage?.text("visual-editor","m_5dc062b98b043b","Fit to width") ?? "Fit to width")}"><i class="fas fa-compress-arrows-alt"></i></button>
-        <input type="range" class="fmwe-ch-zoom" min="10" max="200" step="5" value="100" data-ch-zoom aria-label="${(globalThis.PlatformLanguage?.text("visual-editor","m_e847735cf5a416","Zoom") ?? "Zoom")}">
+        <button type="button" class="fmwe-ch-bbtn icon" data-ch-zoom-fit title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_5dc062b98b043b","Fit to width") ?? "Fit to width")}"><i class="fas fa-compress-arrows-alt"></i></button>
+        <input type="range" class="fmwe-ch-zoom" min="10" max="200" step="5" value="100" data-ch-zoom aria-label="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_e847735cf5a416","Zoom") ?? "Zoom")}">
         <span class="fmwe-ch-zoomval" data-ch-zoom-readout>100%</span>
         <span class="fmwe-ch-bsep"></span>
         ${String(pagesApi ? `<button type="button" class="fmwe-ch-bbtn ${state.pagesStripOpen ? 'active' : ''}" data-ch-pages-toggle><i class="fas ${collectionIsSections ? 'fa-layer-group' : 'fa-file'}"></i> <span data-ch-pages-label>${collectionPlural}</span></button>` : '')}
-        ${String(pagesApi && typeof pagesApi.grid === 'function' ? `<button type="button" class="fmwe-ch-bbtn icon" data-ch-grid title="All ${collectionPlural.toLowerCase()}"><i class="fas fa-th"></i></button>` : '')}
-        <button type="button" class="fmwe-ch-bbtn icon" data-ch-expand title="${(globalThis.PlatformLanguage?.text("visual-editor","m_d54b8cc1b1dd49","Fullscreen") ?? "Fullscreen")}"><i class="fas fa-expand"></i></button>
+        ${String(pagesApi && typeof pagesApi.grid === 'function' ? `<button type="button" class="fmwe-ch-bbtn icon" data-ch-grid title="${((v0) => globalThis.PlatformLanguage?.htmlText("visual-editor","m_3063bb8265a841",`All ${v0}`,{v0}) ?? `All ${v0}`)(collectionPlural.toLowerCase())}"><i class="fas fa-th"></i></button>` : '')}
+        <button type="button" class="fmwe-ch-bbtn icon" data-ch-expand title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_d54b8cc1b1dd49","Fullscreen") ?? "Fullscreen")}"><i class="fas fa-expand"></i></button>
       </footer>
-      ${String(contentKind !== 'document' ? '<button type="button" class="fmwe-preview-fullscreen-toggle" data-ch-preview-expand aria-label="Enter fullscreen preview" title="Fullscreen preview"><i class="fas fa-expand"></i></button>' : '')}
+      ${String(contentKind !== 'document' ? `<button type="button" class="fmwe-preview-fullscreen-toggle" data-ch-preview-expand aria-label="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_46dda4b220331f","Enter fullscreen preview") ?? "Enter fullscreen preview")}" title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_2e946e56333eb5","Fullscreen preview") ?? "Fullscreen preview")}"><i class="fas fa-expand"></i></button>` : '')}
       ${String(notesOpts ? `
       <div class="fmwe-ch-notes ${state.notesOpen ? '' : 'hidden'}" data-ch-notes-drawer>
         <div class="head">
-          <strong><i class="fas fa-edit"></i> Page notes</strong>
+          <strong><i class="fas fa-edit"></i>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_77fbbf5fe2790a"," Page notes") ?? " Page notes")}</strong>
           <span class="state" data-ch-notes-state></span>
-          <button type="button" class="fmwe-icon-btn" data-ch-notes-close title="Close notes"><i class="fas fa-xmark"></i></button>
+          <button type="button" class="fmwe-icon-btn" data-ch-notes-close title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_27d3454ef187b1","Close notes") ?? "Close notes")}"><i class="fas fa-xmark"></i></button>
         </div>
-        <textarea data-ch-notes-input placeholder="Working notes for this page — visible to your team only, never on the live page."></textarea>
+        <textarea data-ch-notes-input placeholder="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_ac5943b986cf7a","Working notes for this page — visible to your team only, never on the live page.") ?? "Working notes for this page — visible to your team only, never on the live page.")}"></textarea>
       </div>` : '')}`;
     container.appendChild(rootEl);
     syncOnPrimaryVar(rootEl, orgBranding());
@@ -2945,7 +2945,7 @@
           };
           try { customTab.render(body, customApi); }
           catch (error) {
-            body.innerHTML = `<div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.text("visual-editor","m_55216de254c0ca","Panel unavailable") ?? "Panel unavailable")}</strong></div><p class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.text("visual-editor","m_65737bf2a12b5b","This editor extension could not be opened.") ?? "This editor extension could not be opened.")}</p>`;
+            body.innerHTML = `<div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_55216de254c0ca","Panel unavailable") ?? "Panel unavailable")}</strong></div><p class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_65737bf2a12b5b","This editor extension could not be opened.") ?? "This editor extension could not be opened.")}</p>`;
             try { global.console?.error?.('[FMVisualEditor] custom tab render failed', error); } catch (e) { /* noop */ }
           }
         }
@@ -2983,12 +2983,12 @@
           <div class="fmwe-ch-cardgrid fmwe-ch-group-body">${group.entries.map(card).join('')}</div>
         </section>`;
       body.innerHTML = `
-        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.text("visual-editor","m_6831430b8abcaa","Templates") ?? "Templates")}</strong></div>
+        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_6831430b8abcaa","Templates") ?? "Templates")}</strong></div>
         <div class="fmwe-ch-search">
-          <input type="search" data-ch-tpl-search placeholder="${(globalThis.PlatformLanguage?.text("visual-editor","m_32b44508ef586b","Describe your ideal design") ?? "Describe your ideal design")}" value="${String(esc(firstText(state.chromeSearch.templates)))}">
+          <input type="search" data-ch-tpl-search placeholder="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_32b44508ef586b","Describe your ideal design") ?? "Describe your ideal design")}" value="${String(esc(firstText(state.chromeSearch.templates)))}">
           <div class="row">
-            <button type="button" class="fmwe-btn primary fmwe-ch-generate" data-ch-tpl-generate><i class="fas fa-magic"></i>${(globalThis.PlatformLanguage?.text("visual-editor","m_a4303b8472a90b"," Generate ") ?? " Generate ")}<i class="fas fa-caret-down" style="opacity:.7"></i></button>
-            <button type="button" class="fmwe-btn" data-ch-tpl-searchbtn><i class="fas fa-search"></i>${(globalThis.PlatformLanguage?.text("visual-editor","m_df7ced82563784"," Search") ?? " Search")}</button>
+            <button type="button" class="fmwe-btn primary fmwe-ch-generate" data-ch-tpl-generate><i class="fas fa-magic"></i>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_a4303b8472a90b"," Generate ") ?? " Generate ")}<i class="fas fa-caret-down" style="opacity:.7"></i></button>
+            <button type="button" class="fmwe-btn" data-ch-tpl-searchbtn><i class="fas fa-search"></i>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_df7ced82563784"," Search") ?? " Search")}</button>
           </div>
         </div>
         <div class="fmwe-ch-template-groups">${String(groups.map(groupHtml).join(''))}</div>`;
@@ -3097,9 +3097,9 @@
 
     function horizontalShelfHtml(gridClassName, contents, gridAttrs = ''){
       return `<div class="fmwe-ch-el-scroll" data-ch-el-scroll>
-        <button type="button" class="fmwe-ch-shelf-arrow left" data-ch-shelf-scroll="-1" aria-label="${(globalThis.PlatformLanguage?.text("visual-editor","m_0312ab1d677d3d","Scroll left") ?? "Scroll left")}"><i class="fas fa-chevron-left"></i></button>
+        <button type="button" class="fmwe-ch-shelf-arrow left" data-ch-shelf-scroll="-1" aria-label="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_0312ab1d677d3d","Scroll left") ?? "Scroll left")}"><i class="fas fa-chevron-left"></i></button>
         <div class="${String(gridClassName)}" ${String(gridAttrs)}>${String(contents)}</div>
-        <button type="button" class="fmwe-ch-shelf-arrow right" data-ch-shelf-scroll="1" aria-label="${(globalThis.PlatformLanguage?.text("visual-editor","m_2606b7b2e58796","Scroll right") ?? "Scroll right")}"><i class="fas fa-chevron-right"></i></button>
+        <button type="button" class="fmwe-ch-shelf-arrow right" data-ch-shelf-scroll="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_2606b7b2e58796","Scroll right") ?? "Scroll right")}"><i class="fas fa-chevron-right"></i></button>
       </div>`;
     }
 
@@ -3164,14 +3164,14 @@
           </section>`;
       }).join('');
       body.innerHTML = `
-        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.text("visual-editor","m_f1fa67d1bce90f","Elements") ?? "Elements")}</strong></div>
+        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_f1fa67d1bce90f","Elements") ?? "Elements")}</strong></div>
         <div class="fmwe-ch-search">
-          <input type="search" data-ch-el-search placeholder="${(globalThis.PlatformLanguage?.text("visual-editor","m_b73cc83b8d6bae","Search elements") ?? "Search elements")}" value="${String(esc(firstText(state.chromeSearch.elements)))}">
+          <input type="search" data-ch-el-search placeholder="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_b73cc83b8d6bae","Search elements") ?? "Search elements")}" value="${String(esc(firstText(state.chromeSearch.elements)))}">
         </div>
         ${String(recent.length ? `
-          <p class="fmwe-micro-label">Recently used</p>
+          <p class="fmwe-micro-label">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_0dc15a35e4943f","Recently used") ?? "Recently used")}</p>
           ${horizontalShelfHtml('fmwe-ch-elgrid cards', recent.map(itemButton).join(''), 'data-ch-el-recent')}` : '')}
-        ${String(groupsHtml || '<span class="fmwe-ch-quiet">Nothing matches that search.</span>')}`;
+        ${String(groupsHtml || `<span class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_b89b95a8c655d5","Nothing matches that search.") ?? "Nothing matches that search.")}</span>`)}`;
       wireHorizontalShelves(body);
       const search = body.querySelector('[data-ch-el-search]');
       search?.addEventListener('input', () => {
@@ -3210,12 +3210,12 @@
           <span class="fmwe-ch-widget-name">${esc(item.name)}</span>
         </button>`;
       body.innerHTML = `
-        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.text("visual-editor","m_f5d5649c9ab16a","Widgets") ?? "Widgets")}</strong></div>
+        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_f5d5649c9ab16a","Widgets") ?? "Widgets")}</strong></div>
         <div class="fmwe-ch-search">
-          <input type="search" data-ch-widget-search placeholder="${(globalThis.PlatformLanguage?.text("visual-editor","m_8e598201cad5db","Search widgets") ?? "Search widgets")}" value="${String(esc(firstText(state.chromeSearch.widgets)))}">
+          <input type="search" data-ch-widget-search placeholder="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_8e598201cad5db","Search widgets") ?? "Search widgets")}" value="${String(esc(firstText(state.chromeSearch.widgets)))}">
         </div>
         <div class="fmwe-ch-widgetgrid cards" data-ch-widget-grid>${String(widgets.map(itemButton).join(''))}</div>
-        ${String(widgets.length ? '' : '<span class="fmwe-ch-quiet">No widgets match that search.</span>')}`;
+        ${String(widgets.length ? '' : `<span class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_307895e7f32fcc","No widgets match that search.") ?? "No widgets match that search.")}</span>`)}`;
       const search = body.querySelector('[data-ch-widget-search]');
       search?.addEventListener('input', () => {
         state.chromeSearch.widgets = search.value;
@@ -3560,13 +3560,13 @@
                   ? `<span class="fmwe-ch-video-thumb"><i class="fas fa-circle-play"></i><small>${esc(firstText(item.name, 'Video'))}</small></span>`
                   : `<img src="${esc(thumbUrl(item))}" data-fallback="${esc(originalUrl(item))}" alt="${esc(firstText(item.name, 'Image'))}" loading="lazy" draggable="false">`}
               </button>`).join('')}</div>`
-          : `<div class="fmwe-ch-empty"><i class="fas fa-images"></i><span>${(globalThis.PlatformLanguage?.text("visual-editor","m_528572eb1ea92b","Nothing uploaded yet — your images will appear here.") ?? "Nothing uploaded yet — your images will appear here.")}</span></div>`;
+          : `<div class="fmwe-ch-empty"><i class="fas fa-images"></i><span>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_528572eb1ea92b","Nothing uploaded yet — your images will appear here.") ?? "Nothing uploaded yet — your images will appear here.")}</span></div>`;
       }
       const projectQuery = cleanText(state.chromeSearch.mediaProjects);
       let projectResultsHtml = '';
       if (projectQuery) {
         if (state.mediaProjectsLoading && !state.mediaProjects) {
-          projectResultsHtml = `<div class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.text("visual-editor","m_5432ae3d406a83","Searching projects…") ?? "Searching projects…")}</div>`;
+          projectResultsHtml = `<div class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_5432ae3d406a83","Searching projects…") ?? "Searching projects…")}</div>`;
         } else {
           const q = projectQuery.toLowerCase();
           const hits = arrayValue(state.mediaProjects).filter((p) => p.name.toLowerCase().includes(q)).slice(0, 8);
@@ -3575,14 +3575,14 @@
                 <button type="button" class="fmwe-ch-projrow" data-ch-media-project="${esc(p.id)}" title="${esc(p.name)}">
                   <i class="fas fa-briefcase"></i><span>${esc(p.name)}</span><i class="fas fa-chevron-right chev"></i>
                 </button>`).join('')}</div>`
-            : `<div class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.text("visual-editor","m_0ca179bdb87766","No projects match that search.") ?? "No projects match that search.")}</div>`;
+            : `<div class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_0ca179bdb87766","No projects match that search.") ?? "No projects match that search.")}</div>`;
         }
       }
       body.innerHTML = `
-        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.text("visual-editor","m_49e775f365e4e6","Media") ?? "Media")}</strong></div>
-        <button type="button" class="fmwe-btn primary fmwe-ch-bigbtn" data-ch-up-btn><i class="fas fa-cloud-upload-alt"></i>${(globalThis.PlatformLanguage?.text("visual-editor","m_09c2e180e4119b"," Upload files") ?? " Upload files")}</button>
+        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_49e775f365e4e6","Media") ?? "Media")}</strong></div>
+        <button type="button" class="fmwe-btn primary fmwe-ch-bigbtn" data-ch-up-btn><i class="fas fa-cloud-upload-alt"></i>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_09c2e180e4119b"," Upload files") ?? " Upload files")}</button>
         <div class="fmwe-ch-search" style="margin-top:8px">
-          <input type="search" data-ch-media-projsearch placeholder="${(globalThis.PlatformLanguage?.text("visual-editor","m_af80d9cead6991","Search projects") ?? "Search projects")}" value="${String(esc(projectQuery))}">
+          <input type="search" data-ch-media-projsearch placeholder="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_af80d9cead6991","Search projects") ?? "Search projects")}" value="${String(esc(projectQuery))}">
         </div>
         <div data-ch-media-projresults>${String(projectResultsHtml)}</div>
         <div class="fmwe-ch-subtabs">
@@ -3646,7 +3646,7 @@
       if (state.mediaProjectPhotosLoading) {
         gridHtml = '<div class="fmwe-ch-empty"><div class="fmwe-spinner"></div></div>';
       } else if (!photos.length) {
-        gridHtml = `<div class="fmwe-ch-empty"><i class="fas fa-images"></i><span>${(globalThis.PlatformLanguage?.text("visual-editor","m_d8dbfdeabae6ba","No photos on this project yet.") ?? "No photos on this project yet.")}</span></div>`;
+        gridHtml = `<div class="fmwe-ch-empty"><i class="fas fa-images"></i><span>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_d8dbfdeabae6ba","No photos on this project yet.") ?? "No photos on this project yet.")}</span></div>`;
       } else {
         gridHtml = `<div class="fmwe-ch-upgrid">${photos.map((photo, index) => `
           <button type="button" class="fmwe-ch-upthumb" data-ch-media-photo="${esc(firstText(photo.id, String(index)))}" title="${esc(firstText(photo.label, 'Photo'))}">
@@ -3654,8 +3654,8 @@
           </button>`).join('')}</div>`;
       }
       body.innerHTML = `
-        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.text("visual-editor","m_49e775f365e4e6","Media") ?? "Media")}</strong></div>
-        <button type="button" class="fmwe-ch-back" data-ch-media-back><i class="fas fa-chevron-left"></i>${(globalThis.PlatformLanguage?.text("visual-editor","m_899b0e7d1286f7"," Back to media library") ?? " Back to media library")}</button>
+        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_49e775f365e4e6","Media") ?? "Media")}</strong></div>
+        <button type="button" class="fmwe-ch-back" data-ch-media-back><i class="fas fa-chevron-left"></i>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_899b0e7d1286f7"," Back to media library") ?? " Back to media library")}</button>
         <p class="fmwe-micro-label"><i class="fas fa-briefcase"></i> ${String(esc(firstText(project.name, 'Project')))} <span class="count">${String(photos.length)}</span></p>
         ${String(gridHtml)}`;
       body.querySelector('[data-ch-media-back]')?.addEventListener('click', () => {
@@ -3672,13 +3672,13 @@
     // --------------------------------------------------------- panel: text
     function renderTextPanel(body){
       body.innerHTML = `
-        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.text("visual-editor","m_124287f184b88b","Text") ?? "Text")}</strong></div>
-        <button type="button" class="fmwe-btn primary fmwe-ch-bigbtn" data-ch-text-add><i class="fas fa-font"></i>${(globalThis.PlatformLanguage?.text("visual-editor","m_b4eed681c89576"," Add a text box") ?? " Add a text box")}</button>
-        <p class="fmwe-micro-label">${(globalThis.PlatformLanguage?.text("visual-editor","m_e59ed8c37894a1","Default text styles") ?? "Default text styles")}</p>
+        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_124287f184b88b","Text") ?? "Text")}</strong></div>
+        <button type="button" class="fmwe-btn primary fmwe-ch-bigbtn" data-ch-text-add><i class="fas fa-font"></i>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_b4eed681c89576"," Add a text box") ?? " Add a text box")}</button>
+        <p class="fmwe-micro-label">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_e59ed8c37894a1","Default text styles") ?? "Default text styles")}</p>
         <div class="fmwe-ch-textstyles">
-          <button type="button" class="fmwe-ch-textstyle heading" data-ch-text-style="heading">${(globalThis.PlatformLanguage?.text("visual-editor","m_50a1e467512d0d","Add a heading") ?? "Add a heading")}</button>
-          <button type="button" class="fmwe-ch-textstyle subheading" data-ch-text-style="subheading">${(globalThis.PlatformLanguage?.text("visual-editor","m_c815e22524bcb6","Add a subheading") ?? "Add a subheading")}</button>
-          <button type="button" class="fmwe-ch-textstyle body" data-ch-text-style="body">${(globalThis.PlatformLanguage?.text("visual-editor","m_c9fd1ce5ba3834","Add a little bit of body text") ?? "Add a little bit of body text")}</button>
+          <button type="button" class="fmwe-ch-textstyle heading" data-ch-text-style="heading">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_50a1e467512d0d","Add a heading") ?? "Add a heading")}</button>
+          <button type="button" class="fmwe-ch-textstyle subheading" data-ch-text-style="subheading">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_c815e22524bcb6","Add a subheading") ?? "Add a subheading")}</button>
+          <button type="button" class="fmwe-ch-textstyle body" data-ch-text-style="body">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_c9fd1ce5ba3834","Add a little bit of body text") ?? "Add a little bit of body text")}</button>
         </div>`;
       const textBuilders = {
         add: () => tplText('Your text', { w: 220, h: 30 }, { size_pt: 14, weight: 700 }, { name: 'Text' }),
@@ -3780,7 +3780,7 @@
       const kit = state.brandKit;
       if (!kit) {
         body.innerHTML = `
-          <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.text("visual-editor","m_38e15f7a2dd540","Brand Kit") ?? "Brand Kit")}</strong></div>
+          <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_38e15f7a2dd540","Brand Kit") ?? "Brand Kit")}</strong></div>
           <div class="fmwe-ch-empty"><div class="fmwe-spinner"></div></div>`;
         loadBrandKit().then((loaded) => {
           if (loaded && !destroyed && state.chromeTab === 'brand') renderChromePanel();
@@ -3794,23 +3794,23 @@
         : portalLogoHtml(branding, orgName());
       const mediaItems = arrayValue(kit.media);
       body.innerHTML = `
-        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.text("visual-editor","m_38e15f7a2dd540","Brand Kit") ?? "Brand Kit")}</strong></div>
-        <p class="fmwe-micro-label">${(globalThis.PlatformLanguage?.text("visual-editor","m_177f1dc4fdc914","Company logo") ?? "Company logo")}</p>
+        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_38e15f7a2dd540","Brand Kit") ?? "Brand Kit")}</strong></div>
+        <p class="fmwe-micro-label">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_177f1dc4fdc914","Company logo") ?? "Company logo")}</p>
         <div class="fmwe-ch-brandlogo" data-ch-brand-logo>${String(logoHtml)}</div>
-        <p class="fmwe-micro-label">${(globalThis.PlatformLanguage?.text("visual-editor","m_606bb067eca1c7","Brand colors") ?? "Brand colors")}</p>
+        <p class="fmwe-micro-label">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_606bb067eca1c7","Brand colors") ?? "Brand colors")}</p>
         <div class="fmwe-ch-swatches">
           ${String(swatches.map((entry) => `
             <button type="button" class="fmwe-ch-swatch" data-ch-brand-swatch="${esc(entry.hex)}" title="${esc(entry.label)} · ${esc(entry.hex)}" style="background:${esc(entry.hex)}"></button>`).join(''))}
         </div>
-        <p class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.text("visual-editor","m_b61b8ea89f39ff","Click a swatch to color the selected element — with nothing selected it copies the hex.") ?? "Click a swatch to color the selected element — with nothing selected it copies the hex.")}</p>
-        <p class="fmwe-micro-label">${(globalThis.PlatformLanguage?.text("visual-editor","m_c0838c60ccd34f","Alternate logos ") ?? "Alternate logos ")}<span class="count">${String(mediaItems.length)}</span></p>
+        <p class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_b61b8ea89f39ff","Click a swatch to color the selected element — with nothing selected it copies the hex.") ?? "Click a swatch to color the selected element — with nothing selected it copies the hex.")}</p>
+        <p class="fmwe-micro-label">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_c0838c60ccd34f","Alternate logos ") ?? "Alternate logos ")}<span class="count">${String(mediaItems.length)}</span></p>
         <div data-ch-brand-media-grid>
           ${String(mediaItems.length
             ? `<div class="fmwe-ch-altlogos">${mediaItems.map((item) => `
                 <button type="button" class="alt" data-ch-brand-media="${esc(firstText(item.media_id, item.id))}" title="${esc(firstText(item.label, 'Branding image'))}">
                   <img src="${esc(firstText(item.thumb, item.src))}" alt="${esc(firstText(item.label, 'Branding image'))}" draggable="false">
                 </button>`).join('')}</div>`
-            : '<p class="fmwe-ch-quiet">Upload alternate logo versions under Settings → Company and they appear here.</p>')}
+            : `<p class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_2408ba9ce6062b","Upload alternate logo versions under Settings → Company and they appear here.") ?? "Upload alternate logo versions under Settings → Company and they appear here.")}</p>`)}
         </div>`;
       body.querySelectorAll('[data-ch-brand-swatch]').forEach((el) => el.addEventListener('click', () => applyBrandColor(el.dataset.chBrandSwatch)));
       body.querySelectorAll('[data-ch-brand-media]').forEach((el) => {
@@ -3910,14 +3910,14 @@
             <i class="fas ${tool.icon}"></i>
           </button>`).join(''))}
         <div class="fmwe-mkdock-colorwrap">
-          <button type="button" class="fmwe-mkdock-btn swatch" data-ch-mk-colortoggle title="${(globalThis.PlatformLanguage?.text("visual-editor","m_db7002926d9977","Color") ?? "Color")}">
+          <button type="button" class="fmwe-mkdock-btn swatch" data-ch-mk-colortoggle title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_db7002926d9977","Color") ?? "Color")}">
             <span class="dot" style="background:${String(esc(state.markupColor))}"></span>
           </button>
           <div class="fmwe-mkdock-pop" data-ch-mk-colorpop>${String(paletteHtml)}</div>
         </div>
-        <button type="button" class="fmwe-mkdock-btn" data-ch-mk-undo title="${(globalThis.PlatformLanguage?.text("visual-editor","m_4004b71744b54e","Undo") ?? "Undo")}" ${String(session ? '' : 'disabled')}><i class="fas fa-undo"></i></button>
+        <button type="button" class="fmwe-mkdock-btn" data-ch-mk-undo title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_4004b71744b54e","Undo") ?? "Undo")}" ${String(session ? '' : 'disabled')}><i class="fas fa-undo"></i></button>
         <span class="fmwe-mkdock-sep"></span>
-        <button type="button" class="fmwe-mkdock-btn done" data-ch-mk-done title="${(globalThis.PlatformLanguage?.text("visual-editor","m_8cb6b086a0e69c","Done") ?? "Done")}" ${String(session ? '' : 'disabled')}><i class="fas fa-check"></i></button>`;
+        <button type="button" class="fmwe-mkdock-btn done" data-ch-mk-done title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_8cb6b086a0e69c","Done") ?? "Done")}" ${String(session ? '' : 'disabled')}><i class="fas fa-check"></i></button>`;
       // .fmde-body starts below the editor toolbar. Offset from its canvas
       // child so the dock sits just beyond the Visual rail without becoming
       // part of the canvas's scrolling content.
@@ -4109,12 +4109,12 @@
     // ----------------------------------------------------------- panel: qr
     function renderQrPanel(body){
       body.innerHTML = `
-        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.text("visual-editor","m_afe7e75cbcc4c9","QR codes") ?? "QR codes")}</strong></div>
-        <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.text("visual-editor","m_b90b7e637a2076","URL") ?? "URL")}</span>
+        <div class="fmwe-ch-head"><strong>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_afe7e75cbcc4c9","QR codes") ?? "QR codes")}</strong></div>
+        <label class="fmwe-field"><span>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_b90b7e637a2076","URL") ?? "URL")}</span>
           <input type="text" data-ch-qr-url placeholder="https://example.com" spellcheck="false" value="${String(esc(firstText(state.chromeSearch.qr)))}">
         </label>
-        <button type="button" class="fmwe-btn primary fmwe-ch-bigbtn" data-ch-qr-insert><i class="fas fa-qrcode"></i>${(globalThis.PlatformLanguage?.text("visual-editor","m_d47d525aca0fda"," Insert QR code") ?? " Insert QR code")}</button>
-        <p class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.text("visual-editor","m_6f53b52a5d182f","The code updates live — change the URL later from the element's settings.") ?? "The code updates live — change the URL later from the element's settings.")}</p>`;
+        <button type="button" class="fmwe-btn primary fmwe-ch-bigbtn" data-ch-qr-insert><i class="fas fa-qrcode"></i>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_d47d525aca0fda"," Insert QR code") ?? " Insert QR code")}</button>
+        <p class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_6f53b52a5d182f","The code updates live — change the URL later from the element's settings.") ?? "The code updates live — change the URL later from the element's settings.")}</p>`;
       const input = body.querySelector('[data-ch-qr-url]');
       input?.addEventListener('input', () => { state.chromeSearch.qr = input.value; });
       body.querySelector('[data-ch-qr-insert]')?.addEventListener('click', () => {
@@ -4270,9 +4270,9 @@
       actions.className = 'fmwe-sec-actions';
       actions.setAttribute('data-ch-sec-actions', '');
       actions.innerHTML = `
-        <button type="button" data-ch-sec-duplicate title="${(globalThis.PlatformLanguage?.text("visual-editor","m_8adbae212858a1","Copy section") ?? "Copy section")}"><i class="fas fa-clone"></i></button>
+        <button type="button" data-ch-sec-duplicate title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_8adbae212858a1","Copy section") ?? "Copy section")}"><i class="fas fa-clone"></i></button>
         <button type="button" data-ch-sec-lock title="${String(locked ? 'Unlock section' : 'Lock section')}" class="${String(locked ? 'active' : '')}"><i class="fas ${String(locked ? 'fa-lock' : 'fa-lock-open')}"></i></button>
-        <button type="button" data-ch-sec-delete title="${(globalThis.PlatformLanguage?.text("visual-editor","m_7b78fd90e05b38","Delete section") ?? "Delete section")}" class="danger"><i class="fas fa-trash-can"></i></button>`;
+        <button type="button" data-ch-sec-delete title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_7b78fd90e05b38","Delete section") ?? "Delete section")}" class="danger"><i class="fas fa-trash-can"></i></button>`;
       const desktop = desktopSection(section) || section;
       const mobile = mobileSection(desktop);
       const mobileEnabled = objectValue(desktop.props).mobile_variant_enabled === true && objectValue(objectValue(mobile).props).mobile_enabled === true;
@@ -4280,17 +4280,17 @@
       mobileActions.className = 'fmwe-sec-mobile-actions';
       mobileActions.setAttribute('data-ch-sec-mobile-actions', '');
       mobileActions.innerHTML = `
-        <button type="button" data-ch-sec-mobile-toggle title="${(globalThis.PlatformLanguage?.text("visual-editor","m_c68951a4723d6e","Use a different mobile version") ?? "Use a different mobile version")}" aria-label="${(globalThis.PlatformLanguage?.text("visual-editor","m_c68951a4723d6e","Use a different mobile version") ?? "Use a different mobile version")}" class="${String(mobileEnabled ? 'active' : '')}" aria-pressed="${String(mobileEnabled ? 'true' : 'false')}"><i class="fas fa-mobile-screen-button"></i></button>
-        <button type="button" data-ch-sec-mobile-magic title="${(globalThis.PlatformLanguage?.text("visual-editor","m_0230b566c446cb","Magic Mobile") ?? "Magic Mobile")}" aria-label="${(globalThis.PlatformLanguage?.text("visual-editor","m_0230b566c446cb","Magic Mobile") ?? "Magic Mobile")}"><i class="fas fa-wand-magic-sparkles"></i></button>`;
+        <button type="button" data-ch-sec-mobile-toggle title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_c68951a4723d6e","Use a different mobile version") ?? "Use a different mobile version")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_c68951a4723d6e","Use a different mobile version") ?? "Use a different mobile version")}" class="${String(mobileEnabled ? 'active' : '')}" aria-pressed="${String(mobileEnabled ? 'true' : 'false')}"><i class="fas fa-mobile-screen-button"></i></button>
+        <button type="button" data-ch-sec-mobile-magic title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_0230b566c446cb","Magic Mobile") ?? "Magic Mobile")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_0230b566c446cb","Magic Mobile") ?? "Magic Mobile")}"><i class="fas fa-wand-magic-sparkles"></i></button>`;
       const pill = doc.createElement('div');
       pill.className = 'fmwe-sec-pill';
       pill.setAttribute('data-ch-sec-pill', '');
       const widthControl = chromeOpts.sectionWidthLocked === true ? '' : `
-        <button type="button" data-ch-sec-width title="${(globalThis.PlatformLanguage?.text("visual-editor","m_13e5dfb1725bac","Section width") ?? "Section width")}" class="${String(state.sectionWidthOpen ? 'active' : '')}" ${String(locks.resize === true ? 'disabled' : '')}><i class="fas fa-arrows-left-right"></i>${(globalThis.PlatformLanguage?.text("visual-editor","m_16686f0c64b5ec"," Width") ?? " Width")}</button>
+        <button type="button" data-ch-sec-width title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_13e5dfb1725bac","Section width") ?? "Section width")}" class="${String(state.sectionWidthOpen ? 'active' : '')}" ${String(locks.resize === true ? 'disabled' : '')}><i class="fas fa-arrows-left-right"></i>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_16686f0c64b5ec"," Width") ?? " Width")}</button>
         <div class="fmwe-sec-width-pop ${String(state.sectionWidthOpen ? '' : 'hidden')}" data-ch-sec-width-pop></div>`;
       pill.innerHTML = `
-        <button type="button" data-ch-sec-ask><i class="fas fa-magic"></i>${(globalThis.PlatformLanguage?.text("visual-editor","m_c1a1d7a1aa68bd"," Ask") ?? " Ask")}</button>
-        <button type="button" data-ch-sec-position class="${String(state.sectionPopover === 'position' ? 'active' : '')}">${(globalThis.PlatformLanguage?.text("visual-editor","m_78ff1aaef0c389","Position") ?? "Position")}</button>
+        <button type="button" data-ch-sec-ask><i class="fas fa-magic"></i>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_c1a1d7a1aa68bd"," Ask") ?? " Ask")}</button>
+        <button type="button" data-ch-sec-position class="${String(state.sectionPopover === 'position' ? 'active' : '')}">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_78ff1aaef0c389","Position") ?? "Position")}</button>
         ${String(widthControl)}
         <div class="fmwe-sec-pop ${String(state.sectionPopover ? '' : 'hidden')}" data-ch-sec-pop></div>`;
       canvas.appendChild(actions);
@@ -4553,15 +4553,15 @@
         return { value: nearest, snapped: distance <= tolerance };
       };
       pop.innerHTML = `
-        <div class="fmwe-sec-width-head"><span>${(globalThis.PlatformLanguage?.text("visual-editor","m_13e5dfb1725bac","Section width") ?? "Section width")}</span><output data-ch-sec-width-value>${String(sizing.width_percent)}%</output></div>
-        <label>${(globalThis.PlatformLanguage?.text("visual-editor","m_86b2dc58d632dc","Target width (% of visible area)\n          ") ?? "Target width (% of visible area)\n          ")}<input type="range" min="10" max="100" step="1" value="${String(sizing.width_percent)}" data-ch-sec-width-range>
+        <div class="fmwe-sec-width-head"><span>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_13e5dfb1725bac","Section width") ?? "Section width")}</span><output data-ch-sec-width-value>${String(sizing.width_percent)}%</output></div>
+        <label>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_86b2dc58d632dc","Target width (% of visible area)\n          ") ?? "Target width (% of visible area)\n          ")}<input type="range" min="10" max="100" step="1" value="${String(sizing.width_percent)}" data-ch-sec-width-range>
         </label>
         <div class="fmwe-sec-width-row">
-          <label for="fmwe-sec-max-${String(esc(section.id))}">${(globalThis.PlatformLanguage?.text("visual-editor","m_849f69855a36d7","Maximum width") ?? "Maximum width")}</label>
+          <label for="fmwe-sec-max-${String(esc(section.id))}">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_849f69855a36d7","Maximum width") ?? "Maximum width")}</label>
           <button type="button" id="fmwe-sec-max-${String(esc(section.id))}" class="fmwe-sec-width-toggle ${String(sizing.max_enabled ? 'active' : '')}" data-ch-sec-max-toggle role="switch" aria-checked="${String(sizing.max_enabled ? 'true' : 'false')}" ${String(maximum !== null ? 'disabled' : '')} title="${String(maximum !== null ? `Workflows cannot exceed ${maximum}px` : 'Toggle maximum width')}"></button>
         </div>
         <div class="fmwe-sec-width-max ${String(sizing.max_enabled ? '' : 'disabled')}" data-ch-sec-max-row>
-          <div class="fmwe-sec-width-row"><input type="range" min="160" max="3840" step="10" value="${String(sizing.max_width_px)}" data-ch-sec-max-range aria-label="${(globalThis.PlatformLanguage?.text("visual-editor","m_849f69855a36d7","Maximum width") ?? "Maximum width")}"><output data-ch-sec-max-value>${((v10) => globalThis.PlatformLanguage?.text("visual-editor","m_1816f808d0e9b7",`${v10}px`,{v10}) ?? `${v10}px`)(sizing.max_width_px)}</output></div>
+          <div class="fmwe-sec-width-row"><input type="range" min="160" max="3840" step="10" value="${String(sizing.max_width_px)}" data-ch-sec-max-range aria-label="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_849f69855a36d7","Maximum width") ?? "Maximum width")}"><output data-ch-sec-max-value>${((v10) => globalThis.PlatformLanguage?.htmlText("visual-editor","m_1816f808d0e9b7",`${v10}px`,{v10}) ?? `${v10}px`)(sizing.max_width_px)}</output></div>
         </div>`;
       const applySizing = (next) => editorHandle.apply({ type: 'node.set', node_id: section.id, prop: 'props.section_width', value: constrainSectionWidth(next) });
       const widthRange = pop.querySelector('[data-ch-sec-width-range]');
@@ -4612,7 +4612,7 @@
         .filter((kid) => kid.id)
         .sort((a, b) => (numberValue(objectValue(b.frame).z) || 0) - (numberValue(objectValue(a.frame).z) || 0));
       pop.innerHTML = `
-        <p class="fmwe-micro-label" style="margin-top:0">${(globalThis.PlatformLanguage?.text("visual-editor","m_0baf9bb42d638a","Layers ") ?? "Layers ")}<span class="count">${String(kids.length)}</span></p>
+        <p class="fmwe-micro-label" style="margin-top:0">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_0baf9bb42d638a","Layers ") ?? "Layers ")}<span class="count">${String(kids.length)}</span></p>
         ${String(kids.length ? `
           <div class="fmwe-sec-layers" data-ch-sec-layers>
             ${kids.map((kid) => `
@@ -4620,14 +4620,14 @@
                 <i class="fas ${esc(NODE_TYPE_ICONS[kid.type] || 'fa-square')}"></i>
                 <span class="name">${esc(firstText(kid.name, kid.type, 'Element'))}</span>
                 <span class="ops">
-                  <button type="button" data-ch-sec-z="forward" title="Bring forward"><i class="fas fa-arrow-up"></i></button>
-                  <button type="button" data-ch-sec-z="backward" title="Send backward"><i class="fas fa-arrow-down"></i></button>
-                  <button type="button" data-ch-sec-z="front" title="Bring to front"><i class="fas fa-angle-double-up"></i></button>
-                  <button type="button" data-ch-sec-z="back" title="Send to back"><i class="fas fa-angle-double-down"></i></button>
+                  <button type="button" data-ch-sec-z="forward" title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_e4e0caabc92f90","Bring forward") ?? "Bring forward")}"><i class="fas fa-arrow-up"></i></button>
+                  <button type="button" data-ch-sec-z="backward" title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_53feb04c690a79","Send backward") ?? "Send backward")}"><i class="fas fa-arrow-down"></i></button>
+                  <button type="button" data-ch-sec-z="front" title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_28e00c7c9062c6","Bring to front") ?? "Bring to front")}"><i class="fas fa-angle-double-up"></i></button>
+                  <button type="button" data-ch-sec-z="back" title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_407ac92ba9c16c","Send to back") ?? "Send to back")}"><i class="fas fa-angle-double-down"></i></button>
                 </span>
               </div>`).join('')}
-          </div>` : '<p class="fmwe-ch-quiet">Nothing in this section yet.</p>')}
-        <p class="fmwe-micro-label">${(globalThis.PlatformLanguage?.text("visual-editor","m_1512191d63c6f4","Align selected") ?? "Align selected")}</p>
+          </div>` : `<p class="fmwe-ch-quiet">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_e5f077ac74adc9","Nothing in this section yet.") ?? "Nothing in this section yet.")}</p>`)}
+        <p class="fmwe-micro-label">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_1512191d63c6f4","Align selected") ?? "Align selected")}</p>
         <div class="fmwe-sec-align">
           <button type="button" class="fmwe-btn" data-ch-sec-align="left"><i class="fas fa-align-left"></i></button>
           <button type="button" class="fmwe-btn" data-ch-sec-align="center"><i class="fas fa-align-center"></i></button>
@@ -4715,10 +4715,10 @@
       menu.setAttribute('role', 'menu');
       menu.innerHTML = `
         <div class="fmwe-page-menu-head">
-          <input class="fmwe-page-menu-title" data-ch-page-title value="${String(esc(firstText(page.title, collectionNoun)))}" aria-label="${((v1) => globalThis.PlatformLanguage?.text("visual-editor","m_404b170675049a",`${v1} title`,{v1}) ?? `${v1} title`)(collectionNoun)}" ${String(canRename ? '' : 'readonly')}>
-          ${String(canRename ? `<button type="button" class="fmwe-page-menu-edit" data-ch-page-edit-title title="Rename ${collectionNoun.toLowerCase()}"><i class="fas fa-pencil"></i></button>` : '')}
+          <input class="fmwe-page-menu-title" data-ch-page-title value="${String(esc(firstText(page.title, collectionNoun)))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("visual-editor","m_404b170675049a",`${v1} title`,{v1}) ?? `${v1} title`)(collectionNoun)}" ${String(canRename ? '' : 'readonly')}>
+          ${String(canRename ? `<button type="button" class="fmwe-page-menu-edit" data-ch-page-edit-title title="${((v0) => globalThis.PlatformLanguage?.htmlText("visual-editor","m_c56f1a3e5da225",`Rename ${v0}`,{v0}) ?? `Rename ${v0}`)(collectionNoun.toLowerCase())}"><i class="fas fa-pencil"></i></button>` : '')}
         </div>
-        <div class="fmwe-page-menu-kind"><i class="fas ${String(collectionIsSections ? 'fa-layer-group' : 'fa-file-lines')}"></i><span>${((v5) => globalThis.PlatformLanguage?.text("visual-editor","m_4ca92454ba70d3",`Visual ${v5}`,{v5}) ?? `Visual ${v5}`)(collectionNoun.toLowerCase())}</span></div>
+        <div class="fmwe-page-menu-kind"><i class="fas ${String(collectionIsSections ? 'fa-layer-group' : 'fa-file-lines')}"></i><span>${((v5) => globalThis.PlatformLanguage?.htmlText("visual-editor","m_4ca92454ba70d3",`Visual ${v5}`,{v5}) ?? `Visual ${v5}`)(collectionNoun.toLowerCase())}</span></div>
         <div class="fmwe-page-menu-sep"></div>
         ${String(pageMenuRow('copy', 'fa-copy', 'Copy', 'Ctrl+C', !canCopy))}
         ${String(pageMenuRow('paste', 'fa-clipboard', 'Paste', 'Ctrl+V', !canPaste || !pageClipboard))}
@@ -4849,12 +4849,12 @@
       const addPageRatio = pages.length ? pageThumbnailMetrics(pages[0]).ratio : '16 / 9';
       strip.innerHTML = pages.map((p) => `
         <div class="fmwe-ch-pagecard ${String(cleanText(p.id) === activeId ? 'active' : '')}" data-ch-page-card="${String(esc(p.id))}" title="${String(esc(firstText(p.title, collectionNoun)))}">
-          <span class="thumb" style="--fmwe-page-ratio:${String(esc(pageThumbnailMetrics(p).ratio))}"><span class="stage" data-ch-page-thumb="${String(esc(p.id))}"></span><button type="button" class="fmwe-ch-page-more" data-ch-page-more="${String(esc(p.id))}" title="${((v6) => globalThis.PlatformLanguage?.text("visual-editor","m_af1e1314b94173",`${v6} options`,{v6}) ?? `${v6} options`)(collectionNoun)}" aria-label="${((v7) => globalThis.PlatformLanguage?.text("visual-editor","m_ead26974d2238b",`${v7} options`,{v7}) ?? `${v7} options`)(collectionNoun)}"><i class="fas fa-ellipsis"></i></button></span>
+          <span class="thumb" style="--fmwe-page-ratio:${String(esc(pageThumbnailMetrics(p).ratio))}"><span class="stage" data-ch-page-thumb="${String(esc(p.id))}"></span><button type="button" class="fmwe-ch-page-more" data-ch-page-more="${String(esc(p.id))}" title="${((v6) => globalThis.PlatformLanguage?.htmlText("visual-editor","m_af1e1314b94173",`${v6} options`,{v6}) ?? `${v6} options`)(collectionNoun)}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("visual-editor","m_ead26974d2238b",`${v7} options`,{v7}) ?? `${v7} options`)(collectionNoun)}"><i class="fas fa-ellipsis"></i></button></span>
           <span class="label">${String(esc(firstText(p.title, collectionNoun)))}</span>
         </div>`).join('') + (canAdd ? `
-        <button type="button" class="fmwe-ch-pagecard new" data-ch-page-new title="${((v0) => globalThis.PlatformLanguage?.text("visual-editor","m_eaf7ef3b5e4c26",`New ${v0}`,{v0}) ?? `New ${v0}`)(collectionNoun.toLowerCase())}">
+        <button type="button" class="fmwe-ch-pagecard new" data-ch-page-new title="${((v0) => globalThis.PlatformLanguage?.htmlText("visual-editor","m_eaf7ef3b5e4c26",`New ${v0}`,{v0}) ?? `New ${v0}`)(collectionNoun.toLowerCase())}">
           <span class="thumb plus" style="--fmwe-page-ratio:${String(esc(addPageRatio))}"><i class="fas fa-plus"></i></span>
-          <span class="label">${((v2) => globalThis.PlatformLanguage?.text("visual-editor","m_53e45476126aba",`Add ${v2}`,{v2}) ?? `Add ${v2}`)(collectionNoun.toLowerCase())}</span>
+          <span class="label">${((v2) => globalThis.PlatformLanguage?.htmlText("visual-editor","m_53e45476126aba",`Add ${v2}`,{v2}) ?? `Add ${v2}`)(collectionNoun.toLowerCase())}</span>
         </button>` : '');
       strip.querySelectorAll('[data-ch-page-card]').forEach((el) => el.addEventListener('click', () => {
         try { pagesApi.select(el.dataset.chPageCard); } catch (e) { /* host handles */ }
@@ -5252,23 +5252,23 @@
       deviceLayout = doc.createElement('div');
       deviceLayout.className = 'fmwe-device-layout';
       deviceLayout.innerHTML = `
-        <aside class="fmwe-device-tools" data-device-tools aria-label="${(globalThis.PlatformLanguage?.text("visual-editor","m_5fa7f02ba31afe","Mobile preview controls") ?? "Mobile preview controls")}">
-          <button type="button" class="fmwe-device-tool" data-device-rotate title="${(globalThis.PlatformLanguage?.text("visual-editor","m_ed5e3d916ea4a5","Rotate device") ?? "Rotate device")}"><i class="fas fa-rotate"></i><span>${(globalThis.PlatformLanguage?.text("visual-editor","m_fc42f4452e070c","Rotate") ?? "Rotate")}</span></button>
-          <select class="fmwe-device-preset" data-device-preset aria-label="${(globalThis.PlatformLanguage?.text("visual-editor","m_8a12668467f09a","Preview device") ?? "Preview device")}">
+        <aside class="fmwe-device-tools" data-device-tools aria-label="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_5fa7f02ba31afe","Mobile preview controls") ?? "Mobile preview controls")}">
+          <button type="button" class="fmwe-device-tool" data-device-rotate title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_ed5e3d916ea4a5","Rotate device") ?? "Rotate device")}"><i class="fas fa-rotate"></i><span>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_fc42f4452e070c","Rotate") ?? "Rotate")}</span></button>
+          <select class="fmwe-device-preset" data-device-preset aria-label="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_8a12668467f09a","Preview device") ?? "Preview device")}">
             ${String(DEVICE_PRESETS.map((item) => `<option value="${item.id}">${item.label}</option>`).join(''))}
-            <option value="custom">${(globalThis.PlatformLanguage?.text("visual-editor","m_aa8339bdd1228b","Custom size") ?? "Custom size")}</option>
+            <option value="custom">${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_aa8339bdd1228b","Custom size") ?? "Custom size")}</option>
           </select>
           <div class="fmwe-device-zoomrow">
-            <button type="button" class="fmwe-device-tool" data-device-zoom-out title="${(globalThis.PlatformLanguage?.text("visual-editor","m_acf282d479dddf","Zoom out") ?? "Zoom out")}"><i class="fas fa-minus"></i></button>
-            <button type="button" class="fmwe-device-tool" data-device-zoom-in title="${(globalThis.PlatformLanguage?.text("visual-editor","m_a593d968057ce9","Zoom in") ?? "Zoom in")}"><i class="fas fa-plus"></i></button>
+            <button type="button" class="fmwe-device-tool" data-device-zoom-out title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_acf282d479dddf","Zoom out") ?? "Zoom out")}"><i class="fas fa-minus"></i></button>
+            <button type="button" class="fmwe-device-tool" data-device-zoom-in title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_a593d968057ce9","Zoom in") ?? "Zoom in")}"><i class="fas fa-plus"></i></button>
           </div>
-          <button type="button" class="fmwe-device-tool" data-device-fit title="${(globalThis.PlatformLanguage?.text("visual-editor","m_8829c3be8f32be","Fit full device") ?? "Fit full device")}"><i class="fas fa-expand"></i><span>${(globalThis.PlatformLanguage?.text("visual-editor","m_4b866bd1497eb4","Fit device") ?? "Fit device")}</span></button>
-          <button type="button" class="fmwe-device-tool" data-device-calibrate title="${(globalThis.PlatformLanguage?.text("visual-editor","m_c3d1e6af0b83a6","Calibrate physical size") ?? "Calibrate physical size")}"><i class="fas fa-ruler-horizontal"></i><span>${(globalThis.PlatformLanguage?.text("visual-editor","m_deee5f8bdf8738","Actual size") ?? "Actual size")}</span></button>
+          <button type="button" class="fmwe-device-tool" data-device-fit title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_8829c3be8f32be","Fit full device") ?? "Fit full device")}"><i class="fas fa-expand"></i><span>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_4b866bd1497eb4","Fit device") ?? "Fit device")}</span></button>
+          <button type="button" class="fmwe-device-tool" data-device-calibrate title="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_c3d1e6af0b83a6","Calibrate physical size") ?? "Calibrate physical size")}"><i class="fas fa-ruler-horizontal"></i><span>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_deee5f8bdf8738","Actual size") ?? "Actual size")}</span></button>
           <div class="fmwe-device-calibration" data-device-calibration hidden>
-            <label><span>${(globalThis.PlatformLanguage?.text("visual-editor","m_58d87bdfc7ae2a","Screen calibration") ?? "Screen calibration")}</span><output data-device-calibration-output>100%</output></label>
-            <input type="range" min="60" max="180" step="1" value="100" data-device-calibration-range aria-label="${(globalThis.PlatformLanguage?.text("visual-editor","m_59e5dfc107e498","Physical size calibration") ?? "Physical size calibration")}">
-            <span>${(globalThis.PlatformLanguage?.text("visual-editor","m_70675272c920dc","At 100% zoom, adjust until the frame matches the selected phone held against this display.") ?? "At 100% zoom, adjust until the frame matches the selected phone held against this display.")}</span>
-            <button type="button" data-device-calibration-reset>${(globalThis.PlatformLanguage?.text("visual-editor","m_40fcb9427ac9a3","Reset calibration") ?? "Reset calibration")}</button>
+            <label><span>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_58d87bdfc7ae2a","Screen calibration") ?? "Screen calibration")}</span><output data-device-calibration-output>100%</output></label>
+            <input type="range" min="60" max="180" step="1" value="100" data-device-calibration-range aria-label="${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_59e5dfc107e498","Physical size calibration") ?? "Physical size calibration")}">
+            <span>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_70675272c920dc","At 100% zoom, adjust until the frame matches the selected phone held against this display.") ?? "At 100% zoom, adjust until the frame matches the selected phone held against this display.")}</span>
+            <button type="button" data-device-calibration-reset>${(globalThis.PlatformLanguage?.htmlText("visual-editor","m_40fcb9427ac9a3","Reset calibration") ?? "Reset calibration")}</button>
           </div>
           <div class="fmwe-device-readout" data-device-readout></div>
         </aside>

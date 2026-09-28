@@ -455,56 +455,162 @@ test("threads are personal and capability-gated", async () => {
   assert.equal(blocked.statusCode, 403);
 });
 
-test('notification assistant reuses preferences, creates durable filtered rules, and prevents duplicates', async()=>{
- const client=createSessionClient(),{orgId}=await register(client),base=`/v1/assistant/organizations/${orgId}`;
- const created=await client.request('POST',base+'/threads',{subject_id:'notifications'}),threadId=created.thread.id;
- assert.equal(created.thread.subject_id,'notifications');
- const configure={key:'event.document.signed',label:'Contract signed',description:'A contract was signed.',conditions_json:'{}',in_app:true,push:false};
- const turn=async(args:Record<string,unknown>,inspect=true)=>{
-  const mock=mockOpenAI([...(inspect?[{output:[functionCall('inspect_notifications',{},'inspect')]}]:[]),{output:[functionCall('configure_notification',args,'configure')]},{output:[functionCall('report_result',{status:'success',summary:'Checked notification settings.'},'report')]},{output:[messageOutput('Checked notification settings.')]}]);
-  try{return await client.request('POST',`${base}/threads/${threadId}/messages`,{message:'Configure my notification.'});}finally{mock.restore();}
- };
- await turn(configure,false);
- let prefs=await client.request('GET',`/v1/platform/organizations/${orgId}/notification-preferences`);
- assert.equal(prefs.preferences.in_app[configure.key],false,'inspection is required before mutation');
- await turn(configure);
- prefs=await client.request('GET',`/v1/platform/organizations/${orgId}/notification-preferences`);
- assert.equal(prefs.preferences.in_app[configure.key],true);assert.ok(prefs.custom_keys.includes(configure.key));
- await client.request('PATCH',`/v1/platform/organizations/${orgId}/notification-preferences`,{in_app:{[configure.key]:false}});
- assert.ok((await client.request('GET',`/v1/platform/organizations/${orgId}/notification-preferences`)).custom_keys.includes(configure.key),'disabled custom triggers stay visible');
- const filtered={...configure,in_app:false,conditions_json:JSON.stringify({'payload.document_type':'contract'})};await turn(filtered);
- const {readAutomationRules}=await import('../work/rules.js');
- let custom=(await readAutomationRules(orgId)).rules.filter(r=>String(r.id).startsWith('custom_notification_'));assert.equal(custom.length,1);
- await turn({...filtered,label:'Another name for the same contract alert'});
- custom=(await readAutomationRules(orgId)).rules.filter(r=>String(r.id).startsWith('custom_notification_'));assert.equal(custom.length,1,'same event/conditions/recipient cannot be duplicated by renaming');
- await turn({...filtered,conditions_json:JSON.stringify({'project.secret':'private'})});assert.equal((await readAutomationRules(orgId)).rules.filter(r=>String(r.id).startsWith('custom_notification_')).length,1);
- prefs=await client.request('GET',`/v1/platform/organizations/${orgId}/notification-preferences`);const group=prefs.catalog.find((g:any)=>g.kind==='custom');assert.equal(group.definitions.length,1);const key=group.definitions[0].key;
- assert.equal(prefs.preferences.in_app[key],false);
- await client.request('PATCH',`/v1/platform/organizations/${orgId}/notification-preferences`,{in_app:{[key]:true}});
- const {upsertDocument}=await import('../platform/storage.js');await upsertDocument(orgId,'projects',{id:'notification_contract_project',data:{title:'Contract job'}});
- const {emitWorkEvent}=await import('../work/engine.js');
- for(const kind of ['invoice','contract','contract'])await emitWorkEvent({organization_id:orgId,branch_id:'default',project_id:'notification_contract_project',type:'document.signed',idempotency_key:'notification-contract-'+kind,payload:{document_type:kind}});
- let notes=(await client.request('GET',`/v1/platform/organizations/${orgId}/notifications`)).notifications.filter((n:any)=>n.preference_key===key);assert.equal(notes.length,1,'filtered delivery matches and event replay is deduplicated');
- await client.request('PATCH',`/v1/platform/organizations/${orgId}/notification-preferences`,{in_app:{[key]:false}});
- notes=(await client.request('GET',`/v1/platform/organizations/${orgId}/notifications`)).notifications.filter((n:any)=>n.preference_key===key);assert.equal(notes.length,0);
- await client.request('PUT',base+'/settings',{settings:{allow_actions:false}});await turn({...configure,in_app:true});
- assert.equal((await client.request('GET',`/v1/platform/organizations/${orgId}/notification-preferences`)).preferences.in_app[configure.key],false,'assistant action opt-out is enforced');
-});
-
-test('focused notification chat works without expanded access and exposes only notification tools',async()=>{
+test('focused terminology chat drafts locale-specific labels without saving or exposing cross-app tools',async()=>{
  const client=createSessionClient(),suffix=Date.now().toString(36);
- const registered=await client.request('POST','/v1/platform/auth/register',{phone:nextTestPhone(),email:`notification-basic-${suffix}@example.test`,password:'correct horse battery staple',name:'Basic owner',company:'Basic notifications',organization_id:`org_notification_basic_${suffix}`});
- const org=registered.organization.id,base=`/v1/platform/organizations/${org}/notification-assistant`;
- const blocked=await client.raw('GET',`/v1/assistant/organizations/${org}/context`);assert.equal(blocked.statusCode,403);
+ const registered=await client.request('POST','/v1/platform/auth/register',{phone:nextTestPhone(),email:`terminology-basic-${suffix}@example.test`,password:'correct horse battery staple',name:'Owner',company:'Naming test',organization_id:`org_terminology_${suffix}`});
+ const org=registered.organization.id,base=`/v1/platform/organizations/${org}/terminology-assistant`;
  const context=await client.request('GET',base);assert.equal(context.settings.enabled,true);
  const thread=await client.request('POST',base+'/threads',{});
- const mock=mockOpenAI([{output:[functionCall('inspect_notifications',{},'inspect')]},{output:[functionCall('configure_notification',{key:'measurements.report_delivered',label:'Report delivered',description:'Report ready',conditions_json:'{}',in_app:true,push:false},'configure')]},{output:[functionCall('report_result',{status:'success',summary:'Your report notification is configured.'},'report')]},{output:[messageOutput('Your report notification is configured.')]}]);
+ const mock=mockOpenAI([{output:[functionCall('draft_terminology',{changes:[{key:'projects.project',value:'Job'},{key:'projects.projects',value:'Jobs'}],focus_keys:['projects.project']},'draft')]},{output:[functionCall('report_result',{status:'success',summary:'Prepared wording for review.'},'report')]},{output:[messageOutput('Review these drafts and save when ready.')]}]);
  try{
-  await client.request('POST',`${base}/threads/${thread.thread.id}/messages`,{message:'Keep report delivery in app, without push.'});
-  assert.deepEqual((mock.calls[0] as any).tools.map((t:any)=>t.name).sort(),['configure_notification','inspect_notifications','report_result']);
-  const prefs=await client.request('GET',`/v1/platform/organizations/${org}/notification-preferences`);assert.equal(prefs.preferences.push['measurements.report_delivered'],false);
+  const reply=await client.request('POST',`${base}/threads/${thread.thread.id}/messages`,{message:'Call projects jobs.',locale:'en-GB',catalog:[{key:'projects.project',label:'Project',section:'Projects',value:'Project'},{key:'projects.projects',label:'Projects',section:'Projects',value:'Projects'}]});
+  assert.deepEqual((mock.calls[0] as any).tools.map((tool:any)=>tool.name).sort(),['draft_terminology','report_result']);
+  assert.equal(reply.status,'success');assert.equal(reply.renders[0].locale,'en-GB');assert.equal(reply.renders[0].changes[0].value,'Job');
+  const {readBranchModule}=await import('../platform/storage.js');const saved=await readBranchModule(org,'default','variable_mappings').catch(()=>null);assert.equal((saved?.data as any)?.localized_labels?.['en-GB']?.projects?.project,undefined);
  }finally{mock.restore();}
  const other=createSessionClient();const {orgId}=await register(other);
  assert.equal((await other.raw('GET',base+'/threads/'+thread.thread.id)).statusCode,403);
- assert.equal((await other.raw('GET',`/v1/platform/organizations/${orgId}/notification-assistant/threads/${thread.thread.id}`)).statusCode,404);
+ assert.equal((await other.raw('GET',`/v1/platform/organizations/${orgId}/terminology-assistant/threads/${thread.thread.id}`)).statusCode,404);
+});
+
+test("the assistant creates a personal agent that runs on schedule into the main thread and dashboard", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const base = `/v1/assistant/organizations/${orgId}`;
+  const context = await client.request("GET", `${base}/context`);
+  const mainThreadId = context.main_thread.id as string;
+  assert.equal(context.main_thread.subject_id, "main");
+  assert.equal((await client.request("GET", `${base}/context`)).main_thread.id, mainThreadId, "one main thread per user");
+  assert.deepEqual(context.agents, []);
+
+  const created = await client.request("POST", `${base}/threads`, {});
+  const tooLong = "A Very Long Agent Name That Will Not Fit";
+  const mock = mockOpenAI([
+    { output: [functionCall("create_agent", { title: tooLong, summary: "x", instructions: "x", cron: "0 11 * * *" }, "c0")] },
+    { output: [functionCall("create_agent", { title: "Daily Profit Tracker", summary: "Reports yesterday's profit every morning at 11 AM.", instructions: "Report yesterday's profit with a donut chart.", cron: "* * * * *" }, "c1")] },
+    { output: [functionCall("create_agent", { title: "Daily Profit Tracker", summary: "Reports yesterday's profit every morning at 11 AM.", instructions: "Report yesterday's profit with a donut chart.", cron: "0 11 * * *" }, "c2")] },
+    { output: [functionCall("report_result", { status: "success", summary: "Set up." }, "c3")] },
+    { output: [messageOutput("Done. Daily Profit Tracker will report every day at 11:00 AM.")] }
+  ]);
+  let agentId = "";
+  try {
+    const reply = await client.request("POST", `${base}/threads/${created.thread.id}/messages`, { message: "Text me every morning at 11 how the business did yesterday" });
+    const outputs = mock.calls.slice(1, 3).map((call: any) => JSON.parse(call.input.at(-1).output));
+    assert.match(outputs[0].errors[0], /at most 32 characters/);
+    assert.match(outputs[1].errors[0], /every 15 minutes/);
+    assert.equal(reply.status, "success");
+    assert.equal(reply.actions[0].kind, "agent");
+    agentId = reply.actions[0].agent_id;
+  } finally { mock.restore(); }
+
+  const agents = (await client.request("GET", `${base}/agents`)).agents;
+  assert.equal(agents.length, 1);
+  assert.equal(agents[0].title, "Daily Profit Tracker");
+  assert.equal(agents[0].schedule_label, "Every day at 11:00 AM");
+  assert.ok(agents[0].next_run_at);
+  const detail = await client.request("GET", `${base}/agents/${agentId}`);
+  assert.match(detail.messages[0].content, /I'm set up/);
+
+  // Agents are personal.
+  const other = createSessionClient();
+  await register(other);
+  assert.ok((await other.raw("GET", `${base}/agents/${agentId}`)).statusCode >= 400);
+
+  // Pausing stops the sweep; resuming does not replay missed runs.
+  assert.equal((await client.request("PATCH", `${base}/agents/${agentId}`, { status: "paused" })).agent.status, "paused");
+  const { sweepAgentSchedules, drainChannelAgentJobs } = await import("../channels/agent.js");
+  const { readAgentSchedule, updateAgentSchedule, getAgentsDatabase } = await import("../agents/storage.js");
+  const tomorrowNoon = new Date(Date.now() + 36 * 3_600_000);
+  assert.equal(await sweepAgentSchedules(tomorrowNoon), 0);
+  await client.request("PATCH", `${base}/agents/${agentId}`, { status: "active" });
+  await updateAgentSchedule(agentId, { last_fired_at: new Date(Date.now() - 48 * 3_600_000).toISOString() });
+
+  // A due occurrence runs through the shared wakeup queue even without Channels.
+  await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, { values: { "apps.channels": false } });
+  assert.equal(await sweepAgentSchedules(new Date()), 1);
+  const run = mockOpenAI([
+    { output: [functionCall("create_artifact", { kind: "donut", title: "Yesterday's profit by job", key: "daily-profit", unit: "currency", labels: ["Roof", "Siding"], series: [{ name: "Profit", values: [700, 300] }] }, "r1")] },
+    { output: [functionCall("report_result", { status: "success", summary: "Reported." }, "r2")] },
+    { output: [messageOutput("You made $1,000 profit yesterday.\nRoofing led with $700.")] }
+  ]);
+  try { assert.equal(await drainChannelAgentJobs(), 1); } finally { run.restore(); }
+  const job = await getAgentsDatabase().prepare("SELECT state, error FROM agent_wakeup_jobs WHERE id LIKE ?").get(`schedule:${agentId}:%`);
+  assert.equal(job?.state, "succeeded", String(job?.error));
+
+  const main = await client.request("GET", `${base}/threads/${mainThreadId}`);
+  const delivered = main.messages.at(-1);
+  assert.equal(delivered.content, "You made $1,000 profit yesterday.\nRoofing led with $700.");
+  assert.equal(delivered.data.source, "agent");
+  assert.equal(delivered.data.agent_title, "Daily Profit Tracker");
+  assert.equal(delivered.data.renders[0].kind, "donut");
+  const dashboard = (await client.request("GET", `${base}/dashboard`)).dashboard;
+  assert.equal(dashboard.length, 1);
+  assert.equal(dashboard[0].artifact.source_label, "Daily Profit Tracker");
+  const schedule = await readAgentSchedule(agentId);
+  assert.equal(schedule?.last_result, "You made $1,000 profit yesterday.");
+  const { readDocument } = await import("../platform/storage.js");
+  const note = await readDocument(orgId, "notifications", `assistant_agent_${delivered.id}`);
+  assert.equal((note.data as any).title, "Daily Profit Tracker");
+  assert.equal((note.data as any).frontend_action.kind, "open_assistant");
+
+  // Scheduled runs stay out of the configuration chat; they are listed as runs.
+  const afterRun = await client.request("GET", `${base}/agents/${agentId}`);
+  assert.equal(afterRun.runs.length, 1);
+  assert.ok(afterRun.messages.every((message: any) => message.data?.kind !== "agent_run"));
+
+  // Closing an artifact removes it; deleting the agent stops it.
+  assert.deepEqual((await client.request("DELETE", `${base}/dashboard/${dashboard[0].id}`)).dashboard, []);
+  await client.request("DELETE", `${base}/agents/${agentId}`);
+  assert.deepEqual((await client.request("GET", `${base}/agents`)).agents, []);
+});
+
+test("chat artifacts are validated and pinned to the dashboard", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const base = `/v1/assistant/organizations/${orgId}`;
+  const created = await client.request("POST", `${base}/threads`, {});
+  const mock = mockOpenAI([
+    { output: [functionCall("create_artifact", { kind: "pie", title: "Bad", labels: ["A"], series: [{ name: "x", values: [-1] }] }, "a0")] },
+    { output: [functionCall("create_artifact", { kind: "metrics", title: "This week", metrics: [{ label: "Revenue", value: 4200, unit: "currency", delta: "+8% vs last week" }] }, "a1")] },
+    { output: [functionCall("report_result", { status: "success", summary: "Shown." }, "a2")] },
+    { output: [messageOutput("Revenue is up 8% this week.")] }
+  ]);
+  try {
+    const reply = await client.request("POST", `${base}/threads/${created.thread.id}/messages`, { message: "How is revenue this week?" });
+    assert.match(JSON.parse((mock.calls[1] as any).input.at(-1).output).errors[0], /zero or greater/);
+    assert.equal(reply.renders.length, 1);
+    assert.equal(reply.dashboard.length, 1);
+    assert.equal(reply.dashboard[0].artifact.metrics[0].value, 4200);
+    assert.equal(reply.assistant_message.data.renders[0].kind, "metrics");
+  } finally { mock.restore(); }
+});
+
+test("the heartbeat lane runs only personal assistant agents", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const base = `/v1/assistant/organizations/${orgId}`;
+  const context = await client.request("GET", `${base}/context`);
+  const agents = await import("../agents/storage.js");
+  const { runAssistantAgentLane } = await import("../assistant/agent/agents.js");
+  const thread = await agents.createAgentThread({ agent_id: "assistant", organization_id: orgId, subject_id: "agent:pending", title: "Tracker", created_by_user_id: context.main_thread.created_by_user_id });
+  const agent = await agents.createAgentSchedule({ agent_id: "assistant", organization_id: orgId, origin_thread_id: thread!.id, created_by_user_id: context.main_thread.created_by_user_id,
+    surface: "assistant", title: "Tracker", summary: "Tracks things.", instructions: "Say hello.", kind: "recurring", cron: "0 11 * * *", timezone: "UTC" });
+  await agents.updateAgentThread("assistant", orgId, String(thread!.id), { subject_id: `agent:${agent!.id}` });
+  const channelThread = await agents.createAgentThread({ agent_id: "assistant", organization_id: orgId, subject_id: "channel_x", title: "Channel" });
+  const channelSchedule = await agents.createAgentSchedule({ agent_id: "assistant", organization_id: orgId, origin_thread_id: channelThread!.id, origin_channel_id: "channel_x", kind: "once", fire_at: new Date(Date.now() - 60_000).toISOString(), instructions: "x" });
+
+  await client.request("POST", `${base}/agents/${agent!.id}/run`, {});
+  const run = mockOpenAI([
+    { output: [functionCall("report_result", { status: "success", summary: "Hello." }, "l1")] },
+    { output: [messageOutput("Hello from your tracker.")] }
+  ]);
+  try {
+    const result = await runAssistantAgentLane();
+    assert.equal(result.handled, 1);
+  } finally { run.restore(); }
+  assert.equal((await agents.readAgentSchedule(String(channelSchedule!.id)))?.status, "active", "channel schedules are left to the platform worker");
+  const main = await client.request("GET", `${base}/threads/${context.main_thread.id}`);
+  assert.equal(main.messages.at(-1).content, "Hello from your tracker.");
+  assert.equal(main.messages.at(-1).data.manual, true);
+  assert.equal((await client.request("GET", `${base}/agents/${agent!.id}`)).agent.last_result, "Hello from your tracker.");
 });

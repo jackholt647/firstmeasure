@@ -2744,7 +2744,7 @@ window.PlatformCommerce.onReady(function(){
     syncMobileProjectNotes();
     const contacts=$('#rContactList');
     if(contacts&&!contacts.parentElement.querySelector('.r-mobile-customer-heading')){
-      const heading=document.createElement('h3');heading.className='r-mobile-customer-heading';heading.textContent='Customer information';contacts.before(heading);
+      const heading=document.createElement('h3');heading.className='r-mobile-customer-heading';heading.textContent=(globalThis.PlatformLanguage?.text("project-request","m_ed0aeba5cf8e33","Customer information") ?? "Customer information");contacts.before(heading);
     }
     const back = $('#rMobileBack');
     const next = $('#rMobileNext');
@@ -2759,7 +2759,7 @@ window.PlatformCommerce.onReady(function(){
       const photoFeedback = mobile && mobileOrderPage === 'photos' && window.Portal.ExteriorOrder?.mobilePhotoSummary?.();
       next.disabled = mobile && !ready && !photoFeedback;
       next.setAttribute('aria-disabled', String(mobile && !ready));
-      next.innerHTML = `<span>${(globalThis.PlatformLanguage?.text("project-request","m_5e03a7c216f500","Next") ?? "Next")}</span><i class="fas fa-arrow-right"></i>`;
+      next.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_5e03a7c216f500","Next") ?? "Next")}</span><i class="fas fa-arrow-right"></i>`;
     }
     if (order) {
       const submit = activeSubmitButton();
@@ -3380,7 +3380,7 @@ window.PlatformCommerce.onReady(function(){
     if (!list) return;
     const row = document.createElement('div');
     row.className = 'r-cc-row';
-    row.innerHTML = `<input class="r-inp" type="email" placeholder="${(globalThis.PlatformLanguage?.text("project-request","m_e91e3cd877a6d7","email@example.com") ?? "email@example.com")}" value="${String(escapeHtml(value || ''))}"><div class="r-cc-remove" data-fm-tooltip="Remove"><i class="fas fa-times"></i></div>`;
+    row.innerHTML = `<input class="r-inp" type="email" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-request","m_e91e3cd877a6d7","email@example.com") ?? "email@example.com")}" value="${String(escapeHtml(value || ''))}"><div class="r-cc-remove" data-fm-tooltip="Remove"><i class="fas fa-times"></i></div>`;
     row.querySelector('.r-cc-remove').addEventListener('click', () => { row.remove(); queueAutosaveNotice(); });
     list.appendChild(row);
     if (!options.hydrate) {
@@ -3559,10 +3559,10 @@ window.PlatformCommerce.onReady(function(){
     const canRemove = cards.length > 1;
     menu.dataset.contactIndex = String(card.dataset.contactIndex || '');
     menu.innerHTML = `
-      ${String(isPrimary ? '' : '<button type="button" data-contact-menu-action="primary"><i class="fas fa-star"></i><span>Make primary</span></button>')}
-      <button type="button" data-contact-menu-action="view"><i class="fas fa-address-book"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_94b3d11b415704","View contact") ?? "View contact")}</span></button>
-      <button type="button" data-contact-menu-action="new"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_9ed0a85dcdfd8e","New contact") ?? "New contact")}</span></button>
-      <button type="button" class="danger" data-contact-menu-action="remove"${String(canRemove ? '' : ' disabled')}><i class="fas fa-times"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_ea7197edfa259b","Remove from project") ?? "Remove from project")}</span></button>
+      ${String(isPrimary ? '' : `<button type="button" data-contact-menu-action="primary"><i class="fas fa-star"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_f58307e3cce07f","Make primary") ?? "Make primary")}</span></button>`)}
+      <button type="button" data-contact-menu-action="view"><i class="fas fa-address-book"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_94b3d11b415704","View contact") ?? "View contact")}</span></button>
+      <button type="button" data-contact-menu-action="new"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_9ed0a85dcdfd8e","New contact") ?? "New contact")}</span></button>
+      <button type="button" class="danger" data-contact-menu-action="remove"${String(canRemove ? '' : ' disabled')}><i class="fas fa-times"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_ea7197edfa259b","Remove from project") ?? "Remove from project")}</span></button>
     `;
     menu.querySelectorAll('[data-contact-menu-action]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -3608,21 +3608,21 @@ window.PlatformCommerce.onReady(function(){
     wrap.dataset.contactCustomFieldValues = JSON.stringify(values.custom_field_values || values.contact_custom_field_values || {});
     if (values.primary || index === primaryContactIndex) wrap.classList.add('primary');
     wrap.innerHTML = `
-      <div class="r-mobile-customer-label">${(globalThis.PlatformLanguage?.text("project-request","m_59b58b1850f257","Customer Info") ?? "Customer Info")}</div>
+      <div class="r-mobile-customer-label">${(globalThis.PlatformLanguage?.htmlText("project-request","m_59b58b1850f257","Customer Info") ?? "Customer Info")}</div>
       <div class="r-inline">
         <div class="r-group">
-          <label>${(globalThis.PlatformLanguage?.text("project-request","m_006d986794e9db","Name ") ?? "Name ")}<span class="r-label-optional">${(globalThis.PlatformLanguage?.text("project-request","m_c79f78a53be623","- optional") ?? "- optional")}</span></label>
-          <input class="r-inp" data-field="name" placeholder="${(globalThis.PlatformLanguage?.text("project-request","m_8cf345002184e5","Name") ?? "Name")}" value="${String(escapeHtml(values.name || ''))}">
+          <label>${(globalThis.PlatformLanguage?.htmlText("project-request","m_006d986794e9db","Name ") ?? "Name ")}<span class="r-label-optional">${(globalThis.PlatformLanguage?.htmlText("project-request","m_c79f78a53be623","- optional") ?? "- optional")}</span></label>
+          <input class="r-inp" data-field="name" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-request","m_8cf345002184e5","Name") ?? "Name")}" value="${String(escapeHtml(values.name || ''))}">
         </div>
         <div class="r-group">
-          <label>${(globalThis.PlatformLanguage?.text("project-request","m_432606fa294b6c","Phone ") ?? "Phone ")}<span class="r-label-optional">${(globalThis.PlatformLanguage?.text("project-request","m_c79f78a53be623","- optional") ?? "- optional")}</span></label>
-          <input class="r-inp" data-field="phone" placeholder="${(globalThis.PlatformLanguage?.text("project-request","m_ed04c65845180f","Phone") ?? "Phone")}" type="tel" value="${String(escapeHtml(values.phone || ''))}">
+          <label>${(globalThis.PlatformLanguage?.htmlText("project-request","m_432606fa294b6c","Phone ") ?? "Phone ")}<span class="r-label-optional">${(globalThis.PlatformLanguage?.htmlText("project-request","m_c79f78a53be623","- optional") ?? "- optional")}</span></label>
+          <input class="r-inp" data-field="phone" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-request","m_ed04c65845180f","Phone") ?? "Phone")}" type="tel" value="${String(escapeHtml(values.phone || ''))}">
         </div>
       </div>
       <div class="r-contact-email-row">
         <div class="r-group">
-          <label>${(globalThis.PlatformLanguage?.text("project-request","m_374bb9c6199652","Email ") ?? "Email ")}<span class="r-label-optional">${(globalThis.PlatformLanguage?.text("project-request","m_c79f78a53be623","- optional") ?? "- optional")}</span></label>
-          <input class="r-inp" data-field="email" placeholder="${(globalThis.PlatformLanguage?.text("project-request","m_5d2b9327181e33","Email") ?? "Email")}" type="email" value="${String(escapeHtml(values.email || ''))}">
+          <label>${(globalThis.PlatformLanguage?.htmlText("project-request","m_374bb9c6199652","Email ") ?? "Email ")}<span class="r-label-optional">${(globalThis.PlatformLanguage?.htmlText("project-request","m_c79f78a53be623","- optional") ?? "- optional")}</span></label>
+          <input class="r-inp" data-field="email" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-request","m_5d2b9327181e33","Email") ?? "Email")}" type="email" value="${String(escapeHtml(values.email || ''))}">
         </div>
       </div>
       <div class="r-contact-actions">
@@ -3773,9 +3773,9 @@ window.PlatformCommerce.onReady(function(){
     picker.id = 'rContactPicker';
     picker.className = 'r-contact-picker';
     picker.innerHTML = `
-      <input class="r-contact-picker-search" id="rContactPickerSearch" placeholder="${(globalThis.PlatformLanguage?.text("project-request","m_b753851275b3e8","Search contacts") ?? "Search contacts")}">
+      <input class="r-contact-picker-search" id="rContactPickerSearch" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-request","m_b753851275b3e8","Search contacts") ?? "Search contacts")}">
       <div class="r-contact-picker-list" id="rContactPickerList"></div>
-      <button type="button" class="r-contact-picker-new" id="rContactPickerNew"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_4f460d87ee9426","Create new contact") ?? "Create new contact")}</span></button>
+      <button type="button" class="r-contact-picker-new" id="rContactPickerNew"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_4f460d87ee9426","Create new contact") ?? "Create new contact")}</span></button>
     `;
     document.body.appendChild(picker);
     picker.querySelector('#rContactPickerSearch')?.addEventListener('input', renderContactPicker);
@@ -4000,7 +4000,7 @@ window.PlatformCommerce.onReady(function(){
         </button>
       </div>
       <div class="r-contact-context-tabs">
-        ${tabs || `<div class="r-contact-context-empty">${(globalThis.PlatformLanguage?.text("project-request","m_b0390c8bca193d","No other projects") ?? "No other projects")}</div>`}
+        ${tabs || `<div class="r-contact-context-empty">${(globalThis.PlatformLanguage?.htmlText("project-request","m_b0390c8bca193d","No other projects") ?? "No other projects")}</div>`}
       </div>
     `;
   }
@@ -4324,15 +4324,15 @@ window.PlatformCommerce.onReady(function(){
     if (!overlay) return;
     const backdrop = document.createElement('div');
     backdrop.className = 'r-manual-stage-backdrop';
-    backdrop.innerHTML = `<section class="r-manual-stage-dialog" role="dialog" aria-modal="true" aria-labelledby="rManualStageTitle"><header class="r-manual-stage-head"><i class="fas fa-arrows-left-right" aria-hidden="true"></i><div class="r-manual-stage-head-copy"><h3 id="rManualStageTitle">${(globalThis.PlatformLanguage?.text("project-request","m_a12d99be8366cc","Move to another stage") ?? "Move to another stage")}</h3><p>${(globalThis.PlatformLanguage?.text("project-request","m_73f44538c28f3e","Choose the board and the stage where this project should appear.") ?? "Choose the board and the stage where this project should appear.")}</p></div><button type="button" class="r-manual-stage-close" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></header><div class="r-manual-stage-body"></div></section>`;
+    backdrop.innerHTML = `<section class="r-manual-stage-dialog" role="dialog" aria-modal="true" aria-labelledby="rManualStageTitle"><header class="r-manual-stage-head"><i class="fas fa-arrows-left-right" aria-hidden="true"></i><div class="r-manual-stage-head-copy"><h3 id="rManualStageTitle">${(globalThis.PlatformLanguage?.htmlText("project-request","m_a12d99be8366cc","Move to another stage") ?? "Move to another stage")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("project-request","m_73f44538c28f3e","Choose the board and the stage where this project should appear.") ?? "Choose the board and the stage where this project should appear.")}</p></div><button type="button" class="r-manual-stage-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></header><div class="r-manual-stage-body"></div></section>`;
     overlay.appendChild(backdrop);
     const body = backdrop.querySelector('.r-manual-stage-body');
     let activeContext = contexts[0];
     const render = () => {
-      body.innerHTML = (String(contexts.length > 1 ? `<label><span class="r-manual-stage-board-label">Board</span><select class="r-manual-stage-board-select">${contexts.map((context) => `<option value="${escapeHtml(context.planId)}" ${context.planId === activeContext.planId ? 'selected' : ''}>${escapeHtml(context.board.title || context.board.id || 'Board')}</option>`).join('')}</select></label>` : `<span class="r-manual-stage-board-label">${escapeHtml(activeContext.board.title || activeContext.board.id || 'Board')}</span>`) + "<div class=\"r-manual-stage-list\">" + String(activeContext.columns.map((column) => {
+      body.innerHTML = (String(contexts.length > 1 ? `<label><span class="r-manual-stage-board-label">${(globalThis.PlatformLanguage?.htmlText("project-request","m_48afb49c6f40c4","Board") ?? "Board")}</span><select class="r-manual-stage-board-select">${contexts.map((context) => `<option value="${escapeHtml(context.planId)}" ${context.planId === activeContext.planId ? 'selected' : ''}>${escapeHtml(context.board.title || context.board.id || 'Board')}</option>`).join('')}</select></label>` : `<span class="r-manual-stage-board-label">${escapeHtml(activeContext.board.title || activeContext.board.id || 'Board')}</span>`) + "<div class=\"r-manual-stage-list\">" + String(activeContext.columns.map((column) => {
         const current = cleanStageText(column.id) === cleanStageText(activeContext.column.id);
-        return `<button type="button" class="r-manual-stage-option ${current ? 'current' : ''}" data-stage-id="${escapeHtml(column.id)}" style="--stage-color:${escapeHtml(column.color || activeContext.board.color || '#667085')}"><span class="r-manual-stage-dot"></span><span><strong>${escapeHtml(column.title || 'Stage')}</strong><small>${escapeHtml(column.description || (current ? 'Current board stage' : 'Move this project here'))}</small></span>${current ? '<span class="r-manual-stage-current">Current</span>' : '<i class="fas fa-chevron-right" aria-hidden="true"></i>'}</button>`;
-      }).join('')) + "</div><div class=\"r-manual-stage-note\"><i class=\"fas fa-circle-info\"></i><span>" + (globalThis.PlatformLanguage?.text("project-request","m_e227614ba32bfe","This changes board placement without completing or skipping workflow tasks. The next real workflow transition or automation takes control again.") ?? "This changes board placement without completing or skipping workflow tasks. The next real workflow transition or automation takes control again.") + "</span></div>");
+        return `<button type="button" class="r-manual-stage-option ${current ? 'current' : ''}" data-stage-id="${escapeHtml(column.id)}" style="--stage-color:${escapeHtml(column.color || activeContext.board.color || '#667085')}"><span class="r-manual-stage-dot"></span><span><strong>${escapeHtml(column.title || (globalThis.PlatformLanguage?.text("project-request","m_43f2c4d59757a1","Stage") ?? "Stage"))}</strong><small>${escapeHtml(column.description || (current ? 'Current board stage' : 'Move this project here'))}</small></span>${current ? `<span class="r-manual-stage-current">${(globalThis.PlatformLanguage?.htmlText("project-request","m_e17f9eaa3f43a2","Current") ?? "Current")}</span>` : '<i class="fas fa-chevron-right" aria-hidden="true"></i>'}</button>`;
+      }).join('')) + "</div><div class=\"r-manual-stage-note\"><i class=\"fas fa-circle-info\"></i><span>" + (globalThis.PlatformLanguage?.htmlText("project-request","m_e227614ba32bfe","This changes board placement without completing or skipping workflow tasks. The next real workflow transition or automation takes control again.") ?? "This changes board placement without completing or skipping workflow tasks. The next real workflow transition or automation takes control again.") + "</span></div>");
       body.querySelector('.r-manual-stage-board-select')?.addEventListener('change', (event) => {
         activeContext = contexts.find((context) => context.planId === event.target.value) || contexts[0];
         render();
@@ -4390,7 +4390,7 @@ window.PlatformCommerce.onReady(function(){
       const [primaryContext] = projectManualStageContexts(project);
       const status = cleanStageText(primaryContext?.column?.title) || projectTagStatus(project);
       if (!status) return '';
-      return `<button type="button" class="r-project-tag status stage-editable" data-manual-stage-trigger title="${(globalThis.PlatformLanguage?.text("project-request","m_0aa4129cee6f73","Change board stage") ?? "Change board stage")}" aria-label="${((v0) => globalThis.PlatformLanguage?.text("project-request","m_c2b7110fd652f2",`Change board stage, currently ${v0}`,{v0}) ?? `Change board stage, currently ${v0}`)(escapeHtml(status))}" aria-haspopup="dialog"><i class="fas fa-circle-dot"></i><span>${String(escapeHtml(status))}</span><i class="fas fa-chevron-down"></i></button>`;
+      return `<button type="button" class="r-project-tag status stage-editable" data-manual-stage-trigger title="${(globalThis.PlatformLanguage?.htmlText("project-request","m_0aa4129cee6f73","Change board stage") ?? "Change board stage")}" aria-label="${((v0) => globalThis.PlatformLanguage?.htmlText("project-request","m_c2b7110fd652f2",`Change board stage, currently ${v0}`,{v0}) ?? `Change board stage, currently ${v0}`)(escapeHtml(status))}" aria-haspopup="dialog"><i class="fas fa-circle-dot"></i><span>${String(escapeHtml(status))}</span><i class="fas fa-chevron-down"></i></button>`;
     }
     const scopeSet = projectScopeSetTag(project);
     const scopeColor = cleanStageText(scopeSet?.color) || '#4f7cac';
@@ -4462,17 +4462,17 @@ window.PlatformCommerce.onReady(function(){
     })));
     bar.hidden = false;
     bar.innerHTML = `
-      <div class="r-stage-track" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_aa1db7f907b58f","Project work progress") ?? "Project work progress")}">
+      <div class="r-stage-track" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_aa1db7f907b58f","Project work progress") ?? "Project work progress")}">
         <div class="r-work-phase-list">
           ${String(phases.map(({ plan, phase, stages }) => `
             <div class="r-work-phase" data-work-plan-id="${escapeHtml(plan.id || '')}">
-              <span class="r-work-phase-name">${escapeHtml(phase.title || plan.title || 'Phase')}</span>
+              <span class="r-work-phase-name">${escapeHtml(phase.title || plan.title || (globalThis.PlatformLanguage?.text("project-request","m_95d703244e42dc","Phase") ?? "Phase"))}</span>
               <div class="r-stage-list">
                 ${stages.map((stage, index) => {
                   const status = String(stage.status || 'pending');
                   const state = ['completed','skipped'].includes(status) ? 'done' : ['active','ready'].includes(status) ? 'current' : 'upcoming';
                   const icon = state === 'done' ? 'fa-check' : state === 'current' ? 'fa-circle-dot' : 'fa-circle';
-                  return `${index ? '<i class="fas fa-arrow-right r-stage-arrow" aria-hidden="true"></i>' : ''}<div class="r-stage-pill ${state}" data-work-node-id="${escapeHtml(stage.id || '')}"><i class="fas ${icon}" aria-hidden="true"></i><span>${escapeHtml(stage.title || 'Stage')}</span></div>`;
+                  return `${index ? '<i class="fas fa-arrow-right r-stage-arrow" aria-hidden="true"></i>' : ''}<div class="r-stage-pill ${state}" data-work-node-id="${escapeHtml(stage.id || '')}"><i class="fas ${icon}" aria-hidden="true"></i><span>${escapeHtml(stage.title || (globalThis.PlatformLanguage?.text("project-request","m_43f2c4d59757a1","Stage") ?? "Stage"))}</span></div>`;
                 }).join('')}
               </div>
             </div>`).join(''))}
@@ -4512,7 +4512,7 @@ window.PlatformCommerce.onReady(function(){
     const pills = fields.map((field) => projectHeaderPillHtml(field, activeBaseProject, board)).filter(Boolean).join('');
     if (!pills) { bar.hidden = true; bar.innerHTML = ''; return; }
     bar.hidden = false;
-    bar.innerHTML = ("\n      <div class=\"r-project-tags\" aria-label=\"" + (globalThis.PlatformLanguage?.text("project-request","m_12e617b6b10c5c","Project details") ?? "Project details") + "\">\n        " + String(pills) + "\n      </div>\n    ");
+    bar.innerHTML = ("\n      <div class=\"r-project-tags\" aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("project-request","m_12e617b6b10c5c","Project details") ?? "Project details") + "\">\n        " + String(pills) + "\n      </div>\n    ");
     bindProjectStageBarWheel();
   }
 
@@ -4707,15 +4707,15 @@ window.PlatformCommerce.onReady(function(){
     mount.innerHTML = `
       <div class="r-customer-portal-card">
         <div class="r-customer-portal-card-head">
-          <div class="r-customer-portal-card-title"><i class="fas fa-link"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_61f3d0db590ab0","Customer Portal") ?? "Customer Portal")}</span></div>
+          <div class="r-customer-portal-card-title"><i class="fas fa-link"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_61f3d0db590ab0","Customer Portal") ?? "Customer Portal")}</span></div>
           <div class="r-customer-portal-card-status">${String(busy ? 'Loading' : (ready ? 'Ready' : 'Not created'))}</div>
         </div>
         <div class="r-customer-portal-actions">
           <button type="button" class="${String(ready ? '' : 'primary')}" data-customer-portal-open-tab>${String(ready ? 'Manage' : 'Create Link')}</button>
           ${String(liveUrl ? `
-            <button type="button" data-customer-portal-copy><i class="fas fa-copy"></i><span>Copy</span></button>
+            <button type="button" data-customer-portal-copy><i class="fas fa-copy"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_9302911bb13773","Copy") ?? "Copy")}</span></button>
           ` : '')}
-          ${String(previewUrl ? `<a href="${escapeHtml(previewUrl)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i><span>Open</span></a>` : '')}
+          ${String(previewUrl ? `<a href="${escapeHtml(previewUrl)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_c25cc66b28cc9d","Open") ?? "Open")}</span></a>` : '')}
         </div>
       </div>
     `;
@@ -5372,12 +5372,12 @@ window.PlatformCommerce.onReady(function(){
     const count = Math.max(1, pinCount());
     const total = Math.round(unit * count * 100) / 100;
     const structureLabel = count === 1 ? 'structure' : 'structures';
-    return `<div class="r-addon-info-price">${((v0,v1,v2,v3) => globalThis.PlatformLanguage?.text("project-request","m_f2a719928b5a49_currency",`${v0} / structure x ${v1} ${v2} = ${v3}`,{v0,v1,v2,v3}) ?? `${v0} / structure x ${v1} ${v2} = ${v3}`)(escapeHtml(fmtCredit(unit)),count,structureLabel,escapeHtml(fmtCredit(total)))}</div>`;
+    return `<div class="r-addon-info-price">${((v0,v1,v2,v3) => globalThis.PlatformLanguage?.htmlText("project-request","m_f2a719928b5a49_currency",`${v0} / structure x ${v1} ${v2} = ${v3}`,{v0,v1,v2,v3}) ?? `${v0} / structure x ${v1} ${v2} = ${v3}`)(escapeHtml(fmtCredit(unit)),count,structureLabel,escapeHtml(fmtCredit(total)))}</div>`;
   }
 
   function addonInfoIcon(key){
     const info = reportAddonInfo(key);
-    return `<span class="r-info-tip r-addon-info-trigger" data-addon-info-trigger="${String(escapeHtml(key))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.text("project-request","m_6e4ba38fa02b85",`${v1} information`,{v1}) ?? `${v1} information`)(escapeHtml(info.title))}"><i class="fas fa-info"></i></span>`;
+    return `<span class="r-info-tip r-addon-info-trigger" data-addon-info-trigger="${String(escapeHtml(key))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("project-request","m_6e4ba38fa02b85",`${v1} information`,{v1}) ?? `${v1} information`)(escapeHtml(info.title))}"><i class="fas fa-info"></i></span>`;
   }
 
   function buildTypeButtons(){
@@ -5930,7 +5930,7 @@ window.PlatformCommerce.onReady(function(){
       const label = escapeHtml(meta.label || selectedType);
       const markup = ordered
         ? ("<span class=\"r-viewer-type-tag\" aria-label=\"" + (globalThis.PlatformLanguage?.text("project-request","m_207fd0b5cbe442","Project type") ?? "Project type") + "\"><i class=\"fas " + String(icon) + "\"></i> " + String(label) + "</span>")
-        : `<label class="r-order-select"><i class="fas ${String(icon)}" aria-hidden="true"></i><select data-property-type aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_dccbe8abe35b17","Property type") ?? "Property type")}">${String(Object.entries(TYPE_META).map(([key,item])=>`<option value="${escapeHtml(key)}" ${key===selectedType?'selected':''}>${escapeHtml(item.label)}</option>`).join(''))}</select><i class="fas fa-chevron-down" aria-hidden="true"></i></label>`;
+        : `<label class="r-order-select"><i class="fas ${String(icon)}" aria-hidden="true"></i><select data-property-type aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_dccbe8abe35b17","Property type") ?? "Property type")}">${String(Object.entries(TYPE_META).map(([key,item])=>`<option value="${escapeHtml(key)}" ${key===selectedType?'selected':''}>${escapeHtml(item.label)}</option>`).join(''))}</select><i class="fas fa-chevron-down" aria-hidden="true"></i></label>`;
       const holder = document.createElement('span');
       holder.innerHTML = markup;
       existing?.remove();
@@ -5966,12 +5966,12 @@ window.PlatformCommerce.onReady(function(){
         <div class="r-expedite-default-head">
           <div class="r-expedite-status">
             <strong>${String(escapeHtml(reportExpediteBusyLabel(defaultOption)))}</strong>
-            <span>${(globalThis.PlatformLanguage?.text("project-request","m_484b63459c1357","Estimated wait time right now") ?? "Estimated wait time right now")}</span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_484b63459c1357","Estimated wait time right now") ?? "Estimated wait time right now")}</span>
           </div>
           <div class="r-expedite-eta">${String(escapeHtml(reportExpediteEstimatedWaitLabel(defaultOption)))}</div>
         </div>
         <div class="r-expedite-bar" style="--wait-position:${String(position)}%"><span class="r-expedite-marker" aria-hidden="true"></span></div>
-        <div class="r-expedite-bar-labels"><span>${(globalThis.PlatformLanguage?.text("project-request","m_c025d9e87eaacd","4 hrs") ?? "4 hrs")}</span><span>${(globalThis.PlatformLanguage?.text("project-request","m_ed52be56a2ea6c","7 hrs") ?? "7 hrs")}</span></div>`;
+        <div class="r-expedite-bar-labels"><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_c025d9e87eaacd","4 hrs") ?? "4 hrs")}</span><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_ed52be56a2ea6c","7 hrs") ?? "7 hrs")}</span></div>`;
     } else if (waitMount) {
       waitMount.innerHTML = '';
     }
@@ -5995,7 +5995,7 @@ window.PlatformCommerce.onReady(function(){
             <span class="r-expedite-copy">
               <span class="r-expedite-name">${escapeHtml(name)}</span>
               <span class="r-expedite-window${windowCompact}">${escapeHtml(window)}</span>
-              ${isStandard ? '' : `<span class="r-expedite-pill">${(globalThis.PlatformLanguage?.text("project-request","m_b51f2220e8185c","Expedited") ?? "Expedited")}</span>`}
+              ${isStandard ? '' : `<span class="r-expedite-pill">${(globalThis.PlatformLanguage?.htmlText("project-request","m_b51f2220e8185c","Expedited") ?? "Expedited")}</span>`}
             </span>
             ${reportExpeditePriceHtml(option, selectedType)}
           </button>`;
@@ -6009,7 +6009,7 @@ window.PlatformCommerce.onReady(function(){
       const showCoupon = selectedOption && reportExpediteCouponDiscount(selectedOption, selectedType) > 0;
       couponMount.classList.toggle('visible', !!showCoupon);
       couponMount.innerHTML = showCoupon
-        ? `<i class="fas fa-bolt"></i><span>${((v0,v1) => globalThis.PlatformLanguage?.text("project-request","m_b08d94d95ec9f8",`Includes free expedite. ${v0} free expedite use${v1} remaining.`,{v0,v1}) ?? `Includes free expedite. ${v0} free expedite use${v1} remaining.`)(uses,uses === 1 ? '' : 's')}</span>`
+        ? `<i class="fas fa-bolt"></i><span>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("project-request","m_b08d94d95ec9f8",`Includes free expedite. ${v0} free expedite use${v1} remaining.`,{v0,v1}) ?? `Includes free expedite. ${v0} free expedite use${v1} remaining.`)(uses,uses === 1 ? '' : 's')}</span>`
         : '';
     }
 
@@ -6104,11 +6104,11 @@ window.PlatformCommerce.onReady(function(){
       projectTodoController?.destroy?.();
       projectTodoController = null;
       projectTodoLoadedFor = '';
-      mount.innerHTML = `<div class="pai-today-list"><div class="pai-state">${(globalThis.PlatformLanguage?.text("project-request","m_4998638df5e181","Project to-dos will appear here once this project is saved.") ?? "Project to-dos will appear here once this project is saved.")}</div></div>`;
+      mount.innerHTML = `<div class="pai-today-list"><div class="pai-state">${(globalThis.PlatformLanguage?.htmlText("project-request","m_4998638df5e181","Project to-dos will appear here once this project is saved.") ?? "Project to-dos will appear here once this project is saved.")}</div></div>`;
       return;
     }
     if (!orgId || !window.PlatformActionItems?.renderTodayList) {
-      mount.innerHTML = `<div class="pai-today-list"><div class="pai-state">${(globalThis.PlatformLanguage?.text("project-request","m_48f1ac01db9289","Project to-dos are not available.") ?? "Project to-dos are not available.")}</div></div>`;
+      mount.innerHTML = `<div class="pai-today-list"><div class="pai-state">${(globalThis.PlatformLanguage?.htmlText("project-request","m_48f1ac01db9289","Project to-dos are not available.") ?? "Project to-dos are not available.")}</div></div>`;
       return;
     }
     const key = `${orgId}:${projectId}`;
@@ -6188,7 +6188,7 @@ window.PlatformCommerce.onReady(function(){
     overlay.id = 'rAddonInfoModal';
     overlay.innerHTML = `
       <div class="r-addon-info-modal-card" role="dialog" aria-modal="true">
-        <button type="button" class="r-addon-info-modal-close" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+        <button type="button" class="r-addon-info-modal-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
         ${String(reportAddonInfoHtml(key))}
       </div>`;
     document.body.appendChild(overlay);
@@ -6297,9 +6297,9 @@ window.PlatformCommerce.onReady(function(){
     }
     const quote = currentPriceQuote();
     if (quote.active) {
-      el.innerHTML = `<i class="fas fa-percent"></i><span>${((v0) => globalThis.PlatformLanguage?.text("project-request","m_2bba8198d7ade2_currency",`${v0}% referral discount applied. `,{v0}) ?? `${v0}% referral discount applied. `)(quote.discount_percent)}<s>${String(fmtCredit(quote.original_amount))}</s>${((v2) => globalThis.PlatformLanguage?.text("project-request","m_ede7d3676ea640_currency",`${v2} total.`,{v2}) ?? `${v2} total.`)(fmtCredit(quote.final_amount))}</span>`;
+      el.innerHTML = `<i class="fas fa-percent"></i><span>${((v0) => globalThis.PlatformLanguage?.htmlText("project-request","m_2bba8198d7ade2_currency",`${v0}% referral discount applied. `,{v0}) ?? `${v0}% referral discount applied. `)(quote.discount_percent)}<s>${String(fmtCredit(quote.original_amount))}</s>${((v2) => globalThis.PlatformLanguage?.htmlText("project-request","m_ede7d3676ea640_currency",`${v2} total.`,{v2}) ?? `${v2} total.`)(fmtCredit(quote.final_amount))}</span>`;
     } else {
-      el.innerHTML = `<i class="fas fa-percent"></i><span>${((v0) => globalThis.PlatformLanguage?.text("project-request","m_c5fd3cbf0b07a0",`Your ${v0}% referral discount applies to standard report base pricing.`,{v0}) ?? `Your ${v0}% referral discount applies to standard report base pricing.`)(discount.discount_percent)}</span>`;
+      el.innerHTML = `<i class="fas fa-percent"></i><span>${((v0) => globalThis.PlatformLanguage?.htmlText("project-request","m_c5fd3cbf0b07a0",`Your ${v0}% referral discount applies to standard report base pricing.`,{v0}) ?? `Your ${v0}% referral discount applies to standard report base pricing.`)(discount.discount_percent)}</span>`;
     }
     el.classList.add('visible');
   }
@@ -6338,7 +6338,7 @@ window.PlatformCommerce.onReady(function(){
 
     wrap.classList.add('checked');
     if (mobileLocation) {
-      tx.textContent = 'Pin confirmed';
+      tx.textContent = (globalThis.PlatformLanguage?.text("project-request","m_ef1cad7dcdff17","Pin confirmed") ?? "Pin confirmed");
       ic.innerHTML = `<i class="fas fa-check-square"></i>`;
       return;
     }
@@ -6423,9 +6423,9 @@ window.PlatformCommerce.onReady(function(){
     const top = $('#rSigningOverlay .r-signing-top');
     if (top) {
       top.innerHTML = `
-        <button type="button" class="r-signing-back" id="rSigningBack"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("project-request","m_206d31a7c795c4"," Back") ?? " Back")}</button>
+        <button type="button" class="r-signing-back" id="rSigningBack"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("project-request","m_206d31a7c795c4"," Back") ?? " Back")}</button>
         <div class="r-signing-actions">
-          ${String(canFinish ? `<button type="button" class="r-signing-finish" id="rSigningFinishTop"><i class="fas fa-paper-plane"></i> Finish and Send</button>` : `<button type="button" class="r-signing-next" id="rSigningNext"><i class="fas fa-arrow-right"></i> Next Signature</button>`)}
+          ${String(canFinish ? `<button type="button" class="r-signing-finish" id="rSigningFinishTop"><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("project-request","m_2767483f4609c6"," Finish and Send") ?? " Finish and Send")}</button>` : `<button type="button" class="r-signing-next" id="rSigningNext"><i class="fas fa-arrow-right"></i>${(globalThis.PlatformLanguage?.htmlText("project-request","m_a1cb9492b60b7f"," Next Signature") ?? " Next Signature")}</button>`)}
         </div>
       `;
     }
@@ -7112,7 +7112,7 @@ window.PlatformCommerce.onReady(function(){
       }));
     if (window.Portal.ExteriorOrder?.active()) {
       const map = apps.find(app => app.id === 'map');
-      const photos = apps.find(app => app.id === 'photos') || { id:'photos', label:'Photos', title:'Photos', icon:'fa-images', regions:['main'], panelHtml:'<div id="rExteriorPhotosPanel" style="height:100%"></div>' };
+      const photos = apps.find(app => app.id === 'photos') || { id:'photos', label:(globalThis.PlatformLanguage?.text("project-request","m_be4cfb58b9c4d7","Photos") ?? "Photos"), title:(globalThis.PlatformLanguage?.text("project-request","m_be4cfb58b9c4d7","Photos") ?? "Photos"), icon:'fa-images', regions:['main'], panelHtml:'<div id="rExteriorPhotosPanel" style="height:100%"></div>' };
       return [map, photos, ...apps.filter(app => app.id === 'materials' && !app.app?.promoBadge)].filter(Boolean);
     }
     // Doc-first standalone mode: until a project is picked/created, the modal
@@ -7255,7 +7255,7 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-report-pending">
         <div class="r-report-pending-card">
           <i class="fas fa-triangle-exclamation"></i>
-          <h3>${((v0) => globalThis.PlatformLanguage?.text("project-request","m_20b9cbe18eee54",`${v0} unavailable`,{v0}) ?? `${v0} unavailable`)(escapeHtml(tab?.label || tab?.title || tab?.id || 'Project app'))}</h3>
+          <h3>${((v0) => globalThis.PlatformLanguage?.htmlText("project-request","m_20b9cbe18eee54",`${v0} unavailable`,{v0}) ?? `${v0} unavailable`)(escapeHtml(tab?.label || tab?.title || tab?.id || 'Project app'))}</h3>
           <p>${String(escapeHtml(error?.message || `Could not ${phase || 'load'} this project app.`))}</p>
         </div>
       </div>`;
@@ -7976,9 +7976,9 @@ window.PlatformCommerce.onReady(function(){
       primary.phone || ''
     ].filter(Boolean);
     summary.innerHTML = `
-      <div class="r-viewer-item"><div class="r-viewer-k">${(globalThis.PlatformLanguage?.text("project-request","m_53d803cdbe9ab1","Address") ?? "Address")}</div><div class="r-viewer-v">${String(escapeHtml(($('#rAddress')?.value || reportOrderState?.address || '—').trim() || '—'))}</div></div>
-      <div class="r-viewer-item"><div class="r-viewer-k">${(globalThis.PlatformLanguage?.text("project-request","m_29f3cc51016963","Project Type") ?? "Project Type")}</div><div class="r-viewer-v">${String(escapeHtml(TYPE_META[selectedType]?.label || selectedType || '—'))}</div></div>
-      <div class="r-viewer-item"><div class="r-viewer-k">${(globalThis.PlatformLanguage?.text("project-request","m_ae8e4953e07d70","Customer") ?? "Customer")}</div><div class="r-viewer-v">${String(contactLines.length ? contactLines.map(escapeHtml).join('<br>') : '—')}</div></div>
+      <div class="r-viewer-item"><div class="r-viewer-k">${(globalThis.PlatformLanguage?.htmlText("project-request","m_53d803cdbe9ab1","Address") ?? "Address")}</div><div class="r-viewer-v">${String(escapeHtml(($('#rAddress')?.value || reportOrderState?.address || '—').trim() || '—'))}</div></div>
+      <div class="r-viewer-item"><div class="r-viewer-k">${(globalThis.PlatformLanguage?.htmlText("project-request","m_29f3cc51016963","Project Type") ?? "Project Type")}</div><div class="r-viewer-v">${String(escapeHtml(TYPE_META[selectedType]?.label || selectedType || '—'))}</div></div>
+      <div class="r-viewer-item"><div class="r-viewer-k">${(globalThis.PlatformLanguage?.htmlText("project-request","m_ae8e4953e07d70","Customer") ?? "Customer")}</div><div class="r-viewer-v">${String(contactLines.length ? contactLines.map(escapeHtml).join('<br>') : '—')}</div></div>
     `;
   }
 
@@ -8111,7 +8111,7 @@ window.PlatformCommerce.onReady(function(){
     const label = $('#rProjectNoteVisibilityLabel');
     if (!api || !menu) return;
     const all = projectNoteVisibility.length === api.GROUPS.length;
-    menu.innerHTML = ("<button type=\"button\" data-project-note-group=\"everybody\" class=\"" + String(all ? 'active' : '') + "\"><i class=\"fas fa-" + String(all ? 'check-circle' : 'circle') + "\"></i>" + (globalThis.PlatformLanguage?.text("project-request","m_d068fb68fb07d2","Everybody") ?? "Everybody") + "</button>" + String(api.GROUPS.map((group) => `<button type="button" data-project-note-group="${group}" class="${projectNoteVisibility.includes(group) ? 'active' : ''}"><i class="fas fa-${projectNoteVisibility.includes(group) ? 'check-circle' : 'circle'}"></i>${escapeHtml(group[0].toUpperCase() + group.slice(1))}</button>`).join('')) + "<button type=\"button\" data-project-note-group=\"only_tagged\" class=\"" + String(projectNoteVisibility.length ? '' : 'active') + "\"><i class=\"fas fa-" + String(projectNoteVisibility.length ? 'circle' : 'check-circle') + "\"></i>" + (globalThis.PlatformLanguage?.text("project-request","m_6909fe060ad4e1","Only Tagged") ?? "Only Tagged") + "</button>");
+    menu.innerHTML = ("<button type=\"button\" data-project-note-group=\"everybody\" class=\"" + String(all ? 'active' : '') + "\"><i class=\"fas fa-" + String(all ? 'check-circle' : 'circle') + "\"></i>" + (globalThis.PlatformLanguage?.htmlText("project-request","m_d068fb68fb07d2","Everybody") ?? "Everybody") + "</button>" + String(api.GROUPS.map((group) => `<button type="button" data-project-note-group="${group}" class="${projectNoteVisibility.includes(group) ? 'active' : ''}"><i class="fas fa-${projectNoteVisibility.includes(group) ? 'check-circle' : 'circle'}"></i>${escapeHtml(group[0].toUpperCase() + group.slice(1))}</button>`).join('')) + "<button type=\"button\" data-project-note-group=\"only_tagged\" class=\"" + String(projectNoteVisibility.length ? '' : 'active') + "\"><i class=\"fas fa-" + String(projectNoteVisibility.length ? 'circle' : 'check-circle') + "\"></i>" + (globalThis.PlatformLanguage?.htmlText("project-request","m_6909fe060ad4e1","Only Tagged") ?? "Only Tagged") + "</button>");
     if (label) label.textContent = api.visibilityLabel(projectNoteVisibility);
   }
   function projectNoteVisibilityMenuHome(){ return document.querySelector('#rOverlay .r-bottom-notes'); }
@@ -8166,7 +8166,7 @@ window.PlatformCommerce.onReady(function(){
     const notes = (activeBaseProject ? (search ? api.visible(activeBaseProject) : (api.timeline?.(activeBaseProject) || api.visible(activeBaseProject))) : []).filter((note) => !search || `${note.text} ${note.created_by?.name || ''} ${note.created_by?.email || ''} ${(api.typeTags(note) || []).map((tag) => tag.label).join(' ')}`.toLowerCase().includes(search)).sort((a,b) => (oldest ? 1 : -1) * String(a.created_at).localeCompare(String(b.created_at)));
     history.innerHTML = notes.length ? notes.map((note) => note.deleted_at
       ? `<article class="r-note-card pn-removed" data-project-note-id="${escapeHtml(note.id)}">${api.removedNoteHtml?.(note) || ''}</article>`
-      : `<article class="r-note-card ${api.typeTags(note).length ? 'fm-note-card-with-types' : ''}" data-project-note-id="${escapeHtml(note.id)}">${api.renderTypeTags(note)}${note.text ? `<p>${projectNoteTextHtml(note)}</p>` : ''}${api.audioPlayerHtml?.(note) || ''}${api.mediaAttachmentsHtml?.(note) || ''}<div class="r-note-card-meta"><span>${escapeHtml(note.created_by?.name || note.created_by?.email || 'Unknown')} · ${escapeHtml(projectNoteDate(note.created_at))} · ${escapeHtml(api.visibilityLabel(note.visibility))}${api.editedMetaHtml?.(note) || ''}</span><span class="r-note-card-actions">${api.repliesToggleHtml?.(note) || ''}${(note.can_edit || api.owns(note)) ? `<button type="button" data-project-note-edit="${String(escapeHtml(note.id))}" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_1fcb173e99effe","Edit note") ?? "Edit note")}"><i class="fas fa-pen"></i></button>` : ''}${(note.can_delete || api.owns(note)) ? `<button type="button" data-project-note-remove="${String(escapeHtml(note.id))}" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_4b4ba3b5b6d01b","Remove note") ?? "Remove note")}"><i class="fas fa-trash"></i></button>` : ''}</span></div></article>`).join('') : `<div class="r-note-empty">${search ? 'No notes match this filter.' : 'No notes yet.'}</div>`;
+      : `<article class="r-note-card ${api.typeTags(note).length ? 'fm-note-card-with-types' : ''}" data-project-note-id="${escapeHtml(note.id)}">${api.renderTypeTags(note)}${note.text ? `<p>${projectNoteTextHtml(note)}</p>` : ''}${api.audioPlayerHtml?.(note) || ''}${api.mediaAttachmentsHtml?.(note) || ''}<div class="r-note-card-meta"><span>${escapeHtml(note.created_by?.name || note.created_by?.email || 'Unknown')} · ${escapeHtml(projectNoteDate(note.created_at))} · ${escapeHtml(api.visibilityLabel(note.visibility))}${api.editedMetaHtml?.(note) || ''}</span><span class="r-note-card-actions">${api.repliesToggleHtml?.(note) || ''}${(note.can_edit || api.owns(note)) ? `<button type="button" data-project-note-edit="${String(escapeHtml(note.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_1fcb173e99effe","Edit note") ?? "Edit note")}"><i class="fas fa-pen"></i></button>` : ''}${(note.can_delete || api.owns(note)) ? `<button type="button" data-project-note-remove="${String(escapeHtml(note.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_4b4ba3b5b6d01b","Remove note") ?? "Remove note")}"><i class="fas fa-trash"></i></button>` : ''}</span></div></article>`).join('') : `<div class="r-note-empty">${search ? 'No notes match this filter.' : 'No notes yet.'}</div>`;
     window.FirstMateAudioNotes?.hydrate?.(history);
   }
   function syncProjectNotesUi(){
@@ -8337,19 +8337,19 @@ window.PlatformCommerce.onReady(function(){
     // Saved titles are manual overrides.  In the configured customer/address
     // modes, always derive the modal heading from the selected display rule.
     const computed = mode === 'manual'
-      ? (savedTitle || customerName || address || 'New Project')
+      ? (savedTitle || customerName || address || (window.PlatformLanguage?.text('project-request','terminology_new_project','New Project') || 'New Project'))
       : (mode === 'address'
-        ? (address || customerName || 'New Project')
-        : (customerName || address || 'New Project'));
+        ? (address || customerName || (window.PlatformLanguage?.text('project-request','terminology_new_project','New Project') || 'New Project'))
+        : (customerName || address || (window.PlatformLanguage?.text('project-request','terminology_new_project','New Project') || 'New Project')));
     const mobileDisplayTitle = hasReportOrdered()
-      ? (mode === 'manual' ? (savedTitle || computed || 'Project') : (computed || 'Project'))
-      : (mode === 'manual' ? (savedTitle || computed || 'Project') : computed);
+      ? (mode === 'manual' ? (savedTitle || computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project') : (computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project'))
+      : (mode === 'manual' ? (savedTitle || computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project') : computed);
     if (mobileTitle) mobileTitle.textContent = mobileDisplayTitle;
     titleWrap.classList.toggle('manual-title', mode === 'manual' && !hasReportOrdered());
     if (hasReportOrdered()) {
       const orderedTitle = mode === 'manual'
-        ? (savedTitle || computed || 'Project')
-        : (computed || 'Project');
+        ? (savedTitle || computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project')
+        : (computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project');
       titleWrap.innerHTML = `<div class="r-title">${escapeHtml(orderedTitle)}</div>`;
       sub.textContent = '';
       renderProjectStageBar();
@@ -8357,7 +8357,7 @@ window.PlatformCommerce.onReady(function(){
     }
     if (mode === 'manual') {
       const current = projectText(document.getElementById('rProjectTitleInput')?.value, savedTitle);
-      const placeholder = savedTitle ? 'Project title' : (computed || 'New Project');
+      const placeholder = savedTitle ? (window.PlatformLanguage?.text('project-request','terminology_project_title','Project title') || 'Project title') : (computed || (window.PlatformLanguage?.text('project-request','terminology_new_project','New Project') || 'New Project'));
       titleWrap.innerHTML = `<input id="rProjectTitleInput" class="r-title-input" value="${escapeHtml(current)}" placeholder="${escapeHtml(placeholder)}">`;
       const input = document.getElementById('rProjectTitleInput');
       input?.addEventListener('input', () => {
@@ -8806,14 +8806,14 @@ window.PlatformCommerce.onReady(function(){
     picker.innerHTML = `
       <div class="r-doc-picker-inner">
         <div class="r-doc-picker-head">
-          <strong><i class="fas fa-file-medical"></i>${((v0) => globalThis.PlatformLanguage?.text("project-request","m_e67e48daacbe10",` New ${v0}`,{v0}) ?? ` New ${v0}`)(escapeHtml(typeLabel))}</strong>
-          <span>${(globalThis.PlatformLanguage?.text("project-request","m_97c5ddb47fa1ff","Select a project for this document.") ?? "Select a project for this document.")}</span>
+          <strong><i class="fas fa-file-medical"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("project-request","m_e67e48daacbe10",` New ${v0}`,{v0}) ?? ` New ${v0}`)(escapeHtml(typeLabel))}</strong>
+          <span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_97c5ddb47fa1ff","Select a project for this document.") ?? "Select a project for this document.")}</span>
         </div>
-        <label class="r-doc-picker-search"><i class="fas fa-search"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.text("project-request","m_af80d9cead6991","Search projects") ?? "Search projects")}" data-doc-picker-search></label>
-        <div class="r-doc-picker-list" data-doc-picker-list><div class="r-doc-picker-empty">${(globalThis.PlatformLanguage?.text("project-request","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div>
+        <label class="r-doc-picker-search"><i class="fas fa-search"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-request","m_af80d9cead6991","Search projects") ?? "Search projects")}" data-doc-picker-search></label>
+        <div class="r-doc-picker-list" data-doc-picker-list><div class="r-doc-picker-empty">${(globalThis.PlatformLanguage?.htmlText("project-request","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div>
         <div class="r-doc-picker-foot">
-          <button type="button" class="r-doc-picker-new" data-doc-picker-new><i class="fas fa-folder-plus"></i>${(globalThis.PlatformLanguage?.text("project-request","m_1014630484dad8"," Start a new project") ?? " Start a new project")}</button>
-          ${String(mode === 'full' ? `<button type="button" class="r-doc-picker-skip" data-doc-picker-skip><i class="fas fa-file-medical"></i> Create without a project</button>` : '')}
+          <button type="button" class="r-doc-picker-new" data-doc-picker-new><i class="fas fa-folder-plus"></i>${(globalThis.PlatformLanguage?.htmlText("project-request","m_1014630484dad8"," Start a new project") ?? " Start a new project")}</button>
+          ${String(mode === 'full' ? `<button type="button" class="r-doc-picker-skip" data-doc-picker-skip><i class="fas fa-file-medical"></i>${(globalThis.PlatformLanguage?.htmlText("project-request","m_8fda0d4db92a17"," Create without a project") ?? " Create without a project")}</button>` : '')}
         </div>
       </div>`;
     container.appendChild(picker);
@@ -8978,25 +8978,25 @@ window.PlatformCommerce.onReady(function(){
     const card = $('#rProjectionCard');
     if (card && hasReportOrdered()) {
       if (reportOrderIsCancelled()) {
-        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.text("project-request","m_aad3492084d297","Report canceled") ?? "Report canceled")}</strong>This report order was canceled. You can reorder it from the Reports tab.`;
+        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.htmlText("project-request","m_aad3492084d297","Report canceled") ?? "Report canceled")}</strong>This report order was canceled. You can reorder it from the Reports tab.`;
         renderProjectViewerSummary();
         updateModalTitle();
         return;
       }
       if (reportOrderIsRejected()) {
-        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.text("project-request","m_279b64bc569e57","Report rejected") ?? "Report rejected")}</strong>This report order was rejected. You can review it from the Reports tab.`;
+        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.htmlText("project-request","m_279b64bc569e57","Report rejected") ?? "Report rejected")}</strong>This report order was rejected. You can review it from the Reports tab.`;
         renderProjectViewerSummary();
         updateModalTitle();
         return;
       }
       if (reportOrderIsStaleSubmitted()) {
-        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.text("project-request","m_539bb91daa77d5","Report not active") ?? "Report not active")}</strong>This report order stalled before processing. You can reorder it from the Reports tab.`;
+        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.htmlText("project-request","m_539bb91daa77d5","Report not active") ?? "Report not active")}</strong>This report order stalled before processing. You can reorder it from the Reports tab.`;
         renderProjectViewerSummary();
         updateModalTitle();
         return;
       }
       if (!reportOrderIsActivelyPending() && !reportOrderIsCompleteLike()) {
-        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.text("project-request","m_539bb91daa77d5","Report not active") ?? "Report not active")}</strong>This project does not have an active report order.`;
+        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.htmlText("project-request","m_539bb91daa77d5","Report not active") ?? "Report not active")}</strong>This project does not have an active report order.`;
         renderProjectViewerSummary();
         updateModalTitle();
         return;
@@ -9379,8 +9379,8 @@ window.PlatformCommerce.onReady(function(){
             <div class="r-tabbar" id="rProjectViewerTabs"></div>
             <div class="modal-shell-actions">
               <button type="button" class="modal-shell-action" id="rProjectHeaderAction" hidden></button>
-              <button type="button" class="modal-shell-btn" id="rFullscreenToggle" data-fm-tooltip="Fullscreen" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_0ce034af23e970","Open project fullscreen") ?? "Open project fullscreen")}"><i class="fas fa-up-right-and-down-left-from-center"></i></button>
-              <button type="button" class="modal-shell-btn" id="rMapCloseX" data-fm-tooltip="Close" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+              <button type="button" class="modal-shell-btn" id="rFullscreenToggle" data-fm-tooltip="Fullscreen" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_0ce034af23e970","Open project fullscreen") ?? "Open project fullscreen")}"><i class="fas fa-up-right-and-down-left-from-center"></i></button>
+              <button type="button" class="modal-shell-btn" id="rMapCloseX" data-fm-tooltip="Close" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
             </div>
           </div>
           <div class="r-mobile-project-title" data-project-identity-owner="modal-chrome">
@@ -9389,32 +9389,32 @@ window.PlatformCommerce.onReady(function(){
             <button type="button" class="r-mobile-project-header-action" id="rMobileProjectHeaderAction" hidden></button>
             <button type="button" class="r-mobile-project-info-toggle" id="rMobileProjectInfoToggle" aria-expanded="false"><span class="r-mobile-project-title-text" id="rMobileProjectTitleText"></span><i class="fas fa-chevron-left" id="rMobileProjectInfoChevron" aria-hidden="true"></i></button>
           </div>
-          <div class="r-project-shell-status" id="rProjectShellStatus" role="status" aria-live="polite"><div class="r-project-shell-status-card"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_4de8a87782a9e4","Loading project…") ?? "Loading project…")}</span></div></div>
+          <div class="r-project-shell-status" id="rProjectShellStatus" role="status" aria-live="polite"><div class="r-project-shell-status-card"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_4de8a87782a9e4","Loading project…") ?? "Loading project…")}</span></div></div>
           <div class="r-preview"><div class="r-preview-stage">
             ${String(projectModalAppPanelsHtml())}
           </div></div>
-          <div class="r-proposal-topmode" id="rProposalTopMode"><div class="r-proposal-mode"><button type="button" class="r-proposal-mode-btn" data-proposal-mode="preview">${(globalThis.PlatformLanguage?.text("project-request","m_afff48796c3165","Preview") ?? "Preview")}</button><button type="button" class="r-proposal-mode-btn" data-proposal-mode="edit">${(globalThis.PlatformLanguage?.text("project-request","m_5b9378df7220c1","Edit") ?? "Edit")}</button></div></div>
+          <div class="r-proposal-topmode" id="rProposalTopMode"><div class="r-proposal-mode"><button type="button" class="r-proposal-mode-btn" data-proposal-mode="preview">${(globalThis.PlatformLanguage?.htmlText("project-request","m_afff48796c3165","Preview") ?? "Preview")}</button><button type="button" class="r-proposal-mode-btn" data-proposal-mode="edit">${(globalThis.PlatformLanguage?.htmlText("project-request","m_5b9378df7220c1","Edit") ?? "Edit")}</button></div></div>
           ${String(proposalMarkupDockHtml())}
           <div class="r-addon-info-popout" id="rAddonInfoPopout"></div>
         </div>
-        <button type="button" class="r-mobile-left-tray-scrim" id="rMobileLeftTrayScrim" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_b9a40030066f65","Close project panel") ?? "Close project panel")}"></button>
-        <button type="button" class="r-mobile-default-info-tray-scrim" id="rMobileDefaultInfoTrayScrim" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_ba681b9f330860","Close project details") ?? "Close project details")}"></button>
-        <button type="button" class="r-mobile-project-notes-launcher" id="rMobileProjectNotesLauncher" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_e200ae071e12c3","Open project notes") ?? "Open project notes")}" hidden><i class="fas fa-comment-dots"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_d1e91b9e7610fa","Project Notes") ?? "Project Notes")}</span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
-        <button type="button" class="r-mobile-project-notes-scrim" id="rMobileProjectNotesScrim" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_10cef3d4a0821f","Close project notes") ?? "Close project notes")}"></button>
+        <button type="button" class="r-mobile-left-tray-scrim" id="rMobileLeftTrayScrim" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_b9a40030066f65","Close project panel") ?? "Close project panel")}"></button>
+        <button type="button" class="r-mobile-default-info-tray-scrim" id="rMobileDefaultInfoTrayScrim" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_ba681b9f330860","Close project details") ?? "Close project details")}"></button>
+        <button type="button" class="r-mobile-project-notes-launcher" id="rMobileProjectNotesLauncher" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_e200ae071e12c3","Open project notes") ?? "Open project notes")}" hidden><i class="fas fa-comment-dots"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_d1e91b9e7610fa","Project Notes") ?? "Project Notes")}</span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+        <button type="button" class="r-mobile-project-notes-scrim" id="rMobileProjectNotesScrim" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_10cef3d4a0821f","Close project notes") ?? "Close project notes")}"></button>
         <section class="r-mobile-project-notes-workspace" id="rMobileProjectNotesWorkspace" role="dialog" aria-modal="true" aria-labelledby="rMobileProjectNotesTitle">
-          <header class="r-mobile-project-notes-head"><strong id="rMobileProjectNotesTitle">${(globalThis.PlatformLanguage?.text("project-request","m_d1e91b9e7610fa","Project Notes") ?? "Project Notes")}</strong><button type="button" class="r-mobile-project-notes-close" id="rMobileProjectNotesClose" aria-label="${(globalThis.PlatformLanguage?.text("project-request","m_10cef3d4a0821f","Close project notes") ?? "Close project notes")}"><i class="fas fa-xmark"></i></button></header>
+          <header class="r-mobile-project-notes-head"><strong id="rMobileProjectNotesTitle">${(globalThis.PlatformLanguage?.htmlText("project-request","m_d1e91b9e7610fa","Project Notes") ?? "Project Notes")}</strong><button type="button" class="r-mobile-project-notes-close" id="rMobileProjectNotesClose" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_10cef3d4a0821f","Close project notes") ?? "Close project notes")}"><i class="fas fa-xmark"></i></button></header>
           <div class="r-mobile-project-notes-body" id="rMobileProjectNotesBody"></div>
         </section>
         <button type="button" class="r-mobile-close" id="rMobileClose" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
         <div class="r-mobile-pager" id="rMobilePager">
-          <button type="button" class="r-mobile-page-btn" id="rMobileBack"><i class="fas fa-arrow-left"></i><span>${(globalThis.PlatformLanguage?.text("project-request","m_121372231b5699","Back") ?? "Back")}</span></button>
-          <button type="button" class="r-mobile-page-btn primary" id="rMobileNext" disabled><span>${(globalThis.PlatformLanguage?.text("project-request","m_5e03a7c216f500","Next") ?? "Next")}</span><i class="fas fa-arrow-right"></i></button>
-          <button type="button" class="r-mobile-page-btn primary" id="rMobileOrder" disabled>${(globalThis.PlatformLanguage?.text("project-request","m_5a0d9c5a13439c","Order Report") ?? "Order Report")}</button>
+          <button type="button" class="r-mobile-page-btn" id="rMobileBack"><i class="fas fa-arrow-left"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_121372231b5699","Back") ?? "Back")}</span></button>
+          <button type="button" class="r-mobile-page-btn primary" id="rMobileNext" disabled><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_5e03a7c216f500","Next") ?? "Next")}</span><i class="fas fa-arrow-right"></i></button>
+          <button type="button" class="r-mobile-page-btn primary" id="rMobileOrder" disabled>${(globalThis.PlatformLanguage?.htmlText("project-request","m_5a0d9c5a13439c","Order Report") ?? "Order Report")}</button>
         </div>
-        <div class="r-save-toast" id="rSaveToast">${(globalThis.PlatformLanguage?.text("project-request","m_4bb4688766e904","Saved") ?? "Saved")}</div>
+        <div class="r-save-toast" id="rSaveToast">${(globalThis.PlatformLanguage?.htmlText("project-request","m_4bb4688766e904","Saved") ?? "Saved")}</div>
         <div class="r-signing-overlay" id="rSigningOverlay">
           <div class="r-signing-top">
-            <button type="button" class="r-signing-back" id="rSigningBack"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("project-request","m_206d31a7c795c4"," Back") ?? " Back")}</button>
+            <button type="button" class="r-signing-back" id="rSigningBack"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("project-request","m_206d31a7c795c4"," Back") ?? " Back")}</button>
           </div>
           <div class="r-signing-body">
             <div class="r-signing-sheet" id="rSigningSheet"></div>
@@ -10146,7 +10146,7 @@ window.PlatformCommerce.onReady(function(){
       const statusLabels = { submitted: 'In Progress', queued: 'In Progress', ready: 'In Progress', processing: 'In Progress', in_progress: 'In Progress', awaiting_review: 'Awaiting Review', awaiting_manager_review: 'Awaiting Review', correction_needed: 'Correction Needed', completed: 'Completed', pending_rejection: 'Pending Review' };
       const st = (existingProject.status || '').toLowerCase();
       const created = existingProject.created_at ? new Date(existingProject.created_at).toLocaleDateString((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-      overlay.innerHTML = `<div class="r-dup-dialog"><div class="r-dup-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="r-dup-title">${(globalThis.PlatformLanguage?.text("project-request","m_5586d2df7e38a9","Duplicate report detected") ?? "Duplicate report detected")}</div><div class="r-dup-body">${(globalThis.PlatformLanguage?.text("project-request","m_9ee3ae5b218a97","It looks like a roof report was already ordered for this address. Do you still want to place a new roof report order?") ?? "It looks like a roof report was already ordered for this address. Do you still want to place a new roof report order?")}</div><div class="r-dup-match"><div class="r-dup-match-addr">${String((existingProject.address || newAddress).replace(/</g, '&lt;'))}</div><div class="r-dup-match-meta">${((v1,v2) => globalThis.PlatformLanguage?.text("project-request","m_26a0ffb1c5f2ca",`Status: ${v1}${v2}`,{v1,v2}) ?? `Status: ${v1}${v2}`)(statusLabels[st] || existingProject.status || 'Unknown',created ? ' - Ordered: ' + created : '')}</div></div><div class="r-dup-actions"><button class="r-dup-btn" id="rDupCancel">${(globalThis.PlatformLanguage?.text("project-request","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button class="r-dup-btn primary" id="rDupProceed">${(globalThis.PlatformLanguage?.text("project-request","m_a2c586200d3d66","Order Anyway") ?? "Order Anyway")}</button></div></div>`;
+      overlay.innerHTML = `<div class="r-dup-dialog"><div class="r-dup-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="r-dup-title">${(globalThis.PlatformLanguage?.htmlText("project-request","m_5586d2df7e38a9","Duplicate report detected") ?? "Duplicate report detected")}</div><div class="r-dup-body">${(globalThis.PlatformLanguage?.htmlText("project-request","m_9ee3ae5b218a97","It looks like a roof report was already ordered for this address. Do you still want to place a new roof report order?") ?? "It looks like a roof report was already ordered for this address. Do you still want to place a new roof report order?")}</div><div class="r-dup-match"><div class="r-dup-match-addr">${String((existingProject.address || newAddress).replace(/</g, '&lt;'))}</div><div class="r-dup-match-meta">${((v1,v2) => globalThis.PlatformLanguage?.htmlText("project-request","m_26a0ffb1c5f2ca",`Status: ${v1}${v2}`,{v1,v2}) ?? `Status: ${v1}${v2}`)(statusLabels[st] || existingProject.status || 'Unknown',created ? ' - Ordered: ' + created : '')}</div></div><div class="r-dup-actions"><button class="r-dup-btn" id="rDupCancel">${(globalThis.PlatformLanguage?.htmlText("project-request","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button class="r-dup-btn primary" id="rDupProceed">${(globalThis.PlatformLanguage?.htmlText("project-request","m_a2c586200d3d66","Order Anyway") ?? "Order Anyway")}</button></div></div>`;
       document.body.appendChild(overlay);
       let modalHandle = null;
       function cleanup(result){

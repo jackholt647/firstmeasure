@@ -520,47 +520,47 @@ window.PlatformCommerce.onReady(function(){
       <div class="b-win">
         <div class="b-top">
           <div>
-            <h3 class="b-title" id="bTitle">${(globalThis.PlatformLanguage?.text("billing","m_1a12a0453685f9","Add Credit") ?? "Add Credit")}</h3>
+            <h3 class="b-title" id="bTitle">${(globalThis.PlatformLanguage?.htmlText("billing","m_1a12a0453685f9","Add Credit") ?? "Add Credit")}</h3>
             <div class="b-subtitle" id="bSubtitle"></div>
           </div>
           <button class="buy-close" id="bCloseX" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
         </div>
         <div class="b-body">
           <div class="b-first-report" id="bFirstReportCard">
-            <div class="b-first-kicker"><i class="fas fa-gift"></i>${(globalThis.PlatformLanguage?.text("billing","m_3e58777454c792"," First report checkout") ?? " First report checkout")}</div>
-            <h4 class="b-first-title">${(globalThis.PlatformLanguage?.text("billing","m_55d1ab4693f267","Thanks for trying FirstMeasure.") ?? "Thanks for trying FirstMeasure.")}</h4>
-            <p class="b-first-copy">${(globalThis.PlatformLanguage?.text("billing","m_822c0e40ff60e8","Add credit to your account to pay for this report.") ?? "Add credit to your account to pay for this report.")}</p>
-            <div class="b-first-address" id="bFirstAddress">${(globalThis.PlatformLanguage?.text("billing","m_b09a10270594d4","Your first roof report") ?? "Your first roof report")}</div>
+            <div class="b-first-kicker"><i class="fas fa-gift"></i>${(globalThis.PlatformLanguage?.htmlText("billing","m_3e58777454c792"," First report checkout") ?? " First report checkout")}</div>
+            <h4 class="b-first-title">${(globalThis.PlatformLanguage?.htmlText("billing","m_55d1ab4693f267","Thanks for trying FirstMeasure.") ?? "Thanks for trying FirstMeasure.")}</h4>
+            <p class="b-first-copy">${(globalThis.PlatformLanguage?.htmlText("billing","m_822c0e40ff60e8","Add credit to your account to pay for this report.") ?? "Add credit to your account to pay for this report.")}</p>
+            <div class="b-first-address" id="bFirstAddress">${(globalThis.PlatformLanguage?.htmlText("billing","m_b09a10270594d4","Your first roof report") ?? "Your first roof report")}</div>
             <div class="b-first-numbers">
-              <div class="b-first-number"><span>${(globalThis.PlatformLanguage?.text("billing","m_087b20ba6645bc","Needed for order") ?? "Needed for order")}</span><strong id="bFirstReportTotal">${window.PlatformCommerce.credit(0)}</strong></div>
-              <div class="b-first-number"><span>${(globalThis.PlatformLanguage?.text("billing","m_56ddeabdd68349","Your balance") ?? "Your balance")}</span><strong id="bFirstBalance">${window.PlatformCommerce.credit(0)}</strong></div>
-              <div class="b-first-number due"><span>${(globalThis.PlatformLanguage?.text("billing","m_a66599d9c29a1c","Difference") ?? "Difference")}</span><strong id="bFirstDue">${window.PlatformCommerce.credit(0)}</strong></div>
+              <div class="b-first-number"><span>${(globalThis.PlatformLanguage?.htmlText("billing","m_087b20ba6645bc","Needed for order") ?? "Needed for order")}</span><strong id="bFirstReportTotal">${window.PlatformCommerce.credit(0)}</strong></div>
+              <div class="b-first-number"><span>${(globalThis.PlatformLanguage?.htmlText("billing","m_56ddeabdd68349","Your balance") ?? "Your balance")}</span><strong id="bFirstBalance">${window.PlatformCommerce.credit(0)}</strong></div>
+              <div class="b-first-number due"><span>${(globalThis.PlatformLanguage?.htmlText("billing","m_a66599d9c29a1c","Difference") ?? "Difference")}</span><strong id="bFirstDue">${window.PlatformCommerce.credit(0)}</strong></div>
             </div>
             <div class="b-msg" id="bFirstAutoSubmit" style="margin-top:10px;"></div>
           </div>
           <div class="b-pending" id="bPendingCard">
-            <div class="b-pk">${(globalThis.PlatformLanguage?.text("billing","m_766a83e1f9a403","Pending order") ?? "Pending order")}</div>
+            <div class="b-pk">${(globalThis.PlatformLanguage?.htmlText("billing","m_766a83e1f9a403","Pending order") ?? "Pending order")}</div>
             <div class="b-pa" id="bPendingAddr">—</div>
             <div class="b-ps" id="bPendingSub">—</div>
             <div class="b-prow">
-              <button class="b-plink" id="bEditOrder"><i class="fas fa-pen"></i>${(globalThis.PlatformLanguage?.text("billing","m_8148bb5b1cb98b"," Edit order") ?? " Edit order")}</button>
-              <button class="b-plink" id="bDiscard"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("billing","m_0fb22e465f80a9"," Discard") ?? " Discard")}</button>
+              <button class="b-plink" id="bEditOrder"><i class="fas fa-pen"></i>${(globalThis.PlatformLanguage?.htmlText("billing","m_8148bb5b1cb98b"," Edit order") ?? " Edit order")}</button>
+              <button class="b-plink" id="bDiscard"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("billing","m_0fb22e465f80a9"," Discard") ?? " Discard")}</button>
             </div>
-            <div class="b-msg" style="margin-top:10px;">${(globalThis.PlatformLanguage?.text("billing","m_d2d68d1ba00317","After payment goes through, this report order will submit automatically. You do not need to place it again.") ?? "After payment goes through, this report order will submit automatically. You do not need to place it again.")}</div>
+            <div class="b-msg" style="margin-top:10px;">${(globalThis.PlatformLanguage?.htmlText("billing","m_d2d68d1ba00317","After payment goes through, this report order will submit automatically. You do not need to place it again.") ?? "After payment goes through, this report order will submit automatically. You do not need to place it again.")}</div>
           </div>
           <div class="b-credit-grid" id="bCreditGrid">
             <div class="b-credit-panel">
               <div class="b-amountrow">
                 <button class="b-nudge" id="bMinus" data-fm-tooltip="Decrease"><i class="fas fa-minus"></i></button>
                 <div class="b-group">
-                  <label id="bCreditLabel">${(globalThis.PlatformLanguage?.text("billing","m_2876b1ad5e7aa6","Credit To Add") ?? "Credit To Add")}</label>
+                  <label id="bCreditLabel">${(globalThis.PlatformLanguage?.htmlText("billing","m_2876b1ad5e7aa6","Credit To Add") ?? "Credit To Add")}</label>
                   <input class="b-inp" id="bQty" type="number" min="${String(MIN_CREDIT_AMOUNT)}" max="${String(MAX_CREDIT_AMOUNT)}" value="${String(DEFAULT_CREDIT_AMOUNT)}">
                 </div>
                 <button class="b-nudge" id="bPlus" data-fm-tooltip="Increase"><i class="fas fa-plus"></i></button>
               </div>
             </div>
             <div class="b-credit-panel b-price">
-              <div class="b-price-label">${(globalThis.PlatformLanguage?.text("billing","m_9403c7637d4905","Total") ?? "Total")}</div>
+              <div class="b-price-label">${(globalThis.PlatformLanguage?.htmlText("billing","m_9403c7637d4905","Total") ?? "Total")}</div>
               <div class="big" id="bTotal">${window.PlatformCommerce.cash(DEFAULT_CREDIT_AMOUNT)}</div>
             </div>
           </div>
@@ -569,17 +569,17 @@ window.PlatformCommerce.onReady(function(){
           <div class="b-auto" id="bAutoTopupCard">
             <div class="b-auto-top">
               <div>
-                <div class="b-auto-title"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("billing","m_898767400ea623"," Automatically top up your account next time?") ?? " Automatically top up your account next time?")}</div>
-                <div class="b-auto-note" id="bAutoNote">${(globalThis.PlatformLanguage?.text("billing","m_a9cd7fbc11013b","Loading auto top-up settings...") ?? "Loading auto top-up settings...")}</div>
+                <div class="b-auto-title"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("billing","m_898767400ea623"," Automatically top up your account next time?") ?? " Automatically top up your account next time?")}</div>
+                <div class="b-auto-note" id="bAutoNote">${(globalThis.PlatformLanguage?.htmlText("billing","m_a9cd7fbc11013b","Loading auto top-up settings...") ?? "Loading auto top-up settings...")}</div>
               </div>
               <button class="b-auto-switch" id="bAutoToggle" type="button" disabled>
                 <span class="dot"></span>
-                <span id="bAutoToggleText">${(globalThis.PlatformLanguage?.text("billing","m_284e580b5cc6ed","Loading") ?? "Loading")}</span>
+                <span id="bAutoToggleText">${(globalThis.PlatformLanguage?.htmlText("billing","m_284e580b5cc6ed","Loading") ?? "Loading")}</span>
               </button>
             </div>
             <div class="b-auto-grid">
               <div class="b-auto-field">
-                <label>${(globalThis.PlatformLanguage?.text("billing","m_826e89b7f000b4","Top up when below") ?? "Top up when below")}</label>
+                <label>${(globalThis.PlatformLanguage?.htmlText("billing","m_826e89b7f000b4","Top up when below") ?? "Top up when below")}</label>
                 <div class="b-auto-moneyrow">
                   <button class="b-auto-step" id="bAutoThMinus" type="button" disabled><i class="fas fa-minus"></i></button>
                   <input class="b-auto-money" id="bAutoThreshold" inputmode="numeric" disabled>
@@ -587,7 +587,7 @@ window.PlatformCommerce.onReady(function(){
                 </div>
               </div>
               <div class="b-auto-field">
-                <label>${(globalThis.PlatformLanguage?.text("billing","m_bf9fa2c63394a7","Auto top-up amount") ?? "Auto top-up amount")}</label>
+                <label>${(globalThis.PlatformLanguage?.htmlText("billing","m_bf9fa2c63394a7","Auto top-up amount") ?? "Auto top-up amount")}</label>
                 <div class="b-auto-moneyrow">
                   <button class="b-auto-step" id="bAutoAmtMinus" type="button" disabled><i class="fas fa-minus"></i></button>
                   <input class="b-auto-money" id="bAutoTopup" inputmode="numeric" disabled>
@@ -601,8 +601,8 @@ window.PlatformCommerce.onReady(function(){
           <div class="b-err" id="bErr"></div>
         </div>
         <div class="b-actions">
-          <button class="b-btn" id="bCancel">${(globalThis.PlatformLanguage?.text("billing","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-          <button class="b-btn primary" id="bGo">${(globalThis.PlatformLanguage?.text("billing","m_30c6d0451d9309","Go to Checkout") ?? "Go to Checkout")}</button>
+          <button class="b-btn" id="bCancel">${(globalThis.PlatformLanguage?.htmlText("billing","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+          <button class="b-btn primary" id="bGo">${(globalThis.PlatformLanguage?.htmlText("billing","m_30c6d0451d9309","Go to Checkout") ?? "Go to Checkout")}</button>
         </div>
       </div>
     `;
@@ -1054,8 +1054,8 @@ window.PlatformCommerce.onReady(function(){
     overlay.innerHTML = `
       <div class="fm-stripe-checkout-card">
         <div class="fm-stripe-checkout-spinner" aria-hidden="true"></div>
-        <div class="fm-stripe-checkout-title">${(globalThis.PlatformLanguage?.text("billing","m_c59c75f49dfbac","Secure checkout") ?? "Secure checkout")}</div>
-        <div class="fm-stripe-checkout-message" data-stripe-checkout-overlay-message>${(globalThis.PlatformLanguage?.text("billing","m_aa5df8cffe43ce","Opening Stripe...") ?? "Opening Stripe...")}</div>
+        <div class="fm-stripe-checkout-title">${(globalThis.PlatformLanguage?.htmlText("billing","m_c59c75f49dfbac","Secure checkout") ?? "Secure checkout")}</div>
+        <div class="fm-stripe-checkout-message" data-stripe-checkout-overlay-message>${(globalThis.PlatformLanguage?.htmlText("billing","m_aa5df8cffe43ce","Opening Stripe...") ?? "Opening Stripe...")}</div>
       </div>
     `;
     document.body.appendChild(overlay);

@@ -133,7 +133,7 @@
       applyingTier:''
     };
     let destroyed = false;
-    rootEl.innerHTML = `<div class="eqs-root"><div class="eqs-loading">${(globalThis.PlatformLanguage?.text("settings","m_d3dc2d47bdb9f2","Loading equipment settings…") ?? "Loading equipment settings…")}</div></div>`;
+    rootEl.innerHTML = `<div class="eqs-root"><div class="eqs-loading">${(globalThis.PlatformLanguage?.htmlText("settings","m_d3dc2d47bdb9f2","Loading equipment settings…") ?? "Loading equipment settings…")}</div></div>`;
 
     const capValue = (key) => {
       const raw = object(state.capabilities?.raw);
@@ -260,12 +260,12 @@
           <div class="eqs-head">
             <div class="eqs-head-copy">
               <h3><span class="eqs-head-icon"><i class="fas fa-truck-pickup"></i></span> ${String(esc(unitLabel))}</h3>
-              <p>${(globalThis.PlatformLanguage?.text("settings","m_c892762483d21c","One equipment system, dialed by capability. Pick the tier that fits how you run equipment — every flag stays individually adjustable afterwards.") ?? "One equipment system, dialed by capability. Pick the tier that fits how you run equipment — every flag stays individually adjustable afterwards.")}</p>
+              <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_c892762483d21c","One equipment system, dialed by capability. Pick the tier that fits how you run equipment — every flag stays individually adjustable afterwards.") ?? "One equipment system, dialed by capability. Pick the tier that fits how you run equipment — every flag stays individually adjustable afterwards.")}</p>
             </div>
           </div>
           <div class="eqs-section">
-            <h4><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.text("settings","m_1b9d193d4f15f6"," How much equipment management do you need?") ?? " How much equipment management do you need?")}</h4>
-            <p>${(globalThis.PlatformLanguage?.text("settings","m_cb067584c0c610","The tier writes the feature flags below. It is a preset, not a mode.") ?? "The tier writes the feature flags below. It is a preset, not a mode.")}</p>
+            <h4><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_1b9d193d4f15f6"," How much equipment management do you need?") ?? " How much equipment management do you need?")}</h4>
+            <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_cb067584c0c610","The tier writes the feature flags below. It is a preset, not a mode.") ?? "The tier writes the feature flags below. It is a preset, not a mode.")}</p>
             <div class="eqs-tiers">
               ${String(TIERS.map((tier) => `
                 <button type="button" class="eqs-tier ${tierId === tier.id ? 'on' : ''}" data-eqs-tier="${esc(tier.id)}" ${state.applyingTier ? 'disabled' : ''}>
@@ -281,8 +281,8 @@
       if (appOn) {
         html += `
           <div class="eqs-section">
-            <h4><i class="fas fa-toggle-on"></i>${(globalThis.PlatformLanguage?.text("settings","m_5539ab93aa7a52"," Features") ?? " Features")}</h4>
-            <p>${(globalThis.PlatformLanguage?.text("settings","m_5ba59ed73657bf","The layers of the equipment system. Off layers hide completely — views, fields, and money included.") ?? "The layers of the equipment system. Off layers hide completely — views, fields, and money included.")}</p>
+            <h4><i class="fas fa-toggle-on"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_5539ab93aa7a52"," Features") ?? " Features")}</h4>
+            <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_5ba59ed73657bf","The layers of the equipment system. Off layers hide completely — views, fields, and money included.") ?? "The layers of the equipment system. Off layers hide completely — views, fields, and money included.")}</p>
             <div class="eqs-cards">
               ${String(FEATURES.map((feature) => {
                 const definition = state.capabilities?.definitions_by_key?.[feature.key];
@@ -295,7 +295,7 @@
                     <div class="eqs-row-copy">
                       <strong>${esc(feature.label)}</strong>
                       <span>${esc(feature.hint)}</span>
-                      ${parentOn ? '' : `<span class="dep-note">Needs ${esc(parentLabel)}.</span>`}
+                      ${parentOn ? '' : `<span class="dep-note">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_eb768df1328610",`Needs ${v0}.`,{v0}) ?? `Needs ${v0}.`)(esc(parentLabel))}</span>`}
                     </div>
                     <label class="eqs-switch">
                       <input type="checkbox" data-eqs-feature="${esc(feature.key)}" ${capValue(feature.key) ? 'checked' : ''} ${parentOn ? '' : 'disabled'}>
@@ -308,8 +308,8 @@
         if (state.settings) {
           html += `
           <div class="eqs-section">
-            <h4><i class="fas fa-gear"></i>${(globalThis.PlatformLanguage?.text("settings","m_f7a333522c8ac0"," Behavior") ?? " Behavior")}</h4>
-            <p>${(globalThis.PlatformLanguage?.text("settings","m_81d28f6f255a5c","Knobs that tune how the enabled features act.") ?? "Knobs that tune how the enabled features act.")}</p>
+            <h4><i class="fas fa-gear"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_f7a333522c8ac0"," Behavior") ?? " Behavior")}</h4>
+            <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_81d28f6f255a5c","Knobs that tune how the enabled features act.") ?? "Knobs that tune how the enabled features act.")}</p>
             <div class="eqs-cards">
               ${String(KNOBS.map((knob) => {
                 const gated = knob.requires ? !capEffective(knob.requires) : false;
@@ -328,7 +328,7 @@
                     <div class="eqs-row-copy">
                       <strong>${esc(knob.label)}</strong>
                       <span>${esc(knob.hint)}</span>
-                      ${gated ? `<span class="dep-note">Needs ${esc(gatedLabel)}.</span>` : ''}
+                      ${gated ? `<span class="dep-note">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_eb768df1328610",`Needs ${v0}.`,{v0}) ?? `Needs ${v0}.`)(esc(gatedLabel))}</span>` : ''}
                     </div>
                     ${control}
                   </div>`;
@@ -336,7 +336,7 @@
             </div>
             <div class="eqs-foot">
               <button type="button" class="eqs-save" data-eqs-save ${String(state.saving || !isDirty() ? 'disabled' : '')}>${String(state.saving ? 'Saving…' : 'Save changes')}</button>
-              ${String(isDirty() ? '<span class="eqs-dirty">Unsaved behavior changes.</span>' : '')}
+              ${String(isDirty() ? `<span class="eqs-dirty">${(globalThis.PlatformLanguage?.htmlText("settings","m_79d73034c60bb9","Unsaved behavior changes.") ?? "Unsaved behavior changes.")}</span>` : '')}
             </div>
           </div>`;
         }

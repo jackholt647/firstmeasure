@@ -1,8 +1,9 @@
 /** Inventory of application ownership, not a claim that every legacy endpoint is
  * a published operation. Adding an app requires an explicit publication decision. */
 export const applicationPublication = {
-  projects: { providers: ["projects"], domains: ["projects"] },
-  contacts: { providers: ["customers"], domains: ["projects"] },
+  assistant: { providers: [], domains: [], note: "Consumes the shared authorized publication catalog; assistant conversations, instructions and personal memories retain their dedicated subject-scoped APIs." },
+  projects: { providers: ["projects", "custom-fields-project"], domains: ["projects", "custom-fields"] },
+  contacts: { providers: ["customers", "custom-fields-contact"], domains: ["projects", "custom-fields"] },
   photos: { providers: ["media"], domains: ["media"] },
   receipts: { providers: ["media"], domains: ["media"] },
   proposals: { providers: ["proposals"], domains: ["proposals"] },
@@ -31,7 +32,7 @@ export const applicationPublication = {
   channels: { providers: ["channels"], domains: ["channels"] },
   canvassing: { providers: ["canvassing"], domains: ["canvassing"] },
   feedback: { providers: ["feedback"], domains: ["feedback"] },
-  settings: { providers: ["organization", "scopes"], domains: [], note: "Settings are selectively published; credentials and platform administration are never generic data exports. Platform Billing owns dedicated authenticated catalog, subscription and invoice flows under /v1/platform-billing; commercial changes are not exposed to tenant modules or agent tools." },
+  settings: { providers: ["organization", "scopes", "custom-fields-organization"], domains: ["custom-fields"], note: "Settings are selectively published; credentials and platform administration are never generic data exports. Platform Billing owns dedicated authenticated catalog, subscription and invoice flows under /v1/platform-billing; commercial changes are not exposed to tenant modules or agent tools." },
   crew: { providers: ["work", "workforce"], domains: ["work", "workforce"] },
   sales: { providers: ["work", "workforce"], domains: ["work", "workforce"] },
   field_visit: { providers: ["work"], domains: ["work"] },

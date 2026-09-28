@@ -8,9 +8,9 @@
  * member reading that channel), not unrestricted access.
  */
 const bundles: Record<string, { actions?: readonly string[]; data?: readonly string[] }> = {
-  view_projects: { actions: ["projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["projects.record", "work.records", "organization.profile", "referrals.eligibility"] },
-  manage_projects: { actions: ["projects.lead.create", "work.node.patch", "work.node.transition"] },
-  view_contacts: { data: ["customers.record"] },
+  view_projects: { actions: ["projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["custom-fields-project.contract", "custom-fields-project.values", "custom-fields-organization.contract", "custom-fields-organization.values", "projects.record", "work.records", "organization.profile", "referrals.eligibility"] },
+  manage_projects: { actions: ["custom-fields.project.write", "custom-fields.contact.write","projects.lead.create", "work.node.patch", "work.node.transition"] },
+  view_contacts: { data: ["custom-fields-contact.contract", "custom-fields-contact.values","customers.record"] },
   view_schedule: { actions: ["scheduling.availability"], data: ["calendar.record"] },
   manage_schedule: { actions: ["scheduling.slot.hold", "scheduling.confirmation.set", "scheduling.reschedule.review"] },
   view_financials: { actions: ["payments.ledger.list", "payments.project.summary"], data: ["payments.records", "financials.records"] },
@@ -50,7 +50,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   "equipment.view": { actions: ["equipment.fleet.list", "equipment.unit.history"], data: ["equipment.records"] },
   "equipment.service": { actions: ["equipment.maintenance.cancel", "equipment.maintenance.complete", "equipment.maintenance.open", "equipment.meter.record", "equipment.unit.checkIn", "equipment.unit.checkOut"] },
   manage_company_users: { actions: ["workforce.users.list"], data: ["workforce.records"] },
-  manage_company_settings: { data: ["scopes.records"] },
+  manage_company_settings: { actions:["custom-fields.organization.write"], data: ["scopes.records"] },
   manage_training: { actions: ["training.course.progress"] },
   // Membership and per-subject checks are the permission for these exports.
   "": { actions: ["channels.list", "channels.messages.list", "channels.message.react", "training.courses.mine"], data: ["channels.records", "training.records"] }

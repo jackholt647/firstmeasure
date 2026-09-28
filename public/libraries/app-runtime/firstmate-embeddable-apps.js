@@ -890,7 +890,7 @@
     const manifest = manifests.get(id);
     const app = await ensureAppReady(id) || apps.get(id);
     if (!app) {
-      rootEl.innerHTML = `<div class="fm-app-unavailable">${((v0) => globalThis.PlatformLanguage?.text("app-runtime","m_51b27800c625b8",`App "${v0}" is unavailable.`,{v0}) ?? `App "${v0}" is unavailable.`)(escapeHtml(id))}</div>`;
+      rootEl.innerHTML = `<div class="fm-app-unavailable">${((v0) => globalThis.PlatformLanguage?.htmlText("app-runtime","m_51b27800c625b8",`App "${v0}" is unavailable.`,{v0}) ?? `App "${v0}" is unavailable.`)(escapeHtml(id))}</div>`;
       const missing = { appId: id, destroy(){ rootEl.innerHTML = ''; } };
       mounted.set(rootEl, missing);
       return missing;

@@ -644,8 +644,8 @@
     if (!photos.length) {
       root.innerHTML = `
         <div class="r-photo-empty" id="rPhotoDropZone">
-          <strong>${(globalThis.PlatformLanguage?.text("photos","m_72c4eca00405ce","No media uploaded yet") ?? "No media uploaded yet")}</strong>
-          <div>${(globalThis.PlatformLanguage?.text("photos","m_a5e1cd4c41f31c","This project does not have any photos or videos yet.") ?? "This project does not have any photos or videos yet.")}</div>
+          <strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_72c4eca00405ce","No media uploaded yet") ?? "No media uploaded yet")}</strong>
+          <div>${(globalThis.PlatformLanguage?.htmlText("photos","m_a5e1cd4c41f31c","This project does not have any photos or videos yet.") ?? "This project does not have any photos or videos yet.")}</div>
           <div class="r-photo-empty-tile" id="rPhotoUploadEmpty">
             <div class="r-photo-empty-plus">+</div>
           </div>
@@ -663,8 +663,8 @@
       root.innerHTML = `
         <div class="r-photo-gallery is-grid">
           <div class="r-photo-gallery-head">
-            <strong>${((v0,v1) => globalThis.PlatformLanguage?.text("photos","m_7aeb1a825e7d39",`${v0} media item${v1}`,{v0,v1}) ?? `${v0} media item${v1}`)(photos.length,photos.length === 1 ? '' : 's')}</strong>
-            <button type="button" class="r-photo-upload" id="rPhotoUploadBtn"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("photos","m_9ca9dace4f122f"," Upload") ?? " Upload")}</button>
+            <strong>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("photos","m_7aeb1a825e7d39",`${v0} media item${v1}`,{v0,v1}) ?? `${v0} media item${v1}`)(photos.length,photos.length === 1 ? '' : 's')}</strong>
+            <button type="button" class="r-photo-upload" id="rPhotoUploadBtn"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_9ca9dace4f122f"," Upload") ?? " Upload")}</button>
           </div>
           <div class="r-photo-grid-only" id="rPhotoGridOnly">
             ${String(photos.map((photo, index) => `
@@ -709,14 +709,14 @@
     root.innerHTML = `
       <div class="r-photo-gallery viewer">
         <div class="r-photo-viewer-head">
-          <button type="button" class="r-photo-upload" id="rPhotoBack"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("photos","m_1dcaeaad30c689"," All Photos") ?? " All Photos")}</button>
+          <button type="button" class="r-photo-upload" id="rPhotoBack"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_1dcaeaad30c689"," All Photos") ?? " All Photos")}</button>
           <div class="r-photo-viewer-title">${String(escapeHtml(active.label))}</div>
           <div style="width:96px"></div>
         </div>
         <div class="r-photo-stage">
-          <button type="button" class="r-photo-nav prev" id="rPhotoPrev" aria-label="${(globalThis.PlatformLanguage?.text("photos","m_ff93a3105bd290","Previous photo") ?? "Previous photo")}"><i class="fas fa-chevron-left"></i></button>
+          <button type="button" class="r-photo-nav prev" id="rPhotoPrev" aria-label="${(globalThis.PlatformLanguage?.htmlText("photos","m_ff93a3105bd290","Previous photo") ?? "Previous photo")}"><i class="fas fa-chevron-left"></i></button>
           ${String(projectMediaViewerHtml(active))}
-          <button type="button" class="r-photo-nav next" id="rPhotoNext" aria-label="${(globalThis.PlatformLanguage?.text("photos","m_289ae0bcddeebf","Next photo") ?? "Next photo")}"><i class="fas fa-chevron-right"></i></button>
+          <button type="button" class="r-photo-nav next" id="rPhotoNext" aria-label="${(globalThis.PlatformLanguage?.htmlText("photos","m_289ae0bcddeebf","Next photo") ?? "Next photo")}"><i class="fas fa-chevron-right"></i></button>
           <div class="r-photo-count">${String(window.activePhotoIndex + 1)} / ${String(photos.length)}</div>
         </div>
         <div class="r-photo-strip" id="rPhotoStrip">
@@ -806,12 +806,12 @@
       <div class="storage-checkout-modal" role="dialog" aria-modal="true" aria-labelledby="storageCheckoutTitle">
         <div class="storage-checkout-head">
           <div>
-            <strong id="storageCheckoutTitle">${(globalThis.PlatformLanguage?.text("photos","m_fd0221a1d87d1d","Get More Storage") ?? "Get More Storage")}</strong>
-            <span>${(globalThis.PlatformLanguage?.text("photos","m_eba5a2ca652c52","Storage checkout options will appear here.") ?? "Storage checkout options will appear here.")}</span>
+            <strong id="storageCheckoutTitle">${(globalThis.PlatformLanguage?.htmlText("photos","m_fd0221a1d87d1d","Get More Storage") ?? "Get More Storage")}</strong>
+            <span>${(globalThis.PlatformLanguage?.htmlText("photos","m_eba5a2ca652c52","Storage checkout options will appear here.") ?? "Storage checkout options will appear here.")}</span>
           </div>
-          <button type="button" class="storage-checkout-close" data-storage-checkout-close aria-label="${(globalThis.PlatformLanguage?.text("photos","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+          <button type="button" class="storage-checkout-close" data-storage-checkout-close aria-label="${(globalThis.PlatformLanguage?.htmlText("photos","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
         </div>
-        <div class="storage-checkout-body">${(globalThis.PlatformLanguage?.text("photos","m_66ecec49f56389","Checkout placeholder") ?? "Checkout placeholder")}</div>
+        <div class="storage-checkout-body">${(globalThis.PlatformLanguage?.htmlText("photos","m_66ecec49f56389","Checkout placeholder") ?? "Checkout placeholder")}</div>
       </div>`;
     document.body.appendChild(back);
     let modalHandle = null;

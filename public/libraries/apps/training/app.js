@@ -365,8 +365,8 @@
     const percent = Math.round(result.score_percent || 0);
     const passInfo = options.passPercent > 0
       ? (result.passed
-        ? `<span class="trn-meta-pill green"><i class="fas fa-circle-check"></i>${((v0) => globalThis.PlatformLanguage?.text("training","m_487e417b132c3c",` Passed &middot; needed ${v0}%`,{v0}) ?? ` Passed &middot; needed ${v0}%`)(esc(options.passPercent))}</span>`
-        : `<span class="trn-meta-pill" style="background:#fdeceb;color:#9d2226"><i class="fas fa-rotate-left"></i>${((v0) => globalThis.PlatformLanguage?.text("training","m_be1bbd5e1c1995",` Needed ${v0}% — try again`,{v0}) ?? ` Needed ${v0}% — try again`)(esc(options.passPercent))}</span>`)
+        ? `<span class="trn-meta-pill green"><i class="fas fa-circle-check"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("training","m_487e417b132c3c",` Passed &middot; needed ${v0}%`,{v0}) ?? ` Passed &middot; needed ${v0}%`)(esc(options.passPercent))}</span>`
+        : `<span class="trn-meta-pill" style="background:#fdeceb;color:#9d2226"><i class="fas fa-rotate-left"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("training","m_be1bbd5e1c1995",` Needed ${v0}% — try again`,{v0}) ?? ` Needed ${v0}% — try again`)(esc(options.passPercent))}</span>`)
       : '';
     const size = 150, stroke = 12, radius = (size - stroke) / 2, circumference = 2 * Math.PI * radius;
     const color = options.passPercent > 0 && !result.passed ? '#e5484d' : 'var(--trn-green)';
@@ -374,7 +374,7 @@
       <div class="trn-result-ring"><svg width="${size}" height="${size}"><circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="#edf0f7" stroke-width="${stroke}"/><circle class="meter" cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${circumference}" stroke-dashoffset="${circumference}" data-target-offset="${circumference * (1 - percent / 100)}"/></svg><b>${percent}%</b></div>
       <h3>${esc(options.title || (result.passed ? 'Nice work!' : 'Keep practicing'))}</h3>
       <p>${esc(`${result.correct_count} of ${result.total_count} correct`)}${options.practice ? ' &middot; practice round' : ''}</p>
-      <div class="trn-result-badges">${passInfo}${options.practice ? `<span class="trn-meta-pill"><i class="fas fa-dumbbell"></i>${(globalThis.PlatformLanguage?.text("training","m_99b6e147158a16"," Practice — nothing recorded against you") ?? " Practice — nothing recorded against you")}</span>` : ''}</div>
+      <div class="trn-result-badges">${passInfo}${options.practice ? `<span class="trn-meta-pill"><i class="fas fa-dumbbell"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_99b6e147158a16"," Practice — nothing recorded against you") ?? " Practice — nothing recorded against you")}</span>` : ''}</div>
     </div>`;
   }
 
@@ -418,11 +418,11 @@
       const question = obj(questions[index]);
       const isText = clean(question.kind) === 'text_input';
       mount.innerHTML = `<div class="trn-quiz">
-        <div class="trn-quiz-count">${((v0,v1) => globalThis.PlatformLanguage?.text("training","m_e065fbf8c22410",`Question ${v0} of ${v1}`,{v0,v1}) ?? `Question ${v0} of ${v1}`)(index + 1,questions.length)}</div>
+        <div class="trn-quiz-count">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("training","m_e065fbf8c22410",`Question ${v0} of ${v1}`,{v0,v1}) ?? `Question ${v0} of ${v1}`)(index + 1,questions.length)}</div>
         <h3 class="trn-quiz-prompt">${String(esc(question.prompt))}</h3>
         ${String(clean(question.image) ? `<img class="trn-quiz-image" src="${esc(question.image)}" alt="">` : '')}
         ${String(isText
-          ? `<div class="trn-quiz-input"><input type="text" placeholder="Type your answer" autocomplete="off" autocapitalize="off" data-quiz-input><button class="trn-btn primary" type="button" data-quiz-submit>Check</button></div>`
+          ? `<div class="trn-quiz-input"><input type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("training","m_6811d3b07a9ed6","Type your answer") ?? "Type your answer")}" autocomplete="off" autocapitalize="off" data-quiz-input><button class="trn-btn primary" type="button" data-quiz-submit>${(globalThis.PlatformLanguage?.htmlText("training","m_cc74e4e6c905ec","Check") ?? "Check")}</button></div>`
           : `<div class="trn-choices">${arr(question.choices).map((choice, choiceIndex) => `<button type="button" class="trn-choice" data-choice="${esc(choice.id)}"><span class="trn-choice-key">${String.fromCharCode(65 + choiceIndex)}</span>${clean(choice.image) ? `<img src="${esc(choice.image)}" alt="" style="display:block;max-height:120px;border-radius:10px;margin-bottom:8px">` : ''}${esc(choice.text)}</button>`).join('')}</div>`)}
         <div data-quiz-feedback></div>
         <div class="trn-quiz-actions" data-quiz-actions></div>
@@ -511,14 +511,14 @@
       const face = (text, image, hint) => `<div>${clean(image) ? `<img src="${esc(image)}" alt="">` : ''}<p>${esc(text)}</p><span class="trn-card-hint">${esc(hint)}</span></div>`;
       if (kind === 'flip') {
         mount.innerHTML = `<div class="trn-quiz">
-          <div class="trn-deck-remaining">${((v0,v1) => globalThis.PlatformLanguage?.text("training","m_64fac91f4c0325",`${v0} card${v1} to go`,{v0,v1}) ?? `${v0} card${v1} to go`)(remaining,remaining === 1 ? '' : 's')}</div>
+          <div class="trn-deck-remaining">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("training","m_64fac91f4c0325",`${v0} card${v1} to go`,{v0,v1}) ?? `${v0} card${v1} to go`)(remaining,remaining === 1 ? '' : 's')}</div>
           <div class="trn-card-stage"><div class="trn-flip-card" data-flip>
             <div class="trn-card-face front">${String(face(card.front_text, card.front_image, 'Tap to flip'))}</div>
             <div class="trn-card-face back">${String(face(card.back_text, card.back_image, 'How did you do?'))}</div>
           </div></div>
           <div class="trn-card-grade" data-grade hidden>
-            <button class="trn-btn" type="button" data-again><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.text("training","m_d3a50bdb7cb63b"," Again") ?? " Again")}</button>
-            <button class="trn-btn green" type="button" data-got><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("training","m_5f1fb193fdd3ee"," Got it") ?? " Got it")}</button>
+            <button class="trn-btn" type="button" data-again><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_d3a50bdb7cb63b"," Again") ?? " Again")}</button>
+            <button class="trn-btn green" type="button" data-got><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_5f1fb193fdd3ee"," Got it") ?? " Got it")}</button>
           </div>`;
         const flipCard = mount.querySelector('[data-flip]');
         flipCard.addEventListener('click', () => {
@@ -542,7 +542,7 @@
         explanation: card.back_text
       };
       const holder = document.createElement('div');
-      mount.innerHTML = `<div class="trn-deck-remaining" style="margin-bottom:14px">${((v0,v1) => globalThis.PlatformLanguage?.text("training","m_64fac91f4c0325",`${v0} card${v1} to go`,{v0,v1}) ?? `${v0} card${v1} to go`)(remaining,remaining === 1 ? '' : 's')}</div>`;
+      mount.innerHTML = `<div class="trn-deck-remaining" style="margin-bottom:14px">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("training","m_64fac91f4c0325",`${v0} card${v1} to go`,{v0,v1}) ?? `${v0} card${v1} to go`)(remaining,remaining === 1 ? '' : 's')}</div>`;
       mount.appendChild(holder);
       let graded = false;
       renderQuizRunner(holder, {
@@ -681,7 +681,7 @@
     player.style.setProperty('--trn-accent', clean(course.color) || 'var(--primary,#3b6ef6)');
     player.innerHTML = `
       <div class="trn-player-top">
-        <button type="button" class="trn-player-close" aria-label="${(globalThis.PlatformLanguage?.text("training","m_c0b4a73ed3bd7b","Close lesson") ?? "Close lesson")}"><i class="fas fa-xmark"></i></button>
+        <button type="button" class="trn-player-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("training","m_c0b4a73ed3bd7b","Close lesson") ?? "Close lesson")}"><i class="fas fa-xmark"></i></button>
         <div class="trn-player-meta">
           <span class="trn-player-meta-icon"><i class="fas ${String(esc(clean(lesson.icon) || 'fa-book-open'))}"></i></span>
           <h2>${String(esc(clean(lesson.title) || 'Lesson'))}</h2>
@@ -691,8 +691,8 @@
       </div>
       <div class="trn-player-body"><div class="trn-step" data-step-mount></div></div>
       <div class="trn-player-foot" style="display:flex;gap:9px">
-        <button type="button" class="trn-btn" data-player-back aria-label="${(globalThis.PlatformLanguage?.text("training","m_7906020f77eea6","Previous page") ?? "Previous page")}" style="min-height:52px;border-radius:16px;padding:0 17px" hidden><i class="fas fa-arrow-left"></i></button>
-        <button type="button" class="trn-btn green" data-player-continue disabled style="flex:1">${(globalThis.PlatformLanguage?.text("training","m_55ff00ed9ff361","Continue") ?? "Continue")}</button>
+        <button type="button" class="trn-btn" data-player-back aria-label="${(globalThis.PlatformLanguage?.htmlText("training","m_7906020f77eea6","Previous page") ?? "Previous page")}" style="min-height:52px;border-radius:16px;padding:0 17px" hidden><i class="fas fa-arrow-left"></i></button>
+        <button type="button" class="trn-btn green" data-player-continue disabled style="flex:1">${(globalThis.PlatformLanguage?.htmlText("training","m_55ff00ed9ff361","Continue") ?? "Continue")}</button>
       </div>`;
     document.body.appendChild(player);
     const stepMount = player.querySelector('[data-step-mount]');
@@ -744,7 +744,7 @@
       };
       const renderer = stepKinds[clean(step.kind)] || {
         render(mountEl){
-          mountEl.innerHTML = `<div class="trn-state"><div><i class="fas fa-puzzle-piece"></i><strong>${String(esc(clean(step.title) || 'New activity'))}</strong><span class="trn-sub">${((v1) => globalThis.PlatformLanguage?.text("training","m_aecca59403d41e",`This activity type ("${v1}") needs a newer version of the app. You can continue past it.`,{v1}) ?? `This activity type ("${v1}") needs a newer version of the app. You can continue past it.`)(esc(step.kind))}</span></div></div>`;
+          mountEl.innerHTML = `<div class="trn-state"><div><i class="fas fa-puzzle-piece"></i><strong>${String(esc(clean(step.title) || 'New activity'))}</strong><span class="trn-sub">${((v1) => globalThis.PlatformLanguage?.htmlText("training","m_aecca59403d41e",`This activity type ("${v1}") needs a newer version of the app. You can continue past it.`,{v1}) ?? `This activity type ("${v1}") needs a newer version of the app. You can continue past it.`)(esc(step.kind))}</span></div></div>`;
           return { complete: true };
         }
       };
@@ -783,8 +783,8 @@
       <div class="trn-celebrate-icon"><i class="fas fa-medal"></i></div>
       <h3>${String(esc(title))}</h3>
       <p>${String(esc(message))}</p>
-      ${String(unlocks.length ? `<div class="trn-unlock-list">${unlocks.map((item) => `<div class="trn-unlock-item"><i class="fas ${esc(item.icon)}"></i><span style="min-width:0"><span>${esc(item.kindLabel)} unlocked</span><strong>${esc(item.title)}</strong></span></div>`).join('')}</div>` : '')}
-      <button class="trn-btn green" type="button" data-celebrate-done style="width:100%">${(globalThis.PlatformLanguage?.text("training","m_5b2199f496854c","Keep going") ?? "Keep going")}</button>
+      ${String(unlocks.length ? `<div class="trn-unlock-list">${unlocks.map((item) => `<div class="trn-unlock-item"><i class="fas ${esc(item.icon)}"></i><span style="min-width:0"><span>${((v1) => globalThis.PlatformLanguage?.htmlText("training","m_36e9b2465c46f9",`${v1} unlocked`,{v1}) ?? `${v1} unlocked`)(esc(item.kindLabel))}</span><strong>${esc(item.title)}</strong></span></div>`).join('')}</div>` : '')}
+      <button class="trn-btn green" type="button" data-celebrate-done style="width:100%">${(globalThis.PlatformLanguage?.htmlText("training","m_5b2199f496854c","Keep going") ?? "Keep going")}</button>
     </div>`;
   }
 
@@ -803,9 +803,9 @@
     root.innerHTML = `<div class="trn-shell" style="position:relative">
       <div class="trn-scroll"><div class="trn-page" data-training-page>${String(stateHtml('loading', 'Loading your training'))}</div></div>
       <div class="trn-tabbar"><div class="trn-tabbar-inner">
-        <button type="button" class="trn-tab active" data-training-tab="home"><i class="fas fa-graduation-cap"></i>${(globalThis.PlatformLanguage?.text("training","m_578ca6f89c2534","Learn") ?? "Learn")}</button>
-        <button type="button" class="trn-tab" data-training-tab="decks"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.text("training","m_a912b2f761593a","Flashcards") ?? "Flashcards")}</button>
-        <button type="button" class="trn-tab" data-training-tab="quizzes"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("training","m_67dfa219a28355","Quizzes") ?? "Quizzes")}</button>
+        <button type="button" class="trn-tab active" data-training-tab="home"><i class="fas fa-graduation-cap"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_578ca6f89c2534","Learn") ?? "Learn")}</button>
+        <button type="button" class="trn-tab" data-training-tab="decks"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_a912b2f761593a","Flashcards") ?? "Flashcards")}</button>
+        <button type="button" class="trn-tab" data-training-tab="quizzes"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_67dfa219a28355","Quizzes") ?? "Quizzes")}</button>
       </div></div>
     </div>`;
     const page = root.querySelector('[data-training-page]');
@@ -824,13 +824,13 @@
       if (!courses) { page.innerHTML = stateHtml('loading', 'Loading your training'); return; }
       if (!courses.length) { page.innerHTML = stateHtml('empty', 'No courses have been assigned to you yet.', 'fa-graduation-cap'); return; }
       page.innerHTML = `
-        <div><div class="trn-eyebrow">${(globalThis.PlatformLanguage?.text("training","m_de9da7671834b2","Training") ?? "Training")}</div><h1 class="trn-h1">${(globalThis.PlatformLanguage?.text("training","m_4849926632a60b","Your courses") ?? "Your courses")}</h1><p class="trn-sub">${(globalThis.PlatformLanguage?.text("training","m_70293e4d7a8b07","Pick up where you left off — progress saves as you go.") ?? "Pick up where you left off — progress saves as you go.")}</p></div>
+        <div><div class="trn-eyebrow">${(globalThis.PlatformLanguage?.htmlText("training","m_de9da7671834b2","Training") ?? "Training")}</div><h1 class="trn-h1">${(globalThis.PlatformLanguage?.htmlText("training","m_4849926632a60b","Your courses") ?? "Your courses")}</h1><p class="trn-sub">${(globalThis.PlatformLanguage?.htmlText("training","m_70293e4d7a8b07","Pick up where you left off — progress saves as you go.") ?? "Pick up where you left off — progress saves as you go.")}</p></div>
         <div style="display:grid;gap:12px">${String(courses.map((course, courseIndex) => `
           <button type="button" class="trn-course-card" data-open-course="${esc(course.id)}" style="--trn-accent:${esc(clean(course.color) || 'var(--primary,#3b6ef6)')};animation-delay:${courseIndex * 60}ms">
             <span class="trn-course-icon"><i class="fas ${esc(clean(course.icon) || 'fa-book')}"></i></span>
             <span class="trn-course-copy"><strong>${esc(course.title)}</strong><span>${esc(course.description)}</span>
               <span class="trn-course-bar"><i style="width:${Number(course.percent_complete || 0)}%"></i></span>
-              <span style="color:var(--trn-muted);font-size:10.5px;font-weight:900">${Number(course.completed_count || 0)}/${Number(course.lesson_count || 0)} lessons${Number(course.percent_complete) >= 100 ? ' &middot; Completed 🎉' : (clean(course.next_lesson_title) ? ` &middot; Next: ${esc(course.next_lesson_title)}` : '')}</span>
+              <span style="color:var(--trn-muted);font-size:10.5px;font-weight:900">${((v7,v8,v9) => globalThis.PlatformLanguage?.htmlText("training","m_166e9cfce5d7c3",`${v7}/${v8} lessons${v9}`,{v7,v8,v9}) ?? `${v7}/${v8} lessons${v9}`)(Number(course.completed_count || 0),Number(course.lesson_count || 0),Number(course.percent_complete) >= 100 ? ' &middot; Completed 🎉' : (clean(course.next_lesson_title) ? ` &middot; Next: ${esc(course.next_lesson_title)}` : ''))}</span>
             </span>
             ${ringHtml(Number(course.percent_complete || 0))}
           </button>`).join(''))}</div>`;
@@ -876,9 +876,9 @@
       const locked = state === 'locked';
       const meta = [
         `<span class="trn-meta-pill"><i class="fas fa-file-lines"></i>${((v0,v1) => globalThis.PlatformLanguage?.text("training","m_01f08ac1f4370c",` ${v0} page${v1}`,{v0,v1}) ?? ` ${v0} page${v1}`)(Number(lesson.step_count || 0),Number(lesson.step_count) === 1 ? '' : 's')}</span>`,
-        Number(lesson.minutes) ? `<span class="trn-meta-pill"><i class="fas fa-clock"></i>${((v0) => globalThis.PlatformLanguage?.text("training","m_7a03154fed7e16",` ~${v0} min`,{v0}) ?? ` ~${v0} min`)(Number(lesson.minutes))}</span>` : '',
-        lesson.has_required_test ? `<span class="trn-meta-pill gold"><i class="fas fa-star"></i>${(globalThis.PlatformLanguage?.text("training","m_66f1bbd2870d45"," Test to pass") ?? " Test to pass")}</span>` : '',
-        state === 'completed' ? `<span class="trn-meta-pill green"><i class="fas fa-circle-check"></i>${((v0) => globalThis.PlatformLanguage?.text("training","m_8ee56142bdac6a",` Completed${v0}`,{v0}) ?? ` Completed${v0}`)(lesson.score_percent != null ? ` &middot; ${Math.round(lesson.score_percent)}%` : '')}</span>` : ''
+        Number(lesson.minutes) ? `<span class="trn-meta-pill"><i class="fas fa-clock"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("training","m_7a03154fed7e16",` ~${v0} min`,{v0}) ?? ` ~${v0} min`)(Number(lesson.minutes))}</span>` : '',
+        lesson.has_required_test ? `<span class="trn-meta-pill gold"><i class="fas fa-star"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_66f1bbd2870d45"," Test to pass") ?? " Test to pass")}</span>` : '',
+        state === 'completed' ? `<span class="trn-meta-pill green"><i class="fas fa-circle-check"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("training","m_8ee56142bdac6a",` Completed${v0}`,{v0}) ?? ` Completed${v0}`)(lesson.score_percent != null ? ` &middot; ${Math.round(lesson.score_percent)}%` : '')}</span>` : ''
       ].filter(Boolean).join('');
       const sheet = openSheet(`
         <div class="trn-sheet-head" style="--trn-accent:${esc(accent)}">
@@ -891,7 +891,7 @@
           ${locked
             ? `<button class="trn-btn" type="button" disabled><i class="fas fa-lock"></i> ${esc(clean(lesson.lock_reason) || 'Locked')}</button>`
             : state === 'completed'
-              ? `<button class="trn-btn primary" type="button" data-lesson-review><i class="fas fa-book-open"></i>${(globalThis.PlatformLanguage?.text("training","m_94c37343f1a77c"," Review lesson") ?? " Review lesson")}</button>`
+              ? `<button class="trn-btn primary" type="button" data-lesson-review><i class="fas fa-book-open"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_94c37343f1a77c"," Review lesson") ?? " Review lesson")}</button>`
               : `<button class="trn-btn green" type="button" data-lesson-start><i class="fas fa-play"></i> ${state === 'current' ? 'Start lesson' : 'Jump in'}</button>`}
         </div>`);
       sheet.el.querySelector('[data-lesson-start]')?.addEventListener('click', () => { sheet.close(); startLesson(lesson, { review: false }); });
@@ -945,8 +945,8 @@
       const complete = Number(course.percent_complete) >= 100;
       page.innerHTML = `<div style="--trn-accent:${String(esc(accent))};display:grid;gap:4px">
         <div class="trn-path-head">
-          <button type="button" class="trn-back" data-course-back aria-label="${(globalThis.PlatformLanguage?.text("training","m_54b57ecb8a52cc","Back to courses") ?? "Back to courses")}"><i class="fas fa-arrow-left"></i></button>
-          <div class="trn-path-title"><h2>${String(esc(course.title))}</h2><span>${((v2,v3,v4) => globalThis.PlatformLanguage?.text("training","m_7054f5e19d6e7d",`${v2}/${v3} lessons &middot; ${v4}% complete`,{v2,v3,v4}) ?? `${v2}/${v3} lessons &middot; ${v4}% complete`)(Number(course.completed_count),Number(course.lesson_count),Number(course.percent_complete))}</span></div>
+          <button type="button" class="trn-back" data-course-back aria-label="${(globalThis.PlatformLanguage?.htmlText("training","m_54b57ecb8a52cc","Back to courses") ?? "Back to courses")}"><i class="fas fa-arrow-left"></i></button>
+          <div class="trn-path-title"><h2>${String(esc(course.title))}</h2><span>${((v2,v3,v4) => globalThis.PlatformLanguage?.htmlText("training","m_7054f5e19d6e7d",`${v2}/${v3} lessons &middot; ${v4}% complete`,{v2,v3,v4}) ?? `${v2}/${v3} lessons &middot; ${v4}% complete`)(Number(course.completed_count),Number(course.lesson_count),Number(course.percent_complete))}</span></div>
           ${String(ringHtml(Number(course.percent_complete || 0), 46, 5))}
         </div>
         <div class="trn-path" data-path>
@@ -959,7 +959,7 @@
               <button type="button" class="trn-node ${esc(state)} ${lessonIndex % 2 === 1 ? 'flag-left' : ''}" data-lesson-node="${esc(lesson.id)}" style="${pad};animation-delay:${lessonIndex * 70}ms">
                 ${state === 'completed' && lesson.score_percent != null && lesson.has_required_test ? `<span class="trn-score-pill">${Math.round(lesson.score_percent)}%</span>` : ''}
                 <span class="trn-bubble"><span class="trn-bubble-face"><i class="fas ${esc(state === 'locked' ? 'fa-lock' : (clean(lesson.icon) || 'fa-book-open'))}"></i></span>
-                ${state === 'current' ? '<span class="trn-start-flag">START</span>' : ''}
+                ${state === 'current' ? `<span class="trn-start-flag">${(globalThis.PlatformLanguage?.htmlText("training","m_fae85eae9a5dc4","START") ?? "START")}</span>` : ''}
                 ${state === 'completed' ? '<span class="trn-node-check"><i class="fas fa-check"></i></span>' : ''}</span>
                 <span class="trn-node-label">${esc(lesson.title)}</span>
               </button>
@@ -995,7 +995,7 @@
       return `<button type="button" class="trn-row-card ${locked ? 'locked' : ''}" data-open-${kind}="${esc(item.id)}" data-row-locked="${locked ? '1' : ''}" style="--trn-accent:${esc(accent)};animation-delay:${index * 50}ms">
         <span class="trn-row-icon"><i class="fas ${esc(locked ? 'fa-lock' : (clean(item.icon) || (kind === 'deck' ? 'fa-layer-group' : 'fa-bolt')))}"></i></span>
         <span class="trn-row-copy"><strong>${esc(item.title)}</strong><span>${locked ? `<i class="fas fa-lock" style="font-size:9px"></i> ${esc(detail)}` : esc(detail)}</span></span>
-        <span class="trn-row-side">${!locked && clean(item.source) !== 'assigned' && !Number(item.attempt_count) ? `<span class="trn-new-pill">${(globalThis.PlatformLanguage?.text("training","m_758468686ac8bc","Unlocked") ?? "Unlocked")}</span>` : ''}${locked ? '' : '<i class="fas fa-chevron-right trn-chevron"></i>'}</span>
+        <span class="trn-row-side">${!locked && clean(item.source) !== 'assigned' && !Number(item.attempt_count) ? `<span class="trn-new-pill">${(globalThis.PlatformLanguage?.htmlText("training","m_758468686ac8bc","Unlocked") ?? "Unlocked")}</span>` : ''}${locked ? '' : '<i class="fas fa-chevron-right trn-chevron"></i>'}</span>
       </button>`;
     };
 
@@ -1009,7 +1009,7 @@
       let index = 0;
       return [...groups.entries()].map(([title, group]) => {
         const unlockedCount = group.items.filter((item) => item.locked !== true).length;
-        return `<div class="trn-group-head" style="--trn-accent:${String(esc(group.color || 'var(--primary,#3b6ef6)'))}"><i class="fas fa-graduation-cap"></i><strong>${String(esc(title))}</strong><span>${((v2,v3) => globalThis.PlatformLanguage?.text("training","m_b06b6cdb53b923",`${v2}/${v3} unlocked`,{v2,v3}) ?? `${v2}/${v3} unlocked`)(unlockedCount,group.items.length)}</span></div>
+        return `<div class="trn-group-head" style="--trn-accent:${String(esc(group.color || 'var(--primary,#3b6ef6)'))}"><i class="fas fa-graduation-cap"></i><strong>${String(esc(title))}</strong><span>${((v2,v3) => globalThis.PlatformLanguage?.htmlText("training","m_b06b6cdb53b923",`${v2}/${v3} unlocked`,{v2,v3}) ?? `${v2}/${v3} unlocked`)(unlockedCount,group.items.length)}</span></div>
           ${String(group.items.map((item) => rowCard(item, kind, index++)).join(''))}`;
       }).join('');
     };
@@ -1020,7 +1020,7 @@
       player.style.setProperty('--trn-accent', accent);
       player.innerHTML = `
         <div class="trn-player-top">
-          <button type="button" class="trn-player-close" aria-label="${(globalThis.PlatformLanguage?.text("training","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
+          <button type="button" class="trn-player-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("training","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
           <div style="flex:1;font-size:14px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${String(esc(title))}</div>
         </div>
         <div class="trn-player-body"><div class="trn-step" data-run-mount></div></div>`;
@@ -1039,11 +1039,11 @@
         const sheet = openSheet(`
           <div class="trn-sheet-head" style="--trn-accent:${String(esc(accent))}">
             <span class="trn-sheet-icon"><i class="fas ${String(esc(clean(deck.icon) || 'fa-layer-group'))}"></i></span>
-            <div style="min-width:0"><h3>${String(esc(deck.title))}</h3><p>${((v3) => globalThis.PlatformLanguage?.text("training","m_cd2aec337b5bb8",`${v3} cards &middot; shuffled each run`,{v3}) ?? `${v3} cards &middot; shuffled each run`)(arr(deck.cards).length)}</p></div>
+            <div style="min-width:0"><h3>${String(esc(deck.title))}</h3><p>${((v3) => globalThis.PlatformLanguage?.htmlText("training","m_cd2aec337b5bb8",`${v3} cards &middot; shuffled each run`,{v3}) ?? `${v3} cards &middot; shuffled each run`)(arr(deck.cards).length)}</p></div>
           </div>
           <div class="trn-sheet-body">${String(esc(clean(deck.description) || 'Practice at your own pace — misses come back around until you get them.'))}</div>
-          <div class="trn-meta-row">${String(deck.best_score_percent != null ? `<span class="trn-meta-pill green"><i class="fas fa-ranking-star"></i> Best ${deck.best_score_percent}%</span>` : '')}${String(Number(deck.attempt_count) ? `<span class="trn-meta-pill"><i class="fas fa-clock-rotate-left"></i> ${Number(deck.attempt_count)} previous run${Number(deck.attempt_count) === 1 ? '' : 's'}</span>` : '')}</div>
-          <div class="trn-sheet-actions" style="--trn-accent:${String(esc(accent))}"><button class="trn-btn green" type="button" data-deck-play><i class="fas fa-play"></i>${(globalThis.PlatformLanguage?.text("training","m_e1d292e23ae73a"," Practice deck") ?? " Practice deck")}</button></div>`);
+          <div class="trn-meta-row">${String(deck.best_score_percent != null ? `<span class="trn-meta-pill green"><i class="fas fa-ranking-star"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("training","m_16bcb758a076ba",` Best ${v0}%`,{v0}) ?? ` Best ${v0}%`)(deck.best_score_percent)}</span>` : '')}${String(Number(deck.attempt_count) ? `<span class="trn-meta-pill"><i class="fas fa-clock-rotate-left"></i>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("training","m_8d6d455de32d3c",` ${v0} previous run${v1}`,{v0,v1}) ?? ` ${v0} previous run${v1}`)(Number(deck.attempt_count),Number(deck.attempt_count) === 1 ? '' : 's')}</span>` : '')}</div>
+          <div class="trn-sheet-actions" style="--trn-accent:${String(esc(accent))}"><button class="trn-btn green" type="button" data-deck-play><i class="fas fa-play"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_e1d292e23ae73a"," Practice deck") ?? " Practice deck")}</button></div>`);
         sheet.el.querySelector('[data-deck-play]').addEventListener('click', () => {
           sheet.close();
           runFullscreen(deck.title, accent, (mountEl) => {
@@ -1071,13 +1071,13 @@
         const sheet = openSheet(`
           <div class="trn-sheet-head" style="--trn-accent:${String(esc(accent))}">
             <span class="trn-sheet-icon"><i class="fas ${String(esc(clean(quiz.icon) || 'fa-bolt'))}"></i></span>
-            <div style="min-width:0"><h3>${String(esc(quiz.title))}</h3><p>${((v3,v4) => globalThis.PlatformLanguage?.text("training","m_e9d27ca2e8fe90",`${v3} questions &middot; pass at ${v4}%`,{v3,v4}) ?? `${v3} questions &middot; pass at ${v4}%`)(arr(quiz.questions).length,Number(quiz.pass_percent || 0))}</p></div>
+            <div style="min-width:0"><h3>${String(esc(quiz.title))}</h3><p>${((v3,v4) => globalThis.PlatformLanguage?.htmlText("training","m_e9d27ca2e8fe90",`${v3} questions &middot; pass at ${v4}%`,{v3,v4}) ?? `${v3} questions &middot; pass at ${v4}%`)(arr(quiz.questions).length,Number(quiz.pass_percent || 0))}</p></div>
           </div>
           <div class="trn-sheet-body">${String(esc(clean(quiz.description) || 'Take a scored run, or warm up with practice mode first.'))}</div>
-          <div class="trn-meta-row">${String(quiz.best_score_percent != null ? `<span class="trn-meta-pill green"><i class="fas fa-ranking-star"></i> Best ${quiz.best_score_percent}%</span>` : '')}${String(Number(quiz.attempt_count) ? `<span class="trn-meta-pill"><i class="fas fa-clock-rotate-left"></i> ${Number(quiz.attempt_count)} attempt${Number(quiz.attempt_count) === 1 ? '' : 's'}</span>` : '')}</div>
+          <div class="trn-meta-row">${String(quiz.best_score_percent != null ? `<span class="trn-meta-pill green"><i class="fas fa-ranking-star"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("training","m_16bcb758a076ba",` Best ${v0}%`,{v0}) ?? ` Best ${v0}%`)(quiz.best_score_percent)}</span>` : '')}${String(Number(quiz.attempt_count) ? `<span class="trn-meta-pill"><i class="fas fa-clock-rotate-left"></i>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("training","m_4e20b8927f6c81",` ${v0} attempt${v1}`,{v0,v1}) ?? ` ${v0} attempt${v1}`)(Number(quiz.attempt_count),Number(quiz.attempt_count) === 1 ? '' : 's')}</span>` : '')}</div>
           <div class="trn-sheet-actions" style="--trn-accent:${String(esc(accent))}">
-            <button class="trn-btn green" type="button" data-quiz-take><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("training","m_39fc7a77092cc6"," Take the quiz") ?? " Take the quiz")}</button>
-            <button class="trn-btn" type="button" data-quiz-practice><i class="fas fa-dumbbell"></i>${(globalThis.PlatformLanguage?.text("training","m_71c0ec946a8844"," Practice run") ?? " Practice run")}</button>
+            <button class="trn-btn green" type="button" data-quiz-take><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_39fc7a77092cc6"," Take the quiz") ?? " Take the quiz")}</button>
+            <button class="trn-btn" type="button" data-quiz-practice><i class="fas fa-dumbbell"></i>${(globalThis.PlatformLanguage?.htmlText("training","m_71c0ec946a8844"," Practice run") ?? " Practice run")}</button>
           </div>`);
         const run = (practice) => {
           sheet.close();
@@ -1114,14 +1114,14 @@
 
     const renderDecks = () => {
       if (!decks) { page.innerHTML = stateHtml('loading', 'Fetching your decks'); return; }
-      page.innerHTML = `<div><div class="trn-eyebrow">${(globalThis.PlatformLanguage?.text("training","m_a912b2f761593a","Flashcards") ?? "Flashcards")}</div><h1 class="trn-h1">${(globalThis.PlatformLanguage?.text("training","m_1be9f9bb2ecd9e","Your decks") ?? "Your decks")}</h1><p class="trn-sub">${(globalThis.PlatformLanguage?.text("training","m_0182ef9e2d918e","Each course brings its own decks — some open right away, others unlock as you finish lessons.") ?? "Each course brings its own decks — some open right away, others unlock as you finish lessons.")}</p></div>
+      page.innerHTML = `<div><div class="trn-eyebrow">${(globalThis.PlatformLanguage?.htmlText("training","m_a912b2f761593a","Flashcards") ?? "Flashcards")}</div><h1 class="trn-h1">${(globalThis.PlatformLanguage?.htmlText("training","m_1be9f9bb2ecd9e","Your decks") ?? "Your decks")}</h1><p class="trn-sub">${(globalThis.PlatformLanguage?.htmlText("training","m_0182ef9e2d918e","Each course brings its own decks — some open right away, others unlock as you finish lessons.") ?? "Each course brings its own decks — some open right away, others unlock as you finish lessons.")}</p></div>
         ${String(decks.length ? `<div style="display:grid;gap:11px">${groupedRows(decks, 'deck')}</div>` : stateHtml('empty', 'Your courses have no flashcard decks yet.', 'fa-layer-group'))}`;
       bindRowClicks('deck', openDeck);
     };
 
     const renderQuizzes = () => {
       if (!quizzes) { page.innerHTML = stateHtml('loading', 'Sharpening the questions'); return; }
-      page.innerHTML = `<div><div class="trn-eyebrow">${(globalThis.PlatformLanguage?.text("training","m_4a5dfd551fdb16","Practice quizzes") ?? "Practice quizzes")}</div><h1 class="trn-h1">${(globalThis.PlatformLanguage?.text("training","m_75aac77885b038","Your quizzes") ?? "Your quizzes")}</h1><p class="trn-sub">${(globalThis.PlatformLanguage?.text("training","m_64dec87d865ea3","Scored runs count toward your best. Practice runs are just for you.") ?? "Scored runs count toward your best. Practice runs are just for you.")}</p></div>
+      page.innerHTML = `<div><div class="trn-eyebrow">${(globalThis.PlatformLanguage?.htmlText("training","m_4a5dfd551fdb16","Practice quizzes") ?? "Practice quizzes")}</div><h1 class="trn-h1">${(globalThis.PlatformLanguage?.htmlText("training","m_75aac77885b038","Your quizzes") ?? "Your quizzes")}</h1><p class="trn-sub">${(globalThis.PlatformLanguage?.htmlText("training","m_64dec87d865ea3","Scored runs count toward your best. Practice runs are just for you.") ?? "Scored runs count toward your best. Practice runs are just for you.")}</p></div>
         ${String(quizzes.length ? `<div style="display:grid;gap:11px">${groupedRows(quizzes, 'quiz')}</div>` : stateHtml('empty', 'Your courses have no practice quizzes yet.', 'fa-bolt'))}`;
       bindRowClicks('quiz', openQuiz);
     };

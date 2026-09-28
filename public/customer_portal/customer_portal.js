@@ -320,8 +320,8 @@
       return `
         <section class="cp-feedback-card rated">
           <div class="cp-feedback-copy">
-            <strong>Thanks for your feedback!</strong>
-            <span>We appreciate you taking the time to share how we did.</span>
+            <strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_b59a8704909b48","Thanks for your feedback!") ?? "Thanks for your feedback!")}</strong>
+            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d96baabfa23bb5","We appreciate you taking the time to share how we did.") ?? "We appreciate you taking the time to share how we did.")}</span>
           </div>
         </section>
       `;
@@ -370,7 +370,7 @@
     if (bundles.length === 1) {
       return `
         <div class="cp-project-id">
-          <span class="cp-project-eyebrow">Project</span>
+          <span class="cp-project-eyebrow">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_aaebd7ccba0b30","Project") ?? "Project")}</span>
           <strong>${escapeHtml(label)}</strong>
           ${address ? `<span class="cp-project-address">${escapeHtml(address)}</span>` : ''}
         </div>
@@ -380,7 +380,7 @@
       <div class="cp-project-switch" data-project-switch>
         <button type="button" class="cp-project-switch-btn" data-project-switch-toggle aria-haspopup="listbox" aria-expanded="${state.projectMenuOpen ? 'true' : 'false'}">
           <span class="cp-project-id">
-            <span class="cp-project-eyebrow">Project ${activeIndex + 1} of ${bundles.length}</span>
+            <span class="cp-project-eyebrow">${((v1,v2) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_9dabc5bf3cc45f",`Project ${v1} of ${v2}`,{v1,v2}) ?? `Project ${v1} of ${v2}`)(activeIndex + 1,bundles.length)}</span>
             <strong>${escapeHtml(label)}</strong>
             ${address ? `<span class="cp-project-address">${escapeHtml(address)}</span>` : ''}
           </span>
@@ -476,9 +476,10 @@
     const outputKey = cleanText(key);
     const cached = cpwfObject(documentSnapshotCache[tokenKey]);
     const snapshot = cpwfObject(cached.snapshot);
-    if (Object.keys(snapshot).length) snapshot.outputs = { ...cpwfObject(snapshot.outputs), [outputKey]: value };
+    const isSignature = !!value?.__signing;
+    if (!isSignature && Object.keys(snapshot).length) snapshot.outputs = { ...cpwfObject(snapshot.outputs), [outputKey]: value };
     const workflowRecord = documentWorkflowCache[tokenKey];
-    if (workflowRecord && workflowRecord !== 'pending') workflowRecord.outputs = { ...cpwfObject(workflowRecord.outputs), [outputKey]: value };
+    if (!isSignature && workflowRecord && workflowRecord !== 'pending') workflowRecord.outputs = { ...cpwfObject(workflowRecord.outputs), [outputKey]: value };
     updateDocumentTaskPanel(tokenKey);
     try {
       const evidence = await signatureEvidencePayload();
@@ -535,7 +536,11 @@
       // The server-evaluated total is the displayed amount due (the charge
       // amount is recomputed server-side again when the output records).
       if (value && typeof value === 'object') value.amount_cents = totalCents;
-      return window.confirm(`${message}\n\nContinue with this payment?`);
+      return window.confirm(((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_7c3f944e31579f",`${v0}
+
+Continue with this payment?`,{v0}) ?? `${v0}
+
+Continue with this payment?`)(message));
     } catch (error) {
       return true;
     }
@@ -604,7 +609,7 @@
       allowSavePaymentMethod: true,
       primaryColor,
       secondaryColor,
-      details: [{ label: 'For', value: cleanText(document.title) || 'Project document' }],
+      details: [{ label: (globalThis.PlatformLanguage?.text("customer-portal","m_d7c7704979ef7e","For") ?? "For"), value: cleanText(document.title) || 'Project document' }],
       submitLabel: 'Pay',
       successTitle: 'Payment complete',
       successDescription: `${moneyFormat(amountCents / 100)} was recorded for this project.`,
@@ -727,6 +732,7 @@
     return documentWorkflowActionable(token, doc) ? 'workflow' : 'document';
   }
   function queueDocumentWorkflowOutput(token, key, value){
+    if (value?.__signing) return submitDocumentOutput(token, key, value);
     const tokenKey = cleanText(token);
     const outputKey = cleanText(key);
     const record = documentWorkflowCache[tokenKey];
@@ -768,7 +774,7 @@
     overlay.innerHTML = `
       <header class="fmdw-overlay-head">
         <strong>${escapeHtml(cleanText(doc.title) || documentTypeLabel(doc.document_type))}</strong>
-        <button type="button" class="fmdw-overlay-close" data-workflow-close aria-label="Close">&#10005;</button>
+        <button type="button" class="fmdw-overlay-close" data-workflow-close aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3742924668fb10","Close") ?? "Close")}">&#10005;</button>
       </header>
       <div class="fmdw-overlay-body"><div data-workflow-host></div></div>`;
     document.body.appendChild(overlay);
@@ -799,7 +805,7 @@
         onWrite: (path, value) => {
           const target = cleanText(path);
           if (!target.startsWith('outputs.')) return;
-          queueDocumentWorkflowOutput(key, target.slice('outputs.'.length), value);
+          return queueDocumentWorkflowOutput(key, target.slice('outputs.'.length), value);
         },
         onStepState: () => { /* customer step state is not persisted publicly */ },
         onComplete: close,
@@ -911,7 +917,7 @@
     const complete = tasks.filter((task) => task.done).length;
     const nextIndex = tasks.findIndex((task) => !task.done);
     return `<div class="cp-doc-task-panel" data-document-tasks="${escapeHtml(cleanText(token))}">
-      <div class="cp-doc-task-head"><span>To do</span><strong>${complete}/${tasks.length}</strong></div>
+      <div class="cp-doc-task-head"><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_1e72217cf350a0","To do") ?? "To do")}</span><strong>${complete}/${tasks.length}</strong></div>
       <div class="cp-doc-task-progress"><i style="width:${tasks.length ? Math.round(complete / tasks.length * 100) : 0}%"></i></div>
       <ol>${tasks.map((task, index) => `<li class="${task.done ? 'done' : ''}"><button type="button" data-document-task-phase="${escapeHtml(task.phase)}" data-document-task-step="${escapeHtml(task.stepId)}" data-document-task-focus="${escapeHtml(task.icon)}"><span><i class="fa-solid ${task.done ? 'fa-check' : task.icon}" aria-hidden="true"></i></span><div><strong>${escapeHtml(task.label)}</strong><small>${task.done ? 'Complete' : index === nextIndex ? 'Up next' : (task.required === false ? 'Optional' : 'Required')}</small></div></button></li>`).join('')}</ol>
     </div>`;
@@ -926,7 +932,7 @@
   }
   function documentsPanel(docs, descriptor){
     if (!docs.length) {
-      return '<section class="cp-panel"><div class="cp-empty">No documents have been shared yet.</div></section>';
+      return `<section class="cp-panel"><div class="cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_6f3dd34cc86d1a","No documents have been shared yet.") ?? "No documents have been shared yet.")}</div></section>`;
     }
     const active = activePortalDocument() || docs[0];
     const activeToken = cleanText(active?.public_token);
@@ -951,11 +957,11 @@
     const pdfUrl = phase === 'document' && root.DocumentsAPI ? root.DocumentsAPI.public.pdfUrl(activeToken) : '';
     let stage;
     if (phase === 'document' && !documentEngineReady()) {
-      stage = `<div class="cp-empty">This document is best viewed as a PDF.${pdfUrl ? ` <a href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF</a>` : ''}</div>`;
+      stage = `<div class="cp-empty">This document is best viewed as a PDF.${pdfUrl ? ` <a href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_27faa26cc36a51","Open PDF") ?? "Open PDF")}</a>` : ''}</div>`;
     } else if (cached && cached.error) {
       stage = `<div class="cp-empty">${escapeHtml(cached.error)}</div>`;
     } else if (phase === 'document') {
-      stage = '<div id="cpDocumentStage" class="cp-doc-stage" data-doc-token="' + escapeHtml(activeToken) + '"><div class="cp-loading">Loading document...</div></div>';
+      stage = '<div id="cpDocumentStage" class="cp-doc-stage" data-doc-token="' + escapeHtml(activeToken) + `"><div class="cp-loading">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2f5ece5412be45","Loading document...") ?? "Loading document...")}</div></div>`;
     } else {
       stage = '';
     }
@@ -966,11 +972,11 @@
           <div class="cp-doc-toolbar">
             <div><span>${escapeHtml(cleanText(descriptor?.label) || documentTypeLabel(active?.document_type))}</span><strong>${escapeHtml(cleanText(active?.title) || documentTypeLabel(active?.document_type))}</strong></div>
             <div class="cp-doc-toolbar-actions">
-              ${mode === 'hybrid' && phase === 'document' ? `<button type="button" class="cp-doc-change-step" data-document-show-workflow="${escapeHtml(activeToken)}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>Change selections</span></button>` : ''}
-              ${pdfUrl ? `<a class="cp-doc-icon-btn" href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener" aria-label="Download PDF" title="Download PDF"><i class="fa-solid fa-download" aria-hidden="true"></i></a>` : ''}
+              ${mode === 'hybrid' && phase === 'document' ? `<button type="button" class="cp-doc-change-step" data-document-show-workflow="${escapeHtml(activeToken)}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_b6143b01996f97","Change selections") ?? "Change selections")}</span></button>` : ''}
+              ${pdfUrl ? `<a class="cp-doc-icon-btn" href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4944e59816b60a","Download PDF") ?? "Download PDF")}" title="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4944e59816b60a","Download PDF") ?? "Download PDF")}"><i class="fa-solid fa-download" aria-hidden="true"></i></a>` : ''}
             </div>
           </div>
-          ${phase === 'workflow' ? `<section class="cp-doc-workflow-inline" data-inline-document-workflow="${escapeHtml(activeToken)}"><div class="cp-loading">Loading your next step...</div></section>` : ''}
+          ${phase === 'workflow' ? `<section class="cp-doc-workflow-inline" data-inline-document-workflow="${escapeHtml(activeToken)}"><div class="cp-loading">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_1552b0ceca5d2f","Loading your next step...") ?? "Loading your next step...")}</div></section>` : ''}
           ${stage}
         </div>
       </section>
@@ -1002,7 +1008,7 @@
         },
         onWrite: (path, value) => {
           const target = cleanText(path);
-          if (target.startsWith('outputs.')) queueDocumentWorkflowOutput(key, target.slice('outputs.'.length), value);
+          if (target.startsWith('outputs.')) return queueDocumentWorkflowOutput(key, target.slice('outputs.'.length), value);
         },
         onStepState: (next) => {
           record.state = { ...cpwfObject(record.state), ...cpwfObject(next) };
@@ -1028,7 +1034,7 @@
         activeInlineDocumentWorkflow.refresh?.({ current_step: stepId });
       }
     } catch (error) {
-      host.innerHTML = '<div class="cp-empty">This workflow is unavailable right now.</div>';
+      host.innerHTML = `<div class="cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_29e9e478faa698","This workflow is unavailable right now.") ?? "This workflow is unavailable right now.")}</div>`;
     }
   }
   function mountDocumentStage(){
@@ -1100,7 +1106,7 @@
       // lightbox via ONE document-level delegate — safe to call repeatedly.
       try { root.FMDocWidgets?.installLightboxDelegate?.(); } catch (error) {}
     } catch (error) {
-      stage.innerHTML = '<div class="cp-empty">We could not display this document. Try the PDF download instead.</div>';
+      stage.innerHTML = `<div class="cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8db10c474f07bf","We could not display this document. Try the PDF download instead.") ?? "We could not display this document. Try the PDF download instead.")}</div>`;
     }
   }
   function refreshVisibleDocumentSnapshot(token, payload){
@@ -1148,12 +1154,12 @@
   }
   function customPagePanel(){
     const tab = tabs().find((item) => item.kind === 'custom' && item.id === state.activeTab);
-    if (!tab) return '<div class="cp-custom-page-empty">This page is no longer available.</div>';
-    return `<div class="cp-custom-page" id="cpCustomPage" data-page-id="${escapeHtml(tab.pageId)}"><div class="cp-loading">Loading page...</div></div>`;
+    if (!tab) return `<div class="cp-custom-page-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_53a041bcb32505","This page is no longer available.") ?? "This page is no longer available.")}</div>`;
+    return `<div class="cp-custom-page" id="cpCustomPage" data-page-id="${escapeHtml(tab.pageId)}"><div class="cp-loading">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9e40e28f8f02bf","Loading page...") ?? "Loading page...")}</div></div>`;
   }
   function summaryExtensionPanel(pageId){
     const id = cleanText(pageId);
-    return id ? `<section class="cp-summary-custom" aria-label="Additional project information"><div class="cp-custom-page" id="cpCustomPage" data-page-id="${escapeHtml(id)}"><div class="cp-loading">Loading additional content...</div></div></section>` : '';
+    return id ? `<section class="cp-summary-custom" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_c5de8ef577c35b","Additional project information") ?? "Additional project information")}"><div class="cp-custom-page" id="cpCustomPage" data-page-id="${escapeHtml(id)}"><div class="cp-loading">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_953902899d3492","Loading additional content...") ?? "Loading additional content...")}</div></div></section>` : '';
   }
   async function ensureCustomPagePayload(pageId){
     const key = cleanText(pageId);
@@ -1389,7 +1395,7 @@
     if (!stage) return;
     const pageId = cleanText(stage.dataset.pageId);
     if (!pageId || !root.FMDocRenderer) {
-      stage.innerHTML = '<div class="cp-custom-page-empty">This page could not be displayed.</div>';
+      stage.innerHTML = `<div class="cp-custom-page-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d14cee5bf47399","This page could not be displayed.") ?? "This page could not be displayed.")}</div>`;
       return;
     }
     const cached = customPageCache[pageId];
@@ -1428,7 +1434,7 @@
         }
       });
     } catch (error) {
-      stage.innerHTML = '<div class="cp-custom-page-empty">We could not display this page.</div>';
+      stage.innerHTML = `<div class="cp-custom-page-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_eeea87e651d027","We could not display this page.") ?? "We could not display this page.")}</div>`;
       return;
     }
     fitCustomPageStage(cached.definition);
@@ -1502,14 +1508,14 @@
         const baseId = cleanText(event.id) || `work_${start.getTime()}`;
         return [{
           ...event,
-          title: `${baseTitle} starts`,
+          title: ((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_3aa492a028ffec",`${v0} starts`,{v0}) ?? `${v0} starts`)(baseTitle),
           is_estimate: false,
           has_estimated_dates: event.is_estimate === true,
           timeline_kind: 'work_start'
         }, {
           ...event,
           id: `${baseId}_end`,
-          title: `${baseTitle} ends`,
+          title: ((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_6c90b1263e9718",`${v0} ends`,{v0}) ?? `${v0} ends`)(baseTitle),
           start_at: markerStart,
           end_at: '',
           all_day: true,
@@ -1560,15 +1566,15 @@
   }
   function legacyTabs(){
     const base = [
-      { id: 'summary', label: 'Summary' },
-      { id: 'schedule', label: 'Schedule' },
-      { id: 'photos', label: 'Photos' },
-      ...(checklistList(activeProjectPayload()).length ? [{ id: 'checklists', label: 'Checklists' }] : []),
-      { id: 'proposals', label: 'Proposals' },
-      { id: 'payments', label: 'Payments' }
+      { id: 'summary', label: (globalThis.PlatformLanguage?.text("customer-portal","m_9b03ccb29ba168","Summary") ?? "Summary") },
+      { id: 'schedule', label: (globalThis.PlatformLanguage?.text("customer-portal","m_fc05a804bd034c","Schedule") ?? "Schedule") },
+      { id: 'photos', label: (globalThis.PlatformLanguage?.text("customer-portal","m_be4cfb58b9c4d7","Photos") ?? "Photos") },
+      ...(checklistList(activeProjectPayload()).length ? [{ id: 'checklists', label: (globalThis.PlatformLanguage?.text("customer-portal","m_4890d3d11dc3eb","Checklists") ?? "Checklists") }] : []),
+      { id: 'proposals', label: (globalThis.PlatformLanguage?.text("customer-portal","m_3129f3f0e39249","Proposals") ?? "Proposals") },
+      { id: 'payments', label: (globalThis.PlatformLanguage?.text("customer-portal","m_5842802f6c8cbb","Payments") ?? "Payments") }
     ];
-    if (documentList(activeProjectPayload()).length) base.splice(4, 0, { id: 'documents', label: 'Documents' });
-    if (punchLists().length) base.push({ id: 'punch_lists', label: 'Your List' });
+    if (documentList(activeProjectPayload()).length) base.splice(4, 0, { id: 'documents', label: (globalThis.PlatformLanguage?.text("customer-portal","m_5d7c7ad6033624","Documents") ?? "Documents") });
+    if (punchLists().length) base.push({ id: 'punch_lists', label: (globalThis.PlatformLanguage?.text("customer-portal","m_83e0a1f309f1da","Your List") ?? "Your List") });
     return base.concat(customPortalPageTabs());
   }
   function customPortalPageTabs(){
@@ -1604,10 +1610,10 @@
   }
   function checklistPanel(payload = activeProjectPayload()){
     const checklists = checklistList(payload);
-    if (!checklists.length) return '<div class="cp-checklist-empty">There are no customer checklists for this project.</div>';
+    if (!checklists.length) return `<div class="cp-checklist-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cbf335f6f216cb","There are no customer checklists for this project.") ?? "There are no customer checklists for this project.")}</div>`;
     const readOnlyPreview = isPreviewMode();
     return `<section class="cp-checklists">
-      <header class="cp-checklists-head"><div><h2>Project checklists</h2><p>Review project requirements and complete any items assigned to you.</p></div></header>
+      <header class="cp-checklists-head"><div><h2>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3a4227555210a4","Project checklists") ?? "Project checklists")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_fa42021034be38","Review project requirements and complete any items assigned to you.") ?? "Review project requirements and complete any items assigned to you.")}</p></div></header>
       ${checklists.map((checklist) => {
         const access = checklist.customer_access || {};
         const items = Array.isArray(checklist.items) ? checklist.items : [];
@@ -1618,9 +1624,9 @@
         const canEdit = access.can_edit_items === true && !readOnlyPreview;
         const voiceMode = cleanText(access.voice_mode || 'off');
         return `<article class="cp-checklist" data-cp-checklist="${escapeHtml(checklist.id)}">
-          <div class="cp-checklist-head"><span class="cp-checklist-icon">✓</span><div class="cp-checklist-copy"><strong>${escapeHtml(checklist.title || 'Checklist')}</strong>${checklist.description ? `<span>${escapeHtml(checklist.description)}</span>` : ''}</div><div class="cp-checklist-progress">${completed}/${items.length}<span class="cp-checklist-progress-bar"><i style="width:${percent}%"></i></span></div></div>
-          <div class="cp-checklist-permissions"><span class="cp-checklist-permission ${customerMayComplete ? 'action' : ''}">${customerMayComplete ? 'Customer can complete' : 'Project team checklist'}</span>${access.can_edit_items === true ? '<span class="cp-checklist-permission action">Customer can edit items</span>' : ''}${voiceMode !== 'off' ? `<span class="cp-checklist-permission">Voice: ${voiceMode === 'edit' ? 'complete + edit' : 'complete only'}</span>` : ''}</div>
-          ${voiceMode !== 'off' && !readOnlyPreview ? `<button type="button" class="cp-checklist-voice-btn" data-cp-checklist-voice><span aria-hidden="true">●</span> Update with voice</button><div class="cp-checklist-voice" data-cp-checklist-voice-mount></div>` : ''}
+          <div class="cp-checklist-head"><span class="cp-checklist-icon">✓</span><div class="cp-checklist-copy"><strong>${escapeHtml(checklist.title || (globalThis.PlatformLanguage?.text("customer-portal","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"))}</strong>${checklist.description ? `<span>${escapeHtml(checklist.description)}</span>` : ''}</div><div class="cp-checklist-progress">${completed}/${items.length}<span class="cp-checklist-progress-bar"><i style="width:${percent}%"></i></span></div></div>
+          <div class="cp-checklist-permissions"><span class="cp-checklist-permission ${customerMayComplete ? 'action' : ''}">${customerMayComplete ? 'Customer can complete' : 'Project team checklist'}</span>${access.can_edit_items === true ? `<span class="cp-checklist-permission action">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_73b4896766269d","Customer can edit items") ?? "Customer can edit items")}</span>` : ''}${voiceMode !== 'off' ? `<span class="cp-checklist-permission">${((v0) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_59839e02479775",`Voice: ${v0}`,{v0}) ?? `Voice: ${v0}`)(voiceMode === 'edit' ? 'complete + edit' : 'complete only')}</span>` : ''}</div>
+          ${voiceMode !== 'off' && !readOnlyPreview ? `<button type="button" class="cp-checklist-voice-btn" data-cp-checklist-voice><span aria-hidden="true">●</span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_f35187c447e727"," Update with voice") ?? " Update with voice")}</button><div class="cp-checklist-voice" data-cp-checklist-voice-mount></div>` : ''}
           <div class="cp-checklist-items">${items.map((item) => {
             const requirements = Array.isArray(item.requirements) ? item.requirements : [];
             const attachments = Array.isArray(item.attachments) ? item.attachments : [];
@@ -1634,16 +1640,16 @@
             const rating = item.item_type === 'rating';
             return `<div class="cp-checklist-item ${item.completed ? 'done' : ''}" data-cp-checklist-item="${escapeHtml(item.id)}">
               <div class="cp-checklist-item-main">
-                ${rating ? '' : `<button type="button" class="cp-checklist-toggle" data-cp-checklist-toggle ${canComplete ? '' : 'disabled'} aria-label="${item.completed ? 'Reopen' : 'Complete'} item">${item.completed ? '✓' : ''}</button>`}
-                <div class="cp-checklist-item-copy"><strong>${escapeHtml(item.title)}</strong>${item.description ? `<span>${escapeHtml(item.description)}</span>` : ''}${item.completed_at ? `<span>Completed ${escapeHtml(new Date(item.completed_at).toLocaleDateString())}${item.completed_by_customer ? ' by customer' : ''}</span>` : ''}</div>
+                ${rating ? '' : `<button type="button" class="cp-checklist-toggle" data-cp-checklist-toggle ${canComplete ? '' : 'disabled'} aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_f57dd121e0c901",`${v1} item`,{v1}) ?? `${v1} item`)(item.completed ? 'Reopen' : 'Complete')}">${item.completed ? '✓' : ''}</button>`}
+                <div class="cp-checklist-item-copy"><strong>${escapeHtml(item.title)}</strong>${item.description ? `<span>${escapeHtml(item.description)}</span>` : ''}${item.completed_at ? `<span>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_c0db38fc6a92a6",`Completed ${v0}${v1}`,{v0,v1}) ?? `Completed ${v0}${v1}`)(escapeHtml(new Date(item.completed_at).toLocaleDateString()),item.completed_by_customer ? ' by customer' : '')}</span>` : ''}</div>
                 ${rating ? `<div class="cp-checklist-rating">${['good','neutral','bad'].map((value) => `<button type="button" data-cp-checklist-rating="${value}" class="${item.rating === value ? 'active' : ''}" ${canComplete ? '' : 'disabled'}>${value === 'good' ? 'Good' : value === 'neutral' ? 'Okay' : 'Needs work'}</button>`).join('')}</div>` : ''}
-                ${canEdit ? `<div class="cp-checklist-item-actions"><button class="cp-checklist-small-btn" type="button" data-cp-checklist-rename aria-label="Rename item">✎</button><button class="cp-checklist-small-btn" type="button" data-cp-checklist-remove aria-label="Remove item">×</button></div>` : ''}
+                ${canEdit ? `<div class="cp-checklist-item-actions"><button class="cp-checklist-small-btn" type="button" data-cp-checklist-rename aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_22f99c71c3518b","Rename item") ?? "Rename item")}">✎</button><button class="cp-checklist-small-btn" type="button" data-cp-checklist-remove aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_79a02ecd535f66","Remove item") ?? "Remove item")}">×</button></div>` : ''}
               </div>
-              ${canComplete ? `<div class="cp-checklist-note"><textarea data-cp-checklist-note placeholder="Add an optional note${rating ? ' (required for Needs work)' : ''}">${escapeHtml(item.note || '')}</textarea><button type="button" data-cp-checklist-note-save>Save</button></div>` : (item.note ? `<div class="cp-checklist-note"><span>${escapeHtml(item.note)}</span></div>` : '')}
-              ${requirements.length || attachments.length ? `<div class="cp-checklist-evidence">${evidence}${attachments.length ? `<span class="met">${attachments.length} attachment${attachments.length === 1 ? '' : 's'}</span>` : ''}<input type="file" hidden data-cp-checklist-file></div>` : ''}
+              ${canComplete ? `<div class="cp-checklist-note"><textarea data-cp-checklist-note placeholder="${((v0) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_dd30440abc8a5f",`Add an optional note${v0}`,{v0}) ?? `Add an optional note${v0}`)(rating ? ' (required for Needs work)' : '')}">${escapeHtml(item.note || '')}</textarea><button type="button" data-cp-checklist-note-save>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5bab3e72de1ebf","Save") ?? "Save")}</button></div>` : (item.note ? `<div class="cp-checklist-note"><span>${escapeHtml(item.note)}</span></div>` : '')}
+              ${requirements.length || attachments.length ? `<div class="cp-checklist-evidence">${evidence}${attachments.length ? `<span class="met">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_e4575c3afa82e7",`${v0} attachment${v1}`,{v0,v1}) ?? `${v0} attachment${v1}`)(attachments.length,attachments.length === 1 ? '' : 's')}</span>` : ''}<input type="file" hidden data-cp-checklist-file></div>` : ''}
             </div>`;
-          }).join('') || '<div class="cp-checklist-empty">This checklist does not have any items yet.</div>'}</div>
-          ${canEdit ? '<div class="cp-checklist-add"><input data-cp-checklist-add-input placeholder="Add a checklist item"><button type="button" data-cp-checklist-add>Add item</button></div>' : ''}
+          }).join('') || `<div class="cp-checklist-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_515c843668de04","This checklist does not have any items yet.") ?? "This checklist does not have any items yet.")}</div>`}</div>
+          ${canEdit ? `<div class="cp-checklist-add"><input data-cp-checklist-add-input placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8df519ddf54757","Add a checklist item") ?? "Add a checklist item")}"><button type="button" data-cp-checklist-add>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4d801afb3ef0c9","Add item") ?? "Add item")}</button></div>` : ''}
         </article>`;
       }).join('')}
     </section>`;
@@ -1660,6 +1666,7 @@
   async function refreshPortalPayload(){
     if (!cfg.id || !api?.customerPortals?.publicGet) return;
     const payload = await api.customerPortals.publicGet(cfg.id, { preview: cfg.preview });
+    if(payload.language){root.PlatformLanguage?.configure?.({context:payload.language.context});root.PlatformTerminology?.setConfig?.({mappings:payload.language.terminology});await root.PlatformLanguage?.ensure?.(['customer-portal']);}
     state.payload = payload;
     state.activeProjectId = cleanText(state.activeProjectId || payload?.contact_portal?.active_project_id || payload?.project?.id);
     applyBranding(payload);
@@ -1774,11 +1781,11 @@
     return `
       <section class="cp-widget">
         <div class="cp-section-head">
-          <h2>Photos</h2>
-          <span>${media.length} item${media.length === 1 ? '' : 's'}</span>
+          <h2>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_be4cfb58b9c4d7","Photos") ?? "Photos")}</h2>
+          <span>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_40810d498e9130",`${v0} item${v1}`,{v0,v1}) ?? `${v0} item${v1}`)(media.length,media.length === 1 ? '' : 's')}</span>
         </div>
-        ${items.length ? `<div class="cp-media-grid${compact ? ' compact' : ''}">${items.map(mediaHtml).join('')}</div>` : '<div class="cp-empty">No photos or videos have been shared yet.</div>'}
-        ${compact && media.length > items.length ? '<button type="button" class="cp-link-btn" data-tab-target="photos">View all photos</button>' : ''}
+        ${items.length ? `<div class="cp-media-grid${compact ? ' compact' : ''}">${items.map(mediaHtml).join('')}</div>` : `<div class="cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_136464fd464ca5","No photos or videos have been shared yet.") ?? "No photos or videos have been shared yet.")}</div>`}
+        ${compact && media.length > items.length ? `<button type="button" class="cp-link-btn" data-tab-target="photos">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_1592c59e8f4105","View all photos") ?? "View all photos")}</button>` : ''}
         ${compact ? '' : customerUploadSection('photo')}
       </section>
     `;
@@ -1806,16 +1813,16 @@
     return `
       <section class="cp-uploads" data-upload-kind="${escapeHtml(kind)}">
         <div class="cp-section-head">
-          <h2>Your ${escapeHtml(label)}</h2>
-          <span>${uploads.length} shared</span>
+          <h2>${((v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_fc1e961a30dda0",`Your ${v1}`,{v1}) ?? `Your ${v1}`)(escapeHtml(label))}</h2>
+          <span>${((v2) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_f6b7da8a87b6f1",`${v2} shared`,{v2}) ?? `${v2} shared`)(uploads.length)}</span>
         </div>
-        ${uploads.length ? `<ul class="cp-upload-list">${uploads.map(customerUploadRow).join('')}</ul>` : `<div class="cp-empty">You have not shared any ${escapeHtml(label)} yet.</div>`}
+        ${uploads.length ? `<ul class="cp-upload-list">${uploads.map(customerUploadRow).join('')}</ul>` : `<div class="cp-empty">${((v0) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_2582ee52db69a8",`You have not shared any ${v0} yet.`,{v0}) ?? `You have not shared any ${v0} yet.`)(escapeHtml(label))}</div>`}
         ${allowed && !isPreviewMode() ? `
           <div class="cp-upload-form">
-            ${requireCaption ? `<input type="text" class="cp-upload-caption" data-upload-caption placeholder="Describe this ${kind === 'document' ? 'document' : 'photo'}" maxlength="500">` : ''}
+            ${requireCaption ? `<input type="text" class="cp-upload-caption" data-upload-caption placeholder="${((v0) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_5f5fdaa335973b",`Describe this ${v0}`,{v0}) ?? `Describe this ${v0}`)(kind === 'document' ? 'document' : 'photo')}" maxlength="500">` : ''}
             <label class="cp-upload-btn">
               <i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i>
-              <span>Add ${escapeHtml(kind === 'document' ? 'a document' : 'a photo')}</span>
+              <span>${((v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_ba84599d22236c",`Add ${v1}`,{v1}) ?? `Add ${v1}`)(escapeHtml(kind === 'document' ? 'a document' : 'a photo'))}</span>
               <input type="file" accept="${escapeHtml(accept)}" data-upload-input hidden>
             </label>
             <p class="cp-upload-hint" data-upload-status></p>
@@ -1840,7 +1847,7 @@
           <strong>${escapeHtml(cleanText(upload.caption) || cleanText(upload.file_name) || 'Shared file')}</strong>
           <span>${escapeHtml(formatUploadDate(upload.uploaded_at))}</span>
         </div>
-        ${isPreviewMode() ? '' : `<button type="button" class="cp-upload-remove" data-withdraw-upload="${escapeHtml(mediaId)}" title="Remove from your portal"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`}
+        ${isPreviewMode() ? '' : `<button type="button" class="cp-upload-remove" data-withdraw-upload="${escapeHtml(mediaId)}" title="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_95fc1f316a2ff0","Remove from your portal") ?? "Remove from your portal")}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`}
       </li>
     `;
   }
@@ -1862,7 +1869,7 @@
   }
   function punchPanel(payload = activeProjectPayload()){
     const lists = punchLists(payload);
-    if (!lists.length) return '<div class="cp-empty">There is nothing for you to review right now.</div>';
+    if (!lists.length) return `<div class="cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8c81124e22a7c7","There is nothing for you to review right now.") ?? "There is nothing for you to review right now.")}</div>`;
     return `<section class="cp-punch-lists">${lists.map(punchCard).join('')}</section>`;
   }
   function punchCard(list = {}){
@@ -1920,20 +1927,19 @@
     return `
       <form class="cp-punch-add" data-punch-add="${listId}">
         <div class="cp-punch-add-row">
-          <input type="text" data-punch-title placeholder="What still needs attention?" maxlength="200" required>
-          <button type="submit" data-punch-add-submit>Add</button>
+          <input type="text" data-punch-title placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3258349622fb52","What still needs attention?") ?? "What still needs attention?")}" maxlength="200" required>
+          <button type="submit" data-punch-add-submit>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_c807a71e1c06f5","Add") ?? "Add")}</button>
         </div>
-        <textarea data-punch-note placeholder="Add a note — what and where, so we know exactly what you mean" maxlength="2000" rows="2" hidden></textarea>
+        <textarea data-punch-note placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_482a59f0ab071d","Add a note — what and where, so we know exactly what you mean") ?? "Add a note — what and where, so we know exactly what you mean")}" maxlength="2000" rows="2" hidden></textarea>
         <div class="cp-punch-pending" data-punch-pending hidden></div>
         <div class="cp-punch-add-extras">
-          <button type="button" class="cp-punch-extra" data-punch-note-toggle><i class="fa-solid fa-align-left" aria-hidden="true"></i> Note</button>
+          <button type="button" class="cp-punch-extra" data-punch-note-toggle><i class="fa-solid fa-align-left" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_aaa2ee703d7129"," Note") ?? " Note")}</button>
           <label class="cp-punch-extra">
-            <i class="fa-solid fa-camera" aria-hidden="true"></i> Photo
-            <input type="file" accept="image/*,video/*" data-punch-add-media multiple hidden>
+            <i class="fa-solid fa-camera" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_41e6541f249367"," Photo\n            ") ?? " Photo\n            ")}<input type="file" accept="image/*,video/*" data-punch-add-media multiple hidden>
           </label>
-          <button type="button" class="cp-punch-extra" data-punch-add-audio><i class="fa-solid fa-microphone" aria-hidden="true"></i> Voice note</button>
+          <button type="button" class="cp-punch-extra" data-punch-add-audio><i class="fa-solid fa-microphone" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e4d3be6cbd9935"," Voice note") ?? " Voice note")}</button>
         </div>
-        ${list.max_items ? `<p class="cp-punch-hint">${items.length} of ${list.max_items} items</p>` : ''}
+        ${list.max_items ? `<p class="cp-punch-hint">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_c0b9222208da40",`${v0} of ${v1} items`,{v0,v1}) ?? `${v0} of ${v1} items`)(items.length,list.max_items)}</p>` : ''}
       </form>
     `;
   }
@@ -1980,17 +1986,17 @@
           ${description ? `<p>${escapeHtml(description)}</p>` : ''}
           ${note && note !== description ? `<p>${escapeHtml(note)}</p>` : ''}
           ${attachments.length ? `<div class="cp-punch-media">${attachments.map(punchAttachmentHtml).join('')}</div>` : ''}
-          ${requiresPhoto && !hasPhoto && editable ? '<span class="cp-punch-needs">Photo required</span>' : ''}
-          ${done ? '<span class="cp-punch-done-tag">Completed by your project team</span>' : ''}
+          ${requiresPhoto && !hasPhoto && editable ? `<span class="cp-punch-needs">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_dfee3e11e94a69","Photo required") ?? "Photo required")}</span>` : ''}
+          ${done ? `<span class="cp-punch-done-tag">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ade220f511614f","Completed by your project team") ?? "Completed by your project team")}</span>` : ''}
         </div>
         ${editable ? `
           <div class="cp-punch-item-tools">
-            <label class="cp-punch-tool" title="Attach a photo or video">
+            <label class="cp-punch-tool" title="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8d4c4c8ca31676","Attach a photo or video") ?? "Attach a photo or video")}">
               <i class="fa-solid fa-camera" aria-hidden="true"></i>
               <input type="file" accept="image/*,video/*" data-punch-evidence="${itemId}" hidden>
             </label>
-            <button type="button" class="cp-punch-tool" data-punch-voice="${itemId}" title="Record a voice note"><i class="fa-solid fa-microphone" aria-hidden="true"></i></button>
-            <button type="button" class="cp-punch-tool cp-punch-tool-remove" data-punch-remove="${itemId}" aria-label="Remove item"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+            <button type="button" class="cp-punch-tool" data-punch-voice="${itemId}" title="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_bb95b36b4a2d24","Record a voice note") ?? "Record a voice note")}"><i class="fa-solid fa-microphone" aria-hidden="true"></i></button>
+            <button type="button" class="cp-punch-tool cp-punch-tool-remove" data-punch-remove="${itemId}" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_79a02ecd535f66","Remove item") ?? "Remove item")}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
           </div>
         ` : ''}
       </li>
@@ -2028,12 +2034,12 @@
           <h2>${escapeHtml(title || 'Sign off')}</h2>
           ${body ? `<p class="cp-sign-body">${escapeHtml(body)}</p>` : ''}
           <label class="cp-sign-field">
-            <span>Sign by typing your full name</span>
-            <input type="text" data-punch-signer maxlength="120" autocomplete="name" placeholder="Your full name">
+            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_47b529f4d0d67c","Sign by typing your full name") ?? "Sign by typing your full name")}</span>
+            <input type="text" data-punch-signer maxlength="120" autocomplete="name" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2d2dbe7ed3c8d7","Your full name") ?? "Your full name")}">
           </label>
-          <p class="cp-sign-hint"><i class="fa-solid fa-file-signature" aria-hidden="true"></i> Typing your name here acts as your electronic signature.</p>
+          <p class="cp-sign-hint"><i class="fa-solid fa-file-signature" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ed127afed23720"," Typing your name here acts as your electronic signature.") ?? " Typing your name here acts as your electronic signature.")}</p>
           <div class="cp-sign-actions">
-            <button type="button" data-punch-sign-cancel>Cancel</button>
+            <button type="button" data-punch-sign-cancel>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
             <button type="button" class="cp-punch-primary" data-punch-sign-confirm disabled>${escapeHtml(ctaLabel || 'Sign & confirm')}</button>
           </div>
         </div>
@@ -2072,7 +2078,7 @@
       return null;
     }
     try {
-      const result = await recorder.record({ title: 'Record a voice note' });
+      const result = await recorder.record({ title: (globalThis.PlatformLanguage?.text("customer-portal","m_bb95b36b4a2d24","Record a voice note") ?? "Record a voice note") });
       return result?.file || null;
     } catch (error) {
       const message = cleanText(error?.message);
@@ -2096,7 +2102,7 @@
         pendingMount.innerHTML = pending.map((file, index) => {
           const isAudio = (file.type || '').startsWith('audio/');
           const label = isAudio ? 'Voice note' : cleanText(file.name) || 'Photo';
-          return `<span class="cp-punch-chip"><i class="fa-solid ${isAudio ? 'fa-microphone' : 'fa-image'}" aria-hidden="true"></i>${escapeHtml(label)}<button type="button" data-punch-chip-remove="${index}" aria-label="Remove attachment"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></span>`;
+          return `<span class="cp-punch-chip"><i class="fa-solid ${isAudio ? 'fa-microphone' : 'fa-image'}" aria-hidden="true"></i>${escapeHtml(label)}<button type="button" data-punch-chip-remove="${index}" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3ea0f07c7208c2","Remove attachment") ?? "Remove attachment")}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></span>`;
         }).join('');
       };
       pendingMount?.addEventListener('click', (event) => {
@@ -2270,7 +2276,7 @@
         btn.addEventListener('click', async () => {
           const mediaId = cleanText(btn.dataset.withdrawUpload);
           if (!mediaId) return;
-          if (!window.confirm('Remove this file from your portal? Your team will still have the copy you sent.')) return;
+          if (!window.confirm((globalThis.PlatformLanguage?.text("customer-portal","m_c14c496968828b","Remove this file from your portal? Your team will still have the copy you sent.") ?? "Remove this file from your portal? Your team will still have the copy you sent."))) return;
           btn.disabled = true;
           try {
             await api.customerPortals.publicWithdrawUpload(activePortalUuid(), mediaId);
@@ -2321,18 +2327,18 @@
     if (!enabled && !comments.length) return '';
     return `
       <div class="cp-media-comments" data-comments-for="${escapeHtml(cleanText(mediaId))}">
-        <h3>Comments</h3>
+        <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e54fc1b3a14807","Comments") ?? "Comments")}</h3>
         ${comments.length ? `<ul>${comments.map((comment) => `
           <li>
             <strong>${escapeHtml(cleanText(comment.author) || 'You')}</strong>
             <p>${escapeHtml(cleanText(comment.body))}</p>
             <span>${escapeHtml(formatUploadDate(comment.created_at))}</span>
           </li>
-        `).join('')}</ul>` : '<p class="cp-media-comments-empty">No comments yet.</p>'}
+        `).join('')}</ul>` : `<p class="cp-media-comments-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_6daba3159863bd","No comments yet.") ?? "No comments yet.")}</p>`}
         ${enabled && !isPreviewMode() ? `
           <form class="cp-comment-form" data-comment-form="${escapeHtml(cleanText(mediaId))}">
-            <textarea rows="2" maxlength="2000" data-comment-body placeholder="Add a note about this photo"></textarea>
-            <button type="submit" class="cp-comment-submit">Post</button>
+            <textarea rows="2" maxlength="2000" data-comment-body placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5f653f8674d42f","Add a note about this photo") ?? "Add a note about this photo")}"></textarea>
+            <button type="submit" class="cp-comment-submit">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_a1fae7010dc311","Post") ?? "Post")}</button>
           </form>
         ` : ''}
       </div>
@@ -2525,8 +2531,8 @@
     return proposals.findIndex((proposal) => proposalSigned(proposal));
   }
   function proposalSummaryStatus(proposal = {}, proposals = []){
-    if (proposalSigned(proposal)) return { key: 'signed', label: 'Signed' };
-    if (proposalExpired(proposal)) return { key: 'expired', label: 'Expired' };
+    if (proposalSigned(proposal)) return { key: 'signed', label: (globalThis.PlatformLanguage?.text("customer-portal","m_ab7ec8db303996","Signed") ?? "Signed") };
+    if (proposalExpired(proposal)) return { key: 'expired', label: (globalThis.PlatformLanguage?.text("customer-portal","m_e685fe954b1758","Expired") ?? "Expired") };
     const key = cleanText(proposal.status).toLowerCase() || 'draft';
     return { key, label: proposalStatusLabel(proposal.status) };
   }
@@ -2546,23 +2552,23 @@
     return `
       <section class="cp-widget">
         <div class="cp-section-head">
-          <h2>Proposals</h2>
-          <span>${proposals.length} item${proposals.length === 1 ? '' : 's'}</span>
+          <h2>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3129f3f0e39249","Proposals") ?? "Proposals")}</h2>
+          <span>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_40810d498e9130",`${v0} item${v1}`,{v0,v1}) ?? `${v0} item${v1}`)(proposals.length,proposals.length === 1 ? '' : 's')}</span>
         </div>
-        ${items.length ? `<div class="cp-proposal-list">${items.map((proposal, index) => proposalCard(proposal, index, index === state.activeProposalIndex && !compact, proposals)).join('')}</div>` : '<div class="cp-empty">No proposals have been shared yet.</div>'}
-        ${compact && proposals.length ? '<button type="button" class="cp-link-btn" data-tab-target="proposals">Open proposal viewer</button>' : ''}
+        ${items.length ? `<div class="cp-proposal-list">${items.map((proposal, index) => proposalCard(proposal, index, index === state.activeProposalIndex && !compact, proposals)).join('')}</div>` : `<div class="cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_408fc41eaeca5e","No proposals have been shared yet.") ?? "No proposals have been shared yet.")}</div>`}
+        ${compact && proposals.length ? `<button type="button" class="cp-link-btn" data-tab-target="proposals">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8909a45759c871","Open proposal viewer") ?? "Open proposal viewer")}</button>` : ''}
       </section>
     `;
   }
   function scheduleEventMeta(event = {}){
     const category = cleanText(event.category || 'event').toLowerCase();
     const map = {
-      appointment: { label: 'Appointment', icon: 'calendar' },
-      work: { label: 'Project work', icon: 'work' },
-      delivery: { label: 'Delivery', icon: 'delivery' },
-      completion: { label: 'Estimated completion', icon: 'finish' },
-      equipment: { label: 'Equipment', icon: 'equipment' },
-      event: { label: 'Schedule item', icon: 'calendar' }
+      appointment: { label: (globalThis.PlatformLanguage?.text("customer-portal","m_5a654ad9b6d2e3","Appointment") ?? "Appointment"), icon: 'calendar' },
+      work: { label: (globalThis.PlatformLanguage?.text("customer-portal","m_9acd909e2fe732","Project work") ?? "Project work"), icon: 'work' },
+      delivery: { label: (globalThis.PlatformLanguage?.text("customer-portal","m_b73185deef6d79","Delivery") ?? "Delivery"), icon: 'delivery' },
+      completion: { label: (globalThis.PlatformLanguage?.text("customer-portal","m_bbc23b96fbceb8","Estimated completion") ?? "Estimated completion"), icon: 'finish' },
+      equipment: { label: (globalThis.PlatformLanguage?.text("customer-portal","m_2813f320a63b94","Equipment") ?? "Equipment"), icon: 'equipment' },
+      event: { label: (globalThis.PlatformLanguage?.text("customer-portal","m_d0a9ffb325f8e6","Schedule item") ?? "Schedule item"), icon: 'calendar' }
     };
     return map[category] || map.event;
   }
@@ -2616,13 +2622,13 @@
   }
   function scheduleStatus(event = {}){
     const status = cleanText(event.status || 'scheduled').toLowerCase();
-    if (['complete', 'completed', 'done'].includes(status)) return { label:'Completed', className:'complete' };
-    if (['cancelled', 'canceled'].includes(status)) return { label:'Cancelled', className:'cancelled' };
-    if (cleanText(event.category).toLowerCase() === 'completion') return { label:'Estimated', className:'estimated' };
-    if (status === 'confirmed') return { label:'Confirmed', className:'confirmed' };
+    if (['complete', 'completed', 'done'].includes(status)) return { label:(globalThis.PlatformLanguage?.text("customer-portal","m_3c4d2141b2fa1c","Completed") ?? "Completed"), className:'complete' };
+    if (['cancelled', 'canceled'].includes(status)) return { label:(globalThis.PlatformLanguage?.text("customer-portal","m_9863f11d60b2fa","Cancelled") ?? "Cancelled"), className:'cancelled' };
+    if (cleanText(event.category).toLowerCase() === 'completion') return { label:(globalThis.PlatformLanguage?.text("customer-portal","m_849879a8ce169d","Estimated") ?? "Estimated"), className:'estimated' };
+    if (status === 'confirmed') return { label:(globalThis.PlatformLanguage?.text("customer-portal","m_2ac28976b8db5d","Confirmed") ?? "Confirmed"), className:'confirmed' };
     const end = new Date(event.end_at || event.start_at || '');
-    if (Number.isFinite(end.getTime()) && end.getTime() < Date.now()) return { label:'Completed', className:'complete' };
-    return { label:'Scheduled', className:'scheduled' };
+    if (Number.isFinite(end.getTime()) && end.getTime() < Date.now()) return { label:(globalThis.PlatformLanguage?.text("customer-portal","m_3c4d2141b2fa1c","Completed") ?? "Completed"), className:'complete' };
+    return { label:(globalThis.PlatformLanguage?.text("customer-portal","m_6abe57e6a307d5","Scheduled") ?? "Scheduled"), className:'scheduled' };
   }
   function scheduleEventCard(event = {}, index = 0){
     const meta = scheduleEventMeta(event);
@@ -2649,7 +2655,7 @@
     const headerAction = reschedulePending && portalCanReschedule
       ? `<button type="button" class="cp-reschedule-open cancel" data-reschedule-cancel="${escapeHtml(event.id)}" ${state.rescheduleCancelBusyId === cleanText(event.id) ? 'disabled' : ''}><i class="fa-solid ${state.rescheduleCancelBusyId === cleanText(event.id) ? 'fa-circle-notch fa-spin' : 'fa-xmark'}" aria-hidden="true"></i><span>${state.rescheduleCancelBusyId === cleanText(event.id) ? 'Canceling' : 'Cancel request'}</span></button>`
       : canReschedule
-        ? `<button type="button" class="cp-reschedule-open" data-reschedule-event="${escapeHtml(event.id)}"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i><span>Reschedule</span></button>`
+        ? `<button type="button" class="cp-reschedule-open" data-reschedule-event="${escapeHtml(event.id)}"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cfdfd98281fe33","Reschedule") ?? "Reschedule")}</span></button>`
         : status.label !== 'Scheduled' ? `<span class="cp-schedule-status ${escapeHtml(status.className)}">${escapeHtml(status.label)}</span>` : '';
     const visibleContent = `
       <div class="cp-schedule-event-top">
@@ -2658,16 +2664,16 @@
         ${headerAction}
       </div>
       <div class="cp-schedule-time">${escapeHtml(scheduleEventTiming(event))}</div>
-      ${showEstimate ? `<div class="cp-schedule-estimate"><span>${scheduleIcon('finish')}</span><div><small>Estimated completion</small><strong>${escapeHtml(estimateEnd.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric', year:'numeric' }))}</strong></div></div>` : ''}
-      ${reschedulePending ? `<div class="cp-reschedule-pending"><i class="fa-solid fa-clock" aria-hidden="true"></i><span><strong>Change requested</strong><small>${escapeHtml(requestedLabel)} · Waiting for your project team</small></span></div>` : ''}
-      ${hasCustomerDetails ? `<span class="cp-schedule-expand"><span>View details</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></span>` : ''}
+      ${showEstimate ? `<div class="cp-schedule-estimate"><span>${scheduleIcon('finish')}</span><div><small>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_bbc23b96fbceb8","Estimated completion") ?? "Estimated completion")}</small><strong>${escapeHtml(estimateEnd.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric', year:'numeric' }))}</strong></div></div>` : ''}
+      ${reschedulePending ? `<div class="cp-reschedule-pending"><i class="fa-solid fa-clock" aria-hidden="true"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9d34bd5770c394","Change requested") ?? "Change requested")}</strong><small>${((v0) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_930abf685ff598",`${v0} · Waiting for your project team`,{v0}) ?? `${v0} · Waiting for your project team`)(escapeHtml(requestedLabel))}</small></span></div>` : ''}
+      ${hasCustomerDetails ? `<span class="cp-schedule-expand"><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e8d22a9dc42a20","View details") ?? "View details")}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></span>` : ''}
     `;
     const card = hasCustomerDetails ? `
       <details class="cp-schedule-event-card expandable">
         <summary>${visibleContent}</summary>
         <div class="cp-schedule-customer-detail">
-          ${crewName ? `<div class="cp-schedule-crew"><span>${scheduleIcon('work')}</span><div><small>Your crew</small><strong>${escapeHtml(crewName)}</strong></div></div>` : ''}
-          ${customerNote ? `<div class="cp-schedule-note"><small>Note from your project team</small><p>${nl2br(customerNote)}</p></div>` : ''}
+          ${crewName ? `<div class="cp-schedule-crew"><span>${scheduleIcon('work')}</span><div><small>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_43067df3130286","Your crew") ?? "Your crew")}</small><strong>${escapeHtml(crewName)}</strong></div></div>` : ''}
+          ${customerNote ? `<div class="cp-schedule-note"><small>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_c363847b614349","Note from your project team") ?? "Note from your project team")}</small><p>${nl2br(customerNote)}</p></div>` : ''}
         </div>
       </details>
     ` : `<div class="cp-schedule-event-card">${visibleContent}</div>`;
@@ -2695,8 +2701,8 @@
       return `
         <div class="cp-schedule-empty">
           <span>${scheduleIcon('calendar')}</span>
-          <h2>No shared schedule items yet</h2>
-          <p>Your project team will add appointments, work dates, and deliveries here when they are ready to share.</p>
+          <h2>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cf9de2133057c7","No shared schedule items yet") ?? "No shared schedule items yet")}</h2>
+          <p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_f663bd7bdd9738","Your project team will add appointments, work dates, and deliveries here when they are ready to share.") ?? "Your project team will add appointments, work dates, and deliveries here when they are ready to share.")}</p>
         </div>
       `;
     }
@@ -2719,14 +2725,14 @@
         <div class="cp-schedule-past">
           <button type="button" class="cp-schedule-past-toggle" data-schedule-past aria-expanded="${state.schedulePastOpen ? 'true' : 'false'}">
             <i class="fa-solid ${state.schedulePastOpen ? 'fa-chevron-down' : 'fa-chevron-right'}" aria-hidden="true"></i>
-            <span>${state.schedulePastOpen ? 'Hide' : 'Show'} ${past.length} completed item${past.length === 1 ? '' : 's'}</span>
+            <span>${((v2,v3,v4) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_d3ce763a1f0c3c",`${v2} ${v3} completed item${v4}`,{v2,v3,v4}) ?? `${v2} ${v3} completed item${v4}`)(state.schedulePastOpen ? 'Hide' : 'Show',past.length,past.length === 1 ? '' : 's')}</span>
           </button>
           ${state.schedulePastOpen ? `<div class="cp-schedule-timeline is-past">${past.map(scheduleEventCard).join('')}</div>` : ''}
         </div>
       ` : ''}
       ${upcoming.length
         ? `<div class="cp-schedule-timeline">${upcoming.map(scheduleEventCard).join('')}</div>`
-        : '<div class="cp-schedule-empty"><h2>Nothing else is scheduled right now</h2><p>Your project team will add new dates here as they are booked.</p></div>'}
+        : `<div class="cp-schedule-empty"><h2>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_7ec6b5fa6e6101","Nothing else is scheduled right now") ?? "Nothing else is scheduled right now")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d4221c855ab72e","Your project team will add new dates here as they are booked.") ?? "Your project team will add new dates here as they are booked.")}</p></div>`}
     `;
   }
   function scheduleWidget(payload){
@@ -2735,14 +2741,14 @@
     return `
       <section class="cp-schedule-page">
         <header class="cp-schedule-header">
-          <h1>Your project schedule</h1>
-          <p>Appointments, work dates, deliveries, and milestones shared with you by the project team.</p>
+          <h1>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8aa1e8a45b3645","Your project schedule") ?? "Your project schedule")}</h1>
+          <p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_65859ed0b87a92","Appointments, work dates, deliveries, and milestones shared with you by the project team.") ?? "Appointments, work dates, deliveries, and milestones shared with you by the project team.")}</p>
         </header>
         ${scheduleTimelineHtml(events)}
         ${includesEstimate ? `
           <div class="cp-schedule-disclaimer">
             <span>${scheduleIcon('finish')}</span>
-            <p><strong>About estimated dates</strong>Completion dates are estimates and may change as work progresses, materials arrive, or site conditions are evaluated.</p>
+            <p><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_a82b0c04ed7c6d","About estimated dates") ?? "About estimated dates")}</strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3c2ce151ddfa49","Completion dates are estimates and may change as work progresses, materials arrive, or site conditions are evaluated.") ?? "Completion dates are estimates and may change as work progresses, materials arrive, or site conditions are evaluated.")}</p>
           </div>
         ` : ''}
       </section>
@@ -2774,23 +2780,23 @@
     const approvalRequired = cleanText(event.customer_scheduling?.reschedule_approval) === 'required';
     return `<div class="cp-reschedule-modal" data-reschedule-modal>
       <div class="cp-reschedule-card" role="dialog" aria-modal="true" aria-labelledby="cp-reschedule-title">
-        <header class="cp-reschedule-head"><div><span class="cp-reschedule-kicker">Live availability</span><h2 id="cp-reschedule-title">Select a day and time</h2><p>${escapeHtml(event.title || 'Your appointment')} is currently ${escapeHtml(scheduleEventTiming(event))}.</p></div><button type="button" data-reschedule-close aria-label="Close rescheduling">&times;</button></header>
+        <header class="cp-reschedule-head"><div><span class="cp-reschedule-kicker">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_a252dca8e10e56","Live availability") ?? "Live availability")}</span><h2 id="cp-reschedule-title">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_b7d09c4268b709","Select a day and time") ?? "Select a day and time")}</h2><p>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_dab29091546ce2",`${v0} is currently ${v1}.`,{v0,v1}) ?? `${v0} is currently ${v1}.`)(escapeHtml(event.title || 'Your appointment'),escapeHtml(scheduleEventTiming(event)))}</p></div><button type="button" data-reschedule-close aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_536cb6c5df6ea4","Close rescheduling") ?? "Close rescheduling")}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_dd0c616953d455","&times;") ?? "&times;")}</button></header>
         <div class="cp-reschedule-body">
-          ${state.rescheduleBusy ? '<div class="cp-reschedule-loading"><i class="fa-solid fa-circle-notch fa-spin"></i><strong>Checking the team\'s schedule...</strong><span>We account for crew capacity, travel, and existing appointments.</span></div>' : ''}
+          ${state.rescheduleBusy ? `<div class="cp-reschedule-loading"><i class="fa-solid fa-circle-notch fa-spin"></i><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_7554582861da00","Checking the team's schedule...") ?? "Checking the team's schedule...")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_a0ddbb329b8073","We account for crew capacity, travel, and existing appointments.") ?? "We account for crew capacity, travel, and existing appointments.")}</span></div>` : ''}
           ${state.rescheduleError ? `<div class="cp-reschedule-error"><i class="fa-solid fa-circle-exclamation"></i><span>${escapeHtml(state.rescheduleError)}</span></div>` : ''}
-          ${!state.rescheduleBusy && !state.rescheduleError && !state.rescheduleSlots.length ? '<div class="cp-reschedule-empty"><strong>No times are currently available.</strong><span>Please contact the project team and they will help find a time.</span></div>' : ''}
+          ${!state.rescheduleBusy && !state.rescheduleError && !state.rescheduleSlots.length ? `<div class="cp-reschedule-empty"><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cf5da3d176fd45","No times are currently available.") ?? "No times are currently available.")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_592a85bf276861","Please contact the project team and they will help find a time.") ?? "Please contact the project team and they will help find a time.")}</span></div>` : ''}
           ${availableDates.length ? `<div class="cp-reschedule-picker">
-            <section class="cp-reschedule-calendar" aria-label="Available appointment days">
-              <div class="cp-reschedule-month"><button type="button" data-reschedule-month="-1" aria-label="Previous month" ${monthKey <= minMonth ? 'disabled' : ''}><i class="fa-solid fa-chevron-left"></i></button><strong>${escapeHtml(monthLabel)}</strong><button type="button" data-reschedule-month="1" aria-label="Next month" ${monthKey >= maxMonth ? 'disabled' : ''}><i class="fa-solid fa-chevron-right"></i></button></div>
+            <section class="cp-reschedule-calendar" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e00042c00a517d","Available appointment days") ?? "Available appointment days")}">
+              <div class="cp-reschedule-month"><button type="button" data-reschedule-month="-1" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_72aab2b513b1bb","Previous month") ?? "Previous month")}" ${monthKey <= minMonth ? 'disabled' : ''}><i class="fa-solid fa-chevron-left"></i></button><strong>${escapeHtml(monthLabel)}</strong><button type="button" data-reschedule-month="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5f5bc76acbb8de","Next month") ?? "Next month")}" ${monthKey >= maxMonth ? 'disabled' : ''}><i class="fa-solid fa-chevron-right"></i></button></div>
               <div class="cp-reschedule-weekdays">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day) => `<span>${day}</span>`).join('')}</div>
               <div class="cp-reschedule-dates">${cells.map((day) => {
                 if (!day) return '<span class="blank" aria-hidden="true"></span>';
                 const key = `${monthStart.getUTCFullYear()}-${String(monthStart.getUTCMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
                 const count = groups[key]?.length || 0;
-                return `<button type="button" data-reschedule-date="${key}" class="${key === selectedDate ? 'selected' : ''}" ${count ? '' : 'disabled'} aria-label="${escapeHtml(`${key}, ${count} available ${count === 1 ? 'time' : 'times'}`)}"><strong>${day}</strong>${count ? `<small>${count} slot${count === 1 ? '' : 's'}</small>` : ''}</button>`;
+                return `<button type="button" data-reschedule-date="${key}" class="${key === selectedDate ? 'selected' : ''}" ${count ? '' : 'disabled'} aria-label="${escapeHtml(`${key}, ${count} available ${count === 1 ? 'time' : 'times'}`)}"><strong>${day}</strong>${count ? `<small>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_f8954a5cc7e32f",`${v0} slot${v1}`,{v0,v1}) ?? `${v0} slot${v1}`)(count,count === 1 ? '' : 's')}</small>` : ''}</button>`;
               }).join('')}</div>
             </section>
-            <section class="cp-reschedule-times" aria-live="polite"><div class="cp-reschedule-times-head"><span>Available times</span><h3>${escapeHtml(selectedLabel)}</h3><small>${selectedSlots.length} option${selectedSlots.length === 1 ? '' : 's'}</small></div><div class="cp-reschedule-slots">${selectedSlots.map((slot) => {
+            <section class="cp-reschedule-times" aria-live="polite"><div class="cp-reschedule-times-head"><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_572a7eddc49d5d","Available times") ?? "Available times")}</span><h3>${escapeHtml(selectedLabel)}</h3><small>${((v6,v7) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_200b9625435cb9",`${v6} option${v7}`,{v6,v7}) ?? `${v6} option${v7}`)(selectedSlots.length,selectedSlots.length === 1 ? '' : 's')}</small></div><div class="cp-reschedule-slots">${selectedSlots.map((slot) => {
               const isSelected = cleanText(slot.start_at) === cleanText(state.rescheduleSelectedStartAt);
               return `<button type="button" class="${isSelected ? 'selected' : ''}" data-reschedule-slot="${escapeHtml(slot.start_at)}" data-reschedule-resource="${escapeHtml(slot.candidates?.[0]?.resource_key || '')}" aria-pressed="${isSelected ? 'true' : 'false'}"><strong>${escapeHtml(new Date(slot.start_at).toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }))}</strong><span>${isSelected ? '<i class="fa-solid fa-check" aria-hidden="true"></i> Selected' : (Number(slot.available_count || 0) > 1 ? `${escapeHtml(slot.available_count)} openings` : 'Available')}</span></button>`;
             }).join('')}</div></section>
@@ -2974,7 +2980,7 @@
     );
   }
   function proposalPrintHtml(proposal = {}){
-    const title = escapeHtml(proposal.title || 'Proposal');
+    const title = escapeHtml(proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal"));
     const pages = Array.isArray(proposal.pages) ? proposal.pages : [];
     return `<!doctype html>
       <html>
@@ -2999,7 +3005,7 @@
           </style>
         </head>
         <body>
-          <main>${pages.length ? pages.map(proposalPageHtml).join('') : `<article><h3>${title}</h3><p>This proposal does not have visible pages yet.</p></article>`}</main>
+          <main>${pages.length ? pages.map(proposalPageHtml).join('') : `<article><h3>${title}</h3><p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_1ac05f4d4b72bb","This proposal does not have visible pages yet.") ?? "This proposal does not have visible pages yet.")}</p></article>`}</main>
         </body>
       </html>`;
   }
@@ -3031,7 +3037,7 @@
       link.href = url;
       link.target = '_blank';
       link.rel = 'noopener';
-      link.download = `${cleanText(proposal.title || 'proposal').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'proposal'}.pdf`;
+      link.download = `${cleanText(proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_c5c6ef59360f85","proposal") ?? "proposal")).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'proposal'}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -3199,11 +3205,11 @@
     if (blockPreviewAction('signing')) return false;
     const name = cleanText(state.signatureName);
     if (!name) {
-      alert('Enter your full legal name first.');
+      alert((globalThis.PlatformLanguage?.text("customer-portal","m_4179d6a52dbc38","Enter your full legal name first.") ?? "Enter your full legal name first."));
       return false;
     }
     if (state.signatureAdoptMode === 'draw' && !state.drawnSignatureData) {
-      alert('Draw your signature first.');
+      alert((globalThis.PlatformLanguage?.text("customer-portal","m_d7e234c292fbdf","Draw your signature first.") ?? "Draw your signature first."));
       return false;
     }
     await runProposalAction(async (proposalApi, token) => {
@@ -3229,7 +3235,7 @@
     const slot = currentSignatureSlot(proposal);
     const name = cleanText(state.signatureName);
     if (!name) {
-      alert('Enter your full legal name first.');
+      alert((globalThis.PlatformLanguage?.text("customer-portal","m_4179d6a52dbc38","Enter your full legal name first.") ?? "Enter your full legal name first."));
       return;
     }
     if (!state.adoptedSignature) {
@@ -3258,7 +3264,7 @@
     if (slots.some((slot) => !slot.signed) && slots.length) return;
     const name = cleanText(state.signatureName || proposalSignerName(proposal));
     if (!name) {
-      alert('Enter your full legal name first.');
+      alert((globalThis.PlatformLanguage?.text("customer-portal","m_4179d6a52dbc38","Enter your full legal name first.") ?? "Enter your full legal name first."));
       return;
     }
     await runProposalAction(async (proposalApi, token) => {
@@ -3278,11 +3284,11 @@
     const slot = currentSignatureSlot(proposal);
     const name = cleanText(state.signatureName);
     if (!name) {
-      alert('Enter your full legal name first.');
+      alert((globalThis.PlatformLanguage?.text("customer-portal","m_4179d6a52dbc38","Enter your full legal name first.") ?? "Enter your full legal name first."));
       return;
     }
     if (state.signatureAdoptMode === 'draw' && !state.drawnSignatureData && !state.adoptedSignature) {
-      alert('Draw your signature first.');
+      alert((globalThis.PlatformLanguage?.text("customer-portal","m_d7e234c292fbdf","Draw your signature first.") ?? "Draw your signature first."));
       return;
     }
     if (!slot) return;
@@ -3359,7 +3365,7 @@
       : (Object.prototype.hasOwnProperty.call(overrides, 'amount') ? Math.round(moneyValue(overrides.amount) * 100) : dueCents);
     return {
       title: cleanText(overrides.title || (selectedObligation ? `Pay ${cleanText(selectedObligation.label || 'Invoice')}` : 'Pay Deposit')),
-      description: cleanText(overrides.description || proposal.title || 'Proposal payment'),
+      description: cleanText(overrides.description || proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_4f18ff488f2b1a","Proposal payment") ?? "Proposal payment")),
       amountLabel: cleanText(overrides.amountLabel || (selectedObligation ? 'Amount due now' : 'Deposit due now')),
       amountCents: optionAmount,
       allowCustomAmount: overrides.allowCustomAmount === true || optionAmount == null,
@@ -3371,8 +3377,8 @@
       primaryColor,
       secondaryColor,
       details: Array.isArray(overrides.details) ? overrides.details : [
-        { label: 'Total proposal', value: moneyFormat(totalCents / 100) },
-        { label: 'Payment type', value: cleanText(overrides.paymentType || selectedObligation?.label || 'Deposit') }
+        { label: (globalThis.PlatformLanguage?.text("customer-portal","m_a14cd2f6e65048","Total proposal") ?? "Total proposal"), value: moneyFormat(totalCents / 100) },
+        { label: (globalThis.PlatformLanguage?.text("customer-portal","m_fff5ed13d61dc6","Payment type") ?? "Payment type"), value: cleanText(overrides.paymentType || selectedObligation?.label || 'Deposit') }
       ],
       submitLabel: cleanText(overrides.submitLabel || 'Run payment'),
       successTitle: cleanText(overrides.successTitle || 'Payment went through'),
@@ -3386,7 +3392,7 @@
         renderProposalPartialState();
       },
       successActions: [{
-        label: 'Download Invoice',
+        label: (globalThis.PlatformLanguage?.text("customer-portal","m_e2f600c5c92df9","Download Invoice") ?? "Download Invoice"),
         onClick: () => downloadReceipt(activeProposal())
       }],
       ...overrides
@@ -3526,7 +3532,7 @@
     const reviewed = !!sent && (proposalSigned(sent) || proposalEngaged(sent));
     const steps = [{
       id: 'appointment',
-      label: 'On-site Appointment',
+      label: (globalThis.PlatformLanguage?.text("customer-portal","m_a59fd86ded6b33","On-site Appointment") ?? "On-site Appointment"),
       detail: appointmentSummary(appointment),
       complete: appointmentComplete(appointment),
       tab: 'schedule'
@@ -3534,7 +3540,7 @@
     if (!sent) {
       steps.push({
         id: 'waiting',
-        label: `Waiting for proposal from ${orgName}`,
+        label: ((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_6a3f8bad875169",`Waiting for proposal from ${v0}`,{v0}) ?? `Waiting for proposal from ${v0}`)(orgName),
         detail: 'This will update when the proposal is sent.',
         complete: false,
         disabled: true
@@ -3543,7 +3549,7 @@
     }
     steps.push({
       id: 'review',
-      label: 'Review Proposal',
+      label: (globalThis.PlatformLanguage?.text("customer-portal","m_136ea8d1e76d4e","Review Proposal") ?? "Review Proposal"),
       detail: reviewed && sentIndex >= 0 ? `${proposalOptionLabel(sentIndex)} selected` : 'Open the proposal viewer',
       complete: reviewed,
       tab: 'proposals',
@@ -3551,7 +3557,7 @@
     });
     steps.push({
       id: 'sign',
-      label: 'Sign Proposal',
+      label: (globalThis.PlatformLanguage?.text("customer-portal","m_e4071e980bc3be","Sign Proposal") ?? "Sign Proposal"),
       detail: proposalSigned(sent) ? 'Signature received' : 'Review and sign where indicated',
       complete: proposalSigned(sent),
       tab: 'proposals',
@@ -3570,7 +3576,7 @@
     if (proposalSigned(sent) && (!deposit.required || proposalDepositPaid(sent))) {
       steps.push({
         id: 'schedule_work',
-        label: 'Waiting to Schedule Work',
+        label: (globalThis.PlatformLanguage?.text("customer-portal","m_0ce46f50b62634","Waiting to Schedule Work") ?? "Waiting to Schedule Work"),
         detail: proposalCompletionMessage(sent, orgName),
         complete: false,
         disabled: true
@@ -3584,7 +3590,7 @@
     return `
       <aside class="cp-overview" data-cp-overview>
         <div class="cp-overview-head">
-          <h2>Next Steps</h2>
+          <h2>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_07731eeca61b2c","Next Steps") ?? "Next Steps")}</h2>
           <span>${steps.filter((step) => step.complete).length}/${steps.length}</span>
         </div>
         <div class="cp-step-list">
@@ -3608,8 +3614,8 @@
     return `
       <section class="cp-thank-you">
         <div>
-          <h2>All steps completed</h2>
-          <p>Deposit paid and document complete. ${escapeHtml(proposalCompletionMessage(paid, orgName))}</p>
+          <h2>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_439013dd427ec5","All steps completed") ?? "All steps completed")}</h2>
+          <p>${((v0) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_1c0a2df5e45970",`Deposit paid and document complete. ${v0}`,{v0}) ?? `Deposit paid and document complete. ${v0}`)(escapeHtml(proposalCompletionMessage(paid, orgName)))}</p>
         </div>
       </section>
     `;
@@ -3700,7 +3706,7 @@
         .map((item) => ({ proposal, index, obligation:item, label:cleanText(item.label || 'Payment'), amount:Number(item.balance_due_cents || 0) / 100, due:normalizeDate(item.due_at) || 'Due now' }));
       if (!proposalPaymentIsDue(proposal)) return [];
       const deposit = proposalDeposit(proposal);
-      return [{ proposal, index, obligation:null, label:'Deposit', amount:deposit.due || deposit.amount, due:'Due with signed contract' }];
+      return [{ proposal, index, obligation:null, label:(globalThis.PlatformLanguage?.text("customer-portal","m_894309a0cbf8a4","Deposit") ?? "Deposit"), amount:deposit.due || deposit.amount, due:'Due with signed contract' }];
     });
     const paidById = new Map();
     proposals.forEach((proposal, index) => {
@@ -3753,12 +3759,12 @@
     return `
       <section class="cp-widget cp-payments-panel">
         <div class="cp-section-head">
-          <h2>Payments</h2>
-          <span>${paid.length} past payment${paid.length === 1 ? '' : 's'}</span>
+          <h2>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5842802f6c8cbb","Payments") ?? "Payments")}</h2>
+          <span>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_e0c8002adc5c4c",`${v0} past payment${v1}`,{v0,v1}) ?? `${v0} past payment${v1}`)(paid.length,paid.length === 1 ? '' : 's')}</span>
         </div>
         ${due.length ? `
           <div class="cp-payments-due">
-            <h3>Payments Due</h3>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cd2ba3a3109e4c","Payments Due") ?? "Payments Due")}</h3>
             <div class="cp-payment-due-grid">
               ${due.map(({ index, obligation, label, amount, due:dueLabel }) => `
                 <article class="cp-payment-due-card">
@@ -3767,17 +3773,17 @@
                     <strong>${escapeHtml(moneyFormat(amount))}</strong>
                     <small>${escapeHtml(dueLabel)}</small>
                   </div>
-                  <button type="button" class="cp-primary-btn" data-payment-proposal="${index}" data-payment-obligation="${escapeHtml(obligation?.id || '')}">Pay Now</button>
+                  <button type="button" class="cp-primary-btn" data-payment-proposal="${index}" data-payment-obligation="${escapeHtml(obligation?.id || '')}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_45aa9c3e173f6b","Pay Now") ?? "Pay Now")}</button>
                 </article>
               `).join('')}
             </div>
           </div>
         ` : ''}
         <div class="cp-payment-section">
-          <h3>Past Payments</h3>
+          <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e9bdfa04394498","Past Payments") ?? "Past Payments")}</h3>
           ${paid.length ? `
             <div class="cp-payment-table">
-              <div class="head"><span>Date</span><span>Amount</span><span>Payment</span><span></span></div>
+              <div class="head"><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2a0b11100c22a4","Date") ?? "Date")}</span><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d0f1699dbcd6a5","Payment") ?? "Payment")}</span><span></span></div>
               ${paid.map(({ proposal, index, payment, paymentId, sourceLabel }) => {
                 const amount = Number(payment.amount_cents || payment.deposit_paid_cents || payment.deposit_amount_cents || 0) / 100 || proposalDeposit(proposal).amount;
                 const date = normalizeDate(payment.settled_at || payment.received_at || payment.paid_at || payment.created_at || payment.updated_at || proposal.signed_at || proposal.sent_at) || 'Paid';
@@ -3786,18 +3792,18 @@
                     <span>${escapeHtml(date)}</span>
                     <strong>${escapeHtml(moneyFormat(amount))}</strong>
                     <span>${escapeHtml(cleanText(sourceLabel) || `${proposalOptionLabel(index)} ${paidPaymentLabel(payment)}`)}</span>
-                    ${index >= 0 ? `<button type="button" class="cp-ghost-btn" data-receipt-proposal="${index}" data-receipt-payment="${escapeHtml(paymentId)}">Download Invoice</button>` : '<span aria-hidden="true"></span>'}
+                    ${index >= 0 ? `<button type="button" class="cp-ghost-btn" data-receipt-proposal="${index}" data-receipt-payment="${escapeHtml(paymentId)}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e2f600c5c92df9","Download Invoice") ?? "Download Invoice")}</button>` : '<span aria-hidden="true"></span>'}
                   </div>
                 `;
               }).join('')}
             </div>
-          ` : '<div class="cp-empty">Past payments will appear here after payment.</div>'}
+          ` : `<div class="cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_aef512969e5846","Past payments will appear here after payment.") ?? "Past payments will appear here after payment.")}</div>`}
         </div>
         <div class="cp-payment-section">
-          <h3>Upcoming Payments</h3>
+          <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e1c61a4a8eafe5","Upcoming Payments") ?? "Upcoming Payments")}</h3>
           ${upcoming.length ? `
             <div class="cp-payment-table upcoming">
-              <div class="head"><span>Due</span><span>Amount</span><span>Payment</span><span></span></div>
+              <div class="head"><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3dac4d5769efeb","Due") ?? "Due")}</span><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d0f1699dbcd6a5","Payment") ?? "Payment")}</span><span></span></div>
               ${upcoming.map((row) => `
                 <div class="row">
                   <span>${escapeHtml(row.due || 'Per proposal terms')}</span>
@@ -3807,7 +3813,7 @@
                 </div>
               `).join('')}
             </div>
-          ` : '<div class="cp-empty">No upcoming payments are listed yet.</div>'}
+          ` : `<div class="cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_67a787a69b32eb","No upcoming payments are listed yet.") ?? "No upcoming payments are listed yet.")}</div>`}
         </div>
       </section>
     `;
@@ -3862,7 +3868,7 @@
         const rendererSrc = new URL('./proposal_renderer.html', location.href).href;
         const rendererId = `cp-proposal-renderer-${Date.now().toString(36)}`;
         frame.id = rendererId;
-        frame.title = 'Proposal renderer';
+        frame.title = (globalThis.PlatformLanguage?.text("customer-portal","m_d1a9c20cfd1c38","Proposal renderer") ?? "Proposal renderer");
         frame.tabIndex = -1;
         frame.setAttribute('aria-hidden', 'true');
         frame.style.cssText = 'position:absolute;left:-10000px;top:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;';
@@ -3920,7 +3926,7 @@
     const theme = cleanText(rawTheme || builder.theme_key || builder.themeKey || 'margin') || 'margin';
     const documentProposal = {
       ...builder,
-      title: cleanText(builder.title || proposal.title || 'Proposal'),
+      title: cleanText(builder.title || proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal")),
       theme,
       theme_key: theme,
       primaryColor: cleanText(builder.primaryColor || builder.primary_color || builder.brandColors?.primary || colors.primary || branding.primary || colors.accent || branding.accent),
@@ -3981,11 +3987,11 @@
   }
   function proposalDocumentPageBodyHtml(page = {}, proposal = {}, index = 0){
     const kind = cleanText(page.kind).toLowerCase();
-    const title = cleanText(page.title || page.heading || (kind === 'pricing' ? 'Estimated Proposal' : kind === 'signature' ? 'Authorization' : kind === 'fine_print' ? 'Terms' : proposal.title || 'Proposal'));
+    const title = cleanText(page.title || page.heading || (kind === 'pricing' ? 'Estimated Proposal' : kind === 'signature' ? 'Authorization' : kind === 'fine_print' ? 'Terms' : proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal")));
     if (kind === 'pricing') {
       const items = Array.isArray(page.line_items) ? page.line_items : [];
       return `
-        <div class="doc-kicker">Pricing</div>
+        <div class="doc-kicker">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d9a8c9c7287681","Pricing") ?? "Pricing")}</div>
         <h1>${escapeHtml(title || 'Estimated Proposal')}</h1>
         <div class="doc-table">
           ${items.map((item) => `
@@ -3995,16 +4001,16 @@
               <span>${escapeHtml(item.unit_price || '')}</span>
               <b>${escapeHtml(item.amount || '')}</b>
             </div>
-          `).join('') || '<p class="doc-muted">No line items are listed.</p>'}
+          `).join('') || `<p class="doc-muted">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4ac63021b2f118","No line items are listed.") ?? "No line items are listed.")}</p>`}
         </div>
-        <div class="doc-total"><span>Total</span><strong>${escapeHtml(page.total || proposal.totals?.total || '')}</strong></div>
+        <div class="doc-total"><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9403c7637d4905","Total") ?? "Total")}</span><strong>${escapeHtml(page.total || proposal.totals?.total || '')}</strong></div>
       `;
     }
     if (kind === 'signature') {
       return `
-        <div class="doc-kicker">Authorization</div>
+        <div class="doc-kicker">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_23bdcfd5ce7509","Authorization") ?? "Authorization")}</div>
         <h1>${escapeHtml(title || 'Authorization')}</h1>
-        ${page.summary ? `<p class="doc-lede">${nl2br(page.summary)}</p>` : '<p class="doc-lede">Please review and sign where indicated to approve this proposal.</p>'}
+        ${page.summary ? `<p class="doc-lede">${nl2br(page.summary)}</p>` : `<p class="doc-lede">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2623cdf12d340d","Please review and sign where indicated to approve this proposal.") ?? "Please review and sign where indicated to approve this proposal.")}</p>`}
         <div class="doc-metrics">
           <div><span>${escapeHtml(page.pricing_summary_title || 'Contract Amount')}</span><strong>${escapeHtml(page.completion_amount || proposal.totals?.total || '')}</strong></div>
           <div><span>${escapeHtml(page.deposit_label || 'Deposit Amount')}</span><strong>${escapeHtml(page.deposit_amount || '')}</strong></div>
@@ -4020,10 +4026,10 @@
     }
     if (kind === 'fine_print') {
       return `
-        <div class="doc-kicker">Terms</div>
+        <div class="doc-kicker">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3f1d84e4324628","Terms") ?? "Terms")}</div>
         <h1>${escapeHtml(title || 'Terms')}</h1>
         ${page.summary ? `<p class="doc-lede">${nl2br(page.summary)}</p>` : ''}
-        ${page.body ? `<div class="doc-copy">${nl2br(page.body)}</div>` : '<p class="doc-muted">Terms and conditions are included with this proposal.</p>'}
+        ${page.body ? `<div class="doc-copy">${nl2br(page.body)}</div>` : `<p class="doc-muted">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_43de2cbe4e2d92","Terms and conditions are included with this proposal.") ?? "Terms and conditions are included with this proposal.")}</p>`}
         ${page.require_customer_signature === false ? '' : `
           <div class="r-proposal-signature-box" data-sign-signer="customer">
             <div class="r-proposal-signature-label">${escapeHtml(page.customer_signature_label || 'Customer Signature')}</div>
@@ -4036,12 +4042,12 @@
     const blocks = Array.isArray(page.blocks) ? page.blocks : [];
     return `
       <div class="doc-kicker">${escapeHtml(kind ? kind.replace(/_/g, ' ') : `Page ${index + 1}`)}</div>
-      <h1>${escapeHtml(title || proposal.title || 'Proposal')}</h1>
+      <h1>${escapeHtml(title || proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal"))}</h1>
       ${page.prepared_for || page.prepared_by || page.date ? `
         <div class="doc-metrics">
-          ${page.prepared_for ? `<div><span>Prepared For</span><strong>${escapeHtml(page.prepared_for)}</strong></div>` : ''}
-          ${page.prepared_by ? `<div><span>Prepared By</span><strong>${escapeHtml(page.prepared_by)}</strong></div>` : ''}
-          ${page.date ? `<div><span>Date</span><strong>${escapeHtml(page.date)}</strong></div>` : ''}
+          ${page.prepared_for ? `<div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_61509e0741be13","Prepared For") ?? "Prepared For")}</span><strong>${escapeHtml(page.prepared_for)}</strong></div>` : ''}
+          ${page.prepared_by ? `<div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cb120770e6931f","Prepared By") ?? "Prepared By")}</span><strong>${escapeHtml(page.prepared_by)}</strong></div>` : ''}
+          ${page.date ? `<div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2a0b11100c22a4","Date") ?? "Date")}</span><strong>${escapeHtml(page.date)}</strong></div>` : ''}
         </div>
       ` : ''}
       ${page.summary ? `<p class="doc-lede">${nl2br(page.summary)}</p>` : ''}
@@ -4069,7 +4075,7 @@
   function proposalFallbackDocumentHtml(proposal = {}){
     const pages = Array.isArray(proposal.pages) ? proposal.pages : [];
     if (!pages.length) return '';
-    const title = escapeHtml(proposal.title || 'Proposal');
+    const title = escapeHtml(proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal"));
     const paper = proposalPaperDimensions(proposal);
     return `<!doctype html>
       <html>
@@ -4181,36 +4187,36 @@
               <strong>${escapeHtml(title)}</strong>
               <span>${escapeHtml(subtitle)}</span>
             </div>
-            <button type="button" class="cp-icon-btn" data-signature-modal-close aria-label="Close">x</button>
+            <button type="button" class="cp-icon-btn" data-signature-modal-close aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3742924668fb10","Close") ?? "Close")}">x</button>
           </div>
           ${isSign ? `
             <div class="cp-signature-adopt">
-              <span>Your signature</span>
+              <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4b755562a3aeb3","Your signature") ?? "Your signature")}</span>
               <strong>${signatureValueHtml(previewSignature)}</strong>
             </div>
           ` : `
             <label class="cp-signature-adopt">
-              <span>Full legal name</span>
-              <input type="text" value="${escapeHtml(state.signatureName)}" placeholder="Type your name" data-signature-name>
+              <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_46a6d933f18958","Full legal name") ?? "Full legal name")}</span>
+              <input type="text" value="${escapeHtml(state.signatureName)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_816925f7bf0230","Type your name") ?? "Type your name")}" data-signature-name>
             </label>
-            <div class="cp-signature-mode" role="tablist" aria-label="Signature method">
-              <button type="button" class="${state.signatureAdoptMode === 'type' ? 'active' : ''}" data-signature-mode="type">Type</button>
-              <button type="button" class="${state.signatureAdoptMode === 'draw' ? 'active' : ''}" data-signature-mode="draw">Draw</button>
+            <div class="cp-signature-mode" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d85aa8eaad2c33","Signature method") ?? "Signature method")}">
+              <button type="button" class="${state.signatureAdoptMode === 'type' ? 'active' : ''}" data-signature-mode="type">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2e88df13ca7101","Type") ?? "Type")}</button>
+              <button type="button" class="${state.signatureAdoptMode === 'draw' ? 'active' : ''}" data-signature-mode="draw">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_aef70f7de91a93","Draw") ?? "Draw")}</button>
             </div>
             <div class="cp-signature-type-panel ${state.signatureAdoptMode === 'type' ? 'active' : ''}">
               <div class="cp-signature-adopt">
-                <span>Typed signature</span>
+                <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_a681bd2aa1a02e","Typed signature") ?? "Typed signature")}</span>
                 <strong>${escapeHtml(state.signatureName || 'Your Signature')}</strong>
               </div>
             </div>
             <div class="cp-signature-draw-panel ${state.signatureAdoptMode === 'draw' ? 'active' : ''}">
-              <canvas class="cp-signature-pad" width="720" height="220" data-signature-pad aria-label="Draw signature"></canvas>
-              <button type="button" class="cp-text-btn" data-signature-clear>Clear drawing</button>
+              <canvas class="cp-signature-pad" width="720" height="220" data-signature-pad aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_713a36d7bac43c","Draw signature") ?? "Draw signature")}"></canvas>
+              <button type="button" class="cp-text-btn" data-signature-clear>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8bc981b41d852c","Clear drawing") ?? "Clear drawing")}</button>
             </div>
           `}
           <div class="cp-esign-actions">
             <button type="button" class="cp-primary-btn" ${isSign ? 'data-signature-modal-sign' : 'data-signature-modal-adopt'} ${state.proposalBusy ? 'disabled' : ''}>${state.proposalBusy ? 'Saving...' : (isSign ? 'Sign Here' : 'Adopt Signature')}</button>
-            <button type="button" class="cp-text-btn" data-signature-modal-close ${state.proposalBusy ? 'disabled' : ''}>Cancel</button>
+            <button type="button" class="cp-text-btn" data-signature-modal-close ${state.proposalBusy ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
           </div>
         </div>
       </div>
@@ -4265,7 +4271,7 @@
     const doc = frame?.contentDocument;
     if (!frame || !doc) return;
     frame.__cpProposalVideoCleanup?.();
-    const proposalKey = cleanText(proposal?.id || proposal?.proposal_id || proposal?.title || 'proposal');
+    const proposalKey = cleanText(proposal?.id || proposal?.proposal_id || proposal?.title || (globalThis.PlatformLanguage?.text("customer-portal","m_c5c6ef59360f85","proposal") ?? "proposal"));
     const videos = Array.from(doc.querySelectorAll('video[data-proposal-video="true"]'));
     if (!videos.length) return;
     videos.forEach((video, index) => {
@@ -4380,7 +4386,7 @@
       if (value) {
         value.innerHTML = isSigned
           ? signatureValueHtml(slot.signature || {})
-          : '<button type="button" class="r-proposal-signature-tab">Tap to Sign</button>';
+          : `<button type="button" class="r-proposal-signature-tab">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_709d4ebff0e0da","Tap to Sign") ?? "Tap to Sign")}</button>`;
       }
       target.onclick = (event) => {
         event.preventDefault();
@@ -4425,7 +4431,7 @@
       const items = Array.isArray(page.line_items) ? page.line_items : [];
       return `
         <article class="cp-proposal-page">
-          <h3>${escapeHtml(page.title || 'Pricing')}</h3>
+          <h3>${escapeHtml(page.title || (globalThis.PlatformLanguage?.text("customer-portal","m_d9a8c9c7287681","Pricing") ?? "Pricing"))}</h3>
           ${items.length ? `<div class="cp-line-items">
             ${items.map((item) => `
               <div class="cp-line-item">
@@ -4435,8 +4441,8 @@
                 <b>${escapeHtml(item.amount || '')}</b>
               </div>
             `).join('')}
-          </div>` : '<p>No line items are listed.</p>'}
-          <div class="cp-page-total"><span>Total</span><strong>${escapeHtml(page.total || '')}</strong></div>
+          </div>` : `<p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4ac63021b2f118","No line items are listed.") ?? "No line items are listed.")}</p>`}
+          <div class="cp-page-total"><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9403c7637d4905","Total") ?? "Total")}</span><strong>${escapeHtml(page.total || '')}</strong></div>
           ${page.notes ? `<p>${nl2br(page.notes)}</p>` : ''}
         </article>
       `;
@@ -4444,7 +4450,7 @@
     if (kind === 'signature') {
       return `
         <article class="cp-proposal-page">
-          <h3>${escapeHtml(page.title || 'Authorization')}</h3>
+          <h3>${escapeHtml(page.title || (globalThis.PlatformLanguage?.text("customer-portal","m_23bdcfd5ce7509","Authorization") ?? "Authorization"))}</h3>
           ${page.summary ? `<p>${nl2br(page.summary)}</p>` : ''}
           <div class="cp-payment-grid">
             <div><span>${escapeHtml(page.pricing_summary_title || 'Contract Amount')}</span><strong>${escapeHtml(page.completion_amount || '')}</strong></div>
@@ -4463,7 +4469,7 @@
     if (kind === 'fine_print') {
       return `
         <article class="cp-proposal-page">
-          <h3>${escapeHtml(page.title || 'Terms and Conditions')}</h3>
+          <h3>${escapeHtml(page.title || (globalThis.PlatformLanguage?.text("customer-portal","m_fd7326e5624473","Terms and Conditions") ?? "Terms and Conditions"))}</h3>
           ${page.summary ? `<p>${nl2br(page.summary)}</p>` : ''}
           ${page.body ? `<p>${nl2br(page.body)}</p>` : ''}
           ${page.require_customer_signature === false ? '' : pageSignatureSlotHtml(page, proposal)}
@@ -4474,11 +4480,11 @@
       return `
         <article class="cp-proposal-page cp-cover-page">
           ${page.kicker ? `<span class="cp-kicker">${escapeHtml(page.kicker)}</span>` : ''}
-          <h3>${escapeHtml(page.heading || page.title || 'Proposal')}</h3>
+          <h3>${escapeHtml(page.heading || page.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal"))}</h3>
           <div class="cp-meta-grid">
-            <div><span>Prepared For</span><strong>${nl2br(page.prepared_for || '')}</strong></div>
-            <div><span>Prepared By</span><strong>${escapeHtml(page.prepared_by || '')}</strong></div>
-            <div><span>Date</span><strong>${escapeHtml(page.date || '')}</strong></div>
+            <div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_61509e0741be13","Prepared For") ?? "Prepared For")}</span><strong>${nl2br(page.prepared_for || '')}</strong></div>
+            <div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cb120770e6931f","Prepared By") ?? "Prepared By")}</span><strong>${escapeHtml(page.prepared_by || '')}</strong></div>
+            <div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2a0b11100c22a4","Date") ?? "Date")}</span><strong>${escapeHtml(page.date || '')}</strong></div>
           </div>
         </article>
       `;
@@ -4486,7 +4492,7 @@
     const blocks = Array.isArray(page.blocks) ? page.blocks : [];
     return `
       <article class="cp-proposal-page">
-        <h3>${escapeHtml(page.title || 'Project Summary')}</h3>
+        <h3>${escapeHtml(page.title || (globalThis.PlatformLanguage?.text("customer-portal","m_61e1bda0af7448","Project Summary") ?? "Project Summary"))}</h3>
         ${page.summary ? `<p>${nl2br(page.summary)}</p>` : ''}
         ${page.body ? `<p>${nl2br(page.body)}</p>` : ''}
         ${blocks.length ? `<div class="cp-blocks">${blocks.map((block) => `<div>${nl2br(block.text || '')}</div>`).join('')}</div>` : ''}
@@ -4510,8 +4516,8 @@
       return `
         <section class="cp-esign-panel success" data-proposal-workflow-panel>
           <div>
-            <span class="cp-proposal-status signed">Complete</span>
-            <h3>All steps have been completed.</h3>
+            <span class="cp-proposal-status signed">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e8e493437c1a17","Complete") ?? "Complete")}</span>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_42a79e2410d827","All steps have been completed.") ?? "All steps have been completed.")}</h3>
             <p>${escapeHtml(proposalCompletionMessage(proposal, orgName))}</p>
           </div>
         </section>
@@ -4525,40 +4531,40 @@
       return `
         <section class="cp-esign-panel payment" data-proposal-workflow-panel>
           <div>
-            <span class="cp-proposal-status signed">Signed</span>
-            <h3>Deposit Required</h3>
-            <p>Your document is complete. Pay the required deposit now, or choose pay later and return to this portal when ready.</p>
+            <span class="cp-proposal-status signed">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ab7ec8db303996","Signed") ?? "Signed")}</span>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_329ac9c65a8d4f","Deposit Required") ?? "Deposit Required")}</h3>
+            <p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_820584a42a2392","Your document is complete. Pay the required deposit now, or choose pay later and return to this portal when ready.") ?? "Your document is complete. Pay the required deposit now, or choose pay later and return to this portal when ready.")}</p>
           </div>
           <div class="cp-payment-breakdown">
-            <div><span>Subtotal</span><strong>${escapeHtml(moneyFormat(subtotalCents / 100))}</strong></div>
-            <div><span>Sales tax</span><strong>${escapeHtml(moneyFormat(taxCents / 100))}</strong></div>
-            <div><span>Total</span><strong>${escapeHtml(moneyFormat(totalCents / 100))}</strong></div>
-            <div class="due"><span>Deposit due now</span><strong>${escapeHtml(moneyFormat(dueCents / 100))}</strong></div>
+            <div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2fc5623e2a7511","Subtotal") ?? "Subtotal")}</span><strong>${escapeHtml(moneyFormat(subtotalCents / 100))}</strong></div>
+            <div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_265aee5b3f6c36","Sales tax") ?? "Sales tax")}</span><strong>${escapeHtml(moneyFormat(taxCents / 100))}</strong></div>
+            <div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9403c7637d4905","Total") ?? "Total")}</span><strong>${escapeHtml(moneyFormat(totalCents / 100))}</strong></div>
+            <div class="due"><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_965e02232118b4","Deposit due now") ?? "Deposit due now")}</span><strong>${escapeHtml(moneyFormat(dueCents / 100))}</strong></div>
           </div>
           <div class="cp-esign-actions">
             <button type="button" class="cp-primary-btn" data-proposal-pay-now ${state.proposalBusy ? 'disabled' : ''}>${state.proposalBusy ? 'Processing...' : 'Pay Now'}</button>
-            <button type="button" class="cp-text-btn" data-proposal-pay-later ${state.proposalBusy ? 'disabled' : ''}>Pay later</button>
+            <button type="button" class="cp-text-btn" data-proposal-pay-later ${state.proposalBusy ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d25cd157a5f668","Pay later") ?? "Pay later")}</button>
           </div>
-          ${state.paymentSuccess ? '<div class="cp-payment-success"><span></span>Payment approved</div>' : ''}
+          ${state.paymentSuccess ? `<div class="cp-payment-success"><span></span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_6ee93b46bc2e99","Payment approved") ?? "Payment approved")}</div>` : ''}
         </section>
       `;
     }
     return `
       <section class="cp-esign-panel" data-proposal-workflow-panel>
         <div>
-          <span class="cp-proposal-status viewed">Action needed</span>
-          <h3>Review and Sign</h3>
+          <span class="cp-proposal-status viewed">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_c0dfc541f509df","Action needed") ?? "Action needed")}</span>
+          <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5027e872187e98","Review and Sign") ?? "Review and Sign")}</h3>
           <p>${!choicesReady ? 'Review each proposal choice before adopting your signature.' : (allSlotsSigned ? 'All signatures are captured. Complete the document to continue.' : (slots.length ? `Signature ${Math.min(signedSlots + 1, slots.length)} of ${slots.length}` : 'Adopt your signature to complete this proposal.'))}</p>
         </div>
         <label class="cp-signature-adopt">
-          <span>Full legal name</span>
-          <input type="text" value="${escapeHtml(state.signatureName)}" placeholder="Type your name" data-signature-name>
+          <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_46a6d933f18958","Full legal name") ?? "Full legal name")}</span>
+          <input type="text" value="${escapeHtml(state.signatureName)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_816925f7bf0230","Type your name") ?? "Type your name")}" data-signature-name>
           <strong>${escapeHtml(state.signatureName || 'Your Signature')}</strong>
         </label>
         <div class="cp-esign-actions">
-          <button type="button" class="cp-primary-btn" data-signature-adopt ${!choicesReady || allSlotsSigned || state.proposalBusy ? 'disabled' : ''}>Adopt Signature</button>
-          <button type="button" class="cp-primary-btn" data-signature-apply ${!choicesReady || allSlotsSigned || !state.adoptedSignature || state.proposalBusy ? 'disabled' : ''}>Sign Current Location</button>
-          <button type="button" class="cp-ghost-btn" data-signature-complete ${!choicesReady || signedSlots < slots.length || state.proposalBusy ? 'disabled' : ''}>Complete Document</button>
+          <button type="button" class="cp-primary-btn" data-signature-adopt ${!choicesReady || allSlotsSigned || state.proposalBusy ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3596ea9d43e3fe","Adopt Signature") ?? "Adopt Signature")}</button>
+          <button type="button" class="cp-primary-btn" data-signature-apply ${!choicesReady || allSlotsSigned || !state.adoptedSignature || state.proposalBusy ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_7b01fd6e01b114","Sign Current Location") ?? "Sign Current Location")}</button>
+          <button type="button" class="cp-ghost-btn" data-signature-complete ${!choicesReady || signedSlots < slots.length || state.proposalBusy ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_be7d5cd4b892cc","Complete Document") ?? "Complete Document")}</button>
         </div>
       </section>
     `;
@@ -4569,8 +4575,8 @@
         <span class="cp-proposal-current-label">${escapeHtml(proposalOptionLabel(index))}</span>
         <strong>${escapeHtml(proposal.totals?.total || '$0.00')}</strong>
         <div class="cp-proposal-actions">
-          <button type="button" class="cp-ghost-btn" data-proposal-download="${index}">Download</button>
-          <button type="button" class="cp-ghost-btn" data-proposal-print="${index}">Print</button>
+          <button type="button" class="cp-ghost-btn" data-proposal-download="${index}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_871659bb2df660","Download") ?? "Download")}</button>
+          <button type="button" class="cp-ghost-btn" data-proposal-print="${index}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_441fd948b74354","Print") ?? "Print")}</button>
         </div>
       </section>
     `;
@@ -4586,7 +4592,7 @@
       { key: 'progress', label: cleanText(signature.completion_label || signature.completionLabel || 'Progress Payment'), amount: moneyValue(signature.completion_amount || signature.completionAmount), due: cleanText(signature.completion_due || signature.completionDue || 'Due at project halfway point') },
       { key: 'final', label: cleanText(signature.financed_label || signature.financedLabel || 'Final Payment'), amount: moneyValue(signature.financed_amount || signature.financedAmount), due: cleanText(signature.financed_due || signature.financedDue || 'Due at project completion') }
     ].filter((row) => row.amount > 0);
-    if (!rows.length && total > 0) rows.push({ label: 'Project Total', amount: total, due: 'Per proposal terms' });
+    if (!rows.length && total > 0) rows.push({ label: (globalThis.PlatformLanguage?.text("customer-portal","m_540960bbc1cecc","Project Total") ?? "Project Total"), amount: total, due: 'Per proposal terms' });
     return rows;
   }
   function proposalCompletionMessage(proposal = {}, orgName = 'Company'){
@@ -4604,7 +4610,7 @@
     if (proposals.length <= 1) return '';
     const showTotals = showPortalPriceComparison(proposals);
     return `
-      <div class="cp-proposal-options" aria-label="Proposal options">
+      <div class="cp-proposal-options" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3b5499286714d1","Proposal options") ?? "Proposal options")}">
         ${proposals.map((proposal, index) => {
           const signed = proposalSigned(proposal);
           const unavailable = proposalExpired(proposal);
@@ -4612,7 +4618,7 @@
             <button type="button" class="${index === state.activeProposalIndex ? 'active' : ''} ${signed ? 'signed' : ''} ${unavailable ? 'unavailable' : ''}" data-proposal-option="${index}" aria-pressed="${index === state.activeProposalIndex ? 'true' : 'false'}" ${unavailable ? 'disabled' : ''}>
               <strong>${escapeHtml(proposalOptionLabel(index))}</strong>
               ${showTotals ? `<b>${escapeHtml(proposal.totals?.total || '')}</b>` : ''}
-              ${signed ? '<span>Signed</span>' : (unavailable ? '<span>Expired</span>' : '')}
+              ${signed ? `<span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ab7ec8db303996","Signed") ?? "Signed")}</span>` : (unavailable ? `<span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e685fe954b1758","Expired") ?? "Expired")}</span>` : '')}
             </button>
           `;
         }).join('')}
@@ -4698,7 +4704,7 @@
       const current = !signed && !adopted && firstIncompleteChoice?.id === group.id;
       steps.push({
         id: `choice_${group.id || index}`,
-        label: `Choose ${group.title || `Option ${index + 1}`}`,
+        label: ((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_2d0d8d9462a4bf",`Choose ${v0}`,{v0}) ?? `Choose ${v0}`)(group.title || `Option ${index + 1}`),
         detail: complete ? (group.selected ? `${group.selected.display_name || group.selected.name || 'Option'} selected` : 'Selection reviewed') : 'Review this option group',
         complete,
         current,
@@ -4708,7 +4714,7 @@
     });
     steps.push({
       id: 'adopt',
-      label: 'Adopt Signature',
+      label: (globalThis.PlatformLanguage?.text("customer-portal","m_3596ea9d43e3fe","Adopt Signature") ?? "Adopt Signature"),
       detail: adopted ? 'Signature ready' : (choicesReady ? 'Type or draw your signature' : 'Complete proposal choices first'),
       complete: adopted,
       current: choicesReady && !adopted,
@@ -4721,7 +4727,7 @@
       const current = choicesReady && adopted && previousSigned && !slotSigned && firstUnsigned === index;
       steps.push({
         id: `slot_${index}`,
-        label: `Sign Location ${index + 1}`,
+        label: ((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_006a6357c44020",`Sign Location ${v0}`,{v0}) ?? `Sign Location ${v0}`)(index + 1),
         detail: slotSigned ? 'Signed' : (!choicesReady ? 'Complete proposal choices first' : (adopted ? (current ? 'Tap to jump to this signature' : 'Complete previous signature first') : 'Adopt a signature first')),
         complete: slotSigned,
         current,
@@ -4732,7 +4738,7 @@
     if (deposit.required) {
       steps.push({
         id: 'payment',
-        label: 'Deposit Payment',
+        label: (globalThis.PlatformLanguage?.text("customer-portal","m_c9757e72b2461d","Deposit Payment") ?? "Deposit Payment"),
         detail: paid ? 'Payment received' : (signed ? `Deposit due ${deposit.label || ''}`.trim() : 'Available after signing'),
         complete: paid,
         current: signed && !paid,
@@ -4754,7 +4760,7 @@
     return `
       <section class="cp-sign-rail cp-timeline-card" data-signature-rail>
         <div class="cp-sign-rail-head">
-          <span>Timeline</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3c318c8d1f9b1a","Timeline") ?? "Timeline")}</span>
           <strong>${completedSteps}/${steps.length}</strong>
         </div>
         <div class="cp-timeline-list">
@@ -4767,7 +4773,7 @@
           </button>
         ` : ''}
         ${deposit.required && signed && !paid ? `
-          <button type="button" class="cp-text-btn cp-timeline-pay-later" data-proposal-pay-later ${state.proposalBusy ? 'disabled' : ''}>Pay later</button>
+          <button type="button" class="cp-text-btn cp-timeline-pay-later" data-proposal-pay-later ${state.proposalBusy ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d25cd157a5f668","Pay later") ?? "Pay later")}</button>
         ` : ''}
       </section>
     `;
@@ -4894,9 +4900,9 @@
           ${proposalOptionTabsHtml(proposals)}
           ${documentHtml ? `
             <div class="cp-document-shell">
-              <iframe class="cp-document-frame" data-proposal-document-frame="${state.activeProposalIndex}" title="${escapeHtml(proposal.title || 'Proposal document')}" scrolling="no"></iframe>
+              <iframe class="cp-document-frame" data-proposal-document-frame="${state.activeProposalIndex}" title="${escapeHtml(proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_aa6a24e15dfc1d","Proposal document") ?? "Proposal document"))}" scrolling="no"></iframe>
             </div>
-          ` : (pages.length ? pages.map((page) => proposalPageHtml(page, proposal)).join('') : '<div class="cp-empty">This proposal does not have visible pages yet.</div>')}
+          ` : (pages.length ? pages.map((page) => proposalPageHtml(page, proposal)).join('') : `<div class="cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_1ac05f4d4b72bb","This proposal does not have visible pages yet.") ?? "This proposal does not have visible pages yet.")}</div>`)}
         </section>
       </div>
     `;
@@ -5044,77 +5050,77 @@
     const email = cleanText(state.receiptEmail || projectCustomer(activeProjectPayload()).email);
     const paymentFormHtml = selectedMethod === 'ACH' ? `
       <form class="cp-mock-payment-form" data-mock-payment-form novalidate>
-        <h3>ACH payment</h3>
+        <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_474c1095f06ee2","ACH payment") ?? "ACH payment")}</h3>
         <div class="cp-form-grid">
           <label class="wide">
-            <span>Account holder name</span>
-            <input type="text" autocomplete="name" data-payment-field="ach-name" placeholder="Jordan Smith">
+            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8506755b32ab8f","Account holder name") ?? "Account holder name")}</span>
+            <input type="text" autocomplete="name" data-payment-field="ach-name" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4fce17318219ed","Jordan Smith") ?? "Jordan Smith")}">
           </label>
           <label>
-            <span>Routing number</span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_308a9ca41691ca","Routing number") ?? "Routing number")}</span>
             <input type="text" inputmode="numeric" autocomplete="off" data-payment-field="routing" placeholder="021000021" maxlength="9">
           </label>
           <label>
-            <span>Account type</span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_a2ee1cfe84c2c3","Account type") ?? "Account type")}</span>
             <select data-payment-field="account-type">
-              <option value="checking">Checking</option>
-              <option value="savings">Savings</option>
+              <option value="checking">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8f2aa52d7e253b","Checking") ?? "Checking")}</option>
+              <option value="savings">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5b503699d80ad2","Savings") ?? "Savings")}</option>
             </select>
           </label>
           <label>
-            <span>Account number</span>
-            <input type="password" inputmode="numeric" autocomplete="off" data-payment-field="account" placeholder="4-17 digits">
+            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_b028fb8bb8ac0a","Account number") ?? "Account number")}</span>
+            <input type="password" inputmode="numeric" autocomplete="off" data-payment-field="account" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_b1011e3f2fdec3","4-17 digits") ?? "4-17 digits")}">
           </label>
           <label>
-            <span>Confirm account</span>
-            <input type="password" inputmode="numeric" autocomplete="off" data-payment-field="account-confirm" placeholder="Retype account">
+            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3e51d57ae99ede","Confirm account") ?? "Confirm account")}</span>
+            <input type="password" inputmode="numeric" autocomplete="off" data-payment-field="account-confirm" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ec1fbf411120da","Retype account") ?? "Retype account")}">
           </label>
         </div>
         <label class="cp-payment-authorize">
           <input type="checkbox" data-payment-field="ach-authorize">
-          <span>I authorize this ACH debit from the bank account above for the payment amount shown.</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2c721c4e180145","I authorize this ACH debit from the bank account above for the payment amount shown.") ?? "I authorize this ACH debit from the bank account above for the payment amount shown.")}</span>
         </label>
         ${state.paymentFormError ? `<div class="cp-payment-form-error">${escapeHtml(state.paymentFormError)}</div>` : ''}
         <div class="cp-payment-actions">
-          <button type="submit" class="cp-primary-btn">Run Mock ACH</button>
+          <button type="submit" class="cp-primary-btn">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_abd8f8fbf164f0","Run Mock ACH") ?? "Run Mock ACH")}</button>
         </div>
       </form>
     ` : `
       <form class="cp-mock-payment-form" data-mock-payment-form novalidate>
-        <h3>Card payment</h3>
+        <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_997bb5a9e56d22","Card payment") ?? "Card payment")}</h3>
         <div class="cp-form-grid">
           <label class="wide">
-            <span>Name on card</span>
-            <input type="text" autocomplete="cc-name" data-payment-field="card-name" placeholder="Jordan Smith">
+            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3a7bcfa366c064","Name on card") ?? "Name on card")}</span>
+            <input type="text" autocomplete="cc-name" data-payment-field="card-name" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4fce17318219ed","Jordan Smith") ?? "Jordan Smith")}">
           </label>
           <label class="wide">
-            <span>Card number</span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cbbfb3da2ddfde","Card number") ?? "Card number")}</span>
             <input type="text" inputmode="numeric" autocomplete="cc-number" data-payment-field="card-number" placeholder="4242 4242 4242 4242" maxlength="23">
           </label>
           <div class="cp-expiry-field">
-            <span>Expiration</span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_95af41e20221e6","Expiration") ?? "Expiration")}</span>
             <div class="cp-expiry-pair">
-              <input type="text" inputmode="numeric" autocomplete="cc-exp-month" data-payment-field="expiry-month" placeholder="MM" maxlength="5">
-              <input type="text" inputmode="numeric" autocomplete="cc-exp-year" data-payment-field="expiry-year" placeholder="YY" maxlength="4">
+              <input type="text" inputmode="numeric" autocomplete="cc-exp-month" data-payment-field="expiry-month" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_65c801480ef4cc","MM") ?? "MM")}" maxlength="5">
+              <input type="text" inputmode="numeric" autocomplete="cc-exp-year" data-payment-field="expiry-year" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4cbe3961dabf19","YY") ?? "YY")}" maxlength="4">
             </div>
           </div>
           <label>
-            <span>CVC</span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_7e7759fb0c36df","CVC") ?? "CVC")}</span>
             <input type="text" inputmode="numeric" autocomplete="cc-csc" data-payment-field="cvc" placeholder="123" maxlength="4">
           </label>
           <label>
-            <span>Billing ZIP</span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_37e7c561258701","Billing ZIP") ?? "Billing ZIP")}</span>
             <input type="text" inputmode="numeric" autocomplete="postal-code" data-payment-field="zip" placeholder="90210">
           </label>
         </div>
         ${state.paymentFormError ? `<div class="cp-payment-form-error">${escapeHtml(state.paymentFormError)}</div>` : ''}
         <div class="cp-payment-actions">
-          <button type="submit" class="cp-primary-btn">Run Mock Card</button>
+          <button type="submit" class="cp-primary-btn">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d3dceece330aad","Run Mock Card") ?? "Run Mock Card")}</button>
         </div>
       </form>
     `;
     const scheduleHtml = `
-      <div class="cp-checkout-schedule" aria-label="Payment schedule">
+      <div class="cp-checkout-schedule" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_efee8a08306ce6","Payment schedule") ?? "Payment schedule")}">
         ${schedule.map((row, index) => `
           <article class="${index === 0 ? 'due' : ''}">
             <div>
@@ -5128,25 +5134,25 @@
     `;
     const body = (() => {
       if (state.paymentModalStep === 'processing') {
-        return `<div class="cp-payment-screen active"><div class="cp-checkout-processing"><span></span><strong>Processing ${escapeHtml(state.paymentMethod || 'payment')}...</strong><p>Please keep this window open while the payment is authorized.</p></div></div>`;
+        return `<div class="cp-payment-screen active"><div class="cp-checkout-processing"><span></span><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_c433668bcc52bd",`Processing ${v0}...`,{v0}) ?? `Processing ${v0}...`)(escapeHtml(state.paymentMethod || 'payment'))}</strong><p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4ebcfc3178def9","Please keep this window open while the payment is authorized.") ?? "Please keep this window open while the payment is authorized.")}</p></div></div>`;
       }
       if (state.paymentModalStep === 'receipt') {
         return `
           <div class="cp-payment-screen active">
             <div class="cp-checkout-receipt">
               <div>
-                <h3>Email receipt</h3>
-                <p>You can always download the paid invoice from the payments tab in the customer portal.</p>
+                <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_44d5a64ac2cb37","Email receipt") ?? "Email receipt")}</h3>
+                <p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e8132bd7b152df","You can always download the paid invoice from the payments tab in the customer portal.") ?? "You can always download the paid invoice from the payments tab in the customer portal.")}</p>
               </div>
               <label>
-                <span>Email receipt to</span>
+                <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_fb8bbfd84024fc","Email receipt to") ?? "Email receipt to")}</span>
                 <input type="email" value="${escapeHtml(email)}" data-receipt-email>
               </label>
             </div>
           </div>
           <div class="cp-payment-actions">
-            <button type="button" class="cp-ghost-btn" data-receipt-back>Back</button>
-            <button type="button" class="cp-primary-btn" data-receipt-send>Send Receipt</button>
+            <button type="button" class="cp-ghost-btn" data-receipt-back>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_121372231b5699","Back") ?? "Back")}</button>
+            <button type="button" class="cp-primary-btn" data-receipt-send>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_95239266490f34","Send Receipt") ?? "Send Receipt")}</button>
           </div>
         `;
       }
@@ -5158,15 +5164,15 @@
                 <circle cx="28" cy="28" r="25"></circle>
                 <path d="M17 29.5 24.5 37 40 20"></path>
               </svg>
-              <h3>Payment went through</h3>
-              <p>Paid invoice ${escapeHtml(receipt)} for ${escapeHtml(moneyFormat(dueCents / 100))} is ready.</p>
-              ${state.receiptSent ? '<div class="cp-payment-success static"><span></span>Receipt sent.</div>' : ''}
+              <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_f76567c2a072ff","Payment went through") ?? "Payment went through")}</h3>
+              <p>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_e2efa10c479b61",`Paid invoice ${v0} for ${v1} is ready.`,{v0,v1}) ?? `Paid invoice ${v0} for ${v1} is ready.`)(escapeHtml(receipt),escapeHtml(moneyFormat(dueCents / 100)))}</p>
+              ${state.receiptSent ? `<div class="cp-payment-success static"><span></span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_728fb7f31e01d1","Receipt sent.") ?? "Receipt sent.")}</div>` : ''}
             </div>
           </div>
           <div class="cp-payment-actions">
-            <button type="button" class="cp-ghost-btn" data-receipt-download>Download Invoice</button>
-            <button type="button" class="cp-ghost-btn" data-receipt-open-email>Email Receipt</button>
-            <button type="button" class="cp-primary-btn" data-payment-done>Done</button>
+            <button type="button" class="cp-ghost-btn" data-receipt-download>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e2f600c5c92df9","Download Invoice") ?? "Download Invoice")}</button>
+            <button type="button" class="cp-ghost-btn" data-receipt-open-email>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e68bac6d7f6b86","Email Receipt") ?? "Email Receipt")}</button>
+            <button type="button" class="cp-primary-btn" data-payment-done>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8cb6b086a0e69c","Done") ?? "Done")}</button>
           </div>
         `;
       }
@@ -5175,9 +5181,9 @@
           <div class="cp-checkout-grid">
             <div class="cp-checkout-main">
               <div class="cp-checkout-amount">
-                <span>${escapeHtml(paymentLabel)} due now</span>
+                <span>${((v0) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_775452a1b021e2",`${v0} due now`,{v0}) ?? `${v0} due now`)(escapeHtml(paymentLabel))}</span>
                 <strong>${escapeHtml(moneyFormat(dueCents / 100))}</strong>
-                <small>Total proposal ${escapeHtml(moneyFormat(totalCents / 100))}</small>
+                <small>${((v2) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_255a20d5b0faf6",`Total proposal ${v2}`,{v2}) ?? `Total proposal ${v2}`)(escapeHtml(moneyFormat(totalCents / 100)))}</small>
               </div>
               <div class="cp-checkout-methods">
                 ${methods.map(([label, detail, icon]) => `
@@ -5195,7 +5201,7 @@
                 </div>
               ` : `
                 <div class="cp-payment-pane-content">
-                  <h3>Payment schedule</h3>
+                  <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_efee8a08306ce6","Payment schedule") ?? "Payment schedule")}</h3>
                   ${scheduleHtml}
                 </div>
               `}
@@ -5210,9 +5216,9 @@
           <div class="cp-sign-modal-head">
             <div>
               <strong>${state.paymentModalStep === 'checkout' ? `Pay ${escapeHtml(paymentLabel)}` : 'Payment'}</strong>
-              <span>${escapeHtml(proposal.title || 'Proposal')}</span>
+              <span>${escapeHtml(proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal"))}</span>
             </div>
-            <button type="button" class="cp-icon-btn" data-payment-close aria-label="Close">x</button>
+            <button type="button" class="cp-icon-btn" data-payment-close aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3742924668fb10","Close") ?? "Close")}">x</button>
           </div>
           ${body}
         </div>
@@ -5458,13 +5464,13 @@
           await refreshPortalPayload();
         }));
         row.querySelector('[data-cp-checklist-rename]')?.addEventListener('click', (event) => busy(event.currentTarget, async () => {
-          const title = cleanText(window.prompt('Rename checklist item', item.title || ''));
+          const title = cleanText(window.prompt((globalThis.PlatformLanguage?.text("customer-portal","m_5d0e8d2336b9f7","Rename checklist item") ?? "Rename checklist item"), item.title || ''));
           if (!title || title === item.title) return;
           await api.customerPortals.publicUpdateChecklistItem(portalUuid, checklistId, itemId, { title });
           await refreshPortalPayload();
         }));
         row.querySelector('[data-cp-checklist-remove]')?.addEventListener('click', (event) => busy(event.currentTarget, async () => {
-          if (!window.confirm(`Remove "${item.title}" from this checklist?`)) return;
+          if (!window.confirm(((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_99a5678d0457d5",`Remove "${v0}" from this checklist?`,{v0}) ?? `Remove "${v0}" from this checklist?`)(item.title))) return;
           await api.customerPortals.publicRemoveChecklistItem(portalUuid, checklistId, itemId);
           await refreshPortalPayload();
         }));
@@ -5515,38 +5521,38 @@
       <div class="cp-share-modal" data-share-modal>
         <div class="cp-share-card" role="dialog" aria-modal="true" aria-labelledby="cp-share-title">
           <header class="cp-share-head">
-            <div><span>Secure sharing</span><h2 id="cp-share-title">Share this portal</h2><p>Create a separate read-only link you can revoke at any time.</p></div>
-            <button type="button" class="cp-icon-btn" data-share-close aria-label="Close">×</button>
+            <div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_1b25feb43c2ac7","Secure sharing") ?? "Secure sharing")}</span><h2 id="cp-share-title">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ae859d82d60e2f","Share this portal") ?? "Share this portal")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9a539416db22b5","Create a separate read-only link you can revoke at any time.") ?? "Create a separate read-only link you can revoke at any time.")}</p></div>
+            <button type="button" class="cp-icon-btn" data-share-close aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3742924668fb10","Close") ?? "Close")}">×</button>
           </header>
           <section class="cp-share-existing">
-            <div class="cp-share-section-title"><strong>Active links</strong><span>${active.length} active</span></div>
+            <div class="cp-share-section-title"><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_be36a6c37ec133","Active links") ?? "Active links")}</strong><span>${((v0) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_8676752f96a9e1",`${v0} active`,{v0}) ?? `${v0} active`)(active.length)}</span></div>
             ${active.length ? active.map((item) => `
               <article class="cp-share-row${cleanText(item.id) === cleanText(state.shareCreatedId) ? ' created' : ''}">
                 <div class="cp-share-row-head">
                   <span class="cp-share-row-icon"><i class="fa-solid fa-user-group" aria-hidden="true"></i></span>
-                  <span><strong>${escapeHtml(item.label || 'Shared access')}${cleanText(item.id) === cleanText(state.shareCreatedId) ? '<em>Link ready</em>' : ''}</strong><small>${escapeHtml(sharePresetLabel(item.preset))} · ${item.project_ids?.length > 1 ? `${item.project_ids.length} projects` : 'This project'} · ${item.expires_at ? `Expires ${escapeHtml(shareDate(item.expires_at))}` : 'Never expires'}${item.last_viewed_at ? ` · Last opened ${escapeHtml(shareDate(item.last_viewed_at))}` : ''}</small></span>
-                  <button type="button" class="danger" data-share-revoke="${escapeHtml(item.id)}">Revoke</button>
+                  <span><strong>${escapeHtml(item.label || 'Shared access')}${cleanText(item.id) === cleanText(state.shareCreatedId) ? `<em>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_96c4ad96a3b2dc","Link ready") ?? "Link ready")}</em>` : ''}</strong><small>${escapeHtml(sharePresetLabel(item.preset))} · ${item.project_ids?.length > 1 ? `${item.project_ids.length} projects` : 'This project'} · ${item.expires_at ? `Expires ${escapeHtml(shareDate(item.expires_at))}` : 'Never expires'}${item.last_viewed_at ? ` · Last opened ${escapeHtml(shareDate(item.last_viewed_at))}` : ''}</small></span>
+                  <button type="button" class="danger" data-share-revoke="${escapeHtml(item.id)}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_45c67f3cceb08b","Revoke") ?? "Revoke")}</button>
                 </div>
-                ${item.url ? `<div class="cp-share-link-row"><input readonly value="${escapeHtml(item.url)}" aria-label="Link for ${escapeHtml(item.label || 'shared access')}"><button type="button" data-share-copy-url="${escapeHtml(item.url)}"><i class="fa-regular fa-copy" aria-hidden="true"></i>Copy</button><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Open</a></div>` : ''}
+                ${item.url ? `<div class="cp-share-link-row"><input readonly value="${escapeHtml(item.url)}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_db7262351f2b24",`Link for ${v1}`,{v1}) ?? `Link for ${v1}`)(escapeHtml(item.label || 'shared access'))}"><button type="button" data-share-copy-url="${escapeHtml(item.url)}"><i class="fa-regular fa-copy" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9302911bb13773","Copy") ?? "Copy")}</button><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_c25cc66b28cc9d","Open") ?? "Open")}</a></div>` : ''}
               </article>
-            `).join('') : '<div class="cp-share-empty">No active shared links yet. Create one below.</div>'}
+            `).join('') : `<div class="cp-share-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8ba0c3ca97c22e","No active shared links yet. Create one below.") ?? "No active shared links yet. Create one below.")}</div>`}
           </section>
           <section class="cp-share-new">
-            <button type="button" class="cp-share-new-toggle" data-share-form-toggle aria-expanded="${formOpen ? 'true' : 'false'}"><span><i class="fa-solid fa-plus" aria-hidden="true"></i><strong>New link</strong></span><i class="fa-solid fa-chevron-${formOpen ? 'up' : 'down'}" aria-hidden="true"></i></button>
+            <button type="button" class="cp-share-new-toggle" data-share-form-toggle aria-expanded="${formOpen ? 'true' : 'false'}"><span><i class="fa-solid fa-plus" aria-hidden="true"></i><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_f0961726127fd4","New link") ?? "New link")}</strong></span><i class="fa-solid fa-chevron-${formOpen ? 'up' : 'down'}" aria-hidden="true"></i></button>
             ${formOpen ? `<form class="cp-share-form" data-share-form>
-              <div class="cp-share-security"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span>Every shared link is read-only and can be revoked at any time.</span></div>
+              <div class="cp-share-security"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_37c79388722d91","Every shared link is read-only and can be revoked at any time.") ?? "Every shared link is read-only and can be revoked at any time.")}</span></div>
               <fieldset>
-                <legend>What can they see?</legend>
+                <legend>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3a40524c98ef0c","What can they see?") ?? "What can they see?")}</legend>
                 <div class="cp-share-choice-grid">
-                  <label class="cp-share-choice"><input type="radio" name="preset" value="full_view" checked><span><strong>Full portal view</strong><small>Home overview, next steps, schedule, photos, and shared checklists</small></span></label>
-                  <label class="cp-share-choice"><input type="radio" name="preset" value="project_updates"><span><strong>Project updates</strong><small>Schedule and project photos only</small></span></label>
-                  <label class="cp-share-choice"><input type="radio" name="preset" value="photos_only"><span><strong>Photos only</strong><small>Only photos and videos shared by your project team</small></span></label>
+                  <label class="cp-share-choice"><input type="radio" name="preset" value="full_view" checked><span><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4a787b188bf71f","Full portal view") ?? "Full portal view")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_74c1e9e812db22","Home overview, next steps, schedule, photos, and shared checklists") ?? "Home overview, next steps, schedule, photos, and shared checklists")}</small></span></label>
+                  <label class="cp-share-choice"><input type="radio" name="preset" value="project_updates"><span><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ca88698f97c379","Project updates") ?? "Project updates")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_54d132dbe479fd","Schedule and project photos only") ?? "Schedule and project photos only")}</small></span></label>
+                  <label class="cp-share-choice"><input type="radio" name="preset" value="photos_only"><span><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_a732f0e6f2ff31","Photos only") ?? "Photos only")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_293ea1f0357b3f","Only photos and videos shared by your project team") ?? "Only photos and videos shared by your project team")}</small></span></label>
                 </div>
               </fieldset>
               <div class="cp-share-fields">
-                <label><span>Who is this for?</span><input name="label" maxlength="80" required></label>
-                ${allProjects.length > 1 ? `<label><span>Projects</span><select name="project_scope"><option value="current" selected>Only this project</option><option value="all">All ${allProjects.length} projects</option></select></label>` : ''}
-                <label><span>Link expires</span><select name="expires_days"><option value="0" selected>Never</option><option value="7">In 7 days</option><option value="30">In 30 days</option><option value="90">In 90 days</option><option value="365">In 1 year</option></select></label>
+                <label><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_b7df67ad2e041b","Who is this for?") ?? "Who is this for?")}</span><input name="label" maxlength="80" required></label>
+                ${allProjects.length > 1 ? `<label><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_19156e80fc8a6e","Projects") ?? "Projects")}</span><select name="project_scope"><option value="current" selected>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ab9ea00a86d35b","Only this project") ?? "Only this project")}</option><option value="all">${((v0) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_eb7c8d245a5259",`All ${v0} projects`,{v0}) ?? `All ${v0} projects`)(allProjects.length)}</option></select></label>` : ''}
+                <label><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_eeb6aeb8f8e837","Link expires") ?? "Link expires")}</span><select name="expires_days"><option value="0" selected>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_35304e673f218d","Never") ?? "Never")}</option><option value="7">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3360960154af20","In 7 days") ?? "In 7 days")}</option><option value="30">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4f5de1560523f2","In 30 days") ?? "In 30 days")}</option><option value="90">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_6a09d6fe97cbe5","In 90 days") ?? "In 90 days")}</option><option value="365">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ea94057aa2a5e7","In 1 year") ?? "In 1 year")}</option></select></label>
               </div>
               <button type="submit" class="cp-share-create" ${state.shareBusy ? 'disabled' : ''}>${state.shareBusy ? 'Creating secure link…' : '<i class="fa-solid fa-link" aria-hidden="true"></i>Create secure link'}</button>
             </form>` : ''}
@@ -5590,7 +5596,7 @@
       finally { state.shareBusy = false; if (state.shareModalOpen) render(); }
     });
     layer.querySelectorAll('[data-share-revoke]').forEach((button) => button.addEventListener('click', async () => {
-      if (state.shareBusy || !confirm(`Revoke access for this shared link? Anyone using it will be blocked immediately.`)) return;
+      if (state.shareBusy || !confirm((globalThis.PlatformLanguage?.text("customer-portal","m_3f7a95b3e0ac2d","Revoke access for this shared link? Anyone using it will be blocked immediately.") ?? "Revoke access for this shared link? Anyone using it will be blocked immediately."))) return;
       state.shareBusy = true; button.disabled = true;
       try {
         await api.customerPortals.publicRevokeShare(cfg.id, button.dataset.shareRevoke || '');
@@ -5623,9 +5629,9 @@
     const email = cleanText(customer.email);
     const phone = formatPhone(customer.phone);
     const contactRows = [
-      customerName ? `<div><span>Contact</span><strong>${escapeHtml(customerName)}</strong></div>` : '',
-      email ? `<div><span>Email</span><strong>${escapeHtml(email)}</strong></div>` : '',
-      phone ? `<div><span>Phone</span><strong>${escapeHtml(phone)}</strong></div>` : ''
+      customerName ? `<div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_46c8aea84388c3","Contact") ?? "Contact")}</span><strong>${escapeHtml(customerName)}</strong></div>` : '',
+      email ? `<div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5d2b9327181e33","Email") ?? "Email")}</span><strong>${escapeHtml(email)}</strong></div>` : '',
+      phone ? `<div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ed04c65845180f","Phone") ?? "Phone")}</span><strong>${escapeHtml(phone)}</strong></div>` : ''
     ].filter(Boolean).join('');
     const tabList = tabs();
     // Fall back to the first served tab rather than a hardcoded 'summary': when
@@ -5634,7 +5640,7 @@
     if (!tabList.some((tab) => tab.id === state.activeTab)) {
       state.activeTab = cleanText(tabList[0]?.id) || 'summary';
     }
-    document.title = `${orgName} - Customer Portal`;
+    document.title = ((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_54e5b0a0f75f6f",`${v0} - Customer Portal`,{v0}) ?? `${v0} - Customer Portal`)(orgName);
     const guestAccess = cleanText(state.payload?.access?.mode) === 'guest';
     mount.className = `cp-shell${isPreviewMode() ? ' preview' : ''}${guestAccess ? ' guest' : ''}`;
     const activeTabHtml = (() => {
@@ -5670,15 +5676,15 @@
       `;
     })();
     mount.innerHTML = `
-      ${isPreviewMode() ? '<div class="cp-preview-banner">Preview Mode</div>' : ''}
-      ${guestAccess ? `<div class="cp-guest-banner"><i class="fa-solid fa-eye" aria-hidden="true"></i><span><strong>Shared read-only view</strong>${state.payload?.access?.label ? ` for ${escapeHtml(state.payload.access.label)}` : ''}</span></div>` : ''}
+      ${isPreviewMode() ? `<div class="cp-preview-banner">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_15b3e5ee9b709c","Preview Mode") ?? "Preview Mode")}</div>` : ''}
+      ${guestAccess ? `<div class="cp-guest-banner"><i class="fa-solid fa-eye" aria-hidden="true"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_7090eed673e7f9","Shared read-only view") ?? "Shared read-only view")}</strong>${state.payload?.access?.label ? ` for ${escapeHtml(state.payload.access.label)}` : ''}</span></div>` : ''}
       <header class="cp-header">
         <div class="cp-header-inner">
           <div class="cp-brand">
             ${logoHtml(org)}
             <div>
               <strong>${escapeHtml(org.name || 'Company')}</strong>
-              <span>Customer portal</span>
+              <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_46ba04ea07c935","Customer portal") ?? "Customer portal")}</span>
             </div>
           </div>
           <div class="cp-header-actions">
@@ -5686,13 +5692,13 @@
           </div>
         </div>
       </header>
-      <nav class="cp-tabs" aria-label="Customer portal sections">
+      <nav class="cp-tabs" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e6d980684bc615","Customer portal sections") ?? "Customer portal sections")}">
         <div class="cp-tabs-list">
           ${tabs().map((tab) => `
             <button type="button" class="${tab.id === state.activeTab ? 'active' : ''}" data-tab="${escapeHtml(tab.id)}" aria-selected="${tab.id === state.activeTab ? 'true' : 'false'}">${escapeHtml(tab.label)}</button>
           `).join('')}
         </div>
-        ${state.payload?.access?.can_share && sharingState()?.enabled ? '<button type="button" class="cp-tabs-share" data-share-open aria-label="Share portal" title="Share portal"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i></button>' : ''}
+        ${state.payload?.access?.can_share && sharingState()?.enabled ? `<button type="button" class="cp-tabs-share" data-share-open aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_fafa5cd97e183b","Share portal") ?? "Share portal")}" title="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_fafa5cd97e183b","Share portal") ?? "Share portal")}"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i></button>` : ''}
       </nav>
       <div class="cp-wrap">
         <div class="cp-tab-panel">${activeTabHtml}</div>
@@ -5901,14 +5907,14 @@
     node.className = 'cp-modal';
     node.innerHTML = `
       <div class="cp-modal-inner" role="dialog" aria-modal="true">
-        <button type="button" class="cp-icon-btn cp-close" data-close aria-label="Close">x</button>
-        ${media.length > 1 ? '<button type="button" class="cp-icon-btn cp-nav prev" data-prev aria-label="Previous">&lt;</button><button type="button" class="cp-icon-btn cp-nav next" data-next aria-label="Next">&gt;</button>' : ''}
+        <button type="button" class="cp-icon-btn cp-close" data-close aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3742924668fb10","Close") ?? "Close")}">x</button>
+        ${media.length > 1 ? `<button type="button" class="cp-icon-btn cp-nav prev" data-prev aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_bb31fd73cbfe3b","Previous") ?? "Previous")}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_c92214e41976a3","&lt;") ?? "&lt;")}</button><button type="button" class="cp-icon-btn cp-nav next" data-next aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5e03a7c216f500","Next") ?? "Next")}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_6d53ddeac23dcc","&gt;") ?? "&gt;")}</button>` : ''}
         <div class="cp-modal-stage">
           ${isVideo ? `<video src="${escapeHtml(item.src)}" controls autoplay playsinline></video>` : markedImageHtml(item, item.src, item.label || 'Shared media')}
         </div>
         <div class="cp-modal-meta">
           <strong>${escapeHtml(item.label || (isVideo ? 'Video' : 'Photo'))}</strong>
-          <a class="cp-icon-btn" href="${escapeHtml(item.src)}" download aria-label="Download" data-media-download>DL</a>
+          <a class="cp-icon-btn" href="${escapeHtml(item.src)}" download aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_871659bb2df660","Download") ?? "Download")}" data-media-download>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9bc843cc6db724","DL") ?? "DL")}</a>
         </div>
         ${mediaCommentsHtml(item.media_id || item.id)}
       </div>
@@ -5940,7 +5946,7 @@
   }
   function renderError(error){
     mount.className = 'cp-shell';
-    mount.innerHTML = `<div class="cp-error"><h1>Portal unavailable</h1><p>${escapeHtml(error?.message || 'This customer portal could not be loaded.')}</p></div>`;
+    mount.innerHTML = `<div class="cp-error"><h1>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_881cec332c3933","Portal unavailable") ?? "Portal unavailable")}</h1><p>${escapeHtml(error?.message || 'This customer portal could not be loaded.')}</p></div>`;
   }
   root.launchPaymentModalForTesting = function launchPaymentModalForTesting(options = {}){
     const opts = typeof options === 'number' ? { proposalIndex: options } : (options || {});
@@ -5989,7 +5995,8 @@
     }
     try {
       const payload = await api.customerPortals.publicGet(cfg.id, { preview: cfg.preview });
-      state.payload = payload;
+      if(payload.language){root.PlatformLanguage?.configure?.({context:payload.language.context});root.PlatformTerminology?.setConfig?.({mappings:payload.language.terminology});await root.PlatformLanguage?.ensure?.(['customer-portal']);}
+    state.payload = payload;
       state.activeProjectId = cleanText(payload?.contact_portal?.active_project_id || payload?.portal?.active_project_id || payload?.project?.id);
       applyBranding(payload);
       render();

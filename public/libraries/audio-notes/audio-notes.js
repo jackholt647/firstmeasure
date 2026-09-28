@@ -195,12 +195,12 @@
 
       const backdrop = document.createElement('div');
       backdrop.className = 'fm-an-modal-backdrop';
-      backdrop.innerHTML = `<section class="fm-an-modal" role="dialog" aria-modal="true" aria-label="${String(esc(options.title || 'Record audio note'))}">
-        <div class="fm-an-head"><strong>${String(esc(options.title || 'Record audio note'))}</strong><button class="fm-an-close" type="button" aria-label="${(globalThis.PlatformLanguage?.text("audio-notes","m_cbef679b21abb4","Cancel") ?? "Cancel")}"><i class="fas fa-xmark"></i></button></div>
+      backdrop.innerHTML = `<section class="fm-an-modal" role="dialog" aria-modal="true" aria-label="${String(esc(options.title || (globalThis.PlatformLanguage?.text("audio-notes","m_dd978d5c5b3bd9","Record audio note") ?? "Record audio note")))}">
+        <div class="fm-an-head"><strong>${String(esc(options.title || (globalThis.PlatformLanguage?.text("audio-notes","m_dd978d5c5b3bd9","Record audio note") ?? "Record audio note")))}</strong><button class="fm-an-close" type="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_cbef679b21abb4","Cancel") ?? "Cancel")}"><i class="fas fa-xmark"></i></button></div>
         <div class="fm-an-live" aria-hidden="true"></div>
-        <div class="fm-an-status"><span class="fm-an-record-dot"></span>${(globalThis.PlatformLanguage?.text("audio-notes","m_94f900bf5e2ad6","Recording") ?? "Recording")}</div>
+        <div class="fm-an-status"><span class="fm-an-record-dot"></span>${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_94f900bf5e2ad6","Recording") ?? "Recording")}</div>
         <div class="fm-an-clock">0:00</div>
-        <div class="fm-an-actions"><button class="fm-an-cancel" type="button">${(globalThis.PlatformLanguage?.text("audio-notes","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button class="fm-an-stop" type="button"><i class="fas fa-stop"></i>${(globalThis.PlatformLanguage?.text("audio-notes","m_9cb65d38fbf170"," Stop") ?? " Stop")}</button></div>
+        <div class="fm-an-actions"><button class="fm-an-cancel" type="button">${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button class="fm-an-stop" type="button"><i class="fas fa-stop"></i>${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_9cb65d38fbf170"," Stop") ?? " Stop")}</button></div>
       </section>`;
       document.body.appendChild(backdrop);
       const live = backdrop.querySelector('.fm-an-live');
@@ -301,7 +301,7 @@
         live.style.padding = '12px 0';
         status.innerHTML = 'Recording ready';
         clock.textContent = formatTime(duration);
-        actions.innerHTML = `<button class="fm-an-cancel" type="button">${(globalThis.PlatformLanguage?.text("audio-notes","m_4ab5419992b0f7","Discard") ?? "Discard")}</button><button class="fm-an-use" type="button"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("audio-notes","m_f32042ccf7223d"," Use recording") ?? " Use recording")}</button>`;
+        actions.innerHTML = `<button class="fm-an-cancel" type="button">${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_4ab5419992b0f7","Discard") ?? "Discard")}</button><button class="fm-an-use" type="button"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_f32042ccf7223d"," Use recording") ?? " Use recording")}</button>`;
         actions.querySelector('.fm-an-cancel').addEventListener('click', cancel);
         actions.querySelector('.fm-an-use').addEventListener('click', () => {
           const result = { file, duration, peaks:peaks.length ? peaks : fallbackPeaks };
@@ -335,7 +335,7 @@
         return;
       }
       mount.innerHTML = `<div class="fm-an-inline recording">
-        <div class="fm-an-inline-head"><span><span class="fm-an-record-dot"></span>${(globalThis.PlatformLanguage?.text("audio-notes","m_114d45a4f9a9ba","Recording audio note") ?? "Recording audio note")}</span><button class="fm-an-inline-remove" type="button" aria-label="${(globalThis.PlatformLanguage?.text("audio-notes","m_ac946bb11e0417","Cancel recording") ?? "Cancel recording")}"><i class="fas fa-xmark"></i></button></div>
+        <div class="fm-an-inline-head"><span><span class="fm-an-record-dot"></span>${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_114d45a4f9a9ba","Recording audio note") ?? "Recording audio note")}</span><button class="fm-an-inline-remove" type="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_ac946bb11e0417","Cancel recording") ?? "Cancel recording")}"><i class="fas fa-xmark"></i></button></div>
         <div class="fm-an-inline-body"><div class="fm-an-inline-wave" aria-hidden="true"></div><span class="fm-an-inline-clock">0:00</span><button class="fm-an-inline-stop ${String(options.submitStyle ? 'submit' : '')}" type="button" aria-label="${String(options.submitStyle ? 'Submit recording' : 'Finish recording')}"><i class="fas ${String(options.submitStyle ? 'fa-arrow-right' : 'fa-stop')}"></i></button></div>
       </div>`;
       const card = mount.firstElementChild;
@@ -424,7 +424,7 @@
         };
         if (!options.confirmPlayback) { resolve(result); return; }
         const previewUrl = URL.createObjectURL(result.file);
-        mount.innerHTML = `<div class="fm-an-inline review"><div class="fm-an-inline-review-body"><button class="fm-an-inline-review-action discard" type="button" aria-label="${(globalThis.PlatformLanguage?.text("audio-notes","m_46a483e740de95","Discard recording") ?? "Discard recording")}"><i class="fas fa-xmark"></i></button><div class="fm-an-inline-review-player" data-fm-an-review-player></div><button class="fm-an-inline-review-action approve" type="button" aria-label="${(globalThis.PlatformLanguage?.text("audio-notes","m_2f3e450aa07011","Use recording") ?? "Use recording")}"><i class="fas fa-check"></i></button></div></div>`;
+        mount.innerHTML = `<div class="fm-an-inline review"><div class="fm-an-inline-review-body"><button class="fm-an-inline-review-action discard" type="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_46a483e740de95","Discard recording") ?? "Discard recording")}"><i class="fas fa-xmark"></i></button><div class="fm-an-inline-review-player" data-fm-an-review-player></div><button class="fm-an-inline-review-action approve" type="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_2f3e450aa07011","Use recording") ?? "Use recording")}"><i class="fas fa-check"></i></button></div></div>`;
         const reviewPeaks = result.peaks.filter((_value, index) => index % 3 === 0);
         mount.querySelector('[data-fm-an-review-player]')?.appendChild(createPlayer({ url:previewUrl, duration:result.duration, peaks:reviewPeaks }));
         let reviewSettled = false;
@@ -450,7 +450,7 @@
   function mountProcessing(mount, recording, onRemove){
     const peaks = recording.peaks || [];
     mount.innerHTML = `<div class="fm-an-inline processing">
-      <div class="fm-an-inline-head"><span class="fm-an-inline-status"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.text("audio-notes","m_5ee55174f196c9"," Generating transcript…") ?? " Generating transcript…")}</span><button class="fm-an-inline-remove" type="button" aria-label="${(globalThis.PlatformLanguage?.text("audio-notes","m_c98e98ebafeaae","Remove audio note") ?? "Remove audio note")}"><i class="fas fa-xmark"></i></button></div>
+      <div class="fm-an-inline-head"><span class="fm-an-inline-status"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_5ee55174f196c9"," Generating transcript…") ?? " Generating transcript…")}</span><button class="fm-an-inline-remove" type="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_c98e98ebafeaae","Remove audio note") ?? "Remove audio note")}"><i class="fas fa-xmark"></i></button></div>
       <div class="fm-an-inline-body"><div class="fm-an-inline-wave" aria-hidden="true">${String(peaks.map((value) => `<span style="--h:${Math.round(16 + clamp(value,.06,1) * 78)}%"></span>`).join(''))}</div><span class="fm-an-inline-clock">${String(formatTime(recording.duration))}</span></div>
     </div>`;
     mount.querySelector('.fm-an-inline-remove')?.addEventListener('click', onRemove);
@@ -458,7 +458,7 @@
 
   function mountPrepared(mount, options = {}){
     if (!mount) return null;
-    mount.innerHTML = `<div class="fm-an-inline ready"><div class="fm-an-inline-head"><span><i class="fas fa-wave-square"></i>${(globalThis.PlatformLanguage?.text("audio-notes","m_deddf0a9a92a81"," Audio note") ?? " Audio note")}</span><button class="fm-an-inline-remove" type="button" aria-label="${(globalThis.PlatformLanguage?.text("audio-notes","m_c98e98ebafeaae","Remove audio note") ?? "Remove audio note")}"><i class="fas fa-xmark"></i></button></div><div data-fm-an-player></div></div>`;
+    mount.innerHTML = `<div class="fm-an-inline ready"><div class="fm-an-inline-head"><span><i class="fas fa-wave-square"></i>${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_deddf0a9a92a81"," Audio note") ?? " Audio note")}</span><button class="fm-an-inline-remove" type="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_c98e98ebafeaae","Remove audio note") ?? "Remove audio note")}"><i class="fas fa-xmark"></i></button></div><div data-fm-an-player></div></div>`;
     const card = mount.firstElementChild;
     card.querySelector('[data-fm-an-player]').appendChild(createPlayer({
       url:options.url,

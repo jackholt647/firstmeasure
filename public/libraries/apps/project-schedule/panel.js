@@ -279,7 +279,8 @@
       organization_connection: { singular:'Subcontractor', plural:'Subcontractors' }
     };
     const configured = scheduleWorkforceTerminology?.[kind] || {};
-    return String(configured?.[form] || configured?.singular || defaults[kind]?.[form] || defaults[kind]?.singular || 'Team').trim();
+    const fallback=String(configured?.[form] || configured?.singular || defaults[kind]?.[form] || defaults[kind]?.singular || 'Team').trim();
+    return window.PlatformTerminology?.get?.(`workforce.${kind}_${form}`,fallback) || fallback;
   }
 
   function workResourceLabel(form = 'singular'){
@@ -1075,9 +1076,9 @@
       ? `<div class="r-schedule-confirm-reply error">${escapeHtml(state.last_error)}</div>`
       : '';
     const actions = state.confirmed
-      ? `<button type="button" class="r-schedule-confirm-action" data-schedule-confirm-set="reset">${(globalThis.PlatformLanguage?.text("project-schedule","m_80ae2923b672d0","Mark unconfirmed") ?? "Mark unconfirmed")}</button>`
-      : `<button type="button" class="r-schedule-confirm-action primary" data-schedule-confirm-set="confirmed">${(globalThis.PlatformLanguage?.text("project-schedule","m_617e25cc0ca1b3","Mark confirmed") ?? "Mark confirmed")}</button>
-         <button type="button" class="r-schedule-confirm-action" data-schedule-confirm-send>${(globalThis.PlatformLanguage?.text("project-schedule","m_b495e5473c85e0","Send now") ?? "Send now")}</button>`;
+      ? `<button type="button" class="r-schedule-confirm-action" data-schedule-confirm-set="reset">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_80ae2923b672d0","Mark unconfirmed") ?? "Mark unconfirmed")}</button>`
+      : `<button type="button" class="r-schedule-confirm-action primary" data-schedule-confirm-set="confirmed">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_617e25cc0ca1b3","Mark confirmed") ?? "Mark confirmed")}</button>
+         <button type="button" class="r-schedule-confirm-action" data-schedule-confirm-send>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_b495e5473c85e0","Send now") ?? "Send now")}</button>`;
     return `
       <div class="r-schedule-confirm ${escapeHtml(state.tone)}">
         <div class="r-schedule-confirm-head">
@@ -1135,7 +1136,7 @@
     popover.innerHTML = `
       <div class="r-schedule-event-popover-head">
         <div class="r-schedule-event-popover-title"><span class="r-schedule-event-popover-kind"><i class="fas ${String(kind.icon)}"></i>${String(escapeHtml(kind.label))}</span><br>${String(escapeHtml(scheduleEventDisplayTitle(event)))}</div>
-        <button type="button" class="r-schedule-event-popover-close" data-schedule-event-close aria-label="${(globalThis.PlatformLanguage?.text("project-schedule","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+        <button type="button" class="r-schedule-event-popover-close" data-schedule-event-close aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
       </div>
       <div class="r-schedule-event-popover-details">
         <div class="r-schedule-event-popover-row"><i class="fas fa-calendar-day"></i><span>${String(escapeHtml(workRangeLabel(event)))}</span></div>
@@ -1149,15 +1150,15 @@
         <label class="r-schedule-event-share">
           <input type="checkbox" data-schedule-event-customer-visible ${String(event.customer_visible === true ? 'checked' : '')}>
           <span class="r-schedule-event-share-toggle" aria-hidden="true"></span>
-          <span><strong>${(globalThis.PlatformLanguage?.text("project-schedule","m_a043dc814fd7c4","Share with customer") ?? "Share with customer")}</strong><small>${(globalThis.PlatformLanguage?.text("project-schedule","m_e2fe6c0dc1bf57","Choose exactly what appears in the customer portal.") ?? "Choose exactly what appears in the customer portal.")}</small></span>
+          <span><strong>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_a043dc814fd7c4","Share with customer") ?? "Share with customer")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_e2fe6c0dc1bf57","Choose exactly what appears in the customer portal.") ?? "Choose exactly what appears in the customer portal.")}</small></span>
         </label>
         <div class="r-schedule-event-customer-options ${String(event.customer_visible === true ? 'open' : '')}" data-schedule-event-customer-options>
-          <label class="r-schedule-event-customer-option"><input type="checkbox" data-schedule-event-customer-show-title ${String(event.customer_show_title !== false ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.text("project-schedule","m_aa81c572cfc2fb","Show the event title ") ?? "Show the event title ")}<small>${((v12) => globalThis.PlatformLanguage?.text("project-schedule","m_16cc20f54509eb",`(otherwise show only “${v12}”)`,{v12}) ?? `(otherwise show only “${v12}”)`)(escapeHtml(kind.label))}</small></span></label>
-          <label class="r-schedule-event-customer-option"><input type="checkbox" data-schedule-event-customer-show-crew ${String(event.customer_show_crew === true ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.text("project-schedule","m_0a4066db1bfb68","Show the assigned crew or team member") ?? "Show the assigned crew or team member")}</span></label>
-          <label class="r-schedule-event-customer-note">${(globalThis.PlatformLanguage?.text("project-schedule","m_413958fd110fa8","Customer-facing note") ?? "Customer-facing note")}<textarea data-schedule-event-customer-description placeholder="${(globalThis.PlatformLanguage?.text("project-schedule","m_f75a0e40848c45","What should the customer see when they open this event?") ?? "What should the customer see when they open this event?")}">${String(escapeHtml(event.customer_description || ''))}</textarea></label>
-          ${String(window.Portal?.can?.('scheduling.customer_rescheduling') === true ? `<label class="r-schedule-event-customer-option"><input type="checkbox" data-schedule-event-customer-reschedule ${event.customer_scheduling?.enabled === true ? 'checked' : ''}><span>Allow the customer to choose another live available time</span></label>` : '')}
+          <label class="r-schedule-event-customer-option"><input type="checkbox" data-schedule-event-customer-show-title ${String(event.customer_show_title !== false ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_aa81c572cfc2fb","Show the event title ") ?? "Show the event title ")}<small>${((v12) => globalThis.PlatformLanguage?.htmlText("project-schedule","m_16cc20f54509eb",`(otherwise show only “${v12}”)`,{v12}) ?? `(otherwise show only “${v12}”)`)(escapeHtml(kind.label))}</small></span></label>
+          <label class="r-schedule-event-customer-option"><input type="checkbox" data-schedule-event-customer-show-crew ${String(event.customer_show_crew === true ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_0a4066db1bfb68","Show the assigned crew or team member") ?? "Show the assigned crew or team member")}</span></label>
+          <label class="r-schedule-event-customer-note">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_413958fd110fa8","Customer-facing note") ?? "Customer-facing note")}<textarea data-schedule-event-customer-description placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f75a0e40848c45","What should the customer see when they open this event?") ?? "What should the customer see when they open this event?")}">${String(escapeHtml(event.customer_description || ''))}</textarea></label>
+          ${String(window.Portal?.can?.('scheduling.customer_rescheduling') === true ? `<label class="r-schedule-event-customer-option"><input type="checkbox" data-schedule-event-customer-reschedule ${event.customer_scheduling?.enabled === true ? 'checked' : ''}><span>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_afdcb90e88cf30","Allow the customer to choose another live available time") ?? "Allow the customer to choose another live available time")}</span></label>` : '')}
         </div>
-        <button type="button" class="r-schedule-event-customer-save" data-schedule-event-customer-save>${(globalThis.PlatformLanguage?.text("project-schedule","m_d2ad3eac5a7c69","Save customer view") ?? "Save customer view")}</button>
+        <button type="button" class="r-schedule-event-customer-save" data-schedule-event-customer-save>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_d2ad3eac5a7c69","Save customer view") ?? "Save customer view")}</button>
       </div>
     `;
     schedulePopoverHost(anchor).appendChild(popover);
@@ -1312,7 +1313,7 @@
     if (historical) crews.push(historical);
     if (crews.length <= 1) return '';
     return `<label class="r-assignment-field">${String(escapeHtml(workResourceLabel()))}<select id="rWorkAssignment" class="r-assignment-select ${String(selected ? '' : 'waiting')}">
-      <option value="" ${String(selected ? '' : 'selected')}>${(globalThis.PlatformLanguage?.text("project-schedule","m_8a993ed9b573b4","Unassigned") ?? "Unassigned")}</option>
+      <option value="" ${String(selected ? '' : 'selected')}>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_8a993ed9b573b4","Unassigned") ?? "Unassigned")}</option>
       ${String(crews.map((crew) => `<option value="${escapeHtml(crew.id)}" ${String(crew.id) === selected ? 'selected' : ''}>${escapeHtml(crew.name)}</option>`).join(''))}
     </select></label>`;
   }
@@ -1321,8 +1322,8 @@
     const salespeople = cachedSalesAppointmentUsers();
     if (salespeople.length <= 1) return '';
     const selected = String(scheduleDraft?.user?.id || schedulePreferredSalesUserId || '').trim();
-    return `<label class="r-assignment-field">${(globalThis.PlatformLanguage?.text("project-schedule","m_4aff7f0b72fb1d","Assignee") ?? "Assignee")}<select id="rSalesAssignment" class="r-assignment-select ${String(selected ? '' : 'waiting')}">
-      <option value="" ${String(selected ? '' : 'selected')}>${(globalThis.PlatformLanguage?.text("project-schedule","m_8a993ed9b573b4","Unassigned") ?? "Unassigned")}</option>
+    return `<label class="r-assignment-field">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_4aff7f0b72fb1d","Assignee") ?? "Assignee")}<select id="rSalesAssignment" class="r-assignment-select ${String(selected ? '' : 'waiting')}">
+      <option value="" ${String(selected ? '' : 'selected')}>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_8a993ed9b573b4","Unassigned") ?? "Unassigned")}</option>
       ${String(salespeople.map((user) => `<option value="${escapeHtml(user.id)}" ${String(user.id) === selected ? 'selected' : ''}>${escapeHtml(user.name || user.email || user.id)}</option>`).join(''))}
     </select></label>`;
   }
@@ -1538,9 +1539,9 @@
     const modes = isScheduling ? schedulingModes : calendarModes;
     return `<div class="r-schedule-view-switch">
       <span class="r-schedule-view-group surface">${String(surfaceButton('calendar', escapeHtml(terminology('scheduling.calendar_view', 'Calendar'))))}${String(projectRoutingViewEnabled() ? surfaceButton('scheduling', escapeHtml(routingLabel)) : '')}${String(projectGanttViewEnabled() ? surfaceButton('gantt', escapeHtml(ganttLabel)) : '')}</span>
-      <span class="r-schedule-view-group navigation"><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="-1" aria-label="${(globalThis.PlatformLanguage?.text("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}" title="${(globalThis.PlatformLanguage?.text("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button><button type="button" class="r-schedule-anchor-nav today" data-schedule-anchor-nav="0">${(globalThis.PlatformLanguage?.text("project-schedule","m_23929ba4ba84dd","Today") ?? "Today")}</button><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="1" aria-label="${(globalThis.PlatformLanguage?.text("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}" title="${(globalThis.PlatformLanguage?.text("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button></span>
-      ${String(isScheduling && !isGantt ? `<span class="r-schedule-view-group target"><span class="r-schedule-view-label">Schedule</span>${targetButton('production', escapeHtml(terminology('scheduling.production_view', 'Production')))}${targetButton('sales', escapeHtml(terminology('scheduling.sales_view', 'Sales')))}</span>` : '')}
-      ${String(isGantt ? `<span class="r-schedule-view-group"><button type="button" class="r-schedule-view-btn" data-gantt-add-group><i class="fas fa-layer-group"></i> New Group</button></span>` : `<span class="r-schedule-view-group ${isScheduling ? 'scheduling' : ''}"><span class="r-schedule-view-label">${isScheduling ? escapeHtml(routingLabel) : 'Calendar'}</span>${modes.map(button).join('')}</span>`)}
+      <span class="r-schedule-view-group navigation"><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="-1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button><button type="button" class="r-schedule-anchor-nav today" data-schedule-anchor-nav="0">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_23929ba4ba84dd","Today") ?? "Today")}</button><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button></span>
+      ${String(isScheduling && !isGantt ? `<span class="r-schedule-view-group target"><span class="r-schedule-view-label">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</span>${targetButton('production', escapeHtml(terminology('scheduling.production_view', 'Production')))}${targetButton('sales', escapeHtml(terminology('scheduling.sales_view', 'Sales')))}</span>` : '')}
+      ${String(isGantt ? `<span class="r-schedule-view-group"><button type="button" class="r-schedule-view-btn" data-gantt-add-group><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_4657bb8aa4b1c4"," New Group") ?? " New Group")}</button></span>` : `<span class="r-schedule-view-group ${isScheduling ? 'scheduling' : ''}"><span class="r-schedule-view-label">${isScheduling ? escapeHtml(routingLabel) : 'Calendar'}</span>${modes.map(button).join('')}</span>`)}
     </div>`;
   }
 
@@ -1688,7 +1689,7 @@
     if (!target) return;
     const Scheduling = window.PlatformScheduling;
     if (!Scheduling || !window.PlatformScheduleView?.renderProjectRangeScheduler) {
-      target.innerHTML = `<div class="r-schedule-empty"><i class="fas fa-calendar"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_1d683425be9eb5","Calendar tools are unavailable.") ?? "Calendar tools are unavailable.")}</div>`;
+      target.innerHTML = `<div class="r-schedule-empty"><i class="fas fa-calendar"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_1d683425be9eb5","Calendar tools are unavailable.") ?? "Calendar tools are unavailable.")}</div>`;
       return;
     }
     const mobileLayout = window.matchMedia?.('(max-width:720px)').matches === true;
@@ -1809,7 +1810,7 @@
     const address = ($('#rAddress')?.value || '').trim();
     const time = draftStart.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
     const span = Math.max(1, Math.ceil((Number(duration) || 60) / Math.max(1, Number(slotMinutes) || 30)));
-    return `<div class="r-cal-appointment draft has-confirm" style="--span:${String(span)}"><div class="r-cal-appt-top"><span>${String(escapeHtml(title))}</span><span>${String(escapeHtml(time))}</span></div><div class="r-cal-appt-address">${String(escapeHtml(address))}</div><span class="r-cal-draft-confirm" data-schedule-draft-confirm role="button" aria-label="${(globalThis.PlatformLanguage?.text("project-schedule","m_3eb4bd5c2b685c","Confirm appointment") ?? "Confirm appointment")}"><i class="fas fa-check"></i></span></div>`;
+    return `<div class="r-cal-appointment draft has-confirm" style="--span:${String(span)}"><div class="r-cal-appt-top"><span>${String(escapeHtml(title))}</span><span>${String(escapeHtml(time))}</span></div><div class="r-cal-appt-address">${String(escapeHtml(address))}</div><span class="r-cal-draft-confirm" data-schedule-draft-confirm role="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_3eb4bd5c2b685c","Confirm appointment") ?? "Confirm appointment")}"><i class="fas fa-check"></i></span></div>`;
   }
 
   function setScheduleDraft(start, user, extra = {}){
@@ -1857,7 +1858,7 @@
         const key = `${origin}=>${destination}`;
         const cached = scheduleTravelCache.get(key);
         const label = cached ? `${cached} min` : '...';
-        return `<div class="r-cal-travel" data-travel-key="${String(escapeHtml(key))}" data-origin="${String(escapeHtml(origin))}" data-destination="${String(escapeHtml(destination))}"><i class="far fa-clock"></i>${((v3) => globalThis.PlatformLanguage?.text("project-schedule","m_805a0136c68cf7",`&nbsp;${v3}`,{v3}) ?? `&nbsp;${v3}`)(escapeHtml(label))}</div>`;
+        return `<div class="r-cal-travel" data-travel-key="${String(escapeHtml(key))}" data-origin="${String(escapeHtml(origin))}" data-destination="${String(escapeHtml(destination))}"><i class="far fa-clock"></i>${((v3) => globalThis.PlatformLanguage?.htmlText("project-schedule","m_805a0136c68cf7",`&nbsp;${v3}`,{v3}) ?? `&nbsp;${v3}`)(escapeHtml(label))}</div>`;
       }
     }
     return '';
@@ -1897,8 +1898,8 @@
     const card = $('#rScheduleChoiceCard');
     if (!card) return;
     const text = scheduleDraft
-      ? `<strong>${(globalThis.PlatformLanguage?.text("project-schedule","m_22e746d02726ea","Scheduling appointment") ?? "Scheduling appointment")}</strong>${String(escapeHtml(scheduleDraft.label))}${String(scheduleDraft.userLabel ? ` with ${escapeHtml(scheduleDraft.userLabel)}` : ' - assign later')}.`
-      : `<strong>${(globalThis.PlatformLanguage?.text("project-schedule","m_a0fb70645df93b","Schedule appointment") ?? "Schedule appointment")}</strong>Use the Schedule tab to choose an appointment time for this project.`;
+      ? `<strong>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_22e746d02726ea","Scheduling appointment") ?? "Scheduling appointment")}</strong>${String(escapeHtml(scheduleDraft.label))}${String(scheduleDraft.userLabel ? ` with ${escapeHtml(scheduleDraft.userLabel)}` : ' - assign later')}.`
+      : `<strong>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_a0fb70645df93b","Schedule appointment") ?? "Schedule appointment")}</strong>Use the Schedule tab to choose an appointment time for this project.`;
     card.innerHTML = `<i class="fas fa-calendar-week"></i><div>${text}</div>`;
   }
 
@@ -2346,7 +2347,7 @@
 
   function scheduleAppointmentTilesHtml(){
     const appointments = projectSalesAppointmentEvents();
-    if (!appointments.length) return `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.text("project-schedule","m_3f4558f856c78e","No sales appointments scheduled.") ?? "No sales appointments scheduled.")}</div>`;
+    if (!appointments.length) return `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_3f4558f856c78e","No sales appointments scheduled.") ?? "No sales appointments scheduled.")}</div>`;
     return `<div class="r-schedule-tile-list">${appointments.map((event) => `
       <div class="r-schedule-tile">
         <div class="r-schedule-tile-title">${escapeHtml(event.title || (globalThis.PlatformLanguage?.text("project-schedule","m_600f41e7dca79d","Sales Appointment") ?? "Sales Appointment"))}</div>
@@ -2405,7 +2406,7 @@
       const assignment = productionCrewSelectHtml(event);
       return `<div class="r-schedule-tile r-material-tile r-production-resource-tile ${assignment ? '' : 'no-assignment'} ${complete ? 'complete' : 'incomplete'} ${active ? 'active' : ''}" style="--material-list-color:${escapeHtml(materialListIdentityColor(event))}">
         <button type="button" class="r-production-resource-main" data-production-resource-event="${escapeHtml(event.id || '')}">
-          <div class="r-schedule-tile-title"><i class="fas ${escapeHtml(productionResourceIcon(event))}"></i>${material ? (String(escapeHtml(materialDeliveryTitle(event))) + "<span class=\"r-schedule-tile-kind\">" + (globalThis.PlatformLanguage?.text("project-schedule","m_6450c5cf07510a"," — delivery") ?? " — delivery") + "</span>") : escapeHtml(event.title || productionResourceLabel(event))}</div>
+          <div class="r-schedule-tile-title"><i class="fas ${escapeHtml(productionResourceIcon(event))}"></i>${material ? (String(escapeHtml(materialDeliveryTitle(event))) + "<span class=\"r-schedule-tile-kind\">" + (globalThis.PlatformLanguage?.htmlText("project-schedule","m_6450c5cf07510a"," — delivery") ?? " — delivery") + "</span>") : escapeHtml(event.title || productionResourceLabel(event))}</div>
           <div class="r-schedule-tile-meta">${escapeHtml(stateLabel)}</div>
         </button>
         ${assignment}
@@ -2415,18 +2416,18 @@
 
   function productionTilesHtml(){
     const tiles = productionResourceTilesHtml();
-    return tiles ? `<div class="r-schedule-tile-list">${tiles}</div>` : `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.text("project-schedule","m_eb671826d74670","No production items for this project.") ?? "No production items for this project.")}</div>`;
+    return tiles ? `<div class="r-schedule-tile-list">${tiles}</div>` : `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_eb671826d74670","No production items for this project.") ?? "No production items for this project.")}</div>`;
   }
 
   function workDraftCardHtml(){
     const workScheduleDraft = activeWorkDraft();
     if (!workScheduleDraft?.start || !workScheduleDraft?.end) {
-      return `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.text("project-schedule","m_5f010df5b92a9b","Click or drag on the calendar to place work.") ?? "Click or drag on the calendar to place work.")}</div>`;
+      return `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5f010df5b92a9b","Click or drag on the calendar to place work.") ?? "Click or drag on the calendar to place work.")}</div>`;
     }
     const assignment = workAssignmentSelectHtml(workScheduleDraft);
     return `<div class="r-work-draft-card">
       <div class="r-work-title-row ${String(assignment ? '' : 'no-assignment')}">
-        <label>${(globalThis.PlatformLanguage?.text("project-schedule","m_29dbd3d8b69f55","Title") ?? "Title")}<input id="rWorkDraftTitle" type="text" value="${String(escapeHtml(workScheduleDraft.title || 'Work'))}"></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_29dbd3d8b69f55","Title") ?? "Title")}<input id="rWorkDraftTitle" type="text" value="${String(escapeHtml(workScheduleDraft.title || (globalThis.PlatformLanguage?.text("project-schedule","m_222066ef57ae0e","Work") ?? "Work")))}"></label>
         ${String(assignment)}
       </div>
       <div class="r-schedule-tile-meta">${String(escapeHtml(workRangeLabel({
@@ -2435,8 +2436,8 @@
         __end: new Date(workScheduleDraft.end)
       })))}</div>
       <div class="r-work-confirm-row">
-        <button type="button" class="r-schedule-mini-action" data-work-cancel>${(globalThis.PlatformLanguage?.text("project-schedule","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-        <button type="button" class="r-schedule-mini-action primary" data-work-confirm><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_4b699ce463481b"," Confirm") ?? " Confirm")}</button>
+        <button type="button" class="r-schedule-mini-action" data-work-cancel>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+        <button type="button" class="r-schedule-mini-action primary" data-work-confirm><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_4b699ce463481b"," Confirm") ?? " Confirm")}</button>
       </div>
     </div>`;
   }
@@ -2469,7 +2470,7 @@
     if (!list) {
       state.leftRoot.innerHTML = `
         <div class="r-step-shell" style="grid-template-rows:1fr"><div class="r-step-inner"><div class="r-step-body">
-          <label id="rProposalLabel">${(globalThis.PlatformLanguage?.text("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</label>
+          <label id="rProposalLabel">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</label>
           <div class="r-proposal-listing" id="rProposalList"></div>
         </div></div></div>
       `;
@@ -2528,7 +2529,7 @@
       const assignment = salesAssignmentSelectHtml();
       return `<section class="r-schedule-section">
         <div class="r-schedule-section-head">
-          <div class="r-schedule-section-title"><i class="fas fa-calendar-check"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_da2084e4486b76"," Sales Appointment") ?? " Sales Appointment")}</div>
+          <div class="r-schedule-section-title"><i class="fas fa-calendar-check"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_da2084e4486b76"," Sales Appointment") ?? " Sales Appointment")}</div>
           ${String(assignment)}
         </div>
         <div class="r-schedule-left-status"><strong>${String(scheduleDraft?.start ? escapeHtml(scheduleDraft.label || 'Appointment selected') : 'Scheduling appointment')}</strong>${String(scheduleDraft?.start ? 'Place, adjust, or confirm this appointment on the calendar.' : 'Choose an available appointment slot on the calendar.')}</div>
@@ -2545,8 +2546,8 @@
   }
 
   function recurringTilesHtml(){
-    if (scheduleRecurrenceLoading && !scheduleRecurringSeries.length) return `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.text("project-schedule","m_0d5c49d331e456","Loading recurring items…") ?? "Loading recurring items…")}</div>`;
-    if (!scheduleRecurringSeries.length) return `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.text("project-schedule","m_0763a6948a13e2","No recurring items yet.") ?? "No recurring items yet.")}</div>`;
+    if (scheduleRecurrenceLoading && !scheduleRecurringSeries.length) return `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_0d5c49d331e456","Loading recurring items…") ?? "Loading recurring items…")}</div>`;
+    if (!scheduleRecurringSeries.length) return `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_0763a6948a13e2","No recurring items yet.") ?? "No recurring items yet.")}</div>`;
     return `<div class="r-schedule-tile-list">${scheduleRecurringSeries.map((series) => `
       <button type="button" class="r-schedule-tile r-recurrence-tile ${String(series.status || '') === 'cancelled' ? 'cancelled' : ''}" data-edit-recurrence="${escapeHtml(series.id || '')}">
         <div class="r-recurrence-meta"><div class="r-schedule-tile-title"><i class="fas fa-repeat"></i>${escapeHtml(series.title || (globalThis.PlatformLanguage?.text("project-schedule","m_e5d043f205f6a6","Recurring item") ?? "Recurring item"))}</div><span class="r-recurrence-pill ${String(series.status || '') === 'cancelled' ? 'cancelled' : ''}">${escapeHtml(series.status || 'active')}</span></div>
@@ -2599,23 +2600,23 @@
     modal.innerHTML = `<div class="r-recurrence-dialog" role="dialog" aria-modal="true">
       <div class="r-recurrence-head"><strong>${String(existing.id ? 'Edit recurring item' : 'New recurring item')}</strong><button type="button" class="r-schedule-mini-action" data-recurrence-close><i class="fas fa-xmark"></i></button></div>
       <form class="r-recurrence-form">
-        <label class="wide">${(globalThis.PlatformLanguage?.text("project-schedule","m_29dbd3d8b69f55","Title") ?? "Title")}<input name="title" required value="${String(escapeHtml(existing.title || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("project-schedule","m_2e62e58b504501","Monthly maintenance") ?? "Monthly maintenance")}"></label>
-        <label>${(globalThis.PlatformLanguage?.text("project-schedule","m_8554cf3361046a","First appointment") ?? "First appointment")}<input name="start_at" type="datetime-local" required value="${String(escapeHtml(datetimeLocal(existing.start_at)))}"></label>
-        <label>${(globalThis.PlatformLanguage?.text("project-schedule","m_f22e688833733c","Appointment type") ?? "Appointment type")}<select name="event_type"><option value="project_work" ${String(String(event.event_type_default_id || '') === 'project_work' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("project-schedule","m_ff54ed216fbe2f","Production / work") ?? "Production / work")}</option><option value="sales_appointment" ${String(String(event.event_type_default_id || '') === 'sales_appointment' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("project-schedule","m_f7eaf8f28f8161","Sales appointment") ?? "Sales appointment")}</option><option value="delivery" ${String(String(event.event_type_default_id || '') === 'delivery' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.text("project-schedule","m_b73185deef6d79","Delivery") ?? "Delivery")}</option><option value="custom">${(globalThis.PlatformLanguage?.text("project-schedule","m_6edcf7d7d41112","Custom") ?? "Custom")}</option></select></label>
-        <label>${(globalThis.PlatformLanguage?.text("project-schedule","m_ff7bb68b2b05a8","Frequency") ?? "Frequency")}<select name="frequency">${String(['daily','weekly','monthly','quarterly','yearly'].map((value) => `<option value="${value}" ${String(recurrence.frequency || 'monthly') === value ? 'selected' : ''}>${value[0].toUpperCase() + value.slice(1)}</option>`).join(''))}</select></label>
-        <label>${(globalThis.PlatformLanguage?.text("project-schedule","m_b25bba33f32e79","Every") ?? "Every")}<input name="interval" type="number" min="1" max="120" value="${String(escapeHtml(recurrence.interval || 1))}"></label>
-        <label>${(globalThis.PlatformLanguage?.text("project-schedule","m_96601ab236e446","Duration (minutes)") ?? "Duration (minutes)")}<input name="duration" type="number" min="1" value="${String(escapeHtml(event.duration_minutes || 60))}"></label>
-        <label>${(globalThis.PlatformLanguage?.text("project-schedule","m_38f8ab5bb6ef24","Ends on (optional)") ?? "Ends on (optional)")}<input name="end_at" type="date" value="${String(escapeHtml(String(recurrence.end_at || '').slice(0, 10)))}"></label>
-        <label>${(globalThis.PlatformLanguage?.text("project-schedule","m_efdb53da64e1aa","Scope template (optional)") ?? "Scope template (optional)")}<input name="scope_template_id" value="${String(escapeHtml(existing.scope_template_id || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("project-schedule","m_513ee206ccb8da","maintenance") ?? "maintenance")}"></label>
-        <label>${(globalThis.PlatformLanguage?.text("project-schedule","m_711ce0290d78f6","Scope piece (optional)") ?? "Scope piece (optional)")}<input name="scope_piece_id" value="${String(escapeHtml(existing.scope_piece_id || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("project-schedule","m_83fe1ce05f034b","maintenance_scope") ?? "maintenance_scope")}"></label>
-        <label class="wide">${String(escapeHtml(workResourceLabel()))}<select name="crew"><option value="">${(globalThis.PlatformLanguage?.text("project-schedule","m_f63dccd2774d7e","Assign later") ?? "Assign later")}</option>${String(crews.map((crew) => `<option value="${escapeHtml(crew.id)}" ${String(crew.id) === String(selectedCrew) ? 'selected' : ''}>${escapeHtml(crew.name || crew.id)}</option>`).join(''))}</select></label>
-        <label class="wide r-recurrence-check"><input name="bill_enabled" type="checkbox" ${String(billing.enabled === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("project-schedule","m_710450cda200a8"," Bill the customer on a separate recurring cadence") ?? " Bill the customer on a separate recurring cadence")}</label>
-        <label>${(globalThis.PlatformLanguage?.text("project-schedule","m_a605313561dfab","Billing amount") ?? "Billing amount")}<input name="bill_amount" type="number" min="0" step="0.01" value="${String(escapeHtml(billing.amount_cents ? (Number(billing.amount_cents) / 100).toFixed(2) : ''))}" placeholder="0.00"></label>
-        <label>${(globalThis.PlatformLanguage?.text("project-schedule","m_71ac82dafe263e","Billing frequency") ?? "Billing frequency")}<select name="bill_frequency">${String(['monthly','quarterly','yearly'].map((value) => `<option value="${value}" ${String(billing.frequency || recurrence.frequency || 'monthly') === value ? 'selected' : ''}>${value[0].toUpperCase() + value.slice(1)}</option>`).join(''))}</select></label>
-        <label class="wide r-recurrence-check"><input name="expense_enabled" type="checkbox" ${String(expenses.enabled === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.text("project-schedule","m_69b25971120f55"," Track a recurring projected expense") ?? " Track a recurring projected expense")}</label>
-        <label>${(globalThis.PlatformLanguage?.text("project-schedule","m_91c9b753132340","Expense per service") ?? "Expense per service")}<input name="expense_amount" type="number" min="0" step="0.01" value="${String(escapeHtml(expenses.amount_cents ? (Number(expenses.amount_cents) / 100).toFixed(2) : ''))}" placeholder="0.00"></label>
-        <label>${(globalThis.PlatformLanguage?.text("project-schedule","m_2fa6abb915bd45","Expense type") ?? "Expense type")}<select name="expense_kind"><option value="recurring_expense">${(globalThis.PlatformLanguage?.text("project-schedule","m_4a04382820d2e1","Other") ?? "Other")}</option><option value="labor">${(globalThis.PlatformLanguage?.text("project-schedule","m_7acfa5ed3b7739","Labor") ?? "Labor")}</option><option value="material">${(globalThis.PlatformLanguage?.text("project-schedule","m_613d6b4084975e","Material") ?? "Material")}</option><option value="equipment">${(globalThis.PlatformLanguage?.text("project-schedule","m_2813f320a63b94","Equipment") ?? "Equipment")}</option></select></label>
-        <div class="r-recurrence-actions"><div>${String(existing.id ? '<button type="button" class="r-schedule-mini-action" data-recurrence-cancel>Cancel series</button>' : '')}</div><div><button type="button" class="r-schedule-mini-action" data-recurrence-close>${(globalThis.PlatformLanguage?.text("project-schedule","m_3742924668fb10","Close") ?? "Close")}</button><button type="submit" class="r-schedule-mini-action primary">${String(existing.id ? 'Save' : 'Create')}</button></div></div>
+        <label class="wide">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_29dbd3d8b69f55","Title") ?? "Title")}<input name="title" required value="${String(escapeHtml(existing.title || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_2e62e58b504501","Monthly maintenance") ?? "Monthly maintenance")}"></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_8554cf3361046a","First appointment") ?? "First appointment")}<input name="start_at" type="datetime-local" required value="${String(escapeHtml(datetimeLocal(existing.start_at)))}"></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f22e688833733c","Appointment type") ?? "Appointment type")}<select name="event_type"><option value="project_work" ${String(String(event.event_type_default_id || '') === 'project_work' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ff54ed216fbe2f","Production / work") ?? "Production / work")}</option><option value="sales_appointment" ${String(String(event.event_type_default_id || '') === 'sales_appointment' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f7eaf8f28f8161","Sales appointment") ?? "Sales appointment")}</option><option value="delivery" ${String(String(event.event_type_default_id || '') === 'delivery' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_b73185deef6d79","Delivery") ?? "Delivery")}</option><option value="custom">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_6edcf7d7d41112","Custom") ?? "Custom")}</option></select></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ff7bb68b2b05a8","Frequency") ?? "Frequency")}<select name="frequency">${String(['daily','weekly','monthly','quarterly','yearly'].map((value) => `<option value="${value}" ${String(recurrence.frequency || 'monthly') === value ? 'selected' : ''}>${value[0].toUpperCase() + value.slice(1)}</option>`).join(''))}</select></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_b25bba33f32e79","Every") ?? "Every")}<input name="interval" type="number" min="1" max="120" value="${String(escapeHtml(recurrence.interval || 1))}"></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_96601ab236e446","Duration (minutes)") ?? "Duration (minutes)")}<input name="duration" type="number" min="1" value="${String(escapeHtml(event.duration_minutes || 60))}"></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_38f8ab5bb6ef24","Ends on (optional)") ?? "Ends on (optional)")}<input name="end_at" type="date" value="${String(escapeHtml(String(recurrence.end_at || '').slice(0, 10)))}"></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_efdb53da64e1aa","Scope template (optional)") ?? "Scope template (optional)")}<input name="scope_template_id" value="${String(escapeHtml(existing.scope_template_id || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_513ee206ccb8da","maintenance") ?? "maintenance")}"></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_711ce0290d78f6","Scope piece (optional)") ?? "Scope piece (optional)")}<input name="scope_piece_id" value="${String(escapeHtml(existing.scope_piece_id || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_83fe1ce05f034b","maintenance_scope") ?? "maintenance_scope")}"></label>
+        <label class="wide">${String(escapeHtml(workResourceLabel()))}<select name="crew"><option value="">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f63dccd2774d7e","Assign later") ?? "Assign later")}</option>${String(crews.map((crew) => `<option value="${escapeHtml(crew.id)}" ${String(crew.id) === String(selectedCrew) ? 'selected' : ''}>${escapeHtml(crew.name || crew.id)}</option>`).join(''))}</select></label>
+        <label class="wide r-recurrence-check"><input name="bill_enabled" type="checkbox" ${String(billing.enabled === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_710450cda200a8"," Bill the customer on a separate recurring cadence") ?? " Bill the customer on a separate recurring cadence")}</label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_a605313561dfab","Billing amount") ?? "Billing amount")}<input name="bill_amount" type="number" min="0" step="0.01" value="${String(escapeHtml(billing.amount_cents ? (Number(billing.amount_cents) / 100).toFixed(2) : ''))}" placeholder="0.00"></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_71ac82dafe263e","Billing frequency") ?? "Billing frequency")}<select name="bill_frequency">${String(['monthly','quarterly','yearly'].map((value) => `<option value="${value}" ${String(billing.frequency || recurrence.frequency || 'monthly') === value ? 'selected' : ''}>${value[0].toUpperCase() + value.slice(1)}</option>`).join(''))}</select></label>
+        <label class="wide r-recurrence-check"><input name="expense_enabled" type="checkbox" ${String(expenses.enabled === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_69b25971120f55"," Track a recurring projected expense") ?? " Track a recurring projected expense")}</label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_91c9b753132340","Expense per service") ?? "Expense per service")}<input name="expense_amount" type="number" min="0" step="0.01" value="${String(escapeHtml(expenses.amount_cents ? (Number(expenses.amount_cents) / 100).toFixed(2) : ''))}" placeholder="0.00"></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_2fa6abb915bd45","Expense type") ?? "Expense type")}<select name="expense_kind"><option value="recurring_expense">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_4a04382820d2e1","Other") ?? "Other")}</option><option value="labor">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_7acfa5ed3b7739","Labor") ?? "Labor")}</option><option value="material">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_613d6b4084975e","Material") ?? "Material")}</option><option value="equipment">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_2813f320a63b94","Equipment") ?? "Equipment")}</option></select></label>
+        <div class="r-recurrence-actions"><div>${String(existing.id ? `<button type="button" class="r-schedule-mini-action" data-recurrence-cancel>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_6c097c79cef08a","Cancel series") ?? "Cancel series")}</button>` : '')}</div><div><button type="button" class="r-schedule-mini-action" data-recurrence-close>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_3742924668fb10","Close") ?? "Close")}</button><button type="submit" class="r-schedule-mini-action primary">${String(existing.id ? 'Save' : 'Create')}</button></div></div>
       </form>
     </div>`;
     document.body.appendChild(modal);
@@ -2625,7 +2626,7 @@
       const select = modal.querySelector('[name="crew"]');
       if (!select) return;
       const candidates = scheduleAssignableSubjects(String(changeEvent.currentTarget.value || 'custom'), modal.querySelector('[name="scope_template_id"]')?.value || '');
-      select.innerHTML = `<option value="">${(globalThis.PlatformLanguage?.text("project-schedule","m_f63dccd2774d7e","Assign later") ?? "Assign later")}</option>${String(candidates.map((subject) => `<option value="${escapeHtml(subject.id)}">${escapeHtml(subject.name || subject.id)}</option>`).join(''))}`;
+      select.innerHTML = `<option value="">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f63dccd2774d7e","Assign later") ?? "Assign later")}</option>${String(candidates.map((subject) => `<option value="${escapeHtml(subject.id)}">${escapeHtml(subject.name || subject.id)}</option>`).join(''))}`;
     });
     modal.querySelector('[data-recurrence-cancel]')?.addEventListener('click', async () => {
       if (!confirm((globalThis.PlatformLanguage?.text("project-schedule","m_91303d517f39fa","Cancel this recurring series and its future appointments?") ?? "Cancel this recurring series and its future appointments?"))) return;
@@ -2805,18 +2806,18 @@
     const backdrop = document.createElement('div');
     backdrop.className = 'fm-dialog-backdrop r-gantt-group-backdrop';
     backdrop.innerHTML = `
-      <div class="fm-dialog r-gantt-group-dialog" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.text("project-schedule","m_0bb2928b65051a","New schedule group") ?? "New schedule group")}" style="max-width:420px">
-        <div class="fm-dialog-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px 0"><h3 style="margin:0;font-size:15px;font-weight:1000">${(globalThis.PlatformLanguage?.text("project-schedule","m_1f78bb8e6f5d66","New Schedule Group") ?? "New Schedule Group")}</h3><button type="button" class="r-gantt-group-close" aria-label="${(globalThis.PlatformLanguage?.text("project-schedule","m_3742924668fb10","Close") ?? "Close")}" style="border:0;background:transparent;cursor:pointer;font-size:14px"><i class="fas fa-xmark"></i></button></div>
+      <div class="fm-dialog r-gantt-group-dialog" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_0bb2928b65051a","New schedule group") ?? "New schedule group")}" style="max-width:420px">
+        <div class="fm-dialog-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px 0"><h3 style="margin:0;font-size:15px;font-weight:1000">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_1f78bb8e6f5d66","New Schedule Group") ?? "New Schedule Group")}</h3><button type="button" class="r-gantt-group-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_3742924668fb10","Close") ?? "Close")}" style="border:0;background:transparent;cursor:pointer;font-size:14px"><i class="fas fa-xmark"></i></button></div>
         <div style="display:grid;gap:10px;padding:12px 16px 16px">
-          <label style="display:grid;gap:5px;font-size:11px;font-weight:900;color:#475467">${(globalThis.PlatformLanguage?.text("project-schedule","m_ddd01aa61b6e8e","Group name\n            ") ?? "Group name\n            ")}<input type="text" class="r-gantt-group-title" placeholder="${(globalThis.PlatformLanguage?.text("project-schedule","m_5f3f0233d1109b","e.g. Rough In") ?? "e.g. Rough In")}" style="height:36px;border:1px solid rgba(15,23,42,.14);border-radius:9px;padding:0 10px;font:inherit">
+          <label style="display:grid;gap:5px;font-size:11px;font-weight:900;color:#475467">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ddd01aa61b6e8e","Group name\n            ") ?? "Group name\n            ")}<input type="text" class="r-gantt-group-title" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5f3f0233d1109b","e.g. Rough In") ?? "e.g. Rough In")}" style="height:36px;border:1px solid rgba(15,23,42,.14);border-radius:9px;padding:0 10px;font:inherit">
           </label>
           ${String(candidates.length ? `<div style="display:grid;gap:4px;max-height:220px;overflow:auto;border:1px solid rgba(15,23,42,.08);border-radius:10px;padding:8px">
-            <span style="font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#98a2b3">Include items</span>
-            ${candidates.map((event) => `<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:850;color:#101828"><input type="checkbox" value="${escapeHtml(event.id || '')}" class="r-gantt-group-item">${escapeHtml(event.title || 'Untitled')}</label>`).join('')}
+            <span style="font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#98a2b3">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_c83325bf2fc045","Include items") ?? "Include items")}</span>
+            ${candidates.map((event) => `<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:850;color:#101828"><input type="checkbox" value="${escapeHtml(event.id || '')}" class="r-gantt-group-item">${escapeHtml(event.title || (globalThis.PlatformLanguage?.text("project-schedule","m_05017f54f07448","Untitled") ?? "Untitled"))}</label>`).join('')}
           </div>` : '')}
           <div style="display:flex;justify-content:flex-end;gap:8px">
-            <button type="button" class="r-schedule-view-btn r-gantt-group-close">${(globalThis.PlatformLanguage?.text("project-schedule","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-            <button type="button" class="r-schedule-view-btn active r-gantt-group-save"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_96122e368ef466"," Create Group") ?? " Create Group")}</button>
+            <button type="button" class="r-schedule-view-btn r-gantt-group-close">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+            <button type="button" class="r-schedule-view-btn active r-gantt-group-save"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_96122e368ef466"," Create Group") ?? " Create Group")}</button>
           </div>
         </div>
       </div>`;
@@ -2858,22 +2859,22 @@
     target.innerHTML = `<div class="r-schedule-left-shell"><div class="r-schedule-left-scroll">
       <section class="r-schedule-section">
         <div class="r-schedule-section-head">
-          <div class="r-schedule-section-title"><i class="fas fa-calendar-check"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_fc4a079f9b76e3"," Sales") ?? " Sales")}</div>
-          <button type="button" class="r-schedule-mini-action primary" data-new-appointment><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>
+          <div class="r-schedule-section-title"><i class="fas fa-calendar-check"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc4a079f9b76e3"," Sales") ?? " Sales")}</div>
+          <button type="button" class="r-schedule-mini-action primary" data-new-appointment><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>
         </div>
         ${String(scheduleAppointmentTilesHtml())}
       </section>
       <section class="r-schedule-section">
         <div class="r-schedule-section-head">
-          <div class="r-schedule-section-title"><i class="fas fa-hammer"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_60694fdb9845ef"," Production") ?? " Production")}</div>
-          <button type="button" class="r-schedule-mini-action primary" data-new-production><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>
+          <div class="r-schedule-section-title"><i class="fas fa-hammer"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_60694fdb9845ef"," Production") ?? " Production")}</div>
+          <button type="button" class="r-schedule-mini-action primary" data-new-production><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>
         </div>
         ${String(productionTilesHtml())}
       </section>
       <section class="r-schedule-section">
         <div class="r-schedule-section-head">
-          <div class="r-schedule-section-title"><i class="fas fa-repeat"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_5585bec15a89f3"," Recurring") ?? " Recurring")}</div>
-          <button type="button" class="r-schedule-mini-action" data-new-recurrence><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>
+          <div class="r-schedule-section-title"><i class="fas fa-repeat"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5585bec15a89f3"," Recurring") ?? " Recurring")}</div>
+          <button type="button" class="r-schedule-mini-action" data-new-recurrence><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>
         </div>
         ${String(recurringTilesHtml())}
       </section>
@@ -2969,7 +2970,7 @@
     const mobileLayout = window.matchMedia?.('(max-width:720px)').matches === true;
     if (!target) return;
     if (!window.PlatformScheduleView?.renderProjectRangeScheduler || !Scheduling) {
-      target.innerHTML = `<div class="r-schedule-empty"><i class="fas fa-calendar"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_8d14608b5ea70e","Work scheduling tools are unavailable.") ?? "Work scheduling tools are unavailable.")}</div>`;
+      target.innerHTML = `<div class="r-schedule-empty"><i class="fas fa-calendar"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_8d14608b5ea70e","Work scheduling tools are unavailable.") ?? "Work scheduling tools are unavailable.")}</div>`;
       return;
     }
     if (scheduleViewMode === 'gantt' && projectGanttViewEnabled() && window.PlatformScheduleView?.renderGanttScheduler) {
@@ -3218,7 +3219,7 @@
     panel.innerHTML = `
       <div class="r-schedule-head">
         <div>
-          <h2 class="r-schedule-title">${(globalThis.PlatformLanguage?.text("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</h2>
+          <h2 class="r-schedule-title">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</h2>
           <div class="r-schedule-sub">${String(escapeHtml(isScheduling ? `Assign production by ${workResourceLabel()} and date.` : 'Project calendar views show scheduled production and appointments.'))}</div>
         </div>
         <div class="r-schedule-head-actions">${String(scheduleViewSwitchHtml())}</div>
@@ -3309,12 +3310,12 @@
     panel.innerHTML = `
       <div class="r-schedule-head">
         <div>
-          <h2 class="r-schedule-title">${(globalThis.PlatformLanguage?.text("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</h2>
+          <h2 class="r-schedule-title">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</h2>
           <div class="r-schedule-sub">${String(escapeHtml(scheduleSub))}</div>
         </div>
         <div class="r-schedule-head-actions">${String(scheduleViewSwitchHtml())}</div>
       </div>
-      <div class="r-schedule-calendar"><div class="r-schedule-loading"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_1d56a895701e1c","&nbsp; Loading calendar...") ?? "&nbsp; Loading calendar...")}</div></div>
+      <div class="r-schedule-calendar"><div class="r-schedule-loading"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_1d56a895701e1c","&nbsp; Loading calendar...") ?? "&nbsp; Loading calendar...")}</div></div>
     `;
     bindScheduleViewSwitch(panel);
     updateSchedulePanelConfirm();
@@ -3324,7 +3325,7 @@
     }
     (async () => {
       if (!Scheduling || !scheduleOrgId()) {
-        panel.querySelector('.r-schedule-calendar').innerHTML = `<div class="r-schedule-empty"><i class="fas fa-calendar"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_576d28ec106963","Scheduling tools are unavailable.") ?? "Scheduling tools are unavailable.")}</div>`;
+        panel.querySelector('.r-schedule-calendar').innerHTML = `<div class="r-schedule-empty"><i class="fas fa-calendar"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_576d28ec106963","Scheduling tools are unavailable.") ?? "Scheduling tools are unavailable.")}</div>`;
         return;
       }
       let config = null;
@@ -3345,7 +3346,7 @@
           users = scheduleCachedUsers;
           projects = mergeScheduleActiveProject(scheduleCachedProjects);
         } else {
-          panel.querySelector('.r-schedule-calendar').innerHTML = `<div class="r-schedule-empty"><i class="fas fa-calendar"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_162d3a1aa54d57","Could not load scheduling data.") ?? "Could not load scheduling data.")}</div>`;
+          panel.querySelector('.r-schedule-calendar').innerHTML = `<div class="r-schedule-empty"><i class="fas fa-calendar"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_162d3a1aa54d57","Could not load scheduling data.") ?? "Could not load scheduling data.")}</div>`;
           return;
         }
       }
@@ -3354,7 +3355,7 @@
       const salespeople = scheduleAssignableSubjects('sales_appointment', '', config, users);
       const target = panel.querySelector('.r-schedule-calendar');
       if (!salespeople.length) {
-        target.innerHTML = `<div class="r-schedule-empty"><i class="fas fa-user-slash"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_281fa370fae5c5","No eligible assignees are available for sales appointments. Update this event type's assignment rules or add a matching person or resource group.") ?? "No eligible assignees are available for sales appointments. Update this event type's assignment rules or add a matching person or resource group.")}</div>`;
+        target.innerHTML = `<div class="r-schedule-empty"><i class="fas fa-user-slash"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_281fa370fae5c5","No eligible assignees are available for sales appointments. Update this event type's assignment rules or add a matching person or resource group.") ?? "No eligible assignees are available for sales appointments. Update this event type's assignment rules or add a matching person or resource group.")}</div>`;
         return;
       }
       const singleUser = salespeople.length === 1
@@ -3596,7 +3597,7 @@
           eventMenuHtml({ event }) {
             if (!event?.id || !appointmentEventIds.has(String(event.id || ''))) return '';
             if (!scheduleEventAssigned(event)) return '';
-            return `<div class="psv-event-menu"><div class="psv-event-action danger" data-psv-event-action="unassign"><i class="fas fa-user-minus"></i>${(globalThis.PlatformLanguage?.text("project-schedule","m_07454f15891016"," Unassign") ?? " Unassign")}</div></div>`;
+            return `<div class="psv-event-menu"><div class="psv-event-action danger" data-psv-event-action="unassign"><i class="fas fa-user-minus"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_07454f15891016"," Unassign") ?? " Unassign")}</div></div>`;
           },
           onEventClick({ event }) {
             if (!event?.id || !appointmentEventIds.has(String(event.id || ''))) return;
@@ -3666,9 +3667,9 @@
             <div class="r-schedule-range">${String(escapeHtml(label))}</div>
           </div>
           <div class="r-schedule-toolbar-right">
-            ${String(currentEvent ? `<button type="button" class="r-travel-toggle ${scheduleLockTime ? 'active' : ''}" data-schedule-lock-time><span class="dot"></span> Lock appointment time</button>` : '')}
-            <button type="button" class="r-travel-toggle ${String(scheduleSmartScroll ? 'active' : '')}" data-schedule-smart-scroll><span class="dot"></span>${(globalThis.PlatformLanguage?.text("project-schedule","m_87d3f1a9ae9c3e"," Smart scroll") ?? " Smart scroll")}</button>
-            <button type="button" class="r-travel-toggle ${String(scheduleUseLiveTravel ? 'active' : '')}" data-schedule-live-travel><span class="dot"></span>${(globalThis.PlatformLanguage?.text("project-schedule","m_821a653a1f79f2"," Live travel time") ?? " Live travel time")}</button>
+            ${String(currentEvent ? `<button type="button" class="r-travel-toggle ${scheduleLockTime ? 'active' : ''}" data-schedule-lock-time><span class="dot"></span>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_6af109c4fd5ab7"," Lock appointment time") ?? " Lock appointment time")}</button>` : '')}
+            <button type="button" class="r-travel-toggle ${String(scheduleSmartScroll ? 'active' : '')}" data-schedule-smart-scroll><span class="dot"></span>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_87d3f1a9ae9c3e"," Smart scroll") ?? " Smart scroll")}</button>
+            <button type="button" class="r-travel-toggle ${String(scheduleUseLiveTravel ? 'active' : '')}" data-schedule-live-travel><span class="dot"></span>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_821a653a1f79f2"," Live travel time") ?? " Live travel time")}</button>
             <span class="r-schedule-mode-pill"><i class="fas ${String(singleUser ? 'fa-calendar-week' : 'fa-table-cells')}"></i>${String(escapeHtml(modeLabel))}</span>
           </div>
         </div>
@@ -3879,42 +3880,42 @@
     dialog.className = 'r-schedule-dialog';
     dialog.innerHTML = `
       <div class="r-schedule-card">
-        <h3 id="rScheduleDialogTitle">${(globalThis.PlatformLanguage?.text("project-schedule","m_e5aee059bf2f35","Schedule Appointment") ?? "Schedule Appointment")}</h3>
-        <p id="rScheduleDialogSub">${(globalThis.PlatformLanguage?.text("project-schedule","m_b90dbdb90ce3a1","Choose a time and assign one or more eligible resources.") ?? "Choose a time and assign one or more eligible resources.")}</p>
+        <h3 id="rScheduleDialogTitle">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_e5aee059bf2f35","Schedule Appointment") ?? "Schedule Appointment")}</h3>
+        <p id="rScheduleDialogSub">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_b90dbdb90ce3a1","Choose a time and assign one or more eligible resources.") ?? "Choose a time and assign one or more eligible resources.")}</p>
         <div class="r-schedule-grid">
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_29dbd3d8b69f55","Title") ?? "Title")}</label><input type="text" id="rScheduleItemTitle" placeholder="${(globalThis.PlatformLanguage?.text("project-schedule","m_5a654ad9b6d2e3","Appointment") ?? "Appointment")}"></div>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_2a0b11100c22a4","Date") ?? "Date")}</label><input type="date" id="rScheduleDate"></div>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_727840a47c2e4c","Time") ?? "Time")}</label><input type="time" id="rScheduleTime" step="900"></div>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_bd8fd6e973f6e8","Duration") ?? "Duration")}</label><input type="number" id="rScheduleDuration" min="15" step="15"></div>
-          <div class="r-schedule-field" id="rScheduleUsersWrap"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_ef1dde5e6d8239","Assign People / Crews") ?? "Assign People / Crews")}</label><select id="rScheduleUsers" multiple size="4"></select></div>
-          <div class="r-schedule-field" id="rScheduleEquipmentWrap"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_09d7f821d4f1df","Assign Vehicles / Equipment") ?? "Assign Vehicles / Equipment")}</label><select id="rScheduleEquipment" multiple size="4"></select></div>
+          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_29dbd3d8b69f55","Title") ?? "Title")}</label><input type="text" id="rScheduleItemTitle" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5a654ad9b6d2e3","Appointment") ?? "Appointment")}"></div>
+          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_2a0b11100c22a4","Date") ?? "Date")}</label><input type="date" id="rScheduleDate"></div>
+          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_727840a47c2e4c","Time") ?? "Time")}</label><input type="time" id="rScheduleTime" step="900"></div>
+          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bd8fd6e973f6e8","Duration") ?? "Duration")}</label><input type="number" id="rScheduleDuration" min="15" step="15"></div>
+          <div class="r-schedule-field" id="rScheduleUsersWrap"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ef1dde5e6d8239","Assign People / Crews") ?? "Assign People / Crews")}</label><select id="rScheduleUsers" multiple size="4"></select></div>
+          <div class="r-schedule-field" id="rScheduleEquipmentWrap"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_09d7f821d4f1df","Assign Vehicles / Equipment") ?? "Assign Vehicles / Equipment")}</label><select id="rScheduleEquipment" multiple size="4"></select></div>
         </div>
-        <label class="r-schedule-override" style="display:flex" id="rScheduleRecurringWrap"><input type="checkbox" id="rScheduleRecurring">${(globalThis.PlatformLanguage?.text("project-schedule","m_fe2abf52e30aa8"," Make this item recur") ?? " Make this item recur")}</label>
+        <label class="r-schedule-override" style="display:flex" id="rScheduleRecurringWrap"><input type="checkbox" id="rScheduleRecurring">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fe2abf52e30aa8"," Make this item recur") ?? " Make this item recur")}</label>
         <div class="r-schedule-grid" id="rScheduleRecurringFields" hidden>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_ff7bb68b2b05a8","Frequency") ?? "Frequency")}</label><select id="rScheduleFrequency"><option value="weekly">${(globalThis.PlatformLanguage?.text("project-schedule","m_093d55e6272fc0","Weekly") ?? "Weekly")}</option><option value="monthly" selected>${(globalThis.PlatformLanguage?.text("project-schedule","m_d7014f792d2583","Monthly") ?? "Monthly")}</option><option value="quarterly">${(globalThis.PlatformLanguage?.text("project-schedule","m_03e59d03617275","Quarterly") ?? "Quarterly")}</option><option value="yearly">${(globalThis.PlatformLanguage?.text("project-schedule","m_ef289ba5429ef5","Yearly") ?? "Yearly")}</option></select></div>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_b25bba33f32e79","Every") ?? "Every")}</label><input type="number" id="rScheduleInterval" min="1" max="120" value="1"></div>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_949158d13efad4","Ends") ?? "Ends")}</label><select id="rScheduleEndMode"><option value="never">${(globalThis.PlatformLanguage?.text("project-schedule","m_35304e673f218d","Never") ?? "Never")}</option><option value="date">${(globalThis.PlatformLanguage?.text("project-schedule","m_ab4cb92c128c9b","On a date") ?? "On a date")}</option><option value="count">${(globalThis.PlatformLanguage?.text("project-schedule","m_58e24f3e842b25","After a number of times") ?? "After a number of times")}</option></select></div>
-          <div class="r-schedule-field" id="rScheduleEndDateWrap" hidden><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_75319fcfef3f5e","End date") ?? "End date")}</label><input type="date" id="rScheduleEndDate"></div>
-          <div class="r-schedule-field" id="rScheduleCountWrap" hidden><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_328e02d666e842","Occurrences") ?? "Occurrences")}</label><input type="number" id="rScheduleCount" min="1" max="240" value="1"></div>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_767fe02ce7276a","Bill each cycle") ?? "Bill each cycle")}</label><input type="number" id="rScheduleBillingAmount" min="0" step="0.01" placeholder="${(globalThis.PlatformLanguage?.text("project-schedule","m_a3f9a6b065b2d8","Optional") ?? "Optional")}"></div>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_d0aa9ef5b7f01c","Billing cadence") ?? "Billing cadence")}</label><select id="rScheduleBillingFrequency"><option value="monthly">${(globalThis.PlatformLanguage?.text("project-schedule","m_d7014f792d2583","Monthly") ?? "Monthly")}</option><option value="quarterly">${(globalThis.PlatformLanguage?.text("project-schedule","m_03e59d03617275","Quarterly") ?? "Quarterly")}</option><option value="yearly">${(globalThis.PlatformLanguage?.text("project-schedule","m_ef289ba5429ef5","Yearly") ?? "Yearly")}</option></select></div>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_768d0068b06fa1","Expense per visit") ?? "Expense per visit")}</label><input type="number" id="rScheduleExpenseAmount" min="0" step="0.01" placeholder="${(globalThis.PlatformLanguage?.text("project-schedule","m_a3f9a6b065b2d8","Optional") ?? "Optional")}"></div>
+          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ff7bb68b2b05a8","Frequency") ?? "Frequency")}</label><select id="rScheduleFrequency"><option value="weekly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_093d55e6272fc0","Weekly") ?? "Weekly")}</option><option value="monthly" selected>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_d7014f792d2583","Monthly") ?? "Monthly")}</option><option value="quarterly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_03e59d03617275","Quarterly") ?? "Quarterly")}</option><option value="yearly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ef289ba5429ef5","Yearly") ?? "Yearly")}</option></select></div>
+          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_b25bba33f32e79","Every") ?? "Every")}</label><input type="number" id="rScheduleInterval" min="1" max="120" value="1"></div>
+          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_949158d13efad4","Ends") ?? "Ends")}</label><select id="rScheduleEndMode"><option value="never">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_35304e673f218d","Never") ?? "Never")}</option><option value="date">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ab4cb92c128c9b","On a date") ?? "On a date")}</option><option value="count">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_58e24f3e842b25","After a number of times") ?? "After a number of times")}</option></select></div>
+          <div class="r-schedule-field" id="rScheduleEndDateWrap" hidden><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_75319fcfef3f5e","End date") ?? "End date")}</label><input type="date" id="rScheduleEndDate"></div>
+          <div class="r-schedule-field" id="rScheduleCountWrap" hidden><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_328e02d666e842","Occurrences") ?? "Occurrences")}</label><input type="number" id="rScheduleCount" min="1" max="240" value="1"></div>
+          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_767fe02ce7276a","Bill each cycle") ?? "Bill each cycle")}</label><input type="number" id="rScheduleBillingAmount" min="0" step="0.01" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_a3f9a6b065b2d8","Optional") ?? "Optional")}"></div>
+          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_d0aa9ef5b7f01c","Billing cadence") ?? "Billing cadence")}</label><select id="rScheduleBillingFrequency"><option value="monthly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_d7014f792d2583","Monthly") ?? "Monthly")}</option><option value="quarterly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_03e59d03617275","Quarterly") ?? "Quarterly")}</option><option value="yearly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ef289ba5429ef5","Yearly") ?? "Yearly")}</option></select></div>
+          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_768d0068b06fa1","Expense per visit") ?? "Expense per visit")}</label><input type="number" id="rScheduleExpenseAmount" min="0" step="0.01" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_a3f9a6b065b2d8","Optional") ?? "Optional")}"></div>
         </div>
         <div class="r-schedule-slots" id="rScheduleSlots"></div>
         <div class="r-schedule-status" id="rScheduleStatus"></div>
-        <label class="r-schedule-override" id="rScheduleOverrideWrap"><input type="checkbox" id="rScheduleOverride">${(globalThis.PlatformLanguage?.text("project-schedule","m_2ae9d90aead238"," Schedule anyway") ?? " Schedule anyway")}</label>
+        <label class="r-schedule-override" id="rScheduleOverrideWrap"><input type="checkbox" id="rScheduleOverride">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_2ae9d90aead238"," Schedule anyway") ?? " Schedule anyway")}</label>
         <div class="r-schedule-advanced" id="rScheduleAdvancedFields" hidden>
           <div class="r-schedule-grid">
-            <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_08f74e6b15e4cb","Equipment needed from") ?? "Equipment needed from")}</label><input type="datetime-local" id="rScheduleEquipmentStart"></div>
-            <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_5a9e2da3c9a9db","Equipment needed until") ?? "Equipment needed until")}</label><input type="datetime-local" id="rScheduleEquipmentEnd"></div>
+            <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_08f74e6b15e4cb","Equipment needed from") ?? "Equipment needed from")}</label><input type="datetime-local" id="rScheduleEquipmentStart"></div>
+            <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5a9e2da3c9a9db","Equipment needed until") ?? "Equipment needed until")}</label><input type="datetime-local" id="rScheduleEquipmentEnd"></div>
           </div>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.text("project-schedule","m_37e79a797ef736","Equipment type requirements") ?? "Equipment type requirements")}</label><div class="r-schedule-equipment-requirements" id="rScheduleEquipmentRequirements"></div></div>
+          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_37e79a797ef736","Equipment type requirements") ?? "Equipment type requirements")}</label><div class="r-schedule-equipment-requirements" id="rScheduleEquipmentRequirements"></div></div>
         </div>
         <div class="r-schedule-advanced-actions">
-          <button type="button" class="r-schedule-advanced-toggle" id="rScheduleAdvanced" aria-label="${(globalThis.PlatformLanguage?.text("project-schedule","m_c8cf170a6999a6","Show advanced event fields") ?? "Show advanced event fields")}" title="${(globalThis.PlatformLanguage?.text("project-schedule","m_bec5274b269a70","Advanced event fields") ?? "Advanced event fields")}" aria-pressed="false"><i class="fas fa-sliders"></i></button>
+          <button type="button" class="r-schedule-advanced-toggle" id="rScheduleAdvanced" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_c8cf170a6999a6","Show advanced event fields") ?? "Show advanced event fields")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bec5274b269a70","Advanced event fields") ?? "Advanced event fields")}" aria-pressed="false"><i class="fas fa-sliders"></i></button>
           <div class="r-schedule-actions">
-            <button type="button" class="r-schedule-action secondary" id="rScheduleCancel">${(globalThis.PlatformLanguage?.text("project-schedule","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-            <button type="button" class="r-schedule-action" id="rScheduleSave">${(globalThis.PlatformLanguage?.text("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</button>
+            <button type="button" class="r-schedule-action secondary" id="rScheduleCancel">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+            <button type="button" class="r-schedule-action" id="rScheduleSave">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</button>
           </div>
         </div>
       </div>
@@ -4046,9 +4047,9 @@
     if (equipmentRequirements) equipmentRequirements.innerHTML = scheduleCachedEquipmentTypes.length
       ? scheduleCachedEquipmentTypes.map((type) => {
           const requirement = existingRequirements.find((item) => String(item?.equipment_type_id || '') === String(type.id || ''));
-          return `<label class="r-schedule-equipment-requirement"><input type="checkbox" data-equipment-requirement="${String(escapeHtml(type.id || ''))}" ${String(requirement ? 'checked' : '')}><span>${String(escapeHtml(type.name || type.id))}</span><input type="number" min="1" max="99" value="${String(escapeHtml(requirement?.quantity || 1))}" data-equipment-requirement-quantity="${String(escapeHtml(type.id || ''))}" aria-label="${((v5) => globalThis.PlatformLanguage?.text("project-schedule","m_138872c73d447c",`${v5} quantity`,{v5}) ?? `${v5} quantity`)(escapeHtml(type.name || 'Equipment'))}"></label>`;
+          return `<label class="r-schedule-equipment-requirement"><input type="checkbox" data-equipment-requirement="${String(escapeHtml(type.id || ''))}" ${String(requirement ? 'checked' : '')}><span>${String(escapeHtml(type.name || type.id))}</span><input type="number" min="1" max="99" value="${String(escapeHtml(requirement?.quantity || 1))}" data-equipment-requirement-quantity="${String(escapeHtml(type.id || ''))}" aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("project-schedule","m_138872c73d447c",`${v5} quantity`,{v5}) ?? `${v5} quantity`)(escapeHtml(type.name || 'Equipment'))}"></label>`;
         }).join('')
-      : `<div class="r-schedule-status">${(globalThis.PlatformLanguage?.text("project-schedule","m_80651b68bcfcb3","No equipment types have been configured yet.") ?? "No equipment types have been configured yet.")}</div>`;
+      : `<div class="r-schedule-status">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_80651b68bcfcb3","No equipment types have been configured yet.") ?? "No equipment types have been configured yet.")}</div>`;
     let advancedOpen = false;
     const deliveryDefaultsHidden = () => String(eventTypeId || '').toLowerCase() === 'delivery';
     const renderAdvanced = () => {
@@ -4132,7 +4133,7 @@
       });
       const availableUserIds = new Set((eventAvailability.eligibleUsers?.length ? eventAvailability.eligibleUsers : availability.availableUsers).map((user) => String(user.id)));
       const eligibleUsers = assignableSubjects.filter((subject) => subject.subject_type !== 'organization_user' || availableUserIds.has(String(subject.id)) || selectedIds.includes(subject.id));
-      usersInput.innerHTML = `<option value="">${(globalThis.PlatformLanguage?.text("project-schedule","m_f63dccd2774d7e","Assign later") ?? "Assign later")}</option>` + eligibleUsers.map((user) => {
+      usersInput.innerHTML = `<option value="">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f63dccd2774d7e","Assign later") ?? "Assign later")}</option>` + eligibleUsers.map((user) => {
         const roleLabel = (user.mapped_roles || []).map((role) => role.label).join(', ');
         const selected = selectedIds.includes(user.id) ? 'selected' : '';
         return `<option value="${escapeHtml(user.id)}" ${selected}>${escapeHtml(user.name || user.email || user.id)}${roleLabel ? ` - ${escapeHtml(roleLabel)}` : ''}</option>`;
@@ -4154,14 +4155,14 @@
     async function renderSlots(){
       const generation = ++availabilityGeneration;
       saveBtn.disabled = true;
-      slotsEl.innerHTML = `<span class="r-schedule-slot unavailable">${(globalThis.PlatformLanguage?.text("project-schedule","m_e3f33bfdf56cf1","Checking availability…") ?? "Checking availability…")}</span>`;
+      slotsEl.innerHTML = `<span class="r-schedule-slot unavailable">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_e3f33bfdf56cf1","Checking availability…") ?? "Checking availability…")}</span>`;
       let result;
       try {
         result = await authoritativeAvailability();
       } catch (error) {
         if (generation !== availabilityGeneration) return;
         authoritativeSlots = [];
-        slotsEl.innerHTML = `<span class="r-schedule-slot unavailable">${(globalThis.PlatformLanguage?.text("project-schedule","m_f40ba07aaa433a","Availability unavailable") ?? "Availability unavailable")}</span>`;
+        slotsEl.innerHTML = `<span class="r-schedule-slot unavailable">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f40ba07aaa433a","Availability unavailable") ?? "Availability unavailable")}</span>`;
         statusEl.textContent = error?.message || 'Could not check authoritative availability.';
         statusEl.classList.add('bad');
         saveBtn.disabled = !overrideInput?.checked;
