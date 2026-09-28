@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 28 portal CSRF: [Configured session cookies across platform clients](deploy/digitalocean/development-platform-csrf-20260928.md) records the development-only correction for admin actions blocked by stale production-cookie readers, regression coverage, release baselines and verification.
+
 September 28 equipment schedule: [Shared maintenance events and live fleet status](deploy/digitalocean/development-equipment-schedule-20260928.md) records the development release, synthetic fleet status examples, verification, and rollback. Production is unchanged.
 
 September 28 payment browser: [Streamed Chromium signup and canonical source alignment](deploy/digitalocean/development-payment-browser-20260928.md) records the development workflow, source reconciliation, 100 GB release volume, verification and rollback. Use the global assistant’s **Set up payments** suggestion. Production is unchanged.
