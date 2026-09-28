@@ -146,6 +146,7 @@
     .eq-card-meta div{display:flex;align-items:center;gap:8px;color:#475467;font-size:11.5px;font-weight:700;min-width:0}
     .eq-card-meta i{width:14px;text-align:center;color:#98a2b3;font-size:11px}
     .eq-card-meta span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .eq-card-meta .eq-card-vehicle{align-items:flex-start}.eq-card-vehicle i{flex:0 0 14px;margin-top:2px}.eq-card-meta .eq-card-vehicle span{white-space:normal;overflow-wrap:anywhere}
     .eq-empty{border:1.5px dashed #d0d5dd;border-radius:16px;background:#fff;min-height:280px;display:grid;place-items:center;text-align:center;padding:30px}
     .eq-empty > div{display:grid;justify-items:center;gap:10px;max-width:420px}
     .eq-empty i{font-size:30px;color:#c2c9d6}
@@ -1289,6 +1290,7 @@
       const type = unitType(unit);
       const icon = clean(type.icon) || clean(unit.type_icon) || 'fa-truck-pickup';
       const photoUrl = primaryPhoto(unit) ? mediaReferenceUrl(primaryPhoto(unit), 'original') : '';
+      const vehicleDescription = [unit.year, unit.make, unit.model].map(clean).filter(Boolean).join(' ');
       const locationLabel = clean(obj(unit.location).label) || clean(obj(unit.home_location).label);
       const meter = obj(unit.current_meter);
       const meterText = [meter.hours ? `${Number(meter.hours).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} hrs` : '', meter.miles ? `${Number(meter.miles).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} mi` : ''].filter(Boolean).join(' · ');
@@ -1304,6 +1306,7 @@
               ${String(cardStatusSelect(unit))}
             </div>
             <div class="eq-card-meta">
+              ${vehicleDescription ? `<div class="eq-card-vehicle"><i class="fas fa-car" aria-hidden="true"></i><span>${esc(vehicleDescription)}</span></div>` : ''}
               ${String(locationLabel ? `<div><i class="fas fa-location-dot"></i><span>${esc(locationLabel)}</span></div>` : '')}
               ${String(meterText ? `<div><i class="fas fa-gauge-high"></i><span>${esc(meterText)}</span></div>` : '')}
               ${String(clean(unit.license_plate) ? `<div><i class="fas fa-rectangle-list"></i><span>${esc(unit.license_plate)}</span></div>` : '')}
