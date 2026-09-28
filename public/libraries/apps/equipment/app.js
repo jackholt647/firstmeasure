@@ -35,6 +35,14 @@
     ['cdl_c', 'CDL Class C'],
     ['certified_operator', 'Certified operator']
   ];
+  const TYPE_ICONS = [
+    ['fa-truck-pickup','Pickup'], ['fa-van-shuttle','Van'], ['fa-truck','Truck'], ['fa-trailer','Trailer'],
+    ['fa-truck-monster','Heavy equipment'], ['fa-tractor','Tractor'], ['fa-bolt','Generator'],
+    ['fa-screwdriver-wrench','Tools'], ['fa-toolbox','Toolbox'], ['fa-hammer','Hammer'],
+    ['fa-helmet-safety','Safety'], ['fa-warehouse','Facility'], ['fa-plug','Attachment'],
+    ['fa-person-digging','Crew'], ['fa-box','Other']
+  ];
+  const DEFAULT_TYPE_ICONS = { vehicle:'fa-truck-pickup', trailer:'fa-trailer', tool:'fa-screwdriver-wrench', other:'fa-box' };
 
   /* ------------------------------------------------------------------ CSS */
   const css = `
@@ -136,10 +144,10 @@
     .eq-mini{appearance:none;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#475467;padding:6px 10px;font:850 11px/1 inherit;cursor:pointer}
     .eq-placeholder{border:1.5px dashed #d0d5dd;border-radius:16px;background:#fff;min-height:320px;display:grid;place-items:center;text-align:center;padding:34px}
     .eq-crop-back{position:fixed;inset:0;z-index:2147483600;background:rgba(10,15,28,.78);display:grid;place-items:center;padding:20px}.eq-crop-modal{width:min(720px,100%);background:#fff;border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.35);overflow:hidden}.eq-crop-head,.eq-crop-foot{display:flex;align-items:center;gap:10px;padding:14px 16px}.eq-crop-head{border-bottom:1px solid #e7eaf0}.eq-crop-head strong{flex:1}.eq-crop-body{padding:16px;background:#151922}.eq-crop-stage{width:min(640px,100%);aspect-ratio:4/3;margin:auto;overflow:hidden;cursor:grab;touch-action:none;background:#090b10}.eq-crop-stage:active{cursor:grabbing}.eq-crop-stage canvas{display:block;width:100%;height:100%}.eq-crop-tools{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid #e7eaf0;color:#667085;font-size:11px;font-weight:800}.eq-crop-tools input{flex:1}.eq-crop-foot{justify-content:flex-end;border-top:1px solid #e7eaf0}
-    .eq-catalog-back{position:fixed;inset:0;z-index:2147483700;background:rgba(16,22,42,.5);display:grid;place-items:center;padding:18px;animation:eq-fade .16s ease both}.eq-catalog-modal{width:min(470px,100%);background:#fff;border-radius:16px;box-shadow:0 24px 70px rgba(16,24,40,.28);overflow:hidden;animation:eq-catalog-in .2s cubic-bezier(.22,1,.36,1) both}@keyframes eq-catalog-in{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}.eq-catalog-body{padding:18px;display:grid;gap:14px}.eq-kind-options{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.eq-kind-options label{cursor:pointer}.eq-kind-options input{position:absolute;opacity:0;pointer-events:none}.eq-kind-options span{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;height:72px;border:1px solid #d0d5dd;border-radius:11px;color:#667085;font-size:10.5px;line-height:1.1;font-weight:850;text-align:center}.eq-kind-options span i{font-size:14px;line-height:1}.eq-kind-options input:checked+span{border-color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary-readable,var(--primary,#d93025))}
+    .eq-catalog-back{position:fixed;inset:0;z-index:2147483700;background:rgba(16,22,42,.5);display:grid;place-items:center;padding:18px;animation:eq-fade .16s ease both}.eq-catalog-modal{width:min(560px,100%);max-height:calc(100dvh - 36px);display:flex;flex-direction:column;background:#fff;border-radius:16px;box-shadow:0 24px 70px rgba(16,24,40,.28);overflow:hidden;animation:eq-catalog-in .2s cubic-bezier(.22,1,.36,1) both}@keyframes eq-catalog-in{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}.eq-catalog-body{padding:18px;display:grid;gap:14px;overflow:auto;min-height:0}.eq-kind-options{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.eq-kind-options label,.eq-icon-options label{cursor:pointer}.eq-kind-options input,.eq-icon-options input{position:absolute;opacity:0;pointer-events:none}.eq-kind-options span{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;height:72px;border:1px solid #d0d5dd;border-radius:11px;color:#667085;font-size:10.5px;line-height:1.1;font-weight:850;text-align:center}.eq-kind-options span i{font-size:14px;line-height:1}.eq-kind-options input:checked+span,.eq-icon-options input:checked+span{border-color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary-readable,var(--primary,#d93025))}.eq-kind-options input:focus-visible+span,.eq-icon-options input:focus-visible+span{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:2px}.eq-icon-options{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}.eq-icon-options span{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:62px;padding:5px 3px;border:1px solid #d0d5dd;border-radius:11px;color:#667085;font-size:9px;line-height:1.15;font-weight:800;text-align:center}.eq-icon-options i{font-size:19px;line-height:1}
     .eq-field.invalid input,.eq-field.invalid textarea{border-color:#d92d20!important;box-shadow:0 0 0 3px rgba(217,45,32,.1)!important}.eq-field-error{display:none;margin-top:6px;color:#b42318;font-size:11px;font-weight:800;align-items:center;gap:6px}.eq-field.invalid .eq-field-error,.eq-field-error.show{display:flex!important;animation:eq-error-in .22s cubic-bezier(.22,1,.36,1) both}@keyframes eq-error-in{0%{opacity:0;transform:translateY(-3px)}60%{transform:translateX(2px)}100%{opacity:1;transform:none}}.eq-catalog-modal.has-error{animation:eq-error-shake .26s ease both}@keyframes eq-error-shake{0%,100%{transform:none}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}.eq-foot-spacer{flex:1}.pac-container{z-index:2147483900!important}
     .eq-modal-error,.eq-form-error{display:none;border:1px solid #fda29b;border-radius:10px;background:#fef3f2;color:#b42318;padding:9px 11px;font-size:11px;font-weight:800;line-height:1.4;align-items:flex-start;gap:7px}.eq-modal-error.show,.eq-form-error.show{display:flex;animation:eq-error-in .22s ease both}.eq-form-error{grid-column:1/-1}
-    @media(max-width:560px){.eq-grid{grid-template-columns:1fr}.eq-card{grid-template-columns:minmax(105px,35%) minmax(0,1fr)}.eq-unit-identity,.eq-inline-view-form .eq-unit-identity{grid-template-columns:120px minmax(0,1fr);gap:16px}.eq-form,.eq-dynamic-panel{grid-template-columns:1fr}.eq-field.wide,.eq-section-label,.eq-condition-list,.eq-condition-media{grid-column:1}.eq-name-color{grid-template-columns:minmax(0,1fr) 58px}.eq-kind-options{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:560px){.eq-grid{grid-template-columns:1fr}.eq-card{grid-template-columns:minmax(105px,35%) minmax(0,1fr)}.eq-unit-identity,.eq-inline-view-form .eq-unit-identity{grid-template-columns:120px minmax(0,1fr);gap:16px}.eq-form,.eq-dynamic-panel{grid-template-columns:1fr}.eq-field.wide,.eq-section-label,.eq-condition-list,.eq-condition-media{grid-column:1}.eq-name-color{grid-template-columns:minmax(0,1fr) 58px}.eq-kind-options{grid-template-columns:repeat(2,1fr)}.eq-icon-options{grid-template-columns:repeat(3,minmax(0,1fr))}}
   `;
 
   function injectCss(){
@@ -759,6 +767,16 @@
       root.querySelector('[data-eq-catalog-save]')?.addEventListener('click', () => void saveCatalogEditor());
       root.querySelector('[data-eq-catalog-name]')?.addEventListener('input', (event) => clearCatalogFieldError(event.currentTarget));
       root.querySelector('[data-eq-catalog-name]')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); void saveCatalogEditor(); } });
+      root.querySelectorAll('[data-eq-catalog-kind]').forEach((input) => input.addEventListener('change', () => {
+        const editor = state.catalogEditor;
+        if (!editor || editor.entity || editor.iconTouched) return;
+        const icon = DEFAULT_TYPE_ICONS[clean(input.value)] || DEFAULT_TYPE_ICONS.other;
+        const iconInput = [...root.querySelectorAll('[data-eq-catalog-icon]')].find((choice) => choice.value === icon);
+        if (iconInput) iconInput.checked = true;
+      }));
+      root.querySelectorAll('[data-eq-catalog-icon]').forEach((input) => input.addEventListener('change', () => {
+        if (state.catalogEditor) state.catalogEditor.iconTouched = true;
+      }));
       root.querySelector('[data-eq-catalog-address]')?.addEventListener('input', (event) => {
         if (state.catalogEditor) { state.catalogEditor.addressSelected = false; state.catalogEditor.address = null; }
         clearCatalogFieldError(event.currentTarget);
@@ -795,6 +813,7 @@
       const name = clean(nameInput?.value);
       if (!name) { showCatalogFieldError(nameInput, 'Name is required.'); return; }
       const selectedKind = clean(root.querySelector('[data-eq-catalog-kind]:checked')?.value) || 'other';
+      const selectedIcon = clean(root.querySelector('[data-eq-catalog-icon]:checked')?.value) || DEFAULT_TYPE_ICONS[selectedKind] || DEFAULT_TYPE_ICONS.other;
       const addressInput = root.querySelector('[data-eq-catalog-address]');
       const formatted = clean(addressInput?.value);
       if (editor.kind === 'yard' && formatted && !editor.addressSelected) { showCatalogFieldError(addressInput, 'Choose an address from the Google suggestions.'); return; }
@@ -809,8 +828,8 @@
       try {
         if (editor.kind === 'type') {
           const result = editor.entity
-            ? await window.EquipmentAPI.saveType(organizationId, clean(editor.entity.id), { ...editor.entity, name, kind:selectedKind, expected_revision:Number(editor.entity.revision || 0) || undefined })
-            : await window.EquipmentAPI.createType(organizationId, { name, kind:selectedKind });
+            ? await window.EquipmentAPI.saveType(organizationId, clean(editor.entity.id), { ...editor.entity, name, kind:selectedKind, icon:selectedIcon, expected_revision:Number(editor.entity.revision || 0) || undefined })
+            : await window.EquipmentAPI.createType(organizationId, { name, kind:selectedKind, icon:selectedIcon });
           savedEntity = obj(result.type);
         } else {
           const address = formatted ? { ...obj(editor.address), formatted, access_instructions:accessInstructions } : (accessInstructions ? { access_instructions:accessInstructions } : {});
@@ -833,6 +852,8 @@
             ? arr(state.types).map((entry) => clean(entry.id) === clean(type.id) ? type : entry)
             : [...arr(state.types), type];
           state.types.sort((a, b) => clean(a.name).localeCompare(clean(b.name)));
+          state.units = arr(state.units).map((unit) => clean(unit.type_id) === clean(type.id) ? { ...unit, type_name:type.name, type_icon:type.icon, type_kind:type.kind } : unit);
+          state.timeline = null;
           if (editor.source === 'drawer' && state.drawer) state.drawer.unit.type_id = clean(type.id);
         } else {
           const yard = savedEntity;
@@ -1287,6 +1308,8 @@
       const typeEditor = editor.kind === 'type';
       const title = `${editing ? 'Edit' : 'New'} ${typeEditor ? 'equipment type' : 'facility'}`;
       const currentKind = clean(editor.selectedKind || editor.entity?.kind) || 'other';
+      const currentIcon = clean(editor.entity?.icon) || DEFAULT_TYPE_ICONS[currentKind] || DEFAULT_TYPE_ICONS.other;
+      const iconChoices = TYPE_ICONS.some(([icon]) => icon === currentIcon) ? TYPE_ICONS : [[currentIcon,'Current icon'],...TYPE_ICONS];
       return `
         <div class="eq-catalog-back" data-eq-catalog-back>
           <div class="eq-catalog-modal" role="dialog" aria-modal="true" aria-label="${String(esc(title))}">
@@ -1299,6 +1322,8 @@
               <div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_8cf345002184e5","Name") ?? "Name")}</label><input type="text" data-eq-catalog-name value="${String(esc(editor.name ?? editor.entity?.name))}" placeholder="${String(typeEditor ? 'e.g. Dump trailer' : 'e.g. North facility')}" autofocus><span class="eq-field-error" data-eq-field-error></span></div>
               ${String(typeEditor ? `<div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_0ee677e8200886","Classification") ?? "Classification")}</label><div class="eq-kind-options">
                 ${[['vehicle','fa-truck-pickup','Vehicle'],['trailer','fa-trailer','Trailer'],['tool','fa-screwdriver-wrench','Tool'],['other','fa-box','Other']].map(([value,icon,label]) => `<label><input type="radio" name="eq-catalog-kind" data-eq-catalog-kind value="${value}" ${currentKind === value ? 'checked' : ''}><span><i class="fas ${icon}"></i><b>${label}</b></span></label>`).join('')}
+              </div></div><div class="eq-field"><label>Icon</label><div class="eq-icon-options" role="radiogroup" aria-label="Equipment type icon">
+                ${iconChoices.map(([icon,label]) => `<label title="${esc(label)}"><input type="radio" name="eq-catalog-icon" data-eq-catalog-icon value="${esc(icon)}" ${currentIcon === icon ? 'checked' : ''}><span><i class="fas ${esc(icon)}" aria-hidden="true"></i><b>${esc(label)}</b></span></label>`).join('')}
               </div></div>` : `<div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_0ecd09516ac094","Address (optional)") ?? "Address (optional)")}</label><input type="text" data-eq-catalog-address value="${esc(editor.formatted ?? obj(editor.entity?.address).formatted)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_251e51ba7e4761","Start typing an address") ?? "Start typing an address")}" autocomplete="off"><span class="eq-field-error" data-eq-field-error></span></div><div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_bd935bf52d86b9","Access instructions (optional)") ?? "Access instructions (optional)")}</label><textarea rows="3" data-eq-catalog-access placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_b9e346d068c27a","Gate code, entrance, parking, or check-in details") ?? "Gate code, entrance, parking, or check-in details")}">${esc(obj(editor.entity?.address).access_instructions)}</textarea></div>`)}
               <div class="eq-modal-error" data-eq-catalog-save-error></div>
             </div>
