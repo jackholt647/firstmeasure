@@ -119,6 +119,8 @@ function messageOutput(text: string) {
 
 test("payment setup tool delivers a browser widget without provider links or personal data", async () => {
   const client=createSessionClient();const {orgId}=await register(client);
+  const {saveCapabilityValues}=await import('../platform/capabilities.js');
+  await saveCapabilityValues(orgId,{'platform.money':true});
   const created=await client.request('POST',`/v1/assistant/organizations/${orgId}/threads`,{});
   const {env}=await import('../src/config/env.js');
   const old={environment:process.env.FIRSTMEASURE_DATA_ENVIRONMENT,url:process.env.PAYMENTS_BROWSER_URL,forward:env.forwardApiBase};

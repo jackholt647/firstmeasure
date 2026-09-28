@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { requirePlatformAuth } from '../platform/auth.js';
+import { isAppFlagEnabled } from '../platform/app_flags.js';
 import { badRequest, forbidden, PlatformError } from '../platform/errors.js';
 import { env } from '../src/config/env.js';
 import { getMerchantConfig } from './merchant_config.js';
@@ -36,6 +37,7 @@ export function registerPaymentsBrowserApi(app:FastifyInstance,hostedSignup:(req
     const orgId=String((request.params as {orgId:string}).orgId);
     const ctx=await requirePlatformAuth(request,{orgId,csrf:write,permission:'manage_projects'});
     if(process.env.FIRSTMEASURE_DATA_ENVIRONMENT!=='development'||!env.forwardApiBase.includes('sandbox')) throw forbidden('payment_browser_development_only','Streamed signup is available in development only.');
+    if(!(await isAppFlagEnabled(orgId,'platform','money'))) throw forbidden('app_flag_disabled','Money is not enabled for this organization.');
     return {ctx,tenant:createHash('sha256').update(orgId).digest('hex'),owner:createHash('sha256').update(JSON.stringify([orgId,ctx.userId])).digest('hex')};
   }
   app.post(prefix+'/session',async(request,reply)=>{

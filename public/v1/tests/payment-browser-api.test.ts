@@ -59,6 +59,7 @@ function createSessionClient() {
 before(async () => {
   storageRoot = await mkdtemp(path.join(os.tmpdir(), "firstmate-payment-browser-test-"));
   process.env.NODE_ENV = "test";
+  process.env.FIRSTMEASURE_DATA_ENVIRONMENT = "development";
   process.env.PLATFORM_HEARTBEAT_DISABLED = "1";
   process.env.PLATFORM_STORAGE_ROOT = path.join(storageRoot, "platform");
   process.env.CRM_STORAGE_ROOT = path.join(storageRoot, "crm");
@@ -123,6 +124,10 @@ async function register(client: ReturnType<typeof createSessionClient>, options:
 test("streamed signup reauthorizes org access and CSRF and never accepts a caller-selected URL", async () => {
   const owner=createSessionClient(), outsider=createSessionClient();
   const {orgId}=await register(owner);await register(outsider);
+  const {saveCapabilityValues}=await import('../platform/capabilities.js');
+  await saveCapabilityValues(orgId,{'platform.expanded_access':false});
+  const assistantContext=await owner.request('GET',`/v1/assistant/organizations/${orgId}/context`);
+  assert.ok(assistantContext.main_thread?.id,'A fresh non-expanded organization can open the global assistant.');
   const {env}=await import('../src/config/env.js');
   const {upsertMerchantConfig}=await import('../payments/merchant_config.js');
   const {saveGlobal}=await import('../platform/storage.js');
@@ -150,8 +155,8 @@ test("streamed signup reauthorizes org access and CSRF and never accepts a calle
     assert.equal(calls[1]!.body.owner,calls[0]!.body.owner);
     await saveGlobal(orgId,{data:{app_flags:{platform:{money:false}}}},{replace:false});
     const freshOrgAccess=await owner.raw('GET',base+'/frame?session_id='+started.session_id);
-    assert.equal(freshOrgAccess.statusCode,200,'Onboarding remains available before enabling the Money workspace, like hosted signup.');
-    assert.equal(calls.length,3);
+    assert.equal(freshOrgAccess.statusCode,403,'Explicitly disabling Money revokes stream access.');
+    assert.equal(calls.length,2);
   }finally{
     globalThis.fetch=old.fetch;Object.assign(env,{forwardApiBase:old.forward});
     for(const[key,value]of Object.entries({FIRSTMEASURE_DATA_ENVIRONMENT:old.environment,PAYMENTS_BROWSER_URL:old.url,PAYMENTS_BROWSER_TOKEN:old.token}))if(value===undefined)delete process.env[key];else process.env[key]=value;

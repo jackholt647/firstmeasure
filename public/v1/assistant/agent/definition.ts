@@ -160,6 +160,8 @@ const TOOLS: AgentTool[] = [
     async execute(run) {
       if (process.env.FIRSTMEASURE_DATA_ENVIRONMENT !== 'development' || !env.forwardApiBase.includes('sandbox')) return toolError('Streamed payment setup is only available in development.');
       if (!process.env.PAYMENTS_BROWSER_URL) return toolError('The signup browser is not configured yet.');
+      const { isAppFlagEnabled } = await import('../../platform/app_flags.js');
+      if (!(await isAppFlagEnabled(run.orgId,'platform','money'))) return toolError('Money is not enabled for this organization.');
       if (!run.renders.some(render => render.type === 'payment_setup')) run.renders.push({ type:'payment_setup', id:'payment-setup', title:'Set up payments' });
       return { ok:true, widget:'payment_setup', status:'opening', message:'The customer can complete Forward sandbox signup beside the chat. The widget reports loading or connection errors directly.' };
     }

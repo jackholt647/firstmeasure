@@ -27,7 +27,11 @@ processes use `PAYMENTS_BROWSER_URL` and a shared private `PAYMENTS_BROWSER_TOKE
 The browser gets no platform/provider credentials in its environment. There is no
 public DevTools endpoint. The platform rechecks organization membership, the same
 `manage_projects` permission as hosted signup, and CSRF on every mutation.
-Signup is available before the Money workspace is enabled.
+Development enables the global assistant, Money and merchant-onboarding capabilities
+for fresh organizations without expanded platform access. The assistant route is
+also exempt from the development-only expanded-access boundary. Explicit Money
+opt-out still revokes browser access. Other expanded apps and payment-taking
+features remain gated; production defaults and route boundaries are unchanged.
 
 The worker reserves one session per organization before minting a provider link,
 so repeated requests across web nodes cannot invalidate the active application.
@@ -52,15 +56,22 @@ mounted at `/mnt/firstmeasure_dev_releases`; its fstab entry was verified.
 Six inactive historical releases (`cluster-v1.0.0` through `cluster-v1.0.4`, and
 `cluster-v1.1.0`) were copied with metadata and checksum verified, then replaced
 by same-path symlinks. This recovered about 3 GB on the full root disk without
-losing rollback versions. New release storage can use the attached volume.
+losing rollback versions. `/opt/firstmeasure/releases` now points to the volume.
+All 194 existing release entries retained their verified file identities; older
+root-disk releases remain reachable through links to `releases-root-archive`.
+Compatibility and PHP-FPM require the volume mount before starting.
 
 ## Verification before activation
 
 - TypeScript check passed after integration.
 - Publication: 49 passed, one optional PostgreSQL test skipped.
-- Assistant plus browser API authorization: 20 passed.
+- Assistant plus browser API and fresh-org authorization: 21 passed.
 - Browser interaction/global suggestion/layout: four passed in Chromium.
 - Worker Chromium launch, Forward sandbox origin and live JPEG delivery passed.
+- A dedicated development QA organization exercised the real agent function call,
+  provider application creation and browser session. Its real hosted application
+  rendered in the live portal's left dashboard beside chat, with no page errors.
+  Final financial submission is left to the user's new-organization test.
 - Broad Windows baseline: 934 passed, 48 failed, 20 skipped; JavaScript: 466
   passed, 78 failed, one skipped. This is not a green full-suite claim.
   All 78 JavaScript failures also occur in the archived pre-change source (83
@@ -69,5 +80,18 @@ losing rollback versions. New release storage can use the attached volume.
   Windows failures are SQLite cleanup locks. Regional tests were updated for the
   reconciled French, Japanese and Spanish catalogs, rather than English fallback.
 
-Activation, live signup verification and final release identity are recorded below
-after deployment. Production activation is not authorized by this work.
+The immutable release's `canonical-release.json` records its canonical Git commit,
+archive digest and source-file count. Every development role is verified against
+that manifest on activation, including readiness and enforced development outbound
+isolation. Local verification evidence is under `output/payment-browser`.
+
+To test, create a new organization on `https://dev.1m8.ai`, open the global assistant
+and select **Set up payments**. Enter business and owner information in the streamed
+application. It supports the provider's Business Info, Sales Info, Owners and
+Review & Submit stages. No production service, data or release is activated.
+
+Rollback restores the prior role-specific `current` link and restarts its development
+service (and PHP-FPM on web/compatibility). The browser service can be stopped
+separately. Existing private APK paths, environment files and role overrides are
+preserved. Development autoscale replacement-image provisioning remains the
+pre-existing limitation; the running serving nodes are the verified targets.

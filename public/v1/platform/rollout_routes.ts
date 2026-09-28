@@ -9,6 +9,7 @@ const coreCollections = new Set(["users", "projects", "customers", "branch", "no
 export function routeNeedsExpandedPlatform(route: string, params: unknown) {
   const parts = route.split("/").filter(Boolean);
   if (parts[0] !== "v1") return false;
+  if (parts[1] === "assistant" && process.env.FIRSTMEASURE_DATA_ENVIRONMENT === "development") return false;
   if (platformApis.has(parts[1] || "")) return true;
   if (parts[1] === "internal" && /\/call-(lists|list-entries)(\/|$)/.test(route)) return true;
   if (parts[1] !== "platform") return false;

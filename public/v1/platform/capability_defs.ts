@@ -380,7 +380,7 @@ const definitions: CapabilityDefinition[] = [
     label: "Money",
     description: "Project payment schedules, customer payment tracking, profitability, payables, and disbursements.",
     catalog_stub: "Payments, profitability, and payables.",
-    default: false,
+    default: process.env.FIRSTMEASURE_DATA_ENVIRONMENT === "development",
     runtime_app_id: "money"
   },
   {
@@ -961,7 +961,7 @@ const definitions: CapabilityDefinition[] = [
     parent: "platform.money",
     label: "Merchant Processing",
     description: "Real card and bank payment processing through the boarded merchant account (Forward). Off until the organization completes merchant onboarding.",
-    default: false
+    default: process.env.FIRSTMEASURE_DATA_ENVIRONMENT === "development"
   },
   {
     key: "money.expenses",

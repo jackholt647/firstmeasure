@@ -1,5 +1,8 @@
 # FirstMeasure: local development and production deployment
 
+September 28 payment browser: [Streamed Chromium signup and canonical source alignment](deploy/digitalocean/development-payment-browser-20260928.md) records the development workflow, source reconciliation, 100 GB release volume, verification and rollback. Use the global assistant’s **Set up payments** suggestion. Production is unchanged.
+
+
 September 25 personal left column: [Per-user tab and layout settings](deploy/digitalocean/development-personal-left-column-20260925.md) records the development web release, preservation of concurrent live Brand Kit/resize work, and public verification. Production is unchanged.
 
 September 25 language infrastructure: [Language preferences, translation tooling and live QA tester](deploy/digitalocean/development-language-infrastructure-20260925.md) records the per-role development releases, source preservation, checks and rollback. Shared semantic context authoring continues separately; production is unchanged.

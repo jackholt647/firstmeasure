@@ -158,7 +158,7 @@ const firstMeasureCapabilities = new Set([
 // Development's payment-onboarding entry point must work in a freshly created
 // organization, before any expanded platform apps have been enabled.
 if (process.env.FIRSTMEASURE_DATA_ENVIRONMENT === "development") {
-  for (const key of ["apps.assistant", "assistant.actions", "permission.use_assistant"]) firstMeasureCapabilities.add(key);
+  for (const key of ["apps.assistant", "assistant.actions", "permission.use_assistant", "platform.money", "money.merchant_processing"]) firstMeasureCapabilities.add(key);
 }
 
 const registry = new Map<string, NormalizedCapability>();
