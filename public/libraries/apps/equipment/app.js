@@ -46,6 +46,20 @@
     return `<span class="eq-unit-color" role="img" aria-label="${esc(label)}" title="${esc(label)}" style="background:${color};border-color:${contrastingColor(color)}"></span>`;
   }
 
+  let savedToastTimer;
+  function showSavedToast(){
+    let toast = document.getElementById('eqSavedToast');
+    if (!toast) {
+      toast = document.createElement('div'); toast.id = 'eqSavedToast';
+      toast.className = 'eq-saved-toast'; toast.setAttribute('role', 'status');
+      document.body.appendChild(toast);
+    }
+    toast.textContent = 'Saved';
+    toast.hidden = false;
+    clearTimeout(savedToastTimer);
+    savedToastTimer = setTimeout(() => { toast.hidden = true; }, 1800);
+  }
+
   const STATUS_META = {
     available: { label:(globalThis.PlatformLanguage?.text("equipment","m_f326bdcd77881a","Available") ?? "Available"), term:'equipment.available_status', color:'#12805c', bg:'#e3f8ec', icon:'fa-circle-check' },
     in_use: { label:(globalThis.PlatformLanguage?.text("equipment","m_4ece68045bcb8c","In Use") ?? "In Use"), term:'equipment.in_use_status', color:'#175cd3', bg:'#e8f0fe', icon:'fa-person-digging' },
@@ -92,6 +106,7 @@
 
   /* ------------------------------------------------------------------ CSS */
   const css = `
+    .eq-saved-toast{position:fixed;right:20px;bottom:max(20px,env(safe-area-inset-bottom));z-index:2147483900;background:#101828;color:#fff;border-radius:10px;padding:11px 18px;font:700 13px/1.4 sans-serif;box-shadow:0 4px 18px #10182833;pointer-events:none}.eq-autosave-state{margin-left:auto;display:flex;align-items:center;gap:8px;color:#667085;font-size:12px}.eq-autosave-state.error{color:#b42318}
     .eq-shell{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f8fb;color:#17212b;overflow:hidden}
     .eq-shell *{box-sizing:border-box}
     .eq-top{flex:none;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:16px 20px 12px;background:#fff;border-bottom:1px solid #e7eaf0}
@@ -239,6 +254,134 @@
       settingsHandle:null
     };
 
+    const autosavers = new Set();
+    function autosaveStatus(scope, message, failed = false){
+      const el = root.querySelector(`[data-eq-autosave-state="${scope}"]`);
+      if (!el) return;
+      el.classList.toggle('error', failed);
+      el.innerHTML = `<span>${esc(message)}</span>${failed ? '<button type="button" class="eq-mini" data-eq-autosave-retry>Retry</button>' : ''}`;
+    }
+    // Serialize writes; edits made during a request become the next snapshot.
+    function createAutosaver(write, notify){
+      let pending = null, running = null, timer = null, saved = '', failed = false, message = 'Changes save automatically';
+      const report = (text, error = false) => { message = text; notify(text, error); };
+      const saver = {
+        get dirty(){ return Boolean(pending || running); },
+        get message(){ return message; },
+        get failed(){ return failed; },
+        queue(values, immediate = false){
+          pending = JSON.parse(JSON.stringify(values));
+          clearTimeout(timer);
+          if (!running && JSON.stringify(pending) === saved) { pending = null; return; }
+          failed = false;
+          report('Saving…');
+          timer = setTimeout(() => void saver.flush(), immediate ? 0 : 500);
+        },
+        async flush(){
+          clearTimeout(timer);
+          if (running) { await running; return failed ? false : (pending ? saver.flush() : true); }
+          if (!pending) return true;
+          failed = false;
+          report('Saving…');
+          running = (async () => {
+            while (pending) {
+              const values = pending; pending = null;
+              const signature = JSON.stringify(values);
+              if (signature === saved) continue;
+              try {
+                if (!clean(values.name)) throw new Error('Name is required. Your changes have not been saved.');
+                await write(values);
+                saved = signature;
+                showSavedToast();
+              } catch (error) {
+                pending = pending || values;
+                failed = true;
+                report(statusError(error, 'Could not save changes.'), true);
+                showToast('Not saved', statusError(error, 'Could not save changes. Please retry.'), false);
+                return;
+              }
+            }
+            report('All changes saved');
+          })();
+          await running;
+          running = null;
+          return !failed;
+        }
+      };
+      autosavers.add(saver);
+      return saver;
+    }
+    function autosaveFooter(scope, saver){
+      return `<span class="eq-autosave-state ${saver?.failed ? 'error' : ''}" data-eq-autosave-state="${scope}" aria-live="polite"><span>${esc(saver?.message || 'Changes save automatically')}</span>${saver?.failed ? '<button type="button" class="eq-mini" data-eq-autosave-retry>Retry</button>' : ''}</span>`;
+    }
+    function queueUnitAutosave(immediate = false){
+      const drawer = state.drawer;
+      if (!drawer || drawer.mode === 'create' || drawer.loading) return;
+      if (!drawer.autosaver) drawer.autosaver = createAutosaver(async (values) => {
+        const result = await window.EquipmentAPI.saveUnit(organizationId, clean(drawer.unit.id), {
+          ...values, expected_revision:Number(drawer.unit.revision || 0) || undefined
+        });
+        const saved = { ...drawer.unit, ...values, ...obj(result.unit) };
+        // Keep newer form edits intact while accepting the server revision.
+        drawer.unit = { ...drawer.unit, revision:saved.revision };
+        state.units = arr(state.units).map((unit) => clean(unit.id) === clean(saved.id) ? saved : unit);
+      }, (message, error) => {
+        if (state.drawer === drawer) autosaveStatus('unit', message, error);
+      });
+      const values = drawerFormValues(root);
+      drawer.unit = { ...drawer.unit, ...values };
+      drawer.autosaver.queue(values, immediate);
+    }
+    function queueTypeAutosave(immediate = false){
+      const editor = state.catalogEditor;
+      if (!editor?.entity || editor.kind !== 'type') return;
+      if (!editor.autosaver) editor.autosaver = createAutosaver(async (values) => {
+        const result = await window.EquipmentAPI.saveType(organizationId, clean(editor.entity.id), {
+          ...editor.entity, ...values, expected_revision:Number(editor.entity.revision || 0) || undefined
+        });
+        const type = obj(result.type);
+        editor.entity = { ...editor.entity, ...type };
+        state.types = arr(state.types).map((entry) => clean(entry.id) === clean(type.id) ? type : entry);
+        state.units = arr(state.units).map((unit) => clean(unit.type_id) === clean(type.id) ? { ...unit, type_name:type.name, type_icon:type.icon, type_kind:type.kind } : unit);
+      }, (message, error) => {
+        if (state.catalogEditor === editor) autosaveStatus('type', message, error);
+      });
+      const values = {
+        name:clean(root.querySelector('[data-eq-catalog-name]')?.value),
+        kind:clean(root.querySelector('[data-eq-catalog-kind]:checked')?.value) || 'other',
+        icon:clean(root.querySelector('[data-eq-catalog-icon]:checked')?.value) || DEFAULT_TYPE_ICONS.other
+      };
+      editor.name = values.name; editor.selectedKind = values.kind; editor.selectedIcon = values.icon;
+      editor.autosaver.queue(values, immediate);
+    }
+    function onAutosaveInput(event){
+      if (event.isComposing) return;
+      const target = event.target;
+      const drawer = state.drawer, editor = state.catalogEditor;
+      const unitInput = target.matches?.('[data-eq-input], [data-eq-pickup-note]');
+      const typeInput = target.matches?.('[data-eq-catalog-name], [data-eq-catalog-kind], [data-eq-catalog-icon]');
+      if (!unitInput && !typeInput) return;
+      if (unitInput && target.value === '__new__') return;
+      queueMicrotask(() => {
+        if (unitInput && state.drawer === drawer) queueUnitAutosave(event.type === 'change');
+        if (typeInput && state.catalogEditor === editor) queueTypeAutosave(event.type === 'change');
+      });
+    }
+    root.addEventListener('input', onAutosaveInput, true);
+    root.addEventListener('change', onAutosaveInput, true);
+    root.addEventListener('compositionend', onAutosaveInput, true);
+    const retryAutosave = (event) => {
+      const retry = event.target.closest?.('[data-eq-autosave-retry]');
+      if (!retry) return;
+      const scope = retry.closest('[data-eq-autosave-state]')?.dataset.eqAutosaveState;
+      void (scope === 'unit' ? state.drawer?.autosaver : state.catalogEditor?.autosaver)?.flush();
+    };
+    root.addEventListener('click', retryAutosave);
+    const beforeUnload = (event) => {
+      if ([...autosavers].some((saver) => saver.dirty)) { event.preventDefault(); event.returnValue = ''; }
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+
     const writeRoute = (history, patch, options = {}) => {
       if (Portal.navigation?.applying) return;
       Portal.navigation?.write?.({ tab:'equipment', ...patch }, { history, source:options.source || 'equipment', ownedKeys:options.ownedKeys || Object.keys(patch) });
@@ -254,6 +397,7 @@
 
     async function loadFleet(options = {}){
       if (state.loading && !options.force) return;
+      if (state.drawer && !state.drawer.loading) preserveDrawerDraft();
       state.loading = true;
       render();
       try {
@@ -644,26 +788,33 @@
     }
 
     async function openUnit(unitId, options = {}){
+      if (state.drawer?.uploading || state.crop?.saving) return;
+      if (state.drawer?.autosaver && !await state.drawer.autosaver.flush()) return;
       const existing = arr(state.units).find((unit) => clean(unit.id) === clean(unitId));
-      state.drawer = { mode: options.mode || 'view', unit: existing || null, loading: !existing };
+      state.drawer = { mode: options.mode || 'view', unit: existing || null, loading: true };
+      const openingDrawer = state.drawer;
       if (options.push) writeRoute('push', { equipmentItem: clean(unitId) }, { ownedKeys:['equipmentItem'] });
       render();
       try {
         const result = await window.EquipmentAPI.unit(organizationId, unitId);
-        if (destroyed || !state.drawer) return;
+        if (destroyed || state.drawer !== openingDrawer) return;
         state.drawer.unit = { ...(existing || {}), ...obj(result.unit) };
         state.drawer.loading = false;
         render();
       } catch (error) {
-        if (destroyed) return;
+        if (destroyed || state.drawer !== openingDrawer) return;
         state.drawer = null;
         render();
         showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), statusError(error, 'The unit could not be opened.'), false);
       }
     }
 
-    function closeDrawer(options = {}){
+    async function closeDrawer(options = {}){
       if (!state.drawer) return;
+      const drawer = state.drawer;
+      if (drawer.uploading || state.crop?.saving) { showToast('Uploading', 'Please wait for the upload to finish.', true); return; }
+      if (drawer.autosaver && !await drawer.autosaver.flush()) return;
+      if (state.drawer !== drawer) return;
       state.drawer = null;
       if (options.route !== false) writeRoute('replace', { equipmentItem:'' }, { ownedKeys:['equipmentItem'] });
       render();
@@ -725,8 +876,8 @@
         operator_tag_overrides:driverRequirement(read('driver_requirement')),
         photos:arr(currentUnit.photos),
         notes: read('notes'),
-        location:Object.keys(yard).length ? yard : obj(currentUnit.location),
-        home_location:Object.keys(yard).length ? yard : obj(currentUnit.home_location)
+        location:Object.keys(yard).length ? yard : (obj(currentUnit.location).kind === 'yard' ? {} : obj(currentUnit.location)),
+        home_location:yard
       };
       return values;
     }
@@ -816,13 +967,16 @@
       });
     }
 
-    function closeCatalogEditor(){
+    async function closeCatalogEditor(){
       const editor = state.catalogEditor;
       if (!editor || editor.saving) return;
+      if (editor.autosaver && !await editor.autosaver.flush()) return;
+      if (state.catalogEditor !== editor) return;
       if (editor.googleTimer) window.clearTimeout(editor.googleTimer);
       try { if (editor.autocomplete) window.google?.maps?.event?.clearInstanceListeners?.(editor.autocomplete); } catch (_) {}
       state.catalogEditor = null;
       root.querySelector('[data-eq-catalog-back]')?.remove();
+      if (editor.autosaver) render();
     }
 
     function bindCatalogEditorEvents(){
@@ -875,6 +1029,7 @@
     async function saveCatalogEditor(){
       const editor = state.catalogEditor;
       if (!editor || editor.saving) return;
+      if (editor.entity && editor.kind === 'type') { queueTypeAutosave(true); return; }
       const nameInput = root.querySelector('[data-eq-catalog-name]');
       const name = clean(nameInput?.value);
       if (!name) { showCatalogFieldError(nameInput, 'Name is required.'); return; }
@@ -936,6 +1091,7 @@
         editor.saving = false;
         closeCatalogEditor();
         render();
+        if (editor.source === 'drawer') queueUnitAutosave(true);
       } catch (error) {
         // The server already accepted the save. Always close the editor so a
         // presentation refresh cannot make a successful save look unfinished.
@@ -1032,6 +1188,7 @@
         if (crop.url) URL.revokeObjectURL(crop.url);
         state.crop = null;
         render();
+        queueUnitAutosave(true);
       } catch (error) {
         crop.saving = false;
         showToast((globalThis.PlatformLanguage?.text("equipment","m_c4ed9ae29130ca","Equipment photo") ?? "Equipment photo"), statusError(error, 'The photo could not be uploaded.'), false);
@@ -1082,6 +1239,7 @@
     async function saveDrawer(container){
       const drawer = state.drawer;
       if (!drawer) return;
+      if (drawer.mode !== 'create') { queueUnitAutosave(true); return; }
       clearUnitValidation(container);
       const values = drawerFormValues(container);
       if (!values.name) {
@@ -1098,29 +1256,17 @@
           state.drawer = null;
           writeRoute('replace', { equipmentItem:'' }, { ownedKeys:['equipmentItem'] });
           await loadFleet({ force:true });
-        } else {
-          const result = await window.EquipmentAPI.saveUnit(organizationId, clean(drawer.unit?.id), {
-            ...values,
-            expected_revision: Number(drawer.unit?.revision || 0) || undefined
-          });
-          const savedUnit = { ...obj(drawer.unit), ...obj(result.unit) };
-          if (state.drawer === drawer) {
-            state.drawer = null;
-            writeRoute('replace', { equipmentItem:'' }, { ownedKeys:['equipmentItem'] });
-          }
-          state.units = arr(state.units).map((unit) => clean(unit.id) === clean(savedUnit.id) ? { ...unit, ...savedUnit } : unit);
-          showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), (globalThis.PlatformLanguage?.text("equipment","m_813887aa38f3e9","Unit saved.") ?? "Unit saved."), true);
-          await loadFleet({ force:true });
         }
       } catch (error) {
         const message = statusError(error, 'The unit could not be saved.');
-        if (saveButton) { saveButton.disabled = false; saveButton.innerHTML = `<i class="fas fa-check"></i> ${drawer.mode === 'create' ? 'Add unit' : 'Save changes'}`; }
+        if (saveButton) { saveButton.disabled = false; saveButton.innerHTML = `<i class="fas fa-check"></i> Add unit`; }
         showUnitFormError(container, message);
         showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), message, false);
       }
     }
 
     async function archiveDrawerUnit(){
+      if (state.drawer?.autosaver && !await state.drawer.autosaver.flush()) return;
       const unit = state.drawer?.unit;
       if (!unit) return;
       if (!window.confirm(((v0) => globalThis.PlatformLanguage?.text("equipment","m_5025cad385bee0",`Retire "${v0}"? It leaves the fleet list but its history is kept.`,{v0}) ?? `Retire "${v0}"? It leaves the fleet list but its history is kept.`)(clean(unit.name)))) return;
@@ -1295,7 +1441,7 @@
                     ? (clean(obj(unit.custody).user_id)
                       ? `<button type="button" class="eq-btn" data-eq-drawer-checkin><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_9cb588baa72829"," Check in") ?? " Check in")}</button>`
                       : `<button type="button" class="eq-btn" data-eq-drawer-checkout><i class="fas fa-hand-holding"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_243d5332cd629a"," Check out") ?? " Check out")}</button>`)
-                    : '') + "<button type=\"button\" class=\"eq-btn primary\" data-eq-drawer-save><i class=\"fas fa-check\"></i>" + (globalThis.PlatformLanguage?.htmlText("equipment","m_bfcbd339764266"," Save changes") ?? " Save changes") + "</button>")}
+                    : '') + autosaveFooter('unit', drawer.autosaver))}
             </div>
           </div>
         </div>`;
@@ -1356,7 +1502,7 @@
       const typeEditor = editor.kind === 'type';
       const title = `${editing ? 'Edit' : 'New'} ${typeEditor ? 'equipment type' : 'facility'}`;
       const currentKind = clean(editor.selectedKind || editor.entity?.kind) || 'other';
-      const currentIcon = clean(editor.entity?.icon) || DEFAULT_TYPE_ICONS[currentKind] || DEFAULT_TYPE_ICONS.other;
+      const currentIcon = clean(editor.selectedIcon || editor.entity?.icon) || DEFAULT_TYPE_ICONS[currentKind] || DEFAULT_TYPE_ICONS.other;
       const iconChoices = TYPE_ICONS.some(([icon]) => icon === currentIcon) ? TYPE_ICONS : [[currentIcon,'Current icon'],...TYPE_ICONS];
       return `
         <div class="eq-catalog-back" data-eq-catalog-back>
@@ -1375,7 +1521,7 @@
               </div></div>` : `<div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_0ecd09516ac094","Address (optional)") ?? "Address (optional)")}</label><input type="text" data-eq-catalog-address value="${esc(editor.formatted ?? obj(editor.entity?.address).formatted)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_251e51ba7e4761","Start typing an address") ?? "Start typing an address")}" autocomplete="off"><span class="eq-field-error" data-eq-field-error></span></div><div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_bd935bf52d86b9","Access instructions (optional)") ?? "Access instructions (optional)")}</label><textarea rows="3" data-eq-catalog-access placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_b9e346d068c27a","Gate code, entrance, parking, or check-in details") ?? "Gate code, entrance, parking, or check-in details")}">${esc(obj(editor.entity?.address).access_instructions)}</textarea></div>`)}
               <div class="eq-modal-error" data-eq-catalog-save-error></div>
             </div>
-            <div class="eq-drawer-foot"><button type="button" class="eq-btn" data-eq-catalog-cancel>${(globalThis.PlatformLanguage?.htmlText("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="eq-btn primary" data-eq-catalog-save ${String(editor.saving ? 'disabled' : '')}><i class="fas ${String(editor.saving ? 'fa-spinner fa-spin' : 'fa-check')}"></i> ${String(editor.saving ? 'Savingâ€¦' : 'Save')}</button></div>
+            ${editing && typeEditor ? `<div class="eq-drawer-foot"><button type="button" class="eq-btn" data-eq-catalog-cancel>Done</button>${autosaveFooter('type', editor.autosaver)}</div>` : `            <div class="eq-drawer-foot"><button type="button" class="eq-btn" data-eq-catalog-cancel>${(globalThis.PlatformLanguage?.htmlText("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="eq-btn primary" data-eq-catalog-save ${String(editor.saving ? 'disabled' : '')}><i class="fas ${String(editor.saving ? 'fa-spinner fa-spin' : 'fa-check')}"></i> ${String(editor.saving ? 'Savingâ€¦' : 'Save')}</button></div>`}
           </div>
         </div>`;
     }
@@ -1659,26 +1805,30 @@
       });
       root.querySelectorAll('[data-eq-pickup-note-remove]').forEach((button) => button.addEventListener('click', () => {
         preserveDrawerDraft(); const acquisition = obj(state.drawer.unit.acquisition); const pickup = obj(acquisition.pickup_condition); const notes = arr(pickup.notes).slice(); notes.splice(Number(button.dataset.eqPickupNoteRemove), 1);
-        state.drawer.unit.acquisition = { ...acquisition, pickup_condition:{ ...pickup, notes } }; render();
+        state.drawer.unit.acquisition = { ...acquisition, pickup_condition:{ ...pickup, notes } }; render(); queueUnitAutosave(true);
       }));
       root.querySelector('[data-eq-pickup-media-add]')?.addEventListener('click', () => {
         preserveDrawerDraft(); const picker = document.createElement('input'); picker.type = 'file'; picker.accept = 'image/*,video/*'; picker.multiple = true;
         picker.addEventListener('change', async () => {
           const files = [...(picker.files || [])]; if (!files.length) return;
+          const drawer = state.drawer;
+          if (!drawer) return;
+          drawer.uploading = true;
           try {
             const uploads = await Promise.allSettled(files.map((file) => uploadMediaFile(file, { slot:'rental_pickup_condition', role:'rental_pickup_condition' })));
+            if (state.drawer !== drawer) return;
             const added = uploads.filter((result) => result.status === 'fulfilled').map((result) => result.value);
             preserveDrawerDraft();
             const acquisition = obj(state.drawer.unit.acquisition); const pickup = obj(acquisition.pickup_condition);
-            state.drawer.unit.acquisition = { ...acquisition, pickup_condition:{ ...pickup, media:[...arr(pickup.media), ...added] } }; render();
+            state.drawer.unit.acquisition = { ...acquisition, pickup_condition:{ ...pickup, media:[...arr(pickup.media), ...added] } }; render(); queueUnitAutosave(true);
             const failed = uploads.length - added.length;
             if (failed) showToast((globalThis.PlatformLanguage?.text("equipment","m_09b6f65ba14e08","Pickup condition") ?? "Pickup condition"), ((v0,v1,v2) => globalThis.PlatformLanguage?.text("equipment","m_cd1fcdebee4a30",`${v0} uploaded; ${v1} file${v2} could not be uploaded.`,{v0,v1,v2}) ?? `${v0} uploaded; ${v1} file${v2} could not be uploaded.`)(added.length,failed,failed === 1 ? '' : 's'), false);
-          } catch (error) { showToast((globalThis.PlatformLanguage?.text("equipment","m_09b6f65ba14e08","Pickup condition") ?? "Pickup condition"), statusError(error, 'The condition media could not be uploaded.'), false); }
+          } catch (error) { showToast('Pickup condition', statusError(error, 'The condition media could not be uploaded.'), false); } finally { drawer.uploading = false; }
         }); picker.click();
       });
       root.querySelectorAll('[data-eq-pickup-media-remove]').forEach((button) => button.addEventListener('click', () => {
         preserveDrawerDraft(); const acquisition = obj(state.drawer.unit.acquisition); const pickup = obj(acquisition.pickup_condition); const media = arr(pickup.media).slice(); media.splice(Number(button.dataset.eqPickupMediaRemove), 1);
-        state.drawer.unit.acquisition = { ...acquisition, pickup_condition:{ ...pickup, media } }; render();
+        state.drawer.unit.acquisition = { ...acquisition, pickup_condition:{ ...pickup, media } }; render(); queueUnitAutosave(true);
       }));
 
       root.querySelectorAll('[data-eq-crop-close]').forEach((button) => button.addEventListener('click', closePhotoCrop));
@@ -1726,7 +1876,10 @@
     }
 
     const handle = {
-      applyRoute(route = {}){
+      async applyRoute(route = {}){
+        if (state.drawer?.uploading || state.crop?.saving) return;
+        if (state.drawer?.autosaver && !await state.drawer.autosaver.flush()) return;
+        if (state.catalogEditor?.autosaver && !await state.catalogEditor.autosaver.flush()) return;
         if (destroyed || route.tab !== 'equipment') return;
         const nextView = clean(route.equipmentView) || 'fleet';
         const nextItem = clean(route.equipmentItem);
@@ -1741,6 +1894,12 @@
         render();
       },
       destroy(){
+        for (const saver of autosavers) void saver.flush();
+        root.removeEventListener('input', onAutosaveInput, true);
+        root.removeEventListener('change', onAutosaveInput, true);
+        root.removeEventListener('compositionend', onAutosaveInput, true);
+        root.removeEventListener('click', retryAutosave);
+        window.removeEventListener('beforeunload', beforeUnload);
         destroyed = true;
         state.settingsHandle?.destroy?.();
         if (activeEquipmentHandle === handle) activeEquipmentHandle = null;
