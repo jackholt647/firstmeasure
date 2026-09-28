@@ -333,7 +333,21 @@ export function containsAppFlagMutation(input: JsonObject = {}) {
     || Object.prototype.hasOwnProperty.call(input, "app_placements");
 }
 
-export function canManageTestAppFlags(input: { identity?: JsonObject; role?: string; orgId?: string }) {
+type AppFlagActor = { identity?: JsonObject; organization?: JsonObject; session?: JsonObject; role?: string; orgId?: string };
+
+export function canManageSandboxOrgFlags(input: AppFlagActor) {
+  const role = cleanText(input.role).toLowerCase();
+  const organization = asObject(input.organization);
+  const organizationMetadata = asObject(organization.metadata);
+  const sessionMetadata = asObject(asObject(input.session).metadata);
+  const sandboxSession = ["signup_sandbox_instance", "signup_sandbox_admin_jump"].includes(cleanText(sessionMetadata.source))
+    && cleanText(sessionMetadata.sandbox_instance_id)
+    && sessionMetadata.sandbox_instance_id === organizationMetadata.sandbox_instance_id;
+  return !env.isProduction && Boolean(sandboxSession) && organization.id === input.orgId
+    && organizationMetadata.sandbox_test_org === true && ["owner", "admin", "super_admin"].includes(role);
+}
+
+export function canManageTestAppFlags(input: AppFlagActor) {
   const email = cleanText(asObject(input.identity).email).toLowerCase();
   const role = cleanText(input.role).toLowerCase();
   // Deployment-owned allowlist: organization/profile writes and signup presets
@@ -341,6 +355,10 @@ export function canManageTestAppFlags(input: { identity?: JsonObject; role?: str
   const testOrganizations = new Set((process.env.PLATFORM_TEST_ORG_IDS || "").split(",").map(value => value.trim()).filter(Boolean));
   return testOrganizations.has(cleanText(input.orgId))
     && TEST_APP_FLAG_ADMIN_EMAILS.has(email) && ["owner", "admin", "super_admin"].includes(role);
+}
+
+export function canManageOrgAppFlags(input: AppFlagActor) {
+  return canManageTestAppFlags(input) || canManageSandboxOrgFlags(input);
 }
 
 export function normalizeAppFlagInput(input: JsonObject = {}) {

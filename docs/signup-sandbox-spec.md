@@ -215,6 +215,8 @@ direction; ids never collide because they are random.
 | `GET /export`, `POST /import {bundle, overwrite}` | Whole-library sync. |
 | `POST /workflows/:id/instances` | Create a test org, set platform auth cookies on the response, return `{test_org, redirect, auth}`. |
 | `GET /test-orgs`, `DELETE /test-orgs/:id` | Registry; delete removes the org dir, identity, email index, and its sessions. |
+| `GET /test-orgs/:id/users`, `POST /test-orgs/:id/users` | List the org's actual platform users; add an active user with a role and explicit permission overrides. |
+| `POST /test-orgs/:id/users/:userId/login` | Open a platform session as a listed user after checking the user belongs to that test org. |
 
 Test-instance creation mirrors the real register flow
 (`public/v1/platform/api.ts` legacy-action `register`): same org global
@@ -222,6 +224,18 @@ defaults, same app-flag defaults, identity + owner user + membership, then
 `loginPlatformIdentity` + `setPlatformAuthCookies` + `rememberPlatformAccount`
 (so the account switcher can hop between your real account and test orgs). Orgs
 are tagged `metadata.sandbox_test_org: true`.
+
+The Test orgs tab opens a user roster for each existing instance. Added users
+receive an individual identity and membership in that same organization. The
+admin can choose the usual role and common FirstMeasure permissions, with a JSON
+field for other named boolean overrides. **Jump in as user** starts a real
+platform session for that identity. A browser profile has one active platform
+cookie at a time; use separate browser profiles or devices to keep several users
+logged in concurrently. The sandbox remains development-only, and the gated
+experimental admin session controls these operations when registration is gated.
+Sandbox-launched owner and admin sessions can manage that organization's
+Features & Apps flags in development. Platform rollout targeting and global
+preset controls retain their operator-only gate.
 
 ## Seeded template
 
@@ -256,6 +270,11 @@ To Do modes, the New button, and global search. Channels, the AI Assistant,
 Messages, Notifications, and Settings remain available. Custom page choices
 are posted with stage completion and saved under the test org's global data;
 only `$user` keys declared by that page are accepted.
+
+The instant full organization template enables expanded access and all boolean
+capabilities. It sets `platform.new_button_mode` to `selector` and leaves
+`platform.new_button_items` empty, showing the default multi-action New menu.
+Existing copies of this seed gain those two defaults only when neither was set.
 
 The generic home improvement flow (`swf_home_improvement`) is the expandable
 foundation for onboarding a full-service contractor:

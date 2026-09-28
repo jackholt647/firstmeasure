@@ -43,7 +43,7 @@ import { createWorkPlan, listWorkTodos, patchWorkNode, transitionWorkNode } from
 import { ensurePipelinePlanForProject } from "../scopes/router.js";
 import { readScopeTemplate } from "../scopes/storage.js";
 import { readNodeRecord } from "../work/storage.js";
-import { appFlagState, canManageTestAppFlags, containsAppFlagMutation, effectiveAppFlags, enabledOnlyAppFlags, isAppFlagEnabled, newOrganizationAppFlagDefaults, normalizeAppFlagInput, normalizeAppPlacementInput, normalizeAppVariantInput } from "./app_flags.js";
+import { appFlagState, canManageOrgAppFlags, canManageTestAppFlags, containsAppFlagMutation, effectiveAppFlags, enabledOnlyAppFlags, isAppFlagEnabled, newOrganizationAppFlagDefaults, normalizeAppFlagInput, normalizeAppPlacementInput, normalizeAppVariantInput } from "./app_flags.js";
 import {
   applyCapabilityPreset,
   capabilityState,
@@ -1342,14 +1342,14 @@ app.get("/auth/google/config", async () => ({
     return {
       ok: true,
       ...state,
-        test_admin: canManageTestAppFlags(ctx)
+        test_admin: canManageOrgAppFlags(ctx)
     };
   });
 
   app.put("/organizations/:orgId/app-flags", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
-    if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
+    if (!canManageOrgAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
     const body = objectBodySchema.parse(request.body ?? {});
     const hasVariantInput = Object.prototype.hasOwnProperty.call(body, "app_variants") || Object.prototype.hasOwnProperty.call(body, "variants");
     const hasExplicitFlagInput = Object.prototype.hasOwnProperty.call(body, "app_flags") || Object.prototype.hasOwnProperty.call(body, "flags");
@@ -1404,14 +1404,14 @@ app.get("/auth/google/config", async () => ({
     return {
       ok: true,
       ...(await capabilityState(orgId, ctx.userId)),
-      test_admin: canManageTestAppFlags(ctx)
+      test_admin: canManageOrgAppFlags(ctx)
     };
   });
 
   app.put("/organizations/:orgId/capabilities", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
-    if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
+    if (!canManageOrgAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
     const body = objectBodySchema.parse(request.body ?? {});
     const { violations } = await saveCapabilityValues(orgId, asObject(body.values));
     return {

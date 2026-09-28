@@ -5,12 +5,19 @@ import { newOrganizationAppFlagDefaults } from "../platform/app_flags.js";
 import { valueCapabilities } from "../platform/capabilities.js";
 import {
   hashPassword,
-  loginPlatformIdentity
+  loginPlatformIdentity,
+  loginPlatformVerifiedIdentity
 } from "../platform/auth.js";
 import {
   addIdentityMembership,
   createIdentity,
   createOrganization,
+  deleteIdentity,
+  deleteIdentitySessions,
+  listDocuments,
+  listIdentityMemberships,
+  readDocument,
+  readIdentity,
   readGlobal,
   saveGlobal,
   upsertDocument
@@ -95,6 +102,8 @@ function instantFullOrgAppFlags(): JsonObject {
   for (const capability of valueCapabilities()) {
     if (capability.type === "boolean") overrides[capability.key] = true;
   }
+  overrides["platform.new_button_mode"] = "selector";
+  overrides["platform.new_button_items"] = "";
   return overrides;
 }
 
@@ -398,6 +407,12 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
   // Start from the same defaults as real registration, then overlay the
   // workflow's declared default state (flags + settings).
   const workflowDefaults = normalizeEffects(runContext.workflow.defaults);
+  if (workflowId === "swf_instant_full_org") {
+    const flags = asObject(workflowDefaults.app_flags);
+    if (!("platform.new_button_mode" in flags)) flags["platform.new_button_mode"] = "selector";
+    if (!("platform.new_button_items" in flags)) flags["platform.new_button_items"] = "";
+    workflowDefaults.app_flags = flags;
+  }
   const defaultAppFlags = (await newOrganizationAppFlagDefaults()) as JsonObject;
   const globalData: JsonObject = {
     app_flags: deepMerge(defaultAppFlags, groupedFlagOverrides(asObject(workflowDefaults.app_flags))),
@@ -468,7 +483,7 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
     email,
     password,
     organizationId: String(organization.id),
-    metadata: { source: "signup_sandbox_instance" }
+    metadata: { source: "signup_sandbox_instance", sandbox_instance_id: instanceId }
   });
 
   const testOrg = await sandboxStore.saveTestOrg({
@@ -672,13 +687,98 @@ export async function completeStage(instanceId: string, stageId: string, input: 
 export async function deleteTestOrg(instanceId: string) {
   const record = await sandboxStore.readTestOrg(instanceId);
   if (!record) throw sandboxError(404, "test_org_not_found", `Test org '${instanceId}' was not found.`);
+  const users = await listDocuments(String(record.org_id), "users");
+  const sandboxIdentityIds: string[] = [];
+  for (const user of users) {
+    const identityId = cleanText(asObject(user.data).identity_id);
+    if (!identityId || identityId === String(record.identity_id)) continue;
+    const identity = await readIdentity(identityId).catch(() => null);
+    if (identity && asObject(identity.metadata).sandbox_instance_id === instanceId) sandboxIdentityIds.push(identityId);
+  }
   await removePlatformOrgData({
     orgId: String(record.org_id),
     identityId: String(record.identity_id),
     email: String(record.email)
   });
+  for (const identityId of sandboxIdentityIds) {
+    await deleteIdentitySessions(identityId);
+    await deleteIdentity(identityId);
+  }
   await sandboxStore.deleteTestOrg(instanceId);
   return { deleted: instanceId, org_id: record.org_id };
+}
+
+async function testOrgRecord(instanceId: string) {
+  const record = await sandboxStore.readTestOrg(instanceId);
+  if (!record) throw sandboxError(404, "test_org_not_found", "Test organization not found.");
+  return record;
+}
+
+export async function listTestOrgUsers(instanceId: string) {
+  const record = await testOrgRecord(instanceId);
+  const documents = await listDocuments(String(record.org_id), "users");
+  return documents.map((document) => {
+    const data = asObject(document.data);
+    return {
+      id: document.id,
+      name: data.name,
+      email: data.email,
+      role: data.role,
+      status: data.status,
+      permissions: asObject(data.permissions)
+    };
+  });
+}
+
+export async function addTestOrgUser(instanceId: string, input: JsonObject) {
+  const record = await testOrgRecord(instanceId);
+  const name = cleanText(input.name);
+  const email = cleanText(input.email).toLowerCase();
+  const role = cleanText(input.role || "custom").toLowerCase();
+  if (!name || name.length > 120) throw sandboxError(400, "invalid_name", "Enter a name of up to 120 characters.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw sandboxError(400, "invalid_email", "Enter a valid email address.");
+  if (!["viewer", "manager", "admin", "custom"].includes(role)) throw sandboxError(400, "invalid_role", "Choose a valid role.");
+  const permissions = asObject(input.permissions);
+  if (Object.keys(permissions).length > 100 || Object.entries(permissions).some(([key, value]) => !/^[A-Za-z][A-Za-z0-9_.:-]{0,100}$/.test(key) || typeof value !== "boolean")) {
+    throw sandboxError(400, "invalid_permissions", "Permissions must be a map of permission names to booleans.");
+  }
+  const identity = await createIdentity({
+    email,
+    name,
+    password_hash: await hashPassword(randomBytes(24).toString("base64url")),
+    password_algo: "bcrypt",
+    metadata: { email_verified: true, sandbox_test_org: true, sandbox_instance_id: instanceId }
+  });
+  const userId = `user_${String(identity.id).replace(/^identity_/, "")}`;
+  const orgId = String(record.org_id);
+  const user = await upsertDocument(orgId, "users", {
+    id: userId,
+    data: {
+      identity_id: identity.id, email, name, phone: "", role,
+      org_permissions: { level: role, items: permissions },
+      org_permission_level: role, permissions, status: "active",
+      roles: [], account_type: "customer", team_id: "default", branch_id: "default",
+      ...organizationUserProfileFields({}, { includeDefaults: true }),
+      profile: {}, stats: {}, metadata: { sandbox_test_org: true }
+    },
+    metadata: { kind: "organization_user", identity_id: identity.id, source: "signup_sandbox" }
+  }, { replace: true });
+  await addIdentityMembership(String(identity.id), orgId, String(user.id), role);
+  return { id: user.id, name, email, role, status: "active", permissions };
+}
+
+export async function loginAsTestOrgUser(instanceId: string, userId: string) {
+  const record = await testOrgRecord(instanceId);
+  const orgId = String(record.org_id);
+  const document = await readDocument(orgId, "users", sanitizeSandboxId(userId, "user id"));
+  const identityId = cleanText(asObject(document.data).identity_id);
+  if (!identityId) throw sandboxError(400, "user_identity_missing", "This user has no login identity.");
+  const identity = await readIdentity(identityId);
+  const memberships = await listIdentityMemberships(identityId);
+  if (!memberships.some((entry) => String(asObject(entry.organization).id) === orgId && String(asObject(entry.user).id) === userId)) {
+    throw sandboxError(403, "user_membership_missing", "This user does not belong to this test organization.");
+  }
+  return loginPlatformVerifiedIdentity({ identity, organizationId: orgId, metadata: { source: "signup_sandbox_admin_jump", sandbox_instance_id: instanceId } });
 }
 
 // ---- Export / import -------------------------------------------------------
@@ -1084,6 +1184,13 @@ export async function ensureSeedData() {
       ...INSTANT_FULL_ORG_WORKFLOW,
       defaults: { app_flags: instantFullOrgAppFlags() }
     }));
+  } else {
+    const current = (await sandboxStore.readWorkflow(String(INSTANT_FULL_ORG_WORKFLOW.id)))!;
+    const defaults = asObject(current.defaults);
+    const flags = asObject(defaults.app_flags);
+    if (!("platform.new_button_mode" in flags) && !("platform.new_button_items" in flags)) {
+      await sandboxStore.saveWorkflow({ ...current, defaults: { ...defaults, app_flags: { ...flags, "platform.new_button_mode": "selector", "platform.new_button_items": "" } }, updated_at: nowIso() });
+    }
   }
   const existingRoofingWorkflow = await sandboxStore.readWorkflow(String(ROOFING_WORKFLOW.id));
   if (!existingRoofingWorkflow) {

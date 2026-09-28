@@ -13,6 +13,8 @@
         workflows: [],
         pages: [],
         testOrgs: [],
+        testOrgUsers: [],
+        selectedTestOrgId: null,
         selectedWorkflowId: null,
         sidebarTab: 'workflows'
     };
@@ -40,6 +42,10 @@
         state.workflows = payload.workflows || [];
         state.pages = payload.pages || [];
         state.testOrgs = payload.test_orgs || [];
+        if (state.selectedTestOrgId && !state.testOrgs.some(org => org.id === state.selectedTestOrgId)) {
+            state.selectedTestOrgId = null;
+            state.testOrgUsers = [];
+        }
         if (!state.selectedWorkflowId && state.workflows.length) {
             state.selectedWorkflowId = state.workflows[0].id;
         }
@@ -356,6 +362,12 @@
             card.appendChild(meta);
             card.appendChild(el('div', 'sbx-side-card-meta', org.workflow_title || org.workflow_id));
             const actions = el('div', 'sbx-side-card-actions');
+            const usersBtn = el('button', 'sbx-btn', 'Users');
+            usersBtn.addEventListener('click', () => guarded(async () => {
+                state.selectedTestOrgId = org.id;
+                await loadTestOrgUsers(org.id);
+            }));
+            actions.appendChild(usersBtn);
 
             const resumeBtn = el('button', 'sbx-btn', 'Resume');
             resumeBtn.addEventListener('click', () => guarded(async () => {
@@ -393,6 +405,10 @@
     function renderMain() {
         const main = document.getElementById('sbx-main');
         main.innerHTML = '';
+        if (state.sidebarTab === 'orgs') {
+            renderTestOrgMain(main);
+            return;
+        }
         const workflow = selectedWorkflow();
         if (!workflow) {
             main.appendChild(el('div', 'sbx-empty-state', 'Create a workflow to get started.'));
@@ -462,6 +478,105 @@
         addTile.addEventListener('click', () => openAddStageModal(workflow));
         grid.appendChild(addTile);
         main.appendChild(grid);
+    }
+
+    async function loadTestOrgUsers(orgId) {
+        const payload = await api(`/test-orgs/${encodeURIComponent(orgId)}/users`);
+        if (state.selectedTestOrgId !== orgId) return;
+        state.testOrgUsers = payload.users || [];
+        renderMain();
+    }
+
+    function renderTestOrgMain(main) {
+        const org = state.testOrgs.find(item => item.id === state.selectedTestOrgId);
+        if (!org) {
+            main.appendChild(el('div', 'sbx-empty-state', 'Select a test org to see its users.'));
+            return;
+        }
+        main.appendChild(el('h2', '', org.org_name || org.org_id));
+        main.appendChild(el('div', 'sbx-side-card-meta', `${org.org_id} · ${org.workflow_title || org.workflow_id}`));
+        const add = el('button', 'sbx-btn sbx-btn-primary', 'Add user');
+        add.addEventListener('click', () => openTestOrgUserCreator(org));
+        main.appendChild(add);
+        const list = el('div', 'sbx-org-users');
+        for (const user of state.testOrgUsers) {
+            const row = el('div', 'sbx-org-user');
+            const details = el('div');
+            details.appendChild(el('div', 'sbx-side-card-title', user.name || user.email));
+            details.appendChild(el('div', 'sbx-side-card-meta', `${user.email} · ${user.role || 'member'} · ${user.status || 'active'}`));
+            const granted = Object.entries(user.permissions || {}).filter(([, value]) => value === true).map(([key]) => key);
+            details.appendChild(el('div', 'sbx-side-card-meta', granted.length ? `Additional permissions: ${granted.join(', ')}` : 'No additional permissions'));
+            row.appendChild(details);
+            const jump = el('button', 'sbx-btn', 'Jump in as user');
+            jump.disabled = user.status === 'disabled';
+            jump.addEventListener('click', () => {
+                const portalTab = window.open('about:blank', '_blank');
+                guarded(async () => {
+                    try {
+                        const payload = await api(`/test-orgs/${encodeURIComponent(org.id)}/users/${encodeURIComponent(user.id)}/login`, { method: 'POST', body: {} });
+                        if (portalTab) portalTab.location.replace(payload.redirect || '/portal/');
+                        else location.assign(payload.redirect || '/portal/');
+                    } catch (error) {
+                        if (portalTab) portalTab.close();
+                        throw error;
+                    }
+                });
+            });
+            row.appendChild(jump);
+            list.appendChild(row);
+        }
+        if (!state.testOrgUsers.length) list.appendChild(el('div', 'sbx-empty-note', 'No users found for this organization.'));
+        main.appendChild(list);
+    }
+
+    function openTestOrgUserCreator(org) {
+        openModal((modal) => {
+            modal.appendChild(el('h2', '', `Add user to ${org.org_name}`));
+            const name = addField(modal, 'Name', 'input', { placeholder: 'Alex Tester' });
+            const email = addField(modal, 'Email', 'input', { type: 'email', placeholder: 'alex@example.test' });
+            const role = addField(modal, 'Role', 'select', { options: [
+                { value: 'viewer', label: 'Viewer' },
+                { value: 'manager', label: 'Manager' },
+                { value: 'admin', label: 'Admin' },
+                { value: 'custom', label: 'Custom' }
+            ], selected: 'viewer' });
+            const permissionChoices = [
+                ['order_reports', 'Order reports'], ['view_reports', 'View reports'],
+                ['manage_billing', 'Manage billing'], ['manage_company_settings', 'Manage company settings'],
+                ['manage_report_settings', 'Manage report settings'], ['manage_company_users', 'Manage users'],
+                ['manage_company_user_permissions', 'Manage user permissions']
+            ];
+            const checks = new Map();
+            const choices = el('div', 'sbx-permission-choices');
+            choices.appendChild(el('div', 'sbx-side-card-title', 'Additional permissions'));
+            for (const [key, label] of permissionChoices) {
+                const item = el('label', 'sbx-permission-choice');
+                const checkbox = el('input');
+                checkbox.type = 'checkbox';
+                checks.set(key, checkbox);
+                item.appendChild(checkbox);
+                item.appendChild(el('span', '', label));
+                choices.appendChild(item);
+            }
+            modal.appendChild(choices);
+            const permissions = addJsonField(modal, 'Other permission overrides (optional JSON)', {}, '{ "some_named_permission": true }');
+            modal.appendChild(el('div', 'sbx-empty-note', 'This development test user can be opened from the list without a password. A permission set to false overrides a role grant.'));
+            addModalActions(modal, [
+                { label: 'Cancel', onClick: closeModal },
+                { label: 'Add user', primary: true, onClick: () => guarded(async () => {
+                    await api(`/test-orgs/${encodeURIComponent(org.id)}/users`, { method: 'POST', body: {
+                        name: name.value, email: email.value, role: role.value,
+                        permissions: {
+                            ...Object.fromEntries([...checks].filter(([, checkbox]) => checkbox.checked).map(([key]) => [key, true])),
+                            ...parseJsonField(permissions, 'Other permission overrides')
+                        }
+                    } });
+                    closeModal();
+                    toast('User added');
+                    await loadTestOrgUsers(org.id);
+                }) }
+            ]);
+        });
     }
 
     function renderDefaultsPanel(workflow) {
@@ -823,7 +938,7 @@
         if (!tab) return;
         state.sidebarTab = tab.dataset.tab;
         document.querySelectorAll('.sbx-tab').forEach(node => node.classList.toggle('active', node === tab));
-        renderSidebar();
+        render();
     });
 
     document.getElementById('sbx-header-menu-btn').addEventListener('click', (event) => {

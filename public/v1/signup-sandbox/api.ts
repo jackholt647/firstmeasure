@@ -13,6 +13,9 @@ import {
   createPage,
   createPageVariant,
   createTestInstance,
+  addTestOrgUser,
+  listTestOrgUsers,
+  loginAsTestOrgUser,
   createWorkflow,
   deletePage,
   deleteTestOrg,
@@ -58,7 +61,7 @@ export const registerSignupSandboxApi: FastifyPluginAsync = async (app) => {
   app.post("/test-orgs/:id/login", async (request, reply) => {
     const record = await sandboxStore.readTestOrg(param(request, "id"));
     if (!record) return reply.code(404).send({ ok: false, error: "Test organization not found." });
-    const ctx = await loginPlatformIdentity({ email: String(record.email), password: String(record.password), organizationId: String(record.org_id), metadata: { source: "experimental_admin" } });
+    const ctx = await loginPlatformIdentity({ email: String(record.email), password: String(record.password), organizationId: String(record.org_id), metadata: { source: "signup_sandbox_admin_jump", sandbox_instance_id: record.id } });
     setPlatformAuthCookies(request, reply, ctx.sessionId, ctx.csrfToken);
     await rememberPlatformAccount(request, reply, ctx);
     return { ok: true, redirect: "/portal/" };
@@ -143,5 +146,13 @@ export const registerSignupSandboxApi: FastifyPluginAsync = async (app) => {
     ...(await applyStageEffects(param(request, "id"), param(request, "stageId")))
   }));
   app.get("/test-orgs", async () => ({ ok: true, test_orgs: await sandboxStore.listTestOrgs() }));
+  app.get("/test-orgs/:id/users", async (request) => ({ ok: true, users: await listTestOrgUsers(param(request, "id")) }));
+  app.post("/test-orgs/:id/users", async (request) => ({ ok: true, user: await addTestOrgUser(param(request, "id"), body(request)) }));
+  app.post("/test-orgs/:id/users/:userId/login", async (request, reply) => {
+    const ctx = await loginAsTestOrgUser(param(request, "id"), param(request, "userId"));
+    setPlatformAuthCookies(request, reply, ctx.sessionId, ctx.csrfToken);
+    await rememberPlatformAccount(request, reply, ctx);
+    return { ok: true, redirect: "/portal/", auth: publicAuthContext(ctx) };
+  });
   app.delete("/test-orgs/:id", async (request) => ({ ok: true, ...(await deleteTestOrg(param(request, "id"))) }));
 };

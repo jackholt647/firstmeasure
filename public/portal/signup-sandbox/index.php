@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="/images/icon.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="/fonts.css">
-    <link rel="stylesheet" href="sandbox.css?v=2">
+    <link rel="stylesheet" href="sandbox.css?v=3">
 </head>
 <body>
     <header class="sbx-topbar">
@@ -37,6 +37,6 @@
     </div>
     <div class="sbx-menu" id="sbx-menu" hidden></div>
     <div class="sbx-toast" id="sbx-toast" hidden></div>
-    <script src="sandbox.js?v=2"></script>
+    <script src="sandbox.js?v=3"></script>
 </body>
 </html>
