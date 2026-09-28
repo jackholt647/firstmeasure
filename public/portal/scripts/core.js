@@ -3867,6 +3867,8 @@
     if (TabRegistry.tabs.get(id)?.placement === 'hidden') return;
     if (TabRegistry.tabs.get(id)?.placement === 'settings' && id !== 'company_settings') return;
 
+    if (!isInitial) closeAdvancedAppMenu({ restoreFocus:false });
+
     const prevId = TabRegistry.activeId;
     if (prevId && prevId !== id){
       const prev = TabRegistry.tabs.get(prevId);
