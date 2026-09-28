@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 28 window restore: [Restore minimized windows on click](deploy/digitalocean/development-window-restore-20260928.md) records the development-only fix and browser verification.
+
 September 28 test-org samples: [Optional equipment, channels, projects and customers](deploy/digitalocean/development-test-org-samples-20260928.md) records the equipment-first development delivery, latest full-test organization seed, independent sample toggles and verification.
 
 September 28 Equipment Simple: [Fixed fleet feature set](deploy/digitalocean/development-equipment-simple-20260928.md) records the development rollout, effective capabilities, verification, and role-aware rollback. Production is unchanged.
