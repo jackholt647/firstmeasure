@@ -17,6 +17,7 @@ $isImpersonating = !empty($_SESSION['is_impersonating']);
 $impersonatingFromEmail = $_SESSION['impersonating_from_email'] ?? null;
 
 $platformExpandedAssets = ($_SESSION['platform_expanded_access'] ?? false) === true;
+$platformAssistantAssets = $platformExpandedAssets || ($_SESSION['platform_assistant_access'] ?? false) === true;
 $ver = time(); // Cache busting
 
 // --- TUTORIAL CHECK ---
@@ -2108,11 +2109,14 @@ session_write_close();
   <script src="../libraries/proposals-api/proposals-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/materials-api/materials-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/payments-api/payments-api.js?v=<?= $ver ?>"></script>
+  <?php if ($platformAssistantAssets): ?>
+  <script src="../libraries/assistant-api/assistant-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/window-manager/window-manager.js?v=<?= $ver ?>"></script>
+  <?php endif; ?>
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/payroll-api/payroll-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/financials-api/financials-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/stats-api/stats-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/assistant-api/assistant-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/agents-api/agents-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/agent-chat/agent-chat.js?v=<?= $ver ?>"></script>
   <script src="../libraries/insights/firstmate-insights.js?v=<?= $ver ?>"></script>
@@ -2134,7 +2138,6 @@ session_write_close();
   <script src="../libraries/channels-api/channels-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/audio-notes/audio-notes.js?v=<?= $ver ?>"></script>
   <script src="../libraries/audio-structure/audio-structure.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/window-manager/window-manager.js?v=<?= $ver ?>"></script>
   <script src="../libraries/channels-ui/channels-ui.js?v=<?= $ver ?>"></script>
   <script src="../libraries/project-notes/project-notes.js?v=<?= $ver ?>"></script>
   <?php endif; ?>
@@ -2205,7 +2208,7 @@ session_write_close();
   <script src="../libraries/apps/settings/search.js?v=<?= $ver ?>"></script>
   <script src="scripts/topbar-artifacts.js?v=<?= $ver ?>"></script>
   <script src="scripts/topbar.js?v=<?= $ver ?>"></script>
-  <?php if ($platformExpandedAssets): ?>
+  <?php if ($platformAssistantAssets): ?>
   <script src="../libraries/platform-assistant/platform-assistant.js?v=<?= $ver ?>"></script>
   <?php endif; ?>
   <script src="scripts/project_viewer.js?v=<?= $ver ?>"></script>

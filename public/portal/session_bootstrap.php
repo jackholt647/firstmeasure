@@ -151,6 +151,7 @@ function portalHydrateSessionFromNodeAuth(): void
     $_SESSION['user_org_perm_level'] = $_SESSION['user_role'];
     $_SESSION['platform_node_auth'] = true;
     $_SESSION['platform_expanded_access'] = ($data['platform_expanded_access'] ?? false) === true;
+    $_SESSION['platform_assistant_access'] = ($data['platform_assistant_access'] ?? false) === true;
     if (!empty($impersonation['active'])) {
         $_SESSION['is_impersonating'] = true;
         $_SESSION['impersonating_from_email'] = (string)($impersonation['admin_email'] ?? '');
@@ -198,6 +199,7 @@ function portalClearNodeBackedSessionState(): void
         $_SESSION['user_org_perm_level'],
         $_SESSION['platform_node_auth'],
         $_SESSION['platform_expanded_access'],
+        $_SESSION['platform_assistant_access'],
         $_SESSION['is_impersonating'],
         $_SESSION['impersonating_from_email'],
         $_SESSION['impersonation_started_at']

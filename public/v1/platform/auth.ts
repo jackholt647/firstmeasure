@@ -373,6 +373,7 @@ export function publicAuthContext(ctx: PlatformAuthContext) {
   return {
     authenticated: true,
     platform_expanded_access: ctx.capabilities?.effectiveByKey["platform.expanded_access"] === true,
+    platform_assistant_access: ctx.capabilities?.effectiveByKey["apps.assistant"] === true,
     identity: publicIdentity(ctx.identity),
     organization: ctx.organization,
     user: sanitizeUser(ctx.userDocument, ctx.accessProfile),

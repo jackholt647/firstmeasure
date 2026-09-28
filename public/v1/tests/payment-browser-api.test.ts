@@ -126,6 +126,9 @@ test("streamed signup reauthorizes org access and CSRF and never accepts a calle
   const {orgId}=await register(owner);await register(outsider);
   const {saveCapabilityValues}=await import('../platform/capabilities.js');
   await saveCapabilityValues(orgId,{'platform.expanded_access':false});
+  const session=await owner.request('GET','/v1/platform/auth/session');
+  assert.equal(session.platform_expanded_access,false);
+  assert.equal(session.platform_assistant_access,true,'The portal must load assistant assets for a fresh development organization.');
   const assistantContext=await owner.request('GET',`/v1/assistant/organizations/${orgId}/context`);
   assert.ok(assistantContext.main_thread?.id,'A fresh non-expanded organization can open the global assistant.');
   const {env}=await import('../src/config/env.js');
