@@ -23,7 +23,7 @@ Notification records live in the Platform `notifications` collection:
 - `target_user_ids`: users who can see it.
 - `target_role_ids`: roles who can see it.
 - `manual_dismissible`: whether the UI can dismiss it.
-- `push`: push delivery intent. For now push logs only to `push_log`.
+- `push`: sends to registered Android/iOS devices when provider credentials are configured; provider status is recorded in `push_log`.
 - `passive`: shown in the branch app bell/dropdown.
 - `expires_at`: optional ISO timestamp after which no user sees it.
 

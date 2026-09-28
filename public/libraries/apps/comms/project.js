@@ -274,9 +274,9 @@
         <div class="fmco-head">
           <div class="fmco-tabs" data-co-tabs></div>
           <div class="fmco-head-spacer"></div>
-          <label class="fmco-search"><i class="fa-solid fa-magnifying-glass"></i><input type="text" placeholder="${(globalThis.PlatformLanguage?.text("comms","m_ba670f4714e86b","Search all communications…") ?? "Search all communications…")}" data-co-search></label>
-          <button type="button" class="fmco-ai-btn" data-co-ai-toggle hidden><i class="fa-solid fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("comms","m_fe8a5736f9bbac","Ask AI") ?? "Ask AI")}</button>
-          <button type="button" class="fmco-btn" data-co-settings aria-label="${(globalThis.PlatformLanguage?.text("comms","m_c4955421e825c8","Project communication settings") ?? "Project communication settings")}"><i class="fa-solid fa-gear"></i></button>
+          <label class="fmco-search"><i class="fa-solid fa-magnifying-glass"></i><input type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_ba670f4714e86b","Search all communications…") ?? "Search all communications…")}" data-co-search></label>
+          <button type="button" class="fmco-ai-btn" data-co-ai-toggle hidden><i class="fa-solid fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_fe8a5736f9bbac","Ask AI") ?? "Ask AI")}</button>
+          <button type="button" class="fmco-btn" data-co-settings aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_c4955421e825c8","Project communication settings") ?? "Project communication settings")}"><i class="fa-solid fa-gear"></i></button>
         </div>
         <div class="fmco-body">
           <div class="fmco-content" data-co-content></div>
@@ -491,9 +491,9 @@
 
   function badges(message){
     const parts = [];
-    if (message.test_mode) parts.push(`<span class="fmco-test"><i class="fa-solid fa-flask"></i>${(globalThis.PlatformLanguage?.text("comms","m_7068831b41c117","Test") ?? "Test")}</span>`);
-    if (message.source_kind === 'ai') parts.push(`<span class="fmco-ai-chip"><i class="fa-solid fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("comms","m_6bb9dc0a65d709","AI") ?? "AI")}</span>`);
-    else if (message.source_kind === 'automation') parts.push(`<span class="fmco-auto-chip"><i class="fa-solid fa-bolt"></i>${(globalThis.PlatformLanguage?.text("comms","m_ab5038eb19bf34","Auto") ?? "Auto")}</span>`);
+    if (message.test_mode) parts.push(`<span class="fmco-test"><i class="fa-solid fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_7068831b41c117","Test") ?? "Test")}</span>`);
+    if (message.source_kind === 'ai') parts.push(`<span class="fmco-ai-chip"><i class="fa-solid fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_6bb9dc0a65d709","AI") ?? "AI")}</span>`);
+    else if (message.source_kind === 'automation') parts.push(`<span class="fmco-auto-chip"><i class="fa-solid fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_ab5038eb19bf34","Auto") ?? "Auto")}</span>`);
     return parts.join('');
   }
 
@@ -527,7 +527,7 @@
   }
 
   function loadingHtml(){
-    return `<div class="fmco-empty"><i class="fa-solid fa-circle-notch fa-spin"></i><p>${(globalThis.PlatformLanguage?.text("comms","m_d2da77452877dd","Loading…") ?? "Loading…")}</p></div>`;
+    return `<div class="fmco-empty"><i class="fa-solid fa-circle-notch fa-spin"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_d2da77452877dd","Loading…") ?? "Loading…")}</p></div>`;
   }
 
   function errorHtml(){
@@ -558,7 +558,7 @@
             <div class="fmco-card">
               <div class="fmco-card-top">
                 <span class="fmco-card-title"><i class="fa-solid ${card.icon}"></i>${esc(card.label)}</span>
-                <button type="button" class="fmco-card-open" data-co-open="${card.tab || card.id}" title="Open"><i class="fa-solid fa-arrow-right"></i></button>
+                <button type="button" class="fmco-card-open" data-co-open="${card.tab || card.id}" title="${(globalThis.PlatformLanguage?.htmlText("comms","m_c25cc66b28cc9d","Open") ?? "Open")}"><i class="fa-solid fa-arrow-right"></i></button>
               </div>
               <div class="fmco-card-count">${Number(bucket.total || 0)}</div>
               <div class="fmco-card-sub">${bucket.total
@@ -569,22 +569,22 @@
         }).join(''))}
       </div>
       ${String(drafts.length ? `
-        <p class="fmco-section-title">AI drafts waiting for review</p>
+        <p class="fmco-section-title">${(globalThis.PlatformLanguage?.htmlText("comms","m_d9605e0a2440b7","AI drafts waiting for review") ?? "AI drafts waiting for review")}</p>
         ${drafts.map((draft) => `
           <div class="fmco-draft-card" data-draft-id="${esc(clean(draft.id))}">
             <div class="fmco-draft-head">
-              <span class="fmco-draft-label"><i class="fa-solid fa-wand-magic-sparkles"></i>Drafted ${esc(clean(draft.channel) === 'sms' ? 'text' : 'email')} reply</span>
+              <span class="fmco-draft-label"><i class="fa-solid fa-wand-magic-sparkles"></i>${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_2c58f3119aa8a0",`Drafted ${v1} reply`,{v1}) ?? `Drafted ${v1} reply`)(esc(clean(draft.channel) === 'sms' ? 'text' : 'email'))}</span>
               <span class="fmco-feed-time">${esc(timeLabel(draft.created_at))}</span>
             </div>
             <div class="fmco-draft-text">${esc(clean(object(draft.content).text))}</div>
             <div class="fmco-draft-actions">
-              <button type="button" class="fmco-btn" data-co-draft-dismiss="${esc(clean(draft.id))}">Dismiss</button>
-              <button type="button" class="fmco-btn primary" data-co-draft-send="${esc(clean(draft.id))}"><i class="fa-solid fa-paper-plane"></i>Send</button>
+              <button type="button" class="fmco-btn" data-co-draft-dismiss="${esc(clean(draft.id))}">${(globalThis.PlatformLanguage?.htmlText("comms","m_54fe29d1908de6","Dismiss") ?? "Dismiss")}</button>
+              <button type="button" class="fmco-btn primary" data-co-draft-send="${esc(clean(draft.id))}"><i class="fa-solid fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_c23a056552a09f","Send") ?? "Send")}</button>
             </div>
           </div>
         `).join('')}
       ` : '')}
-      <p class="fmco-section-title">${(globalThis.PlatformLanguage?.text("comms","m_de75c1482eb43a","Recent activity") ?? "Recent activity")}</p>
+      <p class="fmco-section-title">${(globalThis.PlatformLanguage?.htmlText("comms","m_de75c1482eb43a","Recent activity") ?? "Recent activity")}</p>
       ${String(recent.length ? `<div class="fmco-feed">${recent.map((message) => `
         <div class="fmco-feed-row" data-co-jump="${esc(clean(message.channel))}">
           <div class="fmco-feed-ico ${message.direction === 'inbound' ? 'inbound' : ''}">
@@ -601,7 +601,7 @@
           <span class="fmco-feed-time">${esc(timeLabel(message.created_at))}</span>
         </div>
       `).join('')}</div>` : `
-        <div class="fmco-empty"><i class="fa-solid fa-comments"></i><p>No communications on this project yet.</p></div>
+        <div class="fmco-empty"><i class="fa-solid fa-comments"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_5efa8e436e84a7","No communications on this project yet.") ?? "No communications on this project yet.")}</p></div>
       `)}
     `;
     root.querySelectorAll('[data-co-open]').forEach((button) => {
@@ -638,13 +638,13 @@
   function emailListHtml(){
     const thread = state.emailThread;
     return `
-      <button type="button" class="fmco-btn primary" data-co-compose style="justify-content:center"><i class="fa-solid fa-pen"></i>${(globalThis.PlatformLanguage?.text("comms","m_71e31660564d5a","New email") ?? "New email")}</button>
+      <button type="button" class="fmco-btn primary" data-co-compose style="justify-content:center"><i class="fa-solid fa-pen"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_71e31660564d5a","New email") ?? "New email")}</button>
       ${String(state.emailThreads.length ? state.emailThreads.map((item) => `
         <button type="button" class="fmco-thread-row${thread && thread.id === item.id ? ' active' : ''}" data-co-thread="${esc(clean(item.id))}">
-          <span class="fmco-thread-subject"><span>${esc(clean(item.subject) || '(no subject)')}</span>${object(item.last_message).test_mode ? '<span class="fmco-test"><i class="fa-solid fa-flask"></i>Test</span>' : ''}</span>
-          <span class="fmco-thread-meta"><span>${Number(item.message_count || 0)} message${Number(item.message_count || 0) === 1 ? '' : 's'}</span><span>${esc(timeLabel(item.last_message_at))}</span></span>
+          <span class="fmco-thread-subject"><span>${esc(clean(item.subject) || '(no subject)')}</span>${object(item.last_message).test_mode ? `<span class="fmco-test"><i class="fa-solid fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_7068831b41c117","Test") ?? "Test")}</span>` : ''}</span>
+          <span class="fmco-thread-meta"><span>${((v4,v5) => globalThis.PlatformLanguage?.htmlText("comms","m_2de5206655064d",`${v4} message${v5}`,{v4,v5}) ?? `${v4} message${v5}`)(Number(item.message_count || 0),Number(item.message_count || 0) === 1 ? '' : 's')}</span><span>${esc(timeLabel(item.last_message_at))}</span></span>
         </button>
-      `).join('') : '<div class="fmco-empty"><i class="fa-solid fa-envelope-open"></i><p>No email threads yet.</p></div>')}
+      `).join('') : `<div class="fmco-empty"><i class="fa-solid fa-envelope-open"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_4aeca6bca783d6","No email threads yet.") ?? "No email threads yet.")}</p></div>`)}
     `;
   }
 
@@ -661,10 +661,10 @@
 
   function emailRecipientFieldsHtml(){
     return `
-      <div class="fmco-recipient-box" aria-label="${(globalThis.PlatformLanguage?.text("comms","m_911db27369deff","Email recipients") ?? "Email recipients")}">
-        <label class="fmco-recipient-row"><span class="fmco-recipient-label">${(globalThis.PlatformLanguage?.text("comms","m_af8bc9e774b68c","To") ?? "To")}</span><input class="fmco-recipient-input" type="text" value="${String(esc(state.emailDraft.to))}" placeholder="${(globalThis.PlatformLanguage?.text("comms","m_0864076e5066f2","name@example.com") ?? "name@example.com")}" data-co-email-to></label>
-        <label class="fmco-recipient-row"><span class="fmco-recipient-label">${(globalThis.PlatformLanguage?.text("comms","m_75c322757c6a34","CC") ?? "CC")}</span><input class="fmco-recipient-input" type="text" value="${String(esc(state.emailDraft.cc))}" placeholder="${(globalThis.PlatformLanguage?.text("comms","m_c3c1a5d95882ad","Add CC recipients") ?? "Add CC recipients")}" data-co-email-cc></label>
-        <label class="fmco-recipient-row"><span class="fmco-recipient-label">${(globalThis.PlatformLanguage?.text("comms","m_6ad86ac94efad5","BCC") ?? "BCC")}</span><input class="fmco-recipient-input" type="text" value="${String(esc(state.emailDraft.bcc))}" placeholder="${(globalThis.PlatformLanguage?.text("comms","m_529af833bc1e63","Add BCC recipients") ?? "Add BCC recipients")}" data-co-email-bcc></label>
+      <div class="fmco-recipient-box" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_911db27369deff","Email recipients") ?? "Email recipients")}">
+        <label class="fmco-recipient-row"><span class="fmco-recipient-label">${(globalThis.PlatformLanguage?.htmlText("comms","m_af8bc9e774b68c","To") ?? "To")}</span><input class="fmco-recipient-input" type="text" value="${String(esc(state.emailDraft.to))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_0864076e5066f2","name@example.com") ?? "name@example.com")}" data-co-email-to></label>
+        <label class="fmco-recipient-row"><span class="fmco-recipient-label">${(globalThis.PlatformLanguage?.htmlText("comms","m_75c322757c6a34","CC") ?? "CC")}</span><input class="fmco-recipient-input" type="text" value="${String(esc(state.emailDraft.cc))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_c3c1a5d95882ad","Add CC recipients") ?? "Add CC recipients")}" data-co-email-cc></label>
+        <label class="fmco-recipient-row"><span class="fmco-recipient-label">${(globalThis.PlatformLanguage?.htmlText("comms","m_6ad86ac94efad5","BCC") ?? "BCC")}</span><input class="fmco-recipient-input" type="text" value="${String(esc(state.emailDraft.bcc))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_529af833bc1e63","Add BCC recipients") ?? "Add BCC recipients")}" data-co-email-bcc></label>
       </div>
       ${String(contactChipsHtml('email', 'to'))}
     `;
@@ -689,9 +689,9 @@
     const title = clean(page.tab_label || page.title) || 'Website page';
     const lines = (Array.isArray(page.visible_text) ? page.visible_text : []).slice(0, 6);
     const snapshotUrl = clean(object(page.snapshot).public_url);
-    return `<div class="fmco-page-context" title="${(globalThis.PlatformLanguage?.text("comms","m_26a1344cd9d9e0","Captured when this message was sent") ?? "Captured when this message was sent")}">
-      <div class="fmco-page-context-head"><i class="fa-solid fa-window-maximize"></i><span><small>${(globalThis.PlatformLanguage?.text("comms","m_4d70bd8d225412","Customer was viewing") ?? "Customer was viewing")}</small><strong>${String(esc(title))}</strong></span></div>
-      ${String(snapshotUrl ? `<a class="fmco-page-shot" href="${esc(snapshotUrl)}" target="_blank" rel="noopener" title="Open the full page snapshot"><img src="${esc(snapshotUrl)}" alt="Snapshot of the ${esc(title)} page" loading="lazy"></a>` : '')}
+    return `<div class="fmco-page-context" title="${(globalThis.PlatformLanguage?.htmlText("comms","m_26a1344cd9d9e0","Captured when this message was sent") ?? "Captured when this message was sent")}">
+      <div class="fmco-page-context-head"><i class="fa-solid fa-window-maximize"></i><span><small>${(globalThis.PlatformLanguage?.htmlText("comms","m_4d70bd8d225412","Customer was viewing") ?? "Customer was viewing")}</small><strong>${String(esc(title))}</strong></span></div>
+      ${String(snapshotUrl ? `<a class="fmco-page-shot" href="${esc(snapshotUrl)}" target="_blank" rel="noopener" title="${(globalThis.PlatformLanguage?.htmlText("comms","m_7dda15c6130ec4","Open the full page snapshot") ?? "Open the full page snapshot")}"><img src="${esc(snapshotUrl)}" alt="${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_9449db765fed60",`Snapshot of the ${v2} page`,{v2}) ?? `Snapshot of the ${v2} page`)(esc(title))}" loading="lazy"></a>` : '')}
       <div class="fmco-page-preview">${String(lines.length ? lines.map((line, index) => `<div class="fmco-page-line ${index === 0 ? 'title' : ''}" title="${esc(line)}">${esc(line)}</div>`).join('') : '<div class="fmco-page-line placeholder"></div><div class="fmco-page-line placeholder"></div><div class="fmco-page-line placeholder"></div>')}</div>
     </div>`;
   }
@@ -750,32 +750,32 @@
         <div class="fmco-thread-view">
           ${thread ? `
             <div class="fmco-thread-head">
-              <div style="min-width:0"><div class="fmco-thread-title">${String(esc(clean(thread.subject) || '(no subject)'))}</div><div class="fmco-recipient-summary" title="${String(esc(recipientNames(thread.participants)))}">${((v2) => globalThis.PlatformLanguage?.text("comms","m_4a4203a7cc18a9",`With ${v2}`,{v2}) ?? `With ${v2}`)(esc(recipientNames(thread.participants)))}</div></div>
+              <div style="min-width:0"><div class="fmco-thread-title">${String(esc(clean(thread.subject) || '(no subject)'))}</div><div class="fmco-recipient-summary" title="${String(esc(recipientNames(thread.participants)))}">${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_4a4203a7cc18a9",`With ${v2}`,{v2}) ?? `With ${v2}`)(esc(recipientNames(thread.participants)))}</div></div>
               <button type="button" class="fmco-btn" data-co-thread-close><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="fmco-msgs" data-co-scroll>${String(emailMsgsHtml(thread))}</div>
             <div class="fmco-composer">
-              <textarea class="fmco-textarea" placeholder="${(globalThis.PlatformLanguage?.text("comms","m_cecfa49a90d03c","Write a reply…") ?? "Write a reply…")}" data-co-email-reply></textarea>
+              <textarea class="fmco-textarea" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_cecfa49a90d03c","Write a reply…") ?? "Write a reply…")}" data-co-email-reply></textarea>
               <div class="fmco-composer-row">
-                <span class="fmco-composer-hint">${((v4) => globalThis.PlatformLanguage?.text("comms","m_9efa62529d102d",`Replies thread automatically${v4}`,{v4}) ?? `Replies thread automatically${v4}`)(state.inboxAddress ? ` · from ${esc(state.inboxAddress)}` : '')}</span>
-                <div class="fmco-voice-mount" data-co-email-voice-mount></div>${String(clean(state.voiceSettings.email) !== 'off' ? '<button type="button" class="fmco-btn fmco-voice" data-co-email-voice><i class="fa-solid fa-microphone"></i><small>Dictate</small></button>' : '')}
-                <button type="button" class="fmco-btn primary" data-co-email-reply-send><i class="fa-solid fa-paper-plane"></i>${(globalThis.PlatformLanguage?.text("comms","m_c23a056552a09f","Send") ?? "Send")}</button>
+                <span class="fmco-composer-hint">${((v4) => globalThis.PlatformLanguage?.htmlText("comms","m_9efa62529d102d",`Replies thread automatically${v4}`,{v4}) ?? `Replies thread automatically${v4}`)(state.inboxAddress ? ` · from ${esc(state.inboxAddress)}` : '')}</span>
+                <div class="fmco-voice-mount" data-co-email-voice-mount></div>${String(clean(state.voiceSettings.email) !== 'off' ? `<button type="button" class="fmco-btn fmco-voice" data-co-email-voice><i class="fa-solid fa-microphone"></i><small>${(globalThis.PlatformLanguage?.htmlText("comms","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}</small></button>` : '')}
+                <button type="button" class="fmco-btn primary" data-co-email-reply-send><i class="fa-solid fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_c23a056552a09f","Send") ?? "Send")}</button>
               </div>
             </div>
           ` : state.emailComposeOpen ? `
-            <div class="fmco-thread-head"><span class="fmco-thread-title">${(globalThis.PlatformLanguage?.text("comms","m_71e31660564d5a","New email") ?? "New email")}</span><button type="button" class="fmco-btn" data-co-thread-close><i class="fa-solid fa-xmark"></i></button></div>
+            <div class="fmco-thread-head"><span class="fmco-thread-title">${(globalThis.PlatformLanguage?.htmlText("comms","m_71e31660564d5a","New email") ?? "New email")}</span><button type="button" class="fmco-btn" data-co-thread-close><i class="fa-solid fa-xmark"></i></button></div>
             <div class="fmco-composer" style="border-top:0">
               ${String(emailRecipientFieldsHtml())}
-              <input type="text" class="fmco-input" placeholder="${(globalThis.PlatformLanguage?.text("comms","m_bfb9f300f17496","Subject") ?? "Subject")}" data-co-email-subject>
-              <textarea class="fmco-textarea" placeholder="${(globalThis.PlatformLanguage?.text("comms","m_a2585fc6c21d1a","Write your email…") ?? "Write your email…")}" style="min-height:150px" data-co-email-body></textarea>
+              <input type="text" class="fmco-input" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_bfb9f300f17496","Subject") ?? "Subject")}" data-co-email-subject>
+              <textarea class="fmco-textarea" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_a2585fc6c21d1a","Write your email…") ?? "Write your email…")}" style="min-height:150px" data-co-email-body></textarea>
               <div class="fmco-composer-row">
-                <span class="fmco-composer-hint">${((v1) => globalThis.PlatformLanguage?.text("comms","m_e5d7f79d2a0498",`Separate multiple addresses with commas${v1}`,{v1}) ?? `Separate multiple addresses with commas${v1}`)(state.inboxAddress ? ` · from ${esc(state.inboxAddress)}` : '')}</span>
-                <div class="fmco-voice-mount" data-co-email-voice-mount></div>${String(clean(state.voiceSettings.email) !== 'off' ? '<button type="button" class="fmco-btn fmco-voice" data-co-email-voice><i class="fa-solid fa-microphone"></i><small>Dictate</small></button>' : '')}
-                <button type="button" class="fmco-btn primary" data-co-email-send><i class="fa-solid fa-paper-plane"></i>${(globalThis.PlatformLanguage?.text("comms","m_c23a056552a09f","Send") ?? "Send")}</button>
+                <span class="fmco-composer-hint">${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_e5d7f79d2a0498",`Separate multiple addresses with commas${v1}`,{v1}) ?? `Separate multiple addresses with commas${v1}`)(state.inboxAddress ? ` · from ${esc(state.inboxAddress)}` : '')}</span>
+                <div class="fmco-voice-mount" data-co-email-voice-mount></div>${String(clean(state.voiceSettings.email) !== 'off' ? `<button type="button" class="fmco-btn fmco-voice" data-co-email-voice><i class="fa-solid fa-microphone"></i><small>${(globalThis.PlatformLanguage?.htmlText("comms","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}</small></button>` : '')}
+                <button type="button" class="fmco-btn primary" data-co-email-send><i class="fa-solid fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_c23a056552a09f","Send") ?? "Send")}</button>
               </div>
             </div>
           ` : `
-            <div class="fmco-empty" style="align-self:center;margin:auto"><i class="fa-solid fa-envelope"></i><p>${(globalThis.PlatformLanguage?.text("comms","m_ee23091a29828f","Select a thread or start a new email.") ?? "Select a thread or start a new email.")}</p></div>
+            <div class="fmco-empty" style="align-self:center;margin:auto"><i class="fa-solid fa-envelope"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_ee23091a29828f","Select a thread or start a new email.") ?? "Select a thread or start a new email.")}</p></div>
           `}
         </div>
       </div>
@@ -842,13 +842,13 @@
   function smsListHtml(){
     const active = activeSmsConversation();
     return `
-      <button type="button" class="fmco-btn primary" data-co-sms-compose style="justify-content:center"><i class="fa-solid fa-pen"></i>${(globalThis.PlatformLanguage?.text("comms","m_3c10edbba72365","New text") ?? "New text")}</button>
+      <button type="button" class="fmco-btn primary" data-co-sms-compose style="justify-content:center"><i class="fa-solid fa-pen"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_3c10edbba72365","New text") ?? "New text")}</button>
       ${String(smsConversations().length ? smsConversations().map((conversation) => `
         <button type="button" class="fmco-thread-row${active && clean(active.id) === clean(conversation.id) ? ' active' : ''}" data-co-sms-thread="${esc(clean(conversation.id))}">
-          <span class="fmco-thread-subject"><span>${esc(recipientNames(conversation.participants))}</span>${object(conversation.last_message).test_mode ? '<span class="fmco-test"><i class="fa-solid fa-flask"></i>Test</span>' : ''}</span>
-          <span class="fmco-thread-meta"><span>${Number(conversation.message_count || 0)} message${Number(conversation.message_count || 0) === 1 ? '' : 's'}</span><span>${esc(timeLabel(conversation.last_message_at))}</span></span>
+          <span class="fmco-thread-subject"><span>${esc(recipientNames(conversation.participants))}</span>${object(conversation.last_message).test_mode ? `<span class="fmco-test"><i class="fa-solid fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_7068831b41c117","Test") ?? "Test")}</span>` : ''}</span>
+          <span class="fmco-thread-meta"><span>${((v4,v5) => globalThis.PlatformLanguage?.htmlText("comms","m_2de5206655064d",`${v4} message${v5}`,{v4,v5}) ?? `${v4} message${v5}`)(Number(conversation.message_count || 0),Number(conversation.message_count || 0) === 1 ? '' : 's')}</span><span>${esc(timeLabel(conversation.last_message_at))}</span></span>
         </button>
-      `).join('') : '<div class="fmco-empty"><i class="fa-solid fa-comment-sms"></i><p>No text threads yet.</p></div>')}
+      `).join('') : `<div class="fmco-empty"><i class="fa-solid fa-comment-sms"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_25af8c4f012bc1","No text threads yet.") ?? "No text threads yet.")}</p></div>`)}
     `;
   }
 
@@ -868,7 +868,7 @@
     return messages.length ? messages.map((message) => `
       <div class="fmco-msg-meta ${message.direction}">${esc(messageWho(message))} · ${esc(timeLabel(message.created_at))} ${badges(message)}</div>
       <div class="fmco-msg ${message.direction}${message.source_kind === 'ai' ? ' ai' : ''}">${esc(clean(message.text))}${audioHtml(message)}</div>
-    `).join('') : `<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-comment-sms"></i><p>${(globalThis.PlatformLanguage?.text("comms","m_06fc4f53d27077","No text messages yet.") ?? "No text messages yet.")}</p></div>`;
+    `).join('') : `<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-comment-sms"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_06fc4f53d27077","No text messages yet.") ?? "No text messages yet.")}</p></div>`;
   }
 
   function renderSms(root){
@@ -881,17 +881,17 @@
         <div class="fmco-list-col" data-co-list>${smsListHtml()}</div>
         <div class="fmco-thread-view">
           ${state.smsComposeOpen ? `
-            <div class="fmco-thread-head"><span class="fmco-thread-title">${(globalThis.PlatformLanguage?.text("comms","m_3c10edbba72365","New text") ?? "New text")}</span><button type="button" class="fmco-btn" data-co-sms-close><i class="fa-solid fa-xmark"></i></button></div>
+            <div class="fmco-thread-head"><span class="fmco-thread-title">${(globalThis.PlatformLanguage?.htmlText("comms","m_3c10edbba72365","New text") ?? "New text")}</span><button type="button" class="fmco-btn" data-co-sms-close><i class="fa-solid fa-xmark"></i></button></div>
             <div class="fmco-composer" style="border-top:0">
-              <div class="fmco-recipient-box" aria-label="${(globalThis.PlatformLanguage?.text("comms","m_9cdf1c6f55699f","Text recipients") ?? "Text recipients")}">
-                <label class="fmco-recipient-row"><span class="fmco-recipient-label">${(globalThis.PlatformLanguage?.text("comms","m_af8bc9e774b68c","To") ?? "To")}</span><input class="fmco-recipient-input" type="text" value="${String(esc(state.smsDraft.to))}" placeholder="+1 206 555 1234" data-co-sms-to></label>
+              <div class="fmco-recipient-box" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_9cdf1c6f55699f","Text recipients") ?? "Text recipients")}">
+                <label class="fmco-recipient-row"><span class="fmco-recipient-label">${(globalThis.PlatformLanguage?.htmlText("comms","m_af8bc9e774b68c","To") ?? "To")}</span><input class="fmco-recipient-input" type="text" value="${String(esc(state.smsDraft.to))}" placeholder="+1 206 555 1234" data-co-sms-to></label>
               </div>
               ${String(contactChipsHtml('sms', 'to'))}
-              <textarea class="fmco-textarea" style="min-height:110px" placeholder="${(globalThis.PlatformLanguage?.text("comms","m_00e2352d42e80c","Write a text message…") ?? "Write a text message…")}" data-co-sms-input></textarea>
+              <textarea class="fmco-textarea" style="min-height:110px" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_00e2352d42e80c","Write a text message…") ?? "Write a text message…")}" data-co-sms-input></textarea>
               <div class="fmco-composer-row">
-                <span class="fmco-composer-hint">${(globalThis.PlatformLanguage?.text("comms","m_6530a8d89e9c93","Separate multiple phone numbers with commas to start a group thread") ?? "Separate multiple phone numbers with commas to start a group thread")}</span>
+                <span class="fmco-composer-hint">${(globalThis.PlatformLanguage?.htmlText("comms","m_6530a8d89e9c93","Separate multiple phone numbers with commas to start a group thread") ?? "Separate multiple phone numbers with commas to start a group thread")}</span>
                 <div class="fmco-voice-mount" data-co-sms-voice-mount></div>${String(clean(state.voiceSettings.sms) !== 'off' ? `<button type="button" class="fmco-btn fmco-voice" data-co-sms-voice><i class="fa-solid fa-microphone"></i><small>${clean(state.voiceSettings.sms) === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '')}
-                <button type="button" class="fmco-btn primary" data-co-sms-send><i class="fa-solid fa-paper-plane"></i>${(globalThis.PlatformLanguage?.text("comms","m_c23a056552a09f","Send") ?? "Send")}</button>
+                <button type="button" class="fmco-btn primary" data-co-sms-send><i class="fa-solid fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_c23a056552a09f","Send") ?? "Send")}</button>
               </div>
             </div>
           ` : active ? `
@@ -902,14 +902,14 @@
             <div class="fmco-msgs" data-co-scroll>${String(smsMsgsHtml(active))}</div>
             <div class="fmco-composer">
               <div style="display:flex;gap:8px;align-items:flex-end">
-                <textarea class="fmco-textarea" style="min-height:44px" placeholder="${(globalThis.PlatformLanguage?.text("comms","m_00e2352d42e80c","Write a text message…") ?? "Write a text message…")}" data-co-sms-input></textarea>
+                <textarea class="fmco-textarea" style="min-height:44px" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_00e2352d42e80c","Write a text message…") ?? "Write a text message…")}" data-co-sms-input></textarea>
                 ${String(clean(state.voiceSettings.sms) !== 'off' ? `<button type="button" class="fmco-btn fmco-voice" data-co-sms-voice><i class="fa-solid fa-microphone"></i><small>${clean(state.voiceSettings.sms) === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '')}
                 <button type="button" class="fmco-btn primary" style="height:38px" data-co-sms-send><i class="fa-solid fa-paper-plane"></i></button>
               </div>
               <div class="fmco-voice-mount" data-co-sms-voice-mount></div>
-              <div class="fmco-composer-row"><span class="fmco-composer-hint">${(globalThis.PlatformLanguage?.text("comms","m_d28416ff3f0c41","Sends to everyone shown above from your business number") ?? "Sends to everyone shown above from your business number")}</span></div>
+              <div class="fmco-composer-row"><span class="fmco-composer-hint">${(globalThis.PlatformLanguage?.htmlText("comms","m_d28416ff3f0c41","Sends to everyone shown above from your business number") ?? "Sends to everyone shown above from your business number")}</span></div>
             </div>
-          ` : `<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-comment-sms"></i><p>${(globalThis.PlatformLanguage?.text("comms","m_bd100abbcef202","Select a text thread or start a new one.") ?? "Select a text thread or start a new one.")}</p></div>`}
+          ` : `<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-comment-sms"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_bd100abbcef202","Select a text thread or start a new one.") ?? "Select a text thread or start a new one.")}</p></div>`}
         </div>
       </div>
     `;
@@ -963,10 +963,10 @@
     const active = chatActiveConversation();
     return conversations.length ? conversations.map((conversation) => `
       <button type="button" class="fmco-thread-row${String(active && clean(conversation.id) === clean(active.id) ? ' active' : '')}" data-co-chat="${String(esc(clean(conversation.id)))}">
-        <span class="fmco-thread-subject"><span><i class="fa-solid fa-message" style="margin-right:6px;color:#667085"></i>${(globalThis.PlatformLanguage?.text("comms","m_2ad7b94cffe1d4","Portal chat") ?? "Portal chat")}</span></span>
+        <span class="fmco-thread-subject"><span><i class="fa-solid fa-message" style="margin-right:6px;color:#667085"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_2ad7b94cffe1d4","Portal chat") ?? "Portal chat")}</span></span>
         <span class="fmco-thread-meta"><span>${String(esc(clean(object(conversation.last_message).text).slice(0, 44)))}</span><span>${String(esc(timeLabel(conversation.last_message_at)))}</span></span>
       </button>
-    `).join('') : `<div class="fmco-empty"><i class="fa-solid fa-message"></i><p>${(globalThis.PlatformLanguage?.text("comms","m_816bc81cdff2c4","No portal chat conversations for this project yet.") ?? "No portal chat conversations for this project yet.")}</p></div>`;
+    `).join('') : `<div class="fmco-empty"><i class="fa-solid fa-message"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_816bc81cdff2c4","No portal chat conversations for this project yet.") ?? "No portal chat conversations for this project yet.")}</p></div>`;
   }
 
   function bindChatList(scope){
@@ -993,19 +993,19 @@
         <div class="fmco-thread-view">
           ${active ? `
             <div class="fmco-thread-head">
-              <span class="fmco-thread-title">${((v0) => globalThis.PlatformLanguage?.text("comms","m_b968d55aeebd47",`Portal chat · ${v0}`,{v0}) ?? `Portal chat · ${v0}`)(esc(clean(active.status) || 'open'))}</span>
+              <span class="fmco-thread-title">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_b968d55aeebd47",`Portal chat · ${v0}`,{v0}) ?? `Portal chat · ${v0}`)(esc(clean(active.status) || 'open'))}</span>
             </div>
             <div class="fmco-msgs" data-co-scroll>${String(chatMsgsHtml(active))}</div>
             <div class="fmco-composer">
               <div style="display:flex;gap:8px;align-items:flex-end">
-                <textarea class="fmco-textarea" style="min-height:44px" placeholder="${(globalThis.PlatformLanguage?.text("comms","m_5287d898a85931","Reply in the customer portal chat…") ?? "Reply in the customer portal chat…")}" data-co-chat-input></textarea>
+                <textarea class="fmco-textarea" style="min-height:44px" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_5287d898a85931","Reply in the customer portal chat…") ?? "Reply in the customer portal chat…")}" data-co-chat-input></textarea>
                 ${String(clean(state.chatVoice.mode) !== 'off' ? `<button type="button" class="fmco-btn fmco-voice" data-co-chat-voice><i class="fa-solid fa-microphone"></i><small>${clean(state.chatVoice.mode) === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '')}
                 <button type="button" class="fmco-btn primary" style="height:38px" data-co-chat-send><i class="fa-solid fa-paper-plane"></i></button>
               </div>
               <div class="fmco-voice-mount" data-co-chat-voice-mount></div>
-              <div class="fmco-composer-row"><span class="fmco-composer-hint">${(globalThis.PlatformLanguage?.text("comms","m_db210487843b3a","The customer sees this in their portal chat instantly") ?? "The customer sees this in their portal chat instantly")}</span></div>
+              <div class="fmco-composer-row"><span class="fmco-composer-hint">${(globalThis.PlatformLanguage?.htmlText("comms","m_db210487843b3a","The customer sees this in their portal chat instantly") ?? "The customer sees this in their portal chat instantly")}</span></div>
             </div>
-          ` : `<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-message"></i><p>${(globalThis.PlatformLanguage?.text("comms","m_43e38330c9efc3","Select a conversation.") ?? "Select a conversation.")}</p></div>`}
+          ` : `<div class="fmco-empty" style="margin:auto"><i class="fa-solid fa-message"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_43e38330c9efc3","Select a conversation.") ?? "Select a conversation.")}</p></div>`}
         </div>
       </div>
     `;
@@ -1039,8 +1039,8 @@
     const results = state.search.results;
     root.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <p class="fmco-section-title" style="margin:0">${((v0) => globalThis.PlatformLanguage?.text("comms","m_0e1b50405bc620",`Search results${v0}`,{v0}) ?? `Search results${v0}`)(state.search.busy ? ' · searching…' : ` · ${results.length}`)}</p>
-        <button type="button" class="fmco-btn" data-co-search-close><i class="fa-solid fa-xmark"></i>${(globalThis.PlatformLanguage?.text("comms","m_3742924668fb10","Close") ?? "Close")}</button>
+        <p class="fmco-section-title" style="margin:0">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_0e1b50405bc620",`Search results${v0}`,{v0}) ?? `Search results${v0}`)(state.search.busy ? ' · searching…' : ` · ${results.length}`)}</p>
+        <button type="button" class="fmco-btn" data-co-search-close><i class="fa-solid fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_3742924668fb10","Close") ?? "Close")}</button>
       </div>
       ${String(results.length ? `<div class="fmco-feed">${results.map((hit) => `
         <div class="fmco-feed-row" data-co-hit-channel="${esc(clean(hit.channel))}" data-co-hit-conversation="${esc(clean(hit.conversation_id))}">
@@ -1051,7 +1051,7 @@
           </div>
           <span class="fmco-feed-time">${esc(timeLabel(hit.created_at))}</span>
         </div>
-      `).join('')}</div>` : (state.search.busy ? loadingHtml() : '<div class="fmco-empty"><i class="fa-solid fa-magnifying-glass"></i><p>No messages match that search.</p></div>'))}
+      `).join('')}</div>` : (state.search.busy ? loadingHtml() : `<div class="fmco-empty"><i class="fa-solid fa-magnifying-glass"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_ceb00ee26ffd50","No messages match that search.") ?? "No messages match that search.")}</p></div>`))}
     `;
     root.querySelector('[data-co-search-close]')?.addEventListener('click', () => {
       state.search.open = false;
@@ -1113,7 +1113,7 @@
     if (!state.agent.open) return;
     host.innerHTML = `
       <div class="fmco-agent-head">
-        <span class="fmco-agent-title"><i class="fa-solid fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("comms","m_4a042d7afc906b","Comms AI") ?? "Comms AI")}</span>
+        <span class="fmco-agent-title"><i class="fa-solid fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_4a042d7afc906b","Comms AI") ?? "Comms AI")}</span>
         <button type="button" class="fmco-btn" data-co-agent-close><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="fmco-agent-msgs" data-co-agent-scroll>
@@ -1121,10 +1121,10 @@
         ${String(state.agent.messages.length ? state.agent.messages.map((message) => rootWindow.FirstMateAgentChat
           ? rootWindow.FirstMateAgentChat.messageHtml(message, { prefix:'fmco-agent', userClass:'fmco-agent-msg user', assistantClass:'fmco-agent-msg assistant' })
           : `<div class="fmco-agent-msg ${clean(message.role) === 'user' ? 'user' : 'assistant'}${message.pending ? ' pending' : ''}">${esc(clean(message.content))}</div>`
-        ).join('') : '<div class="fmco-empty" style="padding:20px"><i class="fa-solid fa-wand-magic-sparkles"></i><p>Ask anything about this project’s communications — or ask me to reply, schedule, or follow up.</p></div>')}
+        ).join('') : `<div class="fmco-empty" style="padding:20px"><i class="fa-solid fa-wand-magic-sparkles"></i><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_de3e46c965f4d6","Ask anything about this project’s communications — or ask me to reply, schedule, or follow up.") ?? "Ask anything about this project’s communications — or ask me to reply, schedule, or follow up.")}</p></div>`)}
       </div>
       <div class="fmco-agent-composer">
-        <textarea placeholder="${(globalThis.PlatformLanguage?.text("comms","m_dfdbb257902462","Ask about these conversations…") ?? "Ask about these conversations…")}" data-co-agent-input></textarea>
+        <textarea placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_dfdbb257902462","Ask about these conversations…") ?? "Ask about these conversations…")}" data-co-agent-input></textarea>
         <button type="button" class="fmco-agent-send" data-co-agent-send ${String(state.agent.busy ? 'disabled' : '')}><i class="fa-solid fa-paper-plane"></i></button>
       </div>
     `;
@@ -1216,7 +1216,7 @@
     if (!list) {
       state.leftRoot.innerHTML = `
         <div class="r-step-shell" style="grid-template-rows:1fr"><div class="r-step-inner"><div class="r-step-body">
-          <label id="rProposalLabel">${(globalThis.PlatformLanguage?.text("comms","m_da0c54815d9259","Comms") ?? "Comms")}</label>
+          <label id="rProposalLabel">${(globalThis.PlatformLanguage?.htmlText("comms","m_da0c54815d9259","Comms") ?? "Comms")}</label>
           <div class="r-proposal-listing" id="rProposalList"></div>
         </div></div></div>
       `;
@@ -1287,43 +1287,43 @@
     shell.className = 'fmco-left';
     shell.innerHTML = `
       <div class="fmco-left-card">
-        <span class="fmco-left-title"><i class="fa-solid fa-tower-broadcast"></i>${(globalThis.PlatformLanguage?.text("comms","m_dc8b4f6c066b30","Channels") ?? "Channels")}</span>
+        <span class="fmco-left-title"><i class="fa-solid fa-tower-broadcast"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_dc8b4f6c066b30","Channels") ?? "Channels")}</span>
         ${String(state.inboxAddress ? `<div class="fmco-left-row"><i class="fa-solid fa-envelope"></i><span title="${esc(state.inboxAddress)}">${esc(state.inboxAddress)}</span></div>` : '')}
-        <div class="fmco-left-stat"><span>${(globalThis.PlatformLanguage?.text("comms","m_5d2b9327181e33","Email") ?? "Email")}</span><b data-co-stat="email">${String(Number(object(channels.email).total || 0))}</b></div>
-        <div class="fmco-left-stat"><span>${(globalThis.PlatformLanguage?.text("comms","m_502193b4922098","Texts") ?? "Texts")}</span><b data-co-stat="sms">${String(Number(object(channels.sms).total || 0))}</b></div>
-        <div class="fmco-left-stat"><span>${(globalThis.PlatformLanguage?.text("comms","m_2ad7b94cffe1d4","Portal chat") ?? "Portal chat")}</span><b data-co-stat="webchat">${String(Number(object(channels.webchat).total || 0))}</b></div>
+        <div class="fmco-left-stat"><span>${(globalThis.PlatformLanguage?.htmlText("comms","m_5d2b9327181e33","Email") ?? "Email")}</span><b data-co-stat="email">${String(Number(object(channels.email).total || 0))}</b></div>
+        <div class="fmco-left-stat"><span>${(globalThis.PlatformLanguage?.htmlText("comms","m_502193b4922098","Texts") ?? "Texts")}</span><b data-co-stat="sms">${String(Number(object(channels.sms).total || 0))}</b></div>
+        <div class="fmco-left-stat"><span>${(globalThis.PlatformLanguage?.htmlText("comms","m_2ad7b94cffe1d4","Portal chat") ?? "Portal chat")}</span><b data-co-stat="webchat">${String(Number(object(channels.webchat).total || 0))}</b></div>
       </div>
       <div class="fmco-left-card">
-        <span class="fmco-left-title"><i class="fa-solid fa-bell"></i>${(globalThis.PlatformLanguage?.text("comms","m_1c74bcbcebceaa","Who gets notified") ?? "Who gets notified")}</span>
+        <span class="fmco-left-title"><i class="fa-solid fa-bell"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_1c74bcbcebceaa","Who gets notified") ?? "Who gets notified")}</span>
         <div class="fmco-role-chips">
-          <button type="button" class="fmco-role-chip${String(inherit ? ' on' : '')}" data-co-notify-inherit>${(globalThis.PlatformLanguage?.text("comms","m_4072ee4e7867cd","Company default") ?? "Company default")}</button>
+          <button type="button" class="fmco-role-chip${String(inherit ? ' on' : '')}" data-co-notify-inherit>${(globalThis.PlatformLanguage?.htmlText("comms","m_4072ee4e7867cd","Company default") ?? "Company default")}</button>
           ${String(NOTIFY_ROLES.map((role) => `
             <button type="button" class="fmco-role-chip${!inherit && roles.includes(role.id) ? ' on' : ''}" data-co-notify-role="${role.id}" ${inherit ? 'disabled' : ''}>${esc(role.label)}</button>
           `).join(''))}
         </div>
-        <span class="fmco-left-hint">${(globalThis.PlatformLanguage?.text("comms","m_69062bfc16f5e8","Inbound customer messages on this project notify these people. Pipeline automations can add stage-based routing on top.") ?? "Inbound customer messages on this project notify these people. Pipeline automations can add stage-based routing on top.")}</span>
+        <span class="fmco-left-hint">${(globalThis.PlatformLanguage?.htmlText("comms","m_69062bfc16f5e8","Inbound customer messages on this project notify these people. Pipeline automations can add stage-based routing on top.") ?? "Inbound customer messages on this project notify these people. Pipeline automations can add stage-based routing on top.")}</span>
       </div>
       ${String(can('comms.agent') ? `
         <div class="fmco-left-card">
-          <span class="fmco-left-title"><i class="fa-solid fa-wand-magic-sparkles"></i>AI for this project</span>
-          <textarea data-co-agent-notes placeholder="Project-specific instructions, e.g. “Customer prefers texts, never call before noon.”">${esc(clean(overrides.agent_instructions))}</textarea>
+          <span class="fmco-left-title"><i class="fa-solid fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_9b382173066415","AI for this project") ?? "AI for this project")}</span>
+          <textarea data-co-agent-notes placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_f21cbc2e6a63ee","Project-specific instructions, e.g. “Customer prefers texts, never call before noon.”") ?? "Project-specific instructions, e.g. “Customer prefers texts, never call before noon.”")}">${esc(clean(overrides.agent_instructions))}</textarea>
           ${can('comms.auto_response') ? `
             <select data-co-auto-mode>
-              <option value="inherit"${clean(overrides.auto_response) === 'inherit' || !clean(overrides.auto_response) ? ' selected' : ''}>Auto-reply: company default</option>
-              <option value="off"${clean(overrides.auto_response) === 'off' ? ' selected' : ''}>Auto-reply: off for this project</option>
-              <option value="draft"${clean(overrides.auto_response) === 'draft' ? ' selected' : ''}>Auto-reply: draft for review</option>
-              <option value="send"${clean(overrides.auto_response) === 'send' ? ' selected' : ''}>Auto-reply: send automatically</option>
+              <option value="inherit"${clean(overrides.auto_response) === 'inherit' || !clean(overrides.auto_response) ? ' selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_c0888d774a9fc5","Auto-reply: company default") ?? "Auto-reply: company default")}</option>
+              <option value="off"${clean(overrides.auto_response) === 'off' ? ' selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_d398221c829b80","Auto-reply: off for this project") ?? "Auto-reply: off for this project")}</option>
+              <option value="draft"${clean(overrides.auto_response) === 'draft' ? ' selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_4fa2295071335a","Auto-reply: draft for review") ?? "Auto-reply: draft for review")}</option>
+              <option value="send"${clean(overrides.auto_response) === 'send' ? ' selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_ff3f10c06cefde","Auto-reply: send automatically") ?? "Auto-reply: send automatically")}</option>
             </select>
           ` : ''}
           <button type="button" class="fmco-btn primary fmco-left-save" data-co-left-save ${state.settings.saving ? 'disabled' : ''}>${state.settings.saving ? 'Saving…' : 'Save'}</button>
         </div>
       ` : '')}
       <div class="fmco-left-card">
-        <span class="fmco-left-title"><i class="fa-solid fa-flask"></i>${(globalThis.PlatformLanguage?.text("comms","m_4ee0964bb70748","Test mode") ?? "Test mode")}</span>
-        <span class="fmco-left-hint">${(globalThis.PlatformLanguage?.text("comms","m_597802c753ea62","Deliveries are in test mode: outbound messages are recorded here with a Test badge but not delivered. Simulate the customer replying to exercise notifications, automations, and AI.") ?? "Deliveries are in test mode: outbound messages are recorded here with a Test badge but not delivered. Simulate the customer replying to exercise notifications, automations, and AI.")}</span>
+        <span class="fmco-left-title"><i class="fa-solid fa-flask"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_4ee0964bb70748","Test mode") ?? "Test mode")}</span>
+        <span class="fmco-left-hint">${(globalThis.PlatformLanguage?.htmlText("comms","m_597802c753ea62","Deliveries are in test mode: outbound messages are recorded here with a Test badge but not delivered. Simulate the customer replying to exercise notifications, automations, and AI.") ?? "Deliveries are in test mode: outbound messages are recorded here with a Test badge but not delivered. Simulate the customer replying to exercise notifications, automations, and AI.")}</span>
         <div style="display:flex;gap:6px">
-          ${String(can('comms.email') ? '<button type="button" class="fmco-btn" data-co-sim="email" style="flex:1;justify-content:center"><i class="fa-solid fa-envelope"></i>Email in</button>' : '')}
-          ${String(can('comms.sms') ? '<button type="button" class="fmco-btn" data-co-sim="sms" style="flex:1;justify-content:center"><i class="fa-solid fa-comment-sms"></i>Text in</button>' : '')}
+          ${String(can('comms.email') ? `<button type="button" class="fmco-btn" data-co-sim="email" style="flex:1;justify-content:center"><i class="fa-solid fa-envelope"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_6ad499fc7305f0","Email in") ?? "Email in")}</button>` : '')}
+          ${String(can('comms.sms') ? `<button type="button" class="fmco-btn" data-co-sim="sms" style="flex:1;justify-content:center"><i class="fa-solid fa-comment-sms"></i>${(globalThis.PlatformLanguage?.htmlText("comms","m_d06e1f42fcf0c7","Text in") ?? "Text in")}</button>` : '')}
         </div>
       </div>
     `;

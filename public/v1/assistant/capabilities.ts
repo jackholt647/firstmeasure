@@ -16,6 +16,7 @@ registerCapabilities([
     default: true,
     runtime_app_id: "assistant"
   },
+
   {
     key: "assistant.actions",
     kind: "feature",

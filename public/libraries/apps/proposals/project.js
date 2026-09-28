@@ -1239,7 +1239,7 @@
       const replacement = document.createElement('div');
       replacement.innerHTML = proposalBuilderScopeTotalHtml(proposalBuilderState, {
         compact: current.classList.contains('compact'),
-        label: current.querySelector('span')?.textContent || (globalThis.PlatformLanguage?.text("proposals","m_e881a88a6aa034","Scope total") ?? "Scope total")
+        label: current.querySelector('span')?.textContent || (globalThis.PlatformLanguage?.htmlText("proposals","m_e881a88a6aa034","Scope total") ?? "Scope total")
       }).trim();
       const next = replacement.firstElementChild;
       if (next) current.replaceWith(next);
@@ -3084,7 +3084,7 @@
   function proposalRenderSignatureValue(signature){
     if (!signature) return '';
     if (signature.type === 'draw' && signature.dataUrl) {
-      return `<span class="r-proposal-signature-script"><img src="${String(escapeHtml(signature.dataUrl))}" alt="${(globalThis.PlatformLanguage?.text("proposals","m_8625881623433e","Signature") ?? "Signature")}"></span>`;
+      return `<span class="r-proposal-signature-script"><img src="${String(escapeHtml(signature.dataUrl))}" alt="${(globalThis.PlatformLanguage?.htmlText("proposals","m_8625881623433e","Signature") ?? "Signature")}"></span>`;
     }
     const style = signature.style || 'style-classic';
     return `<span class="r-proposal-signature-script ${escapeHtml(style)}">${escapeHtml(signature.text || signature.name || 'Signature')}</span>`;
@@ -3242,7 +3242,7 @@
     const thumbnail = proposalMediaThumbnail(media);
     const alt = escapeHtml(media?.alt || media?.label || (proposalMediaIsVideo(media) ? 'Proposal video' : 'Proposal image'));
     const style = options.style ? ` style="${escapeHtml(options.style)}"` : '';
-    if (media?.uploading) return `<span class="r-proposal-media-processing"${String(style)}><i class="fas fa-spinner fa-spin"></i><strong>${(globalThis.PlatformLanguage?.text("proposals","m_7244c568a68bff","Processing") ?? "Processing")}</strong></span>`;
+    if (media?.uploading) return `<span class="r-proposal-media-processing"${String(style)}><i class="fas fa-spinner fa-spin"></i><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_7244c568a68bff","Processing") ?? "Processing")}</strong></span>`;
     if (!proposalMediaIsVideo(media)) return source || thumbnail ? `<img src="${escapeHtml(thumbnail || source)}" alt="${alt}"${style}>` : '';
     if (!source) return thumbnail ? `<img src="${escapeHtml(thumbnail)}" alt="${alt}"${style}>` : '';
     const key = proposalVideoKey(media, placement);
@@ -3383,7 +3383,7 @@
       <div class="r-proposal-full-insert">
         ${url ? (
           renderCanvas
-            ? `<div class="r-proposal-pdf-canvas-page" data-pdf-canvas-url="${String(escapeHtml(active.pdf || active.url || ''))}" data-pdf-canvas-page="${String(escapeHtml(String(active.page || 1)))}"><div class="r-proposal-full-placeholder"><strong>${(globalThis.PlatformLanguage?.text("proposals","m_67a76a9542dd32","Rendering page...") ?? "Rendering page...")}</strong><span>${String(escapeHtml(active?.title || page.title || 'Summary page'))}</span></div></div>`
+            ? `<div class="r-proposal-pdf-canvas-page" data-pdf-canvas-url="${String(escapeHtml(active.pdf || active.url || ''))}" data-pdf-canvas-page="${String(escapeHtml(String(active.page || 1)))}"><div class="r-proposal-full-placeholder"><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_67a76a9542dd32","Rendering page...") ?? "Rendering page...")}</strong><span>${String(escapeHtml(active?.title || page.title || (globalThis.PlatformLanguage?.text("proposals","m_c82963ef8940ce","Summary page") ?? "Summary page")))}</span></div></div>`
             : (isPdf
               ? `<iframe src="${escapeHtml(url)}" title="${escapeHtml(active?.title || page.title || (globalThis.PlatformLanguage?.text("proposals","m_a467ce931afad1","Proposal insert") ?? "Proposal insert"))}"></iframe>`
             : `<img src="${escapeHtml(url)}" alt="${escapeHtml(active?.title || page.title || (globalThis.PlatformLanguage?.text("proposals","m_a467ce931afad1","Proposal insert") ?? "Proposal insert"))}">`
@@ -3482,7 +3482,7 @@
     } catch (error) {
       console.warn('Unable to render proposal PDF page', error);
       el.dataset.rendered = 'error';
-      el.innerHTML = `<div class="r-proposal-full-placeholder"><strong>${(globalThis.PlatformLanguage?.text("proposals","m_960234df0d1ec7","Summary unavailable") ?? "Summary unavailable")}</strong><span>${(globalThis.PlatformLanguage?.text("proposals","m_96d8de038acc80","Could not render this Summary PDF page.") ?? "Could not render this Summary PDF page.")}</span></div>`;
+      el.innerHTML = `<div class="r-proposal-full-placeholder"><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_960234df0d1ec7","Summary unavailable") ?? "Summary unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_96d8de038acc80","Could not render this Summary PDF page.") ?? "Could not render this Summary PDF page.")}</span></div>`;
     }
   }
 
@@ -4241,9 +4241,9 @@
     if (logo) {
       const primary = logo.src || logo.thumb;
       const fallback = logo.thumb && logo.thumb !== primary ? logo.thumb : '';
-      return `<span class="r-proposal-cobrand${String(isEdit ? ' editable' : '')}" ${String(isEdit ? 'data-proposal-cobrand-pick="true" data-fm-tooltip="Change co-brand logo"' : '')}><img src="${String(escapeHtml(primary))}" alt="${String(escapeHtml(logo.alt || 'Co-branded logo'))}"${String(proposalImageFallbackAttrs(primary, fallback))}><span class="r-proposal-cobrand-error">${(globalThis.PlatformLanguage?.text("proposals","m_66ebc4c46751c1","Logo unavailable") ?? "Logo unavailable")}</span>${String(isEdit ? '<button type="button" class="r-proposal-cobrand-remove" data-proposal-cobrand-remove="true" aria-label="Remove co-brand logo"><i class="fas fa-times"></i></button>' : '')}</span>`;
+      return `<span class="r-proposal-cobrand${String(isEdit ? ' editable' : '')}" ${String(isEdit ? 'data-proposal-cobrand-pick="true" data-fm-tooltip="Change co-brand logo"' : '')}><img src="${String(escapeHtml(primary))}" alt="${String(escapeHtml(logo.alt || 'Co-branded logo'))}"${String(proposalImageFallbackAttrs(primary, fallback))}><span class="r-proposal-cobrand-error">${(globalThis.PlatformLanguage?.htmlText("proposals","m_66ebc4c46751c1","Logo unavailable") ?? "Logo unavailable")}</span>${String(isEdit ? `<button type="button" class="r-proposal-cobrand-remove" data-proposal-cobrand-remove="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_700473b6840e61","Remove co-brand logo") ?? "Remove co-brand logo")}"><i class="fas fa-times"></i></button>` : '')}</span>`;
     }
-    return isEdit ? `<button type="button" class="r-proposal-cobrand-add" data-proposal-cobrand-pick="true" data-fm-tooltip="Add co-brand logo" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_11859195a90244","Add co-brand logo") ?? "Add co-brand logo")}"><i class="fas fa-plus"></i></button>` : '';
+    return isEdit ? `<button type="button" class="r-proposal-cobrand-add" data-proposal-cobrand-pick="true" data-fm-tooltip="Add co-brand logo" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_11859195a90244","Add co-brand logo") ?? "Add co-brand logo")}"><i class="fas fa-plus"></i></button>` : '';
   }
 
   function proposalBrandLockup(theme = 'margin', mode = 'preview', large = false){
@@ -4904,10 +4904,10 @@
     const overlay = document.createElement('div');
     overlay.className = 'r-proposal-template-modal';
     overlay.innerHTML = `
-      <div class="r-proposal-template-dialog" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_72e41c1a3890b2","Proposal templates") ?? "Proposal templates")}">
+      <div class="r-proposal-template-dialog" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_72e41c1a3890b2","Proposal templates") ?? "Proposal templates")}">
         <div class="r-proposal-template-head">
-          <div><strong>${(globalThis.PlatformLanguage?.text("proposals","m_7191381c946a85","Proposal Templates") ?? "Proposal Templates")}</strong><span>${(globalThis.PlatformLanguage?.text("proposals","m_7c770e46b73005","Choose a saved page and style configuration.") ?? "Choose a saved page and style configuration.")}</span></div>
-          <button type="button" class="r-proposal-template-close" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+          <div><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_7191381c946a85","Proposal Templates") ?? "Proposal Templates")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_7c770e46b73005","Choose a saved page and style configuration.") ?? "Choose a saved page and style configuration.")}</span></div>
+          <button type="button" class="r-proposal-template-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
         </div>
         <div class="r-proposal-template-body">
           ${String(templates.map((template) => `
@@ -4917,7 +4917,7 @@
                 <p>${escapeHtml(template.description || 'No description')}</p>
                 <div class="r-proposal-template-meta">${escapeHtml(template.createdBy || 'Unknown user')}${template.preset ? ' • Built-in' : ' • Custom'} • ${escapeHtml(PROPOSAL_THEMES[template.theme]?.label || 'Style')}</div>
               </div>
-              <button type="button" class="r-proposal-template-use" data-template-use="${escapeHtml(template.id)}">Use</button>
+              <button type="button" class="r-proposal-template-use" data-template-use="${escapeHtml(template.id)}">${(globalThis.PlatformLanguage?.htmlText("proposals","m_fccaa3fc954540","Use") ?? "Use")}</button>
             </div>
           `).join(''))}
         </div>
@@ -4949,18 +4949,18 @@
     const overlay = document.createElement('div');
     overlay.className = 'r-proposal-template-modal';
     overlay.innerHTML = `
-      <div class="r-proposal-template-dialog small" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_e4bc9153ec3019","Save proposal template") ?? "Save proposal template")}">
+      <div class="r-proposal-template-dialog small" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_e4bc9153ec3019","Save proposal template") ?? "Save proposal template")}">
         <div class="r-proposal-template-head">
-          <div><strong>${(globalThis.PlatformLanguage?.text("proposals","m_01f55bbd02d499","Save current settings as new template") ?? "Save current settings as new template")}</strong><span>${(globalThis.PlatformLanguage?.text("proposals","m_18aab175baeae7","Stores the current pages and style for reuse.") ?? "Stores the current pages and style for reuse.")}</span></div>
-          <button type="button" class="r-proposal-template-close" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+          <div><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_01f55bbd02d499","Save current settings as new template") ?? "Save current settings as new template")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_18aab175baeae7","Stores the current pages and style for reuse.") ?? "Stores the current pages and style for reuse.")}</span></div>
+          <button type="button" class="r-proposal-template-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
         </div>
         <form class="r-proposal-template-form">
-          <label>${(globalThis.PlatformLanguage?.text("proposals","m_8cf345002184e5","Name") ?? "Name")}<input type="text" name="name" required maxlength="80" placeholder="${(globalThis.PlatformLanguage?.text("proposals","m_c4b7cbfdc9b700","Template name") ?? "Template name")}"></label>
-          <label>${(globalThis.PlatformLanguage?.text("proposals","m_aa136ecb65672f","Description") ?? "Description")}<textarea name="description" rows="3" maxlength="240" placeholder="${(globalThis.PlatformLanguage?.text("proposals","m_2c57df25177a8a","When should this template be used?") ?? "When should this template be used?")}"></textarea></label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("proposals","m_8cf345002184e5","Name") ?? "Name")}<input type="text" name="name" required maxlength="80" placeholder="${(globalThis.PlatformLanguage?.htmlText("proposals","m_c4b7cbfdc9b700","Template name") ?? "Template name")}"></label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("proposals","m_aa136ecb65672f","Description") ?? "Description")}<textarea name="description" rows="3" maxlength="240" placeholder="${(globalThis.PlatformLanguage?.htmlText("proposals","m_2c57df25177a8a","When should this template be used?") ?? "When should this template be used?")}"></textarea></label>
           <div class="r-proposal-template-error" aria-live="polite"></div>
           <div class="r-proposal-template-footer">
-            <button type="button" class="r-proposal-template-action secondary" data-template-cancel="true">${(globalThis.PlatformLanguage?.text("proposals","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-            <button type="submit" class="r-proposal-template-action primary">${(globalThis.PlatformLanguage?.text("proposals","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
+            <button type="button" class="r-proposal-template-action secondary" data-template-cancel="true">${(globalThis.PlatformLanguage?.htmlText("proposals","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+            <button type="submit" class="r-proposal-template-action primary">${(globalThis.PlatformLanguage?.htmlText("proposals","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
           </div>
         </form>
       </div>
@@ -5068,7 +5068,7 @@
     const enabled = proposalScopeItemHasCustomerChoice(proposal, item);
     if (!enabled) return '';
     return `
-      <button type="button" class="r-proposal-choice-settings-btn active" data-proposal-choice-settings="${String(index)}" data-scope-item-id="${String(escapeHtml(item.__scopeItemId))}" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_d0427160cb4be8","Edit customer choices") ?? "Edit customer choices")}" data-fm-tooltip="Customer choice settings">
+      <button type="button" class="r-proposal-choice-settings-btn active" data-proposal-choice-settings="${String(index)}" data-scope-item-id="${String(escapeHtml(item.__scopeItemId))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_d0427160cb4be8","Edit customer choices") ?? "Edit customer choices")}" data-fm-tooltip="Customer choice settings">
         <i class="fas fa-gear"></i>
       </button>
     `;
@@ -5089,18 +5089,18 @@
     const title = proposalChoiceSelectionTitle(group, selected);
     return `
       <div class="r-proposal-choice-backdrop" data-choice-popover-backdrop="true"></div>
-      <form class="r-proposal-choice-popover" data-choice-popover="true" data-choice-scope-item="${String(escapeHtml(ensured.id))}" data-choice-page-index="${String(escapeHtml(String(state.pageIndex)))}" role="dialog" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_32d23e5cca90ea","Customer choice settings") ?? "Customer choice settings")}">
+      <form class="r-proposal-choice-popover" data-choice-popover="true" data-choice-scope-item="${String(escapeHtml(ensured.id))}" data-choice-page-index="${String(escapeHtml(String(state.pageIndex)))}" role="dialog" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_32d23e5cca90ea","Customer choice settings") ?? "Customer choice settings")}">
         <div class="r-proposal-choice-popover-head">
           <span>
             <strong>${String(escapeHtml(title))}</strong>
             <em>${String(escapeHtml(selected?.display_name || selected?.name || ensured.display_name || ensured.name || 'Selected option'))}</em>
           </span>
-          <button type="button" class="r-proposal-choice-close" data-choice-popover-close="true" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+          <button type="button" class="r-proposal-choice-close" data-choice-popover-close="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
         </div>
-        <div class="r-proposal-choice-help">${(globalThis.PlatformLanguage?.text("proposals","m_2fb8cdedab49ad","Choose which options customers can see and which one is currently selected.") ?? "Choose which options customers can see and which one is currently selected.")}</div>
+        <div class="r-proposal-choice-help">${(globalThis.PlatformLanguage?.htmlText("proposals","m_2fb8cdedab49ad","Choose which options customers can see and which one is currently selected.") ?? "Choose which options customers can see and which one is currently selected.")}</div>
         <label class="r-proposal-choice-group-title">
-          <span>${(globalThis.PlatformLanguage?.text("proposals","m_fd63804ea1e590","Choice group title") ?? "Choice group title")}</span>
-          <input data-choice-group-title value="${String(escapeHtml(group.title || ''))}" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_fd63804ea1e590","Choice group title") ?? "Choice group title")}">
+          <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_fd63804ea1e590","Choice group title") ?? "Choice group title")}</span>
+          <input data-choice-group-title value="${String(escapeHtml(group.title || ''))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_fd63804ea1e590","Choice group title") ?? "Choice group title")}">
         </label>
         <div class="r-proposal-choice-options">
           ${String(options.map((option, optionIndex) => {
@@ -5116,26 +5116,26 @@
                 <div class="r-proposal-choice-fields">
                   <div class="r-proposal-choice-name-row">
                     ${logo ? `<img src="${escapeHtml(logo)}" alt="">` : ''}
-                    <input class="r-proposal-choice-name" data-choice-option-label="${escapeHtml(optionId)}" value="${escapeHtml(option.display_name || option.name || `Option ${optionIndex + 1}`)}" aria-label="Option name">
+                    <input class="r-proposal-choice-name" data-choice-option-label="${escapeHtml(optionId)}" value="${escapeHtml(option.display_name || option.name || `Option ${optionIndex + 1}`)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_ca125d59fcd810","Option name") ?? "Option name")}">
                   </div>
                   <div class="r-proposal-choice-grid">
-                    <label><span>Qty</span><input data-choice-option-quantity="${escapeHtml(optionId)}" value="${escapeHtml(option.quantity || '')}" inputmode="decimal"></label>
-                    <label><span>Unit $</span><input data-choice-option-price="${escapeHtml(optionId)}" value="${escapeHtml(String(option.unit_price ?? option.unitPrice ?? option.base_price ?? ''))}" inputmode="decimal"></label>
+                    <label><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_1a29aea570fbc4","Qty") ?? "Qty")}</span><input data-choice-option-quantity="${escapeHtml(optionId)}" value="${escapeHtml(option.quantity || '')}" inputmode="decimal"></label>
+                    <label><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_8edfc0dd24bef1","Unit $") ?? "Unit $")}</span><input data-choice-option-price="${escapeHtml(optionId)}" value="${escapeHtml(String(option.unit_price ?? option.unitPrice ?? option.base_price ?? ''))}" inputmode="decimal"></label>
                   </div>
                 </div>
                 <label class="r-proposal-choice-customer">
                   <input type="checkbox" data-choice-option-customer="${escapeHtml(optionId)}" ${customerVisible ? 'checked' : ''} ${option.id === selected.id ? 'disabled' : ''}>
                   <span class="r-proposal-choice-switch" aria-hidden="true"></span>
-                  <em>Customer</em>
+                  <em>${(globalThis.PlatformLanguage?.htmlText("proposals","m_ae8e4953e07d70","Customer") ?? "Customer")}</em>
                 </label>
-                ${options.length > 1 && option.id !== selected.id ? `<button type="button" class="r-proposal-choice-remove" data-choice-option-remove="${escapeHtml(optionId)}" aria-label="Remove option"><i class="fas fa-trash"></i><span>Delete</span></button>` : ''}
+                ${options.length > 1 && option.id !== selected.id ? `<button type="button" class="r-proposal-choice-remove" data-choice-option-remove="${escapeHtml(optionId)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_bdf76cad510e9f","Remove option") ?? "Remove option")}"><i class="fas fa-trash"></i><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_4fc60207629a44","Delete") ?? "Delete")}</span></button>` : ''}
               </div>
             `;
           }).join(''))}
         </div>
         <div class="r-proposal-choice-popover-actions">
-          <button type="button" class="r-proposal-choice-add" data-choice-option-add="true"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("proposals","m_e7713012500e3b"," Add option") ?? " Add option")}</button>
-          <button type="submit" class="r-proposal-choice-save">${(globalThis.PlatformLanguage?.text("proposals","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
+          <button type="button" class="r-proposal-choice-add" data-choice-option-add="true"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_e7713012500e3b"," Add option") ?? " Add option")}</button>
+          <button type="submit" class="r-proposal-choice-save">${(globalThis.PlatformLanguage?.htmlText("proposals","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
         </div>
       </form>
     `;
@@ -5211,7 +5211,7 @@
     const check = (active) => `<span class="r-proposal-line-more-check">${active ? '<i class="fas fa-check"></i>' : ''}</span>`;
     return `
       <div class="r-proposal-line-more-wrap">
-        <button type="button" class="r-proposal-line-more-btn${String(menuOpen ? ' active' : '')}" data-proposal-line-menu="${String(index)}" data-scope-item-id="${String(escapeHtml(item.__scopeItemId))}" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_181a0d84020677","Line item settings") ?? "Line item settings")}" data-fm-tooltip="More settings">...</button>
+        <button type="button" class="r-proposal-line-more-btn${String(menuOpen ? ' active' : '')}" data-proposal-line-menu="${String(index)}" data-scope-item-id="${String(escapeHtml(item.__scopeItemId))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_181a0d84020677","Line item settings") ?? "Line item settings")}" data-fm-tooltip="More settings">...</button>
         ${String(menuOpen ? `
           <div class="r-proposal-line-more-menu" role="menu">
             <button type="button" data-line-feature-toggle="included" data-scope-item-id="${escapeHtml(item.__scopeItemId)}">${check(included)}<span>${included ? 'Marked included' : 'Mark included'}</span></button>
@@ -5298,9 +5298,9 @@
     const depth = Math.max(0, Number(item.__scopeDepth || 0) + 1);
     return `
       <div class="r-proposal-section-actions" style="--proposal-depth:${String(depth)}">
-        <button type="button" data-proposal-add-line-item="true" data-proposal-add-parent="${String(parentId)}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("proposals","m_c0bcf12c6a1e9c"," Line") ?? " Line")}</button>
-        <button type="button" data-proposal-add-section="true" data-proposal-add-parent="${String(parentId)}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("proposals","m_81f4bc2bd8937b"," Subsection") ?? " Subsection")}</button>
-        <button type="button" data-proposal-add-discount="true" data-proposal-add-parent="${String(parentId)}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("proposals","m_a4f54fa12746a6"," Discount") ?? " Discount")}</button>
+        <button type="button" data-proposal-add-line-item="true" data-proposal-add-parent="${String(parentId)}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_c0bcf12c6a1e9c"," Line") ?? " Line")}</button>
+        <button type="button" data-proposal-add-section="true" data-proposal-add-parent="${String(parentId)}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_81f4bc2bd8937b"," Subsection") ?? " Subsection")}</button>
+        <button type="button" data-proposal-add-discount="true" data-proposal-add-parent="${String(parentId)}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_a4f54fa12746a6"," Discount") ?? " Discount")}</button>
       </div>
     `;
   }
@@ -5325,8 +5325,8 @@
   function proposalGlobalAddActionsHtml(){
     return `
       <div class="r-proposal-addrow-bar">
-        <button type="button" class="r-proposal-addrow" data-proposal-add-section="true" data-proposal-add-parent="root"><span><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("proposals","m_e3b4bee808777f"," Add Section") ?? " Add Section")}</span></button>
-        <button type="button" class="r-proposal-addrow r-proposal-add-discount" data-proposal-add-discount="true" data-proposal-add-parent="root"><span><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("proposals","m_10fb4e65806d7e"," Discount Section") ?? " Discount Section")}</span></button>
+        <button type="button" class="r-proposal-addrow" data-proposal-add-section="true" data-proposal-add-parent="root"><span><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_e3b4bee808777f"," Add Section") ?? " Add Section")}</span></button>
+        <button type="button" class="r-proposal-addrow r-proposal-add-discount" data-proposal-add-discount="true" data-proposal-add-parent="root"><span><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_10fb4e65806d7e"," Discount Section") ?? " Discount Section")}</span></button>
       </div>
     `;
   }
@@ -5379,7 +5379,7 @@
               ${hasImage && hasText ? `<div class="r-proposal-media-divider">${isEdit ? `<div class="r-proposal-media-grab" data-media-divider="${logicalIndex}"><i class="fas fa-grip-lines"></i></div>` : ''}</div>` : ''}
               ${hasText ? `
                 <div class="r-proposal-media-text">
-                  ${maybeEditable('div', 'r-proposal-edit-paragraph', `blocks.${logicalIndex}.text`, block.text || '', { rich: true, placeholder: (globalThis.PlatformLanguage?.text("proposals","m_4cef5c4621cdbb","Add supporting copy here.") ?? "Add supporting copy here.") })}
+                  ${maybeEditable('div', 'r-proposal-edit-paragraph', `blocks.${logicalIndex}.text`, block.text || '', { rich: true, placeholder: (globalThis.PlatformLanguage?.htmlText("proposals","m_4cef5c4621cdbb","Add supporting copy here.") ?? "Add supporting copy here.") })}
                 </div>
               ` : ''}
               ${isEdit ? `<div class="r-proposal-media-heightgrab" data-media-heightgrab="${logicalIndex}"><i class="fas fa-grip-lines"></i></div>` : ''}
@@ -5390,15 +5390,15 @@
           <div class="r-proposal-media-addpicker">
             <button type="button" class="r-proposal-media-addoption" data-media-add-block="image">
               <i class="fas fa-photo-film"></i>
-              <strong>${(globalThis.PlatformLanguage?.text("proposals","m_49e775f365e4e6","Media") ?? "Media")}</strong>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_49e775f365e4e6","Media") ?? "Media")}</strong>
             </button>
             <button type="button" class="r-proposal-media-addoption" data-media-add-block="text">
               <i class="fas fa-font"></i>
-              <strong>${(globalThis.PlatformLanguage?.text("proposals","m_124287f184b88b","Text") ?? "Text")}</strong>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_124287f184b88b","Text") ?? "Text")}</strong>
             </button>
             <button type="button" class="r-proposal-media-addoption" data-media-add-block="image_text">
               <i class="fas fa-table-columns"></i>
-              <strong>${(globalThis.PlatformLanguage?.text("proposals","m_31e604323d895e","Media and Text") ?? "Media and Text")}</strong>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_31e604323d895e","Media and Text") ?? "Media and Text")}</strong>
             </button>
           </div>
         ` : ''}
@@ -5431,7 +5431,7 @@
               ${String(isEdit && coverImages.length === 1 && !singleCoverIsVideo && page.coverImageEnabled !== false ? `<button type="button" class="r-proposal-media-btn r-proposal-cover-editbtn" data-cover-adjust-toggle="true">${proposalCoverAdjustOpen ? 'Done' : 'Adjust'}</button>` : '')}
               ${String(isEdit && coverImages.length === 1 && !singleCoverIsVideo && page.coverImageEnabled !== false ? `
                 <div class="r-proposal-cover-adjust${proposalCoverAdjustOpen ? ' visible' : ''}" id="rProposalCoverAdjust">
-                  <label>Zoom<input type="range" min="1" max="3" step="0.02" value="${coverZoom}" data-cover-adjust="zoom"></label>
+                  <label>${(globalThis.PlatformLanguage?.htmlText("proposals","m_e847735cf5a416","Zoom") ?? "Zoom")}<input type="range" min="1" max="3" step="0.02" value="${coverZoom}" data-cover-adjust="zoom"></label>
                 </div>
               ` : '')}
               ${String(coverImages.length ? `
@@ -5448,9 +5448,9 @@
         </div>
         ${String(maybeEditable('h2', 'r-proposal-edit-heading', 'heading', page.heading || ''))}
         <div class="r-proposal-meta">
-          <div class="r-proposal-meta-card wide"><strong>${(globalThis.PlatformLanguage?.text("proposals","m_61509e0741be13","Prepared For") ?? "Prepared For")}</strong>${String(maybeEditable('div', 'r-proposal-edit-meta multiline', 'preparedFor', page.preparedFor || ''))}</div>
-          <div class="r-proposal-meta-card"><strong>${(globalThis.PlatformLanguage?.text("proposals","m_cb120770e6931f","Prepared By") ?? "Prepared By")}</strong>${String(maybeEditable('div', 'r-proposal-edit-meta', 'preparedBy', page.preparedBy || ''))}</div>
-          <div class="r-proposal-meta-card"><strong>${(globalThis.PlatformLanguage?.text("proposals","m_2a0b11100c22a4","Date") ?? "Date")}</strong>${String(maybeEditable('div', 'r-proposal-edit-meta', 'date', page.date || ''))}</div>
+          <div class="r-proposal-meta-card wide"><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_61509e0741be13","Prepared For") ?? "Prepared For")}</strong>${String(maybeEditable('div', 'r-proposal-edit-meta multiline', 'preparedFor', page.preparedFor || ''))}</div>
+          <div class="r-proposal-meta-card"><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_cb120770e6931f","Prepared By") ?? "Prepared By")}</strong>${String(maybeEditable('div', 'r-proposal-edit-meta', 'preparedBy', page.preparedBy || ''))}</div>
+          <div class="r-proposal-meta-card"><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_2a0b11100c22a4","Date") ?? "Date")}</strong>${String(maybeEditable('div', 'r-proposal-edit-meta', 'date', page.date || ''))}</div>
         </div>
       `;
     }
@@ -5518,15 +5518,15 @@
         `;
       }).join('');
       return `
-        <div class="r-proposal-page-title">${String(escapeHtml(page.title || 'Authorization'))}</div>
+        <div class="r-proposal-page-title">${String(escapeHtml(page.title || (globalThis.PlatformLanguage?.text("proposals","m_23bdcfd5ce7509","Authorization") ?? "Authorization")))}</div>
         ${String(maybeEditable('div', 'r-proposal-edit-paragraph r-proposal-signature-intro', 'summary', page.summary || '', { rich: true }))}
         <div class="r-proposal-signature-stack">
           <div class="r-proposal-signature-grid">
             <div class="r-proposal-signature-left">
               <div class="r-proposal-signature-group">
                 <div class="r-proposal-signature-box${String(isSigning ? ' is-signing' : '')}${String(customerSignature ? ' signed' : '')}" data-sign-slot="${String(isSigning ? 'customerSignature' : '')}" data-sign-signer="customer">
-                  <strong>${(globalThis.PlatformLanguage?.text("proposals","m_bbe64fb68b2f9f","Customer Signature") ?? "Customer Signature")}</strong>
-                  <div class="r-proposal-signature-value">${String(customerSignature ? proposalRenderSignatureValue(customerSignature) : (isSigning ? `<button type="button" class="r-proposal-signature-tab">Tap to Sign</button>` : ''))}</div>
+                  <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_bbe64fb68b2f9f","Customer Signature") ?? "Customer Signature")}</strong>
+                  <div class="r-proposal-signature-value">${String(customerSignature ? proposalRenderSignatureValue(customerSignature) : (isSigning ? `<button type="button" class="r-proposal-signature-tab">${(globalThis.PlatformLanguage?.htmlText("proposals","m_709d4ebff0e0da","Tap to Sign") ?? "Tap to Sign")}</button>` : ''))}</div>
                   <div class="r-proposal-signature-line"></div>
                   <div class="r-proposal-signature-autofill">${String(maybeEditable('div', 'r-proposal-edit-meta', 'customerPrintedNameValue', page.customerPrintedNameValue || 'Customer'))}</div>
                 </div>
@@ -5534,8 +5534,8 @@
               ${String(page.requireCompanySignature === false ? '' : `
                 <div class="r-proposal-signature-group">
                   <div class="r-proposal-signature-box${isSigning ? ' is-signing' : ''}${companySignature ? ' signed' : ''}" data-sign-slot="${isSigning ? 'companySignature' : ''}" data-sign-signer="company">
-                    <strong>Company Representative</strong>
-                    <div class="r-proposal-signature-value">${companySignature ? proposalRenderSignatureValue(companySignature) : (isSigning ? `<button type="button" class="r-proposal-signature-tab">Tap to Sign</button>` : '')}</div>
+                    <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_9edc96d5f6e438","Company Representative") ?? "Company Representative")}</strong>
+                    <div class="r-proposal-signature-value">${companySignature ? proposalRenderSignatureValue(companySignature) : (isSigning ? `<button type="button" class="r-proposal-signature-tab">${(globalThis.PlatformLanguage?.htmlText("proposals","m_709d4ebff0e0da","Tap to Sign") ?? "Tap to Sign")}</button>` : '')}</div>
                     <div class="r-proposal-signature-line"></div>
                     <div class="r-proposal-signature-autofill">${maybeEditable('div', 'r-proposal-edit-meta', 'companyRepresentativeValue', page.companyRepresentativeValue || proposalPreparedByText())}</div>
                   </div>
@@ -5544,7 +5544,7 @@
               ${String(page.showDate === false ? '' : `
                 <div class="r-proposal-signature-group">
                   <div class="r-proposal-signature-box compact">
-                    <strong>Date</strong>
+                    <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_2a0b11100c22a4","Date") ?? "Date")}</strong>
                     <div class="r-proposal-signature-autofill">${maybeEditable('div', 'r-proposal-edit-meta', 'dateValue', page.dateValue || proposalTodayText())}</div>
                   </div>
                 </div>
@@ -5562,15 +5562,15 @@
                   <strong>${String(escapeHtml(page.pricingSummaryTitle || 'Contract Amount'))}</strong>
                 </div>
                 <div class="r-proposal-financial-rows">
-                  <div class="r-proposal-financial-row"><span>${(globalThis.PlatformLanguage?.text("proposals","m_2fc5623e2a7511","Subtotal") ?? "Subtotal")}</span><span>${String(escapeHtml(page.subtotalValue || '$0.00'))}</span></div>
-                  ${String(page.showTax === false ? '' : `<div class="r-proposal-financial-row tax"><span>Sales Tax</span>${isEdit ? `<span class="r-proposal-tax-rate">${maybeEditable('div', 'r-proposal-edit-percent', 'taxRatePercent', page.taxRatePercent || '0', { type: 'number' })}<em>%</em></span>` : ''}<span>${escapeHtml(page.taxAmount || '$0.00')}</span></div>`)}
-                  <div class="r-proposal-financial-row total"><span>${(globalThis.PlatformLanguage?.text("proposals","m_9403c7637d4905","Total") ?? "Total")}</span><span>${String(escapeHtml(page.totalValue || '$0.00'))}</span></div>
+                  <div class="r-proposal-financial-row"><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_2fc5623e2a7511","Subtotal") ?? "Subtotal")}</span><span>${String(escapeHtml(page.subtotalValue || '$0.00'))}</span></div>
+                  ${String(page.showTax === false ? '' : `<div class="r-proposal-financial-row tax"><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_ccb84c048a1a17","Sales Tax") ?? "Sales Tax")}</span>${isEdit ? `<span class="r-proposal-tax-rate">${maybeEditable('div', 'r-proposal-edit-percent', 'taxRatePercent', page.taxRatePercent || '0', { type: 'number' })}<em>%</em></span>` : ''}<span>${escapeHtml(page.taxAmount || '$0.00')}</span></div>`)}
+                  <div class="r-proposal-financial-row total"><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_9403c7637d4905","Total") ?? "Total")}</span><span>${String(escapeHtml(page.totalValue || '$0.00'))}</span></div>
                 </div>
               </div>
               <div class="r-proposal-payment-card${String(isEdit && scheduleInvalid ? ' invalid' : '')}">
                 <strong>${String(escapeHtml(page.paymentScheduleTitle || 'Payment Schedule'))}</strong>
                 ${String(paymentScheduleRows)}
-                ${String(isEdit && scheduleInvalid ? `<div class="r-proposal-payment-warning">Payment schedule is ${escapeHtml(scheduleTotal)}%. It must add up to 100%.</div>` : '')}
+                ${String(isEdit && scheduleInvalid ? `<div class="r-proposal-payment-warning">${((v0) => globalThis.PlatformLanguage?.htmlText("proposals","m_40c4e9e3dc4c0a",`Payment schedule is ${v0}%. It must add up to 100%.`,{v0}) ?? `Payment schedule is ${v0}%. It must add up to 100%.`)(escapeHtml(scheduleTotal))}</div>` : '')}
                 ${String(isEdit ? `<div class="r-proposal-payment-options"><button type="button" class="r-proposal-signature-option" data-signature-option="show-tax"><i class="fas ${page.showTax === false ? 'fa-toggle-off' : 'fa-toggle-on'}"></i>${page.showTax === false ? 'No sales tax' : 'Show sales tax'}</button></div>` : '')}
               </div>
             </div>
@@ -5589,12 +5589,12 @@
         <div class="r-proposal-fineprint">
           ${page.summary ? maybeEditable('div', 'r-proposal-edit-paragraph', 'summary', page.summary || '', { rich: true }) : ''}
           ${finePrintBodyMarkup}
-          ${page.requireCustomerSignature === false ? `${isEdit ? `<button type="button" class="r-proposal-signature-option" data-fineprint-signature-toggle="true"><i class="fas fa-toggle-off"></i>${(globalThis.PlatformLanguage?.text("proposals","m_c330f82bee60aa","No signature required") ?? "No signature required")}</button>` : ''}` : `
+          ${page.requireCustomerSignature === false ? `${isEdit ? `<button type="button" class="r-proposal-signature-option" data-fineprint-signature-toggle="true"><i class="fas fa-toggle-off"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_c330f82bee60aa","No signature required") ?? "No signature required")}</button>` : ''}` : `
           ${page.showSignature === false ? '' : `
             <div class="r-proposal-signature-box${String(isSigning ? ' is-signing' : '')}${String(customerSignature ? ' signed' : '')}" data-sign-slot="${String(isSigning ? 'customerSignature' : '')}" data-sign-signer="customer">
-              <strong>${(globalThis.PlatformLanguage?.text("proposals","m_bbe64fb68b2f9f","Customer Signature") ?? "Customer Signature")}</strong>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_bbe64fb68b2f9f","Customer Signature") ?? "Customer Signature")}</strong>
               ${String(isEdit ? `<button type="button" class="r-proposal-fineprint-toggle" data-fineprint-signature-toggle="true"><i class="fas ${page.requireCustomerSignature === false ? 'fa-toggle-off' : 'fa-toggle-on'}"></i>${page.requireCustomerSignature === false ? 'No signature required' : 'Signature Required'}</button>` : '')}
-              <div class="r-proposal-signature-value">${String(customerSignature ? proposalRenderSignatureValue(customerSignature) : (isSigning ? `<button type="button" class="r-proposal-signature-tab">Tap to Sign</button>` : ''))}</div>
+              <div class="r-proposal-signature-value">${String(customerSignature ? proposalRenderSignatureValue(customerSignature) : (isSigning ? `<button type="button" class="r-proposal-signature-tab">${(globalThis.PlatformLanguage?.htmlText("proposals","m_709d4ebff0e0da","Tap to Sign") ?? "Tap to Sign")}</button>` : ''))}</div>
               <div class="r-proposal-signature-line"></div>
               <div class="r-proposal-signature-autofill">${String(maybeEditable('div', 'r-proposal-edit-meta', 'customerPrintedNameValue', page.customerPrintedNameValue || proposalCustomerPrimaryContact(proposals[activeProposalIndex]).name || 'Customer'))}</div>
             </div>
@@ -5614,7 +5614,7 @@
         <div class="r-proposal-line-items">
           ${lineItems.map((item, index) => `
             <div class="r-proposal-line-item${item.__scopeDepth ? ` depth-${item.__scopeDepth}` : ''}${item.__isCategory ? ' is-category' : ''}${item.__isIncluded ? ' is-included' : ''}${item.__isDisabled ? ' is-disabled' : ''}${item.__isDiscount ? ' is-discount' : ''}${proposalLineMenuState && proposalLineMenuState.proposalIndex === activeProposalIndex && Number(proposalLineMenuState.pageIndex) === Number(page?.__renderLogicalIndex ?? activeProposalPageIndex) && String(proposalLineMenuState.itemId || '') === String(item.__scopeItemId || '') ? ' is-menu-open' : ''}" data-scope-item-id="${escapeHtml(item.__scopeItemId || '')}" style="--proposal-depth:${Math.max(0, Number(item.__scopeDepth || 0))}">
-              ${isEdit ? `<button type="button" class="r-proposal-line-delete" data-proposal-delete-line-item="${String(item.__logicalLineItemIndex ?? index)}" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_68bd9e1480ed7a","Delete line item") ?? "Delete line item")}"><i class="fas fa-times"></i></button>` : ''}
+              ${isEdit ? `<button type="button" class="r-proposal-line-delete" data-proposal-delete-line-item="${String(item.__logicalLineItemIndex ?? index)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_68bd9e1480ed7a","Delete line item") ?? "Delete line item")}"><i class="fas fa-times"></i></button>` : ''}
               ${isEdit ? proposalLineMoreMenuHtml(item, index, proposal, page) : ''}
               <div class="r-proposal-line-labelwrap">
                 <div class="r-proposal-line-labelrow">
@@ -5626,7 +5626,7 @@
               ${proposalVariationCellHtml(item, item.__logicalLineItemIndex ?? index, proposal, page, isEdit)}
               <div class="r-proposal-row-value quantity-cell">${item.__isDiscount && isEdit ? proposalDiscountModeControlHtml(item, item.__logicalLineItemIndex ?? index) : (item.quantity ? maybeEditable('div', 'r-proposal-edit-rowvalue', `lineItems.${item.__logicalLineItemIndex ?? index}.quantity`, item.quantity, { type: 'number' }) : '')}</div>
               <div class="r-proposal-row-value unit-cell">${item.__isDiscount && isEdit ? maybeEditable('div', 'r-proposal-edit-rowvalue r-proposal-discount-value', `lineItems.${item.__logicalLineItemIndex ?? index}.discountValue`, proposalDiscountEditValue(item), { type: 'number' }) : (item.unitPrice ? maybeEditable('div', 'r-proposal-edit-rowvalue', `lineItems.${item.__logicalLineItemIndex ?? index}.unitPrice`, item.unitPrice, { type: 'currency' }) : '')}</div>
-              <div class="r-proposal-row-value amount-cell">${item.__isIncluded ? `<span class="r-proposal-included-badge">${(globalThis.PlatformLanguage?.text("proposals","m_f02be43cb91cd2","Included") ?? "Included")}</span>` : proposalEditableTag('div', `r-proposal-edit-rowvalue${item.__isDiscount ? ' r-proposal-discount-amount' : ''}`, `lineItems.${item.__logicalLineItemIndex ?? index}.amount`, item.amount || '$0.00', { derived: true, preview: !isEdit })}</div>
+              <div class="r-proposal-row-value amount-cell">${item.__isIncluded ? `<span class="r-proposal-included-badge">${(globalThis.PlatformLanguage?.htmlText("proposals","m_f02be43cb91cd2","Included") ?? "Included")}</span>` : proposalEditableTag('div', `r-proposal-edit-rowvalue${item.__isDiscount ? ' r-proposal-discount-amount' : ''}`, `lineItems.${item.__logicalLineItemIndex ?? index}.amount`, item.amount || '$0.00', { derived: true, preview: !isEdit })}</div>
             </div>
             ${proposalChoiceOptionsHtml(item, proposal)}
             ${isEdit ? proposalScopedAddActionsAfterRowHtml(lineItems, index, page) : ''}
@@ -5634,7 +5634,7 @@
           ${isEdit && page.showAddRow !== false ? proposalGlobalAddActionsHtml() : ''}
         </div>
       </div>
-      ${page.showTotal === false ? '' : `<div class="r-proposal-total${String(page.showTotal ? ' is-final-page-total' : '')}"><strong>${(globalThis.PlatformLanguage?.text("proposals","m_9403c7637d4905","Total") ?? "Total")}</strong>${String(proposalEditableTag('div', 'r-proposal-edit-total', 'total', pageTotal, { derived: true, preview: !isEdit }))}</div>`}
+      ${page.showTotal === false ? '' : `<div class="r-proposal-total${String(page.showTotal ? ' is-final-page-total' : '')}"><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_9403c7637d4905","Total") ?? "Total")}</strong>${String(proposalEditableTag('div', 'r-proposal-edit-total', 'total', pageTotal, { derived: true, preview: !isEdit }))}</div>`}
     `;
   }
 
@@ -5901,7 +5901,7 @@
       const hasPhotos = !!availableMedia.length;
       mount.innerHTML = `
         <div class="r-proposal-media-pick-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><strong>${String(mode === 'cover' ? 'Select Cover Media' : 'Select Project Media')}</strong><button type="button" class="r-proposal-media-btn" id="rProposalPhotoPickerClose">${(globalThis.PlatformLanguage?.text("proposals","m_3742924668fb10","Close") ?? "Close")}</button></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><strong>${String(mode === 'cover' ? 'Select Cover Media' : 'Select Project Media')}</strong><button type="button" class="r-proposal-media-btn" id="rProposalPhotoPickerClose">${(globalThis.PlatformLanguage?.htmlText("proposals","m_3742924668fb10","Close") ?? "Close")}</button></div>
           ${String(hasPhotos ? `
             <div class="r-proposal-media-pick-grid">
               ${availableMedia.map((photo, index) => {
@@ -5915,15 +5915,15 @@
             </div>
           ` : `
             <div class="r-photo-empty" id="rProposalPhotoDropZone" style="height:240px">
-              <strong>No media uploaded yet</strong>
-              <div>This project does not have any photos or videos yet.</div>
+              <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_72c4eca00405ce","No media uploaded yet") ?? "No media uploaded yet")}</strong>
+              <div>${(globalThis.PlatformLanguage?.htmlText("proposals","m_a5e1cd4c41f31c","This project does not have any photos or videos yet.") ?? "This project does not have any photos or videos yet.")}</div>
               <div class="r-photo-empty-tile" id="rProposalPhotoUploadEmpty">
                 <div class="r-photo-empty-plus">+</div>
               </div>
             </div>
           `)}
           <div class="r-proposal-media-pick-actions">
-            <div><button type="button" class="r-proposal-media-btn" id="rProposalPhotoUploadInline">${(globalThis.PlatformLanguage?.text("proposals","m_e5de0091a812d9","Upload Media") ?? "Upload Media")}</button><input type="file" id="rProposalPhotoUploadInlineInput" accept="image/*,video/*" multiple style="display:none"></div>
+            <div><button type="button" class="r-proposal-media-btn" id="rProposalPhotoUploadInline">${(globalThis.PlatformLanguage?.htmlText("proposals","m_e5de0091a812d9","Upload Media") ?? "Upload Media")}</button><input type="file" id="rProposalPhotoUploadInlineInput" accept="image/*,video/*" multiple style="display:none"></div>
             <button type="button" class="r-btn primary" id="rProposalPhotoPickerAdd"${String(hasPhotos ? '' : ' style="display:none"')}>${String(selectedCount() ? `Add ${selectedCount()} item${selectedCount() === 1 ? '' : 's'}` : 'Add media')}</button>
           </div>
         </div>
@@ -6550,7 +6550,7 @@
         <div data-proposal-error-title style="font-size:13px;font-weight:1000;color:#111827"></div>
         <div data-proposal-error-message style="font-size:12px;font-weight:800;color:#667085;margin-top:3px;line-height:1.35;white-space:normal;overflow-wrap:anywhere"></div>
       </div>
-      <button type="button" data-proposal-error-close aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_54fe29d1908de6","Dismiss") ?? "Dismiss")}" style="width:32px;height:32px;border-radius:12px;border:1px solid rgba(0,0,0,.08);background:#fff;color:#475467;cursor:pointer;flex:0 0 auto"><i class="fas fa-times"></i></button>
+      <button type="button" data-proposal-error-close aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_54fe29d1908de6","Dismiss") ?? "Dismiss")}" style="width:32px;height:32px;border-radius:12px;border:1px solid rgba(0,0,0,.08);background:#fff;color:#475467;cursor:pointer;flex:0 0 auto"><i class="fas fa-times"></i></button>
     `;
     el.querySelector('[data-proposal-error-close]')?.addEventListener('click', () => {
       el.style.display = 'none';
@@ -7260,7 +7260,7 @@
     const renderSections = proposalRenderSections(proposal, { viewMode });
     const measurementInsertAvailable = includeInsertControls && proposalMeasurementInsertAssets().length > 0;
     if (!renderSections.length) {
-      return `<div class="r-proposal-empty"><i class="fas fa-eye-slash"></i>${(globalThis.PlatformLanguage?.text("proposals","m_bf885ce41c4755","All proposal pages are hidden. Re-enable a page from the left column to show it here.") ?? "All proposal pages are hidden. Re-enable a page from the left column to show it here.")}</div>`;
+      return `<div class="r-proposal-empty"><i class="fas fa-eye-slash"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_bf885ce41c4755","All proposal pages are hidden. Re-enable a page from the left column to show it here.") ?? "All proposal pages are hidden. Re-enable a page from the left column to show it here.")}</div>`;
     }
     return renderSections.map((entry, overallIndex) => {
       const pageForRender = { ...(entry.page || {}), __renderLogicalIndex: entry.logicalIndex, __renderStackIndex: overallIndex };
@@ -7282,18 +7282,18 @@
         </section>
         ${includeInsertControls ? `
           <div class="r-proposal-page-insert${String(proposalInsertIndex === entry.logicalIndex ? ' active' : '')}" data-mode="${String(viewMode)}" data-insert-index="${String(entry.logicalIndex)}">
-            <button type="button" class="r-proposal-page-insert-btn" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_4d405fa2a01074","Add page") ?? "Add page")}"><i class="fas fa-plus"></i></button>
+            <button type="button" class="r-proposal-page-insert-btn" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_4d405fa2a01074","Add page") ?? "Add page")}"><i class="fas fa-plus"></i></button>
             <div class="r-proposal-page-insert-picker">
               <div class="r-proposal-page-insert-rail">
-                <button type="button" class="r-proposal-page-option" data-page-template="cover"><div class="r-proposal-page-option-mini"></div><strong>${(globalThis.PlatformLanguage?.text("proposals","m_03779727637975","Cover") ?? "Cover")}</strong><span>${(globalThis.PlatformLanguage?.text("proposals","m_7c6a9d2904569b","Section intro") ?? "Section intro")}</span></button>
-                <button type="button" class="r-proposal-page-option" data-page-template="image_text"><div class="r-proposal-page-option-mini"></div><strong>${(globalThis.PlatformLanguage?.text("proposals","m_23783e95fc3139","Image & Text") ?? "Image & Text")}</strong><span>${(globalThis.PlatformLanguage?.text("proposals","m_8052ece1e905b8","Custom page") ?? "Custom page")}</span></button>
-                <button type="button" class="r-proposal-page-option" data-page-template="pricing"><div class="r-proposal-page-option-mini"></div><strong>${(globalThis.PlatformLanguage?.text("proposals","m_d9a8c9c7287681","Pricing") ?? "Pricing")}</strong><span>${(globalThis.PlatformLanguage?.text("proposals","m_097dfe4a1638f4","Line items") ?? "Line items")}</span></button>
-                <button type="button" class="r-proposal-page-option" data-page-template="marketing"><div class="r-proposal-page-option-mini"></div><strong>${(globalThis.PlatformLanguage?.text("proposals","m_8e9b5bbafdd085","Marketing") ?? "Marketing")}</strong><span>${(globalThis.PlatformLanguage?.text("proposals","m_2906da0a2eeebe","Brochure insert") ?? "Brochure insert")}</span></button>
-                ${String(measurementInsertAvailable ? '<button type="button" class="r-proposal-page-option" data-page-template="measurement_insert"><div class="r-proposal-page-option-mini"></div><strong>FirstMeasure</strong><span>Measurements</span></button>' : '')}
-                <button type="button" class="r-proposal-page-option" data-page-template="signature"><div class="r-proposal-page-option-mini"></div><strong>${(globalThis.PlatformLanguage?.text("proposals","m_8625881623433e","Signature") ?? "Signature")}</strong><span>${(globalThis.PlatformLanguage?.text("proposals","m_4b0e87150376c9","Approval page") ?? "Approval page")}</span></button>
-                <button type="button" class="r-proposal-page-option" data-page-template="fine_print"><div class="r-proposal-page-option-mini"></div><strong>${(globalThis.PlatformLanguage?.text("proposals","m_291c87b6d706e4","Fine Print") ?? "Fine Print")}</strong><span>${(globalThis.PlatformLanguage?.text("proposals","m_03df2498905529","Terms and signature") ?? "Terms and signature")}</span></button>
+                <button type="button" class="r-proposal-page-option" data-page-template="cover"><div class="r-proposal-page-option-mini"></div><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_03779727637975","Cover") ?? "Cover")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_7c6a9d2904569b","Section intro") ?? "Section intro")}</span></button>
+                <button type="button" class="r-proposal-page-option" data-page-template="image_text"><div class="r-proposal-page-option-mini"></div><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_23783e95fc3139","Image & Text") ?? "Image & Text")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_8052ece1e905b8","Custom page") ?? "Custom page")}</span></button>
+                <button type="button" class="r-proposal-page-option" data-page-template="pricing"><div class="r-proposal-page-option-mini"></div><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_d9a8c9c7287681","Pricing") ?? "Pricing")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_097dfe4a1638f4","Line items") ?? "Line items")}</span></button>
+                <button type="button" class="r-proposal-page-option" data-page-template="marketing"><div class="r-proposal-page-option-mini"></div><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_8e9b5bbafdd085","Marketing") ?? "Marketing")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_2906da0a2eeebe","Brochure insert") ?? "Brochure insert")}</span></button>
+                ${String(measurementInsertAvailable ? `<button type="button" class="r-proposal-page-option" data-page-template="measurement_insert"><div class="r-proposal-page-option-mini"></div><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_8bd65d84aabcd5","FirstMeasure") ?? "FirstMeasure")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_ae873abaa56707","Measurements") ?? "Measurements")}</span></button>` : '')}
+                <button type="button" class="r-proposal-page-option" data-page-template="signature"><div class="r-proposal-page-option-mini"></div><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_8625881623433e","Signature") ?? "Signature")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_4b0e87150376c9","Approval page") ?? "Approval page")}</span></button>
+                <button type="button" class="r-proposal-page-option" data-page-template="fine_print"><div class="r-proposal-page-option-mini"></div><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_291c87b6d706e4","Fine Print") ?? "Fine Print")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_03df2498905529","Terms and signature") ?? "Terms and signature")}</span></button>
               </div>
-              <button type="button" class="r-proposal-page-insert-close" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_2d70f5e4f9fcd7","Cancel add page") ?? "Cancel add page")}"><i class="fas fa-times"></i></button>
+              <button type="button" class="r-proposal-page-insert-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_2d70f5e4f9fcd7","Cancel add page") ?? "Cancel add page")}"><i class="fas fa-times"></i></button>
             </div>
           </div>
         ` : ''}
@@ -7621,19 +7621,19 @@
       <div class="r-signature-modal-card">
         <div class="r-signature-modal-top">
           <div>
-            <h3 class="r-signature-modal-title">${(globalThis.PlatformLanguage?.text("proposals","m_f621ef7381123f","Choose Your Signature") ?? "Choose Your Signature")}</h3>
-            <p class="r-signature-modal-sub">${((v0) => globalThis.PlatformLanguage?.text("proposals","m_79f01ba310c6af",`Create a signature for ${v0} and place it where required.`,{v0}) ?? `Create a signature for ${v0} and place it where required.`)(escapeHtml(state.signer === 'company' ? 'the company representative' : 'the customer'))}</p>
+            <h3 class="r-signature-modal-title">${(globalThis.PlatformLanguage?.htmlText("proposals","m_f621ef7381123f","Choose Your Signature") ?? "Choose Your Signature")}</h3>
+            <p class="r-signature-modal-sub">${((v0) => globalThis.PlatformLanguage?.htmlText("proposals","m_79f01ba310c6af",`Create a signature for ${v0} and place it where required.`,{v0}) ?? `Create a signature for ${v0} and place it where required.`)(escapeHtml(state.signer === 'company' ? 'the company representative' : 'the customer'))}</p>
           </div>
           <button type="button" class="r-signature-modal-close" id="rSignatureModalClose"><i class="fas fa-times"></i></button>
         </div>
         <div class="r-signature-modal-body">
           <div class="r-signature-modal-main">
             <div class="r-signature-mode-row">
-              <button type="button" class="r-signature-mode-btn${String(state.mode === 'adopt' ? ' active' : '')}" data-signature-mode="adopt"><i class="fas fa-signature"></i>${(globalThis.PlatformLanguage?.text("proposals","m_9da8fd9620e2d7"," Adopt") ?? " Adopt")}</button>
-              <button type="button" class="r-signature-mode-btn${String(state.mode === 'draw' ? ' active' : '')}" data-signature-mode="draw"><i class="fas fa-pen-fancy"></i>${(globalThis.PlatformLanguage?.text("proposals","m_bc8d4740027256"," Draw") ?? " Draw")}</button>
+              <button type="button" class="r-signature-mode-btn${String(state.mode === 'adopt' ? ' active' : '')}" data-signature-mode="adopt"><i class="fas fa-signature"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_9da8fd9620e2d7"," Adopt") ?? " Adopt")}</button>
+              <button type="button" class="r-signature-mode-btn${String(state.mode === 'draw' ? ' active' : '')}" data-signature-mode="draw"><i class="fas fa-pen-fancy"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_bc8d4740027256"," Draw") ?? " Draw")}</button>
             </div>
             ${String(state.mode === 'adopt' ? `
-              <input type="text" class="r-signature-adopt-name" id="rSignatureAdoptName" value="${escapeHtml(state.adoptName || '')}" placeholder="Type the signer name">
+              <input type="text" class="r-signature-adopt-name" id="rSignatureAdoptName" value="${escapeHtml(state.adoptName || '')}" placeholder="${(globalThis.PlatformLanguage?.htmlText("proposals","m_7f88f89133cbc4","Type the signer name") ?? "Type the signer name")}">
               <div class="r-signature-style-grid">
                 <button type="button" class="r-signature-style-btn${state.adoptStyle === 'style-classic' ? ' active' : ''}" data-signature-style="style-classic"><div class="r-signature-style-sample style-classic">${escapeHtml(state.adoptName || 'Signature')}</div></button>
                 <button type="button" class="r-signature-style-btn${state.adoptStyle === 'style-elegant' ? ' active' : ''}" data-signature-style="style-elegant"><div class="r-signature-style-sample style-elegant">${escapeHtml(state.adoptName || 'Signature')}</div></button>
@@ -7642,21 +7642,21 @@
             ` : `
               <div class="r-signature-draw-wrap">
                 <div class="r-signature-draw-pad" id="rSignatureDrawPad">
-                  <div class="r-signature-draw-hint">Draw your signature here</div>
+                  <div class="r-signature-draw-hint">${(globalThis.PlatformLanguage?.htmlText("proposals","m_16dcd60135fed3","Draw your signature here") ?? "Draw your signature here")}</div>
                   <canvas id="rSignatureDrawCanvas"></canvas>
                 </div>
-                <div><button type="button" class="r-signature-secondary" id="rSignatureClear">Clear</button></div>
+                <div><button type="button" class="r-signature-secondary" id="rSignatureClear">${(globalThis.PlatformLanguage?.htmlText("proposals","m_506191e24dd383","Clear") ?? "Clear")}</button></div>
               </div>
             `)}
           </div>
           <div class="r-signature-side">
             <div>
-              <strong style="display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#667085">${(globalThis.PlatformLanguage?.text("proposals","m_afff48796c3165","Preview") ?? "Preview")}</strong>
+              <strong style="display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#667085">${(globalThis.PlatformLanguage?.htmlText("proposals","m_afff48796c3165","Preview") ?? "Preview")}</strong>
               <div class="r-signature-preview-box">${String(previewHtml)}</div>
             </div>
             <div class="r-signature-modal-actions">
-              <button type="button" class="r-signature-secondary" id="rSignatureCancel">${(globalThis.PlatformLanguage?.text("proposals","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-              <button type="button" class="r-signature-apply" id="rSignatureApply">${(globalThis.PlatformLanguage?.text("proposals","m_616c05f23b9f04","Use Signature") ?? "Use Signature")}</button>
+              <button type="button" class="r-signature-secondary" id="rSignatureCancel">${(globalThis.PlatformLanguage?.htmlText("proposals","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+              <button type="button" class="r-signature-apply" id="rSignatureApply">${(globalThis.PlatformLanguage?.htmlText("proposals","m_616c05f23b9f04","Use Signature") ?? "Use Signature")}</button>
             </div>
           </div>
         </div>
@@ -7666,7 +7666,7 @@
       const preview = mount.querySelector('.r-signature-preview-box');
       if (!preview) return;
       if (proposalSignatureModalState?.mode === 'draw' && proposalSignatureModalState.drawDataUrl) {
-        preview.innerHTML = ("<img src=\"" + String(escapeHtml(proposalSignatureModalState.drawDataUrl)) + "\" alt=\"" + (globalThis.PlatformLanguage?.text("proposals","m_31584781a18ece","Signature preview") ?? "Signature preview") + "\">");
+        preview.innerHTML = ("<img src=\"" + String(escapeHtml(proposalSignatureModalState.drawDataUrl)) + "\" alt=\"" + (globalThis.PlatformLanguage?.htmlText("proposals","m_31584781a18ece","Signature preview") ?? "Signature preview") + "\">");
         return;
       }
       preview.innerHTML = `<div class="r-signature-preview-text ${escapeHtml(proposalSignatureModalState?.adoptStyle || 'style-classic')}">${escapeHtml(proposalSignatureModalState?.adoptName || proposalSignatureTemplateName(proposals[activeProposalIndex], proposalSignatureModalState?.signer))}</div>`;
@@ -7812,8 +7812,8 @@
     mount.className = 'r-pricebook-suggest';
     mount.innerHTML = `
       <div class="r-pricebook-suggest-head">
-        <strong>${(globalThis.PlatformLanguage?.text("proposals","m_a144b901b1559e","Pricebook Items") ?? "Pricebook Items")}</strong>
-        <button type="button" class="r-proposal-pricebook-btn" data-open-pricebook-inline="true"><i class="fas fa-book"></i>${(globalThis.PlatformLanguage?.text("proposals","m_b4cc6d9b173a93"," Edit") ?? " Edit")}</button>
+        <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_a144b901b1559e","Pricebook Items") ?? "Pricebook Items")}</strong>
+        <button type="button" class="r-proposal-pricebook-btn" data-open-pricebook-inline="true"><i class="fas fa-book"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_b4cc6d9b173a93"," Edit") ?? " Edit")}</button>
       </div>
       <div class="r-pricebook-suggest-list">
         ${String(suggestions.map((item) => `<button type="button" class="r-pricebook-suggest-item" data-pricebook-item="${escapeHtml(item.id)}"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.formula)} · $${Number(item.unitPrice || 0).toFixed(2)} / ${escapeHtml(item.unit)}</span></button>`).join(''))}
@@ -7851,8 +7851,8 @@
     return `<span class="r-proposal-more-wrap">
       <button type="button" data-proposal-more="${index}" data-fm-tooltip="More"><i class="fas fa-ellipsis"></i></button>
       ${isOpen ? `<div class="r-proposal-more-menu">
-        ${wasSent && !locked ? `<button type="button" data-proposal-unsend="${String(index)}"><i class="fas fa-eye-slash"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_c7e03d62b71812","Unsend") ?? "Unsend")}</span></button>` : ''}
-        ${isExpired && !locked ? `<button type="button" data-proposal-recent="${String(index)}"><i class="fas fa-clock-rotate-left"></i><span>${(globalThis.PlatformLanguage?.text("proposals","m_fec172c2f71d24","Recent") ?? "Recent")}</span></button>` : ''}
+        ${wasSent && !locked ? `<button type="button" data-proposal-unsend="${String(index)}"><i class="fas fa-eye-slash"></i><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_c7e03d62b71812","Unsend") ?? "Unsend")}</span></button>` : ''}
+        ${isExpired && !locked ? `<button type="button" data-proposal-recent="${String(index)}"><i class="fas fa-clock-rotate-left"></i><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_fec172c2f71d24","Recent") ?? "Recent")}</span></button>` : ''}
         <button type="button" class="danger ${deleteConfirm ? 'confirm' : ''}" data-proposal-delete="${index}"><i class="fas fa-trash"></i><span>${deleteConfirm ? 'Confirm delete' : 'Delete'}</span></button>
       </div>` : ''}
     </span>`;
@@ -7875,14 +7875,14 @@
     list.innerHTML = `
       <div class="r-proposal-workspace-head">
         <div>
-          <strong>${(globalThis.PlatformLanguage?.text("proposals","m_3129f3f0e39249","Proposals") ?? "Proposals")}</strong>
+          <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_3129f3f0e39249","Proposals") ?? "Proposals")}</strong>
           <span>${String(proposals.length ? `${proposals.length} saved for this project` : 'Create proposal variants for this project')}</span>
         </div>
-        <button type="button" class="r-proposal-settings-link" id="rProposalSettingsOpen"><i class="fas fa-gear"></i>${(globalThis.PlatformLanguage?.text("proposals","m_ddb7c9bb87ac18"," Settings") ?? " Settings")}</button>
+        <button type="button" class="r-proposal-settings-link" id="rProposalSettingsOpen"><i class="fas fa-gear"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_ddb7c9bb87ac18"," Settings") ?? " Settings")}</button>
       </div>
       <button type="button" class="r-proposal-add-card" id="rProposalCreateNew">
         <i class="fas fa-plus"></i>
-        <span>${(globalThis.PlatformLanguage?.text("proposals","m_ec4e891c415879","Create New Proposal") ?? "Create New Proposal")}</span>
+        <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_ec4e891c415879","Create New Proposal") ?? "Create New Proposal")}</span>
       </button>
       <div class="r-proposal-list-view">
         ${String(proposals.length ? proposals.map((proposal, index) => {
@@ -7911,8 +7911,8 @@
         }).join('') : `
           <div class="r-proposal-empty-list">
             <i class="fas fa-file-signature"></i>
-            <strong>No proposals yet</strong>
-            <span>Create the first draft, then duplicate it when you want variants.</span>
+            <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_b5828f5fd0c36d","No proposals yet") ?? "No proposals yet")}</strong>
+            <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_7feb0c701cff3e","Create the first draft, then duplicate it when you want variants.") ?? "Create the first draft, then duplicate it when you want variants.")}</span>
           </div>
         `)}
       </div>
@@ -8016,7 +8016,7 @@
     const selectedCount = proposalBuilderSelectedPieces().filter((piece) => piece.templateId === template.id).length;
     return `
       <div class="r-builder-project-type-tile${String(template.manual ? ' manual' : '')}${String(options.compact ? ' compact' : '')}${String(selectedCount ? ' selected' : '')}" style="${String(style)}">
-        <button type="button" class="r-builder-template-info" data-builder-template-info="${String(escapeHtml(template.id))}" aria-label="${((v5) => globalThis.PlatformLanguage?.text("proposals","m_9abbf702a7be6b",`More information about ${v5}`,{v5}) ?? `More information about ${v5}`)(escapeHtml(template.name))}"><i class="fas fa-circle-info"></i></button>
+        <button type="button" class="r-builder-template-info" data-builder-template-info="${String(escapeHtml(template.id))}" aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("proposals","m_9abbf702a7be6b",`More information about ${v5}`,{v5}) ?? `More information about ${v5}`)(escapeHtml(template.name))}"><i class="fas fa-circle-info"></i></button>
         <button type="button" class="r-builder-template-add" data-builder-add-template="${String(escapeHtml(template.id))}" aria-pressed="${String(selectedCount ? 'true' : 'false')}">
           <span class="r-builder-type-icon"><i class="fas ${String(escapeHtml(template.icon || 'fa-file-lines'))}"></i></span>
           <strong>${String(escapeHtml(template.name))}</strong>
@@ -8255,7 +8255,7 @@
   function proposalBuilderSwitchHtml(id, checked){
     return `
       <label class="r-builder-switch" style="display:flex;gap:8px;align-items:center;font-size:11px;font-weight:900;color:#667085;white-space:nowrap;cursor:pointer">
-        <span>${(globalThis.PlatformLanguage?.text("proposals","m_a665c868fcd7d6","Customer can change") ?? "Customer can change")}</span>
+        <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_a665c868fcd7d6","Customer can change") ?? "Customer can change")}</span>
         <input type="checkbox" data-builder-customer-toggle="${String(escapeHtml(id))}"${String(checked ? ' checked' : '')}>
         <span class="r-builder-switch-track"><span></span></span>
       </label>
@@ -8286,7 +8286,7 @@
     return ("\n      <nav class=\"r-builder-mobile-step-nav\" aria-label=\"" + (globalThis.PlatformLanguage?.text("proposals","m_617df52e2403db","Proposal setup steps") ?? "Proposal setup steps") + "\">\n        " + String(steps.map((step, index) => {
           const active = index === builder.stepIndex;
           const complete = index < builder.stepIndex;
-          return `<button type="button" class="r-builder-mobile-step${active ? ' active' : ''}${complete ? ' complete' : ''}" data-builder-step="${index}" aria-current="${active ? 'step' : 'false'}" aria-label="Step ${index + 1}: ${escapeHtml(step.title || 'Proposal setup')}">
+          return `<button type="button" class="r-builder-mobile-step${active ? ' active' : ''}${complete ? ' complete' : ''}" data-builder-step="${index}" aria-current="${active ? 'step' : 'false'}" aria-label="${((v4,v5) => globalThis.PlatformLanguage?.htmlText("proposals","m_8934bbea9ff9ad",`Step ${v4}: ${v5}`,{v4,v5}) ?? `Step ${v4}: ${v5}`)(index + 1,escapeHtml(step.title || 'Proposal setup'))}">
             <span>${complete ? '<i class="fas fa-check"></i>' : index + 1}</span>
           </button>`;
         }).join('')) + "\n      </nav>\n    ");
@@ -8298,7 +8298,7 @@
       <header class="r-builder-mobile-head">
         <div>
           <strong>${String(escapeHtml(builder.template?.name || 'Proposal setup'))}</strong>
-          <span>${((v1,v2,v3) => globalThis.PlatformLanguage?.text("proposals","m_c43453776c71a8",`Step ${v1} of ${v2}: ${v3}`,{v1,v2,v3}) ?? `Step ${v1} of ${v2}: ${v3}`)((Number(builder.stepIndex) || 0) + 1,(builder.steps || []).length,escapeHtml(step.title || 'Set up your proposal'))}</span>
+          <span>${((v1,v2,v3) => globalThis.PlatformLanguage?.htmlText("proposals","m_c43453776c71a8",`Step ${v1} of ${v2}: ${v3}`,{v1,v2,v3}) ?? `Step ${v1} of ${v2}: ${v3}`)((Number(builder.stepIndex) || 0) + 1,(builder.steps || []).length,escapeHtml(step.title || 'Set up your proposal'))}</span>
         </div>
       </header>
     `;
@@ -8372,11 +8372,11 @@
     return `
       <div class="r-builder-section-fields">
         <div class="r-builder-section-name">
-          <label>${(globalThis.PlatformLanguage?.text("proposals","m_f42d20e25c0c5e","Section Name") ?? "Section Name")}</label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("proposals","m_f42d20e25c0c5e","Section Name") ?? "Section Name")}</label>
           <input data-builder-section-name="${String(escapeHtml(piece.id))}" value="${String(escapeHtml(proposalBuilderPieceDisplayName(piece, template)))}" placeholder="${String(escapeHtml(template.name || 'Project Piece'))}">
         </div>
         <div class="r-builder-structure-actions">
-          <button type="button" class="r-builder-structure-action" data-builder-add-structure="${String(escapeHtml(piece.id))}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("proposals","m_eeef1a0ad4fc61","Add structure") ?? "Add structure")}</button>
+          <button type="button" class="r-builder-structure-action" data-builder-add-structure="${String(escapeHtml(piece.id))}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_eeef1a0ad4fc61","Add structure") ?? "Add structure")}</button>
         </div>
       </div>
     `;
@@ -8392,7 +8392,7 @@
         <div class="r-builder-structure-card-head">
           <strong>${escapeHtml(structure.name || (index === 0 ? 'Single structure' : `Structure ${index + 1}`))}</strong>
           <span style="display:inline-flex;align-items:center;gap:8px"><span data-builder-structure-total="${escapeHtml(String(index))}">${escapeHtml(`${Math.round(Number(structure.roofSquares || 0))} squares`)}</span>
-            ${context.pieceId && canRemove ? `<button type="button" class="r-builder-structure-action danger" data-builder-remove-structure="${String(escapeHtml(context.pieceId))}" data-builder-remove-structure-index="${String(escapeHtml(String(index)))}"><i class="fas fa-minus"></i>${(globalThis.PlatformLanguage?.text("proposals","m_f643f568915438","Remove") ?? "Remove")}</button>` : ''}
+            ${context.pieceId && canRemove ? `<button type="button" class="r-builder-structure-action danger" data-builder-remove-structure="${String(escapeHtml(context.pieceId))}" data-builder-remove-structure-index="${String(escapeHtml(String(index)))}"><i class="fas fa-minus"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_f643f568915438","Remove") ?? "Remove")}</button>` : ''}
           </span>
         </div>
         ${warning ? `<div class="r-builder-structure-warning">${escapeHtml(warning)}</div>` : ''}
@@ -8553,22 +8553,22 @@
     const candidates = open ? proposalBuilderSearchCandidates(step) : [];
     return `
       <div style="display:flex;flex-direction:column;gap:10px">
-        <button type="button" data-builder-pricebook-toggle="${String(escapeHtml(step.group_id))}" style="width:max-content;border:1px solid rgba(15,23,42,.1);background:#fff;color:#344054;border-radius:12px;padding:9px 12px;font-size:11px;font-weight:1000;display:flex;align-items:center;gap:8px;cursor:pointer"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("proposals","m_809de729b1919e"," Add shingle") ?? " Add shingle")}</button>
+        <button type="button" data-builder-pricebook-toggle="${String(escapeHtml(step.group_id))}" style="width:max-content;border:1px solid rgba(15,23,42,.1);background:#fff;color:#344054;border-radius:12px;padding:9px 12px;font-size:11px;font-weight:1000;display:flex;align-items:center;gap:8px;cursor:pointer"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_809de729b1919e"," Add shingle") ?? " Add shingle")}</button>
         ${String(open ? `
           <div class="r-builder-search-backdrop" data-builder-pricebook-close>
-          <div class="r-builder-search-panel r-builder-search-modal" role="dialog" aria-modal="true" aria-label="Add shingle" data-builder-pricebook-modal>
+          <div class="r-builder-search-panel r-builder-search-modal" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_6f42ac1c339952","Add shingle") ?? "Add shingle")}" data-builder-pricebook-modal>
             <div class="r-builder-search-modal-head">
-              <div><strong>Add shingle</strong><span>Search the price book and add another customer-visible option.</span></div>
-              <button type="button" class="r-builder-search-close" data-builder-pricebook-close aria-label="Close add shingle"><i class="fas fa-xmark"></i></button>
+              <div><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_6f42ac1c339952","Add shingle") ?? "Add shingle")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_a28421203810c9","Search the price book and add another customer-visible option.") ?? "Search the price book and add another customer-visible option.")}</span></div>
+              <button type="button" class="r-builder-search-close" data-builder-pricebook-close aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_581e6e2a759706","Close add shingle") ?? "Close add shingle")}"><i class="fas fa-xmark"></i></button>
             </div>
-            <input data-builder-pricebook-query value="${escapeHtml(proposalBuilderState?.pricebookSearch?.query || '')}" placeholder="Search shingle price book" style="width:100%;border:1px solid rgba(15,23,42,.14);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:850;outline:none;box-sizing:border-box">
+            <input data-builder-pricebook-query value="${escapeHtml(proposalBuilderState?.pricebookSearch?.query || '')}" placeholder="${(globalThis.PlatformLanguage?.htmlText("proposals","m_f3189dbe87971a","Search shingle price book") ?? "Search shingle price book")}" style="width:100%;border:1px solid rgba(15,23,42,.14);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:850;outline:none;box-sizing:border-box">
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
               ${candidates.length ? candidates.map((item) => `
                 <button type="button" data-builder-add-pricebook="${escapeHtml(item.id)}" data-builder-add-group="${escapeHtml(step.group_id)}" style="border:1px solid rgba(15,23,42,.08);background:#f8fafc;border-radius:12px;padding:10px;text-align:left;display:flex;justify-content:space-between;gap:10px;cursor:pointer">
                   <span style="display:flex;flex-direction:column;gap:3px"><strong style="font-size:11px;color:#111827">${escapeHtml(item.name)}</strong><span style="font-size:10px;font-weight:850;color:#667085">${escapeHtml([item.variantGroupName, item.variantRole].filter(Boolean).join(' - ') || 'Shingle')}</span></span>
                   <span style="font-size:11px;font-weight:1000;color:#111827">$${Number(item.unitPrice || item.unit_price || 0).toFixed(0)}</span>
                 </button>
-              `).join('') : '<div style="font-size:11px;font-weight:850;color:#667085;padding:8px">No matching shingles found.</div>'}
+              `).join('') : `<div style="font-size:11px;font-weight:850;color:#667085;padding:8px">${(globalThis.PlatformLanguage?.htmlText("proposals","m_fba496098e9a0f","No matching shingles found.") ?? "No matching shingles found.")}</div>`}
             </div>
           </div>
           </div>
@@ -8646,10 +8646,10 @@
     const discounts = proposalBuilderDiscountItems(builder);
     return `
       <div class="r-proposal-settings">
-        <div class="r-proposal-settings-head"><strong>${(globalThis.PlatformLanguage?.text("proposals","m_b23f7b8d1ec24f","Discounts") ?? "Discounts")}</strong><span>${String(escapeHtml(proposalCurrencyDisplay(proposalScopeItemTotalCents(builder.root || {}) / 100)))}</span></div>
+        <div class="r-proposal-settings-head"><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_b23f7b8d1ec24f","Discounts") ?? "Discounts")}</strong><span>${String(escapeHtml(proposalCurrencyDisplay(proposalScopeItemTotalCents(builder.root || {}) / 100)))}</span></div>
         <div class="r-builder-discount-actions">
-          <button type="button" data-builder-add-discount="amount"><i class="fas fa-dollar-sign"></i>${(globalThis.PlatformLanguage?.text("proposals","m_fe7dbcfbb0c582"," Add Amount") ?? " Add Amount")}</button>
-          <button type="button" data-builder-add-discount="percent"><i class="fas fa-percent"></i>${(globalThis.PlatformLanguage?.text("proposals","m_62804058b8be63"," Add Percent") ?? " Add Percent")}</button>
+          <button type="button" data-builder-add-discount="amount"><i class="fas fa-dollar-sign"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_fe7dbcfbb0c582"," Add Amount") ?? " Add Amount")}</button>
+          <button type="button" data-builder-add-discount="percent"><i class="fas fa-percent"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_62804058b8be63"," Add Percent") ?? " Add Percent")}</button>
         </div>
         <div class="r-builder-discount-list">
           ${String(discounts.length ? discounts.map((item) => {
@@ -8659,17 +8659,17 @@
               : proposalSignedCurrencyDisplay(proposalScopeItemTotalCents(item) / 100);
             return `
               <div class="r-builder-discount-row" data-builder-discount="${escapeHtml(item.id)}">
-                <input data-builder-discount-field="name" value="${escapeHtml(item.display_name || item.name || 'Discount')}" aria-label="Discount name">
+                <input data-builder-discount-field="name" value="${escapeHtml(item.display_name || item.name || 'Discount')}" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_4a3589501ecc1f","Discount name") ?? "Discount name")}">
                 <div class="r-proposal-discount-mode">
                   <button type="button" class="${mode === 'amount' ? 'active' : ''}" data-builder-discount-mode="amount" data-builder-discount-id="${escapeHtml(item.id)}">$</button>
                   <button type="button" class="${mode === 'percent' ? 'active' : ''}" data-builder-discount-mode="percent" data-builder-discount-id="${escapeHtml(item.id)}">%</button>
                 </div>
-                <input data-builder-discount-field="value" value="${escapeHtml(mode === 'percent' ? proposalPercentDisplay(item.discount_percent ?? item.quantity ?? 0) : proposalCurrencyEditText(item.discount_amount ?? item.unit_price ?? 0))}" inputmode="decimal" aria-label="Discount value">
+                <input data-builder-discount-field="value" value="${escapeHtml(mode === 'percent' ? proposalPercentDisplay(item.discount_percent ?? item.quantity ?? 0) : proposalCurrencyEditText(item.discount_amount ?? item.unit_price ?? 0))}" inputmode="decimal" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_792f935ba82291","Discount value") ?? "Discount value")}">
                 <strong>${escapeHtml(amountText)}</strong>
-                <button type="button" data-builder-remove-discount="${escapeHtml(item.id)}" aria-label="Remove discount"><i class="fas fa-times"></i></button>
+                <button type="button" data-builder-remove-discount="${escapeHtml(item.id)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_691d860b768692","Remove discount") ?? "Remove discount")}"><i class="fas fa-times"></i></button>
               </div>
             `;
-          }).join('') : '<div class="r-builder-discount-empty">No discounts added yet.</div>')}
+          }).join('') : `<div class="r-builder-discount-empty">${(globalThis.PlatformLanguage?.htmlText("proposals","m_0254795a80cfc0","No discounts added yet.") ?? "No discounts added yet.")}</div>`)}
         </div>
       </div>
     `;
@@ -8696,7 +8696,7 @@
       <div class="r-proposal-workspace-head"><div style="width:36px"></div><div><strong>${String(escapeHtml(builder.template?.name || title))}</strong><span>${String(loadsRoofMeasurements ? 'Loading roof report measurements...' : 'Loading project types...')}</span></div></div>
       <div class="r-proposal-settings" style="min-height:160px;align-items:center;justify-content:center;text-align:center">
         <i class="fas fa-spinner fa-spin" style="font-size:22px;color:var(--primary,#d93025)"></i>
-        <strong style="font-size:13px;color:#111827">${(globalThis.PlatformLanguage?.text("proposals","m_dc799f9c4180c9","Preparing workflow") ?? "Preparing workflow")}</strong>
+        <strong style="font-size:13px;color:#111827">${(globalThis.PlatformLanguage?.htmlText("proposals","m_dc799f9c4180c9","Preparing workflow") ?? "Preparing workflow")}</strong>
         <span style="font-size:12px;font-weight:800;color:#667085">${String(loadsRoofMeasurements ? 'Pulling measurements from the current roof report when available.' : 'Loading the available project types.')}</span>
       </div>
     `;
@@ -8708,21 +8708,21 @@
     if (options.compact) {
       return `
         <section class="r-builder-mobile-active-scope" data-builder-active-scope data-builder-compact-scope="true">
-          <strong>${(globalThis.PlatformLanguage?.text("proposals","m_ff35e566b4739b","Active scope") ?? "Active scope")}</strong>
+          <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_ff35e566b4739b","Active scope") ?? "Active scope")}</strong>
           <div class="r-builder-mobile-piece-grid">
             ${String(pieces.map((piece, index) => {
               const template = proposalBuilderTemplateById(piece.templateId || 'manual');
               const label = escapeHtml(piece.name || template.name || `Project piece ${index + 1}`);
               return `
                 <div class="r-builder-mobile-piece" style="--scope-color:${escapeHtml(piece.color || proposalBuilderTemplateColor(template))}" title="${label}">
-                  <button type="button" class="r-builder-mobile-piece-remove" data-builder-remove-piece="${escapeHtml(piece.id)}" aria-label="Remove ${label}"><i class="fas fa-xmark"></i></button>
+                  <button type="button" class="r-builder-mobile-piece-remove" data-builder-remove-piece="${escapeHtml(piece.id)}" aria-label="${((v3) => globalThis.PlatformLanguage?.htmlText("proposals","m_f2da0f4d54d9d9",`Remove ${v3}`,{v3}) ?? `Remove ${v3}`)(label)}"><i class="fas fa-xmark"></i></button>
                   <i class="fas ${escapeHtml(template.icon || 'fa-file-lines')}" aria-hidden="true"></i>
                 </div>
               `;
             }).join(''))}
           </div>
           <div class="r-builder-mobile-scope-footer">
-            <div><span>${((v1,v2) => globalThis.PlatformLanguage?.text("proposals","m_327f02c35dd934",`${v1} piece${v2}`,{v1,v2}) ?? `${v1} piece${v2}`)(pieces.length,pieces.length === 1 ? '' : 's')}</span>${String(proposalBuilderScopeTotalHtml(builder, { compact:true }))}</div>
+            <div><span>${((v1,v2) => globalThis.PlatformLanguage?.htmlText("proposals","m_327f02c35dd934",`${v1} piece${v2}`,{v1,v2}) ?? `${v1} piece${v2}`)(pieces.length,pieces.length === 1 ? '' : 's')}</span>${String(proposalBuilderScopeTotalHtml(builder, { compact:true }))}</div>
             <button type="button" class="r-builder-scope-build" data-builder-start-scope ${String(pieces.length ? '' : 'disabled')}>${String(escapeHtml(buildLabel))} <i class="fas fa-arrow-right"></i></button>
           </div>
         </section>
@@ -8731,8 +8731,8 @@
     const heading = `
       <div class="r-builder-scope-heading">
         <div class="r-builder-scope-heading-copy">
-          <strong>${(globalThis.PlatformLanguage?.text("proposals","m_ff35e566b4739b","Active scope") ?? "Active scope")}</strong>
-          <span>${((v0,v1) => globalThis.PlatformLanguage?.text("proposals","m_742fad511164a9",`${v0} project piece${v1}`,{v0,v1}) ?? `${v0} project piece${v1}`)(pieces.length,pieces.length === 1 ? '' : 's')}</span>
+          <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_ff35e566b4739b","Active scope") ?? "Active scope")}</strong>
+          <span>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("proposals","m_742fad511164a9",`${v0} project piece${v1}`,{v0,v1}) ?? `${v0} project piece${v1}`)(pieces.length,pieces.length === 1 ? '' : 's')}</span>
         </div>
         <button type="button" class="r-builder-scope-build" data-builder-start-scope ${String(pieces.length ? '' : 'disabled')}>
           ${String(escapeHtml(buildLabel))} <i class="fas fa-arrow-right"></i>
@@ -8745,8 +8745,8 @@
           ${String(heading)}
           <div class="r-builder-scope-empty">
             <i class="fas fa-plus"></i>
-            <strong>${(globalThis.PlatformLanguage?.text("proposals","m_9f569783731101","Add work to the project") ?? "Add work to the project")}</strong>
-            <span>${(globalThis.PlatformLanguage?.text("proposals","m_a7b987f011048f","Choose one or more project templates.") ?? "Choose one or more project templates.")}</span>
+            <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_9f569783731101","Add work to the project") ?? "Add work to the project")}</strong>
+            <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_a7b987f011048f","Choose one or more project templates.") ?? "Choose one or more project templates.")}</span>
           </div>
         </div>
       `;
@@ -8759,8 +8759,8 @@
             <div class="r-builder-active-piece" style="--scope-color:${String(escapeHtml(piece.color || 'var(--primary,#d93025)'))}">
               <i class="fas ${String(escapeHtml(proposalBuilderTemplateById(piece.templateId || 'manual').icon || 'fa-file-lines'))}"></i>
               <strong>${String(escapeHtml(piece.name || 'Project Piece'))}</strong>
-              <span>${((v3) => globalThis.PlatformLanguage?.text("proposals","m_490cd09fa0c5b6",`Piece ${v3}`,{v3}) ?? `Piece ${v3}`)(index + 1)}</span>
-              <button type="button" class="r-builder-remove-piece" data-builder-remove-piece="${String(escapeHtml(piece.id))}" aria-label="${((v5) => globalThis.PlatformLanguage?.text("proposals","m_267054a63cc396",`Remove ${v5}`,{v5}) ?? `Remove ${v5}`)(escapeHtml(piece.name || 'project piece'))}"><i class="fas fa-xmark"></i></button>
+              <span>${((v3) => globalThis.PlatformLanguage?.htmlText("proposals","m_490cd09fa0c5b6",`Piece ${v3}`,{v3}) ?? `Piece ${v3}`)(index + 1)}</span>
+              <button type="button" class="r-builder-remove-piece" data-builder-remove-piece="${String(escapeHtml(piece.id))}" aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("proposals","m_267054a63cc396",`Remove ${v5}`,{v5}) ?? `Remove ${v5}`)(escapeHtml(piece.name || 'project piece'))}"><i class="fas fa-xmark"></i></button>
             </div>
           `).join('')}
         </div>
@@ -8777,14 +8777,14 @@
     const quickIds = new Set(quick.map((template) => template.id));
     const remaining = matches.filter((template) => !quickIds.has(template.id));
     if (!PROPOSAL_BUILDER_TEMPLATES.length) {
-      return `<div class="r-builder-template-empty">${(globalThis.PlatformLanguage?.text("proposals","m_6b20090f010db2","No project scopes are enabled for this company. An administrator can enable them in Company Settings &gt; Scope Flags.") ?? "No project scopes are enabled for this company. An administrator can enable them in Company Settings &gt; Scope Flags.")}</div>`;
+      return `<div class="r-builder-template-empty">${(globalThis.PlatformLanguage?.htmlText("proposals","m_6b20090f010db2","No project scopes are enabled for this company. An administrator can enable them in Company Settings &gt; Scope Flags.") ?? "No project scopes are enabled for this company. An administrator can enable them in Company Settings &gt; Scope Flags.")}</div>`;
     }
     if (!matches.length) {
-      return `<div class="r-builder-template-empty">${((v0) => globalThis.PlatformLanguage?.text("proposals","m_09745e6dc60f71",`No project templates match “${v0}”.`,{v0}) ?? `No project templates match “${v0}”.`)(escapeHtml(builder.query || ''))}</div>`;
+      return `<div class="r-builder-template-empty">${((v0) => globalThis.PlatformLanguage?.htmlText("proposals","m_09745e6dc60f71",`No project templates match “${v0}”.`,{v0}) ?? `No project templates match “${v0}”.`)(escapeHtml(builder.query || ''))}</div>`;
     }
     return `
       ${quick.length ? `
-        <div class="r-builder-template-quick-label"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.text("proposals","m_9235212a89ec97"," Quick access") ?? " Quick access")}</div>
+        <div class="r-builder-template-quick-label"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_9235212a89ec97"," Quick access") ?? " Quick access")}</div>
         <div class="r-proposal-template-row r-builder-template-grid">${String(quick.map((template) => proposalBuilderTemplateTile(template)).join(''))}</div>
       ` : ''}
       ${quick.length && remaining.length ? '<div class="r-builder-template-divider" role="separator"></div>' : ''}
@@ -8798,20 +8798,20 @@
     const steps = Array.isArray(template.workflow_steps) ? template.workflow_steps : [];
     return `
       <div class="r-builder-info-backdrop" data-builder-info-close>
-        <div class="r-builder-info-modal" style="--scope-color:${String(escapeHtml(proposalBuilderTemplateColor(template)))}" role="dialog" aria-modal="true" aria-label="${((v1) => globalThis.PlatformLanguage?.text("proposals","m_6e4ba38fa02b85",`${v1} information`,{v1}) ?? `${v1} information`)(escapeHtml(template.name))}">
+        <div class="r-builder-info-modal" style="--scope-color:${String(escapeHtml(proposalBuilderTemplateColor(template)))}" role="dialog" aria-modal="true" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("proposals","m_6e4ba38fa02b85",`${v1} information`,{v1}) ?? `${v1} information`)(escapeHtml(template.name))}">
           <aside class="r-builder-info-workflow">
-            <strong>${(globalThis.PlatformLanguage?.text("proposals","m_7dbbeae35a4717","Workflow") ?? "Workflow")}</strong>
+            <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_7dbbeae35a4717","Workflow") ?? "Workflow")}</strong>
             <ol class="r-builder-info-steps">
-              ${String(steps.length ? steps.map((step, index) => `<li><em>${index + 1}</em><span>${escapeHtml(step)}</span></li>`).join('') : '<li><em>1</em><span>Custom workflow to be defined.</span></li>')}
+              ${String(steps.length ? steps.map((step, index) => `<li><em>${index + 1}</em><span>${escapeHtml(step)}</span></li>`).join('') : `<li><em>1</em><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_082d7b8324f933","Custom workflow to be defined.") ?? "Custom workflow to be defined.")}</span></li>`)}
             </ol>
           </aside>
           <section class="r-builder-info-copy">
             <div class="r-builder-info-head">
               <div class="r-builder-info-title"><i class="fas ${String(escapeHtml(template.icon || 'fa-file-lines'))}"></i><div><strong>${String(escapeHtml(template.name))}</strong><span>${String(escapeHtml(template.label || 'Template'))}</span></div></div>
-              <button type="button" class="r-builder-info-close" data-builder-info-close aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
+              <button type="button" class="r-builder-info-close" data-builder-info-close aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
             </div>
             <p>${String(escapeHtml(template.details || template.description || ''))}</p>
-            <button type="button" class="r-builder-info-add" data-builder-info-add="${String(escapeHtml(template.id))}">${(globalThis.PlatformLanguage?.text("proposals","m_d7eada214f81cc","Add to Scope") ?? "Add to Scope")}</button>
+            <button type="button" class="r-builder-info-add" data-builder-info-add="${String(escapeHtml(template.id))}">${(globalThis.PlatformLanguage?.htmlText("proposals","m_d7eada214f81cc","Add to Scope") ?? "Add to Scope")}</button>
           </section>
         </div>
       </div>
@@ -8824,12 +8824,12 @@
       <div class="r-builder-picker-shell" data-builder-picker-shell>
         <div class="r-builder-template-toolbar">
           <div class="r-builder-template-title">
-            <strong>${(globalThis.PlatformLanguage?.text("proposals","m_94dffcbc385b13","Project templates") ?? "Project templates")}</strong>
-            <span>${(globalThis.PlatformLanguage?.text("proposals","m_377c4308c31feb","Choose the work that belongs in this project scope.") ?? "Choose the work that belongs in this project scope.")}</span>
+            <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_94dffcbc385b13","Project templates") ?? "Project templates")}</strong>
+            <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_377c4308c31feb","Choose the work that belongs in this project scope.") ?? "Choose the work that belongs in this project scope.")}</span>
           </div>
           <label class="r-builder-template-search">
             <i class="fas fa-search" aria-hidden="true"></i>
-            <input data-builder-search value="${String(escapeHtml(builder.query || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("proposals","m_7f0fd4e2e8569b","Search templates") ?? "Search templates")}" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_447ed55d415261","Search project templates") ?? "Search project templates")}">
+            <input data-builder-search value="${String(escapeHtml(builder.query || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("proposals","m_7f0fd4e2e8569b","Search templates") ?? "Search templates")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_447ed55d415261","Search project templates") ?? "Search project templates")}">
           </label>
         </div>
         <div class="r-builder-template-scroll">
@@ -8966,19 +8966,19 @@
     return `
       <div class="r-proposal-template-picker">
         <div class="r-proposal-template-head">
-          <strong>${(globalThis.PlatformLanguage?.text("proposals","m_6a4cec49d93dbd","Project Scope") ?? "Project Scope")}</strong>
-          <span>${(globalThis.PlatformLanguage?.text("proposals","m_998f1f386e91fe","This project already has a scope. Use it for this proposal or define a new scope.") ?? "This project already has a scope. Use it for this proposal or define a new scope.")}</span>
+          <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_6a4cec49d93dbd","Project Scope") ?? "Project Scope")}</strong>
+          <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_998f1f386e91fe","This project already has a scope. Use it for this proposal or define a new scope.") ?? "This project already has a scope. Use it for this proposal or define a new scope.")}</span>
         </div>
         <div class="r-proposal-template-row">
           <button type="button" class="r-proposal-template-card" data-builder-use-project-scope>
             <i class="fas fa-clipboard-check"></i>
-            <strong>${(globalThis.PlatformLanguage?.text("proposals","m_ec84ead3213c98","Use Existing Project Scope") ?? "Use Existing Project Scope")}</strong>
+            <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_ec84ead3213c98","Use Existing Project Scope") ?? "Use Existing Project Scope")}</strong>
             <span>${String(escapeHtml(projectScopeLabel(scope)))}</span>
           </button>
           <button type="button" class="r-proposal-template-card" data-builder-new-project-scope>
             <i class="fas fa-pen-ruler"></i>
-            <strong>${(globalThis.PlatformLanguage?.text("proposals","m_d50ef111f157c1","Set New Scope") ?? "Set New Scope")}</strong>
-            <span>${(globalThis.PlatformLanguage?.text("proposals","m_9d943cbf4e93bd","Run the scope workflow again and save it to the project.") ?? "Run the scope workflow again and save it to the project.")}</span>
+            <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_d50ef111f157c1","Set New Scope") ?? "Set New Scope")}</strong>
+            <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_9d943cbf4e93bd","Run the scope workflow again and save it to the project.") ?? "Run the scope workflow again and save it to the project.")}</span>
           </button>
         </div>
       </div>
@@ -9030,10 +9030,10 @@
             <strong>${String(escapeHtml(group.name))}${String(escapeHtml(suffix))}</strong>
             <span style="color:${String(done ? '#15803d' : active ? escapeHtml(group.color) : '#667085')}">
               <span class="r-builder-section-menu-wrap">
-                <button type="button" class="r-builder-section-menu-btn" data-builder-piece-menu="${String(escapeHtml(id))}" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_bf0970982d20c9","Section actions") ?? "Section actions")}"><i class="fas fa-ellipsis"></i></button>
-                ${String(menuOpen ? `<div class="r-builder-section-menu"><button type="button" class="danger" data-builder-remove-piece-confirm="${escapeHtml(id)}">Remove section</button></div>` : '')}
+                <button type="button" class="r-builder-section-menu-btn" data-builder-piece-menu="${String(escapeHtml(id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_bf0970982d20c9","Section actions") ?? "Section actions")}"><i class="fas fa-ellipsis"></i></button>
+                ${String(menuOpen ? `<div class="r-builder-section-menu"><button type="button" class="danger" data-builder-remove-piece-confirm="${escapeHtml(id)}">${(globalThis.PlatformLanguage?.htmlText("proposals","m_7a6a5f10b83ab4","Remove section") ?? "Remove section")}</button></div>` : '')}
               </span>
-              <button type="button" class="r-builder-section-menu-btn" data-builder-piece-toggle="${String(escapeHtml(id))}" aria-expanded="${String(open ? 'true' : 'false')}" aria-label="${((v8) => globalThis.PlatformLanguage?.text("proposals","m_6376b6bad9b805",`${v8} section`,{v8}) ?? `${v8} section`)(open ? 'Collapse' : 'Expand')}"><i class="fas ${String(open ? 'fa-chevron-up' : 'fa-chevron-down')}"></i></button>
+              <button type="button" class="r-builder-section-menu-btn" data-builder-piece-toggle="${String(escapeHtml(id))}" aria-expanded="${String(open ? 'true' : 'false')}" aria-label="${((v8) => globalThis.PlatformLanguage?.htmlText("proposals","m_6376b6bad9b805",`${v8} section`,{v8}) ?? `${v8} section`)(open ? 'Collapse' : 'Expand')}"><i class="fas ${String(open ? 'fa-chevron-up' : 'fa-chevron-down')}"></i></button>
               ${String(done ? 'Done' : active ? 'Active' : 'Open')}
             </span>
           </div>
@@ -9044,7 +9044,7 @@
     const tailActive = tailSteps.some((entry) => entry.index === builder.stepIndex);
     const tailDone = tailSteps.length && tailSteps.every((entry) => entry.index < builder.stepIndex);
     const tailOpen = expanded.__final === true || (collapsed.__final !== true && tailActive);
-    const tailHtml = tailSteps.length ? `<section class="r-builder-sidebar-section" style="--scope-color:var(--primary,#d93025)"><button type="button" class="r-builder-sidebar-section-head" data-builder-piece-toggle="__final" aria-expanded="${String(tailOpen ? 'true' : 'false')}"><strong>${(globalThis.PlatformLanguage?.text("proposals","m_da7158eec1e24b","Finalize") ?? "Finalize")}</strong><span>${String(tailDone ? 'Done' : tailActive ? 'Active' : 'Open')} <i class="fas ${String(tailOpen ? 'fa-chevron-up' : 'fa-chevron-down')}"></i></span></button>${String(tailOpen ? `<div class="r-builder-sidebar-substeps">${tailSteps.map((entry) => proposalBuilderSidebarStepHtml(entry.step, entry.index, builder)).join('')}</div>` : '')}</section>` : '';
+    const tailHtml = tailSteps.length ? `<section class="r-builder-sidebar-section" style="--scope-color:var(--primary,#d93025)"><button type="button" class="r-builder-sidebar-section-head" data-builder-piece-toggle="__final" aria-expanded="${String(tailOpen ? 'true' : 'false')}"><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_da7158eec1e24b","Finalize") ?? "Finalize")}</strong><span>${String(tailDone ? 'Done' : tailActive ? 'Active' : 'Open')} <i class="fas ${String(tailOpen ? 'fa-chevron-up' : 'fa-chevron-down')}"></i></span></button>${String(tailOpen ? `<div class="r-builder-sidebar-substeps">${tailSteps.map((entry) => proposalBuilderSidebarStepHtml(entry.step, entry.index, builder)).join('')}</div>` : '')}</section>` : '';
     return `${groupHtml}${tailHtml}`;
   }
 
@@ -9057,17 +9057,17 @@
     if (builder.mode === 'loading') {
       const loadsRoofMeasurements = builder.loadsRoofMeasurements !== false;
       return `
-        <div class="r-proposal-workspace-head">${scopeNoBack ? '<div style="width:36px"></div>' : `<button type="button" class="r-proposal-back" data-builder-cancel-to-list aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_121372231b5699","Back") ?? "Back")}"><i class="fas fa-arrow-left"></i></button>`}<div><strong>${escapeHtml(builder.template?.name || title)}</strong><span>${loadsRoofMeasurements ? 'Preparing measurements' : 'Preparing workflow'}</span></div></div>
+        <div class="r-proposal-workspace-head">${scopeNoBack ? '<div style="width:36px"></div>' : `<button type="button" class="r-proposal-back" data-builder-cancel-to-list aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_121372231b5699","Back") ?? "Back")}"><i class="fas fa-arrow-left"></i></button>`}<div><strong>${escapeHtml(builder.template?.name || title)}</strong><span>${loadsRoofMeasurements ? 'Preparing measurements' : 'Preparing workflow'}</span></div></div>
         <div class="r-proposal-settings" style="gap:8px"><strong style="font-size:12px;color:#111827">${loadsRoofMeasurements ? 'Loading roof report' : 'Loading project type'}</strong><span style="font-size:11px;font-weight:800;color:#667085;line-height:1.4">${loadsRoofMeasurements ? 'Pulling report measurements before the workflow starts.' : 'Preparing the selected project workflow.'}</span></div>
       `;
     }
     if (builder.mode === 'scope_choice') {
       return `
-        <div class="r-proposal-workspace-head"><button type="button" class="r-proposal-back" data-builder-cancel-to-list aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_121372231b5699","Back") ?? "Back")}"><i class="fas fa-arrow-left"></i></button><div><strong>${(globalThis.PlatformLanguage?.text("proposals","m_6a4cec49d93dbd","Project Scope") ?? "Project Scope")}</strong><span>${(globalThis.PlatformLanguage?.text("proposals","m_ae5c3544315a73","Choose how to scope this proposal.") ?? "Choose how to scope this proposal.")}</span></div></div>
+        <div class="r-proposal-workspace-head"><button type="button" class="r-proposal-back" data-builder-cancel-to-list aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_121372231b5699","Back") ?? "Back")}"><i class="fas fa-arrow-left"></i></button><div><strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_6a4cec49d93dbd","Project Scope") ?? "Project Scope")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_ae5c3544315a73","Choose how to scope this proposal.") ?? "Choose how to scope this proposal.")}</span></div></div>
         <div style="display:flex;flex-direction:column;gap:8px">
           <button type="button" style="width:100%;border:1px solid rgba(var(--primary-rgb,217,48,37),.38);background:rgba(var(--primary-rgb,217,48,37),.07);border-radius:14px;padding:10px;text-align:left;display:grid;grid-template-columns:26px 1fr;gap:9px;align-items:center">
             <span style="width:26px;height:26px;border-radius:999px;background:var(--primary,#d93025);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:1000">1</span>
-            <span style="display:flex;flex-direction:column;gap:2px"><strong style="font-size:11px;font-weight:1000;color:#111827">${(globalThis.PlatformLanguage?.text("proposals","m_6a4cec49d93dbd","Project Scope") ?? "Project Scope")}</strong><span style="font-size:10px;font-weight:800;color:#667085;letter-spacing:0">${(globalThis.PlatformLanguage?.text("proposals","m_e17f9eaa3f43a2","Current") ?? "Current")}</span></span>
+            <span style="display:flex;flex-direction:column;gap:2px"><strong style="font-size:11px;font-weight:1000;color:#111827">${(globalThis.PlatformLanguage?.htmlText("proposals","m_6a4cec49d93dbd","Project Scope") ?? "Project Scope")}</strong><span style="font-size:10px;font-weight:800;color:#667085;letter-spacing:0">${(globalThis.PlatformLanguage?.htmlText("proposals","m_e17f9eaa3f43a2","Current") ?? "Current")}</span></span>
           </button>
         </div>
       `;
@@ -9075,7 +9075,7 @@
     if (!builder.root) {
       return `
         <div class="r-builder-sidebar-shell">
-          <div class="r-proposal-workspace-head r-builder-picker-sidebar-head">${scopeNoBack ? '' : `<button type="button" class="r-proposal-back" data-builder-template-picker-back aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_121372231b5699","Back") ?? "Back")}"><i class="fas fa-arrow-left"></i></button>`}<div><strong>${escapeHtml(pickerLabel)}</strong></div></div>
+          <div class="r-proposal-workspace-head r-builder-picker-sidebar-head">${scopeNoBack ? '' : `<button type="button" class="r-proposal-back" data-builder-template-picker-back aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_121372231b5699","Back") ?? "Back")}"><i class="fas fa-arrow-left"></i></button>`}<div><strong>${escapeHtml(pickerLabel)}</strong></div></div>
           ${proposalBuilderActiveScopeHtml(builder)}
           ${proposalBuilderScopeTotalHtml(builder)}
         </div>
@@ -9584,15 +9584,15 @@
     const selectedIds = new Set(selectedProposalIdsForSend());
     list.innerHTML = `
       <div class="r-proposal-workspace-head">
-        <button type="button" class="r-proposal-back" id="rProposalSendBack" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_121372231b5699","Back") ?? "Back")}"><i class="fas fa-arrow-left"></i></button>
+        <button type="button" class="r-proposal-back" id="rProposalSendBack" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_121372231b5699","Back") ?? "Back")}"><i class="fas fa-arrow-left"></i></button>
         <div>
-          <strong>${(globalThis.PlatformLanguage?.text("proposals","m_069690ba66778e","Send Proposal") ?? "Send Proposal")}</strong>
-          <span>${(globalThis.PlatformLanguage?.text("proposals","m_51c636bcc13a08","Confirm the selected proposal, contacts, and delivery options") ?? "Confirm the selected proposal, contacts, and delivery options")}</span>
+          <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_069690ba66778e","Send Proposal") ?? "Send Proposal")}</strong>
+          <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_51c636bcc13a08","Confirm the selected proposal, contacts, and delivery options") ?? "Confirm the selected proposal, contacts, and delivery options")}</span>
         </div>
       </div>
       <div class="r-proposal-send-form">
         <div class="r-proposal-send-block">
-          <strong>${(globalThis.PlatformLanguage?.text("proposals","m_c68907938160b5","Proposal Options") ?? "Proposal Options")}</strong>
+          <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_c68907938160b5","Proposal Options") ?? "Proposal Options")}</strong>
           <div class="r-proposal-send-tile-grid" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;max-height:168px;overflow:auto;padding:2px">
             ${String(proposals.map((proposal, index) => {
               const id = proposalStableId(proposal, index);
@@ -9608,7 +9608,7 @@
           </div>
         </div>
         <div class="r-proposal-send-block">
-          <strong>${(globalThis.PlatformLanguage?.text("proposals","m_c1791596944182","Recipients") ?? "Recipients")}</strong>
+          <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_c1791596944182","Recipients") ?? "Recipients")}</strong>
           <div class="r-proposal-send-list">
             ${String(contacts.length ? contacts.map((contact, index) => {
               const key = proposalContactKey(contact, index);
@@ -9620,24 +9620,20 @@
                     <span>${escapeHtml(proposalContactLabel(contact))}</span>
                   </label>
                   ${needsEmail ? `
-                    <label style="display:grid;gap:5px;padding:0 4px 4px;color:#b42318;font-size:10px;font-weight:950">
-                      Email required to send
-                      <input class="r-inp" type="email" autocomplete="email" data-send-contact-email-index="${index}" placeholder="customer@example.com" style="border-color:#f2b8b5;background:#fff7f6">
+                    <label style="display:grid;gap:5px;padding:0 4px 4px;color:#b42318;font-size:10px;font-weight:950">${(globalThis.PlatformLanguage?.htmlText("proposals","m_7fcfaa1f4fcd66","\n                      Email required to send\n                      ") ?? "\n                      Email required to send\n                      ")}<input class="r-inp" type="email" autocomplete="email" data-send-contact-email-index="${index}" placeholder="${(globalThis.PlatformLanguage?.htmlText("proposals","m_2780de7b9bd16a","customer@example.com") ?? "customer@example.com")}" style="border-color:#f2b8b5;background:#fff7f6">
                     </label>
                   ` : ''}
                 </div>
               `;
             }).join('') : `
-              <div class="r-proposal-send-empty" style="padding-bottom:0">No customer email is on this project yet.</div>
-              <label style="display:grid;gap:5px;padding:0 4px 4px;color:#b42318;font-size:10px;font-weight:950">
-                Email required to send
-                <input class="r-inp" type="email" autocomplete="email" data-send-contact-email-index="0" placeholder="customer@example.com" style="border-color:#f2b8b5;background:#fff7f6">
+              <div class="r-proposal-send-empty" style="padding-bottom:0">${(globalThis.PlatformLanguage?.htmlText("proposals","m_df09193988aeb7","No customer email is on this project yet.") ?? "No customer email is on this project yet.")}</div>
+              <label style="display:grid;gap:5px;padding:0 4px 4px;color:#b42318;font-size:10px;font-weight:950">${(globalThis.PlatformLanguage?.htmlText("proposals","m_c10134dc02336b","\n                Email required to send\n                ") ?? "\n                Email required to send\n                ")}<input class="r-inp" type="email" autocomplete="email" data-send-contact-email-index="0" placeholder="${(globalThis.PlatformLanguage?.htmlText("proposals","m_2780de7b9bd16a","customer@example.com") ?? "customer@example.com")}" style="border-color:#f2b8b5;background:#fff7f6">
               </label>
             `)}
           </div>
         </div>
         <label class="r-proposal-send-message">
-          <span>${(globalThis.PlatformLanguage?.text("proposals","m_a16cfd85cfd122","Message") ?? "Message")}</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_a16cfd85cfd122","Message") ?? "Message")}</span>
           <textarea class="r-inp" id="rProposalSendMessage" rows="6">${String(escapeHtml(proposalSendMessage))}</textarea>
         </label>
         <div class="r-proposal-send-options" style="display:grid;gap:8px">
@@ -9646,7 +9642,7 @@
               <input type="checkbox" id="rProposalSendPdf" ${String(proposalSendIncludePdf ? 'checked' : '')} style="position:absolute;opacity:0;inset:0;cursor:pointer">
               <span style="position:absolute;width:18px;height:18px;left:${String(proposalSendIncludePdf ? '21px' : '3px')};top:3px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(15,23,42,.24);pointer-events:none"></span>
             </span>
-            <span>${(globalThis.PlatformLanguage?.text("proposals","m_cb0f5faf8487ab","Include PDF attachment") ?? "Include PDF attachment")}</span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_cb0f5faf8487ab","Include PDF attachment") ?? "Include PDF attachment")}</span>
           </label>
           ${String(customerPortalEnabled() ? `
             <label class="r-proposal-send-toggle" style="display:flex;align-items:center;gap:10px;font-weight:900;color:#344054;cursor:pointer">
@@ -9654,14 +9650,14 @@
                 <input type="checkbox" id="rProposalSendPortal" ${proposalSendIncludePortal ? 'checked' : ''} style="position:absolute;opacity:0;inset:0;cursor:pointer">
                 <span style="position:absolute;width:18px;height:18px;left:${proposalSendIncludePortal ? '21px' : '3px'};top:3px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(15,23,42,.24);pointer-events:none"></span>
               </span>
-              <span>Include customer portal link</span>
+              <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_cbb41dfafd178f","Include customer portal link") ?? "Include customer portal link")}</span>
             </label>
             <label class="r-proposal-send-toggle" style="display:flex;align-items:center;gap:10px;font-weight:900;color:#344054;cursor:pointer">
               <span style="width:42px;height:24px;border-radius:999px;background:${proposalSendAllowMultipleSelection ? 'var(--primary-readable,var(--primary,#d93025))' : '#d0d5dd'};position:relative;display:inline-flex;flex:0 0 auto">
                 <input type="checkbox" id="rProposalSendAllowMultiple" ${proposalSendAllowMultipleSelection ? 'checked' : ''} style="position:absolute;opacity:0;inset:0;cursor:pointer">
                 <span style="position:absolute;width:18px;height:18px;left:${proposalSendAllowMultipleSelection ? '21px' : '3px'};top:3px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(15,23,42,.24);pointer-events:none"></span>
               </span>
-              <span>Allow customer to sign multiple proposals</span>
+              <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_a9fa064a3c9985","Allow customer to sign multiple proposals") ?? "Allow customer to sign multiple proposals")}</span>
             </label>
           ` : '')}
         </div>
@@ -9850,7 +9846,7 @@
 
   function proposalScopeRailBodyHtml(proposal = {}){
     const rows = proposalEditorScopeSummaryItems(proposal);
-    if (!rows.length) return `<div class="r-proposal-scope-empty">${(globalThis.PlatformLanguage?.text("proposals","m_d4bd92478d3105","No workflow choices recorded.") ?? "No workflow choices recorded.")}</div>`;
+    if (!rows.length) return `<div class="r-proposal-scope-empty">${(globalThis.PlatformLanguage?.htmlText("proposals","m_d4bd92478d3105","No workflow choices recorded.") ?? "No workflow choices recorded.")}</div>`;
     return `
       <div class="r-proposal-scope-summary">
         ${rows.map((row) => `
@@ -10000,8 +9996,8 @@
     };
     list.innerHTML = `
       <div class="r-proposal-workspace-head r-proposal-editor-head">
-        <button type="button" class="r-proposal-back" id="rProposalBackToList" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_cbdf97ba53cb91","Back to proposals") ?? "Back to proposals")}"><i class="fas fa-arrow-left"></i></button>
-        <input class="r-proposal-workspace-title" id="rProposalTitleInput" value="${String(escapeHtml(proposalDisplayName(proposal, activeProposalIndex)))}" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_f79017f6ed7635","Proposal name") ?? "Proposal name")}">
+        <button type="button" class="r-proposal-back" id="rProposalBackToList" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_cbdf97ba53cb91","Back to proposals") ?? "Back to proposals")}"><i class="fas fa-arrow-left"></i></button>
+        <input class="r-proposal-workspace-title" id="rProposalTitleInput" value="${String(escapeHtml(proposalDisplayName(proposal, activeProposalIndex)))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_f79017f6ed7635","Proposal name") ?? "Proposal name")}">
         ${String(proposalStatusBadgesHtml(proposal))}
       </div>
       <div class="r-proposal-rail-scroll">
@@ -10030,15 +10026,15 @@
           </div>
           <div class="r-proposal-measure-grid">
             <div class="r-proposal-measure-group">
-              <label>${(globalThis.PlatformLanguage?.text("proposals","m_291a4d3f753410","Pitched Squares (calculated)") ?? "Pitched Squares (calculated)")}</label>
+              <label>${(globalThis.PlatformLanguage?.htmlText("proposals","m_291a4d3f753410","Pitched Squares (calculated)") ?? "Pitched Squares (calculated)")}</label>
               <input type="number" step="0.1" min="0" readonly tabindex="-1" data-proposal-calculated="shingleSquares" value="${String(escapeHtml(String(measurements.shingleSquares ?? 0)))}">
             </div>
             <div class="r-proposal-measure-group">
-              <label>${(globalThis.PlatformLanguage?.text("proposals","m_1501e330cf2cbe","Flat Squares") ?? "Flat Squares")}</label>
+              <label>${(globalThis.PlatformLanguage?.htmlText("proposals","m_1501e330cf2cbe","Flat Squares") ?? "Flat Squares")}</label>
               <input type="number" step="0.1" min="0" data-proposal-measurement="flatRoofSquares" value="${String(escapeHtml(String(measurements.flatRoofSquares ?? 0)))}">
             </div>
             <div class="r-proposal-measure-group">
-              <label>${(globalThis.PlatformLanguage?.text("proposals","m_13564e80871af7","Total Squares (calculated)") ?? "Total Squares (calculated)")}</label>
+              <label>${(globalThis.PlatformLanguage?.htmlText("proposals","m_13564e80871af7","Total Squares (calculated)") ?? "Total Squares (calculated)")}</label>
               <input type="number" step="0.1" min="0" readonly tabindex="-1" data-proposal-calculated="roofSquares" value="${String(escapeHtml(String(measurements.roofSquares ?? 0)))}">
             </div>
           </div>
@@ -10067,8 +10063,8 @@
             `).join(''))}
           </div>
           <div class="r-proposal-template-actions">
-            <button type="button" class="r-proposal-template-action" id="rProposalTemplateMore"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.text("proposals","m_608d7d9597e5d6"," More") ?? " More")}</button>
-            <button type="button" class="r-proposal-template-action" id="rProposalTemplateCreate"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("proposals","m_9bc25b9a45d94c"," Create") ?? " Create")}</button>
+            <button type="button" class="r-proposal-template-action" id="rProposalTemplateMore"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_608d7d9597e5d6"," More") ?? " More")}</button>
+            <button type="button" class="r-proposal-template-action" id="rProposalTemplateCreate"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("proposals","m_9bc25b9a45d94c"," Create") ?? " Create")}</button>
           </div>
         </div>
       </section>
@@ -10087,23 +10083,23 @@
           </div>
           <div class="r-proposal-color-row">
             <label class="r-proposal-color-field">
-              <span>${(globalThis.PlatformLanguage?.text("proposals","m_2436076ece8629","Primary") ?? "Primary")}</span>
+              <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_2436076ece8629","Primary") ?? "Primary")}</span>
               <input type="color" data-proposal-color="primary" value="${String(escapeHtml(primaryColor))}">
             </label>
             <label class="r-proposal-color-field">
-              <span>${(globalThis.PlatformLanguage?.text("proposals","m_af67be591500a3","Secondary") ?? "Secondary")}</span>
+              <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_af67be591500a3","Secondary") ?? "Secondary")}</span>
               <input type="color" data-proposal-color="secondary" value="${String(escapeHtml(accentColor))}">
             </label>
           </div>
           <div class="r-proposal-type-paper-row">
             <label class="r-proposal-font-field">
-              <span>${(globalThis.PlatformLanguage?.text("proposals","m_ce1ba13960e5a4","Font") ?? "Font")}</span>
+              <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_ce1ba13960e5a4","Font") ?? "Font")}</span>
               <select data-proposal-font>
                 ${String(PROPOSAL_FONT_OPTIONS.map((font) => `<option value="${escapeHtml(font)}" ${getProposalFontFamily(proposal) === font ? 'selected' : ''}>${escapeHtml(font)}</option>`).join(''))}
               </select>
             </label>
             <label class="r-proposal-font-field">
-              <span>${(globalThis.PlatformLanguage?.text("proposals","m_b128ef8b7d700d","Paper size") ?? "Paper size")}</span>
+              <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_b128ef8b7d700d","Paper size") ?? "Paper size")}</span>
               <select data-proposal-paper-size>
                 ${String(Object.values(PROPOSAL_PAPER_SIZES).map((paper) => `<option value="${paper.key}" ${getProposalPaperSize(proposal).key === paper.key ? 'selected' : ''}>${paper.label} (${paper.detail})</option>`).join(''))}
               </select>
@@ -10118,11 +10114,11 @@
         </button>
         <div class="r-proposal-rail-body r-proposal-pages-list">
         ${String(proposal.pages.map((page, index) => `
-          ${index > 0 ? `<div class="r-proposal-list-insert"><button type="button" class="r-proposal-list-insert-btn" data-list-insert-index="${index - 1}" aria-label="Add page"><i class="fas fa-plus"></i></button></div>` : ''}
+          ${index > 0 ? `<div class="r-proposal-list-insert"><button type="button" class="r-proposal-list-insert-btn" data-list-insert-index="${index - 1}" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_4d405fa2a01074","Add page") ?? "Add page")}"><i class="fas fa-plus"></i></button></div>` : ''}
           <div class="r-proposal-page-item${index === activeProposalPageIndex ? ' active' : ''}${proposalPageEnabled(page) ? '' : ' disabled'}" data-page-index="${index}" draggable="true" role="button" tabindex="0">
             <div class="r-proposal-page-chip">${index + 1}</div>
             <div class="r-proposal-page-copy">
-              <strong>${escapeHtml(page.title || `Page ${index + 1}`)}</strong>
+              <strong>${escapeHtml(page.title || ((v0) => globalThis.PlatformLanguage?.text("proposals","m_5cc367ea2b4774",`Page ${v0}`,{v0}) ?? `Page ${v0}`)(index + 1))}</strong>
               <span>${escapeHtml(proposalPageSubtitle(page))}${cachedProposalSectionPageCount(page) > 1 ? ` • ${cachedProposalSectionPageCount(page)} pages` : ''}</span>
             </div>
             <div class="r-proposal-page-actions">
@@ -10130,8 +10126,8 @@
               <button type="button" class="r-proposal-page-enable${proposalPageEnabled(page) ? '' : ' off'}" data-page-enabled-toggle="${index}" aria-label="${proposalPageEnabled(page) ? 'Hide page' : 'Show page'}" aria-pressed="${proposalPageEnabled(page) ? 'true' : 'false'}"><i class="fas fa-check"></i></button>
               ${proposal.pages.length > 1 ? (
                 proposalDeleteConfirmPageId === page.id
-                  ? `<button type="button" class="r-proposal-page-delete confirm" data-page-delete-confirm="${escapeHtml(page.id)}">Delete</button>`
-                  : `<button type="button" class="r-proposal-page-delete" data-page-delete-arm="${escapeHtml(page.id)}" aria-label="Delete page"><i class="fas fa-trash"></i></button>`
+                  ? `<button type="button" class="r-proposal-page-delete confirm" data-page-delete-confirm="${escapeHtml(page.id)}">${(globalThis.PlatformLanguage?.htmlText("proposals","m_4fc60207629a44","Delete") ?? "Delete")}</button>`
+                  : `<button type="button" class="r-proposal-page-delete" data-page-delete-arm="${escapeHtml(page.id)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_af64ff308ca58e","Delete page") ?? "Delete page")}"><i class="fas fa-trash"></i></button>`
               ) : ''}
               <div class="r-proposal-drag"><i class="fas fa-grip-vertical"></i></div>
             </div>
@@ -10486,11 +10482,11 @@
       root.innerHTML = `
         <div class="r-proposal-preview-empty">
           <i class="fas fa-file-circle-plus"></i>
-          <strong>${(globalThis.PlatformLanguage?.text("proposals","m_0db7d031187d44","No proposal selected") ?? "No proposal selected")}</strong>
-          <span>${(globalThis.PlatformLanguage?.text("proposals","m_a054fbc345e731","Create a proposal from the left column to preview it here.") ?? "Create a proposal from the left column to preview it here.")}</span>
+          <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_0db7d031187d44","No proposal selected") ?? "No proposal selected")}</strong>
+          <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_a054fbc345e731","Create a proposal from the left column to preview it here.") ?? "Create a proposal from the left column to preview it here.")}</span>
           <button type="button" class="r-proposal-preview-create" data-proposal-preview-create>
             <i class="fas fa-plus"></i>
-            <span>${(globalThis.PlatformLanguage?.text("proposals","m_f92c72190aa503","Create proposal") ?? "Create proposal")}</span>
+            <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_f92c72190aa503","Create proposal") ?? "Create proposal")}</span>
           </button>
         </div>
       `;
@@ -11990,10 +11986,10 @@
       <div class="r-settings-panel">
         <div class="r-settings-panel-head">
           <div>
-            <strong>${(globalThis.PlatformLanguage?.text("proposals","m_72f0a27f9ae574","Proposal Settings") ?? "Proposal Settings")}</strong>
-            <span>${(globalThis.PlatformLanguage?.text("proposals","m_2483b19ab4ae38","Defaults for new proposals in this branch") ?? "Defaults for new proposals in this branch")}</span>
+            <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_72f0a27f9ae574","Proposal Settings") ?? "Proposal Settings")}</strong>
+            <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_2483b19ab4ae38","Defaults for new proposals in this branch") ?? "Defaults for new proposals in this branch")}</span>
           </div>
-          <button type="button" class="r-settings-panel-close" id="rProposalSettingsClose" aria-label="${(globalThis.PlatformLanguage?.text("proposals","m_cb25aa10e60505","Close proposal settings") ?? "Close proposal settings")}" data-fm-tooltip="Back to proposal preview"><i class="fas fa-times"></i></button>
+          <button type="button" class="r-settings-panel-close" id="rProposalSettingsClose" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_cb25aa10e60505","Close proposal settings") ?? "Close proposal settings")}" data-fm-tooltip="Back to proposal preview"><i class="fas fa-times"></i></button>
         </div>
         <div class="r-settings-panel-body" id="rProposalSettingsPanel"></div>
       </div>
@@ -12001,7 +11997,7 @@
     root.querySelector('#rProposalSettingsClose')?.addEventListener('click', closeProposalSettingsPanel);
     const panel = root.querySelector('#rProposalSettingsPanel');
     if (!window.FirstMateSettingsPages?.mount) {
-      panel.innerHTML = `<div class="cs-note" style="padding:18px">${(globalThis.PlatformLanguage?.text("proposals","m_728f33c2030828","Proposal settings library is unavailable.") ?? "Proposal settings library is unavailable.")}</div>`;
+      panel.innerHTML = `<div class="cs-note" style="padding:18px">${(globalThis.PlatformLanguage?.htmlText("proposals","m_728f33c2030828","Proposal settings library is unavailable.") ?? "Proposal settings library is unavailable.")}</div>`;
       return;
     }
     window.FirstMateSettingsPages.mount(panel, 'proposals', {

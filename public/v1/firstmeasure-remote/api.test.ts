@@ -79,3 +79,25 @@ test("query accepts structured JSON only", async () => {
   assert.equal(response.json().received.group_by, "status");
   await app.close();
 });
+
+test("discovery is authenticated and describes only the remote read-only routes", async () => {
+  const app = await testApp();
+  const url = "/v1/firstmeasure-remote/openapi.json";
+  const rejected = await app.inject({ method: "GET", url });
+  assert.equal(rejected.statusCode, 401);
+
+  const response = await app.inject({ method: "GET", url, headers: { authorization: `Bearer ${key}` } });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers["cache-control"], "no-store, max-age=0");
+  const document = response.json();
+  assert.equal(document.openapi, "3.1.0");
+  assert.deepEqual(Object.keys(document.paths).sort(), [
+    "/v1/firstmeasure-remote/openapi.json",
+    "/v1/firstmeasure-remote/ping",
+    "/v1/firstmeasure-remote/query",
+    "/v1/firstmeasure-remote/summary"
+  ]);
+  assert.deepEqual(Object.keys(document.paths["/v1/firstmeasure-remote/query"]), ["post"]);
+  assert.deepEqual(document.security, [{ bearerAuth: [] }]);
+  await app.close();
+});

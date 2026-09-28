@@ -225,7 +225,7 @@ Findings from the live partner portal (portal.sandbox.getfwd.com):
 - **Live state**: business `bus_3HsMe26OmzoG4c9FgyWcYPfGdBb` "FM Sandbox Test Co"; applications `aapp_3HsMq6UulMP7aFjLGvVBR6GVv7t` + `aapp_3HsNsPWRlSnXwYBUTZPZiJq7msR` (the second created through OUR routes end-to-end) — both DRAFT.
 - ~~**BLOCKER**: API submission returns *"You cannot submit applications via the API because this capability is not enabled for your integration"* → rep must enable it.~~ **RESOLVED-BY-DESIGN (2026-08-14)**: the rep confirmed API submission is not available to partners at all — the HOSTED application workflow is the intended path (our API fields pre-populate it; merchant completes signatures there). The wizard now ends in a hosted-link hand-off and `v2.application.submitted` closes the loop, so no enablement is needed. No accounts exist yet, so charge/test-card/payout/SDK testing is armed but waiting (`scripts/forward-sandbox-e2e.mjs` auto-runs the payments phase once `GET /accounts` shows a processing-enabled account).
 - **Hosted-surface wire shapes (LIVE-VERIFIED 2026-08-14)**:
-  - `POST /applications/{id}/link` (empty body) → `{ link_id: "aapplink_…", uri: "https://application.sandbox.getfwd.com/aapplink_…", expiration_date, expired }` — 14-day expiry, regenerable at will (each POST mints a fresh link). A `redirect_url` in the POST body is silently ignored; the documented `redirect_url` lives on the application's `partner_data` (PartnerDataDto on POST/PUT /applications) — i.e. it IS per-application, set through the application body, not the link call. Untested live (would require an application PUT); the adapter can carry it under the application payload when we want post-completion return-to-FirstMate.
+  - `POST /applications/{id}/link` (empty body) → `{ link_id: "aapplink_…", uri: "https://application.sandbox.getfwd.com/aapplink_…", expiration_date, expired }` — 14-day expiry, regenerable at will (each POST mints a fresh link). A `redirect_url` in the POST body is silently ignored; the documented `redirect_url` lives on the application's `partner_data` (PartnerDataDto on POST/PUT /applications). FirstMate now sets it to `/portal/payments-setup-complete.html` on its allowlisted public origin (or configured local `PUBLIC_BASE_URL`) on new drafts and updates existing drafts before link generation. The Forward-hosted completion redirect still needs a live sandbox confirmation.
   - Application GET now known to echo `application_link_id` / `application_link_uri`, plus `requires_bank_account_file_ids_on_submit`, `comments_from_underwriting`, `business_users_exist`.
   - `POST /users` accepts `{ first_name, last_name, email, business_id }` → bare `{ id: "user_…", type: "BUSINESS", …, status: "ACTIVE" }`. `GET /users` REQUIRES a `type` query param (400 without); `email`/`business_id` filters work, standard `{data, meta}` envelope.
   - `POST /users/{id}/login_url` (no body) → `{ id, login_url }` — single-use magic link on the partner merchant-portal domain (`5249495063.partner.sandbox.getfwd.com/auth/magic-link…`). A `redirect_url` body field is ignored.
@@ -268,6 +268,19 @@ Remaining once keys arrive: 4 env vars, register webhook endpoint URL, flip an o
 **Build status (2026-08-13): ALL EIGHT ITEMS DONE**, uncommitted, verified: `test:payments` 35/35, `test:capabilities` 11/11, `tsc --noEmit` clean, five Playwright harnesses green (`merchant-onboarding-e2e` 29/29, `finance-payouts-e2e` 32/32, `payment-intake-e2e` 23/23 ×5 consecutive, `autopay-e2e` 14/14, `boarding-admin-e2e` 22/22). Key artifacts: providers/{types,forward,mock}.ts, merchant_config.ts, webhooks_forward.ts, intake.ts, autopay.ts, payouts.ts, reconciliation.ts, admin_api.ts; UI in settings/company.js (wizard), financials/app.js (Payouts view), payment-intake.js (tokenization + saved methods + surcharge), money/project.js (autopay card), measure/internal boarding_ops.js (staff console). Two real pre-existing bugs found and fixed along the way: the intake modal read its form after replacing it (all submissions carried amount 0), and a lossy embedded-proposal save could strip the portal's public token so the portal demanded an already-paid deposit (server-side fallback + retry added; write-side fix tracked separately). Deferred: unmatched-settlements UI wiring (backend + client done), Forward `GET /unmatched_settlements` passthrough (needs keys), crew/doc-widget Elements mounts beyond the doc-output charge path.
 
 ## 7. Immediate next steps
+
+### Hosted application return and bank linking (2026-09-24)
+
+In the Forward sandbox, `partner_data.redirect_url` sends the applicant to
+FirstMate's return page immediately after application submission. The observed
+flow no longer displays Forward's subsequent bank-account prompt before that
+return. Forward's boarding guide recommends adding a bank account during the
+hosted application, and its application/account guide says funding details can
+also be collected later. The published API documents the redirect field but
+does not identify a separate post-bank redirect control. Keep payout-bank
+status visible and arrange later linking through Forward's merchant portal;
+ask Forward whether they support a redirect only after the bank prompt before
+claiming that this end-to-end sequence is restored.
 
 1. Get sandbox API keys (public + private) and webhook signing secret.
 2. Send the open-questions list to the rep.

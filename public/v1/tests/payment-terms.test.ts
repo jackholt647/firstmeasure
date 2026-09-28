@@ -1,5 +1,6 @@
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
+import { signingConsent } from "./helpers/document-signing.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -212,9 +213,10 @@ test("signing a document-engine proposal mints receivables from params.payment_s
 
   await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/issue`, {});
   const sent = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/send`, {
+    consent_contact: "support@example.test",
     recipients: [{ name: "Terms Customer", email: "terms@example.test", role: "customer" }]
   });
-  const token = sent.snapshot.public_token as string;
+  const token = sent.signing.invitations.find((i:any)=>i.signer_id==="customer").token as string;
 
   // Percent rows resolve in the rendered widget too (the old $0.00 bug).
   const widgetData = sent.snapshot.widget_data as Record<string, any>;
@@ -227,6 +229,7 @@ test("signing a document-engine proposal mints receivables from params.payment_s
   }
 
   const signed = await client.request("POST", `/v1/documents/public/${token}/outputs/sig_customer`, {
+    ...(await signingConsent(client,token)),
     value: { type: "typed", text: "Terms Customer", signer_name: "Terms Customer", style: "style-classic" },
     evidence: { timezone: "America/Chicago", locale: "en-US" }
   });
@@ -263,9 +266,12 @@ test("signing a document-engine proposal mints receivables from params.payment_s
   const changeOrderId = changeOrder.document.id as string;
   await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${changeOrderId}/issue`, {});
   const coSent = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${changeOrderId}/send`, {
+    consent_contact: "support@example.test",
     recipients: [{ name: "Terms Customer", email: "terms@example.test", role: "customer" }]
   });
-  const coSigned = await client.request("POST", `/v1/documents/public/${coSent.snapshot.public_token}/outputs/sig_customer`, {
+  const coToken = coSent.signing.invitations.find((i:any)=>i.signer_id==="customer").token as string;
+  const coSigned = await client.request("POST", `/v1/documents/public/${coToken}/outputs/sig_customer`, {
+    ...(await signingConsent(client,coToken)),
     value: { type: "typed", text: "Terms Customer", signer_name: "Terms Customer", style: "style-classic" },
     evidence: { timezone: "America/Chicago", locale: "en-US" }
   });

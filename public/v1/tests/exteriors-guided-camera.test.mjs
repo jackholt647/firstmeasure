@@ -12,6 +12,7 @@ async function setup(t,{denied=false,width=390,height=844,native=null}={}){
  await page.route('https://capture.test/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}.r-left{height:100dvh;box-sizing:border-box;display:flex;flex-direction:column;padding:12px;gap:8px}.r-top{height:42px;flex-shrink:0}.r-form{display:flex;flex:1;min-height:0}.r-scroll{flex:1;min-height:0;overflow:auto}button{font:inherit}</style></head><body><div id="rOverlay" class="r-overlay mobile-order mobile-order-photos"><div class="r-left"><div class="r-top">Property address</div><form class="r-form"><div class="r-scroll"><div id="rStepType"><div id="rTypePill"></div></div></div></form></div></div></body></html>'}));
  await page.goto('https://capture.test/');
  await page.evaluate(({denied,native})=>{
+  window.PlatformCommerce={credit:n=>'$'+Number(n||0).toFixed(2)};
   window.cameraCalls=0;const get=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
   navigator.mediaDevices.getUserMedia=async opts=>{window.cameraCalls++;if(denied)throw new DOMException('denied','NotAllowedError');return get(opts);};
   window.Portal={cfg:{serverEndpoint:'/upload'},capabilities:{value:()=>true},util:{escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;'),injectCSS:(id,css)=>{const style=document.createElement('style');style.textContent=css;document.head.append(style);},postAction:async()=>({data:{success:true,base_price:25,options:[{key:'exteriors_standard',amount:25}]}})}};
@@ -200,8 +201,49 @@ test('final review separates report details from eight primary photos and their 
  await page.waitForFunction(()=>Portal.test.files.get('0:front')?.media_id);
  await page.evaluate(()=>Portal.ExteriorOrder.setMobilePage('final'));
  assert.equal(await page.locator('section[aria-label="Report details"]').count(),1);
+ assert.equal(await page.locator('.ext-pages>h3').textContent(),'Review your full structural report');
+ assert.equal(await page.locator('section[aria-label="Photos"]>h3').count(),0);
+ assert.equal(await page.locator('.ext-pages').evaluate(el=>{const photos=el.querySelector('section[aria-label="Photos"]'),details=el.querySelector('section[aria-label="Report details"]');return !!(photos.compareDocumentPosition(details)&Node.DOCUMENT_POSITION_FOLLOWING)&&details.nextElementSibling.textContent.includes('Delivery timing');}),true);
+
  assert.equal(await page.locator('section[aria-label="Photos"] .ext-review-view').count(),8);
  assert.equal(await page.locator('section[aria-label="Photos"] img').count(),1);
  assert.match(await page.locator('section[aria-label="Photos"]').textContent(),/Required angles1 \/ 8/);
  assert.doesNotMatch(await page.locator('section[aria-label="Report details"]').textContent(),/Required references|Extra references/);
+});
+
+test('eight required angles on the final page enable ordering; any remaining blocker is explained next to the order controls',async t=>{
+ const page=await setup(t);
+ await page.evaluate(()=>{
+  Portal.test.stopCamera();
+  for(const view of ['front','front-left','left','back-left','back','back-right','right','front-right'])Portal.test.files.set('0:'+view,{name:view,media_id:'media-'+view,url:'data:,'});
+  Portal.test.files.set('0:additional-extra',{name:'extra',media_id:'media-extra',url:'data:,',angleKey:'0:front'});
+  // Mirrors project-request: submit state was computed while the exterior order was still on the photos page.
+  window.readyBeforePageSync=Portal.ExteriorOrder.ready();
+  Portal.ExteriorOrder.setMobilePage('final');
+ });
+ assert.equal(await page.evaluate(()=>readyBeforePageSync),false);
+ assert.match(await page.locator('section[aria-label="Photos"]').textContent(),/Required angles8 \/ 8/);
+ assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.ready()),true,'8/8 on the final review must be orderable once readiness is re-evaluated');
+ assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.orderBlocker()),'');
+ assert.equal(await page.locator('[data-order-blocker]').count(),0);
+ assert.equal(await page.locator('.ext-test-notice').count(),0);
+
+ await page.evaluate(()=>{Portal.test.files.set('tray:loose',{name:'loose',media_id:'media-loose',url:'data:,'});Portal.ExteriorOrder.render();});
+ assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.ready()),false);
+ assert.match(await page.locator('[data-order-blocker]').textContent(),/Assign or remove 1 unassigned photo before ordering/);
+
+ await page.evaluate(()=>{Portal.test.files.delete('tray:loose');Portal.test.files.set('0:additional-bad',{name:'bad',url:'data:,',error:'Upload failed'});Portal.ExteriorOrder.render();});
+ assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.ready()),false);
+ assert.match(await page.locator('[data-order-blocker]').textContent(),/1 photo failed to upload/);
+});
+
+test('project-request evaluates order readiness after syncing the exterior page, never from a stale submit state',async()=>{
+ const app=await readFile(new URL('../../libraries/apps/project-request/app.js',import.meta.url),'utf8');
+ const body=name=>{const start=app.indexOf('function '+name+'(');assert.ok(start>=0,name);return app.slice(start,app.indexOf('\n  function ',start+10));};
+ const pager=body('syncMobileOrderPagination');
+ const syncAt=pager.indexOf('ExteriorOrder.setMobilePage(mobileOrderPage)');
+ const readinessAt=pager.indexOf('orderSubmitBlocked()');
+ assert.ok(syncAt>=0&&readinessAt>syncAt,'order button readiness must be computed after the exterior page changes');
+ assert.match(pager,/order\.disabled = !orderVisible \|\| blocked/);
+ assert.match(body('updateSubmitLabel'),/submit\.disabled = orderSubmitBlocked\(\);/);
 });

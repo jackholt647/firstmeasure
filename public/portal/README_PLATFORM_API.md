@@ -85,7 +85,7 @@ Notifications rule:
 - Notifications live in the `notifications` collection. They target `target_user_ids`, `target_role_ids`, or both.
 - User-specific state lives on the user document at `notification_state.{notificationId}`. This stores `seen_at`, `dismissed_at`, and `completed_at`.
 - `manual_dismissible` controls whether the front end offers a Done/Dismiss action.
-- `push: true` currently only appends test delivery rows to `push_log`; real push transport can be added later behind the same API.
+- `push: true` dispatches to registered Android and iOS devices when FCM/APNs credentials are configured and records provider outcomes in `push_log`.
 - Browser code should use `public/libraries/platform-notifications/platform-notifications.js` / `window.PlatformNotifications`, not direct user-state writes.
 
 Branch/global rule:

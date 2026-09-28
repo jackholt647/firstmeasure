@@ -8,18 +8,18 @@
  * member reading that channel), not unrestricted access.
  */
 const bundles: Record<string, { actions?: readonly string[]; data?: readonly string[] }> = {
-  view_projects: { actions: ["projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["projects.record", "work.records", "organization.profile", "referrals.eligibility"] },
-  manage_projects: { actions: ["projects.lead.create", "work.node.patch", "work.node.transition"] },
-  view_contacts: { data: ["customers.record"] },
+  view_projects: { actions: ["projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["custom-fields-project.contract", "custom-fields-project.values", "custom-fields-organization.contract", "custom-fields-organization.values", "projects.record", "work.records", "organization.profile", "referrals.eligibility"] },
+  manage_projects: { actions: ["custom-fields.project.write", "custom-fields.contact.write","projects.lead.create", "work.node.patch", "work.node.transition"] },
+  view_contacts: { data: ["custom-fields-contact.contract", "custom-fields-contact.values","customers.record"] },
   view_schedule: { actions: ["scheduling.availability"], data: ["calendar.record"] },
   manage_schedule: { actions: ["scheduling.slot.hold", "scheduling.confirmation.set", "scheduling.reschedule.review"] },
   view_financials: { actions: ["payments.ledger.list", "payments.project.summary"], data: ["payments.records", "financials.records"] },
   manage_project_billing: { actions: ["payments.invoice.create", "payments.invoice.due", "payments.invoice.void", "payments.payment.clear"] },
   refund_payments: { actions: ["payments.payment.refund"] },
   manage_billing: { data: ["billing.balance"] },
-  view_documents: { actions: ["documents.instance.read"], data: ["documents.params", "documents.outputs", "document-modules.value"] },
-  manage_documents: { actions: ["documents.workflow.update", "document-modules.instance.create", "document-modules.instance.refresh", "document-modules.instance.command", "document-modules.instance.freeze", "document-modules.export.write", "document-modules.document.generate", "document-modules.document.materialize"] },
-  issue_documents: { actions: ["documents.instance.issue"] },
+  view_documents: { actions: ["documents.instance.read", "documents.signing.status"], data: ["documents.params", "documents.outputs", "document-modules.value"] },
+  manage_documents: { actions: ["documents.instance.create", "documents.workflow.update", "document-modules.instance.create", "document-modules.instance.refresh", "document-modules.instance.command", "document-modules.instance.freeze", "document-modules.export.write", "document-modules.document.generate", "document-modules.document.materialize"] },
+  issue_documents: { actions: ["documents.instance.issue", "documents.instance.send"] },
   view_materials: { actions: ["materials.project.lists", "materials.list.read", "materials.order.read"], data: ["materials.record"] },
   view_proposals: { actions: ["proposals.project.list"], data: ["proposals.record"] },
   manage_proposals: { actions: ["proposals.create", "proposals.patch", "proposals.snapshot"] },
@@ -50,7 +50,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   "equipment.view": { actions: ["equipment.fleet.list", "equipment.unit.history"], data: ["equipment.records"] },
   "equipment.service": { actions: ["equipment.maintenance.cancel", "equipment.maintenance.complete", "equipment.maintenance.open", "equipment.meter.record", "equipment.unit.checkIn", "equipment.unit.checkOut"] },
   manage_company_users: { actions: ["workforce.users.list"], data: ["workforce.records"] },
-  manage_company_settings: { data: ["scopes.records"] },
+  manage_company_settings: { actions:["custom-fields.organization.write"], data: ["scopes.records"] },
   manage_training: { actions: ["training.course.progress"] },
   // Membership and per-subject checks are the permission for these exports.
   "": { actions: ["channels.list", "channels.messages.list", "channels.message.react", "training.courses.mine"], data: ["channels.records", "training.records"] }

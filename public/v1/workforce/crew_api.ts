@@ -2032,8 +2032,27 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
         capture_mode: "in_person",
         witnessed_by_user_id: actor.ctx.userId
       }
-    }, {}, actor.ctx, { surface: "field" });
+    }, { ip_address: request.ip, user_agent: cleanText(request.headers["user-agent"]), request_id: request.id }, actor.ctx, { surface: "field" });
     return { ok: true, document: result.document, snapshot: result.snapshot, status: result.status };
+  });
+  app.post("/organizations/:orgId/crew/projects/:projectId/signatures/:documentId/signing/prepare", async request => {
+    const orgId = getParam(request.params, "orgId"), projectId = getParam(request.params, "projectId"), documentId = getParam(request.params, "documentId");
+    const actor = await requireCrewActor(request, orgId, "crew.signatures.present", true);
+    await assignedProject(orgId, projectId, actor);
+    const document = await readDocumentInstance(orgId, documentId);
+    if (cleanText(document.project_id) !== projectId) throw notFound("document_not_found", "Document was not found on this project.");
+    const signing = await import("../documents/signing/service.js");
+    const access = await signing.presentedSigningAccess(orgId, documentId, cleanText(requestBody(request).field), actor.ctx);
+    return { ok: true, ...(await signing.prepareSigning(access)), presenter_attestation_required: true };
+  });
+  app.get("/organizations/:orgId/crew/projects/:projectId/signatures/:documentId/pdf", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId"), projectId = getParam(request.params, "projectId"), documentId = getParam(request.params, "documentId");
+    const actor = await requireCrewActor(request, orgId, "crew.signatures.present");
+    await assignedProject(orgId, projectId, actor);
+    const document = await readDocumentInstance(orgId, documentId);
+    if (cleanText(document.project_id) !== projectId) throw notFound("document_not_found", "Document was not found on this project.");
+    const file = await (await import("../documents/service.js")).readDocumentPdfFile(orgId, documentId);
+    return reply.type("application/pdf").header("Cache-Control", "private, no-store").send(file.bytes);
   });
 
   app.post("/organizations/:orgId/crew/projects/:projectId/signatures/:documentId/payments/:key", async (request, reply) => {

@@ -126,7 +126,7 @@
     return LEVEL_PRESET_META.map(meta => {
       const active = String(activeLevel || '').toLowerCase().trim() === meta.v ? 'active' : '';
       return `<button class="fmu-roleBtn ${active}" data-role="${escapeHtml(meta.v)}" type="button" ${isDisabled ? 'disabled' : ''}><i class="fas ${meta.icon}"></i> ${escapeHtml(meta.label)}</button>`;
-    }).join('') + `<button class="fmu-roleBtn custom ${String(String(activeLevel || '').toLowerCase().trim() === 'custom' ? 'active' : '')}" data-role="custom" type="button" ${String(isDisabled ? 'disabled' : '')}><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.text("settings","m_b8a62e4ea304dc"," Custom") ?? " Custom")}</button>`;
+    }).join('') + `<button class="fmu-roleBtn custom ${String(String(activeLevel || '').toLowerCase().trim() === 'custom' ? 'active' : '')}" data-role="custom" type="button" ${String(isDisabled ? 'disabled' : '')}><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_b8a62e4ea304dc"," Custom") ?? " Custom")}</button>`;
   }
   function renderPermissionButtons(items, disabled){
     const isDisabled = !!disabled;
@@ -908,21 +908,21 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
       paneUsers.innerHTML = `
         <div class="fmu-top">
           <div>
-            <div class="fmu-title">${(globalThis.PlatformLanguage?.text("settings","m_50ab7fe67b1e45","Users") ?? "Users")}</div>
-            <div class="fmu-shared-note">${(globalThis.PlatformLanguage?.text("settings","m_58fd0b9648f343","Invite users, manage access, and edit permissions.") ?? "Invite users, manage access, and edit permissions.")}</div>
+            <div class="fmu-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_50ab7fe67b1e45","Users") ?? "Users")}</div>
+            <div class="fmu-shared-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_58fd0b9648f343","Invite users, manage access, and edit permissions.") ?? "Invite users, manage access, and edit permissions.")}</div>
           </div>
           <div class="fmu-actions">
-            ${String(canAddDelete ? `<button class="fmu-btn" id="cuAdd"><i class="fas fa-user-plus"></i> Add user</button>` : '')}
+            ${String(canAddDelete ? `<button class="fmu-btn" id="cuAdd"><i class="fas fa-user-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e09715b775ce9e"," Add user") ?? " Add user")}</button>` : '')}
             <button class="fmu-btn toggle ${String(usersState.showPerms ? 'on' : '')}" id="cuPerms" type="button" aria-pressed="${String(usersState.showPerms ? 'true' : 'false')}"><i class="fas ${String(usersState.showPerms ? 'fa-toggle-on' : 'fa-toggle-off')}"></i> ${String(usersState.showPerms ? 'Hide permissions' : 'Show permissions')}</button>
-            <button class="fmu-btn" id="cuReload"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.text("settings","m_99dd7eb1fa4719"," Reload") ?? " Reload")}</button>
+            <button class="fmu-btn" id="cuReload"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_99dd7eb1fa4719"," Reload") ?? " Reload")}</button>
           </div>
         </div>
         <div id="cuMsg" class="fmu-shared-note"></div>
         <table class="fmu-table">
           <thead><tr>
-            <th class="fmu-th userHead">${(globalThis.PlatformLanguage?.text("settings","m_dfd6687ea85fad","User") ?? "User")}</th>
-            <th class="fmu-th">${(globalThis.PlatformLanguage?.text("settings","m_aebe4495d54bc2","Permission Level") ?? "Permission Level")}</th>
-            <th class="fmu-th">${(globalThis.PlatformLanguage?.text("settings","m_1352cafa75b8da","Status") ?? "Status")}</th>
+            <th class="fmu-th userHead">${(globalThis.PlatformLanguage?.htmlText("settings","m_dfd6687ea85fad","User") ?? "User")}</th>
+            <th class="fmu-th">${(globalThis.PlatformLanguage?.htmlText("settings","m_aebe4495d54bc2","Permission Level") ?? "Permission Level")}</th>
+            <th class="fmu-th">${(globalThis.PlatformLanguage?.htmlText("settings","m_1352cafa75b8da","Status") ?? "Status")}</th>
             <th class="fmu-th" style="width:56px;"></th>
           </tr></thead>
           <tbody id="cuBody"></tbody>
@@ -1038,8 +1038,8 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
       const footer = document.createElement('div');
       footer.className = 'fmu-mactions';
       footer.innerHTML = `
-        <button class="fmu-shared-btn ghost" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.text("settings","m_842e54dc81e3fa"," Cancel") ?? " Cancel")}</button>
-        <button class="fmu-shared-btn primary" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.text("settings","m_bfcbd339764266"," Save changes") ?? " Save changes")}</button>
+        <button class="fmu-shared-btn ghost" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_842e54dc81e3fa"," Cancel") ?? " Cancel")}</button>
+        <button class="fmu-shared-btn primary" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_bfcbd339764266"," Save changes") ?? " Save changes")}</button>
       `;
       m.el.querySelector('.fmu-modal').appendChild(footer);
       const elName = m.el.querySelector('#cuEditName');
@@ -1090,11 +1090,11 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
       const suspendIcon  = u?.disabled ? 'fa-play' : 'fa-pause';
       floatingMenu.innerHTML = `
         <button class="fmu-mi ${String(canEdit ? '' : 'disabled')}" type="button" data-act="edit" ${String(canEdit ? '' : 'disabled')}>
-          <span>${(globalThis.PlatformLanguage?.text("settings","m_5b9378df7220c1","Edit") ?? "Edit")}</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5b9378df7220c1","Edit") ?? "Edit")}</span>
           <i class="fas fa-pen"></i>
         </button>
         <button class="fmu-mi ${String(canResend ? '' : 'disabled')}" type="button" data-act="resend" ${String(canResend ? '' : 'disabled')}>
-          <span>${(globalThis.PlatformLanguage?.text("settings","m_ff95e546b6a785","Resend invite") ?? "Resend invite")}</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ff95e546b6a785","Resend invite") ?? "Resend invite")}</span>
           <i class="fas fa-paper-plane"></i>
         </button>
         <button class="fmu-mi ${String(canSuspend ? '' : 'disabled')}" type="button" data-act="suspend" ${String(canSuspend ? '' : 'disabled')}>
@@ -1102,7 +1102,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
           <i class="fas ${String(suspendIcon)}"></i>
         </button>
         <button class="fmu-mi ${String(canDelete ? '' : 'disabled')}" type="button" data-act="delete" ${String(canDelete ? '' : 'disabled')}>
-          <span>${(globalThis.PlatformLanguage?.text("settings","m_4fc60207629a44","Delete") ?? "Delete")}</span>
+          <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4fc60207629a44","Delete") ?? "Delete")}</span>
           <i class="fas fa-trash"></i>
         </button>
       `;
@@ -1190,8 +1190,8 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
           const footer = document.createElement('div');
           footer.className = 'fmu-mactions';
           footer.innerHTML = `
-            <button class="fmu-shared-btn ghost" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.text("settings","m_842e54dc81e3fa"," Cancel") ?? " Cancel")}</button>
-            <button class="fmu-shared-btn primary" type="button"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("settings","m_90e27d705bee80"," Delete") ?? " Delete")}</button>
+            <button class="fmu-shared-btn ghost" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_842e54dc81e3fa"," Cancel") ?? " Cancel")}</button>
+            <button class="fmu-shared-btn primary" type="button"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_90e27d705bee80"," Delete") ?? " Delete")}</button>
           `;
           m.el.querySelector('.fmu-modal').appendChild(footer);
           const [btnCancel, btnDo] = footer.querySelectorAll('button');
@@ -1258,7 +1258,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
                   <button class="fmu-userName fmu-userOpen" type="button" data-act="open-user" data-user-id="${String(escapeHtml(id))}"><span>${String(escapeHtml(name))}</span></button>
                   <div class="fmu-userEmail">${String(escapeHtml(email))}</div>
                 </div>
-                ${String(isMe ? `<span class="fmu-tag you"><i class="fas fa-user"></i> You</span>` : '')}
+                ${String(isMe ? `<span class="fmu-tag you"><i class="fas fa-user"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_77a0c5b9d8ac90"," You") ?? " You")}</span>` : '')}
               </div>
             </td>
             <td class="fmu-td fmu-centerCell">
@@ -1268,7 +1268,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
               <span class="fmu-pill ${String(st.cls)}"><i class="fas ${String(st.ico)}"></i> ${String(escapeHtml(st.t))}</span>
             </td>
             <td class="fmu-td fmu-actionsCell">
-              ${String(canShowKebab ? `<button class="fmu-kebab" type="button" data-act="kebab" aria-label="Actions"><i class="fas fa-ellipsis-vertical"></i></button>` : '')}
+              ${String(canShowKebab ? `<button class="fmu-kebab" type="button" data-act="kebab" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_6067958dea3386","Actions") ?? "Actions")}"><i class="fas fa-ellipsis-vertical"></i></button>` : '')}
             </td>
           </tr>
           <tr class="fmu-trPerm ${String(isMe ? 'me' : '')}" data-user-id="${String(escapeHtml(id))}" data-deleted="${String(isDeleted ? '1' : '0')}" style="${String(isDeleted || !usersState.showPerms ? 'display:none;' : '')}">
@@ -1284,7 +1284,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
                     </div>
                   </div>
                   <div class="fmu-permGrid">
-                    <div class="fmu-permLabel">${(globalThis.PlatformLanguage?.text("settings","m_0ded144729a113","Permissions") ?? "Permissions")}</div>
+                    <div class="fmu-permLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_0ded144729a113","Permissions") ?? "Permissions")}</div>
                     ${String(permBtns)}
                   </div>
                 </div>
@@ -1616,8 +1616,8 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
           const footer = document.createElement('div');
           footer.className = 'fmu-mactions';
           footer.innerHTML = `
-            <button class="fmu-shared-btn ghost" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.text("settings","m_842e54dc81e3fa"," Cancel") ?? " Cancel")}</button>
-            <button class="fmu-shared-btn primary" type="button"><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.text("settings","m_45e3a1c4c7599a"," Send invite") ?? " Send invite")}</button>
+            <button class="fmu-shared-btn ghost" type="button"><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_842e54dc81e3fa"," Cancel") ?? " Cancel")}</button>
+            <button class="fmu-shared-btn primary" type="button"><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_45e3a1c4c7599a"," Send invite") ?? " Send invite")}</button>
           `;
           m.el.querySelector('.fmu-modal').appendChild(footer);
           const elName = m.el.querySelector('#cuNewName');
@@ -1635,7 +1635,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
             if (elAvatarInitial) elAvatarInitial.textContent = fallback;
             if (!elAvatarBtn) return;
             if (avatarState.previewUrl){
-              elAvatarBtn.innerHTML = `<img src="${String(escapeHtml(avatarState.previewUrl))}" alt="${(globalThis.PlatformLanguage?.text("settings","m_01681f36aa7ae4","Profile picture") ?? "Profile picture")}"><span class="fmu-userAvatarEdit"><i class="fas fa-camera"></i></span>`;
+              elAvatarBtn.innerHTML = `<img src="${String(escapeHtml(avatarState.previewUrl))}" alt="${(globalThis.PlatformLanguage?.htmlText("settings","m_01681f36aa7ae4","Profile picture") ?? "Profile picture")}"><span class="fmu-userAvatarEdit"><i class="fas fa-camera"></i></span>`;
             } else {
               elAvatarBtn.innerHTML = `<span id="cuNewAvatarInitial">${escapeHtml(fallback)}</span><span class="fmu-userAvatarEdit"><i class="fas fa-camera"></i></span>`;
             }
@@ -1644,7 +1644,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
             if (elRolePresets) elRolePresets.innerHTML = renderRolePresetButtons(inviteState.level, false);
             if (elPermHint) elPermHint.textContent = permissionHintText(inviteState.level, true);
             if (elPermGrid) {
-              elPermGrid.innerHTML = `<div class="fmu-permLabel">${(globalThis.PlatformLanguage?.text("settings","m_0ded144729a113","Permissions") ?? "Permissions")}</div>${String(renderPermissionButtons(effectivePermsForLevel(inviteState.level, inviteState.perms), false))}`;
+              elPermGrid.innerHTML = `<div class="fmu-permLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_0ded144729a113","Permissions") ?? "Permissions")}</div>${String(renderPermissionButtons(effectivePermsForLevel(inviteState.level, inviteState.perms), false))}`;
             }
             elRolePresets?.querySelectorAll('button[data-role]').forEach(btn=>{
               btn.addEventListener('click', ()=>{

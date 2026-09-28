@@ -366,3 +366,51 @@ test("the activity feed separates human-relevant events from machinery", async (
   assert.ok(catalog.events.some((event: any) => event.name === "proposal.signed" && event.visibility === "activity"));
   assert.ok(catalog.events.some((event: any) => event.name === "work.node.status_changed" && event.visibility === "system"));
 });
+
+test("event notification subscriptions need no scope, preserve preferences and deduplicate events", async () => {
+  const client=createSessionClient();const {orgId}=await register(client);
+  const url=`/v1/platform/organizations/${orgId}/notification-preferences`;
+  const initial=await client.request('GET',url);
+  assert.ok(initial.catalog.some((g:any)=>g.definitions.some((d:any)=>d.key==='event.document.signed')));
+  assert.equal(initial.preferences.in_app['event.document.signed'],false);
+  await client.request('PATCH',url,{in_app:{'event.document.signed':true},push:{'event.document.signed':false}});
+  await client.request('PATCH',url,{in_app:{'measurements.report_status':false}});
+  assert.equal((await client.request('GET',url)).preferences.in_app['event.document.signed'],true);
+  const projectId='notification_subscription_project';await createProject(client,orgId,projectId);
+  const {emitWorkEvent}=await import('../work/engine.js');
+  const event={organization_id:orgId,branch_id:'default',project_id:projectId,type:'document.signed',idempotency_key:'notify_signed_once',payload:{private_value:'must not be copied'}};
+  await emitWorkEvent(event);await emitWorkEvent(event);
+  let notes=(await client.request('GET',`/v1/platform/organizations/${orgId}/notifications`)).notifications.filter((n:any)=>n.preference_key==='event.document.signed');
+  assert.equal(notes.length,1);assert.ok(!JSON.stringify(notes).includes('must not be copied'));
+  await client.request('PATCH',url,{in_app:{'event.document.signed':false}});
+  notes=(await client.request('GET',`/v1/platform/organizations/${orgId}/notifications`)).notifications.filter((n:any)=>n.preference_key==='event.document.signed');
+  assert.equal(notes.length,0);
+  const invalid=await client.raw('PATCH',url,{push:{'event.not.registered':true}});assert.equal(invalid.statusCode,400);
+});
+
+test("workflow catalog includes empty scopes and declared code alerts with branch isolation", async()=>{
+ const client=createSessionClient();const {orgId}=await register(client);
+ const {saveScopeTemplate}=await import('../scopes/storage.js');
+ const {notificationCatalog,scopeNotificationDefinitions,workflowPreferenceKey}=await import('../platform/notification_catalog.js');
+ const {workflowNotificationInput}=await import('../platform/notification_events.js');
+ const empty={id:'empty_notifications',name:'Empty roofing workflow',work_plan:{root_nodes:[{id:'roof',title:'Roof'}]}};
+ await saveScopeTemplate(orgId,'default',empty);
+ const definition={id:'roof_notifications',name:'Roofing projects',notifications:[{id:'shingles_done',label:'Shingles completed',defaults:{in_app:true,push:false}}],work_plan:{root_nodes:[{id:'roof',title:'Roof',automation_bindings:{onCompleted:[{id:'notify_roof',automation:'notification.create.v1',input:{title:'Roof finished'}}]}}]}};
+ await saveScopeTemplate(orgId,'default',definition);
+ const catalog=await notificationCatalog(orgId);
+ assert.equal(catalog.find(g=>g.id==='scope.empty_notifications')?.definitions.length,0);
+ const group=catalog.find(g=>g.id==='scope.roof_notifications')!;assert.equal(group.definitions.length,2);
+ const key=workflowPreferenceKey('default','roof_notifications','shingles_done');assert.ok(group.definitions.some(d=>d.key===key));
+ const event={organization_id:orgId,branch_id:'default',type:'work.node.completed'};
+ const plan={template_id:'roof_notifications',template_version:1};
+ const result=await workflowNotificationInput(event,plan,{}, {automation:'scope.code.run.v1'},'code',{notification_id:'shingles_done',title:'Done'});
+ assert.equal(result.preference_key,key);assert.equal(result.push,true);
+ assert.deepEqual(result.preference_defaults,{in_app:true,push:false});
+ await assert.rejects(workflowNotificationInput(event,plan,{}, {automation:'scope.code.run.v1'},'code',{notification_id:'undeclared'}));
+ const otherKeys=scopeNotificationDefinitions('other','roof_notifications',definition).map(d=>d.key);assert.ok(!otherKeys.includes(key));
+ const foreign=await client.raw('PATCH',`/v1/platform/organizations/${orgId}/notification-preferences?branch_id=other`,{push:{[key]:true}});assert.equal(foreign.statusCode,400);
+ await client.request('PATCH',`/v1/platform/organizations/${orgId}/notification-preferences`,{push:{[key]:true}});
+ const changed={...definition,name:'Renamed roofing',notifications:[{id:'shingles_done',label:'New wording',defaults:{in_app:true,push:false}}]};
+ await saveScopeTemplate(orgId,'default',changed);
+ assert.equal((await client.request('GET',`/v1/platform/organizations/${orgId}/notification-preferences`)).preferences.push[key],true);
+});

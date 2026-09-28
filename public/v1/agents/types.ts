@@ -83,6 +83,8 @@ export type AgentLoopConfig = {
   reportResult?: boolean;
   /** How much history to replay into the conversation. Default 40 messages. */
   historyLimit?: number;
+  /** Stop starting new model rounds after this long. Default 5 minutes. */
+  maxDurationMs?: number;
 };
 
 export type AgentSettingsAdapter = {
@@ -103,6 +105,8 @@ export type AgentDefinition = {
   id: string;
   title: string;
   description: string;
+  /** Focused entry points may deliberately omit cross-app tools. Defaults to true. */
+  platformTools?: boolean;
   /** Capability key gating this agent (checked at the route layer). */
   capability?: string;
   /** Pipe-delimited permission string required to chat with this agent. */

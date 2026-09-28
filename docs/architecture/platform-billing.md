@@ -1,5 +1,7 @@
 # Platform billing
 
+Organization signup, market pricing, fixed currencies and FirstMeasure credit display are described in [regional billing](regional-billing.md). Existing subscriptions retain their accepted price and currency snapshots.
+
 Company Settings has one **Billing** tab. It contains the existing FirstMeasure
 credit, auto top-up and monthly statement controls, plus a **Subscriptions &
 usage** section when the user has a configured expanded-platform feature and

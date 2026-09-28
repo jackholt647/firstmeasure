@@ -1702,9 +1702,9 @@
       const editable = typeof this.onTagsChange === 'function' && !!cleanText(photo.media_id || photo.mediaId || photo.id);
       host.innerHTML = `
         ${tags.map((tag) => editable
-          ? `<button type="button" class="fm-photo-tag" data-photo-tag-remove="${String(escapeHtml(tag))}" title="${(globalThis.PlatformLanguage?.text("markup","m_cc0fe15c22053c","Remove tag") ?? "Remove tag")}">#${String(escapeHtml(tag))} <i class="fas fa-xmark"></i></button>`
+          ? `<button type="button" class="fm-photo-tag" data-photo-tag-remove="${String(escapeHtml(tag))}" title="${(globalThis.PlatformLanguage?.htmlText("markup","m_cc0fe15c22053c","Remove tag") ?? "Remove tag")}">#${String(escapeHtml(tag))} <i class="fas fa-xmark"></i></button>`
           : `<span class="fm-photo-tag">#${escapeHtml(tag)}</span>`).join('')}
-        ${editable ? `<span class="fm-photo-tag-editor"><input class="fm-photo-tag-input" data-photo-tag-input placeholder="${(globalThis.PlatformLanguage?.text("markup","m_d98fa45e09de02","Add tag") ?? "Add tag")}" maxlength="64" aria-label="${(globalThis.PlatformLanguage?.text("markup","m_a5ea54eaae7cc4","Add media tag") ?? "Add media tag")}"><button type="button" class="fm-photo-tag-add" data-photo-tag-add aria-label="${(globalThis.PlatformLanguage?.text("markup","m_d98fa45e09de02","Add tag") ?? "Add tag")}"><i class="fas fa-plus"></i></button></span>` : ''}`;
+        ${editable ? `<span class="fm-photo-tag-editor"><input class="fm-photo-tag-input" data-photo-tag-input placeholder="${(globalThis.PlatformLanguage?.htmlText("markup","m_d98fa45e09de02","Add tag") ?? "Add tag")}" maxlength="64" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_a5ea54eaae7cc4","Add media tag") ?? "Add media tag")}"><button type="button" class="fm-photo-tag-add" data-photo-tag-add aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_d98fa45e09de02","Add tag") ?? "Add tag")}"><i class="fas fa-plus"></i></button></span>` : ''}`;
     }
     async setPhotoTags(tagsValue){
       if (typeof this.onTagsChange !== 'function' || this.tagsSaving) return;
@@ -1739,29 +1739,29 @@
           <div class="fm-photo-stage" data-photo-stage>
             <img data-photo-img alt="">
             <video data-photo-video hidden controls autoplay playsinline preload="metadata"></video>
-            <iframe data-media-frame hidden title="${(globalThis.PlatformLanguage?.text("markup","m_95d2aa503390fe","File preview") ?? "File preview")}"></iframe>
+            <iframe data-media-frame hidden title="${(globalThis.PlatformLanguage?.htmlText("markup","m_95d2aa503390fe","File preview") ?? "File preview")}"></iframe>
             <audio data-media-audio hidden controls preload="metadata"></audio>
-            <div class="fm-media-file-fallback" data-media-fallback hidden><i class="fas fa-file-lines"></i><strong data-media-fallback-title>${(globalThis.PlatformLanguage?.text("markup","m_22899574eaa007","File preview unavailable") ?? "File preview unavailable")}</strong><span>${(globalThis.PlatformLanguage?.text("markup","m_b68fe0cee2110f","This file cannot be previewed in the browser.") ?? "This file cannot be previewed in the browser.")}</span><a data-media-fallback-open target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.text("markup","m_237716bb3d8498","Open Original") ?? "Open Original")}</a></div>
+            <div class="fm-media-file-fallback" data-media-fallback hidden><i class="fas fa-file-lines"></i><strong data-media-fallback-title>${(globalThis.PlatformLanguage?.htmlText("markup","m_22899574eaa007","File preview unavailable") ?? "File preview unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("markup","m_b68fe0cee2110f","This file cannot be previewed in the browser.") ?? "This file cannot be previewed in the browser.")}</span><a data-media-fallback-open target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.htmlText("markup","m_237716bb3d8498","Open Original") ?? "Open Original")}</a></div>
             <div class="fm-photo-top">
               <div class="fm-photo-title"><strong data-photo-title></strong><span data-photo-sub></span></div>
               <div class="fm-photo-actions">
                 <div class="fm-photo-actions-wrap">
-                  <button type="button" class="fm-photo-iconbtn" data-photo-actions aria-label="${(globalThis.PlatformLanguage?.text("markup","m_fd0f574164b88e","Item actions") ?? "Item actions")}"><i class="fas fa-ellipsis"></i></button>
+                  <button type="button" class="fm-photo-iconbtn" data-photo-actions aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_fd0f574164b88e","Item actions") ?? "Item actions")}"><i class="fas fa-ellipsis"></i></button>
                   <div class="fm-photo-actions-menu" data-photo-actions-menu>
                     <div data-photo-custom-actions></div>
-                    <button type="button" data-photo-rename><i class="fas fa-i-cursor"></i>${(globalThis.PlatformLanguage?.text("markup","m_7f5b6c585dabfc"," Rename") ?? " Rename")}</button>
-                    <button type="button" data-photo-download-markup><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.text("markup","m_f3ad10eaad3ccf"," Download") ?? " Download")}</button>
-                    <button type="button" data-photo-download-plain><i class="far fa-image"></i>${(globalThis.PlatformLanguage?.text("markup","m_42f3ea50e49555"," Download without Markup") ?? " Download without Markup")}</button>
-                    <button type="button" class="danger" data-photo-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("markup","m_90e27d705bee80"," Delete") ?? " Delete")}</button>
+                    <button type="button" data-photo-rename><i class="fas fa-i-cursor"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_7f5b6c585dabfc"," Rename") ?? " Rename")}</button>
+                    <button type="button" data-photo-download-markup><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_f3ad10eaad3ccf"," Download") ?? " Download")}</button>
+                    <button type="button" data-photo-download-plain><i class="far fa-image"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_42f3ea50e49555"," Download without Markup") ?? " Download without Markup")}</button>
+                    <button type="button" class="danger" data-photo-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_90e27d705bee80"," Delete") ?? " Delete")}</button>
                   </div>
                 </div>
-                <button type="button" class="fm-photo-iconbtn" data-photo-close aria-label="${(globalThis.PlatformLanguage?.text("markup","m_53279632ecc960","Close viewer") ?? "Close viewer")}"><i class="fas fa-times"></i></button>
+                <button type="button" class="fm-photo-iconbtn" data-photo-close aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_53279632ecc960","Close viewer") ?? "Close viewer")}"><i class="fas fa-times"></i></button>
               </div>
             </div>
-            <button type="button" class="fm-photo-nav prev" data-photo-prev aria-label="${(globalThis.PlatformLanguage?.text("markup","m_ff93a3105bd290","Previous photo") ?? "Previous photo")}"><i class="fas fa-chevron-left"></i></button>
-            <button type="button" class="fm-photo-nav next" data-photo-next aria-label="${(globalThis.PlatformLanguage?.text("markup","m_289ae0bcddeebf","Next photo") ?? "Next photo")}"><i class="fas fa-chevron-right"></i></button>
+            <button type="button" class="fm-photo-nav prev" data-photo-prev aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_ff93a3105bd290","Previous photo") ?? "Previous photo")}"><i class="fas fa-chevron-left"></i></button>
+            <button type="button" class="fm-photo-nav next" data-photo-next aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_289ae0bcddeebf","Next photo") ?? "Next photo")}"><i class="fas fa-chevron-right"></i></button>
             <div class="fm-video-editdock" data-video-editdock>
-              <button type="button" class="r-proposal-markup-btn" data-video-edit data-fm-tooltip="Edit Video" aria-label="${(globalThis.PlatformLanguage?.text("markup","m_297d0c5325cbc2","Edit video") ?? "Edit video")}"><i class="fas fa-scissors"></i></button>
+              <button type="button" class="r-proposal-markup-btn" data-video-edit data-fm-tooltip="Edit Video" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_297d0c5325cbc2","Edit video") ?? "Edit video")}"><i class="fas fa-scissors"></i></button>
             </div>
           </div>
           <aside class="fm-photo-side">
@@ -1774,8 +1774,8 @@
             </div>
             <div class="fm-photo-comments" data-photo-comments></div>
             <div class="fm-photo-composer">
-              <textarea data-photo-comment-input placeholder="${(globalThis.PlatformLanguage?.text("markup","m_b9ca172c33964b","Leave a comment. Type @ to tag someone.") ?? "Leave a comment. Type @ to tag someone.")}"></textarea>
-              <div class="fm-photo-composer-actions"><button type="button" data-photo-comment-post>${(globalThis.PlatformLanguage?.text("markup","m_7ff4b7a245b282","Post Comment") ?? "Post Comment")}</button></div>
+              <textarea data-photo-comment-input placeholder="${(globalThis.PlatformLanguage?.htmlText("markup","m_b9ca172c33964b","Leave a comment. Type @ to tag someone.") ?? "Leave a comment. Type @ to tag someone.")}"></textarea>
+              <div class="fm-photo-composer-actions"><button type="button" data-photo-comment-post>${(globalThis.PlatformLanguage?.htmlText("markup","m_7ff4b7a245b282","Post Comment") ?? "Post Comment")}</button></div>
             </div>
           </aside>
         </div>`;
@@ -2014,7 +2014,7 @@
       const rootEl = this.el.querySelector('[data-photo-comments]');
       if (!rootEl) return;
       if (!this.comments.length) {
-        rootEl.innerHTML = `<div class="fm-photo-comment-empty">${(globalThis.PlatformLanguage?.text("markup","m_6daba3159863bd","No comments yet.") ?? "No comments yet.")}</div>`;
+        rootEl.innerHTML = `<div class="fm-photo-comment-empty">${(globalThis.PlatformLanguage?.htmlText("markup","m_6daba3159863bd","No comments yet.") ?? "No comments yet.")}</div>`;
         return;
       }
       rootEl.innerHTML = this.comments.map((comment) => `

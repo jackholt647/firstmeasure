@@ -12,7 +12,7 @@ test("existing organizations default to the complete FirstMeasure product withou
   for (const key of ["apps.project_map", "apps.projects", "apps.firstmeasure", "apps.billing", "firstmeasure.report_orders", "firstmeasure.gutter_reports", "firstmeasure.measurement_report_summary", "firstmeasure.report_expedite_options", "firstmeasure.report_cancellations", "permission.manage_company_settings", "permission.manage_company_users"]) {
     assert.equal(state.effectiveByKey[key], true, key);
   }
-  for (const key of ["platform.expanded_access", "platform.more_apps", "apps.stats", "apps.channels", "apps.crew", "apps.sales", "apps.messaging", "apps.comms", "apps.live_chat", "platform.documents", "platform.contacts", "platform.scheduling", "platform.custom_fields", "platform.advanced_app_menu", "platform.left_column_todo_list"]) {
+  for (const key of ["platform.expanded_access", "platform.more_apps", "apps.stats", "apps.channels", "apps.crew", "apps.sales", "apps.messaging", "apps.comms", "apps.live_chat", "platform.documents", "platform.contacts", "platform.scheduling", "platform.custom_fields", "platform.advanced_app_menu"]) {
     assert.equal(state.effectiveByKey[key], false, key);
   }
   assert.equal(state.values["platform.new_button_mode"], "report");

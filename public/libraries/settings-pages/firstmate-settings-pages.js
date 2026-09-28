@@ -153,7 +153,7 @@
     if (!root) throw new Error('Settings page mount requires a root element.');
     const page = getPage(pageId);
     if (!page) {
-      root.innerHTML = `<div class="cs-note">${((v0) => globalThis.PlatformLanguage?.text("settings-pages","m_a446c433a4d6f0",`Settings page "${v0}" is unavailable.`,{v0}) ?? `Settings page "${v0}" is unavailable.`)(escapeHtml(pageId))}</div>`;
+      root.innerHTML = `<div class="cs-note">${((v0) => globalThis.PlatformLanguage?.htmlText("settings-pages","m_a446c433a4d6f0",`Settings page "${v0}" is unavailable.`,{v0}) ?? `Settings page "${v0}" is unavailable.`)(escapeHtml(pageId))}</div>`;
       return { destroy: noop };
     }
     root.__fmSettingsPageDestroy?.();

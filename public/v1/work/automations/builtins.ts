@@ -697,6 +697,8 @@ async function issueDocument(context: WorkAutomationContext, input: JsonObject) 
     deliver: (cleanText(resolved.deliver) || "none") as "portal" | "email" | "none",
     title: cleanText(resolved.title) || undefined,
     customer_presentation: asObject(resolved.customer_presentation),
+    recipients: asArray(resolved.recipients).map(asObject),
+    consent_contact: cleanText(resolved.consent_contact) || undefined,
     source: {
       type: "automation",
       automation_id: "documents.issue.v1",
@@ -770,8 +772,8 @@ export function registerBuiltinWorkAutomations() {
     input: { values: "Object of fields to set; values support {{template}} interpolation." }
   });
   registerWorkAutomation("notification.create.v1", createNotification, {
-    description: "Creates an in-app notification (or celebration) for users or roles.",
-    input: { id: "Stable id for dedupe.", title: "Headline.", body: "Body text.", target_role_ids: "Roles to notify.", target_user_ids: "Specific users.", kind: "passive | celebration.", celebration: "Celebration payload {size, reason, text}.", frontend_action: "Click-through action {kind, ...}." }
+    description: "Creates a declared, individually configurable notification (or celebration) for users or roles. Scope code must supply notification_id from the scope notification declarations.",
+    input: { notification_id: "Declared notification ID for scope code; visual notification actions are discovered automatically.", id: "Stable id for dedupe.", title: "Headline.", body: "Body text.", target_role_ids: "Roles to notify.", target_user_ids: "Specific users.", kind: "passive | celebration.", celebration: "Celebration payload {size, reason, text}.", frontend_action: "Click-through action {kind, ...}." }
   });
   registerWorkAutomation("communications.sendSms.v1", sendSms, {
     description: "Sends an SMS through the org's messaging service (respects consent and compliance).",
@@ -916,6 +918,20 @@ export async function createProjectScheduleRequirement(orgId: string, projectId:
 }
 
 export async function createWorkNotification(orgId: string, branchId: string, projectId: string, input: JsonObject) {
+  if (input.custom_notification === true) {
+    const { backgroundAuthContext, hasPermission } = await import('../../platform/auth.js');
+    const { builtInEventDefinitions, eventGroups } = await import('../../platform/notification_catalog.js');
+    const { isAppFlagEnabled } = await import('../../platform/app_flags.js');
+    const definition = builtInEventDefinitions().find(d => d.event === input.custom_event);
+    const recipients = asArray(input.target_user_ids).map(cleanText);
+    const auth = recipients.length === 1 ? await backgroundAuthContext(orgId, recipients[0]!).catch(() => null) : null;
+    const app = (eventGroups[String(input.custom_event).split('.')[0]!] || eventGroups.project!).app;
+    if (!definition || !auth || !hasPermission(auth, definition.permission) || String(auth.branchId || 'default') !== branchId
+      || !await isAppFlagEnabled(orgId, 'apps', 'notifications') || (app && !await isAppFlagEnabled(orgId, 'apps', app))) {
+      return { id: cleanText(input.id), suppressed: true };
+    }
+  }
+
   const now = new Date().toISOString();
   const id = cleanText(input.id) || stableId("notification", `${projectId}:${JSON.stringify(input)}`);
   const data = {
@@ -932,6 +948,9 @@ export async function createWorkNotification(orgId: string, branchId: string, pr
     target_role_ids: asArray(input.target_role_ids).map(cleanText).filter(Boolean),
     branch_id: branchId || "default",
     source: cleanText(input.source || "work.automation"),
+    category: cleanText(input.category || "tasks"),
+    preference_key: cleanText(input.preference_key),
+    preference_defaults: asObject(input.preference_defaults),
     celebration: asObject(input.celebration),
     celebration_size: cleanText(input.celebration_size || input.celebrationSize || asObject(input.celebration).size),
     frontend_action: asObject(input.frontend_action || input.frontendAction || input.action),
@@ -939,10 +958,7 @@ export async function createWorkNotification(orgId: string, branchId: string, pr
     created_at: now,
     updated_at: now
   };
-  const saved = await upsertDocument(orgId, "notifications", {
-    id,
-    data,
-    metadata: { kind: "platform_notification", source: data.source }
-  }, { replace: true });
+  const { createPlatformNotification } = await import("../../platform/api.js");
+  const saved = await createPlatformNotification(orgId, data);
   return { ...data, revision: saved.revision };
 }

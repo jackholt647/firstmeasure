@@ -15,6 +15,7 @@
   }
 
   function formatSignupPhone(value) {
+    if(String(value || '').trim().startsWith('+'))return '+'+String(value).replace(/\D/g,'').slice(0,15);
     const digits = signupPhoneDigits(value);
     if (!digits) return '';
     if (digits.length <= 3) return `(${digits}`;
@@ -24,6 +25,7 @@
 
   function isValidSignupPhone(value) {
     const rawDigits = String(value || '').replace(/\D/g, '');
+    if(String(value || '').trim().startsWith('+'))return /^[1-9]\d{6,14}$/.test(rawDigits);
     return rawDigits.length === 10 || (rawDigits.length === 11 && rawDigits.startsWith('1'));
   }
 
@@ -397,7 +399,7 @@
         </div>
         <div class="fm-field">
           <label class="fm-label">Phone</label>
-          <input class="fm-input" type="tel" name="phone" autocomplete="tel" inputmode="tel" placeholder="(555) 555-0123" maxlength="14" required>
+          <input class="fm-input" type="tel" name="phone" autocomplete="tel" inputmode="tel" placeholder="+1 555 555 0123" maxlength="24" required>
         </div>
         <div class="fm-field">
           <label class="fm-label">Email</label>
@@ -490,7 +492,7 @@
     function validateRegistrationPhone() {
       if (!registrationPhoneInput) return false;
       const valid = isValidSignupPhone(registrationPhoneInput.value);
-      registrationPhoneInput.setCustomValidity(valid ? '' : 'Enter a valid ten-digit mobile phone number.');
+      registrationPhoneInput.setCustomValidity(valid ? '' : 'Enter a valid mobile number, including the country code outside the US and Canada.');
       if (valid) registrationPhoneInput.value = formatSignupPhone(registrationPhoneInput.value);
       return valid;
     }
@@ -702,7 +704,7 @@
         not_found: "We couldn't find an account with that email or phone number.",
         identity_phone_not_found: "We couldn't find an account with that phone number.",
         invalid_email: 'Enter a valid email address.',
-        invalid_phone_number: 'Enter a valid ten-digit mobile phone number.',
+        invalid_phone_number: 'Enter a valid mobile number, including the country code outside the US and Canada.',
         missing_login_identifier: 'Enter your email address or phone number.',
         registration_in_progress: 'Your account is already being created. Wait a moment, then try logging in.',
         invalid_recovery_token: 'Your password reset session has expired. Use Forgot Password to request a new code.',
@@ -846,6 +848,8 @@
     }
 
     function forwardAttribution(fd) {
+      fd.set('signup_locale',navigator.language || '');
+      fd.set('signup_time_zone',Intl.DateTimeFormat().resolvedOptions().timeZone || '');
       UTM_FIELDS.forEach((key) => {
         const val = params.get(key);
         if (val) fd.append(key, val);
@@ -1145,7 +1149,7 @@
       event.preventDefault();
       const form = event.currentTarget;
       if (!validateRegistrationPhone()) {
-        showRegisterNotice('Enter a valid ten-digit mobile phone number.', 'error');
+        showRegisterNotice('Enter a valid mobile number, including the country code outside the US and Canada.', 'error');
         registrationPhoneInput?.reportValidity();
         return;
       }

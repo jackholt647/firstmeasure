@@ -19,6 +19,7 @@ const platformUiSource = await readSource('libraries/platform-ui/platform-ui.js'
 const portalCoreSource = await readSource('portal/scripts/core.js');
 const scopePresetsSource = await readSource('v1/scopes/presets/index.ts');
 const companySettingsSource = await readSource('libraries/apps/settings/company.js');
+const terminologyEditorSource = await readSource('libraries/platform-terminology/editor.js');
 const appsManifestSource = await readSource('libraries/apps/firstmate-apps-manifest.js');
 const capabilityDefsSource = await readSource('v1/platform/capability_defs.ts');
 const routingServiceSource = await readSource('v1/routing/service.ts');
@@ -87,8 +88,8 @@ test('customer portal schedule renders all shared event categories as a customer
   assert.match(customerPortalSource, /cp-schedule-customer-detail/);
   assert.match(customerPortalSource, /Note from your project team/);
   assert.match(customerPortalSource, /function scheduleInclusiveEnd\(event = \{\}\)/);
-  assert.match(customerPortalSource, /title: `\$\{baseTitle\} starts`/);
-  assert.match(customerPortalSource, /title: `\$\{baseTitle\} ends`/);
+  assert.match(customerPortalSource, /title:.*PlatformLanguage\?\.text\("customer-portal".* starts.*\(baseTitle\)/);
+  assert.match(customerPortalSource, /title:.*PlatformLanguage\?\.text\("customer-portal".* ends.*\(baseTitle\)/);
   assert.match(customerPortalSource, /has_estimated_dates: event\.is_estimate === true/);
   assert.doesNotMatch(customerPortalSource, /_estimated_completion/);
   assert.match(customerPortalSource, /if \(inclusiveEnd && !sameDate\)/);
@@ -223,8 +224,8 @@ test('project scheduling mode uses branch-configurable Routing terminology', () 
   assert.match(schedulingSource, /viewMode === 'appointment_schedule'[\s\S]*?renderAppointmentSchedule\(\)/);
   assert.match(schedulingSource, /\['day','4day','week','month','appointment_schedule','gantt'\]\.includes\(route\.scheduleView\)/);
   assert.match(companySettingsSource, /data-configuration-pane="terminology"/);
-  assert.match(companySettingsSource, /data-terminology-key="\$\{escapeHtml\(row\.key\)\}"/);
-  assert.match(companySettingsSource, /branchModules\.save\(orgId, branchId, 'variable_mappings'/);
+  assert.match(terminologyEditorSource, /data-term="\$\{escapeHtml\(row\.id\)\}"/);
+  assert.match(terminologyEditorSource, /branchModules\.save\(orgId,branchId,'variable_mappings'/);
 });
 
 test('global Routing panes size to their rows and switch detail independently', () => {
@@ -918,7 +919,7 @@ test('customer rescheduling is feature gated and uses the canonical live-slot wo
   assert.ok(slotSelection, 'time selection should be separate from confirmation');
   assert.doesNotMatch(slotSelection[1], /publicHoldAppointment|publicCommitAppointment/);
   assert.match(customerPortalSource, /async function confirmRescheduleSlot\(\)\{[\s\S]*?publicHoldAppointment[\s\S]*?publicCommitAppointment/);
-  assert.match(customerPortalSource, />Reschedule<\/span>/);
+  assert.match(customerPortalSource, /PlatformLanguage\?\.htmlText\("customer-portal",[^\n]+"Reschedule"/);
   assert.match(customerPortalCss, /\.cp-reschedule-picker\{display:grid;grid-template-columns:/);
   assert.match(customerPortalCss, /\.cp-reschedule-foot>button/);
   assert.match(customerPortalCss, /\.cp-reschedule-slots button\.selected/);

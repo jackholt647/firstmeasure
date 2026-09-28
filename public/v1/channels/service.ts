@@ -1,3 +1,5 @@
+import { messageTranslationPreferences } from "../platform/localization/message-preferences.js";
+import { sameMessageLanguage } from "../platform/localization/languages.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
 import { hasPermission } from "../platform/auth.js";
 import { badRequest, forbidden, notFound } from "../platform/errors.js";
@@ -61,7 +63,6 @@ import {
 } from "./storage.js";
 import {
   detectMessageLanguage,
-  normalizeLanguage,
   translateMessageText,
   translationSourceHash
 } from "./translation.js";
@@ -95,12 +96,10 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function viewerTranslationPreferences(ctx: PlatformAuthContext): { language: string; auto_translate_messages: boolean } {
+async function viewerTranslationPreferences(ctx: PlatformAuthContext) {
   const preferences = asObject(ctx.identity.preferences);
-  return {
-    language: normalizeLanguage(preferences.language, "en"),
-    auto_translate_messages: preferences.auto_translate_messages === true
-  };
+  const resolved = await messageTranslationPreferences(ctx.orgId, ctx.branchId, preferences);
+  return { language: resolved.translation_language, auto_translate_messages: resolved.auto_translate_messages };
 }
 
 async function emitChannelsEvent(type: string, ctx: PlatformAuthContext, payload: JsonObject, projectId?: string | null) {
@@ -437,7 +436,7 @@ export async function hydrateMessages(ctx: PlatformAuthContext, channel: Channel
   const attachments = (await listAttachmentsForMessages(ids));
   const saved = (await listSavedMessageIds(ctx.orgId, ctx.userId));
   const manage = canManageChannels(ctx);
-  const preferences = viewerTranslationPreferences(ctx);
+  const preferences = await viewerTranslationPreferences(ctx);
   const translations = (await listMessageTranslations(ids, preferences.language));
   return messages.map((message) => hydrateMessage(ctx, message, { directory, reactions, attachments, saved, manage, preferences, translations }));
 }
@@ -461,7 +460,7 @@ function hydrateMessage(
   const canModerate = isAuthor || helpers.manage;
   const sourceHash = translationSourceHash(message.text);
   const cachedTranslation = helpers.translations.get(message.id);
-  const translationAvailable = message.language_code !== "und" && message.language_code !== helpers.preferences.language;
+  const translationAvailable = message.language_code !== "und" && !sameMessageLanguage(message.language_code, helpers.preferences.language);
 
   const reactionRows = helpers.reactions.get(message.id) ?? [];
   const reactionSummary = new Map<string, { emoji: string; count: number; user_ids: string[]; reacted: boolean }>();
@@ -1090,9 +1089,9 @@ export async function translateMessage(ctx: PlatformAuthContext, messageId: stri
     message.language_confidence = detected.confidence;
     (await setMessageLanguage(ctx.orgId, message.id, detected.code, detected.confidence));
   }
-  const preferences = viewerTranslationPreferences(ctx);
+  const preferences = await viewerTranslationPreferences(ctx);
   if (message.language_code === "und") throw badRequest("language_unknown", "This message is too short to identify its language reliably.");
-  if (message.language_code === preferences.language) {
+  if (sameMessageLanguage(message.language_code, preferences.language)) {
     return {
       message_id: message.id,
       source_language: message.language_code,

@@ -463,9 +463,9 @@
     const title = String(page.tab_label || page.title || (globalThis.PlatformLanguage?.text("chat","m_7fa0f26d9ba1c4","Website page") ?? "Website page"));
     const lines = (Array.isArray(page.visible_text) ? page.visible_text : []).slice(0, 6);
     const snapshotUrl = String(page.snapshot?.public_url || '');
-    return `<div class="fmchat-page-context" title="${(globalThis.PlatformLanguage?.text("chat","m_26a1344cd9d9e0","Captured when this message was sent") ?? "Captured when this message was sent")}">
-      <div class="fmchat-page-context-head"><i class="fas fa-window-maximize"></i><span><small>${(globalThis.PlatformLanguage?.text("chat","m_4d70bd8d225412","Customer was viewing") ?? "Customer was viewing")}</small><strong>${String(esc(title))}</strong></span></div>
-      ${String(snapshotUrl ? `<a class="fmchat-page-shot" href="${esc(snapshotUrl)}" target="_blank" rel="noopener" title="Open the full page snapshot"><img src="${esc(snapshotUrl)}" alt="Snapshot of the ${esc(title)} page" loading="lazy"></a>` : '')}
+    return `<div class="fmchat-page-context" title="${(globalThis.PlatformLanguage?.htmlText("chat","m_26a1344cd9d9e0","Captured when this message was sent") ?? "Captured when this message was sent")}">
+      <div class="fmchat-page-context-head"><i class="fas fa-window-maximize"></i><span><small>${(globalThis.PlatformLanguage?.htmlText("chat","m_4d70bd8d225412","Customer was viewing") ?? "Customer was viewing")}</small><strong>${String(esc(title))}</strong></span></div>
+      ${String(snapshotUrl ? `<a class="fmchat-page-shot" href="${esc(snapshotUrl)}" target="_blank" rel="noopener" title="${(globalThis.PlatformLanguage?.htmlText("chat","m_7dda15c6130ec4","Open the full page snapshot") ?? "Open the full page snapshot")}"><img src="${esc(snapshotUrl)}" alt="${((v2) => globalThis.PlatformLanguage?.htmlText("chat","m_9449db765fed60",`Snapshot of the ${v2} page`,{v2}) ?? `Snapshot of the ${v2} page`)(esc(title))}" loading="lazy"></a>` : '')}
       <div class="fmchat-page-preview">${String(lines.length ? lines.map((line, index) => `<div class="fmchat-page-line ${index === 0 ? 'title' : ''}" title="${esc(line)}">${esc(line)}</div>`).join('') : '<div class="fmchat-page-line placeholder"></div><div class="fmchat-page-line placeholder"></div><div class="fmchat-page-line placeholder"></div>')}</div>
     </div>`;
   }
@@ -529,12 +529,12 @@
       const inbound = message.direction === 'inbound';
       const ai = message.source_kind === 'ai';
       parts.push(`<div class="fmchat-msg ${inbound ? 'inbound' : `outbound ${ai ? 'ai' : ''}`}">${message.subject && inbound ? `<strong>${esc(message.subject)}</strong><br>` : ''}${esc(message.text || '')}${audioHtml(message)}</div>`);
-      parts.push(`<div class="fmchat-msg-meta ${inbound ? 'inbound' : 'outbound'}">${esc(commsMessageWho(message))} • ${clock(message.created_at)}${message.test_mode ? (" • <i class=\"fas fa-flask\" title=\"" + (globalThis.PlatformLanguage?.text("chat","m_4ee0964bb70748","Test mode") ?? "Test mode") + "\"></i>") : ''}</div>`);
+      parts.push(`<div class="fmchat-msg-meta ${inbound ? 'inbound' : 'outbound'}">${esc(commsMessageWho(message))} • ${clock(message.created_at)}${message.test_mode ? (" • <i class=\"fas fa-flask\" title=\"" + (globalThis.PlatformLanguage?.htmlText("chat","m_4ee0964bb70748","Test mode") ?? "Test mode") + "\"></i>") : ''}</div>`);
     }
     const renderKey = JSON.stringify(messages.map((message) => message.id));
     if (mount.dataset.renderKey === renderKey) return;
     const nearBottom = mount.scrollHeight - mount.scrollTop - mount.clientHeight < 80;
-    mount.innerHTML = parts.join('') || `<div class="fmchat-empty">${(globalThis.PlatformLanguage?.text("chat","m_f6fa564d97e598","No messages yet.") ?? "No messages yet.")}</div>`;
+    mount.innerHTML = parts.join('') || `<div class="fmchat-empty">${(globalThis.PlatformLanguage?.htmlText("chat","m_f6fa564d97e598","No messages yet.") ?? "No messages yet.")}</div>`;
     window.FirstMateAudioNotes?.hydrate?.(mount);
     mount.dataset.renderKey = renderKey;
     if (nearBottom || !mount.dataset.scrolled) {
@@ -551,7 +551,7 @@
     const detail = state.commsDetail;
     const kind = state.activeKind;
     if (!detail) {
-      col.innerHTML = `<div class="fmchat-blank"><div class="fmchat-blank-inner"><i class="fas fa-spinner fa-spin"></i><p>${(globalThis.PlatformLanguage?.text("chat","m_d2da77452877dd","Loading…") ?? "Loading…")}</p></div></div>`;
+      col.innerHTML = `<div class="fmchat-blank"><div class="fmchat-blank-inner"><i class="fas fa-spinner fa-spin"></i><p>${(globalThis.PlatformLanguage?.htmlText("chat","m_d2da77452877dd","Loading…") ?? "Loading…")}</p></div></div>`;
       return;
     }
     const closed = String(detail.status || 'open') === 'closed';
@@ -567,24 +567,24 @@
         <div style="min-width:0">
           <div class="fmchat-thread-title"><i class="fas ${icon}" style="color:#667085"></i> ${esc(title)}</div>
           <div class="fmchat-thread-sub">${kind === 'sms' ? 'Text message thread' : 'Email thread'}${detail.project_title ? ` • ${esc(detail.project_title)}` : ''}</div>
-          ${snoozed?`<div class="fmchat-thread-sub">${((v0) => globalThis.PlatformLanguage?.text("chat","m_35e8ee692d0494",`Snoozed until ${v0}`,{v0}) ?? `Snoozed until ${v0}`)(esc(new Date(detail.snoozed_until).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())))}</div>`:''}
+          ${snoozed?`<div class="fmchat-thread-sub">${((v0) => globalThis.PlatformLanguage?.htmlText("chat","m_35e8ee692d0494",`Snoozed until ${v0}`,{v0}) ?? `Snoozed until ${v0}`)(esc(new Date(detail.snoozed_until).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())))}</div>`:''}
         </div>
         <div class="fmchat-thread-actions">
           <button type="button" class="fmchat-btn" data-comms-workflow="assign">${detail.owner_user_id===userId()?'Unassign':'Assign to me'}</button>
           <button type="button" class="fmchat-btn" data-comms-workflow="${closed?'reopen':'resolve'}">${closed?'Reopen':'Resolve'}</button>
           <button type="button" class="fmchat-btn" data-comms-workflow="${snoozed?'unsnooze':'snooze'}" aria-label="${snoozed?'Return to inbox':'Snooze conversation'}"><i class="fas fa-clock"></i>${snoozed?' Return to inbox':''}</button>
-          ${projectId?`<button type="button" class="fmchat-btn" data-comms-call><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.text("chat","m_34ac7f9c427ea4"," Call") ?? " Call")}</button>`:''}
-          ${projectId ? `<button type="button" class="fmchat-btn" data-open-project="${String(esc(projectId))}"><i class="fas fa-folder-open"></i>${(globalThis.PlatformLanguage?.text("chat","m_53787840db7d1c"," Open project") ?? " Open project")}</button>` : ''}
+          ${projectId?`<button type="button" class="fmchat-btn" data-comms-call><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.htmlText("chat","m_34ac7f9c427ea4"," Call") ?? " Call")}</button>`:''}
+          ${projectId ? `<button type="button" class="fmchat-btn" data-open-project="${String(esc(projectId))}"><i class="fas fa-folder-open"></i>${(globalThis.PlatformLanguage?.htmlText("chat","m_53787840db7d1c"," Open project") ?? " Open project")}</button>` : ''}
         </div>
       </div>
       <div class="fmchat-msgs"></div>
-      ${closed ? `<div class="fmchat-composer-wrap" style="text-align:center;color:#98a2b3;font-size:12.5px;font-weight:700">${(globalThis.PlatformLanguage?.text("chat","m_e366f94f041c75","This conversation is closed.") ?? "This conversation is closed.")}</div>` : `
+      ${closed ? `<div class="fmchat-composer-wrap" style="text-align:center;color:#98a2b3;font-size:12.5px;font-weight:700">${(globalThis.PlatformLanguage?.htmlText("chat","m_e366f94f041c75","This conversation is closed.") ?? "This conversation is closed.")}</div>` : `
       <div class="fmchat-composer-wrap">
         <div class="fmchat-composer">
           <textarea class="fmchat-input" rows="1" spellcheck="true" placeholder="${String(kind === 'sms' ? 'Text the customer…' : 'Reply — sends as email…')}"></textarea>
           <div class="fmchat-composer-side">
             ${String(mode !== 'off' ? `<button type="button" class="fmchat-icon-btn voice" data-voice title="${voiceLabel(mode)}" aria-label="${voiceLabel(mode)}"><i class="fas fa-microphone"></i><small>${mode === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '')}
-            <button type="button" class="fmchat-icon-btn send" data-comms-send title="${(globalThis.PlatformLanguage?.text("chat","m_c23a056552a09f","Send") ?? "Send")}" aria-label="${(globalThis.PlatformLanguage?.text("chat","m_c23a056552a09f","Send") ?? "Send")}"><i class="fas fa-paper-plane"></i></button>
+            <button type="button" class="fmchat-icon-btn send" data-comms-send title="${(globalThis.PlatformLanguage?.htmlText("chat","m_c23a056552a09f","Send") ?? "Send")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("chat","m_c23a056552a09f","Send") ?? "Send")}"><i class="fas fa-paper-plane"></i></button>
           </div>
         </div>
         <div class="fmchat-voice-mount" data-voice-mount></div>
@@ -658,11 +658,11 @@
 
   function coordinationTags(row){
     const tags = [];
-    if (row.visitor_typing) tags.push(`<span class="fmchat-tag typing">${(globalThis.PlatformLanguage?.text("chat","m_8a600d365c1990","typing…") ?? "typing…")}</span>`);
-    if (row.handling_mode === 'ai' && row.ai_status === 'active') tags.push(`<span class="fmchat-tag ai"><i class="fas fa-robot"></i>${(globalThis.PlatformLanguage?.text("chat","m_bdd20e2c55aa69"," AI handling") ?? " AI handling")}</span>`);
+    if (row.visitor_typing) tags.push(`<span class="fmchat-tag typing">${(globalThis.PlatformLanguage?.htmlText("chat","m_8a600d365c1990","typing…") ?? "typing…")}</span>`);
+    if (row.handling_mode === 'ai' && row.ai_status === 'active') tags.push(`<span class="fmchat-tag ai"><i class="fas fa-robot"></i>${(globalThis.PlatformLanguage?.htmlText("chat","m_bdd20e2c55aa69"," AI handling") ?? " AI handling")}</span>`);
     if (row.claimed_by_user_id) {
       tags.push(row.claimed_by_user_id === userId()
-        ? `<span class="fmchat-tag mine">${(globalThis.PlatformLanguage?.text("chat","m_5f0c5d79658b50","You") ?? "You")}</span>`
+        ? `<span class="fmchat-tag mine">${(globalThis.PlatformLanguage?.htmlText("chat","m_5f0c5d79658b50","You") ?? "You")}</span>`
         : `<span class="fmchat-tag claim">${esc(firstName(viewerName(row.claimed_by_user_id, row)) || 'Claimed')}</span>`);
     }
     const others = (row.viewers || []).filter((viewer) => viewer.user_id !== userId() && viewer.user_id !== row.claimed_by_user_id);
@@ -686,7 +686,7 @@
     const preview = row.last_message ? `${row.last_message.direction === 'outbound' ? `${esc(firstName(row.last_message.sender?.name) || 'You')}: ` : ''}${esc(row.last_message.text)}` : 'New conversation';
     return `<button type="button" class="fmchat-row ${row.id === state.activeId ? 'active' : ''} ${unread ? 'unread' : ''}" data-conversation="${esc(row.id)}">
       <div class="fmchat-row-top">
-        <span class="fmchat-row-name">${state.channel === 'all' ? '<span class="fmchat-row-channel"><i class="fas fa-message"></i></span>' : ''}${row.visitor?.online ? ("<span class=\"fmchat-online-dot\" title=\"" + (globalThis.PlatformLanguage?.text("chat","m_aabde4e0c8a505","Visitor is on the page") ?? "Visitor is on the page") + "\"></span>") : ''}<span>${esc(row.visitor?.name || 'Website visitor')}</span></span>
+        <span class="fmchat-row-name">${state.channel === 'all' ? '<span class="fmchat-row-channel"><i class="fas fa-message"></i></span>' : ''}${row.visitor?.online ? ("<span class=\"fmchat-online-dot\" title=\"" + (globalThis.PlatformLanguage?.htmlText("chat","m_aabde4e0c8a505","Visitor is on the page") ?? "Visitor is on the page") + "\"></span>") : ''}<span>${esc(row.visitor?.name || 'Website visitor')}</span></span>
         <span class="fmchat-row-time">${esc(timeAgo(row.last_message_at || row.created_at))}</span>
       </div>
       <span class="fmchat-row-preview">${preview}</span>
@@ -708,7 +708,7 @@
       </div>
       <span class="fmchat-row-preview">${esc(String(preview || '').replace(/\s+/g, ' '))}</span>
       ${row.project_title && row.contact_name ? `<span class="fmchat-row-project">${esc(row.project_title)}</span>` : ''}
-      ${row.unread_count?("<span class=\"fmchat-unread-dot\" aria-label=\"" + (globalThis.PlatformLanguage?.text("chat","m_e6bd48170f22a4","Unread") ?? "Unread") + "\">1</span>"):''}
+      ${row.unread_count?("<span class=\"fmchat-unread-dot\" aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("chat","m_e6bd48170f22a4","Unread") ?? "Unread") + "\">1</span>"):''}
     </button>`;
   }
 
@@ -736,7 +736,7 @@
     const col = $('.fmchat-thread-col', state.root);
     if (!col) return;
     if (!state.activeId) {
-      col.innerHTML = `<div class="fmchat-blank"><div class="fmchat-blank-inner"><i class="fas fa-comment-dots"></i><p>${(globalThis.PlatformLanguage?.text("chat","m_a7155791df97c9","Select a conversation") ?? "Select a conversation")}</p></div></div>`;
+      col.innerHTML = `<div class="fmchat-blank"><div class="fmchat-blank-inner"><i class="fas fa-comment-dots"></i><p>${(globalThis.PlatformLanguage?.htmlText("chat","m_a7155791df97c9","Select a conversation") ?? "Select a conversation")}</p></div></div>`;
       return;
     }
     if (state.activeKind !== 'webchat') {
@@ -744,7 +744,7 @@
       return;
     }
     if (!state.detail) {
-      col.innerHTML = `<div class="fmchat-blank"><div class="fmchat-blank-inner"><i class="fas fa-spinner fa-spin"></i><p>${(globalThis.PlatformLanguage?.text("chat","m_d2da77452877dd","Loading…") ?? "Loading…")}</p></div></div>`;
+      col.innerHTML = `<div class="fmchat-blank"><div class="fmchat-blank-inner"><i class="fas fa-spinner fa-spin"></i><p>${(globalThis.PlatformLanguage?.htmlText("chat","m_d2da77452877dd","Loading…") ?? "Loading…")}</p></div></div>`;
       return;
     }
     const detail = state.detail;
@@ -757,50 +757,50 @@
 
     let banner = '';
     if (aiActive) {
-      banner = `<div class="fmchat-banner ai"><span><i class="fas fa-robot"></i>${(globalThis.PlatformLanguage?.text("chat","m_30f9b69013e0c5"," The AI agent is handling this conversation.") ?? " The AI agent is handling this conversation.")}</span><button type="button" class="fmchat-btn" data-take-over-ai>${(globalThis.PlatformLanguage?.text("chat","m_640932b8f828d0","Take over") ?? "Take over")}</button></div>`;
+      banner = `<div class="fmchat-banner ai"><span><i class="fas fa-robot"></i>${(globalThis.PlatformLanguage?.htmlText("chat","m_30f9b69013e0c5"," The AI agent is handling this conversation.") ?? " The AI agent is handling this conversation.")}</span><button type="button" class="fmchat-btn" data-take-over-ai>${(globalThis.PlatformLanguage?.htmlText("chat","m_640932b8f828d0","Take over") ?? "Take over")}</button></div>`;
     } else if (claimedByOther) {
       const name = firstName(viewerName(conversationState.claimed_by_user_id, activeRow() || { viewers: detail.viewers })) || 'a teammate';
-      banner = `<div class="fmchat-banner claim"><span><i class="fas fa-lock"></i>${((v0) => globalThis.PlatformLanguage?.text("chat","m_cbc9260e706307",` Claimed by ${v0}.`,{v0}) ?? ` Claimed by ${v0}.`)(esc(name))}</span><button type="button" class="fmchat-btn" data-claim>${(globalThis.PlatformLanguage?.text("chat","m_640932b8f828d0","Take over") ?? "Take over")}</button></div>`;
+      banner = `<div class="fmchat-banner claim"><span><i class="fas fa-lock"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("chat","m_cbc9260e706307",` Claimed by ${v0}.`,{v0}) ?? ` Claimed by ${v0}.`)(esc(name))}</span><button type="button" class="fmchat-btn" data-claim>${(globalThis.PlatformLanguage?.htmlText("chat","m_640932b8f828d0","Take over") ?? "Take over")}</button></div>`;
     }
 
     col.innerHTML = `
       <div class="fmchat-thread-head">
         <div style="min-width:0">
-          <div class="fmchat-thread-title">${visitor.name ? esc(visitor.name) : 'Website visitor'}${conversationState.visitor_online ? (" <span class=\"fmchat-online-dot\" title=\"" + (globalThis.PlatformLanguage?.text("chat","m_37ce02d8babddc","On the page now") ?? "On the page now") + "\"></span>") : ''}</div>
+          <div class="fmchat-thread-title">${visitor.name ? esc(visitor.name) : 'Website visitor'}${conversationState.visitor_online ? (" <span class=\"fmchat-online-dot\" title=\"" + (globalThis.PlatformLanguage?.htmlText("chat","m_37ce02d8babddc","On the page now") ?? "On the page now") + "\"></span>") : ''}</div>
           <div class="fmchat-thread-sub">${esc(conversationState.source === 'portal' ? 'Customer portal' : (conversationState.origin_url || 'Website'))}</div>
         </div>
         <div class="fmchat-thread-actions">
-          ${!closed && claimMode && !conversationState.claimed_by_user_id ? `<button type="button" class="fmchat-btn" data-claim><i class="fas fa-hand"></i>${(globalThis.PlatformLanguage?.text("chat","m_37d72291d3fdcc"," Claim") ?? " Claim")}</button>` : ''}
-          ${!closed && conversationState.claimed_by_user_id === userId() ? `<button type="button" class="fmchat-btn" data-release>${(globalThis.PlatformLanguage?.text("chat","m_63e61106b0e642","Release") ?? "Release")}</button>` : ''}
-          ${!closed ? `<button type="button" class="fmchat-btn" data-close-chat>${(globalThis.PlatformLanguage?.text("chat","m_76901f41f6f55b","End chat") ?? "End chat")}</button>` : ''}
+          ${!closed && claimMode && !conversationState.claimed_by_user_id ? `<button type="button" class="fmchat-btn" data-claim><i class="fas fa-hand"></i>${(globalThis.PlatformLanguage?.htmlText("chat","m_37d72291d3fdcc"," Claim") ?? " Claim")}</button>` : ''}
+          ${!closed && conversationState.claimed_by_user_id === userId() ? `<button type="button" class="fmchat-btn" data-release>${(globalThis.PlatformLanguage?.htmlText("chat","m_63e61106b0e642","Release") ?? "Release")}</button>` : ''}
+          ${!closed ? `<button type="button" class="fmchat-btn" data-close-chat>${(globalThis.PlatformLanguage?.htmlText("chat","m_76901f41f6f55b","End chat") ?? "End chat")}</button>` : ''}
         </div>
       </div>
       ${banner}
       <div class="fmchat-msgs"></div>
-      ${closed ? `<div class="fmchat-composer-wrap" style="text-align:center;color:#98a2b3;font-size:12.5px;font-weight:700">${(globalThis.PlatformLanguage?.text("chat","m_52ad0207a8dd5a","This conversation has ended.") ?? "This conversation has ended.")}</div>` : `
+      ${closed ? `<div class="fmchat-composer-wrap" style="text-align:center;color:#98a2b3;font-size:12.5px;font-weight:700">${(globalThis.PlatformLanguage?.htmlText("chat","m_52ad0207a8dd5a","This conversation has ended.") ?? "This conversation has ended.")}</div>` : `
       <div class="fmchat-composer-wrap">
         <div class="fmchat-suggestion" data-suggestion hidden>
-          <span class="fmchat-suggestion-label"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("chat","m_fa9969045dbe0d"," Suggested reply") ?? " Suggested reply")}</span>
+          <span class="fmchat-suggestion-label"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("chat","m_fa9969045dbe0d"," Suggested reply") ?? " Suggested reply")}</span>
           <div class="fmchat-suggestion-text" data-suggestion-text></div>
           <div class="fmchat-suggestion-actions">
-            <button type="button" class="fmchat-btn primary" data-suggestion-insert>${(globalThis.PlatformLanguage?.text("chat","m_bb8244ba61e6b9","Insert &amp; edit") ?? "Insert &amp; edit")}</button>
+            <button type="button" class="fmchat-btn primary" data-suggestion-insert>${(globalThis.PlatformLanguage?.htmlText("chat","m_bb8244ba61e6b9","Insert &amp; edit") ?? "Insert &amp; edit")}</button>
           </div>
-          <button type="button" class="fmchat-suggestion-dismiss" data-suggestion-dismiss aria-label="${(globalThis.PlatformLanguage?.text("chat","m_cc02393042526a","Dismiss suggested reply") ?? "Dismiss suggested reply")}" title="${(globalThis.PlatformLanguage?.text("chat","m_cc02393042526a","Dismiss suggested reply") ?? "Dismiss suggested reply")}"><i class="fas fa-xmark"></i></button>
+          <button type="button" class="fmchat-suggestion-dismiss" data-suggestion-dismiss aria-label="${(globalThis.PlatformLanguage?.htmlText("chat","m_cc02393042526a","Dismiss suggested reply") ?? "Dismiss suggested reply")}" title="${(globalThis.PlatformLanguage?.htmlText("chat","m_cc02393042526a","Dismiss suggested reply") ?? "Dismiss suggested reply")}"><i class="fas fa-xmark"></i></button>
         </div>
         <div class="fmchat-composer-toolbar">
-          ${String(state.features.suggestions ? `<button type="button" class="fmchat-tool-btn" data-suggest><i class="fas fa-wand-magic-sparkles"></i> Suggest reply</button>` : '')}
-          ${String(state.features.suggestions ? `<button type="button" class="fmchat-tool-btn" data-polish><i class="fas fa-spell-check"></i> Polish draft</button>` : '')}
-          <button type="button" class="fmchat-tool-btn" data-internal><i class="fas fa-note-sticky"></i>${(globalThis.PlatformLanguage?.text("chat","m_00e05ce1c1d4e7"," Internal note") ?? " Internal note")}</button>
+          ${String(state.features.suggestions ? `<button type="button" class="fmchat-tool-btn" data-suggest><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("chat","m_988ee1f492eadd"," Suggest reply") ?? " Suggest reply")}</button>` : '')}
+          ${String(state.features.suggestions ? `<button type="button" class="fmchat-tool-btn" data-polish><i class="fas fa-spell-check"></i>${(globalThis.PlatformLanguage?.htmlText("chat","m_968c5927fb7bbe"," Polish draft") ?? " Polish draft")}</button>` : '')}
+          <button type="button" class="fmchat-tool-btn" data-internal><i class="fas fa-note-sticky"></i>${(globalThis.PlatformLanguage?.htmlText("chat","m_00e05ce1c1d4e7"," Internal note") ?? " Internal note")}</button>
         </div>
         <div class="fmchat-composer">
-          <textarea class="fmchat-input" rows="1" spellcheck="true" placeholder="${((v2) => globalThis.PlatformLanguage?.text("chat","m_9b4bc7a1e8b34f",`Reply to ${v2}…`,{v2}) ?? `Reply to ${v2}…`)(esc(firstName(visitor.name) || 'the visitor'))}"></textarea>
+          <textarea class="fmchat-input" rows="1" spellcheck="true" placeholder="${((v2) => globalThis.PlatformLanguage?.htmlText("chat","m_9b4bc7a1e8b34f",`Reply to ${v2}…`,{v2}) ?? `Reply to ${v2}…`)(esc(firstName(visitor.name) || 'the visitor'))}"></textarea>
           <div class="fmchat-composer-side">
             ${String(voiceMode('webchat') !== 'off' ? `<button type="button" class="fmchat-icon-btn voice" data-voice title="${voiceLabel(voiceMode('webchat'))}" aria-label="${voiceLabel(voiceMode('webchat'))}"><i class="fas fa-microphone"></i><small>${voiceMode('webchat') === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '')}
-            <button type="button" class="fmchat-icon-btn send" data-send title="${(globalThis.PlatformLanguage?.text("chat","m_5ffd34ad8437cd","Send reply") ?? "Send reply")}" aria-label="${(globalThis.PlatformLanguage?.text("chat","m_5ffd34ad8437cd","Send reply") ?? "Send reply")}"><i class="fas fa-paper-plane"></i></button>
+            <button type="button" class="fmchat-icon-btn send" data-send title="${(globalThis.PlatformLanguage?.htmlText("chat","m_5ffd34ad8437cd","Send reply") ?? "Send reply")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("chat","m_5ffd34ad8437cd","Send reply") ?? "Send reply")}"><i class="fas fa-paper-plane"></i></button>
           </div>
         </div>
         <div class="fmchat-voice-mount" data-voice-mount></div>
-        <div class="fmchat-composer-hints"><span data-hint>${(globalThis.PlatformLanguage?.text("chat","m_c2996b3077a4f1","Enter to send • Shift+Enter for a new line") ?? "Enter to send • Shift+Enter for a new line")}</span><span data-typing-hint></span></div>
+        <div class="fmchat-composer-hints"><span data-hint>${(globalThis.PlatformLanguage?.htmlText("chat","m_c2996b3077a4f1","Enter to send • Shift+Enter for a new line") ?? "Enter to send • Shift+Enter for a new line")}</span><span data-typing-hint></span></div>
       </div>`}
     `;
     wireThread(col, closed);
@@ -890,7 +890,7 @@
       const who = message.internal
         ? `${esc(firstName(message.sender?.name) || 'Note')} • team only`
         : inbound ? clock(message.created_at)
-        : `${ai ? 'AI Agent' : esc(firstName(message.sender?.name) || 'You')} • ${clock(message.created_at)}${message.metadata?.ai?.suggested ? (" • <i class=\"fas fa-wand-magic-sparkles\" title=\"" + (globalThis.PlatformLanguage?.text("chat","m_dc59be3991c5f8","AI-suggested") ?? "AI-suggested") + "\"></i>") : ''}`;
+        : `${ai ? 'AI Agent' : esc(firstName(message.sender?.name) || 'You')} • ${clock(message.created_at)}${message.metadata?.ai?.suggested ? (" • <i class=\"fas fa-wand-magic-sparkles\" title=\"" + (globalThis.PlatformLanguage?.htmlText("chat","m_dc59be3991c5f8","AI-suggested") ?? "AI-suggested") + "\"></i>") : ''}`;
       parts.push(`<div class="fmchat-msg-meta ${inbound ? 'inbound' : 'outbound'}">${who}</div>`);
     }
     const row = activeRow();
@@ -1136,17 +1136,17 @@
       const customer = participants.find((p) => String(p.type || '') !== 'internal') || participants[0] || {};
       mount.innerHTML = `
         <div class="fmchat-ctx-section">
-          <div class="fmchat-ctx-title">${(globalThis.PlatformLanguage?.text("chat","m_4cd5e2d9c65130","Conversation") ?? "Conversation")}</div>
+          <div class="fmchat-ctx-title">${(globalThis.PlatformLanguage?.htmlText("chat","m_4cd5e2d9c65130","Conversation") ?? "Conversation")}</div>
           <div class="fmchat-ctx-row"><i class="fas ${String(state.activeKind === 'sms' ? 'fa-comment-sms' : 'fa-envelope')}"></i><span>${String(state.activeKind === 'sms' ? 'Text messages' : 'Email thread')}</span></div>
           ${String(customer.name ? `<div class="fmchat-ctx-row"><i class="fas fa-user"></i><span>${esc(customer.name)}</span></div>` : '')}
           ${String(customer.address || customer.email || customer.phone ? `<div class="fmchat-ctx-row"><i class="fas fa-at"></i><span>${esc(customer.address || customer.email || customer.phone)}</span></div>` : '')}
         </div>
         ${String(detail.project_id ? `
         <div class="fmchat-ctx-section">
-          <div class="fmchat-ctx-title">Project</div>
+          <div class="fmchat-ctx-title">${(globalThis.PlatformLanguage?.htmlText("chat","m_aaebd7ccba0b30","Project") ?? "Project")}</div>
           <div class="fmchat-ctx-row"><i class="fas fa-folder"></i><span>${esc(detail.project_title || 'Project')}</span></div>
-          <button type="button" class="fmchat-btn" data-ctx-open-project style="margin-top:6px"><i class="fas fa-folder-open"></i> Open project</button>
-        </div>` : '<div class="fmchat-ctx-empty">Not linked to a project.</div>')}
+          <button type="button" class="fmchat-btn" data-ctx-open-project style="margin-top:6px"><i class="fas fa-folder-open"></i>${(globalThis.PlatformLanguage?.htmlText("chat","m_53787840db7d1c"," Open project") ?? " Open project")}</button>
+        </div>` : `<div class="fmchat-ctx-empty">${(globalThis.PlatformLanguage?.htmlText("chat","m_507ae57ed3fadd","Not linked to a project.") ?? "Not linked to a project.")}</div>`)}
       `;
       mount.querySelector('[data-ctx-open-project]')?.addEventListener('click', () => {
         window.FirstMateAgentChat?.runAction?.({ kind: 'project', project_id: String(detail.project_id || '') });
@@ -1154,7 +1154,7 @@
       return;
     }
     if (!state.detail) {
-      mount.innerHTML = `<div class="fmchat-ctx-empty" style="padding-top:24px;text-align:center">${(globalThis.PlatformLanguage?.text("chat","m_c3520419f1afbd","Conversation details appear here.") ?? "Conversation details appear here.")}</div>`;
+      mount.innerHTML = `<div class="fmchat-ctx-empty" style="padding-top:24px;text-align:center">${(globalThis.PlatformLanguage?.htmlText("chat","m_c3520419f1afbd","Conversation details appear here.") ?? "Conversation details appear here.")}</div>`;
       return;
     }
     const visitor = state.detail.visitor || {};
@@ -1164,21 +1164,21 @@
     const viewers = state.detail.viewers || [];
     mount.innerHTML = `
       <div class="fmchat-ctx-section">
-        <div class="fmchat-ctx-title">${(globalThis.PlatformLanguage?.text("chat","m_929ba30480de60","Visitor") ?? "Visitor")}</div>
+        <div class="fmchat-ctx-title">${(globalThis.PlatformLanguage?.htmlText("chat","m_929ba30480de60","Visitor") ?? "Visitor")}</div>
         <div class="fmchat-ctx-row"><i class="fas fa-user"></i><span>${String(esc(visitor.name || 'Unknown'))}</span></div>
         ${String(visitor.email ? `<div class="fmchat-ctx-row"><i class="fas fa-envelope"></i><span>${esc(visitor.email)}</span></div>` : '')}
         ${String(visitor.phone ? `<div class="fmchat-ctx-row"><i class="fas fa-phone"></i><span>${esc(visitor.phone)}</span></div>` : '')}
-        ${String(visitor.contact_id ? '<div class="fmchat-ctx-row"><i class="fas fa-id-badge"></i><span>Linked CRM contact</span></div>' : '')}
-        ${String(visitor.portal_customer_id ? '<div class="fmchat-ctx-row"><i class="fas fa-circle-check" style="color:#12b76a"></i><span>Verified portal customer</span></div>' : '')}
+        ${String(visitor.contact_id ? `<div class="fmchat-ctx-row"><i class="fas fa-id-badge"></i><span>${(globalThis.PlatformLanguage?.htmlText("chat","m_edde92f52694e3","Linked CRM contact") ?? "Linked CRM contact")}</span></div>` : '')}
+        ${String(visitor.portal_customer_id ? `<div class="fmchat-ctx-row"><i class="fas fa-circle-check" style="color:#12b76a"></i><span>${(globalThis.PlatformLanguage?.htmlText("chat","m_18b3c5f568522e","Verified portal customer") ?? "Verified portal customer")}</span></div>` : '')}
         <div class="fmchat-ctx-row"><i class="fas fa-globe"></i><span title="${String(esc(conversationState.origin_url || ''))}">${String(esc(pageLabel(conversationState.origin_url)))}</span></div>
-        <div class="fmchat-ctx-row"><i class="fas fa-clock"></i><span>${((v7) => globalThis.PlatformLanguage?.text("chat","m_efff4d5af9232c",`First seen ${v7}`,{v7}) ?? `First seen ${v7}`)(esc(dayLabel(visitor.first_seen_at)))}</span></div>
+        <div class="fmchat-ctx-row"><i class="fas fa-clock"></i><span>${((v7) => globalThis.PlatformLanguage?.htmlText("chat","m_efff4d5af9232c",`First seen ${v7}`,{v7}) ?? `First seen ${v7}`)(esc(dayLabel(visitor.first_seen_at)))}</span></div>
       </div>
-      ${String(viewers.length ? `<div class="fmchat-ctx-section"><div class="fmchat-ctx-title">Viewing now</div>${viewers.map((viewer) => `<span class="fmchat-viewer-chip"><i class="fas fa-eye"></i>${esc(firstName(viewer.user_name) || 'Teammate')}</span>`).join('')}</div>` : '')}
+      ${String(viewers.length ? `<div class="fmchat-ctx-section"><div class="fmchat-ctx-title">${(globalThis.PlatformLanguage?.htmlText("chat","m_cd4f4ce4ad9196","Viewing now") ?? "Viewing now")}</div>${viewers.map((viewer) => `<span class="fmchat-viewer-chip"><i class="fas fa-eye"></i>${esc(firstName(viewer.user_name) || 'Teammate')}</span>`).join('')}</div>` : '')}
       <div class="fmchat-ctx-section">
-        <div class="fmchat-ctx-title">${(globalThis.PlatformLanguage?.text("chat","m_a418e0fa2c0fa0","Previous conversations") ?? "Previous conversations")}</div>
-        ${String(history.length ? history.slice(0, 6).map((item) => `<div class="fmchat-hist-item">${esc((item.last_message?.text || 'Conversation').slice(0, 60))}<small>${esc(dayLabel(item.created_at))} • ${item.message_count} messages</small></div>`).join('') : '<div class="fmchat-ctx-empty">None from this visitor.</div>')}
+        <div class="fmchat-ctx-title">${(globalThis.PlatformLanguage?.htmlText("chat","m_a418e0fa2c0fa0","Previous conversations") ?? "Previous conversations")}</div>
+        ${String(history.length ? history.slice(0, 6).map((item) => `<div class="fmchat-hist-item">${esc((item.last_message?.text || 'Conversation').slice(0, 60))}<small>${((v1,v2) => globalThis.PlatformLanguage?.htmlText("chat","m_bd729b58b6893c",`${v1} • ${v2} messages`,{v1,v2}) ?? `${v1} • ${v2} messages`)(esc(dayLabel(item.created_at)),item.message_count)}</small></div>`).join('') : `<div class="fmchat-ctx-empty">${(globalThis.PlatformLanguage?.htmlText("chat","m_49ebc2dd5098c0","None from this visitor.") ?? "None from this visitor.")}</div>`)}
       </div>
-      ${String(hints.length ? `<div class="fmchat-ctx-section"><div class="fmchat-ctx-title">Possibly the same visitor</div>${hints.map((hint) => `<div class="fmchat-hist-item">${esc(hint.name || hint.email || 'Unnamed visitor')}<small>Same network • last seen ${esc(dayLabel(hint.last_seen_at))}</small></div>`).join('')}</div>` : '')}
+      ${String(hints.length ? `<div class="fmchat-ctx-section"><div class="fmchat-ctx-title">${(globalThis.PlatformLanguage?.htmlText("chat","m_910ec381effe5e","Possibly the same visitor") ?? "Possibly the same visitor")}</div>${hints.map((hint) => `<div class="fmchat-hist-item">${esc(hint.name || hint.email || 'Unnamed visitor')}<small>${((v1) => globalThis.PlatformLanguage?.htmlText("chat","m_56327b9c55c17c",`Same network • last seen ${v1}`,{v1}) ?? `Same network • last seen ${v1}`)(esc(dayLabel(hint.last_seen_at)))}</small></div>`).join('')}</div>` : '')}
     `;
   }
 
@@ -1204,9 +1204,9 @@
       <div class="fmchat-shell">
         <div class="fmchat-main">
           <div class="fmchat-list-col">
-            <div class="fmchat-list-tools"><strong>${(globalThis.PlatformLanguage?.text("chat","m_1d1623bb0560dd","Inbox") ?? "Inbox")}</strong>
-              ${String(can('comms.agent') && commsChannelsEnabled() ? '<button type="button" class="fmchat-ai-toggle" data-agent-toggle aria-expanded="false"><i class="fas fa-wand-magic-sparkles"></i>Ask AI</button>' : '')}
-              <div class="fmchat-live"><i></i><span>${(globalThis.PlatformLanguage?.text("chat","m_4e930690c170d1","Checking…") ?? "Checking…")}</span></div>
+            <div class="fmchat-list-tools"><strong>${(globalThis.PlatformLanguage?.htmlText("chat","m_1d1623bb0560dd","Inbox") ?? "Inbox")}</strong>
+              ${String(can('comms.agent') && commsChannelsEnabled() ? `<button type="button" class="fmchat-ai-toggle" data-agent-toggle aria-expanded="false"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("chat","m_fe8a5736f9bbac","Ask AI") ?? "Ask AI")}</button>` : '')}
+              <div class="fmchat-live"><i></i><span>${(globalThis.PlatformLanguage?.htmlText("chat","m_4e930690c170d1","Checking…") ?? "Checking…")}</span></div>
             </div>
             ${String(showChannels ? `<div class="fmchat-channels">${channelTabs().map((tab) => `<button type="button" class="fmchat-channel ${state.channel === tab.id ? 'active' : ''}" data-channel="${tab.id}"><i class="fas ${tab.icon}"></i>${tab.label}</button>`).join('')}</div>` : '')}
             <div class="fmchat-filters">
@@ -1266,20 +1266,20 @@
       ? state.agent.messages.map((message) => engine
           ? engine.messageHtml(message, { prefix: 'fmchat-agent', userClass: 'fmchat-agent-msg user', assistantClass: 'fmchat-agent-msg assistant' })
           : `<div class="fmchat-agent-msg ${message.role === 'user' ? 'user' : 'assistant'}">${esc(message.content)}</div>`).join('')
-      : `<div class="fmchat-ctx-empty" style="padding-top:14px;text-align:center"><i class="fas fa-wand-magic-sparkles" style="display:block;font-size:22px;margin-bottom:8px;opacity:.5"></i>${(globalThis.PlatformLanguage?.text("chat","m_e195500186cfc6","Ask about any conversation across email, texts, and chat — or ask me to draft replies and book appointments.") ?? "Ask about any conversation across email, texts, and chat — or ask me to draft replies and book appointments.")}</div>`;
+      : `<div class="fmchat-ctx-empty" style="padding-top:14px;text-align:center"><i class="fas fa-wand-magic-sparkles" style="display:block;font-size:22px;margin-bottom:8px;opacity:.5"></i>${(globalThis.PlatformLanguage?.htmlText("chat","m_e195500186cfc6","Ask about any conversation across email, texts, and chat — or ask me to draft replies and book appointments.") ?? "Ask about any conversation across email, texts, and chat — or ask me to draft replies and book appointments.")}</div>`;
     mount.innerHTML = `
       <div class="fmchat-agent-panel">
         <div class="fmchat-agent-head">
-          <span class="fmchat-agent-title"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("chat","m_4a042d7afc906b","Comms AI") ?? "Comms AI")}</span>
-          <button type="button" class="fmchat-btn" data-agent-close aria-label="${(globalThis.PlatformLanguage?.text("chat","m_da993921863718","Close AI sidebar") ?? "Close AI sidebar")}"><i class="fas fa-xmark"></i></button>
+          <span class="fmchat-agent-title"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("chat","m_4a042d7afc906b","Comms AI") ?? "Comms AI")}</span>
+          <button type="button" class="fmchat-btn" data-agent-close aria-label="${(globalThis.PlatformLanguage?.htmlText("chat","m_da993921863718","Close AI sidebar") ?? "Close AI sidebar")}"><i class="fas fa-xmark"></i></button>
         </div>
         <div class="fmchat-agent-msgs" data-agent-scroll>
           ${String(state.agent.error ? `<div class="fmchat-empty" style="color:#b42318">${esc(state.agent.error)}</div>` : '')}
           ${String(messagesHtml)}
-          ${String(state.agent.busy ? '<div class="fmchat-agent-msg assistant pending">Working…</div>' : '')}
+          ${String(state.agent.busy ? `<div class="fmchat-agent-msg assistant pending">${(globalThis.PlatformLanguage?.htmlText("chat","m_0d8180a62bfe82","Working…") ?? "Working…")}</div>` : '')}
         </div>
         <div class="fmchat-agent-composer">
-          <textarea placeholder="${(globalThis.PlatformLanguage?.text("chat","m_48227f599c3b37","Ask across every inbox…") ?? "Ask across every inbox…")}" data-agent-input></textarea>
+          <textarea placeholder="${(globalThis.PlatformLanguage?.htmlText("chat","m_48227f599c3b37","Ask across every inbox…") ?? "Ask across every inbox…")}" data-agent-input></textarea>
           <button type="button" class="fmchat-agent-send" data-agent-send ${String(state.agent.busy ? 'disabled' : '')}><i class="fas fa-paper-plane"></i></button>
         </div>
       </div>

@@ -401,11 +401,15 @@ Notification records are centralized Platform documents. They target users and/o
 Routes:
 
 - `GET /organizations/:orgId/notifications`: notifications visible to the logged-in user.
-- `POST /organizations/:orgId/notifications`: create a notification. If `push: true`, delivery is logged to `push_log` for now.
+- `POST /organizations/:orgId/notifications`: create a notification. If `push: true`, registered Android and iOS devices receive it through FCM and APNs; provider results are recorded in `push_log`.
 - `GET /organizations/:orgId/notifications/:notificationId`: read one notification.
 - `PATCH /organizations/:orgId/notifications/:notificationId/user-state`: mark `seen`, `dismissed`, or `completed` for the logged-in user.
 
 Per-user state is stored as `user.notification_state.{notificationId}` with `seen_at`, `dismissed_at`, and `completed_at`. Do not mutate notification records to dismiss them for one user.
+
+The notification API also provides `GET/PATCH /organizations/:orgId/notification-preferences` and `POST/DELETE /organizations/:orgId/notification-devices`. Both are limited to the signed-in user. Categories are `leads`, `messages`, `mentions`, `tasks`, `scheduling`, `payments`, `celebrations`, `measurements`, and `system`. The same category IDs drive desktop preferences, Android channels, and APNs categories/threads. Measurements has separate settings for delivered and corrected reports, canceled orders, rejected orders, and progress updates. A successful report email, not QA completion alone, creates the delivered notification. Device tokens are held in the private `notification_devices` collection, which is unavailable through generic document routes. A notification may be read or acknowledged only by a recipient in its branch.
+
+Mobile provider setup and native build requirements are in `native/firstmate/README.md`.
 
 ## Action Items API
 

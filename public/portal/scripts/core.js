@@ -85,13 +85,12 @@
     }
   }
 
-  function sidebarFlagValue(flag, fallback){
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    return flags?.value?.('platform', flag, fallback) ?? fallback;
+  function sidebarPreference(key, fallback){
+    return window.Portal?.currentUser?.identity?.preferences?.[key] ?? fallback;
   }
 
   function sidebarTemporaryExpansionMode(){
-    return String(sidebarFlagValue('left_column_expansion_mode', 'resize')).trim().toLowerCase() === 'overlap'
+    return String(sidebarPreference('left_column_expansion_mode', 'resize')).trim().toLowerCase() === 'overlap'
       ? 'overlap'
       : 'resize';
   }
@@ -120,6 +119,7 @@
         window.Portal.currentUser.identity.preferences = preferences;
       }
       applySidebarWidth(preferences.sidebar_width);
+      window.dispatchEvent(new CustomEvent('fm:user-preferences:updated', { detail:{ preferences } }));
     } catch (_) {
       // The wider default remains usable when preferences cannot be loaded.
     }
@@ -187,7 +187,7 @@
   }
 
   function applySidebarLayoutFeatureFlags(){
-    const nextGlobal = sidebarFlagValue('always_collapsible_left_column', false) === true;
+    const nextGlobal = sidebarPreference('always_collapsible_left_column', false) === true;
     if (nextGlobal !== sidebarGlobalCompactEnabled) {
       sidebarGlobalCompactEnabled = nextGlobal;
       if (nextGlobal) {
@@ -196,6 +196,9 @@
         sidebarCompactOwners.delete(GLOBAL_COMPACT_SIDEBAR_OWNER);
       }
     }
+    document.getElementById('mainSidebar')?.classList.toggle(
+      'sidebar-resize-enabled', sidebarPreference('resizable_left_column', true) === true
+    );
     syncSidebarMode();
   }
 
@@ -207,9 +210,84 @@
     current(){ return sidebarCompactOwners.size > 0 ? 'compact' : 'expanded'; },
     expansionMode: sidebarTemporaryExpansionMode
   };
-  document.getElementById('sidebarCompactToggle')?.addEventListener('click', () => {
+  const sidebarCompactToggle = document.getElementById('sidebarCompactToggle');
+  const sidebarResizeEdge = document.getElementById('sidebarResizeEdge');
+  let sidebarResizeGesture = null;
+  let sidebarResizeRevision = 0;
+  let sidebarResizeSave = Promise.resolve();
+  let suppressSidebarToggleClick = false;
+  sidebarCompactToggle?.addEventListener('click', (event) => {
+    if (suppressSidebarToggleClick) {
+      suppressSidebarToggleClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     window.Portal.sidebarMode.toggleExpanded();
   });
+  function beginSidebarResize(event){
+    if (sidebarPreference('resizable_left_column', true) !== true ||
+        (event.pointerType === 'mouse' && event.button !== 0) ||
+        window.matchMedia('(max-width:820px)').matches) return;
+    sidebarResizeGesture = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: normalizeSidebarWidth(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sidebar'))),
+      wasExpanded: sidebarCompactExpanded,
+      revision: ++sidebarResizeRevision,
+      fromToggle: event.currentTarget === sidebarCompactToggle,
+      dragging: false
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+  function moveSidebarResize(event){
+    const gesture = sidebarResizeGesture;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    if (!gesture.dragging && Math.abs(event.clientX - gesture.startX) < 5) return;
+    if (!gesture.dragging) {
+      gesture.dragging = true;
+      document.getElementById('mainSidebar')?.classList.add('sidebar-resizing');
+      if (!sidebarCompactExpanded) setSidebarCompactExpanded(true);
+    }
+    applySidebarWidth(gesture.startWidth + event.clientX - gesture.startX);
+    event.preventDefault();
+  }
+  async function finishSidebarResize(event, cancelled = false){
+    const gesture = sidebarResizeGesture;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    sidebarResizeGesture = null;
+    document.getElementById('mainSidebar')?.classList.remove('sidebar-resizing');
+    if (!gesture.dragging) return;
+    if (gesture.fromToggle) {
+      suppressSidebarToggleClick = true;
+      setTimeout(() => { suppressSidebarToggleClick = false; }, 0);
+    }
+    if (cancelled) {
+      applySidebarWidth(gesture.startWidth);
+      if (!gesture.wasExpanded) setSidebarCompactExpanded(false);
+      return;
+    }
+    const width = applySidebarWidth(gesture.startWidth + event.clientX - gesture.startX);
+    try {
+      sidebarResizeSave = sidebarResizeSave.catch(() => {}).then(() => window.PlatformAPI.preferences.patch({ sidebar_width: width }));
+      const saved = await sidebarResizeSave;
+      if (gesture.revision !== sidebarResizeRevision) return;
+      if (window.Portal?.currentUser?.identity) window.Portal.currentUser.identity.preferences = saved.preferences;
+      window.dispatchEvent(new CustomEvent('fm:user-preferences:updated', { detail:{ preferences:saved.preferences } }));
+    } catch (error) {
+      if (gesture.revision !== sidebarResizeRevision) return;
+      applySidebarWidth(gesture.startWidth);
+      if (!gesture.wasExpanded) setSidebarCompactExpanded(false);
+      window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("platform","m_9a00fb620ffc1d","Could not save sidebar width") ?? "Could not save sidebar width"), error?.message || 'Please try again.', false);
+      console.error('Could not save sidebar width', error);
+    }
+  }
+  for (const handle of [sidebarCompactToggle, sidebarResizeEdge]) {
+    handle?.addEventListener('pointerdown', beginSidebarResize);
+    handle?.addEventListener('pointermove', moveSidebarResize);
+    handle?.addEventListener('pointerup', (event) => { void finishSidebarResize(event); });
+    handle?.addEventListener('pointercancel', (event) => { void finishSidebarResize(event, true); });
+  }
   document.getElementById('mainSidebar')?.addEventListener('mouseenter', (event) => {
     event.currentTarget?.classList.remove('sidebar-compact-edge-held');
   });
@@ -226,7 +304,9 @@
     }
   });
   window.addEventListener('fm:user-preferences:updated', (event) => {
+    if (window.Portal?.currentUser?.identity && event?.detail?.preferences) window.Portal.currentUser.identity.preferences = event.detail.preferences;
     applySidebarWidth(event?.detail?.preferences?.sidebar_width);
+    applySidebarFeatureFlags();
   });
 
   function syncVisualViewportVars(){
@@ -406,23 +486,22 @@
 
   function projectTypePrice(type){
     const key = String(type || '').trim().toLowerCase();
-    if (key === 'commercial' || key === 'multifamily') return 12;
-    return 7;
+    return window.PlatformCommerce.price(key === 'commercial' || key === 'multifamily' ? key : 'residential');
   }
 
   function gutterReportAddon(){
-    const amount = Number(APP.gutterReportAddon ?? 2);
+    const amount = window.PlatformCommerce.price('gutters');
     return Number.isFinite(amount) ? amount : 2;
   }
 
   function weatherReportAddon(){
-    const amount = Number(APP.weatherReportAddon ?? 5);
+    const amount = window.PlatformCommerce.price('weather');
     return Number.isFinite(amount) ? amount : 5;
   }
 
   function instantReportAddon(projectType){
     const type = String(projectType || 'residential').trim().toLowerCase();
-    return type === 'commercial' || type === 'multifamily' ? 4 : 2;
+    return window.PlatformCommerce.price('instant_' + (type === 'commercial' || type === 'multifamily' ? type : 'residential'));
   }
 
   function firstMeasureFlagEnabled(flag, fallback = false){
@@ -530,7 +609,7 @@
   }
 
   async function fmPost(path, payload){
-    return await fmJson(path, { method: 'POST', body: payload || {} });
+    return await fmJson(path, { method: 'POST', body: /weather\/order/.test(path)?{...payload,commercial_pricing_revision:window.PlatformCommerce.current().pricing_revision}:payload || {} });
   }
 
   async function portalActionJson(action, fields = {}){
@@ -1717,6 +1796,7 @@
   }
 
   async function postAction(action, fields={}){
+    if(['queue','submit_report_rework_request','expedite_queued_report'].includes(action))fields={...fields,commercial_pricing_revision:window.PlatformCommerce.current().pricing_revision};
     const routed = await routeProjectAction(action, fields);
     if (routed) return routed;
     return await portalActionJson(action, fields);
@@ -2023,7 +2103,7 @@
     notice.id = 'fmManagementAccessDenied';
     notice.setAttribute('role', 'alert');
     notice.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:24px;background:#f8fafc;color:#101828;font-family:inherit';
-    notice.innerHTML = `<div style="width:min(520px,100%);padding:28px;border:1px solid #e4e7ec;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.14);text-align:center"><div style="font-size:34px;margin-bottom:12px"><i class="fas fa-lock"></i></div><h1 style="margin:0 0 8px;font-size:22px">${(globalThis.PlatformLanguage?.text("platform","m_b126ae2c9d98e9","App access is not enabled") ?? "App access is not enabled")}</h1><p style="margin:0 0 20px;color:#667085;line-height:1.5">${(globalThis.PlatformLanguage?.text("platform","m_9281c219072ec2","Your account is active, but no FirstMate application is enabled for it. Ask a company administrator to update your app access.") ?? "Your account is active, but no FirstMate application is enabled for it. Ask a company administrator to update your app access.")}</p><a href="/logout.php" style="display:inline-flex;padding:10px 16px;border-radius:10px;background:#111827;color:#fff;text-decoration:none;font-weight:900">${(globalThis.PlatformLanguage?.text("platform","m_4a4225b26dcc30","Sign out") ?? "Sign out")}</a></div>`;
+    notice.innerHTML = `<div style="width:min(520px,100%);padding:28px;border:1px solid #e4e7ec;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.14);text-align:center"><div style="font-size:34px;margin-bottom:12px"><i class="fas fa-lock"></i></div><h1 style="margin:0 0 8px;font-size:22px">${(globalThis.PlatformLanguage?.htmlText("platform","m_b126ae2c9d98e9","App access is not enabled") ?? "App access is not enabled")}</h1><p style="margin:0 0 20px;color:#667085;line-height:1.5">${(globalThis.PlatformLanguage?.htmlText("platform","m_9281c219072ec2","Your account is active, but no FirstMate application is enabled for it. Ask a company administrator to update your app access.") ?? "Your account is active, but no FirstMate application is enabled for it. Ask a company administrator to update your app access.")}</p><a href="/logout.php" style="display:inline-flex;padding:10px 16px;border-radius:10px;background:#111827;color:#fff;text-decoration:none;font-weight:900">${(globalThis.PlatformLanguage?.htmlText("platform","m_4a4225b26dcc30","Sign out") ?? "Sign out")}</a></div>`;
     document.body.appendChild(notice);
   }
 
@@ -2186,7 +2266,7 @@
     el.innerHTML = `
       <div class="ic" id="fmToastIc"><i class="fas fa-check"></i></div>
       <div class="tx">
-        <div class="t1" id="fmToastT1">${(globalThis.PlatformLanguage?.text("platform","m_8cb6b086a0e69c","Done") ?? "Done")}</div>
+        <div class="t1" id="fmToastT1">${(globalThis.PlatformLanguage?.htmlText("platform","m_8cb6b086a0e69c","Done") ?? "Done")}</div>
         <div class="t2" id="fmToastT2">—</div>
       </div>
       <button class="x" id="fmToastX" data-fm-tooltip="Dismiss"><i class="fas fa-times"></i></button>
@@ -2247,6 +2327,7 @@
   };
 
   function terminologyLabel(key, fallback = ''){
+    if (!String(key || '').trim()) return String(fallback || '').trim();
     return window.PlatformTerminology?.get?.(key, fallback) || String(fallback || '').trim();
   }
 
@@ -2327,7 +2408,7 @@
     const requested = cleanText(configured || app.placement || fallback).toLowerCase();
     // The advanced launcher revives `more` as an app-menu-only placement. With
     // the experiment off, preserve the legacy projection back to the sidebar.
-    if (requested === 'more') return advancedAppMenuEnabled() ? 'more' : 'sidebar';
+    if (requested === 'more') return appId === 'portal.assistant' || advancedAppMenuEnabled() ? 'more' : 'sidebar';
     return ['sidebar', 'more', 'settings', 'hidden'].includes(requested) ? requested : fallback;
   }
 
@@ -2441,20 +2522,23 @@
   }
 
   function setSidebarPanel(panelName){
-    const requestedMode = ['apps', 'todo', 'channels'].includes(panelName) ? panelName : 'apps';
+    const requestedMode = ['apps', 'todo', 'channels', 'agents'].includes(panelName) ? panelName : 'apps';
     const sidebar = document.getElementById('mainSidebar');
     const appsTab = document.getElementById('sidebarAppsTab');
     const todoTab = document.getElementById('sidebarTodoTab');
     const channelsTab = document.getElementById('sidebarChannelsTab');
+    const agentsTab = document.getElementById('sidebarAgentsTab');
     const appsPanel = document.getElementById('sidebarAppsPanel');
     const todoPanel = document.getElementById('sidebarTodoPanel');
     const channelsPanel = document.getElementById('sidebarChannelsPanel');
+    const agentsPanel = document.getElementById('sidebarAgentsPanel');
     if (!appsTab || !todoTab || !appsPanel || !todoPanel) return;
 
     const panes = [
       { key: 'apps', enabledClass: 'apps-list-enabled', tab: appsTab, panel: appsPanel },
       { key: 'todo', enabledClass: 'todo-list-enabled', tab: todoTab, panel: todoPanel },
-      ...(channelsTab && channelsPanel ? [{ key: 'channels', enabledClass: 'channels-tab-enabled', tab: channelsTab, panel: channelsPanel }] : [])
+      ...(channelsTab && channelsPanel ? [{ key: 'channels', enabledClass: 'channels-tab-enabled', tab: channelsTab, panel: channelsPanel }] : []),
+      ...(agentsTab && agentsPanel ? [{ key: 'agents', enabledClass: 'agents-tab-enabled', tab: agentsTab, panel: agentsPanel }] : [])
     ];
     const available = panes.filter((pane) => sidebar?.classList.contains(pane.enabledClass));
     const mode = available.some((pane) => pane.key === requestedMode) ? requestedMode : (available[0]?.key || '');
@@ -2467,18 +2551,16 @@
     }
     if (mode === 'todo') mountSidebarTodo();
     if (mode === 'channels') mountSidebarChannels();
+    if (mode === 'agents') mountSidebarAgents();
   }
 
   function sidebarDefaultMode(){
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    const configured = String(flags?.value?.('platform', 'left_column_default_mode', 'apps') || 'apps').trim().toLowerCase();
-    return ['apps', 'todo', 'channels'].includes(configured) ? configured : 'apps';
+    const configured = String(sidebarPreference('left_column_default_mode', 'apps') || 'apps').trim().toLowerCase();
+    return ['apps', 'todo', 'channels', 'agents'].includes(configured) ? configured : 'apps';
   }
 
   function sidebarAppsFeatureEnabled(){
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    if (!flags?.current?.()) return true;
-    return !!flags.has?.('platform', 'left_column_apps', true);
+    return sidebarPreference('left_column_apps', true) !== false;
   }
 
   function applySidebarAppsFeatureFlag(){
@@ -2489,14 +2571,12 @@
   }
 
   function sidebarTodoFeatureEnabled(){
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    if (!flags?.current?.()) return false;
     const currentUser = window.Portal?.currentUser;
     const hasManagementAccess = currentUser?.canAccessApplication?.('management') === true;
     const canViewProjects = window.Portal?.util?.hasPerm?.('view_projects') === true;
     return hasManagementAccess
       && canViewProjects
-      && !!flags.has?.('platform', 'left_column_todo_list');
+      && sidebarPreference('left_column_todo_list', false) === true;
   }
 
   function applySidebarTodoFeatureFlag(){
@@ -2516,7 +2596,7 @@
     if (!container) return;
     const orgId = cleanText(APP.userOrgId, APP.orgId, window.__APP?.userOrgId, window.__APP?.orgId);
     if (!orgId || !window.PlatformActionItems?.renderTodayList) {
-      container.innerHTML = `<div class="pai-today-list"><div class="pai-state">${(globalThis.PlatformLanguage?.text("platform","m_b46ce5290a86bd","To-dos are not available.") ?? "To-dos are not available.")}</div></div>`;
+      container.innerHTML = `<div class="pai-today-list"><div class="pai-state">${(globalThis.PlatformLanguage?.htmlText("platform","m_b46ce5290a86bd","To-dos are not available.") ?? "To-dos are not available.")}</div></div>`;
       return;
     }
     if (!sidebarTodoController) {
@@ -2543,11 +2623,10 @@
   function sidebarChannelsFeatureEnabled(){
     // On phones the sidebar is a pop-out drawer, so the left-column channels
     // integration only adds indirection: mobile always uses the standalone
-    // channels tab, as if the sidebar_tab toggle were off.
+    // channels tab, regardless of the desktop preference.
     if (window.matchMedia?.('(max-width: 820px)')?.matches) return false;
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    if (!flags?.current?.()) return false;
-    return !!flags.has?.('channels', 'sidebar_tab');
+    if (window.Portal?.can?.('apps.channels') === false) return false;
+    return sidebarPreference('left_column_channels', false) === true;
   }
 
   function applySidebarChannelsFeatureFlag(){
@@ -2561,6 +2640,32 @@
     return enabled;
   }
 
+  function sidebarAgentsFeatureEnabled(){
+    if (window.matchMedia?.('(max-width: 820px)')?.matches) return false;
+    if (window.Portal?.can?.('apps.assistant') === false) return false;
+    const user = window.Portal?.currentUser;
+    if (user?.canAccessApplication && !user.canAccessApplication('management') && !user.canAccessApplication('field')) return false;
+    if (!['use_assistant', 'view_projects', 'manage_projects', 'manage_company_settings'].some((permission) => window.Portal?.util?.hasPerm?.(permission))) return false;
+    return sidebarPreference('left_column_agents', false) === true;
+  }
+
+  function applySidebarAgentsFeatureFlag(){
+    const enabled = sidebarAgentsFeatureEnabled();
+    document.getElementById('mainSidebar')?.classList.toggle('agents-tab-enabled', enabled);
+    if (!enabled) window.PlatformAssistant?.unmountSidebar?.();
+    return enabled;
+  }
+
+  function mountSidebarAgents(){
+    const container = document.getElementById('sidebarAgentsList');
+    if (!container) return;
+    if (!window.PlatformAssistant?.mountSidebar) {
+      container.textContent = (globalThis.PlatformLanguage?.text("platform","m_854ab579641f94","Agent conversations are loading…") ?? "Agent conversations are loading…");
+      return;
+    }
+    window.PlatformAssistant.mountSidebar(container);
+  }
+
   function mountSidebarChannels(){
     const container = document.getElementById('sidebarChannelsList');
     if (!container) return;
@@ -2571,7 +2676,7 @@
     }
     const orgId = cleanText(APP.userOrgId, APP.orgId, window.__APP?.userOrgId, window.__APP?.orgId);
     if (!orgId || !window.FirstMateChannels?.create || !window.ChannelsAPI) {
-      container.innerHTML = `<div style="padding:14px 8px;color:#667085;font-size:12px;font-weight:850">${(globalThis.PlatformLanguage?.text("platform","m_ab82fba58e1b16","Channels are not available.") ?? "Channels are not available.")}</div>`;
+      container.innerHTML = `<div style="padding:14px 8px;color:#667085;font-size:12px;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("platform","m_ab82fba58e1b16","Channels are not available.") ?? "Channels are not available.")}</div>`;
       return;
     }
     container.innerHTML = '';
@@ -2619,17 +2724,24 @@
     const modes = [
       { key: 'apps', enabled: applySidebarAppsFeatureFlag(), tab: document.getElementById('sidebarAppsTab') },
       { key: 'todo', enabled: applySidebarTodoFeatureFlag(), tab: document.getElementById('sidebarTodoTab') },
-      { key: 'channels', enabled: applySidebarChannelsFeatureFlag(), tab: document.getElementById('sidebarChannelsTab') }
+      { key: 'channels', enabled: applySidebarChannelsFeatureFlag(), tab: document.getElementById('sidebarChannelsTab') },
+      { key: 'agents', enabled: applySidebarAgentsFeatureFlag(), tab: document.getElementById('sidebarAgentsTab') }
     ];
+    if (!modes.some((mode) => mode.enabled)) {
+      modes[0].enabled = true;
+      sidebar?.classList.add('apps-list-enabled');
+    }
     const available = modes.filter((mode) => mode.enabled);
     sidebar?.classList.toggle('sidebar-modes-switchable', available.length > 1);
     for (const mode of modes) {
       if (mode.tab) mode.tab.hidden = !mode.enabled;
     }
     const active = modes.find((mode) => mode.tab?.classList.contains('active'))?.key || '';
-    const preferred = sidebarModeUserSelected && available.some((mode) => mode.key === active)
-      ? active
-      : sidebarDefaultMode();
+    const preferred = available.some((mode) => mode.key === 'agents') && window.PlatformAssistant?.isFull?.()
+      ? 'agents'
+      : sidebarModeUserSelected && available.some((mode) => mode.key === active)
+        ? active
+        : sidebarDefaultMode();
     setSidebarPanel(available.some((mode) => mode.key === preferred) ? preferred : (available[0]?.key || ''));
   }
 
@@ -2637,12 +2749,11 @@
     const appsTab = document.getElementById('sidebarAppsTab');
     const todoTab = document.getElementById('sidebarTodoTab');
     const channelsTab = document.getElementById('sidebarChannelsTab');
+    const agentsTab = document.getElementById('sidebarAgentsTab');
     if (!appsTab || !todoTab) return;
     appsTab.addEventListener('click', () => {
-      if (sidebarAppsFeatureEnabled()) {
-        sidebarModeUserSelected = true;
-        setSidebarPanel('apps');
-      }
+      sidebarModeUserSelected = true;
+      setSidebarPanel('apps');
     });
     todoTab.addEventListener('click', () => {
       if (sidebarTodoFeatureEnabled()) {
@@ -2656,6 +2767,16 @@
         setSidebarPanel('channels');
       }
     });
+    agentsTab?.addEventListener('click', () => {
+      if (sidebarAgentsFeatureEnabled()) {
+        sidebarModeUserSelected = true;
+        setSidebarPanel('agents');
+      }
+    });
+    window.addEventListener('fm:assistant:ready', () => {
+      if (document.getElementById('sidebarAgentsTab')?.classList.contains('active')) mountSidebarAgents();
+    });
+    window.addEventListener('resize', applySidebarFeatureFlags, { passive:true });
     window.addEventListener('fm:app-flags:updated', applySidebarFeatureFlags);
     window.addEventListener('fm:perms:updated', applySidebarFeatureFlags);
     window.addEventListener('fm:platform-session:updated', applySidebarFeatureFlags);
@@ -2666,6 +2787,8 @@
     });
     applySidebarFeatureFlags();
   }
+
+  window.Portal.sidebarModes = { activate:setSidebarPanel, agentsEnabled:sidebarAgentsFeatureEnabled };
 
   function updateMobileTabTitle(tab){
     const topbar = document.querySelector('.mobile-topbar');
@@ -2884,23 +3007,23 @@
             <h3>${String(escapeHtml(entry.label))}</h3>
             ${String(entry.category ? `<span class="fm-app-catalog-category">${escapeHtml(entry.category)}</span>` : '')}
           </div>
-          <button type="button" class="fm-app-catalog-close" data-app-catalog-close aria-label="${(globalThis.PlatformLanguage?.text("platform","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+          <button type="button" class="fm-app-catalog-close" data-app-catalog-close aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
         </header>
         <div class="fm-app-catalog-body">
           <div class="fm-app-catalog-preview" aria-hidden="true">
             <span class="fm-app-catalog-preview-icon"><i class="fas ${String(escapeHtml(entry.icon))}"></i></span>
           </div>
           <div class="fm-app-catalog-details">
-            <h4>${((v5) => globalThis.PlatformLanguage?.text("platform","m_661c04e299660b",`About ${v5}`,{v5}) ?? `About ${v5}`)(escapeHtml(entry.label))}</h4>
+            <h4>${((v5) => globalThis.PlatformLanguage?.htmlText("platform","m_661c04e299660b",`About ${v5}`,{v5}) ?? `About ${v5}`)(escapeHtml(entry.label))}</h4>
             <p>${String(escapeHtml(entry.description || 'No description yet.'))}</p>
           <p class="fm-app-catalog-state">${String(entry.enabled ? escapeHtml(setupStateCopy) : 'Included with your FirstMate plan — add it to start using it.')}</p>
           </div>
         </div>
         <footer>
           <span class="fm-app-catalog-status" data-app-catalog-status></span>
-          <button type="button" class="fm-app-catalog-btn ghost" data-app-catalog-close>${(globalThis.PlatformLanguage?.text("platform","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+          <button type="button" class="fm-app-catalog-btn ghost" data-app-catalog-close>${(globalThis.PlatformLanguage?.htmlText("platform","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
           ${String(entry.enabled
-            ? `${setupNeeded ? `<button type="button" class="fm-app-catalog-btn primary" data-app-catalog-setup><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i> ${escapeHtml(setupActionLabel)}</button>` : ''}<button type="button" class="fm-app-catalog-btn danger" data-app-catalog-remove>Turn Off</button>`
+            ? `${setupNeeded ? `<button type="button" class="fm-app-catalog-btn primary" data-app-catalog-setup><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i> ${escapeHtml(setupActionLabel)}</button>` : ''}<button type="button" class="fm-app-catalog-btn danger" data-app-catalog-remove>${(globalThis.PlatformLanguage?.htmlText("platform","m_86ec40fa3f9758","Turn Off") ?? "Turn Off")}</button>`
             : `<button type="button" class="fm-app-catalog-btn primary" data-app-catalog-add><i class="fas fa-plus" aria-hidden="true"></i> ${setup.mode === 'required' ? 'Add & Set Up' : 'Add to Platform'}</button>`)}
         </footer>
       </div>`;
@@ -3020,8 +3143,8 @@
       const statusPills = entry.statusPills || [];
       return `
       <article class="fm-advanced-app-tile${entry.pinned ? ' is-pinned' : ' is-unpinned'}" data-advanced-app-tile="${escapeHtml(entry.key)}">
-        ${!entry.pinnable ? '' : `<button type="button" class="fm-advanced-app-pin${String(entry.pinned ? ' is-pinned' : '')}" data-advanced-app-pin="${String(escapeHtml(entry.appId))}" aria-label="${((v2,v3,v4) => globalThis.PlatformLanguage?.text("platform","m_be9d2ffc499cb4",`${v2} ${v3} ${v4} the sidebar`,{v2,v3,v4}) ?? `${v2} ${v3} ${v4} the sidebar`)(entry.pinned ? 'Unpin' : 'Pin',escapeHtml(entry.label),entry.pinned ? 'from' : 'to')}" title="${String(entry.pinned ? 'Unpin from sidebar' : 'Pin to sidebar')}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>`}
-        ${statusPills.length ? ("<div class=\"fm-advanced-app-status-pills\" aria-label=\"" + (globalThis.PlatformLanguage?.text("platform","m_bd09496c83ccd1","App status") ?? "App status") + "\">" + String(statusPills.map((pill) => `<span class="fm-advanced-app-status-pill is-${escapeHtml(pill.tone)}" data-status-pill="${escapeHtml(pill.id)}">${escapeHtml(pill.label)}</span>`).join('')) + "</div>") : ''}
+        ${!entry.pinnable ? '' : `<button type="button" class="fm-advanced-app-pin${String(entry.pinned ? ' is-pinned' : '')}" data-advanced-app-pin="${String(escapeHtml(entry.appId))}" aria-label="${((v2,v3,v4) => globalThis.PlatformLanguage?.htmlText("platform","m_be9d2ffc499cb4",`${v2} ${v3} ${v4} the sidebar`,{v2,v3,v4}) ?? `${v2} ${v3} ${v4} the sidebar`)(entry.pinned ? 'Unpin' : 'Pin',escapeHtml(entry.label),entry.pinned ? 'from' : 'to')}" title="${String(entry.pinned ? 'Unpin from sidebar' : 'Pin to sidebar')}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>`}
+        ${statusPills.length ? ("<div class=\"fm-advanced-app-status-pills\" aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("platform","m_bd09496c83ccd1","App status") ?? "App status") + "\">" + String(statusPills.map((pill) => `<span class="fm-advanced-app-status-pill is-${escapeHtml(pill.tone)}" data-status-pill="${escapeHtml(pill.id)}">${escapeHtml(pill.label)}</span>`).join('')) + "</div>") : ''}
         <div class="fm-advanced-app-icon-wrap">
           <button type="button" class="fm-advanced-app-icon-button" data-advanced-app-open="${escapeHtml(entry.key)}" aria-label="${setupRequired ? 'Set up' : 'Open'} ${escapeHtml(entry.label)}">
             <span class="fm-advanced-app-icon"><i class="fas ${escapeHtml(entry.icon)}" aria-hidden="true"></i></span>
@@ -3045,12 +3168,12 @@
     setSidebarEdge();
     window.setTimeout(setSidebarEdge, 210);
     overlay.innerHTML = `
-      <section class="fm-advanced-apps-panel" aria-label="${(globalThis.PlatformLanguage?.text("platform","m_a151b65da51bfd","All apps") ?? "All apps")}">
-        <button type="button" class="fm-advanced-apps-close" data-advanced-apps-close aria-label="${(globalThis.PlatformLanguage?.text("platform","m_0838136c759dc3","Close apps") ?? "Close apps")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+      <section class="fm-advanced-apps-panel" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_a151b65da51bfd","All apps") ?? "All apps")}">
+        <button type="button" class="fm-advanced-apps-close" data-advanced-apps-close aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_0838136c759dc3","Close apps") ?? "Close apps")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
         <div class="fm-advanced-apps-scroll">
-          <nav class="fm-advanced-apps-grid" aria-label="${(globalThis.PlatformLanguage?.text("platform","m_290b7f9d844e1e","Active apps") ?? "Active apps")}">${String(enabled.map((entry) => appTile(entry)).join(''))}</nav>
+          <nav class="fm-advanced-apps-grid" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_290b7f9d844e1e","Active apps") ?? "Active apps")}">${String(enabled.map((entry) => appTile(entry)).join(''))}</nav>
         </div>
-        <footer><button type="button" data-advanced-apps-manage><i class="fas fa-sliders" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.text("platform","m_1575b4a4cbcb3d"," Manage apps and features") ?? " Manage apps and features")}</button></footer>
+        <footer><button type="button" data-advanced-apps-manage><i class="fas fa-sliders" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_1575b4a4cbcb3d"," Manage apps and features") ?? " Manage apps and features")}</button></footer>
       </section>`;
 
     overlay.addEventListener('mousedown', (event) => {
@@ -3221,7 +3344,8 @@
     // org has not enabled yet. Once that catalog is empty, this launcher
     // becomes a direct Apps Settings shortcut instead of opening an empty menu.
     const catalogApps = appCatalogEntries().filter((entry) => entry.addable);
-    const hasMoreApps = catalogApps.length > 0;
+    const assistantApp = list.find((tab) => tab.id === 'assistant');
+    const hasMoreApps = catalogApps.length > 0 || !!assistantApp;
     const advancedMenu = advancedAppMenuEnabled();
     if (!advancedMenu && advancedAppMenuOpen) closeAdvancedAppMenu({ restoreFocus:false });
     const settingsTabId = ['company', 'settings'].join('_');
@@ -3289,13 +3413,14 @@
         if (count <= 23) return 6;
         return 7;
       };
-      const catalogGrid = catalogApps.length ? `<nav class="fm-more-apps-grid">${catalogApps.map((entry) => `
+      const assistantTile = assistantApp ? `<div style="position:relative"><button type="button" class="fm-more-app" role="menuitem" data-active-app="assistant"><span class="fm-more-app-icon"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i></span><span class="fm-more-app-name">${(globalThis.PlatformLanguage?.htmlText("platform","m_4aaef822b47692","FirstMate Assistant") ?? "FirstMate Assistant")}</span></button><button type="button" data-assistant-pin="${assistantApp.placement === 'sidebar' ? 'unpin' : 'pin'}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform","m_c411108185658e",`${v1} FirstMate Assistant`,{v1}) ?? `${v1} FirstMate Assistant`)(assistantApp.placement === 'sidebar' ? 'Unpin' : 'Pin')}" title="${((v2) => globalThis.PlatformLanguage?.htmlText("platform","m_75157fa1305ecd",`${v2} FirstMate Assistant`,{v2}) ?? `${v2} FirstMate Assistant`)(assistantApp.placement === 'sidebar' ? 'Unpin' : 'Pin')}" style="position:absolute;top:0;right:0;border:0;background:transparent;padding:8px;cursor:pointer;color:#667085"><i class="fas fa-thumbtack" aria-hidden="true"></i></button></div>` : '';
+      const catalogGrid = (catalogApps.length || assistantApp) ? `<nav class="fm-more-apps-grid">${assistantTile}${catalogApps.map((entry) => `
         <button type="button" class="fm-more-app" role="menuitem" data-catalog-app="${escapeHtml(entry.key)}">
           <span class="fm-more-app-icon"><i class="fas ${escapeHtml(entry.icon)}" aria-hidden="true"></i></span>
           <span class="fm-more-app-name">${escapeHtml(entry.label)}</span>
           <span class="fm-more-app-desc">${escapeHtml(entry.stub)}</span>
-        </button>`).join('')}</nav>` : `<div class="fm-more-apps-empty">${(globalThis.PlatformLanguage?.text("platform","m_5f329f8bb1c9f0","Every available app is already on your platform.") ?? "Every available app is already on your platform.")}</div>`;
-      popover.innerHTML = `<header class="fm-more-apps-head"><strong class="fm-more-apps-title">${(globalThis.PlatformLanguage?.text("platform","m_cba67dfaef4579","More FirstMate apps") ?? "More FirstMate apps")}</strong><button type="button" data-more-apps-close aria-label="${(globalThis.PlatformLanguage?.text("platform","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark" aria-hidden="true"></i></button></header>${String(catalogGrid)}<footer class="fm-more-apps-foot"><button type="button" data-more-apps-manage role="menuitem"><i class="fas fa-sliders" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.text("platform","m_c2d1b0f24c343f"," Manage my apps") ?? " Manage my apps")}</button></footer>`;
+        </button>`).join('')}</nav>` : `<div class="fm-more-apps-empty">${(globalThis.PlatformLanguage?.htmlText("platform","m_5f329f8bb1c9f0","Every available app is already on your platform.") ?? "Every available app is already on your platform.")}</div>`;
+      popover.innerHTML = `<header class="fm-more-apps-head"><strong class="fm-more-apps-title">${(globalThis.PlatformLanguage?.htmlText("platform","m_cba67dfaef4579","More FirstMate apps") ?? "More FirstMate apps")}</strong><button type="button" data-more-apps-close aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark" aria-hidden="true"></i></button></header>${String(catalogGrid)}<footer class="fm-more-apps-foot"><button type="button" data-more-apps-manage role="menuitem"><i class="fas fa-sliders" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform","m_c2d1b0f24c343f"," Manage my apps") ?? " Manage my apps")}</button></footer>`;
       let closeTimer = 0;
       const finishClose = () => {
         window.clearTimeout(closeTimer);
@@ -3322,8 +3447,9 @@
         const availableWidth = window.innerWidth - (viewportMargin * 2);
         const availableHeight = Math.max(240, anchor.top - anchorGap - viewportMargin);
         const maximumColumns = Math.max(1, Math.floor((availableWidth - horizontalChrome + gridGap) / (tileWidth + gridGap)));
-        const columns = Math.min(preferredCatalogColumns(catalogApps.length), maximumColumns);
-        const rows = Math.max(1, Math.ceil(catalogApps.length / columns));
+        const tileCount = catalogApps.length + (assistantApp ? 1 : 0);
+        const columns = Math.min(preferredCatalogColumns(tileCount), maximumColumns);
+        const rows = Math.max(1, Math.ceil(tileCount / columns));
         const width = Math.min(960, availableWidth, Math.max(300, (columns * tileWidth) + ((columns - 1) * gridGap) + horizontalChrome));
         const height = Math.min(640, availableHeight, (rows * tileHeight) + ((rows - 1) * gridGap) + verticalChrome);
         const anchorCenter = anchor.left + (anchor.width / 2);
@@ -3369,6 +3495,18 @@
       });
       popover.querySelector('[data-more-apps-close]')?.addEventListener('click', () => { close(); moreButton.focus(); });
       popover.addEventListener('click', (event) => {
+        const pin = event.target.closest?.('[data-assistant-pin]');
+        if (pin) {
+          pin.disabled = true;
+          updateAdvancedAppPin('portal.assistant', pin.dataset.assistantPin === 'pin')
+            .catch((error) => { pin.disabled = false; window.PlatformUI?.showToast?.(error?.message || 'Could not update the sidebar.'); });
+          return;
+        }
+        if (event.target.closest?.('[data-active-app="assistant"]')) {
+          close();
+          activateTab('assistant', false, {history:'push', source:'more-apps'});
+          return;
+        }
         if (event.target.closest?.('[data-more-apps-manage]')) {
           close();
           if (window.Portal?.navigation?.navigate) {
@@ -3627,7 +3765,7 @@
       item.className = 'fm-link';
       item.dataset.tab = t.id;
       item.innerHTML = `
-        ${advancedAppMenuEnabled() && t.placement === 'sidebar' ? `<button type="button" class="fm-sidebar-app-pin is-pinned" data-sidebar-app-pin="${String(escapeHtml(t.appId))}" aria-label="${((v1) => globalThis.PlatformLanguage?.text("platform","m_db4217ef113961",`Unpin ${v1} from the sidebar`,{v1}) ?? `Unpin ${v1} from the sidebar`)(escapeHtml(title))}" title="${(globalThis.PlatformLanguage?.text("platform","m_faf31575fe991d","Unpin from sidebar") ?? "Unpin from sidebar")}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>` : ''}
+        ${advancedAppMenuEnabled() && t.placement === 'sidebar' ? `<button type="button" class="fm-sidebar-app-pin is-pinned" data-sidebar-app-pin="${String(escapeHtml(t.appId))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform","m_db4217ef113961",`Unpin ${v1} from the sidebar`,{v1}) ?? `Unpin ${v1} from the sidebar`)(escapeHtml(title))}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_faf31575fe991d","Unpin from sidebar") ?? "Unpin from sidebar")}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>` : ''}
         <div class="ic"><i class="fas ${escapeHtml(t.icon)}"></i></div>
         <div class="tx">${escapeHtml(title)}</div>
       `;
@@ -3877,6 +4015,7 @@
         if (hasDirectBalance) {
           data = {
             success: true,
+            commerce: directCredits.commerce,
             credits_balance: directCredits.balance ?? directCredits.credits_balance ?? directCredits.organization?.credits_balance ?? 0,
             free_expedite_uses: directCredits.free_expedite_uses ?? directCredits.organization?.free_expedite_uses ?? 0,
             permissions: session?.membership?.permissions || session?.membership?.org_permissions?.items || session?.user?.permissions || session?.user?.org_permissions?.items || null,
@@ -3898,6 +4037,7 @@
         return { ok:false, balance: lastCredits };
       }
 
+      if (data.commerce) window.PlatformCommerce.set({...window.PlatformCommerce.current(), ...data.commerce});
       const bal = moneyAmount(data.credits_balance ?? 0);
       lastCredits = bal;
       window.Portal.freeExpediteUses = Math.max(0, parseInt(String(data.free_expedite_uses ?? 0), 10) || 0);
@@ -3906,7 +4046,7 @@
       if (data.permissions && typeof data.permissions === 'object') setCurrentPermissions(data.permissions);
       window.Portal.referralDiscount = data.referral_discount || null;
 
-      document.querySelectorAll('.credits-val-target').forEach(el => el.textContent = `$${formatMoney(bal)}`);
+      document.querySelectorAll('.credits-val-target').forEach(el => el.textContent = window.PlatformCommerce.credit(bal));
       document.querySelectorAll('#creditsSub,.credits-sub-target').forEach((sub) => {
         sub.textContent = '';
         sub.style.display = 'none';
@@ -4361,6 +4501,7 @@
   // Export
   window.Portal.cfg = APP;
   window.Portal.util = { $, escapeHtml, injectCSS, formatDate, postAction, enableSafeBackdropClose, hasPerm, fmUrl, fmJson, fmPost, platformUrl, platformJson, currentActor, googleMapsApiKey };
+  window.Portal.commerce = window.PlatformCommerce;
   window.Portal.pricing = { projectTypePrice, gutterReportAddon, weatherReportAddon, instantReportAddon, orderAmount, orderAmountWithWeather, activeReferralDiscount, standardBaseAmountForOrder, referralDiscountPreview, moneyAmount, formatMoney };
   window.Portal.ui = {
     showToast,
@@ -4542,6 +4683,11 @@
     } catch (error) {
       console.warn('Money app setup could not enable merchant processing', error);
     }
+    try {
+      if (await window.FirstMatePaymentsSetup?.open?.()) return;
+    } catch (error) {
+      console.warn('Forward hosted setup could not open', error);
+    }
     window.Portal.navigation?.navigate?.(
       { tab: 'company_settings', sub: 'money', settingsView: 'payments', workflow: 'money_onboarding', workflow_step: 'business' },
       { source: 'money-app-setup', ownedKeys: ['tab', 'sub', 'workflow', 'workflow_step'] }
@@ -4569,11 +4715,20 @@
     const terminologyReady = Promise.resolve(window.Portal.terminology.load()).catch(()=>null);
     initializeSidebarModes();
     await Promise.all([appFlagsReady, capabilitiesReady, terminologyReady]);
+    try {
+      const orgId=String(APP.userOrgId || '').trim();
+      const commerce=await window.PlatformAPI.request(`${window.PlatformAPI.baseUrl()}/organizations/${encodeURIComponent(orgId)}/commerce`);
+      window.PlatformCommerce.set(commerce.commerce || commerce);
+    } catch(error) {
+      const cover=document.getElementById('fmPlatformBootCover');
+      if(cover){cover.textContent=(globalThis.PlatformLanguage?.text("platform","m_20117f24d2d135","Billing settings could not be loaded. ") ?? "Billing settings could not be loaded. ");const retry=document.createElement('button');retry.textContent=(globalThis.PlatformLanguage?.text("platform","m_48a9cdd2af44f4","Retry") ?? "Retry");retry.onclick=()=>location.reload();cover.appendChild(retry);}
+      console.error('Billing initialization failed',error);return;
+    }
     TabRegistry.routesReady = true;
     renderTabs();
+    await refreshCredits().catch(()=>null);
     document.body.classList.remove('platform-booting');
     document.getElementById('fmPlatformBootCover')?.remove();
-    refreshCredits().catch(()=>null);
     setTimeout(()=>checkSession().catch(()=>null), 1000);
     setInterval(()=>checkSession().catch(()=>null), 240000);
   });

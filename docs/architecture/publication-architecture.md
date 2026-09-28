@@ -1,5 +1,9 @@
 # Data, actions, bindings and programmable modules
 
+Project, contact, and organization variables are published through the shared
+[custom-field providers and actions](custom-fields.md), including nested typed
+values, read-only fields, and permission-gated private fields.
+
 This is the implementation guide for the shared publication architecture. The
 [conversation decisions](data-actions-continuity.md) explain the intent. The
 [data guide](data-publication.md) and [action guide](action-publication.md)

@@ -112,8 +112,8 @@ export async function buildRenderHarnessHtml(input: {
   });
   const title = String(input.title || "Document").replace(/[<>&"]/g, "");
   const language = input.language_snapshot;
-  const languageBoot = language && language.locale !== "en-US"
-    ? `<script>${escapeInlineScript(await readLibraryFile("platform-language/platform-language.js"))}</script><script>${(await frozenCatalogs(language, DOCUMENT_NAMESPACES)).map(bundle => `PlatformLanguage.register(${escapeJsonPayload(bundle)});`).join("")}PlatformLanguage.configure({context:${escapeJsonPayload(language)}});</script>`
+  const languageBoot = language && (language.locale !== "en-US" || Object.keys(language.terminology?.labels || {}).length || Object.keys(language.terminology?.localized_labels || {}).length)
+    ? `<script>${escapeInlineScript(await readLibraryFile("platform-language/platform-language.js"))}</script><script>${(await frozenCatalogs(language, DOCUMENT_NAMESPACES)).map(bundle => `PlatformLanguage.register(${escapeJsonPayload(bundle)});`).join("")}PlatformLanguage.configure({context:${escapeJsonPayload(language)}});PlatformLanguage.setTerminology(${escapeJsonPayload(language.terminology || {})});</script>`
     : "";
   const boot = `
 (function () {
@@ -125,6 +125,7 @@ export async function buildRenderHarnessHtml(input: {
   try {
     payload = JSON.parse(payloadNode.textContent || "{}");
   } catch (error) {
+    window.__fmdocError = String(error);
     done();
     return;
   }
@@ -140,11 +141,11 @@ export async function buildRenderHarnessHtml(input: {
     });
     if (container.__fmdocReady === true) done();
   } catch (error) {
-    // A render failure must not hang the PDF pipeline; the page prints as-is.
+    window.__fmdocError = String(error);
     done();
   }
   // Hard stop: never leave Playwright waiting forever.
-  setTimeout(done, 15000);
+  setTimeout(function () { if (!window.__fmdocReady) { window.__fmdocError = 'Document render timed out'; done(); } }, 15000);
 })();`;
   return `<!doctype html>
 <html lang="en">

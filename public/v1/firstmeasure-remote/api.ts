@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 
 import { applyRemoteSecurityHeaders, createRemoteRequestGuard } from "./auth.js";
 import { buildRemoteSummary, RemoteMetricsInputError, runRemoteAggregateQuery } from "./metrics.js";
+import { remoteOpenApi } from "./discovery.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -49,6 +50,8 @@ export const registerFirstMeasureRemoteApi: FastifyPluginAsync<FirstMeasureRemot
     version: 1,
     received_at: new Date().toISOString()
   }));
+
+  app.get("/openapi.json", { preHandler: guard }, async () => remoteOpenApi);
 
   app.get("/summary", { preHandler: guard }, async (request) => {
     return provider.summary(objectBody(request.query));

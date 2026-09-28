@@ -1,5 +1,9 @@
 # Development mobile app release — September 22, 2026
 
+> Historical release record. The current core FirstMate Android/iOS project is
+> [`native/firstmate`](../../native/firstmate/README.md). Paths below describe the
+> September 22 source layout and must not be used to recreate retired projects.
+
 Active development release: `af30bfaac0af4d5605a5c00524ebc75c25be1aa5` on web, worker and compatibility. This follows the initial mobile release `a639aad1132f425ed567aafd03f4d08ffbba5dfe`. Production was not activated or modified. Source branch: `codex/mobile-platform`.
 
 The release merges the mobile implementation (`ad4b103`) with the independently deployed wall/plane editor (`18a81ab`). A baseline guard stopped an earlier activation when that editor deployment started. The final 32-file public runtime delta was staged on `18a81ab`, preserving and hashing more than 24,000 unchanged runtime files per host, including all four editor files. The earlier staged `ad4b103` directory was never activated and must not be used as a rollback target.

@@ -188,7 +188,7 @@
         versionedBundle('../doc-model/firstmate-doc-model.js', '20260811-word-doc-v1'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
-        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260813-theme-styles-restored'),
+        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
         versionedBundle('photos/feed.js', '20260811-document-media-picker'),
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
@@ -208,7 +208,7 @@
       settingsTabId: 'documents',
       access: managementAccess,
       params: {
-        studioSection: { default:'templates', values:['templates','workflows','themes','folder'], history:'push' },
+        studioSection: { default:'templates', values:['templates','workflows','themes','brand-kit','folder'], history:'push' },
         studioFolder: { history:'push' },
         studioDocument: { history:'push' }
       },
@@ -217,12 +217,12 @@
         versionedBundle('../doc-model/firstmate-doc-model.js', '20260811-word-doc-v1'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
-        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260813-theme-styles-restored'),
+        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
         versionedBundle('photos/feed.js', '20260811-document-media-picker'),
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/studio.js', '20260813-theme-styles-restored')
+        versionedBundle('documents/studio.js', '20260925-brand-kit-null-guard')
       ]
     },
     {
@@ -243,7 +243,7 @@
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260726-doc-tiers'),
         versionedBundle('../web-widgets/firstmate-web-widgets.js', '20260728-web-editor-v1'),
         versionedBundle('../portal-widgets/firstmate-portal-widgets.js', '20260801-portal-builder-v1'),
-        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260813-theme-styles-restored'),
+        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
         versionedBundle('../visual-editor/firstmate-visual-editor.js', '20260813-modes-in-toolbar'),
         versionedBundle('settings/domains.js', '20260731-domains-v11'),
         versionedBundle('web-editor/app.js', '20260813-modes-in-toolbar')
@@ -543,6 +543,22 @@
       ]
     },
     {
+      id: 'portal.assistant',
+      terminologyKey: 'assistant.portal_tab',
+      package: 'assistant',
+      title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_4aaef822b47692","FirstMate Assistant") ?? "FirstMate Assistant"),
+      icon: 'fa-wand-magic-sparkles',
+      kind: 'portal_tab',
+      surfaces: ['portal_tab'],
+      portalTabId: 'assistant',
+      settingsTabId: 'assistant',
+      order: 45,
+      placement: 'more',
+      fullBleed: true,
+      access: { applicationsAny: ['management', 'field'], permissionsAny: ['use_assistant', 'view_projects', 'manage_projects', 'manage_company_settings'] },
+      bundles: [bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), bundle('../platform-assistant/platform-assistant.js')]
+    },
+    {
       id: 'portal.canvassing',
       package: 'canvassing',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_88f66f0b968bb2","Canvassing") ?? "Canvassing"),
@@ -555,6 +571,7 @@
     },
     {
       id: 'portal.feedback',
+      terminologyKey: 'feedback.portal_tab',
       package: 'feedback',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_d77e00c8c3f0b8","Feedback") ?? "Feedback"),
       icon: 'fa-star',
@@ -578,7 +595,7 @@
       portalTabId: 'company_settings',
       placement: 'settings',
       access: managementAccess,
-      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260720-custom-fields-v1'), versionedBundle('../payroll-api/payroll-api.js', '20260712-payroll-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20260901-calls-configuration-v3'), versionedBundle('settings/contacts.js', '20260725-contact-import-v1'), versionedBundle('settings/payroll.js', '20260712-payroll-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('settings/company.js', '20260924-subscription-service-v2')]
+      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260720-custom-fields-v1'), versionedBundle('../payroll-api/payroll-api.js', '20260712-payroll-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20260901-calls-configuration-v3'), versionedBundle('settings/contacts.js', '20260725-contact-import-v1'), versionedBundle('settings/payroll.js', '20260712-payroll-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20260926-settings-dependency'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20260924-subscription-service-v2')]
     },
     {
       id: 'portal.crew_overview',
@@ -682,6 +699,7 @@
     },
     {
       id: 'project.sales_overview',
+      terminologyKey: 'sales.overview_tab',
       package: 'sales',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_d8d2e84c5e4d8b","Visit") ?? "Visit"),
       icon: 'fa-house',
@@ -696,6 +714,7 @@
     },
     {
       id: 'project.crew_overview',
+      terminologyKey: 'crew.overview_tab',
       package: 'crew',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_d8d2e84c5e4d8b","Visit") ?? "Visit"),
       icon: 'fa-house',
@@ -766,6 +785,7 @@
     },
     {
       id: 'project.crew_checklists',
+      terminologyKey: 'checklists.crew_project_tab',
       package: 'crew',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_4890d3d11dc3eb","Checklists") ?? "Checklists"),
       icon: 'fa-list-check',
@@ -779,6 +799,7 @@
     },
     {
       id: 'project.field_customer',
+      terminologyKey: 'contacts.field_customer_tab',
       package: 'field_visit',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_ae8e4953e07d70","Customer") ?? "Customer"),
       icon: 'fa-address-card',
@@ -793,6 +814,7 @@
     },
     {
       id: 'project.crew_signatures',
+      terminologyKey: 'signatures.crew_project_tab',
       package: 'signatures',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_222066ef57ae0e","Work") ?? "Work"),
       icon: 'fa-diagram-project',
@@ -878,6 +900,16 @@
   };
 
   const initialAppDefinitions = {
+    'portal.assistant': {
+      visible:true,
+      mount(context){
+        const panel = context.roots?.main || context.root;
+        if (panel) panel.innerHTML = '';
+        return { destroy(){} };
+      },
+      onShow(){ window.PlatformAssistant?.openFull?.(); },
+      onHide(){ window.PlatformAssistant?.dockIfFull?.(); }
+    },
     'project.request': { mount: moduleMount('request') },
     billing: { mount: moduleMount('billing') },
     'onboarding.wizard': { mount: moduleMount('onboarding_wizard', 'show') },
@@ -983,6 +1015,7 @@
     // live-chat channel additionally gates itself inside the app).
     'portal.chat': 'apps.comms',
     'portal.channels': 'apps.channels',
+    'portal.assistant': 'apps.assistant',
     'portal.canvassing': 'canvassing.app',
     'portal.sales_overview': 'apps.sales',
     'portal.sales_schedule': 'apps.sales',

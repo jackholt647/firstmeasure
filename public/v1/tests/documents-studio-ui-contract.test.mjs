@@ -3,9 +3,11 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 
 const publicRoot = path.resolve(import.meta.dirname, '..', '..');
 const documentStudio = await readFile(path.join(publicRoot, 'libraries/apps/documents/studio.js'), 'utf8');
+const documentStudioCss = await readFile(path.join(publicRoot, 'libraries/apps/documents/documents.css'), 'utf8');
 const appManifest = await readFile(path.join(publicRoot, 'libraries/apps/firstmate-apps-manifest.js'), 'utf8');
 const documentEditor = await readFile(path.join(publicRoot, 'libraries/doc-editor/firstmate-doc-editor.js'), 'utf8');
 const documentEditorCss = await readFile(path.join(publicRoot, 'libraries/doc-editor/doc-editor.css'), 'utf8');
@@ -1069,7 +1071,7 @@ test('keyboard shortcut help is grouped, searchable, and uses keycaps', () => {
 test('Page Setup is a wide responsive page-style workspace with readable actions', () => {
   assert.match(documentEditor, /fmde-page-setup-dialog\{width:min\(920px/);
   assert.match(documentEditor, /fmde-page-margin-grid\{display:grid;grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
-  assert.match(documentEditor, /button\.primary\{background:var\(--fmde-accent,#2563eb\)!important;color:var\(--fmde-on-accent,#fff\)!important/);
+  assert.match(documentEditor, /button\.primary\{background:var\(--fmde-accent,#d93025\)!important;color:var\(--fmde-on-accent,#fff\)!important/);
   assert.match(documentEditor, /thm_triangles[\s\S]*?thm_margin[\s\S]*?thm_clean/);
   assert.match(documentEditor, /<h3>Page style<\/h3>/);
   assert.match(documentEditor, /Triangles[\s\S]*?Left border[\s\S]*?Simple/);
@@ -1110,7 +1112,36 @@ test('shortcut reference uses responsive multi-column layouts', () => {
   assert.match(documentEditor, /min-width:1180px[\s\S]*?fmde-shortcut-list\{grid-template-columns:repeat\(3/);
 });
 
+test('Brand Kit loads with an absent presentation style module', async () => {
+  const start = documentStudio.indexOf('async function loadBrandKit(){');
+  const end = documentStudio.indexOf('    function renderBrandKit(body){', start);
+  assert.ok(start >= 0 && end > start);
+  const source = documentStudio.slice(start, end);
+  const state = { brandKit: null, destroyed: true, tab: 'brand-kit' };
+  const kit = await runInNewContext(`(async () => { ${source}; await loadBrandKit(); return state.brandKit; })()`, {
+    window: { PlatformAPI: {
+      orgs: { portalState: async () => ({ global: null, organization: null }) },
+      branches: { get: async () => null },
+      branchModules: { get: async () => null }
+    } },
+    orgId: () => 'org',
+    brandBranchId: () => 'default',
+    objectValue: (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {},
+    arrayValue: (value) => Array.isArray(value) ? value : [],
+    firstText: (...values) => values.find((value) => typeof value === 'string' && value.trim()) || '',
+    brandHex: (value, fallback) => /^#[0-9a-f]{6}$/i.test(value || '') ? value.toUpperCase() : fallback,
+    state,
+    render: () => {}
+  });
+  assert.equal(kit.font, 'Montserrat');
+  assert.equal(kit.primary, '#D93025');
+  assert.equal(kit.palette.length, 6);
+});
+
 test('editor actions inherit organization branding with accessible contrast', () => {
+  assert.match(documentStudioCss, /--fmdx-primary:var\(--primary,var\(--fm-primary,#d93025\)\)/);
+  assert.match(documentStudioCss, /\.fmdx-subtab\.active\{color:var\(--primary-readable,var\(--fmdx-primary,#d93025\)\);border-bottom-color:var\(--fmdx-primary,#d93025\)/);
+  assert.match(documentEditor, /inherited = computed\.getPropertyValue\("--primary"\)\.trim\(\)[\s\S]*?getPropertyValue\("--fm-primary"\)/);
   assert.match(documentEditor, /function editorBrandingPalette\(\)[\s\S]*?colors\.primary[\s\S]*?branding\.primary/);
   assert.match(documentEditor, /function contrastRatio\(a, b\)[\s\S]*?lighter \+ 0\.05/);
   assert.match(documentEditor, /setProperty\("--fmde-accent", palette\.primary\)[\s\S]*?setProperty\("--fmde-on-accent", palette\.foreground\)/);

@@ -1,3 +1,4 @@
+import { TRANSLATION_LANGUAGES, normalizeTranslationLanguage, sameMessageLanguage } from "../platform/localization/languages.js";
 import { createHash } from "node:crypto";
 
 import { francAll } from "franc-min";
@@ -12,21 +13,12 @@ const ISO3_TO_LANGUAGE: Record<string, string> = {
   tha: "th", ind: "id", tgl: "tl", tur: "tr", heb: "he"
 };
 
-export const SUPPORTED_LANGUAGES: Record<string, string> = {
-  en: "English", es: "Spanish", fr: "French", de: "German", pt: "Portuguese",
-  it: "Italian", nl: "Dutch", pl: "Polish", ru: "Russian", uk: "Ukrainian",
-  ar: "Arabic", hi: "Hindi", bn: "Bengali", ur: "Urdu", zh: "Chinese",
-  ja: "Japanese", ko: "Korean", vi: "Vietnamese", th: "Thai",
-  id: "Indonesian", tl: "Filipino", tr: "Turkish", he: "Hebrew"
-};
+export const SUPPORTED_LANGUAGES: Record<string,string> = {en:"English", ...Object.fromEntries(TRANSLATION_LANGUAGES.map(language => [language.code,language.name]))};
 
 const DETECTION_CODES = Object.keys(ISO3_TO_LANGUAGE);
 const PLACEHOLDER_PATTERN = /\[\[FM_(?:MENTION|URL|EMAIL)_\d+\]\]/g;
 
-export function normalizeLanguage(value: unknown, fallback = "en"): string {
-  const code = String(value ?? "").trim().toLowerCase().split(/[-_]/)[0] || fallback;
-  return Object.prototype.hasOwnProperty.call(SUPPORTED_LANGUAGES, code) ? code : fallback;
-}
+export const normalizeLanguage = normalizeTranslationLanguage;
 
 function lettersOnly(text: string) {
   return text.replace(/https?:\/\/\S+|www\.\S+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|@\S+/g, " ").replace(/[^\p{L}\p{M}\s]/gu, " ").replace(/\s+/g, " ").trim();
@@ -98,9 +90,9 @@ export async function translateMessageText(input: {
   targetLanguage: string;
   mentionUsers?: Array<Record<string, unknown>>;
 }) {
-  const sourceLanguage = normalizeLanguage(input.sourceLanguage, "en");
-  const targetLanguage = normalizeLanguage(input.targetLanguage, "en");
-  if (sourceLanguage === targetLanguage) return input.text;
+  const sourceLanguage = input.sourceLanguage === "en" ? "en" : normalizeLanguage(input.sourceLanguage, "und");
+  const targetLanguage = normalizeLanguage(input.targetLanguage, "en-US");
+  if (sameMessageLanguage(sourceLanguage, targetLanguage)) return input.text;
 
   const { protectedText, replacements } = protectTokens(input.text, input.mentionUsers ?? []);
   const result = await requestOpenAIResponse({
@@ -109,7 +101,7 @@ export async function translateMessageText(input: {
     store: false,
     max_output_tokens: Math.min(4_000, Math.max(160, input.text.length * 2)),
     instructions: [
-      `Translate the message from ${SUPPORTED_LANGUAGES[sourceLanguage] ?? sourceLanguage} to ${SUPPORTED_LANGUAGES[targetLanguage] ?? targetLanguage}.`,
+      translationDirection(sourceLanguage, targetLanguage),
       "Return only the translated message, with the same paragraph and line-break structure.",
       "Preserve every [[FM_*]] placeholder exactly and do not translate it.",
       "Preserve emoji, numbers, measurements, product names, and formatting.",
@@ -125,4 +117,9 @@ export async function translateMessageText(input: {
     throw new Error("Translation could not safely preserve message references.");
   }
   return restoreTokens(translated, replacements);
+}
+
+export function translationDirection(source: string, target: string) {
+  const spelling = target === "en-GB" ? " Use British English spelling and phrasing." : target === "en-US" ? " Use American English spelling and phrasing." : "";
+  return `Translate the message from ${SUPPORTED_LANGUAGES[source] ?? source} to ${SUPPORTED_LANGUAGES[target] ?? target}.` + spelling;
 }

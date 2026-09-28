@@ -45,7 +45,7 @@ import {
   updateAgentAwait,
   updateAgentSchedule
 } from "../agents/storage.js";
-import { cronMatches, latestCronFire } from "../work/cron.js";
+import { findCronOccurrence, latestCronFire } from "../work/cron.js";
 import { resolveOrganizationTimezone, zonedInstant } from "../platform/timezone.js";
 import { loadAgentSettings } from "../agents/settings.js";
 import {
@@ -76,14 +76,9 @@ const MAX_ACTIVE_SCHEDULES_PER_THREAD = 12;
  * given timezone, or "" when nothing matches within maxDays (invalid or
  * never-firing expressions).
  */
-function nextCronFire(expression: string, timezone: string, from = new Date(), maxDays = MAX_SCHEDULE_DAYS) {
-  if (String(expression || "").trim().split(/\s+/).length !== 5) return "";
-  const start = Math.floor(from.getTime() / 60_000) * 60_000 + 60_000;
-  const end = from.getTime() + maxDays * 86_400_000;
-  for (let minute = start; minute <= end; minute += 60_000) {
-    if (cronMatches(expression, new Date(minute), timezone || undefined)) return new Date(minute).toISOString();
-  }
-  return "";
+export function nextCronFire(expression: string, timezone: string, from = new Date(), maxDays = MAX_SCHEDULE_DAYS) {
+  const start = Math.floor(from.getTime() / 60_000) * 60_000;
+  return findCronOccurrence(expression, start, from.getTime() + maxDays * 86_400_000, timezone || undefined, "asc");
 }
 
 const EXPLICIT_OFFSET_RE = /(?:Z|[+-]\d{2}:?\d{2})$/i;
@@ -94,7 +89,7 @@ const WALL_CLOCK_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))
  * the company's timezone so the model never does timezone math itself;
  * explicit offsets are honored as written.
  */
-function parseScheduleAt(value: string, timezone: string) {
+export function parseScheduleAt(value: string, timezone: string) {
   if (EXPLICIT_OFFSET_RE.test(value)) return Date.parse(value);
   const match = WALL_CLOCK_RE.exec(value);
   if (!match) return NaN;
@@ -345,7 +340,7 @@ function buildChannelTools(options: {
       allowSystem: true,
       async execute(_run, args) {
         const schedules = (await listAgentSchedules(options.agentId, options.orgId, {
-          status: "active",
+          status: "active", surface: "",
           ...(args.all_conversations === true ? {} : { origin_thread_id: options.originThreadId })
         }));
         return { ok: true, wakeups: schedules.map(describeSchedule) };
@@ -367,7 +362,8 @@ function buildChannelTools(options: {
         const schedule = (await readAgentSchedule(scheduleId));
         if (!schedule
           || cleanText(schedule.organization_id) !== options.orgId
-          || cleanText(schedule.agent_id) !== options.agentId) {
+          || cleanText(schedule.agent_id) !== options.agentId
+          || cleanText(schedule.surface) === "assistant") {
           return toolError("No such wakeup schedule.");
         }
         if (cleanText(schedule.status) !== "active") {
@@ -593,13 +589,13 @@ async function runScheduledWakeup(schedule: JsonObject, event: { recurring: bool
 
 let schedulerTimer: ReturnType<typeof setInterval> | null = null;
 
-/** Fire due self-scheduled wakeups (one-time and recurring). */
-export async function sweepAgentSchedules(now = new Date()) {
+/** Fire due self-scheduled wakeups (one-time and recurring), optionally for one surface only. */
+export async function sweepAgentSchedules(now = new Date(), options: { surface?: string } = {}) {
   let queued = 0;
-  for (const entry of await listDueOnceAgentSchedules(now.toISOString())) {
+  for (const entry of await listDueOnceAgentSchedules(now.toISOString(), 20, options.surface)) {
     if (await claimDueOnceAgentSchedule(cleanText(entry.id), now.toISOString())) queued++;
   }
-  for (const entry of await listActiveRecurringAgentSchedules()) {
+  for (const entry of await listActiveRecurringAgentSchedules(200, options.surface)) {
     const after = cleanText(entry.last_fired_at) || cleanText(entry.created_at);
     const fireAt = latestCronFire(cleanText(entry.cron), after, now, cleanText(entry.timezone) || undefined);
     if (fireAt && await claimRecurringAgentScheduleFire(cleanText(entry.id), cleanText(entry.last_fired_at), fireAt)) queued++;
@@ -625,6 +621,11 @@ export async function drainChannelAgentJobs() {
   const count = await drainAgentWakeups(async job => {
     const payload = asObject(job.payload), entry = asObject(payload.record), event = asObject(payload.event);
     const orgId = cleanText(entry.organization_id);
+    // Personal assistant agents deliver to the assistant's main thread, not a channel.
+    if (job.kind === "assistant_agent" || (job.kind === "schedule" && cleanText(entry.surface) === "assistant")) {
+      const { runAssistantAgentJob } = await import("../assistant/agent/agents.js");
+      return await runAssistantAgentJob(entry, event);
+    }
     if (!await isCapabilityEnabled(orgId, "apps.channels")) return "cancelled";
     assertAgentWakeupLease();
     if (job.kind === "schedule") {

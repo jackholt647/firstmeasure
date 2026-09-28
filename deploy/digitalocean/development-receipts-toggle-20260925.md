@@ -1,0 +1,7 @@
+# Always-visible reimbursement panel and view toggle — development, September 25, 2026
+
+The two serving development web nodes `do-598520065` and `do-603124965` run release `cf1c08720a93e554d15eadcfd7f8fc14083c48e6`, layered over `40d8102779983fcf9b2c83bfba79549356430c8f`. Only `public/libraries/apps/receipts/app.js` changed. The reimbursement column and mobile sub-tab now remain available when the queue is empty. The panel's On/Off switch saves a per-user, per-organization browser display preference; it does not change the organization reimbursement capability or request permissions.
+
+Both nodes passed guarded staging against the prior release and file hash, JavaScript syntax checks, activation with automatic rollback on failure, local exact-release readiness, development data checks, and outbound isolation checks. Thirty-two public readiness requests reached both nodes (18 and 14) at the new release ID. The public Receipts script matched the committed SHA-256 hash. Production was not changed.
+
+Rollback: point `/opt/firstmeasure/current` on each development web node back to `/opt/firstmeasure/releases/40d8102779983fcf9b2c83bfba79549356430c8f`, restart `firstmeasure-development-web.service` and `php8.3-fpm.service`, then run `deploy/digitalocean/verify-node.sh http://127.0.0.1:3201` and verify development isolation. The development autoscale image remains historical and needs this release before a replacement node can preserve the behavior.

@@ -284,7 +284,7 @@
     const series = seriesOf(widget, data);
     const format = clean(widget.format) || 'number';
     const buckets = [...new Set(series.flatMap((s) => s.rows.map((row) => clean(row.bucket))))].filter(Boolean).sort();
-    if (!buckets.length) return `<div class="st-empty">${(globalThis.PlatformLanguage?.text("stats","m_660a3c1af32a63","No data for this period") ?? "No data for this period")}</div>`;
+    if (!buckets.length) return `<div class="st-empty">${(globalThis.PlatformLanguage?.htmlText("stats","m_660a3c1af32a63","No data for this period") ?? "No data for this period")}</div>`;
     const width = 1080, height = 300, padX = 46, padY = 26;
     const values = series.flatMap((s) => s.rows.map((row) => Number(row.value) || 0));
     const max = Math.max(...values, 1);
@@ -322,7 +322,7 @@
     const series = seriesOf(widget, data);
     const format = clean(widget.format) || 'number';
     const rows = series[0].rows.filter((row) => row.group !== undefined || row.bucket !== undefined);
-    if (!rows.length) return `<div class="st-empty">${(globalThis.PlatformLanguage?.text("stats","m_660a3c1af32a63","No data for this period") ?? "No data for this period")}</div>`;
+    if (!rows.length) return `<div class="st-empty">${(globalThis.PlatformLanguage?.htmlText("stats","m_660a3c1af32a63","No data for this period") ?? "No data for this period")}</div>`;
     const width = 1080, height = 300, padX = 46, padY = 34;
     const max = Math.max(...rows.map((row) => Number(row.value) || 0), 1);
     const band = (width - padX * 2) / rows.length;
@@ -349,7 +349,7 @@
     const series = seriesOf(widget, data);
     const format = clean(widget.format) || 'number';
     const rows = series[0].rows.filter((row) => Number(row.value) > 0).slice(0, 8);
-    if (!rows.length) return `<div class="st-empty">${(globalThis.PlatformLanguage?.text("stats","m_660a3c1af32a63","No data for this period") ?? "No data for this period")}</div>`;
+    if (!rows.length) return `<div class="st-empty">${(globalThis.PlatformLanguage?.htmlText("stats","m_660a3c1af32a63","No data for this period") ?? "No data for this period")}</div>`;
     const total = rows.reduce((sum, row) => sum + Number(row.value || 0), 0) || 1;
     const cx = 90, cy = 90, r = 62, strokeW = 26, circumference = 2 * Math.PI * r;
     let offset = 0;
@@ -374,7 +374,7 @@
     const series = seriesOf(widget, data);
     const format = clean(widget.format) || 'number';
     const rows = series[0].rows.slice(0, 15);
-    if (!rows.length) return `<div class="st-empty">${(globalThis.PlatformLanguage?.text("stats","m_660a3c1af32a63","No data for this period") ?? "No data for this period")}</div>`;
+    if (!rows.length) return `<div class="st-empty">${(globalThis.PlatformLanguage?.htmlText("stats","m_660a3c1af32a63","No data for this period") ?? "No data for this period")}</div>`;
     return `<table class="st-table">${rows.map((row) =>
       `<tr><td>${esc(row.bucket !== undefined ? formatBucket(row.bucket) : labelForRow(row, series[0].spec, labels))}</td>`
       + `<td>${esc(formatValue(row.value, format))}</td></tr>`).join('')}</table>`;
@@ -384,7 +384,7 @@
     const series = seriesOf(widget, data);
     const format = clean(widget.format) || 'number';
     const rows = series[0].rows.filter((row) => row.value !== null).slice(0, 15);
-    if (!rows.length) return `<div class="st-empty">${(globalThis.PlatformLanguage?.text("stats","m_660a3c1af32a63","No data for this period") ?? "No data for this period")}</div>`;
+    if (!rows.length) return `<div class="st-empty">${(globalThis.PlatformLanguage?.htmlText("stats","m_660a3c1af32a63","No data for this period") ?? "No data for this period")}</div>`;
     const max = Math.max(...rows.map((row) => Number(row.value) || 0), 1);
     return rows.map((row, index) => {
       const pct = Math.max(2, (Number(row.value || 0) / max) * 100);
@@ -399,7 +399,7 @@
     const series = seriesOf(widget, data);
     const format = clean(widget.format) || 'number';
     const rows = series[0].rows.filter((row) => row.value !== null).slice(0, 10);
-    if (!rows.length) return `<div class="st-empty">${(globalThis.PlatformLanguage?.text("stats","m_660a3c1af32a63","No data for this period") ?? "No data for this period")}</div>`;
+    if (!rows.length) return `<div class="st-empty">${(globalThis.PlatformLanguage?.htmlText("stats","m_660a3c1af32a63","No data for this period") ?? "No data for this period")}</div>`;
     const first = Number(rows[0].value) || 1;
     return rows.map((row, index) => {
       const value = Number(row.value || 0);
@@ -419,7 +419,7 @@
     const value = rows.length ? rows[0].value : null;
     const count = rows.length && rows[0].row_count !== undefined ? Number(rows[0].row_count) : null;
     return `<div class="st-kpi-value">${esc(formatValue(value, format))}</div>`
-      + (count !== null && format !== 'number' ? `<div class="st-kpi-sub">${((v0,v1) => globalThis.PlatformLanguage?.text("stats","m_8dca106357a148",`${v0} project${v1}`,{v0,v1}) ?? `${v0} project${v1}`)(count.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.()),count === 1 ? '' : 's')}</div>` : '');
+      + (count !== null && format !== 'number' ? `<div class="st-kpi-sub">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("stats","m_8dca106357a148",`${v0} project${v1}`,{v0,v1}) ?? `${v0} project${v1}`)(count.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.()),count === 1 ? '' : 's')}</div>` : '');
   }
 
   function renderWidgetBody(widget, data, labels){
@@ -432,10 +432,10 @@
         case 'table': return tableWidget(widget, data, labels);
         case 'leaderboard': return leaderboardWidget(widget, data, labels);
         case 'funnel': return funnelWidget(widget, data, labels);
-        default: return `<div class="st-empty">${(globalThis.PlatformLanguage?.text("stats","m_d208e9fbfaba01","Unknown widget type") ?? "Unknown widget type")}</div>`;
+        default: return `<div class="st-empty">${(globalThis.PlatformLanguage?.htmlText("stats","m_d208e9fbfaba01","Unknown widget type") ?? "Unknown widget type")}</div>`;
       }
     } catch (error) {
-      return `<div class="st-empty">${((v0) => globalThis.PlatformLanguage?.text("stats","m_021aef9ec4e168",`Could not render (${v0})`,{v0}) ?? `Could not render (${v0})`)(esc(error && error.message))}</div>`;
+      return `<div class="st-empty">${((v0) => globalThis.PlatformLanguage?.htmlText("stats","m_021aef9ec4e168",`Could not render (${v0})`,{v0}) ?? `Could not render (${v0})`)(esc(error && error.message))}</div>`;
     }
   }
 
@@ -607,8 +607,8 @@
             <span class="st-spacer"></span>
             <div class="st-controls">
               <select class="st-select" data-st="range"></select>
-              <button class="st-btn icon" data-st="edit-view" title="${(globalThis.PlatformLanguage?.text("stats","m_551e1ad0a3a732","View settings") ?? "View settings")}"><i class="fas fa-pen"></i></button>
-              <button class="st-btn ${String(state.chatOpen ? '' : 'primary')}" data-st="chat-toggle"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("stats","m_be03b42e0b7fe3"," Assistant") ?? " Assistant")}</button>
+              <button class="st-btn icon" data-st="edit-view" title="${(globalThis.PlatformLanguage?.htmlText("stats","m_551e1ad0a3a732","View settings") ?? "View settings")}"><i class="fas fa-pen"></i></button>
+              <button class="st-btn ${String(state.chatOpen ? '' : 'primary')}" data-st="chat-toggle"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("stats","m_be03b42e0b7fe3"," Assistant") ?? " Assistant")}</button>
             </div>
           </div>
           <div class="st-body">
@@ -647,7 +647,7 @@
         return `<button class="st-view-pill ${isActive ? 'active' : ''}" data-view="${esc(view.id)}"`
           + ` style="${isActive ? `background:${esc(color)};` : ''}">`
           + `<i class="fas ${esc(clean(view.icon) || 'fa-chart-line')}"></i>${esc(view.title || (globalThis.PlatformLanguage?.text("stats","m_05017f54f07448","Untitled") ?? "Untitled"))}</button>`;
-      }).join('') + `<button class="st-view-add" data-st="add-view"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("stats","m_5fb7c1bfee1406"," New view") ?? " New view")}</button>`;
+      }).join('') + `<button class="st-view-add" data-st="add-view"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("stats","m_5fb7c1bfee1406"," New view") ?? " New view")}</button>`;
       holder.querySelectorAll('[data-view]').forEach((el) => el.addEventListener('click', () => {
         state.activeViewId = clean(el.getAttribute('data-view'));
         state.range = '';
@@ -673,22 +673,22 @@
       if (!main) return;
       const view = activeView();
       const banner = state.sync && state.sync.backfill_done === false
-        ? `<div class="st-banner"><i class="fas fa-rotate fa-spin"></i>${(globalThis.PlatformLanguage?.text("stats","m_254672ac54bfa8"," Building your stats warehouse — numbers may be incomplete for a minute…") ?? " Building your stats warehouse — numbers may be incomplete for a minute…")}</div>`
+        ? `<div class="st-banner"><i class="fas fa-rotate fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("stats","m_254672ac54bfa8"," Building your stats warehouse — numbers may be incomplete for a minute…") ?? " Building your stats warehouse — numbers may be incomplete for a minute…")}</div>`
         : '';
       if (!view) {
-        main.innerHTML = (String(banner) + "<div class=\"st-empty-view\"><h3>" + (globalThis.PlatformLanguage?.text("stats","m_cd4d9d5b397b33","No stats views yet") ?? "No stats views yet") + "</h3><p>" + (globalThis.PlatformLanguage?.text("stats","m_e7c73800d52870","Create a view or ask the assistant to build one for you.") ?? "Create a view or ask the assistant to build one for you.") + "</p></div>");
+        main.innerHTML = (String(banner) + "<div class=\"st-empty-view\"><h3>" + (globalThis.PlatformLanguage?.htmlText("stats","m_cd4d9d5b397b33","No stats views yet") ?? "No stats views yet") + "</h3><p>" + (globalThis.PlatformLanguage?.htmlText("stats","m_e7c73800d52870","Create a view or ask the assistant to build one for you.") ?? "Create a view or ask the assistant to build one for you.") + "</p></div>");
         return;
       }
       const widgets = array(object(view.definition).widgets);
       if (!widgets.length) {
-        main.innerHTML = (String(banner) + "<div class=\"st-empty-view\"><h3>" + ((v1) => globalThis.PlatformLanguage?.text("stats","m_02ca24837389af",`${v1} is empty`,{v1}) ?? `${v1} is empty`)(esc(view.title)) + "</h3>")
-          + `<p>${(globalThis.PlatformLanguage?.text("stats","m_c52e1e28af7e4e","Open the assistant and describe what you want to see — it will build the widgets for you.") ?? "Open the assistant and describe what you want to see — it will build the widgets for you.")}</p></div>`;
+        main.innerHTML = (String(banner) + "<div class=\"st-empty-view\"><h3>" + ((v1) => globalThis.PlatformLanguage?.htmlText("stats","m_02ca24837389af",`${v1} is empty`,{v1}) ?? `${v1} is empty`)(esc(view.title)) + "</h3>")
+          + `<p>${(globalThis.PlatformLanguage?.htmlText("stats","m_c52e1e28af7e4e","Open the assistant and describe what you want to see — it will build the widgets for you.") ?? "Open the assistant and describe what you want to see — it will build the widgets for you.")}</p></div>`;
         return;
       }
       const cardHtml = (widget) => {
         const data = object(state.widgetData[clean(widget.id)]);
         const body = state.loading && !Object.keys(data).length
-          ? `<div class="st-empty">${(globalThis.PlatformLanguage?.text("stats","m_d2da77452877dd","Loading…") ?? "Loading…")}</div>`
+          ? `<div class="st-empty">${(globalThis.PlatformLanguage?.htmlText("stats","m_d2da77452877dd","Loading…") ?? "Loading…")}</div>`
           : renderWidgetBody(widget, data, state.labels);
         return `<div class="st-card ${esc(clean(widget.size) || 'md')}"><div class="st-card-title"><span>${esc(widget.title || '')}</span></div>${body}</div>`;
       };
@@ -734,21 +734,21 @@
       overlay.innerHTML = `
         <div class="st-modal">
           <h3>${String(isNew ? 'New stats view' : 'View settings')}</h3>
-          <div class="st-field"><label>${(globalThis.PlatformLanguage?.text("stats","m_29dbd3d8b69f55","Title") ?? "Title")}</label><input data-m="title" maxlength="60" value="${String(esc(view?.title || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("stats","m_94556c446164c0","e.g. Sales Overview") ?? "e.g. Sales Overview")}"></div>
-          <div class="st-field"><label>${(globalThis.PlatformLanguage?.text("stats","m_aa136ecb65672f","Description") ?? "Description")}</label><input data-m="description" maxlength="140" value="${String(esc(view?.description || ''))}" placeholder="${(globalThis.PlatformLanguage?.text("stats","m_a3f9a6b065b2d8","Optional") ?? "Optional")}"></div>
-          <div class="st-field"><label>${(globalThis.PlatformLanguage?.text("stats","m_3e4ee0ace818e7","Icon") ?? "Icon")}</label><div class="st-swatches" data-m="icons">${String(VIEW_ICONS.map((icon) =>
+          <div class="st-field"><label>${(globalThis.PlatformLanguage?.htmlText("stats","m_29dbd3d8b69f55","Title") ?? "Title")}</label><input data-m="title" maxlength="60" value="${String(esc(view?.title || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("stats","m_94556c446164c0","e.g. Sales Overview") ?? "e.g. Sales Overview")}"></div>
+          <div class="st-field"><label>${(globalThis.PlatformLanguage?.htmlText("stats","m_aa136ecb65672f","Description") ?? "Description")}</label><input data-m="description" maxlength="140" value="${String(esc(view?.description || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("stats","m_a3f9a6b065b2d8","Optional") ?? "Optional")}"></div>
+          <div class="st-field"><label>${(globalThis.PlatformLanguage?.htmlText("stats","m_3e4ee0ace818e7","Icon") ?? "Icon")}</label><div class="st-swatches" data-m="icons">${String(VIEW_ICONS.map((icon) =>
             `<span class="st-swatch ${icon === selected.icon ? 'selected' : ''}" data-icon="${esc(icon)}"><i class="fas ${esc(icon)}"></i></span>`).join(''))}</div></div>
-          <div class="st-field"><label>${(globalThis.PlatformLanguage?.text("stats","m_db7002926d9977","Color") ?? "Color")}</label><div class="st-swatches" data-m="colors">${String(VIEW_COLORS.map((color) =>
+          <div class="st-field"><label>${(globalThis.PlatformLanguage?.htmlText("stats","m_db7002926d9977","Color") ?? "Color")}</label><div class="st-swatches" data-m="colors">${String(VIEW_COLORS.map((color) =>
             `<span class="st-swatch color ${color === selected.color ? 'selected' : ''}" data-color="${esc(color)}" style="background:${esc(color)}"></span>`).join(''))}</div></div>
-          ${String(isNew ? `<div class="st-field"><label>Start from</label><div class="st-preset-list" data-m="presets">
-            <div class="st-preset-item" data-preset=""><i class="fas fa-wand-magic-sparkles"></i><div><div class="name">Blank — build it with the assistant</div><div class="desc">Create an empty view, then describe what you want to see.</div></div></div>
+          ${String(isNew ? `<div class="st-field"><label>${(globalThis.PlatformLanguage?.htmlText("stats","m_1ceddb8b63f512","Start from") ?? "Start from")}</label><div class="st-preset-list" data-m="presets">
+            <div class="st-preset-item" data-preset=""><i class="fas fa-wand-magic-sparkles"></i><div><div class="name">${(globalThis.PlatformLanguage?.htmlText("stats","m_10c61184707116","Blank — build it with the assistant") ?? "Blank — build it with the assistant")}</div><div class="desc">${(globalThis.PlatformLanguage?.htmlText("stats","m_8ec95914a0006b","Create an empty view, then describe what you want to see.") ?? "Create an empty view, then describe what you want to see.")}</div></div></div>
             ${array(object(state.schema).view_presets).map((preset) =>
               `<div class="st-preset-item" data-preset="${esc(preset.id)}"><i class="fas ${esc(preset.icon || 'fa-chart-line')}"></i><div><div class="name">${esc(preset.title)}</div><div class="desc">${esc(preset.description)}</div></div></div>`).join('')}
           </div></div>` : '')}
           <div class="st-modal-actions">
-            ${String(!isNew ? '<button class="st-btn danger" data-m="delete">Delete view</button>' : '')}
-            <button class="st-btn" data-m="cancel">${(globalThis.PlatformLanguage?.text("stats","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-            ${String(!isNew ? '<button class="st-btn primary" data-m="save">Save</button>' : '')}
+            ${String(!isNew ? `<button class="st-btn danger" data-m="delete">${(globalThis.PlatformLanguage?.htmlText("stats","m_5934f6da3456df","Delete view") ?? "Delete view")}</button>` : '')}
+            <button class="st-btn" data-m="cancel">${(globalThis.PlatformLanguage?.htmlText("stats","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
+            ${String(!isNew ? `<button class="st-btn primary" data-m="save">${(globalThis.PlatformLanguage?.htmlText("stats","m_5bab3e72de1ebf","Save") ?? "Save")}</button>` : '')}
           </div>
         </div>`;
       document.body.appendChild(overlay);
@@ -1016,9 +1016,9 @@
       const reverted = array(data.reverted_views).length > 0;
       const changes = array(data.changes);
       let html = `<div class="st-msg assistant${anim} ${failed ? 'failed' : ''}">${renderMarkdown(message.content)}`;
-      if (failed && reverted) html += `<div class="st-msg-note"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.text("stats","m_949b863139b69d"," Changes were rolled back") ?? " Changes were rolled back")}</div>`;
+      if (failed && reverted) html += `<div class="st-msg-note"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("stats","m_949b863139b69d"," Changes were rolled back") ?? " Changes were rolled back")}</div>`;
       if (!failed && changes.length) {
-        html += `<div class="st-msg-changes"><strong>${(globalThis.PlatformLanguage?.text("stats","m_c46a636ed38aee","What changed") ?? "What changed")}</strong>${String(changes.map((change) => `<div><i class="fas fa-check" style="color:#12b76a;font-size:10px;"></i><span>${esc(change)}</span></div>`).join(''))}</div>`;
+        html += `<div class="st-msg-changes"><strong>${(globalThis.PlatformLanguage?.htmlText("stats","m_c46a636ed38aee","What changed") ?? "What changed")}</strong>${String(changes.map((change) => `<div><i class="fas fa-check" style="color:#12b76a;font-size:10px;"></i><span>${esc(change)}</span></div>`).join(''))}</div>`;
       }
       html += `</div>`;
       array(data.renders).slice(0, 8).forEach((render) => {
@@ -1038,43 +1038,43 @@
       const hasConversation = state.chat.threadId && state.chat.messages.some((message) => message.role === 'user');
       const body = history
         ? `<div class="st-chat-msgs" data-c="msgs" style="gap:8px;">
-            <div class="st-history-head">${(globalThis.PlatformLanguage?.text("stats","m_6cd0ffdbdacd6f","Past conversations") ?? "Past conversations")}</div>
+            <div class="st-history-head">${(globalThis.PlatformLanguage?.htmlText("stats","m_6cd0ffdbdacd6f","Past conversations") ?? "Past conversations")}</div>
             ${String(state.chat.threads.length ? state.chat.threads.map((thread) => {
               const item = object(thread);
               const badge = viewTitleFor(item.view_id);
               return `<div class="st-history-item" data-thread="${esc(item.id)}">
                 <span class="name">${esc(clean(item.title) || 'Untitled conversation')}</span>
-                <span class="meta"><span>${esc(threadDate(item.updated_at))}</span>${badge ? `<span class="view-badge"><i class="fas fa-table-columns"></i> ${esc(badge)}</span>` : '<span class="view-badge">General</span>'}</span>
+                <span class="meta"><span>${esc(threadDate(item.updated_at))}</span>${badge ? `<span class="view-badge"><i class="fas fa-table-columns"></i> ${esc(badge)}</span>` : `<span class="view-badge">${(globalThis.PlatformLanguage?.htmlText("stats","m_df7920138f71f7","General") ?? "General")}</span>`}</span>
               </div>`;
-            }).join('') : '<div class="st-empty">No conversations yet</div>')}
+            }).join('') : `<div class="st-empty">${(globalThis.PlatformLanguage?.htmlText("stats","m_872b5ed945ab78","No conversations yet") ?? "No conversations yet")}</div>`)}
           </div>`
         : `<div class="st-chat-msgs" data-c="msgs">
             ${String(state.chat.messages.map((message, index) => messageHtml(message, index === state.chat.messages.length - 1)).join(''))}
-            ${String(state.chat.sending ? `<div class="st-pending st-anim"><span>Working on it</span><span class="dots"><span>•</span><span>•</span><span>•</span></span></div>` : '')}
+            ${String(state.chat.sending ? `<div class="st-pending st-anim"><span>${(globalThis.PlatformLanguage?.htmlText("stats","m_d8d206799cb842","Working on it") ?? "Working on it")}</span><span class="dots"><span>•</span><span>•</span><span>•</span></span></div>` : '')}
           </div>
           <div class="st-composer">
-            <textarea data-c="input" rows="3" placeholder="${(globalThis.PlatformLanguage?.text("stats","m_990c63d35bf9fb","Ask about your stats, or describe a dashboard change…") ?? "Ask about your stats, or describe a dashboard change…")}" ${String(state.chat.sending ? 'disabled' : '')}></textarea>
+            <textarea data-c="input" rows="3" placeholder="${(globalThis.PlatformLanguage?.htmlText("stats","m_990c63d35bf9fb","Ask about your stats, or describe a dashboard change…") ?? "Ask about your stats, or describe a dashboard change…")}" ${String(state.chat.sending ? 'disabled' : '')}></textarea>
             <button class="st-btn primary icon" data-c="send" ${String(state.chat.sending ? 'disabled' : '')}><i class="fas fa-paper-plane"></i></button>
           </div>`;
       const menuItem = (action, icon, label, enabled) =>
         `<button class="st-menu-item ${enabled ? '' : 'disabled'}" data-c="${action}" ${enabled ? '' : `title="Start a conversation first"`}><i class="fas ${icon}"></i>${label}</button>`;
       chat.innerHTML = `
-        <div class="st-chat-grip" data-c="grip" title="${(globalThis.PlatformLanguage?.text("stats","m_262ffc4610efbc","Drag to resize") ?? "Drag to resize")}"></div>
+        <div class="st-chat-grip" data-c="grip" title="${(globalThis.PlatformLanguage?.htmlText("stats","m_262ffc4610efbc","Drag to resize") ?? "Drag to resize")}"></div>
         <div class="st-chat-head">
           <i class="fas fa-wand-magic-sparkles" style="color:var(--primary-readable, var(--primary, #175cd3));"></i>
-          <span class="title">${(globalThis.PlatformLanguage?.text("stats","m_f5ffc0afa0f574","Stats assistant") ?? "Stats assistant")}<span class="sub">${String(history ? 'Conversation history' : focusTitle ? `Focused on “${esc(focusTitle)}”` : 'General questions')}</span></span>
+          <span class="title">${(globalThis.PlatformLanguage?.htmlText("stats","m_f5ffc0afa0f574","Stats assistant") ?? "Stats assistant")}<span class="sub">${String(history ? 'Conversation history' : focusTitle ? `Focused on “${esc(focusTitle)}”` : 'General questions')}</span></span>
           ${String(history
-            ? `<button class="st-btn icon" data-c="back" title="Back to conversation"><i class="fas fa-arrow-left"></i></button>`
+            ? `<button class="st-btn icon" data-c="back" title="${(globalThis.PlatformLanguage?.htmlText("stats","m_74d08a454b2676","Back to conversation") ?? "Back to conversation")}"><i class="fas fa-arrow-left"></i></button>`
             : `<span class="st-menu">
-                <button class="st-btn icon" data-c="menu" title="More options"><i class="fas fa-ellipsis-vertical"></i></button>
+                <button class="st-btn icon" data-c="menu" title="${(globalThis.PlatformLanguage?.htmlText("stats","m_a2d1808c7ed0ea","More options") ?? "More options")}"><i class="fas fa-ellipsis-vertical"></i></button>
                 ${state.chat.menuOpen ? `<div class="st-menu-pop">
                   ${menuItem('share', 'fa-link', 'Copy share link', hasConversation)}
                   ${menuItem('export', 'fa-download', 'Export as Markdown', hasConversation)}
                   ${menuItem('history', 'fa-clock-rotate-left', 'Past conversations', true)}
                 </div>` : ''}
               </span>
-              <button class="st-btn icon" data-c="new" title="New conversation"><i class="fas fa-plus"></i></button>`)}
-          <button class="st-btn icon" data-c="close" title="${(globalThis.PlatformLanguage?.text("stats","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
+              <button class="st-btn icon" data-c="new" title="${(globalThis.PlatformLanguage?.htmlText("stats","m_84e4d3109d655d","New conversation") ?? "New conversation")}"><i class="fas fa-plus"></i></button>`)}
+          <button class="st-btn icon" data-c="close" title="${(globalThis.PlatformLanguage?.htmlText("stats","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
         </div>
         ${String(body)}`;
       const msgs = chat.querySelector('[data-c="msgs"]');

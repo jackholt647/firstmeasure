@@ -5,7 +5,7 @@
  * sync, and handles mention-notification deep links. All actual messaging UI
  * lives in libraries/channels-ui so the project-notes surfaces reuse it.
  *
- * Integrated sidebar mode (capability `channels.sidebar_tab`): the standalone
+ * Integrated sidebar mode (personal `left_column_channels` preference): the standalone
  * portal tab is unregistered and the channel rail lives in the global left
  * column instead (core.js mounts the `list`-mode rail). Opening a channel
  * pops a conversation overlay over whatever app is on screen — the app stays
@@ -138,9 +138,8 @@
     // Mirrors core.js sidebarChannelsFeatureEnabled(): on phones the sidebar
     // is a pop-out drawer, so channels always stays a standalone tab there.
     if (window.matchMedia?.('(max-width: 820px)')?.matches) return false;
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    if (!flags?.current?.()) return false;
-    return !!flags.has?.('channels', 'sidebar_tab');
+    if (window.Portal?.can?.('apps.channels') === false) return false;
+    return window.Portal?.currentUser?.identity?.preferences?.left_column_channels === true;
   }
 
   const overlay = {
@@ -445,5 +444,7 @@
 
   window.addEventListener('fm:app-flags:updated', syncRegistration);
   window.addEventListener('fm:app-flags:failed', syncRegistration);
+  window.addEventListener('fm:user-preferences:updated', syncRegistration);
+  window.addEventListener('fm:platform-session:updated', syncRegistration);
   syncRegistration();
 })();

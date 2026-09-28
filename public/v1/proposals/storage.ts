@@ -1792,6 +1792,7 @@ export async function recordPublicProposalChoiceSelection(publicToken: string, i
 }
 
 export async function recordPublicProposalSignatureAdoption(publicToken: string, input: JsonObject = {}, metadata: JsonObject = {}) {
+  rejectLegacySignatureWrite();
   const found = await findPublicProposalSnapshot(publicToken);
   const now = nowIso();
   const snapshot = found.snapshot;
@@ -1829,6 +1830,7 @@ export async function recordPublicProposalSignatureAdoption(publicToken: string,
 }
 
 export async function recordPublicProposalSignatureSlot(publicToken: string, input: JsonObject = {}, metadata: JsonObject = {}) {
+  rejectLegacySignatureWrite();
   const found = await findPublicProposalSnapshot(publicToken);
   const now = nowIso();
   const snapshot = found.snapshot;
@@ -1875,6 +1877,7 @@ export async function recordPublicProposalSignatureSlot(publicToken: string, inp
 }
 
 async function finalizePublicProposalSignature(publicToken: string, input: JsonObject = {}, metadata: JsonObject = {}) {
+  rejectLegacySignatureWrite();
   const found = await findPublicProposalSnapshot(publicToken);
   const now = nowIso();
   const snapshot = found.snapshot;
@@ -2021,6 +2024,10 @@ async function finalizePublicProposalSignature(publicToken: string, input: JsonO
 
 export async function completePublicProposalESign(publicToken: string, input: JsonObject = {}, metadata: JsonObject = {}) {
   return finalizePublicProposalSignature(publicToken, input, metadata);
+}
+
+function rejectLegacySignatureWrite(): void {
+  throw conflict("proposal_signature_reissue_required", "This older proposal link cannot collect signatures. Ask the sender to review and reissue the agreement through Documents for individual signing invitations. Existing signed records remain available.");
 }
 
 export async function recordPublicProposalSignature(publicToken: string, input: JsonObject = {}) {

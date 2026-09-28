@@ -279,6 +279,7 @@ export async function materializeModuleDocument(ctx: PublicationContext, instanc
   const renderedDocument = {
     ...document, module_ref: { instance_id: instanceId, module_id: instance.moduleId, version: instance.version, execution_id: instance.lastExecutionId, revision: instance.revision },
     module_render: validateModuleView(instance.view), module_binding_manifest: instance.bindingManifest || {},
+    output_defs: (await import("../signing/model.js")).inferSignatureDefinitions(validateModuleView(instance.view), (instance.view as JsonObject).outputs as JsonObject || {}),
     module_resolved: null,
     // Rendering was resolved during evaluation. Import only explicitly public exports as params.
     params: publicParams, publication: { params: Object.keys(publicParams) }

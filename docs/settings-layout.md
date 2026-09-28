@@ -15,6 +15,7 @@ For views inside a category, use `FirstMateSettingsPages.subTabs()` and `FirstMa
 All currently reachable broad categories use the shared title/subtitle, sidebar entry, content pane, active state, and route behavior:
 
 - [x] My Settings
+- [x] Notifications — per-app in-app and phone push preferences, including Measurements report events
 - [x] Company
 - [x] Money — Accounts, Payments, Disputes
 - [x] Calls — call queues, assignments, follow-up cadence, and outcomes

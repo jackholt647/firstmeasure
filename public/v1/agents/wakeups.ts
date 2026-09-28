@@ -6,10 +6,10 @@ const activeWakeup = new AsyncLocalStorage<() => void>();
 export function assertAgentWakeupLease() { activeWakeup.getStore()?.(); }
 
 /** Only pending jobs are executable. Interrupted provider/tool runs require review. */
-export async function drainAgentWakeups(execute: (job: JsonObject) => Promise<void | "cancelled">, limit = 5) {
+export async function drainAgentWakeups(execute: (job: JsonObject) => Promise<void | "cancelled">, limit = 5, kind = "") {
   let handled = 0;
   for (; handled < limit; handled++) {
-    const job = await claimAgentWakeup();
+    const job = await claimAgentWakeup(120000, kind);
     if (!job) break;
     const id = cleanText(asObject(job).id), token = job.lease_owner;
     let valid = true;

@@ -1,11 +1,10 @@
 /**
  * The one signature primitive for customer-portal sign-offs.
  *
- * Punch-list submit/accept, project completion sign-off, and document
- * signatures all produce the SAME artifact shape and the same evidence
- * payload. That is deliberate: a signature is a legal record, and having three
- * near-identical shapes would mean three places to get retention, rendering,
- * and export subtly wrong.
+ * Punch-list acknowledgments use this legacy mark shape. Contract execution
+ * uses documents/signing: immutable packages, assigned signers, consent,
+ * retained PDFs and receipts. This helper is NOT equivalent evidence and must
+ * never be used to satisfy a document signature requirement.
  *
  * Shape matches the document engine's `doc.signature` output
  * (docs/document-engine-contracts.md §2):
@@ -51,8 +50,8 @@ export function normalizePortalSignature(value: unknown, evidence: JsonObject = 
 }
 
 /**
- * Evidence captured alongside a portal signature. Same fields the document
- * engine records so the two are comparable in an audit.
+ * Basic request metadata for a portal acknowledgment. It does not establish
+ * an assigned signer, reviewed contract version or contract-signing consent.
  */
 export function portalSignatureEvidenceFrom(request: unknown): JsonObject {
   const typed = request as { ip?: string; headers?: JsonObject } | null;

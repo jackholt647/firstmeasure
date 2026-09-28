@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payment setup | FirstMate</title>
+  <style>
+    *{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:#f8fafc;color:#101828;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(100%,520px);padding:40px 32px;border:1px solid #e4e7ec;border-radius:18px;background:#fff;text-align:center;box-shadow:0 16px 48px rgba(16,24,40,.08)}
+    .mark{display:grid;place-items:center;width:64px;height:64px;margin:0 auto 20px;border-radius:50%;background:#ecfdf3;color:#039855;font-size:34px}h1{margin:0 0 10px;font-size:27px;line-height:1.2}p{margin:0 0 26px;color:#475467}button,a{display:inline-block;padding:12px 20px;border:0;border-radius:9px;background:#101828;color:white;font:inherit;font-weight:600;text-decoration:none;cursor:pointer}button:hover,a:hover{background:#344054}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="mark" aria-hidden="true">&#10003;</div>
+    <h1>Payment application submitted</h1>
+    <p>Your application is under review. We will notify you once it has been processed.</p>
+    <button id="close" type="button">Close window</button>
+  </main>
+  <script>
+    document.getElementById('close').addEventListener('click', () => {
+      if (window.parent !== window) {
+        window.parent.postMessage({ type:'firstmate:payments-setup-return' }, window.location.origin);
+      } else {
+        window.close();
+      }
+    });
+  </script>
+</body>
+</html>

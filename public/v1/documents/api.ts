@@ -174,6 +174,10 @@ async function themesWithCurrentDefinitions(orgId: string, themes: JsonObject[])
 }
 
 export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
+  const signing = await import("./signing/service.js");
+  const signingWorker = setInterval(() => { void signing.drainSigningOutbox().catch(error => app.log.error(error, "Signing event delivery failed; retained for retry.")); }, 10000);
+  signingWorker.unref();
+  app.addHook("onClose", async () => { clearInterval(signingWorker); await signing.drainSigningOutbox(); });
   // Collaboration (presence + serialized command log) and version-history
   // checkpoints live in their own modules; they self-manage auth per route.
   registerCollabRoutes(app);
@@ -765,7 +769,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
     const body = sendDocumentSchema.parse(request.body ?? {});
     const result = await sendDocument(orgId, getParam(request.params, "documentId"), body, ctx);
-    return { ok: true, document: result.document, snapshot: result.snapshot, portal_url: result.portal_url, emailed: result.emailed, texted: result.texted };
+    return { ok: true, document: result.document, snapshot: result.snapshot, portal_url: result.portal_url, emailed: result.emailed, texted: result.texted, signing: result.signing };
   });
 
   app.get("/organizations/:orgId/documents/:documentId/snapshots", async (request) => {
@@ -943,6 +947,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
         document_type: cleanText(found.document.document_type)
       },
       capabilities: found.capabilities,
+      signing: found.signing,
       workflow: found.workflow
     };
   });
@@ -974,7 +979,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
       body,
       publicRequestAudit(request),
       null,
-      { snapshotId: cleanText(found.snapshot.id), surface: "public" }
+      { snapshotId: cleanText(found.snapshot.id), surface: "public", publicToken: token }
     );
     const refreshed = await publicDocumentWorkflow(token);
     return {
@@ -987,6 +992,36 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
       },
       workflow: refreshed.workflow
     };
+  });
+
+  app.post("/public/:token/signing/prepare", async request => {
+    const access = await signing.publicSigningAccess(getParam(request.params, "token"));
+    return { ok: true, ...(await signing.prepareSigning(access)) };
+  });
+  app.get("/public/:token/signing", async request => {
+    const token = getParam(request.params, "token");
+    const found = await publicDocumentWorkflow(token);
+    return { ok: true, signing: found.signing };
+  });
+  app.post("/public/:token/signing/decline", async request => {
+    const access = await signing.publicSigningAccess(getParam(request.params, "token"));
+    return { ok: true, ...(await signing.declineSigning(access, cleanText(asObject(request.body).reason))) };
+  });
+  app.post("/organizations/:orgId/documents/:documentId/signing/reissue", async request => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "issue_documents" });
+    return { ok: true, invitation: await signing.reissueSigningInvitation(orgId, getParam(request.params, "documentId"), cleanText(asObject(request.body).signer_id), ctx) };
+  });
+  app.post("/organizations/:orgId/documents/:documentId/signing/prepare", async request => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "sign_documents" });
+    const access = await signing.internalSigningAccess(orgId, getParam(request.params, "documentId"), cleanText(asObject(request.body).signer_id), ctx);
+    return { ok: true, ...(await signing.prepareSigning(access)) };
+  });
+  app.get("/organizations/:orgId/documents/:documentId/signing/evidence", async request => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "manage_documents" });
+    return { ok: true, packages: await signing.signingEvidence(orgId, getParam(request.params, "documentId"), ctx, asObject(request.query).include_files === "true") };
   });
 
   /**
@@ -1097,6 +1132,7 @@ async function requireDocumentCapabilityEnabled(orgId: string, capability: strin
 }
 
 function sendPdf(reply: FastifyReply, file: { contentType: string; fileName: string; bytes: Buffer }) {
+  reply.header("Cache-Control", "private, no-store");
   reply.header("Content-Type", file.contentType || "application/pdf");
   reply.header("Content-Disposition", `inline; filename="${String(file.fileName || "document.pdf").replace(/"/g, "")}"`);
   return reply.send(file.bytes);
@@ -1106,9 +1142,8 @@ function sendPdf(reply: FastifyReply, file: { contentType: string; fileName: str
 function publicRequestAudit(request: { ip?: string; headers?: Record<string, unknown> }): JsonObject {
   const headers = request.headers || {};
   const header = (name: string) => cleanText(headers[name] || headers[name.toLowerCase()]);
-  const forwarded = header("x-forwarded-for").split(",")[0]?.trim();
   return {
-    ip_address: forwarded || header("cf-connecting-ip") || cleanText(request.ip),
+    ip_address: cleanText(request.ip),
     user_agent: header("user-agent"),
     accept_language: header("accept-language"),
     referrer: header("referer") || header("referrer"),

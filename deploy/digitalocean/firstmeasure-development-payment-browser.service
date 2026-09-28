@@ -1,0 +1,30 @@
+[Unit]
+Description=FirstMate development payment signup Chromium sessions
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=/opt/firstmeasure/current
+
+[Service]
+Type=simple
+User=firstmate-browser
+Group=firstmate-browser
+WorkingDirectory=/opt/firstmeasure/current/public/v1
+EnvironmentFile=/etc/firstmeasure/payment-browser.env
+Environment=FIRSTMEASURE_DATA_ENVIRONMENT=development
+ExecStart=/usr/bin/node payment-browser/server.mjs
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+KillMode=control-group
+MemoryMax=3G
+TasksMax=512
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+InaccessiblePaths=/etc/firstmeasure /var/cache/firstmeasure-development
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

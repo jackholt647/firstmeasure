@@ -11,7 +11,7 @@ const runtime = await readFile(path.join(publicRoot, 'libraries/settings-pages/f
 const guide = await readFile(path.resolve(publicRoot, '..', 'docs/settings-layout.md'), 'utf8');
 
 const expectedSections = [
-  'my_settings', 'company', 'money', 'calls', 'contacts', 'feedback', 'equipment',
+  'my_settings', 'notifications', 'company', 'money', 'calls', 'contacts', 'feedback', 'equipment',
   'live_chat', 'comms', 'assistant', 'channels', 'users', 'payroll', 'reports', 'documents',
   'configuration', 'scheduling', 'crews', 'project_scopes', 'storage', 'sms',
   'domains', 'app_flags', 'pricebook', 'proposals', 'forms', 'billing', 'app_download'

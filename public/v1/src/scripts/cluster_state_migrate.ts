@@ -22,7 +22,7 @@ type PlatformDocumentBatchRow = {
 };
 
 const PLATFORM_COLLECTIONS = new Set([
-  "users", "projects", "customers", "branch", "notifications", "action_items", "activity", "customer_portals",
+  "users", "projects", "customers", "branch", "notifications", "notification_devices", "action_items", "activity", "customer_portals",
   "onboarding_events", "proposals", "proposal_snapshots", "proposal_events", "material_lists", "material_list_versions",
   "material_orders", "material_deliveries", "material_events", "payment_schedules", "payment_obligations",
   "payment_transactions", "payment_allocations", "payment_intents", "payment_payables", "payment_disbursements",

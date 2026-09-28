@@ -35,7 +35,19 @@ to them or reimport their files. Deploy immutable verified commits from the
 canonical branch using the existing deployment workflow. Development deployment
 authorization does not authorize production deployment or topology changes.
 
+## Core mobile app
+
+The sole Android/iOS app is the global FirstMate platform host at
+[`native/firstmate`](native/firstmate/README.md). Measurements is one module.
+Do not restore retired customer or management prototypes or infer app ownership
+from legacy package identifiers.
+
 ## Architecture continuity
+
+The sole core Android/iOS app is the global **FirstMate** platform host at
+[`native/firstmate`](native/firstmate/README.md). FirstMeasure/Measurements is a
+module within it. Do not recreate the removed customer or management prototypes
+or infer app ownership from the checkout name or legacy package identifiers.
 
 Before editing the global assistant, its instructions, memories or tools, read
 [global assistant architecture](docs/architecture/global-assistant.md).

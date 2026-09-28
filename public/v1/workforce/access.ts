@@ -1128,7 +1128,7 @@ export function factoryPersonaDefinitions(): FactoryPersonaDefinition[] {
     "view_comms", "view_customer_portals", "view_project_data"
   ].map(key => [key, true]));
   const managerWritePermissions: PermissionMap = Object.fromEntries([
-    "manage_project_billing", "manage_documents", "issue_documents",
+    "manage_project_billing", "manage_documents", "issue_documents", "sign_documents", "import_document_signatures",
     "manage_proposals", "send_proposals", "manage_stats", "manage_websites",
     "request_feedback", "manage_canvassing", "manage_media",
     "manage_customer_portals", "manage_project_data"

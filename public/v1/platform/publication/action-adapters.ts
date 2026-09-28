@@ -107,7 +107,16 @@ export function registerDomainActions() {
 
   publish({ id: "documents.instance.read", description: "Read the target document instance through the document service.", permission: view, effect: "read", execute: async (c,t) => (await import("../../documents/service.js")).documentWorkflowDetail(c.organizationId,id(t)) });
   publish({ id: "documents.workflow.update", description: "Update document workflow state with document service lifecycle validation.", permission: view, properties: { values: object }, required: ["values"], execute: async (c,t,i) => (await import("../../documents/service.js")).updateDocumentWorkflowState(c.organizationId,id(t),values(i),auth(c)) });
-  publish({ id: "documents.instance.issue", description: "Issue an existing document instance.", permission: view, properties: { values: object }, execute: async (c,t,i) => (await import("../../documents/service.js")).issueDocument(c.organizationId,id(t),values(i),auth(c)) });
+  publish({ id: "documents.instance.issue", description: "Issue an existing document instance.", permission: "issue_documents", properties: { values: object }, execute: async (c,t,i) => (await import("../../documents/service.js")).issueDocument(c.organizationId,id(t),values(i),auth(c)) });
+  publish({ id: "documents.instance.create", capabilities: ["platform.documents"], description: "Create a draft document from a published template and workflow.", permission: "manage_documents", scopes: ["project"], properties: { values: object }, required: ["values"], execute: async (c,t,i) => (await import("../../documents/service.js")).createDocumentInstance(c.organizationId,project(t),values(i),auth(c)) });
+  publish({ id: "documents.instance.send", capabilities: ["platform.documents"], description: "Validate signer assignments and send individual signing invitations. Does not sign for anyone.", permission: "issue_documents", effect: "external", properties: { recipients: { type: "array", items: object }, consent_contact: string, message: { type: "string" }, include_pdf: { type: "boolean" }, include_portal: { type: "boolean" } }, execute: async (c,t,i) => {
+    const result = await (await import("../../documents/service.js")).sendDocument(c.organizationId,id(t),i,auth(c));
+    return { document_id: result.document.id, snapshot_id: result.snapshot.id, signing_package_id: result.signing?.package_id, emailed: result.emailed, texted: result.texted };
+  } });
+  publish({ id: "documents.signing.status", description: "Read signer routing and accepted fields without private evidence or invitation secrets.", permission: view, effect: "read", execute: async (c,t) => {
+    const document = await (await import("../../documents/service.js")).readDocumentInstance(c.organizationId,id(t));
+    return (await import("../../documents/signing/service.js")).signingStatus(c.organizationId,String((document.delivery as Input)?.current_snapshot_id || ""));
+  } });
 
   publish({ id: "payroll.upcoming.read", description: "Read upcoming payroll for authorized payroll managers.", permission: "manage_payroll|manage_company_settings", capabilities: ["apps.payroll"], effect: "read", execute: async c => (await import("../../payroll/service.js")).upcomingPayroll(c.organizationId) });
   publish({ id: "workforce.users.list", description: "Read the workforce user directory.", permission: "manage_company_users|manage_company_user_permissions|manage_company_settings", effect: "read", execute: async c => (await import("../../workforce/service.js")).listWorkforceUsers(c.organizationId) });
@@ -154,7 +163,10 @@ export function registerDomainActions() {
   publish({ id:"firstmeasure.exteriors.quote",description:"Calculate current full-house report pricing with exterior feature access enforced.",permission:view,properties:{count:{type:"integer",minimum:1,maximum:10},projectType:{type:"string",enum:["residential","commercial","multifamily"]}},effect:"read",execute:async(c,_t,i)=>{
     const service=await import("../../firstmeasure/exteriors.js");
     await service.requireExteriorAccess(c.organizationId,String(i.projectType || "residential"));
-    return service.exteriorQuote(Number(i.count || 1));
+    const {withOrganizationCommerce}=await import("../../commerce/profile.js");
+    const {pricingContext,readExpeditePricing}=await import("../../firstmeasure/pricing_config.js");
+    const pricing=await readExpeditePricing();
+    return withOrganizationCommerce(c.organizationId,()=>pricingContext.run({...pricing,now:new Date()},()=>service.exteriorQuote(Number(i.count || 1))));
   } });
   publish({ id:"media.item.read",description:"Read media metadata with receipt privacy filtering.",permission:"",effect:"read",execute:async(c,t)=>{
     const media=await (await import("../storage.js")).readMediaMetadata(c.organizationId,id(t));

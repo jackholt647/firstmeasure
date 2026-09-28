@@ -455,10 +455,12 @@ export async function patchManifest(
   reportPreferencesSchema.parse(patch);
   if (Object.prototype.hasOwnProperty.call(patch, "measurement_scope") || Object.prototype.hasOwnProperty.call(patch, "internal_only") || Object.prototype.hasOwnProperty.call(patch, "id")) throw badRequest("immutable_project_scope", "Project identity and measurement scope cannot be changed.");
   assertFullHouseProjectAccess(projectId);
+  let previous: ProjectManifest | null = null;
   if (isFirstMeasurePostgresEnabled()) {
     const { mutatePostgresManifest } = await import("./project_index_postgres.js");
     const directory = projectDir(projectId);
     const updated = await mutatePostgresManifest(projectId, async (current) => {
+      previous = current;
       const currentStatus = normalizeProjectStatus(current.status);
       const allowTerminalStatusTransition = patch.__allow_terminal_status_transition === true;
       const cleanPatch = { ...patch };
@@ -483,10 +485,12 @@ export async function patchManifest(
       console.error(`PostgreSQL patched project '${projectId}', but its JSON mirror could not be written.`, error);
     });
     await publishMeasurementCompletion(updated);
+    await publishMeasurementNotificationAfterCommit(previous, updated);
     return updated;
   }
   const result = await serializeProjectMutation(projectId, async () => {
     const current = await readManifest(projectId);
+    previous = current;
     const currentStatus = normalizeProjectStatus(current.status);
     const allowTerminalStatusTransition = patch.__allow_terminal_status_transition === true;
     const cleanPatch = { ...patch };
@@ -518,7 +522,24 @@ export async function patchManifest(
     return updated;
   });
   await publishMeasurementCompletion(result);
+  await publishMeasurementNotificationAfterCommit(previous, result);
   return result;
+}
+
+async function publishMeasurementNotificationAfterCommit(previous: ProjectManifest | null, current: ProjectManifest) {
+  if (!previous) return;
+  const oldDelivery = asRecord(previous.delivery);
+  const newDelivery = asRecord(current.delivery);
+  if (previous.status === current.status
+    && String(previous.report_sent_at || oldDelivery.report_sent_at || "") === String(current.report_sent_at || newDelivery.report_sent_at || "")
+    && String(oldDelivery.rework_report_sent_at || "") === String(newDelivery.rework_report_sent_at || "")) return;
+  try {
+    const { publishMeasurementNotification } = await import("./notifications.js");
+    await publishMeasurementNotification(previous, current);
+  } catch (error) {
+    // The report transition is already committed; notification failure must not reverse it.
+    console.error("Measurement notification failed", current.id, error);
+  }
 }
 
 async function publishMeasurementCompletion(manifest: ProjectManifest) {

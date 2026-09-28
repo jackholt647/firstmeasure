@@ -127,6 +127,7 @@ before(async () => {
     if (url.endsWith("/v1/payment_intents") && String(init?.method || "").toUpperCase() === "POST") {
       return new Response(JSON.stringify({
         id: "pi_test_auto_topup",
+        livemode: false,
         status: "succeeded",
         amount: 5000,
         currency: "usd"

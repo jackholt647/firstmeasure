@@ -62,6 +62,15 @@ const definitions: CapabilityDefinition[] = [
   { key: "platform.people_access", kind: "feature", label: "Platform People & Access", description: "Use the platform people, workforce and access management UI instead of the familiar FirstMeasure Users screen.", requires: ["platform.expanded_access"], default: false },
   // --- Apps: top-level product surfaces -----------------------------------
   {
+    key: "apps.notifications",
+    kind: "feature",
+    icon: "fa-bell",
+    category: "Platform & Appearance",
+    label: "Notifications",
+    description: "Personal notification preferences and delivery across the portal and phone apps.",
+    default: true
+  },
+  {
     key: "apps.projects",
     kind: "app",
     icon: "fa-folder-open",
@@ -524,14 +533,7 @@ const definitions: CapabilityDefinition[] = [
     description: "The project notes surfaces run on channels: per-project message threads with replies and history.",
     default: true
   },
-  {
-    key: "channels.sidebar_tab",
-    kind: "feature",
-    parent: "apps.channels",
-    label: "Integrated Sidebar Tab",
-    description: "Show channels as a tab in the portal left column instead of a standalone app; conversations open over whatever app is on screen.",
-    default: false
-  },
+
   {
     key: "apps.billing",
     kind: "app",
@@ -1300,14 +1302,7 @@ const definitions: CapabilityDefinition[] = [
     description: "Federated external direct messages and shared channels with restricted resource sharing.",
     default: false
   },
-  {
-    key: "platform.left_column_apps",
-    kind: "setting",
-    category: "Platform & Appearance",
-    label: "Left Column Apps",
-    description: "Show the Apps navigation mode in the portal left column. When only one left-column mode is enabled, its tab header is hidden.",
-    default: true
-  },
+
   {
     key: "platform.separate_user_section",
     kind: "setting",
@@ -1324,48 +1319,17 @@ const definitions: CapabilityDefinition[] = [
     description: "Replace the More Apps pop-up with the full-screen app launcher and sidebar pinning experience.",
     default: false
   },
+
+
+
+
   {
-    key: "platform.left_column_todo_list",
+    key: "platform.resizable_left_column",
     kind: "setting",
     category: "Platform & Appearance",
-    label: "Left Column To Do List",
-    description: "The Apps/To Do switcher and today's action-item list in the portal left column.",
-    default: false
-  },
-  {
-    key: "platform.left_column_default_mode",
-    kind: "setting",
-    category: "Platform & Appearance",
-    type: "select",
-    label: "Default Left Column",
-    description: "Which enabled left-column mode opens by default. If that mode is unavailable, the first enabled mode is used.",
-    default: "apps",
-    options: [
-      ["apps", "Apps"],
-      ["todo", "To Do"],
-      ["channels", "Channels"]
-    ]
-  },
-  {
-    key: "platform.left_column_expansion_mode",
-    kind: "setting",
-    category: "Platform & Appearance",
-    type: "select",
-    label: "Collapsed Left Column Expansion",
-    description: "Choose whether a temporary expansion resizes the page or overlaps it. An expansion locked with the rail arrow always resizes the page.",
-    default: "resize",
-    options: [
-      ["resize", "Resize page"],
-      ["overlap", "Overlap page"]
-    ]
-  },
-  {
-    key: "platform.always_collapsible_left_column",
-    kind: "setting",
-    category: "Platform & Appearance",
-    label: "Always Collapsible Left Column",
-    description: "Start the portal with a compact left rail on every app. Use the rail arrow to lock it open or collapse it again.",
-    default: false
+    label: "Drag to Resize Left Column",
+    description: "Drag the right edge of the left column to set its width. Dragging also locks a compact column open.",
+    default: true
   },
   {
     key: "platform.cobrand_sidebar_logo",
@@ -1956,6 +1920,8 @@ const definitions: CapabilityDefinition[] = [
     ["view_documents", "platform.documents", "read", "View Documents", "Read project documents and published document values."],
     ["manage_documents", "platform.documents", "write", "Manage Documents", "Edit document workflows and generated documents."],
     ["issue_documents", "platform.documents", "write", "Issue Documents", "Issue documents to customers."],
+    ["sign_documents", "platform.documents", "write", "Sign Documents", "Execute signatures assigned to your account."],
+    ["import_document_signatures", "platform.documents", "write", "Import Signed Documents", "Attest to wet signatures on retained source documents."],
     ["view_materials", "platform.materials", "read", "View Materials", "Read project material lists and orders."],
     ["view_proposals", "platform.proposals", "read", "View Proposals", "Read project proposals."],
     ["manage_proposals", "platform.proposals", "write", "Manage Proposals", "Create and edit project proposals."],

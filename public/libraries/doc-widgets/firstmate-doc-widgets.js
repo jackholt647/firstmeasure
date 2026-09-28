@@ -1490,7 +1490,25 @@
   };
 
   function signatureKey(ctx) {
+    const keys = ctx.config?.output_keys;
+    const firstKey = cleanText(Array.isArray(keys) ? keys[0] : String(keys || '').split(',')[0]);
+    if (firstKey) return firstKey;
     return cleanText((ctx.config || {}).output_key) || "sig_customer";
+  }
+  function renderSignatureGroup(el, ctx, interactive) {
+    const raw = ctx.config?.output_keys;
+    const keys = (Array.isArray(raw) ? raw : String(raw || '').split(',')).map(cleanText).filter(Boolean);
+    if (keys.length < 2) return false;
+    clearEl(el);
+    el.style.overflow = 'visible';
+    const signerIds = Array.isArray(ctx.config?.signer_ids) ? ctx.config.signer_ids : String(ctx.config?.signer_ids || '').split(',');
+    for (const [index, key] of [...new Set(keys)].entries()) {
+      const host = h('div', 'fmdoc-signature-party'); host.style.marginBottom = '12px'; el.appendChild(host);
+      const child = { ...ctx, config: { ...ctx.config, output_keys: '', output_key: key, signer_id: cleanText(signerIds[index]) || ctx.config?.signer_id, label: key.replace(/_/g, ' ') } };
+      const widget = get('doc.signature', 1);
+      if (interactive) widget.renderInteractive(host, child); else widget.renderStatic(host, child);
+    }
+    return true;
   }
 
   function signatureValue(ctx) {
@@ -1506,6 +1524,7 @@
     const cfg = ctx.config || {};
     const value = signatureValue(ctx);
     const wrap = h("div", "fmdoc-signature");
+    wrap.dataset.signatureField = signatureKey(ctx);
     if (value) {
       const face = h("div", "fmdoc-signature-face");
       if (value.type === "drawn" && value.image_data) {
@@ -1537,6 +1556,47 @@
     const modal = h("div", "fmdoc-modal fmdoc-sign-modal");
     overlay.appendChild(modal);
     modal.appendChild(h("div", "fmdoc-modal-title", "Add your signature"));
+    let signingReview = null;
+    let reviewOpened = false;
+    const reviewStatus = h("div", "fmdoc-sign-review", "Preparing the exact agreement for your review…");
+    const consentLabel = h("label", "fmdoc-sign-consent");
+    const consentCheck = document.createElement("input"); consentCheck.type = "checkbox";
+    const presenterCheck = document.createElement("input"); presenterCheck.type = "checkbox";
+    consentLabel.appendChild(consentCheck);
+    consentLabel.appendChild(document.createTextNode(" I intend to sign this agreement, consent to electronic records, and confirm I can access and save the review PDF."));
+    modal.appendChild(reviewStatus); modal.appendChild(consentLabel);
+    const signingApi = ctx.api || {};
+    const publicToken = cleanText(signingApi.publicToken);
+    const internal = signingApi.signing || {};
+    const base = internal.base || (publicToken ? '/v1/documents/public/' + encodeURIComponent(publicToken) : internal.organizationId && internal.documentId ? '/v1/documents/organizations/' + encodeURIComponent(internal.organizationId) + '/documents/' + encodeURIComponent(internal.documentId) : '');
+    const csrf = (document.cookie.split('; ').find(c => c.startsWith('fm_platform_session_csrf=')) || '').split('=').slice(1).join('=');
+    const reviewPromise = base ? fetch(base + '/signing/prepare', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(csrf ? { 'x-platform-csrf': decodeURIComponent(csrf) } : {}) }, body: JSON.stringify({ field: signatureKey(ctx), signer_id: cleanText(ctx.config?.signer_id || internal.signerId || (ctx.config?.signer === 'internal' ? 'company' : 'customer')) }) }).then(async response => {
+      const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Signing review is unavailable.');
+      if (!result.fields.includes(signatureKey(ctx))) throw new Error('This signature field is assigned to another signer.');
+      signingReview = result;
+      if (result.presenter_attestation_required) { const label = h('label','fmdoc-sign-consent'); label.appendChild(presenterCheck); label.appendChild(document.createTextNode(' Presenter: I attest that the assigned customer personally reviewed and is signing this agreement in my presence.')); modal.insertBefore(label,consentLabel.nextSibling); }
+      reviewStatus.textContent = result.disclosure.text;
+      reviewStatus.style.cssText = 'max-height:180px;overflow:auto;font-size:12px;white-space:pre-wrap;margin-bottom:12px';
+      const reviewLink = h('a', 'fmdoc-button', 'Open and save the agreement PDF');
+      reviewLink.href = internal.pdfUrl || base + '/pdf'; reviewLink.target = '_blank'; reviewLink.rel = 'noopener';
+      reviewLink.addEventListener('click', async event => {
+        event.preventDefault();
+        const viewer = window.open('', '_blank');
+        try {
+          const response = await fetch(reviewLink.href, { credentials: 'same-origin', cache: 'no-store' });
+          if (!response.ok) throw new Error('The review PDF could not be downloaded. Please try again.');
+          const blob = await response.blob();
+          if (!(await blob.slice(0,5).text()).startsWith('%PDF-')) throw new Error('The review copy is not a valid PDF. Signing is unavailable.');
+          const url = URL.createObjectURL(blob);
+          if (viewer) { viewer.opener = null; viewer.location.href = url; }
+          else { const download = document.createElement('a'); download.href = url; download.download = 'agreement-for-review.pdf'; download.click(); }
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+          reviewOpened = true;
+        } catch (error) { viewer?.close(); reviewStatus.textContent = error.message; reviewOpened = false; }
+      });
+      modal.insertBefore(reviewLink, consentLabel);
+      if (result.signer.name) { nameInput.value = result.signer.name; nameInput.dispatchEvent(new Event('input')); }
+    }).catch(error => { reviewStatus.textContent = error.message; reviewStatus.setAttribute('role', 'alert'); }) : Promise.resolve().then(() => { reviewStatus.textContent = (globalThis.PlatformLanguage?.text("doc-widgets","m_cbcae1403d8359","Send this document to its assigned signers before collecting signatures.") ?? "Send this document to its assigned signers before collecting signatures."); });
 
     const nameField = h("div", "fmdoc-field");
     nameField.appendChild(h("label", "fmdoc-field-label", "Full name"));
@@ -1653,10 +1713,26 @@
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
     };
     cancelButton.addEventListener("click", close);
+    if (publicToken) {
+      const decline = h('button','fmdoc-button fmdoc-button--ghost','Decline / request paper'); decline.type = 'button'; actions.insertBefore(decline,adoptButton);
+      decline.addEventListener('click',async () => {
+        const reason = window.prompt((globalThis.PlatformLanguage?.text("doc-widgets","m_c42b6e188d23fe","This stops electronic signing for this agreement. You can ask the sender for a paper process. Reason (optional):") ?? "This stops electronic signing for this agreement. You can ask the sender for a paper process. Reason (optional):"));
+        if (reason === null) return;
+        decline.disabled = true;
+        try {
+          const response = await fetch(base + '/signing/decline',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});
+          const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not decline this agreement.');
+          close(); ctx.refresh?.();
+        } catch(error) { reviewStatus.textContent = error.message; decline.disabled = false; }
+      });
+    }
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay) close();
     });
-    adoptButton.addEventListener("click", () => {
+    adoptButton.addEventListener("click", async () => {
+      await reviewPromise;
+      if (!signingReview || !reviewOpened || !consentCheck.checked) { reviewStatus.setAttribute('role', 'alert'); if (signingReview) alert((globalThis.PlatformLanguage?.text("doc-widgets","m_4b30d733b357e0","Open the agreement PDF and confirm your consent before signing.") ?? "Open the agreement PDF and confirm your consent before signing.")); return; }
+      if (signingReview.presenter_attestation_required && !presenterCheck.checked) { alert((globalThis.PlatformLanguage?.text("doc-widgets","m_e0738da2d77758","The presenter must confirm that the assigned signer is present and personally signing.") ?? "The presenter must confirm that the assigned signer is present and personally signing.")); return; }
       const signerName = cleanText(nameInput.value);
       if (!signerName) {
         nameInput.classList.add("fmdoc-input--invalid");
@@ -1676,8 +1752,14 @@
         signed_at: new Date().toISOString()
       };
       if (activeMode === "drawn") value.image_data = canvas.toDataURL("image/png");
-      close();
-      onDone(value);
+      value.__signing = { signer_id: signingReview.signer.id, challenge: signingReview.challenge, content_hash: signingReview.content_hash, consent: { intent: true, electronic_records: true, can_access_and_retain: true, presenter_witnessed: signingReview.presenter_attestation_required === true && presenterCheck.checked, disclosure_hash: signingReview.disclosure.hash } };
+      adoptButton.disabled = true; adoptButton.textContent = (globalThis.PlatformLanguage?.text("doc-widgets","m_cb90a26bea1aec","Recording signature…") ?? "Recording signature…");
+      try {
+        const saved = await onDone(value);
+        if (saved === false) throw new Error('The signature was not saved. Please try again.');
+        close();
+      } catch (error) { reviewStatus.textContent = error.message || 'Could not save your signature.'; reviewStatus.setAttribute('role', 'alert'); }
+      finally { adoptButton.disabled = false; adoptButton.textContent = (globalThis.PlatformLanguage?.text("doc-widgets","m_b420b6f775b7b3","Adopt & sign") ?? "Adopt & sign"); }
     });
 
     document.body.appendChild(overlay);
@@ -1695,12 +1777,18 @@
     configPanel: [
       { key: "label", label: (globalThis.PlatformLanguage?.text("doc-widgets","m_9fd79f4276d659","Label") ?? "Label"), kind: "text" },
       { key: "output_key", label: (globalThis.PlatformLanguage?.text("doc-widgets","m_8ca76efd08d74f","Output key") ?? "Output key"), kind: "text" },
+      { key: "signer_id", label: (globalThis.PlatformLanguage?.text("doc-widgets","m_9348de0f5286f1","Signer role ID") ?? "Signer role ID"), kind: "text" },
+      { key: "output_keys", label: (globalThis.PlatformLanguage?.text("doc-widgets","m_520c97bcf01862","Shared position: field keys (comma separated)") ?? "Shared position: field keys (comma separated)"), kind: "text" },
+      { key: "signer_ids", label: (globalThis.PlatformLanguage?.text("doc-widgets","m_6d28672303118a","Shared position: signer role IDs in the same order") ?? "Shared position: signer role IDs in the same order"), kind: "text" },
+      { key: "required", label: (globalThis.PlatformLanguage?.text("doc-widgets","m_801bfb52a7d68d","Required signature") ?? "Required signature"), kind: "boolean" },
       { key: "signer", label: (globalThis.PlatformLanguage?.text("doc-widgets","m_4df1190b5e3436","Signer") ?? "Signer"), kind: "select", options: ["customer", "internal"] }
     ],
     renderStatic(el, ctx) {
+      if (renderSignatureGroup(el, ctx, false)) return;
       renderSignatureDisplay(el, ctx);
     },
     renderInteractive(el, ctx) {
+      if (renderSignatureGroup(el, ctx, true)) return {};
       const wrap = renderSignatureDisplay(el, ctx);
       const value = signatureValue(ctx);
       if (!value) {
@@ -1715,11 +1803,14 @@
         const prompt = h("div", "fmdoc-signature-cta", "Click to sign");
         wrap.insertBefore(prompt, wrap.firstChild);
         const open = () => {
-          openSignatureModal(ctx, (signed) => {
+          openSignatureModal(ctx, async (signed) => {
             const key = signatureKey(ctx);
-            if (ctx.outputs) ctx.outputs[key] = signed;
-            ctx.submitOutput(key, signed);
-            ctx.refresh();
+            const result = await ctx.submitOutput(key, signed);
+            if (result === false) return false;
+            const saved = { ...signed }; delete saved.__signing;
+            if (ctx.outputs) ctx.outputs[key] = saved;
+            ctx.refresh?.();
+            return true;
           });
         };
         wrap.addEventListener("click", open);

@@ -101,7 +101,7 @@
     el.innerHTML = `
       <div class="ic" id="fmToastIc"><i class="fas fa-check"></i></div>
       <div class="tx">
-        <div class="t1" id="fmToastT1">${(globalThis.PlatformLanguage?.text("platform-ui","m_8cb6b086a0e69c","Done") ?? "Done")}</div>
+        <div class="t1" id="fmToastT1">${(globalThis.PlatformLanguage?.htmlText("platform-ui","m_8cb6b086a0e69c","Done") ?? "Done")}</div>
         <div class="t2" id="fmToastT2"></div>
       </div>
       <button class="x" id="fmToastX" type="button" data-fm-tooltip="Dismiss"><i class="fas fa-times"></i></button>

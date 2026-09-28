@@ -29,7 +29,7 @@ test('one chronological statement combines credit ledger, subscription and usage
 test('statement export includes all services and keeps unknown cash amounts blank',()=>{
   const csv=statementCsv(statementRows(period,credits,platform));
   for(const value of ['credits','subscriptions','usage','25.00','100.00'])assert.ok(csv.includes(value));
-  assert.ok(csv.includes('Measurement credit change (USD)'));
+  assert.ok(csv.includes('Measurement credit change'));
   assert.ok(!csv.includes('future'));
 });
 test('CSV escapes formulas and quotes in user-controlled labels',()=>{
@@ -48,6 +48,8 @@ test('cohesive workspace responds to filters, month races, failures, invoice det
   try{
     const page=await browser.newPage({viewport:{width:1400,height:1000}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
     await page.setContent('<main style="padding:24px;font-family:Arial"><div id="billing"></div></main>');
+    await page.addScriptTag({path:new URL('../../libraries/platform-commerce/platform-commerce.js',import.meta.url).pathname.replace(/^\/(?:([A-Za-z]:))/, '$1')});
+    await page.evaluate(()=>window.PlatformCommerce.set({currency:'USD',credit_display:'currency',report_prices:{residential:7}}));
     await page.addScriptTag({content:source});
     await page.evaluate(({credits,platform})=>{
       const month=new Date().toISOString().slice(0,7);const move=date=>month+date.slice(7);

@@ -17,6 +17,10 @@ import {
   type JsonObject
 } from "../platform/storage.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
+import { hasPermission } from "../platform/auth.js";
+import { inferSignatureDefinitions, signatureDefinitions, publicSignatureOutputs } from "./signing/model.js";
+import { withSigningLock, packageForSnapshot, packagesForDocument } from "./signing/store.js";
+import { assertSigningEditable, validateSigningIssue, issueSigningPackage, revokeSigningPackages, publicSigningAccess, internalSigningAccess, presentedSigningAccess, acceptSigning, signingPdf, signingStatus } from "./signing/service.js";
 import { listProjectObligations, listProjectPayments } from "../payments/storage.js";
 import { normalizeScheduleRows, resolveScheduleItems } from "../payments/schedule_terms.js";
 import { moneyCents, scopeItemPriceResult, scopeItemSelected } from "../proposals/scope.js";
@@ -633,7 +637,8 @@ export async function createDocumentInstance(orgId: string, projectId: string, i
   const templateVersion = template && version ? await readDocumentTemplateVersion(orgId, cleanText(template.id), version) : null;
   const definition = filterDocumentDefinitionByCapabilities(asObject(asObject(templateVersion).definition), capabilityState);
   const paramDefs = filterParamDefinitionsByCapabilities({ ...typeDef.param_schema, ...asObject(definition.params) }, capabilityState);
-  const outputDefs = filterOutputDefinitionsByCapabilities({ ...typeDef.output_schema, ...asObject(definition.outputs) }, capabilityState);
+  const rawOutputDefs = { ...typeDef.output_schema, ...asObject(asObject(asObject(templateVersion).definition).outputs) };
+  const outputDefs = inferSignatureDefinitions(asObject(asObject(templateVersion).definition), { ...filterOutputDefinitionsByCapabilities(rawOutputDefs, capabilityState), ...signatureDefinitions(rawOutputDefs) });
   const id = documentInstanceId(input);
   const now = nowIso();
   const projectData = projectId ? asObject(asObject(await readDocument(orgId, "projects", projectId).catch(() => null)).data) : {};
@@ -642,6 +647,10 @@ export async function createDocumentInstance(orgId: string, projectId: string, i
   const params = resolveDocumentParams(paramDefs, asObject(input.params), entities);
   const missing = FMDocModel.missingRequiredParams(Object.fromEntries(Object.entries(paramDefs).filter(([, definition]) => asObject(definition).disabled !== true)), params);
   const workflow = await resolveWorkflowForCreate(orgId, input, template, typeDef);
+  if (workflow.workflow_ref) {
+    const version = await readDocumentWorkflowVersion(orgId, cleanText(workflow.workflow_ref.workflow_id), Number(workflow.workflow_ref.version));
+    Object.assign(outputDefs, asObject(asObject(asObject(version).definition).contract).outputs || {});
+  }
   const templateMetadata = asObject(asObject(template).metadata);
   const inputMetadata = asObject(input.metadata);
   const customerPresentation = normalizeCustomerDocumentPresentation(
@@ -781,6 +790,9 @@ async function resolveRetemplatePatch(orgId: string, current: JsonObject, patch:
 }
 
 export async function patchDocumentInstance(orgId: string, documentId: string, patch: JsonObject, ctx: PlatformAuthContext) {
+  return withSigningLock(orgId, documentId, () => patchDocumentInstanceLocked(orgId, documentId, patch, ctx));
+}
+async function patchDocumentInstanceLocked(orgId: string, documentId: string, patch: JsonObject, ctx: PlatformAuthContext) {
   const current = await readDocumentInstance(orgId, documentId);
   const expectedRevision = Number(patch.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(current.revision || 0)) {
@@ -789,6 +801,7 @@ export async function patchDocumentInstance(orgId: string, documentId: string, p
   const statusPatch = cleanText(patch.status);
   const contentKeys = ["params", "overrides", "title", "theme_ref", "theme_overrides", "contact_ids"];
   const editsContent = contentKeys.some((key) => Object.prototype.hasOwnProperty.call(patch, key));
+  if (editsContent || patch.template_ref || patch.workflow_ref || patch.metadata) await assertSigningEditable(orgId, documentId);
   if (editsContent && isLockedSigned(current)) {
     throw conflict("document_locked_signed", "Signed documents cannot be edited. Amend with a change order instead.");
   }
@@ -825,6 +838,10 @@ export async function patchDocumentInstance(orgId: string, documentId: string, p
   if (statusPatch && ["declined", "expired"].includes(statusPatch)) {
     data.status = statusPatch;
   }
+  if (editsContent && !cleanText(asObject(current.module_ref).execution_id)) {
+    const working = FMDocModel.applyOverrides(await templateDefinitionFor(orgId, data), asArray(data.overrides));
+    data.output_defs = inferSignatureDefinitions(asObject(working.document), asObject(data.output_defs));
+  }
   let document = await saveDocumentInstance(orgId, documentId, data, { expectedRevision: expectedRevision || undefined });
   if (statusPatch === "declined") await recordDocumentEvent(orgId, document, "document.declined", {}, ctx);
   // Voiding always goes through the full cancellation path (token revocation
@@ -856,6 +873,10 @@ export async function voidDocumentInstance(
   ctx: PlatformAuthContext,
   input: JsonObject = {}
 ) {
+  return withSigningLock(orgId, documentId, () => voidDocumentInstanceLocked(orgId, documentId, ctx, input));
+}
+async function voidDocumentInstanceLocked(orgId: string, documentId: string, ctx: PlatformAuthContext, input: JsonObject) {
+  await revokeSigningPackages(orgId, documentId, "void");
   const current = await readDocumentInstance(orgId, documentId);
   const metadataDefaults = asObject(asObject(current.metadata).cancellation_defaults);
   const visibility = cleanText(input.customer_visibility)
@@ -889,7 +910,12 @@ export async function voidDocumentInstance(
  * output DEFINITIONS are editable here — generated documents never allow that.
  */
 export async function updateUploadedDocumentFields(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
+  return withSigningLock(orgId, documentId, () => updateUploadedDocumentFieldsLocked(orgId, documentId, input, ctx));
+}
+async function updateUploadedDocumentFieldsLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
+  await assertSigningEditable(orgId, documentId);
   const current = await readDocumentInstance(orgId, documentId);
+  if (isLockedSigned(current)) throw conflict("document_locked_signed", "Signed uploads cannot be edited.");
   if (cleanText(current.source) !== "uploaded") {
     throw badRequest("document_not_uploaded", "Only uploaded documents can edit their field definitions.");
   }
@@ -914,6 +940,11 @@ export async function updateUploadedDocumentFields(orgId: string, documentId: st
  * sent for signature later).
  */
 export async function confirmUploadedDocument(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
+  const document = await withSigningLock(orgId, documentId, () => confirmUploadedDocumentLocked(orgId, documentId, input, ctx));
+  await (await import("./signing/service.js")).drainSigningOutbox();
+  return document;
+}
+async function confirmUploadedDocumentLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   const current = await readDocumentInstance(orgId, documentId);
   if (cleanText(current.source) !== "uploaded") {
     throw badRequest("document_not_uploaded", "Only uploaded documents can be confirmed from review.");
@@ -946,12 +977,15 @@ export async function confirmUploadedDocument(orgId: string, documentId: string,
   for (const key of keys) {
     const value = supplied[key] !== undefined ? supplied[key] : stored[key];
     if (!FMDocModel.outputValueSatisfies(asObject(outputDefs[key]), value)) continue;
+    if (asObject(outputDefs[key]).type === "signature") continue;
     const result = await recordDocumentOutput(orgId, documentId, key, {
       value,
       evidence: { capture_mode: "imported", method: "uploaded_scan", witnessed_by_user_id: ctx.userId }
     }, {}, ctx, { surface: "internal" });
     document = result.document;
   }
+  const signatures = Object.fromEntries(keys.filter(key => asObject(outputDefs[key]).type === "signature").map(key => [key, supplied[key] !== undefined ? supplied[key] : stored[key]]).filter(([key, value]) => FMDocModel.outputValueSatisfies(asObject(outputDefs[String(key)]), value)));
+  if (Object.keys(signatures).length) document = await (await import("./signing/service.js")).importSigningEvidence(orgId, documentId, signatures, ctx, input.attest_original_signatures === true);
 
   if (cleanText(document.status) === "needs_review") {
     document = await saveDocumentInstance(orgId, documentId, {
@@ -978,6 +1012,10 @@ export async function confirmUploadedDocument(orgId: string, documentId: string,
 }
 
 export async function issueDocument(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
+  return withSigningLock(orgId, documentId, () => issueDocumentLocked(orgId, documentId, input, ctx));
+}
+async function issueDocumentLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
+  await assertSigningEditable(orgId, documentId);
   const current = await readDocumentInstance(orgId, documentId);
   const expectedRevision = Number(input.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(current.revision || 0)) {
@@ -1016,16 +1054,20 @@ export async function issueDocumentFromAutomation(orgId: string, input: {
   title?: string;
   assign_fill_to?: string;
   customer_presentation?: JsonObject;
+  recipients?: JsonObject[];
+  consent_contact?: string;
   source?: JsonObject;
 }) {
   const source = asObject(input.source);
   const idempotencyKey = cleanText(source.idempotency_key);
   const projectId = cleanText(input.project_id);
+  let existingDocument: JsonObject | null = null;
   if (idempotencyKey) {
     const existing = (await listProjectDocuments(orgId, projectId)).find((item) => (
       cleanText(asObject(asObject(item.metadata).source).idempotency_key) === idempotencyKey
     ));
-    if (existing) return { document: existing, missing_params: [], duplicate: true };
+    if (existing && (["sent","viewed","signed","completed","void","declined","expired"].includes(cleanText(existing.status)) || cleanText(input.deliver || "none") === "none")) return { document: existing, missing_params: [], duplicate: true };
+    existingDocument = existing || null;
   }
   const systemCtx = {
     orgId,
@@ -1040,7 +1082,7 @@ export async function issueDocumentFromAutomation(orgId: string, input: {
     const template = await readDocumentTemplate(orgId, cleanText(input.template_id)).catch(() => null);
     documentTypeId = cleanText(asObject(template).document_type) || "generic";
   }
-  const created = await createDocumentInstance(orgId, projectId, {
+  const created = existingDocument ? { document: existingDocument } : await createDocumentInstance(orgId, projectId, {
     document_type: documentTypeId || "generic",
     template_id: cleanText(input.template_id) || undefined,
     ...(Object.prototype.hasOwnProperty.call(input, "workflow_id") ? { workflow_id: input.workflow_id } : {}),
@@ -1059,6 +1101,8 @@ export async function issueDocumentFromAutomation(orgId: string, input: {
   // "portal" and "email" both create the public snapshot; email delivery is
   // the caller's concern (Postmark path) — the engine produces the artifact.
   const sent = await sendDocument(orgId, cleanText(created.document.id), {
+    recipients: input.recipients,
+    consent_contact: input.consent_contact,
     include_pdf: cleanText(input.deliver) === "email",
     include_portal: true
   }, systemCtx);
@@ -1727,6 +1771,10 @@ export async function resolveDocumentInstance(
 // ---------------------------------------------------------------------------
 
 export async function createSnapshot(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext | null) {
+  return withSigningLock(orgId, documentId, () => createSnapshotLocked(orgId, documentId, input, ctx));
+}
+async function createSnapshotLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext | null) {
+  await assertSigningEditable(orgId, documentId);
   const document = await readDocumentInstance(orgId, documentId);
   const capabilityState = await documentCapabilityState(orgId);
   const expectedRevision = Number(input.expected_revision || 0);
@@ -1796,6 +1844,21 @@ export async function createSnapshot(orgId: string, documentId: string, input: J
 }
 
 export async function sendDocument(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
+  return withSigningLock(orgId, documentId, () => sendDocumentLocked(orgId, documentId, input, ctx));
+}
+async function sendDocumentLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
+  if (ctx.userId !== "system_automation" && !hasPermission(ctx, "issue_documents")) throw forbidden("signature_issue_permission", "Document issuing permission is required to assign signers and send contracts.");
+  let before = await readDocumentInstance(orgId, documentId);
+  const applied = FMDocModel.applyOverrides(await templateDefinitionFor(orgId, before), asArray(before.overrides));
+  const inferred = inferSignatureDefinitions(asObject(applied.document), asObject(before.output_defs));
+  if (JSON.stringify(inferred) !== JSON.stringify(before.output_defs)) before = await saveDocumentInstance(orgId, documentId, { ...before, output_defs: inferred });
+  let recipients = asArray(input.recipients).map(asObject);
+  if (!recipients.length && Object.keys(signatureDefinitions(before.output_defs)).length) {
+    const project = asObject(asObject(await readDocument(orgId, "projects", cleanText(before.project_id)).catch(() => null)).data);
+    const contacts = asArray(project.contacts).map(asObject).filter(c => cleanText(c.email));
+    if (contacts.length === 1) recipients = [{ ...contacts[0], role: "customer" }];
+  }
+  await validateSigningIssue(orgId, before, recipients, input);
   const snapshot = await createSnapshot(orgId, documentId, {
     ...input,
     reason: "send",
@@ -1804,7 +1867,11 @@ export async function sendDocument(orgId: string, documentId: string, input: Jso
   const document = await readDocumentInstance(orgId, documentId);
   const now = nowIso();
   const delivery = deliveryState(document.delivery);
-  const recipients = asArray(input.recipients).map(asObject);
+  const signing = await issueSigningPackage(orgId, document, snapshot, recipients, input);
+  const recipientUrl = (recipient: JsonObject) => {
+    const invitation = signing.invitations.find(i => i.signer_id === (recipient.signer_id || recipient.role || "customer") && (!i.email || i.email === cleanText(recipient.email).toLowerCase()));
+    return publicDocumentPortalUrl(cleanText(invitation?.token || snapshot.public_token));
+  };
   const updated = await saveDocumentInstance(orgId, documentId, {
     ...document,
     status: advanceStatus(document.status, "sent"),
@@ -1818,6 +1885,7 @@ export async function sendDocument(orgId: string, documentId: string, input: Jso
       include_pdf: input.include_pdf === true,
       include_portal: input.include_portal !== false
     },
+    metadata: { ...asObject(document.metadata), ...(cleanText(input.consent_contact) ? { consent_contact: cleanText(input.consent_contact) } : {}) },
     updated_by_user_id: ctx.userId,
     updated_at: now
   });
@@ -1850,14 +1918,14 @@ export async function sendDocument(orgId: string, documentId: string, input: Jso
           "",
           cleanText(input.message) || language.text("notifications", "document_ready", `Your ${typeDef.label.toLowerCase()} is ready to review.`, {type:typeDef.label.toLowerCase()}),
           "",
-          language.text("notifications", "document_link", `Review and respond here: ${portalUrl}`, {url:portalUrl})
+          language.text("notifications", "document_link", `Review and respond here: ${recipientUrl(recipient)}`, {url:recipientUrl(recipient)})
         ].join("\n"),
         purpose: "transactional",
         projectId: cleanText(updated.project_id),
         tags: ["document-send"],
         source: { type: "user", id: "document_delivery", user_id: ctx.userId },
         metadata: { document_id: cleanText(updated.id), snapshot_id: cleanText(snapshot.id) },
-        idempotencyKey: `document_email:${cleanText(snapshot.id)}:${email}`,
+        idempotencyKey: `document_email:${cleanText(snapshot.id)}:${email}:${cleanText(recipient.signer_id || recipient.role || "copy")}`,
         attachments: attachment ? [{ name: attachment.fileName, contentType: attachment.contentType, content: attachment.bytes }] : undefined
       }).catch((error) => ({ ok: false, success: false, error: error instanceof Error ? error.message : "email_failed" }));
       emailed.push(compactObject({ email, ...asObject(result) }));
@@ -1879,7 +1947,7 @@ export async function sendDocument(orgId: string, documentId: string, input: Jso
         cleanText(updated.project_id),
         {
           to: phone,
-          text: `${cleanText(input.message) || `Your ${typeDef.label.toLowerCase()} "${cleanText(updated.title) || typeDef.label}" is ready to review.`} ${portalUrl}`,
+          text: `${cleanText(input.message) || `Your ${typeDef.label.toLowerCase()} "${cleanText(updated.title) || typeDef.label}" is ready to review.`} ${recipientUrl(recipient)}`,
           source: { type: "user", id: "document_delivery", user_id: ctx.userId },
           idempotency_key: `document_sms:${cleanText(snapshot.id)}:${phone}`
         },
@@ -1889,7 +1957,7 @@ export async function sendDocument(orgId: string, documentId: string, input: Jso
     }
   }
   await syncProjectSignatureRequirements(orgId, cleanText(updated.project_id)).catch(() => null);
-  return { document: updated, snapshot, portal_url: portalUrl, emailed, texted };
+  return { document: updated, snapshot, portal_url: portalUrl, emailed, texted, signing: signing.pkg ? { package_id: signing.pkg.id, invitations: signing.invitations.map(i => ({ ...i, portal_url: publicDocumentPortalUrl(cleanText(i.token)) })) } : null };
 }
 
 // ---------------------------------------------------------------------------
@@ -1918,7 +1986,16 @@ function fallbackPagesFromDefinition(definition: JsonObject) {
 }
 
 export async function generateDocumentPdf(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext | null) {
+  return withSigningLock(orgId, documentId, () => generateDocumentPdfLocked(orgId, documentId, input, ctx));
+}
+async function generateDocumentPdfLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext | null) {
   const document = await readDocumentInstance(orgId, documentId);
+  const retainedPackage = await packageForSnapshot(orgId, cleanText(input.snapshot_id || deliveryState(document.delivery).current_snapshot_id));
+  if (retainedPackage?.content_hash) {
+    const retained = (await signingPdf(orgId, retainedPackage.snapshot_id))!;
+    const pdf = await (await import("pdf-lib")).PDFDocument.load(retained.bytes);
+    return { ...retained, snapshot: await readDocumentSnapshot(orgId, retainedPackage.snapshot_id), pageCount: pdf.getPageCount(), media: null, media_ref: null };
+  }
   let snapshotId = cleanText(input.snapshot_id || deliveryState(document.delivery).current_snapshot_id);
   let snapshot = snapshotId ? await readDocumentSnapshot(orgId, snapshotId).catch(() => null) : null;
   if (!snapshot) {
@@ -2040,6 +2117,9 @@ export async function generateFolderItemPdf(orgId: string, itemId: string) {
 
 export async function readDocumentPdfFile(orgId: string, documentId: string, mediaId = "", snapshotId = "") {
   const document = await readDocumentInstance(orgId, documentId);
+  const signingSnapshotId = snapshotId || cleanText(asObject(document.delivery).current_snapshot_id);
+  const signingPackage = signingSnapshotId ? await packageForSnapshot(orgId, signingSnapshotId) : null;
+  if (signingPackage?.final_pdf || signingPackage?.review_pdf) return (await signingPdf(orgId, signingSnapshotId))!;
   const pdf = asObject(document.pdf);
   let resolvedMediaId = cleanText(mediaId);
   if (!resolvedMediaId && cleanText(snapshotId)) {
@@ -2057,6 +2137,8 @@ export async function readDocumentPdfFile(orgId: string, documentId: string, med
 
 export async function readPublicDocumentPdfFile(publicToken: string) {
   const found = await findPublicDocumentSnapshot(publicToken);
+  const retained = await signingPdf(found.orgId, cleanText(found.snapshot.id));
+  if (retained) return retained;
   const pdf = asObject(found.snapshot.pdf);
   const mediaId = cleanText(pdf.media_id || asObject(pdf.media_ref).media_id);
   if (mediaId) {
@@ -2238,8 +2320,21 @@ export async function recordDocumentOutput(
   input: JsonObject,
   audit: JsonObject = {},
   ctx?: PlatformAuthContext | null,
-  options: { snapshotId?: string; surface?: "public" | "internal" | "field" } = {}
+  options: { snapshotId?: string; surface?: "public" | "internal" | "field"; publicToken?: string; imported?: boolean } = {}
 ) {
+  const current = await readDocumentInstance(orgId, documentId);
+  if (asObject(input.value).__signing) input = { ...input, ...asObject(asObject(input.value).__signing) };
+  if (cleanText(asObject(asObject(current.output_defs)[key]).type) === "signature") {
+    if (options.imported) throw forbidden("signature_import_protocol_required", "Import signed originals through the retained-upload review process.");
+    const access = options.publicToken ? await publicSigningAccess(options.publicToken) : ctx ? options.surface === "field" ? await presentedSigningAccess(orgId, documentId, key, ctx) : await internalSigningAccess(orgId, documentId, cleanText(input.signer_id), ctx) : null;
+    if (!access || access.pkg.organization_id !== orgId || access.pkg.document_id !== documentId) throw forbidden("signature_invitation_required", "Use an assigned signing invitation or account.");
+    const accepted = await acceptSigning(access, key, input, audit);
+    await syncProjectSignatureRequirements(orgId, cleanText(current.project_id)).catch(() => null);
+    return { document: accepted.document, snapshot: await readDocumentSnapshot(orgId, access.pkg.snapshot_id), status: cleanText(accepted.document.status), receipt: accepted.receipt };
+  }
+  return withSigningLock(orgId, documentId, () => recordDocumentOutputLocked(orgId, documentId, key, input, audit, ctx, options));
+}
+async function recordDocumentOutputLocked(orgId: string, documentId: string, key: string, input: JsonObject, audit: JsonObject, ctx: PlatformAuthContext | null | undefined, options: { snapshotId?: string; surface?: "public" | "internal" | "field"; publicToken?: string; imported?: boolean }) {
   const document = await readDocumentInstance(orgId, documentId);
   const currentStatus = cleanText(document.status);
   if (["void", "declined", "expired"].includes(currentStatus)) {
@@ -2248,6 +2343,12 @@ export async function recordDocumentOutput(
   const outputDefs = asObject(document.output_defs);
   const outputKey = cleanText(key);
   const def = asObject(outputDefs[outputKey]);
+  if (!Object.keys(def).length) throw badRequest("document_output_unknown", `The document does not declare an output named '${outputKey}'.`);
+  if (options.snapshotId && options.snapshotId !== deliveryState(document.delivery).current_snapshot_id) throw conflict("document_snapshot_superseded", "This response belongs to an older document revision.");
+  if (cleanText(def.type) !== "payment") {
+    await assertSigningEditable(orgId, documentId);
+    if (isLockedSigned(document)) throw conflict("document_locked_signed", "Signed document responses cannot be replaced.");
+  }
   if (!Object.keys(def).length) {
     throw badRequest("document_output_unknown", `The document does not declare an output named '${outputKey}'.`);
   }
@@ -2257,9 +2358,8 @@ export async function recordDocumentOutput(
   const surface = options.surface || (ctx ? "internal" : "public");
   const outputCapabilityState = await documentCapabilityState(orgId);
   const outputCapability = documentOutputCapability(def);
-  const importedWetSignature = outputCapability === DOCUMENT_CAPABILITIES.esign
-    && cleanText(asObject(input.evidence).capture_mode) === "imported";
-  if (outputCapability && !importedWetSignature) {
+  if (options.imported) throw forbidden("signature_import_protocol_required", "Import signed originals through the retained-upload review process.");
+  if (outputCapability) {
     if (!documentCapabilityEnabled(outputCapabilityState, outputCapability)) {
       throw forbidden("document_feature_disabled", `The '${outputCapability}' capability is disabled for this organization.`, { capability: outputCapability });
     }
@@ -2380,8 +2480,10 @@ export async function recordDocumentOutput(
   }
   const outputs = { ...asObject(document.outputs), [outputKey]: value };
   const wasSigned = isLockedSigned(document);
-  const effectiveOutputDefs = Object.fromEntries(Object.entries(filterOutputDefinitionsByCapabilities(outputDefs, outputCapabilityState)).filter(([, definition]) => asObject(definition).disabled !== true));
-  const signedNow = FMDocModel.requiredOutputsSatisfied(effectiveOutputDefs, outputs);
+  const effectiveOutputDefs = outputDefs;
+  const signaturePackage = await packageForSnapshot(orgId, cleanText(deliveryState(document.delivery).current_snapshot_id));
+  const signatureAuthority = !Object.keys(signatureDefinitions(effectiveOutputDefs)).length || signaturePackage?.status === "completed";
+  const signedNow = signatureAuthority && FMDocModel.requiredOutputsSatisfied(effectiveOutputDefs, outputs);
   const completedNow = signedNow && FMDocModel.requiredOutputsSatisfied(effectiveOutputDefs, outputs, "completed");
   let status = cleanText(document.status) as DocumentStatus;
   if (signedNow) status = advanceStatus(status, "signed");
@@ -2464,6 +2566,10 @@ export async function recordDocumentOutput(
 }
 
 export async function recordPublicDocumentView(publicToken: string, input: JsonObject, audit: JsonObject = {}) {
+  const found = await findPublicDocumentSnapshot(publicToken);
+  return withSigningLock(found.orgId, cleanText(found.snapshot.document_id), () => recordPublicDocumentViewLocked(publicToken, input, audit));
+}
+async function recordPublicDocumentViewLocked(publicToken: string, input: JsonObject, audit: JsonObject) {
   const found = await findPublicDocumentSnapshot(publicToken);
   const now = nowIso();
   const snapshot = found.snapshot;
@@ -2613,7 +2719,7 @@ export function publicSnapshotView(snapshot: JsonObject, token: string) {
     theme_vars: asObject(snapshot.theme_vars),
     params: asObject(snapshot.params),
     output_defs: asObject(snapshot.output_defs),
-    outputs: asObject(snapshot.outputs),
+    outputs: publicSignatureOutputs(asObject(snapshot.outputs)),
     pdf_url: token ? `/v1/documents/public/${encodeURIComponent(token)}/pdf` : "",
     portal_url: publicDocumentPortalUrl(token),
     created_at: cleanText(snapshot.created_at),
@@ -2691,6 +2797,9 @@ export async function documentWorkflowDetail(orgId: string, documentId: string) 
 
 /** Update workflow navigation state (current step / completions). */
 export async function updateDocumentWorkflowState(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
+  return withSigningLock(orgId, documentId, () => updateDocumentWorkflowStateLocked(orgId, documentId, input, ctx));
+}
+async function updateDocumentWorkflowStateLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   const document = await readDocumentInstance(orgId, documentId);
   const expectedRevision = Number(input.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(document.revision || 0)) {
@@ -2729,6 +2838,15 @@ export async function updateDocumentWorkflowState(orgId: string, documentId: str
   }
   if (!currentStep && stepIds.length) currentStep = stepIds[0] || "";
   const workflowState = { current_step: currentStep, completed_steps: completed };
+  const acceptedPackage = await packageForSnapshot(orgId, cleanText(deliveryState(document.delivery).current_snapshot_id));
+  for (const step of steps.filter(s => completed.includes(cleanText(s.id)))) {
+    const items = [...asArray(step.items), ...asArray(step.sections).flatMap(s => asArray(asObject(s).items))].map(asObject);
+    for (const item of items) {
+      if (cleanText(item.kind) !== "signature" || item.required === false) continue;
+      const key = cleanText(item.writes).replace(/^outputs\./, "");
+      if (!acceptedPackage?.receipts[key]) throw conflict("signature_step_incomplete", "Required signatures must be accepted before completing this step.");
+    }
+  }
 
   // generate_document items: completing a step that carries one mints the
   // configured document ONCE and records its ref on this document's outputs
@@ -2820,7 +2938,7 @@ export async function publicDocumentWorkflowDefinition(publicToken: string) {
     state: normalizedWorkflowState(document),
     contract: asObject(definition.contract),
     params: asObject(document.params),
-    outputs: asObject(document.outputs),
+    outputs: publicSignatureOutputs(asObject(document.outputs)),
     sources,
     capabilities: capabilityState.effectiveByKey
   };
@@ -2886,6 +3004,7 @@ export async function publicDocumentWorkflow(publicToken: string) {
     } as JsonObject,
     document,
     capabilities: capabilityState.effectiveByKey,
+    signing: await signingStatus(found.orgId, cleanText(found.snapshot.id), publicToken),
     workflow: {
       ...(paymentSummary ? { payment_summary: paymentSummary } : {})
     }

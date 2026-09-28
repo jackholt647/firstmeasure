@@ -35,7 +35,7 @@ export async function checkout(org:string, period:string, actor:string) {
   const base=env.stripeBaseUrl.replace(/\/+$/,""); const url=new URL(base);
   if(env.dataEnvironment!=="production" && url.hostname!=="dev.1m8.ai" && !["localhost","127.0.0.1"].includes(url.hostname)) throw badRequest("billing_return_url_invalid");
   const fields:Record<string,string>={mode:"payment",success_url:`${base}/index.php?tab=company_settings&sub=platform_billing`,cancel_url:`${base}/index.php?tab=company_settings&sub=platform_billing`,
-    "line_items[0][price_data][currency]":"usd","line_items[0][price_data][unit_amount]":String(invoice.total_cents),"line_items[0][price_data][product_data][name]":`FirstMate platform · ${period}`,"line_items[0][quantity]":"1",
+    "line_items[0][price_data][currency]":invoice.currency.toLowerCase(),"line_items[0][price_data][unit_amount]":String(invoice.total_cents),"line_items[0][price_data][product_data][name]":`FirstMate platform · ${period}`,"line_items[0][quantity]":"1",
     "metadata[billing_kind]":"platform_invoice","metadata[organization_id]":org,"metadata[invoice_id]":period};
   if(customer) fields.customer=customer;
   type Attempt={number:number;created_at:string;fields:Record<string,string>};
@@ -67,7 +67,7 @@ export async function checkout(org:string, period:string, actor:string) {
   },org);
 }
 async function settle(org:string, invoice:Invoice, session:any, actor:string) {
-  if(session.metadata?.billing_kind!=="platform_invoice" || session.metadata?.organization_id!==org || session.metadata?.invoice_id!==invoice.id || session.amount_total!==invoice.total_cents || session.currency!=="usd" || session.livemode!==!env.stripeTestMode) throw conflict("billing_payment_mismatch");
+  if(session.metadata?.billing_kind!=="platform_invoice" || session.metadata?.organization_id!==org || session.metadata?.invoice_id!==invoice.id || session.amount_total!==invoice.total_cents || session.currency!==invoice.currency.toLowerCase() || session.livemode!==!env.stripeTestMode) throw conflict("billing_payment_mismatch");
   if(session.payment_status!=="paid") return;
   invoice.status="paid"; invoice.paid_at=new Date().toISOString(); invoice.payment_id=String(session.payment_intent||session.id);
   await put(org,"invoice",invoice.id,invoice); await audit(org,"invoice.paid",actor,{period:invoice.id,payment_id:invoice.payment_id});

@@ -15,7 +15,7 @@ const number = { type: ["number", "string"] }; // Work definitions allow templat
 /** Explicit legacy input contracts. Extra fields are retained for existing scope definitions. */
 const fields: Record<string, Record<string, JsonSchema>> = {
   "project.patch.v1": { values: object },
-  "notification.create.v1": { id: text, title: text, body: text, target_role_ids: list, target_user_ids: list, kind: text, celebration: object, frontend_action: object },
+  "notification.create.v1": { notification_id: text, id: text, title: text, body: text, target_role_ids: list, target_user_ids: list, kind: text, celebration: object, frontend_action: object },
   "communications.sendSms.v1": { to: text, text, recipients: list },
   "communications.sendEmail.v1": { to: text, subject: text, text, html: text, recipients: list },
   "work.createTodo.v1": { title: text, message: text, assigned_role_ids: list, assigned_user_ids: list, assigned_resource_group_ids: list, priority: number, due_offset_minutes: number, metadata: object },
@@ -29,7 +29,7 @@ const fields: Record<string, Record<string, JsonSchema>> = {
   "punchlist.request.v1": { title: text, description: text, instance_key: text, terminology_key: text, labels: object, config: object },
   "customFields.initializeFromScope.v1": {}, "payroll.reconcileScopeCommissions.v1": {}, "scopes.reconcileProjectResources.v1": {},
   "payments.ensureReceivables.v1": {}, "documents.dispatchOnSigned.v1": {}, "payments.reconcileRecognition.v1": {},
-  "documents.issue.v1": { document_type: text, template_id: text, params: object, deliver: text, title: text },
+  "documents.issue.v1": { document_type: text, template_id: text, params: object, deliver: text, title: text, recipients: list, consent_contact: text, workflow_id: text },
   "completion.request.v1": { mode: text, deliver: text, params: object, tab: object },
   "feedback.requestReview.v1": { project_id: text, branch_id: text, channels: list, message_overrides: object, source_key: text, resend: { type: "boolean" } },
   "payroll.commission.post.v1": { payee_role: text, payees: list, amount: object, allocation: text, entry_state: text },
@@ -58,7 +58,7 @@ export function publishWorkAutomation(id: string, handler: WorkAutomationHandler
     domain: id.split(".")[0]!, description: meta.description || id,
     inputSchema: meta.inputSchema || { type: "object", properties, additionalProperties: true },
     outputSchema: meta.outputSchema || jsonValueSchema,
-    effect: meta.effect || (/^(communications\.|documents\.issue|completion\.|feedback\.)/.test(id) ? "external" : "write"),
+    effect: meta.effect || (/^(notification\.|communications\.|documents\.issue|completion\.|feedback\.)/.test(id) ? "external" : "write"),
     executionKinds: ["work"], idempotency: "host",
     policy: { scopes: ["organization", "project"], permissions: ["manage_company_settings"], systemKinds: ["work"], authorize: (ctx) => {
       if (!contexts.has(ctx)) throw forbidden("action_work_context_required", "This automation requires a trusted work execution context.");

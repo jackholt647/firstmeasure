@@ -267,6 +267,8 @@ export type ApplicationInput = {
    */
   bank_account?: JsonObject;
   user_fields?: JsonObject;
+  /** Forward hosted application return destination and other partner metadata. */
+  partner_data?: JsonObject;
 };
 
 export type ProviderApplication = {

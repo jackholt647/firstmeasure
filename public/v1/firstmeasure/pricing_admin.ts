@@ -1,3 +1,4 @@
+import { commercialPolicy, commercialPolicySchema, DEFAULT_COMMERCIAL_POLICY } from "../commerce/profile.js";
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requirePlatformAuth } from "../platform/auth.js";
@@ -26,6 +27,24 @@ export const registerPricingAdmin: FastifyPluginAsync = async app => {
     return reply.code(failure.statusCode ?? 500).send({ success: false, error: failure.code ?? "pricing_error", message: failure.statusCode && failure.statusCode < 500 ? failure.message : "Prices are temporarily unavailable." });
   });
   app.addHook("onSend", async (_request, reply) => { reply.header("Cache-Control", "no-store"); });
+  app.get("/commercial", async request => {
+    await requirePricingAdmin(request);
+    return { success: true, ...await commercialPolicy(), defaults: DEFAULT_COMMERCIAL_POLICY };
+  });
+  app.put("/commercial", async request => {
+    const user = await requirePricingAdmin(request, true);
+    const body = z.object({ revision: z.number().int().min(0), config: commercialPolicySchema }).strict().parse(request.body);
+    const release = await acquireFirstMeasureLock("commercial-pricing-config", { waitMs: 5000 });
+    try {
+      const previous = await commercialPolicy();
+      for (const [currency, rules] of Object.entries(previous.config.currencies)) {
+        if(body.config.currencies[currency]?.minor_digits !== rules.minor_digits)throw new FirstMeasureError("currency_in_use",409,"Supported currencies cannot be removed or have their minor units changed. Existing billing accounts retain those units.");
+      }
+      if (body.revision !== previous.revision) throw new FirstMeasureError("pricing_changed", 409, "Reload prices before saving.");
+      await saveInternalDocument("pricing_config", "commercial", { data: body.config, metadata: { updated_by: user.email, previous_config: previous.config, previous_revision: previous.revision } }, { replace: true });
+      return { success: true, ...await commercialPolicy() };
+    } finally { await release(); }
+  });
   app.get("/", async request => {
     await requirePricingAdmin(request);
     return { success: true, ...await readExpeditePricing(), defaults: DEFAULT_EXPEDITE_PRICING };

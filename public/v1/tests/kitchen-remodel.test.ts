@@ -1,5 +1,6 @@
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
+import { signingConsent } from "./helpers/document-signing.js";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -110,6 +111,7 @@ test("kitchen remodel: allowance estimate → customer selections → delta rece
     organization_id: orgId
   });
   await enableExpandedPlatformFixture(orgId);
+  await (await import("../platform/storage.js")).patchOrganization(orgId,{email:"support@example.test"});
 
   const { saveGlobal } = await import("../platform/storage.js");
   await saveGlobal(orgId, {
@@ -152,7 +154,7 @@ test("kitchen remodel: allowance estimate → customer selections → delta rece
   assert.ok(estimateRef, "base estimate issued on instantiation");
   const estimate = (await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${estimateRef.id}`)).document;
   assert.equal(estimate.status, "sent", "estimate delivered to the portal");
-  const estimateToken = String(estimate.delivery.public_token);
+  const estimateToken = String((await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${estimate.id}/signing/reissue`,{signer_id:"customer"})).invitation.token);
   assert.ok(estimateToken, "estimate has a public token");
   assert.ok(!(docs1.documents || []).some((doc: any) => doc.title === "Kitchen Finish Selections"),
     "selections are NOT issued before the contract is signed");
@@ -163,6 +165,7 @@ test("kitchen remodel: allowance estimate → customer selections → delta rece
 
   // --- 2. Customer signs the estimate ----------------------------------------
   const signedEstimate = await client.request("POST", `/v1/documents/public/${estimateToken}/outputs/sig_customer`, {
+    ...(await signingConsent(client,estimateToken)),
     value: { type: "typed", text: "Jane Homeowner", signer_name: "Jane Homeowner" }
   });
   assert.equal(signedEstimate.document.status, "signed", "estimate signed (deposit still outstanding)");
@@ -181,7 +184,7 @@ test("kitchen remodel: allowance estimate → customer selections → delta rece
   assert.ok(selectionsRef, "selections document issued once the estimate is signed");
   const selections = (await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${selectionsRef.id}`)).document;
   assert.equal(selections.document_type, "change_order");
-  const selectionsToken = String(selections.delivery.public_token);
+  const selectionsToken = String((await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${selections.id}/signing/reissue`,{signer_id:"customer"})).invitation.token);
   assert.ok(selectionsToken, "selections delivered to the portal");
 
   const nodes1 = await client.request("GET", `/v1/work/organizations/${orgId}/nodes?project_id=${projectId}`);
@@ -212,6 +215,7 @@ test("kitchen remodel: allowance estimate → customer selections → delta rece
 
   // --- 5. Signing the selections appends the delta and completes the node ----
   const signedSelections = await client.request("POST", `/v1/documents/public/${selectionsToken}/outputs/sig_customer`, {
+    ...(await signingConsent(client,selectionsToken)),
     value: { type: "typed", text: "Jane Homeowner", signer_name: "Jane Homeowner" }
   });
   assert.equal(signedSelections.document.status, "completed", "selections complete on signature (payment gate removed)");

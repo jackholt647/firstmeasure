@@ -78,6 +78,8 @@ $portalJsVer = @md5_file(__DIR__ . '/customer_portal.js') ?: (string)$assetVer;
   <script defer src="../libraries/audio-notes/audio-notes.js?v=<?php echo (int)$assetVer; ?>"></script>
   <script defer src="../libraries/audio-structure/audio-structure.js?v=<?php echo (int)$assetVer; ?>"></script>
   <script defer src="../libraries/apps/proposals/project.js?v=<?php echo (int)$assetVer; ?>"></script>
+  <script defer src="../libraries/platform-language/platform-language.js?v=<?php echo htmlspecialchars($portalJsVer, ENT_QUOTES); ?>"></script>
+  <script defer src="../libraries/platform-terminology/platform-terminology.js?v=<?php echo htmlspecialchars($portalJsVer, ENT_QUOTES); ?>"></script>
   <script defer src="./customer_portal.js?v=<?php echo htmlspecialchars($portalJsVer, ENT_QUOTES); ?>"></script>
 </head>
 <body>

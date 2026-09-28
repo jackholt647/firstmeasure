@@ -777,6 +777,14 @@ test("scheduled project events emit started and completed lifecycle triggers", a
   assert.equal(event.status, "completed");
   assert.ok(event.started_emitted_at);
   assert.ok(event.completed_emitted_at);
+  await client.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
+    id: "event_sales_followup", event_type_default_id: "sales_appointment", kind: "sales_appointment",
+    start_at: new Date(Date.now() - 120_000).toISOString(), duration_minutes: 1
+  });
+  await processProjectEventLifecycleForOrg(orgId);
+  await processProjectEventLifecycleForOrg(orgId);
+  const followups = await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
+  assert.equal(followups.notifications.filter((item: any) => item.id === `notification_appointment_followup_${projectId}_event_sales_followup`).length, 1);
 });
 
 test("Kanban lists empty enabled templates, hides disabled or trashed boards, and folds legacy Sales into the scope board", async () => {

@@ -1,5 +1,13 @@
 # FirstMeasure: local development and production deployment
 
+September 25 personal left column: [Per-user tab and layout settings](deploy/digitalocean/development-personal-left-column-20260925.md) records the development web release, preservation of concurrent live Brand Kit/resize work, and public verification. Production is unchanged.
+
+September 25 language infrastructure: [Language preferences, translation tooling and live QA tester](deploy/digitalocean/development-language-infrastructure-20260925.md) records the per-role development releases, source preservation, checks and rollback. Shared semantic context authoring continues separately; production is unchanged.
+
+September 25 notifications: [Platform notifications and FirstMate mobile app](deploy/digitalocean/development-notifications-20260925.md) records the development rollout, enabled Test Company Notifications tab, and private Android 1.0.3 download. Browser and role verification passed. Real phone push still requires Firebase/APNs configuration; production is unchanged.
+
+September 25 regional billing: [Persistent signup region, currencies and prices](deploy/digitalocean/development-regional-billing-20260925.md) records final development web release `4c059e5`. Regional backend hashes are verified across all four roles; 42 Linux tests, browser checks, public readiness and asset hashes passed. A live startup-order defect was corrected before completion. Production is unchanged.
+
 September 24 recurring subscriptions: [Automatic billing, configurable tiers and allowances](deploy/digitalocean/development-subscription-service-20260924.md) records billing release `91046fca06b533a381223366db14161ab78779d9`. Stripe checkout, prorated upgrades, cancellation/resumption, saved-card recovery, SMS caps and storage upgrades share the Billing workspace. SMS is $30/1,000 or $100/provisional 5,000 messages, with custom Enterprise. Production is unchanged.
 
 September 24 FirstMeasure billing fit: [History-only scrolling and visible monthly statement](deploy/digitalocean/development-billing-scroll-20260924.md) records `0068a9616c31d82ad74f3f3d1e58771a49ad308c` on development web and compatibility. Five deployed viewport checks confirmed no outer page overflow, independently scrolling history, and visible statement actions. Public readiness and asset hashes passed; production is unchanged.
@@ -7,6 +15,10 @@ September 24 FirstMeasure billing fit: [History-only scrolling and visible month
 September 24 cohesive Billing: [Unified billing workspace and monthly statement](deploy/digitalocean/development-billing-workspace-20260924.md) records `3dc59abd3edadbc211ba3e00433d377bb943b1d3` on both development web nodes and compatibility. One responsive customer UI integrates credits, subscriptions, usage, auto-top-up, history and CSV; the FirstMeasure-only fallback is preserved. Fourteen focused checks, deployed browser checks and public hashes/readiness passed. Production is unchanged.
 
 September 24 subscription checkout: [Stripe checkout and prorated add-ons](deploy/digitalocean/development-subscription-checkout-20260924.md) records release `f48e7b2ae384aa162caab106f7dc978913a368b0` on all four development roles. Shared Billing/SMS/Assistant review, immediate incremental payment, recurring collection and verified activation passed browser, PostgreSQL and Stripe sandbox checks. The existing dev webhook now receives subscription/invoice events. Test Company remains on its concurrently reset FirstMeasure defaults; production is unchanged.
+
+September 24 Test Company flags: [Restore FirstMeasure defaults with five test exceptions](deploy/digitalocean/development-test-company-flag-reset-20260924.md) records the development-only data reset for the `notifications@1m8.ai` organization. Both web nodes report the intended effective flags; production is unchanged.
+
+September 24 compact sidebar: [Keep app icons vertically stable during hover expansion](deploy/digitalocean/development-sidebar-height-20260924.md) records development web release `1d995eb7bff07ac6bda83d1ce94f2e9d1debd980` on both serving nodes. The compact logo, New button, and hidden tab row reserve the expanded heights; Chrome confirmed the first six app links retain their positions. Production is unchanged.
 
 September 24 platform billing: [Configurable subscriptions, usage and invoices](deploy/digitalocean/development-platform-billing-20260924.md) records billing source `295f63e9c0a80368a2a94fdc784b52e26ff85b89` and portal entry-point follow-up `adfb2cf324020cd48959d62573beb7be351c9fdc` on development. Test Company operator access is configured; prices and customer enrollment remain empty. The release preserves concurrent mobile, registry and banner work. FirstMeasure billing and production are unchanged. The existing development autoscale image limitation remains.
 

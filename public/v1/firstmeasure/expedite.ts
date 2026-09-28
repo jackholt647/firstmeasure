@@ -1,3 +1,4 @@
+import { reportPrice } from "../commerce/profile.js";
 import { currentExpeditePricing, pricingContext } from "./pricing_config.js";
 export type ReportExpediteProjectType = "residential" | "commercial" | "multifamily";
 
@@ -144,9 +145,9 @@ export function reportExpediteBaseUnitPrice(projectType: unknown, optionKey: unk
   const type = normalizeReportExpediteProjectType(projectType);
   const standardBase = type === "commercial" || type === "multifamily" ? 12 : 7;
   const pricing = reportExpeditePricingForWait(optionKey, waitMinutes);
-  return type === "commercial" || type === "multifamily"
+  return reportPrice(type === "commercial" || type === "multifamily"
     ? roundCurrency(standardBase * (pricing.residentialPrice / 7))
-    : pricing.residentialPrice;
+    : pricing.residentialPrice);
 }
 
 function addMinutes(date: Date, minutes: number) {
@@ -296,8 +297,8 @@ export function buildReportExpediteOptions(input: {
       production_deadline_at: productionDeadline ? productionDeadline.toISOString() : null,
       estimated_wait_minutes: option.key === "standard_3_6" ? standardWait.wait + additionalMinutes : null,
       busy_label: option.key === "standard_3_6" ? standardWait.busyLabel : "",
-      residential_price: pricing.residentialPrice,
-      rush_delta: pricing.rushDelta,
+      residential_price: reportPrice(pricing.residentialPrice),
+      rush_delta: reportPrice(pricing.rushDelta),
       unit_price: reportExpediteBaseUnitPrice(projectType, option.key, standardWait.wait),
       expedited: option.expedited
     };

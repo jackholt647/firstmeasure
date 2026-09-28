@@ -32,15 +32,19 @@
   }
 
   function csrfToken(){
-    const match = document.cookie.match(/(?:^|;\s*)fm_platform_session_csrf=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : '';
+    const sessionName = clean(APP.platformSessionCookieName || 'fm_platform_session');
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(sessionName)) return '';
+    const cookieName = `${encodeURIComponent(sessionName + '_csrf')}=`;
+    const cookie = document.cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith(cookieName));
+    try { return cookie ? decodeURIComponent(cookie.slice(cookieName.length)) : ''; }
+    catch (_) { return ''; }
   }
 
   async function request(path, options = {}){
     const method = clean(options.method || 'GET').toUpperCase();
     const headers = { Accept:'application/json', ...state.defaultHeaders, ...object(options.headers) };
     let body = options.body;
-    if (body !== undefined && typeof body !== 'string') {
+    if (body !== undefined && typeof body !== 'string' && !(body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
       body = JSON.stringify(body);
     }
@@ -95,9 +99,31 @@
       remove(orgId, id){ return request(orgPath(orgId, `/memories/${enc(id)}`), { method:'DELETE' }); },
       clear(orgId){ return request(orgPath(orgId, '/memories'), { method:'DELETE' }); }
     },
+    agents:{
+      list(orgId){ return request(orgPath(orgId, '/agents')); },
+      get(orgId, agentId){ return request(orgPath(orgId, `/agents/${enc(agentId)}`)); },
+      update(orgId, agentId, patch){ return request(orgPath(orgId, `/agents/${enc(agentId)}`), { method:'PATCH', body:object(patch) }); },
+      remove(orgId, agentId){ return request(orgPath(orgId, `/agents/${enc(agentId)}`), { method:'DELETE' }); },
+      run(orgId, agentId){ return request(orgPath(orgId, `/agents/${enc(agentId)}/run`), { method:'POST', body:{} }); }
+    },
+    dashboard:{
+      list(orgId){ return request(orgPath(orgId, '/dashboard')); },
+      remove(orgId, itemId){ return request(orgPath(orgId, `/dashboard/${enc(itemId)}`), { method:'DELETE' }); }
+    },
     threads(orgId){ return request(orgPath(orgId, '/threads')); },
+    search(orgId, query){ return request(orgPath(orgId, `/search?q=${enc(query)}`)); },
     createThread(orgId, body){ return request(orgPath(orgId, '/threads'), { method:'POST', body:object(body) }); },
     thread(orgId, threadId){ return request(orgPath(orgId, `/threads/${enc(threadId)}`)); },
+    upload(orgId, threadId, file){
+      const form = new FormData();
+      form.append('file', file, file.name);
+      return request(orgPath(orgId, `/threads/${enc(threadId)}/attachments`), { method:'POST', body:form });
+    },
+    transcribe(orgId, file){
+      const form = new FormData();
+      form.append('file', file, file.name);
+      return request(orgPath(orgId, '/transcriptions'), { method:'POST', body:form });
+    },
     send(orgId, threadId, body, options = {}){
       return request(orgPath(orgId, `/threads/${enc(threadId)}/messages`), { method:'POST', body:object(body), signal:options.signal });
     }

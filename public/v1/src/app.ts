@@ -1,3 +1,4 @@
+import { installCommerceContext } from "../commerce/profile.js";
 import { registerWorkforceApi } from "../workforce/api.js";
 import { registerPlatformBillingApi } from "../platform-billing/api.js";
 import { registerPublicationApi } from "../platform/publication/api.js";
@@ -98,6 +99,7 @@ export async function buildApp() {
   void app.register(registerPlatformBillingApi, { prefix: "/v1/platform-billing" });
   installDiagnostics(app);
   installPricingContext(app);
+  installCommerceContext(app);
   installStaffTracking(app);
   void app.register(registerPricingAdmin, { prefix: "/v1/firstmeasure/admin/prices" });
 

@@ -667,6 +667,9 @@ export async function listProjectDocuments(orgId: string, projectId: string) {
 }
 
 export async function saveDocumentInstance(orgId: string, documentId: string, data: JsonObject, options: { expectedRevision?: number; createOnly?: boolean } = {}) {
+  const { withSigningLock } = await import("./signing/store.js");
+  return withSigningLock(orgId, documentId, async () => {
+  await (await import("./signing/service.js")).assertSigningWrite(orgId, documentId, data);
   const next = { ...data };
   delete next.revision;
   const saved = await upsertDocument(orgId, DOCUMENT_COLLECTION, {
@@ -681,6 +684,7 @@ export async function saveDocumentInstance(orgId: string, documentId: string, da
     }
   }, { replace: true, ...(options.createOnly ? { createOnly: true } : {}) });
   return documentView(saved);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -720,6 +724,8 @@ export async function saveDocumentSnapshot(orgId: string, snapshotId: string, da
 export async function findPublicDocumentSnapshot(publicToken: string) {
   const token = cleanText(publicToken);
   if (!token) throw notFound("document_snapshot_not_found", "Document snapshot was not found.");
+  const invitation = await (await import("./signing/store.js")).resolveSigningInvitation(token);
+  if (invitation) return { orgId: invitation.pkg.organization_id, snapshot: await readDocumentSnapshot(invitation.pkg.organization_id, invitation.pkg.snapshot_id) };
   const orgs = await listOrganizations();
   for (const org of orgs) {
     const orgId = cleanText(asObject(org).id);
@@ -754,11 +760,15 @@ export async function recordDocumentEvent(
   type: string,
   payload: JsonObject = {},
   ctx?: PlatformAuthContext | null,
-  options: { emit?: boolean } = {}
+  options: { emit?: boolean; eventId?: string } = {}
 ) {
   const documentId = cleanText(documentValue.id);
   const now = nowIso();
-  const id = `document_event_${hashId(`${documentId}:${type}:${Date.now()}:${randomUUID()}`)}`;
+  const id = `document_event_${hashId(options.eventId || `${documentId}:${type}:${Date.now()}:${randomUUID()}`)}`;
+  if (options.eventId) {
+    const existing = await readDocument(orgId, DOCUMENT_EVENT_COLLECTION, id).catch(() => null);
+    if (existing) return documentView(existing);
+  }
   const templateRef = asObject(documentValue.template_ref);
   const eventPayload: JsonObject = {
     document_id: documentId,

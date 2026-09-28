@@ -1896,7 +1896,7 @@
     for (const key of Object.keys(defs)) {
       const def = defs[key];
       if (!def) continue;
-      const requiredForGate = gate ? def.required_for === gate : Boolean(def.required);
+      const requiredForGate = gate ? def.required_for === gate : Boolean(def.required || def.required_for === 'signed');
       if (!requiredForGate) continue;
       if (!outputValueSatisfies(def, values[key])) return false;
     }

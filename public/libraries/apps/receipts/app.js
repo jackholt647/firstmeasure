@@ -178,10 +178,10 @@
     const type = receiptContentType(receipt);
     if (type.startsWith('image/') && url) return `<img src="${escapeHtml(url)}" alt="${escapeHtml(receiptTitle(receipt))}">`;
     if ((type.includes('pdf') || cleanText(receipt.file?.file_name).toLowerCase().endsWith('.pdf')) && url) {
-      return `<div class="rb-pdf-loading" data-rb-pdf-preview data-url="${String(escapeHtml(url))}" data-title="${String(escapeHtml(receiptTitle(receipt)))}"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.text("receipts","m_2f28a7c40a3d7b","Loading PDF preview...") ?? "Loading PDF preview...")}</span></div>`;
+      return `<div class="rb-pdf-loading" data-rb-pdf-preview data-url="${String(escapeHtml(url))}" data-title="${String(escapeHtml(receiptTitle(receipt)))}"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.htmlText("receipts","m_2f28a7c40a3d7b","Loading PDF preview...") ?? "Loading PDF preview...")}</span></div>`;
     }
     const fallback = fileIcon(receipt);
-    return `<div class="rb-preview-fallback"><i class="fas ${String(fallback.icon)}"></i><strong>${String(escapeHtml(receipt.file?.file_name || receiptTitle(receipt)))}</strong><span>${(globalThis.PlatformLanguage?.text("receipts","m_2bb59098fa865a","Preview is not available for this file type.") ?? "Preview is not available for this file type.")}</span>${String(url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Open file</a>` : '')}</div>`;
+    return `<div class="rb-preview-fallback"><i class="fas ${String(fallback.icon)}"></i><strong>${String(escapeHtml(receipt.file?.file_name || receiptTitle(receipt)))}</strong><span>${(globalThis.PlatformLanguage?.htmlText("receipts","m_2bb59098fa865a","Preview is not available for this file type.") ?? "Preview is not available for this file type.")}</span>${String(url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("receipts","m_a852fafeb99a24"," Open file") ?? " Open file")}</a>` : '')}</div>`;
   }
 
   function detailRow(label, value){
@@ -222,7 +222,7 @@
       } catch (_) {
         if (closed || generation !== previewGeneration || !preview.isConnected) return;
         preview.className = 'rb-preview-fallback';
-        preview.innerHTML = `<i class="fas fa-file-pdf"></i><strong>${(globalThis.PlatformLanguage?.text("receipts","m_fd2d77217bda32","PDF preview could not be loaded.") ?? "PDF preview could not be loaded.")}</strong><span>${(globalThis.PlatformLanguage?.text("receipts","m_2b3fdb0048c38f","You can still open the original file.") ?? "You can still open the original file.")}</span><a href="${String(escapeHtml(url))}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.text("receipts","m_39f4f4e9015b56"," Open PDF") ?? " Open PDF")}</a>`;
+        preview.innerHTML = `<i class="fas fa-file-pdf"></i><strong>${(globalThis.PlatformLanguage?.htmlText("receipts","m_fd2d77217bda32","PDF preview could not be loaded.") ?? "PDF preview could not be loaded.")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("receipts","m_2b3fdb0048c38f","You can still open the original file.") ?? "You can still open the original file.")}</span><a href="${String(escapeHtml(url))}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i>${(globalThis.PlatformLanguage?.htmlText("receipts","m_39f4f4e9015b56"," Open PDF") ?? " Open PDF")}</a>`;
       }
     };
 
@@ -250,17 +250,17 @@
       const up = uploader(receipt);
       const extraction = receipt.extraction && typeof receipt.extraction === 'object' ? receipt.extraction : {};
       const lineItems = Array.isArray(extraction.line_items) ? extraction.line_items : [];
-      shade.innerHTML = `<div class="rb-viewer" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.text("receipts","m_f89d381acbcc37","Receipt viewer") ?? "Receipt viewer")}">
+      shade.innerHTML = `<div class="rb-viewer" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("receipts","m_f89d381acbcc37","Receipt viewer") ?? "Receipt viewer")}">
         <div class="rb-viewer-main">
-          <div class="rb-viewer-head"><div><strong>${String(escapeHtml(receiptTitle(receipt)))}</strong><span>${String(escapeHtml(project.title || project.address || 'Unassigned receipt'))}</span></div><div class="rb-viewer-actions">${String(items.length > 1 ? `<button type="button" data-rb-prev aria-label="Previous receipt"><i class="fas fa-chevron-left"></i></button><span>${index + 1} / ${items.length}</span><button type="button" data-rb-next aria-label="Next receipt"><i class="fas fa-chevron-right"></i></button>` : '')}<button type="button" data-rb-close aria-label="${(globalThis.PlatformLanguage?.text("receipts","m_d3a748c417dd97","Close receipt viewer") ?? "Close receipt viewer")}"><i class="fas fa-xmark"></i></button></div></div>
+          <div class="rb-viewer-head"><div><strong>${String(escapeHtml(receiptTitle(receipt)))}</strong><span>${String(escapeHtml(project.title || project.address || 'Unassigned receipt'))}</span></div><div class="rb-viewer-actions">${String(items.length > 1 ? `<button type="button" data-rb-prev aria-label="${(globalThis.PlatformLanguage?.htmlText("receipts","m_77c08e212dd0d0","Previous receipt") ?? "Previous receipt")}"><i class="fas fa-chevron-left"></i></button><span>${index + 1} / ${items.length}</span><button type="button" data-rb-next aria-label="${(globalThis.PlatformLanguage?.htmlText("receipts","m_b4f6c3430f3ec3","Next receipt") ?? "Next receipt")}"><i class="fas fa-chevron-right"></i></button>` : '')}<button type="button" data-rb-close aria-label="${(globalThis.PlatformLanguage?.htmlText("receipts","m_d3a748c417dd97","Close receipt viewer") ?? "Close receipt viewer")}"><i class="fas fa-xmark"></i></button></div></div>
           <div class="rb-preview">${String(viewerPreview(receipt, oid))}</div>
         </div>
         <aside class="rb-viewer-side">
-          <div class="rb-side-total"><span>${(globalThis.PlatformLanguage?.text("receipts","m_aec930d3adcf4c","Receipt total") ?? "Receipt total")}</span><strong>${String(escapeHtml(money(receiptTotal(receipt), receipt.currency)))}</strong><em class="rb-status ${String(escapeHtml(cleanText(receipt.status).toLowerCase()))}">${String(escapeHtml(cleanText(receipt.status, 'ready').replace(/_/g, ' ')))}</em></div>
-          <section><h3>${(globalThis.PlatformLanguage?.text("receipts","m_520b16e1201e75","Receipt details") ?? "Receipt details")}</h3>${String(detailRow('Vendor', cleanText(extraction.vendor_name, receiptTitle(receipt))))}${String(detailRow('Purchase date', shortDate(receipt.purchase_date || receipt.effective?.purchase_date)))}${String(detailRow('Uploaded by', cleanText(up.name, up.email, 'Unknown uploader')))}${String(detailRow('Uploaded', dateTime(receipt.uploaded_at || receipt.created_at)))}${String(detailRow('Project', cleanText(project.title, project.address, 'Unassigned')))}</section>
-          <section><h3>${(globalThis.PlatformLanguage?.text("receipts","m_fa09b3f3085cdc","File") ?? "File")}</h3>${String(detailRow('Name', receipt.file?.file_name))}${String(detailRow('Type', receiptContentType(receipt) || 'Unknown'))}${String(detailRow('Size', fileSize(receipt.file?.size_bytes)))}</section>
-          ${String(lineItems.length ? `<section><h3>Extracted line items</h3><div class="rb-lines">${lineItems.slice(0, 12).map((line) => `<div><span>${escapeHtml(cleanText(line.description, line.title, 'Line item'))}</span><strong>${escapeHtml(money(line.total_cents ?? line.amount_cents ?? 0, receipt.currency))}</strong></div>`).join('')}</div></section>` : '')}
-          <div class="rb-side-actions">${String(typeof options.onReview === 'function' ? '<button type="button" class="primary" data-rb-review><i class="fas fa-list-check"></i> Review & apply</button>' : '')}${String(receiptFileUrl(oid, receipt) ? `<a href="${escapeHtml(receiptFileUrl(oid, receipt))}"><i class="fas fa-download"></i> Download</a>` : '')}</div>
+          <div class="rb-side-total"><span>${(globalThis.PlatformLanguage?.htmlText("receipts","m_aec930d3adcf4c","Receipt total") ?? "Receipt total")}</span><strong>${String(escapeHtml(money(receiptTotal(receipt), receipt.currency)))}</strong><em class="rb-status ${String(escapeHtml(cleanText(receipt.status).toLowerCase()))}">${String(escapeHtml(cleanText(receipt.status, 'ready').replace(/_/g, ' ')))}</em></div>
+          <section><h3>${(globalThis.PlatformLanguage?.htmlText("receipts","m_520b16e1201e75","Receipt details") ?? "Receipt details")}</h3>${String(detailRow('Vendor', cleanText(extraction.vendor_name, receiptTitle(receipt))))}${String(detailRow('Purchase date', shortDate(receipt.purchase_date || receipt.effective?.purchase_date)))}${String(detailRow('Uploaded by', cleanText(up.name, up.email, 'Unknown uploader')))}${String(detailRow('Uploaded', dateTime(receipt.uploaded_at || receipt.created_at)))}${String(detailRow('Project', cleanText(project.title, project.address, 'Unassigned')))}</section>
+          <section><h3>${(globalThis.PlatformLanguage?.htmlText("receipts","m_fa09b3f3085cdc","File") ?? "File")}</h3>${String(detailRow('Name', receipt.file?.file_name))}${String(detailRow('Type', receiptContentType(receipt) || 'Unknown'))}${String(detailRow('Size', fileSize(receipt.file?.size_bytes)))}</section>
+          ${String(lineItems.length ? `<section><h3>${(globalThis.PlatformLanguage?.htmlText("receipts","m_f6d9f950804547","Extracted line items") ?? "Extracted line items")}</h3><div class="rb-lines">${lineItems.slice(0, 12).map((line) => `<div><span>${escapeHtml(cleanText(line.description, line.title, 'Line item'))}</span><strong>${escapeHtml(money(line.total_cents ?? line.amount_cents ?? 0, receipt.currency))}</strong></div>`).join('')}</div></section>` : '')}
+          <div class="rb-side-actions">${String(typeof options.onReview === 'function' ? `<button type="button" class="primary" data-rb-review><i class="fas fa-list-check"></i>${(globalThis.PlatformLanguage?.htmlText("receipts","m_92403ccf65b2eb"," Review & apply") ?? " Review & apply")}</button>` : '')}${String(receiptFileUrl(oid, receipt) ? `<a href="${escapeHtml(receiptFileUrl(oid, receipt))}"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("receipts","m_f3ad10eaad3ccf"," Download") ?? " Download")}</a>` : '')}</div>
         </aside>
       </div>`;
       shade.querySelector('[data-rb-close]')?.addEventListener('click', () => close());
@@ -278,6 +278,8 @@
   function injectStyles(){
     injectCSS('receipt-browser-css', `
       .rb-browser,.rb-browser>.pf-wrap{height:100%;min-height:0}.rb-browser-global{box-sizing:border-box;padding:12px}.rb-browser [data-photo-feed-dynamic]{min-height:0;flex:1;display:flex;flex-direction:column}.rb-browser .pf-wrap{max-width:none}.pf-thumb.rb-receipt-tile{background:#eef2f6}.pf-thumb.rb-receipt-tile.loaded::before{display:none}.rb-file-thumb{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;background:linear-gradient(145deg,#f8fafc,#e9eef5);color:#667085}.rb-file-thumb i{font-size:38px;color:#475467}.rb-file-thumb small{font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.08em}.rb-total{position:absolute;right:7px;top:7px;z-index:3;border-radius:999px;padding:5px 8px;background:rgba(16,24,40,.86);color:#fff;font-size:11px;font-weight:1000;box-shadow:0 4px 12px rgba(15,23,42,.22)}.rb-status{display:inline-flex;width:max-content;border-radius:999px;padding:4px 7px;background:#f2f4f7;color:#475467;font-size:9px;font-style:normal;font-weight:1000;text-transform:capitalize}.pf-thumb>.rb-status{position:absolute;left:7px;top:7px;z-index:3}.rb-status.applied,.rb-status.ready{background:#ecfdf3;color:#067647}.rb-status.processing{background:#eff8ff;color:#175cd3}.rb-status.needs_review{background:#fffaeb;color:#93370d}.rb-status.void,.rb-status.error{background:#fef3f2;color:#b42318}
+      .rb-global-app{height:100%;min-height:0;box-sizing:border-box}.rb-global-app [data-receipt-browser]{height:100%;min-height:0}.rb-browser-global .pf-content-layout{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:16px}.rb-browser-global .pf-content-layout>[data-photo-feed-dynamic]{min-width:0;overflow:auto}.rb-browser-global .pf-content-aside{min-width:0;min-height:0;overflow:auto;border-left:1px solid #e4e7ec;padding-left:16px}.rb-reimbursement-queue{display:grid;gap:14px;padding:0 2px 20px}.rb-reimbursement-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.rb-reimbursement-head strong{font-size:16px}.rb-reimbursement-head p{color:#667085;font-size:12px;line-height:1.4;margin:4px 0 0}.rb-reimbursement-count{flex:none;border-radius:999px;background:#f2f4f7;color:#475467;padding:5px 8px;font-size:11px;font-weight:800}.rb-reimbursement-empty{border:1px dashed #d0d5dd;border-radius:11px;padding:22px 14px;text-align:center;color:#667085;font-size:12px;line-height:1.5}.rb-reimbursement-list{display:grid;gap:9px}.rb-reimbursement-card{border:1px solid #e4e7ec;border-radius:12px;padding:12px;display:grid;gap:10px;background:#fff}.rb-reimbursement-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}.rb-reimbursement-card-head strong{font-size:13px;overflow-wrap:anywhere}.rb-reimbursement-card-head b{font-size:13px;white-space:nowrap}.rb-reimbursement-card-meta{color:#667085;font-size:12px;line-height:1.4;overflow-wrap:anywhere}.rb-reimbursement-actions{display:flex;gap:7px;flex-wrap:wrap}.rb-reimbursement-actions .pf-btn{white-space:normal;text-align:center}.rb-mobile-tabs{display:none}@media(max-width:760px){.rb-browser-global .pf-content-layout{display:flex;flex-direction:column;gap:0}.rb-browser-global .rb-mobile-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin-bottom:12px;border-radius:11px;background:#eef2f6}.rb-mobile-tabs button{border:0;border-radius:8px;background:transparent;color:#475467;min-height:38px;padding:6px 10px;font-size:12px;font-weight:900;cursor:pointer}.rb-mobile-tabs button[aria-selected="true"]{background:#fff;color:#101828;box-shadow:0 1px 4px rgba(16,24,40,.12)}.rb-global-app[data-mobile-view="receipts"] .pf-content-aside,.rb-global-app[data-mobile-view="reimbursements"] [data-photo-feed-dynamic]{display:none}.rb-browser-global .pf-content-aside{border-left:0;padding-left:0;overflow:auto;flex:1}.rb-browser-global .pf-content-layout>[data-photo-feed-dynamic]{overflow:auto}.rb-reimbursement-queue{padding:0 2px 20px}}
+      .rb-reimbursement-collapse{flex:none;width:30px;height:30px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#475467;cursor:pointer}.rb-reimbursement-collapse:hover,.rb-reimbursement-rail:hover{background:#f2f4f7}.rb-reimbursement-collapse:focus-visible,.rb-reimbursement-rail:focus-visible{outline:2px solid #175cd3;outline-offset:2px}.rb-reimbursement-rail{display:none}.rb-global-app.rb-reimbursements-collapsed .pf-content-layout{grid-template-columns:minmax(0,1fr) 40px;gap:8px}.rb-global-app.rb-reimbursements-collapsed .pf-content-aside{padding-left:0;border-left:0;overflow:hidden}.rb-global-app.rb-reimbursements-collapsed .rb-reimbursement-queue{display:none}.rb-global-app.rb-reimbursements-collapsed .rb-reimbursement-rail{display:flex;box-sizing:border-box;width:40px;height:100%;min-height:120px;align-items:center;flex-direction:column;gap:10px;padding:12px 6px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;color:#475467;font-size:11px;font-weight:900;cursor:pointer}.rb-reimbursement-rail span{writing-mode:vertical-rl;white-space:nowrap}.rb-reimbursement-rail i{font-size:11px}@media(max-width:760px){.rb-global-app.rb-reimbursements-collapsed .pf-content-layout{display:flex;flex-direction:column;gap:0}.rb-global-app.rb-reimbursements-collapsed .pf-content-aside{overflow:auto}.rb-global-app.rb-reimbursements-collapsed .rb-reimbursement-queue{display:grid}.rb-global-app.rb-reimbursements-collapsed .rb-reimbursement-rail,.rb-reimbursement-collapse{display:none!important}}
       .rb-viewer-shade{position:fixed;inset:0;z-index:2147483300;background:rgba(15,23,42,.62);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:22px}.rb-viewer{width:min(1320px,97vw);height:min(900px,94vh);display:grid;grid-template-columns:minmax(0,1fr) 350px;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 32px 90px rgba(15,23,42,.4)}.rb-viewer-main{min-width:0;min-height:0;background:#111827;display:flex;flex-direction:column}.rb-viewer-head{height:62px;flex:0 0 auto;padding:0 16px;display:flex;align-items:center;justify-content:space-between;gap:16px;background:#fff;border-bottom:1px solid #e4e7ec}.rb-viewer-head strong{display:block;font-size:14px}.rb-viewer-head span{display:block;margin-top:2px;color:#667085;font-size:11px;font-weight:800}.rb-viewer-actions{display:flex;align-items:center;gap:7px}.rb-viewer-actions>span{margin:0 4px;color:#667085;font-size:11px;font-weight:900}.rb-viewer-actions button{width:34px;height:34px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;color:#344054;cursor:pointer}.rb-preview{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}.rb-preview>img{max-width:100%;max-height:100%;object-fit:contain}.rb-preview>iframe{width:100%;height:100%;border:0;background:#fff}.rb-pdf-loading{display:flex;align-items:center;gap:9px;color:#d0d5dd;font-size:12px;font-weight:900}.rb-preview-fallback{color:#d0d5dd;text-align:center;display:flex;align-items:center;flex-direction:column;gap:11px}.rb-preview-fallback>i{font-size:58px}.rb-preview-fallback strong{color:#fff}.rb-preview-fallback span{font-size:12px}.rb-preview-fallback a{margin-top:8px;border:1px solid #667085;border-radius:9px;color:#fff;padding:9px 12px;text-decoration:none;font-size:12px;font-weight:900}.rb-viewer-side{min-height:0;overflow:auto;padding:18px;background:#fff}.rb-side-total{padding-bottom:16px;border-bottom:1px solid #eaecf0}.rb-side-total>span{display:block;color:#667085;font-size:10px;font-weight:1000;text-transform:uppercase}.rb-side-total>strong{display:block;margin:5px 0 8px;font-size:28px}.rb-viewer-side section{padding:16px 0;border-bottom:1px solid #eaecf0}.rb-viewer-side h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;color:#667085;letter-spacing:.04em}.rb-detail{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;padding:5px 0;font-size:11px}.rb-detail span{color:#667085}.rb-detail strong{text-align:right;overflow-wrap:anywhere}.rb-lines{display:flex;flex-direction:column;gap:7px}.rb-lines>div{display:flex;justify-content:space-between;gap:12px;font-size:11px}.rb-lines span{color:#475467}.rb-side-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:16px}.rb-side-actions button,.rb-side-actions a{min-height:36px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;color:#344054;display:flex;align-items:center;justify-content:center;gap:7px;padding:7px;text-decoration:none;font-size:11px;font-weight:1000;cursor:pointer}.rb-side-actions .primary{background:#067647;border-color:#067647;color:#fff}@media(max-width:820px){.rb-viewer{grid-template-columns:1fr;height:96vh}.rb-viewer-side{max-height:42vh}.rb-viewer-shade{padding:8px}}
     `);
   }
@@ -288,8 +290,8 @@
     const oid = cleanText(options.orgId, orgId(options.context));
     const scope = options.scope === 'global' ? 'global' : 'project';
     const terminology = options.terminology && typeof options.terminology === 'object' ? options.terminology : {};
-    const receiptSingular = cleanText(terminology.receipt, 'Receipt');
-    const receiptPlural = cleanText(terminology.receipts, 'Receipts');
+    const receiptSingular = window.PlatformTerminology?.get?.('receipts.receipt', 'Receipt') || cleanText(terminology.receipt, 'Receipt');
+    const receiptPlural = window.PlatformTerminology?.get?.('receipts.receipts', 'Receipts') || cleanText(terminology.receipts, 'Receipts');
     let viewer = null;
     let destroyed = false;
     const projects = Array.isArray(options.projects) ? options.projects : [];
@@ -321,7 +323,7 @@
     };
 
     if (!Portal.PhotoFeed?.mountProjectGallery) {
-      root.innerHTML = `<div class="pf-empty"><i class="fas fa-receipt"></i><strong>${(globalThis.PlatformLanguage?.text("receipts","m_debe4f233e50f2","Receipt browser unavailable") ?? "Receipt browser unavailable")}</strong><div>${(globalThis.PlatformLanguage?.text("receipts","m_353ae41f38fb1a","The shared media gallery is not loaded.") ?? "The shared media gallery is not loaded.")}</div></div>`;
+      root.innerHTML = `<div class="pf-empty"><i class="fas fa-receipt"></i><strong>${(globalThis.PlatformLanguage?.htmlText("receipts","m_debe4f233e50f2","Receipt browser unavailable") ?? "Receipt browser unavailable")}</strong><div>${(globalThis.PlatformLanguage?.htmlText("receipts","m_353ae41f38fb1a","The shared media gallery is not loaded.") ?? "The shared media gallery is not loaded.")}</div></div>`;
       return { destroy(){ root.classList.remove('rb-browser', 'rb-browser-global'); root.innerHTML = ''; } };
     }
     Portal.PhotoFeed.mountProjectGallery(root, {
@@ -330,7 +332,7 @@
       title:scope === 'global' ? receiptPlural : '',
       icon:'fa-receipt',
       itemNoun:receiptSingular.toLowerCase(),
-      searchPlaceholder:`Search ${receiptPlural.toLowerCase()}, projects, uploaders, or dates`,
+      searchPlaceholder:scope === 'global' ? `Search ${receiptPlural.toLowerCase()}, reimbursements, or people` : `Search ${receiptPlural.toLowerCase()}, projects, uploaders, or dates`,
       emptyIcon:'fa-receipt',
       emptyTitle:`No ${receiptPlural.toLowerCase()} found`,
       emptyMessage:scope === 'global' ? `Uploaded ${receiptPlural.toLowerCase()} will appear here across projects.` : `Upload a ${receiptSingular.toLowerCase()} to add it to this project.`,
@@ -344,6 +346,8 @@
       renderGroupUploaders:groupUploaders,
       itemIdentity:(item) => cleanText(item.photo?.receipt?.id),
       initialItemId:cleanText(options.initialReceiptId),
+      layoutTabsHtml:options.layoutTabsHtml,
+      layoutAsideHtml:options.layoutAsideHtml,
       onOpenItem:open,
       onOpenProject:(project) => options.onOpenProject?.(project)
         || Portal.navigation?.push?.({ project:projectId(project), projectTab:'money', moneyView:'receipts', receipt:null }, { source:'global-receipt-project-open', ownedKeys:['project'] })
@@ -366,24 +370,29 @@
   function reimbursementQueueHtml(rowsValue = []){
     const rows = Array.isArray(rowsValue) ? rowsValue : [];
     const actionable = rows.filter((row) => !['not_required','rejected','paid'].includes(cleanText(row?.reimbursement_request?.status)));
-    return `<section style="margin:16px;display:grid;gap:10px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><strong style="font-size:16px">${(globalThis.PlatformLanguage?.text("receipts","m_5c2c0f1194429c","Employee reimbursements") ?? "Employee reimbursements")}</strong><div style="color:#667085;font-size:12px;margin-top:3px">${(globalThis.PlatformLanguage?.text("receipts","m_1019e518a22db1","Receipt-backed requests awaiting office or payroll action.") ?? "Receipt-backed requests awaiting office or payroll action.")}</div></div><span>${((v0) => globalThis.PlatformLanguage?.text("receipts","m_6c4162aa600d83",`${v0} open`,{v0}) ?? `${v0} open`)(actionable.length)}</span></div>${String(actionable.length ? `<div style="display:grid;gap:8px">${actionable.map((row) => {
+    return `<button type="button" class="rb-reimbursement-rail" data-reimbursement-expand aria-label="${(globalThis.PlatformLanguage?.htmlText("receipts","m_9a563e6b6f15b2","Expand employee reimbursements") ?? "Expand employee reimbursements")}" title="${(globalThis.PlatformLanguage?.htmlText("receipts","m_2d9318e2038bd3","Expand reimbursements") ?? "Expand reimbursements")}"><i class="fas fa-chevron-left" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("receipts","m_781de7a205b1d0","Reimbursements") ?? "Reimbursements")}</span></button><section class="rb-reimbursement-queue" aria-label="${(globalThis.PlatformLanguage?.htmlText("receipts","m_5c2c0f1194429c","Employee reimbursements") ?? "Employee reimbursements")}"><div class="rb-reimbursement-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("receipts","m_5c2c0f1194429c","Employee reimbursements") ?? "Employee reimbursements")}</strong><p>${(globalThis.PlatformLanguage?.htmlText("receipts","m_1019e518a22db1","Receipt-backed requests awaiting office or payroll action.") ?? "Receipt-backed requests awaiting office or payroll action.")}</p></div><button type="button" class="rb-reimbursement-collapse" data-reimbursement-collapse aria-label="${(globalThis.PlatformLanguage?.htmlText("receipts","m_6a0ffa83b5a0c5","Collapse employee reimbursements") ?? "Collapse employee reimbursements")}" title="${(globalThis.PlatformLanguage?.htmlText("receipts","m_09c3605b3ff316","Collapse reimbursements") ?? "Collapse reimbursements")}"><i class="fas fa-chevron-right" aria-hidden="true"></i></button></div><span class="rb-reimbursement-count">${((v0) => globalThis.PlatformLanguage?.htmlText("receipts","m_6c4162aa600d83",`${v0} open`,{v0}) ?? `${v0} open`)(actionable.length)}</span>${String(actionable.length ? `<div class="rb-reimbursement-list">${actionable.map((row) => {
       const request = row.reimbursement_request || {};
       const receipt = row.receipt || {};
       const status = cleanText(request.status);
       const name = cleanText(request.requested_by?.name) || 'Crew member';
       const amount = (Number(request.amount_cents || 0) / 100).toLocaleString(undefined, { style:'currency', currency:request.currency || 'USD' });
       const review = ['submitted','needs_clarification'].includes(status);
-      return `<div style="border:1px solid #e4e7ec;border-radius:12px;padding:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap"><div style="min-width:220px;flex:1"><strong>${escapeHtml(name)} · ${escapeHtml(amount)}</strong><div style="color:#667085;font-size:12px;margin-top:3px">${escapeHtml(receipt.file?.file_name || 'Receipt')} · ${escapeHtml(status.replace(/_/g,' '))}${request.note ? ` · ${escapeHtml(request.note)}` : ''}</div></div><div style="display:flex;gap:7px;flex-wrap:wrap"><button class="pf-btn" data-reimbursement-view="${escapeHtml(receipt.id)}">View receipt</button>${review ? `<button class="pf-btn primary" data-reimbursement-action="approve" data-timing="next_payroll" data-receipt-id="${escapeHtml(receipt.id)}">Approve for payroll</button><button class="pf-btn" data-reimbursement-action="approve" data-timing="off_cycle" data-receipt-id="${escapeHtml(receipt.id)}">Approve off-cycle</button><button class="pf-btn" data-reimbursement-action="needs_clarification" data-receipt-id="${escapeHtml(receipt.id)}">Needs info</button><button class="pf-btn" data-reimbursement-action="reject" data-receipt-id="${escapeHtml(receipt.id)}">Reject</button>` : `<button class="pf-btn primary" data-reimbursement-action="mark_paid" data-receipt-id="${escapeHtml(receipt.id)}">Mark paid</button>`}</div></div>`;
-    }).join('')}</div>` : '<div class="pf-empty"><strong>No reimbursement requests need attention.</strong></div>')}</section>`;
+      return `<div class="rb-reimbursement-card"><div class="rb-reimbursement-card-head"><strong>${escapeHtml(name)}</strong><b>${escapeHtml(amount)}</b></div><div class="rb-reimbursement-card-meta">${escapeHtml(receipt.file?.file_name || 'Receipt')} · ${escapeHtml(status.replace(/_/g,' '))}${request.note ? ` · ${escapeHtml(request.note)}` : ''}</div><div class="rb-reimbursement-actions"><button class="pf-btn" data-reimbursement-view="${escapeHtml(receipt.id)}">${(globalThis.PlatformLanguage?.htmlText("receipts","m_154be17d295d02","View receipt") ?? "View receipt")}</button>${review ? `<button class="pf-btn primary" data-reimbursement-action="approve" data-timing="next_payroll" data-receipt-id="${escapeHtml(receipt.id)}">${(globalThis.PlatformLanguage?.htmlText("receipts","m_c9b1ea38a0439f","Approve for payroll") ?? "Approve for payroll")}</button><button class="pf-btn" data-reimbursement-action="approve" data-timing="off_cycle" data-receipt-id="${escapeHtml(receipt.id)}">${(globalThis.PlatformLanguage?.htmlText("receipts","m_8180e02b2aad08","Approve off-cycle") ?? "Approve off-cycle")}</button><button class="pf-btn" data-reimbursement-action="needs_clarification" data-receipt-id="${escapeHtml(receipt.id)}">${(globalThis.PlatformLanguage?.htmlText("receipts","m_1a65650a5b609f","Needs info") ?? "Needs info")}</button><button class="pf-btn" data-reimbursement-action="reject" data-receipt-id="${escapeHtml(receipt.id)}">${(globalThis.PlatformLanguage?.htmlText("receipts","m_caf34b0bba6d77","Reject") ?? "Reject")}</button>` : `<button class="pf-btn primary" data-reimbursement-action="mark_paid" data-receipt-id="${escapeHtml(receipt.id)}">${(globalThis.PlatformLanguage?.htmlText("receipts","m_57b192d717bef7","Mark paid") ?? "Mark paid")}</button>`}</div></div>`;
+    }).join('')}</div>` : `<div class="rb-reimbursement-empty"><strong>${(globalThis.PlatformLanguage?.htmlText("receipts","m_77a8431eb85292","No reimbursement requests need attention.") ?? "No reimbursement requests need attention.")}</strong></div>`)}</section>`;
   }
 
   async function createGlobalApp(context = {}){
     const root = context.panelRoot || context.roots?.main || context.root;
     let handle = null;
     let destroyed = false;
+    let reimbursementRows = [];
+    let reimbursementQuery = '';
     const oid = orgId(context);
-    root.classList.add('rb-browser-global');
-    root.innerHTML = `<div class="pf-loading"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.text("receipts","m_8f711e547f6361"," Loading receipts...") ?? " Loading receipts...")}</div>`;
+    let reimbursementsExpanded = true;
+    root.classList.add('rb-global-app');
+    root.classList.toggle('rb-reimbursements-collapsed', !reimbursementsExpanded);
+    root.dataset.mobileView = 'receipts';
+    root.innerHTML = `<div class="pf-loading"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("receipts","m_8f711e547f6361"," Loading receipts...") ?? " Loading receipts...")}</div>`;
     try {
       const [receiptResult, projectResult, reimbursementResult] = await Promise.all([
         window.PaymentsAPI?.receipts?.listFor?.(oid, { kind:'organization', id:oid }),
@@ -393,14 +402,45 @@
       if (destroyed) return { destroy(){} };
       const projects = (projectResult?.documents || []).map(normalizeProjectDocument);
       const route = Portal.navigation?.read?.() || {};
-      root.innerHTML = `<div data-reimbursement-queue>${reimbursementQueueHtml(reimbursementResult?.reimbursements)}</div><div data-receipt-browser></div>`;
-      const browserRoot = root.querySelector('[data-receipt-browser]');
-      handle = mountBrowser(browserRoot, {
-        scope:'global', orgId:oid, projects, receipts:receiptResult?.receipts || [], initialReceiptId:route.tab === 'receipts' ? route.receipt : ''
+      reimbursementRows = reimbursementResult?.reimbursements || [];
+      const visibleReimbursements = () => reimbursementRows.filter((row) => {
+        if (!reimbursementQuery) return true;
+        const request = row.reimbursement_request || {};
+        const receipt = row.receipt || {};
+        return [request.requested_by?.name, request.note, request.status, receipt.title, receipt.file?.file_name, receipt.project_name]
+          .some((value) => cleanText(value).toLowerCase().includes(reimbursementQuery));
       });
-      root.querySelector('[data-reimbursement-queue]')?.addEventListener('click', async (event) => {
+      root.innerHTML = `<div data-receipt-browser></div>`;
+      const browserRoot = root.querySelector('[data-receipt-browser]');
+      const renderReimbursements = () => reimbursementQueueHtml(visibleReimbursements());
+      handle = mountBrowser(browserRoot, {
+        scope:'global', orgId:oid, projects, receipts:receiptResult?.receipts || [], initialReceiptId:route.tab === 'receipts' ? route.receipt : '',
+        layoutTabsHtml:() => `<div class="rb-mobile-tabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("receipts","m_375bd26258fc80","Receipt sections") ?? "Receipt sections")}"><button type="button" role="tab" data-receipts-view="receipts" aria-selected="${root.dataset.mobileView !== 'reimbursements'}">${(globalThis.PlatformLanguage?.htmlText("receipts","m_fc54001a0cc000","Receipts") ?? "Receipts")}</button><button type="button" role="tab" data-receipts-view="reimbursements" aria-selected="${root.dataset.mobileView === 'reimbursements'}">${(globalThis.PlatformLanguage?.htmlText("receipts","m_781de7a205b1d0","Reimbursements") ?? "Reimbursements")}</button></div>`,
+        layoutAsideHtml:renderReimbursements
+      });
+      browserRoot.addEventListener('input', (event) => {
+        if (!event.target.matches('.pf-search input')) return;
+        reimbursementQuery = cleanText(event.target.value).toLowerCase();
+        const aside = browserRoot.querySelector('.pf-content-aside');
+        if (aside) aside.innerHTML = renderReimbursements();
+      });
+      browserRoot.addEventListener('click', async (event) => {
+        const toggle = event.target.closest('[data-reimbursement-collapse], [data-reimbursement-expand]');
+        if (toggle) {
+          reimbursementsExpanded = toggle.hasAttribute('data-reimbursement-expand');
+          root.classList.toggle('rb-reimbursements-collapsed', !reimbursementsExpanded);
+          browserRoot.querySelector(reimbursementsExpanded ? '[data-reimbursement-collapse]' : '[data-reimbursement-expand]')?.focus();
+          return;
+        }
+        const tab = event.target.closest('[data-receipts-view]');
+        if (tab) {
+          root.dataset.mobileView = tab.dataset.receiptsView;
+          browserRoot.querySelectorAll('[data-receipts-view]').forEach((button) => button.setAttribute('aria-selected', String(button === tab)));
+          return;
+        }
         const viewButton = event.target.closest('[data-reimbursement-view]');
         if (viewButton) {
+          root.dataset.mobileView = 'receipts';
           Portal.navigation?.push?.({ tab:'receipts', receipt:viewButton.dataset.reimbursementView }, { source:'reimbursement-receipt-open', ownedKeys:['receipt'] });
           return;
         }
@@ -413,7 +453,9 @@
         try {
           await window.PaymentsAPI.reimbursements.action(oid, button.dataset.receiptId, { action, payment_timing:button.dataset.timing || undefined, note });
           const refreshed = await window.PaymentsAPI.reimbursements.list(oid);
-          root.querySelector('[data-reimbursement-queue]').innerHTML = reimbursementQueueHtml(refreshed?.reimbursements);
+          reimbursementRows = refreshed?.reimbursements || [];
+          const aside = browserRoot.querySelector('.pf-content-aside');
+          if (aside) aside.innerHTML = renderReimbursements();
           showToast((globalThis.PlatformLanguage?.text("receipts","m_34df0fdb35babd","Reimbursement updated") ?? "Reimbursement updated"), action === 'approve' ? 'The payable has been created and queued.' : 'The request status was updated.', true);
         } catch (error) {
           button.disabled = false;
@@ -421,7 +463,7 @@
         }
       });
     } catch (error) {
-      root.innerHTML = `<div class="pf-empty"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.text("receipts","m_62447276077f46","Could not load receipts") ?? "Could not load receipts")}</strong><div>${String(escapeHtml(error?.message || 'Try again shortly.'))}</div></div>`;
+      root.innerHTML = `<div class="pf-empty"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("receipts","m_62447276077f46","Could not load receipts") ?? "Could not load receipts")}</strong><div>${String(escapeHtml(error?.message || 'Try again shortly.'))}</div></div>`;
       showToast((globalThis.PlatformLanguage?.text("receipts","m_744a0502e08506","Receipts issue") ?? "Receipts issue"), error?.message || 'Could not load receipts.', false);
     }
     const unregister = Portal.navigation?.registerHandler?.(`global-receipts:${context.instanceId || Date.now()}`, {
@@ -431,7 +473,7 @@
         handle?.closeViewerFromRoute?.();
       }
     });
-    return { destroy(){ destroyed = true; unregister?.(); handle?.destroy?.(); root.classList.remove('rb-browser-global'); } };
+    return { destroy(){ destroyed = true; unregister?.(); handle?.destroy?.(); root.classList.remove('rb-global-app', 'rb-reimbursements-collapsed'); delete root.dataset.mobileView; } };
   }
 
   Portal.ReceiptsBrowser = { mount:mountBrowser, openViewer };

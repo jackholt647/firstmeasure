@@ -24,7 +24,7 @@ Current coverage:
 - Trigger action `notification.create` creates passive notifications.
 - Notification role targeting works.
 - Per-user notification state tracks `seen_at` and `dismissed_at` without mutating the notification itself.
-- Push notifications are logged to `push_log` but not delivered.
+- Push notifications are sent to registered devices when FCM/APNs credentials are configured; `push_log` records provider outcomes.
 - Email lead import creates branch inbound lead settings and turns a Postmark payload into a `new_lead` project, customer, and notification.
 - Website embed lead forms can be stored on branch lead settings, read through public form config, and submitted into the generic Platform lead creator as `website_embed`.
 - Canvassing tests cover the separate Canvassing API and generic lead promotion path.

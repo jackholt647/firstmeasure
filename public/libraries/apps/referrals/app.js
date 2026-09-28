@@ -312,7 +312,7 @@
       card.className = 'referral-side-card';
       card.innerHTML = `
         <div class="referral-side-copy">
-          <div class="referral-side-title">${(globalThis.PlatformLanguage?.text("referrals","m_affc7678ff50a4","Refer a friend and get a $100 Visa gift card.") ?? "Refer a friend and get a $100 Visa gift card.")}</div>
+          <div class="referral-side-title">${(globalThis.PlatformLanguage?.htmlText("referrals","m_affc7678ff50a4","Refer a friend and get a $100 Visa gift card.") ?? "Refer a friend and get a $100 Visa gift card.")}</div>
         </div>
         <button class="referral-side-btn" id="referralSideOpen" type="button" data-fm-tooltip="Get referral link"><i class="fas fa-arrow-right"></i></button>
       `;
@@ -326,7 +326,7 @@
       bar.className = 'referral-mobile-bar';
       bar.innerHTML = `
         <div class="referral-mobile-inner">
-          <div class="referral-mobile-text">${(globalThis.PlatformLanguage?.text("referrals","m_affc7678ff50a4","Refer a friend and get a $100 Visa gift card.") ?? "Refer a friend and get a $100 Visa gift card.")}</div>
+          <div class="referral-mobile-text">${(globalThis.PlatformLanguage?.htmlText("referrals","m_affc7678ff50a4","Refer a friend and get a $100 Visa gift card.") ?? "Refer a friend and get a $100 Visa gift card.")}</div>
           <button class="referral-mobile-btn" id="referralMobileOpen" type="button" data-fm-tooltip="Get referral link"><i class="fas fa-arrow-right"></i></button>
         </div>
       `;
@@ -342,19 +342,19 @@
         <div class="referral-modal-win">
           <div class="referral-modal-top">
             <div>
-              <h2 class="referral-modal-title">${(globalThis.PlatformLanguage?.text("referrals","m_8fc47aab33da31","Refer a friend and get $100 cash.") ?? "Refer a friend and get $100 cash.")}</h2>
-              <div class="referral-modal-sub">${(globalThis.PlatformLanguage?.text("referrals","m_df0f17b93634d9","Share your link. When they qualify, we send you a referral reward.") ?? "Share your link. When they qualify, we send you a referral reward.")}</div>
+              <h2 class="referral-modal-title">${(globalThis.PlatformLanguage?.htmlText("referrals","m_8fc47aab33da31","Refer a friend and get $100 cash.") ?? "Refer a friend and get $100 cash.")}</h2>
+              <div class="referral-modal-sub">${(globalThis.PlatformLanguage?.htmlText("referrals","m_df0f17b93634d9","Share your link. When they qualify, we send you a referral reward.") ?? "Share your link. When they qualify, we send you a referral reward.")}</div>
             </div>
             <button class="referral-modal-close" id="referralClose" type="button" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
           </div>
           <div class="referral-modal-body">
-            <div class="referral-qr-wrap"><img class="referral-qr" id="referralQr" alt="${(globalThis.PlatformLanguage?.text("referrals","m_67cc2a09e9a6fd","Referral QR code") ?? "Referral QR code")}"></div>
+            <div class="referral-qr-wrap"><img class="referral-qr" id="referralQr" alt="${(globalThis.PlatformLanguage?.htmlText("referrals","m_67cc2a09e9a6fd","Referral QR code") ?? "Referral QR code")}"></div>
             <div class="referral-link-row">
               <input class="referral-link-input" id="referralLinkInput" readonly value="">
             </div>
             <div class="referral-action-row">
-              <button class="referral-action-btn primary" id="referralCopy" type="button"><i class="fas fa-link"></i>${(globalThis.PlatformLanguage?.text("referrals","m_bc6548be545d0a"," Copy Link") ?? " Copy Link")}</button>
-              <button class="referral-action-btn" id="referralShare" type="button"><i class="fas fa-share-nodes"></i>${(globalThis.PlatformLanguage?.text("referrals","m_d7fee6824eb14a"," Share") ?? " Share")}</button>
+              <button class="referral-action-btn primary" id="referralCopy" type="button"><i class="fas fa-link"></i>${(globalThis.PlatformLanguage?.htmlText("referrals","m_bc6548be545d0a"," Copy Link") ?? " Copy Link")}</button>
+              <button class="referral-action-btn" id="referralShare" type="button"><i class="fas fa-share-nodes"></i>${(globalThis.PlatformLanguage?.htmlText("referrals","m_d7fee6824eb14a"," Share") ?? " Share")}</button>
             </div>
           </div>
         </div>

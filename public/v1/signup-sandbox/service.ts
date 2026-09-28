@@ -84,13 +84,6 @@ function channelsOnlyAppFlags(): JsonObject {
   }
   overrides["platform.new_button_mode"] = "off";
   overrides["platform.new_button_items"] = "";
-  overrides["platform.left_column_apps"] = false;
-  overrides["platform.left_column_todo_list"] = false;
-  overrides["platform.left_column_default_mode"] = "channels";
-  // Channels-only workspaces use the integrated global-sidebar rail. With the
-  // Apps and To Do panes disabled above, Channels becomes the left column
-  // instead of appearing as a separate full-page app.
-  overrides["channels.sidebar_tab"] = true;
   overrides["topbar.global_search"] = false;
   return overrides;
 }
@@ -1133,8 +1126,6 @@ export async function ensureSeedData() {
         ...existingDefaults,
         app_flags: {
           ...existingFlags,
-          "channels.sidebar_tab": true,
-          "platform.left_column_default_mode": "channels",
           "platform.cobrand_sidebar_logo": true,
           "platform.separate_user_section": false,
           "platform.custom_fields": false,

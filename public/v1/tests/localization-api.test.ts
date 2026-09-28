@@ -22,10 +22,26 @@ test("company and personal language endpoints enforce rollout and preserve indep
     const registered=await request("POST","/v1/platform/auth/register",{phone:"+12025550881",email:"localization@example.test",password:"language-test-password",name:"Language Test",company:"Language Test Company"});
     assert.equal(registered.status,201,JSON.stringify(registered.data));
     const org=registered.data.organization.id;
+    const {getWorkforceDatabase,saveWorkforceConfiguration,readWorkforceConfiguration}=await import('../workforce/storage.js');
+    const db=getWorkforceDatabase();
+    const rowCount=async()=>Number((await db.prepare('SELECT COUNT(*) AS count FROM workforce_configuration WHERE organization_id = ?').get(org) as any).count);
+    const countBefore=await rowCount();
+    const terminologyRead=await request('GET',`/v1/platform/organizations/${org}/branch/default/terminology`);
+    assert.equal(terminologyRead.status,200);assert.equal(await rowCount(),countBefore,'display reads must not seed workforce records');
+    await saveWorkforceConfiguration(org,{expected_revision:(await readWorkforceConfiguration(org)).revision,terminology:{resource_group_member:{singular:'Technician',plural:'Technicians'}}});
+    assert.equal((await request('GET',`/v1/platform/organizations/${org}/branch/default/terminology`)).data.mappings.labels.workforce.worker_singular,'Technician');
+    const moduleUrl=`/v1/platform/organizations/${org}/branch/default/modules/variable_mappings`;
+    assert.equal((await request('PUT',moduleUrl,{data:{localized_labels:{'en-US':{projects:{project:'Job'}},'en-GB':{projects:{project:'Contract'}}}}})).status,200);
+    assert.equal((await request('PUT',moduleUrl,{data:{localized_labels:{'en-US':{projects:{project:{invalid:true}}}}}})).status,400);
+    const terms=(await request('GET',`/v1/platform/organizations/${org}/branch/default/terminology`)).data.mappings;
+    assert.equal(terms.localized_labels['en-US'].projects.project,'Job');assert.equal(terms.localized_labels['en-GB'].projects.project,'Contract');
+
     assert.equal((await request("GET","/v1/platform/me/localization")).data.context.locale,"en-US");
     assert.equal((await request("PATCH","/v1/platform/me/preferences",{interface_locale:"en-GB"})).status,403);
     await platform.saveGlobal(org,{data:{app_flags:{firstmeasure:{report_localization:true,metric_measurements:false}}}});
     await platform.upsertDocument(org,"branch",{id:"default",data:{localization:{locale:"en-GB",measurement_system:"metric"}}});
+    const defaultTranslation=(await request("GET","/v1/platform/me/preferences")).data.preferences;
+    assert.equal(defaultTranslation.language,null);assert.equal(defaultTranslation.translation_language,"en-GB");
     const company=(await request("GET","/v1/platform/me/localization")).data;
     assert.deepEqual(company.context,{locale:"en-GB",measurement_system:"metric"});
     const personal=await request("PATCH","/v1/platform/me/preferences",{interface_locale:"en-US",language:"es",auto_translate_messages:true});
@@ -36,10 +52,21 @@ test("company and personal language endpoints enforce rollout and preserve indep
     const inherited=await request("PATCH","/v1/platform/me/preferences",{interface_locale:null});
     assert.equal(inherited.data.preferences.language,"es");assert.equal(inherited.data.preferences.auto_translate_messages,true);
     assert.equal((await request("GET","/v1/platform/me/localization")).data.context.locale,"en-GB");
+    const reset=await request("PATCH","/v1/platform/me/preferences",{language:null,interface_locale:"en-US"});
+    assert.equal(reset.data.preferences.translation_language,"en-GB");
+    const english=await request("PATCH","/v1/platform/me/preferences",{language:"en-US"});
+    assert.equal(english.data.preferences.translation_language,"en-US");
+    const british=await request("PATCH","/v1/platform/me/preferences",{language:"en-GB"});
+    assert.equal(british.data.preferences.language,"en-GB");
+    assert.equal((await request("PATCH","/v1/platform/me/preferences",{language:"unknown"})).status,400);
+    await request("PATCH","/v1/platform/me/preferences",{language:null});
+    await platform.upsertDocument(org,"branch",{id:"default",data:{localization:{locale:"en-US",measurement_system:"metric"}}});
+    assert.equal((await request("GET","/v1/platform/me/preferences")).data.preferences.translation_language,"en-US");
+    await platform.upsertDocument(org,"branch",{id:"default",data:{localization:{locale:"en-GB",measurement_system:"metric"}}});
     const {companyDocumentLanguage}=await import("../platform/localization/documents.js");
     const snapshot=await companyDocumentLanguage(org);
     await platform.saveGlobal(org,{data:{app_flags:{firstmeasure:{report_localization:false}}}});
     assert.equal((await request("GET","/v1/platform/me/localization")).data.context.locale,"en-US");
     assert.equal(snapshot.locale,"en-GB");assert.ok(snapshot.catalog_versions["doc-widgets"]);
-  } finally { await app.close(); await (await import("../firstmeasure/project_index.js")).closeFirstMeasureProjectIndex(); }
+  } finally { await app.close(); await (await import("./helpers/platform-fixture.js")).closePlatformFixtureStores(); }
 });

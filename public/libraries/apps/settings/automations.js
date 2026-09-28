@@ -237,7 +237,7 @@
       local:true
     });
 
-    host.innerHTML = `<div class="au-root ${String(embedded ? 'embedded' : '')}"><div class="au-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_a54bc20fe42cea"," Loading your board…") ?? " Loading your board…")}</span></div></div>`;
+    host.innerHTML = `<div class="au-root ${String(embedded ? 'embedded' : '')}"><div class="au-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a54bc20fe42cea"," Loading your board…") ?? " Loading your board…")}</span></div></div>`;
     const rootEl = host.querySelector('.au-root');
 
     // Clamp the workspace to the visible viewport so the composer is always reachable.
@@ -256,12 +256,12 @@
       state.view = 'picker';
       state.template = null;
       state.pickerSection = options.section === 'trash' ? 'trash' : 'boards';
-      rootEl.innerHTML = `<div class="au-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_089ef20b3b1f8f"," Loading your boards…") ?? " Loading your boards…")}</span></div>`;
+      rootEl.innerHTML = `<div class="au-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_089ef20b3b1f8f"," Loading your boards…") ?? " Loading your boards…")}</span></div>`;
       try {
         const result = await api(`${templatesPath}?include_disabled=1&include_archived=1`);
         state.templates = array(result?.templates);
       } catch (error) {
-        rootEl.innerHTML = `<div class="au-error">${((v0) => globalThis.PlatformLanguage?.text("settings","m_48aa2f183e023c",`Could not load your boards. ${v0}`,{v0}) ?? `Could not load your boards. ${v0}`)(esc(error?.message || ''))}</div>`;
+        rootEl.innerHTML = `<div class="au-error">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_48aa2f183e023c",`Could not load your boards. ${v0}`,{v0}) ?? `Could not load your boards. ${v0}`)(esc(error?.message || ''))}</div>`;
         return;
       }
       renderPicker();
@@ -281,10 +281,10 @@
       }).join('');
       rootEl.innerHTML = `<div class="au-picker">
         <div class="au-picker-head">
-          <h3>${(globalThis.PlatformLanguage?.text("settings","m_a80fb97ae44094","Which projects do you want to automate?") ?? "Which projects do you want to automate?")}</h3>
-          <p>${(globalThis.PlatformLanguage?.text("settings","m_586326a4d33513","Pick a board below, then describe what should happen automatically — reminders, follow-ups, status changes, and more. The assistant sets it all up for you.") ?? "Pick a board below, then describe what should happen automatically — reminders, follow-ups, status changes, and more. The assistant sets it all up for you.")}</p>
+          <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_a80fb97ae44094","Which projects do you want to automate?") ?? "Which projects do you want to automate?")}</h3>
+          <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_586326a4d33513","Pick a board below, then describe what should happen automatically — reminders, follow-ups, status changes, and more. The assistant sets it all up for you.") ?? "Pick a board below, then describe what should happen automatically — reminders, follow-ups, status changes, and more. The assistant sets it all up for you.")}</p>
         </div>
-        ${String(cards ? `<div class="au-grid">${cards}</div>` : `<div class="au-empty-boards">No boards found yet. Create a scope template first, then come back here to automate it.</div>`)}
+        ${String(cards ? `<div class="au-grid">${cards}</div>` : `<div class="au-empty-boards">${(globalThis.PlatformLanguage?.htmlText("settings","m_f10f6937a95bb3","No boards found yet. Create a scope template first, then come back here to automate it.") ?? "No boards found yet. Create a scope template first, then come back here to automate it.")}</div>`)}
       </div>`;
       rootEl.querySelectorAll('[data-au-open]').forEach((button) => button.addEventListener('click', () => {
         const template = state.templates.find((item) => item.id === button.dataset.auOpen);
@@ -309,20 +309,20 @@
             <p>${String(esc(text(template.description, isTrash ? 'Stored safely in trash.' : 'Ready for automations.')))}</p>
             <span class="au-card-state ${String(template.enabled === false ? 'off' : '')}"><i class="fas fa-circle"></i>${String(isTrash ? 'In trash' : template.enabled === false ? 'Disabled' : 'Enabled')}</span>
           </button>
-          <button class="au-card-more" type="button" data-au-card-more="${String(esc(template.id))}" aria-label="${((v13) => globalThis.PlatformLanguage?.text("settings","m_57b1c3b97b7ce4",`Manage ${v13}`,{v13}) ?? `Manage ${v13}`)(esc(text(template.name, 'board')))}" aria-expanded="false"><i class="fas fa-ellipsis"></i></button>
+          <button class="au-card-more" type="button" data-au-card-more="${String(esc(template.id))}" aria-label="${((v13) => globalThis.PlatformLanguage?.htmlText("settings","m_57b1c3b97b7ce4",`Manage ${v13}`,{v13}) ?? `Manage ${v13}`)(esc(text(template.name, 'board')))}" aria-expanded="false"><i class="fas fa-ellipsis"></i></button>
         </div>`;
       }).join('');
       rootEl.innerHTML = `<div class="au-picker">
         <div class="au-picker-head">
-          <div><h3>${(globalThis.PlatformLanguage?.text("settings","m_117a3ed83e32b5","Boards &amp; automations") ?? "Boards &amp; automations")}</h3>
-          <p>${(globalThis.PlatformLanguage?.text("settings","m_e1cb0d8242a573","Create the stages yourself, then use the assistant to build the reminders, handoffs, updates, and follow-ups around them.") ?? "Create the stages yourself, then use the assistant to build the reminders, handoffs, updates, and follow-ups around them.")}</p></div>
-          <div class="au-picker-actions"><button class="au-primary" type="button" data-au-create><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_a838cb86d52e24"," New board") ?? " New board")}</button></div>
+          <div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_117a3ed83e32b5","Boards &amp; automations") ?? "Boards &amp; automations")}</h3>
+          <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_e1cb0d8242a573","Create the stages yourself, then use the assistant to build the reminders, handoffs, updates, and follow-ups around them.") ?? "Create the stages yourself, then use the assistant to build the reminders, handoffs, updates, and follow-ups around them.")}</p></div>
+          <div class="au-picker-actions"><button class="au-primary" type="button" data-au-create><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a838cb86d52e24"," New board") ?? " New board")}</button></div>
         </div>
-        <div class="au-board-tabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_11e5dd576234a1","Board status") ?? "Board status")}">
-          <button class="au-board-tab ${String(state.pickerSection === 'boards' ? 'active' : '')}" type="button" role="tab" aria-selected="${String(state.pickerSection === 'boards')}" data-au-section="boards">${(globalThis.PlatformLanguage?.text("settings","m_af2eeabbf2aaee","Boards ") ?? "Boards ")}<span>${String(live.length)}</span></button>
-          <button class="au-board-tab ${String(state.pickerSection === 'trash' ? 'active' : '')}" type="button" role="tab" aria-selected="${String(state.pickerSection === 'trash')}" data-au-section="trash">${(globalThis.PlatformLanguage?.text("settings","m_f13b900b5b5b5b","Trash ") ?? "Trash ")}<span>${String(trashed.length)}</span></button>
+        <div class="au-board-tabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_11e5dd576234a1","Board status") ?? "Board status")}">
+          <button class="au-board-tab ${String(state.pickerSection === 'boards' ? 'active' : '')}" type="button" role="tab" aria-selected="${String(state.pickerSection === 'boards')}" data-au-section="boards">${(globalThis.PlatformLanguage?.htmlText("settings","m_af2eeabbf2aaee","Boards ") ?? "Boards ")}<span>${String(live.length)}</span></button>
+          <button class="au-board-tab ${String(state.pickerSection === 'trash' ? 'active' : '')}" type="button" role="tab" aria-selected="${String(state.pickerSection === 'trash')}" data-au-section="trash">${(globalThis.PlatformLanguage?.htmlText("settings","m_f13b900b5b5b5b","Trash ") ?? "Trash ")}<span>${String(trashed.length)}</span></button>
         </div>
-        ${String(state.pickerSection === 'trash' ? '<div class="au-trash-note"><i class="fas fa-shield-halved"></i>&nbsp; Trashed boards are hidden from daily work but keep every version and all existing project history. Restore them at any time.</div>' : '')}
+        ${String(state.pickerSection === 'trash' ? `<div class="au-trash-note"><i class="fas fa-shield-halved"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a31fb14e70bd87","&nbsp; Trashed boards are hidden from daily work but keep every version and all existing project history. Restore them at any time.") ?? "&nbsp; Trashed boards are hidden from daily work but keep every version and all existing project history. Restore them at any time.")}</div>` : '')}
         ${String(cards ? `<div class="au-grid">${cards}</div>` : `<div class="au-empty-boards">${state.pickerSection === 'trash' ? 'Trash is empty.' : 'No boards yet. Create your first board to get started.'}</div>`)}
       </div>`;
       rootEl.querySelectorAll('[data-au-open]').forEach((button) => button.addEventListener('click', () => {
@@ -367,9 +367,9 @@
       menu.className = 'au-card-menu';
       menu.dataset.auCardMenu = '';
       menu.innerHTML = trashed
-        ? `<button type="button" data-au-state="restore"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.text("settings","m_27dd714b58dc0c"," Restore board") ?? " Restore board")}</button>`
+        ? `<button type="button" data-au-state="restore"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_27dd714b58dc0c"," Restore board") ?? " Restore board")}</button>`
         : `<button type="button" data-au-state="${String(template.enabled === false ? 'enable' : 'disable')}"><i class="fas ${String(template.enabled === false ? 'fa-toggle-on' : 'fa-toggle-off')}"></i> ${String(template.enabled === false ? 'Enable board' : 'Disable board')}</button>
-           <button class="trash" type="button" data-au-state="trash"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.text("settings","m_86f9abd667ae6d"," Move to trash") ?? " Move to trash")}</button>`;
+           <button class="trash" type="button" data-au-state="trash"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_86f9abd667ae6d"," Move to trash") ?? " Move to trash")}</button>`;
       shell.appendChild(menu);
       button.setAttribute('aria-expanded', 'true');
       menu.querySelectorAll('[data-au-state]').forEach((action) => action.addEventListener('click', () => changeBoardState(template, action.dataset.auState)));
@@ -428,46 +428,46 @@
       const draft = creatorDraft;
       const stagesMarkup = draft.stages.map((stage, index) => `<div class="au-stage-row" data-au-stage="${String(index)}">
         <span class="au-stage-number">${String(index + 1)}</span><span class="au-stage-dot" style="--stage-color:${String(esc(stage.color))}"></span>
-        <input class="au-stage-name" value="${String(esc(stage.name))}" aria-label="${((v4) => globalThis.PlatformLanguage?.text("settings","m_7f39a99ea61b85",`Stage ${v4} name`,{v4}) ?? `Stage ${v4} name`)(index + 1)}" data-au-stage-name="${String(index)}">
+        <input class="au-stage-name" value="${String(esc(stage.name))}" aria-label="${((v4) => globalThis.PlatformLanguage?.htmlText("settings","m_7f39a99ea61b85",`Stage ${v4} name`,{v4}) ?? `Stage ${v4} name`)(index + 1)}" data-au-stage-name="${String(index)}">
         <span class="au-stage-actions">
-          <button type="button" data-au-stage-up="${String(index)}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_6c229ba1747e68","Move stage up") ?? "Move stage up")}" ${String(index === 0 ? 'disabled' : '')}><i class="fas fa-arrow-up"></i></button>
-          <button type="button" data-au-stage-down="${String(index)}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_3cd5fc2837b252","Move stage down") ?? "Move stage down")}" ${String(index === draft.stages.length - 1 ? 'disabled' : '')}><i class="fas fa-arrow-down"></i></button>
-          <button class="remove" type="button" data-au-stage-remove="${String(index)}" aria-label="${(globalThis.PlatformLanguage?.text("settings","m_93d5fa01ae38ff","Remove stage") ?? "Remove stage")}" ${String(draft.stages.length <= 1 ? 'disabled' : '')}><i class="fas fa-xmark"></i></button>
+          <button type="button" data-au-stage-up="${String(index)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_6c229ba1747e68","Move stage up") ?? "Move stage up")}" ${String(index === 0 ? 'disabled' : '')}><i class="fas fa-arrow-up"></i></button>
+          <button type="button" data-au-stage-down="${String(index)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_3cd5fc2837b252","Move stage down") ?? "Move stage down")}" ${String(index === draft.stages.length - 1 ? 'disabled' : '')}><i class="fas fa-arrow-down"></i></button>
+          <button class="remove" type="button" data-au-stage-remove="${String(index)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_93d5fa01ae38ff","Remove stage") ?? "Remove stage")}" ${String(draft.stages.length <= 1 ? 'disabled' : '')}><i class="fas fa-xmark"></i></button>
         </span>
       </div>`).join('');
       rootEl.innerHTML = `<div class="au-creator">
-        <header class="au-creator-head"><button class="au-back" type="button" data-au-creator-back aria-label="${(globalThis.PlatformLanguage?.text("settings","m_ee4928655ff054","Back to boards") ?? "Back to boards")}"><i class="fas fa-arrow-left"></i></button><div><h3>${(globalThis.PlatformLanguage?.text("settings","m_ccbb6748922b13","Create a board") ?? "Create a board")}</h3><p>${(globalThis.PlatformLanguage?.text("settings","m_2a8565a786dbde","Lay out the board. The Automation Assistant will help you make it work.") ?? "Lay out the board. The Automation Assistant will help you make it work.")}</p></div></header>
+        <header class="au-creator-head"><button class="au-back" type="button" data-au-creator-back aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_ee4928655ff054","Back to boards") ?? "Back to boards")}"><i class="fas fa-arrow-left"></i></button><div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_ccbb6748922b13","Create a board") ?? "Create a board")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_2a8565a786dbde","Lay out the board. The Automation Assistant will help you make it work.") ?? "Lay out the board. The Automation Assistant will help you make it work.")}</p></div></header>
         <div class="au-creator-layout">
           <div class="au-form-card">
             <section class="au-form-section">
-              <div class="au-form-title"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_ef418a0cdbeca0","What kind of board is this?") ?? "What kind of board is this?")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_a955203eca4c27","This controls where the board is used.") ?? "This controls where the board is used.")}</span></div></div>
+              <div class="au-form-title"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_ef418a0cdbeca0","What kind of board is this?") ?? "What kind of board is this?")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_a955203eca4c27","This controls where the board is used.") ?? "This controls where the board is used.")}</span></div></div>
               <div class="au-kind-grid">
-                <button class="au-kind ${String(draft.kind === 'pipeline' ? 'selected' : '')}" type="button" data-au-kind="pipeline"><i class="fas fa-filter-circle-dollar"></i><span><strong>${(globalThis.PlatformLanguage?.text("settings","m_01fbc71cf58163","Sales pipeline") ?? "Sales pipeline")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_7ff5fc2759b397","For leads, appointments, proposals, and closing.") ?? "For leads, appointments, proposals, and closing.")}</span></span></button>
-                <button class="au-kind ${String(draft.kind === 'production' ? 'selected' : '')}" type="button" data-au-kind="production"><i class="fas fa-helmet-safety"></i><span><strong>${(globalThis.PlatformLanguage?.text("settings","m_c2e6380e130020","Production") ?? "Production")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_a8e65103609849","For sold work, scheduling, delivery, and completion.") ?? "For sold work, scheduling, delivery, and completion.")}</span></span></button>
+                <button class="au-kind ${String(draft.kind === 'pipeline' ? 'selected' : '')}" type="button" data-au-kind="pipeline"><i class="fas fa-filter-circle-dollar"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_01fbc71cf58163","Sales pipeline") ?? "Sales pipeline")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_7ff5fc2759b397","For leads, appointments, proposals, and closing.") ?? "For leads, appointments, proposals, and closing.")}</span></span></button>
+                <button class="au-kind ${String(draft.kind === 'production' ? 'selected' : '')}" type="button" data-au-kind="production"><i class="fas fa-helmet-safety"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_c2e6380e130020","Production") ?? "Production")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_a8e65103609849","For sold work, scheduling, delivery, and completion.") ?? "For sold work, scheduling, delivery, and completion.")}</span></span></button>
               </div>
             </section>
             <section class="au-form-section">
-              <div class="au-form-title"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_ebc1c692a2e78d","Name and purpose") ?? "Name and purpose")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_f4873ce50ff197","Use a name your team will recognize immediately.") ?? "Use a name your team will recognize immediately.")}</span></div></div>
+              <div class="au-form-title"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_ebc1c692a2e78d","Name and purpose") ?? "Name and purpose")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_f4873ce50ff197","Use a name your team will recognize immediately.") ?? "Use a name your team will recognize immediately.")}</span></div></div>
               <div class="au-fields">
-                <label class="au-field wide">${(globalThis.PlatformLanguage?.text("settings","m_15425354dbbc27","Board name") ?? "Board name")}<input type="text" maxlength="300" placeholder="${String(draft.kind === 'pipeline' ? 'Residential sales' : 'Roof replacement')}" value="${String(esc(draft.name))}" data-au-create-name></label>
-                <label class="au-field wide">${(globalThis.PlatformLanguage?.text("settings","m_931f0950e047a8","Short description") ?? "Short description")}<textarea maxlength="1000" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_5bfcd72bba1d59","What belongs on this board?") ?? "What belongs on this board?")}" data-au-create-description>${String(esc(draft.description))}</textarea></label>
+                <label class="au-field wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_15425354dbbc27","Board name") ?? "Board name")}<input type="text" maxlength="300" placeholder="${String(draft.kind === 'pipeline' ? 'Residential sales' : 'Roof replacement')}" value="${String(esc(draft.name))}" data-au-create-name></label>
+                <label class="au-field wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_931f0950e047a8","Short description") ?? "Short description")}<textarea maxlength="1000" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_5bfcd72bba1d59","What belongs on this board?") ?? "What belongs on this board?")}" data-au-create-description>${String(esc(draft.description))}</textarea></label>
               </div>
             </section>
             <section class="au-form-section">
-              <div class="au-form-title"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_3c6460c8cc6146","Color and icon") ?? "Color and icon")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_2080bffb3afded","Make the board easy to spot throughout FirstMate.") ?? "Make the board easy to spot throughout FirstMate.")}</span></div></div>
+              <div class="au-form-title"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_3c6460c8cc6146","Color and icon") ?? "Color and icon")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_2080bffb3afded","Make the board easy to spot throughout FirstMate.") ?? "Make the board easy to spot throughout FirstMate.")}</span></div></div>
               <div class="au-appearance">
-                <div class="au-color-wrap"><input class="au-color-input" type="color" value="${String(esc(draft.color))}" data-au-create-color aria-label="${(globalThis.PlatformLanguage?.text("settings","m_10eb04122d3284","Board color") ?? "Board color")}"></div>
+                <div class="au-color-wrap"><input class="au-color-input" type="color" value="${String(esc(draft.color))}" data-au-create-color aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_10eb04122d3284","Board color") ?? "Board color")}"></div>
                 <div class="au-icon-grid">${String(ICON_CHOICES.map((icon) => `<button class="au-icon-choice ${draft.icon === icon ? 'selected' : ''}" type="button" data-au-create-icon="${esc(icon)}" aria-label="${esc(icon)}"><i class="fas ${esc(icon)}"></i></button>`).join(''))}</div>
               </div>
             </section>
             <section class="au-form-section">
-              <div class="au-form-title"><div><strong>${(globalThis.PlatformLanguage?.text("settings","m_aac16f05678935","Stages") ?? "Stages")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_adbf2a9f16ad37","Put these in the order work should move from left to right.") ?? "Put these in the order work should move from left to right.")}</span></div></div>
+              <div class="au-form-title"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_aac16f05678935","Stages") ?? "Stages")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_adbf2a9f16ad37","Put these in the order work should move from left to right.") ?? "Put these in the order work should move from left to right.")}</span></div></div>
               <div class="au-stage-list">${String(stagesMarkup)}</div>
-              <button class="au-add-stage" type="button" data-au-add-stage><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("settings","m_012423874ebff7","&nbsp; Add stage") ?? "&nbsp; Add stage")}</button>
+              <button class="au-add-stage" type="button" data-au-add-stage><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_012423874ebff7","&nbsp; Add stage") ?? "&nbsp; Add stage")}</button>
             </section>
-            <div class="au-creator-actions"><span class="au-form-error" data-au-create-error></span><button class="au-secondary" type="button" data-au-creator-cancel>${(globalThis.PlatformLanguage?.text("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button class="au-primary" type="button" data-au-create-save ${String(draft.saving ? 'disabled' : '')}><i class="fas ${String(draft.saving ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles')}"></i> ${String(draft.saving ? 'Creating…' : 'Create & open assistant')}</button></div>
+            <div class="au-creator-actions"><span class="au-form-error" data-au-create-error></span><button class="au-secondary" type="button" data-au-creator-cancel>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button class="au-primary" type="button" data-au-create-save ${String(draft.saving ? 'disabled' : '')}><i class="fas ${String(draft.saving ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles')}"></i> ${String(draft.saving ? 'Creating…' : 'Create & open assistant')}</button></div>
           </div>
-          <aside class="au-preview-card"><span class="au-preview-label">${(globalThis.PlatformLanguage?.text("settings","m_5842fe531f8ba3","Live preview") ?? "Live preview")}</span><div data-au-preview>${String(creatorPreviewMarkup())}</div></aside>
+          <aside class="au-preview-card"><span class="au-preview-label">${(globalThis.PlatformLanguage?.htmlText("settings","m_5842fe531f8ba3","Live preview") ?? "Live preview")}</span><div data-au-preview>${String(creatorPreviewMarkup())}</div></aside>
         </div>
       </div>`;
       bindCreator();
@@ -475,7 +475,7 @@
 
     function creatorPreviewMarkup(){
       const draft = creatorDraft;
-      return `<div class="au-preview-board"><div class="au-preview-head"><span class="au-preview-icon" style="--board-color:${String(esc(draft.color))}"><i class="fas ${String(esc(draft.icon))}"></i></span><span class="au-preview-copy"><strong>${String(esc(text(draft.name, 'Untitled board')))}</strong><span>${((v3,v4,v5) => globalThis.PlatformLanguage?.text("settings","m_055dd44bd73037",`${v3} · ${v4} stage${v5}`,{v3,v4,v5}) ?? `${v3} · ${v4} stage${v5}`)(draft.kind === 'pipeline' ? 'Sales pipeline' : 'Production board',draft.stages.length,draft.stages.length === 1 ? '' : 's')}</span></span></div><div class="au-preview-stages">${String(draft.stages.map((stage, index) => `<div class="au-preview-stage" style="--stage-color:${esc(stage.color)}"><span><strong>${esc(text(stage.name, `Stage ${index + 1}`))}</strong><span>Stage ${index + 1}</span></span></div>`).join(''))}</div></div>`;
+      return `<div class="au-preview-board"><div class="au-preview-head"><span class="au-preview-icon" style="--board-color:${String(esc(draft.color))}"><i class="fas ${String(esc(draft.icon))}"></i></span><span class="au-preview-copy"><strong>${String(esc(text(draft.name, 'Untitled board')))}</strong><span>${((v3,v4,v5) => globalThis.PlatformLanguage?.htmlText("settings","m_055dd44bd73037",`${v3} · ${v4} stage${v5}`,{v3,v4,v5}) ?? `${v3} · ${v4} stage${v5}`)(draft.kind === 'pipeline' ? 'Sales pipeline' : 'Production board',draft.stages.length,draft.stages.length === 1 ? '' : 's')}</span></span></div><div class="au-preview-stages">${String(draft.stages.map((stage, index) => `<div class="au-preview-stage" style="--stage-color:${esc(stage.color)}"><span><strong>${esc(text(stage.name, `Stage ${index + 1}`))}</strong><span>${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_4d94ff9b7ef503",`Stage ${v2}`,{v2}) ?? `Stage ${v2}`)(index + 1)}</span></span></div>`).join(''))}</div></div>`;
     }
 
     function refreshCreatorPreview(){
@@ -617,7 +617,7 @@
       state.sending = false;
       state.mobileListOpen = false;
       renderWorkspace();
-      setListStatus(`<div class="au-loading" style="min-height:120px"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_b720d047a2de24"," Loading automations…") ?? " Loading automations…")}</span></div>`);
+      setListStatus(`<div class="au-loading" style="min-height:120px"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_b720d047a2de24"," Loading automations…") ?? " Loading automations…")}</span></div>`);
       try {
         const [inventory, threadList] = await Promise.all([
           api(`${templatesPath}/${encodeURIComponent(template.id)}/automation-inventory`),
@@ -634,7 +634,7 @@
           } catch (error) { /* keep the welcome bubble; thread will be recreated on demand */ state.threadId = ''; }
         }
       } catch (error) {
-        setListStatus(`<div class="au-error">${((v0) => globalThis.PlatformLanguage?.text("settings","m_a5403c4290c6bd",`Could not load automations. ${v0}`,{v0}) ?? `Could not load automations. ${v0}`)(esc(error?.message || ''))}</div>`);
+        setListStatus(`<div class="au-error">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_a5403c4290c6bd",`Could not load automations. ${v0}`,{v0}) ?? `Could not load automations. ${v0}`)(esc(error?.message || ''))}</div>`);
         toast((globalThis.PlatformLanguage?.text("settings","m_4d267c6ce90311","Load failed") ?? "Load failed"), error?.message || 'Could not load automations.', false);
         renderMessages();
         return;
@@ -671,25 +671,25 @@
       rootEl.innerHTML = `<div class="au-workspace">
         <div class="au-left">
           <div class="au-left-head">
-            ${String(embedded ? '' : '<button class="au-back" type="button" data-au-back title="All boards"><i class="fas fa-arrow-left"></i></button>')}
-            <button class="au-tile" type="button" data-au-tile style="--au-tile:${String(esc(state.template.color))}" title="${(globalThis.PlatformLanguage?.text("settings","m_df7d95e0d9f7d3","Board icon") ?? "Board icon")}"><i class="fas ${String(esc(state.template.icon))}"></i></button>
-            <div class="au-title-wrap"><span class="au-title" data-au-title title="${(globalThis.PlatformLanguage?.text("settings","m_2b10cfc47821fb","Click to rename") ?? "Click to rename")}">${String(esc(text(state.template.name, 'Untitled board')))}</span></div>
-            <label class="au-swatch" data-au-swatch style="--au-tile:${String(esc(state.template.color))}" title="${(globalThis.PlatformLanguage?.text("settings","m_10eb04122d3284","Board color") ?? "Board color")}"><input type="color" data-au-color value="${String(esc(/^#[0-9a-fA-F]{6}$/.test(state.template.color) ? state.template.color : '#667085'))}"></label>
-            <span class="au-manage" data-au-manage><button class="au-manage-btn" type="button" data-au-manage-btn aria-label="${(globalThis.PlatformLanguage?.text("settings","m_69ccb206476b9b","Manage board") ?? "Manage board")}" aria-expanded="false"><i class="fas fa-ellipsis-vertical"></i></button></span>
+            ${String(embedded ? '' : `<button class="au-back" type="button" data-au-back title="${(globalThis.PlatformLanguage?.htmlText("settings","m_b66bef8d909043","All boards") ?? "All boards")}"><i class="fas fa-arrow-left"></i></button>`)}
+            <button class="au-tile" type="button" data-au-tile style="--au-tile:${String(esc(state.template.color))}" title="${(globalThis.PlatformLanguage?.htmlText("settings","m_df7d95e0d9f7d3","Board icon") ?? "Board icon")}"><i class="fas ${String(esc(state.template.icon))}"></i></button>
+            <div class="au-title-wrap"><span class="au-title" data-au-title title="${(globalThis.PlatformLanguage?.htmlText("settings","m_2b10cfc47821fb","Click to rename") ?? "Click to rename")}">${String(esc(text(state.template.name, 'Untitled board')))}</span></div>
+            <label class="au-swatch" data-au-swatch style="--au-tile:${String(esc(state.template.color))}" title="${(globalThis.PlatformLanguage?.htmlText("settings","m_10eb04122d3284","Board color") ?? "Board color")}"><input type="color" data-au-color value="${String(esc(/^#[0-9a-fA-F]{6}$/.test(state.template.color) ? state.template.color : '#667085'))}"></label>
+            <span class="au-manage" data-au-manage><button class="au-manage-btn" type="button" data-au-manage-btn aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_69ccb206476b9b","Manage board") ?? "Manage board")}" aria-expanded="false"><i class="fas fa-ellipsis-vertical"></i></button></span>
           </div>
-          <button class="au-list-toggle" type="button" data-au-list-toggle><span data-au-list-count>${(globalThis.PlatformLanguage?.text("settings","m_e6e022972a7532","Automations") ?? "Automations")}</span><i class="fas fa-chevron-down"></i></button>
+          <button class="au-list-toggle" type="button" data-au-list-toggle><span data-au-list-count>${(globalThis.PlatformLanguage?.htmlText("settings","m_e6e022972a7532","Automations") ?? "Automations")}</span><i class="fas fa-chevron-down"></i></button>
           <div class="au-list" data-au-list></div>
         </div>
         <div class="au-right">
           <div class="au-chat-head">
-            <div class="au-chat-head-copy"><strong>${(globalThis.PlatformLanguage?.text("settings","m_0c1356b1264417","Automation assistant") ?? "Automation assistant")}</strong><span>${(globalThis.PlatformLanguage?.text("settings","m_86e45f3db5835c","Describe what should happen automatically — I'll set it up.") ?? "Describe what should happen automatically — I'll set it up.")}</span></div>
-            <button class="au-textbtn" type="button" data-au-program>Data & behavior</button><button class="au-textbtn" type="button" data-au-newthread>${(globalThis.PlatformLanguage?.text("settings","m_84e4d3109d655d","New conversation") ?? "New conversation")}</button>
+            <div class="au-chat-head-copy"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_0c1356b1264417","Automation assistant") ?? "Automation assistant")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_86e45f3db5835c","Describe what should happen automatically — I'll set it up.") ?? "Describe what should happen automatically — I'll set it up.")}</span></div>
+            <button class="au-textbtn" type="button" data-au-program>${(globalThis.PlatformLanguage?.htmlText("settings","m_f8e3874860785b","Data & behavior") ?? "Data & behavior")}</button><button class="au-textbtn" type="button" data-au-newthread>${(globalThis.PlatformLanguage?.htmlText("settings","m_84e4d3109d655d","New conversation") ?? "New conversation")}</button>
           </div>
           <div class="au-messages" data-au-messages></div>
           <div class="au-chips" data-au-chips></div>
           <div class="au-inputrow">
-            <textarea class="au-input" data-au-input rows="1" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_db6df9a421ff5f","Tell me what you'd like to happen automatically…") ?? "Tell me what you'd like to happen automatically…")}"></textarea>
-            <button class="au-send" type="button" data-au-send title="${(globalThis.PlatformLanguage?.text("settings","m_c23a056552a09f","Send") ?? "Send")}"><i class="fas fa-paper-plane"></i></button>
+            <textarea class="au-input" data-au-input rows="1" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_db6df9a421ff5f","Tell me what you'd like to happen automatically…") ?? "Tell me what you'd like to happen automatically…")}"></textarea>
+            <button class="au-send" type="button" data-au-send title="${(globalThis.PlatformLanguage?.htmlText("settings","m_c23a056552a09f","Send") ?? "Send")}"><i class="fas fa-paper-plane"></i></button>
           </div>
         </div>
       </div>`;
@@ -818,8 +818,8 @@
         <div class="au-iconpop-grid">${String(ICON_CHOICES.map((icon) => `<button class="au-iconpop-btn ${icon === state.template.icon ? 'selected' : ''}" type="button" data-au-icon="${esc(icon)}" title="${esc(icon)}"><i class="fas ${esc(icon)}"></i></button>`).join(''))}</div>
         <div class="au-iconpop-row">
           <span class="au-iconpop-preview" data-au-icon-preview style="--au-tile:${String(esc(state.template.color))}"><i class="fas ${String(esc(state.template.icon))}"></i></span>
-          <input class="au-iconpop-input" data-au-icon-input type="text" placeholder="${(globalThis.PlatformLanguage?.text("settings","m_c9a98c9c5a5d5e","fa-icon-name") ?? "fa-icon-name")}" value="${String(esc(state.template.icon))}" spellcheck="false">
-          <button class="au-iconpop-apply" type="button" data-au-icon-apply>${(globalThis.PlatformLanguage?.text("settings","m_fccaa3fc954540","Use") ?? "Use")}</button>
+          <input class="au-iconpop-input" data-au-icon-input type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_c9a98c9c5a5d5e","fa-icon-name") ?? "fa-icon-name")}" value="${String(esc(state.template.icon))}" spellcheck="false">
+          <button class="au-iconpop-apply" type="button" data-au-icon-apply>${(globalThis.PlatformLanguage?.htmlText("settings","m_fccaa3fc954540","Use") ?? "Use")}</button>
         </div>`;
       head.appendChild(pop);
       pop.querySelectorAll('[data-au-icon]').forEach((button) => button.addEventListener('click', () => commitIcon(button.dataset.auIcon)));
@@ -886,7 +886,7 @@
       if (count) count.textContent = ((v0) => globalThis.PlatformLanguage?.text("settings","m_368b6f485452b2",`Automations (${v0})`,{v0}) ?? `Automations (${v0})`)(state.entries.length + state.orgRules.length);
       if (!list) return;
       if (!state.entries.length && !state.orgRules.length) {
-        list.innerHTML = `<div class="au-list-empty">${(globalThis.PlatformLanguage?.text("settings","m_b4e18f4709bb92","No automations to show yet — ask below and I'll set them up.") ?? "No automations to show yet — ask below and I'll set them up.")}</div>`;
+        list.innerHTML = `<div class="au-list-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_b4e18f4709bb92","No automations to show yet — ask below and I'll set them up.") ?? "No automations to show yet — ask below and I'll set them up.")}</div>`;
         return;
       }
       const entryCard = (entry, subtitle) => {
@@ -897,10 +897,10 @@
           <span class="au-entry-add"><i class="fas ${referenced ? 'fa-check' : 'fa-plus'}"></i></span>
         </button>`;
       };
-      list.innerHTML = `<div class="au-list-note">${(globalThis.PlatformLanguage?.text("settings","m_8ebf6080278c9b","Click an automation to bring it into the conversation.") ?? "Click an automation to bring it into the conversation.")}</div>`
+      list.innerHTML = `<div class="au-list-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_8ebf6080278c9b","Click an automation to bring it into the conversation.") ?? "Click an automation to bring it into the conversation.")}</div>`
         + state.entries.map((entry) => entryCard(entry, text(entry.node_title, entry.node_id))).join('')
         + (state.orgRules.length
-          ? `<div class="au-list-section">${(globalThis.PlatformLanguage?.text("settings","m_ddc2f8aa948cec","Across all boards") ?? "Across all boards")}</div>` + state.orgRules.map((rule) => entryCard(rule, 'Every board')).join('')
+          ? `<div class="au-list-section">${(globalThis.PlatformLanguage?.htmlText("settings","m_ddc2f8aa948cec","Across all boards") ?? "Across all boards")}</div>` + state.orgRules.map((rule) => entryCard(rule, 'Every board')).join('')
           : '');
       list.querySelectorAll('[data-au-entry]').forEach((button) => button.addEventListener('click', () => toggleReference(button.dataset.auEntry)));
     }
@@ -932,8 +932,8 @@
         return `<div class="au-msg user"><div class="au-bubble">${esc(message.content)}</div></div>`;
       }
       return `<div class="au-msg assistant">
-        <div class="au-bubble ${failed ? 'failed' : ''}">${esc(message.content)}${failed && reverted.length ? `<div class="au-rollback"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.text("settings","m_c63e6b7013bb4e"," Changes were rolled back.") ?? " Changes were rolled back.")}</div>` : ''}</div>
-        ${changes.length ? `<div class="au-changes"><span><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.text("settings","m_82153cf924cbde"," What changed") ?? " What changed")}</span><ul>${String(changes.map((item) => `<li>${esc(item)}</li>`).join(''))}</ul></div>` : ''}
+        <div class="au-bubble ${failed ? 'failed' : ''}">${esc(message.content)}${failed && reverted.length ? `<div class="au-rollback"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_c63e6b7013bb4e"," Changes were rolled back.") ?? " Changes were rolled back.")}</div>` : ''}</div>
+        ${changes.length ? `<div class="au-changes"><span><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_82153cf924cbde"," What changed") ?? " What changed")}</span><ul>${String(changes.map((item) => `<li>${esc(item)}</li>`).join(''))}</ul></div>` : ''}
       </div>`;
     }
 
@@ -941,7 +941,7 @@
       const wrap = rootEl.querySelector('[data-au-messages]');
       if (!wrap) return;
       wrap.innerHTML = state.messages.map(messageHtml).join('')
-        + (state.sending ? `<div class="au-msg assistant" data-au-pending><div class="au-bubble">${(globalThis.PlatformLanguage?.text("settings","m_3656f3ab22ece8","Working on it… ") ?? "Working on it… ")}<span class="au-dots"><i></i><i></i><i></i></span></div></div>` : '');
+        + (state.sending ? `<div class="au-msg assistant" data-au-pending><div class="au-bubble">${(globalThis.PlatformLanguage?.htmlText("settings","m_3656f3ab22ece8","Working on it… ") ?? "Working on it… ")}<span class="au-dots"><i></i><i></i><i></i></span></div></div>` : '');
       wrap.scrollTop = wrap.scrollHeight;
     }
 
@@ -1057,7 +1057,7 @@
       }
       if (view === 'board' && templateId) {
         if (state.view === 'workspace' && state.template?.id === templateId) return;
-        rootEl.innerHTML = `<div class="au-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.text("settings","m_a0a7dba8320cb6"," Loading board…") ?? " Loading board…")}</span></div>`;
+        rootEl.innerHTML = `<div class="au-loading"><span><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a0a7dba8320cb6"," Loading board…") ?? " Loading board…")}</span></div>`;
         try {
           const result = await api(`${templatesPath}/${encodeURIComponent(templateId)}`);
           await openWorkspace(object(result?.template));
@@ -1074,7 +1074,7 @@
     if (embedded) {
       api(`${templatesPath}/${encodeURIComponent(embeddedTemplateId)}`)
         .then((result) => openWorkspace(object(result?.template)))
-        .catch((error) => { rootEl.innerHTML = `<div class="au-error">${((v0) => globalThis.PlatformLanguage?.text("settings","m_22945e8644356b",`Could not load this scope's automations. ${v0}`,{v0}) ?? `Could not load this scope's automations. ${v0}`)(esc(error?.message || ''))}</div>`; });
+        .catch((error) => { rootEl.innerHTML = `<div class="au-error">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_22945e8644356b",`Could not load this scope's automations. ${v0}`,{v0}) ?? `Could not load this scope's automations. ${v0}`)(esc(error?.message || ''))}</div>`; });
     } else {
       root.Portal?.navigation?.registerHandler?.(`automation-assistant-boards-${orgId}-${branchId}`, {
         priority:1250,

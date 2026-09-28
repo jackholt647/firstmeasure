@@ -212,6 +212,13 @@ session_write_close();
       .sidebar.sidebar-compact.sidebar-compact-edge-held .sidebar-compact-toggle i,
       .sidebar.sidebar-compact.sidebar-compact-expanded .sidebar-compact-toggle i{transform:rotate(180deg)}
       .sidebar-compact-toggle:hover{color:var(--primary-readable,var(--primary,#d93025))}
+      .sidebar-resize-edge{display:none}
+      .sidebar.sidebar-resize-enabled .sidebar-resize-edge{display:block;position:absolute;top:0;bottom:0;right:-4px;width:8px;z-index:3;cursor:ew-resize;touch-action:none}
+      .sidebar-resize-edge::before{content:'';position:absolute;top:0;bottom:0;right:3px;width:1px;background:var(--border);pointer-events:none;transition:width .16s ease,right .16s ease,background-color .16s ease}
+      .sidebar-resize-edge:hover::before,.sidebar.sidebar-resizing .sidebar-resize-edge::before{right:1px;width:4px;background:var(--primary-readable,var(--primary,#d93025))}
+      .sidebar.sidebar-resize-enabled .sidebar-compact-toggle{touch-action:none}
+      .sidebar.sidebar-resizing{transition:none!important}
+      .sidebar.sidebar-resizing .sidebar-compact-toggle{cursor:ew-resize}
 
       .sidebar.sidebar-compact .logo-area{position:relative}
       .sidebar.sidebar-compact .logo-area>.firstmate-color-logo,
@@ -287,7 +294,8 @@ session_write_close();
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .sidebar-mode-tabs{visibility:hidden;opacity:0;pointer-events:none}
 
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarTodoPanel,
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarChannelsPanel{visibility:hidden;pointer-events:none}
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarChannelsPanel,
+      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarAgentsPanel{visibility:hidden;pointer-events:none}
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarLinks,
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarMainLinks,
       .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarBottomLinks{padding:0;margin-left:0;margin-right:0;gap:2px}
@@ -315,6 +323,7 @@ session_write_close();
     }
 
     @media (prefers-reduced-motion:reduce){
+      .sidebar-resize-edge::before,
       .sidebar,.sidebar-compact-toggle i,
       .sidebar.sidebar-compact .logo-area>*,
       .sidebar.sidebar-compact .sidebar-scroll,
@@ -417,7 +426,7 @@ session_write_close();
     .sidebar-mode-tabs{
       display:none;
       grid-auto-flow:column;
-      grid-auto-columns:1fr;
+      grid-auto-columns:minmax(0,1fr);
       gap:0;
       padding:0;
       border:1px solid rgba(0,0,0,0.07);
@@ -434,6 +443,7 @@ session_write_close();
     .sidebar:not(.apps-list-enabled) #sidebarAppsTab{display:none}
     .sidebar:not(.todo-list-enabled) #sidebarTodoTab{display:none}
     .sidebar:not(.channels-tab-enabled) #sidebarChannelsTab{display:none}
+    .sidebar:not(.agents-tab-enabled) #sidebarAgentsTab{display:none}
 
     .sidebar-mode-tab{
       border:0;
@@ -540,6 +550,9 @@ session_write_close();
       flex:1;
       min-width:0;
     }
+
+    #sidebarAgentsPanel.active{gap:8px}
+    #sidebarAgentsList{display:flex;flex:1 1 auto;min-height:0;overflow:hidden;margin:0 -6px}
 
     #sidebarBottomLinks{
       display:flex;
@@ -1205,6 +1218,7 @@ session_write_close();
       userOrgId: <?= json_encode($userOrgId) ?>,
       userId: <?= json_encode((string)($_SESSION['platform_user_id'] ?? '')) ?>,
       userBranchId: <?= json_encode($userBranchId) ?>,
+      apnsEnvironment: <?= json_encode(strtolower((string)getenv('FIRSTMATE_ENV')) === 'production' ? 'production' : 'sandbox') ?>,
       platformExpandedAssets: <?= $platformExpandedAssets ? 'true' : 'false' ?>,
       platformSessionCookieName: <?= json_encode(portalPlatformSessionCookieName()) ?>,
       showTutorial: <?= $showTutorial ? 'true' : 'false' ?>,
@@ -2006,6 +2020,7 @@ session_write_close();
         <button type="button" class="sidebar-mode-tab active" id="sidebarAppsTab" role="tab" aria-selected="true" aria-controls="sidebarAppsPanel">Apps</button>
         <button type="button" class="sidebar-mode-tab" id="sidebarTodoTab" role="tab" aria-selected="false" aria-controls="sidebarTodoPanel">To Do</button>
         <button type="button" class="sidebar-mode-tab" id="sidebarChannelsTab" role="tab" aria-selected="false" aria-controls="sidebarChannelsPanel">Channels</button>
+        <button type="button" class="sidebar-mode-tab" id="sidebarAgentsTab" role="tab" aria-selected="false" aria-controls="sidebarAgentsPanel">AI</button>
       </div>
 
       <div class="sidebar-panel active" id="sidebarAppsPanel" role="tabpanel" aria-labelledby="sidebarAppsTab">
@@ -2020,6 +2035,9 @@ session_write_close();
 
       <div class="sidebar-panel" id="sidebarChannelsPanel" role="tabpanel" aria-labelledby="sidebarChannelsTab" hidden>
         <div id="sidebarChannelsList"></div>
+      </div>
+      <div class="sidebar-panel" id="sidebarAgentsPanel" role="tabpanel" aria-labelledby="sidebarAgentsTab" hidden>
+        <div id="sidebarAgentsList"></div>
       </div>
 
       <!-- Attention banner sidebar surface. Rendered by PlatformBanners; must
@@ -2040,6 +2058,7 @@ session_write_close();
         </button>
       </div>
     </div>
+    <div class="sidebar-resize-edge" id="sidebarResizeEdge" role="separator" aria-label="Resize left column" aria-orientation="vertical"></div>
     <button type="button" class="sidebar-compact-toggle" id="sidebarCompactToggle" aria-label="Keep sidebar expanded" aria-pressed="false" title="Keep sidebar expanded"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
   </aside>
 
@@ -2123,6 +2142,7 @@ session_write_close();
   <script src="../libraries/canvassing-api/canvassing-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-celebrations/platform-celebrations.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-notifications/platform-notifications.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/platform-notifications/platform-push.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-banners/platform-banners.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-action-items/platform-action-items.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-tags/platform-tags.js?v=<?= $ver ?>"></script>
@@ -2133,6 +2153,7 @@ session_write_close();
   <script src="../libraries/platform-scheduling/platform-scheduling.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-language/platform-language.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-terminology/platform-terminology.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/platform-terminology/editor.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-schedule-view/platform-schedule-view.js?v=<?= $ver ?>"></script>
   <script src="../libraries/firstmeasure-api/firstmeasure-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/statsig/firstmate-statsig.js?v=<?= $ver ?>"></script>
@@ -2161,11 +2182,23 @@ session_write_close();
   <?php endif; ?>
   <script src="../libraries/apps/firstmate-apps-manifest.js?v=<?= $ver ?>"></script>
   <script src="../libraries/report-units.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/platform-commerce/platform-commerce.js?v=<?= $ver ?>"></script>
   <script src="scripts/core.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/payments-setup/payments-setup.js?v=<?= $ver ?>"></script>
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/app-runtime/firstmate-external-apps.js?v=<?= $ver ?>"></script>
   <?php endif; ?>
-  <?php if ($platformExpandedAssets) { require_once dirname(__DIR__, 2) . '/external-apps/registry.php'; fm_external_render(); } ?>
+  <?php
+    if ($platformExpandedAssets) {
+      $externalAppsRegistry = dirname(__DIR__, 2) . '/external-apps/registry.php';
+      if (is_file($externalAppsRegistry)) {
+        require_once $externalAppsRegistry;
+        fm_external_render();
+      } else {
+        error_log('FirstMate external app registry is missing; continuing portal render without external apps.');
+      }
+    }
+  ?>
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/app-setup-workflows/app-setup-workflows.js?v=<?= $ver ?>"></script>
   <?php endif; ?>
@@ -2254,6 +2287,7 @@ session_write_close();
 <script src="../libraries/phone-features/app-download.js?v=<?= $ver ?>"></script>
 <script src="../libraries/apps/settings/firstmeasure-users.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/settings/platform-billing.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/brand-kit/brand-kit.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/settings/company.js?v=<?= $ver ?>"></script>
   <script src="scripts/dev_overlay.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/promo-inject/app.js?v=<?= $ver ?>"></script>

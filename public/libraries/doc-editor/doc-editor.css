@@ -1,12 +1,12 @@
 /* FirstMate Doc Editor chrome (doc-editor.css)
  * Companion stylesheet for firstmate-doc-editor.js. All classes fmde-*.
  * Visual language follows customer_portal: neutral grays, subtle borders,
- * primary accent from --fm-primary (fallback #2563EB).
+ * primary accent from company branding.
  */
 
 .fmde-root {
-  --fmde-accent: var(--fm-primary, #2563eb);
-  --fmde-accent-soft: rgba(37, 99, 235, 0.1);
+  --fmde-accent: var(--primary, #d93025);
+  --fmde-accent-soft: color-mix(in srgb, var(--fmde-accent) 10%, transparent);
   --fmde-bg: #f4f6f8;
   --fmde-panel: #ffffff;
   --fmde-border: rgba(17, 24, 39, 0.12);
@@ -307,7 +307,7 @@
   position: absolute;
   display: none;
   border: calc(1 * var(--fmde-px, 1px)) solid var(--fmde-accent);
-  background: rgba(37, 99, 235, 0.08);
+  background: color-mix(in srgb, var(--fmde-accent) 8%, transparent);
   pointer-events: none;
 }
 .fmde-marquee.show { display: block; }
@@ -316,12 +316,12 @@
   position: absolute;
   pointer-events: auto;
   cursor: text;
-  border: calc(1.5 * var(--fmde-px, 1px)) dashed rgba(37, 99, 235, 0.55);
+  border: calc(1.5 * var(--fmde-px, 1px)) dashed color-mix(in srgb, var(--fmde-accent) 55%, transparent);
   border-radius: calc(3 * var(--fmde-px, 1px));
-  background: rgba(37, 99, 235, 0.04);
+  background: color-mix(in srgb, var(--fmde-accent) 4%, transparent);
   transition: background-color 0.12s ease;
 }
-.fmde-hotspot:hover { background: rgba(37, 99, 235, 0.1); }
+.fmde-hotspot:hover { background: color-mix(in srgb, var(--fmde-accent) 10%, transparent); }
 
 /* ---------- in-place text editing ---------- */
 
@@ -448,10 +448,10 @@
 }
 .fmde-menu-item:hover:not(.disabled) { background: rgba(17, 24, 39, 0.06); }
 .fmde-menu-item.disabled { opacity: 0.45; cursor: default; }
-.fmde-menu-item.checked { color: var(--fm-primary, #2563eb); font-weight: 700; }
+.fmde-menu-item.checked { color: var(--fmde-accent, var(--primary, #d93025)); font-weight: 700; }
 .fmde-menu-ic { display: inline-flex; color: #6b7280; }
 .fmde-menu-label { flex: 1 1 auto; }
-.fmde-menu-check { display: inline-flex; color: var(--fm-primary, #2563eb); }
+.fmde-menu-check { display: inline-flex; color: var(--fmde-accent, var(--primary, #d93025)); }
 .fmde-menu-sep { height: 1px; margin: 5px 4px; background: rgba(17, 24, 39, 0.08); }
 
 /* ---------- left rail: pages ---------- */
@@ -928,8 +928,8 @@
 .fmde-chaintint {
   position: absolute;
   pointer-events: none;
-  background: rgba(37, 99, 235, 0.035);
-  border: calc(1 * var(--fmde-px, 1px)) dashed rgba(37, 99, 235, 0.35);
+  background: color-mix(in srgb, var(--fmde-accent) 3.5%, transparent);
+  border: calc(1 * var(--fmde-px, 1px)) dashed color-mix(in srgb, var(--fmde-accent) 35%, transparent);
 }
 .fmde-chainchip {
   position: absolute;
@@ -953,7 +953,7 @@
   transform: translateY(-100%);
   padding: calc(2 * var(--fmde-px, 1px)) calc(7 * var(--fmde-px, 1px));
   border-radius: calc(5 * var(--fmde-px, 1px)) calc(5 * var(--fmde-px, 1px)) 0 0;
-  background: #7c3aed;
+  background: var(--fmde-accent);
   color: #fff;
   font-size: calc(8.5 * var(--fmde-px, 1px));
   font-weight: 700;
@@ -1052,7 +1052,7 @@
 }
 .fmde-mode-doc .fmde-outline-toggle { display: grid; }
 .fmde-mode-doc .fmde-outline-toggle.active { display: none; }
-.fmde-outline-toggle:hover { background: var(--fmde-accent-soft, #e8f0fe); color: var(--fmde-accent, #2563eb); border-color: color-mix(in srgb, var(--fmde-accent, #2563eb) 38%, #dadce0); }
+.fmde-outline-toggle:hover { background: var(--fmde-accent-soft, #e8f0fe); color: var(--fmde-accent, #d93025); border-color: color-mix(in srgb, var(--fmde-accent, #d93025) 38%, #dadce0); }
 .fmde-outline-toggle svg { width: 15px; height: 15px; }
 
 .fmde-page-color-row { display: flex; align-items: flex-end; justify-content: flex-start; gap: 18px; margin-top: 12px; }

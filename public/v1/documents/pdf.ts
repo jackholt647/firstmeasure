@@ -54,6 +54,7 @@ export async function renderDocumentPdf(input: {
   html: string;
   paper: PaperDimensions;
   title?: string;
+  strict?: boolean;
 }) {
   const paper = input.paper ?? ({} as PaperDimensions);
   // Guard against callers passing a settings-style { size: "letter" } object:
@@ -71,6 +72,10 @@ export async function renderDocumentPdf(input: {
     const page = await browser.newPage({
       viewport: { width: Math.round(widthIn * 96), height: Math.round(heightIn * 96) },
       deviceScaleFactor: 1
+    });
+    if (input.strict) await page.route("**/*", route => {
+      const url = route.request().url();
+      return /^(data:|blob:|about:)/.test(url) ? route.continue() : route.abort();
     });
     await page.emulateMedia({ media: "print" });
     await page.setContent(input.html, { waitUntil: "domcontentloaded" });
@@ -90,8 +95,27 @@ export async function renderDocumentPdf(input: {
       () => (window as Window & { __fmdocReady?: boolean }).__fmdocReady === true,
       undefined,
       { timeout: 20_000 }
-    ).catch(() => null);
+    ).catch(error => { if (input.strict) throw error; });
+    if (input.strict) {
+      const failure = await page.evaluate(() => {
+        const state = window as Window & { __fmdocError?: string };
+        if (state.__fmdocError) return state.__fmdocError;
+        if (!document.querySelector(".fmdoc-page")) return "No document pages rendered.";
+        if (Array.from(document.images).some(image => !image.complete || !image.naturalWidth)) return "An incorporated image could not be retained.";
+        return "";
+      });
+      if (failure) throw new Error(`Signing document render failed: ${failure}`);
+    }
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => null);
+    const signaturePlacements = await page.evaluate(({ widthPt, heightPt }) => {
+      return Array.from(document.querySelectorAll('.fmdoc-page')).flatMap((page, pageIndex) => {
+        const bounds = page.getBoundingClientRect();
+        return Array.from(page.querySelectorAll<HTMLElement>('[data-signature-field]')).map(element => {
+          const box = (element.querySelector('.fmdoc-signature-line') || element).getBoundingClientRect();
+          return { field: element.dataset.signatureField || '', page: pageIndex, x: (box.left - bounds.left) * widthPt / bounds.width, y: (box.top - bounds.top) * heightPt / bounds.height, width: box.width * widthPt / bounds.width, height: box.height * heightPt / bounds.height };
+        });
+      });
+    }, { widthPt, heightPt });
     const pdf = await page.pdf({
       printBackground: true,
       width: `${widthIn}in`,
@@ -103,7 +127,8 @@ export async function renderDocumentPdf(input: {
     return {
       bytes: Buffer.from(pdf),
       fileName: pdfFileName(input.title),
-      pageCount: renderedPageCount || 1
+      pageCount: renderedPageCount || 1,
+      signaturePlacements
     };
   } finally {
     await browser.close();

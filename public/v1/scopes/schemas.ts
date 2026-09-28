@@ -134,7 +134,7 @@ export const scopeCustomFieldDefinitionSchema = jsonObjectSchema.extend({
   label: z.string().trim().min(1).max(300),
   description: z.string().max(4_000).optional(),
   type: z.enum([
-    "text", "multiline", "email", "phone", "url", "number", "currency", "percentage", "slider",
+    "text", "multiline", "email", "phone", "url", "number", "integer", "array", "object", "currency", "percentage", "slider",
     "date", "datetime", "boolean", "toggle", "select", "radio", "multiselect", "tags", "list",
     "key_value", "json", "formula", "organization_user", "resource_group", "organization_connection",
     "assignable_subject"
@@ -291,6 +291,7 @@ export const scopeChecklistDefinitionSchema = jsonObjectSchema.extend({
 export const scopeTemplateKindSchema = z.enum(["pipeline", "production"]);
 
 export const scopeTemplateDefinitionSchema = jsonObjectSchema.extend({
+  notifications: z.array(z.object({id:z.string().trim().min(1).max(180),label:z.string().trim().min(1).max(180),description:z.string().max(1000).optional(),defaults:z.object({in_app:z.boolean().default(true),push:z.boolean().default(false)}).optional()})).max(500).refine(items=>new Set(items.map(i=>i.id)).size===items.length,"Notification IDs must be unique").optional(),
   schema_version: z.number().int().positive().optional(),
   id: scopeDefinitionIdSchema,
   kind: scopeTemplateKindSchema.optional(),

@@ -205,8 +205,8 @@ export function punchConfigOf(checklist: unknown, orgDefaults: unknown = {}) {
 // ---------------------------------------------------------------------------
 
 /**
- * Punch sign-offs use the shared portal signature primitive — the same artifact
- * a completion sign-off and a document signature produce. Re-exported here so
+ * Punch sign-offs use the legacy portal acknowledgment primitive, not the
+ * document contract-execution protocol. Re-exported here so
  * punch callers have one import, but there is only one implementation.
  */
 export { normalizePortalSignature as normalizePunchSignature } from "../platform/portal_signatures.js";

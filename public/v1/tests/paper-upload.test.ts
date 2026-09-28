@@ -162,6 +162,7 @@ test("template-driven paper upload: declared fields, review edits, confirm fires
     }
   });
   const confirmed = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/confirm-upload`, {
+    attest_original_signatures: true,
     outputs: {
       sig_customer: { type: "wet_ink", signer_name: "Paula Paper", text: "Paula Paper", signed_at: "2026-07-28" }
     }
@@ -169,7 +170,8 @@ test("template-driven paper upload: declared fields, review edits, confirm fires
   assert.equal(confirmed.document.status, "completed", "confirmed signature completes the contract (no payment gate)");
   assert.equal(confirmed.document.params.shingle_selection, "Duration Storm — Onyx Black");
   assert.ok(confirmed.document.metadata.upload_review.confirmed_at, "review sign-off recorded");
-  assert.equal(confirmed.document.outputs.sig_customer.evidence.capture_mode, "imported");
+  assert.equal(confirmed.document.outputs.sig_customer.source, "reviewed_paper_upload");
+  assert.ok(confirmed.document.outputs.sig_customer.receipt_id);
 
   const events = await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${documentId}/events`);
   const types = events.events.map((event: any) => event.type);

@@ -202,7 +202,7 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
   app.get("/organizations/:orgId/preferences", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await auth(request, orgId);
-    return { ok: true, preferences: service.translationPreferences(ctx) };
+    return { ok: true, preferences: await service.translationPreferences(ctx) };
   });
 
   app.post("/organizations/:orgId/channels/:channelId/messages", async (request, reply) => {

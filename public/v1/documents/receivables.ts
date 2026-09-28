@@ -140,6 +140,8 @@ export async function ensureReceivablesForSignedDocument(
     basisTotalCents = 0;
   }
   if (!basisTotalCents) basisTotalCents = centsNumber(params.amount_cents);
+  const signingPackage = await (await import("./signing/store.js")).packageForSnapshot(orgId, snapshotId || cleanText(asObject(document.delivery).current_snapshot_id));
+  if (signingPackage?.status === "completed" && Number.isFinite(Number(signingPackage.content.contract_basis_cents))) basisTotalCents = Math.max(0, Math.round(Number(signingPackage.content.contract_basis_cents)));
 
   let rows = normalizeScheduleRows(params.payment_schedule);
   if (!rows.length) {

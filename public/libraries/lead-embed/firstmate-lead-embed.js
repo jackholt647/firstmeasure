@@ -218,46 +218,46 @@
           <div class="fmle-est-brand">${String(logo)}</div>
           <h3>${String(esc(copy.headline || 'Get a free instant estimate'))}</h3>
           <p>${String(esc(copy.subheadline || 'Answer a few questions and preview your project range.'))}</p>
-          <label>${(globalThis.PlatformLanguage?.text("lead-embed","m_908c0715a481b7","Property address") ?? "Property address")}<input name="address" autocomplete="street-address" placeholder="${(globalThis.PlatformLanguage?.text("lead-embed","m_7e153d0ffd17b7","123 Main Street, City, State") ?? "123 Main Street, City, State")}" required></label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_908c0715a481b7","Property address") ?? "Property address")}<input name="address" autocomplete="street-address" placeholder="${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_7e153d0ffd17b7","123 Main Street, City, State") ?? "123 Main Street, City, State")}" required></label>
           <input type="hidden" name="latitude">
           <input type="hidden" name="longitude">
           <input type="hidden" name="pitch_category">
         </section>
         <section class="fmle-est-page" data-est-page>
-          <h4>${(globalThis.PlatformLanguage?.text("lead-embed","m_41e2a93d86cd1e","We found your property") ?? "We found your property")}</h4>
-          <p>${(globalThis.PlatformLanguage?.text("lead-embed","m_c0a110c7bdceb2","Confirm that the highlighted roof matches the property you entered.") ?? "Confirm that the highlighted roof matches the property you entered.")}</p>
-          <div class="fmle-address-actions"><button type="button" data-est-preview>${(globalThis.PlatformLanguage?.text("lead-embed","m_9b8dd3c7134242","Refresh rooftop view") ?? "Refresh rooftop view")}</button></div>
-          <div class="fmle-solar-preview" data-est-preview-panel><span>${(globalThis.PlatformLanguage?.text("lead-embed","m_5f6384d8b28ddb","Loading your rooftop view…") ?? "Loading your rooftop view…")}</span></div>
+          <h4>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_41e2a93d86cd1e","We found your property") ?? "We found your property")}</h4>
+          <p>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_c0a110c7bdceb2","Confirm that the highlighted roof matches the property you entered.") ?? "Confirm that the highlighted roof matches the property you entered.")}</p>
+          <div class="fmle-address-actions"><button type="button" data-est-preview>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_9b8dd3c7134242","Refresh rooftop view") ?? "Refresh rooftop view")}</button></div>
+          <div class="fmle-solar-preview" data-est-preview-panel><span>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_5f6384d8b28ddb","Loading your rooftop view…") ?? "Loading your rooftop view…")}</span></div>
         </section>
         <section class="fmle-est-page" data-est-page>
-          <h4>${(globalThis.PlatformLanguage?.text("lead-embed","m_76c2977c6e9f38","Your roof measurements") ?? "Your roof measurements")}</h4>
-          <p>${(globalThis.PlatformLanguage?.text("lead-embed","m_59852cfa8da198","We automatically measured the roof and accounted for its predominant steepness.") ?? "We automatically measured the roof and accounted for its predominant steepness.")}</p>
+          <h4>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_76c2977c6e9f38","Your roof measurements") ?? "Your roof measurements")}</h4>
+          <p>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_59852cfa8da198","We automatically measured the roof and accounted for its predominant steepness.") ?? "We automatically measured the roof and accounted for its predominant steepness.")}</p>
           <div class="fmle-measurements">
-            <div class="fmle-measurement"><small>${(globalThis.PlatformLanguage?.text("lead-embed","m_b4a198f9d6044c","Roof area") ?? "Roof area")}</small><strong data-measure-area>${(globalThis.PlatformLanguage?.text("lead-embed","m_5bd1260605878f","Calculating…") ?? "Calculating…")}</strong></div>
-            <div class="fmle-measurement"><small>${(globalThis.PlatformLanguage?.text("lead-embed","m_a5c78b0e90b7f7","Steepness") ?? "Steepness")}</small><strong data-measure-pitch>${(globalThis.PlatformLanguage?.text("lead-embed","m_5bd1260605878f","Calculating…") ?? "Calculating…")}</strong></div>
-            <div class="fmle-measurement"><small>${(globalThis.PlatformLanguage?.text("lead-embed","m_3a04b41c5dbadb","Flat roof") ?? "Flat roof")}</small><strong data-measure-flat>${(globalThis.PlatformLanguage?.text("lead-embed","m_5bd1260605878f","Calculating…") ?? "Calculating…")}</strong></div>
+            <div class="fmle-measurement"><small>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_b4a198f9d6044c","Roof area") ?? "Roof area")}</small><strong data-measure-area>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_5bd1260605878f","Calculating…") ?? "Calculating…")}</strong></div>
+            <div class="fmle-measurement"><small>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_a5c78b0e90b7f7","Steepness") ?? "Steepness")}</small><strong data-measure-pitch>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_5bd1260605878f","Calculating…") ?? "Calculating…")}</strong></div>
+            <div class="fmle-measurement"><small>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_3a04b41c5dbadb","Flat roof") ?? "Flat roof")}</small><strong data-measure-flat>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_5bd1260605878f","Calculating…") ?? "Calculating…")}</strong></div>
           </div>
-          <p data-measure-note>${(globalThis.PlatformLanguage?.text("lead-embed","m_7998f44db889a7","These automated measurements are preliminary and will be verified before final pricing.") ?? "These automated measurements are preliminary and will be verified before final pricing.")}</p>
+          <p data-measure-note>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_7998f44db889a7","These automated measurements are preliminary and will be verified before final pricing.") ?? "These automated measurements are preliminary and will be verified before final pricing.")}</p>
         </section>
         ${String(questions.map(renderEstimateQuestion).join(''))}
         ${String(showProjectInfo ? `<section class="fmle-est-page" data-est-page>
-          <h4>Tell us about your project</h4>
-          <label>Project details<textarea name="message"></textarea></label>
+          <h4>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_05e62bd7763d00","Tell us about your project") ?? "Tell us about your project")}</h4>
+          <label>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_12e617b6b10c5c","Project details") ?? "Project details")}<textarea name="message"></textarea></label>
         </section>` : '')}
         <section class="fmle-est-page" data-est-page>
-          <h4>${(globalThis.PlatformLanguage?.text("lead-embed","m_9612a00ae750f2","Where should we send your estimate?") ?? "Where should we send your estimate?")}</h4>
+          <h4>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_9612a00ae750f2","Where should we send your estimate?") ?? "Where should we send your estimate?")}</h4>
           <div class="fmle-est-grid">
-            <label>${(globalThis.PlatformLanguage?.text("lead-embed","m_8cf345002184e5","Name") ?? "Name")}<input name="name" autocomplete="name" required></label>
-            <label>${(globalThis.PlatformLanguage?.text("lead-embed","m_ed04c65845180f","Phone") ?? "Phone")}<input name="phone" autocomplete="tel" inputmode="tel"></label>
-            <label>${(globalThis.PlatformLanguage?.text("lead-embed","m_5d2b9327181e33","Email") ?? "Email")}<input name="email" autocomplete="email" inputmode="email" required></label>
+            <label>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_8cf345002184e5","Name") ?? "Name")}<input name="name" autocomplete="name" required></label>
+            <label>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_ed04c65845180f","Phone") ?? "Phone")}<input name="phone" autocomplete="tel" inputmode="tel"></label>
+            <label>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_5d2b9327181e33","Email") ?? "Email")}<input name="email" autocomplete="email" inputmode="email" required></label>
           </div>
-          <label class="fmle-consent"><input type="checkbox" name="contact_consent" value="true" required><span>${(globalThis.PlatformLanguage?.text("lead-embed","m_696d4365469cdc","I agree to be contacted about my roofing estimate.") ?? "I agree to be contacted about my roofing estimate.")}</span></label>
+          <label class="fmle-consent"><input type="checkbox" name="contact_consent" value="true" required><span>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_696d4365469cdc","I agree to be contacted about my roofing estimate.") ?? "I agree to be contacted about my roofing estimate.")}</span></label>
           <p>${String(esc(copy.fine_print || 'This is a preliminary estimate. Final pricing may change after an on-site inspection.'))}</p>
         </section>
         <div class="fmle-est-dots">${String(dots)}</div>
         <div class="fmle-est-actions">
-          <button type="button" class="secondary" data-est-prev>${(globalThis.PlatformLanguage?.text("lead-embed","m_bb31fd73cbfe3b","Previous") ?? "Previous")}</button>
-          <button type="button" data-est-next>${(globalThis.PlatformLanguage?.text("lead-embed","m_5e03a7c216f500","Next") ?? "Next")}</button>
+          <button type="button" class="secondary" data-est-prev>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_bb31fd73cbfe3b","Previous") ?? "Previous")}</button>
+          <button type="button" data-est-next>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_5e03a7c216f500","Next") ?? "Next")}</button>
           <button type="submit" data-est-submit style="display:none">${String(esc(copy.submit_label || 'Get my estimate'))}</button>
         </div>
         <div class="fmle-status" role="status"></div>
@@ -326,11 +326,11 @@
       </div>
       <form>
         <div class="fmle-contact">
-          <label>${(globalThis.PlatformLanguage?.text("lead-embed","m_8cf345002184e5","Name") ?? "Name")}<input name="name" autocomplete="name" required></label>
-          <label>${(globalThis.PlatformLanguage?.text("lead-embed","m_ed04c65845180f","Phone") ?? "Phone")}<input name="phone" autocomplete="tel" inputmode="tel" required></label>
-          <label>${(globalThis.PlatformLanguage?.text("lead-embed","m_5d2b9327181e33","Email") ?? "Email")}<input name="email" autocomplete="email" inputmode="email"></label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_8cf345002184e5","Name") ?? "Name")}<input name="name" autocomplete="name" required></label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_ed04c65845180f","Phone") ?? "Phone")}<input name="phone" autocomplete="tel" inputmode="tel" required></label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_5d2b9327181e33","Email") ?? "Email")}<input name="email" autocomplete="email" inputmode="email"></label>
         </div>
-        <label>${(globalThis.PlatformLanguage?.text("lead-embed","m_53d803cdbe9ab1","Address") ?? "Address")}<input name="address" autocomplete="street-address"></label>
+        <label>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_53d803cdbe9ab1","Address") ?? "Address")}<input name="address" autocomplete="street-address"></label>
         ${String(showSchedule ? `<div class="fmle-booking">
           <input name="preferred_start_at" type="hidden">
           <div class="fmle-mobile-days" data-mobile-days></div>
@@ -339,13 +339,13 @@
             <div class="fmle-cal-grid" data-calendar></div>
           </section>
           <section class="fmle-time-panel">
-            <div class="fmle-time-title" data-selected-day>Choose a day</div>
-            <div class="fmle-slots" data-slots><button type="button" disabled>Loading times...</button></div>
+            <div class="fmle-time-title" data-selected-day>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_aef6b181d478e2","Choose a day") ?? "Choose a day")}</div>
+            <div class="fmle-slots" data-slots><button type="button" disabled>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_f7396ba34388fb","Loading times...") ?? "Loading times...")}</button></div>
             <div class="fmle-schedule-note" data-schedule-note></div>
             <button type="submit">${esc(copy.submit_label || 'Submit')}</button>
           </section>
         </div>` : '')}
-        ${String(!showSchedule ? `<label>Message<textarea name="message"></textarea></label>` : '')}
+        ${String(!showSchedule ? `<label>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_a16cfd85cfd122","Message") ?? "Message")}<textarea name="message"></textarea></label>` : '')}
         ${String(!showSchedule ? `<button type="submit">${esc(copy.submit_label || 'Submit')}</button>` : '')}
         <div class="fmle-fine">${String(esc(copy.fine_print || ''))}</div>
         <div class="fmle-status" role="status"></div>
@@ -426,7 +426,7 @@
     };
     const load = async (autoAdvance = false) => {
       hidden.value = '';
-      slotsEl.innerHTML = `<button type="button" disabled>${(globalThis.PlatformLanguage?.text("lead-embed","m_f7396ba34388fb","Loading times...") ?? "Loading times...")}</button>`;
+      slotsEl.innerHTML = `<button type="button" disabled>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_f7396ba34388fb","Loading times...") ?? "Loading times...")}</button>`;
       try {
         const data = await jsonFetch(baseUrl, availabilityPath(selectedDate));
         const slots = Array.isArray(data.slots) ? data.slots : [];
@@ -448,7 +448,7 @@
         }
         slotsEl.innerHTML = available.length
           ? available.map((slot) => `<button type="button" class="fmle-slot" data-start="${esc(slot.start)}">${esc(slot.label || slot.time)}</button>`).join('')
-          : `<button type="button" disabled>${(globalThis.PlatformLanguage?.text("lead-embed","m_e971bf8117127c","No times available") ?? "No times available")}</button>`;
+          : `<button type="button" disabled>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_e971bf8117127c","No times available") ?? "No times available")}</button>`;
         if (noteEl) noteEl.textContent = available.length
           ? ''
           : 'Choose another date to see more availability.';
@@ -460,7 +460,7 @@
           });
         });
       } catch (error) {
-        slotsEl.innerHTML = `<button type="button" disabled>${(globalThis.PlatformLanguage?.text("lead-embed","m_f7267d11b3a3b7","Times unavailable") ?? "Times unavailable")}</button>`;
+        slotsEl.innerHTML = `<button type="button" disabled>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_f7267d11b3a3b7","Times unavailable") ?? "Times unavailable")}</button>`;
         if (noteEl) noteEl.textContent = error.message || 'Could not load appointment times.';
       }
     };
@@ -474,7 +474,7 @@
     const lngInput = formEl.querySelector('input[name="longitude"]');
     if (!address || !panel) return false;
     panel.dataset.previewAttempted = 'true';
-    panel.innerHTML = `<span>${(globalThis.PlatformLanguage?.text("lead-embed","m_24d06f63bb74d3","Loading top-down Solar mask...") ?? "Loading top-down Solar mask...")}</span>`;
+    panel.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_24d06f63bb74d3","Loading top-down Solar mask...") ?? "Loading top-down Solar mask...")}</span>`;
     try {
       const data = await jsonFetch(baseUrl, `/public/forms/${encodeURIComponent(formId)}/solar-preview`, {
         method: 'POST',
@@ -484,7 +484,7 @@
         if (latInput) latInput.value = cleanText(data.latitude);
         if (lngInput) lngInput.value = cleanText(data.longitude);
         panel.dataset.previewReady = 'true';
-        panel.innerHTML = `<img src="${String(esc(data.image))}" alt="${(globalThis.PlatformLanguage?.text("lead-embed","m_b378b9b0eb86b1","Satellite view of the property") ?? "Satellite view of the property")}">${String(data.mask ? `<img class="mask" src="${esc(data.mask)}" alt="">` : '')}<span>${String(esc(data.formatted_address || address))}</span>`;
+        panel.innerHTML = `<img src="${String(esc(data.image))}" alt="${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_b378b9b0eb86b1","Satellite view of the property") ?? "Satellite view of the property")}">${String(data.mask ? `<img class="mask" src="${esc(data.mask)}" alt="">` : '')}<span>${String(esc(data.formatted_address || address))}</span>`;
         const measurement = data.measurement || {};
         const area = Number(measurement.roof_area_sqft);
         const pitch = cleanText(measurement.pitch_category);
@@ -584,7 +584,7 @@
       if (panel) {
         delete panel.dataset.previewAttempted;
         delete panel.dataset.previewReady;
-        panel.innerHTML = `<span>${(globalThis.PlatformLanguage?.text("lead-embed","m_5f6384d8b28ddb","Loading your rooftop view…") ?? "Loading your rooftop view…")}</span>`;
+        panel.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_5f6384d8b28ddb","Loading your rooftop view…") ?? "Loading your rooftop view…")}</span>`;
       }
       const latInput = formEl.querySelector('input[name="latitude"]');
       const lngInput = formEl.querySelector('input[name="longitude"]');
@@ -642,7 +642,7 @@
     }).join('');
     return `<div class="fmle-success" style="font-family:${esc(font)},Arial,sans-serif;padding:28px;color:${esc(style.text_color || '#111827')};background:${esc(style.background_color || '#ffffff')};border:1px solid rgba(15,23,42,.12);border-radius:12px;box-shadow:0 18px 50px rgba(15,23,42,.12);max-width:920px;">
       <h3 style="margin:0 0 14px;font-size:28px;line-height:1.1;font-weight:900;letter-spacing:0;">${esc(copy.success_title || 'Estimate ready')}</h3>
-      ${options.length ? `<p style="margin:0;color:#6b7280;font-size:14px;font-weight:700;">${((v0,v1) => globalThis.PlatformLanguage?.text("lead-embed","m_4bb420b080eb86",`Based on ${v0} sq ft and a ${v1} roof:`,{v0,v1}) ?? `Based on ${v0} sq ft and a ${v1} roof:`)(Number(estimate.roof_area_sqft || 0).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.()),esc(estimate.pitch_category || 'measured'))}</p><div class="fmle-price-options" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:18px 0;">${String(optionMarkup)}</div>` : (range ? `<div class="fmle-est-range" style="margin:0 0 12px;font-size:30px;line-height:1.1;font-weight:900;color:${esc(style.primary_color || '#d93025')};">${esc(range)}</div>` : '')}
+      ${options.length ? `<p style="margin:0;color:#6b7280;font-size:14px;font-weight:700;">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("lead-embed","m_4bb420b080eb86",`Based on ${v0} sq ft and a ${v1} roof:`,{v0,v1}) ?? `Based on ${v0} sq ft and a ${v1} roof:`)(Number(estimate.roof_area_sqft || 0).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.()),esc(estimate.pitch_category || 'measured'))}</p><div class="fmle-price-options" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:18px 0;">${String(optionMarkup)}</div>` : (range ? `<div class="fmle-est-range" style="margin:0 0 12px;font-size:30px;line-height:1.1;font-weight:900;color:${esc(style.primary_color || '#d93025')};">${esc(range)}</div>` : '')}
       <p style="margin:0;color:color-mix(in srgb,${esc(style.text_color || '#111827')} 68%,#fff);font-size:15px;line-height:1.5;font-weight:700;">${esc(copy.success_body || 'We have your information and will follow up shortly.')}</p>
     </div>`;
   }
@@ -667,7 +667,7 @@
     const baseUrl = cleanText(options.baseUrl || script?.dataset?.baseUrl || defaultBaseUrl());
     const mount = resolveTarget(options.target || script?.dataset?.target, script);
     const instanceId = `fmle_${Math.random().toString(36).slice(2, 10)}`;
-    mount.innerHTML = `<div id="${String(instanceId)}" class="fmle-wrap"><div class="fmle-head"><h3>${(globalThis.PlatformLanguage?.text("lead-embed","m_cf106559e52254","Loading...") ?? "Loading...")}</h3></div></div>`;
+    mount.innerHTML = `<div id="${String(instanceId)}" class="fmle-wrap"><div class="fmle-head"><h3>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_cf106559e52254","Loading...") ?? "Loading...")}</h3></div></div>`;
     const data = await jsonFetch(baseUrl, `/public/forms/${encodeURIComponent(formId)}`);
     const form = data.form || {};
     const wrap = mount.querySelector(`#${instanceId}`);

@@ -1538,19 +1538,19 @@
     return `
       <div class="pb-win">
         <div class="pb-top">
-          <button type="button" class="pb-back" id="pbBack"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.text("pricebook","m_206d31a7c795c4"," Back") ?? " Back")}</button>
+          <button type="button" class="pb-back" id="pbBack"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_206d31a7c795c4"," Back") ?? " Back")}</button>
           <div class="pb-title">
             <strong>${String(escapeHtml(title))}</strong>
             <span>${String(escapeHtml(subtitle))}</span>
           </div>
           <div class="pb-top-actions">
-            <button type="button" class="pb-close" id="pbClose" title="${(globalThis.PlatformLanguage?.text("pricebook","m_3970e2850e1508","Close Price Book") ?? "Close Price Book")}" aria-label="${(globalThis.PlatformLanguage?.text("pricebook","m_3970e2850e1508","Close Price Book") ?? "Close Price Book")}"><i class="fas fa-xmark"></i></button>
+            <button type="button" class="pb-close" id="pbClose" title="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_3970e2850e1508","Close Price Book") ?? "Close Price Book")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_3970e2850e1508","Close Price Book") ?? "Close Price Book")}"><i class="fas fa-xmark"></i></button>
           </div>
         </div>
         <div class="pb-body">
           <div class="pb-side">
             <div class="pb-side-tools">
-              <input id="pbSearch" class="pb-search" placeholder="${(globalThis.PlatformLanguage?.text("pricebook","m_52f12bcee9c7f8","Search pricebook items...") ?? "Search pricebook items...")}">
+              <input id="pbSearch" class="pb-search" placeholder="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_52f12bcee9c7f8","Search pricebook items...") ?? "Search pricebook items...")}">
             </div>
             <div class="pb-list" id="pbList"></div>
           </div>
@@ -1686,7 +1686,7 @@
         ${croppedImageMarkup(image, crop)}
         <input type="file" accept="image/*" data-pb-image-input ${attributes} aria-label="${image ? 'Replace image' : 'Upload image'}">
       </label>
-      ${image ? `<button type="button" class="pb-image-crop-button" data-pb-edit-crop data-pb-image-src="${String(escapeHtml(image))}" data-pb-image-crop="${String(escapeHtml(JSON.stringify(normalizeImageCrop(crop) || null)))}" ${String(attributes)} title="${(globalThis.PlatformLanguage?.text("pricebook","m_768d2dfc006fb9","Adjust crop") ?? "Adjust crop")}" aria-label="${(globalThis.PlatformLanguage?.text("pricebook","m_768d2dfc006fb9","Adjust crop") ?? "Adjust crop")}"><i class="fas fa-crop-simple"></i></button>` : ''}
+      ${image ? `<button type="button" class="pb-image-crop-button" data-pb-edit-crop data-pb-image-src="${String(escapeHtml(image))}" data-pb-image-crop="${String(escapeHtml(JSON.stringify(normalizeImageCrop(crop) || null)))}" ${String(attributes)} title="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_768d2dfc006fb9","Adjust crop") ?? "Adjust crop")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_768d2dfc006fb9","Adjust crop") ?? "Adjust crop")}"><i class="fas fa-crop-simple"></i></button>` : ''}
     </div>`;
   }
 
@@ -1728,14 +1728,14 @@
     document.querySelector('.pb-crop-overlay')?.remove();
     const overlay = document.createElement('div');
     overlay.className = 'pb-crop-overlay';
-    overlay.innerHTML = `<div class="pb-crop-dialog" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.text("pricebook","m_e5f0fab1dde345","Crop image") ?? "Crop image")}">
-      <div class="pb-crop-head"><div><strong>${(globalThis.PlatformLanguage?.text("pricebook","m_e5f0fab1dde345","Crop image") ?? "Crop image")}</strong><span>${(globalThis.PlatformLanguage?.text("pricebook","m_8f05767ca298c4","Drag the image or resize it from a corner.") ?? "Drag the image or resize it from a corner.")}</span></div><button type="button" class="pb-icon-button" data-pb-crop-cancel aria-label="${(globalThis.PlatformLanguage?.text("pricebook","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button></div>
+    overlay.innerHTML = `<div class="pb-crop-dialog" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_e5f0fab1dde345","Crop image") ?? "Crop image")}">
+      <div class="pb-crop-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_e5f0fab1dde345","Crop image") ?? "Crop image")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_8f05767ca298c4","Drag the image or resize it from a corner.") ?? "Drag the image or resize it from a corner.")}</span></div><button type="button" class="pb-icon-button" data-pb-crop-cancel aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button></div>
       <div class="pb-crop-stage">
         <img class="pb-crop-ghost" alt="">
         <div class="pb-crop-frame"><img class="pb-crop-solid" alt=""></div>
         <div class="pb-crop-image-box"><i class="pb-crop-handle nw" data-corner="nw"></i><i class="pb-crop-handle ne" data-corner="ne"></i><i class="pb-crop-handle se" data-corner="se"></i><i class="pb-crop-handle sw" data-corner="sw"></i></div>
       </div>
-      <div class="pb-crop-foot"><button type="button" class="pb-secondary-button" data-pb-crop-cancel>${(globalThis.PlatformLanguage?.text("pricebook","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="pb-primary-button" data-pb-crop-apply>${(globalThis.PlatformLanguage?.text("pricebook","m_dd1d3024d93c92","Apply crop") ?? "Apply crop")}</button></div>
+      <div class="pb-crop-foot"><button type="button" class="pb-secondary-button" data-pb-crop-cancel>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="pb-primary-button" data-pb-crop-apply>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_dd1d3024d93c92","Apply crop") ?? "Apply crop")}</button></div>
     </div>`;
     document.body.appendChild(overlay);
     const stage = overlay.querySelector('.pb-crop-stage');
@@ -1835,14 +1835,14 @@
     return `
       <section class="pb-dimension pb-dimension-active" data-pb-dimension="${String(dimensionIndex)}">
         <div class="pb-dimension-head">
-          <input data-pb-dimension-field="label" value="${String(escapeHtml(dimension.label))}" aria-label="${(globalThis.PlatformLanguage?.text("pricebook","m_e7306d07587c06","Dimension label") ?? "Dimension label")}">
-          <select data-pb-dimension-field="kind" aria-label="${(globalThis.PlatformLanguage?.text("pricebook","m_d277c5a2d4b2a2","Dimension type") ?? "Dimension type")}">
+          <input data-pb-dimension-field="label" value="${String(escapeHtml(dimension.label))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_e7306d07587c06","Dimension label") ?? "Dimension label")}">
+          <select data-pb-dimension-field="kind" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_d277c5a2d4b2a2","Dimension type") ?? "Dimension type")}">
             ${String([['option','Option'],['color','Color'],['pricing_policy','Price behavior']].map(([value,label]) => `<option value="${value}"${dimension.kind === value ? ' selected' : ''}>${label}</option>`).join(''))}
           </select>
           ${String(isPolicy
-            ? '<span class="pb-sku-state locked"><i class="fas fa-link"></i> Shared SKU</span>'
+            ? `<span class="pb-sku-state locked"><i class="fas fa-link"></i>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_649af0b3e6a287"," Shared SKU") ?? " Shared SKU")}</span>`
             : `<button type="button" class="pb-sku-state${dimension.affects_sku ? ' active' : ''}" data-pb-toggle-dimension-sku="${dimensionIndex}"><i class="fas fa-barcode"></i> ${dimension.affects_sku ? 'Creates SKUs' : 'Shared SKU'}</button>`)}
-          <button type="button" class="pb-icon-button danger" data-pb-remove-dimension="${String(dimensionIndex)}"${String(isPolicy ? ' disabled title="Price behavior is required"' : '')} aria-label="${(globalThis.PlatformLanguage?.text("pricebook","m_8f0a107fb3a10b","Delete dimension") ?? "Delete dimension")}"><i class="fas fa-trash"></i></button>
+          <button type="button" class="pb-icon-button danger" data-pb-remove-dimension="${String(dimensionIndex)}"${String(isPolicy ? ' disabled title="Price behavior is required"' : '')} aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_8f0a107fb3a10b","Delete dimension") ?? "Delete dimension")}"><i class="fas fa-trash"></i></button>
         </div>
         <div class="pb-value-list">
           ${String(dimension.values.map((value, valueIndex) => {
@@ -1854,22 +1854,22 @@
                 <i class="fas fa-chevron-down pb-value-chevron"></i>
               </summary>
               <div class="pb-value-editor${isPolicy ? ' pb-policy-editor' : ''}" data-pb-dimension-value="${valueIndex}">
-                <div class="pb-field pb-value-name"><label>Name</label><input data-pb-value-field="label" value="${escapeHtml(value.label)}" aria-label="Variant value"></div>
+                <div class="pb-field pb-value-name"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_8cf345002184e5","Name") ?? "Name")}</label><input data-pb-value-field="label" value="${escapeHtml(value.label)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_5891e83bec4041","Variant value") ?? "Variant value")}"></div>
                 ${isPolicy ? `
-                  <div class="pb-field pb-value-operation"><label>Behavior</label><select data-pb-value-field="policy_mode" aria-label="Policy mode">${[['fixed','Fixed price'],['conditional','Conditional'],['live','Live pricing']].map(([mode,label]) => `<option value="${mode}"${value.pricing_update_rule?.mode === mode ? ' selected' : ''}>${label}</option>`).join('')}</select></div>
-                  <div class="pb-field pb-value-amount"><label>Valid for</label><div class="pb-input-suffix"><input data-pb-value-field="policy_days" type="number" min="0" value="${Number(value.pricing_update_rule?.expires_after?.amount || 0) || ''}" placeholder="—" aria-label="Expiration days"><span>days</span></div></div>` : `
-                  ${dimension.kind === 'color' ? `<div class="pb-field pb-value-color"><label>Color</label><label class="pb-color-picker" style="--swatch:${escapeHtml(value.hex || '#64748b')}" title="Choose color"><input type="color" data-pb-value-field="hex" value="${escapeHtml(value.hex || '#64748b')}" aria-label="Color"></label></div>` : '<span></span>'}
-                  <div class="pb-field pb-value-image"><label>Image</label>${renderImageUpload(value.image, value.image_crop, 'data-pb-image-scope="value"')}</div>
-                  <div class="pb-field pb-value-operation"><label>Price adjustment</label><select data-pb-value-field="operation" aria-label="Price operation">${[['none','Use base price'],['add','Add amount'],['multiply','Multiply'],['divide','Divide'],['formula','Formula']].map(([operation,label]) => `<option value="${operation}"${value.adjustment?.operation === operation ? ' selected' : ''}>${label}</option>`).join('')}</select></div>
-                  <div class="pb-field pb-value-amount"><label>${value.adjustment?.operation === 'formula' ? 'Formula' : 'Amount'}</label><input data-pb-value-field="adjustment_value" type="${value.adjustment?.operation === 'formula' ? 'text' : 'number'}" ${value.adjustment?.operation === 'formula' ? `value="${escapeHtml(value.adjustment?.formula || '')}" placeholder="base * 1.2"` : `step="0.01" value="${Number(value.adjustment?.value || 0)}"`} aria-label="Adjustment"></div>`}
-                <button type="button" class="pb-text-danger pb-value-remove" data-pb-remove-value="${valueIndex}"${dimension.values.length <= 1 ? ' disabled' : ''} title="Remove" aria-label="Remove ${escapeHtml(value.label)}"><i class="fas fa-trash"></i></button>
+                  <div class="pb-field pb-value-operation"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_e521f24b8e8450","Behavior") ?? "Behavior")}</label><select data-pb-value-field="policy_mode" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_268c68e00bc263","Policy mode") ?? "Policy mode")}">${[['fixed','Fixed price'],['conditional','Conditional'],['live','Live pricing']].map(([mode,label]) => `<option value="${mode}"${value.pricing_update_rule?.mode === mode ? ' selected' : ''}>${label}</option>`).join('')}</select></div>
+                  <div class="pb-field pb-value-amount"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_fc695e7338eb0c","Valid for") ?? "Valid for")}</label><div class="pb-input-suffix"><input data-pb-value-field="policy_days" type="number" min="0" value="${Number(value.pricing_update_rule?.expires_after?.amount || 0) || ''}" placeholder="—" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_1ae2e36c490aad","Expiration days") ?? "Expiration days")}"><span>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_d1521758bf5fc0","days") ?? "days")}</span></div></div>` : `
+                  ${dimension.kind === 'color' ? `<div class="pb-field pb-value-color"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_db7002926d9977","Color") ?? "Color")}</label><label class="pb-color-picker" style="--swatch:${escapeHtml(value.hex || '#64748b')}" title="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_d453ffba808085","Choose color") ?? "Choose color")}"><input type="color" data-pb-value-field="hex" value="${escapeHtml(value.hex || '#64748b')}" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_db7002926d9977","Color") ?? "Color")}"></label></div>` : '<span></span>'}
+                  <div class="pb-field pb-value-image"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_54eb8e1b237591","Image") ?? "Image")}</label>${renderImageUpload(value.image, value.image_crop, 'data-pb-image-scope="value"')}</div>
+                  <div class="pb-field pb-value-operation"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_2b4c8581905cea","Price adjustment") ?? "Price adjustment")}</label><select data-pb-value-field="operation" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_a5c134422e313c","Price operation") ?? "Price operation")}">${[['none','Use base price'],['add','Add amount'],['multiply','Multiply'],['divide','Divide'],['formula','Formula']].map(([operation,label]) => `<option value="${operation}"${value.adjustment?.operation === operation ? ' selected' : ''}>${label}</option>`).join('')}</select></div>
+                  <div class="pb-field pb-value-amount"><label>${value.adjustment?.operation === 'formula' ? 'Formula' : 'Amount'}</label><input data-pb-value-field="adjustment_value" type="${value.adjustment?.operation === 'formula' ? 'text' : 'number'}" ${value.adjustment?.operation === 'formula' ? `value="${escapeHtml(value.adjustment?.formula || '')}" placeholder="base * 1.2"` : `step="0.01" value="${Number(value.adjustment?.value || 0)}"`} aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_121e5e9145c2a4","Adjustment") ?? "Adjustment")}"></div>`}
+                <button type="button" class="pb-text-danger pb-value-remove" data-pb-remove-value="${valueIndex}"${dimension.values.length <= 1 ? ' disabled' : ''} title="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_f643f568915438","Remove") ?? "Remove")}" aria-label="${((v11) => globalThis.PlatformLanguage?.htmlText("pricebook","m_ac692197f53f04",`Remove ${v11}`,{v11}) ?? `Remove ${v11}`)(escapeHtml(value.label))}"><i class="fas fa-trash"></i></button>
               </div>
             </details>`;
           }).join(''))}
         </div>
         <div class="pb-dimension-actions">
-          <button type="button" class="pb-secondary-button" data-pb-add-value="${String(dimensionIndex)}"><i class="fas fa-plus"></i>${((v8) => globalThis.PlatformLanguage?.text("pricebook","m_6d1effb0629031",` Add ${v8}`,{v8}) ?? ` Add ${v8}`)(isPolicy ? 'behavior' : 'value')}</button>
-          ${String(isPolicy ? `<button type="button" class="pb-tertiary-button" data-pb-save-policy-defaults="${dimensionIndex}">Use as organization defaults</button>` : '')}
+          <button type="button" class="pb-secondary-button" data-pb-add-value="${String(dimensionIndex)}"><i class="fas fa-plus"></i>${((v8) => globalThis.PlatformLanguage?.htmlText("pricebook","m_6d1effb0629031",` Add ${v8}`,{v8}) ?? ` Add ${v8}`)(isPolicy ? 'behavior' : 'value')}</button>
+          ${String(isPolicy ? `<button type="button" class="pb-tertiary-button" data-pb-save-policy-defaults="${dimensionIndex}">${(globalThis.PlatformLanguage?.htmlText("pricebook","m_4bb040d6eed43e","Use as organization defaults") ?? "Use as organization defaults")}</button>` : '')}
         </div>
       </section>`;
   }
@@ -1887,12 +1887,12 @@
     return `
       ${String(renderVariantDetail(item, activeVariant))}
       <details class="pb-card pb-matrix-panel" data-pb-matrix-panel${String(ui.matrixOpen ? ' open' : '')}>
-        <summary><span><strong>${(globalThis.PlatformLanguage?.text("pricebook","m_0010932e963b6c","All combinations") ?? "All combinations")}</strong><small>${((v2) => globalThis.PlatformLanguage?.text("pricebook","m_3c9367b65f29b2",`${v2} combinations · open for matrix and bulk editing`,{v2}) ?? `${v2} combinations · open for matrix and bulk editing`)(combinationCount)}</small></span><i class="fas fa-chevron-down"></i></summary>
+        <summary><span><strong>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_0010932e963b6c","All combinations") ?? "All combinations")}</strong><small>${((v2) => globalThis.PlatformLanguage?.htmlText("pricebook","m_3c9367b65f29b2",`${v2} combinations · open for matrix and bulk editing`,{v2}) ?? `${v2} combinations · open for matrix and bulk editing`)(combinationCount)}</small></span><i class="fas fa-chevron-down"></i></summary>
         <div class="pb-matrix-panel-body">
           <div class="pb-matrix-header">
             <div class="pb-matrix-tools">
-              <div class="pb-field"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_8abb9612e904f8","Columns") ?? "Columns")}</label><select data-pb-axis="x">${String(dimensions.map((dimension) => `<option value="${dimension.id}"${dimension.id === xDimension?.id ? ' selected' : ''}>${escapeHtml(dimension.label)}</option>`).join(''))}</select></div>
-              <div class="pb-field"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_9fd01b24358153","Rows") ?? "Rows")}</label><select data-pb-axis="y"><option value="">${(globalThis.PlatformLanguage?.text("pricebook","m_2d4ff8a83b1b5c","None") ?? "None")}</option>${String(dimensions.filter((dimension) => dimension.id !== xDimension?.id).map((dimension) => `<option value="${dimension.id}"${dimension.id === yDimension?.id ? ' selected' : ''}>${escapeHtml(dimension.label)}</option>`).join(''))}</select></div>
+              <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_8abb9612e904f8","Columns") ?? "Columns")}</label><select data-pb-axis="x">${String(dimensions.map((dimension) => `<option value="${dimension.id}"${dimension.id === xDimension?.id ? ' selected' : ''}>${escapeHtml(dimension.label)}</option>`).join(''))}</select></div>
+              <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_9fd01b24358153","Rows") ?? "Rows")}</label><select data-pb-axis="y"><option value="">${(globalThis.PlatformLanguage?.htmlText("pricebook","m_2d4ff8a83b1b5c","None") ?? "None")}</option>${String(dimensions.filter((dimension) => dimension.id !== xDimension?.id).map((dimension) => `<option value="${dimension.id}"${dimension.id === yDimension?.id ? ' selected' : ''}>${escapeHtml(dimension.label)}</option>`).join(''))}</select></div>
               <div class="pb-matrix-filters">${String(otherDimensions.map((dimension) => `<div class="pb-field"><label>${escapeHtml(dimension.label)}</label><select data-pb-variant-filter="${dimension.id}">${dimension.values.map((value) => `<option value="${value.id}"${ui.selection[dimension.id] === value.id ? ' selected' : ''}>${escapeHtml(value.label)}</option>`).join('')}</select></div>`).join(''))}</div>
             </div>
             <button type="button" class="pb-secondary-button${String(ui.bulkMode ? ' active' : '')}" data-pb-toggle-bulk><i class="fas fa-check-double"></i> ${String(ui.bulkMode ? 'Done selecting' : 'Select multiple')}</button>
@@ -1903,11 +1903,11 @@
                 const selection = { ...ui.selection, ...(xDimension ? { [xDimension.id]:column.id } : {}), ...(yDimension ? { [yDimension.id]:row.id } : {}) };
                 const variant = resolveVariant(item, selection);
                 const isSelected = ui.selectedKeys.has(variant.key);
-                return `<td><button type="button" class="pb-matrix-cell${variant.key === activeVariant.key ? ' active' : ''}${isSelected ? ' selected' : ''}" data-pb-combination="${escapeHtml(variant.key)}" data-pb-selection="${escapeHtml(JSON.stringify(selection))}">${ui.bulkMode ? `<i class="fas ${isSelected ? 'fa-circle-check' : 'fa-circle'}"></i>` : ''}<strong>$${variant.unitPrice.toFixed(2)}</strong>${variant.override.unit_price != null || variant.override.unitPrice != null ? `<small>Override · $${variant.computedPrice.toFixed(2)} derived</small>` : ''}</button></td>`;
+                return `<td><button type="button" class="pb-matrix-cell${variant.key === activeVariant.key ? ' active' : ''}${isSelected ? ' selected' : ''}" data-pb-combination="${escapeHtml(variant.key)}" data-pb-selection="${escapeHtml(JSON.stringify(selection))}">${ui.bulkMode ? `<i class="fas ${isSelected ? 'fa-circle-check' : 'fa-circle'}"></i>` : ''}<strong>$${variant.unitPrice.toFixed(2)}</strong>${variant.override.unit_price != null || variant.override.unitPrice != null ? `<small>${((v0) => globalThis.PlatformLanguage?.htmlText("pricebook","m_30f7a1f6144a8b",`Override · $${v0} derived`,{v0}) ?? `Override · $${v0} derived`)(variant.computedPrice.toFixed(2))}</small>` : ''}</button></td>`;
               }).join('')}</tr>`).join(''))}
             </tbody></table>
           </div>
-          ${String(ui.bulkMode ? `<div class="pb-bulk-bar"><span>${ui.selectedKeys.size} selected</span><select data-pb-bulk-operation><option value="set">Set price</option><option value="add">Add amount</option><option value="multiply">Multiply</option><option value="clear">Clear overrides</option></select><input data-pb-bulk-value type="number" step="0.01" placeholder="Amount"><button type="button" class="pb-primary-button" data-pb-apply-bulk>Apply</button></div>` : '')}
+          ${String(ui.bulkMode ? `<div class="pb-bulk-bar"><span>${((v0) => globalThis.PlatformLanguage?.htmlText("pricebook","m_4b740d0b3ec319",`${v0} selected`,{v0}) ?? `${v0} selected`)(ui.selectedKeys.size)}</span><select data-pb-bulk-operation><option value="set">${(globalThis.PlatformLanguage?.htmlText("pricebook","m_f7d6b0ee8161ec","Set price") ?? "Set price")}</option><option value="add">${(globalThis.PlatformLanguage?.htmlText("pricebook","m_ab9800b8d9efcf","Add amount") ?? "Add amount")}</option><option value="multiply">${(globalThis.PlatformLanguage?.htmlText("pricebook","m_5ae7d1e0a7a5a7","Multiply") ?? "Multiply")}</option><option value="clear">${(globalThis.PlatformLanguage?.htmlText("pricebook","m_84ac5d6905b22c","Clear overrides") ?? "Clear overrides")}</option></select><input data-pb-bulk-value type="number" step="0.01" placeholder="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_2b8c3448fa87a1","Amount") ?? "Amount")}"><button type="button" class="pb-primary-button" data-pb-apply-bulk>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_9417f96a1856fa","Apply") ?? "Apply")}</button></div>` : '')}
         </div>
       </details>`;
   }
@@ -1917,26 +1917,26 @@
     const hasAnyOverride = Object.keys(objectValue(variant.override)).length > 0;
     const ui = variantUiFor(item);
     return `<div class="pb-card pb-variant-detail">
-      <div class="pb-card-heading"><div><h3>${(globalThis.PlatformLanguage?.text("pricebook","m_424bb936d6ddf4","Combination") ?? "Combination")}</h3><span>${(globalThis.PlatformLanguage?.text("pricebook","m_e5708469c5e5e5","Preview and customize one variant") ?? "Preview and customize one variant")}</span></div><span class="pb-status-pill${String(hasAnyOverride ? ' override' : '')}">${String(hasAnyOverride ? 'Customized' : 'Inherited')}</span></div>
+      <div class="pb-card-heading"><div><h3>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_424bb936d6ddf4","Combination") ?? "Combination")}</h3><span>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_e5708469c5e5e5","Preview and customize one variant") ?? "Preview and customize one variant")}</span></div><span class="pb-status-pill${String(hasAnyOverride ? ' override' : '')}">${String(hasAnyOverride ? 'Customized' : 'Inherited')}</span></div>
       <div class="pb-combination-picker">${String(variant.dimensions.map((dimension) => `<div class="pb-field"><label>${escapeHtml(dimension.label)}</label><select data-pb-combination-filter="${dimension.id}">${dimension.values.map((value) => `<option value="${value.id}"${variant.selection[dimension.id] === value.id ? ' selected' : ''}>${escapeHtml(value.label)}</option>`).join('')}</select></div>`).join(''))}</div>
       <div class="pb-price-summary">
-        <div><span>${(globalThis.PlatformLanguage?.text("pricebook","m_a6c1eb25d9952e","Sell price") ?? "Sell price")}</span><strong>$${String(variant.unitPrice.toFixed(2))}</strong>${String(hasPriceOverride ? `<small>$${variant.computedPrice.toFixed(2)} calculated</small>` : '<small>Calculated</small>')}</div>
-        <div><span>${(globalThis.PlatformLanguage?.text("pricebook","m_4f60b799ec74c8","Internal cost") ?? "Internal cost")}</span><strong>$${String(variant.computedCost.toFixed(2))}</strong><small>${String(escapeHtml(item.unit))}</small></div>
-        <div class="pb-sku-summary"><span>${(globalThis.PlatformLanguage?.text("pricebook","m_2b79b6b3cc4e58","SKU") ?? "SKU")}</span><strong>${String(escapeHtml(variant.skuKey || item.id))}</strong></div>
+        <div><span>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_a6c1eb25d9952e","Sell price") ?? "Sell price")}</span><strong>$${String(variant.unitPrice.toFixed(2))}</strong>${String(hasPriceOverride ? `<small>${((v0) => globalThis.PlatformLanguage?.htmlText("pricebook","m_0c242b0aeb8983",`$${v0} calculated`,{v0}) ?? `$${v0} calculated`)(variant.computedPrice.toFixed(2))}</small>` : `<small>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_e99357cd3f5464","Calculated") ?? "Calculated")}</small>`)}</div>
+        <div><span>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_4f60b799ec74c8","Internal cost") ?? "Internal cost")}</span><strong>$${String(variant.computedCost.toFixed(2))}</strong><small>${String(escapeHtml(item.unit))}</small></div>
+        <div class="pb-sku-summary"><span>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_2b79b6b3cc4e58","SKU") ?? "SKU")}</span><strong>${String(escapeHtml(variant.skuKey || item.id))}</strong></div>
       </div>
       <details class="pb-override-details" data-pb-override-details${String(ui.overrideOpen || hasAnyOverride ? ' open' : '')}>
-        <summary><span><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.text("pricebook","m_83ae1a63e741bb"," Customize this combination") ?? " Customize this combination")}</span><i class="fas fa-chevron-down"></i></summary>
+        <summary><span><i class="fas fa-sliders"></i>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_83ae1a63e741bb"," Customize this combination") ?? " Customize this combination")}</span><i class="fas fa-chevron-down"></i></summary>
         <div class="pb-override-body">
           <div class="pb-fields">
-            <div class="pb-field"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_a6c1eb25d9952e","Sell price") ?? "Sell price")}</label><input data-pb-variant-override="unit_price" type="number" step="0.01" placeholder="${((v9) => globalThis.PlatformLanguage?.text("pricebook","m_861b6b3f6f86e8",`$${v9} calculated`,{v9}) ?? `$${v9} calculated`)(variant.computedPrice.toFixed(2))}" value="${String(hasPriceOverride ? variant.unitPrice : '')}"></div>
-            <div class="pb-field"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_4f60b799ec74c8","Internal cost") ?? "Internal cost")}</label><input data-pb-variant-override="internal_cost" type="number" step="0.01" placeholder="${((v11) => globalThis.PlatformLanguage?.text("pricebook","m_7a080bab5baefb",`$${v11} calculated`,{v11}) ?? `$${v11} calculated`)(variant.computedCost.toFixed(2))}" value="${String(variant.override.internal_cost ?? '')}"></div>
-            <div class="pb-field"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_7a0a25e4f3c53a","Unit type") ?? "Unit type")}</label><input data-pb-variant-override="unit" value="${String(escapeHtml(variant.override.unit || ''))}" placeholder="${String(escapeHtml(item.unit))}"></div>
-            <div class="pb-field pb-override-image"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_54eb8e1b237591","Image") ?? "Image")}</label>${String(renderImageUpload(variant.override.image, variant.imageCrop, 'data-pb-image-scope="override"'))}</div>
-            <div class="pb-field full"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_5e135f60489e3d","Customer description") ?? "Customer description")}</label><textarea data-pb-variant-override="external_description" placeholder="${(globalThis.PlatformLanguage?.text("pricebook","m_f42dd4146911ec","Use base description") ?? "Use base description")}">${String(escapeHtml(variant.override.external_description || ''))}</textarea></div>
-            <div class="pb-field full"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_2c00b4d4a808ce","Internal description") ?? "Internal description")}</label><textarea data-pb-variant-override="internal_description" placeholder="${(globalThis.PlatformLanguage?.text("pricebook","m_018cdd14fe2bd5","Use base internal description") ?? "Use base internal description")}">${String(escapeHtml(variant.override.internal_description || ''))}</textarea></div>
-            <div class="pb-field full"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_178f2690f8d672","Update rule") ?? "Update rule")}</label><textarea data-pb-update-formula placeholder="${(globalThis.PlatformLanguage?.text("pricebook","m_2975b72b690b92","Optional condition") ?? "Optional condition")}">${String(escapeHtml(variant.pricingUpdateRule.formula || ''))}</textarea></div>
+            <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_a6c1eb25d9952e","Sell price") ?? "Sell price")}</label><input data-pb-variant-override="unit_price" type="number" step="0.01" placeholder="${((v9) => globalThis.PlatformLanguage?.htmlText("pricebook","m_861b6b3f6f86e8",`$${v9} calculated`,{v9}) ?? `$${v9} calculated`)(variant.computedPrice.toFixed(2))}" value="${String(hasPriceOverride ? variant.unitPrice : '')}"></div>
+            <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_4f60b799ec74c8","Internal cost") ?? "Internal cost")}</label><input data-pb-variant-override="internal_cost" type="number" step="0.01" placeholder="${((v11) => globalThis.PlatformLanguage?.htmlText("pricebook","m_7a080bab5baefb",`$${v11} calculated`,{v11}) ?? `$${v11} calculated`)(variant.computedCost.toFixed(2))}" value="${String(variant.override.internal_cost ?? '')}"></div>
+            <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_7a0a25e4f3c53a","Unit type") ?? "Unit type")}</label><input data-pb-variant-override="unit" value="${String(escapeHtml(variant.override.unit || ''))}" placeholder="${String(escapeHtml(item.unit))}"></div>
+            <div class="pb-field pb-override-image"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_54eb8e1b237591","Image") ?? "Image")}</label>${String(renderImageUpload(variant.override.image, variant.imageCrop, 'data-pb-image-scope="override"'))}</div>
+            <div class="pb-field full"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_5e135f60489e3d","Customer description") ?? "Customer description")}</label><textarea data-pb-variant-override="external_description" placeholder="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_f42dd4146911ec","Use base description") ?? "Use base description")}">${String(escapeHtml(variant.override.external_description || ''))}</textarea></div>
+            <div class="pb-field full"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_2c00b4d4a808ce","Internal description") ?? "Internal description")}</label><textarea data-pb-variant-override="internal_description" placeholder="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_018cdd14fe2bd5","Use base internal description") ?? "Use base internal description")}">${String(escapeHtml(variant.override.internal_description || ''))}</textarea></div>
+            <div class="pb-field full"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_178f2690f8d672","Update rule") ?? "Update rule")}</label><textarea data-pb-update-formula placeholder="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_2975b72b690b92","Optional condition") ?? "Optional condition")}">${String(escapeHtml(variant.pricingUpdateRule.formula || ''))}</textarea></div>
           </div>
-          ${String(hasAnyOverride ? `<button type="button" class="pb-text-danger" data-pb-clear-variant><i class="fas fa-rotate-left"></i> Restore calculated values</button>` : '')}
+          ${String(hasAnyOverride ? `<button type="button" class="pb-text-danger" data-pb-clear-variant><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_bfef4acac3e486"," Restore calculated values") ?? " Restore calculated values")}</button>` : '')}
         </div>
       </details>
     </div>`;
@@ -2245,16 +2245,16 @@
     const unitLabel = displayUnit(item.unit);
     return `
       <div class="pb-card">
-        <h3>${(globalThis.PlatformLanguage?.text("pricebook","m_932757e3f980c3","Ordering") ?? "Ordering")}</h3>
-        <p>${(globalThis.PlatformLanguage?.text("pricebook","m_64deeca555fbd1","Optional. Describe how this material is actually purchased (pieces, bundles, rolls). Material orders round up to whole order units.") ?? "Optional. Describe how this material is actually purchased (pieces, bundles, rolls). Material orders round up to whole order units.")}</p>
+        <h3>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_932757e3f980c3","Ordering") ?? "Ordering")}</h3>
+        <p>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_64deeca555fbd1","Optional. Describe how this material is actually purchased (pieces, bundles, rolls). Material orders round up to whole order units.") ?? "Optional. Describe how this material is actually purchased (pieces, bundles, rolls). Material orders round up to whole order units.")}</p>
         <div class="pb-fields">
-          <div class="pb-field"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_306d9c8f8dfb6d","Order Unit") ?? "Order Unit")}</label><input id="pbOrderUnit" value="${String(escapeHtml(packaging.order_unit))}" placeholder="${(globalThis.PlatformLanguage?.text("pricebook","m_0f1ae000a1c9c5","piece, bundle, roll") ?? "piece, bundle, roll")}"></div>
-          <div class="pb-field"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_59fbf2333d5fd8","Plural") ?? "Plural")}</label><input id="pbOrderUnitPlural" value="${String(escapeHtml(packaging.order_unit_plural))}" placeholder="${(globalThis.PlatformLanguage?.text("pricebook","m_f8e2b4fdf26e4b","pieces, bundles, rolls") ?? "pieces, bundles, rolls")}"></div>
-          <div class="pb-field"><label>${((v2) => globalThis.PlatformLanguage?.text("pricebook","m_e2067739f20364",`${v2} per Order Unit`,{v2}) ?? `${v2} per Order Unit`)(escapeHtml(unitLabel))}</label><input id="pbUnitsPerPackage" type="number" step="0.01" min="0" value="${String(packaging.units_per_package || '')}" placeholder="${(globalThis.PlatformLanguage?.text("pricebook","m_6a6f65bffead7e","e.g. 10 ft per piece") ?? "e.g. 10 ft per piece")}"></div>
-          <div class="pb-field"><label>${((v4) => globalThis.PlatformLanguage?.text("pricebook","m_8f8fd09009cb7b",`Order Units per ${v4}`,{v4}) ?? `Order Units per ${v4}`)(escapeHtml(unitLabel))}</label><input id="pbPackagesPerUnit" type="number" step="0.01" min="0" value="${String(packaging.packages_per_unit || '')}" placeholder="${(globalThis.PlatformLanguage?.text("pricebook","m_9ab4ecf95176e5","e.g. 3 bundles per square") ?? "e.g. 3 bundles per square")}"></div>
-          <div class="pb-field full"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_bfe2eb80e8dd93","Package Description") ?? "Package Description")}</label><input id="pbOrderDescription" value="${String(escapeHtml(packaging.description))}" placeholder="${(globalThis.PlatformLanguage?.text("pricebook","m_962876a228fdcc","e.g. 10 ft piece, 2-square roll") ?? "e.g. 10 ft piece, 2-square roll")}"></div>
+          <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_306d9c8f8dfb6d","Order Unit") ?? "Order Unit")}</label><input id="pbOrderUnit" value="${String(escapeHtml(packaging.order_unit))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_0f1ae000a1c9c5","piece, bundle, roll") ?? "piece, bundle, roll")}"></div>
+          <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_59fbf2333d5fd8","Plural") ?? "Plural")}</label><input id="pbOrderUnitPlural" value="${String(escapeHtml(packaging.order_unit_plural))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_f8e2b4fdf26e4b","pieces, bundles, rolls") ?? "pieces, bundles, rolls")}"></div>
+          <div class="pb-field"><label>${((v2) => globalThis.PlatformLanguage?.htmlText("pricebook","m_e2067739f20364",`${v2} per Order Unit`,{v2}) ?? `${v2} per Order Unit`)(escapeHtml(unitLabel))}</label><input id="pbUnitsPerPackage" type="number" step="0.01" min="0" value="${String(packaging.units_per_package || '')}" placeholder="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_6a6f65bffead7e","e.g. 10 ft per piece") ?? "e.g. 10 ft per piece")}"></div>
+          <div class="pb-field"><label>${((v4) => globalThis.PlatformLanguage?.htmlText("pricebook","m_8f8fd09009cb7b",`Order Units per ${v4}`,{v4}) ?? `Order Units per ${v4}`)(escapeHtml(unitLabel))}</label><input id="pbPackagesPerUnit" type="number" step="0.01" min="0" value="${String(packaging.packages_per_unit || '')}" placeholder="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_9ab4ecf95176e5","e.g. 3 bundles per square") ?? "e.g. 3 bundles per square")}"></div>
+          <div class="pb-field full"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_bfe2eb80e8dd93","Package Description") ?? "Package Description")}</label><input id="pbOrderDescription" value="${String(escapeHtml(packaging.description))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_962876a228fdcc","e.g. 10 ft piece, 2-square roll") ?? "e.g. 10 ft piece, 2-square roll")}"></div>
         </div>
-        <div class="pb-preview-row"><strong>${(globalThis.PlatformLanguage?.text("pricebook","m_8b3fbf31009c10","Order rounding") ?? "Order rounding")}</strong><span id="pbOrderExample">${String(escapeHtml(orderPackagingExample(item)))}</span></div>
+        <div class="pb-preview-row"><strong>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_8b3fbf31009c10","Order rounding") ?? "Order rounding")}</strong><span id="pbOrderExample">${String(escapeHtml(orderPackagingExample(item)))}</span></div>
       </div>
     `;
   }
@@ -2264,11 +2264,11 @@
     return `
       <div class="pb-formula-builder">
         <div class="pb-formula-summary">
-          <strong>${(globalThis.PlatformLanguage?.text("pricebook","m_f10e6b2e02d839","Formula") ?? "Formula")}</strong>
+          <strong>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_f10e6b2e02d839","Formula") ?? "Formula")}</strong>
           <div class="pb-formula-human">$${String(Number(item.unitPrice || 0).toFixed(2))} x (${String(escapeHtml(formulaToHumanText(formulaConfig)))})</div>
           <label class="pb-waste-toggle">
             <input type="checkbox" id="pbIncludeWaste"${String(formulaConfig.includeWaste ? ' checked' : '')}>
-            <span class="pb-waste-pill"></span>${(globalThis.PlatformLanguage?.text("pricebook","m_ac64f3ef9d48b8","\n            Waste\n          ") ?? "\n            Waste\n          ")}</label>
+            <span class="pb-waste-pill"></span>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_ac64f3ef9d48b8","\n            Waste\n          ") ?? "\n            Waste\n          ")}</label>
         </div>
         <div class="pb-formula-row">
           ${String(formulaConfig.tokens.map((token, index) => {
@@ -2322,10 +2322,10 @@
           }).join(''))}
         </div>
         <div class="pb-formula-actions">
-          <button type="button" class="pb-formula-add" data-token-add="measurement"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.text("pricebook","m_af8e2a40a73f3a"," Measurement") ?? " Measurement")}</button>
-          <button type="button" class="pb-formula-add" data-token-add="custom_field"${String(customFormulaFields().length ? '' : ' disabled')}><i class="fas fa-table-list"></i>${(globalThis.PlatformLanguage?.text("pricebook","m_d9519ff7bc9252"," Custom Field") ?? " Custom Field")}</button>
-          <button type="button" class="pb-formula-add" data-token-add="operator"><i class="fas fa-plus-minus"></i>${(globalThis.PlatformLanguage?.text("pricebook","m_6fcdf04d427e1e"," Symbol") ?? " Symbol")}</button>
-          <button type="button" class="pb-formula-add" data-token-add="number"><i class="fas fa-hashtag"></i>${(globalThis.PlatformLanguage?.text("pricebook","m_35eb6989f6e97d"," Number") ?? " Number")}</button>
+          <button type="button" class="pb-formula-add" data-token-add="measurement"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_af8e2a40a73f3a"," Measurement") ?? " Measurement")}</button>
+          <button type="button" class="pb-formula-add" data-token-add="custom_field"${String(customFormulaFields().length ? '' : ' disabled')}><i class="fas fa-table-list"></i>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_d9519ff7bc9252"," Custom Field") ?? " Custom Field")}</button>
+          <button type="button" class="pb-formula-add" data-token-add="operator"><i class="fas fa-plus-minus"></i>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_6fcdf04d427e1e"," Symbol") ?? " Symbol")}</button>
+          <button type="button" class="pb-formula-add" data-token-add="number"><i class="fas fa-hashtag"></i>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_35eb6989f6e97d"," Number") ?? " Number")}</button>
           <button type="button" class="pb-formula-add" data-token-add="paren"><i class="fas fa-parentheses"></i> ( )</button>
         </div>
       </div>
@@ -2350,31 +2350,31 @@
     return `
       <div class="pb-card pb-summary-card">
         <div class="pb-fields">
-          <div class="pb-field"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_8cf345002184e5","Name") ?? "Name")}</label><input id="pbName" value="${String(escapeHtml(item.name))}"></div>
-          <div class="pb-field"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_2e88df13ca7101","Type") ?? "Type")}</label><div class="pb-select-with-add"><select id="pbType">${String(typeOptions)}</select><button type="button" class="pb-select-add" id="pbAddType" title="${(globalThis.PlatformLanguage?.text("pricebook","m_9015ee6e65cb45","Add type") ?? "Add type")}" aria-label="${(globalThis.PlatformLanguage?.text("pricebook","m_9015ee6e65cb45","Add type") ?? "Add type")}"><i class="fas fa-plus"></i></button></div></div>
-          <div class="pb-field"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_d9f2c1e468ae43","Manufacturer") ?? "Manufacturer")}</label><div class="pb-select-with-add"><select id="pbManufacturer"><option value=""${String(item.manufacturer ? '' : ' selected')}>${(globalThis.PlatformLanguage?.text("pricebook","m_2d4ff8a83b1b5c","None") ?? "None")}</option>${String(manufacturerOptions)}</select><button type="button" class="pb-select-add" id="pbAddManufacturer" title="${(globalThis.PlatformLanguage?.text("pricebook","m_8c1ba47ec95f93","Add manufacturer") ?? "Add manufacturer")}" aria-label="${(globalThis.PlatformLanguage?.text("pricebook","m_8c1ba47ec95f93","Add manufacturer") ?? "Add manufacturer")}"><i class="fas fa-plus"></i></button></div></div>
+          <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_8cf345002184e5","Name") ?? "Name")}</label><input id="pbName" value="${String(escapeHtml(item.name))}"></div>
+          <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_2e88df13ca7101","Type") ?? "Type")}</label><div class="pb-select-with-add"><select id="pbType">${String(typeOptions)}</select><button type="button" class="pb-select-add" id="pbAddType" title="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_9015ee6e65cb45","Add type") ?? "Add type")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_9015ee6e65cb45","Add type") ?? "Add type")}"><i class="fas fa-plus"></i></button></div></div>
+          <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_d9f2c1e468ae43","Manufacturer") ?? "Manufacturer")}</label><div class="pb-select-with-add"><select id="pbManufacturer"><option value=""${String(item.manufacturer ? '' : ' selected')}>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_2d4ff8a83b1b5c","None") ?? "None")}</option>${String(manufacturerOptions)}</select><button type="button" class="pb-select-add" id="pbAddManufacturer" title="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_8c1ba47ec95f93","Add manufacturer") ?? "Add manufacturer")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_8c1ba47ec95f93","Add manufacturer") ?? "Add manufacturer")}"><i class="fas fa-plus"></i></button></div></div>
         </div>
         <div class="pb-summary-section">
-          <h3>${(globalThis.PlatformLanguage?.text("pricebook","m_ab0d24d9f5de5f","Base variant") ?? "Base variant")}</h3>
+          <h3>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_ab0d24d9f5de5f","Base variant") ?? "Base variant")}</h3>
           <div class="pb-fields">
-            <div class="pb-field"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_139b3692195c64","Base price") ?? "Base price")}</label><input id="pbUnitPrice" type="number" step="0.01" min="0" value="${String(Number(item.unitPrice || 0))}"></div>
-            <div class="pb-field"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_5829f266947b88","Base cost") ?? "Base cost")}</label><input id="pbInternalCost" type="number" step="0.01" min="0" value="${String(Number(item.internalCost || 0))}"></div>
-            <div class="pb-field"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_d58ba148334f31","Base unit type") ?? "Base unit type")}</label><div class="pb-select-with-add"><select id="pbUnit">${String(unitOptions)}</select><button type="button" class="pb-select-add" id="pbAddUnit" title="${(globalThis.PlatformLanguage?.text("pricebook","m_ad42d595d416ff","Add unit type") ?? "Add unit type")}" aria-label="${(globalThis.PlatformLanguage?.text("pricebook","m_ad42d595d416ff","Add unit type") ?? "Add unit type")}"><i class="fas fa-plus"></i></button></div></div>
-            <div class="pb-field full"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_5e135f60489e3d","Customer description") ?? "Customer description")}</label><textarea id="pbExternalDescription">${String(escapeHtml(item.externalDescription || ''))}</textarea></div>
-            <div class="pb-field full"><label>${(globalThis.PlatformLanguage?.text("pricebook","m_2c00b4d4a808ce","Internal description") ?? "Internal description")}</label><textarea id="pbInternalDescription">${String(escapeHtml(item.internalDescription || ''))}</textarea></div>
+            <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_139b3692195c64","Base price") ?? "Base price")}</label><input id="pbUnitPrice" type="number" step="0.01" min="0" value="${String(Number(item.unitPrice || 0))}"></div>
+            <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_5829f266947b88","Base cost") ?? "Base cost")}</label><input id="pbInternalCost" type="number" step="0.01" min="0" value="${String(Number(item.internalCost || 0))}"></div>
+            <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_d58ba148334f31","Base unit type") ?? "Base unit type")}</label><div class="pb-select-with-add"><select id="pbUnit">${String(unitOptions)}</select><button type="button" class="pb-select-add" id="pbAddUnit" title="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_ad42d595d416ff","Add unit type") ?? "Add unit type")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_ad42d595d416ff","Add unit type") ?? "Add unit type")}"><i class="fas fa-plus"></i></button></div></div>
+            <div class="pb-field full"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_5e135f60489e3d","Customer description") ?? "Customer description")}</label><textarea id="pbExternalDescription">${String(escapeHtml(item.externalDescription || ''))}</textarea></div>
+            <div class="pb-field full"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_2c00b4d4a808ce","Internal description") ?? "Internal description")}</label><textarea id="pbInternalDescription">${String(escapeHtml(item.internalDescription || ''))}</textarea></div>
           </div>
         </div>
         <details class="pb-global-details">
-          <summary><span><strong>${(globalThis.PlatformLanguage?.text("pricebook","m_f691c6f3ec1d1c","FirstMate global catalog") ?? "FirstMate global catalog")}</strong><small>${String(escapeHtml(globalSummary))}</small></span><i class="fas fa-chevron-down"></i></summary>
+          <summary><span><strong>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_f691c6f3ec1d1c","FirstMate global catalog") ?? "FirstMate global catalog")}</strong><small>${String(escapeHtml(globalSummary))}</small></span><i class="fas fa-chevron-down"></i></summary>
           <div class="pb-global-details-body">
             <div class="pb-layer-card">
               <div><strong>${String(layerMode === 'live' ? 'Following FirstMate updates' : layerMode === 'snapshot' ? 'Using a frozen FirstMate reference' : 'No FirstMate catalog link')}</strong><span>${String(layerMode === 'live' ? 'Fields without organization overrides update with the FirstMate catalog.' : layerMode === 'snapshot' ? 'FirstMate changes will not flow into this item while its reference is frozen.' : 'This item was created specifically for this organization.')}</span></div>
-              ${String(layerMode !== 'local' ? `<select id="pbGlobalLinkMode"><option value="live"${layerMode === 'live' ? ' selected' : ''}>Follow updates</option><option value="snapshot"${layerMode === 'snapshot' ? ' selected' : ''}>Freeze reference</option></select>` : '')}
+              ${String(layerMode !== 'local' ? `<select id="pbGlobalLinkMode"><option value="live"${layerMode === 'live' ? ' selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_2ab2275eebff83","Follow updates") ?? "Follow updates")}</option><option value="snapshot"${layerMode === 'snapshot' ? ' selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_e6201ff1d8fc60","Freeze reference") ?? "Freeze reference")}</option></select>` : '')}
             </div>
-            ${String(Object.keys(global).length ? `<div class="pb-price-compare"><div class="pb-price-stat"><span>FirstMate</span><strong>$${globalPrice.toFixed(2)}</strong></div><div class="pb-price-stat"><span>Organization</span><strong>$${Number(item.unitPrice || 0).toFixed(2)}</strong></div><div class="pb-price-stat"><span>Difference</span><strong>${Number(item.unitPrice || 0) - globalPrice >= 0 ? '+' : '-'}$${Math.abs(Number(item.unitPrice || 0) - globalPrice).toFixed(2)}</strong></div></div>` : '')}
+            ${String(Object.keys(global).length ? `<div class="pb-price-compare"><div class="pb-price-stat"><span>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_5c4fb8df281140","FirstMate") ?? "FirstMate")}</span><strong>$${globalPrice.toFixed(2)}</strong></div><div class="pb-price-stat"><span>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_84b7f792c9d048","Organization") ?? "Organization")}</span><strong>$${Number(item.unitPrice || 0).toFixed(2)}</strong></div><div class="pb-price-stat"><span>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_a66599d9c29a1c","Difference") ?? "Difference")}</span><strong>${Number(item.unitPrice || 0) - globalPrice >= 0 ? '+' : '-'}$${Math.abs(Number(item.unitPrice || 0) - globalPrice).toFixed(2)}</strong></div></div>` : '')}
           </div>
         </details>
-        <div class="pb-summary-footer"><button type="button" class="pb-delete" id="pbDelete"${String(state.items.length <= 1 ? ' disabled' : '')}>${(globalThis.PlatformLanguage?.text("pricebook","m_aaf8dbee05f91a","Delete item") ?? "Delete item")}</button></div>
+        <div class="pb-summary-footer"><button type="button" class="pb-delete" id="pbDelete"${String(state.items.length <= 1 ? ' disabled' : '')}>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_aaf8dbee05f91a","Delete item") ?? "Delete item")}</button></div>
       </div>`;
   }
 
@@ -2426,8 +2426,8 @@
                   </div>
                   <span class="pb-item-price">$${Number(item.unitPrice || 0).toFixed(2)}</span>
                 </button>
-              `).join('') || `<div class="pb-item-empty">No matching items</div>`)}
-              <button type="button" class="pb-cat-add" data-pb-add-cat="${String(escapeHtml(category.value))}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.text("pricebook","m_3ba3d8155c75f9"," New Item") ?? " New Item")}</button>
+              `).join('') || `<div class="pb-item-empty">${(globalThis.PlatformLanguage?.htmlText("pricebook","m_967cca6a8dadc5","No matching items") ?? "No matching items")}</div>`)}
+              <button type="button" class="pb-cat-add" data-pb-add-cat="${String(escapeHtml(category.value))}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_3ba3d8155c75f9"," New Item") ?? " New Item")}</button>
             </div>
           </div>
         </section>
@@ -2464,14 +2464,14 @@
     });
 
     if (!activeItem) {
-      main.innerHTML = `<div class="pb-card"><h3>${(globalThis.PlatformLanguage?.text("pricebook","m_65b68c594dbb10","No items yet") ?? "No items yet")}</h3><p>${(globalThis.PlatformLanguage?.text("pricebook","m_215424428557c7","Create a pricebook item to get started.") ?? "Create a pricebook item to get started.")}</p></div>`;
+      main.innerHTML = `<div class="pb-card"><h3>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_65b68c594dbb10","No items yet") ?? "No items yet")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_215424428557c7","Create a pricebook item to get started.") ?? "Create a pricebook item to get started.")}</p></div>`;
       return;
     }
 
     main.innerHTML = `<div class="pb-editor-surface">
       <div class="pb-editor-header">
-        <div class="pb-item-tabs"><button type="button" class="pb-item-tab${String(activeEditorTab === 'summary' ? ' active' : '')}" data-pb-item-tab="summary">${(globalThis.PlatformLanguage?.text("pricebook","m_9b03ccb29ba168","Summary") ?? "Summary")}</button><button type="button" class="pb-item-tab${String(activeEditorTab === 'variants' ? ' active' : '')}" data-pb-item-tab="variants">${(globalThis.PlatformLanguage?.text("pricebook","m_70282f7c0969c2","Variants") ?? "Variants")}</button></div>
-        ${String(activeEditorTab === 'variants' ? '<div class="pb-editor-header-actions"><button type="button" class="pb-secondary-button" data-pb-add-dimension><i class="fas fa-plus"></i> Add</button></div>' : '')}
+        <div class="pb-item-tabs"><button type="button" class="pb-item-tab${String(activeEditorTab === 'summary' ? ' active' : '')}" data-pb-item-tab="summary">${(globalThis.PlatformLanguage?.htmlText("pricebook","m_9b03ccb29ba168","Summary") ?? "Summary")}</button><button type="button" class="pb-item-tab${String(activeEditorTab === 'variants' ? ' active' : '')}" data-pb-item-tab="variants">${(globalThis.PlatformLanguage?.htmlText("pricebook","m_70282f7c0969c2","Variants") ?? "Variants")}</button></div>
+        ${String(activeEditorTab === 'variants' ? `<div class="pb-editor-header-actions"><button type="button" class="pb-secondary-button" data-pb-add-dimension><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_8803dece55359d"," Add") ?? " Add")}</button></div>` : '')}
       </div>
       <div class="pb-editor-scroll">${String(activeEditorTab === 'variants' ? renderVariationBuilder(activeItem) : renderSummaryEditor(activeItem))}</div>
     </div>`;
@@ -2555,7 +2555,7 @@
     expandedCategories = resolveExpandedCategories(options);
     container.classList.add('pb-embed');
     container.innerHTML = shellMarkup({
-      title: options.title || (globalThis.PlatformLanguage?.text("pricebook","m_5bdcd2418294b6","Organization Price Book") ?? "Organization Price Book"),
+      title: options.title || (globalThis.PlatformLanguage?.htmlText("pricebook","m_5bdcd2418294b6","Organization Price Book") ?? "Organization Price Book"),
       subtitle: options.subtitle || 'Company pricing, global market references, and artifact line behavior.',
     });
     embeddedRoot = container;

@@ -1,0 +1,7 @@
+# Global Receipts layout — development, September 25, 2026
+
+The serving development web nodes `do-598520065` and `do-603124965` run release `40d8102779983fcf9b2c83bfba79549356430c8f`, layered over `ee187841b5ec6c18da65ab966ce81df17a91ec72`. Only `public/libraries/apps/receipts/app.js` and `public/libraries/apps/photos/feed.js` changed. The shared receipt toolbar spans the desktop gallery and reimbursement column. Mobile uses Receipts and Reimbursements sub-tabs when open reimbursements exist. Reimbursement search follows the shared search field.
+
+The canonical branch contains the exact source commit. Both nodes passed guarded staging against the previous release and the expected source hashes, JavaScript syntax checks, activation with automatic rollback on failure, local exact-release readiness, development data checks, and outbound isolation checks. Thirty-two public readiness requests reached both nodes (9 and 23) at the release ID. Both public JavaScript assets matched the committed SHA-256 hashes. Production was not changed.
+
+Rollback: point `/opt/firstmeasure/current` on each development web node back to `/opt/firstmeasure/releases/ee187841b5ec6c18da65ab966ce81df17a91ec72`, restart `firstmeasure-development-web.service` and `php8.3-fpm.service`, then run `deploy/digitalocean/verify-node.sh http://127.0.0.1:3201` and verify development isolation. The development autoscale image remains historical and needs this release before a replacement node can preserve the layout.

@@ -1,3 +1,6 @@
+import { exchangeEstimate } from "../commerce/exchange.js";
+import { priceForOrganization, stripePriceKey } from "../commerce/prices.js";
+import { organizationProfile } from "../commerce/profile.js";
 import { randomUUID, createHash } from "node:crypto";
 import { env } from "../src/config/env.js";
 import { badRequest, conflict, notFound } from "../platform/errors.js";
@@ -8,7 +11,7 @@ import type { Price, Subscription } from "./model.js";
 import { rawCapabilityValues, resolveCapabilities } from "../platform/capabilities.js";
 
 type StripeAccount = { customer_id:string; subscription_id?:string };
-export type Quote = { id:string; price:Price; stripe_price_id?:string; subscription_id?:string; state:string; proration_date:number; expires_at:string;
+export type Quote = { id:string; price:Price; exchange?:Awaited<ReturnType<typeof exchangeEstimate>>; adaptive_pricing?:boolean; stripe_price_id?:string; subscription_id?:string; state:string; proration_date:number; expires_at:string;
   replaces_id?:string; replaces_item_id?:string; replaces_name?:string;
   current_monthly_cents:number; new_monthly_cents:number; due_now_cents:number; renewal_at:string|null;
   items:{name:string;monthly_cents:number;added:boolean;description:string}[]; credit_cents:number; future_credit_cents:number; subtotal_cents:number };
@@ -30,20 +33,20 @@ function owned(sub:any, org:string, account:StripeAccount) {
   if(sub.items?.has_more) throw conflict("billing_too_many_items");
 }
 function validateItem(item:any, price:Price, stripePrice:string) {
-  if(!item || item.quantity!==1 || objectId(item.price)!==stripePrice || item.price.unit_amount!==price.monthly_cents || item.price.currency!=="usd" || item.price.recurring?.interval!=="month" || item.price.recurring?.interval_count!==1) throw conflict("billing_price_mismatch");
+  if(!item || item.quantity!==1 || objectId(item.price)!==stripePrice || item.price.unit_amount!==price.monthly_cents || item.price.currency!==price.currency.toLowerCase() || item.price.recurring?.interval!=="month" || item.price.recurring?.interval_count!==1) throw conflict("billing_price_mismatch");
 }
 async function nativePrice(price:Price) {
-  const existing=await record<{id:string}>("_platform","stripe-price",price.id);
+  const existing=await record<{id:string}>("_platform","stripe-price",stripePriceKey(price));
   if(existing) return existing.id;
   // Immutable price versions map to immutable Stripe prices. lookup_key makes recovery
   // safe even beyond Stripe's 24-hour idempotency retention.
-  const lookup=`fm_platform_${price.id}`;
+  const lookup=`fm_platform_${stripePriceKey(price)}`;
   const found=await stripe("GET",`prices?lookup_keys[]=${encodeURIComponent(lookup)}&limit=1`);
   let value=found.data?.[0];
-  if(!value) value=await stripe("POST","prices",{currency:"usd",unit_amount:String(price.monthly_cents),"recurring[interval]":"month","product_data[name]":price.name,lookup_key:lookup,"metadata[platform_price_id]":price.id},`platform-price-${hash(price.id)}`);
+  if(!value) value=await stripe("POST","prices",{currency:price.currency.toLowerCase(),unit_amount:String(price.monthly_cents),"recurring[interval]":"month","product_data[name]":price.name,lookup_key:lookup,"metadata[platform_price_id]":price.id},`platform-price-${hash(stripePriceKey(price))}`);
   mode(value);
-  if(value.unit_amount!==price.monthly_cents || value.currency!=="usd" || value.recurring?.interval!=="month" || value.recurring?.interval_count!==1) throw conflict("billing_price_mismatch");
-  await put("_platform","stripe-price",price.id,{id:value.id}); return String(value.id);
+  if(value.unit_amount!==price.monthly_cents || value.currency!==price.currency.toLowerCase() || value.recurring?.interval!=="month" || value.recurring?.interval_count!==1) throw conflict("billing_price_mismatch");
+  await put("_platform","stripe-price",stripePriceKey(price),{id:value.id}); return String(value.id);
 }
 async function state(org:string) {
   const subscriptions=(await records<Subscription>(org,"subscription")).filter(active);
@@ -59,13 +62,15 @@ function readyForChange(sub:any) {
 async function preview(subId:string, stripePrice:string, at:number, itemId?:string) {
   return stripe("POST","invoices/create_preview",{subscription:subId,...(itemId?{"subscription_details[items][0][id]":itemId}:{}),"subscription_details[items][0][price]":stripePrice,"subscription_details[items][0][quantity]":"1","subscription_details[proration_behavior]":"always_invoice","subscription_details[proration_date]":String(at)});
 }
-function validAmount(invoice:any) {
-  if(invoice.currency!=="usd" || !Number.isSafeInteger(invoice.amount_due) || invoice.amount_due<0 || invoice.amount_due>100_000_000) throw conflict("billing_quote_invalid");
+function validAmount(invoice:any, currency:string) {
+  if(invoice.currency!==currency.toLowerCase() || !Number.isSafeInteger(invoice.amount_due) || invoice.amount_due<0 || invoice.amount_due>100_000_000) throw conflict("billing_quote_invalid");
 }
 export async function quoteSubscription(org:string, priceId:string) {
   await reconcileSubscriptions(org,"checkout-review");
-  const price=await record<Price>("_platform","price",priceId);
-  if(!price?.published) throw badRequest("billing_price_unavailable");
+  const catalogPrice=await record<Price>("_platform","price",priceId);
+  if(!catalogPrice?.published) throw badRequest("billing_price_unavailable");
+  const price=await priceForOrganization(org,catalogPrice!);
+  const profile=await organizationProfile(org);
   await purchasable(org,price);
   if((await records<Purchase>(org,"purchase")).some(pending) || (await records<any>(org,"stripe-cancel")).some(c=>!c.complete) || (await records<any>(org,"stripe-resume")).some(r=>!r.complete)) throw conflict("billing_checkout_pending","Finish or cancel your pending checkout first.");
   const current=await state(org);
@@ -77,15 +82,16 @@ export async function quoteSubscription(org:string, priceId:string) {
     if(usage.used_bytes>price.allowances.storage_bytes)throw conflict("billing_storage_too_large","Your stored media exceeds this plan. Remove files or choose a larger plan before downgrading.");
   }
   readyForChange(current.sub);
+  if(current.subscriptions.some(s=>s.price.currency!==price.currency))throw conflict("billing_currency_mismatch","Existing subscriptions use another billing currency. Contact support before changing currency.");
   const at=Math.floor(Date.now()/1000);
   const stripePrice=(price.monthly_cents||price.rates.some(r=>r.unit_price_micros))?await nativePrice(price):undefined;
   const invoice=current.sub && stripePrice?await preview(current.sub.id,stripePrice,at,replacing?.stripe_item_id):null;
-  if(invoice) validAmount(invoice);
+  if(invoice) validAmount(invoice,price.currency);
   const items=current.subscriptions.filter(s=>!s.ends_at && s.id!==replacing?.id).map(s=>({name:s.price.name,monthly_cents:s.price.monthly_cents,added:false,description:s.price.description}));
   const monthly=current.subscriptions.filter(s=>!s.ends_at).reduce((total,s)=>total+s.price.monthly_cents,0);
   items.push({name:price.name,monthly_cents:price.monthly_cents,added:true,description:price.description});
   const due=invoice?invoice.amount_due:price.monthly_cents;
-  const quote:Quote={id:randomUUID(),price,stripe_price_id:stripePrice,subscription_id:current.sub?.id,state:current.fingerprint,...(replacing?{replaces_id:replacing.id,replaces_item_id:replacing.stripe_item_id,replaces_name:replacing.price.name}:{}),proration_date:at,expires_at:iso(at+600),current_monthly_cents:monthly,new_monthly_cents:monthly+price.monthly_cents-(replacing?.price.monthly_cents||0),due_now_cents:due,renewal_at:current.sub?iso(current.sub.items.data[0].current_period_end):null,items,future_credit_cents:Math.max(0,-(invoice?.total||0)),subtotal_cents:invoice?.subtotal??due,credit_cents:invoice?Math.max(0,(invoice.total||0)-due):0};
+  const quote:Quote={id:randomUUID(),price,exchange:profile.credit_display==="credits"?await exchangeEstimate(profile.currency,profile.local_currency):null,adaptive_pricing:profile.credit_display==="credits",stripe_price_id:stripePrice,subscription_id:current.sub?.id,state:current.fingerprint,...(replacing?{replaces_id:replacing.id,replaces_item_id:replacing.stripe_item_id,replaces_name:replacing.price.name}:{}),proration_date:at,expires_at:iso(at+600),current_monthly_cents:monthly,new_monthly_cents:monthly+price.monthly_cents-(replacing?.price.monthly_cents||0),due_now_cents:due,renewal_at:current.sub?iso(current.sub.items.data[0].current_period_end):null,items,future_credit_cents:Math.max(0,-(invoice?.total||0)),subtotal_cents:invoice?.subtotal??due,credit_cents:invoice?Math.max(0,(invoice.total||0)-due):0};
   await put(org,"quote",quote.id,quote); return quote;
 }
 function checkoutBase() {
@@ -107,7 +113,7 @@ export async function acceptSubscription(org:string, quoteId:string, actor:strin
   readyForChange(current.sub);
   if(current.fingerprint!==quote.state) throw conflict("billing_quote_changed","Your subscription changed. Refresh the review before checking out.");
   if(quote.subscription_id && quote.stripe_price_id) {
-    const next=await preview(quote.subscription_id,quote.stripe_price_id,quote.proration_date,quote.replaces_item_id);validAmount(next);
+    const next=await preview(quote.subscription_id,quote.stripe_price_id,quote.proration_date,quote.replaces_item_id);validAmount(next,quote.price.currency);
     if(next.amount_due!==quote.due_now_cents || next.subtotal!==quote.subtotal_cents) throw conflict("billing_quote_changed","The amount changed. Refresh the review before checking out.");
   }
   purchase=await billingStore().transaction(async()=>{
@@ -119,7 +125,7 @@ export async function acceptSubscription(org:string, quoteId:string, actor:strin
     if(hash(local)!==hash(current.subscriptions)) throw conflict("billing_quote_changed");
     const fields:Record<string,string>=quote.subscription_id?{
       ...(quote.replaces_item_id?{"items[0][id]":quote.replaces_item_id}:{}),"items[0][price]":quote.stripe_price_id||"","items[0][quantity]":"1",payment_behavior:"pending_if_incomplete",proration_behavior:"always_invoice",proration_date:String(quote.proration_date),"expand[0]":"latest_invoice"
-    }:{mode:"subscription","line_items[0][price]":quote.stripe_price_id||"","line_items[0][quantity]":"1","payment_method_types[0]":"card",success_url:`${checkoutBase()}&billing_checkout=${quote.id}`,cancel_url:`${checkoutBase()}&billing_checkout=${quote.id}`,expires_at:String(Math.floor(Date.now()/1000)+1800),client_reference_id:org,
+    }:{mode:"subscription","adaptive_pricing[enabled]":quote.adaptive_pricing?"true":"false","line_items[0][price]":quote.stripe_price_id||"","line_items[0][quantity]":"1","payment_method_types[0]":"card",success_url:`${checkoutBase()}&billing_checkout=${quote.id}`,cancel_url:`${checkoutBase()}&billing_checkout=${quote.id}`,expires_at:String(Math.floor(Date.now()/1000)+1800),client_reference_id:org,
       "metadata[billing_kind]":"platform_subscription","metadata[organization_id]":org,"metadata[purchase_id]":quote.id,"subscription_data[metadata][billing_kind]":"platform_subscription","subscription_data[metadata][organization_id]":org,"subscription_data[metadata][purchase_id]":quote.id,"payment_method_collection":"always"};
     // A separate platform customer keeps payment method changes isolated from
     // FirstMeasure credit purchases and automatic top-ups.
@@ -137,7 +143,7 @@ async function execute(org:string,p:Purchase) {
   if(p.status==="paid") return {paid:true};
   if(p.status==="expired") throw conflict("billing_checkout_expired","Review the subscription again to start a new checkout.");
   if(!p.price.monthly_cents && !p.price.rates.some(r=>r.unit_price_micros)) {
-    await billingStore().transaction(async()=>{await subscribe(org,p.price.id,p.id,p.actor);p.status="paid";await put(org,"purchase",p.id,p);},org);return {paid:true};
+    await billingStore().transaction(async()=>{await subscribe(org,p.price.id,p.id,p.actor,p.price);p.status="paid";await put(org,"purchase",p.id,p);},org);return {paid:true};
   }
   if(p.status==="pending") {await reconcilePurchase(org,p);return result((await record<Purchase>(org,"purchase",p.id))!);}
   if(Date.now()-Date.parse(p.created_at)>23*3600000) throw conflict("billing_payment_review_required","The checkout result needs to be reconciled with Stripe before retrying.");
@@ -160,7 +166,7 @@ async function reconcilePurchase(org:string,p:Purchase) {
     if(session.metadata?.organization_id!==org || session.metadata?.purchase_id!==p.id || session.metadata?.billing_kind!=="platform_subscription" || session.mode!=="subscription") throw conflict("billing_payment_mismatch");
     if(session.status==="expired") {await expire(org,p);return;}
     if(session.payment_status!=="paid")return;
-    if(session.currency!=="usd" || session.amount_total!==p.due_now_cents)throw conflict("billing_payment_mismatch");
+    if(session.currency!==p.price.currency.toLowerCase() || session.amount_total!==p.due_now_cents)throw conflict("billing_payment_mismatch");
     subId=objectId(session.subscription);customer=objectId(session.customer);paid=true;
   }
   if(!subId)return;
@@ -169,7 +175,7 @@ async function reconcilePurchase(org:string,p:Purchase) {
   const sub=await stripe("GET",`subscriptions/${encodeURIComponent(subId)}?expand[]=latest_invoice`);owned(sub,org,account);
   if(p.invoice_id) {
     invoice=await stripe("GET",`invoices/${encodeURIComponent(p.invoice_id)}`);mode(invoice);
-    if(objectId(invoice.customer)!==account.customer_id || objectId(invoice.parent?.subscription_details?.subscription||invoice.subscription)!==subId || invoice.currency!=="usd" || invoice.amount_due!==p.due_now_cents)throw conflict("billing_payment_mismatch");
+    if(objectId(invoice.customer)!==account.customer_id || objectId(invoice.parent?.subscription_details?.subscription||invoice.subscription)!==subId || invoice.currency!==p.price.currency.toLowerCase() || invoice.amount_due!==p.due_now_cents)throw conflict("billing_payment_mismatch");
     if(invoice.status==="void" || invoice.status==="uncollectible") {await expire(org,p);return;}
     paid=invoice.status==="paid";
   }
@@ -182,7 +188,7 @@ async function reconcilePurchase(org:string,p:Purchase) {
       if(!previous || previous.stripe_item_id!==p.replaces_item_id)throw conflict("billing_subscription_mismatch");
       previous.ends_at=now();await put(org,"subscription",previous.id,previous);
     }
-    const local=await subscribe(org,p.price.id,p.id,p.actor);
+    const local=await subscribe(org,p.price.id,p.id,p.actor,p.price);
     local.stripe_subscription_id=subId;local.stripe_item_id=item.id;local.paid_through=iso(item.current_period_end);local.period_start=iso(item.current_period_start);local.payment_status="paid";
     await put(org,"subscription",local.id,local);await put(org,"stripe-account","account",account);
     const commercial=await record<any>(org,"account","account");await put(org,"account","account",{...commercial,enforce:true,automatic_collection:true});
@@ -195,7 +201,8 @@ async function expire(org:string,p:Purchase) {await billingStore().transaction(a
 async function saveInvoice(org:string,invoice:any) {
   if(!invoice?.id || typeof invoice!=="object")return;
   mode(invoice);
-  await put(org,"stripe-invoice",invoice.id,{id:invoice.id,status:invoice.status,total_cents:invoice.total,amount_paid_cents:invoice.amount_paid,amount_remaining_cents:invoice.amount_remaining,created_at:iso(invoice.created),url:invoice.hosted_invoice_url,lines:(invoice.lines?.data||[]).map((l:any)=>({label:l.description,amount_cents:l.amount}))});
+  const profile=await organizationProfile(org);
+  await put(org,"stripe-invoice",invoice.id,{id:invoice.id,minor_digits:profile.minor_digits,currency:String(invoice.currency||"USD").toUpperCase(),presentment_details:invoice.presentment_details||null,status:invoice.status,total_cents:invoice.total,amount_paid_cents:invoice.amount_paid,amount_remaining_cents:invoice.amount_remaining,created_at:iso(invoice.created),url:invoice.hosted_invoice_url,lines:(invoice.lines?.data||[]).map((l:any)=>({label:l.description,amount_cents:l.amount}))});
 }
 export async function reconcileSubscriptions(org:string,actor:string) {
   for(const p of await records<Purchase>(org,"purchase")) if(pending(p)) {
@@ -218,7 +225,7 @@ export async function reconcileSubscriptions(org:string,actor:string) {
       const item=sub.items.data.find((i:any)=>i.id===local.stripe_item_id);
       local.payment_status=sub.latest_invoice?.status||sub.status;
       if(sub.status==="active" && sub.latest_invoice?.status==="paid" && item) {
-        const mapped=await record<{id:string}>("_platform","stripe-price",local.price.id);validateItem(item,local.price,mapped?.id||"");local.paid_through=iso(item.current_period_end);local.period_start=iso(item.current_period_start);
+        const mapped=await record<{id:string}>("_platform","stripe-price",stripePriceKey(local.price));validateItem(item,local.price,mapped?.id||"");local.paid_through=iso(item.current_period_end);local.period_start=iso(item.current_period_start);
       }
       if(sub.status==="canceled" || !item) local.ends_at=local.paid_through||now();
       await put(org,"subscription",local.id,local);

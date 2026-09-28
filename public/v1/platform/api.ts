@@ -1,3 +1,7 @@
+import { TRANSLATION_CODES, normalizeTranslationLanguage } from "./localization/languages.js";
+import { messageTranslationPreferences } from "./localization/message-preferences.js";
+import { signupCommercialProfile, profileFromGlobal, organizationProfile, currentProfile, customerCommercialView, creditLabel, creditMinorAmount, reportPrice, assertCommercialRevision } from "../commerce/profile.js";
+import { exchangeEstimate } from "../commerce/exchange.js";
 import { isReceiptMedia, canReadReceiptMedia, canWriteReceiptMedia, publicMediaMetadata } from "./media_access.js";
 import { reportPreferencesSchema, resolveOrderReportPreferences } from "../firstmeasure/report_preferences.js";
 import { exteriorQuote, requireExteriorAccess, validateExteriorOrder } from "../firstmeasure/exteriors.js";
@@ -71,6 +75,8 @@ import {
   switchRememberedPlatformAccount
 } from "./auth.js";
 import { PlatformError } from "./errors.js";
+import { notificationCatalog, catalogDefinitions, definitionPreferences } from "./notification_catalog.js";
+import { notificationPreferenceEnabled, categoryForNotification, deliverNotificationPush, normalizeNotificationPreferences, preferenceKeyForNotification, registerNotificationDevice, saveNotificationPreferences, unregisterNotificationDevice } from "./notification_delivery.js";
 import { projectAudienceFacts } from "./portal_audience.js";
 import { customerPortalDocumentId as portalDocumentIdFor, normalizePortalSettings, publicPortalSettings, type PortalSettings } from "./portal_settings.js";
 // Side-effect import: registers the portal.* server widget resolvers into the
@@ -178,9 +184,17 @@ import { resolveContext } from "./localization/core.js";
 const objectBodySchema = z.object({}).passthrough();
 const userPreferencesSchema = z.object({
   interface_locale: localeSchema.nullable().optional(),
-  language: z.enum(["en", "es", "fr", "de", "pt", "it", "nl", "pl", "ru", "uk", "ar", "hi", "bn", "ur", "zh", "ja", "ko", "vi", "th", "id", "tl", "tr", "he"]).optional(),
+  language: z.union([z.enum(TRANSLATION_CODES), z.literal("en")]).nullable().optional(),
   auto_translate_messages: z.boolean().optional(),
-  sidebar_width: z.number().int().min(220).max(420).optional()
+  sidebar_width: z.number().int().min(220).max(420).optional(),
+  left_column_apps: z.boolean().optional(),
+  left_column_todo_list: z.boolean().optional(),
+  left_column_channels: z.boolean().optional(),
+  left_column_agents: z.boolean().optional(),
+  left_column_default_mode: z.enum(["apps", "todo", "channels", "agents"]).optional(),
+  left_column_expansion_mode: z.enum(["resize", "overlap"]).optional(),
+  always_collapsible_left_column: z.boolean().optional(),
+  resizable_left_column: z.boolean().optional()
 }).strict();
 const pricebookGenerationSchema = z.object({
   samples: z.array(z.object({
@@ -268,7 +282,6 @@ const GENERIC_PLATFORM_COLLECTIONS = new Set([
   "customers",
   "users",
   "branch",
-  NOTIFICATION_COLLECTION,
   "activity",
   CUSTOMER_PORTAL_COLLECTION,
   "calendar_events"
@@ -501,10 +514,12 @@ app.post("/auth/google", async (request, reply) => {
     const company = cleanText(body.company) || "Your Company";
     const requestedPhone = cleanText(body.phone);
     const phone = requestedPhone ? formatSignupPhone(requestedPhone) : "";
-    if (requestedPhone && !phone) throw badRequest("invalid_phone_number", "Enter a valid ten-digit mobile phone number.");
+    if (requestedPhone && !phone) throw badRequest("invalid_phone_number", "Enter a valid mobile phone number, including the country code outside the US and Canada.");
     const workspaceWebsite = googleWorkspaceWebsite(google.hostedDomain);
 
     const defaultAppFlags = await newOrganizationAppFlagDefaults();
+    const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
+    if (commercialProfile.country !== "US") defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
     const requestedGlobal = asObject(body.global);
     delete requestedGlobal.app_flags;
     delete requestedGlobal.feature_flags;
@@ -528,6 +543,7 @@ app.post("/auth/google", async (request, reply) => {
           ...(workspaceWebsite ? { contact: { website: workspaceWebsite } } : {}),
           report_settings: {},
           ...requestedGlobal,
+          commercial_profile: commercialProfile,
           app_flags: defaultAppFlags
         }
       });
@@ -931,9 +947,17 @@ app.get("/auth/google/config", async () => ({
       ok: true,
       preferences: {
         interface_locale: preferences.interface_locale ?? null,
-        language: cleanText(preferences.language || "en").toLowerCase(),
+        ...(await messageTranslationPreferences(ctx.orgId, ctx.branchId, preferences)),
         auto_translate_messages: preferences.auto_translate_messages === true,
-        sidebar_width: Number.isInteger(preferences.sidebar_width) ? preferences.sidebar_width : 250
+        sidebar_width: Number.isInteger(preferences.sidebar_width) ? preferences.sidebar_width : 250,
+        left_column_apps: preferences.left_column_apps !== false,
+        left_column_todo_list: preferences.left_column_todo_list === true,
+        left_column_channels: preferences.left_column_channels === true,
+        left_column_agents: preferences.left_column_agents === true,
+        left_column_default_mode: ["apps", "todo", "channels", "agents"].includes(String(preferences.left_column_default_mode)) ? preferences.left_column_default_mode : "apps",
+        left_column_expansion_mode: preferences.left_column_expansion_mode === "overlap" ? "overlap" : "resize",
+        always_collapsible_left_column: preferences.always_collapsible_left_column === true,
+        resizable_left_column: preferences.resizable_left_column !== false
       }
     };
   });
@@ -946,12 +970,20 @@ app.get("/auth/google/config", async () => ({
     const preferences = {
       ...current,
       interface_locale: patch.interface_locale !== undefined ? patch.interface_locale : current.interface_locale ?? null,
-      language: cleanText(patch.language ?? current.language ?? "en").toLowerCase(),
+      language: patch.language === undefined ? current.language ?? null : patch.language === null ? null : normalizeTranslationLanguage(patch.language),
       auto_translate_messages: patch.auto_translate_messages ?? current.auto_translate_messages === true,
-      sidebar_width: patch.sidebar_width ?? (Number.isInteger(current.sidebar_width) ? current.sidebar_width : 250)
+      sidebar_width: patch.sidebar_width ?? (Number.isInteger(current.sidebar_width) ? current.sidebar_width : 250),
+      left_column_apps: patch.left_column_apps ?? (current.left_column_apps !== false),
+      left_column_todo_list: patch.left_column_todo_list ?? (current.left_column_todo_list === true),
+      left_column_channels: patch.left_column_channels ?? (current.left_column_channels === true),
+      left_column_agents: patch.left_column_agents ?? (current.left_column_agents === true),
+      left_column_default_mode: patch.left_column_default_mode ?? (["apps", "todo", "channels", "agents"].includes(String(current.left_column_default_mode)) ? current.left_column_default_mode : "apps"),
+      left_column_expansion_mode: patch.left_column_expansion_mode ?? (current.left_column_expansion_mode === "overlap" ? "overlap" : "resize"),
+      always_collapsible_left_column: patch.always_collapsible_left_column ?? (current.always_collapsible_left_column === true),
+      resizable_left_column: patch.resizable_left_column ?? (current.resizable_left_column !== false)
     };
     await patchIdentity(ctx.identityId, { preferences });
-    return { ok: true, preferences };
+    return { ok: true, preferences: { ...preferences, ...(await messageTranslationPreferences(ctx.orgId, ctx.branchId, preferences)) } };
   });
 
   app.post("/auth/register", async (request, reply) => {
@@ -960,10 +992,12 @@ app.get("/auth/google/config", async () => ({
     const passwordHash = body.password_hash || (body.password ? await hashPassword(body.password) : "");
     if (!passwordHash) throw badRequest("password_required", "A password is required.");
     const phone = formatSignupPhone(body.phone);
-    if (!phone) throw badRequest("invalid_phone_number", "Enter a valid ten-digit mobile phone number.");
+    if (!phone) throw badRequest("invalid_phone_number", "Enter a valid mobile phone number, including the country code outside the US and Canada.");
     const orgInput = body.organization && typeof body.organization === "object" ? body.organization : {};
     const orgName = String(body.company ?? orgInput.name ?? "Your Company");
     const defaultAppFlags = await newOrganizationAppFlagDefaults();
+    const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
+    if (commercialProfile.country !== "US") defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
     const requestedGlobal = asObject(body.global);
     delete requestedGlobal.app_flags;
     delete requestedGlobal.feature_flags;
@@ -985,6 +1019,7 @@ app.get("/auth/google/config", async () => ({
           branding: { colors: { primary: "#d93025", secondary: "#202124", accent: "#1a73e8" } },
           report_settings: {},
           ...requestedGlobal,
+          commercial_profile: commercialProfile,
           app_flags: defaultAppFlags
         }
       });
@@ -1171,6 +1206,7 @@ app.get("/auth/google/config", async () => ({
         ledger_count: Array.isArray(globalData.credits_ledger) ? globalData.credits_ledger.length : 0
       },
       billing: safeBillingView(globalData.billing),
+      commerce: customerCommercialView(),
       branding: asObject(branchData.branding),
       contact: asObject(branchData.contact),
       report_settings: asObject(branchData.report_settings),
@@ -1196,6 +1232,14 @@ app.get("/auth/google/config", async () => ({
     };
   });
 
+  app.get("/organizations/:orgId/commerce", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId });
+    reply.header("Cache-Control", "private, no-store");
+    const profile = await organizationProfile(orgId);
+    return { ok: true, ...customerCommercialView(profile), exchange: profile.credit_display === "credits" ? await exchangeEstimate(profile.currency, profile.local_currency) : null };
+  });
+
   app.get("/organizations/:orgId/credits", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId });
@@ -1208,6 +1252,7 @@ app.get("/auth/google/config", async () => ({
     return {
       ok: true,
       balance: numericValue(data.credits_balance),
+      commerce: customerCommercialView(),
       free_expedite_uses: Math.max(0, Math.round(numericValue(data.free_expedite_uses))),
       ledger: items,
       ledger_count: ledger.length,
@@ -1687,7 +1732,7 @@ app.get("/auth/google/config", async () => ({
     if (containsAppFlagMutation(body)) throw forbidden("app_flags_operator_only", "App rollout flags are operator-controlled and cannot be changed from Platform.");
     return {
       ok: true,
-      document: await saveGlobal(orgId, body, { replace: true })
+      document: await saveGlobal(orgId, await protectCommercialProfile(orgId, body, true), { replace: true })
     };
   });
 
@@ -1698,7 +1743,7 @@ app.get("/auth/google/config", async () => ({
     if (containsAppFlagMutation(body)) throw forbidden("app_flags_operator_only", "App rollout flags are operator-controlled and cannot be changed from Platform.");
     return {
       ok: true,
-      document: await saveGlobal(orgId, body, { replace: false })
+      document: await saveGlobal(orgId, await protectCommercialProfile(orgId, body, false), { replace: false })
     };
   });
 
@@ -1725,6 +1770,13 @@ app.get("/auth/google/config", async () => ({
         getParam(request.params, "moduleId")
       )
     };
+  });
+
+  app.get('/organizations/:orgId/branch/:branchId/terminology',async request=>{
+    const orgId=getParam(request.params,'orgId');
+    await requirePlatformAuth(request,{orgId});
+    const {readTerminologyMappings}=await import('./localization/terminology-settings.js');
+    return {ok:true,mappings:await readTerminologyMappings(orgId,getParam(request.params,'branchId')||'default')};
   });
 
   app.put("/organizations/:orgId/branch/:branchId/modules/:moduleId", async (request) => {
@@ -2332,6 +2384,106 @@ app.get("/auth/google/config", async () => ({
     return { ok: true, ...result };
   });
 
+
+  // Thin aliases over the shared agent runtime, scoped to Notifications.
+  app.get('/organizations/:orgId/terminology-assistant', async request => {
+    const orgId=getParam(request.params,'orgId');
+    await requirePlatformAuth(request,{orgId,permission:'manage_company_settings'});
+    await import('../assistant/agent/definition.js');
+    const {loadAgentSettings}=await import('../agents/settings.js');
+    const settings=await loadAgentSettings('terminology_assistant',orgId,'default');
+    return {ok:true,settings:{enabled:settings.enabled!==false,assistant_name:settings.assistant_name}};
+  });
+  app.post('/organizations/:orgId/terminology-assistant/threads', async request => {
+    const orgId=getParam(request.params,'orgId');
+    const ctx=await requirePlatformAuth(request,{orgId,csrf:true,permission:'manage_company_settings'});
+    await import('../assistant/agent/definition.js');
+    const {createThreadForAgent}=await import('../agents/runtime.js');
+    const body=z.object({branch_id:z.string().max(100).optional()}).passthrough().parse(request.body||{});
+    return {ok:true,thread:await createThreadForAgent('terminology_assistant',{orgId,branchId:body.branch_id||ctx.branchId||'default',actorUserId:ctx.userId,subjectId:'terminology',title:'Terminology setup'})};
+  });
+  app.get('/organizations/:orgId/terminology-assistant/threads/:threadId', async request => {
+    const orgId=getParam(request.params,'orgId');
+    const ctx=await requirePlatformAuth(request,{orgId,permission:'manage_company_settings'});
+    await import('../assistant/agent/definition.js');
+    const {readThreadForAgent}=await import('../agents/runtime.js');
+    return {ok:true,...await readThreadForAgent('terminology_assistant',orgId,getParam(request.params,'threadId'),ctx.userId)};
+  });
+  app.post('/organizations/:orgId/terminology-assistant/threads/:threadId/messages', async request => {
+    const orgId=getParam(request.params,'orgId'),threadId=getParam(request.params,'threadId');
+    const ctx=await requirePlatformAuth(request,{orgId,csrf:true,permission:'manage_company_settings'});
+    const body=z.object({message:z.string().trim().min(1).max(4000),locale:localeSchema,catalog:z.array(z.object({key:z.string().max(160),label:z.string().max(160),section:z.string().max(120),value:z.string().max(160)})).max(1000)}).parse(request.body);
+    await import('../assistant/agent/definition.js');
+    const {readThreadForAgent,runAgentTurn}=await import('../agents/runtime.js');
+    await readThreadForAgent('terminology_assistant',orgId,threadId,ctx.userId);
+    return {ok:true,...await runAgentTurn('terminology_assistant',{orgId,threadId,branchId:ctx.branchId||'default',message:body.message,input:{locale:body.locale,catalog:body.catalog},ctx,actorUserId:ctx.userId,actorName:String(asObject(ctx.user).name||'')})};
+  });
+
+  // Thin aliases over the shared agent runtime, scoped to Notifications.
+  app.get('/organizations/:orgId/notification-assistant', async request => {
+    const orgId=getParam(request.params,'orgId');
+    await requirePlatformAuth(request,{orgId,capability:'apps.notifications'});
+    await import('../assistant/agent/definition.js');
+    const {loadAgentSettings}=await import('../agents/settings.js');
+    const settings=await loadAgentSettings('notification_assistant',orgId,'default');
+    return {ok:true,settings:{enabled:settings.enabled!==false,assistant_name:settings.assistant_name}};
+  });
+  app.post('/organizations/:orgId/notification-assistant/threads', async request => {
+    const orgId=getParam(request.params,'orgId');
+    const ctx=await requirePlatformAuth(request,{orgId,csrf:true,capability:'apps.notifications'});
+    await import('../assistant/agent/definition.js');
+    const {createThreadForAgent}=await import('../agents/runtime.js');
+    const body=z.object({branch_id:z.string().max(100).optional()}).passthrough().parse(request.body||{});
+    return {ok:true,thread:await createThreadForAgent('notification_assistant',{orgId,branchId:body.branch_id||ctx.branchId||'default',actorUserId:ctx.userId,subjectId:'notifications',title:'Notification setup'})};
+  });
+  app.get('/organizations/:orgId/notification-assistant/threads/:threadId', async request => {
+    const orgId=getParam(request.params,'orgId');
+    const ctx=await requirePlatformAuth(request,{orgId,capability:'apps.notifications'});
+    await import('../assistant/agent/definition.js');
+    const {readThreadForAgent}=await import('../agents/runtime.js');
+    return {ok:true,...await readThreadForAgent('notification_assistant',orgId,getParam(request.params,'threadId'),ctx.userId)};
+  });
+  app.post('/organizations/:orgId/notification-assistant/threads/:threadId/messages', async request => {
+    const orgId=getParam(request.params,'orgId'),threadId=getParam(request.params,'threadId');
+    const ctx=await requirePlatformAuth(request,{orgId,csrf:true,capability:'apps.notifications'});
+    const body=z.object({message:z.string().trim().min(1).max(4000)}).parse(request.body);
+    await import('../assistant/agent/definition.js');
+    const {readThreadForAgent,runAgentTurn}=await import('../agents/runtime.js');
+    await readThreadForAgent('notification_assistant',orgId,threadId,ctx.userId);
+    return {ok:true,...await runAgentTurn('notification_assistant',{orgId,threadId,branchId:ctx.branchId||'default',message:body.message,ctx,actorUserId:ctx.userId,actorName:String(asObject(ctx.user).name||'')})};
+  });
+
+  app.get("/organizations/:orgId/notification-preferences", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId });
+    const user = await readDocument(orgId, "users", ctx.userId);
+    const query=asObject(request.query);
+    const branchId=String(query.branch_id || ctx.branchId || "default");
+    const catalog=await notificationCatalog(orgId,branchId,ctx);
+    return { ok:true,catalog,custom_keys:Array.isArray(asObject(asObject(user.data).notification_preferences).custom_keys)?asObject(asObject(user.data).notification_preferences).custom_keys:[],preferences:definitionPreferences(asObject(user.data).notification_preferences,catalogDefinitions(catalog)) };
+  });
+
+  app.patch("/organizations/:orgId/notification-preferences", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    return { ok: true, preferences: await saveNotificationPreferences(orgId, ctx.userId, objectBodySchema.parse(request.body ?? {}), String(asObject(request.query).branch_id || ctx.branchId || "default")) };
+  });
+
+  app.post("/organizations/:orgId/notification-devices", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const device = await registerNotificationDevice(orgId, ctx.userId, { ...objectBodySchema.parse(request.body ?? {}), branch_id: ctx.branchId || "default" });
+    reply.code(201);
+    return { ok: true, device };
+  });
+
+  app.delete("/organizations/:orgId/notification-devices/:deviceId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    await unregisterNotificationDevice(orgId, ctx.userId, getParam(request.params, "deviceId"));
+    return { ok: true };
+  });
+
   app.post("/organizations/:orgId/notifications", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(NOTIFICATION_COLLECTION) });
@@ -2491,10 +2643,12 @@ app.get("/auth/google/config", async () => ({
 
   app.get("/organizations/:orgId/notifications/:notificationId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId });
+    const ctx = await requirePlatformAuth(request, { orgId });
+    const notificationId = getParam(request.params, "notificationId");
+    await requireVisibleNotification(orgId, ctx.userId, notificationId, ctx.branchId);
     return {
       ok: true,
-      notification: await readDocument(orgId, NOTIFICATION_COLLECTION, getParam(request.params, "notificationId"))
+      notification: await readDocument(orgId, NOTIFICATION_COLLECTION, notificationId)
     };
   });
 
@@ -2502,7 +2656,9 @@ app.get("/auth/google/config", async () => ({
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     const body = objectBodySchema.parse(request.body ?? {});
-    const state = await setUserNotificationState(orgId, ctx.userId, getParam(request.params, "notificationId"), body);
+    const notificationId = getParam(request.params, "notificationId");
+    await requireVisibleNotification(orgId, ctx.userId, notificationId, ctx.branchId);
+    const state = await setUserNotificationState(orgId, ctx.userId, notificationId, body);
     return { ok: true, state };
   });
 
@@ -2743,6 +2899,9 @@ app.get("/auth/google/config", async () => ({
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "create") });
     const body = objectBodySchema.parse(request.body ?? {});
     if (collection === "branch") await assertBranchReportPreferences(orgId, String(asObject(request.params).documentId || body.id || "default"), body);
+    await (await import("../custom_fields/records.js")).authorizeRecordFieldMutation(
+      (await import("./publication/context.js")).userPublicationContext(ctx), collection, cleanText(getParam(request.params, "documentId") || body.id || asObject(body.data).id), body
+    );
     const document = collection === "users"
       ? await createPlatformOrgUser(orgId, body)
       : collection === "projects"
@@ -2816,6 +2975,9 @@ app.get("/auth/google/config", async () => ({
     if (collection === "users" && documentId === ctx.userId) {
       throw forbidden("self_user_replacement_forbidden", "You cannot replace your own organization user record.");
     }
+    await (await import("../custom_fields/records.js")).authorizeRecordFieldMutation(
+      (await import("./publication/context.js")).userPublicationContext(ctx), collection, cleanText(getParam(request.params, "documentId") || body.id || asObject(body.data).id), body
+    );
     const document = collection === "users"
       ? await upsertPlatformOrgUserDocument(orgId, documentId, body, true)
       : collection === "projects"
@@ -2875,6 +3037,9 @@ app.get("/auth/google/config", async () => ({
     if (collection === "users" && documentId === ctx.userId && platformOrgUserPermissionMutation(body)) {
       throw forbidden("self_permission_change_forbidden", "You cannot change your own organization permissions.");
     }
+    await (await import("../custom_fields/records.js")).authorizeRecordFieldMutation(
+      (await import("./publication/context.js")).userPublicationContext(ctx), collection, cleanText(getParam(request.params, "documentId") || body.id || asObject(body.data).id), body
+    );
     const document = collection === "users"
       ? await upsertPlatformOrgUserDocument(orgId, documentId, body, false)
       : collection === "projects"
@@ -3156,7 +3321,7 @@ export async function createPlatformLead(orgId: string, input: PlatformLeadInput
       status: "active",
       channel: "passive",
       kind: "passive",
-      push: notificationInput.push === true,
+      push: notificationInput.push !== false,
       passive: notificationInput.passive !== false,
       manual_dismissible: notificationInput.manual_dismissible === true,
       target_user_ids: normalizeStringArray(notificationInput.target_user_ids),
@@ -3844,6 +4009,9 @@ function normalizeNotification(input: Record<string, unknown>) {
     status: String(input.status || "active"),
     channel: String(input.channel || "passive"),
     kind: String(input.kind || "passive"),
+    category: categoryForNotification(input),
+    preference_key: String(input.preference_key || input.preferenceKey || ""),
+    preference_defaults: asObject(input.preference_defaults),
     push: input.push === true,
     passive: input.passive !== false,
     manual_dismissible: input.manual_dismissible !== false && input.manualDismissible !== false,
@@ -3869,34 +4037,32 @@ function userRoleIds(user: Record<string, unknown>) {
   return roles;
 }
 
-async function resolveNotificationRecipients(orgId: string, notification: Record<string, unknown>) {
-  const targetUserIds = new Set(normalizeStringArray(notification.target_user_ids));
-  const targetRoleIds = new Set(normalizeStringArray(notification.target_role_ids));
-  const docs = await listDocuments(orgId, "users");
-  const users = docs.map((doc) => ({ id: String(doc.id || ""), ...asObject(doc.data) }));
-  return users.filter((user) => {
-    if (targetUserIds.has(String(user.id))) return true;
-    if ([...targetRoleIds].some((roleId) => userRoleIds(user).includes(roleId))) return true;
-    return !targetUserIds.size && !targetRoleIds.size;
-  });
-}
-
 export async function createPlatformNotification(orgId: string, input: Record<string, unknown>) {
   const notification = normalizeNotification(input);
-  if (notification.push) {
-    const recipients = await resolveNotificationRecipients(orgId, notification);
-    notification.push_log = recipients.map((user) => ({
-      user_id: user.id,
-      at: new Date().toISOString(),
-      status: "logged_only"
-    }));
+  let saved;
+  try {
+    saved = await upsertDocument(orgId, NOTIFICATION_COLLECTION, {
+      id: notification.id,
+      data: notification,
+      metadata: { kind: "platform_notification", source: notification.source }
+    }, { createOnly: true });
+  } catch (error) {
+    if (error instanceof PlatformError && error.code === "document_exists") return await readDocument(orgId, NOTIFICATION_COLLECTION, notification.id);
+    throw error;
   }
-  const saved = await upsertDocument(orgId, NOTIFICATION_COLLECTION, {
-    id: notification.id,
-    data: notification,
-    metadata: { kind: "platform_notification", source: notification.source }
-  }, { replace: true });
+  if (notification.push) {
+    const log = await deliverNotificationPush(orgId, notification).catch((error) => {
+      console.error("notification push dispatch failed", error);
+      return [{ at: new Date().toISOString(), status: "error" }];
+    });
+    if (log.length) return await upsertDocument(orgId, NOTIFICATION_COLLECTION, { id: notification.id, data: { ...notification, push_log: log }, metadata: saved.metadata }, { replace: true });
+  }
   return saved;
+}
+
+async function requireVisibleNotification(orgId: string, userId: string, notificationId: string, branchId: string) {
+  const result = await listVisibleNotifications(orgId, userId, { includeDismissed: true, branchId, ignorePreferences: true });
+  if (!result.notifications.some((item) => item.id === notificationId)) throw notFound("notification_not_found", "Notification not found.");
 }
 
 async function setUserNotificationState(orgId: string, userId: string, notificationId: string, patch: Record<string, unknown>) {
@@ -3935,7 +4101,9 @@ async function setUserNotificationState(orgId: string, userId: string, notificat
   return next;
 }
 
-async function listVisibleNotifications(orgId: string, userId: string, options: { includeDismissed?: boolean; branchId?: string } = {}) {
+async function listVisibleNotifications(orgId: string, userId: string, options: { includeDismissed?: boolean; branchId?: string; ignorePreferences?: boolean } = {}) {
+  if (!await isAppFlagEnabled(orgId, "apps", "notifications")) return { notifications: [], unread_count: 0, active_count: 0 };
+  const measurementsEnabled = await isAppFlagEnabled(orgId, "apps", "firstmeasure");
   const [userDoc, notificationDocs] = await Promise.all([
     readDocument(orgId, "users", userId),
     listDocuments(orgId, NOTIFICATION_COLLECTION)
@@ -3943,11 +4111,14 @@ async function listVisibleNotifications(orgId: string, userId: string, options: 
   const user = { id: userId, ...asObject(userDoc.data) };
   const states = asObject(asObject(userDoc.data).notification_state);
   const roles = new Set(userRoleIds(user));
+  const preferences = normalizeNotificationPreferences(asObject(userDoc.data).notification_preferences);
   const notifications = notificationDocs
     .map((doc) => ({ document: doc, data: asObject(doc.data) }))
     .filter(({ data }) => String(data.status || "active") === "active")
     .filter(({ data }) => data.passive !== false)
+    .filter(({ data }) => categoryForNotification(data) !== "measurements" || measurementsEnabled)
     .filter(({ data }) => !notificationExpired(data))
+    .filter(({ data }) => options.ignorePreferences || notificationPreferenceEnabled(asObject(userDoc.data).notification_preferences,data,"in_app"))
     .filter(({ data }) => !data.branch_id || String(data.branch_id) === String(options.branchId || "default"))
     .filter(({ data }) => {
       const targetUserIds = normalizeStringArray(data.target_user_ids);
@@ -4383,7 +4554,7 @@ async function upsertProjectDocumentPreservingEvents(
     const mergedProjectData = mergeProjectCustomFieldsForSave(currentData, {
       ...incomingData,
       events: mergeProjectEmbeddedEvents(currentData.events, incomingData.events)
-    });
+    }, await (await import("../custom_fields/records.js")).definitions(orgId, cleanText(currentData.branch_id || incomingData.branch_id || "default"), "project", currentData));
     await validateProjectCustomFieldValues(
       orgId,
       cleanText(mergedProjectData.branch_id || currentData.branch_id || "default") || "default",
@@ -4719,6 +4890,20 @@ export async function processProjectEventLifecycleForOrg(orgId: string, candidat
           event
         }
       });
+      if (cleanText(event.event_type_default_id || event.kind) === "sales_appointment") {
+        await createPlatformNotification(orgId, {
+          id: `notification_appointment_followup_${document.id}_${cleanText(event.id)}`,
+          title: "Sales appointment finished",
+          body: `Follow up on ${cleanText(project.title || project.address || "this project")}.`,
+          kind: "appointment_followup", category: "scheduling", push: true,
+          branch_id: cleanText(project.branch_id || "default"),
+          target_user_ids: normalizeStringArray(event.assigned_user_ids),
+          target_role_ids: normalizeStringArray(event.assigned_user_ids).length ? [] : ["sales_appointments"],
+          source: "project.event.completed",
+          frontend_action: { kind: "open_project", project_id: document.id },
+          context: { project_id: document.id, event_id: event.id }
+        });
+      }
     }
     if (changed) {
       const latest = await readDocument(orgId, "projects", String(document.id));
@@ -4819,6 +5004,16 @@ function platformUserView(userDoc: unknown) {
 function numericValue(value: unknown, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+async function protectCommercialProfile(orgId: string, body: JsonObject, replace: boolean) {
+  const saved = asObject((await readGlobal(orgId)).data).commercial_profile;
+  const data = asObject(body.data || body);
+  if (data.commercial_profile !== undefined && JSON.stringify(data.commercial_profile) !== JSON.stringify(saved)) {
+    throw forbidden("billing_profile_fixed", "The billing profile is managed by FirstMate.");
+  }
+  if (replace && saved !== undefined) return { ...body, data: { ...data, commercial_profile: saved } };
+  return body;
 }
 
 function safeBillingView(value: unknown) {
@@ -4944,8 +5139,8 @@ async function applyCreditDelta(
       reason: String(body.reason || "adjustment"),
       by_email: String(actorEmail || ""),
       applied_for_user_email: body.applied_for_user_email ?? body.appliedForUserEmail ?? null,
-      meta: asObject(body.meta),
-      unit: String(body.unit || "usd_dollars"),
+      meta: { ...asObject(body.meta), credit_currency: profileFromGlobal(data).currency, credit_display: profileFromGlobal(data).credit_display, minor_digits: profileFromGlobal(data).minor_digits },
+      unit: profileFromGlobal(data).currency === "USD" ? "usd_dollars" : `${profileFromGlobal(data).currency.toLowerCase()}_credits`,
       balance_after: Math.round((balance + amount) * 100) / 100
     };
     if (amount !== 0) ledger.push(entry);
@@ -6848,7 +7043,15 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
     : [];
   const ownerShares = found.access_mode === "owner" ? publicPortalGuestLinks(ownerShareSource, baseUrl) : [];
   await touchPortalGuestView(found).catch(() => undefined);
+  const languageBranch=cleanText(asObject(project).branch_id || asObject(project).branchId || 'default');
+  const {readTerminologyMappings}=await import('./localization/terminology-settings.js');
+  const [portalLanguage,terminologyModule]=await Promise.all([companyLocalization(found.orgId,languageBranch),readTerminologyMappings(found.orgId,languageBranch)]);
+  const publicNamespaces=new Set(['projects','contacts','photos','proposals','documents','document_engine','customer_portal','payments','money','receipts','checklists','change_orders','scheduling','work','workforce']);
+  const {terminologyContract}=await import('./localization/terminology.js');
+  const projectLabels=(value:unknown)=>Object.fromEntries(Object.entries(asObject(value)).filter(([namespace])=>publicNamespaces.has(namespace)).map(([namespace,labels])=>[namespace,Object.fromEntries(Object.entries(asObject(labels)).filter(([key,label])=>Object.hasOwn(terminologyContract,`${namespace}.${key}`)&&!key.endsWith('_application')&&typeof label==='string'&&label.length<=160))]));
+  const terminologyData=asObject(terminologyModule);
   return {
+    language:{context:portalLanguage.context,terminology:{labels:projectLabels(terminologyData.labels),localized_labels:{[portalLanguage.context.locale]:projectLabels(asObject(terminologyData.localized_labels)[portalLanguage.context.locale])}}},
     preview,
     access: found.access_mode === "guest" ? {
       mode: "guest",
@@ -8119,7 +8322,7 @@ function collectionWritePermission(collection: string, operation: "create" | "re
 }
 
 function branchModuleWritePermission(moduleId: string) {
-  if (moduleId === "pricebook" || moduleId === "presentation_style") return "manage_company_settings";
+  if (moduleId === "pricebook" || moduleId === "presentation_style" || moduleId === 'variable_mappings') return "manage_company_settings";
   return undefined;
 }
 
@@ -8523,13 +8726,16 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
       return { success: false, ok: false, status_code: 400, error: "Missing required account fields." };
     }
     if (!phone) {
-      return { success: false, ok: false, status_code: 400, error: "Enter a valid ten-digit mobile phone number." };
+      return { success: false, ok: false, status_code: 400, error: "Enter a valid mobile phone number, including the country code outside the US and Canada." };
     }
     const defaultAppFlags = await newOrganizationAppFlagDefaults();
+    const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
+    if (commercialProfile.country !== "US") defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
     const registered = await withNewIdentityRegistration(cleanText(body.email), async (transaction) => {
       const organization = await createOrganization({
         name: company,
         global: {
+          commercial_profile: commercialProfile,
           app_flags: defaultAppFlags,
           credits_balance: 0,
           credits_ledger: [],
@@ -9052,6 +9258,7 @@ async function portalOrgView(orgId: string) {
     contact: { ...asObject(legacyMetadata.contact), ...asObject(legacyGlobal.contact), ...asObject(data.contact) },
     report_settings: { ...asObject(legacyMetadata.report_settings), ...asObject(legacyGlobal.report_settings), ...asObject(data.report_settings) },
     billing: safeBillingView(Object.keys(asObject(data.billing)).length ? data.billing : legacyGlobal.billing),
+    commerce: customerCommercialView(),
     offers: { ...asObject(legacyMetadata.offers), ...asObject(legacyGlobal.offers), ...asObject(data.offers) },
     credits_balance: numericValue(data.credits_balance ?? legacyGlobal.credits_balance ?? legacyMetadata.credits_balance),
     free_expedite_uses: Math.max(0, Math.round(numericValue(data.free_expedite_uses))),
@@ -9070,6 +9277,7 @@ async function portalCredits(orgId: string, userDoc: JsonObject | null) {
     success: true,
     credits: balance,
     credits_balance: balance,
+    commerce: customerCommercialView(),
     balance,
     remaining_credits: balance,
     free_expedite_uses: Math.max(0, Math.round(numericValue(data.free_expedite_uses))),
@@ -9094,7 +9302,7 @@ async function portalUpdateOrg(orgId: string, body: JsonObject, userDoc: JsonObj
   const fullName = cleanText(body.full_name || body.user_name);
   const requestedPhone = cleanText(body.phone || body.user_phone);
   const phone = requestedPhone ? formatSignupPhone(requestedPhone) : "";
-  if (requestedPhone && !phone) throw badRequest("invalid_phone_number", "Enter a valid ten-digit mobile phone number.");
+  if (requestedPhone && !phone) throw badRequest("invalid_phone_number", "Enter a valid mobile phone number, including the country code outside the US and Canada.");
   if ((fullName || phone) && userDoc) {
     const currentUser = asObject(userDoc.data);
     const identityId = cleanText(currentUser.identity_id);
@@ -10291,7 +10499,10 @@ async function portalStripeCreateCheckout(orgId: string, email: string, body: Js
     "metadata[paid_dollars]": qty,
     "metadata[bonus_dollars]": bonus,
     "metadata[is_signup_match]": useBonus ? "1" : "0",
-    "metadata[credits_qty]": totalCredit
+    "metadata[credits_qty]": totalCredit,
+    "metadata[credit_currency]": currentProfile().currency,
+    "metadata[paid_minor]": creditMinorAmount(qty),
+    "adaptive_pricing[enabled]": currentProfile().credit_display === "credits" ? "true" : "false"
   };
   for (const [key, value] of Object.entries(metaAttribution)) {
     fields[`metadata[${key}]`] = value;
@@ -10306,18 +10517,18 @@ async function portalStripeCreateCheckout(orgId: string, email: string, body: Js
     if (offerLabel) fields["metadata[offer_label]"] = offerLabel;
     if (matchPercent) fields["metadata[match_percent]"] = matchPercent;
   }
-  const priceId = stripePriceId(useBonus);
+  const priceId = currentProfile().credit_display === "currency" && currentProfile().currency === "USD" && currentProfile().minor_digits === 2 ? stripePriceId(useBonus) : "";
   if (priceId && !useBonus) {
     fields["line_items[0][price]"] = priceId;
     fields["line_items[0][quantity]"] = qty;
   } else {
     const matchPercent = qty > 0 && bonus > 0 ? Math.round((bonus / qty) * 10_000) / 100 : 0;
-    fields["line_items[0][price_data][currency]"] = "usd";
-    fields["line_items[0][price_data][unit_amount]"] = "100";
+    fields["line_items[0][price_data][currency]"] = currentProfile().currency.toLowerCase();
+    fields["line_items[0][price_data][unit_amount]"] = String(creditMinorAmount(1));
     fields["line_items[0][price_data][product_data][name]"] = useBonus ? "Roof Measurement Credits With Limited-Time Bonus" : "Roof Measurement Credits";
     fields["line_items[0][price_data][product_data][description]"] = useBonus
-      ? `$${qty} purchased + $${bonus} limited-time bonus (${matchPercent}% bonus) = $${totalCredit} total credit added to your account`
-      : `$${totalCredit} credit added to your FirstMate account`;
+      ? `${creditLabel(qty)} purchased + ${creditLabel(bonus)} limited-time bonus (${matchPercent}% bonus) = ${creditLabel(totalCredit)} added to your account`
+      : `${creditLabel(totalCredit)} added to your FirstMate account`;
     fields["line_items[0][quantity]"] = qty;
   }
   const created = await stripeApiRequest("POST", "/v1/checkout/sessions", fields);
@@ -10340,12 +10551,12 @@ async function portalStripeStartSetup(orgId: string, body: JsonObject) {
   const baseUrl = stripeReturnBaseUrl(body);
   const termsUrl = `${baseUrl}/terms`;
   const consent = billing.auto_topup.enabled
-    ? `I authorize FirstMate to save my card for recurring billing and authorize an automatic top-up of $${topup} when my balance drops below $${threshold}. [Terms](${termsUrl})`
+    ? `I authorize FirstMate to save my card for recurring billing and authorize an automatic top-up of ${creditLabel(topup)} when my balance drops below ${creditLabel(threshold)}. [Terms](${termsUrl})`
     : `I authorize FirstMate to save my card for future billing. [Terms](${termsUrl})`;
   const created = await stripeApiRequest("POST", "/v1/checkout/sessions", {
     mode: "setup",
     customer: customerId,
-    currency: "usd",
+    currency: currentProfile().currency.toLowerCase(),
     success_url: `${baseUrl}/index.php?tab=company_settings&sub=billing&setup=1&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/index.php?tab=company_settings&sub=billing&setup=0`,
     "consent_collection[terms_of_service]": "required",
@@ -10402,6 +10613,12 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
   if (!email || !orgId || dollars < 1) return { success: false, error: "Missing metadata", user_email: email, org_id: orgId, credit_dollars: dollars, session_id: sessionId };
   const global = await readGlobal(orgId);
   const data = asObject(global.data);
+  const profile = profileFromGlobal(data);
+  const paidCurrency = cleanText(meta.credit_currency || "USD").toUpperCase();
+  const expectedMinor = meta.paid_minor === undefined ? Math.round(numericValue(meta.paid_dollars, dollars) * 100) : Number(meta.paid_minor);
+  if (paidCurrency !== profile.currency || cleanText(session.currency).toUpperCase() !== paidCurrency || Number(session.amount_total) !== expectedMinor) {
+    return { success: false, error: "Payment amount or currency mismatch", session_id: sessionId };
+  }
   const fulfilled = asObject(data.stripe_fulfilled_sessions);
   if (fulfilled[sessionId]) return { success: true, duplicate: true, session_id: sessionId };
   const credit = await applyCreditDelta(orgId, {
@@ -10416,6 +10633,7 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
       offer_tier_id: meta.offer_tier_id || "",
       amount_total: session.amount_total ?? null,
       currency: session.currency ?? null,
+      presentment_details: session.presentment_details ?? null,
       paid_dollars: numericValue(meta.paid_dollars, dollars),
       bonus_dollars: numericValue(meta.bonus_dollars),
       is_signup_match: meta.is_signup_match === "1",
@@ -10469,7 +10687,7 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
     }
   });
   await stripeSavePaymentMethodFromCheckout(orgId, session).catch(() => null);
-  return { success: true, credited: dollars, paid_dollars: purchaseValue, email, scope: "org", org_id: orgId, session_id: sessionId, balance: credit.balance, meta_capi: metaCapi };
+  return { success: true, currency: profile.currency, credited: dollars, paid_dollars: purchaseValue, email, scope: "org", org_id: orgId, session_id: sessionId, balance: credit.balance, meta_capi: metaCapi };
 }
 
 function metaAttributionFields(body: JsonObject) {
@@ -10600,6 +10818,7 @@ async function stripePatchBilling(orgId: string, patch: JsonObject, eventType = 
 }
 
 async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAfterSpend: number, triggerEntry: JsonObject) {
+  const profile = await organizationProfile(orgId);
   const global = await readGlobal(orgId);
   const data = asObject(global.data);
   const billing = asObject(data.billing);
@@ -10640,13 +10859,13 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
     meta: triggerEntry.meta
   })).slice(0, 24);
   const result = await stripeApiRequest("POST", "/v1/payment_intents", {
-    amount: Math.round(topup * 100),
-    currency: "usd",
+    amount: creditMinorAmount(topup, profile),
+    currency: profile.currency.toLowerCase(),
     customer: customerId,
     payment_method: paymentMethodId,
     off_session: "true",
     confirm: "true",
-    description: stripeCreditReceiptDescription(topup),
+    description: stripeCreditReceiptDescription(topup, profile),
     "metadata[type]": "org_auto_topup",
     "metadata[org_id]": orgId,
     "metadata[topup_dollars]": topup,
@@ -10671,6 +10890,7 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
   const paymentIntent = asObject(result.data);
   const paymentIntentId = cleanText(paymentIntent.id);
   const status = cleanText(paymentIntent.status);
+  if(status === "succeeded" && (Number(paymentIntent.amount)!==creditMinorAmount(topup,profile) || String(paymentIntent.currency).toUpperCase()!==profile.currency || paymentIntent.livemode!==!stripeIsTestMode()))throw conflict("payment_amount_mismatch", "Payment amount or currency mismatch.");
   if (status !== "succeeded") {
     await stripePatchBilling(orgId, {
       auto_topup: {
@@ -10687,6 +10907,7 @@ async function stripeMaybeAutoTopup(orgId: string, actorEmail: string, balanceAf
     reason: "stripe_auto_topup",
     applied_for_user_email: actorEmail,
     meta: {
+      currency: profile.currency.toLowerCase(), amount_total: creditMinorAmount(topup,profile), paid_dollars: topup,
       payment_intent_id: paymentIntentId,
       balance_before_topup: balanceAfterSpend,
       threshold_dollars: threshold,
@@ -10855,17 +11076,7 @@ function moneyAmount(value: unknown) {
 }
 
 function firstMeasureReportAmount(body: JsonObject, projectType: string, reportMode: string, pins: unknown) {
-  const pinCount = Math.max(1, Array.isArray(pins) ? pins.length : 1);
-  const expediteKey = cleanText(body.report_expedite_option).toLowerCase();
-  const quote = buildReportExpediteOptions({ projectType, structureCount: pinCount });
-  const standardWait = numericValue(quote.options.find((option) => option.key === "standard_3_6")?.estimated_wait_minutes, 180);
-  const base = reportExpediteBaseUnitPrice(projectType, expediteKey, standardWait);
-  const instant = reportMode === "both" || reportMode === "instant" ? firstMeasureInstantAddon(projectType) : 0;
-  const unit = base + instant;
-  const report = projectType === "commercial" || projectType === "multifamily" ? unit * pinCount : unit;
-  const gutters = projectType === "residential" && parseBooleanField(body.include_gutter_measurements, false) ? 2 : 0;
-  const weather = parseBooleanField(body.include_weather_report, false) ? 5 * pinCount : 0;
-  return moneyAmount(report + gutters + weather);
+  return sharedFirstMeasureReportAmount({ ...body, project_type: projectType, report_mode: reportMode, pins });
 }
 
 function isPortalStructurePinLimitedType(projectType: string) {
@@ -10898,16 +11109,7 @@ function firstMeasureReportExpediteDiscount(body: JsonObject, projectType: strin
 }
 
 function firstMeasureReportCharge(body: JsonObject, projectType: string, reportMode: string, pins: unknown, freeExpediteUses: number) {
-  const gross = firstMeasureReportAmount(body, projectType, reportMode, pins);
-  const expediteDiscount = freeExpediteUses > 0 ? firstMeasureReportExpediteDiscount(body, projectType, pins) : 0;
-  const finalAmount = moneyAmount(Math.max(0.01, gross - expediteDiscount));
-  return {
-    gross_amount: gross,
-    amount: finalAmount,
-    free_expedite_discount: expediteDiscount,
-    free_expedite_applied: expediteDiscount > 0,
-    free_expedite_uses_before: Math.max(0, Math.round(freeExpediteUses))
-  };
+  return sharedFirstMeasureReportCharge({ ...body, project_type: projectType, report_mode: reportMode, pins, free_expedite_uses: freeExpediteUses });
 }
 
 function addMinutes(date: Date, minutes: number) {
@@ -11306,6 +11508,7 @@ async function portalSubmitReportReworkRequest(app: FastifyInstance, orgId: stri
   const chargeQuote = requestType === "additional_structure" && projectType !== "residential"
     ? firstMeasureReportCharge({
         report_pricing_revision: body.report_pricing_revision,
+        commercial_pricing_revision: body.commercial_pricing_revision,
         report_expedite_option: normalizedExpedite,
         include_gutter_measurements: false
       }, projectType, "full", Array.from({ length: structureCount }, () => ({ lat: 0, lng: 0 })), numericValue(globalData.free_expedite_uses))

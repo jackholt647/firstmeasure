@@ -8,6 +8,11 @@ import test, { after, before } from "node:test";
 let app: any = null;
 let storageRoot = "";
 
+async function signingConsent(client: ReturnType<typeof createSessionClient>, token: string) {
+  const review = await client.request("POST", `/v1/documents/public/${token}/signing/prepare`, {});
+  return { challenge: review.challenge, content_hash: review.content_hash, consent: { intent: true, electronic_records: true, can_access_and_retain: true, disclosure_hash: review.disclosure.hash } };
+}
+
 function readCookie(setCookie: string[] | string | undefined, name: string) {
   const values = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
   const match = values.find((value) => value.startsWith(`${name}=`));
@@ -29,6 +34,7 @@ function createSessionClient() {
     });
   };
   const request = async (method: string, url: string, payload?: unknown) => {
+    if (method === "POST" && url.endsWith("/send")) payload = { consent_contact: "support@example.test", ...(payload as object || {}) };
     const response = await raw(method, url, payload);
     const setCookie = response.headers["set-cookie"];
     const sessionCookie = readCookie(setCookie, "fm_platform_session");
@@ -49,6 +55,8 @@ function createSessionClient() {
 before(async () => {
   storageRoot = await mkdtemp(path.join(os.tmpdir(), "firstmate-documents-test-"));
   process.env.NODE_ENV = "test";
+  process.env.FIRSTMEASURE_JOB_WORKERS = "0";
+  process.env.WORK_SCHEDULER_DISABLED = "1";
   process.env.PLATFORM_HEARTBEAT_DISABLED = "1";
   process.env.PLATFORM_STORAGE_ROOT = path.join(storageRoot, "platform");
   process.env.CRM_STORAGE_ROOT = path.join(storageRoot, "crm");
@@ -411,6 +419,13 @@ test("new and seeded Doc Studio themes snapshot the company palette and document
     "triangle body pages reserve a larger safe area on every side"
   );
 
+  await client.request("PUT", `/v1/platform/organizations/${orgId}/branch/default/modules/presentation_style`, {
+    data: {
+      branding: { colors: { primary: palette[0], secondary: palette[1], accent: palette[0], palette }, typography: { document_font_family: "Lato" } },
+      proposal_defaults: { font_family: "Poppins" }
+    }
+  });
+
   const created = await client.request("POST", `/v1/documents/organizations/${orgId}/themes`, {
     id: "thm_company_defaults_test",
     name: "Company defaults",
@@ -427,7 +442,8 @@ test("new and seeded Doc Studio themes snapshot the company palette and document
   const detail = await client.request("GET", `/v1/documents/organizations/${orgId}/themes/${created.theme.id}`);
   assert.equal(detail.theme.definition.tokens.colors.primary, palette[0]);
   assert.equal(detail.theme.definition.tokens.colors.accent, palette[1]);
-  assert.equal(detail.theme.definition.tokens.fonts.display, "Poppins");
+  assert.equal(detail.theme.definition.tokens.fonts.display, "Lato", "the saved Brand Kit font takes precedence for new themes");
+  assert.equal(detail.theme.definition.tokens.fonts.body, "Lato");
 
   const cloned = await client.request("POST", `/v1/documents/organizations/${orgId}/themes`, {
     id: "thm_exact_clone_test",
@@ -624,7 +640,7 @@ test("document lifecycle: create → resolve (bindings + widget data) → overri
     recipients: [{ name: "Jane Homeowner", email: "jane@example.test", role: "customer" }]
   });
   assert.equal(sent.document.status, "sent");
-  const token = sent.snapshot.public_token as string;
+  const token = (sent.signing?.invitations.find((i: any) => i.signer_id === "customer")?.token || sent.snapshot.public_token) as string;
   assert.ok(token, "send created a public token");
   assert.equal(sent.document.delivery.current_snapshot_id, sent.snapshot.id);
   assert.equal(sent.snapshot.locked, true, "snapshot is frozen");
@@ -686,6 +702,7 @@ test("document lifecycle: create → resolve (bindings + widget data) → overri
 
   // --- signature output → signed (not completed: deposit gate) --------------
   const signedResult = await client.request("POST", `/v1/documents/public/${token}/outputs/sig_customer`, {
+    ...(await signingConsent(client, token)),
     value: { type: "typed", text: "Jane Homeowner", signer_name: "Jane Homeowner", style: "style-classic" },
     evidence: { timezone: "America/Los_Angeles", locale: "en-US" }
   });
@@ -694,7 +711,7 @@ test("document lifecycle: create → resolve (bindings + widget data) → overri
   const afterSign = await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${documentId}`);
   assert.equal(afterSign.document.status, "signed");
   assert.ok(afterSign.document.outputs.sig_customer.signed_at, "signature value records signed_at");
-  assert.ok(afterSign.document.outputs.sig_customer.evidence, "signature value records evidence");
+  assert.ok(afterSign.document.outputs.sig_customer.receipt_id, "signature value references immutable evidence");
 
   // unknown output key is rejected
   const unknownOutput = await client.raw("POST", `/v1/documents/public/${token}/outputs/not_a_real_output`, { value: 1 });
@@ -952,7 +969,7 @@ test("instances attach the default workflow; workflow routes serve state and aud
   const sent = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/send`, {
     recipients: [{ name: "Jane Homeowner", email: "jane@example.test" }]
   });
-  const token = sent.snapshot.public_token as string;
+  const token = (sent.signing?.invitations.find((i: any) => i.signer_id === "customer")?.token || sent.snapshot.public_token) as string;
   const publicWorkflow = await client.request("GET", `/v1/documents/public/${token}/workflow`);
   assert.deepEqual(publicWorkflow.workflow.steps.map((step: any) => step.id), ["st_options", "st_review"], "internal steps filtered for the portal wizard");
   assert.equal(publicWorkflow.document.id, documentId);
@@ -1066,7 +1083,7 @@ test("conditional pricing: checkout-driven rows, formula fees, discounts, days_s
   const sent = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/send`, {
     recipients: [{ name: "Jane Homeowner", email: "jane@example.test" }]
   });
-  const token = sent.snapshot.public_token as string;
+  const token = (sent.signing?.invitations.find((i: any) => i.signer_id === "customer")?.token || sent.snapshot.public_token) as string;
   const afterSend = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/resolve`, {});
   assert.ok(afterSend.scope.doc.sent_at, "doc scope carries delivery.sent_at");
   const earlyDiscountCents = -50000; // 1 * -$500
@@ -1739,7 +1756,7 @@ test("seeded pricing adjustments: default rows respond to checkout in resolve an
   // Public pricing preview (portal pay flow): early-signing discount joins
   // after send; totals respond per payment method.
   const sent = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/send`, {});
-  const token = sent.snapshot.public_token as string;
+  const token = (sent.signing?.invitations.find((i: any) => i.signer_id === "customer")?.token || sent.snapshot.public_token) as string;
   const earlyDiscount = -Math.round(BASE * 0.03);
   const previewCard = await client.request("POST", `/v1/documents/public/${token}/pricing`, { checkout: { payment_method: "card" } });
   assert.equal(previewCard.totals.total_cents, BASE + cardFee + earlyDiscount, "card preview = base + fee + early discount");
@@ -1768,7 +1785,7 @@ test("lifecycle safety: signer party enforced on the public link, empty signatur
   const sent = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/send`, {
     recipients: [{ name: "Jane Homeowner", email: "jane@example.test", role: "customer" }]
   });
-  const token = sent.snapshot.public_token as string;
+  const token = (sent.signing?.invitations.find((i: any) => i.signer_id === "customer")?.token || sent.snapshot.public_token) as string;
   assert.ok(token, "send minted a public token");
 
   const { saveCapabilityValues } = await import("../platform/capabilities.js");
@@ -1785,16 +1802,17 @@ test("lifecycle safety: signer party enforced on the public link, empty signatur
   assert.equal(companyViaPublic.statusCode, 403, "public surface rejects internal-signer outputs");
 
   // ...but the internal surface may record them.
-  const companyViaInternal = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/outputs/sig_company`, {
+  const companyViaInternal = await client.raw("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/outputs/sig_company`, {
     value: { type: "typed", text: "Owner User", signer_name: "Owner User" }
   });
-  assert.notEqual(companyViaInternal.status, "signed", "optional company signature alone does not sign the contract");
+  assert.equal(companyViaInternal.statusCode, 403, "an internal session still needs an explicit signer assignment");
 
   // An empty signature payload records but never satisfies the requirement.
-  const emptySig = await client.request("POST", `/v1/documents/public/${token}/outputs/sig_customer`, { value: {} });
-  assert.notEqual(emptySig.document.status, "signed", "bare {} does not count as a customer signature");
+  const emptySig = await client.raw("POST", `/v1/documents/public/${token}/outputs/sig_customer`, { value: {} });
+  assert.equal(emptySig.statusCode, 400, "bare signatures are rejected");
 
   const realSig = await client.request("POST", `/v1/documents/public/${token}/outputs/sig_customer`, {
+    ...(await signingConsent(client, token)),
     value: { type: "typed", text: "Jane Homeowner", signer_name: "Jane Homeowner" }
   });
   assert.equal(realSig.document.status, "completed", "a real signature signs the contract (no payment gate, so it completes)");
@@ -1831,7 +1849,7 @@ test("lifecycle safety: signer party enforced on the public link, empty signatur
   const internalOutput = await client.raw("POST", `/v1/documents/organizations/${orgId}/documents/${secondId}/outputs/sig_customer`, {
     value: { type: "typed", text: "Jane Homeowner", signer_name: "Jane Homeowner" }
   });
-  assert.equal(internalOutput.statusCode, 409, "void documents no longer accept outputs on any surface");
+  assert.equal(internalOutput.statusCode, 403, "an unassigned internal user cannot submit a signature on a void document");
 
   // Voiding emits a real work-engine event and stays terminal.
   const events = await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${secondId}/events`);

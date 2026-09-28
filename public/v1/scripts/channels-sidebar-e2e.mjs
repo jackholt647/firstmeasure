@@ -1,6 +1,6 @@
 /**
  * End-to-end test of the integrated Channels sidebar mode inside the portal:
- * enables the `channels.sidebar_tab` capability, signs in, switches the left
+ * sets the personal `left_column_channels` preference, signs in, switches the left
  * column to the Channels tab, creates/opens a conversation, and drives the
  * pop-over overlay with real mouse + keyboard input (open, send, close),
  * asserting geometry and state at each step.
@@ -61,23 +61,21 @@ check("signed in", login.ok, { org: login.org, error: login.error });
 if (!login.ok) { await browser.close(); process.exit(1); }
 const ORG = login.org;
 
-// --- flip the integrated-sidebar capability on (remember prior raw values) ---
-const flagState = await page.evaluate(async ({ api, org }) => {
-  const get = await fetch(`${api}/v1/platform/organizations/${org}/app-flags`, { credentials: "include" }).then((r) => r.json());
-  const prior = {
-    "apps.channels": get.raw?.apps?.channels,
-    "channels.sidebar_tab": get.raw?.channels?.sidebar_tab
-  };
+// --- enable the personal Channels left-column preference ---------------------
+const preferenceState = await page.evaluate(async ({ api }) => {
+  const url = `${api}/v1/platform/me/preferences`;
+  const prior = await fetch(url, { credentials: "include" }).then((r) => r.json());
   const csrf = decodeURIComponent((document.cookie.match(/fm_platform_session_csrf=([^;]+)/) || [])[1] || "");
-  const put = await fetch(`${api}/v1/platform/organizations/${org}/capabilities`, {
-    method: "PUT", credentials: "include",
+  const response = await fetch(url, {
+    method: "PATCH", credentials: "include",
     headers: { "Content-Type": "application/json", "X-Platform-CSRF": csrf },
-    body: JSON.stringify({ values: { "apps.channels": true, "channels.sidebar_tab": true } })
-  }).then((r) => r.json());
-  return { prior, effective: put.effective_by_key?.["channels.sidebar_tab"], reason: put.reasons?.["channels.sidebar_tab"] };
-}, { api: API, org: ORG });
-check("channels.sidebar_tab capability enabled", flagState.effective === true, flagState);
-if (flagState.effective !== true) { await browser.close(); process.exit(1); }
+    body: JSON.stringify({ left_column_channels: true, left_column_default_mode: "channels" })
+  });
+  const saved = await response.json();
+  return { prior: prior.preferences, enabled: response.ok && saved.preferences?.left_column_channels === true };
+}, { api: API });
+check("personal Channels left-column preference enabled", preferenceState.enabled);
+if (!preferenceState.enabled) { await browser.close(); process.exit(1); }
 
 // --- load the portal: Channels tab appears, standalone app icon does not -----
 await page.goto(WEB + "/portal/index.php", { waitUntil: "domcontentloaded" });
@@ -227,22 +225,17 @@ const cleanup = await page.evaluate(async ({ org, name, prior }) => {
     if (scratch) { await window.ChannelsAPI.channels.archive(org, scratch.id); out.archived = true; }
   } catch (e) { out.archiveError = String(e && e.message); }
   try {
-    const values = {};
-    if (prior["channels.sidebar_tab"] !== true) values["channels.sidebar_tab"] = false;
-    if (prior["apps.channels"] === false) values["apps.channels"] = false;
-    if (Object.keys(values).length) {
-      const csrf = decodeURIComponent((document.cookie.match(/fm_platform_session_csrf=([^;]+)/) || [])[1] || "");
-      await fetch(`${location.origin.replace(/:\d+$/, ":3101")}/v1/platform/organizations/${org}/capabilities`, {
-        method: "PUT", credentials: "include",
-        headers: { "Content-Type": "application/json", "X-Platform-CSRF": csrf },
-        body: JSON.stringify({ values })
-      });
-    }
+    const csrf = decodeURIComponent((document.cookie.match(/fm_platform_session_csrf=([^;]+)/) || [])[1] || "");
+    await fetch(`${location.origin.replace(/:\d+$/, ":3101")}/v1/platform/me/preferences`, {
+      method: "PATCH", credentials: "include",
+      headers: { "Content-Type": "application/json", "X-Platform-CSRF": csrf },
+      body: JSON.stringify({ left_column_channels: prior.left_column_channels, left_column_default_mode: prior.left_column_default_mode })
+    });
     out.restored = true;
   } catch (e) { out.restoreError = String(e && e.message); }
   return out;
-}, { org: ORG, name: chName, prior: flagState.prior });
-check("cleanup: scratch channel archived and flag restored", cleanup.archived && cleanup.restored, cleanup);
+}, { org: ORG, name: chName, prior: preferenceState.prior });
+check("cleanup: scratch channel archived and preference restored", cleanup.archived && cleanup.restored, cleanup);
 
 await browser.close();
 const failed = results.filter((r) => !r.pass);

@@ -196,7 +196,9 @@ function applicationStatus(value: unknown): BoardingApplicationStatus {
     "CREDIT_PENDED", "DECLINED", "CANCELLED", "REEVALUATION_PENDING", "REEVALUATION_APPROVED",
     "REEVALUATION_DECLINED", "REJECT_BY_SALES", "UNDERWRITING_ERROR", "DECLINE_REEVALUATION_INITIATED"
   ];
-  return (known as string[]).includes(status) ? status as BoardingApplicationStatus : "DRAFT";
+  // A new provider status must never be treated as an editable draft: doing
+  // so offers a link that Forward rejects after the application was submitted.
+  return (known as string[]).includes(status) ? status as BoardingApplicationStatus : "UNDER_REVIEW";
 }
 
 function paymentMethodType(value: unknown): ProviderPaymentMethodType {
@@ -608,6 +610,7 @@ export function createForwardBoardingAdapter(options: ForwardClientOptions = {})
     ...(input.address ? { address: forwardAddress(input.address) } : {}),
     ...(input.owners ? { owners: input.owners.map(forwardOwner) } : {}),
     ...(input.volumes ? { ...forwardVolumes(input.volumes) } : {}),
+    ...(input.partner_data ? { partner_data: asObject(input.partner_data) } : {}),
     // Forward's application wire format has no documented bank-account slot
     // (bank accounts are a separate post-approval resource), so the wizard's
     // payout account rides along under user_fields.bank_account.
@@ -651,6 +654,9 @@ export function createForwardBoardingAdapter(options: ForwardClientOptions = {})
         ...patch,
         ...(patch.user_fields !== undefined
           ? { user_fields: { ...asObject(current.user_fields), ...asObject(patch.user_fields) } }
+          : {}),
+        ...(patch.partner_data !== undefined
+          ? { partner_data: { ...asObject(current.partner_data), ...asObject(patch.partner_data) } }
           : {})
       };
       return mapApplication(unwrap(await call("PUT", `/applications/${encodeURIComponent(applicationId)}`, { body }), "application"));
