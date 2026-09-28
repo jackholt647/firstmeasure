@@ -33,6 +33,7 @@ import {
   unitHistory,
   upcomingService,
   utilization,
+  workOrdersWithSchedule,
   writeModuleSettings
 } from "./service.js";
 import {
@@ -219,7 +220,9 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
   app.get("/organizations/:orgId/units/:unitId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requireViewer(request, orgId);
-    return { ok: true, unit: (await readUnit(orgId, getParam(request.params, "unitId"))) };
+    const unitId = getParam(request.params, "unitId");
+    const stored = await readUnit(orgId, unitId);
+    return { ok: true, unit: (await fleetUnits(orgId, { includeArchived: true })).find((unit) => unit.id === unitId) || stored };
   });
 
   app.post("/organizations/:orgId/units", async (request) => {
@@ -318,7 +321,7 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
   app.get("/organizations/:orgId/work-orders", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: VIEW_PERMISSION, capability: MAINTENANCE_CAPABILITY });
-    const workOrders = (await listWorkOrders(orgId, {
+    const workOrders = await workOrdersWithSchedule(orgId, await listWorkOrders(orgId, {
       unitId: getQuery(request.query, "unit_id"),
       status: getQuery(request.query, "status"),
       programId: getQuery(request.query, "program_id")
@@ -329,7 +332,7 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
   app.get("/organizations/:orgId/work-orders/:workOrderId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: VIEW_PERMISSION, capability: MAINTENANCE_CAPABILITY });
-    return { ok: true, work_order: (await readWorkOrder(orgId, getParam(request.params, "workOrderId"))) };
+    return { ok: true, work_order: (await workOrdersWithSchedule(orgId, [await readWorkOrder(orgId, getParam(request.params, "workOrderId"))]))[0] };
   });
 
   app.post("/organizations/:orgId/work-orders", async (request) => {

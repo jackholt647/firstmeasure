@@ -18,6 +18,7 @@
     "channels/**/*.ts",
     "communications/**/*.ts",
     "documents/**/*.ts",
+    "equipment/**/*.ts",
     "domains/**/*.ts",
     "firstmeasure/**/*.ts",
     "lead-intake/**/*.ts",

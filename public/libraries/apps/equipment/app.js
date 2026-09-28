@@ -72,16 +72,12 @@
     .eq-card:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(16,24,40,.08)}
     .eq-card-media{min-height:148px;background:#f2f4f7 center/cover no-repeat;border-right:1px solid #eef0f5;display:grid;place-items:center;color:var(--primary-readable,var(--primary,#d93025));font-size:28px}
     .eq-card-content{position:relative;min-width:0;padding:14px;display:grid;align-content:start;gap:10px}
-    .eq-card-top{display:flex;align-items:center;gap:11px;padding-right:72px}
+    .eq-card-top{display:flex;align-items:center;gap:8px}
     .eq-card-icon{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary-readable,var(--primary,#d93025));font-size:15px;flex:0 0 auto}
     .eq-card-name{min-width:0;flex:1}
     .eq-card-name strong{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .eq-card-name span{display:block;margin-top:2px;color:#667085;font-size:11px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .eq-chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 10px;font-size:10.5px;font-weight:900;flex:0 0 auto}
-    .eq-card-status-wrap{position:absolute;top:8px;right:8px;width:70px;height:21px;border-radius:999px;display:block;overflow:hidden}
-    .eq-card-status-wrap i{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:7px;pointer-events:none;color:inherit}
-    .eq-card-status{appearance:none!important;-webkit-appearance:none!important;width:100%!important;max-width:none!important;height:21px!important;min-height:0!important;margin:0!important;border:0!important;border-radius:999px!important;background:transparent!important;color:inherit!important;padding:1px 15px 1px 7px!important;font:800 8.5px/1 inherit!important;letter-spacing:0!important;cursor:pointer;outline:0;text-overflow:clip}
-    .eq-card-status:focus{box-shadow:inset 0 0 0 1px currentColor}
     .eq-card-meta{display:grid;gap:5px}
     .eq-card-meta div{display:flex;align-items:center;gap:8px;color:#475467;font-size:11.5px;font-weight:700;min-width:0}
     .eq-card-meta i{width:14px;text-align:center;color:#98a2b3;font-size:11px}
@@ -165,8 +161,8 @@
 
   function cardStatusSelect(unit){
     const current = clean(obj(unit).status) || 'available';
-    const meta = STATUS_META[current] || STATUS_META.available;
-    return `<span class="eq-card-status-wrap" style="background:${String(meta.bg)};color:${String(meta.color)}"><select class="eq-card-status" data-eq-card-status="${String(esc(obj(unit).id))}" aria-label="${((v3) => globalThis.PlatformLanguage?.htmlText("equipment","m_68e30b7c4cdf7c",`Status for ${v3}`,{v3}) ?? `Status for ${v3}`)(esc(obj(unit).name || 'unit'))}">${String(Object.entries(STATUS_META).filter(([key]) => key !== 'in_use' || current === 'in_use').map(([key, option]) => `<option value="${esc(key)}" ${current === key ? 'selected' : ''} ${key === 'in_use' ? 'disabled' : ''}>${esc(terminology(option.term, option.label))}</option>`).join(''))}</select><i class="fas fa-chevron-down"></i></span>`;
+    const cause = clean(obj(obj(unit).status_event).title);
+    return `<span title="${esc(cause || 'Current schedule status')}">${statusChip(current)}</span>`;
   }
 
   function mountEquipment(root, context = {}){
@@ -335,6 +331,10 @@
       };
       const activeOrders = arr(data.orders).filter((order) => !['completed', 'canceled'].includes(clean(order.status)));
       const closedOrders = arr(data.orders).filter((order) => ['completed', 'canceled'].includes(clean(order.status))).slice(0, 8);
+      const localDateTime = (value) => {
+        const date = new Date(value);
+        return Number.isFinite(date.getTime()) ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
+      };
       const orderRow = (order) => {
         const scheduling = clean(state.maintenanceSchedulingId) === clean(order.id);
         const actionable = !['completed', 'canceled'].includes(clean(order.status));
@@ -352,8 +352,8 @@
               <button type="button" class="eq-mini" data-eq-wo-cancel="${String(esc(order.id))}"><i class="fas fa-xmark"></i></button>` : ''}
             ${scheduling ? `
               <div style="flex-basis:100%;display:flex;gap:8px;align-items:center;margin-top:8px">
-                <input type="datetime-local" class="eq-filter" data-eq-wo-start>
-                <input type="datetime-local" class="eq-filter" data-eq-wo-end>
+                <input type="datetime-local" class="eq-filter" data-eq-wo-start value="${esc(localDateTime(order.scheduled_start_at))}">
+                <input type="datetime-local" class="eq-filter" data-eq-wo-end value="${esc(localDateTime(order.scheduled_end_at))}">
                 <button type="button" class="eq-btn primary" data-eq-wo-schedule-save="${String(esc(order.id))}">${(globalThis.PlatformLanguage?.htmlText("equipment","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
                 <button type="button" class="eq-btn" data-eq-wo-schedule-cancel>${(globalThis.PlatformLanguage?.htmlText("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
               </div>` : ''}
@@ -456,6 +456,7 @@
           state.maintenance = null;
           state.timeline = null;
           void loadMaintenance();
+          void loadFleet({ force:true });
         } catch (error) {
           showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), statusError(error, 'The work order could not be scheduled.'), false);
         }
@@ -473,6 +474,7 @@
           state.maintenance = null;
           state.timeline = null;
           void loadMaintenance();
+          void loadFleet({ force:true });
         } catch (error) {
           showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), statusError(error, 'The work order could not be completed.'), false);
         }
@@ -484,6 +486,7 @@
           state.maintenance = null;
           state.timeline = null;
           void loadMaintenance();
+          void loadFleet({ force:true });
         } catch (error) {
           showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), statusError(error, 'The work order could not be canceled.'), false);
         }
@@ -527,10 +530,17 @@
           Scheduling.loadBranchConfig ? Scheduling.loadBranchConfig(organizationId, 'default').catch(() => null) : null,
           state.units ? { units: state.units } : window.EquipmentAPI.units(organizationId)
         ]);
-        const timelineProjects = await (Scheduling.listProjects ? Scheduling.listProjects(organizationId, config).catch(() => []) : []);
+        const [timelineProjects, floatingResult] = await Promise.all([
+          Scheduling.listProjects ? Scheduling.listProjects(organizationId, config).catch(() => []) : [],
+          window.PlatformAPI?.calendarEvents?.list ? window.PlatformAPI.calendarEvents.list(organizationId) : { documents:[] }
+        ]);
         if (destroyed) return;
         state.units = arr(unitsResult.units);
-        const allEvents = Scheduling.eventsFromProjects ? Scheduling.eventsFromProjects(timelineProjects, config || {}) : [];
+        const projectEvents = Scheduling.eventsFromProjects ? Scheduling.eventsFromProjects(timelineProjects, config || {}) : [];
+        const floatingEvents = arr(floatingResult?.documents || floatingResult?.events || floatingResult)
+          .map((document) => Scheduling.normalizeEvent?.({ ...obj(document.data || document), id:clean(document.id || obj(document.data).id), floating_event:true }, config || {}))
+          .filter(Boolean);
+        const allEvents = [...projectEvents, ...floatingEvents];
         state.timeline = {
           loading:false,
           config,
@@ -561,10 +571,13 @@
         unassignedLabel: 'Unassigned equipment events',
         emptyLabel: 'No equipment on the schedule yet. Assign units to events from the schedulers, or add equipment to a scope.',
         onEventRangeChange(event, range){
-          const project = arr(state.timeline.projects).find((item) => clean(item.id) === clean(event.project_id));
-          if (!project) return;
           const next = { ...event, ...(Scheduling.updateProjectEventRange ? Scheduling.updateProjectEventRange(event, range) : range), status:'scheduled' };
-          Scheduling.saveProjectEvent(organizationId, project, next, state.timeline.config)
+          const project = event.floating_event === true ? null : arr(state.timeline.projects).find((item) => clean(item.id) === clean(event.project_id));
+          const save = project
+            ? Scheduling.saveProjectEvent(organizationId, project, next, state.timeline.config)
+            : window.PlatformAPI?.calendarEvents?.save?.(organizationId, clean(event.id), next, { kind:'calendar_event', branch_id:clean(event.branch_id) || 'default' });
+          if (!save) return;
+          Promise.resolve(save)
             .then((saved) => {
               const conflicts = arr(saved?.equipment_conflicts);
               if (conflicts.length) showToast((globalThis.PlatformLanguage?.text("equipment","m_7ccde50eeb747e","Equipment conflict") ?? "Equipment conflict"), conflicts[0]?.message || 'This unit is booked elsewhere in that window.', false);
@@ -656,7 +669,7 @@
         color: read('color'),
         ownership,
         acquisition,
-        status: state.drawer?.mode === 'create' ? 'available' : (read('status') || clean(currentUnit.status) || 'available'),
+        ...(state.drawer?.mode === 'create' ? { status:'available' } : {}),
         operator_tag_overrides:driverRequirement(read('driver_requirement')),
         photos:arr(currentUnit.photos),
         notes: read('notes'),
@@ -1037,40 +1050,19 @@
             ...values,
             expected_revision: Number(drawer.unit?.revision || 0) || undefined
           });
-          const savedUnit = { ...obj(drawer.unit), ...obj(result.unit) };
+          const refreshed = await window.EquipmentAPI.unit(organizationId, clean(drawer.unit?.id));
+          const savedUnit = { ...obj(drawer.unit), ...obj(result.unit), ...obj(refreshed.unit) };
           state.drawer.unit = savedUnit;
           state.drawer.mode = 'view';
           state.units = arr(state.units).map((unit) => clean(unit.id) === clean(savedUnit.id) ? { ...unit, ...savedUnit } : unit);
           showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), (globalThis.PlatformLanguage?.text("equipment","m_813887aa38f3e9","Unit saved.") ?? "Unit saved."), true);
-          render();
+          await loadFleet({ force:true });
         }
       } catch (error) {
         const message = statusError(error, 'The unit could not be saved.');
         if (saveButton) { saveButton.disabled = false; saveButton.innerHTML = `<i class="fas fa-check"></i> ${drawer.mode === 'create' ? 'Add unit' : 'Save changes'}`; }
         showUnitFormError(container, message);
         showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), message, false);
-      }
-    }
-
-    async function updateCardStatus(unitId, status, select){
-      const unit = arr(state.units).find((entry) => clean(entry.id) === clean(unitId));
-      if (!unit || !STATUS_META[clean(status)] || clean(status) === 'in_use') return;
-      const previous = clean(unit.status) || 'available';
-      select.disabled = true;
-      try {
-        const result = await window.EquipmentAPI.saveUnit(organizationId, clean(unit.id), {
-          status:clean(status),
-          expected_revision:Number(unit.revision || 0) || undefined
-        });
-        const savedUnit = { ...unit, ...obj(result.unit), status:clean(status) };
-        state.units = arr(state.units).map((entry) => clean(entry.id) === clean(unit.id) ? savedUnit : entry);
-        if (clean(state.drawer?.unit?.id) === clean(unit.id)) state.drawer.unit = { ...obj(state.drawer.unit), ...savedUnit };
-        showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), ((v0) => globalThis.PlatformLanguage?.text("equipment","m_6bb8d3f423b274",`Status changed to ${v0}.`,{v0}) ?? `Status changed to ${v0}.`)(clean(STATUS_META[clean(status)].label).toLowerCase()), true);
-        render();
-      } catch (error) {
-        select.disabled = false;
-        select.value = previous;
-        showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), statusError(error, 'The status could not be changed.'), false);
       }
     }
 
@@ -1137,7 +1129,7 @@
           </select>
           <select class="eq-filter" data-eq-filter="status">
             <option value="">${(globalThis.PlatformLanguage?.htmlText("equipment","m_ca4e6bcaf98610","Any status") ?? "Any status")}</option>
-            ${String(Object.entries(STATUS_META).filter(([key]) => key !== 'in_use').map(([key, meta]) => `<option value="${esc(key)}" ${state.filters.status === key ? 'selected' : ''}>${esc(meta.label)}</option>`).join(''))}
+            ${String(Object.entries(STATUS_META).map(([key, meta]) => `<option value="${esc(key)}" ${state.filters.status === key ? 'selected' : ''}>${esc(meta.label)}</option>`).join(''))}
           </select>
           <span class="eq-count">${String(units.length)} ${String(esc(unitTerm.toLowerCase()))}</span>
         </div>`;
@@ -1206,7 +1198,7 @@
             ${String(drawer.mode === 'view' && facilityAccessInstructions ? `<div class="eq-field eq-readonly-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_feb926c42d3f6e","Facility access instructions") ?? "Facility access instructions")}</label><div class="eq-readonly-value" role="note"><i class="fas fa-lock"></i>${esc(facilityAccessInstructions)}</div></div>` : '')}
             ${String(field('Ownership', 'ownership', unit.ownership || 'owned', { select:OWNERSHIPS }))}
             ${String(field('Driver requirement', 'driver_requirement', driverRequirementId(unit), { select:DRIVER_REQUIREMENTS }))}
-            ${String(drawer.mode !== 'create' ? field('Status', 'status', unit.status || 'available', { select:Object.entries(STATUS_META).filter(([key]) => key !== 'in_use').map(([key, meta]) => [key, meta.label]) }) : '')}
+            ${String(drawer.mode !== 'create' ? `<div class="eq-field"><label>Current status</label>${statusChip(unit.status)}${clean(obj(unit.status_event).title) ? `<small>${esc(obj(unit.status_event).title)}</small>` : ''}</div>` : '')}
             ${String(vehicleType ? `<div class="eq-dynamic-panel"><div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_113d0683ef8084","Vehicle details") ?? "Vehicle details")}</div>${field('License plate', 'license_plate', unit.license_plate)}${field('Year', 'year', unit.year)}${field('Make', 'make', unit.make)}${field('Model', 'model', unit.model)}${field('VIN', 'vin', unit.vin)}</div>` : '')}
             ${String(ownership === 'owned' ? `<div class="eq-dynamic-panel"><div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_250d080790e059","Purchase details") ?? "Purchase details")}</div>${field('Purchased on (optional)', 'procurement_date', acquisition.procurement_date, { type:'date' })}${field('Estimated value ($)', 'estimated_value', dollars(acquisition.estimated_value_cents), { type:'number', step:'0.01' })}</div>` : '')}
             ${String(ownership === 'leased' ? `<div class="eq-dynamic-panel"><div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_b01d4473f12ba7","Lease details") ?? "Lease details")}</div>${field('Lease start (optional)', 'procurement_date', acquisition.procurement_date, { type:'date' })}${field('Lease term (months)', 'lease_term_months', acquisition.lease_term_months, { type:'number', step:'1' })}${field('Monthly lease cost ($)', 'lease_monthly_cost', dollars(acquisition.monthly_cost_cents), { type:'number', step:'0.01' })}</div>` : '')}
@@ -1485,8 +1477,12 @@
         if (view === state.view) return;
         state.view = view;
         writeRoute('push', { equipmentView: view, equipmentItem:'' }, { ownedKeys:['equipmentView', 'equipmentItem'] });
-        if (view === 'fleet' && !state.units) void loadFleet();
-        else render();
+        if (view === 'fleet') void loadFleet({ force:true });
+        else {
+          if (view === 'timeline') state.timeline = null;
+          if (view === 'maintenance') state.maintenance = null;
+          render();
+        }
       }));
       root.querySelectorAll('[data-eq-filter]').forEach((input) => {
         const apply = () => {
@@ -1504,20 +1500,12 @@
       });
       root.querySelectorAll('[data-eq-open]').forEach((card) => {
         card.addEventListener('click', (event) => {
-          if (event.target.closest('[data-eq-card-status]')) return;
           void openUnit(card.dataset.eqOpen, { push:true });
         });
         card.addEventListener('keydown', (event) => {
-          if (event.target.closest('[data-eq-card-status]') || !['Enter',' '].includes(event.key)) return;
+          if (!['Enter',' '].includes(event.key)) return;
           event.preventDefault();
           void openUnit(card.dataset.eqOpen, { push:true });
-        });
-      });
-      root.querySelectorAll('[data-eq-card-status]').forEach((select) => {
-        select.addEventListener('click', (event) => event.stopPropagation());
-        select.addEventListener('change', (event) => {
-          event.stopPropagation();
-          void updateCardStatus(select.dataset.eqCardStatus, select.value, select);
         });
       });
       root.querySelectorAll('[data-eq-add-unit]').forEach((button) => button.addEventListener('click', () => {
@@ -1688,7 +1676,9 @@
         const nextItem = clean(route.equipmentItem);
         if (nextView !== state.view) {
           state.view = nextView;
-          if (nextView === 'fleet' && !state.units) { void loadFleet(); return; }
+          if (nextView === 'fleet') { void loadFleet({ force:true }); return; }
+          if (nextView === 'timeline') state.timeline = null;
+          if (nextView === 'maintenance') state.maintenance = null;
         }
         if (nextItem && clean(state.drawer?.unit?.id) !== nextItem) { void openUnit(nextItem); return; }
         if (!nextItem && state.drawer && state.drawer.mode === 'view') { state.drawer = null; }

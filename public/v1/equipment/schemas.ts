@@ -59,7 +59,8 @@ export const saveYardSchema = z.object({
   expected_revision: z.number().int().min(0).optional()
 });
 
-export const UNIT_STATUSES = ["available", "down", "reserved", "retired"] as const;
+// Down, reserved, and in_use are derived from the shared event schedule.
+export const UNIT_STATUSES = ["available", "retired"] as const;
 export const UNIT_OWNERSHIPS = ["owned", "leased", "rented", "customer"] as const;
 
 export const saveUnitSchema = z.object({

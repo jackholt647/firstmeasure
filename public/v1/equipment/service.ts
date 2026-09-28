@@ -1,6 +1,6 @@
 import { isCapabilityEnabled } from "../platform/capabilities.js";
 import { badRequest } from "../platform/errors.js";
-import { listDocuments, upsertDocument } from "../platform/storage.js";
+import { listDocuments, readBranchModule, readDocument, upsertDocument } from "../platform/storage.js";
 import type { JsonObject } from "./storage.js";
 import {
   getEquipmentDatabase,
@@ -66,14 +66,14 @@ export const DEFAULT_MODULE_SETTINGS = {
 
 export async function readModuleSettings(orgId: string) {
   const { settings, revision } = (await readSettingsRow(orgId));
-  return { settings: { ...DEFAULT_MODULE_SETTINGS, ...settings }, revision };
+  return { settings: { ...DEFAULT_MODULE_SETTINGS, ...settings, downtime_auto_block: true }, revision };
 }
 
 export async function writeModuleSettings(orgId: string, input: JsonObject) {
   const expected = Number(input.expected_revision || 0);
   const { settings } = (await readModuleSettings(orgId));
   const { expected_revision: _ignored, ...patch } = input;
-  const next = { ...settings, ...patch };
+  const next = { ...settings, ...patch, downtime_auto_block: true };
   const saved = (await writeSettingsRow(orgId, next, expected));
   return { settings: { ...DEFAULT_MODULE_SETTINGS, ...saved.settings }, revision: saved.revision };
 }
@@ -84,11 +84,32 @@ export async function writeModuleSettings(orgId: string, input: JsonObject) {
 export async function fleetUnits(orgId: string, options: Parameters<typeof listUnits>[1] = {}) {
   const types = new Map((await listTypes(orgId, { includeArchived: true })).map((type) => [cleanText(type.id), type]));
   const categories = new Map((await listCategories(orgId, { includeArchived: true })).map((category) => [cleanText(category.id), category]));
-  return (await listUnits(orgId, options)).map((unit): JsonObject => {
+  const now = Date.now();
+  const activeEvents = (await scheduledEquipmentEvents(orgId)).filter((event) => cleanText(event.status).toLowerCase() !== "completed" && event.__start <= now && event.__end > now);
+  const eventTypesByBranch = new Map<string, JsonObject>();
+  const eventStatus = async (event: ScheduledEvent) => {
+    const branchId = cleanText(event.branch_id) || "default";
+    if (!eventTypesByBranch.has(branchId)) {
+      const module = await readBranchModule(orgId, branchId, "scheduling").catch(() => null);
+      eventTypesByBranch.set(branchId, asObj(asObj(asObj(module).data).event_types));
+    }
+    const typeId = cleanText(event.event_type_default_id || event.type_id || event.kind);
+    const configured = cleanText(asObj(eventTypesByBranch.get(branchId)?.[typeId]).equipment_status);
+    if (["down", "in_use", "reserved"].includes(configured)) return configured;
+    if (["equipment_maintenance", "equipment_downtime"].includes(typeId)) return "down";
+    return typeId === "equipment_reservation" ? "reserved" : "in_use";
+  };
+  const decorated = await Promise.all((await listUnits(orgId, { ...options, status: "" })).map(async (unit): Promise<JsonObject> => {
     const type = types.get(cleanText(unit.type_id));
     const category = type ? categories.get(cleanText(type.category_id)) : undefined;
+    const unitEvents = activeEvents.filter((event) => eventEquipmentRefs(event).some((ref) => ref.kind === "equipment_unit" && ref.id === cleanText(unit.id) && equipmentRefOverlaps(event, ref.kind, ref.id, now, now + 1)));
+    const effects = await Promise.all(unitEvents.map(async (event) => ({ event, status: await eventStatus(event) })));
+    const primary = effects.find((item) => item.status === "down") || effects.find((item) => item.status === "in_use") || effects.find((item) => item.status === "reserved");
+    const storedStatus = cleanText(unit.status) || "available";
     return {
       ...unit,
+      status: storedStatus === "retired" ? "retired" : primary?.status || "available",
+      status_event: primary ? conflictEventSummary(primary.event) : null,
       type_name: cleanText(type?.name),
       type_kind: cleanText(type?.kind) || "other",
       type_icon: cleanText(type?.icon) || "fa-truck-pickup",
@@ -96,11 +117,12 @@ export async function fleetUnits(orgId: string, options: Parameters<typeof listU
       category_id: cleanText(type?.category_id),
       category_name: cleanText(category?.name)
     };
-  });
+  }));
+  return options.status ? decorated.filter((unit) => unit.status === options.status) : decorated;
 }
 
 export async function unitHistory(orgId: string, unitId: string) {
-  const unit = (await readUnit(orgId, unitId));
+  const unit = (await fleetUnits(orgId, { includeArchived: true })).find((entry) => cleanText(entry.id) === unitId) || await readUnit(orgId, unitId);
   return {
     unit,
     meter_entries: (await listMeterEntries(orgId, unitId, { limit: 100 })),
@@ -110,7 +132,7 @@ export async function unitHistory(orgId: string, unitId: string) {
     },
     /* Booking history joins in a later phase from schedule events. */
     bookings: [] as JsonObject[],
-    work_orders: (await listWorkOrders(orgId, { unitId }))
+    work_orders: await workOrdersWithSchedule(orgId, await listWorkOrders(orgId, { unitId }))
   };
 }
 
@@ -238,6 +260,7 @@ export async function assessEquipmentBooking(orgId: string, input: {
   const excludeEventId = cleanText(input.excludeEventId);
   const types = new Map((await listTypes(orgId, { includeArchived: true })).map((type) => [cleanText(type.id), type]));
   const events = (await scheduledEquipmentEvents(orgId))
+    .filter((event) => cleanText(event.status).toLowerCase() !== "completed")
     .filter((event) => cleanText(event.id) !== excludeEventId)
     .filter((event) => event.__start < end && event.__end > start);
   const conflicts: EquipmentConflict[] = [];
@@ -251,13 +274,13 @@ export async function assessEquipmentBooking(orgId: string, input: {
       }
       const name = cleanText(unit?.name || ref.name) || ref.id;
       const status = cleanText(unit?.status);
-      if (unit && ["down", "retired"].includes(status)) {
+      if (unit && status === "retired") {
         conflicts.push({
           ref_kind: ref.kind,
           ref_id: ref.id,
           ref_name: name,
           reason: "unit_unavailable",
-          message: `${name} is ${status === "down" ? "down for service" : "retired"}.`,
+          message: `${name} is retired.`,
           events: []
         });
         continue;
@@ -318,6 +341,7 @@ export async function availabilityForEquipment(orgId: string, input: {
     .filter((unit) => !requestedIds.length || requestedIds.includes(cleanText(unit.id)));
   const events = windowValid
     ? (await scheduledEquipmentEvents(orgId))
+      .filter((event) => cleanText(event.status).toLowerCase() !== "completed")
       .filter((event) => cleanText(event.id) !== cleanText(input.excludeEventId))
       .filter((event) => event.__start < end && event.__end > start)
     : [];
@@ -329,7 +353,7 @@ export async function availabilityForEquipment(orgId: string, input: {
       const bookings = events
         .filter((event) => equipmentRefOverlaps(event, "equipment_unit", unitId, start, end))
         .map(conflictEventSummary);
-      const unavailable = ["down", "retired"].includes(cleanText(unit.status));
+      const unavailable = cleanText(unit.status) === "retired";
       return {
         id: unitId,
         name: cleanText(unit.name),
@@ -676,9 +700,7 @@ export async function openWorkOrder(orgId: string, input: JsonObject) {
   }));
 }
 
-/** Schedules a work order and (per settings) creates its downtime block: a
- * floating calendar event with an equipment_unit ref and kind
- * equipment_downtime, so it conflicts exactly like a project booking. */
+/** Scheduled work orders use the same calendar event as the global scheduler. */
 export async function scheduleWorkOrder(orgId: string, workOrderId: string, input: JsonObject) {
   const workOrder = (await readWorkOrder(orgId, workOrderId));
   const unit = (await readUnit(orgId, cleanText(workOrder.unit_id)));
@@ -687,29 +709,28 @@ export async function scheduleWorkOrder(orgId: string, workOrderId: string, inpu
   if (!start || !end || !(Date.parse(end) > Date.parse(start))) {
     throw badRequest("equipment_work_order_window_invalid", "A valid start and end are required to schedule the work order.");
   }
-  const { settings } = (await readModuleSettings(orgId));
-  let downtimeEventId = cleanText(workOrder.downtime_event_id);
-  if (settings.downtime_auto_block !== false) {
-    downtimeEventId = downtimeEventId || newId("eqdown");
-    await upsertDocument(orgId, "calendar_events", {
+  const downtimeEventId = cleanText(workOrder.downtime_event_id) || newId("eqmaint");
+  const existing = await readDocument(orgId, "calendar_events", downtimeEventId).catch(() => null);
+  await upsertDocument(orgId, "calendar_events", {
+    id: downtimeEventId,
+    data: {
+      ...asObj(existing?.data),
       id: downtimeEventId,
-      data: {
-        id: downtimeEventId,
-        title: `Down: ${cleanText(unit.name)} — ${cleanText(workOrder.title)}`,
-        kind: "equipment_downtime",
-        event_type_default_id: "equipment_downtime",
-        status: "scheduled",
-        start_at: start,
-        end_at: end,
-        resource_refs: [{ kind: "equipment_unit", id: cleanText(unit.id), name: cleanText(unit.name), role: "equipment" }],
-        equipment_work_order_id: cleanText(workOrder.id),
-        color: "#64748b",
-        icon: "fa-wrench",
-        updated_at: nowIso()
-      },
-      metadata: { kind: "equipment_downtime", equipment_unit_id: cleanText(unit.id) }
-    }, { replace: true });
-  }
+      title: `Maintenance: ${cleanText(unit.name)} — ${cleanText(workOrder.title)}`,
+      kind: "equipment_maintenance",
+      event_type_default_id: "equipment_maintenance",
+      branch_id: cleanText(unit.branch_id) || "default",
+      status: "scheduled",
+      start_at: start,
+      end_at: end,
+      resource_refs: [{ kind: "equipment_unit", id: cleanText(unit.id), name: cleanText(unit.name), role: "equipment" }],
+      equipment_work_order_id: cleanText(workOrder.id),
+      color: "#64748b",
+      icon: "fa-wrench",
+      updated_at: nowIso()
+    },
+    metadata: { ...asObj(existing?.metadata), kind: "equipment_maintenance", equipment_unit_id: cleanText(unit.id) }
+  }, { replace: true });
   return (await saveWorkOrder(orgId, {
     ...workOrder,
     status: "scheduled",
@@ -718,6 +739,26 @@ export async function scheduleWorkOrder(orgId: string, workOrderId: string, inpu
     downtime_event_id: downtimeEventId,
     expected_revision: Number(workOrder.revision || 0)
   }));
+}
+
+/** Read schedule fields from the calendar event so global moves are visible in
+ * Maintenance immediately; the work order stores only the event reference. */
+export async function workOrdersWithSchedule(orgId: string, orders: JsonObject[]) {
+  const documents = new Map((await listDocuments(orgId, "calendar_events").catch(() => [])).map((document) => [cleanText(document.id), asObj(document.data)]));
+  return orders.map((order) => {
+    const eventId = cleanText(order.downtime_event_id);
+    if (!eventId) return order;
+    const event = documents.get(eventId);
+    if (["canceled", "cancelled"].includes(cleanText(event?.status).toLowerCase()) || !event) {
+      return { ...order, status: ["completed", "canceled"].includes(cleanText(order.status)) ? order.status : "open", scheduled_start_at: "", scheduled_end_at: "", schedule_event_status: cleanText(event?.status) };
+    }
+    return {
+      ...order,
+      scheduled_start_at: cleanText(event.start_at || event.start),
+      scheduled_end_at: cleanText(event.end_at || event.end),
+      schedule_event_status: cleanText(event.status)
+    };
+  });
 }
 
 async function resolveDowntimeBlock(orgId: string, workOrder: JsonObject, status: string) {
@@ -774,7 +815,11 @@ export async function completeWorkOrder(orgId: string, workOrderId: string, inpu
       notes: `Opened by failed ${cleanText(workOrder.kind)} "${cleanText(workOrder.title)}".`
     }));
     if (input.set_unit_down === true) {
-      (await patchUnit(orgId, cleanText(unit.id), { status: "down" }));
+      const start = new Date();
+      repairOrder = await scheduleWorkOrder(orgId, cleanText(repairOrder.id), {
+        start_at: start.toISOString(),
+        end_at: new Date(start.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString()
+      });
     }
   }
   return { work_order: completed, repair_order: repairOrder, failed_items: failedItems.length };
@@ -798,7 +843,7 @@ export async function dashboard(orgId: string) {
     byStatus[status] = (byStatus[status] || 0) + 1;
   }
   const types = (await listTypes(orgId));
-  const openWorkOrders = (await listWorkOrders(orgId)).filter((order) => !["completed", "canceled"].includes(cleanText(order.status)));
+  const openWorkOrders = (await workOrdersWithSchedule(orgId, await listWorkOrders(orgId))).filter((order) => !["completed", "canceled"].includes(cleanText(order.status)));
   return {
     counts: {
       units: units.length,

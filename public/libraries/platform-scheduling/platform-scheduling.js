@@ -88,6 +88,39 @@
       icon: 'fa-truck-ramp-box',
       status: 'active',
     },
+    equipment_maintenance: {
+      id: 'equipment_maintenance',
+      duration_minutes: 8 * 60,
+      slot_minutes: 30,
+      buffer_minutes: 0,
+      allow_unassigned: true,
+      color: '#64748b',
+      icon: 'fa-wrench',
+      equipment_status: 'down',
+      status: 'active',
+    },
+    equipment_booking: {
+      id: 'equipment_booking',
+      duration_minutes: 8 * 60,
+      slot_minutes: 30,
+      buffer_minutes: 0,
+      allow_unassigned: true,
+      color: '#2563eb',
+      icon: 'fa-truck-pickup',
+      equipment_status: 'in_use',
+      status: 'active',
+    },
+    equipment_reservation: {
+      id: 'equipment_reservation',
+      duration_minutes: 8 * 60,
+      slot_minutes: 30,
+      buffer_minutes: 0,
+      allow_unassigned: true,
+      color: '#f59e0b',
+      icon: 'fa-calendar-check',
+      equipment_status: 'reserved',
+      status: 'active',
+    },
   };
 
   const DEFAULT_AVAILABILITY = {
@@ -109,6 +142,9 @@
         sales_follow_up: 'Sales Follow-up',
         project_work: 'Project Work',
         material_delivery: 'Material Delivery',
+        equipment_maintenance: 'Equipment Maintenance',
+        equipment_booking: 'Equipment Booking',
+        equipment_reservation: 'Equipment Reservation',
       },
       stages: {
         new_lead: 'New Lead',
@@ -1270,6 +1306,7 @@
     const allEvents = events ? arrayValue(events) : eventsFromProjects(projects);
     const overlapping = startDate && endDate ? allEvents
       .map((event) => normalizeEvent(event))
+      .filter((event) => !['completed', 'canceled', 'cancelled', 'unscheduled'].includes(cleanText(event.status).toLowerCase()))
       .filter((event) => cleanText(event.id) !== cleanText(excludeEventId))
       .filter((event) => eventEquipmentRefs(event).length)
       .filter((event) => intervalsOverlap(startDate, endDate, eventStart(event), eventEnd(event))) : [];
@@ -1283,7 +1320,9 @@
         if (ref.kind !== 'equipment_unit' || ref.id !== unitId) return false;
         return intervalsOverlap(startDate, endDate, toDate(ref.start_at) || eventStart(event), toDate(ref.end_at) || eventEnd(event));
       }));
-      const unavailable = ['down', 'retired'].includes(cleanText(unit.status));
+      // Live down/in-use/reserved badges describe the current instant; a
+      // different window is blocked by its overlapping events, not that badge.
+      const unavailable = cleanText(unit.status) === 'retired';
       return {
         id: unitId,
         name: cleanText(unit.name),

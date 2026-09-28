@@ -338,7 +338,7 @@ test("equipment scheduling: assignable subjects, resource_refs, conflicts warn t
     type_id: type.type.id, name: "Skid Steer #1", ownership: "owned"
   })).unit;
   const unitB = (await owner.request("POST", `/v1/equipment/organizations/${orgId}/units`, {
-    type_id: type.type.id, name: "Skid Steer #2", ownership: "owned", status: "down"
+    type_id: type.type.id, name: "Skid Steer #2", ownership: "owned"
   })).unit;
   const unitC = (await owner.request("POST", `/v1/equipment/organizations/${orgId}/units`, {
     type_id: type.type.id, name: "Skid Steer #3", ownership: "owned"
@@ -443,7 +443,15 @@ test("equipment scheduling: assignable subjects, resource_refs, conflicts warn t
   });
   assert.equal(afterSubset.equipment_conflicts.length, 0);
 
-  // A down unit is unavailable regardless of bookings.
+  // Maintenance is a calendar event and blocks the unit only in its window.
+  await owner.request("PUT", `/v1/platform/organizations/${orgId}/calendar_events/maintenance_unit_b`, {
+    data: {
+      id: "maintenance_unit_b", title: "Hydraulic service", kind: "equipment_maintenance",
+      event_type_default_id: "equipment_maintenance", status: "scheduled",
+      start_at: "2026-08-03T00:00:00.000Z", end_at: "2026-08-05T00:00:00.000Z",
+      resource_refs: [{ kind: "equipment_unit", id: unitB.id, role: "equipment" }]
+    }
+  });
   const downBooking = await owner.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
     event: {
       id: "event_eq_down",
@@ -454,7 +462,7 @@ test("equipment scheduling: assignable subjects, resource_refs, conflicts warn t
       resource_refs: [{ kind: "equipment_unit", id: unitB.id, role: "equipment" }]
     }
   });
-  assert.equal(downBooking.equipment_conflicts[0].reason, "unit_unavailable");
+  assert.equal(downBooking.equipment_conflicts[0].reason, "double_booked");
 
   // The availability endpoint reports the same picture.
   const availability = await owner.request("GET", `/v1/equipment/organizations/${orgId}/availability?start=2026-08-03T15:00:00.000Z&end=2026-08-03T17:00:00.000Z&type_id=${type.type.id}`);
@@ -462,7 +470,7 @@ test("equipment scheduling: assignable subjects, resource_refs, conflicts warn t
   const availabilityB = availability.units.find((unit: any) => unit.id === unitB.id);
   assert.equal(availabilityA.available, false);
   assert.equal(availabilityA.bookings.length, 2);
-  assert.equal(availabilityB.reason, "unit_unavailable");
+  assert.equal(availabilityB.reason, "double_booked");
 
   // Block mode rejects the write with a 409 equipment_conflict.
   await owner.request("PUT", `/v1/equipment/organizations/${orgId}/settings`, { conflict_mode: "block" });
@@ -553,7 +561,21 @@ test("equipment maintenance: programs, due service, work orders, downtime confli
     }
   });
   assert.equal(overlapping.equipment_conflicts.length, 1);
-  assert.ok(overlapping.equipment_conflicts[0].events.some((entry: any) => entry.kind === "equipment_downtime"));
+  assert.ok(overlapping.equipment_conflicts[0].events.some((entry: any) => entry.kind === "equipment_maintenance"));
+
+  // Moving the shared event in Scheduling immediately changes Maintenance.
+  const eventUrl = `/v1/platform/organizations/${orgId}/calendar_events/${scheduled.downtime_event_id}`;
+  const eventDocument = (await owner.request("GET", eventUrl)).document;
+  await owner.request("PUT", eventUrl, { data: {
+    ...eventDocument.data,
+    start_at: "2026-09-08T13:00:00.000Z",
+    end_at: "2026-09-08T17:00:00.000Z"
+  }, metadata: eventDocument.metadata });
+  const movedOrder = (await owner.request("GET", `/v1/equipment/organizations/${orgId}/work-orders/${workOrder.id}`)).work_order;
+  assert.equal(movedOrder.scheduled_start_at, "2026-09-08T13:00:00.000Z");
+  assert.equal(movedOrder.scheduled_end_at, "2026-09-08T17:00:00.000Z");
+  const oldWindow = await owner.request("GET", `/v1/equipment/organizations/${orgId}/availability?start=2026-09-01T14:00:00.000Z&end=2026-09-01T15:00:00.000Z&unit_ids=${unit.id}`);
+  assert.ok(!oldWindow.units[0].bookings.some((booking: any) => booking.id === scheduled.downtime_event_id));
 
   // Completing with a failed checklist item logs the meter, opens a repair
   // order, and can set the unit down.
@@ -602,6 +624,48 @@ test("equipment maintenance: programs, due service, work orders, downtime confli
   });
   const canceled = (await owner.request("POST", `/v1/equipment/organizations/${orgId}/work-orders/${secondOrder.id}/cancel`, {})).work_order;
   assert.equal(canceled.status, "canceled");
+});
+
+test("equipment live status follows shared calendar and project events", async () => {
+  const owner = createSessionClient();
+  const { orgId } = await registerOwner(owner);
+  await setOperatorFlags(orgId, { values: { "apps.equipment": true, "equipment.scheduling": true, "equipment.maintenance": true } });
+  const type = (await owner.request("POST", `/v1/equipment/organizations/${orgId}/types`, { name: "Service Truck" })).type;
+  const unit = (await owner.request("POST", `/v1/equipment/organizations/${orgId}/units`, { type_id: type.id, name: "Truck 7" })).unit;
+  const now = Date.now();
+  const start = new Date(now - 60 * 60 * 1000).toISOString();
+  const end = new Date(now + 60 * 60 * 1000).toISOString();
+  const futureStart = new Date(now + 24 * 60 * 60 * 1000).toISOString();
+  const futureEnd = new Date(now + 25 * 60 * 60 * 1000).toISOString();
+  const unitsUrl = `/v1/equipment/organizations/${orgId}/units`;
+  const currentStatus = async () => (await owner.request("GET", unitsUrl)).units.find((entry: any) => entry.id === unit.id);
+  assert.equal((await currentStatus()).status, "available");
+
+  const calendarUrl = `/v1/platform/organizations/${orgId}/calendar_events/maintenance_truck_7`;
+  const maintenance = {
+    id: "maintenance_truck_7", title: "Brake service", kind: "equipment_maintenance",
+    event_type_default_id: "equipment_maintenance", status: "scheduled", start_at: start, end_at: end,
+    resource_refs: [{ kind: "equipment_unit", id: unit.id, role: "equipment" }]
+  };
+  await owner.request("PUT", calendarUrl, { data: maintenance });
+  assert.equal((await currentStatus()).status, "down");
+  assert.equal((await currentStatus()).status_event.id, maintenance.id);
+
+  await owner.request("PUT", calendarUrl, { data: { ...maintenance, status: "completed" } });
+  assert.equal((await currentStatus()).status, "available");
+
+  await owner.request("PUT", calendarUrl, { data: { ...maintenance, start_at: futureStart, end_at: futureEnd } });
+  assert.equal((await currentStatus()).status, "available");
+  const projectId = "project_truck_7";
+  await owner.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
+    data: { id: projectId, title: "Roof replacement", events: [] }, metadata: { kind: "platform_project" }
+  });
+  await owner.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
+    event: { id: "truck_7_job", type_id: "project_work", title: "Roof tear-off", start_at: start, end_at: end,
+      resource_refs: [{ kind: "equipment_unit", id: unit.id, role: "equipment" }] }
+  });
+  assert.equal((await currentStatus()).status, "in_use");
+  assert.equal((await owner.request("GET", `${unitsUrl}?status=in_use`)).count, 1);
 });
 
 test("equipment requirements: scope items bind to types and auto-fulfill single units", async () => {

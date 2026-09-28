@@ -66,13 +66,11 @@ test('opened units share the editable form with quiet hover-revealed controls', 
   assert.doesNotMatch(app, /data-eq-drawer-edit/);
 });
 
-test('fleet cards expose an inline status selector without opening the unit', () => {
-  assert.match(app, /data-eq-card-status="\$\{esc\(obj\(unit\)\.id\)\}"/);
-  assert.match(app, /async function updateCardStatus/);
-  assert.match(app, /EquipmentAPI\.saveUnit\(organizationId, clean\(unit\.id\)/);
-  assert.match(app, /event\.target\.closest\('\[data-eq-card-status\]'\)/);
-  assert.match(app, /\.eq-card-status-wrap\{position:absolute;top:8px;right:8px;width:70px;height:21px/);
-  assert.match(app, /font:800 8\.5px\/1 inherit!important/);
+test('fleet cards show the status and the event responsible for it', () => {
+  assert.match(app, /const cause = clean\(obj\(obj\(unit\)\.status_event\)\.title\)/);
+  assert.match(app, /statusChip\(current\)/);
+  assert.doesNotMatch(app, /data-eq-card-status/);
+  assert.doesNotMatch(app, /async function updateCardStatus/);
 });
 
 test('facility editor resolves Google addresses and stores access instructions', () => {
