@@ -27,3 +27,10 @@ output/equipment-colors-20260928/. No migrations or production changes.
 Rollback must account for intervening releases. Restore each node's previous
 release from the receipt using the existing atomic symlink/service workflow,
 then verify readiness and isolation. Saved type colors remain in storage.
+
+Rollout completed: `98a5a1897295af2384b2160ffed47211a5ce86e1` is active on
+both development web nodes (`do-598520065`, `do-603124965`). Both passed local
+readiness, development isolation and asset hash verification. Six public health
+checks and the public asset hash passed. The expanded Chromium flow also passed
+against the served Equipment script using synthetic API fixtures. Both prior
+releases were `8099f33af373ecf3ac9788079c25bef0f8485a38`.
