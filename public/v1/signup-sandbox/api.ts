@@ -30,6 +30,7 @@ import {
   updateWorkflow
 } from "./service.js";
 import { sandboxStore, type JsonObject } from "./storage.js";
+import { addTestOrgSampleData } from "./sample-data.js";
 
 function body(request: FastifyRequest): JsonObject {
   return (request.body ?? {}) as JsonObject;
@@ -146,6 +147,7 @@ export const registerSignupSandboxApi: FastifyPluginAsync = async (app) => {
     ...(await applyStageEffects(param(request, "id"), param(request, "stageId")))
   }));
   app.get("/test-orgs", async () => ({ ok: true, test_orgs: await sandboxStore.listTestOrgs() }));
+  app.post("/test-orgs/:id/sample-data", async (request) => ({ ok: true, samples: await addTestOrgSampleData(param(request, "id"), body(request)) }));
   app.get("/test-orgs/:id/users", async (request) => ({ ok: true, users: await listTestOrgUsers(param(request, "id")) }));
   app.post("/test-orgs/:id/users", async (request) => ({ ok: true, user: await addTestOrgUser(param(request, "id"), body(request)) }));
   app.post("/test-orgs/:id/users/:userId/login", async (request, reply) => {

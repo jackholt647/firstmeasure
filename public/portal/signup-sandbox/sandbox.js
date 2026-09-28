@@ -498,6 +498,11 @@
         const add = el('button', 'sbx-btn sbx-btn-primary', 'Add user');
         add.addEventListener('click', () => openTestOrgUserCreator(org));
         main.appendChild(add);
+        if (org.workflow_id === 'swf_instant_full_org') {
+            const samples = el('button', 'sbx-btn', 'Add sample data');
+            samples.addEventListener('click', () => openSampleDataModal(org));
+            main.appendChild(samples);
+        }
         const list = el('div', 'sbx-org-users');
         for (const user of state.testOrgUsers) {
             const row = el('div', 'sbx-org-user');
@@ -527,6 +532,38 @@
         }
         if (!state.testOrgUsers.length) list.appendChild(el('div', 'sbx-empty-note', 'No users found for this organization.'));
         main.appendChild(list);
+    }
+
+    function openSampleDataModal(org) {
+        openModal((modal) => {
+            modal.appendChild(el('h2', '', 'Add sample data'));
+            modal.appendChild(el('p', '', 'Choose what to add. Existing records and your edits are preserved when you run this again.'));
+            const checks = new Map();
+            for (const [key, label] of [['equipment', 'Equipment — fleet, yard, maintenance and reservations']]) {
+                const row = el('label', 'sbx-permission-choice');
+                const check = el('input');
+                check.type = 'checkbox';
+                checks.set(key, check);
+                row.appendChild(check);
+                row.appendChild(el('span', '', label));
+                modal.appendChild(row);
+            }
+            let busy = false;
+            addModalActions(modal, [
+                { label: 'Cancel', onClick: closeModal },
+                { label: 'Add selected sample data', primary: true, onClick: () => guarded(async () => {
+                    if (busy) return;
+                    const selection = Object.fromEntries([...checks].map(([key, check]) => [key, check.checked]));
+                    if (!Object.values(selection).some(Boolean)) { toast('Choose at least one sample data option'); return; }
+                    busy = true;
+                    try {
+                        await api(`/test-orgs/${encodeURIComponent(org.id)}/sample-data`, { method: 'POST', body: selection });
+                        closeModal();
+                        toast('Selected sample data is ready');
+                    } finally { busy = false; }
+                }) }
+            ]);
+        });
     }
 
     function openTestOrgUserCreator(org) {

@@ -51,6 +51,11 @@ test("Experimental signup is admin-only, with independent sessions and workflow 
     const created = await app.inject({method:"POST",url:`${base}/workflows/swf_instant_full_org/instances`,headers,payload:{label:"Gated test"}});
     assert.equal(created.statusCode, 200, created.body);
     const record = created.json().test_org;
+    const samplesUrl = `${base}/test-orgs/${record.id}/sample-data`;
+    assert.equal((await app.inject({ method: "POST", url: samplesUrl, headers: { origin }, payload: { equipment: true } })).statusCode, 401);
+    assert.equal((await app.inject({ method: "POST", url: samplesUrl, headers: { cookie, origin: "https://evil.example" }, payload: { equipment: true } })).statusCode, 403);
+    assert.equal((await app.inject({ method: "POST", url: samplesUrl, headers, payload: { equipment: false } })).statusCode, 200);
+    assert.equal((await app.inject({ method: "POST", url: samplesUrl, headers, payload: { equipment: true } })).statusCode, 400);
     assert.equal(((await readGlobal(record.org_id)).data.app_flags as any).apps.equipment,false);
     assert.equal(((await readGlobal(record.org_id)).data.app_flags as any).platform.new_button_mode,"selector");
     assert.equal(((await readGlobal(record.org_id)).data.app_flags as any).platform.new_button_items,"");
