@@ -14,3 +14,11 @@ script. Evidence: output/equipment-vehicle-tile-20260928/ (ignored).
 No backend, database, topology or production changes. Rollback uses the existing
 symlink/service workflow and the receipt's previous per-node releases after
 checking for intervening work; reverify readiness/isolation afterward.
+
+Completed rollout: `09ccc4c33fedf8cf18842c1add405e96b6152f3b` is active on
+both development web nodes (`do-598520065`, `do-603124965`). Both passed local
+readiness, development isolation and asset hash verification. Public health/hash
+checks and the existing browser flow against the served script passed using
+synthetic API fixtures. The rollout also normalizes two autosave feedback
+ellipsis characters to UTF-8. Both previous releases were
+`5b0f2f6bc29deb64d6673a07c42f8ecd8fc0e655`. Production is unchanged.
