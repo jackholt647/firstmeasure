@@ -51,6 +51,7 @@ session_write_close();
       })()
     };
   </script>
+  <script defer src="../../libraries/date-time-picker/date-time-picker.js?v=<?= (int)filemtime(__DIR__ . '/../../libraries/date-time-picker/date-time-picker.js') ?>"></script>
 </head>
 <body>
   <div id="mobileApp" class="mobile-app">

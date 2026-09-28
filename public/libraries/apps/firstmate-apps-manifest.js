@@ -1035,6 +1035,7 @@
   };
 
   apps.forEach((app) => {
+    app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260928-picker-v1'), ...(app.bundles || [])];
     const capability = appCapabilities[app.id];
     if (capability) app.access = { ...(app.access || {}), capability };
     app.route = app.route || routeDefinition(app);

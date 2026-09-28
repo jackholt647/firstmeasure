@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FirstMate · Date & time</title>
+  <script defer src="date-time-picker.js"></script>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f6f7fb;color:#222b40;font:15px/1.5 system-ui,sans-serif}main{max-width:860px;margin:8vh auto;padding:24px}small{color:#5267a5;font-weight:650;letter-spacing:2px}h1{font-size:36px;letter-spacing:-1.2px;margin:12px 0}p{color:#748098}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;margin:30px 0}label{display:block;background:white;border:1px solid #e3e7ef;border-radius:18px;padding:22px;font-weight:600}label span{display:block;color:#8891a3;font-size:12px;margin:4px 0 20px;font-weight:400}input{width:100%;padding:12px;border:1px solid #dce1ec;border-radius:9px;font:14px system-ui;color:#293751;background:white}button{padding:11px 17px;border:0;border-radius:10px;background:#345ae8;color:white;font:inherit;cursor:pointer}output{display:block;color:#6a7690;font-size:13px;margin:18px 0}dialog{border:1px solid #e3e7ef;border-radius:20px;max-width:90vw;padding:24px}dialog::backdrop{background:#16213b55}dialog button{margin-top:18px}
+  </style>
+</head>
+<body>
+  <main>
+    <small>FIRSTMATE / SHARED COMPONENTS</small>
+    <h1>A better moment picker.</h1>
+    <p>One calendar and clock, everywhere. Choose a field to try it.</p>
+    <div class="cards">
+      <label>Schedule a message<span>Date and time · Channels</span><input aria-label="Schedule a message" type="datetime-local" value="2026-09-28T14:30"></label>
+      <label>Opening time<span>Time only · Business hours</span><input aria-label="Opening time" type="time" value="09:00" step="900"></label>
+      <label>Follow-up date<span>Date only · Sales</span><input aria-label="Follow-up date" type="date" value="2026-09-29"></label>
+    </div>
+    <button id="modal">Try inside a dialog</button>
+    <output aria-live="polite">Values are saved only when you apply.</output>
+    <p>Keyboard: Alt + ↓ opens · Escape cancels · Arrow keys move through dates.</p>
+  </main>
+  <dialog><h2>Receipt details</h2><label>Purchase time<span>Includes second-level precision</span><input type="time" step="1" value="14:32:18"></label><button id="close">Close</button></dialog>
+  <script>
+    document.querySelector('#modal').onclick=()=>document.querySelector('dialog').showModal();
+    document.querySelector('#close').onclick=()=>document.querySelector('dialog').close();
+    document.addEventListener('change',event=>{if(event.target.matches('input'))document.querySelector('output').textContent='Saved value: '+(event.target.value||'(cleared)');});
+  </script>
+</body>
+</html>

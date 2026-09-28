@@ -81,6 +81,7 @@ $portalJsVer = @md5_file(__DIR__ . '/customer_portal.js') ?: (string)$assetVer;
   <script defer src="../libraries/platform-language/platform-language.js?v=<?php echo htmlspecialchars($portalJsVer, ENT_QUOTES); ?>"></script>
   <script defer src="../libraries/platform-terminology/platform-terminology.js?v=<?php echo htmlspecialchars($portalJsVer, ENT_QUOTES); ?>"></script>
   <script defer src="./customer_portal.js?v=<?php echo htmlspecialchars($portalJsVer, ENT_QUOTES); ?>"></script>
+  <script defer src="../libraries/date-time-picker/date-time-picker.js?v=<?= (int)filemtime(__DIR__ . '/../libraries/date-time-picker/date-time-picker.js') ?>"></script>
 </head>
 <body>
   <main id="customerPortalApp" class="cp-shell preview">

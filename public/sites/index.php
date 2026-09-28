@@ -67,6 +67,7 @@ $assetVer = max(
       if (window.FirstMateSiteRuntime) window.FirstMateSiteRuntime.boot();
     });
   </script>
+  <script defer src="../libraries/date-time-picker/date-time-picker.js?v=<?= (int)filemtime(__DIR__ . '/../libraries/date-time-picker/date-time-picker.js') ?>"></script>
 </head>
 <body>
   <main id="fmSiteRoot"></main>

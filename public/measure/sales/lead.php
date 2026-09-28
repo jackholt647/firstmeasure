@@ -64,6 +64,7 @@ $cfg = [
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lead Viewer</title>
   <link rel="stylesheet" href="styles/leads.css?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>">
+  <script defer src="../../libraries/date-time-picker/date-time-picker.js?v=<?= (int)filemtime(__DIR__ . '/../../libraries/date-time-picker/date-time-picker.js') ?>"></script>
 </head>
 <body class="lead-viewer-page">
   <main class="standalone-viewer">

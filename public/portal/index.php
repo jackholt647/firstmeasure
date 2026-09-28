@@ -1743,6 +1743,7 @@ session_write_close();
 
   gtag('config', 'G-W7MP6MZNMZ');
 </script>
+  <script defer src="../libraries/date-time-picker/date-time-picker.js?v=<?= (int)filemtime(__DIR__ . '/../libraries/date-time-picker/date-time-picker.js') ?>"></script>
 </head>
 <body class="platform-booting">
   <style>
