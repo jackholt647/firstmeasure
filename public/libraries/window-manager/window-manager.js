@@ -160,7 +160,7 @@
     if (title) { title.tabIndex=0; title.setAttribute('role','button'); title.setAttribute('aria-label',((v0) => globalThis.PlatformLanguage?.text("window-manager","m_d2465937dae930",`${v0} window menu`,{v0}) ?? `${v0} window menu`)(name)); title.title=(globalThis.PlatformLanguage?.text("window-manager","m_e271e8dbdf1d3d","Window menu (right-click or Alt+Space)") ?? "Window menu (right-click or Alt+Space)"); }
     let dragged=false;
     const titleClick=event=>{
-      if(dragged || event.target.closest('button,input,a,select'))return;
+      if(dragged || event.composedPath().includes(controls) || event.target.closest('button,input,a,select'))return;
       if(win.mode === 'minimized')restore();
       else if(title?.contains(event.target))showMenu(event);
     }; header.addEventListener('click',titleClick);

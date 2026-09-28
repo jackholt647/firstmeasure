@@ -13,7 +13,9 @@ try {
     await page.evaluate(mode=>controller.setMode(mode),mode);
     const before=await page.locator('section').boundingBox();
     for(const action of ['click','Enter','Space','button','header']) {
-      await page.locator('[data-window-action=minimize]').click();
+      // Icons are replaced while handling the click; its bubbling path must
+      // still count as a control click, not a second title-bar action.
+      await page.locator('[data-window-action=minimize] i').evaluate(icon=>icon.click());
       assert.equal(await page.locator('section').getAttribute('data-window'),'minimized');
       assert.equal(await title.getAttribute('aria-label'),'Restore inspector');
       if(action==='click')await title.click();
