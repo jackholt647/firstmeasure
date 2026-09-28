@@ -22,3 +22,10 @@ No backend, database, configuration, topology or production changes.
 Rollback: first inspect intervening releases, then restore the previous per-node
 release recorded in the receipt through the existing atomic symlink/service
 workflow. Recheck readiness and development isolation.
+
+Completed: `3cbeecf4b377677f954388f48b667171cad48cd4` is active on both
+web nodes (`do-598520065`, `do-603124965`), with readiness, development isolation
+and asset hashes verified locally. Six public readiness checks, the public asset
+hash and the browser regression against the served script passed. Browser APIs
+used synthetic fixtures. Both previous releases were
+`50d9fa9a0b08d7a41183190cdb7d41ad8cba3347`. Production is unchanged.
