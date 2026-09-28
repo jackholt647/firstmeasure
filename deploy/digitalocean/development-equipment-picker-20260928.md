@@ -24,3 +24,10 @@ served script's browser flow. Evidence: output/equipment-picker-20260928/.
 No backend, migrations, topology or production changes. Rollback through the
 existing symlink/service workflow to the receipt's prior per-node release after
 checking for intervening work; verify readiness and isolation afterward.
+
+Completed: `50d9fa9a0b08d7a41183190cdb7d41ad8cba3347` is active on both
+development web nodes (`do-598520065`, `do-603124965`). Both passed readiness,
+development isolation and asset hashes. Six public readiness checks, the public
+asset hash and the expanded browser flow against the served script passed.
+The browser flow uses synthetic API fixtures. Both prior releases were
+`98a5a1897295af2384b2160ffed47211a5ce86e1`; production was not changed.
