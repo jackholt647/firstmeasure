@@ -23,6 +23,32 @@
   const TIMELINE_ENABLED = false;
   const SERVICE_PROGRAMS_ENABLED = false;
 
+  const DEFAULT_TYPE_COLORS = { vehicle:'#2563eb', trailer:'#7c3aed', tool:'#b45309', other:'#0f766e' };
+  function normalizedColor(value, fallback = ''){
+    const color = cssColor(value);
+    if (/^#[0-9a-f]{6}$/i.test(color)) return color.toLowerCase();
+    if (!color || !CSS.supports('color', color)) return fallback;
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    context.fillStyle = color;
+    const hex = context.fillStyle;
+    return /^#[0-9a-f]{6}$/i.test(hex) ? hex : fallback;
+  }
+  function contrastingColor(color){
+    const rgb = [1,3,5].map((offset) => parseInt(color.slice(offset, offset + 2), 16) / 255)
+      .map((value) => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
+    const luminance = .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2];
+    return luminance > .2 ? '#101828' : '#ffffff';
+  }
+  const typeColor = (type) => normalizedColor(type?.color, DEFAULT_TYPE_COLORS[clean(type?.kind)] || DEFAULT_TYPE_COLORS.other);
+  const typeIconStyle = (type) => `color:${typeColor(type)};background-color:${contrastingColor(typeColor(type))}`;
+  function unitColorSwatch(unit){
+    const color = normalizedColor(unit?.color);
+    if (!color) return '';
+    const label = `Unit color: ${color}`;
+    return `<span class="eq-unit-color" role="img" aria-label="${esc(label)}" title="${esc(label)}" style="background:${color};border-color:${contrastingColor(color)}"></span>`;
+  }
+
   const STATUS_META = {
     available: { label:(globalThis.PlatformLanguage?.text("equipment","m_f326bdcd77881a","Available") ?? "Available"), term:'equipment.available_status', color:'#12805c', bg:'#e3f8ec', icon:'fa-circle-check' },
     in_use: { label:(globalThis.PlatformLanguage?.text("equipment","m_4ece68045bcb8c","In Use") ?? "In Use"), term:'equipment.in_use_status', color:'#175cd3', bg:'#e8f0fe', icon:'fa-person-digging' },
@@ -74,11 +100,13 @@
     .eq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:13px}
     .eq-card{border:1px solid #e4e7ec;border-radius:14px;background:#fff;padding:0;display:grid;grid-template-columns:minmax(118px,38%) minmax(0,1fr);min-height:148px;overflow:hidden;cursor:pointer;text-align:left;font:inherit;color:inherit;box-shadow:0 1px 3px rgba(16,24,40,.04);transition:box-shadow .12s ease,transform .12s ease}
     .eq-card:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(16,24,40,.08)}
-    .eq-card-media{min-height:148px;background:#f2f4f7 center/cover no-repeat;border-right:1px solid #eef0f5;display:grid;place-items:center;color:var(--primary-readable,var(--primary,#d93025));font-size:28px}
+    .eq-card-media{position:relative;min-height:148px;background:#f2f4f7 center/cover no-repeat;border-right:1px solid #eef0f5;display:grid;place-items:center;color:var(--primary-readable,var(--primary,#d93025));font-size:28px}
     .eq-card-content{position:relative;min-width:0;padding:14px;display:grid;align-content:start;gap:10px}
     .eq-card-top{display:flex;align-items:flex-start;gap:8px;min-width:0}
     .eq-card-status{flex:0 0 auto;white-space:nowrap;margin-left:auto}
-    .eq-card-icon{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary-readable,var(--primary,#d93025));font-size:15px;flex:0 0 auto}
+    .eq-card-icon{position:relative;width:40px;height:40px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary-readable,var(--primary,#d93025));font-size:15px;flex:0 0 auto}
+    .eq-unit-color{position:absolute;right:7px;bottom:7px;width:14px;height:14px;box-sizing:border-box;border:2px solid;border-radius:50%;box-shadow:0 0 0 1px #98a2b3;z-index:2}
+    .eq-card-icon .eq-unit-color{right:-3px;bottom:-3px;width:13px;height:13px}
     .eq-card-name{min-width:0;flex:1}
     .eq-card-name strong{display:block;font-size:13.5px;white-space:normal;overflow-wrap:anywhere}
     .eq-card-name span{display:block;margin-top:2px;color:#667085;font-size:11px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -790,11 +818,17 @@
       root.querySelector('[data-eq-catalog-name]')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); void saveCatalogEditor(); } });
       root.querySelectorAll('[data-eq-catalog-kind]').forEach((input) => input.addEventListener('change', () => {
         const editor = state.catalogEditor;
-        if (!editor || editor.entity || editor.iconTouched) return;
+        if (!editor) return;
+        const colorInput = root.querySelector('[data-eq-catalog-color]');
+        if (colorInput && !editor.entity && !editor.colorTouched) colorInput.value = DEFAULT_TYPE_COLORS[clean(input.value)] || DEFAULT_TYPE_COLORS.other;
+        if (editor.entity || editor.iconTouched) return;
         const icon = DEFAULT_TYPE_ICONS[clean(input.value)] || DEFAULT_TYPE_ICONS.other;
         const iconInput = [...root.querySelectorAll('[data-eq-catalog-icon]')].find((choice) => choice.value === icon);
         if (iconInput) iconInput.checked = true;
       }));
+      root.querySelector('[data-eq-catalog-color]')?.addEventListener('input', () => {
+        if (state.catalogEditor) state.catalogEditor.colorTouched = true;
+      });
       root.querySelectorAll('[data-eq-catalog-icon]').forEach((input) => input.addEventListener('change', () => {
         if (state.catalogEditor) state.catalogEditor.iconTouched = true;
       }));
@@ -835,6 +869,7 @@
       if (!name) { showCatalogFieldError(nameInput, 'Name is required.'); return; }
       const selectedKind = clean(root.querySelector('[data-eq-catalog-kind]:checked')?.value) || 'other';
       const selectedIcon = clean(root.querySelector('[data-eq-catalog-icon]:checked')?.value) || DEFAULT_TYPE_ICONS[selectedKind] || DEFAULT_TYPE_ICONS.other;
+      const selectedColor = normalizedColor(root.querySelector('[data-eq-catalog-color]')?.value, DEFAULT_TYPE_COLORS[selectedKind] || DEFAULT_TYPE_COLORS.other);
       const addressInput = root.querySelector('[data-eq-catalog-address]');
       const formatted = clean(addressInput?.value);
       if (editor.kind === 'yard' && formatted && !editor.addressSelected) { showCatalogFieldError(addressInput, 'Choose an address from the Google suggestions.'); return; }
@@ -849,8 +884,8 @@
       try {
         if (editor.kind === 'type') {
           const result = editor.entity
-            ? await window.EquipmentAPI.saveType(organizationId, clean(editor.entity.id), { ...editor.entity, name, kind:selectedKind, icon:selectedIcon, expected_revision:Number(editor.entity.revision || 0) || undefined })
-            : await window.EquipmentAPI.createType(organizationId, { name, kind:selectedKind, icon:selectedIcon });
+            ? await window.EquipmentAPI.saveType(organizationId, clean(editor.entity.id), { ...editor.entity, name, kind:selectedKind, icon:selectedIcon, color:selectedColor, expected_revision:Number(editor.entity.revision || 0) || undefined })
+            : await window.EquipmentAPI.createType(organizationId, { name, kind:selectedKind, icon:selectedIcon, color:selectedColor });
           savedEntity = obj(result.type);
         } else {
           const address = formatted ? { ...obj(editor.address), formatted, access_instructions:accessInstructions } : (accessInstructions ? { access_instructions:accessInstructions } : {});
@@ -1092,16 +1127,18 @@
 
     /* ---------------------------------------------------------- rendering */
 
+    const unitType = (unit) => arr(state.types).find((type) => clean(type.id) === clean(unit.type_id)) || { kind:unit.type_kind, icon:unit.type_icon };
+
     function unitCardHtml(unit){
-      const icon = clean(unit.type_icon) || 'fa-truck-pickup';
+      const type = unitType(unit);
+      const icon = clean(type.icon) || clean(unit.type_icon) || 'fa-truck-pickup';
       const photoUrl = primaryPhoto(unit) ? mediaReferenceUrl(primaryPhoto(unit), 'original') : '';
-      const unitColor = cssColor(unit.color);
       const locationLabel = clean(obj(unit.location).label) || clean(obj(unit.home_location).label);
       const meter = obj(unit.current_meter);
       const meterText = [meter.hours ? `${Number(meter.hours).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} hrs` : '', meter.miles ? `${Number(meter.miles).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())} mi` : ''].filter(Boolean).join(' · ');
       return `
-        <article class="eq-card" data-eq-open="${String(esc(unit.id))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("equipment","m_ab0d5cb8a59853",`Open ${v1}`,{v1}) ?? `Open ${v1}`)(esc(unit.name || 'unit'))}"${String(unitColor ? ` style="border-left:4px solid ${esc(unitColor)}"` : '')}>
-          <div class="eq-card-media" ${String(photoUrl ? `style="background-image:url('${esc(photoUrl)}')"` : '')}>${String(photoUrl ? '' : `<i class="fas ${esc(icon)}"${cssColor(unit.color) ? ` style="color:${esc(cssColor(unit.color))}"` : ''}></i>`)}</div>
+        <article class="eq-card" data-eq-open="${String(esc(unit.id))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("equipment","m_ab0d5cb8a59853",`Open ${v1}`,{v1}) ?? `Open ${v1}`)(esc(unit.name || 'unit'))}">
+          <div class="eq-card-media" style="${typeIconStyle(type)};${photoUrl ? `background-image:url('${esc(photoUrl)}')` : ''}">${photoUrl ? '' : `<i class="fas ${esc(icon)}"></i>`}${unitColorSwatch(unit)}</div>
           <div class="eq-card-content">
             <div class="eq-card-top">
               <span class="eq-card-name">
@@ -1153,7 +1190,8 @@
       if (!drawer) return '';
       const unit = obj(drawer.unit);
       const existingUnit = drawer.mode !== 'create';
-      const icon = drawer.mode === 'create' ? 'fa-truck' : (clean(unit.type_icon) || 'fa-truck-pickup');
+      const type = unitType(unit);
+      const icon = clean(type.icon) || clean(unit.type_icon) || 'fa-truck-pickup';
       const headerPhotoUrl = primaryPhoto(unit) ? mediaReferenceUrl(primaryPhoto(unit), 'thumb_320') : '';
       const field = (label, name, value, options = {}) => `
         <div class="eq-field ${options.wide ? 'wide' : ''}">
@@ -1231,7 +1269,7 @@
         <div class="eq-drawer-back" data-eq-drawer-back>
           <div class="eq-drawer" role="dialog" aria-modal="true">
             <div class="eq-drawer-head">
-              <span class="eq-card-icon" style="${headerPhotoUrl ? `background-image:url('${esc(headerPhotoUrl)}');background-size:cover;background-position:center;color:transparent` : cssColor(unit.color) ? `color:${esc(cssColor(unit.color))}` : ''}"><i class="fas ${esc(icon)}"></i></span>
+              <span class="eq-card-icon" style="${typeIconStyle(type)};${headerPhotoUrl ? `background-image:url('${esc(headerPhotoUrl)}');background-size:cover;background-position:center` : ''}">${headerPhotoUrl ? '' : `<i class="fas ${esc(icon)}"></i>`}${unitColorSwatch(unit)}</span>
               <span class="eq-drawer-title">
                 <h3>${esc(drawer.mode === 'create' ? 'New unit' : unit.name || 'Unit')}</h3>
                 <span>${drawer.mode === 'create' ? 'Add a unit to the fleet' : esc([unit.type_name, unit.identifier].filter(Boolean).join(' · ') || 'Unit details')}</span>
@@ -1272,7 +1310,7 @@
               <div class="eq-types-list">
                 ${String(records.map((type) => `
                   <div class="eq-type-row">
-                    <span class="eq-card-icon"><i class="fas ${esc(clean(type.icon) || 'fa-truck-pickup')}"></i></span>
+                    <span class="eq-card-icon" style="${typeIconStyle(type)}"><i class="fas ${esc(clean(type.icon) || 'fa-truck-pickup')}"></i></span>
                     <span class="eq-type-row-copy">
                       <strong>${esc(type.name)}</strong>
                       <span>${esc((clean(type.kind) || 'other').replace(/^./, (char) => char.toUpperCase()))} · ${esc(categoryName(type.category_id))} · ${esc(clean(type.tracking) === 'quantity' ? `Pool of ${Number(type.pool_quantity || 0)}` : 'Serialized units')}</span>
@@ -1325,7 +1363,7 @@
                 ${[['vehicle','fa-truck-pickup','Vehicle'],['trailer','fa-trailer','Trailer'],['tool','fa-screwdriver-wrench','Tool'],['other','fa-box','Other']].map(([value,icon,label]) => `<label><input type="radio" name="eq-catalog-kind" data-eq-catalog-kind value="${value}" ${currentKind === value ? 'checked' : ''}><span><i class="fas ${icon}"></i><b>${label}</b></span></label>`).join('')}
               </div></div><div class="eq-field"><label>Icon</label><div class="eq-icon-options" role="radiogroup" aria-label="Equipment type icon">
                 ${iconChoices.map(([icon,label]) => `<label title="${esc(label)}"><input type="radio" name="eq-catalog-icon" data-eq-catalog-icon value="${esc(icon)}" ${currentIcon === icon ? 'checked' : ''}><span><i class="fas ${esc(icon)}" aria-hidden="true"></i><b>${esc(label)}</b></span></label>`).join('')}
-              </div></div>` : `<div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_0ecd09516ac094","Address (optional)") ?? "Address (optional)")}</label><input type="text" data-eq-catalog-address value="${esc(editor.formatted ?? obj(editor.entity?.address).formatted)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_251e51ba7e4761","Start typing an address") ?? "Start typing an address")}" autocomplete="off"><span class="eq-field-error" data-eq-field-error></span></div><div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_bd935bf52d86b9","Access instructions (optional)") ?? "Access instructions (optional)")}</label><textarea rows="3" data-eq-catalog-access placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_b9e346d068c27a","Gate code, entrance, parking, or check-in details") ?? "Gate code, entrance, parking, or check-in details")}">${esc(obj(editor.entity?.address).access_instructions)}</textarea></div>`)}
+              </div></div><div class="eq-field"><label for="eq-type-color">Type icon color</label><input id="eq-type-color" class="eq-color-input" type="color" data-eq-catalog-color value="${typeColor(editor.entity || { kind:currentKind })}" title="Type icon color"></div>` : `<div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_0ecd09516ac094","Address (optional)") ?? "Address (optional)")}</label><input type="text" data-eq-catalog-address value="${esc(editor.formatted ?? obj(editor.entity?.address).formatted)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_251e51ba7e4761","Start typing an address") ?? "Start typing an address")}" autocomplete="off"><span class="eq-field-error" data-eq-field-error></span></div><div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_bd935bf52d86b9","Access instructions (optional)") ?? "Access instructions (optional)")}</label><textarea rows="3" data-eq-catalog-access placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_b9e346d068c27a","Gate code, entrance, parking, or check-in details") ?? "Gate code, entrance, parking, or check-in details")}">${esc(obj(editor.entity?.address).access_instructions)}</textarea></div>`)}
               <div class="eq-modal-error" data-eq-catalog-save-error></div>
             </div>
             <div class="eq-drawer-foot"><button type="button" class="eq-btn" data-eq-catalog-cancel>${(globalThis.PlatformLanguage?.htmlText("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="eq-btn primary" data-eq-catalog-save ${String(editor.saving ? 'disabled' : '')}><i class="fas ${String(editor.saving ? 'fa-spinner fa-spin' : 'fa-check')}"></i> ${String(editor.saving ? 'Saving…' : 'Save')}</button></div>
