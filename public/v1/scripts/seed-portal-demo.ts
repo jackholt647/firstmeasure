@@ -16,6 +16,7 @@
 
 import { createHash } from "node:crypto";
 
+import "../platform/capability_defs.js";
 import { listDocuments, readDocument, upsertDocument, type JsonObject } from "../platform/storage.js";
 import { normalizePunchConfig } from "../workforce/punch_lists.js";
 import { ensureProjectChecklists } from "../workforce/crew_storage.js";
@@ -685,7 +686,7 @@ async function seedActivity() {
   const { emitWorkEvent } = await import("../work/engine.js");
   // Idempotent: re-running the seed must not stack duplicate feed entries.
   const { listEventRecords } = await import("../work/storage.js");
-  const already = listEventRecords(ORG_ID, { project_id: "pdemo_roof_main", limit: 200 })
+  const already = (await listEventRecords(ORG_ID, { project_id: "pdemo_roof_main", limit: 200 }))
     .some((row) => cleanText(asObject(asObject(row).context).source) === "portal_demo_seed");
   if (already) return note("activity   (already seeded — skipped)");
   const entries: Array<[string, JsonObject]> = [
