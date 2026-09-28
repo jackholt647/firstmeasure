@@ -106,10 +106,16 @@ export async function fleetUnits(orgId: string, options: Parameters<typeof listU
     const effects = await Promise.all(unitEvents.map(async (event) => ({ event, status: await eventStatus(event) })));
     const primary = effects.find((item) => item.status === "down") || effects.find((item) => item.status === "in_use") || effects.find((item) => item.status === "reserved");
     const storedStatus = cleanText(unit.status) || "available";
+    const legacyStatus = ["down", "reserved"].includes(storedStatus) ? storedStatus : "";
+    const effectiveStatus = storedStatus === "retired" ? "retired"
+      : primary?.status === "down" || legacyStatus === "down" ? "down"
+      : primary?.status || legacyStatus || "available";
+    const statusFromEvent = primary?.status === effectiveStatus;
     return {
       ...unit,
-      status: storedStatus === "retired" ? "retired" : primary?.status || "available",
-      status_event: primary ? conflictEventSummary(primary.event) : null,
+      status: effectiveStatus,
+      status_source: storedStatus === "retired" ? "lifecycle" : statusFromEvent ? "schedule" : legacyStatus ? "legacy_manual" : "schedule",
+      status_event: statusFromEvent && primary ? conflictEventSummary(primary.event) : null,
       type_name: cleanText(type?.name),
       type_kind: cleanText(type?.kind) || "other",
       type_icon: cleanText(type?.icon) || "fa-truck-pickup",
@@ -274,13 +280,13 @@ export async function assessEquipmentBooking(orgId: string, input: {
       }
       const name = cleanText(unit?.name || ref.name) || ref.id;
       const status = cleanText(unit?.status);
-      if (unit && status === "retired") {
+      if (unit && ["down", "retired"].includes(status)) {
         conflicts.push({
           ref_kind: ref.kind,
           ref_id: ref.id,
           ref_name: name,
           reason: "unit_unavailable",
-          message: `${name} is retired.`,
+          message: `${name} is ${status === "down" ? "down for service" : "retired"}.`,
           events: []
         });
         continue;
@@ -353,7 +359,7 @@ export async function availabilityForEquipment(orgId: string, input: {
       const bookings = events
         .filter((event) => equipmentRefOverlaps(event, "equipment_unit", unitId, start, end))
         .map(conflictEventSummary);
-      const unavailable = cleanText(unit.status) === "retired";
+      const unavailable = cleanText(unit.status) === "retired" || (unit.status_source === "legacy_manual" && cleanText(unit.status) === "down");
       return {
         id: unitId,
         name: cleanText(unit.name),

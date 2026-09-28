@@ -666,6 +666,18 @@ test("equipment live status follows shared calendar and project events", async (
   });
   assert.equal((await currentStatus()).status, "in_use");
   assert.equal((await owner.request("GET", `${unitsUrl}?status=in_use`)).count, 1);
+
+  // Historical manually stored Down values remain safe until converted to
+  // maintenance events, but new API writes cannot create them.
+  const storage = await import("../equipment/storage.js");
+  await storage.patchUnit(orgId, unit.id, { status: "down" });
+  assert.equal((await currentStatus()).status, "down");
+  assert.equal((await currentStatus()).status_source, "legacy_manual");
+  const later = await owner.request("GET", `/v1/equipment/organizations/${orgId}/availability?start=${encodeURIComponent(futureStart)}&end=${encodeURIComponent(futureEnd)}&unit_ids=${unit.id}`);
+  assert.equal(later.units[0].available, false);
+  assert.equal(later.units[0].reason, "unit_unavailable");
+  const manualDown = await owner.raw("PATCH", `${unitsUrl}/${unit.id}`, { status: "down" });
+  assert.equal(manualDown.statusCode, 400);
 });
 
 test("equipment requirements: scope items bind to types and auto-fulfill single units", async () => {

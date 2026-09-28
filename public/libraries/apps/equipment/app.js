@@ -161,8 +161,8 @@
 
   function cardStatusSelect(unit){
     const current = clean(obj(unit).status) || 'available';
-    const cause = clean(obj(obj(unit).status_event).title);
-    return `<span title="${esc(cause || 'Current schedule status')}">${statusChip(current)}</span>`;
+    const cause = clean(obj(obj(unit).status_event).title) || (clean(obj(unit).status_source) === 'legacy_manual' ? 'Legacy manual status; schedule an event to replace it' : 'Current schedule status');
+    return `<span title="${esc(cause)}">${statusChip(current)}</span>`;
   }
 
   function mountEquipment(root, context = {}){
@@ -1198,7 +1198,7 @@
             ${String(drawer.mode === 'view' && facilityAccessInstructions ? `<div class="eq-field eq-readonly-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_feb926c42d3f6e","Facility access instructions") ?? "Facility access instructions")}</label><div class="eq-readonly-value" role="note"><i class="fas fa-lock"></i>${esc(facilityAccessInstructions)}</div></div>` : '')}
             ${String(field('Ownership', 'ownership', unit.ownership || 'owned', { select:OWNERSHIPS }))}
             ${String(field('Driver requirement', 'driver_requirement', driverRequirementId(unit), { select:DRIVER_REQUIREMENTS }))}
-            ${String(drawer.mode !== 'create' ? `<div class="eq-field"><label>Current status</label>${statusChip(unit.status)}${clean(obj(unit.status_event).title) ? `<small>${esc(obj(unit.status_event).title)}</small>` : ''}</div>` : '')}
+            ${String(drawer.mode !== 'create' ? `<div class="eq-field"><label>Current status</label>${statusChip(unit.status)}${clean(obj(unit.status_event).title) ? `<small>${esc(obj(unit.status_event).title)}</small>` : (unit.status_source === 'legacy_manual' ? '<small>Legacy manual status. Schedule an event to replace it.</small>' : '')}</div>` : '')}
             ${String(vehicleType ? `<div class="eq-dynamic-panel"><div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_113d0683ef8084","Vehicle details") ?? "Vehicle details")}</div>${field('License plate', 'license_plate', unit.license_plate)}${field('Year', 'year', unit.year)}${field('Make', 'make', unit.make)}${field('Model', 'model', unit.model)}${field('VIN', 'vin', unit.vin)}</div>` : '')}
             ${String(ownership === 'owned' ? `<div class="eq-dynamic-panel"><div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_250d080790e059","Purchase details") ?? "Purchase details")}</div>${field('Purchased on (optional)', 'procurement_date', acquisition.procurement_date, { type:'date' })}${field('Estimated value ($)', 'estimated_value', dollars(acquisition.estimated_value_cents), { type:'number', step:'0.01' })}</div>` : '')}
             ${String(ownership === 'leased' ? `<div class="eq-dynamic-panel"><div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_b01d4473f12ba7","Lease details") ?? "Lease details")}</div>${field('Lease start (optional)', 'procurement_date', acquisition.procurement_date, { type:'date' })}${field('Lease term (months)', 'lease_term_months', acquisition.lease_term_months, { type:'number', step:'1' })}${field('Monthly lease cost ($)', 'lease_monthly_cost', dollars(acquisition.monthly_cost_cents), { type:'number', step:'0.01' })}</div>` : '')}

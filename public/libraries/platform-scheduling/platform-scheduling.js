@@ -1322,7 +1322,8 @@
       }));
       // Live down/in-use/reserved badges describe the current instant; a
       // different window is blocked by its overlapping events, not that badge.
-      const unavailable = cleanText(unit.status) === 'retired';
+      const unavailable = cleanText(unit.status) === 'retired'
+        || (cleanText(unit.status) === 'down' && cleanText(unit.status_source) !== 'schedule');
       return {
         id: unitId,
         name: cleanText(unit.name),
