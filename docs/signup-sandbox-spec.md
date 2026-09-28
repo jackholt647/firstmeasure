@@ -290,6 +290,34 @@ foundation for onboarding a full-service contractor:
 The two profile pages persist their choices under `home_improvement_setup` in
 the organization global document. No selection page uses checkbox controls.
 
+## Optional sample data for full test organizations
+
+In **Test orgs**, each `swf_instant_full_org` card has **Add sample data**.
+The same button is available beside Add user in the organization details.
+All four independent checkboxes start unchecked:
+
+- Equipment: five types, ten units, one yard, two maintenance work orders
+  linked to the shared calendar, and one reservation. Dates start relative to
+  the first seed run; reruns preserve dates and edits.
+- Channels: four public sample channels with twelve fictional messages,
+  including replies, two sample staff profiles, and owner membership.
+- Projects: four jobs with twelve scheduled or completed events. Selecting
+  projects alone does not create contacts or equipment.
+- Customers: five standalone contact-only records using the existing contact
+  storage contract. Selecting customers alone does not create jobs.
+
+`POST /v1/signup-sandbox/test-orgs/:id/sample-data` accepts the four boolean
+keys `equipment`, `channels`, `projects`, and `customers`. It inherits the
+sandbox's admin/origin and production guards and verifies the organization's
+sandbox identity and full-test workflow. Disabled selected apps reject the
+request before writing. Unknown keys and non-boolean values are rejected.
+
+Samples are additive, use tenant-specific identities, and preserve existing
+records on repeat requests. Concurrent runs serialize equipment/channel
+creation and use atomic create-only writes for document fixtures. No provider
+calls, invitation emails, SMS, or notification fanout are triggered. Channel
+authors are fictional organization profiles without login identities.
+
 ## Deliberately not built yet
 
 - **Split-testing/routing**: variants exist as documents; automatic routing +

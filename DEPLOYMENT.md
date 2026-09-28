@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 28 test-org samples: [Optional equipment, channels, projects and customers](deploy/digitalocean/development-test-org-samples-20260928.md) records the equipment-first development delivery, latest full-test organization seed, independent sample toggles and verification.
+
 September 28 Equipment Simple: [Fixed fleet feature set](deploy/digitalocean/development-equipment-simple-20260928.md) records the development rollout, effective capabilities, verification, and role-aware rollback. Production is unchanged.
 
 September 28 portal CSRF: [Configured session cookies across platform clients](deploy/digitalocean/development-platform-csrf-20260928.md) records the development-only correction for admin actions blocked by stale production-cookie readers, regression coverage, release baselines and verification.
