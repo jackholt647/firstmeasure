@@ -587,7 +587,7 @@
         <div class="fmchat-composer">
           <textarea class="fmchat-input" rows="1" spellcheck="true" placeholder="${String(kind === 'sms' ? 'Text the customer…' : 'Reply — sends as email…')}"></textarea>
           <div class="fmchat-composer-side">
-            ${String(mode !== 'off' ? `<button type="button" class="fmchat-icon-btn voice" data-voice title="${voiceLabel(mode)}" aria-label="${voiceLabel(mode)}"><i class="fas fa-microphone"></i><small>${mode === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '')}
+            ${String(mode !== 'off' ? `<button type="button" class="fmchat-icon-btn voice" data-voice title="${voiceLabel(mode)}" aria-label="${voiceLabel(mode)}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/${mode === 'dictation' ? 'dictation' : 'record'}.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/${mode === 'dictation' ? 'dictation' : 'record'}.svg) center/contain no-repeat"></span><small>${mode === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '')}
             <button type="button" class="fmchat-icon-btn send" data-comms-send title="${(globalThis.PlatformLanguage?.htmlText("chat","m_c23a056552a09f","Send") ?? "Send")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("chat","m_c23a056552a09f","Send") ?? "Send")}"><i class="fas fa-paper-plane"></i></button>
           </div>
         </div>
@@ -799,7 +799,7 @@
         <div class="fmchat-composer">
           <textarea class="fmchat-input" rows="1" spellcheck="true" placeholder="${((v2) => globalThis.PlatformLanguage?.htmlText("chat","m_9b4bc7a1e8b34f",`Reply to ${v2}…`,{v2}) ?? `Reply to ${v2}…`)(esc(firstName(visitor.name) || 'the visitor'))}"></textarea>
           <div class="fmchat-composer-side">
-            ${String(voiceMode('webchat') !== 'off' ? `<button type="button" class="fmchat-icon-btn voice" data-voice title="${voiceLabel(voiceMode('webchat'))}" aria-label="${voiceLabel(voiceMode('webchat'))}"><i class="fas fa-microphone"></i><small>${voiceMode('webchat') === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '')}
+            ${String(voiceMode('webchat') !== 'off' ? `<button type="button" class="fmchat-icon-btn voice" data-voice title="${voiceLabel(voiceMode('webchat'))}" aria-label="${voiceLabel(voiceMode('webchat'))}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/${voiceMode('webchat') === 'dictation' ? 'dictation' : 'record'}.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/${voiceMode('webchat') === 'dictation' ? 'dictation' : 'record'}.svg) center/contain no-repeat"></span><small>${voiceMode('webchat') === 'dictation' ? 'Dictate' : 'Audio'}</small></button>` : '')}
             <button type="button" class="fmchat-icon-btn send" data-send title="${(globalThis.PlatformLanguage?.htmlText("chat","m_5ffd34ad8437cd","Send reply") ?? "Send reply")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("chat","m_5ffd34ad8437cd","Send reply") ?? "Send reply")}"><i class="fas fa-paper-plane"></i></button>
           </div>
         </div>

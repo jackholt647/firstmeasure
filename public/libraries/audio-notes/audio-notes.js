@@ -342,6 +342,7 @@
         <div class="fm-an-inline-body"><div class="fm-an-inline-wave" aria-hidden="true"></div><span class="fm-an-inline-clock">0:00</span><button class="fm-an-inline-stop ${String(options.submitStyle ? 'submit' : '')}" type="button" aria-label="${String(options.submitStyle ? 'Submit recording' : 'Finish recording')}"><i class="fas ${String(options.submitStyle ? 'fa-arrow-right' : 'fa-stop')}"></i></button></div>
       </div>`;
       const card = mount.firstElementChild;
+      if (options.mode === 'dictation') card.querySelector('.fm-an-inline-head > span').lastChild.textContent = 'Dictating…';
       const wave = card.querySelector('.fm-an-inline-wave');
       const clock = card.querySelector('.fm-an-inline-clock');
       const bars = Array.from({ length:72 }, () => {
@@ -450,13 +451,14 @@
     });
   }
 
-  function mountProcessing(mount, recording, onRemove){
+  function mountProcessing(mount, recording, onRemove, mode){
     const peaks = recording.peaks || [];
     mount.innerHTML = `<div class="fm-an-inline processing">
       <div class="fm-an-inline-head"><span class="fm-an-inline-status"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_5ee55174f196c9"," Generating transcript…") ?? " Generating transcript…")}</span><button class="fm-an-inline-remove" type="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_c98e98ebafeaae","Remove audio note") ?? "Remove audio note")}"><i class="fas fa-xmark"></i></button></div>
       <div class="fm-an-inline-body"><div class="fm-an-inline-wave" aria-hidden="true">${String(peaks.map((value) => `<span style="--h:${Math.round(16 + clamp(value,.06,1) * 78)}%"></span>`).join(''))}</div><span class="fm-an-inline-clock">${String(formatTime(recording.duration))}</span></div>
     </div>`;
     mount.querySelector('.fm-an-inline-remove')?.addEventListener('click', onRemove);
+    if (mode === 'record') mount.querySelector('.fm-an-inline-status').textContent = 'Preparing audio message…';
   }
 
   function mountPrepared(mount, options = {}){
@@ -493,12 +495,12 @@
       mount.innerHTML = '';
       options.onRemove?.();
     };
-    mountProcessing(mount, recording, remove);
+    mountProcessing(mount, recording, remove, options.mode);
     try {
       const combined = typeof options.prepareRecording === 'function'
         ? await options.prepareRecording(recordedFile, { signal:controller.signal })
         : null;
-      const transcription = combined?.transcription
+      const transcription = options.mode === 'record' ? { text:'', model:'' } : combined?.transcription
         || await (typeof options.transcribe === 'function' ? options.transcribe(recordedFile, { signal:controller.signal }) : transcribe(orgId, recordedFile, { ...options, signal:controller.signal }));
       if (removed) throw new Error('Audio note recording was cancelled.');
       if (options.mode === 'dictation') {

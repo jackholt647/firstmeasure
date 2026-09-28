@@ -3085,6 +3085,7 @@
       editNote.style.display = 'none';
       const box = el('div', 'fm-ch-composer-box');
       const audioMount = el('div', 'fm-ch-audio-mount');
+      const dictationMount = el('div', 'fm-ch-audio-mount');
       textarea = createMessageEditor(cleanText(options.composerPlaceholder)
         || (state.activeChannel.type === 'project' ? 'Add a note…' : `Message ${state.activeChannel.display_name || '#' + state.activeChannel.name}`));
       if (features.richMessages) box.appendChild(messageFormatBar(textarea));
@@ -3160,12 +3161,42 @@
       }
 
       if (features.audioNotes && root.FirstMateAudioNotes?.prepareInline) {
-        const audioBtn = el('button', 'fm-ch-icon-btn', '<i class="fas fa-microphone"></i>');
+        const audioBtn = el('button', 'fm-ch-icon-btn', '<span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/record.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/record.svg) center/contain no-repeat"></span>');
         audioBtn.title = (globalThis.PlatformLanguage?.text("channels-ui","m_eb0aa857e4778b","Record an audio note") ?? "Record an audio note");
         audioBtn.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_eb0aa857e4778b","Record an audio note") ?? "Record an audio note"));
+        audioBtn.dataset.voiceMode = 'record';
+        const dictateBtn = el('button', 'fm-ch-icon-btn', '<span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span>');
+        dictateBtn.type = audioBtn.type = 'button';
+        dictateBtn.style.fontSize = audioBtn.style.fontSize = '18px';
+        dictateBtn.dataset.voiceMode = 'dictation';
+        dictateBtn.title = 'Dictate message';
+        dictateBtn.setAttribute('aria-label', dictateBtn.title);
+        let capturing = false;
+        const voiceEditor = textarea;
+        dictateBtn.addEventListener('click', async () => {
+          if (capturing) return;
+          capturing = true;
+          dictateBtn.disabled = audioBtn.disabled = true;
+          const channelId = state.activeChannelId;
+          try {
+            const prepared = await root.FirstMateAudioNotes.prepareInline(orgId, channelId, { mount:dictationMount, mode:'dictation' });
+            if (state.activeChannelId !== channelId || textarea !== voiceEditor || !voiceEditor.isConnected) return;
+            voiceEditor.value = [voiceEditor.value, prepared.text].filter(Boolean).join(' ');
+            voiceEditor.dispatchEvent(new Event('input', { bubbles:true }));
+            voiceEditor.focus();
+          } catch (error) {
+            if (!String(error?.message || '').toLowerCase().includes('cancelled')) showError(error);
+          } finally {
+            capturing = false;
+            dictateBtn.disabled = false;
+            audioBtn.disabled = !!state.pendingAudioNote;
+          }
+        });
         audioBtn.addEventListener('click', async () => {
-          if (audioBtn.disabled || state.pendingAudioNote || state.editingMessageId) return;
-          audioBtn.disabled = true;
+          if (capturing || audioBtn.disabled || state.pendingAudioNote || state.editingMessageId) return;
+          capturing = true;
+          dictateBtn.disabled = audioBtn.disabled = true;
+          const channelId = state.activeChannelId;
           let attachmentId = '';
           const removeAudio = () => {
             if (attachmentId) state.pendingAttachments = state.pendingAttachments.filter((item) => item.id !== attachmentId);
@@ -3174,21 +3205,25 @@
             audioBtn.disabled = false;
           };
           try {
-            const prepared = await root.FirstMateAudioNotes.prepareInline(orgId, state.activeChannelId, {
+            const prepared = await root.FirstMateAudioNotes.prepareInline(orgId, channelId, {
               mount:audioMount,
+              mode:'record',
               onRemove:removeAudio
             });
+            if (state.activeChannelId !== channelId || textarea !== voiceEditor || !voiceEditor.isConnected) return;
             attachmentId = prepared.attachment.id;
             state.pendingAudioNote = prepared.metadata;
             state.pendingAttachments.push(prepared.attachment);
-            textarea.value = prepared.text;
-            textarea.dispatchEvent(new Event('input', { bubbles:true }));
+
           } catch (error) {
             if (!String(error?.message || '').toLowerCase().includes('cancelled')) showError(error);
             if (!state.pendingAudioNote) audioBtn.disabled = false;
+          } finally {
+            capturing = false;
+            dictateBtn.disabled = false;
           }
         });
-        row.appendChild(audioBtn);
+        row.append(dictateBtn, audioBtn);
       }
 
       if (features.resources) {
@@ -3227,7 +3262,7 @@
       if (schedule) sendPair.appendChild(schedule);
       sendPair.appendChild(send);
       row.appendChild(sendPair);
-      composer.append(editNote, box, audioMount, pendingWrap, row);
+      composer.append(editNote, box, dictationMount, audioMount, pendingWrap, row);
 
       const autosize = () => {
         textarea.style.height = 'auto';

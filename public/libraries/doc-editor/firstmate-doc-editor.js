@@ -316,6 +316,8 @@
   };
 
   function iconSvg(name) {
+    if (name === "dictation") return '<span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span>';
+    if (name === "microphone") return '<span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/record.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/record.svg) center/contain no-repeat"></span>';
     if (/^fa-[a-z0-9-]+$/i.test(String(name || ""))) return '<i class="fas ' + esc(name) + '" aria-hidden="true"></i>';
     const body = ICONS[name];
     return body ? SVG_OPEN + body + "</svg>" : "";
@@ -10600,7 +10602,7 @@
         dom.btnDictate = el("button", {
           type: "button",
           class: "fmde-btn fmde-btn-labeled" + (state.dictating ? " active" : ""),
-          html: iconSvg("microphone") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}</span>`,
+          html: iconSvg("dictation") + `<span>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}</span>`,
           title: (globalThis.PlatformLanguage?.text("doc-editor","m_870291f01feab4","Dictate into the selected text section") ?? "Dictate into the selected text section"),
           "aria-label": "Dictate into the selected text section"
         });
@@ -10921,7 +10923,7 @@
           { label: (globalThis.PlatformLanguage?.text("doc-editor","m_7be1a0c063bd9d","Clear formatting") ?? "Clear formatting"), icon: "clearformat", onClick: function () { docProjection.format("removeFormat"); docProjection.applyStyleRef(null); } }
         ]);
         if (dom.btnDictate && hidden(dom.btnDictate.closest(".fmde-tb-group"))) section([
-          { label: (globalThis.PlatformLanguage?.text("doc-editor","m_86ab4afbbbb82b","Dictate") ?? "Dictate"), icon: "microphone", disabled: state.dictating, onClick: function () { startDictation(); } }
+          { label: (globalThis.PlatformLanguage?.text("doc-editor","m_86ab4afbbbb82b","Dictate") ?? "Dictate"), icon: "dictation", disabled: state.dictating, onClick: function () { startDictation(); } }
         ]);
         const profileGroup = dom.toolbar.querySelector(".fmde-tb-profile");
         if (hidden(profileGroup)) {
@@ -12426,7 +12428,7 @@
           { label: (globalThis.PlatformLanguage?.text("doc-editor","m_0c6f2d36d3d866","Word count while typing") ?? "Word count while typing"), checked: function () { return state.wordCountLive; }, onClick: function () { state.wordCountLive = !state.wordCountLive; updateWordCountChip(); } },
           { label: (globalThis.PlatformLanguage?.text("doc-editor","m_923aed2a89af34","Review suggested edits") ?? "Review suggested edits"), icon: "comment", onClick: reviewSuggestions },
           { label: (globalThis.PlatformLanguage?.text("doc-editor","m_bdac714b91b36e","Compare with version") ?? "Compare with version"), onClick: showCompareDialog },
-          { label: (globalThis.PlatformLanguage?.text("doc-editor","m_bad1d04f3c2f9e","Voice typing") ?? "Voice typing"), icon: "microphone", onClick: function () { if (dom.btnDictate) dom.btnDictate.click(); } }
+          { label: (globalThis.PlatformLanguage?.text("doc-editor","m_bad1d04f3c2f9e","Voice typing") ?? "Voice typing"), icon: "dictation", onClick: function () { if (dom.btnDictate) dom.btnDictate.click(); } }
         ].concat(opts.agentEnabled === false ? [] : ["-", { label: (globalThis.PlatformLanguage?.text("doc-editor","m_f449ca5a90fc35","Translate document with Agent") ?? "Translate document with Agent"), onClick: function () { openDocumentAgent("Translate this document while preserving its formatting and structure."); } }, { label: (globalThis.PlatformLanguage?.text("doc-editor","m_3fe4c1ec7e3810","Document Agent") ?? "Document Agent"), icon: "pencil", onClick: function () { openDocumentAgent(""); } }]).concat(hasDocumentAction("accessibility") ? [{ label: (globalThis.PlatformLanguage?.text("doc-editor","m_b59f79dbfa152e","Accessibility") ?? "Accessibility"), onClick: function () { invokeDocumentAction("accessibility"); } }] : []) },
         { label: (globalThis.PlatformLanguage?.text("doc-editor","m_67b289b34e4ca4","Help") ?? "Help"), items: [
           { label: (globalThis.PlatformLanguage?.text("doc-editor","m_f9b41a195a8735","Search the menus") ?? "Search the menus"), onClick: function () { showMenuSearch(dom.menuSearch, menuDefinitions); }, shortcut: "Alt+/" },
