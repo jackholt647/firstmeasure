@@ -388,7 +388,7 @@
       .fma-drawer[data-payment-widget=true] .fma-board-head{display:none}
       .fma-drawer[data-payment-widget=true] .fma-board-items{flex:0 1 120px}
       .fma-drawer[data-payment-widget=true] .fma-board-items:empty{display:none}
-      @media(max-width:850px){.fma-drawer[data-payment-widget=true] .fma-stage{flex-direction:column;overflow:auto}.fma-drawer[data-payment-widget=true] .fma-board{width:100%;max-width:none;min-height:520px;flex:0 0 60vh}.fma-drawer[data-payment-widget=true] .fma-main{min-height:220px}.fma-drawer[data-payment-widget=true] .fma-split{display:none!important}}
+      @media(max-width:850px){.fma-payment-widget{padding-top:50px}.fma-drawer[data-payment-widget=true] .fma-stage{flex-direction:column;overflow:auto}.fma-drawer[data-payment-widget=true] .fma-board{width:100%;max-width:none;min-height:520px;flex:0 0 60vh}.fma-drawer[data-payment-widget=true] .fma-main{min-height:220px}.fma-drawer[data-payment-widget=true] .fma-split{display:none!important}}
       /* Stage: dashboard | splitter | conversation. */
       .fma-stage{flex:1;min-height:0;display:flex;flex-direction:row;}
       .fma-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;}
