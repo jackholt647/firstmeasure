@@ -1,5 +1,13 @@
 (function(root){
   'use strict';
+  function readPlatformCsrfToken(){
+    const sessionName = String(window.__APP?.platformSessionCookieName || 'fm_platform_session').trim();
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(sessionName)) return '';
+    const prefix = sessionName + '_csrf=';
+    const value = document.cookie.split(';').map(part => part.trim()).find(part => part.startsWith(prefix));
+    try { return value ? decodeURIComponent(value.slice(prefix.length)) : ''; }
+    catch { return ''; }
+  }
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const uid = (prefix) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
@@ -106,11 +114,11 @@
       return String(root.Portal?.cfg?.endpoints?.crm || '/v1/internal/crm').replace(/\/$/, '');
     }
     async function callApi(path, options = {}){
-      const csrf=document.cookie.match(/(?:^|;\s*)fm_platform_session_csrf=([^;]+)/)?.[1];
+      const csrf=readPlatformCsrfToken();
       const response = await fetch(`${callApiBase()}${path}`, {
         credentials:'include',
         ...options,
-        headers:{ Accept:'application/json', ...(options.body ? { 'Content-Type':'application/json' } : {}), ...(csrf&&options.method&&options.method!=='GET'?{'X-Platform-CSRF':decodeURIComponent(csrf)}:{}),...(options.headers || {}) }
+        headers:{ Accept:'application/json', ...(options.body ? { 'Content-Type':'application/json' } : {}), ...(csrf&&options.method&&options.method!=='GET'?{'X-Platform-CSRF':csrf}:{}),...(options.headers || {}) }
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data?.ok === false) throw new Error(data?.message || data?.error || 'Could not update call lists.');

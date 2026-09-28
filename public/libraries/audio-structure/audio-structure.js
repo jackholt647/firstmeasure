@@ -1,5 +1,13 @@
 /* Reusable browser bridge for raw audio -> registered structured processors. */
 (function(){
+  function readPlatformCsrfToken(){
+    const sessionName = String(window.__APP?.platformSessionCookieName || 'fm_platform_session').trim();
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(sessionName)) return '';
+    const prefix = sessionName + '_csrf=';
+    const value = document.cookie.split(';').map(part => part.trim()).find(part => part.startsWith(prefix));
+    try { return value ? decodeURIComponent(value.slice(prefix.length)) : ''; }
+    catch { return ''; }
+  }
   const root = window;
   if (root.FirstMateAudioStructure) return;
 
@@ -26,10 +34,8 @@
         if (value !== undefined && value !== null) form.append(key, String(value));
       });
       const headers = { Accept:'application/json', ...(options.headers || {}) };
-      const csrf = document.cookie.split(';').map((part) => part.trim())
-        .find((part) => part.startsWith('fm_platform_session_csrf='))
-        ?.split('=').slice(1).join('=');
-      if (csrf && !headers['X-Platform-CSRF']) headers['X-Platform-CSRF'] = decodeURIComponent(csrf);
+      const csrf = readPlatformCsrfToken();
+      if (csrf && !headers['X-Platform-CSRF']) headers['X-Platform-CSRF'] = csrf;
       const response = await fetch(options.url, {
         method:'POST',
         body:form,

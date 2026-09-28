@@ -83,7 +83,7 @@
       this.menu = null;
       this.accounts = mergeCurrentAccount(readCachedAccounts());
       this.actionAccountKey = '';
-      this.cookieNames = { csrf: 'fm_platform_session_csrf' };
+      this.cookieNames = { csrf: ((window.__APP?.platformSessionCookieName || 'fm_platform_session') + '_csrf') };
       this.refreshPromise = null;
       this.closeTimer = 0;
       this.boundOutside = (event) => this.onOutside(event);
@@ -91,7 +91,7 @@
       button.addEventListener('click', () => this.toggle());
     }
 
-    csrf() { return cookie(this.cookieNames.csrf || 'fm_platform_session_csrf'); }
+    csrf() { return cookie(this.cookieNames.csrf || ((window.__APP?.platformSessionCookieName || 'fm_platform_session') + '_csrf')); }
 
     async request(path, options = {}) {
       const response = await fetch(endpoint(path), {

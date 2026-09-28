@@ -1,5 +1,13 @@
 /* Browser client for /v1/domains. Provider credentials never enter the browser. */
 (function(){
+  function readPlatformCsrfToken(){
+    const sessionName = String(window.__APP?.platformSessionCookieName || 'fm_platform_session').trim();
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(sessionName)) return '';
+    const prefix = sessionName + '_csrf=';
+    const value = document.cookie.split(';').map(part => part.trim()).find(part => part.startsWith(prefix));
+    try { return value ? decodeURIComponent(value.slice(prefix.length)) : ''; }
+    catch { return ''; }
+  }
   if (window.DomainsAPI) return;
   const state = { baseUrl:'' };
   const clean = (value) => String(value ?? '').trim();
@@ -30,7 +38,7 @@
       ...(body ? { 'Content-Type':'application/json' } : {}),
       ...(options.headers || {})
     };
-    const csrf = decodeURIComponent(cookieValue('fm_platform_session_csrf') || '');
+    const csrf = readPlatformCsrfToken();
     if (csrf && !['GET', 'HEAD', 'OPTIONS'].includes(method)) headers['X-Platform-CSRF'] = csrf;
     const response = await fetch(`${baseUrl()}/${clean(path).replace(/^\/+/, '')}`, {
       method,

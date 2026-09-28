@@ -83,10 +83,14 @@
     const showToast = typeof options.showToast === 'function' ? options.showToast : () => {};
     const aiCapability = window.Portal?.appFlags?.has?.('live_chat', 'ai_agent') === true;
     const apiBase = (String(window.__APP?.platformApiBase || '').trim() || `${location.origin}/v1/platform`).replace(/\/platform\/?$/, '/chat');
-    const csrf = () => {
-      const match = document.cookie.match(/(?:^|;\s*)fm_platform_session_csrf=([^;]+)/);
-      return match ? decodeURIComponent(match[1]) : '';
-    };
+    function csrf(){
+      const sessionName = String(window.__APP?.platformSessionCookieName || 'fm_platform_session').trim();
+      if (!/^[A-Za-z0-9_-]{1,80}$/.test(sessionName)) return '';
+      const prefix = sessionName + '_csrf=';
+      const value = document.cookie.split(';').map(part => part.trim()).find(part => part.startsWith(prefix));
+      try { return value ? decodeURIComponent(value.slice(prefix.length)) : ''; }
+      catch { return ''; }
+    }
     async function api(path, opts = {}){
       const method = String(opts.method || 'GET').toUpperCase();
       const res = await fetch(`${apiBase}${path}`, {

@@ -1,5 +1,13 @@
 (function(root){
   'use strict';
+  function readPlatformCsrfToken(){
+    const sessionName = String(window.__APP?.platformSessionCookieName || 'fm_platform_session').trim();
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(sessionName)) return '';
+    const prefix = sessionName + '_csrf=';
+    const value = document.cookie.split(';').map(part => part.trim()).find(part => part.startsWith(prefix));
+    try { return value ? decodeURIComponent(value.slice(prefix.length)) : ''; }
+    catch { return ''; }
+  }
 
   // The settings shell and standalone app both load this shared bundle.
   if (root.FirstMateFeedbackSettings) return;
@@ -236,7 +244,7 @@
     async function api(path, requestOptions = {}){
       if (root.PlatformAPI?.request) return root.PlatformAPI.request(`${base}${path}`, requestOptions);
       const method = String(requestOptions.method || 'GET').toUpperCase();
-      const csrf = decodeURIComponent((document.cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith('fm_platform_session_csrf=')) || '').slice(25) || '');
+      const csrf = readPlatformCsrfToken();
       const body = requestOptions.body != null && typeof requestOptions.body !== 'string' ? JSON.stringify(requestOptions.body) : requestOptions.body;
       const response = await fetch(`${base}${path}`, {
         ...requestOptions,

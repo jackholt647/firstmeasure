@@ -1,3 +1,5 @@
+import { platformAuthCookieNames } from "../platform/auth.js";
+
 function escapeHtml(value: unknown) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -61,7 +63,7 @@ export function renderCommunicationsDeveloperPage(organizationId: string) {
   const el = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
   const csrf = () => {
-    const name = 'fm_platform_session_csrf=';
+    const name = ${JSON.stringify(platformAuthCookieNames().csrf + "=")};
     return decodeURIComponent(document.cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith(name))?.slice(name.length) || '');
   };
   async function request(path, options = {}) {

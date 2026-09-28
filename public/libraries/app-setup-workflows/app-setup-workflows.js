@@ -8,6 +8,14 @@
  */
 (function(){
   'use strict';
+  function readPlatformCsrfToken(){
+    const sessionName = String(window.__APP?.platformSessionCookieName || 'fm_platform_session').trim();
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(sessionName)) return '';
+    const prefix = sessionName + '_csrf=';
+    const value = document.cookie.split(';').map(part => part.trim()).find(part => part.startsWith(prefix));
+    try { return value ? decodeURIComponent(value.slice(prefix.length)) : ''; }
+    catch { return ''; }
+  }
   if (window.FirstMateAppSetupWorkflows) return;
 
   const MODULE_ID = 'app_setup_workflows';
@@ -682,8 +690,8 @@
   }
   async function chatRequest(path, options = {}){
     const platformBase = (clean(window.__APP?.platformApiBase) || `${location.origin}/v1/platform`).replace(/\/platform\/?$/i, '/chat').replace(/\/+$/, '');
-    const csrfMatch = document.cookie.match(/(?:^|;\s*)fm_platform_session_csrf=([^;]+)/);
-    const response = await fetch(`${platformBase}${path}`, { credentials:'include', cache:'no-store', ...options, headers:{ Accept:'application/json', ...(options.body ? {'Content-Type':'application/json'} : {}), ...(String(options.method || 'GET').toUpperCase() !== 'GET' && csrfMatch ? {'X-Platform-CSRF':decodeURIComponent(csrfMatch[1])} : {}), ...(options.headers || {}) } });
+    const csrf = readPlatformCsrfToken();
+    const response = await fetch(`${platformBase}${path}`, { credentials:'include', cache:'no-store', ...options, headers:{ Accept:'application/json', ...(options.body ? {'Content-Type':'application/json'} : {}), ...(String(options.method || 'GET').toUpperCase() !== 'GET' && csrf ? {'X-Platform-CSRF':csrf} : {}), ...(options.headers || {}) } });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.ok === false) throw new Error(data.message || 'Live chat settings could not be saved.');
     return data;

@@ -9,6 +9,14 @@
  * - MOBILE RESPONSIVE: full redesign for screens <= 820px without affecting desktop
  */
 (function(){
+  function readPlatformCsrfToken(){
+    const sessionName = String(window.__APP?.platformSessionCookieName || 'fm_platform_session').trim();
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(sessionName)) return '';
+    const prefix = sessionName + '_csrf=';
+    const value = document.cookie.split(';').map(part => part.trim()).find(part => part.startsWith(prefix));
+    try { return value ? decodeURIComponent(value.slice(prefix.length)) : ''; }
+    catch { return ''; }
+  }
   if (!window.Portal) return;
   const { $, escapeHtml, injectCSS, postAction, hasPerm } = window.Portal.util;
   const { showToast } = window.Portal.ui;
@@ -2088,7 +2096,7 @@
       ...(body ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers || {})
     };
-    const csrf = decodeURIComponent(settingsCookieValue('fm_platform_session_csrf') || '');
+    const csrf = readPlatformCsrfToken();
     if (csrf && !['GET', 'HEAD', 'OPTIONS'].includes(method)) headers['X-Platform-CSRF'] = csrf;
     const res = await fetch(`${messagingBaseUrl()}/${String(path || '').replace(/^\/+/, '')}`, {
       ...options,

@@ -29,6 +29,15 @@
 })(typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null, function (root) {
   "use strict";
 
+  function readPlatformCsrfToken(){
+    const sessionName = String(window.__APP?.platformSessionCookieName || 'fm_platform_session').trim();
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(sessionName)) return '';
+    const prefix = sessionName + '_csrf=';
+    const value = document.cookie.split(';').map(part => part.trim()).find(part => part.startsWith(prefix));
+    try { return value ? decodeURIComponent(value.slice(prefix.length)) : ''; }
+    catch { return ''; }
+  }
+
   // ---------------------------------------------------------------------------
   // Shared helpers
   // ---------------------------------------------------------------------------
@@ -1569,8 +1578,8 @@
     const publicToken = cleanText(signingApi.publicToken);
     const internal = signingApi.signing || {};
     const base = internal.base || (publicToken ? '/v1/documents/public/' + encodeURIComponent(publicToken) : internal.organizationId && internal.documentId ? '/v1/documents/organizations/' + encodeURIComponent(internal.organizationId) + '/documents/' + encodeURIComponent(internal.documentId) : '');
-    const csrf = (document.cookie.split('; ').find(c => c.startsWith('fm_platform_session_csrf=')) || '').split('=').slice(1).join('=');
-    const reviewPromise = base ? fetch(base + '/signing/prepare', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(csrf ? { 'x-platform-csrf': decodeURIComponent(csrf) } : {}) }, body: JSON.stringify({ field: signatureKey(ctx), signer_id: cleanText(ctx.config?.signer_id || internal.signerId || (ctx.config?.signer === 'internal' ? 'company' : 'customer')) }) }).then(async response => {
+    const csrf = readPlatformCsrfToken();
+    const reviewPromise = base ? fetch(base + '/signing/prepare', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(csrf ? { 'x-platform-csrf': csrf } : {}) }, body: JSON.stringify({ field: signatureKey(ctx), signer_id: cleanText(ctx.config?.signer_id || internal.signerId || (ctx.config?.signer === 'internal' ? 'company' : 'customer')) }) }).then(async response => {
       const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Signing review is unavailable.');
       if (!result.fields.includes(signatureKey(ctx))) throw new Error('This signature field is assigned to another signer.');
       signingReview = result;
