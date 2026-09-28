@@ -368,6 +368,11 @@
                 await loadTestOrgUsers(org.id);
             }));
             actions.appendChild(usersBtn);
+            if (org.workflow_id === 'swf_instant_full_org') {
+                const samplesBtn = el('button', 'sbx-btn', 'Add sample data');
+                samplesBtn.addEventListener('click', () => openSampleDataModal(org));
+                actions.appendChild(samplesBtn);
+            }
 
             const resumeBtn = el('button', 'sbx-btn', 'Resume');
             resumeBtn.addEventListener('click', () => guarded(async () => {
@@ -539,7 +544,12 @@
             modal.appendChild(el('h2', '', 'Add sample data'));
             modal.appendChild(el('p', '', 'Choose what to add. Existing records and your edits are preserved when you run this again.'));
             const checks = new Map();
-            for (const [key, label] of [['equipment', 'Equipment — fleet, yard, maintenance and reservations']]) {
+            for (const [key, label] of [
+                ['equipment', 'Equipment — fleet, yard, maintenance and reservations'],
+                ['channels', 'Channels — four sample channels with conversations'],
+                ['projects', 'Projects — four jobs with scheduled events'],
+                ['customers', 'Customers — five sample contacts']
+            ]) {
                 const row = el('label', 'sbx-permission-choice');
                 const check = el('input');
                 check.type = 'checkbox';

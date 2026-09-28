@@ -10,6 +10,11 @@ test("full test org equipment samples are isolated, additive and safe to repeat 
   process.chdir(root);
   process.env.FIRSTMATE_ENV = "test";
   process.env.PLATFORM_SESSION_SECRET = "sample-data-isolated-test-secret";
+  if (process.env.TEST_POSTGRES_URL) {
+    process.env.FIRSTMEASURE_DATABASE_MODE = "postgres";
+    process.env.DATABASE_URL = process.env.TEST_POSTGRES_URL;
+    process.env.POSTGRES_AUTO_MIGRATE = "false";
+  }
   const storage = await import("../platform/storage.js");
   const eq = await import("../equipment/storage.js");
   const { sandboxStore } = await import("../signup-sandbox/storage.js");
@@ -17,8 +22,9 @@ test("full test org equipment samples are isolated, additive and safe to repeat 
   const { addTestOrgSampleData } = await import("../signup-sandbox/sample-data.js");
   try {
     const create = async (id: string, flags = true, full = true) => {
-      const org = await storage.createOrganization({ name: "Samples test", metadata: { sandbox_test_org: true, sandbox_instance_id: id }, global: { app_flags: { platform: { expanded_access: true }, apps: { equipment: flags } } } });
+      const org = await storage.createOrganization({ name: "Samples test", metadata: { sandbox_test_org: true, sandbox_instance_id: id }, global: { app_flags: { platform: { expanded_access: true, contacts: true }, apps: { equipment: flags, projects: true, channels: true } } } });
       await sandboxStore.saveTestOrg({ id, org_id: org.id, workflow_id: full ? "swf_instant_full_org" : "other" });
+      await storage.upsertDocument(String(org.id), "users", { id: "owner", data: { role: "owner", name: "Tester" } });
       return String(org.id);
     };
     const orgId = await create("sbi_samples");
@@ -46,9 +52,40 @@ test("full test org equipment samples are isolated, additive and safe to repeat 
     await addTestOrgSampleData("sbi_second", { equipment: true });
     assert.equal((await eq.listUnits(secondOrg)).length, 10);
     assert.ok((await eq.listUnits(secondOrg)).every(row => !units.some(first => first.id === row.id)));
+
+    const independent = await create("sbi_independent");
+    const chat = await import("../channels/storage.js");
+    await addTestOrgSampleData("sbi_independent", { customers: true });
+    assert.equal((await eq.listUnits(independent)).length, 0);
+    assert.equal((await chat.listChannelRecords(independent)).length, 0);
+    let docs = await storage.listDocuments(independent, "projects");
+    assert.equal(docs.length, 5);
+    assert.ok(docs.every(row => (row.data as any).workflow_state === "contact_only"));
+    await addTestOrgSampleData("sbi_independent", { projects: true });
+    docs = await storage.listDocuments(independent, "projects");
+    assert.equal(docs.filter(row => (row.data as any).workflow_state !== "contact_only").length, 4);
+    await Promise.all([addTestOrgSampleData("sbi_independent", { channels: true }), addTestOrgSampleData("sbi_independent", { channels: true })]);
+    let channelRows = await chat.listChannelRecords(independent);
+    assert.equal(channelRows.length, 4);
+    assert.equal(channelRows.reduce((n, row) => n + row.message_seq, 0), 12);
+    assert.equal((await chat.listChannelMembers(channelRows[0]!.id)).length, 3);
+    await chat.updateChannelRecord(independent, channelRows[0]!.id, { name: "My renamed channel" });
+    await storage.upsertDocument(independent, "projects", { id: docs[0]!.id, data: { title: "My edited record" } });
+    await Promise.all([addTestOrgSampleData("sbi_independent", { customers: true, projects: true, channels: true }), addTestOrgSampleData("sbi_independent", { customers: true, projects: true, channels: true })]);
+    channelRows = await chat.listChannelRecords(independent);
+    assert.equal(channelRows.length, 4);
+    assert.equal(channelRows.reduce((n, row) => n + row.message_seq, 0), 12);
+    assert.ok(channelRows.some(row => row.name === "My renamed channel"));
+    assert.equal((await storage.readDocument(independent, "projects", String(docs[0]!.id))).data?.title, "My edited record");
+    assert.equal((await storage.listDocuments(independent, "projects")).length, 9);
+    const projectsOnly = await create("sbi_projects_only");
+    await addTestOrgSampleData("sbi_projects_only", { projects: true });
+    assert.equal((await storage.listDocuments(projectsOnly, "projects")).length, 4);
+    assert.ok((await storage.listDocuments(projectsOnly, "projects")).every(row => !(row.data as any).contacts.length));
   } finally {
     await eq.closeEquipmentDatabase();
     await (await import("../platform/sql_store.js")).closeSqlStoresForTests();
+    await (await import("../src/database/postgres.js")).closePostgresPools();
     process.chdir(cwd);
     await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
