@@ -10,7 +10,7 @@ test('equipment keeps status visible, closes saved units, and parks unfinished v
     const errors=[]; page.on('pageerror', e=>errors.push(e.message));
     await page.setContent('<main id="app"></main>');
     await page.evaluate(() => {
-      window.unit={id:'unit-1',name:'Very long equipment name with ExtraLongUnbrokenEquipmentIdentifier',status:'available',revision:1,type_id:'truck',color:'#ffffff'};
+      window.unit={id:'unit-1',name:'Very long equipment name with ExtraLongUnbrokenEquipmentIdentifier',status:'reserved',status_event:{title:'Sample trailer reservation'},revision:1,type_id:'truck',color:'#ffffff'};
       window.types=[{id:'truck',name:'Truck',kind:'vehicle',icon:'fa-truck',color:'#2563eb'}];
       window.routes=[]; window.programCalls=0; window.failSave=false;
       window.FirstMateEmbeddableApps={};
@@ -63,6 +63,16 @@ test('equipment keeps status visible, closes saved units, and parks unfinished v
     assert.equal((await visualColors('.eq-card-media')).background,'rgb(242, 244, 247)');
     assert.equal(await page.locator('[data-eq-view="timeline"]').count(),0);
     await page.locator('.eq-card').click();
+    const statusPanel=page.locator('.eq-unit-status');
+    assert.equal(await statusPanel.locator('.eq-chip').count(),1);
+    assert.equal(await page.locator('.eq-drawer-head .eq-chip').count(),0);
+    assert.equal(await statusPanel.locator('.eq-status-details p').isVisible(),false);
+    await statusPanel.locator('summary').click();
+    assert.equal(await statusPanel.locator('.eq-status-details p').textContent(),'Sample trailer reservation');
+    await statusPanel.locator('summary').click();
+    await page.setViewportSize({width:360,height:900});
+    assert.equal(await statusPanel.evaluate(el=>el.scrollWidth>el.clientWidth),false);
+    await page.setViewportSize({width:1280,height:900});
     await page.locator('[data-eq-input="name"]').fill('Updated equipment');
     await page.locator('[data-eq-input="color"]').fill('#333333');
     await page.evaluate(()=>failSave=true);
