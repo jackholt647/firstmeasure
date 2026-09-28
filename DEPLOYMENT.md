@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 28 scheduling: [Timeline and equipment assignment confirmation](deploy/digitalocean/development-scheduling-timeline-20260928.md) records the development release, down-equipment confirmation, verification and rollback.
+
 September 28 date/time picker: [Shared form popups across all apps](deploy/digitalocean/development-date-time-picker-20260928.md) records development coverage, deployed browser checks, concurrent Equipment preservation and rollback.
 
 September 28 voice controls: [Shared dictation and recording icons](deploy/digitalocean/development-voice-icons-20260928.md) records the frontend development release, separate Channels actions, validation and rollback.
