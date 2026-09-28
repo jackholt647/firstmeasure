@@ -10,10 +10,11 @@ const [app, company, manifest] = await Promise.all([
   readFile(path.join(publicRoot, 'libraries/apps/firstmate-apps-manifest.js'), 'utf8')
 ]);
 
-test('equipment exposes Fleet, Timeline and Maintenance without the tier settings view', () => {
+test('equipment exposes Fleet and Maintenance with Timeline parked without the tier settings view', () => {
   const views = app.slice(app.indexOf('const availableViews = () => {'), app.indexOf('async function loadFleet'));
   assert.match(views, /id:'fleet'/);
-  assert.match(views, /id:'timeline'/);
+  assert.match(app, /const TIMELINE_ENABLED = false/);
+  assert.match(views, /TIMELINE_ENABLED && capabilityOn/);
   assert.match(views, /id:'maintenance'/);
   assert.doesNotMatch(views, /id:'settings'/);
   const equipmentManifest = manifest.slice(manifest.indexOf("id: 'portal.equipment'"), manifest.indexOf("id: 'portal.invoices'"));

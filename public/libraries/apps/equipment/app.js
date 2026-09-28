@@ -19,6 +19,10 @@
   const terminology = (key, fallback) => Portal.terminology?.get?.(key, fallback) || window.PlatformTerminology?.get?.(key, fallback) || fallback;
   const capabilityOn = (group, flag) => window.PlatformAPI?.appFlags?.has?.(group, flag) === true;
 
+  // Temporarily parked UI features; retain implementations and stored records.
+  const TIMELINE_ENABLED = false;
+  const SERVICE_PROGRAMS_ENABLED = false;
+
   const STATUS_META = {
     available: { label:(globalThis.PlatformLanguage?.text("equipment","m_f326bdcd77881a","Available") ?? "Available"), term:'equipment.available_status', color:'#12805c', bg:'#e3f8ec', icon:'fa-circle-check' },
     in_use: { label:(globalThis.PlatformLanguage?.text("equipment","m_4ece68045bcb8c","In Use") ?? "In Use"), term:'equipment.in_use_status', color:'#175cd3', bg:'#e8f0fe', icon:'fa-person-digging' },
@@ -72,10 +76,11 @@
     .eq-card:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(16,24,40,.08)}
     .eq-card-media{min-height:148px;background:#f2f4f7 center/cover no-repeat;border-right:1px solid #eef0f5;display:grid;place-items:center;color:var(--primary-readable,var(--primary,#d93025));font-size:28px}
     .eq-card-content{position:relative;min-width:0;padding:14px;display:grid;align-content:start;gap:10px}
-    .eq-card-top{display:flex;align-items:center;gap:8px}
+    .eq-card-top{display:flex;align-items:flex-start;gap:8px;min-width:0}
+    .eq-card-status{flex:0 0 auto;white-space:nowrap;margin-left:auto}
     .eq-card-icon{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary-readable,var(--primary,#d93025));font-size:15px;flex:0 0 auto}
     .eq-card-name{min-width:0;flex:1}
-    .eq-card-name strong{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .eq-card-name strong{display:block;font-size:13.5px;white-space:normal;overflow-wrap:anywhere}
     .eq-card-name span{display:block;margin-top:2px;color:#667085;font-size:11px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .eq-chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 10px;font-size:10.5px;font-weight:900;flex:0 0 auto}
     .eq-card-meta{display:grid;gap:5px}
@@ -162,7 +167,7 @@
   function cardStatusSelect(unit){
     const current = clean(obj(unit).status) || 'available';
     const cause = clean(obj(obj(unit).status_event).title) || (clean(obj(unit).status_source) === 'legacy_manual' ? 'Legacy manual status; schedule an event to replace it' : 'Current schedule status');
-    return `<span title="${esc(cause)}">${statusChip(current)}</span>`;
+    return `<span class="eq-card-status" title="${esc(cause)}">${statusChip(current)}</span>`;
   }
 
   function mountEquipment(root, context = {}){
@@ -197,7 +202,7 @@
 
     const availableViews = () => {
       const views = [{ id:'fleet', icon:'fa-truck-pickup', label:terminology('equipment.fleet_view', 'Fleet') }];
-      if (capabilityOn('equipment', 'scheduling')) views.push({ id:'timeline', icon:'fa-chart-gantt', label:terminology('equipment.timeline_view', 'Timeline') });
+      if (TIMELINE_ENABLED && capabilityOn('equipment', 'scheduling')) views.push({ id:'timeline', icon:'fa-chart-gantt', label:terminology('equipment.timeline_view', 'Timeline') });
       if (capabilityOn('equipment', 'maintenance')) views.push({ id:'maintenance', icon:'fa-wrench', label:terminology('equipment.maintenance_view', 'Maintenance') });
       if (capabilityOn('equipment', 'costing')) views.push({ id:'utilization', icon:'fa-chart-column', label:terminology('equipment.utilization_view', 'Utilization') });
       return views;
@@ -293,9 +298,9 @@
       render();
       try {
         const [due, orders, programs, unitsResult] = await Promise.all([
-          window.EquipmentAPI.dueService(organizationId),
+          SERVICE_PROGRAMS_ENABLED ? window.EquipmentAPI.dueService(organizationId) : { due_service: [] },
           window.EquipmentAPI.workOrders(organizationId),
-          window.EquipmentAPI.servicePrograms(organizationId),
+          SERVICE_PROGRAMS_ENABLED ? window.EquipmentAPI.servicePrograms(organizationId) : { programs: [] },
           state.units ? { units: state.units } : window.EquipmentAPI.units(organizationId)
         ]);
         if (destroyed) return;
@@ -360,6 +365,7 @@
       };
       return `
         <div style="display:grid;gap:16px">
+          ${SERVICE_PROGRAMS_ENABLED ? `
           <div>
             <h3 style="margin:0 0 8px;font-size:14px"><i class="fas fa-bell" style="color:var(--primary-readable,var(--primary,#d93025))"></i>${(globalThis.PlatformLanguage?.htmlText("equipment","m_0cc9e4f8ed7068"," Due soon") ?? " Due soon")}</h3>
             <div class="eq-types-list">
@@ -374,6 +380,7 @@
                 </div>`).join('') || `<div class="eq-empty" style="min-height:100px"><div><strong>${(globalThis.PlatformLanguage?.htmlText("equipment","m_9dca7208c23ebd","Nothing due") ?? "Nothing due")}</strong><p>${(globalThis.PlatformLanguage?.htmlText("equipment","m_e7ed7f9a36d69f","Service programs surface here as units come due.") ?? "Service programs surface here as units come due.")}</p></div></div>`)}
             </div>
           </div>
+          ` : ''}
           <div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 8px">
               <h3 style="margin:0;font-size:14px"><i class="fas fa-wrench" style="color:var(--primary-readable,var(--primary,#d93025))"></i> ${String(esc(terminology('equipment.work_orders', 'Work Orders')))}</h3>
@@ -384,6 +391,7 @@
               ${String(closedOrders.length ? `<div style="margin-top:6px;font-size:10.5px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;color:#98a2b3">${(globalThis.PlatformLanguage?.htmlText("equipment","m_b062ab3bae8734","Recently closed") ?? "Recently closed")}</div>${closedOrders.map(orderRow).join('')}` : '')}
             </div>
           </div>
+          ${SERVICE_PROGRAMS_ENABLED ? `
           <div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 8px">
               <h3 style="margin:0;font-size:14px"><i class="fas fa-arrows-rotate" style="color:var(--primary-readable,var(--primary,#d93025))"></i> ${String(esc(terminology('equipment.service_program', 'Service Program')))}s</h3>
@@ -405,6 +413,7 @@
               }).join('') || `<div class="eq-empty" style="min-height:100px"><div><strong>${(globalThis.PlatformLanguage?.htmlText("equipment","m_64f0a4bd315670","No programs yet") ?? "No programs yet")}</strong><p>${(globalThis.PlatformLanguage?.htmlText("equipment","m_4ce644341d17a4","Programs generate due-service reminders by days or meter intervals.") ?? "Programs generate due-service reminders by days or meter intervals.")}</p></div></div>`)}
             </div>
           </div>
+          ` : ''}
         </div>`;
     }
 
@@ -1049,10 +1058,11 @@
             ...values,
             expected_revision: Number(drawer.unit?.revision || 0) || undefined
           });
-          const refreshed = await window.EquipmentAPI.unit(organizationId, clean(drawer.unit?.id));
-          const savedUnit = { ...obj(drawer.unit), ...obj(result.unit), ...obj(refreshed.unit) };
-          state.drawer.unit = savedUnit;
-          state.drawer.mode = 'view';
+          const savedUnit = { ...obj(drawer.unit), ...obj(result.unit) };
+          if (state.drawer === drawer) {
+            state.drawer = null;
+            writeRoute('replace', { equipmentItem:'' }, { ownedKeys:['equipmentItem'] });
+          }
           state.units = arr(state.units).map((unit) => clean(unit.id) === clean(savedUnit.id) ? { ...unit, ...savedUnit } : unit);
           showToast((globalThis.PlatformLanguage?.text("equipment","m_2813f320a63b94","Equipment") ?? "Equipment"), (globalThis.PlatformLanguage?.text("equipment","m_813887aa38f3e9","Unit saved.") ?? "Unit saved."), true);
           await loadFleet({ force:true });
