@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 28 voice controls: [Shared dictation and recording icons](deploy/digitalocean/development-voice-icons-20260928.md) records the frontend development release, separate Channels actions, validation and rollback.
+
 September 28 window restore: [Restore minimized windows on click](deploy/digitalocean/development-window-restore-20260928.md) records the development-only fix and browser verification.
 
 September 28 test-org samples: [Optional equipment, channels, projects and customers](deploy/digitalocean/development-test-org-samples-20260928.md) records the equipment-first development delivery, latest full-test organization seed, independent sample toggles and verification.
