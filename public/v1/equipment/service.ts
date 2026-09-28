@@ -55,27 +55,36 @@ export async function ensureEquipmentSeed(orgId: string) {
 /* Module settings ----------------------------------------------------------- */
 
 export const DEFAULT_MODULE_SETTINGS = {
-  tier: "",
-  conflict_mode: "warn",
+  tier: "simple",
+  conflict_mode: "block",
   auto_fulfill_single_unit: true,
   default_meter_units: "hours",
   downtime_auto_block: true,
-  operator_enforcement: "warn",
+  operator_enforcement: "block",
+  field_meter_entry: false
+};
+
+const SIMPLE_MODULE_SETTINGS = {
+  tier: "simple",
+  conflict_mode: "block",
+  auto_fulfill_single_unit: true,
+  downtime_auto_block: true,
+  operator_enforcement: "block",
   field_meter_entry: false
 };
 
 export async function readModuleSettings(orgId: string) {
   const { settings, revision } = (await readSettingsRow(orgId));
-  return { settings: { ...DEFAULT_MODULE_SETTINGS, ...settings, downtime_auto_block: true }, revision };
+  return { settings: { ...DEFAULT_MODULE_SETTINGS, ...settings, ...SIMPLE_MODULE_SETTINGS }, revision };
 }
 
 export async function writeModuleSettings(orgId: string, input: JsonObject) {
   const expected = Number(input.expected_revision || 0);
   const { settings } = (await readModuleSettings(orgId));
   const { expected_revision: _ignored, ...patch } = input;
-  const next = { ...settings, ...patch, downtime_auto_block: true };
+  const next = { ...settings, ...patch, ...SIMPLE_MODULE_SETTINGS };
   const saved = (await writeSettingsRow(orgId, next, expected));
-  return { settings: { ...DEFAULT_MODULE_SETTINGS, ...saved.settings }, revision: saved.revision };
+  return { settings: { ...DEFAULT_MODULE_SETTINGS, ...saved.settings, ...SIMPLE_MODULE_SETTINGS }, revision: saved.revision };
 }
 
 /* Fleet reads --------------------------------------------------------------- */
@@ -466,9 +475,12 @@ export type OperatorIssue = {
  * one assigned user's workforce assignment tags.
  */
 export async function assessOperatorRequirements(orgId: string, eventValue: unknown): Promise<OperatorIssue[]> {
+  const event = asObj(eventValue);
+  const eventType = cleanText(event.event_type_default_id || event.type_id || event.kind);
+  // Service and downtime take a unit out of use; nobody is operating it.
+  if (["equipment_maintenance", "equipment_downtime"].includes(eventType)) return [];
   const refs = eventEquipmentRefs(eventValue).filter((ref) => ref.kind === "equipment_unit");
   if (!refs.length) return [];
-  const event = asObj(eventValue);
   const assignedUserIds = asArr(event.assigned_user_ids).map(cleanText).filter(Boolean);
   const types = new Map((await listTypes(orgId, { includeArchived: true })).map((type) => [cleanText(type.id), type]));
   let userTags: Set<string> | null = null;
@@ -776,7 +788,7 @@ async function resolveDowntimeBlock(orgId: string, workOrder: JsonObject, status
   }, { replace: false }).catch(() => null);
 }
 
-/** Completes a work order: costs, meter-at-service (logged as a maintenance
+/** Completes a work order: meter-at-service (logged as a maintenance
  * meter entry), inspection outcomes (failed items can open a repair order and
  * set the unit down), and downtime release. */
 export async function completeWorkOrder(orgId: string, workOrderId: string, input: JsonObject, userId = "") {
@@ -805,7 +817,6 @@ export async function completeWorkOrder(orgId: string, workOrderId: string, inpu
     ...workOrder,
     status: "completed",
     completed_at: nowIso(),
-    cost: asObj(input.cost),
     meter_at_service: meterAtService,
     checklist_state: checklistState,
     notes: cleanText(input.notes) || cleanText(workOrder.notes),

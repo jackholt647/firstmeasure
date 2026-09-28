@@ -340,6 +340,21 @@ export function capabilityDefaultValues() {
   return defaults;
 }
 
+/** The Equipment app currently exposes one fixed, practical feature set. */
+export const EQUIPMENT_SIMPLE_CAPABILITIES: Record<string, boolean> = {
+  "equipment.scheduling": true,
+  "equipment.requirements": false,
+  "equipment.maintenance": true,
+  "equipment.meters": false,
+  "equipment.operators": true,
+  "equipment.costing": false,
+  "equipment.custody": false
+};
+
+function withEquipmentSimpleCapabilities<T extends Record<string, CapabilityValue>>(values: T): T {
+  return { ...values, ...EQUIPMENT_SIMPLE_CAPABILITIES };
+}
+
 export function normalizeCapabilityValue(node: NormalizedCapability, value: unknown): CapabilityValue {
   if (["platform.expanded_access", "platform.more_apps"].includes(node.key)) return value === true;
   if (node.type === "number") {
@@ -370,6 +385,7 @@ export function normalizeCapabilityValue(node: NormalizedCapability, value: unkn
  */
 export function resolveCapabilities(rawValues: Record<string, CapabilityValue>): CapabilityResolution {
   validateCapabilityRegistry();
+  rawValues = withEquipmentSimpleCapabilities(rawValues);
   const effectiveByKey: Record<string, boolean> = {};
   const reasons: Record<string, string | null> = {};
   const values: Record<string, CapabilityValue> = {};
@@ -501,7 +517,7 @@ export async function rawCapabilityValues(orgId: string) {
   const globalDoc = await readGlobal(orgId);
   const data = asObject(globalDoc.data);
   const stored = flattenGroupedValues(asObject(data.app_flags || data.feature_flags));
-  return { ...capabilityDefaultValues(), ...stored };
+  return withEquipmentSimpleCapabilities({ ...capabilityDefaultValues(), ...stored });
 }
 
 /** Persists a full flat value map (merged over current stored overrides). */

@@ -328,7 +328,7 @@ test("equipment: meter entries update the unit's current meter and history", asy
   assert.equal(history.latest_meters.hours.value, 1450);
 });
 
-test("equipment scheduling: assignable subjects, resource_refs, conflicts warn then block", async () => {
+test("equipment scheduling: assignable subjects, resource_refs, and blocked conflicts", async () => {
   const owner = createSessionClient();
   const { orgId } = await registerOwner(owner);
   await enableEquipment(owner, orgId);
@@ -403,8 +403,8 @@ test("equipment scheduling: assignable subjects, resource_refs, conflicts warn t
   assert.equal(refsOnly.event.assigned_crew_id, crew.id);
   assert.equal(refsOnly.event.work_resource_ref.id, crew.id);
 
-  // Overlapping second event: warn mode returns the conflict but allows it.
-  const second = await owner.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
+  // Simple mode blocks overlapping assignments immediately.
+  const second = await owner.raw("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
     event: {
       id: "event_eq_second",
       type_id: "project_work",
@@ -414,9 +414,8 @@ test("equipment scheduling: assignable subjects, resource_refs, conflicts warn t
       resource_refs: [{ kind: "equipment_unit", id: unitA.id, name: unitA.name, role: "equipment" }]
     }
   });
-  assert.equal(second.equipment_conflicts.length, 1);
-  assert.equal(second.equipment_conflicts[0].reason, "double_booked");
-  assert.equal(second.equipment_conflicts[0].events[0].id, "event_eq_first");
+  assert.equal(second.statusCode, 409);
+  assert.equal(second.data.error, "equipment_conflict");
 
   // A unit can be needed for only a subset of a longer event. Conflict and
   // availability checks use the ref's window rather than the whole job.
@@ -452,7 +451,7 @@ test("equipment scheduling: assignable subjects, resource_refs, conflicts warn t
       resource_refs: [{ kind: "equipment_unit", id: unitB.id, role: "equipment" }]
     }
   });
-  const downBooking = await owner.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
+  const downBooking = await owner.raw("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
     event: {
       id: "event_eq_down",
       type_id: "project_work",
@@ -462,18 +461,18 @@ test("equipment scheduling: assignable subjects, resource_refs, conflicts warn t
       resource_refs: [{ kind: "equipment_unit", id: unitB.id, role: "equipment" }]
     }
   });
-  assert.equal(downBooking.equipment_conflicts[0].reason, "double_booked");
+  assert.equal(downBooking.statusCode, 409);
+  assert.equal(downBooking.data.error, "equipment_conflict");
 
   // The availability endpoint reports the same picture.
   const availability = await owner.request("GET", `/v1/equipment/organizations/${orgId}/availability?start=2026-08-03T15:00:00.000Z&end=2026-08-03T17:00:00.000Z&type_id=${type.type.id}`);
   const availabilityA = availability.units.find((unit: any) => unit.id === unitA.id);
   const availabilityB = availability.units.find((unit: any) => unit.id === unitB.id);
   assert.equal(availabilityA.available, false);
-  assert.equal(availabilityA.bookings.length, 2);
+  assert.equal(availabilityA.bookings.length, 1);
   assert.equal(availabilityB.reason, "double_booked");
 
-  // Block mode rejects the write with a 409 equipment_conflict.
-  await owner.request("PUT", `/v1/equipment/organizations/${orgId}/settings`, { conflict_mode: "block" });
+  // The fixed policy continues to block a second conflict.
   const blocked = await owner.raw("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
     event: {
       id: "event_eq_blocked",
@@ -550,7 +549,7 @@ test("equipment maintenance: programs, due service, work orders, downtime confli
     data: { id: projectId, title: "Downtime Conflict", events: [] },
     metadata: { kind: "platform_project" }
   });
-  const overlapping = await owner.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
+  const overlapping = await owner.raw("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
     event: {
       id: "event_during_downtime",
       type_id: "project_work",
@@ -560,8 +559,8 @@ test("equipment maintenance: programs, due service, work orders, downtime confli
       resource_refs: [{ kind: "equipment_unit", id: unit.id, role: "equipment" }]
     }
   });
-  assert.equal(overlapping.equipment_conflicts.length, 1);
-  assert.ok(overlapping.equipment_conflicts[0].events.some((entry: any) => entry.kind === "equipment_maintenance"));
+  assert.equal(overlapping.statusCode, 409);
+  assert.equal(overlapping.data.error, "equipment_conflict");
 
   // Moving the shared event in Scheduling immediately changes Maintenance.
   const eventUrl = `/v1/platform/organizations/${orgId}/calendar_events/${scheduled.downtime_event_id}`;
@@ -589,6 +588,7 @@ test("equipment maintenance: programs, due service, work orders, downtime confli
     set_unit_down: true
   });
   assert.equal(completion.work_order.status, "completed");
+  assert.deepEqual(completion.work_order.cost, {});
   assert.equal(completion.failed_items, 1);
   assert.ok(completion.repair_order);
   assert.equal(completion.repair_order.kind, "repair");
@@ -602,7 +602,7 @@ test("equipment maintenance: programs, due service, work orders, downtime confli
   assert.ok(history.meter_entries.some((entry: any) => entry.source === "maintenance"));
 
   // Completion resolved the downtime block: the window is bookable again.
-  const afterComplete = await owner.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
+  const afterComplete = await owner.raw("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
     event: {
       id: "event_after_downtime",
       type_id: "project_work",
@@ -612,8 +612,9 @@ test("equipment maintenance: programs, due service, work orders, downtime confli
       resource_refs: [{ kind: "equipment_unit", id: unit.id, role: "equipment" }]
     }
   });
-  // The unit is down, so availability still flags it — but no downtime booking.
-  assert.ok(afterComplete.equipment_conflicts.every((entry: any) => entry.reason === "unit_unavailable"));
+  // The new repair downtime starts now; the historical window remains free.
+  assert.equal(afterComplete.statusCode, 200);
+  assert.equal(afterComplete.data.equipment_conflicts.length, 0);
 
   // Canceling a scheduled order releases its downtime block too.
   const secondOrder = (await owner.request("POST", `/v1/equipment/organizations/${orgId}/work-orders`, {
@@ -680,7 +681,7 @@ test("equipment live status follows shared calendar and project events", async (
   assert.equal(manualDown.statusCode, 400);
 });
 
-test("equipment requirements: scope items bind to types and auto-fulfill single units", async () => {
+test.skip("equipment requirements: parked while Equipment is fixed to Simple", async () => {
   const owner = createSessionClient();
   const { orgId } = await registerOwner(owner);
   await setOperatorFlags(orgId, {
@@ -714,7 +715,7 @@ test("equipment requirements: scope items bind to types and auto-fulfill single 
   assert.ok(refs.some((ref: any) => ref.kind === "equipment_unit" && ref.id === trailer.id));
 });
 
-test("equipment operators: missing certifications warn, then block when enforced", async () => {
+test("equipment operators: missing qualification blocks an assignment", async () => {
   const owner = createSessionClient();
   const { orgId } = await registerOwner(owner);
   await setOperatorFlags(orgId, {
@@ -731,7 +732,7 @@ test("equipment operators: missing certifications warn, then block when enforced
     data: { id: projectId, title: "Operator Checks", events: [] },
     metadata: { kind: "platform_project" }
   });
-  const warned = await owner.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
+  const warned = await owner.raw("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
     event: {
       id: "event_operator_warn",
       type_id: "project_work",
@@ -741,10 +742,12 @@ test("equipment operators: missing certifications warn, then block when enforced
       resource_refs: [{ kind: "equipment_unit", id: unit.id, role: "equipment" }]
     }
   });
-  assert.equal(warned.equipment_operator_warnings.length, 1);
-  assert.ok(warned.equipment_operator_warnings[0].message.includes("CDL-A"));
+  assert.equal(warned.statusCode, 400);
+  assert.equal(warned.data.error, "equipment_operator_required");
 
-  await owner.request("PUT", `/v1/equipment/organizations/${orgId}/settings`, { operator_enforcement: "block" });
+  // A legacy attempt to loosen the setting cannot change the Simple policy.
+  const settings = await owner.request("PUT", `/v1/equipment/organizations/${orgId}/settings`, { operator_enforcement: "warn" });
+  assert.equal(settings.settings.operator_enforcement, "block");
   const blocked = await owner.raw("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
     event: {
       id: "event_operator_block",
@@ -759,7 +762,7 @@ test("equipment operators: missing certifications warn, then block when enforced
   assert.equal(blocked.data.error, "equipment_operator_required");
 });
 
-test("equipment custody and utilization: check-out/in, booked hours and costs", async () => {
+test.skip("equipment custody and utilization: parked while Equipment is fixed to Simple", async () => {
   const owner = createSessionClient();
   const { orgId } = await registerOwner(owner);
   await setOperatorFlags(orgId, {
@@ -818,7 +821,8 @@ test("equipment: module settings defaults, saves, and revision conflicts", async
   await enableEquipment(owner, orgId);
 
   const initial = await owner.request("GET", `/v1/equipment/organizations/${orgId}/settings`);
-  assert.equal(initial.settings.conflict_mode, "warn");
+  assert.equal(initial.settings.tier, "simple");
+  assert.equal(initial.settings.conflict_mode, "block");
   assert.equal(initial.settings.auto_fulfill_single_unit, true);
   assert.equal(initial.revision, 0);
 
@@ -826,9 +830,9 @@ test("equipment: module settings defaults, saves, and revision conflicts", async
     tier: "standard",
     conflict_mode: "block"
   });
-  assert.equal(saved.settings.tier, "standard");
+  assert.equal(saved.settings.tier, "simple");
   assert.equal(saved.settings.conflict_mode, "block");
-  assert.equal(saved.settings.operator_enforcement, "warn");
+  assert.equal(saved.settings.operator_enforcement, "block");
   assert.equal(saved.revision, 1);
 
   const conflicted = await owner.raw("PUT", `/v1/equipment/organizations/${orgId}/settings`, {
@@ -836,4 +840,33 @@ test("equipment: module settings defaults, saves, and revision conflicts", async
     expected_revision: 99
   });
   assert.equal(conflicted.statusCode, 409);
+});
+
+test("equipment: existing advanced flags resolve to the fixed Simple feature set", async () => {
+  const owner = createSessionClient();
+  const { orgId } = await registerOwner(owner);
+  await setOperatorFlags(orgId, { values: {
+    "apps.equipment": true,
+    "equipment.scheduling": false,
+    "equipment.requirements": true,
+    "equipment.maintenance": false,
+    "equipment.meters": true,
+    "equipment.operators": false,
+    "equipment.costing": true,
+    "equipment.custody": true
+  } });
+  const state = await owner.request("GET", `/v1/platform/organizations/${orgId}/capabilities`);
+  const expected = {
+    "equipment.scheduling": true,
+    "equipment.requirements": false,
+    "equipment.maintenance": true,
+    "equipment.meters": false,
+    "equipment.operators": true,
+    "equipment.costing": false,
+    "equipment.custody": false
+  };
+  for (const [key, enabled] of Object.entries(expected)) {
+    assert.equal(state.effective_by_key[key], enabled, key);
+    assert.equal(state.raw[key], enabled, `visible ${key}`);
+  }
 });

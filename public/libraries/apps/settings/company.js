@@ -2172,7 +2172,8 @@
     // Equipment keeps its settings in both discovery paths: the Equipment
     // app's Settings view and Company Settings. App placement only controls
     // the full app launcher, not this shared settings surface.
-    const canEquipment = canCompany && appFlag('apps', 'equipment');
+    // Equipment uses a fixed Simple feature set for now; no org controls are exposed.
+    const canEquipment = false;
     const canLiveChat = canCompany && appFlag('apps', 'live_chat');
     const canComms = canCompany && appFlag('apps', 'comms');
     const canChannels = (canCompany || hasPerm('manage_channels')) && appFlag('apps', 'channels') && appBelongsInSettings('portal.channels');
@@ -12098,7 +12099,7 @@
       return overlay;
     }
     function capValueNodes(capState){
-      return (capState.definitions || []).filter((node) => node.stores_value !== false && node.kind !== 'permission');
+      return (capState.definitions || []).filter((node) => node.stores_value !== false && node.kind !== 'permission' && !String(node.key || '').startsWith('equipment.'));
     }
     function capPermissionNodes(capState){
       return (capState.definitions || []).filter((node) => node.kind === 'permission');

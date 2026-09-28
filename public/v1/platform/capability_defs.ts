@@ -637,7 +637,7 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.equipment",
     label: "Equipment Maintenance",
     description: "Service programs, work orders, inspections, and downtime blocks for equipment units.",
-    default: false
+    default: true
   },
   {
     key: "equipment.meters",
@@ -653,7 +653,7 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.equipment",
     label: "Operator Requirements",
     description: "Operator certification checks (CDL, certified operator) when equipment is assigned.",
-    default: false
+    default: true
   },
   {
     key: "equipment.costing",

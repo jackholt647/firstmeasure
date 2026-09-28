@@ -161,7 +161,6 @@ export const patchWorkOrderSchema = z.object({
   status: z.enum(["open", "in_progress"]).optional(),
   due_at: z.string().trim().max(40).optional(),
   assigned_to: jsonObject.optional(),
-  cost: workOrderCostSchema.optional(),
   notes: z.string().trim().max(8000).optional(),
   expected_revision: z.number().int().min(0).optional()
 });
@@ -172,7 +171,6 @@ export const scheduleWorkOrderSchema = z.object({
 });
 
 export const completeWorkOrderSchema = z.object({
-  cost: workOrderCostSchema.optional(),
   meter_at_service: jsonObject.optional(),
   checklist_state: z.array(z.object({
     id: z.string().trim().max(120).optional(),

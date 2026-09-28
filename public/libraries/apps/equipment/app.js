@@ -1,7 +1,7 @@
 /* public/libraries/apps/equipment/app.js
  * Equipment — the global fleet registry. Fleet view (units, filters, drawer),
- * a types & categories manager, and the shared module settings view. Timeline,
- * Maintenance, and Utilization views arrive with their capability layers.
+ * a types & categories manager, and shared Scheduling and Maintenance views.
+ * The org-facing experience currently uses the fixed Simple feature set.
  */
 (function(){
   const runtime = window.FirstMateEmbeddableApps;
@@ -200,7 +200,6 @@
       if (capabilityOn('equipment', 'scheduling')) views.push({ id:'timeline', icon:'fa-chart-gantt', label:terminology('equipment.timeline_view', 'Timeline') });
       if (capabilityOn('equipment', 'maintenance')) views.push({ id:'maintenance', icon:'fa-wrench', label:terminology('equipment.maintenance_view', 'Maintenance') });
       if (capabilityOn('equipment', 'costing')) views.push({ id:'utilization', icon:'fa-chart-column', label:terminology('equipment.utilization_view', 'Utilization') });
-      views.push({ id:'settings', icon:'fa-gear', label:(globalThis.PlatformLanguage?.text("equipment","m_7d461dc7d355cc","Settings") ?? "Settings") });
       return views;
     };
 
