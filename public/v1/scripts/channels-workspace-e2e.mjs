@@ -298,12 +298,11 @@ try {
   await page.getByRole('button',{name:'Maximize call',exact:true}).click();
   assert.ok(await page.locator('.fm-call-window[data-window=full]').isVisible());
   await page.getByRole('button',{name:'Float call',exact:true}).click();
-  // Minimized chrome offers explicit destinations with different icons.
+  // Restore returns to the previous placement; explicit placement is still available.
   await page.getByRole('button',{name:'Minimize call',exact:true}).click();
-  const floatIcon = await page.getByRole('button',{name:'Float call',exact:true}).locator('i').getAttribute('class');
-  const dockIcon = await page.getByRole('button',{name:'Dock call',exact:true}).locator('i').getAttribute('class');
-  assert.notEqual(floatIcon,dockIcon);
   assert.equal(await page.locator('.fm-call-window .fm-window-controls button').count(),4);
+  await page.locator('.fm-call-window [data-window-action=minimize]').click();
+  assert.ok(await page.locator('.fm-call-window[data-window=floating]').isVisible());
   await page.getByRole('button',{name:'Dock call',exact:true}).click();
   assert.ok(await page.locator('.fm-call-window[data-window=docked]').isVisible());
   await page.getByRole('button',{name:'Minimize call',exact:true}).click();

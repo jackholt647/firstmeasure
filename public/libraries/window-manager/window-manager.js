@@ -16,6 +16,7 @@
 .fm-window-header{display:flex;flex:none;align-items:center;gap:8px;min-height:44px;padding:6px 10px;border-bottom:1px solid #e4e7ec;white-space:nowrap;touch-action:none;user-select:none;cursor:default}
 .fm-window-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:700;white-space:nowrap}
 .fm-window-title:after{content:'';display:inline-block;width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);margin-left:6px;vertical-align:3px;opacity:.55;flex:0 0 auto}
+.fm-window[data-window=minimized] .fm-window-title:after{display:none}
 .fm-window-controls{display:flex;flex:0 0 auto;gap:2px;margin-left:auto}.fm-window-controls button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;background:none;border:0;border-radius:6px;color:inherit;cursor:pointer;font-size:12px}
 .fm-window-controls button:hover{background:#66708520}.fm-window-controls button[data-window-action=close]:hover{background:#d92d20;color:#fff}
 .fm-window-content{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
@@ -121,12 +122,16 @@
     function chrome(){
       element.dataset.window = win.mode; element.dataset.pinned=String(win.pinned);
       const dock = win.mode === 'floating' || win.mode === 'full';
-      const labels = {place:`${dock ? 'Dock' : 'Float'} ${name}`,minimize:`${win.mode === 'minimized' ? 'Dock' : 'Minimize'} ${name}`,maximize:`${win.mode === 'full' ? 'Float' : 'Maximize'} ${name}`,close:`Close ${name}`};
+      const labels = {place:`${dock ? 'Dock' : 'Float'} ${name}`,minimize:`${win.mode === 'minimized' ? 'Restore' : 'Minimize'} ${name}`,maximize:`${win.mode === 'full' ? 'Float' : 'Maximize'} ${name}`,close:`Close ${name}`};
+      if (title) {
+        title.setAttribute('aria-label',win.mode === 'minimized' ? labels.minimize : ((v0) => globalThis.PlatformLanguage?.text("window-manager","m_d2465937dae930",`${v0} window menu`,{v0}) ?? `${v0} window menu`)(name));
+        title.title=win.mode === 'minimized' ? labels.minimize : (globalThis.PlatformLanguage?.text("window-manager","m_e271e8dbdf1d3d","Window menu (right-click or Alt+Space)") ?? "Window menu (right-click or Alt+Space)");
+      }
       for (const [key,button] of Object.entries(buttons)) { button.title=labels[key]; button.setAttribute('aria-label',labels[key]); }
       buttons.place.innerHTML=`<i class="fas fa-${dock ? 'table-columns' : 'window-restore'}" aria-hidden="true"></i>`;
       buttons.maximize.innerHTML=`<i class="fas fa-${win.mode === 'full' ? 'window-restore' : 'expand'}" aria-hidden="true"></i>`;
       buttons.maximize.style.order=win.mode === 'full' ? '1' : '2'; buttons.minimize.style.order=win.mode === 'full' ? '2' : '1'; buttons.close.style.order='3';
-      buttons.minimize.innerHTML=`<i class="fas fa-${win.mode === 'minimized' ? 'table-columns' : 'minus'}" aria-hidden="true"></i>`;
+      buttons.minimize.innerHTML=`<i class="fas fa-${win.mode === 'minimized' ? 'window-restore' : 'minus'}" aria-hidden="true"></i>`;
     }
     function notify(reason){ options.onChange?.({mode:win.mode,pinned:win.pinned,reason}); }
     function setMode(mode,{silent=false}={}){
@@ -141,7 +146,8 @@
     function focus(){ win.stackOrder=++order; restack(); }
     async function requestClose(){ if (buttons.close.disabled) return; buttons.close.disabled=true; try { if (options.onClose) await options.onClose(); else {win.visible=false;element.hidden=true;layout(win.host);} } finally { buttons.close.disabled=false; } }
     buttons.place.onclick=() => setMode(['floating','full'].includes(win.mode) ? 'docked' : 'floating');
-    buttons.minimize.onclick=() => setMode(win.mode === 'minimized' ? 'docked' : 'minimized');
+    function restore(){if(win.mode === 'minimized'){closeMenu();setMode(win.previous);focus();}}
+    buttons.minimize.onclick=() => win.mode === 'minimized' ? restore() : setMode('minimized');
     buttons.maximize.onclick=() => setMode(win.mode === 'full' ? 'floating' : 'full');
     buttons.close.onclick=requestClose;
     function showMenu(event){
@@ -153,8 +159,12 @@
     header.addEventListener('contextmenu',showMenu);
     if (title) { title.tabIndex=0; title.setAttribute('role','button'); title.setAttribute('aria-label',((v0) => globalThis.PlatformLanguage?.text("window-manager","m_d2465937dae930",`${v0} window menu`,{v0}) ?? `${v0} window menu`)(name)); title.title=(globalThis.PlatformLanguage?.text("window-manager","m_e271e8dbdf1d3d","Window menu (right-click or Alt+Space)") ?? "Window menu (right-click or Alt+Space)"); }
     let dragged=false;
-    const titleClick=event=>{if(!dragged)showMenu(event);}; title?.addEventListener('click',titleClick);
-    function keydown(event){ if (event.altKey && event.code === 'Space') showMenu(event); else if (event.target === title && ['Enter',' '].includes(event.key)) showMenu(event); }
+    const titleClick=event=>{
+      if(dragged || event.target.closest('button,input,a,select'))return;
+      if(win.mode === 'minimized')restore();
+      else if(title?.contains(event.target))showMenu(event);
+    }; header.addEventListener('click',titleClick);
+    function keydown(event){ if (event.altKey && event.code === 'Space') showMenu(event); else if (event.target === title && ['Enter',' '].includes(event.key)) { if(win.mode === 'minimized'){event.preventDefault();restore();}else showMenu(event); } }
     element.addEventListener('keydown',keydown);element.addEventListener('pointerdown',focus);
     let endGesture=null;
     function gesture(event,edge){
@@ -193,12 +203,12 @@
     chrome();layout(host);focus();
     return {
       element, setMode, setPinned, focus,
-      restore(){if(win.mode === 'minimized')setMode(win.previous);},
+      restore,
       get state(){return {mode:win.mode,pinned:win.pinned,visible:win.visible};},
       setVisible(value){win.visible=!!value;element.hidden=!win.visible;layout(win.host);if(value)focus();},
       rehost(nextHost,contentTarget){if(nextHost===win.host)return;const old=win.host;registerHost(nextHost);win.host=nextHost;win.contentTarget=contentTarget;nextHost.append(element);layout(old);releaseHost(old);layout(nextHost);},
       refresh(){layout(win.host);},
-      destroy(){endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);title?.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);element.remove();layout(win.host);releaseHost(win.host);}
+      destroy(){endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);element.remove();layout(win.host);releaseHost(win.host);}
     };
   }
   root.FirstMateWindows={attach};

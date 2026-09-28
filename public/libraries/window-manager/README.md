@@ -39,9 +39,9 @@ state without emitting `onChange`. `restore()` returns a minimized window to
 its previous mode. Floating dimensions and position survive minimize, dock,
 and maximize transitions. The maximize control becomes Float when maximized.
 
-Minimized chrome offers explicit Float and Dock destinations with distinct icons,
-regardless of the previous mode. The programmatic `restore()` method still restores
-the previous mode when an app reopens its window.
+Clicking a minimized title bar, pressing Enter or Space on its title, or using
+Restore returns to the previous mode, including its saved floating geometry or
+dock width. Right-click and Alt+Space still open the placement menu.
 
 The right-side controls are:
 
@@ -50,9 +50,9 @@ The right-side controls are:
 | Floating | Dock, Minimize, Maximize, Close |
 | Docked | Float, Minimize, Maximize, Close |
 | Maximized | Dock, Float, Minimize, Close |
-| Minimized | Float, Dock, Maximize, Close |
+| Minimized | Float, Restore, Maximize, Close |
 
-Click/right-click the title or press Alt+Space for the window menu, including
+Click an open window's title, right-click the title, or press Alt+Space for the window menu, including
 Pin/Unpin. Pin state is exposed to the app; Channels uses it to keep a maximized
 conversation open across app switches. The manager never silently closes windows
 when another app activates. Floating windows stack above docks; minimized windows
