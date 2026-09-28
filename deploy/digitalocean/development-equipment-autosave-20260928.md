@@ -30,3 +30,12 @@ No database, topology, service configuration or production changes.
 Rollback: inspect intervening releases before restoring the previous per-node
 receipt baseline through the existing symlink/service workflow, then verify
 readiness/isolation. Autosaved data is not undone by a code rollback.
+
+Completed rollout: `5b0f2f6bc29deb64d6673a07c42f8ecd8fc0e655` is active on
+both development web nodes (`do-598520065`, `do-603124965`). Both passed local
+readiness, isolation and asset hashes. Public health checks reached both nodes
+at the new release; the public asset hash matched. The expanded Chromium
+regression passed against the served script using synthetic API fixtures,
+including autosave, failed-save retry, slow requests, revision progression,
+required names and close/unmount flush. Both previous releases were
+`cccaeec9f330c74c19c96676aebc475fe6cdd130`. Production is unchanged.
