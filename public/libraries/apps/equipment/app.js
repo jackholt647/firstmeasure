@@ -275,7 +275,7 @@
           clearTimeout(timer);
           if (!running && JSON.stringify(pending) === saved) { pending = null; return; }
           failed = false;
-          report('Saving…');
+          report('Savingâ€¦');
           timer = setTimeout(() => void saver.flush(), immediate ? 0 : 500);
         },
         async flush(){
@@ -283,7 +283,7 @@
           if (running) { await running; return failed ? false : (pending ? saver.flush() : true); }
           if (!pending) return true;
           failed = false;
-          report('Saving…');
+          report('Savingâ€¦');
           running = (async () => {
             while (pending) {
               const values = pending; pending = null;
