@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 28 date/time picker: [Shared form popups across all apps](deploy/digitalocean/development-date-time-picker-20260928.md) records development coverage, deployed browser checks, concurrent Equipment preservation and rollback.
+
 September 28 voice controls: [Shared dictation and recording icons](deploy/digitalocean/development-voice-icons-20260928.md) records the frontend development release, separate Channels actions, validation and rollback.
 
 September 28 window restore: [Restore minimized windows on click](deploy/digitalocean/development-window-restore-20260928.md) records the development-only fix and browser verification.
