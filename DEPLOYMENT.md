@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 Contact window: [Shared placements and modal identity icons](deploy/digitalocean/development-contact-window-icons-20260929.md) records the verified development-only frontend rollout and rollback.
+
 September 29 Projects List: [Board and stage grouping](deploy/digitalocean/development-project-list-groups-20260929.md) records the verified development-only frontend rollout, browser checks and rollback.
 
 September 29 Channels: [Managers, public discovery, rich paste and GIF sharing](deploy/digitalocean/development-channels-members-paste-20260929.md) records the verified development rollout, message controls, authorization/browser checks, GIPHY beta setup and role-aware rollback.
