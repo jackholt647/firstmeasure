@@ -1268,7 +1268,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
               <span class="fmu-pill ${String(st.cls)}"><i class="fas ${String(st.ico)}"></i> ${String(escapeHtml(st.t))}</span>
             </td>
             <td class="fmu-td fmu-actionsCell">
-              ${String(canShowKebab ? `<button class="fmu-kebab" type="button" data-act="kebab" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_6067958dea3386","Actions") ?? "Actions")}"><i class="fas fa-ellipsis-vertical"></i></button>` : '')}
+              ${String(canShowKebab ? `<button class="fmu-kebab" type="button" data-act="kebab" data-settings-autosave="off" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_6067958dea3386","Actions") ?? "Actions")}"><i class="fas fa-ellipsis-vertical"></i></button>` : '')}
             </td>
           </tr>
           <tr class="fmu-trPerm ${String(isMe ? 'me' : '')}" data-user-id="${String(escapeHtml(id))}" data-deleted="${String(isDeleted ? '1' : '0')}" style="${String(isDeleted || !usersState.showPerms ? 'display:none;' : '')}">

@@ -18213,7 +18213,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
               <span class="cu-pill ${String(st.cls)}"><i class="fas ${String(st.ico)}"></i> ${String(escapeHtml(st.t))}</span>
             </td>
             <td class="cu-td cu-actionsCell">
-              ${String(canShowKebab ? `<button class="cu-kebab" type="button" data-act="kebab" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_6067958dea3386","Actions") ?? "Actions")}"><i class="fas fa-ellipsis-vertical"></i></button>` : '')}
+              ${String(canShowKebab ? `<button class="cu-kebab" type="button" data-act="kebab" data-settings-autosave="off" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_6067958dea3386","Actions") ?? "Actions")}"><i class="fas fa-ellipsis-vertical"></i></button>` : '')}
             </td>
           </tr>
           <tr class="cu-trPerm ${String(isMe ? 'me' : '')}" data-user-id="${String(escapeHtml(id))}" data-deleted="${String(isDeleted ? '1' : '0')}" style="${String(isDeleted || !usersState.showPerms ? 'display:none;' : '')}">
