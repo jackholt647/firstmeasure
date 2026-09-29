@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 membership notices: [Gray channel activity lines](deploy/digitalocean/development-channels-system-lines-20260929.md) records the verified development rollout, browser checks and rollback.
+
 September 29 pinned attachments: [Display complete pinned messages](deploy/digitalocean/development-channels-pin-attachments-20260929.md) records the verified development rollout, attachment browser checks and rollback.
 
 September 29 keyboard formatting: [Tab indentation and nested list fidelity](deploy/digitalocean/development-channels-tab-20260929.md) records the verified development rollout, browser checks and rollback.
