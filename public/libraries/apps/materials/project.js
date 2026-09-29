@@ -439,11 +439,13 @@
   }
   function scopeForMaterials(){
     const project = state.project || {};
-    const hasMeasurements = (measurements) => Object.values(measurements && typeof measurements === 'object' ? measurements : {})
-      .some((value) => typeof value !== 'object' && Number(value) > 0);
+    const hasMeasurements = (measurements) => Object.entries(measurements && typeof measurements === 'object' ? measurements : {})
+      .some(([key, value]) => !['wastePercent', 'pitchRise', 'structures', 'structureCount'].includes(key) && typeof value !== 'object' && Number(value) > 0);
     const asObject = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     const projectScopes = [project.scope, project.project_scope].map(asObject);
-    const projectScope = projectScopes.find((scope) => hasMeasurements(scope.measurements))
+    const hasDefinition = (scope) => scope.pieces?.length || scope.root_items?.length;
+    const projectScope = projectScopes.find(hasDefinition)
+      || projectScopes.find((scope) => hasMeasurements(scope.measurements))
       || projectScopes.find((scope) => Object.keys(scope).length)
       || {};
     const proposals = Array.isArray(project.proposals) ? [...project.proposals].reverse() : [];
@@ -469,14 +471,19 @@
         asObject(snapshotContent.scope).measurements
       ].map(asObject);
     };
-    const proposal = proposals.find((item) => proposalMeasurementSources(item).some(hasMeasurements));
+    const proposalScopes = (item) => [item.scope, item.content?.scope, item.editable?.scope, item.snapshot?.content?.scope].map(asObject);
+    const proposal = proposals.find((item) => proposalScopes(item).some(hasDefinition))
+      || proposals.find((item) => proposalMeasurementSources(item).some(hasMeasurements));
     const proposalMeasurements = proposal
       ? proposalMeasurementSources(proposal).reduce((merged, source) => ({ ...merged, ...source }), {})
       : {};
-    const measurements = { ...asObject(project.measurements), ...asObject(projectScope.measurements), ...proposalMeasurements };
-    const sourceScope = projectScope && Object.keys(projectScope).length
-      ? projectScope
-      : asObject(proposal?.scope || proposal?.content?.scope || proposal?.editable?.scope || proposal?.snapshot?.content?.scope);
+    const report = reportMeasurements();
+    const savedMeasurements = { ...asObject(project.measurements), ...proposalMeasurements, ...asObject(projectScope.measurements) };
+    const measurements = hasMeasurements(savedMeasurements)
+      ? { ...(measurementsHaveValues(report) ? report : {}), ...savedMeasurements }
+      : { ...savedMeasurements, ...(measurementsHaveValues(report) ? report : {}) };
+    const sourceScope = hasDefinition(projectScope) ? projectScope
+      : (proposal ? proposalScopes(proposal).find(hasDefinition) : null) || projectScope;
     const pieces = Array.isArray(sourceScope.pieces) ? sourceScope.pieces.map((piece) => {
       const pieceMeasurements = piece?.measurements && typeof piece.measurements === 'object' ? piece.measurements : {};
       return hasMeasurements(pieceMeasurements) ? piece : { ...piece, measurements: { ...pieceMeasurements, ...measurements } };
@@ -485,8 +492,8 @@
   }
   function scopeMeasurements(){
     const scope = scopeForMaterials();
-    const hasMeasurements = (measurements) => Object.values(measurements && typeof measurements === 'object' ? measurements : {})
-      .some((value) => typeof value !== 'object' && Number(value) > 0);
+    const hasMeasurements = (measurements) => Object.entries(measurements && typeof measurements === 'object' ? measurements : {})
+      .some(([key, value]) => !['wastePercent', 'pitchRise', 'structures', 'structureCount'].includes(key) && typeof value !== 'object' && Number(value) > 0);
     if (scope.measurements && typeof scope.measurements === 'object' && hasMeasurements(scope.measurements)) return scope.measurements;
     const pieces = Array.isArray(scope.pieces) ? scope.pieces : [];
     const pieceMeasurements = pieces.reduce((merged, piece) => ({
@@ -1105,16 +1112,18 @@
   }
 
   async function requestMeasurementHydration(force = false){
-    const measurementId = activeMeasurementProjectId();
-    if (!measurementId || state.measurementLoadingId === measurementId || (!force && state.measurementLoadedId === measurementId)) return null;
-    if (!force && measurementsHaveValues(reportMeasurements())) return null;
+    const measurementId = activeMeasurementProjectId() || projectId();
+    const hydrationContext = captureProjectOperation();
+    if (state.measurementLoadingId === measurementId) return state.measurementLoadPromise;
+    if (!measurementId || (!force && state.measurementLoadedId === measurementId)) return null;
     state.measurementLoadingId = measurementId;
     const reportOrderState = state.host?.getReportOrderState?.() || state.context?.reportOrderState || {};
     const sharedMeasurements = window.FirstMeasureAPI?.roofMeasurements;
     const load = sharedMeasurements?.load
       ? sharedMeasurements.load(state.project || {}, { reportOrderState, force })
       : loadMeasurementArtifactSource(measurementId).then((source) => ({ source, measurements: null }));
-    return load.then((result) => {
+    state.measurementLoadPromise = load.then((result) => {
+      if (!projectOperationIsCurrent(hydrationContext)) return;
       state.measurementLoadedId = measurementId;
       state.measurementLoadingId = '';
       if (!result || typeof result !== 'object') return;
@@ -1125,10 +1134,12 @@
         syncMaterialsGrid();
       }
     }).catch(() => {
-      state.measurementLoadedId = measurementId;
+      if (!projectOperationIsCurrent(hydrationContext)) return null;
       state.measurementLoadingId = '';
+      state.lastError = 'Could not load the project measurements. Refresh to retry.';
       return null;
     });
+    return state.measurementLoadPromise;
   }
 
   async function regenerateMeasurementsFromReport(){
@@ -1788,7 +1799,7 @@
     } catch (error) {
       // Read-only project users can view existing lists but cannot run the
       // idempotent scope initializer.  A 403 here must not hide the GET data.
-      if ([403, 404, 405, 501].includes(Number(error?.status || 0))) return null;
+      if (!options.force && [403, 404, 405, 501].includes(Number(error?.status || 0))) return null;
       throw error;
     }
   }
@@ -1827,26 +1838,25 @@
     state.lastError = '';
     render();
     try {
-      await Promise.all([loadPricebookItems(loadContext), loadWorkResources(loadContext)]);
-      if (!loadContextIsCurrent(loadContext)) return;
       if (!apiReady()) throw new Error('materials_api_unavailable');
+      const ancillary = Promise.allSettled([loadPricebookItems(loadContext), loadWorkResources(loadContext), requestMeasurementHydration()]);
       const result = await window.MaterialsAPI.projects.list(loadContext.orgId, loadContext.projectId);
       if (!loadContextIsCurrent(loadContext)) return;
       applyMaterialLists(Array.isArray(result.material_lists) ? result.material_lists : []);
-      const initialized = await initializeMaterialListsFromScope({ loadContext });
+      state.loading = false;
+      render();
+      renderLeft();
+      await ancillary;
       if (!loadContextIsCurrent(loadContext)) return;
-      if (initialized) {
-        const reconciled = await window.MaterialsAPI.projects.list(loadContext.orgId, loadContext.projectId);
+      if (!state.lists.length) {
+        await initializeMaterialListsFromScope({ loadContext, mergeLists: true });
         if (!loadContextIsCurrent(loadContext)) return;
-        applyMaterialLists(Array.isArray(reconciled.material_lists) ? reconciled.material_lists : []);
       }
-      await loadActiveListDetails(loadContext);
-      if (!loadContextIsCurrent(loadContext)) return;
-      await loadExpenseProjection(loadContext);
+      await Promise.all([loadActiveListDetails(loadContext), loadExpenseProjection(loadContext)]);
     } catch (error) {
       if (!loadContextIsCurrent(loadContext)) return;
       state.lastError = error?.message === 'materials_api_unavailable' ? '' : (error?.message || 'Could not load materials.');
-      applyMaterialLists([]);
+      // Keep the successfully loaded lists if optional initialization fails.
       state.versions = [];
       state.orders = [];
       state.deliveriesByOrderId = {};
@@ -2406,8 +2416,16 @@
     render({ preserveScroll: true });
     const minimumFeedback = new Promise((resolve) => setTimeout(resolve, 650));
     try {
-      await initializeMaterialListsFromScope({ force: true });
-      const refreshed = await window.MaterialsAPI.projects.list(orgId(), projectId());
+      const operation = captureProjectOperation();
+      await requestMeasurementHydration();
+      if (!projectOperationIsCurrent(operation)) return;
+      const generated = await initializeMaterialListsFromScope({ force: true, mergeLists: true });
+      if (!generated || !(generated.material_lists || generated.lists || []).length) {
+        throw new Error('No resource lists were generated. Choose a project scope with material, labor, or equipment list definitions in the Scope builder, then regenerate. A FirstMeasure report supplies measurements; the scope defines the lists.');
+      }
+      if (!projectOperationIsCurrent(operation)) return;
+      const refreshed = await window.MaterialsAPI.projects.list(operation.orgId, operation.projectId);
+      if (!projectOperationIsCurrent(operation)) return;
       applyMaterialLists(Array.isArray(refreshed.material_lists) ? refreshed.material_lists : []);
       await loadActiveListDetails();
       showToast((globalThis.PlatformLanguage?.text("materials","m_3f229715aaee07","Materials regenerated") ?? "Materials regenerated"), (globalThis.PlatformLanguage?.text("materials","m_58a415d1c7298e","Generated planning lists now match the project scope.") ?? "Generated planning lists now match the project scope."), true);
@@ -4416,8 +4434,6 @@
     }
     target.innerHTML = leftHtml();
     bindLeft(target);
-    projectNotesApi()?.bindHistoryExtras?.(target.querySelector('[data-mt-note-list]'), () => state.project);
-    if (state.project?.id) projectNotesApi()?.load?.(state.project);
     timingMark('renderLeft:end', { active: state.active }, timingStart);
   }
 
@@ -4543,8 +4559,6 @@
     const listsOpen = state.leftSections.lists !== false;
     const measurementsOpen = state.leftSections.measurements !== false;
     const customFieldsOpen = state.leftSections.custom_fields !== false;
-    const notesOpen = state.leftSections.notes !== false;
-    const noteCount = projectNotesApi()?.visible(state.project || {}).length || 0;
     return `
       <div class="mt-left">
         <div class="mt-left-head"><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope")}</strong>${String(state.activeList ? `<em class="mt-status ${statusClass(state.activeList.status)}">${escapeHtml(resourceTerms(resourceType(state.activeList), state.activeList).plural)}</em>` : '')}</div>
@@ -4565,7 +4579,7 @@
           <section class="mt-left-group ${String(measurementsOpen ? '' : 'collapsed')}">
             <button type="button" class="mt-left-group-head" data-mt-left-toggle="measurements" aria-expanded="${String(measurementsOpen ? 'true' : 'false')}"><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_0ce54f0aa2d758","Scope measurements") ?? "Scope measurements")}</strong><span>${String(measurementRows.length)} <i class="fas fa-chevron-${String(measurementsOpen ? 'up' : 'down')}"></i></span></button>
             <div class="mt-left-group-body">
-              ${String(measurementRows.length ? `<div class="mt-scope-measures">${measurementRows.map((row) => `<div class="mt-scope-measure"><span>${escapeHtml(row.label)}</span><strong>${escapeHtml(row.value)}</strong></div>`).join('')}</div><div class="mt-small"><i class="fas fa-lock"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_4d90bde666c93e"," Saved from the project scope") ?? " Saved from the project scope")}</div>` : `<div class="mt-empty">${(globalThis.PlatformLanguage?.htmlText("materials","m_7bdd98e65148d7","No measurements were saved with this scope.") ?? "No measurements were saved with this scope.")}</div>`)}
+              ${String(measurementRows.length ? `<div class="mt-scope-measures">${measurementRows.map((row) => `<div class="mt-scope-measure"><span>${escapeHtml(row.label)}</span><strong>${escapeHtml(row.value)}</strong></div>`).join('')}</div><div class="mt-small"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_4d90bde666c93e"," Project scope / FirstMeasure measurements") ?? " Project scope / FirstMeasure measurements")}</div>` : `<div class="mt-empty">${(globalThis.PlatformLanguage?.htmlText("materials","m_7bdd98e65148d7","No measurements are available yet. Link a completed FirstMeasure report or add scope measurements.") ?? "No measurements are available yet. Link a completed FirstMeasure report or add scope measurements.")}</div>`)}
             </div>
           </section>
           ${String(customFieldRows.length ? `<section class="mt-left-group ${customFieldsOpen ? '' : 'collapsed'}">
@@ -4575,10 +4589,7 @@
               <div class="mt-small"><i class="fas fa-table-list"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_2280f0c13c04b8"," Project custom fields selected for Scope") ?? " Project custom fields selected for Scope")}</div>
             </div>
           </section>` : '')}
-          <section class="mt-left-group ${String(notesOpen ? '' : 'collapsed')}">
-            <button type="button" class="mt-left-group-head" data-mt-left-toggle="notes" aria-expanded="${String(notesOpen ? 'true' : 'false')}"><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_d1e91b9e7610fa","Project Notes") ?? "Project Notes")}</strong><span>${String(noteCount)} <i class="fas fa-chevron-${String(notesOpen ? 'up' : 'down')}"></i></span></button>
-            <div class="mt-left-group-body">${String(scopeNotesHtml())}</div>
-          </section>
+
         </div>
       </div>
     `;
