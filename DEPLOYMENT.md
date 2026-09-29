@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 Channels settings: [Open settings within Channels with Back](deploy/digitalocean/development-channels-settings-20260929.md) records the development-only embedded settings flow, draft preservation, browser verification and rollback.
+
 September 29 channel recaps: [Private FirstMate conversations beside Channels](deploy/digitalocean/development-channel-assistant-20260929.md) records the development rollout, shared tray, per-user channel context, permission checks, hosted browser verification and rollback.
 
 September 29 scheduling polish: [Header filters, Timeline and project parity](deploy/digitalocean/development-scheduling-polish-20260929.md) records the development-only four-file frontend release, browser verification against hosted scripts and rollback.
