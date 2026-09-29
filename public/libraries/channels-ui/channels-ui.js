@@ -682,6 +682,7 @@
 .fm-ch-msg-edited{color:var(--ch-muted);font-size:11px;cursor:pointer;text-decoration:none}
 .fm-ch-msg-edited:hover{text-decoration:underline}
 .fm-ch-msg-body{word-wrap:break-word;overflow-wrap:break-word;white-space:normal}
+.fm-ch-msg.fm-ch-system-line{display:block;padding:8px 16px 8px 62px;color:var(--ch-muted);font-size:12px;line-height:1.5;background:transparent;overflow-wrap:anywhere}.fm-ch-system-line:hover{background:transparent}
 .fm-ch-msg-body a{color:var(--ch-accent)}
 .fm-ch-translate{width:22px;height:20px;margin-left:-2px;border-radius:6px!important;display:inline-flex;align-items:center;justify-content:center;color:var(--ch-muted)!important;font-size:10px!important;align-self:center}
 .fm-ch-translate:hover,.fm-ch-translate.on{background:var(--ch-accent-soft)!important;color:var(--ch-accent)!important}
@@ -3339,6 +3340,14 @@
         tomb.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_98170a72aa7e52","Message removed") ?? "Message removed")}</span>${String(message.can_restore && features.deleteRestore ? `<button class="fm-ch-restore-link" data-act="restore">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_954a04d61ae9d6","Restore") ?? "Restore")}</button>` : '')}`;
         content.appendChild(tomb);
         wireRowActions(row, message);
+        return row;
+      }
+
+      if (message.kind === 'system' && !message.metadata?.huddle_id && !message.huddle) {
+        row.classList.add('fm-ch-system-line');
+        content.textContent = message.text || '';
+        row.replaceChildren(content);
+        row.title = fmtDateTime(message.created_at);
         return row;
       }
 
