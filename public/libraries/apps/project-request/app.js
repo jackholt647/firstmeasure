@@ -2927,6 +2927,37 @@ window.PlatformCommerce.onReady(async function(){
       }) || null;
     }
   }
+  function observeProjectHeaderFit(overlay){
+    const tabs = overlay.querySelector('#rProjectViewerTabs');
+    if (!tabs || tabs.__headerFit) return;
+    tabs.__headerFit = true;
+    let pending = 0;
+    const fit = () => {
+      pending = 0;
+      if (!tabs.isConnected || !tabs.clientWidth) return;
+      // Measure labels at their natural width, independent of the current fit
+      // state. The tab strip's actual width already excludes every header action.
+      const probe = tabs.cloneNode(true);
+      probe.removeAttribute('id');
+      probe.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+      probe.classList.remove('r-header-icons');
+      probe.classList.add('r-tabbar-fit-probe');
+      probe.setAttribute('aria-hidden', 'true');
+      probe.inert = true;
+      tabs.parentElement.parentElement.append(probe);
+      const required = probe.getBoundingClientRect().width;
+      probe.remove();
+      tabs.classList.toggle('r-header-icons', required > tabs.clientWidth + 1);
+    };
+    const schedule = () => { if (!pending) pending = requestAnimationFrame(fit); };
+    const resize = new ResizeObserver(schedule);
+    resize.observe(tabs);
+    resize.observe(tabs.parentElement);
+    const changes = new MutationObserver(schedule);
+    changes.observe(tabs, {childList:true, subtree:true, characterData:true});
+    document.fonts?.ready.then(schedule);
+    schedule();
+  }
   function ensureProjectWindow(){
     if (projectModalWindow || !window.FirstMateWindows) return;
     const overlay = $('#rOverlay'), element = overlay?.querySelector('.r-win');
@@ -2955,16 +2986,25 @@ window.PlatformCommerce.onReady(async function(){
     });
     injectCSS('project-window', `
       .r-overlay.window-managed .r-win{flex-direction:row;transition:none;animation:none}
-      @media(min-width:1081px){.r-overlay.window-managed .r-left{border-right:0}.r-overlay.window-managed .r-right{margin-top:32px;border-left:1px solid #e4e7ec;border-top:1px solid #e4e7ec}}
+      @media(min-width:1081px){.r-overlay.window-managed .r-right{margin-top:0}}
       @media(min-width:761px){.r-overlay.window-managed[data-window-mode="modal"] .r-win{border:0;border-radius:14px;box-shadow:0 36px 120px rgba(15,23,42,.28)}}
-      .r-window-bar{position:absolute;top:0;left:min(460px,46%);right:0;height:32px;display:flex;align-items:center;background:#fff;z-index:75;touch-action:none;user-select:none;cursor:default}
+      .r-overlay.window-managed .r-window-bar{position:relative;min-height:48px;height:48px;display:flex;align-items:stretch;background:#fff;z-index:75;touch-action:none;user-select:none;cursor:default}
       .r-win[data-window="floating"] .r-window-bar{cursor:move}
-      .r-overlay.entitlement-left-none .r-window-bar{left:0}
-      .r-window-bar-actions{display:flex;align-self:stretch;margin-left:auto}
+      .r-window-bar-actions{display:flex;flex:0 0 120px;width:120px;align-self:stretch;margin-left:auto;border-left:1px solid #e4e7ec;box-sizing:content-box}
       .r-window-bar .r-window-identity{display:none}
-      .r-overlay.window-managed .fm-window-controls{align-self:stretch;gap:0}
+      .r-overlay.window-managed .fm-window-controls{display:grid;grid-template-columns:repeat(4,30px);grid-template-rows:repeat(2,24px);align-self:stretch;gap:0}
+      .r-overlay.window-managed .fm-window-controls [data-window-action="close"]{grid-column:4;grid-row:1 / 3;height:48px}
+      .r-overlay.window-managed .r-tabbar{flex:1 1 0;display:flex;min-width:0;overflow-x:auto}
+      .r-overlay.window-managed .r-tabbar.single-tab{display:none}
+      .r-overlay.window-managed .r-tab{flex:0 0 auto;min-height:47px}
+      .r-overlay.window-managed .r-tabbar.r-header-icons .r-tab:has(i){font-size:0;gap:0;min-width:36px;padding:0 10px}
+      .r-overlay.window-managed .r-header-icons .r-tab:has(i) .pv-tab-label{display:none}
+      .r-overlay.window-managed .r-header-icons .r-tab i{font-size:15px}
+      .r-overlay.window-managed .modal-shell-actions{position:static;flex:0 0 auto}
+      .r-tabbar.r-tabbar-fit-probe{position:fixed!important;visibility:hidden!important;pointer-events:none!important;inset:0 auto auto 0!important;width:max-content!important;max-width:none!important;display:flex!important;flex:none!important}
+      .r-tabbar-fit-probe .r-tab{flex:0 0 auto!important}
       .r-overlay.window-managed .fm-window-controls button[aria-pressed="true"]{background:#e4e7ec;color:#101828}
-      .r-overlay.window-managed .fm-window-controls button{height:30px;min-height:30px;width:30px;border-radius:0}
+      .r-overlay.window-managed .fm-window-controls button{height:24px;min-height:24px;width:30px;border-radius:0}
       .r-overlay.window-managed #rFullscreenToggle,.r-overlay.window-managed #rMapCloseX{display:none}
       .r-overlay.window-managed:not([data-window-mode="modal"]):not([data-window-mode="fullscreen"]){background:transparent;pointer-events:none}
       .r-overlay.window-managed .r-win{pointer-events:auto}
@@ -2974,11 +3014,15 @@ window.PlatformCommerce.onReady(async function(){
       .r-title-line > .r-title-wrap{grid-column:2;grid-row:1}
       .r-title-line > .r-sub{grid-column:2}
       .r-overlay.window-managed .r-win[data-window="minimized"]{padding:0}
-      .r-overlay.window-managed .r-win[data-window="minimized"] > :not(.r-window-bar):not(.fm-window-resize){display:none!important}
+      .r-overlay.window-managed .r-win[data-window="minimized"] > :not(.r-right):not(.fm-window-resize),.r-overlay.window-managed .r-win[data-window="minimized"] .r-right > :not(.r-window-bar){display:none!important}
+      .r-overlay.window-managed .r-win[data-window="minimized"] .r-right{display:flex!important;margin:0;width:100%}
+      .r-overlay.window-managed .r-win[data-window="minimized"] .r-window-bar > :not(.r-window-identity):not(.r-window-bar-actions){display:none!important}
+      .r-overlay.window-managed .r-win[data-window="minimized"] .r-window-bar-actions{flex:0 0 auto;width:auto;border:0}
+      .r-overlay.window-managed .r-win[data-window="minimized"] .fm-window-controls{display:flex}
       .r-overlay.window-managed .r-win[data-window="minimized"] .r-window-bar{position:static;left:0;height:30px;min-height:30px;width:100%;padding:0 5px;gap:5px}
       .r-overlay.window-managed .r-win[data-window="minimized"] .r-window-identity{display:flex;flex:1;min-width:0;max-width:none;padding:0;border:0;font-size:12px;gap:6px}
       .r-overlay.window-managed .r-win[data-window="minimized"] .fm-window-controls button:not([data-window-action="minimize"]):not([data-window-action="close"]){display:none}
-      @media(max-width:1080px){.r-overlay.window-managed .r-win{flex-direction:column;padding-top:32px}.r-window-bar{left:0}}
+      @media(max-width:1080px){.r-overlay.window-managed .r-win{flex-direction:column;padding-top:0}}
       @media(max-width:760px){.r-overlay.window-managed.entitlement-hide-fullscreen .fm-window-controls [data-window-action="fullscreen"]{display:none}}
       .project-window-embedded body{margin:0!important;overflow:hidden!important}
       .project-window-embedded .fm-attention-topbar,.project-window-embedded .mobile-topbar,.project-window-embedded #platformTopbar,.project-window-embedded .main,.project-window-embedded #mainSidebar,.project-window-embedded #sidebarBackdrop,.project-window-embedded #fmProjectRoutePrecover{display:none!important}
@@ -2987,6 +3031,7 @@ window.PlatformCommerce.onReady(async function(){
     `);
     if (projectWindowBridge) { document.documentElement.classList.add('project-window-embedded'); element.classList.add('fm-window'); element.dataset.window='modal'; }
     overlay.classList.add('window-managed');
+    observeProjectHeaderFit(overlay);
     overlay.dataset.windowMode = 'modal';
     if (!projectWindowBridge) projectModalWindow.setVisible(false);
   }
@@ -9523,18 +9568,19 @@ window.PlatformCommerce.onReady(async function(){
     el.id = 'rOverlay';
     el.innerHTML = `
       <div class="r-win">
-        <div class="r-window-bar"><div class="r-window-identity"><i class="fas fa-folder-open" aria-hidden="true"></i><span id="rWindowProjectTitle">Project</span></div><div class="r-window-bar-actions"></div></div>
         <div class="r-contact-contextbar" id="rContactContextBar"></div>
         ${String(projectModalRegionHtml('left'))}
 
         <div class="r-right" id="rMapWrap">
-          <div class="r-modal-header">
+          <div class="r-modal-header r-window-bar">
+            <div class="r-window-identity"><i class="fas fa-folder-open" aria-hidden="true"></i><span id="rWindowProjectTitle">Project</span></div>
             <div class="r-tabbar" id="rProjectViewerTabs"></div>
             <div class="modal-shell-actions">
               <button type="button" class="modal-shell-action" id="rProjectHeaderAction" hidden></button>
               <button type="button" class="modal-shell-btn" id="rFullscreenToggle" data-fm-tooltip="Fullscreen" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_0ce034af23e970","Open project fullscreen") ?? "Open project fullscreen")}"><i class="fas fa-up-right-and-down-left-from-center"></i></button>
               <button type="button" class="modal-shell-btn" id="rMapCloseX" data-fm-tooltip="Close" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
             </div>
+            <div class="r-window-bar-actions"></div>
           </div>
           <div class="r-mobile-project-title" data-project-identity-owner="modal-chrome">
             <button type="button" class="r-mobile-left-tray-toggle" id="rMobileLeftTrayToggle" aria-expanded="false"><i class="fas fa-chevron-right" id="rMobileLeftTrayChevron" aria-hidden="true"></i><span id="rMobileLeftTrayTitle"></span></button>
