@@ -35,7 +35,7 @@
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
     versionedBundle('../window-manager/window-manager.js', '20260929-channels-v2'),
-    versionedBundle('../channels-ui/channels-ui.js', '20260929-translate-icon-v1'),
+    versionedBundle('../channels-ui/channels-ui.js', '20260929-pinned-messages-v1'),
     versionedBundle('../project-notes/project-notes.js', '20260723-channels-notes')
   ];
   const fieldApprovalBundles = [
@@ -536,7 +536,7 @@
         versionedBundle('../channels-api/channels-api.js', '20260929-channels-v2'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20260929-channels-v2'),
-        versionedBundle('../channels-ui/channels-ui.js', '20260929-translate-icon-v1'),
+        versionedBundle('../channels-ui/channels-ui.js', '20260929-pinned-messages-v1'),
         versionedBundle('channels/app.js', '20260929-channels-v2')
       ]
     },

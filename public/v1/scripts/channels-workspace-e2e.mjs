@@ -123,7 +123,7 @@ try {
   await page.evaluate(()=>{typingList.destroy();document.querySelector('#typing-test').remove();delete window.PlatformRealtime;});
   console.log('PASS immediate typing, throttling, blur stop, inactive sidebar, multiple typists and expiry');
   await page.evaluate(async()=>{
-    ChannelsAPI.tabs={list:async()=>({tabs:[{kind:'messages',label:'Messages'},{kind:'files',label:'Files'},{kind:'documents',label:'Documents'}]})};
+    ChannelsAPI.tabs={list:async()=>({tabs:[{kind:'messages',label:'Messages'},{kind:'files',label:'Files'},{kind:'documents',label:'Documents'},{kind:'pins',label:'Pins'}]})};
     ChannelsAPI.resources={list:async(_org,_channel,options)=>{window.filesQuery=options;return {resources:[
       {resource_type:'media',resource_id:'photo',resource:{file_name:'Shared photo.png',content_type:'image/png'}},
       {resource_type:'media',resource_id:'report',resource:{file_name:'Report.pdf',content_type:'application/pdf'}},
@@ -141,6 +141,30 @@ try {
   await page.locator('.fm-ch-resource').getByText('Meeting notes',{exact:true}).waitFor();
   assert.deepEqual(await page.evaluate(()=>filesQuery),{type:'files'});
   await page.locator('.fm-ch-tab').getByText('Messages',{exact:true}).click();
+  await page.evaluate(()=>{
+    ChannelsAPI.pins={list:async()=>({messages:testMessages.filter(message=>message.pinned_at)})};
+    ChannelsAPI.messages.pin=async(_org,id)=>{const message=testMessages.find(item=>item.id===id);message.pinned_at=new Date().toISOString();return {message:{...message}};};
+    ChannelsAPI.messages.unpin=async(_org,id)=>{const message=testMessages.find(item=>item.id===id);message.pinned_at=null;return {message:{...message}};};
+  });
+  await page.locator('.fm-ch-tab').getByText('Pins',{exact:true}).click();
+  await page.getByText('Easy access to all of your most important messages. Right-click on a message to pin it to the channel.',{exact:true}).waitFor();
+  await page.screenshot({animations:'disabled',path:path.join(output,'pins-empty.png')});
+  await page.locator('.fm-ch-tab').getByText('Messages',{exact:true}).click();
+  await page.locator('.fm-ch-msg').first().click({button:'right'});
+  await page.getByRole('menuitem',{name:'Pin to channel',exact:true}).click();
+  await page.locator('.fm-ch-msg-pinned .fm-ch-pin-label').waitFor();
+  await page.screenshot({animations:'disabled',path:path.join(output,'pinned-in-conversation.png')});
+  await page.locator('.fm-ch-tab').getByText('Pins',{exact:true}).click();
+  await page.locator('.fm-ch-pins-list .fm-ch-msg-pinned').waitFor();
+  await page.screenshot({animations:'disabled',path:path.join(output,'pins-tab.png')});
+  await page.locator('.fm-ch-pins-list .fm-ch-msg').first().focus();
+  await page.keyboard.press('Shift+F10');
+  await page.getByRole('menuitem',{name:'Unpin',exact:true}).click();
+  await page.locator('.fm-ch-pins-empty').waitFor();
+  assert.equal(await page.locator('.fm-ch-pins-list .fm-ch-msg').count(),0);
+  await page.locator('.fm-ch-tab').getByText('Messages',{exact:true}).click();
+  assert.equal(await page.locator('.fm-ch-msg-pinned').count(),0);
+  console.log('PASS right-click pinning, pinned message styling, Pins empty state and immediate unpin refresh');
   await page.evaluate(()=>instance.setFeatures({resources:false}));
   console.log('PASS unified Files tab, legacy Documents tabs, shared filenames and file links');
   await typingEditor.fill(''); await typingEditor.pressSequentially('@');

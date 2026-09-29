@@ -585,6 +585,16 @@
 .fm-ch-new-divider::after{content:'';flex:1;height:1px;background:var(--ch-danger)}
 .fm-ch-msg{position:relative;display:flex;gap:10px;padding:3px 16px}
 .fm-ch-msg:hover{background:var(--ch-hover)}
+.fm-ch-msg.fm-ch-msg-pinned{background:#fffbef;box-shadow:inset 3px 0 #e9bb59;padding-top:10px;padding-bottom:10px;margin-block:4px}
+.fm-ch-msg.fm-ch-msg-pinned:hover{background:#fff6dd}
+.fm-ch-msg-pinned>.fm-ch-msg-gutter{padding-top:23px}
+.fm-ch-pin-label{display:flex;align-items:center;gap:7px;color:#896016;font-size:11px;font-weight:600;line-height:17px;margin-bottom:6px}
+.fm-ch-pin-label i{font-size:10px;transform:rotate(-25deg)}
+.fm-ch-pins-list{display:grid;gap:12px;padding:16px}.fm-ch-pins-list .fm-ch-msg{border:1px solid #eddfbf;border-radius:12px;margin:0;min-width:0}
+.fm-ch-result.fm-ch-pinned-result{background:#fffbef;border-color:#eddfbf;box-shadow:inset 3px 0 #e9bb59}.fm-ch-result.fm-ch-pinned-result:hover{background:#fff6dd}
+.fm-ch-pins-empty{max-width:440px;margin:48px auto;padding:32px 24px;text-align:center;color:var(--ch-muted);line-height:1.6}
+.fm-ch-pins-empty-icon{display:grid;place-items:center;width:52px;height:52px;margin:0 auto 18px;border-radius:16px;background:#fff5d9;color:#896016;font-size:20px}
+.fm-ch-pins-empty h3{margin:0 0 8px;font-size:16px;color:var(--ch-text);font-weight:650}.fm-ch-pins-empty p{margin:0;font-size:13px}
 .fm-ch-scheduled-message{margin:12px 16px;padding:12px 14px;border:1px dashed #98a2b3;border-radius:10px;background:#f8fafc}.fm-ch-scheduled-label{font-size:12px;font-weight:650;color:#475467;display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.fm-ch-scheduled-label span{margin-left:auto;font-size:11px;font-weight:400}.fm-ch-scheduled-message>.fm-ch-btn{margin-top:10px}
 .fm-ch-msg.highlight{background:#fef4e6;animation:fm-ch-flash 2.4s ease forwards}
 @keyframes fm-ch-flash{0%,60%{background:#fef4e6}100%{background:transparent}}
@@ -628,7 +638,7 @@
 .fm-ch-attachment:hover{background:var(--ch-hover)}
 .fm-ch-attachment-img{max-width:260px;max-height:180px;border-radius:8px;border:1px solid var(--ch-border);display:block}
 .fm-ch-toolbar{position:absolute;top:-14px;right:14px;display:none;background:#fff;border:1px solid var(--ch-border);border-radius:8px;box-shadow:0 2px 8px rgba(15,23,42,.1);z-index:6}
-.fm-ch-msg:hover .fm-ch-toolbar{display:inline-flex}
+.fm-ch-msg:hover .fm-ch-toolbar,.fm-ch-msg:focus-within .fm-ch-toolbar{display:inline-flex}
 .fm-ch-toolbar button{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:11.5px;color:var(--ch-muted)}
 .fm-ch-toolbar button:hover{background:var(--ch-hover);color:var(--ch-accent)}
 .fm-ch-toolbar button.danger:hover{color:var(--ch-danger)}
@@ -1238,6 +1248,7 @@
         if (state.activeTab === 'files' && (topic.startsWith('channels.message.') || topic.startsWith('channels.resource.'))) {
           void openChannelTab('files');
         }
+        if (topic.startsWith('channels.message.')) void refreshVisiblePins();
         if (payload.stub) {
           refreshActiveMessages();
           if (state.threadRootId) openThread(state.threadRootId, { silent: true });
@@ -1865,6 +1876,7 @@
       typingBar.textContent = '';
       if (state.activeTab === 'pins') {
         const data = await api.pins.list(orgId, state.activeChannelId).catch((error) => ({ error }));
+        if (state.destroyed || state.activeChannelId !== channelId || state.activeTab !== activeTab) return;
         if (data.error) return showError(data.error);
         renderResourceLikeMessages(data.messages || []);
         return;
@@ -1885,13 +1897,19 @@
       }
     }
 
+    function pinsEmptyState(){
+      return el('div','fm-ch-pins-empty','<div class="fm-ch-pins-empty-icon" aria-hidden="true"><i class="fas fa-thumbtack"></i></div><h3>No pinned messages yet</h3><p>Easy access to all of your most important messages. Right-click on a message to pin it to the channel.</p>');
+    }
+
     function renderResourceLikeMessages(messages){
       list.innerHTML = '';
       if (!messages.length) {
-        list.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_8c9f8b0c815337","Nothing here yet.") ?? "Nothing here yet.")}</div>`;
+        list.append(pinsEmptyState());
         return;
       }
-      for (const message of messages) list.appendChild(messageRow(message));
+      const cards=el('div','fm-ch-pins-list');
+      for (const message of messages) cards.appendChild(messageRow(message));
+      list.append(cards);
     }
 
     function resourceIcon(type){
@@ -3271,6 +3289,11 @@
         return row;
       }
 
+      if (message.pinned_at) {
+        row.classList.add('fm-ch-msg-pinned');
+        content.append(el('div','fm-ch-pin-label','<i class="fas fa-thumbtack" aria-hidden="true"></i><span>Pinned to this conversation</span>'));
+      }
+
       const avatarButton = el('button', 'fm-ch-profile-trigger', avatarHtml(message.author));
       avatarButton.type = 'button'; avatarButton.setAttribute('aria-label', ((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_b49557609481cb",`View ${v0} profile`,{v0}) ?? `View ${v0} profile`)(message.author?.name || 'user'));
       avatarButton.addEventListener('click', () => openUserProfile(message.author, avatarButton));
@@ -3420,9 +3443,11 @@
       if (overflow.length) {
         const more = el('button', '', '<i class="fas fa-ellipsis"></i>');
         more.title = (globalThis.PlatformLanguage?.text("channels-ui","m_0092f30ae15099","More message actions") ?? "More message actions"); more.setAttribute('aria-label', more.title); more.setAttribute('aria-haspopup', 'menu');
-        more.onclick = event => {
+        const openMessageMenu = event => {
           event.stopPropagation();
-          const pop = showPopover(more, pop => {
+          const anchor=event.type==='contextmenu' && (event.clientX || event.clientY)
+            ? {getBoundingClientRect:()=>({left:event.clientX,top:event.clientY,bottom:event.clientY})} : more;
+          const pop = showPopover(anchor, pop => {
             pop.classList.add('fm-ch-message-menu'); pop.setAttribute('role', 'menu');
             for (const tool of overflow) {
               const item = el('button', tool.danger ? 'danger' : '', tool.icon + `<span>${esc(tool.title)}</span>`);
@@ -3441,6 +3466,15 @@
           });
           pop.querySelector('button')?.focus();
         };
+        more.onclick = openMessageMenu;
+        row.addEventListener('contextmenu', event => {
+          if(event.target.closest('a,input,textarea,[contenteditable],video,audio,img') || root.getSelection()?.toString()) return;
+          event.preventDefault();openMessageMenu(event);
+        });
+        row.addEventListener('keydown', event => {
+          if(event.target!==row || !(event.key==='ContextMenu' || (event.shiftKey && event.key==='F10')))return;
+          event.preventDefault();openMessageMenu(event);
+        });
         toolbar.append(more);
       }
       if (tools.length) row.appendChild(toolbar);
@@ -3468,7 +3502,10 @@
             message.is_saved = !message.is_saved;
             replaceMessage(message);
           }
-          else if (act === 'pin') replaceMessage((message.pinned_at ? await api.messages.unpin(orgId, message.id) : await api.messages.pin(orgId, message.id)).message);
+          else if (act === 'pin') {
+            const updated=(message.pinned_at ? await api.messages.unpin(orgId, message.id) : await api.messages.pin(orgId, message.id)).message;
+            if(state.activeChannelId===message.channel_id){replaceMessage(updated,{inPlace:true});await refreshVisiblePins();}
+          }
           else if (act === 'unread') {
             await api.readState.markUnread(orgId, message.channel_id, message.seq);
             await loadChannels();
@@ -4147,9 +4184,23 @@
       options.onNavigate?.({ channel: state.activeChannelId, thread: '' });
     }
 
+    async function refreshVisiblePins(){
+      if(state.activeTab!=='pins' && state.panelMode!=='pins')return;
+      const channelId=state.activeChannelId;
+      try{
+        const data=await api.pins.list(orgId,channelId);
+        if(state.destroyed || state.activeChannelId!==channelId)return;
+        state.pinned=data.messages||[];
+        if(state.activeTab==='pins' && state.view==='channel')renderResourceLikeMessages(state.pinned);
+        if(state.panelMode==='pins')renderPanel();
+      }catch(error){showError(error);}
+    }
+
     async function openPinsPanel(){
       try {
-        const data = await api.pins.list(orgId, state.activeChannelId);
+        const channelId=state.activeChannelId;
+        const data = await api.pins.list(orgId, channelId);
+        if(state.destroyed || state.activeChannelId!==channelId)return;
         state.panelMode = 'pins';
         state.pinned = data.messages || [];
         state.threadRootId = '';
@@ -4188,10 +4239,13 @@
         close.addEventListener('click', closePanel);
         head.appendChild(close);
         const body = el('div', 'fm-ch-panel-body');
-        if (!state.pinned?.length) body.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_e630876ee9eca9","Nothing pinned yet.") ?? "Nothing pinned yet.")}</div>`;
+        if (!state.pinned?.length) body.append(pinsEmptyState());
         for (const message of state.pinned || []) {
-          const result = el('div', 'fm-ch-result');
+          const result = el('div', 'fm-ch-result fm-ch-pinned-result');
           result.innerHTML = `<div class="fm-ch-result-meta">${esc(message.author?.name || '')} · ${esc(fmtDateTime(message.created_at))}</div><div>${renderBody(message)}</div>`;
+          result.prepend(el('div','fm-ch-pin-label','<i class="fas fa-thumbtack" aria-hidden="true"></i><span>Pinned to this conversation</span>'));
+          result.tabIndex=0;result.setAttribute('role','link');result.setAttribute('aria-label',`Open pinned message from ${message.author?.name || 'teammate'}`);
+          result.addEventListener('keydown',event=>{if(event.key==='Enter')result.click();});
           result.addEventListener('click', () => { closePanel(); revealMessage(message.id); });
           body.appendChild(result);
         }
