@@ -82,3 +82,23 @@ Public hashes and the browser suite using deployed JavaScript passed, including
 the actual preview's date-then-time selection. Rollback must preserve intervening
 releases; use the per-role predecessors in activation-progress.json and the
 existing symlink/service workflow. Production remains unchanged.
+
+
+## September 29: inherit the global app font
+
+Release `298eeb47b31620d987b1d16fae608b1ac98ed4d9` removes the picker’s
+hardcoded Inter family. On opening, the shared shadow-root component takes the
+page body's computed font family. Its title, calendar, time slots, custom inputs
+and footer all use that family; reopening picks up subsequent theme changes.
+
+The one-script delta is verified on both development web nodes and compatibility.
+The web predecessor was `46974807d1dcd15950377860e0071a470299dd21`; pool and
+compatibility predecessors were `2a56ed8d9762bd618e32471eadd4db37ee0ee2cb`.
+Each release inherits its own live baseline, preserving concurrent changes.
+Browser behavior checks passed; direct font checks passed locally and against
+the deployed script, including changed global fonts on reopening. All per-node
+and public asset hashes match, readiness and isolation pass, and both web nodes
+returned to public traffic. Evidence: `output/date-time-picker-font/` (ignored).
+Rollback must inspect intervening releases before restoring those predecessors
+through the existing per-role symlink/service workflow. No database, worker,
+configuration, topology or production changes.
