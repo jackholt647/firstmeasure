@@ -66,6 +66,23 @@ The UI renders this catalog with Apps and Workflows & scopes views, cross-view
 search, collapsible groups, 1–3 responsive columns, tooltips and accessible switches.
 Saves are serialized; failures retain pending changes and expose a Retry control.
 
+Messaging has a separate settings section. In-app delivery offers Off, Silent and
+Alerting while push remains independent. The existing `in_app` boolean remains
+compatible with producers and assistant tools; `in_app_sound` distinguishes Silent
+from Alerting. Optional `in_app_bell` and `in_app_badge` booleans control placement
+and unread counts through each row's initially collapsed Advanced tray. All maps
+use the same catalog keys and validated partial-update behavior. Existing enabled
+preferences allow sound unless explicitly disabled. Direct Messages default to
+the messaging inbox; users can additionally enable notification-bell placement.
+
+The list API returns recipient-specific `presentation` metadata. Deliveries outside
+the bell use `in_app_alerts`, allowing an alert without adding a bell entry. Both
+lists share recipient, branch, expiry and in-app preference filtering. Off does not
+remove the underlying conversations or disable push. Silent celebrations remain
+ordinary entries without playing their animation or sound. The bell badge counts
+unread entries whose badge preference is enabled; total entries remain in its menu.
+
+
 Native OS channels remain the existing broad categories. The larger catalog lives
 inside FirstMate; push still requires a configured provider and device permission.
 

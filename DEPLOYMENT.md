@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 notification controls: [Messaging, Silent/Alerting and Advanced placement](deploy/digitalocean/development-notification-controls-20260929.md) records the development rollout, browser/API checks and rollback.
+
 September 29 user menus: [Keep row actions open](deploy/digitalocean/development-users-menu-20260929.md) records the development-only autosave opt-out, browser regression checks and verified rollout.
 
 September 29 presence: [Live channel and project viewers](deploy/digitalocean/development-view-presence-20260929.md) records the development release, shared presence storage, verification and rollback.
