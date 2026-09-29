@@ -560,7 +560,7 @@ function hydrateMessage(
       mention_users: [],
       reactions: [],
       attachments: [],
-      metadata: {}
+      metadata: message.metadata.reply_broadcast === true ? { reply_broadcast: true } : {}
     };
   }
 
@@ -908,6 +908,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   content_schema_version?: number;
   client_msg_id?: string;
   parent_id?: string;
+  reply_broadcast?: boolean;
   audience?: string[];
   tags?: string[];
   mention_users?: JsonObject[];
@@ -931,7 +932,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   let parentId: string | null = null;
   if (input.parent_id) {
     const parent = (await readMessageRecord(ctx.orgId, input.parent_id));
-    if (!parent || parent.channel_id !== channelId) throw badRequest("invalid_parent", "The thread parent does not exist in this channel.");
+    if (!parent || parent.channel_id !== channelId || parent.deleted_at || !messageVisibleTo(parent, ctx, viewerAudienceGroups(ctx))) throw badRequest("invalid_parent", "The thread parent does not exist in this channel.");
     // Replies attach to the thread root, never nest.
     parentId = parent.parent_id ?? parent.id;
   }
@@ -940,6 +941,11 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   // can read. Clients cannot inject a forged original author or hidden body.
   const metadata = { ...input.metadata };
   delete metadata.forwarded;
+  delete metadata.reply_broadcast;
+  if (input.reply_broadcast) {
+    if (!parentId) throw badRequest("invalid_parent", "Only a thread reply can also be sent to the channel.");
+    metadata.reply_broadcast = true;
+  }
   let forwardedAttachments: AttachmentRow[] = [];
   if (input.forwarded_message_id) {
     const source = await readMessageRecord(ctx.orgId, input.forwarded_message_id);
@@ -1432,7 +1438,7 @@ export async function allUnreadMessages(ctx: PlatformAuthContext, options: { lim
         .map((row) => String(row.root_message_id))
     );
     const raw = (await listMessageRecords(ctx.orgId, channel.id, { after: state.effective_read_seq, limit: perChannel }))
-      .filter((message) => !message.parent_id || subscriptions.has(message.parent_id))
+      .filter((message) => !message.parent_id || message.metadata.reply_broadcast === true || subscriptions.has(message.parent_id))
       .filter((message) => message.author_id !== ctx.userId && messageVisibleTo(message, ctx, groups));
     if (!raw.length) continue;
     results.push({

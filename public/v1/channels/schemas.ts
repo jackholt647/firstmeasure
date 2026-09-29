@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const audienceGroup = z.enum(["office", "crew", "sales"]);
-const messageMetadataSchema = z.record(z.unknown()).transform(({ forwarded: _forwarded, ...metadata }) => metadata);
+const messageMetadataSchema = z.record(z.unknown()).transform(({ forwarded: _forwarded, reply_broadcast: _replyBroadcast, ...metadata }) => metadata);
 const richContentSchema = z.object({
   type: z.literal("doc").default("doc"),
   blocks: z.array(z.record(z.unknown())).max(500).default([])
@@ -44,6 +44,7 @@ export const postMessageSchema = z.object({
   content_schema_version: z.number().int().min(1).max(20).default(1),
   client_msg_id: z.string().trim().max(120).optional(),
   parent_id: z.string().trim().optional(),
+  reply_broadcast: z.boolean().default(false),
   audience: z.array(audienceGroup).default([]),
   tags: z.array(z.string().trim().min(1).max(60)).default([]),
   mention_users: z.array(mentionUserSchema).default([]),

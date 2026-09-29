@@ -349,6 +349,50 @@ test("threads accumulate reply counts and replies never nest", async () => {
   assert.ok(!channelMessages.messages.some((message: Json) => message.parent_id));
 });
 
+test("broadcast replies share one message across the channel and thread", async () => {
+  const {client:owner, orgId, suffix, userId} = await registerOwner();
+  const recipient = await createOrgUser(owner, orgId, suffix, "Broadcast Recipient");
+  const outsider = await createOrgUser(owner, orgId, suffix, "Broadcast Outsider");
+  const base = `/v1/channels/organizations/${orgId}`;
+  const {channel} = await owner.request("POST", `${base}/channels`, {type:"private",name:"broadcasts",member_user_ids:[recipient.userId]});
+  const url = `${base}/channels/${channel.id}/messages`;
+  const {message:root} = await owner.request("POST", url, {text:"Thread root"});
+  await recipient.client.request("POST", `${base}/channels/${channel.id}/read`, {last_read_seq:root.seq});
+  const {message:ordinary} = await owner.request("POST", url, {text:"Thread only",parent_id:root.id,metadata:{reply_broadcast:true}});
+  assert.notEqual(ordinary.metadata.reply_broadcast,true, "metadata cannot opt into broadcasting");
+  const input = {text:"Shared reply",parent_id:ordinary.id,reply_broadcast:true,client_msg_id:"broadcast-retry"};
+  const {message:shared} = await owner.request("POST", url, input);
+  assert.equal(shared.parent_id,root.id);
+  assert.equal(shared.metadata.reply_broadcast,true);
+  assert.equal((await owner.request("POST",url,input)).message.id,shared.id);
+  const timeline = await recipient.client.request("GET",url);
+  assert.deepEqual(timeline.messages.map((m:Json)=>m.id),[root.id,shared.id]);
+  assert.equal((await recipient.client.request("GET",`${base}/channels`)).channels.find((item:Json)=>item.id===channel.id).unread.unread_count,1);
+  const thread = await owner.request("GET",`${base}/messages/${root.id}/thread`);
+  assert.equal(thread.root.reply_count,2);
+  assert.deepEqual(thread.replies.map((m:Json)=>m.id),[ordinary.id,shared.id]);
+  assert.equal((await outsider.client.raw("POST",url,input)).statusCode,403);
+  assert.equal((await owner.raw("POST",url,{text:"Invalid broadcast",reply_broadcast:true})).statusCode,400);
+  await owner.request("PATCH",`${base}/messages/${shared.id}`,{text:"Edited shared reply"});
+  assert.equal((await recipient.client.request("GET",url)).messages.at(-1).text,"Edited shared reply");
+  assert.equal((await owner.request("GET",`${base}/messages/${root.id}/thread`)).replies.at(-1).text,"Edited shared reply");
+  await recipient.client.request("POST",`${base}/channels/${channel.id}/read`,{last_read_seq:shared.seq});
+  assert.equal((await recipient.client.request("GET",`${base}/channels`)).channels.find((item:Json)=>item.id===channel.id).unread.unread_count,0);
+  await recipient.client.request("PUT",`${base}/messages/${shared.id}/reactions`,{emoji:"👍",on:true});
+  assert.equal((await owner.request("GET",`${base}/messages/${root.id}/thread`)).replies.at(-1).reactions[0].count,1);
+  await owner.request("DELETE",`${base}/messages/${shared.id}`);
+  const removed = (await recipient.client.request("GET",url)).messages.find((m:Json)=>m.id===shared.id);
+  assert.ok(removed.deleted_at);
+  assert.equal(removed.metadata.reply_broadcast,true);
+  await owner.request("POST",`${base}/messages/${shared.id}/restore`);
+  const storage = await import("../channels/storage.js");
+  const attachment = await storage.createAttachmentRecord({organization_id:orgId,channel_id:channel.id,media_id:"broadcast_media",file_name:"plan.pdf",content_type:"application/pdf",size_bytes:128,uploaded_by:userId});
+  const {message:fileReply} = await owner.request("POST",url,{parent_id:root.id,reply_broadcast:true,attachment_ids:[attachment.id]});
+  assert.equal(fileReply.text,"");
+  assert.equal((await recipient.client.request("GET",url)).messages.at(-1).attachments[0].id,attachment.id);
+  assert.equal((await owner.request("GET",`${base}/messages/${root.id}/thread`)).replies.at(-1).attachments[0].id,attachment.id);
+});
+
 test("reactions toggle on and off", async () => {
   const { client: owner, orgId, userId } = await registerOwner();
   const listed = await owner.request("GET", `/v1/channels/organizations/${orgId}/channels`);

@@ -1102,6 +1102,9 @@ export async function restoreMessageRecord(orgId: string, messageId: string) {
   }));
 }
 
+const broadcastReplySql = "json_extract(metadata_json, '$.reply_broadcast') = 1";
+const broadcastReplyPostgresSql = "metadata_json::jsonb ->> 'reply_broadcast' = 'true'";
+
 export async function listMessageRecords(orgId: string, channelId: string, options: {
   before?: number;
   after?: number;
@@ -1111,7 +1114,7 @@ export async function listMessageRecords(orgId: string, channelId: string, optio
   const clauses = ["organization_id = ?", "channel_id = ?"];
   const params: unknown[] = [orgId, channelId];
   if (options.parentId !== undefined) {
-    if (options.parentId === null) clauses.push("parent_id IS NULL");
+    if (options.parentId === null) clauses.push(`(parent_id IS NULL OR ${broadcastReplySql})`);
     else {
       clauses.push("parent_id = ?");
       params.push(options.parentId);
@@ -1127,8 +1130,9 @@ export async function listMessageRecords(orgId: string, channelId: string, optio
   }
   const limit = Math.min(Math.max(Number(options.limit) || 50, 1), 200);
   const descending = !options.after;
+  const sql = `SELECT * FROM messages WHERE ${clauses.join(" AND ")} ORDER BY seq ${descending ? "DESC" : "ASC"} LIMIT ?`;
   const rows = (await getChannelsDatabase()
-    .prepare(`SELECT * FROM messages WHERE ${clauses.join(" AND ")} ORDER BY seq ${descending ? "DESC" : "ASC"} LIMIT ?`)
+    .prepare(sql, sql.replace(broadcastReplySql, broadcastReplyPostgresSql))
     .all(...(params as string[]), limit)) as JsonObject[];
   const messages = rows.map(messageFromRow);
   return descending ? messages.reverse() : messages;
@@ -1431,16 +1435,17 @@ export async function unreadSummary(orgId: string, userId: string, channelIds: s
   const db = getChannelsDatabase();
   for (const channelId of channelIds) {
     const state = (await readStateFor(channelId, userId));
-    const unreadRow = (await db.prepare(`
+    const unreadSql = `
       SELECT COUNT(*) AS n FROM messages
       WHERE organization_id = ? AND channel_id = ? AND seq > ? AND deleted_at IS NULL AND author_id <> ?
         AND (
-          parent_id IS NULL OR EXISTS (
+          parent_id IS NULL OR ${broadcastReplySql} OR EXISTS (
             SELECT 1 FROM channel_thread_subscriptions s
             WHERE s.root_message_id = messages.parent_id AND s.user_id = ? AND s.following = 1
           )
         )
-    `).get(orgId, channelId, state.effective_read_seq, userId, userId)) as JsonObject;
+    `;
+    const unreadRow = (await db.prepare(unreadSql, unreadSql.replace(broadcastReplySql, broadcastReplyPostgresSql)).get(orgId, channelId, state.effective_read_seq, userId, userId)) as JsonObject;
     const mentionRow = (await db.prepare(`
       SELECT COUNT(*) AS n FROM message_mentions
       WHERE organization_id = ? AND channel_id = ? AND user_id = ? AND seq > ?

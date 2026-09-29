@@ -677,6 +677,7 @@
 .fm-ch-composer-box:focus-within{border-color:var(--ch-accent)}
 .fm-ch-composer textarea{width:100%;border:none;outline:none;resize:none;font:inherit;background:transparent;max-height:180px;min-height:22px;color:var(--ch-text)}
 .fm-ch-composer-row{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+.fm-ch-reply-broadcast{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ch-muted);margin-right:auto;cursor:pointer}.fm-ch-reply-broadcast[hidden]{display:none}.fm-ch-reply-broadcast input{width:15px;height:15px;margin:0;accent-color:var(--ch-accent)}.fm-ch-thread-broadcast{display:block;margin:0 0 6px;color:var(--ch-muted);font-size:11px;text-align:left}.fm-ch-thread-broadcast:hover{color:var(--ch-accent);text-decoration:underline}
 .fm-ch-audio-mount:not(:empty){width:100%;animation:fm-ch-audio-in .18s ease-out}.fm-ch-audio-mount .fm-an-inline{margin-top:7px}
 @keyframes fm-ch-audio-in{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
 .fm-ch-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--ch-border);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600;color:var(--ch-muted);background:#fff}
@@ -1293,14 +1294,15 @@
 
     function applyIncomingMessage(topic, message, payload){
       const inThread = Boolean(message.parent_id);
-      if (topic === 'channels.message.created' && !inThread) {
+      const inChannel = !inThread || message.metadata?.reply_broadcast === true;
+      if (topic === 'channels.message.created' && inChannel) {
         if (message.metadata?.scheduled_message_id) state.scheduledMessages = state.scheduledMessages.filter(item => item.id !== message.metadata.scheduled_message_id);
         const existing = state.messages.findIndex((item) => item.id === message.id);
         if (existing >= 0) state.messages[existing] = message;
         else state.messages.push(message);
         renderMessages();
         scheduleMarkRead();
-      } else if (!inThread) {
+      } else if (inChannel) {
         const index = state.messages.findIndex((item) => item.id === message.id);
         if (index >= 0) {
           state.messages[index] = message;
@@ -3300,6 +3302,14 @@
         content.append(el('div','fm-ch-pin-label','<i class="fas fa-thumbtack" aria-hidden="true"></i><span>Pinned to this conversation</span>'));
       }
 
+      if (!inThread && message.parent_id && message.metadata?.reply_broadcast === true) {
+        const context = el('button', 'fm-ch-thread-broadcast', `${esc(message.author?.name || 'Someone')} replied to a thread <span aria-hidden="true">↗</span>`);
+        context.type = 'button';
+        context.title = 'View thread';
+        context.addEventListener('click', () => openThread(message.parent_id));
+        content.append(context);
+      }
+
       const avatarButton = el('button', 'fm-ch-profile-trigger', avatarHtml(message.author));
       avatarButton.type = 'button'; avatarButton.setAttribute('aria-label', ((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_b49557609481cb",`View ${v0} profile`,{v0}) ?? `View ${v0} profile`)(message.author?.name || 'user'));
       avatarButton.addEventListener('click', () => openUserProfile(message.author, avatarButton));
@@ -3422,7 +3432,7 @@
 
       if (features.threads && !inThread && message.reply_count > 0) {
         const link = el('button', 'fm-ch-thread-link', `<i class="fas fa-comment-dots"></i> ${message.reply_count} ${message.reply_count === 1 ? 'reply' : 'replies'}`);
-        link.addEventListener('click', () => openThread(message.id));
+        link.addEventListener('click', () => openThread(message.parent_id || message.id));
         content.appendChild(link);
       }
 
@@ -3496,7 +3506,7 @@
         try {
           if (act === 'restore') replaceMessage((await api.messages.restore(orgId, message.id)).message);
           else if (act === 'react') openEmojiPicker(target, (emoji) => api.messages.react(orgId, message.id, emoji, true).then((data) => replaceMessage(data.message)).catch(showError));
-          else if (act === 'thread') openThread(message.id);
+          else if (act === 'thread') openThread(message.parent_id || message.id);
           else if (act === 'follow') {
             await api.threads.subscribe(orgId, message.parent_id || message.id, true);
             target.classList.add('on');
@@ -3559,7 +3569,7 @@
         if (state.thread.root?.id === message.id) state.thread.root = message;
         const replyIndex = state.thread.replies.findIndex((item) => item.id === message.id);
         if (replyIndex >= 0) state.thread.replies[replyIndex] = message;
-        if (!inPlace) renderPanel();
+        if (!inPlace) renderPanel({ preserveComposer: true, scrollToEnd: false });
       }
       if (inPlace && !state.destroyed) {
         for (const scroller of [list, panel.querySelector('.fm-ch-panel-body')].filter(Boolean)) {
@@ -4167,13 +4177,14 @@
 
     // --- side panel: thread / pins ----------------------------------------------------
 
-    async function openThread(rootId, { silent } = {}){
+    async function openThread(rootId, { silent, resetComposer } = {}){
       if (!features.threads) return;
       try {
         const data = await api.messages.thread(orgId, rootId);
+        const preserveComposer = silent && !resetComposer && state.threadRootId === rootId;
         state.threadRootId = rootId;
         state.thread = { root: data.root, replies: data.replies || [] };
-        renderPanel({ scrollToEnd: !silent });
+        renderPanel({ scrollToEnd: !silent, preserveComposer });
         const lastReplySeq = Math.max(0, ...(state.thread.replies || []).map((reply) => Number(reply.seq) || 0));
         api.threads.markRead?.(orgId, rootId, lastReplySeq).catch(() => {});
         if (!silent) options.onNavigate?.({ channel: state.activeChannelId, thread: rootId });
@@ -4219,6 +4230,8 @@
 
     function renderPanel(panelOptions = {}){
       if (state.thread) {
+        const existingComposer = panelOptions.preserveComposer ? panel.querySelector('.fm-ch-composer') : null;
+        const scrollTop = panel.querySelector('.fm-ch-panel-body')?.scrollTop || 0;
         panel.style.display = 'flex';
         panel.innerHTML = '';
         const head = el('div', 'fm-ch-panel-head', `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_13f4d69b6c2991","Thread") ?? "Thread")}</span>`);
@@ -4231,10 +4244,11 @@
           body.appendChild(el('div', 'fm-ch-day', `${state.thread.replies.length} ${state.thread.replies.length === 1 ? 'reply' : 'replies'}`));
         }
         for (const reply of state.thread.replies) body.appendChild(messageRow(reply, { inThread: true }));
-        const threadComposer = el('div', 'fm-ch-composer');
-        buildThreadComposer(threadComposer);
+        const threadComposer = existingComposer || el('div', 'fm-ch-composer');
+        if (!existingComposer) buildThreadComposer(threadComposer);
         panel.append(head, body, threadComposer);
         if (panelOptions.scrollToEnd !== false) body.scrollTop = body.scrollHeight;
+        else body.scrollTop = scrollTop;
         return;
       }
       if (state.panelMode === 'pins') {
@@ -4275,7 +4289,11 @@
       const row = el('div', 'fm-ch-composer-row');
       const send = el('button', 'fm-ch-send', 'Reply');
       send.type = 'button';
-      row.appendChild(send);
+      const broadcastLabel = el('label', 'fm-ch-reply-broadcast');
+      const broadcast = document.createElement('input');
+      broadcast.type = 'checkbox';
+      broadcastLabel.append(broadcast, document.createTextNode('Also send to channel'));
+      row.append(broadcastLabel, send);
       node.append(pendingWrap, box, row);
       let threadMentionApi = null;
       try {
@@ -4288,6 +4306,7 @@
       node.prepend(editNote);
       let editingId = '';
       const doSend = async () => {
+        if (send.disabled) return;
         const text = threadInput.value.trim();
         if (threadInput.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
         if (!text && !threadFiles.length) return;
@@ -4299,15 +4318,17 @@
             replaceMessage(data.message);
             editingId = '';
             editNote.style.display = 'none';
+            broadcastLabel.hidden = false;
           } else {
             await api.messages.post(orgId, state.activeChannelId, {
               text,
               parent_id: state.threadRootId,
+              reply_broadcast: broadcast.checked,
               attachment_ids: threadFiles.map(file => file.id),
               client_msg_id: `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
               mention_users: mentions
             });
-            await openThread(state.threadRootId, { silent: true });
+            await openThread(state.threadRootId, { silent: true, resetComposer: true });
             await refreshActiveMessages();
           }
           stopTyping(); threadInput.value = '';
@@ -4334,10 +4355,12 @@
       });
       panel._startEdit = (message) => {
         editingId = message.id;
+        broadcastLabel.hidden = true;
         editNote.style.display = 'flex';
         editNote.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_34e633033239eb","Editing reply") ?? "Editing reply")}</span><button>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
         editNote.querySelector('button').addEventListener('click', () => {
           editingId = '';
+          broadcastLabel.hidden = false;
           editNote.style.display = 'none';
           threadInput.value = '';
         });
