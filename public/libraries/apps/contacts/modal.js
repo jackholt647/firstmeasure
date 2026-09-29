@@ -20,6 +20,7 @@
     addressAutocompleteInput: null,
     todoController: null
   };
+  let contactWindow = null;
 
   function $(selector, root = document){ return root.querySelector(selector); }
   function cleanText(value){ return String(value ?? '').trim(); }
@@ -207,13 +208,19 @@
     style.textContent = `
       .fm-contact-overlay{position:fixed;inset:0;z-index:2147483100;background:rgba(11,16,24,.58);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .22s ease}
       .fm-contact-overlay.active{display:flex;opacity:1}
-      .fm-contact-win{width:min(1480px,94vw);height:min(940px,90vh);background:#fff;border-radius:28px;box-shadow:0 36px 120px rgba(15,23,42,.28);overflow:hidden;display:flex;position:relative}
+      .fm-contact-win{width:min(1480px,94vw);height:min(940px,90vh);background:#fff;border-radius:28px;box-shadow:0 36px 120px rgba(15,23,42,.28);overflow:hidden;display:flex;flex-direction:column;position:relative}
+      .fm-contact-window-header{height:48px;min-height:48px;display:flex;align-items:center;border-bottom:1px solid rgba(15,23,42,.10);background:#fff;flex:0 0 auto}
+      .fm-contact-window-identity{display:flex;align-items:center;gap:9px;min-width:0;flex:1;padding:0 16px;color:#101828;font-size:13px;font-weight:1000}
+      .fm-contact-window-identity i,.fm-contact-title-icon{color:var(--primary-readable,var(--primary,#d93025));flex:0 0 auto}
+      .fm-contact-window-identity span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fm-contact-content{display:flex;flex:1;min-height:0;min-width:0}
       .fm-contact-left{width:min(420px,42%);min-height:0;border-right:1px solid rgba(15,23,42,.08);padding:14px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;background:#fff;overflow:hidden}
       .fm-contact-right{flex:1;min-width:0;background:#eef2f6;display:flex;flex-direction:column;position:relative}
       .fm-contact-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
       .fm-contact-kicker{font-size:10px;font-weight:1000;color:#667085;letter-spacing:.08em;text-transform:uppercase}
-      .fm-contact-title{margin:2px 0 0;font-size:20px;font-weight:1000;color:#101828;letter-spacing:0;line-height:1.15}
-      .fm-contact-close{position:absolute;top:14px;right:14px;z-index:8;width:40px;height:40px;border-radius:14px;border:1px solid rgba(15,23,42,.10);background:rgba(255,255,255,.88);backdrop-filter:blur(12px);color:#475467;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 24px rgba(15,23,42,.08)}
+      .fm-contact-title-line{display:flex;align-items:center;gap:9px;min-width:0}
+      .fm-contact-title{margin:2px 0 0;font-size:20px;font-weight:1000;color:#101828;letter-spacing:0;line-height:1.15;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fm-contact-close{width:40px;height:40px;margin-right:5px;border-radius:10px;border:1px solid rgba(15,23,42,.10);background:#fff;color:#475467;display:flex;align-items:center;justify-content:center;cursor:pointer}
       .fm-contact-close:hover{color:#101828;background:#f8fafc}
       .fm-contact-fields{display:grid;flex:0 1 auto;min-height:0;gap:6px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-right:2px}
       .fm-contact-field{display:grid;gap:3px}
@@ -227,7 +234,7 @@
       .fm-contact-btn.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:var(--on-primary,#fff)}
       .fm-contact-btn:disabled{opacity:.58;cursor:not-allowed}
       .fm-contact-meta{flex:0 0 auto;font-size:11px;font-weight:850;color:#667085;line-height:1.3;min-height:14px}
-      .fm-contact-right-head{height:64px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 76px 0 20px;border-bottom:1px solid rgba(15,23,42,.08);background:#fff}
+      .fm-contact-right-head{height:64px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 20px;border-bottom:1px solid rgba(15,23,42,.08);background:#fff}
       .fm-contact-right-title{font-size:14px;font-weight:1000;color:#101828}
       .fm-contact-count{font-size:12px;font-weight:900;color:#667085}
       .fm-contact-label-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -254,30 +261,85 @@
       .fm-contact-todos[hidden]{display:none}
       .fm-contact-todos>label{flex:0 0 auto;font-size:10px;font-weight:1000;color:#667085;letter-spacing:.06em;text-transform:uppercase}
       #fmContactTodoList{flex:1 1 auto;min-height:0;overflow:hidden}
+      .fm-contact-overlay.window-managed .fm-contact-close{display:none}
+      .fm-contact-overlay.window-managed .fm-window-controls{height:100%;gap:0}
+      .fm-contact-overlay.window-managed .fm-window-controls button{height:100%;min-height:48px;width:34px;border-radius:0;border-left:1px solid #e4e7ec}
+      .fm-contact-overlay.window-managed .fm-window-controls button[aria-pressed="true"]{background:#e4e7ec;color:#101828}
+      .fm-contact-overlay.window-managed:not([data-window-mode="modal"]):not([data-window-mode="fullscreen"]){background:transparent;backdrop-filter:none;pointer-events:none}
+      .fm-contact-overlay.window-managed .fm-contact-win{pointer-events:auto;transition:none}
+      .fm-contact-overlay.window-managed .fm-contact-win[data-window="full"],.fm-contact-overlay.window-managed .fm-contact-win[data-window="fullscreen"]{border-radius:0}
+      .fm-contact-overlay.window-managed .fm-contact-win[data-window="minimized"] .fm-contact-content{display:none}
+      .fm-contact-overlay.window-managed .fm-contact-win[data-window="minimized"]{padding:0}
+      .fm-contact-overlay.window-managed .fm-contact-win[data-window="minimized"] .fm-window-controls button:not([data-window-action="minimize"]):not([data-window-action="close"]){display:none}
       @media(max-width:760px){
-        .fm-contact-win{width:100vw;height:100vh;border-radius:0;flex-direction:column}
+        .fm-contact-win{width:100vw;height:100vh;border-radius:0}
+        .fm-contact-content{flex-direction:column}
         .fm-contact-left{width:100%;height:52vh;border-right:0;border-bottom:1px solid rgba(15,23,42,.08)}
         .fm-contact-projects{grid-template-columns:1fr;padding:12px}
+        .fm-contact-overlay.window-managed .fm-window-controls button{width:28px;min-height:39px}
       }
     `;
     document.head.appendChild(style);
   }
+  function syncContactWindowModalRegistration(){
+    state.handle?.unregister?.();
+    state.handle = null;
+    const overlay = $('#fmContactOverlay');
+    const mode = contactWindow?.state.mode || 'modal';
+    if (overlay && contactWindow) {
+      const parent = ['modal','fullscreen'].includes(mode) ? document.body : (document.querySelector('main.main') || document.querySelector('.main'));
+      if (parent && overlay.parentElement !== parent) parent.append(overlay);
+    }
+    if (overlay?.classList.contains('active') && ['modal','fullscreen'].includes(mode)) {
+      state.handle = window.Portal?.modals?.register?.(overlay, {
+        id:'contact-modal', closeOnEscape:true, closeOnBackdrop:false, onClose:close
+      }) || null;
+    }
+  }
+  function ensureContactWindow(overlay){
+    if (contactWindow || !window.FirstMateWindows) return;
+    const element = overlay?.querySelector('.fm-contact-win');
+    const host = document.querySelector('main.main') || document.querySelector('.main');
+    if (!element || !host) return;
+    contactWindow = window.FirstMateWindows.attach({
+      element, host, stackElement:overlay, menuHost:overlay,
+      header:element.querySelector('.fm-contact-window-header'),
+      controlsHost:element.querySelector('.fm-contact-window-header'),
+      contentTarget:document.getElementById('mainPanels'),
+      customChrome:true, presentationModes:true, viewportCoordinates:true, nativeModalLayout:true,
+      name:'contact', label:'Contact', mode:'modal', width:1100, height:760,
+      dockWidth:760, minWidth:360, minimizedHeight:48,
+      topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
+      onClose:() => close(),
+      onChange:({mode}) => {
+        overlay.dataset.windowMode = mode;
+        syncContactWindowModalRegistration();
+      }
+    });
+    overlay.classList.add('window-managed');
+    overlay.dataset.windowMode = 'modal';
+    contactWindow.setVisible(false);
+  }
   function ensureUI(){
     injectCSS();
     let overlay = $('#fmContactOverlay');
-    if (overlay) return overlay;
+    if (overlay) { ensureContactWindow(overlay); return overlay; }
     overlay = document.createElement('div');
     overlay.className = 'fm-contact-overlay';
     overlay.id = 'fmContactOverlay';
     overlay.innerHTML = `
       <div class="fm-contact-win">
+        <div class="fm-contact-window-header">
+          <div class="fm-contact-window-identity"><i class="fas fa-address-card" aria-hidden="true"></i><span id="fmContactWindowTitle">${(globalThis.PlatformLanguage?.htmlText("contacts","m_90a1aa2fb77fc8","New Contact") ?? "New Contact")}</span></div>
+          <button type="button" class="fm-contact-close" id="fmContactClose" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="fm-contact-content">
         <section class="fm-contact-left">
           <div class="fm-contact-head">
             <div>
               <div class="fm-contact-kicker">${(globalThis.PlatformLanguage?.htmlText("contacts","m_46c8aea84388c3","Contact") ?? "Contact")}</div>
-              <h2 class="fm-contact-title" id="fmContactTitle">${(globalThis.PlatformLanguage?.htmlText("contacts","m_90a1aa2fb77fc8","New Contact") ?? "New Contact")}</h2>
+              <div class="fm-contact-title-line"><i class="fas fa-address-card fm-contact-title-icon" aria-hidden="true"></i><h2 class="fm-contact-title" id="fmContactTitle">${(globalThis.PlatformLanguage?.htmlText("contacts","m_90a1aa2fb77fc8","New Contact") ?? "New Contact")}</h2></div>
             </div>
-            <button type="button" class="fm-contact-close" id="fmContactClose" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
           </div>
           <div class="fm-contact-fields">
             <div class="fm-contact-field" id="fmContactNameField"><label class="fm-contact-label-row"><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8cf345002184e5","Name") ?? "Name")}</span><span class="fm-contact-required">${(globalThis.PlatformLanguage?.htmlText("contacts","m_db97f048cd99aa","Required") ?? "Required")}</span></label><input class="fm-contact-input" id="fmContactName" autocomplete="name" required aria-required="true"></div>
@@ -310,9 +372,11 @@
           <div class="fm-contact-projects" id="fmContactProjects"></div>
           <button type="button" class="fm-contact-new-project" id="fmContactNewProject"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_0747045bf3d919","New Project") ?? "New Project")}</span></button>
         </section>
+        </div>
       </div>
     `;
     document.body.appendChild(overlay);
+    ensureContactWindow(overlay);
     $('#fmContactClose', overlay)?.addEventListener('click', close);
     overlay.addEventListener('mousedown', (event) => { overlay.__downBackdrop = event.target === overlay; });
     overlay.addEventListener('mouseup', (event) => {
@@ -426,8 +490,11 @@
     return state.addressAutocomplete;
   }
   function renderHeader(){
+    const label = contactTitle(state.contact);
     const title = $('#fmContactTitle');
-    if (title) title.textContent = contactTitle(state.contact);
+    if (title) title.textContent = label;
+    const windowTitle = $('#fmContactWindowTitle');
+    if (windowTitle) windowTitle.textContent = label;
   }
   function contactTags(){
     return Array.isArray(state.contact?.tags) ? state.contact.tags.map(cleanText).filter(Boolean) : [];
@@ -839,6 +906,7 @@
     state.loading = false;
     state.open = true;
     overlay.classList.add('active');
+    contactWindow?.setVisible(true);
     const routeContactId = firstText(state.contact.id, state.contact.contact_id);
     if (routeContactId && !options.fromRoute && !window.Portal?.navigation?.applying) {
       window.Portal?.navigation?.push?.({
@@ -850,13 +918,7 @@
         photoScope:null
       }, { source:'contact-open', ownedKeys:['contact'] });
     }
-    state.handle?.unregister?.();
-    state.handle = window.Portal?.modals?.register?.(overlay, {
-      id: 'contact-modal',
-      closeOnEscape: true,
-      closeOnBackdrop: false,
-      onClose: close
-    }) || null;
+    syncContactWindowModalRegistration();
     render();
     mountContactTodos();
     if (projectsComplete && state.projects.length) {
@@ -880,6 +942,7 @@
     state.open = false;
     destroyTodoController();
     $('#fmContactOverlay')?.classList.remove('active');
+    contactWindow?.setVisible(false);
     if (!options.skipHistory && !options.fromRoute) {
       window.Portal?.navigation?.backOrClose?.(['contact'], { contact:null, userTab:null }, { source:'contact-close' });
     }

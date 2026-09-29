@@ -774,6 +774,9 @@ window.PlatformCommerce.onReady(function(){
     @media(max-width:980px){.r-cp-activity-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.r-cp-activity-grid{grid-template-columns:1fr}}
     @media(max-width:820px){.r-cp-links{grid-template-columns:1fr}.r-cp-panel{padding:14px}.r-cp-media-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.r-cp-media-box-head{flex-direction:column}.r-cp-media-box-actions{justify-content:flex-start}.r-cp-activity-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.r-cp-visitor-counts{grid-template-columns:repeat(2,minmax(0,1fr))}}
     .r-modal-header{min-height:48px;display:flex;align-items:stretch;border-bottom:1px solid rgba(15,23,42,.10);background:#fff;flex:0 0 auto}
+    .r-window-identity{display:flex;align-items:center;gap:8px;min-width:0;max-width:240px;padding:0 12px;border-right:1px solid rgba(15,23,42,.10);color:#344054;font-size:12px;font-weight:900;white-space:nowrap}
+    .r-window-identity i{color:var(--primary-readable,var(--primary,#d93025));flex:none}
+    .r-window-identity span{overflow:hidden;text-overflow:ellipsis}
     .r-mobile-project-title,.r-mobile-left-tray-toggle,.r-mobile-left-tray-scrim,.r-mobile-default-info-tray-scrim,.r-mobile-project-notes-launcher,.r-mobile-project-notes-scrim,.r-mobile-project-notes-workspace{display:none}
     .r-tabbar{display:flex;align-items:stretch;gap:0;padding:0;min-width:0;flex:1 1 auto;overflow-x:auto;scrollbar-width:none}
     .r-tabbar::-webkit-scrollbar{display:none}
@@ -2955,7 +2958,8 @@ window.PlatformCommerce.onReady(function(){
       .r-overlay.window-managed .r-win[data-window="minimized"] .r-modal-header{display:flex!important}
       .r-overlay.window-managed .r-win[data-window="minimized"] .r-tabbar,
       .r-overlay.window-managed .r-win[data-window="minimized"] #rProjectHeaderAction{display:none}
-      .r-overlay.window-managed .r-win[data-window="minimized"] .r-modal-header:before{content:'Project';padding:14px 8px;font-size:12px}
+      .r-overlay.window-managed .r-win[data-window="minimized"] .r-window-identity{flex:1;max-width:none}
+      .r-overlay.window-managed .r-win[data-window="minimized"] .fm-window-controls button:not([data-window-action="minimize"]):not([data-window-action="close"]){display:none}
       @media(max-width:1080px){.r-overlay.window-managed .r-win{flex-direction:column}}
       @media(max-width:760px){.r-overlay.window-managed.entitlement-hide-fullscreen .fm-window-controls [data-window-action="fullscreen"]{display:none}.r-overlay.window-managed .fm-window-controls button{width:28px;min-height:39px}}
     `);
@@ -8458,6 +8462,8 @@ window.PlatformCommerce.onReady(function(){
       ? (mode === 'manual' ? (savedTitle || computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project') : (computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project'))
       : (mode === 'manual' ? (savedTitle || computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project') : computed);
     if (mobileTitle) mobileTitle.textContent = mobileDisplayTitle;
+    const windowTitle = document.getElementById('rWindowProjectTitle');
+    if (windowTitle) windowTitle.textContent = mobileDisplayTitle;
     titleWrap.classList.toggle('manual-title', mode === 'manual' && !hasReportOrdered());
     if (hasReportOrdered()) {
       const orderedTitle = mode === 'manual'
@@ -9489,6 +9495,7 @@ window.PlatformCommerce.onReady(function(){
 
         <div class="r-right" id="rMapWrap">
           <div class="r-modal-header">
+            <div class="r-window-identity"><i class="fas fa-folder-open" aria-hidden="true"></i><span id="rWindowProjectTitle">Project</span></div>
             <div class="r-tabbar" id="rProjectViewerTabs"></div>
             <div class="modal-shell-actions">
               <button type="button" class="modal-shell-action" id="rProjectHeaderAction" hidden></button>

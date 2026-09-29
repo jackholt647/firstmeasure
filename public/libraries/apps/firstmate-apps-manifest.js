@@ -94,7 +94,7 @@
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
       access: managementAccess,
-      bundles: [versionedBundle('contacts/modal.js', '20260725-contact-tags-todos'), versionedBundle('settings/contacts.js', '20260725-contact-workspace-v2'), versionedBundle('contacts/app.js', '20260725-contact-workspace-v2')]
+      bundles: [versionedBundle('contacts/modal.js', '20260929-contact-window-icons-v1'), versionedBundle('settings/contacts.js', '20260725-contact-workspace-v2'), versionedBundle('contacts/app.js', '20260725-contact-workspace-v2')]
     },
     {
       id: 'portal.photos_feed',
@@ -287,7 +287,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('project-request/app.js', '20260929-project-window-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('project-request/app.js', '20260929-project-window-icons-v1')]
     },
     {
       id: 'firstmeasure.order',
