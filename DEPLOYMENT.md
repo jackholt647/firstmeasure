@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 Channels header: [Remove New assistant conversation](deploy/digitalocean/development-channels-assistant-button-20260929.md) records the verified development rollout and rollback.
+
 September 29 unread counts: [Unread badges beside each channel and direct conversation](deploy/digitalocean/development-channels-unreads-20260929.md) records the development rollout, hosted browser verification and rollback.
 
 September 29 Channels quotes: [Preserve multiline quote formatting when sending](deploy/digitalocean/development-channels-quotes-20260929.md) records the development rollout, blank-line and quote-boundary regression checks, hosted browser verification and rollback.
