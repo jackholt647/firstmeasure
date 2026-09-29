@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { categoryForNotification, normalizeNotificationPreferences, notificationCategories, preferenceKeyForNotification } from "../platform/notification_delivery.js";
+import { notificationPresentation, notificationPreferenceEnabled, categoryForNotification, normalizeNotificationPreferences, notificationCategories, preferenceKeyForNotification } from "../platform/notification_delivery.js";
 import { measurementNotificationTransition } from "../firstmeasure/notifications.js";
 
 test("notification categories are stable and producers map to mobile channels", () => {
@@ -35,4 +35,16 @@ test("measurement events follow committed delivery and status transitions", () =
   assert.deepEqual(measurementNotificationTransition(base, { ...base, status:"cancelled" }), { event:"report_canceled", status:"canceled" });
   assert.deepEqual(measurementNotificationTransition(base, { ...base, status:"rejected_no_coverage" }), { event:"report_rejected", status:"rejected" });
   assert.deepEqual(measurementNotificationTransition(base, { ...base, status:"queued" }), { event:"report_status", status:"queued" });
+});
+
+
+test("in-app sound, bell and badge remain independent of push", () => {
+  const note = { category: "system" };
+  assert.deepEqual(notificationPresentation({}, note), { sound: true, bell: true, badge: true });
+  const silent = { in_app_sound: { system: false }, in_app_badge: { system: false }, push: { system: true } };
+  assert.deepEqual(notificationPresentation(silent, note), { sound: false, bell: true, badge: false });
+  assert.equal(notificationPreferenceEnabled(silent, note, "push"), true);
+  assert.deepEqual(notificationPresentation({ ...silent, in_app: { system: false } }, note), { sound: false, bell: false, badge: false });
+  assert.equal(notificationPresentation({}, { kind: "channel_message" }).bell, false);
+  assert.equal(notificationPresentation({ in_app_bell: { messages: true } }, { kind: "channel_message" }).bell, true);
 });

@@ -76,7 +76,7 @@ import {
 } from "./auth.js";
 import { PlatformError } from "./errors.js";
 import { notificationCatalog, catalogDefinitions, definitionPreferences } from "./notification_catalog.js";
-import { notificationPreferenceEnabled, categoryForNotification, deliverNotificationPush, normalizeNotificationPreferences, preferenceKeyForNotification, registerNotificationDevice, saveNotificationPreferences, unregisterNotificationDevice } from "./notification_delivery.js";
+import { notificationPresentation, isMessageInboxNotification, notificationPreferenceEnabled, categoryForNotification, deliverNotificationPush, preferenceKeyForNotification, registerNotificationDevice, saveNotificationPreferences, unregisterNotificationDevice } from "./notification_delivery.js";
 import { projectAudienceFacts } from "./portal_audience.js";
 import { customerPortalDocumentId as portalDocumentIdFor, normalizePortalSettings, publicPortalSettings, type PortalSettings } from "./portal_settings.js";
 // Side-effect import: registers the portal.* server widget resolvers into the
@@ -4134,12 +4134,6 @@ async function setUserNotificationState(orgId: string, userId: string, notificat
   return next;
 }
 
-function isMessageInboxNotification(data: Record<string, unknown>) {
-  if (data.kind === "huddle_invite") return false;
-  return data.kind === "channel_message" || ["channel_message", "project_message"].includes(cleanText(data.source))
-    || ["open_channel_message", "open_project_message"].includes(cleanText(asObject(data.frontend_action).kind));
-}
-
 async function listVisibleNotifications(orgId: string, userId: string, options: { includeDismissed?: boolean; branchId?: string; ignorePreferences?: boolean; includeMessageAlerts?: boolean } = {}) {
   if (!await isAppFlagEnabled(orgId, "apps", "notifications")) return { notifications: [], unread_count: 0, active_count: 0 };
   const measurementsEnabled = await isAppFlagEnabled(orgId, "apps", "firstmeasure");
@@ -4150,13 +4144,11 @@ async function listVisibleNotifications(orgId: string, userId: string, options: 
   const user = { id: userId, ...asObject(userDoc.data) };
   const states = asObject(asObject(userDoc.data).notification_state);
   const roles = new Set(userRoleIds(user));
-  const preferences = normalizeNotificationPreferences(asObject(userDoc.data).notification_preferences);
+  const rawPreferences = asObject(userDoc.data).notification_preferences;
   const notifications = notificationDocs
     .map((doc) => ({ document: doc, data: asObject(doc.data) }))
     .filter(({ data }) => String(data.status || "active") === "active")
-    .filter(({ data }) => data.passive !== false || (options.includeMessageAlerts && isMessageInboxNotification(data)))
-    // Keep targeted push deep links accessible while excluding messages from the bell.
-    .filter(({ data }) => options.includeMessageAlerts || !isMessageInboxNotification(data))
+    .filter(({ data }) => data.passive !== false || isMessageInboxNotification(data))
     .filter(({ data }) => categoryForNotification(data) !== "measurements" || measurementsEnabled)
     .filter(({ data }) => !notificationExpired(data))
     .filter(({ data }) => options.ignorePreferences || notificationPreferenceEnabled(asObject(userDoc.data).notification_preferences,data,"in_app"))
@@ -4170,14 +4162,15 @@ async function listVisibleNotifications(orgId: string, userId: string, options: 
     })
     .map(({ document, data }) => {
       const state = asObject(states[String(data.id || document.id)]);
-      return { ...data, id: String(data.id || document.id), user_state: state, document_revision: document.revision };
+      return { ...data, id: String(data.id || document.id), user_state: state, presentation: notificationPresentation(rawPreferences, data), document_revision: document.revision };
     })
     .filter((item) => options.includeDismissed || !item.user_state.dismissed_at && !item.user_state.completed_at)
     .sort((a, b) => String((b as Record<string, unknown>).created_at).localeCompare(String((a as Record<string, unknown>).created_at)));
   return {
-    notifications,
-    unread_count: notifications.filter((item) => !item.user_state.seen_at).length,
-    active_count: notifications.length
+    notifications: notifications.filter(item => options.includeMessageAlerts || item.presentation.bell),
+    in_app_alerts: options.includeMessageAlerts ? [] : notifications.filter(item => !item.presentation.bell),
+    unread_count: notifications.filter((item) => item.presentation.bell && item.presentation.badge && !item.user_state.seen_at).length,
+    active_count: notifications.filter(item => item.presentation.bell).length
   };
 }
 

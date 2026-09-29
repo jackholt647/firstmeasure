@@ -957,15 +957,15 @@
     const unread = Number(snapshot.unread_count || 0);
     const total = Number(snapshot.active_count || 0);
     if (count) {
-      count.textContent = total > 99 ? '99+' : String(total || 0);
+      count.textContent = unread > 99 ? '99+' : String(unread || 0);
       count.title = unread ? `${unread} unread, ${total} total` : `${total} total`;
-      count.classList.toggle('visible', total > 0);
+      count.classList.toggle('visible', unread > 0);
       count.classList.toggle('has-unread', unread > 0);
     }
     if (mobileCount) {
-      mobileCount.textContent = total > 99 ? '99+' : String(total || 0);
+      mobileCount.textContent = unread > 99 ? '99+' : String(unread || 0);
       mobileCount.title = unread ? `${unread} unread, ${total} total` : `${total} total`;
-      mobileCount.classList.toggle('visible', total > 0);
+      mobileCount.classList.toggle('visible', unread > 0);
       mobileCount.classList.toggle('has-unread', unread > 0);
     }
     if (menuHead) {

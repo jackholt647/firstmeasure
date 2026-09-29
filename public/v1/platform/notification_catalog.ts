@@ -87,6 +87,14 @@ export async function notificationCatalog(orgId:string,branch='default',auth?:Pl
  return groups;
 }
 export const catalogDefinitions=(groups:NotificationGroup[])=>groups.flatMap(g=>g.definitions);
-export function definitionPreferences(raw:unknown,definitions:NotificationDefinition[]) {
- const source=obj(raw);return Object.fromEntries(['in_app','push'].map(surface=>[surface,Object.fromEntries(definitions.map(d=>[d.key,typeof obj(source[surface])[d.key]==='boolean'?obj(source[surface])[d.key]:(d.key.startsWith('workflow.') && obj(source[surface])[d.category]===false ? false : d.defaults[surface as 'in_app'|'push'])]))])) as {in_app:Record<string,boolean>;push:Record<string,boolean>};
+export function definitionPreferences(raw: unknown, definitions: NotificationDefinition[]) {
+ const source = obj(raw);
+ const surfaces = ['in_app', 'push', 'in_app_sound', 'in_app_badge', 'in_app_bell'];
+ return Object.fromEntries(surfaces.map(surface => [surface, Object.fromEntries(definitions.map(d => {
+  const explicit = obj(source[surface])[d.key];
+  if (typeof explicit === 'boolean') return [d.key, explicit];
+  if (surface.startsWith('in_app_')) return [d.key, surface !== 'in_app_bell' || d.key !== 'messages'];
+  const categoryDisabled = d.key.startsWith('workflow.') && obj(source[surface])[d.category] === false;
+  return [d.key, categoryDisabled ? false : d.defaults[surface as 'in_app' | 'push']];
+ }))])) as Record<string, Record<string, boolean>>;
 }

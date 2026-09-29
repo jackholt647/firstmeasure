@@ -46,12 +46,12 @@
   async function load(orgId, options = {}){
     if (!PlatformAPI?.notifications || !orgId) return state;
     const data = await PlatformAPI.notifications.list(orgId, options);
-    const nextNotifications = Array.isArray(data.notifications) ? data.notifications : [];
+    const nextNotifications = [...(Array.isArray(data.notifications) ? data.notifications : []), ...(Array.isArray(data.in_app_alerts) ? data.in_app_alerts : [])];
     await root.PlatformCelebrations?.loadConfig?.(orgId, options.branchId || options.branch_id || root.__APP?.userBranchId || 'default').catch?.(() => null);
     const visibleNotifications = [];
     const dismissedNotifications = [];
     for (const item of nextNotifications) {
-      if (isCelebrationNotification(item)) {
+      if (isCelebrationNotification(item) && item.presentation?.sound !== false) {
         const id = String(item?.id || '');
         if (id && !knownIds.has(id) && !item?.user_state?.completed_at) {
           root.PlatformCelebrations?.fromNotification?.(item);
@@ -65,19 +65,19 @@
         setState(orgId, String(item.id || ''), { completed: false }, { ...options, reload: false }).catch(() => null);
       }
       if (item?.user_state?.dismissed_at) {
-        if (!item?.user_state?.completed_at && isToday(item.user_state.dismissed_at)) dismissedNotifications.push(item);
+        if (item.presentation?.bell !== false && !item?.user_state?.completed_at && isToday(item.user_state.dismissed_at)) dismissedNotifications.push(item);
         continue;
       }
-      if (!item?.user_state?.completed_at) visibleNotifications.push(item);
+      if (!item?.user_state?.completed_at && item.presentation?.bell !== false) visibleNotifications.push(item);
     }
-    const newNotification = state.loaded_at && visibleNotifications.some((item) => {
+    const newNotification = state.loaded_at && nextNotifications.some((item) => {
       const id = String(item?.id || '');
-      return id && !knownIds.has(id) && !item?.user_state?.seen_at;
+      return id && !knownIds.has(id) && !item?.user_state?.seen_at && !item?.user_state?.dismissed_at && !item?.user_state?.completed_at && !isCelebrationNotification(item) && item.presentation?.sound !== false;
     });
     state = {
       notifications: visibleNotifications,
       dismissed_notifications: dismissedNotifications,
-      unread_count: visibleNotifications.filter((item) => !item?.user_state?.seen_at).length,
+      unread_count: visibleNotifications.filter((item) => !item?.user_state?.seen_at && item.presentation?.badge !== false).length,
       active_count: visibleNotifications.length,
       loaded_at: new Date().toISOString(),
     };

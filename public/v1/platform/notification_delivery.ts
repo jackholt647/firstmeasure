@@ -39,6 +39,22 @@ export function preferenceKeyForNotification(note: Json): string {
   return preferenceKeys.has(key) || /^workflow\.[a-f0-9]{64}$/.test(key) ? key : categoryForNotification(note);
 }
 
+export const notificationPresentationSurfaces = ["in_app_sound", "in_app_badge", "in_app_bell"] as const;
+export function notificationPresentation(raw: unknown, note: Json) {
+  const preferences = object(raw), key = preferenceKeyForNotification(note);
+  const enabled = notificationPreferenceEnabled(raw, note, "in_app");
+  return {
+    sound: enabled && object(preferences.in_app_sound)[key] !== false,
+    badge: enabled && object(preferences.in_app_badge)[key] !== false,
+    bell: enabled && (typeof object(preferences.in_app_bell)[key] === "boolean" ? object(preferences.in_app_bell)[key] === true : key !== "messages" && !isMessageInboxNotification(note))
+  };
+}
+export function isMessageInboxNotification(note: Json) {
+  if (note.kind === "huddle_invite") return false;
+  return note.kind === "channel_message" || ["channel_message", "project_message"].includes(String(note.source || ""))
+    || ["open_channel_message", "open_project_message"].includes(String(object(note.frontend_action).kind || ""));
+}
+
 export type NotificationPreferences = { in_app: Record<string, boolean>; push: Record<string, boolean> };
 export function normalizeNotificationPreferences(raw: unknown): NotificationPreferences {
   const value = object(raw);
@@ -60,8 +76,9 @@ export async function saveNotificationPreferences(orgId: string, userId: string,
   const allowed=new Set(catalogDefinitions(await notificationCatalog(orgId,branch)).map(d=>d.key));
   const doc = await readDocument(orgId, "users", userId);
   const data = object(doc.data);
-  const current = {in_app:{...object(object(data.notification_preferences).in_app)},push:{...object(object(data.notification_preferences).push)}};
-  for (const surface of ["in_app", "push"] as const) {
+  const current: Record<string, Json> = {in_app:{...object(object(data.notification_preferences).in_app)},push:{...object(object(data.notification_preferences).push)}};
+  for (const surface of ["in_app", "push", ...notificationPresentationSurfaces] as const) {
+    current[surface] ??= {...object(object(data.notification_preferences)[surface])};
     const updates = object(patch[surface]);
     for (const [key, enabled] of Object.entries(updates)) {
       if (!allowed.has(key) || typeof enabled !== "boolean") throw badRequest("invalid_notification_preference", "Use a known notification setting and a boolean value.");

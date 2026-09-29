@@ -1222,6 +1222,19 @@ test("Notifications target roles and preserve per-user state", async () => {
   assert.equal((await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`)).notifications.length, 0);
   assert.equal((await client.request("GET", `/v1/platform/organizations/${orgId}/notifications/notification_role_test`)).notification.data.id, "notification_role_test");
   await client.request("PATCH", `/v1/platform/organizations/${orgId}/notification-preferences`, { in_app: { system: true } });
+  await client.request("PATCH", `/v1/platform/organizations/${orgId}/notification-preferences`, { in_app_sound: { system: false }, in_app_badge: { system: false }, push: { system: true } });
+  const quiet = await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
+  assert.equal(quiet.notifications.length, 1);
+  assert.equal(quiet.notifications[0].presentation.sound, false);
+  assert.equal(quiet.unread_count, 0);
+  const saved = await client.request("GET", `/v1/platform/organizations/${orgId}/notification-preferences`);
+  assert.equal(saved.preferences.in_app_sound.system, false);
+  assert.equal(saved.preferences.push.system, true);
+  await client.request("PATCH", `/v1/platform/organizations/${orgId}/notification-preferences`, { in_app_bell: { system: false } });
+  const outsideBell = await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
+  assert.equal(outsideBell.notifications.length, 0);
+  assert.equal(outsideBell.in_app_alerts.length, 1);
+  assert.equal((await client.raw("PATCH", `/v1/platform/organizations/${orgId}/notification-preferences`, { in_app_sound: { system: "silent" } })).statusCode, 400);
   const deviceRemoved = await client.request("DELETE", `/v1/platform/organizations/${orgId}/notification-devices/${device.device.id}`);
   assert.equal(deviceRemoved.ok, true);
 
