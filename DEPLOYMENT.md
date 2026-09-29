@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 keyboard formatting: [Tab indentation and nested list fidelity](deploy/digitalocean/development-channels-tab-20260929.md) records the verified development rollout, browser checks and rollback.
+
 September 29 thread replies: [Also send a reply to the channel](deploy/digitalocean/development-channels-thread-broadcast-20260929.md) records the development rollout, shared message behavior, API/browser/PostgreSQL verification and rollback.
 
 September 29 Channels header: [Remove New assistant conversation](deploy/digitalocean/development-channels-assistant-button-20260929.md) records the verified development rollout and rollback.
