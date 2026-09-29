@@ -26,3 +26,5 @@ Required binary assets (SHA-256):
 Both WASM variants come from the pinned tasks-vision package; verify its npm
 integrity before extraction. The model comes from the versioned URL above.
 These files must ship alongside the JavaScript; the wrappers alone cannot run effects.
+
+The portal imports the `.js` copies of the three module wrappers. The development static host serves `.mjs` as octet-stream, which ES module loading rejects; `.js` is served as JavaScript. Local imports in the wrapper use `.js` as well. The `.mjs` upstream copies remain for provenance.

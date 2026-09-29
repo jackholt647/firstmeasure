@@ -1866,7 +1866,7 @@ function huddleView(room: JsonObject): JsonObject {
       ...settings,
       audio: true,
       video: room.allow_video !== false,
-      recording_enabled: recordingMode !== "off",
+      recording_enabled: recordingMode !== "off" && settings.recording_paused !== true,
       record_video: recordingMode === "video",
       recording_mode: recordingMode
     },
@@ -1999,7 +1999,9 @@ export async function updateHuddleMediaState(
 
 export async function leaveHuddle(ctx: PlatformAuthContext, huddleId: string) {
   const current = await getHuddle(ctx, huddleId);
-  const room = (await calls.leaveRoom(ctx, huddleId));
+  const admins = asObject(current.settings).admin_user_ids;
+  const isAdmin = current.started_by === ctx.userId || (Array.isArray(admins) && admins.includes(ctx.userId));
+  const room = isAdmin ? await calls.endRoom(ctx,huddleId) : await calls.leaveRoom(ctx,huddleId);
   if (room.state === "ended") await publishHuddleEnded(ctx, room);
   (await publishRealtimeEvent({
     organization_id: ctx.orgId,
@@ -2015,6 +2017,13 @@ export async function removeHuddleParticipant(ctx: PlatformAuthContext, huddleId
   const room = await calls.removeParticipant(ctx, huddleId, userId);
   if (room.state === "ended") await publishHuddleEnded(ctx,room);
   (await publishRealtimeEvent({ organization_id:ctx.orgId, topic:"channels.huddle.participant_updated", user_ids:await realtimeChannelTargets(ctx.orgId, cleanText(current.channel_id)), payload:{ channel_id:current.channel_id, huddle_id:huddleId, user_id:userId, state:"removed" } }));
+  return huddleView(room);
+}
+
+export async function manageHuddle(ctx: PlatformAuthContext,huddleId:string,input:{admin_user_id?:string;recording_enabled?:boolean}) {
+  const current=await getHuddle(ctx,huddleId);
+  const room=await calls.manageRoom(ctx,huddleId,input);
+  await publishRealtimeEvent({organization_id:ctx.orgId,topic:"channels.huddle.participant_updated",user_ids:await realtimeChannelTargets(ctx.orgId,cleanText(current.channel_id)),payload:{channel_id:current.channel_id,huddle_id:huddleId,state:"settings"}});
   return huddleView(room);
 }
 
@@ -2075,7 +2084,8 @@ export async function saveHuddleRecording(ctx: PlatformAuthContext, huddleId: st
     content_type: cleanText(attachment.content_type)
   }));
   const posted = await postMessage(ctx, cleanText(huddle.channel_id), {
-    text: kind === "video_recording" ? "Huddle video recording" : "Huddle audio recording",
+    text: "",
+    client_msg_id: `huddle-recording:${attachmentId}`,
     parent_id: cleanText(huddle.root_message_id) || undefined,
     attachment_ids: [attachmentId],
     metadata: {

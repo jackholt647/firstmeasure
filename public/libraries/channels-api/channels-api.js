@@ -227,6 +227,7 @@
     },
 
     huddles: {
+      manage: (orgId,huddleId,input) => request(orgPath(orgId, `/huddles/${enc(huddleId)}/settings`),{method:"PATCH",body:input}),
       invite: (orgId, huddleId, userIds) => request(orgPath(orgId, `/huddles/${enc(huddleId)}/invite`), { method:'POST', body:{user_ids:userIds} }),
       removeParticipant: (orgId, huddleId, userId) => request(orgPath(orgId, `/huddles/${enc(huddleId)}/participants/${enc(userId)}`), { method:'DELETE' }),
       create: (orgId, channelId, input = {}) => request(orgPath(orgId, `/channels/${enc(channelId)}/huddles`), { method:'POST', body:input }),

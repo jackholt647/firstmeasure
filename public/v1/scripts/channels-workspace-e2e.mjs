@@ -59,6 +59,8 @@ try {
   await page.addScriptTag({url:origin+'/libraries/navigation/portal-navigation.js'});
   await page.addScriptTag({url:origin+'/libraries/calls-runtime/livekit-client.umd.js'});
   await page.addScriptTag({url:origin+'/libraries/window-manager/window-manager.js'});
+  await page.evaluate(()=>{Portal.util={escapeHtml:value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),injectCSS:(id,css)=>{if(document.getElementById(id))return;const style=document.createElement('style');style.id=id;style.textContent=css;document.head.append(style);}};});
+  await page.addScriptTag({url:origin+'/libraries/apps/photos/feed.js'});
   await page.addScriptTag({url:origin+'/libraries/channels-ui/channels-ui.js'});
   await page.addScriptTag({url:origin+'/libraries/platform-tags/platform-tags.js'});
   await page.evaluate(() => window.instance = FirstMateChannels.create(document.querySelector('#app'), window.testOptions));
@@ -140,11 +142,11 @@ try {
     await instance.setChannel('general');
   });
   await page.locator('.fm-ch-tab').getByText('Files',{exact:true}).click();
-  await page.getByRole('link',{name:/Shared photo.png/}).waitFor();
+  await page.locator('.pf-thumb').getByText('Shared photo.png',{exact:true}).waitFor();
   assert.equal(await page.locator('.fm-ch-tab').getByText('Files',{exact:true}).count(),1);
   assert.equal(await page.locator('.fm-ch-tab').getByText('Documents',{exact:true}).count(),0);
-  assert.equal(await page.getByRole('link',{name:/Report.pdf/}).getAttribute('href'),'/media/report');
-  await page.locator('.fm-ch-resource').getByText('Meeting notes',{exact:true}).waitFor();
+  await page.locator('.pf-thumb').getByText('Report.pdf',{exact:true}).waitFor();
+  await page.locator('.pf-thumb').getByText('Meeting notes',{exact:true}).waitFor();
   assert.deepEqual(await page.evaluate(()=>filesQuery),{type:'files'});
   await page.locator('.fm-ch-tab').getByText('Messages',{exact:true}).click();
   await page.evaluate(()=>{
@@ -229,7 +231,7 @@ try {
   await endedCard.getByRole('button',{name:'Start a new huddle',exact:true}).waitFor();
   await endedCard.locator('summary').click();
   await endedCard.getByText('Call transcript text',{exact:true}).waitFor();
-  assert.equal(await endedCard.getByRole('link',{name:'Video recording'}).getAttribute('href'),'/media/recorded-video');
+  assert.equal(await endedCard.locator('.fm-ch-huddle-artifact a[download]').getAttribute('href'),'/media/recorded-video');
   await page.evaluate(async()=>{testMessages.splice(1);await instance.refresh();});
   console.log('PASS ended huddle message duration, transcript, recording and new-call action');
   await page.evaluate(async()=>{
@@ -689,7 +691,7 @@ try {
   await page.getByRole('button',{name:'Toggle camera',exact:true}).click();
   console.log('Camera restarted');
   await page.locator('.fm-ch-call-stage video').waitFor();
-  await page.getByRole('button',{name:'Leave huddle',exact:true}).click();
+  await page.getByRole('button',{name:'End huddle for everyone',exact:true}).click();
   console.log('Call left');
   await page.locator('.fm-ch-huddle').waitFor({state:'detached'});
   await page.evaluate(() => { testMessages.push({id:'huddle-start',channel_id:'general',seq:99,text:'Huddle started',author:{id:'owner',name:'Morgan Lee'},created_at:new Date().toISOString(),metadata:{event:'huddle_started',huddle_id:'call1'},reactions:[]}); instance.refresh(); });
@@ -698,7 +700,7 @@ try {
   await page.getByRole('button',{name:'Join huddle',exact:true}).click();
   await page.locator('.fm-ch-call-stage').waitFor();
   assert.equal(await page.evaluate(()=>createdHuddles),createdBeforeJoin,'message joins the existing room instead of creating another');
-  await page.getByRole('button',{name:'Leave huddle',exact:true}).click();
+  await page.getByRole('button',{name:'End huddle for everyone',exact:true}).click();
   await page.locator('.fm-ch-huddle').waitFor({state:'detached'});
   console.log('PASS huddle message joins existing call');
   console.log('Capturing messaging');
@@ -914,7 +916,7 @@ try {
   await peers[0].getByTitle('Remove Jordan Ellis',{exact:true}).click();
   await peers[0].getByRole('button',{name:'Remove',exact:true}).last().click();
   await peers[1].locator('.fm-ch-huddle').waitFor({state:'detached'});
-  await peers[0].getByRole('button',{name:'Leave huddle',exact:true}).click();
+  await peers[0].getByRole('button',{name:'End huddle for everyone',exact:true}).click();
   assert.deepEqual(errors,[]);
   for (const peerPage of peers) await peerPage.close();
   console.log('PASS two real peers: audio/video, concurrent cameras, screen + camera, screen stop, host removal');

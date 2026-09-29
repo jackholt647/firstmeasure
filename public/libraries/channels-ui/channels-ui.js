@@ -895,6 +895,40 @@
 .fm-call-window .fm-ch-huddle{width:100%;height:100%;flex:1}
 .fm-call-window .fm-ch-call-stage{flex:1;min-height:120px}.fm-call-window .fm-ch-huddle-head{flex:none;min-height:20px}.fm-call-window .fm-ch-huddle-head>span{margin-left:0}.fm-call-window .fm-ch-huddle-actions{flex:none;flex-wrap:wrap}
 `;
+    style.textContent += `
+.fm-call-window-body{container-type:size;min-height:0;overflow:hidden!important;display:flex}
+.fm-call-window .fm-ch-huddle{box-sizing:border-box;overflow:hidden;min-height:0;padding:8px;gap:6px}
+.fm-call-window .fm-ch-call-stage{min-height:0;grid-auto-rows:minmax(0,1fr);overflow:hidden}
+.fm-call-window .fm-ch-call-tile{min-height:0;min-width:0}
+.fm-call-window .fm-ch-call-tile.speaking{outline:3px solid #75e0a7;outline-offset:-3px}
+.fm-call-window .fm-ch-huddle-actions{margin:0;gap:5px;flex-wrap:nowrap;min-width:0}
+.fm-call-window .fm-ch-huddle-actions button{width:clamp(26px,8cqw,52px);height:38px;min-width:0;flex:1;max-width:54px;font-size:14px}
+.fm-call-window .fm-ch-huddle-actions small{display:none}
+.fm-call-window .fm-ch-huddle-roster{position:absolute;right:8px;bottom:52px;max-height:70%;overflow:auto;z-index:9;max-width:calc(100% - 16px)}
+.fm-call-window .fm-ch-huddle-head{position:absolute;top:12px;left:12px;z-index:3;background:#101828b3;border-radius:20px;padding:4px 7px;min-height:0;pointer-events:none}
+.fm-call-window .fm-ch-huddle-recording i{font-size:9px}
+.fm-call-window .fm-ch-huddle-status{margin:0;font-size:10px;flex:none}
+@container (max-width:560px){
+ .fm-call-window .fm-ch-call-stage{display:flex;flex-wrap:wrap;align-content:stretch;gap:4px}
+ .fm-call-window .fm-ch-call-tile{height:48px;flex:1 0 64px;max-width:96px;order:1}
+ .fm-call-window .fm-ch-call-tile.primary{flex:1 0 100%;max-width:none;height:calc(100% - 52px);order:0}
+ .fm-call-window .fm-ch-call-tile:only-child{height:100%}
+ .fm-call-window .fm-ch-call-tile:not(.primary) .fm-ch-call-name{font-size:9px;padding:1px 3px;bottom:2px;left:2px}
+ .fm-call-window .fm-ch-call-tile:not(.primary) .fm-ch-call-identity{padding:4px}
+ .fm-call-window .fm-ch-call-tile:not(.primary) .fm-ch-call-identity .fm-ch-avatar{width:24px;height:24px;font-size:10px}
+ .fm-call-window .fm-ch-call-tile:not(.primary) .fm-ch-call-identity strong,.fm-call-window .fm-ch-call-tile:not(.primary) .fm-ch-call-identity small{display:none}
+ .fm-call-window .fm-ch-huddle-head>span:not(.fm-ch-huddle-recording){display:none}
+}
+@container (max-height:340px){.fm-call-window .fm-ch-huddle-status{display:none}.fm-call-window .fm-ch-call-identity{padding:4px}.fm-call-window .fm-ch-call-identity strong,.fm-call-window .fm-ch-call-identity small{display:none}.fm-call-window .fm-ch-call-identity .fm-ch-avatar{width:42px;height:42px;font-size:18px}}
+.fm-call-window .fm-ch-call-stage.compact{display:flex;flex-direction:column;flex-wrap:nowrap;align-content:normal}
+.fm-call-window .fm-ch-call-stage.compact>.fm-ch-call-tile.primary{height:auto;min-height:0;flex:1 1 0;width:100%;max-width:none;order:0}
+.fm-call-window .fm-ch-call-filmstrip{display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;flex:0 0 48px;order:1;min-height:0;scrollbar-width:thin}
+.fm-call-window .fm-ch-call-filmstrip .fm-ch-call-tile{flex:0 0 64px;height:44px;max-width:none;min-height:0}
+.fm-ch-files-gallery{padding:12px;min-width:0;width:100%;box-sizing:border-box}
+.fm-ch-huddle-artifacts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,280px));gap:12px;margin:10px 0}
+.fm-ch-huddle-artifact{border:1px solid var(--ch-border);border-radius:12px;overflow:hidden;padding:10px;display:grid;gap:8px;min-width:0}
+.fm-ch-huddle-artifact video,.fm-ch-huddle-artifact audio{width:100%;max-height:180px}
+`;
     document.head.appendChild(style);
   }
 
@@ -1047,6 +1081,11 @@
       huddle: null,
       huddleStates: new Map(),
       huddleStreams: [],
+      huddleAudioGates: new Map(),
+      huddleAudioContext:null,
+      huddleRecordingUploads:0,
+      huddleActiveSpeaker: "",
+      huddleSpeakers: new Set(),
       huddlePeerId: '',
       huddleSignalCursor: 0,
       huddleSignalTimer: null,
@@ -1980,6 +2019,36 @@
         list.innerHTML = `<div class="fm-ch-empty">${((v0) => globalThis.PlatformLanguage?.htmlText("channels-ui","m_1d86dd5d32c030",`No ${v0} have been shared here yet.`,{v0}) ?? `No ${v0} have been shared here yet.`)(esc(tabKind))}</div>`;
         return;
       }
+      if (tabKind === 'files') {
+        if (!root.Portal?.PhotoFeed?.mountProjectGallery) {list.append(el('div','fm-ch-empty','The shared Files viewer could not load. Reload FirstMate to try again.'));return;}
+        const photos=resources.map(entry=>{
+          const item=entry.resource || {}, media=entry.resource_type==='media';
+          return {...item,id:entry.resource_id,resource_type:entry.resource_type,media_id:media?entry.resource_id:undefined,
+            src:media?api.mediaFileUrl(orgId,entry.resource_id):(item.url || item.file_url || ''),
+            label:item.label || item.title || item.file_name || item.name || 'File',
+            content_type:item.content_type || (media?'application/octet-stream':'application/pdf'),
+            uploaded_at:item.uploaded_at || item.created_at || entry.created_at || item.updated_at,
+            metadata:{...item.metadata,channel_resource_type:entry.resource_type,channel_resource_id:entry.resource_id}};
+        });
+        const panel=el('div','fm-ch-files-gallery');list.append(panel);
+        root.Portal.PhotoFeed.mountProjectGallery(panel,{
+          title:'Files',itemNoun:'file',project:{id:state.activeChannelId,title:state.activeChannel.display_name || state.activeChannel.name,photos},photos,
+          typeFilters:true,includeReceipts:true,selectionEnabled:false,enableProjectLinks:false,projectLinkEnabled:false,
+          searchPlaceholder:'Search files, dates and uploaders',
+          renderTileMeta:item=>esc(item.photo.label || item.photo.file_name || 'File'),
+          onOpenItem:({items,index,item})=>{
+            const metadata=item.photo.metadata || {};
+            if(metadata.channel_resource_type==='document' && !item.photo.src){
+              const projectId=item.photo.project_id || state.activeChannel.project_id;
+              if(projectId) return root.Portal?.navigation?.navigate?.({project:projectId,projectTab:'docs',document:metadata.channel_resource_id});
+              if(item.photo.folder_id) return root.Portal?.navigation?.navigate?.({tab:'documents_studio',studioSection:'folder',studioFolder:item.photo.folder_id,studioDocument:metadata.channel_resource_id});
+              return showError(new Error('This document has no preview link. Open its original message to access the document.'));
+            }
+            return root.FirstMateMarkup?.openMediaViewer?.({photos:items.map(entry=>entry.photo),index,project:{},itemNoun:'file',projectLinkEnabled:false});
+          }
+        });
+        return;
+      }
       const grid = el('div', 'fm-ch-resource-grid');
       for (const entry of resources) {
         const resource = entry.resource || {};
@@ -2017,6 +2086,7 @@
         body.innerHTML = `
           <p style="margin:0;color:#667085;font-size:11.5px;line-height:1.5">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_7a57f0bd2cce89","Huddles begin audio-only. Anyone can turn on a camera or share a screen after joining.") ?? "Huddles begin audio-only. Anyone can turn on a camera or share a screen after joining.")}</p>
           ${String(features.recording ? `<div class="fm-ch-setting-group">
+            <p>Recording runs in the starter’s browser. Keep that tab open until the recording is saved. You can use other tabs or apps while the huddle continues.</p>
             <strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_55e29000de24ef","Recording for this huddle") ?? "Recording for this huddle")}</strong>
             <p>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_4dda343a2c2609","These choices apply if this starts a new huddle. An existing huddle keeps the recording policy it started with.") ?? "These choices apply if this starts a new huddle. An existing huddle keeps the recording policy it started with.")}</p>
             <label class="fm-ch-check-row">
@@ -2087,8 +2157,9 @@
               stopHuddleSession();
               if (removed) showError(new Error('The host removed you from this call.'));
             } else {
-              const changed = JSON.stringify(state.huddle.participants) !== JSON.stringify(data.huddle.participants);
+              const changed = JSON.stringify([state.huddle.participants,state.huddle.settings]) !== JSON.stringify([data.huddle.participants,data.huddle.settings]);
               state.huddle = {...data.huddle, signaling:state.huddle.signaling};
+              if (!state.huddle.settings?.recording_enabled) finishHuddleRecording(); else startHuddleRecording();
               if (changed) renderHuddle();
               else {
                 const elapsed = Math.floor((Date.now() - new Date(state.huddle.started_at).getTime()) / 1000);
@@ -2097,7 +2168,7 @@
               }
             }
           } catch (_) {}
-        }, 5000);
+        }, 2000);
         if (state.huddle.signaling?.mode !== 'livekit') {
           await sendHuddleSignal('hello', {});
           pollHuddleSignals();
@@ -2132,6 +2203,7 @@
         renderHuddle();
       };
       room.on(LK.RoomEvent.TrackSubscribed, rememberTrack);
+      room.on(LK.RoomEvent.ActiveSpeakersChanged, participants => {state.huddleSpeakers=new Set(participants.map(person=>person.identity));updateHuddleSpeakers();});
       room.on(LK.RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
         const stream = state.huddleRemoteStreams.get(cleanText(participant?.identity || participant?.sid));
         if (stream && track?.mediaStreamTrack) stream.removeTrack(track.mediaStreamTrack);
@@ -2393,6 +2465,9 @@
     function addHuddleRecordingStream(stream){
       const recording = state.huddleRecording;
       if (!recording || recording.stopping || !stream?.getAudioTracks) return;
+      const remote=[...state.huddleRemoteStreams].find(([,candidate])=>candidate===stream);
+      const personId=remote ? (state.huddle?.participants || []).find(person=>remote[0]===person.user_id || remote[0].startsWith(person.user_id+'_'))?.user_id || remote[0] : currentUser.id;
+      stream=audibleHuddleStream(stream,personId);
       for (const track of stream.getAudioTracks()) {
         if (recording.trackIds.has(track.id)) continue;
         recording.trackIds.add(track.id);
@@ -2462,6 +2537,7 @@
       if (recording.animationFrame) root.cancelAnimationFrame(recording.animationFrame);
       recording.canvasStream?.getTracks?.().forEach((track) => track.stop());
       const upload = async () => {
+        state.huddleRecordingUploads++;
         try {
           await recording.audioContext?.close?.().catch(() => {});
           const type = recording.recorder.mimeType || 'audio/webm';
@@ -2479,7 +2555,7 @@
           );
         } catch (error) {
           showError(error);
-        }
+        } finally { state.huddleRecordingUploads--; if(state.destroyed && !state.huddleRecordingUploads)root.removeEventListener("beforeunload",protectRecording); }
       };
       if (recording.recorder.state === 'inactive') {
         void upload();
@@ -2516,10 +2592,14 @@
       for (const peer of state.huddlePeers.values()) peer.close?.();
       state.huddlePeers.clear();
       state.huddleRemoteStreams.clear();
+      for(const gate of state.huddleAudioGates.values())clearInterval(gate.timer);
+      state.huddleAudioContext?.close().catch(()=>{});state.huddleAudioContext=null;
+      state.huddleAudioGates.clear();state.huddleSpeakers.clear();state.huddleActiveSpeaker="";
       stopHuddleStreams();
       state.huddle = null;
       state.huddlePeerId = '';
       state.huddleMinimized = false;
+      state.huddleLayoutObserver?.disconnect();state.huddleLayoutObserver=null;
       state.huddleWindow?.destroy(); state.huddleWindow=null;
       state.huddleWindowRoot?.remove(); state.huddleWindowRoot=null; state.huddleWindowBody=null; state.huddleDetached=false;
       if (!root.Portal?.navigation?.applying) root.Portal?.navigation?.replace?.({huddleWindow:null,huddlePinned:null,huddleFullscreen:null});
@@ -2545,6 +2625,7 @@
       const title = el('div','',`<i class="fas fa-headphones"></i> Call${state.activeChannel?.display_name ? ` · ${esc(state.activeChannel.display_name)}` : ''}`);
       const body = el('div','fm-call-window-body'); header.append(title); windowRoot.append(header,body); host.append(windowRoot);
       state.huddleWindowRoot=windowRoot; state.huddleWindowBody=body;
+      state.huddleLayoutObserver=new ResizeObserver(updateHuddleSpeakers);state.huddleLayoutObserver.observe(body);
       state.huddleWindow = root.FirstMateWindows.attach({
         element:windowRoot, header, title, body, host, contentTarget:workspace?.querySelector(':scope > #mainPanels, :scope > #app'),
         name:'call', label:(globalThis.PlatformLanguage?.text("channels-ui","m_a51c881ef80973","Call window") ?? "Call window"), mode:'floating', width:700, height:440, dockWidth:440, minWidth:320, minHeight:260,
@@ -2554,12 +2635,7 @@
           if (mode === 'docked') detachCall();
           if (!root.Portal?.navigation?.applying) root.Portal?.navigation?.replace?.({huddleWindow:mode,huddlePinned:pinned ? '1' : null,huddleFullscreen:mode === 'full' ? '1' : null});
         },
-        onClose:async () => {
-          const id=state.huddle?.id; if (!id) return;
-          await sendHuddleSignal('bye',{}).catch(() => {});
-          try { await api.huddles.leave(orgId,id); } catch(error) { showError(error); }
-          finally { if (state.huddle?.id === id) stopHuddleSession(); }
-        }
+        onClose:exitHuddle
       });
     }
 
@@ -2622,7 +2698,7 @@
           await camera.stopProcessor?.(); state.huddleProcessor = null;
         } else {
           if (!state.huddleProcessor) {
-            const effects = await import('../calls-runtime/effects/track-processors.mjs');
+            const effects = await import('../calls-runtime/effects/track-processors.js');
             if (!effects.supportsBackgroundProcessors()) throw new Error('This browser does not support background effects.');
             const processor = effects.BackgroundProcessor({mode:'disabled', maxFps:15, segmenterOptions:{delegate:'CPU'}, assetPaths:{tasksVisionFileSet:'/libraries/calls-runtime/effects/wasm', modelAssetPath:'/libraries/calls-runtime/effects/selfie_segmenter.tflite'}});
             await camera.setProcessor(processor);
@@ -2839,6 +2915,68 @@
       }, [{label:(globalThis.PlatformLanguage?.text("channels-ui","m_8cb6b086a0e69c","Done") ?? "Done"), primary:true, onClick:close => close()}]);
     }
 
+    const protectRecording = event => {
+      if (state.huddleRecording || state.huddleRecordingUploads) {event.preventDefault();event.returnValue='';}
+    };
+    root.addEventListener('beforeunload',protectRecording);
+    function isHuddleAdmin(){
+      return state.huddle?.started_by === currentUser.id || (state.huddle?.settings?.admin_user_ids || []).includes(currentUser.id);
+    }
+    async function exitHuddle(){
+      const id=state.huddle?.id; if (!id) return;
+      try {
+        if (isHuddleAdmin()) await api.huddles.end(orgId,id);
+        else await api.huddles.leave(orgId,id);
+        if (state.huddle?.id === id) stopHuddleSession();
+      } catch(error) { showError(error); }
+    }
+    function updateHuddleSpeakers(){
+      const tiles=[...(state.huddleWindowRoot?.querySelectorAll('.fm-ch-call-tile') || [])];
+      const speakers=state.huddleSpeakers;
+      if (!speakers.has(state.huddleActiveSpeaker) && speakers.size) state.huddleActiveSpeaker=[...speakers][0];
+      const focus=tiles.find(tile=>tile.classList.contains('screen')) || tiles.find(tile=>tile.dataset.person===state.huddleActiveSpeaker) || tiles.find(tile=>tile.dataset.person!==currentUser.id) || tiles[0];
+      tiles.forEach(tile=>{tile.classList.toggle('speaking',speakers.has(tile.dataset.person));tile.classList.toggle('primary',tile===focus);});
+      const stage=state.huddleWindowRoot?.querySelector('.fm-ch-call-stage');if(!stage)return;
+      const compact=state.huddleWindowBody.clientWidth<=560 || state.huddleWindowBody.clientHeight<=260;
+      stage.classList.toggle('compact',compact);
+      let strip=stage.querySelector('.fm-ch-call-filmstrip');
+      if(compact){
+        if(!strip){strip=el('div','fm-ch-call-filmstrip');strip.setAttribute('aria-label','Other participants');stage.append(strip);}
+        if(focus && focus.parentNode!==stage)stage.prepend(focus);
+        for(const tile of tiles)if(tile!==focus && tile.parentNode!==strip)strip.append(tile);
+        strip.hidden=tiles.length<2;
+      }else if(strip){for(const tile of tiles)stage.append(tile);strip.remove();}
+
+    }
+    // A short hangover keeps syllable endings intact. Browser echo cancellation
+    // and noise suppression run before this quiet-audio gate.
+    function audibleHuddleStream(stream, personId){
+      const tracks=stream.getAudioTracks(); if (!tracks.length) return stream;
+      const key=tracks.map(track=>track.id).join(':');
+      if (state.huddleAudioGates.has(key)) return state.huddleAudioGates.get(key).stream;
+      const Context=root.AudioContext || root.webkitAudioContext; if (!Context) return stream;
+      try {
+        const context=state.huddleAudioContext || (state.huddleAudioContext=new Context()), source=context.createMediaStreamSource(new MediaStream(tracks));
+        const analyser=context.createAnalyser(), gain=context.createGain(), destination=context.createMediaStreamDestination();
+        analyser.fftSize=512;source.connect(analyser);source.connect(gain);gain.connect(destination);gain.gain.value=0;
+        const data=new Float32Array(analyser.fftSize);let lastVoice=0;
+        const tick=()=>{
+          analyser.getFloatTimeDomainData(data);
+          const level=Math.sqrt(data.reduce((sum,value)=>sum+value*value,0)/data.length);
+          const person=state.huddle?.participants?.find(person=>person.user_id===personId);
+          const enabled=person?.microphone_enabled!==false && tracks.some(track=>track.enabled && !track._callMuted && track.readyState==='live');
+          if (enabled && level > (options.voiceActivityThreshold ?? .012)) lastVoice=Date.now();
+          const speaking=enabled && Date.now()-lastVoice < 350;
+          gain.gain.setTargetAtTime(speaking ? 1 : 0,context.currentTime,.015);
+          if(speaking)state.huddleSpeakers.add(personId);else state.huddleSpeakers.delete(personId);
+          updateHuddleSpeakers();
+        };
+        const timer=setInterval(tick,50);context.resume().catch(()=>{});
+        state.huddleAudioGates.set(key,{stream:destination.stream,context,timer,personId});
+        return destination.stream;
+      } catch(_) { return stream; }
+    }
+
     function renderHuddle(){
       (state.huddleWindowRoot || main).querySelector('.fm-ch-huddle')?.remove();
       if (!state.huddle) return;
@@ -2847,7 +2985,7 @@
       card.setAttribute('role','region'); card.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("channels-ui","m_a50a39d598d13a","Video call") ?? "Video call"));
       const head = el('div','fm-ch-huddle-head','');
       if (state.huddle.settings?.recording_enabled) {
-        head.appendChild(el('span', 'fm-ch-huddle-recording', `<i class="fas fa-circle"></i> ${state.huddle.settings?.record_video ? 'Video recording' : 'Recording'}`));
+        const indicator=el('span','fm-ch-huddle-recording','<i class="fas fa-circle"></i>');indicator.title='Recording — keep the recording host’s tab open until it is saved';indicator.setAttribute('aria-label','Recording');head.appendChild(indicator);
       }
       const activeParticipants = (state.huddle.participants || []).filter((item) => !item.left_at);
       head.appendChild(el('span', '', `${activeParticipants.length || 1} joined`));
@@ -2863,6 +3001,7 @@
       const stage = el('div', 'fm-ch-call-stage');
       const addTile = (person, stream, self = false, screen = false) => {
         const tile = el('div', `fm-ch-call-tile${screen ? ' screen' : ''}`);
+        tile.dataset.person=person.user_id || person.id;
         const name = person.display_name || person.name || (self ? currentUser.name || 'You' : 'Participant');
         const profile = state.activeChannel?.members?.find(member => member.id === (person.user_id || person.id)) || person;
         const visual = stream?.getVideoTracks().find(track => track.readyState === 'live' && track.enabled && !track.muted && !track._callMuted);
@@ -2891,7 +3030,8 @@
         tracks.forEach((track, index) => addTile(participant, new MediaStream([track]), false, track._callSource === 'screen' || (!track._callSource && index > 0) || Boolean(track.getSettings?.().displaySurface)));
         if (stream.getAudioTracks().length) {
           const audio = document.createElement('audio'); audio.autoplay = true;
-          audio.srcObject = new MediaStream(stream.getAudioTracks());
+          audio.srcObject = audibleHuddleStream(stream, participant.user_id);
+          audio.muted = participant.microphone_enabled === false;
           if (state.huddleSpeaker && audio.setSinkId) audio.setSinkId(state.huddleSpeaker).catch(() => {});
           remotes.append(audio);
         }
@@ -2901,8 +3041,12 @@
       for (const participant of activeParticipants) {
         const name = cleanText(participant.display_name || participant.name || participant.user_id) || 'Participant';
         const person = el('div', 'fm-ch-huddle-person');
-        person.innerHTML = `${avatarHtml({ id:participant.user_id, name }, 'sm')}<span class="fm-ch-huddle-person-name">${esc(name)}${cleanText(participant.user_id) === cleanText(state.huddle.started_by) ? ` <small>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_523563ae2fd488","Host") ?? "Host")}</small>` : ''}</span><span class="fm-ch-huddle-person-media"><i class="fas fa-microphone${participant.microphone_enabled === false ? '-slash off' : ' on'}" title="${participant.microphone_enabled === false ? 'Muted' : 'Microphone on'}"></i><i class="fas fa-video${participant.camera_enabled ? ' on' : '-slash off'}" title="${participant.camera_enabled ? 'Camera on' : 'Camera off'}"></i>${participant.screen_enabled ? ("<i class=\"fas fa-desktop on\" title=\"" + (globalThis.PlatformLanguage?.htmlText("channels-ui","m_b7aad2d2258653","Sharing screen") ?? "Sharing screen") + "\"></i>") : ''}</span>`;
+        person.innerHTML = `${avatarHtml({ id:participant.user_id, name }, 'sm')}<span class="fm-ch-huddle-person-name">${esc(name)}${(cleanText(participant.user_id) === cleanText(state.huddle.started_by) || (state.huddle.settings?.admin_user_ids || []).includes(participant.user_id)) ? ` <small>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_523563ae2fd488","Host") ?? "Host")}</small>` : ''}</span><span class="fm-ch-huddle-person-media"><i class="fas fa-microphone${participant.microphone_enabled === false ? '-slash off' : ' on'}" title="${participant.microphone_enabled === false ? 'Muted' : 'Microphone on'}"></i><i class="fas fa-video${participant.camera_enabled ? ' on' : '-slash off'}" title="${participant.camera_enabled ? 'Camera on' : 'Camera off'}"></i>${participant.screen_enabled ? ("<i class=\"fas fa-desktop on\" title=\"" + (globalThis.PlatformLanguage?.htmlText("channels-ui","m_b7aad2d2258653","Sharing screen") ?? "Sharing screen") + "\"></i>") : ''}</span>`;
         roster.appendChild(person);
+        if (isHuddleAdmin() && participant.user_id !== currentUser.id && !(state.huddle.settings?.admin_user_ids || []).includes(participant.user_id) && participant.user_id!==state.huddle.started_by) {
+          const promote=el('button','','Make admin');promote.onclick=async()=>{try{state.huddle=(await api.huddles.manage(orgId,state.huddle.id,{admin_user_id:participant.user_id})).huddle;renderHuddle();}catch(error){showError(error);}};person.append(promote);
+        }
+
         if (state.huddle.started_by === currentUser.id && participant.user_id !== currentUser.id) {
           const remove = el('button', '', 'Remove'); remove.title = ((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_9d9046b4248149",`Remove ${v0}`,{v0}) ?? `Remove ${v0}`)(name);
           remove.onclick = () => showModal(`Remove ${name}?`, body => { body.textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_fc150c2dd1023b","They will leave this call and cannot rejoin it.") ?? "They will leave this call and cannot rejoin it."); }, [{label:(globalThis.PlatformLanguage?.text("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel"), onClick:close => close()}, {label:(globalThis.PlatformLanguage?.text("channels-ui","m_f643f568915438","Remove") ?? "Remove"), primary:true, onClick:async close => {
@@ -2925,17 +3069,15 @@
       mic.setAttribute('aria-label', mic.title);
       mic.addEventListener('click', async () => {
         try {
-        if (state.huddleLivekitRoom) {
-          const enabled = state.huddleLivekitRoom.localParticipant.isMicrophoneEnabled;
-          await state.huddleLivekitRoom.localParticipant.setMicrophoneEnabled(!enabled);
-          syncHuddleMediaState({ microphone_enabled:!enabled });
-          return;
+        const enabled = me.microphone_enabled !== false;
+        const tracks = state.huddleStreams.filter(stream=>!stream._screen).flatMap(stream=>stream.getAudioTracks());
+        tracks.forEach(track=>{track.enabled=!enabled;});
+        if(state.huddleLivekitRoom){
+          const publication=state.huddleLivekitRoom.localParticipant.getTrackPublication(root.LivekitClient.Track.Source.Microphone);
+          if(publication?.track) { if(enabled) await publication.track.mute(); else await publication.track.unmute(); }
+          else await state.huddleLivekitRoom.localParticipant.setMicrophoneEnabled(!enabled);
         }
-        const tracks = state.huddleStreams.filter(stream => !stream._screen).flatMap((stream) => stream.getAudioTracks());
-        const enabled = tracks.some((track) => track.enabled);
-        tracks.forEach((track) => { track.enabled = !enabled; });
-        mic.innerHTML = `<i class="fas fa-microphone${enabled ? '-slash' : ''}"></i>`;
-        syncHuddleMediaState({ microphone_enabled:!enabled });
+        syncHuddleMediaState({microphone_enabled:!enabled});
         } catch (error) { showError(error); }
       });
       const camera = el('button', '', '<i class="fas fa-video"></i>');
@@ -2984,22 +3126,9 @@
         }
       });
       const leave = el('button', 'danger', '<i class="fas fa-phone-slash"></i>');
-      leave.title = (globalThis.PlatformLanguage?.text("channels-ui","m_36784735ba32be","Leave huddle") ?? "Leave huddle");
+      leave.title = isHuddleAdmin() ? 'End huddle for everyone' : 'Leave huddle';
       leave.setAttribute('aria-label', leave.title);
-      leave.addEventListener('click', async () => {
-        const huddleId = state.huddle?.id;
-        if (!huddleId || leave.disabled) return;
-        leave.disabled = true;
-        leave.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
-        await sendHuddleSignal('bye', {}).catch(() => {});
-        try {
-          await api.huddles.leave(orgId, huddleId);
-        } catch (error) {
-          showError(error);
-        } finally {
-          if (state.huddle?.id === huddleId) stopHuddleSession();
-        }
-      });
+      leave.onclick = async()=>{leave.disabled=true;await exitHuddle();if(leave.isConnected)leave.disabled=false;};
       actions.append(mic, camera, share);
       const control = (label, icon, fn) => {
         const button = el('button', '', `<i class="fas fa-${icon}"></i>`);
@@ -3017,29 +3146,22 @@
       control('Participants', 'users', () => { state.huddlePanel = state.huddlePanel === 'participants' ? '' : 'participants'; renderHuddle(); });
       control('Call settings and troubleshooting', 'gear', openHuddleSettings);
 
-      if (cleanText(state.huddle.started_by) === cleanText(currentUser.id)) {
-        const end = el('button', 'danger', '<i class="fas fa-stop"></i>');
-        end.title = (globalThis.PlatformLanguage?.text("channels-ui","m_120afc23be66f7","End huddle for everyone") ?? "End huddle for everyone");
-        end.setAttribute('aria-label', end.title);
-        end.addEventListener('click', () => {
-          const huddleId = state.huddle?.id;
-          showModal('End call for everyone?', body => { body.textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_2d6a28a2311585","Everyone will be disconnected. To leave without ending the call, use Leave instead.") ?? "Everyone will be disconnected. To leave without ending the call, use Leave instead."); }, [
-            {label:(globalThis.PlatformLanguage?.text("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel"), onClick:close => close()},
-            {label:(globalThis.PlatformLanguage?.text("channels-ui","m_458f381dce8803","End call") ?? "End call"), primary:true, onClick:async close => {
-              try { await api.huddles.end(orgId, huddleId); close(); if (state.huddle?.id === huddleId) stopHuddleSession(); }
-              catch (error) { showError(error); }
-            }}
-          ]);
+      if (features.recording && isHuddleAdmin() && state.huddle.settings?.recording_mode !== 'off') {
+        const recording=control(state.huddle.settings?.recording_enabled ? 'Stop recording' : 'Resume recording','record-vinyl',async()=>{
+          try {const data=await api.huddles.manage(orgId,state.huddle.id,{recording_enabled:!state.huddle.settings.recording_enabled});state.huddle=data.huddle;
+            if(state.huddle.settings.recording_enabled)startHuddleRecording();else finishHuddleRecording();renderHuddle();
+          }catch(error){showError(error);}
         });
-        end.textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_e6652445454fa7","End call for everyone") ?? "End call for everyone");
-        roster.appendChild(end);
+        recording.setAttribute('aria-pressed',String(Boolean(state.huddle.settings.recording_enabled)));
       }
       actions.appendChild(leave);
-      const labels = new Map([[mic,'Mic'], [camera,'Camera'], [share,'Share'], [reaction,'React'], [leave,'Leave']]);
+      const labels = new Map([[mic,'Mic'], [camera,'Camera'], [share,'Share'], [reaction,'React'], [leave,isHuddleAdmin() ? 'End' : 'Leave']]);
       for (const button of actions.children) button.append(el('small', '', labels.get(button) || ({'Invite people':'Invite','Participants':'People','Call settings and troubleshooting':'Settings'}[button.title] || button.title)));
       roster.hidden = state.huddlePanel !== 'participants';
       card.append(head, stage, remotes, roster, status, actions);
       state.huddleWindowBody.append(card);
+      for(const stream of state.huddleStreams.filter(stream=>!stream._screen)) audibleHuddleStream(stream,currentUser.id);
+      updateHuddleSpeakers();
     }
 
     function prepareScreenClip(onPrepared){
@@ -3402,14 +3524,23 @@
           const seconds = Math.max(0,Math.floor((Date.parse(summary.ended_at)-Date.parse(summary.started_at))/1000));
           body.textContent = `Huddle ended · ${Math.floor(seconds/60)}m ${seconds%60}s`;
         }
+        const artifacts=el('div','fm-ch-huddle-artifacts');const seenArtifacts=new Set();
         for (const artifact of summary?.artifacts || []) {
-          const label = ({transcript:'Transcript',notes:'Call notes',video_recording:'Video recording',audio_recording:'Audio recording'})[artifact.kind] || 'Call attachment';
-          if (artifact.media_id) {
-            const link = el('a','fm-ch-btn',esc(label)); link.href=api.mediaFileUrl(orgId,artifact.media_id); link.target='_blank'; link.rel='noopener'; content.append(link);
-          } else if (artifact.metadata?.text || artifact.metadata?.transcript) {
-            const details=el('details',''); details.append(el('summary','',esc(label)),el('div','fm-ch-msg-body',esc(artifact.metadata.text || artifact.metadata.transcript))); content.append(details);
+          const key=artifact.media_id || artifact.id;if(seenArtifacts.has(key))continue;seenArtifacts.add(key);
+          const label=({transcript:'Transcript',notes:'Call notes',video_recording:'Video recording',audio_recording:'Audio recording'})[artifact.kind] || 'Call attachment';
+          const card=el('div','fm-ch-huddle-artifact');card.append(el('strong','',esc(label)));
+          if(artifact.media_id){
+            const url=api.mediaFileUrl(orgId,artifact.media_id);
+            if(['video_recording','audio_recording'].includes(artifact.kind)){
+              const player=document.createElement(artifact.kind==='video_recording'?'video':'audio');player.controls=true;player.preload='metadata';player.src=url;card.append(player);
+            }
+            const download=el('a','fm-ch-btn','<i class="fas fa-download"></i> Download');download.href=url;download.download=label+(artifact.kind==='video_recording'?'.webm':'');card.append(download);
+          }else if(artifact.metadata?.text || artifact.metadata?.transcript){
+            const details=el('details','');details.append(el('summary','','View '+label),el('div','fm-ch-msg-body',esc(artifact.metadata.text || artifact.metadata.transcript)));card.append(details);
           }
+          artifacts.append(card);
         }
+        if(artifacts.childElementCount)content.append(artifacts);
         const join = el('button', 'fm-ch-btn primary', 'Join huddle');
         const update = room => {
           if (!join.isConnected) return;
@@ -5351,6 +5482,8 @@
         profileWidthObserver?.disconnect();
         closeProfilePanel({silent:true});
         state.destroyed = true;
+        if(state.huddle?.id) (isHuddleAdmin()?api.huddles.end(orgId,state.huddle.id):api.huddles.leave(orgId,state.huddle.id)).catch(()=>{});
+        if(!state.huddleRecording && !state.huddleRecordingUploads)root.removeEventListener("beforeunload",protectRecording);
         mobileMedia?.removeEventListener?.('change', onMobileMediaChange);
         document.removeEventListener('click', onDocumentClickCloseHeaderMenu);
         document.removeEventListener('keydown', keyboardHandler);

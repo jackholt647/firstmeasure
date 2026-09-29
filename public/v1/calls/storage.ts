@@ -346,11 +346,36 @@ export async function removeParticipantRecord(orgId: string, roomId: string, hos
   }));
 }
 
+export function isRoomAdmin(room: JsonObject, userId: string) {
+  return room.started_by === userId || (Array.isArray((room.settings as JsonObject)?.admin_user_ids) && ((room.settings as JsonObject).admin_user_ids as string[]).includes(userId));
+}
+
+export async function manageRoomRecord(orgId: string, roomId: string, userId: string, input: {admin_user_id?:string; recording_enabled?:boolean}) {
+  return getCallsDatabase().transaction(async () => {
+    await getCallsDatabase().prepare("UPDATE call_rooms SET updated_at=updated_at WHERE id=? AND organization_id=?").run(roomId,orgId);
+    const room = await roomRecord(orgId,roomId);
+    if (!isRoomAdmin(room,userId)) throw forbidden("call_host_required","Only a huddle admin can manage this call.");
+    if (room.state !== "active") throw badRequest("call_not_active","This call has ended.");
+    const settings = {...room.settings as JsonObject};
+    if (input.admin_user_id) {
+      if (!(room.participants as JsonObject[]).some(person=>person.user_id===input.admin_user_id && !person.left_at)) throw badRequest("call_participant_required","Choose someone currently in the huddle.");
+      settings.admin_user_ids=[...new Set([...(Array.isArray(settings.admin_user_ids)?settings.admin_user_ids as string[]:[]),input.admin_user_id])];
+    }
+    if (input.recording_enabled !== undefined) {
+      if (room.recording_mode === "off") throw badRequest("call_recording_disabled","Recording was not enabled for this huddle.");
+      settings.recording_paused=!input.recording_enabled;
+    }
+    await getCallsDatabase().prepare("UPDATE call_rooms SET settings_json=?,updated_at=? WHERE id=? AND organization_id=?").run(json(settings),nowIso(),roomId,orgId);
+    await appendEventRecord(orgId,roomId,"call_settings_updated",userId,input);
+    return roomRecord(orgId,roomId);
+  });
+}
+
 export async function endRoomRecord(orgId: string, roomId: string, userId: string) {
   return (await getCallsDatabase().transaction(async () => {
   const room = (await roomRecord(orgId, roomId));
-  if (cleanText(room.started_by) !== userId) {
-    throw badRequest("call_owner_required", "Only the person who started this call can end it for everyone.");
+  if (!isRoomAdmin(room, userId)) {
+    throw badRequest("call_owner_required", "Only a call admin can end it for everyone.");
   }
   if (room.state === "ended") return room;
   const now = nowIso();

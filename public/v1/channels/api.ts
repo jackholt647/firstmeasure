@@ -669,6 +669,13 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     };
   });
 
+  app.patch("/organizations/:orgId/huddles/:huddleId/settings", async (request) => {
+    const orgId=getParam(request.params,"orgId");
+    const ctx=await auth(request,orgId,{csrf:true,capability:"channels.huddles"});
+    const body=z.object({admin_user_id:z.string().min(1).optional(),recording_enabled:z.boolean().optional()}).strict().parse(request.body ?? {});
+    return {ok:true,huddle:await service.manageHuddle(ctx,getParam(request.params,"huddleId"),body)};
+  });
+
   app.post("/organizations/:orgId/huddles/:huddleId/end", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await auth(request, orgId, { csrf: true, capability: "channels.huddles" });

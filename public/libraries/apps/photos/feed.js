@@ -516,10 +516,12 @@
     return Number.isFinite(date.getTime()) ? date : null;
   }
   function dateKey(value){
-    const date = parseDate(value) || new Date(0);
+    const date = parseDate(value);
+    if (!date) return "undated";
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
   function dateLabel(key){
+    if (key === "undated") return "Unknown date";
     const today = dateKey(new Date());
     const yesterdayDate = new Date();
     yesterdayDate.setDate(yesterdayDate.getDate() - 1);
@@ -817,11 +819,12 @@
   function normalizePhotos(project = {}){
     const library = photoLibrary();
     const safeProject = project && typeof project === 'object' ? project : {};
-    const photos = library?.normalizePhotos
-      ? library.normalizePhotos(safeProject.photos || [], firstMeasurePhotoOptions())
-      : (Array.isArray(safeProject.photos) ? safeProject.photos : []);
-    return photos
-      .filter((photo) => photo && (photo.media_id || photo.src || photo.thumb))
+    const rawPhotos=Array.isArray(safeProject.photos)?safeProject.photos:[];
+    const documents=rawPhotos.filter(photo=>photo?.resource_type==='document' && photo.id);
+    const media=rawPhotos.filter(photo=>photo?.resource_type!=='document');
+    const photos = library?.normalizePhotos ? library.normalizePhotos(media, firstMeasurePhotoOptions()) : media;
+    return [...photos,...documents]
+      .filter((photo) => photo && (photo.media_id || photo.src || photo.thumb || (photo.resource_type==='document' && photo.id)))
       .filter((photo) => !photo.is_top_down_thumbnail && cleanText(photo.designator) !== 'top_down_thumbnail');
   }
   function projectPhotosRaw(project = {}){
@@ -1533,7 +1536,16 @@
     if (photo.media_id && window.PlatformAPI?.media?.fileUrl) return window.PlatformAPI.media.fileUrl(orgId(), photo.media_id, 'original');
     return photo.src || photo.url || photo.thumb || '';
   }
+  function galleryMediaType(photo = {}){
+    const mime=cleanText(photo.content_type || photo.mime_type).toLowerCase();
+    if(mime.startsWith('video/') || isVideoMedia(photo)) return 'video';
+    if(mime.startsWith('audio/')) return 'audio';
+    if(mime && !mime.startsWith('image/')) return 'document';
+    return 'photo';
+  }
   function mediaThumbHtml(item){
+    const kind=galleryMediaType(item.photo);
+    if(kind==='document' || kind==='audio') return documentPreviewHtml({...item.photo,url:photoOriginal(item),title:item.photo.label,type_label:kind==='audio'?'Audio':'File',icon:kind==='audio'?'fa-headphones':'fa-file-lines'});
     const thumb = photoThumb(item);
     const original = photoOriginal(item);
     const isVideo = isVideoMedia(item.photo);
@@ -1644,7 +1656,7 @@
               <div class="pf-grid pf-picker-grid">
                 ${items.map((item) => {
                   const selectedClass = selected.has(item.id) ? ' selected' : '';
-                  return `<button type="button" class="pf-thumb${selectedClass}${item.photo?.uploading ? ' uploading' : ''}${isVideoMedia(item.photo) && !photoThumb(item) && !photoOriginal(item) ? ' loaded video-placeholder' : ''}" data-picker-media-id="${escapeHtml(item.id)}" aria-pressed="${selected.has(item.id) ? 'true' : 'false'}"><span class="pf-select"><i class="fas fa-check"></i></span>${mediaThumbHtml(item)}<span class="pf-thumb-meta">${escapeHtml(item.photo?.label || item.photo?.alt || 'Project media')}</span></button>`;
+                  return `<button type="button" class="pf-thumb${selectedClass}${item.photo?.uploading ? ' uploading' : ''}${['audio','document'].includes(galleryMediaType(item.photo)) || (isVideoMedia(item.photo) && !photoThumb(item) && !photoOriginal(item)) ? ' loaded video-placeholder' : ''}" data-picker-media-id="${escapeHtml(item.id)}" aria-pressed="${selected.has(item.id) ? 'true' : 'false'}"><span class="pf-select"><i class="fas fa-check"></i></span>${mediaThumbHtml(item)}<span class="pf-thumb-meta">${escapeHtml(item.photo?.label || item.photo?.alt || 'Project media')}</span></button>`;
                 }).join('')}
               </div>
             ` : `
@@ -1814,7 +1826,7 @@
               ? options.renderTileMeta(item)
               : `${escapeHtml(up.name || up.email || 'Unknown')}<br>${escapeHtml(item.photo?.uploading ? 'Uploading...' : (window.FirstMateMarkup?.formatDateTime?.(item.uploadedAt) || ''))}`;
             const extraClass = cleanText(typeof options.tileClass === 'function' ? options.tileClass(item) : options.tileClass);
-            return `<button type="button" class="pf-thumb${extraClass ? ` ${escapeHtml(extraClass)}` : ''}${selected ? ' selected' : ''}${item.photo?.uploading ? ' uploading' : ''}${isVideoMedia(item.photo) && !photoThumb(item) && !photoOriginal(item) ? ' loaded video-placeholder' : ''}" data-photo-feed-id="${escapeHtml(item.id)}"${selectionEnabled ? ` aria-pressed="${selected ? 'true' : 'false'}"` : ''}>${selectionEnabled ? `<span class="pf-select" data-photo-select="${escapeHtml(item.id)}"><i class="fas fa-check"></i></span>` : ''}${thumbnail}<span class="pf-thumb-meta">${meta}</span></button>`;
+            return `<button type="button" class="pf-thumb${extraClass ? ` ${escapeHtml(extraClass)}` : ''}${selected ? ' selected' : ''}${item.photo?.uploading ? ' uploading' : ''}${['audio','document'].includes(galleryMediaType(item.photo)) || (isVideoMedia(item.photo) && !photoThumb(item) && !photoOriginal(item)) ? ' loaded video-placeholder' : ''}" data-photo-feed-id="${escapeHtml(item.id)}"${selectionEnabled ? ` aria-pressed="${selected ? 'true' : 'false'}"` : ''}>${selectionEnabled ? `<span class="pf-select" data-photo-select="${escapeHtml(item.id)}"><i class="fas fa-check"></i></span>` : ''}${thumbnail}<span class="pf-thumb-meta">${meta}</span></button>`;
           }).join('')}
         </div>
       </section>
@@ -1830,7 +1842,7 @@
     const selected = state.selected.has(item.id);
     return `
       <article class="pf-feed-card pf-feed-media-card">
-        <button type="button" class="pf-thumb${selected ? ' selected' : ''}${item.photo?.uploading ? ' uploading' : ''}${isVideoMedia(item.photo) && !photoThumb(item) && !photoOriginal(item) ? ' loaded video-placeholder' : ''}" data-photo-feed-id="${escapeHtml(item.id)}" aria-pressed="${selected ? 'true' : 'false'}">
+        <button type="button" class="pf-thumb${selected ? ' selected' : ''}${item.photo?.uploading ? ' uploading' : ''}${['audio','document'].includes(galleryMediaType(item.photo)) || (isVideoMedia(item.photo) && !photoThumb(item) && !photoOriginal(item)) ? ' loaded video-placeholder' : ''}" data-photo-feed-id="${escapeHtml(item.id)}" aria-pressed="${selected ? 'true' : 'false'}">
           <span class="pf-select" data-photo-select="${escapeHtml(item.id)}"><i class="fas fa-check"></i></span>
           ${mediaThumbHtml(item)}
           <span class="pf-thumb-meta">${escapeHtml(up.name || up.email || 'Unknown')}<br>${escapeHtml(window.FirstMateMarkup?.formatDateTime?.(item.uploadedAt) || '')}</span>
@@ -2623,6 +2635,7 @@
       root: panel,
       items: buildItems(sourceProjects, { includeReceipts:options.includeReceipts === true }),
       query: '',
+      visibleTypes:new Set(['photo','video','audio','document']),
       density: cleanText(options.initialDensity || 'comfortable'),
       selected: new Set(),
       selectionMode: false,
@@ -2647,6 +2660,7 @@
     const filtered = () => {
       const query = cleanText(local.query).toLowerCase();
       const modeItems = local.items
+        .filter(item => !options.typeFilters || local.visibleTypes.has(galleryMediaType(item.photo)))
         .filter((item) => options.trashMode ? isPhotoTrashed(item.photo) : !isPhotoTrashed(item.photo))
         .filter((item) => !local.visibleTags.size || itemTags(item).some((tag) => local.visibleTags.has(normalizeMediaTags([tag])[0])));
       if (!query) return modeItems;
@@ -2664,6 +2678,7 @@
       const items = mediaTagOptions(local.items, local.visibleTags);
       return `<div class="pf-shown-menu" data-local-tag-menu>
         <div class="pf-shown-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_7a18799062167c","Filter by tags") ?? "Filter by tags")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("photos","m_947598ffa6c0ff","Show media matching any selected tag.") ?? "Show media matching any selected tag.")}</span></div><button type="button" data-local-tags-close aria-label="${(globalThis.PlatformLanguage?.htmlText("photos","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>
+        ${options.typeFilters ? shownGroupHtml('local-types','File types','fa-filter',[{id:'photo',label:'Photos',icon:'fa-image'},{id:'video',label:'Videos',icon:'fa-video'},{id:'audio',label:'Audio',icon:'fa-headphones'},{id:'document',label:'Documents & files',icon:'fa-file-lines'}],local.visibleTypes) : ''}
         ${String(shownGroupHtml('local-tags', 'Media tags', 'fa-tags', items, local.visibleTags))}
       </div>`;
     };
@@ -3039,7 +3054,7 @@
                 ...(Array.isArray(options.extraDensityModes) ? options.extraDensityModes : [])
               ].map((mode) => `<button type="button" class="${local.density === mode.id ? 'active' : ''}" data-density="${mode.id}" data-fm-tooltip="${mode.label}"><i class="fas fa-${mode.icon}"></i></button>`).join(''))}</div>
               <div class="pf-shown-wrap">
-                <button type="button" class="pf-toolbar-action${String(local.tagMenuOpen || local.visibleTags.size ? ' active' : '')}" data-local-tags aria-expanded="${String(local.tagMenuOpen ? 'true' : 'false')}"><i class="fas fa-tags"></i><span>${(globalThis.PlatformLanguage?.htmlText("photos","m_562d2cd3a48b8f","Tags") ?? "Tags")}</span></button>
+                <button type="button" class="pf-toolbar-action${String(local.tagMenuOpen || local.visibleTags.size ? ' active' : '')}" data-local-tags aria-expanded="${String(local.tagMenuOpen ? 'true' : 'false')}"><i class="fas fa-tags"></i><span>${(options.typeFilters ? 'Filter' : (globalThis.PlatformLanguage?.htmlText("photos","m_562d2cd3a48b8f","Tags") ?? "Tags"))}</span></button>
                 ${String(localTagMenuHtml())}
               </div>
               ${String(toolbarActions)}
@@ -3071,6 +3086,12 @@
       panel.querySelector('[data-local-tags-close]')?.addEventListener('click', () => {
         local.tagMenuOpen = false;
         renderLocal();
+      });
+      panel.querySelectorAll('[data-feed-filter-group="local-types"][data-feed-filter-id]').forEach(button=>button.addEventListener('click',()=>{
+        const id=button.dataset.feedFilterId;if(local.visibleTypes.has(id))local.visibleTypes.delete(id);else local.visibleTypes.add(id);renderLocal();
+      }));
+      panel.querySelector('[data-feed-filter-group="local-types"][data-filter-group-action]')?.addEventListener('click',event=>{
+        local.visibleTypes=event.currentTarget.dataset.filterGroupAction==='all'?new Set(['photo','video','audio','document']):new Set();renderLocal();
       });
       panel.querySelectorAll('[data-feed-filter-group="local-tags"][data-feed-filter-id]').forEach((button) => button.addEventListener('click', () => {
         const id = button.dataset.feedFilterId || '';

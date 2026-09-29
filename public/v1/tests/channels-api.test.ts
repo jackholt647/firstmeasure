@@ -753,6 +753,10 @@ test("message-to-To-Do and huddle lifecycle keep channel context", async () => {
   const signals = await owner.request("GET", `/v1/channels/organizations/${orgId}/huddles/${started.huddle.id}/signals?peer_id=browser-b&after=0`);
   assert.equal(signals.signals[0].id, signal.signal.id);
   assert.equal(signals.signals[0].payload.description.sdp, "test-sdp");
+  const paused=await owner.request("PATCH",`/v1/channels/organizations/${orgId}/huddles/${started.huddle.id}/settings`,{recording_enabled:false});
+  assert.equal(paused.huddle.settings.recording_enabled,false);
+  const resumed=await owner.request("PATCH",`/v1/channels/organizations/${orgId}/huddles/${started.huddle.id}/settings`,{recording_enabled:true});
+  assert.equal(resumed.huddle.settings.recording_enabled,true);
   const { createAttachmentRecord } = await import("../channels/storage.js");
   const recordingAttachment = (await createAttachmentRecord({
     organization_id: orgId,
@@ -769,6 +773,10 @@ test("message-to-To-Do and huddle lifecycle keep channel context", async () => {
   assert.equal(recording.huddle.recording_media_id, "media_huddle_recording_test");
   assert.equal(recording.message.parent_id, started.huddle.root_message_id);
   assert.equal(recording.message.metadata.event, "huddle_recording");
+  assert.equal(recording.message.text, "");
+  const retry=await owner.request("POST",`/v1/channels/organizations/${orgId}/huddles/${started.huddle.id}/recording`,{attachment_id:recordingAttachment.id});
+  assert.equal(retry.deduplicated,true);
+
   assert.equal(recording.message.attachments[0].media_id, "media_huddle_recording_test");
   const ended = await owner.request("POST", `/v1/channels/organizations/${orgId}/huddles/${started.huddle.id}/end`, {});
   assert.equal(ended.huddle.state, "ended");
@@ -904,7 +912,7 @@ test("uploaded profile pictures persist and refresh cached channel authors", asy
   assert.match(image.headers['content-type'],/image\/png/);
 });
 
-test("last huddle participant ends the session and the next huddle gets a new message and timer", async () => {
+test("huddle admin departure ends everyone and new huddles have independent sessions", async () => {
   const {client:owner,orgId,suffix}=await registerOwner();
   const guest=await createOrgUser(owner,orgId,suffix,"Huddle Last Guest");
   const {channel}=await owner.request("POST",`/v1/channels/organizations/${orgId}/channels`,{type:"private",name:"huddle-lifecycle",member_user_ids:[guest.userId]});
@@ -916,7 +924,8 @@ test("last huddle participant ends the session and the next huddle gets a new me
   const {getCallsDatabase}=await import("../calls/storage.js");
   await getCallsDatabase().prepare("UPDATE call_rooms SET started_at = ? WHERE id = ?").run(new Date(Date.now()-125000).toISOString(),first.id);
   const left=await owner.request("POST",`${base}/huddles/${first.id}/leave`,{});
-  assert.equal(left.huddle.state,"active","remaining participant keeps the huddle open");
+  assert.equal(left.huddle.state,"ended","admin departure ends the room for everyone");
+  assert.ok(left.huddle.participants.every((person:Json)=>person.left_at));
   const last=await guest.client.request("POST",`${base}/huddles/${first.id}/leave`,{});
   assert.equal(last.huddle.state,"ended","the last participant can end an empty room without being its host");
   await owner.request("POST",`/v1/calls/organizations/${orgId}/rooms/${first.id}/artifacts`,{kind:"transcript",metadata:{text:"This is the call transcript."}});
@@ -934,10 +943,17 @@ test("last huddle participant ends the session and the next huddle gets a new me
   assert.notEqual(second.root_message_id,first.root_message_id);
   assert.ok(Date.parse(second.started_at)>Date.parse(original.huddle.started_at));
   assert.equal(second.state,"active");
-  assert.equal((await guest.client.raw("POST",`${base}/huddles/${first.id}/join`,{})).statusCode,400);
+  await owner.request("POST",`${base}/huddles/${second.id}/join`,{});
   await guest.client.request("POST",`${base}/huddles/${second.id}/join`,{});
-  const removed=await owner.request("DELETE",`${base}/huddles/${second.id}/participants/${guest.userId}`);
-  assert.equal(removed.huddle.state,"ended","removing the last participant also closes the room");
+  assert.equal((await guest.client.raw("PATCH",`${base}/huddles/${second.id}/settings`,{admin_user_id:guest.userId})).statusCode,403);
+  const managed=await owner.request("PATCH",`${base}/huddles/${second.id}/settings`,{admin_user_id:guest.userId});
+  assert.ok(managed.huddle.settings.admin_user_ids.includes(guest.userId));
+  const ended=await guest.client.request("POST",`${base}/huddles/${second.id}/end`,{});
+  assert.equal(ended.huddle.state,"ended");
+  assert.ok(ended.huddle.participants.every((person:Json)=>person.left_at));
+
+  assert.equal((await guest.client.raw("POST",`${base}/huddles/${first.id}/join`,{})).statusCode,400);
+  const removed={huddle:ended.huddle};
   await getCallsDatabase().prepare("UPDATE call_rooms SET state = 'active', ended_at = NULL WHERE id = ?").run(second.id);
   const {huddle:third}=await start();
   assert.notEqual(third.id,second.id,"legacy empty active rooms are closed before creating a fresh call");
