@@ -1427,6 +1427,7 @@
 
     function sideItem(channel){
       const unread = channel.unread || {};
+      const unreadCount = Math.max(0, Math.floor(Number(unread.unread_count) || 0));
       const member = (channel.members || []).find(person => person.id === currentUser.id);
       const muted = member?.notify_level === 'muted';
       const row = el('div', `fm-ch-side-row${muted ? ' muted' : ''}`); row.dataset.channelId = channel.id;
@@ -1439,7 +1440,7 @@
         : `<span class="fm-ch-hash">${channelIcon(channel)}</span>`}
         <span class="fm-ch-side-label">${esc(label)}</span>
         ${muted ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" role="img" aria-label="Muted"><path d="m3 3 18 18M9 5a6 6 0 0 1 9 5v4M6 6v8l-2 3h13M10 21h4"/></svg>' : ''}
-        ${unread.mention_count ? `<span class="fm-ch-badge">${unread.mention_count}</span>` : ''}`;
+        ${unreadCount ? `<span class="fm-ch-badge" aria-label="${unreadCount} unread message${unreadCount === 1 ? '' : 's'}" title="${unreadCount} unread message${unreadCount === 1 ? '' : 's'}">${unreadCount}</span>` : ''}`;
       item.addEventListener('click', () => setChannel(channel.id));
       const actions = el('div', 'fm-ch-side-actions');
       const more = el('button', '', '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>');
