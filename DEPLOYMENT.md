@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 Project header: [Two-by-three controls beside responsive tabs](deploy/digitalocean/development-project-header-grid-20260929.md) records the verified development-only rollout and resize, draft and window regression checks.
+
 September 29 project channels: [Open the associated project from titles and menus](deploy/digitalocean/development-channels-project-link-20260929.md) records the verified development-only rollout and hosted browser checks.
 
 September 29 Project windows: [Independent projects, two-row chrome and compact minimization](deploy/digitalocean/development-project-windows-v2-20260929.md) records the verified development-only rollout, retained drafts and hosted browser checks.
