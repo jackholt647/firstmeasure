@@ -272,16 +272,21 @@
     const menu = ensureMenu();
     const selected = new Map();
     const oid = cleanText(options.orgId || orgId());
+    const allowed = user => options.source !== 'channels' || (user.id === 'agent_assistant' || user.id === 'broadcast:channel' || user.id === 'broadcast:here' || (!user.id.startsWith('channel:') && (options.memberIds?.() || []).includes(user.id)));
+    const candidates = () => users.filter(allowed);
     // Team-messaging surfaces also offer the AI agent(s) as mention targets.
     const includeAgents = options.includeAgents === true || options.source === 'channels';
     Promise.all([
       listUsers(oid).catch(() => []),
       includeAgents ? listAgentParticipants(oid) : Promise.resolve([]),
-      (root.ChannelsAPI?.channels?.list ? root.ChannelsAPI.channels.list(oid) : fetch(`/v1/channels/organizations/${encodeURIComponent(oid)}/channels`,{credentials:'include'}).then(res=>res.ok?res.json():{})).catch(()=>({}))
+      options.source === 'channels' ? Promise.resolve({}) : (root.ChannelsAPI?.channels?.list ? root.ChannelsAPI.channels.list(oid) : fetch(`/v1/channels/organizations/${encodeURIComponent(oid)}/channels`,{credentials:'include'}).then(res=>res.ok?res.json():{})).catch(()=>({}))
     ]).then(([list, agents, channels]) => {
       const groups = (channels.channels || []).filter(channel=>!['dm','group_dm'].includes(channel.type)).map(channel=>normalizeUser({id:`channel:${channel.id}`,name:channel.name || channel.display_name,email:'Everyone in this channel'}));
       const broadcasts = options.source === 'channels' ? [normalizeUser({id:'broadcast:channel',name:'channel',email:'Everyone in this conversation'}),normalizeUser({id:'broadcast:here',name:'here',email:'Online members of this conversation'})] : [];
-      users = [...broadcasts,...list,...agents,...groups];
+      users = [...new Map([...broadcasts,...list,...agents,...groups].map(user => [user.id,user])).values()];
+      if (options.source === 'channels' && !users.some(user => user.id === 'agent_assistant')) {
+        users.push({...normalizeUser({id:'agent_assistant',name:'FirstMate Assistant'}),agent:true});
+      }
       if (document.activeElement === textarea) update();
     }).catch(() => {});
 
@@ -290,8 +295,8 @@
     const highlighter = attachMentionHighlight(textarea, () => {
       const value = textarea.value || '';
       const labels = new Set();
-      extractMentions(value, users).forEach((user) => labels.add(user.name || user.email || user.id));
-      selected.forEach((user) => labels.add(user.name || user.email || user.id));
+      extractMentions(value, candidates()).forEach((user) => labels.add(user.name || user.email || user.id));
+      selected.forEach((user) => allowed(user) && labels.add(user.name || user.email || user.id));
       return [...labels];
     });
 
@@ -356,7 +361,7 @@
       query = caretQuery(textarea);
       if (!query) return hide();
       const needle = query.fragment.toLowerCase();
-      matches = users.filter((user) => !needle || user.search.includes(needle));
+      matches = candidates().filter((user) => !needle || user.search.includes(needle));
       activeIndex = 0;
       render();
     }
@@ -389,13 +394,13 @@
     document.addEventListener('mousedown', onOutsideClick);
     return {
       selectedMentions(){
-        const found = extractMentions(textarea.value || '', users);
+        const found = extractMentions(textarea.value || '', candidates());
         found.forEach((user) => selected.set(user.id, user));
-        return [...selected.values()].filter((user) => (textarea.value || '').toLowerCase().includes(`@${(user.name || user.email || user.id).toLowerCase()}`));
+        return [...selected.values()].filter((user) => allowed(user) && (textarea.value || '').toLowerCase().includes(`@${(user.name || user.email || user.id).toLowerCase()}`));
       },
       confirmedMentions(){
         const value = (textarea.value || '').toLowerCase();
-        return [...selected.values()].filter((user) => value.includes(`@${(user.name || user.email || user.id).toLowerCase()}`));
+        return [...selected.values()].filter((user) => allowed(user) && value.includes(`@${(user.name || user.email || user.id).toLowerCase()}`));
       },
       setSelectedMentions(mentions = []){
         selected.clear();

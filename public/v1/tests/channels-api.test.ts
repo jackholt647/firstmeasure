@@ -852,13 +852,42 @@ test("broadcast and channel-name mentions expand current membership and here use
     const here=await owner.request("POST",route,{text:"@here hello"});
     assert.deepEqual(here.message.mention_users.map((person:Json)=>person.id),[livia.userId]);
   } finally {raw.emit("close");}
-  const tagged=await owner.request("POST",`/v1/platform/organizations/${orgId}/tagging/mention-events`,{source:"photo_comment",mention_users:[{id:`channel:${channel.id}`,name:"Gutters"}],comment:{text:"@Gutters review this"}});
+  for (const target of [channel, (await owner.request("POST",`/v1/channels/organizations/${orgId}/channels`,{type:"dm",member_user_ids:[livia.userId]})).channel]) {
+    const targetRoute=`/v1/channels/organizations/${orgId}/channels/${target.id}/messages`;
+    const sent=await owner.request("POST",targetRoute,{text:"Selected mentions",mention_users:[{id:outsider.userId},{id:livia.userId},{id:`channel:${channel.id}`} ]});
+    assert.deepEqual(sent.message.mention_users.map((person:Json)=>person.id),[livia.userId]);
+    const edited=await owner.request("PATCH",`/v1/channels/organizations/${orgId}/messages/${sent.message.id}`,{text:"Edited mentions",mention_users:[{id:outsider.userId},{id:`channel:${channel.id}`} ]});
+    assert.deepEqual(edited.message.mention_users,[]);
+  }
+  const { resolveMentionUsers } = await import("../channels/service.js");
+  const assistantMentions=await resolveMentionUsers({orgId,userId,identity:{name:"Owner"}} as any,[{id:"agent_assistant"},{id:outsider.userId}],channel.id);
+  assert.deepEqual(assistantMentions.map(person=>person.id),["agent_assistant"]);
+  const tagged=await owner.request("POST",`/v1/platform/organizations/${orgId}/tagging/mention-events`,{source:"photo_comment",mention_users:[{id:`channel:${channel.id}`,name:"Gutters"}],context:{project_id:"project-test",photo_id:"photo-test"},comment:{id:"comment-test",text:"@Gutters review this"}});
   assert.deepEqual(new Set(tagged.event.target_user_ids),new Set([userId,livia.userId,offline.userId]));
+  assert.equal(tagged.channel_messages.length,1);
+  assert.match(tagged.channel_messages[0].text,/tagged the channel in a photo/);
+  assert.equal(tagged.channel_messages[0].metadata.channel_tag.photo_id,"photo-test");
+  assert.equal(tagged.notification,null,"channel tags notify through the channel inbox, not a duplicate bell notification");
+  const retry=await owner.request("POST",`/v1/platform/organizations/${orgId}/tagging/mention-events`,{source:"photo_comment",mention_users:[{id:`channel:${channel.id}`}],context:{project_id:"project-test",photo_id:"photo-test"},comment:{id:"comment-test"}});
+  assert.equal(retry.channel_messages[0].id,tagged.channel_messages[0].id);
+  const project=(await owner.request("POST",`/v1/platform/organizations/${orgId}/projects`,{data:{title:"Tagged project"}})).document;
+  const projectChannel=(await owner.request("POST",`/v1/channels/organizations/${orgId}/channels/project/${project.id}`)).channel;
+  const note=await owner.request("POST",`/v1/channels/organizations/${orgId}/channels/${projectChannel.id}/messages`,{text:"Project note",mention_users:[{id:`channel:${channel.id}`} ]});
+  let destination=await owner.request("GET",route);
+  const notice=destination.messages.find((message:Json)=>message.metadata?.channel_tag?.note_id===note.message.id);
+  assert.ok(notice);
+  assert.deepEqual(new Set(notice.mention_users.map((person:Json)=>person.id)),new Set([userId,livia.userId,offline.userId]));
+  await owner.request("PATCH",`/v1/channels/organizations/${orgId}/messages/${note.message.id}`,{text:"Updated project note",mention_users:[{id:`channel:${channel.id}`} ]});
+  destination=await owner.request("GET",route);
+  assert.equal(destination.messages.filter((message:Json)=>message.metadata?.channel_tag?.note_id===note.message.id).length,1);
+
+
   assert.equal((await outsider.client.raw("POST",`/v1/platform/organizations/${orgId}/tagging/mention-events`,{mention_users:[{id:`channel:${channel.id}`}]})).statusCode,403);
   const bell=await livia.client.request("GET",`/v1/platform/organizations/${orgId}/notifications`);
   assert.ok(!bell.notifications.some((item:Json)=>item.source==="channel_message"));
   const inbox=await livia.client.request("GET",`/v1/channels/organizations/${orgId}/inbox`);
   assert.ok(inbox.entries.some((item:Json)=>item.kind==="mention" && item.message_id===all.message.id));
+  assert.ok(inbox.entries.some((item:Json)=>item.message_id===tagged.channel_messages[0].id));
 });
 
 test("uploaded profile pictures persist and refresh cached channel authors", async () => {

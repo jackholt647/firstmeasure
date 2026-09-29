@@ -2589,7 +2589,7 @@ app.get("/auth/google/config", async () => ({
     const mentionUsers = Array.isArray(body.mention_users || body.mentionUsers)
       ? (body.mention_users || body.mentionUsers) as unknown[]
       : [];
-    const { resolveMentionUsers } = await import("../channels/service.js");
+    const { resolveMentionUsers, postChannelTagNotices } = await import("../channels/service.js");
     const requestedMentions = [...mentionUsers.map((item) => asObject(item)), ...normalizeStringArray(body.target_user_ids || body.targetUserIds || body.user_ids || body.userIds).map(id => ({id}))];
     const normalizedMentionUsers = await resolveMentionUsers(ctx, requestedMentions);
     const targetUserIds = [...new Set(normalizeStringArray([
@@ -2620,8 +2620,11 @@ app.get("/auth/google/config", async () => ({
           ? { kind: "open_project_note", project_id: projectId, project_tab: cleanText(context.project_tab || context.projectTab || "materials"), note_id: noteId }
           : { kind: "open_project", project_id: projectId }
     ) : {};
+    const channelMessages = await postChannelTagNotices(ctx, requestedMentions, event.source, context, comment);
+    const directIds = new Set(requestedMentions.map(user => cleanText(asObject(user).id || asObject(user).user_id)));
+    const directTargets = targetUserIds.filter(id => directIds.has(id));
     const actorName = cleanText(ctx.identity.name || ctx.identity.display_name || ctx.identity.email || "A teammate");
-    const notification = targetUserIds.length ? await createPlatformNotification(orgId, {
+    const notification = directTargets.length ? await createPlatformNotification(orgId, {
       id: `notification_${event.id}`,
       title: `${actorName} mentioned you`,
       body: cleanText(comment.text || comment.body || context.summary || context.project_title || "You were tagged in a message."),
@@ -2631,7 +2634,7 @@ app.get("/auth/google/config", async () => ({
       push: true,
       passive: true,
       manual_dismissible: true,
-      target_user_ids: targetUserIds,
+      target_user_ids: directTargets,
       branch_id: event.branch_id,
       source: event.source,
       frontend_action: frontendAction,
@@ -2644,7 +2647,7 @@ app.get("/auth/google/config", async () => ({
       }
     }) : null;
     reply.code(201);
-    return { ok: true, event, notification };
+    return { ok: true, event, notification, channel_messages: channelMessages };
   });
 
   app.get("/organizations/:orgId/notifications/:notificationId", async (request) => {

@@ -3465,6 +3465,17 @@
         }
         (forwardedCard || content).appendChild(wrap);
       }
+      if (message.metadata?.channel_tag?.project_id) {
+        const tag = message.metadata.channel_tag;
+        const link = el('button', 'fm-ch-thread-link');
+        link.textContent = tag.label || 'Open tagged project';
+        link.onclick = () => root.Portal?.navigation?.navigate?.({
+          project:tag.project_id, projectTab:tag.photo_id ? 'photos' : 'materials',
+          photo:tag.photo_id || null, photoScope:tag.photo_id ? 'project' : null,
+          projectNote:tag.note_id || null
+        }, {source:'channel-tag'});
+        content.appendChild(link);
+      }
       if (message.metadata?.resource_ref) {
         const ref = message.metadata.resource_ref;
         const card = el('div', 'fm-ch-resource');
@@ -3816,13 +3827,19 @@
       return [];
     }
 
+    function conversationMemberIds(){
+      return (state.activeChannel?.members || []).map(user => user.id || user.user_id);
+    }
+
     function bindRichMentions(editor, box){
       const button = el('button', '', '@'); button.type = 'button'; button.title = (globalThis.PlatformLanguage?.text("channels-ui","m_c5226e930e6ce6","Mention a teammate") ?? "Mention a teammate"); button.setAttribute('aria-label', button.title);
       button.onmousedown = event => event.preventDefault();
       button.onclick = async () => {
         const range = root.getSelection()?.rangeCount && editor.contains(root.getSelection().anchorNode) ? root.getSelection().getRangeAt(0).cloneRange() : null;
         try {
-          const users = await orgUsers();
+          const members = new Set(conversationMemberIds());
+          const users = (await orgUsers()).filter(user => user.id === 'agent_assistant' || members.has(user.id));
+          if (!users.some(user => user.id === 'agent_assistant')) users.push({id:'agent_assistant',name:'FirstMate Assistant'});
           showPopover(button, pop => {
             const search = el('input', 'fm-ch-emoji-search'); search.placeholder = (globalThis.PlatformLanguage?.text("channels-ui","m_2263d8ccee3221","Find a teammate…") ?? "Find a teammate…"); search.setAttribute('aria-label', search.placeholder);
             const results = el('div', 'fm-ch-message-menu'); pop.append(search, results);
@@ -4092,7 +4109,7 @@
       mentionApi = null;
       try {
         if (root.FirstMateTags?.attachMentionTextarea) {
-          mentionApi = root.FirstMateTags.attachMentionTextarea(textarea, { orgId, source: 'channels', onSelect:user=>{if (!textarea.mentionUsers.some(item=>item.id===user.id)) textarea.mentionUsers.push(user);} }) || null;
+          mentionApi = root.FirstMateTags.attachMentionTextarea(textarea, { orgId, source: 'channels', memberIds: conversationMemberIds, onSelect:user=>{if (!textarea.mentionUsers.some(item=>item.id===user.id)) textarea.mentionUsers.push(user);} }) || null;
         }
       } catch (error) {}
 
@@ -4352,7 +4369,7 @@
       let threadMentionApi = null;
       try {
         if (root.FirstMateTags?.attachMentionTextarea) {
-          threadMentionApi = root.FirstMateTags.attachMentionTextarea(threadInput, { orgId, source: 'channels' }) || null;
+          threadMentionApi = root.FirstMateTags.attachMentionTextarea(threadInput, { orgId, source: 'channels', memberIds: conversationMemberIds }) || null;
         }
       } catch (error) {}
       const editNote = el('div', 'fm-ch-edit-note');

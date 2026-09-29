@@ -44,7 +44,7 @@ try {
       channels:{setNotifyLevel:async(_org,_id,userId,level)=>{channel.members.find(person=>person.id===userId).notify_level=level;return {}},list:async()=>({channels:[channel]}), get:async()=>({channel}), create:async(_org,input)=>{window.createdConversations.push(input);return {channel:{...channel,id:'assistant-new',type:'dm',display_name:input.name,members:[me,agent]}}}},
       messages:{get:async(_org,id)=>({message:messages.find(item=>item.id===id)}),list:async(_org,_channel,options={})=>({channel,messages:messages.filter(item=>!item.parent_id && (!options.before || item.seq<options.before)).slice(-(options.limit || 60))}),post:async(_org,_channel,input)=>{window.sent.push(input);const message={...messages[0],...input,id:'sent'+window.sent.length,author:me,seq:window.sent.length+1};if(input.forwarded_message_id){const original=messages.find(item=>item.id===input.forwarded_message_id);message.metadata={forwarded:{...original,message_id:original.id,channel_name:'Team room'}};message.attachments=input.forward_include_attachments?original.attachments:[];}messages.push(message);return {message}},edit:async(_org,id,input)=>({message:{...messages[0],...input,id}}),thread:async(_org,id)=>({root:messages.find(item=>item.id===id),replies:messages.filter(item=>item.parent_id===id)})},
       preferences:{collaboration:async()=>({preferences:{...window.sidebarPreferences}}),updateCollaboration:async(_org,patch)=>{Object.assign(window.sidebarPreferences,patch);return {preferences:{...window.sidebarPreferences}}}},
-      directory:{list:async()=>({users:[me,other,agent]})},
+      directory:{list:async()=>({users:[me,other,agent,{id:'outsider',name:'Outside Person'}]})},
       readState:{markRead:async(_org,id,seq)=>{window.sidebarReads.push({id,seq});return {}}},
       drafts:{get:async()=>({}),save:async()=>({}),remove:async()=>({})},
       scheduled:{list:async()=>({scheduled_messages:window.scheduled}),remove:async(_org,id)=>{window.scheduled=window.scheduled.filter(item=>item.id!==id);return {}},create:async(_org,input)=>{const item={...input,id:'scheduled'+(window.scheduled.length+1),state:'scheduled',sender_user_id:me.id};window.scheduled.push(item);return {scheduled_message:item}}},
@@ -178,15 +178,34 @@ try {
   await typingEditor.press('Enter');
   assert.match(await typingEditor.innerText(),/@channel/);
   await typingEditor.fill(''); await typingEditor.pressSequentially('@gener');
-  await page.locator('#fmMentionMenu.visible [data-mention-user="channel:general"]').waitFor();
-  await typingEditor.press('Enter');
-  assert.match(await typingEditor.innerText(),/@general/);
+  assert.equal(await page.locator('#fmMentionMenu.visible [data-mention-user^="channel:"]').count(),0);
+  await typingEditor.fill(''); await typingEditor.pressSequentially('@Outside');
+  assert.equal(await page.locator('#fmMentionMenu.visible [data-mention-user="outsider"]').count(),0);
+  await typingEditor.fill(''); await typingEditor.pressSequentially('@FirstMate');
+  await page.locator('#fmMentionMenu.visible [data-mention-user="agent_assistant"]').waitFor();
   await typingEditor.fill(''); await typingEditor.pressSequentially('@Jordan');
   await page.locator('#fmMentionMenu.visible [data-mention-user="guest"]').waitFor();
   await typingEditor.press('Enter');
   assert.match(await typingEditor.innerText(),/@Jordan Ellis/);
   await typingEditor.fill('');
-  console.log('PASS rich editor @ suggestions, broadcast and channel mentions, keyboard selection');
+  console.log('PASS rich editor @ suggestions, broadcast and member-only mentions, keyboard selection');
+  await page.getByRole('button',{name:'Mention a teammate',exact:true}).click();
+  await page.getByPlaceholder('Find a teammate…').fill('Outside');
+  assert.equal(await page.locator('.fm-ch-popover .fm-ch-message-menu button').count(),0);
+  await page.getByPlaceholder('Find a teammate…').fill('FirstMate');
+  await page.locator('.fm-ch-popover .fm-ch-message-menu button').getByText('FirstMate',{exact:true}).click();
+  await typingEditor.fill('');
+  await page.evaluate(async()=>{
+    window.previousTagNavigation=Portal.navigation;
+    Portal.navigation={navigate:route=>window.tagRoute=route};
+    testMessages.push({id:'external-tag',channel_id:'general',seq:43,text:'Jordan tagged the channel in a photo.',author:{id:'guest',name:'Jordan'},created_at:new Date().toISOString(),metadata:{channel_tag:{project_id:'project-tag',photo_id:'photo-tag',label:'Open photo'}}});
+    await instance.setChannel('general');
+  });
+  await page.getByRole('button',{name:'Open photo',exact:true}).click();
+  assert.deepEqual(await page.evaluate(()=>tagRoute),{project:'project-tag',projectTab:'photos',photo:'photo-tag',photoScope:'project',projectNote:null});
+  await page.evaluate(()=>{Portal.navigation=window.previousTagNavigation;});
+  console.log('PASS toolbar member filtering and linked channel tag notice');
+
   await page.evaluate(async()=>{
     testChannel.type='project';testChannel.project_id='project-test';
     const app=document.querySelector('#app'), form=document.createElement('form'); form.id='project-form'; app.replaceWith(form); form.append(app);

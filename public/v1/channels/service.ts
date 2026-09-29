@@ -966,6 +966,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
       forwardedAttachments = (await listAttachmentsForMessages([source.id])).get(source.id) ?? [];
     }
   }
+  const channelTags = (input.mention_users || []).filter(user => cleanText(user.id).startsWith("channel:"));
   const detectedLanguage = detectMessageLanguage(input.text);
   input.mention_users = await resolveMentionUsers(ctx, input.mention_users, channelId, input.text);
   const message = await getChannelsDatabase().transaction(async () => {
@@ -1024,6 +1025,10 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
       user_ids: [...attentionTargets.keys()],
       payload: { channel_id: channel.id, message_id: message.id }
     }));
+  }
+
+  if (channel.type === "project" && channelTags.length) {
+    await postChannelTagNotices(ctx, channelTags, "project_note", { project_id:channel.project_id, note_id:message.id }, {id:message.id});
   }
 
   // AI participation: an @-mention of an agent, or any message in a DM the
@@ -1150,6 +1155,7 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
   if (message.author_id !== ctx.userId) throw forbidden("not_message_author", "Only the author can edit a message.");
   if (message.deleted_at) throw badRequest("message_deleted", "Removed messages cannot be edited. Restore it first.");
 
+  const channelTags = (input.mention_users || []).filter(user => cleanText(user.id).startsWith("channel:"));
   const previousMentions = new Set(message.mention_users.map((user) => cleanText(user.id || user.user_id)).filter(Boolean));
   const detectedLanguage = detectMessageLanguage(input.text);
   input.mention_users = await resolveMentionUsers(ctx, input.mention_users || message.mention_users, channel.id, input.text);
@@ -1169,6 +1175,7 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
   (await publishMessageEvent("channels.message.updated", channel, updated, hydrated));
   await emitChannelsEvent("channels.message.edited", ctx, { channel_id: channel.id, message_id: messageId, at: updated.edited_at ?? nowIso() }, channel.project_id);
   await notifyMentions(ctx, channel, updated, previousMentions);
+  if (channel.type === "project" && channelTags.length) await postChannelTagNotices(ctx, channelTags, "project_note", {project_id:channel.project_id,note_id:message.id}, {id:message.id});
   return hydrated;
 }
 
@@ -2181,6 +2188,9 @@ export async function searchMessages(ctx: PlatformAuthContext, query: string, op
 // Outside Channels callers can select channel:<id>; never trust client member lists.
 export async function resolveMentionUsers(ctx: PlatformAuthContext, mentions: JsonObject[] = [], channelId?: string, text = "") {
   const selected = [...mentions];
+  const conversation = channelId ? (await requireChannelAccess(ctx, channelId)).channel : null;
+  const restricted = conversation && conversation.type !== "project";
+  const members = restricted ? new Set((await listChannelMembers(channelId!)).map(member => member.user_id)) : null;
   if (channelId) for (const name of ["channel", "here"]) {
     if (new RegExp(`(^|\\s)@${name}(?=$|[\\s.,!?;:])`, "i").test(text)) selected.push({id:`broadcast:${name}`});
   }
@@ -2188,10 +2198,20 @@ export async function resolveMentionUsers(ctx: PlatformAuthContext, mentions: Js
   const directory = await userDirectory(ctx.orgId);
   for (const mention of selected) {
     const id = cleanText(mention.id || mention.user_id);
-    if (!id.startsWith("channel:") && !id.startsWith("broadcast:")) { if (id) targets.set(id, mention); continue; }
+    if (restricted && id.startsWith("channel:")) continue;
+    if (id.startsWith("broadcast:") && !["broadcast:channel", "broadcast:here"].includes(id)) continue;
+    if (!id.startsWith("channel:") && !id.startsWith("broadcast:")) {
+      if (members && !members.has(id) && id !== "agent_assistant") continue;
+      const person = directory.get(id);
+      if (person) targets.set(id, person);
+      continue;
+    }
     const targetChannelId = id.startsWith("channel:") ? id.slice(8) : channelId;
     if (!targetChannelId) continue;
-    await requireChannelAccess(ctx, targetChannelId);
+    const { channel: targetChannel } = await requireChannelAccess(ctx, targetChannelId, {write:id.startsWith("channel:")});
+    if (id.startsWith("channel:") && ["dm", "group_dm"].includes(targetChannel.type)) continue;
+    // Project-note channel tags notify through their notice in the destination.
+    if (conversation?.type === "project" && id.startsWith("channel:")) continue;
     let online: Set<string> | null = null;
     if (id === "broadcast:here") {
       const { presenceRoster } = await import("../platform/presence.js");
@@ -2199,12 +2219,41 @@ export async function resolveMentionUsers(ctx: PlatformAuthContext, mentions: Js
     }
     for (const member of await listChannelMembers(targetChannelId)) {
       if (online && !online.has(member.user_id)) continue;
-      if (channelId && !(await readChannelMember(channelId, member.user_id))) continue;
+      if (members && !members.has(member.user_id)) continue;
       const person = directory.get(member.user_id);
       if (person) targets.set(person.id, person);
     }
   }
   return [...targets.values()];
+}
+
+// Publish external references through the normal permission, unread and realtime
+// paths. Stable source IDs prevent duplicate notices when a client retries.
+export async function postChannelTagNotices(ctx: PlatformAuthContext, mentions: JsonObject[], source: string, context: JsonObject = {}, comment: JsonObject = {}) {
+  if (["channels", "channel_message", "dm"].includes(source)) return [];
+  const ids = [...new Set(mentions.map(user => cleanText(user.id || user.user_id)).filter(id => id.startsWith("channel:")).map(id => id.slice(8)))];
+  const channels = [];
+  for (const id of ids) {
+    const { channel } = await requireChannelAccess(ctx, id, {write:true});
+    if (!["dm", "group_dm"].includes(channel.type)) channels.push(channel);
+  }
+  const actor = cleanText(ctx.identity.name || ctx.identity.display_name || ctx.identity.email) || "A teammate";
+  const projectId = cleanText(context.project_id || context.projectId);
+  const photoId = cleanText(context.media_id || context.mediaId || context.photo_id || context.photoId);
+  const noteId = cleanText(context.note_id || context.noteId || (source === "project_note" ? comment.id : ""));
+  const kind = photoId || source === "photo_comment" ? "a photo" : source === "project_note" ? "a project note" : projectId ? "a project" : "an item";
+  const sourceId = cleanText(comment.id || context.note_id || context.resource_id || context.media_id || context.photo_id || context.project_id);
+  const results = [];
+  for (const channel of channels) {
+    const result = await postMessage(ctx, channel.id, {
+      text:`${actor} tagged the channel in ${kind}.`,
+      mention_users:(await listChannelMembers(channel.id)).filter(member => !member.user_id.startsWith("agent_")).map(member => ({id:member.user_id})),
+      client_msg_id:sourceId ? `channel-tag:${createHash("sha256").update(JSON.stringify([source,projectId,photoId,sourceId])).digest("hex")}` : undefined,
+      metadata:{channel_tag:{source,project_id:projectId,photo_id:photoId,note_id:noteId,label:photoId ? "Open photo" : noteId ? "Open project note" : "Open project"}}
+    });
+    results.push(result.message);
+  }
+  return results;
 }
 
 // --- mention notifications ------------------------------------------------------
