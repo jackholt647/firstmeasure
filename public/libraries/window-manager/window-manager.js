@@ -19,6 +19,7 @@
 .fm-window[data-window=minimized] .fm-window-title:after,.fm-window-title-plain:after{display:none}
 .fm-window-controls{display:flex;flex:0 0 auto;gap:2px;margin-left:auto}.fm-window-controls button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;background:none;border:0;border-radius:6px;color:inherit;cursor:pointer;font-size:12px}
 .fm-window-controls button:hover{background:#66708520}.fm-window-controls button[data-window-action=close]:hover{background:#d92d20;color:#fff}
+.fm-window[data-window=minimized]{border-radius:7px}.fm-window[data-window=minimized] .fm-window-header{height:30px;min-height:30px;padding:0 6px}.fm-window[data-window=minimized] .fm-window-controls button{height:28px!important;min-height:28px!important;width:24px!important}.fm-window[data-window=minimized] .fm-window-controls button:not([data-window-action=minimize]):not([data-window-action=close]){display:none!important}
 .fm-window-content{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .fm-window[data-window=minimized] .fm-window-content,.fm-window[data-window=minimized] [data-window-secondary]{display:none!important}
 .fm-window-resize{display:none;position:absolute;z-index:10;touch-action:none}.fm-window[data-window=floating] .fm-window-resize{display:block}
@@ -38,9 +39,11 @@
     document.head.append(style);
   }
   function closeMenu(){ menu?.remove(); menu = null; }
-  document.addEventListener('pointerdown', event => { if (menu && !menu.contains(event.target)) closeMenu(); });
+  const dismissMenuOnPointer = event => { if (menu && !menu.contains(event.target)) closeMenu(); };
+  document.addEventListener('pointerdown', dismissMenuOnPointer);
   // Dismiss placement menus before a containing modal's document Escape handler.
-  window.addEventListener('keydown', event => { if (event.key === 'Escape' && menu) { closeMenu(); event.preventDefault(); event.stopPropagation(); } }, true);
+  const dismissMenuOnKey = event => { if (event.key === 'Escape' && menu) { closeMenu(); event.preventDefault(); event.stopPropagation(); } };
+  window.addEventListener('keydown', dismissMenuOnKey, true);
   function registerHost(host){
     if (hosts.has(host)) return;
     const previousPosition = host.style.position;
@@ -68,6 +71,8 @@
     const budget = mobileOverlayDock ? width : Math.max(0,width - Math.min(320,width * .35));
     const scale = desired > budget ? budget / desired : 1;
     let reserved = 0, minimized = 0;
+    const minimizedWidth = Math.min(224, Math.max(0, width - 16));
+    const minimizedColumns = Math.max(1, Math.floor((width - 8) / (minimizedWidth + 6)));
     for (const win of docks) {
       const size = (mobileOverlayDock && win.mobileFullDock ? width : win.dockWidth) * scale, top = win.topInset();
       box(win,width - reserved - size,top,size,Math.max(0,height-top)); reserved += size;
@@ -86,7 +91,10 @@
       if (win.mode === 'modal' && win.nativeModalLayout) { for(const key of ['left','top','right','bottom','width','height']) win.element.style.removeProperty(key); }
       else if (win.mode === 'modal') { const w=Math.min(1720,innerWidth*.96),h=Math.min(1180,innerHeight*.92); box(win,(innerWidth-w)/2,(innerHeight-h)/2,w,h); }
       if (win.mode === 'full') box(win,0,inset,Math.max(0,width-reserved),Math.max(0,height-inset));
-      if (win.mode === 'minimized') { const w = Math.min(340,width); box(win,Math.max(0,width-w-8),Math.max(inset,height-52-(minimized++ * 50)),w,win.minimizedHeight); }
+      if (win.mode === 'minimized') {
+        const column = minimized % minimizedColumns, row = Math.floor(minimized++ / minimizedColumns);
+        box(win,Math.max(0,width-8-minimizedWidth-column*(minimizedWidth+6)),Math.max(inset,height-8-32-row*38),minimizedWidth,32);
+      }
       if (win.mode === 'floating') {
         const r = win.rect;
         r.width = Math.min(Math.max(win.minWidth,r.width),width);
@@ -106,6 +114,11 @@
     const element = options.element, header = options.header, title = options.title;
     if (!element || !header || !options.host) throw new Error('Window requires an element, header and host');
     const host = options.host;
+    const headerDocument = header.ownerDocument;
+    if (headerDocument !== document) {
+      headerDocument.addEventListener('pointerdown', dismissMenuOnPointer);
+      headerDocument.defaultView.addEventListener('keydown', dismissMenuOnKey, true);
+    }
     registerHost(host);
     const win = {
       element, header, host, stackElement:options.stackElement, contentTarget:options.contentTarget,
@@ -125,7 +138,7 @@
       const button = document.createElement('button'); button.type='button'; button.dataset.windowAction=action; button.innerHTML=`<i class="fas fa-${icon}" aria-hidden="true"></i>`; controls.append(button); buttons[action]=button;
     }
     if (options.presentationModes) {
-      for (const [action,icon] of [['modal','window-maximize'],['floating','up-down-left-right'],['fullscreen','up-right-and-down-left-from-center'],['pin','thumbtack']]) {
+      for (const [action,icon] of [['modal','window-maximize'],['floating','up-down-left-right'],['fullscreen','up-right-and-down-left-from-center']]) {
         const button=document.createElement('button');button.type='button';button.dataset.windowAction=action;button.innerHTML=`<i class="fas fa-${icon}" aria-hidden="true"></i>`;controls.append(button);buttons[action]=button;
         button.onclick=()=>action === 'pin' ? setPinned(!win.pinned) : setMode(action);
       }
@@ -145,13 +158,14 @@
       buttons.place.innerHTML=`<i class="fas fa-${dock ? 'table-columns' : 'window-restore'}" aria-hidden="true"></i>`;
       buttons.maximize.innerHTML=`<i class="fas fa-${!options.presentationModes && win.mode === 'full' ? 'window-restore' : 'expand'}" aria-hidden="true"></i>`;
       buttons.maximize.style.order=win.mode === 'full' ? '1' : '2'; buttons.minimize.style.order=win.mode === 'full' ? '2' : '1'; buttons.close.style.order='7';
-      if(options.presentationModes) { for(const [action,mode] of Object.entries({modal:'modal',floating:'floating',place:'docked',maximize:'full',fullscreen:'fullscreen'})) buttons[action].setAttribute('aria-pressed',String(win.mode===mode)); buttons.modal.style.order='0';buttons.floating.style.order='1';buttons.place.style.order='2';buttons.maximize.style.order='3';buttons.fullscreen.style.order='4';buttons.minimize.style.order='5';buttons.pin.style.order='6';buttons.pin.setAttribute('aria-pressed',String(win.pinned)); }
+      if(options.presentationModes) { for(const [action,mode] of Object.entries({modal:'modal',floating:'floating',place:'docked',maximize:'full',fullscreen:'fullscreen'})) buttons[action].setAttribute('aria-pressed',String(win.mode===mode)); buttons.modal.style.order='0';buttons.floating.style.order='1';buttons.place.style.order='2';buttons.maximize.style.order='3';buttons.fullscreen.style.order='4';buttons.minimize.style.order='5'; }
       buttons.minimize.innerHTML=`<i class="fas fa-${win.mode === 'minimized' ? 'window-restore' : 'minus'}" aria-hidden="true"></i>`;
     }
     function notify(reason){ options.onChange?.({mode:win.mode,pinned:win.pinned,reason}); }
     function setMode(mode,{silent=false}={}){
       if (!modes.includes(mode)) return;
       if (mode !== win.mode) {
+        options.onBeforeModeChange?.({mode,previous:win.mode});
         if (mode === 'minimized') win.previous = win.mode;
         win.mode=mode;
       }
@@ -167,10 +181,10 @@
     buttons.close.onclick=requestClose;
     function showMenu(event){
       event.preventDefault(); closeMenu(); menu=document.createElement('div'); menu.className='fm-window-menu'; menu.setAttribute('role','menu');
-      const items=[['Float',() => setMode('floating')],['Dock',() => setMode('docked')],[win.pinned ? 'Unpin window' : 'Pin window',() => setPinned(!win.pinned)],['Close',requestClose]];
+      const items=[['Float',() => setMode('floating')],['Dock',() => setMode('docked')],['Close',requestClose]];
       if(options.presentationModes) items.unshift(['Modal',()=>setMode('modal')],['Fill workspace',()=>setMode('full')],['Fill entire screen',()=>setMode('fullscreen')]);
       for(const [label,action] of items) { const button=document.createElement('button');button.textContent=label;button.setAttribute('role','menuitem');button.onclick=()=>{closeMenu();action();};menu.append(button); }
-      menu.style.pointerEvents='auto'; (options.menuHost || document.body).append(menu);const r=header.getBoundingClientRect();menu.style.left=`${Math.max(8,Math.min(r.left,innerWidth-246))}px`;menu.style.top=`${Math.max(8,Math.min(r.bottom,innerHeight-menu.offsetHeight-8))}px`;menu.firstChild.focus();
+      menu.style.pointerEvents='auto'; (options.menuHost || document.body).append(menu);const r=header.getBoundingClientRect(),view=menu.ownerDocument.defaultView;menu.style.left=`${Math.max(8,Math.min(r.left,view.innerWidth-246))}px`;menu.style.top=`${Math.max(8,Math.min(r.bottom,view.innerHeight-menu.offsetHeight-8))}px`;menu.firstChild.focus();
     }
     header.addEventListener('contextmenu',showMenu);
     if (title && options.titleMenu !== false) { title.tabIndex=0; title.setAttribute('role','button'); title.setAttribute('aria-label',((v0) => globalThis.PlatformLanguage?.text("window-manager","m_d2465937dae930",`${v0} window menu`,{v0}) ?? `${v0} window menu`)(name)); title.title=(globalThis.PlatformLanguage?.text("window-manager","m_e271e8dbdf1d3d","Window menu (right-click or Alt+Space)") ?? "Window menu (right-click or Alt+Space)"); }
@@ -181,6 +195,7 @@
       else if(options.titleMenu !== false && title?.contains(event.target))showMenu(event);
     }; header.addEventListener('click',titleClick);
     function keydown(event){ if (event.altKey && event.code === 'Space') showMenu(event); else if (event.target === title && ['Enter',' '].includes(event.key)) { if(win.mode === 'minimized'){event.preventDefault();restore();}else showMenu(event); } }
+    if(headerDocument!==document)headerDocument.addEventListener('keydown',keydown);
     element.addEventListener('keydown',keydown);element.addEventListener('pointerdown',focus);
     let endGesture=null;
     function gesture(event,edge){
@@ -189,9 +204,9 @@
       event.preventDefault(); dragged=false; focus();
       const handle=event.currentTarget; handle.setPointerCapture(event.pointerId);
       if(edge) handle.classList.add('is-resizing');
-      const start={...win.rect}, bounds=element.getBoundingClientRect();const x=event.clientX,y=event.clientY;
+      const start={...win.rect}, bounds=element.getBoundingClientRect();const x=event.screenX,y=event.screenY;
       const move=next=>{
-        const dx=next.clientX-x,dy=next.clientY-y;if(Math.abs(dx)+Math.abs(dy)>3)dragged=true;
+        const dx=next.screenX-x,dy=next.screenY-y;if(Math.abs(dx)+Math.abs(dy)>3)dragged=true;
         if(win.mode==='docked'){win.dockWidth=Math.max(win.minWidth,Math.min(win.host.clientWidth,bounds.width-dx));layout(win.host);return;}
         if(!edge){win.rect={...start,left:start.left+dx,top:start.top+dy};layout(win.host);return;}
         let l=start.left,t=start.top,r=l+start.width,b=t+start.height;
@@ -225,8 +240,8 @@
       setVisible(value){win.visible=!!value;element.hidden=!win.visible;layout(win.host);if(value)focus();},
       rehost(nextHost,contentTarget){if(nextHost===win.host)return;const old=win.host;registerHost(nextHost);win.host=nextHost;win.contentTarget=contentTarget;nextHost.append(element);layout(old);releaseHost(old);layout(nextHost);},
       refresh(){layout(win.host);},
-      destroy(){window.removeEventListener('resize',refreshViewport);endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);element.remove();layout(win.host);releaseHost(win.host);}
+      destroy(){if(headerDocument!==document){headerDocument.removeEventListener('keydown',keydown);headerDocument.removeEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.removeEventListener('keydown',dismissMenuOnKey,true);}window.removeEventListener('resize',refreshViewport);endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);element.remove();layout(win.host);releaseHost(win.host);}
     };
   }
-  root.FirstMateWindows={attach};
+  root.FirstMateWindows={attach, ensureStyles:styles};
 })(window);

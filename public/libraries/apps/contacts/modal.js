@@ -270,6 +270,7 @@
       .fm-contact-overlay.window-managed .fm-contact-win[data-window="full"],.fm-contact-overlay.window-managed .fm-contact-win[data-window="fullscreen"]{border-radius:0}
       .fm-contact-overlay.window-managed .fm-contact-win[data-window="minimized"] .fm-contact-content{display:none}
       .fm-contact-overlay.window-managed .fm-contact-win[data-window="minimized"]{padding:0}
+      .fm-contact-overlay.window-managed .fm-contact-win[data-window="minimized"] .fm-contact-window-header{height:30px;min-height:30px;padding:0 6px}
       .fm-contact-overlay.window-managed .fm-contact-win[data-window="minimized"] .fm-window-controls button:not([data-window-action="minimize"]):not([data-window-action="close"]){display:none}
       @media(max-width:760px){
         .fm-contact-win{width:100vw;height:100vh;border-radius:0}

@@ -1,9 +1,18 @@
 /* public/libraries/apps/project-request/app.js
  * Staged request workflow with optional roof-report ordering.
  */
-window.PlatformCommerce.onReady(function(){
-  if (!window.Portal) return;
+(function(){
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20260929-project-windows-v2', document.currentScript.src);
+  const registryReady = window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href);
+window.PlatformCommerce.onReady(async function(){
+  await registryReady;
+  if (!window.Portal || window.Portal.modules?.request?.retainedProjectWindows) return;
 
+  const projectWindowToken = new URLSearchParams(location.search).get('projectWindow') || (window.name.startsWith('fm-project-window:') ? window.name.slice(18) : '');
+  let projectWindowBridge = null;
+  try {
+    if (window.parent !== window && window.parent.FirstMateProjectWindows?.accepts(projectWindowToken, window)) projectWindowBridge = window.parent.FirstMateProjectWindows;
+  } catch (_) { /* A standalone portal does not connect to a foreign parent. */ }
   const cfg = window.Portal.cfg || {};
   const { $, injectCSS, postAction, hasPerm, formatDate, fmUrl, fmJson, fmPost, platformJson, currentActor } = window.Portal.util;
   const { showToast } = window.Portal.ui;
@@ -2908,7 +2917,7 @@ window.PlatformCommerce.onReady(function(){
     requestModalHandle = null;
     const overlay = $('#rOverlay');
     const mode = projectModalWindow?.state.mode || 'modal';
-    if (overlay && projectModalWindow) {
+    if (overlay && projectModalWindow && !projectWindowBridge) {
       const parent = ['modal','fullscreen'].includes(mode) ? document.body : (document.querySelector('main.main') || document.querySelector('.main'));
       if (parent && overlay.parentElement !== parent) parent.append(overlay);
     }
@@ -2923,55 +2932,69 @@ window.PlatformCommerce.onReady(function(){
     const overlay = $('#rOverlay'), element = overlay?.querySelector('.r-win');
     const host = document.querySelector('main.main') || document.querySelector('.main');
     if (!element || !host) return;
-    projectModalWindow = window.FirstMateWindows.attach({
-      element, host, stackElement:overlay, menuHost:overlay, header:element.querySelector('.r-modal-header'),
-      controlsHost:element.querySelector('.modal-shell-actions'),
+    const attach = projectWindowBridge ? options => projectWindowBridge.attach(projectWindowToken, window, options) : window.FirstMateWindows.attach;
+    projectModalWindow = attach({
+      element, host, stackElement:overlay, menuHost:overlay, header:element.querySelector('.r-window-bar'),
+      title:element.querySelector('#rWindowProjectTitle'),
+      controlsHost:element.querySelector('.r-window-bar-actions'),
       contentTarget:document.getElementById('mainPanels'),
       customChrome:true, presentationModes:true, viewportCoordinates:true, nativeModalLayout:true,
       name:'project', label:'Project', mode:'modal', width:1200, height:800,
-      dockWidth:900, minWidth:360, minimizedHeight:48,
+      dockWidth:900, minWidth:360, minimizedHeight:32,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
       onClose:() => close(),
       onChange:({mode}) => {
         overlay.dataset.windowMode = mode;
+        element.dataset.window = mode;
         projectModalFullscreen = mode === 'fullscreen';
         overlay.classList.toggle('fullscreen', projectModalFullscreen);
         syncProjectWindowModalRegistration();
         syncProjectModalFullscreenRoute();
-        window.dispatchEvent(new Event('resize'));
+        if(mode !== 'minimized') window.dispatchEvent(new Event('resize'));
       }
     });
     injectCSS('project-window', `
       .r-overlay.window-managed .r-win{flex-direction:row;transition:none;animation:none}
+      @media(min-width:1081px){.r-overlay.window-managed .r-left{border-right:0}.r-overlay.window-managed .r-right{margin-top:32px;border-left:1px solid #e4e7ec;border-top:1px solid #e4e7ec}}
       @media(min-width:761px){.r-overlay.window-managed[data-window-mode="modal"] .r-win{border:0;border-radius:14px;box-shadow:0 36px 120px rgba(15,23,42,.28)}}
+      .r-window-bar{position:absolute;top:0;left:min(460px,46%);right:0;height:32px;display:flex;align-items:center;background:#fff;z-index:75;touch-action:none;user-select:none;cursor:default}
+      .r-win[data-window="floating"] .r-window-bar{cursor:move}
+      .r-overlay.entitlement-left-none .r-window-bar{left:0}
+      .r-window-bar-actions{display:flex;align-self:stretch;margin-left:auto}
+      .r-window-bar .r-window-identity{display:none}
       .r-overlay.window-managed .fm-window-controls{align-self:stretch;gap:0}
       .r-overlay.window-managed .fm-window-controls button[aria-pressed="true"]{background:#e4e7ec;color:#101828}
-      .r-overlay.window-managed .fm-window-controls button{height:100%;min-height:48px;width:34px;border-radius:0;border-left:1px solid #e4e7ec}
+      .r-overlay.window-managed .fm-window-controls button{height:30px;min-height:30px;width:30px;border-radius:0}
       .r-overlay.window-managed #rFullscreenToggle,.r-overlay.window-managed #rMapCloseX{display:none}
       .r-overlay.window-managed:not([data-window-mode="modal"]):not([data-window-mode="fullscreen"]){background:transparent;pointer-events:none}
       .r-overlay.window-managed .r-win{pointer-events:auto}
       .r-overlay.window-managed .r-win[data-window="full"],.r-overlay.window-managed .r-win[data-window="fullscreen"]{border-radius:0}
+      .r-title-line{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:8px;align-items:start;width:100%}
+      .r-title-line > .r-project-folder{grid-column:1;grid-row:1;font-size:20px;line-height:28px;color:#667085}
+      .r-title-line > .r-title-wrap{grid-column:2;grid-row:1}
+      .r-title-line > .r-sub{grid-column:2}
       .r-overlay.window-managed .r-win[data-window="minimized"]{padding:0}
-      .r-overlay.window-managed .r-win[data-window="minimized"] > :not(.r-right):not(.fm-window-resize),
-      .r-overlay.window-managed .r-win[data-window="minimized"] .r-right > :not(.r-modal-header){display:none!important}
-      .r-overlay.window-managed .r-win[data-window="minimized"] .r-right{min-height:0;flex:1}
-      .r-overlay.window-managed .r-win[data-window="minimized"] .r-modal-header{display:flex!important}
-      .r-overlay.window-managed .r-win[data-window="minimized"] .r-tabbar,
-      .r-overlay.window-managed .r-win[data-window="minimized"] #rProjectHeaderAction{display:none}
-      .r-overlay.window-managed .r-win[data-window="minimized"] .r-window-identity{flex:1;max-width:none}
+      .r-overlay.window-managed .r-win[data-window="minimized"] > :not(.r-window-bar):not(.fm-window-resize){display:none!important}
+      .r-overlay.window-managed .r-win[data-window="minimized"] .r-window-bar{position:static;left:0;height:30px;min-height:30px;width:100%;padding:0 5px;gap:5px}
+      .r-overlay.window-managed .r-win[data-window="minimized"] .r-window-identity{display:flex;flex:1;min-width:0;max-width:none;padding:0;border:0;font-size:12px;gap:6px}
       .r-overlay.window-managed .r-win[data-window="minimized"] .fm-window-controls button:not([data-window-action="minimize"]):not([data-window-action="close"]){display:none}
-      @media(max-width:1080px){.r-overlay.window-managed .r-win{flex-direction:column}}
-      @media(max-width:760px){.r-overlay.window-managed.entitlement-hide-fullscreen .fm-window-controls [data-window-action="fullscreen"]{display:none}.r-overlay.window-managed .fm-window-controls button{width:28px;min-height:39px}}
+      @media(max-width:1080px){.r-overlay.window-managed .r-win{flex-direction:column;padding-top:32px}.r-window-bar{left:0}}
+      @media(max-width:760px){.r-overlay.window-managed.entitlement-hide-fullscreen .fm-window-controls [data-window-action="fullscreen"]{display:none}}
+      .project-window-embedded body{margin:0!important;overflow:hidden!important}
+      .project-window-embedded .fm-attention-topbar,.project-window-embedded .mobile-topbar,.project-window-embedded #platformTopbar,.project-window-embedded .main,.project-window-embedded #mainSidebar,.project-window-embedded #sidebarBackdrop,.project-window-embedded #fmProjectRoutePrecover{display:none!important}
+      .project-window-embedded #rOverlay{inset:0!important;width:100%!important;height:100%!important;background:transparent!important}
+      .project-window-embedded #rOverlay .r-win{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}
     `);
+    if (projectWindowBridge) { document.documentElement.classList.add('project-window-embedded'); element.classList.add('fm-window'); element.dataset.window='modal'; }
     overlay.classList.add('window-managed');
     overlay.dataset.windowMode = 'modal';
-    projectModalWindow.setVisible(false);
+    if (!projectWindowBridge) projectModalWindow.setVisible(false);
   }
   function setProjectModalFullscreen(enabled, options = {}){
     projectModalFullscreen = !!enabled;
     projectModalWindow?.setMode(enabled ? 'fullscreen' : 'modal', {silent:true});
     const managedOverlay = $('#rOverlay');
-    if (managedOverlay && projectModalWindow) managedOverlay.dataset.windowMode = enabled ? 'fullscreen' : 'modal';
+    if (managedOverlay && projectModalWindow) { managedOverlay.dataset.windowMode = enabled ? 'fullscreen' : 'modal'; managedOverlay.querySelector('.r-win').dataset.window = enabled ? 'fullscreen' : 'modal'; }
     const overlay = $('#rOverlay');
     clearTimeout(projectModalFullscreenTimer);
     if (overlay) {
@@ -8433,7 +8456,16 @@ window.PlatformCommerce.onReady(function(){
     const titleWrap = document.querySelector('#rOverlay .r-title-wrap');
     const sub = document.querySelector('#rOverlay .r-sub');
     const mobileTitle = document.getElementById('rMobileProjectTitleText');
-    if (!titleWrap || !sub) return;
+    if (!titleWrap || !sub) {
+      const title=projectTitleAlias(activeBaseProject || {}) || activeBaseProject?.address || 'Project';
+      const label=document.getElementById('rWindowProjectTitle'); if(label)label.textContent=title;
+      projectWindowBridge?.update(projectWindowToken,{title,projectId:projectOpenId()});
+      return;
+    }
+    titleWrap.parentElement.classList.add('r-title-line');
+    if (!titleWrap.parentElement.querySelector('.r-project-folder')) {
+      const icon=document.createElement('i');icon.className='fas fa-folder-open r-project-folder';icon.setAttribute('aria-hidden','true');titleWrap.before(icon);
+    }
     const mode = branchProjectConfig?.title_mode || 'customer_name';
     const address = projectText($('#rAddress')?.value, reportOrderState?.address, activeBaseProject?.address);
     const primary = primaryContact();
@@ -8464,6 +8496,7 @@ window.PlatformCommerce.onReady(function(){
     if (mobileTitle) mobileTitle.textContent = mobileDisplayTitle;
     const windowTitle = document.getElementById('rWindowProjectTitle');
     if (windowTitle) windowTitle.textContent = mobileDisplayTitle;
+    projectWindowBridge?.update(projectWindowToken,{title:mobileDisplayTitle,projectId:projectOpenId()});
     titleWrap.classList.toggle('manual-title', mode === 'manual' && !hasReportOrdered());
     if (hasReportOrdered()) {
       const orderedTitle = mode === 'manual'
@@ -9490,12 +9523,12 @@ window.PlatformCommerce.onReady(function(){
     el.id = 'rOverlay';
     el.innerHTML = `
       <div class="r-win">
+        <div class="r-window-bar"><div class="r-window-identity"><i class="fas fa-folder-open" aria-hidden="true"></i><span id="rWindowProjectTitle">Project</span></div><div class="r-window-bar-actions"></div></div>
         <div class="r-contact-contextbar" id="rContactContextBar"></div>
         ${String(projectModalRegionHtml('left'))}
 
         <div class="r-right" id="rMapWrap">
           <div class="r-modal-header">
-            <div class="r-window-identity"><i class="fas fa-folder-open" aria-hidden="true"></i><span id="rWindowProjectTitle">Project</span></div>
             <div class="r-tabbar" id="rProjectViewerTabs"></div>
             <div class="modal-shell-actions">
               <button type="button" class="modal-shell-action" id="rProjectHeaderAction" hidden></button>
@@ -10906,6 +10939,7 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function open(baseProject = null, options = {}){
+    if (!projectWindowBridge && window.FirstMateProjectWindows && document.querySelector('main.main, .main')) return window.FirstMateProjectWindows.open(baseProject, options);
     if (!baseProject && !hasPerm('order_reports')) {
       showToast((globalThis.PlatformLanguage?.text("project-request","m_60fa00527e725c","Access denied") ?? "Access denied"), (globalThis.PlatformLanguage?.text("project-request","m_3e88019828556d","You do not have permission to start this workflow.") ?? "You do not have permission to start this workflow."), false);
       return;
@@ -10944,7 +10978,7 @@ window.PlatformCommerce.onReady(function(){
     if (!baseProject) applyRequestedWorkflow();
     pendingRoutePhotoId = String(options.photo || '').trim();
     resetProjectModalAppPanels();
-    setProjectModalFullscreen(!!(options.fromRoute && routeFullscreenEnabled(options.projectFullscreen)), { syncRoute: false });
+    setProjectModalFullscreen(routeFullscreenEnabled(options.projectFullscreen), { syncRoute: false });
     renderAfterHoursNotice();
     clearTimeout(autosaveDebounceTimer);
     clearTimeout(autosaveToastTimer);
@@ -11013,6 +11047,7 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function close(options = {}){
+    if (!projectWindowBridge && window.FirstMateProjectWindows?.active) return window.FirstMateProjectWindows.close();
     projectModalWindow?.setVisible(false);
     projectPresenceStop?.(); projectPresenceStop = null;
     projectPresenceKey = ''; projectPresenceUsers = []; renderProjectPresence();
@@ -11068,6 +11103,7 @@ window.PlatformCommerce.onReady(function(){
     if (discarded) setTimeout(() => showToast((globalThis.PlatformLanguage?.text("project-request","m_b371ac5dc6d019","Empty project discarded") ?? "Empty project discarded"), (globalThis.PlatformLanguage?.text("project-request","m_e424d47363bdd1","No project was saved.") ?? "No project was saved."), true), 0);
     window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
     window.dispatchEvent(new CustomEvent('fm:modal:open', { detail: { open: false, id: 'request' } }));
+    projectWindowBridge?.closed(projectWindowToken);
   }
 
   function setPhotos(photos){
@@ -11310,6 +11346,7 @@ window.PlatformCommerce.onReady(function(){
   }
 
   async function openProject(project, options = {}){
+    if (!projectWindowBridge && window.FirstMateProjectWindows && document.querySelector('main.main, .main')) return window.FirstMateProjectWindows.open(project, options)?.ready;
     const requestedProjectId = projectOpenId(project);
     if (requestedProjectId && activeModalMatchesProject(requestedProjectId) && !options.forceRefresh) {
       applyProjectOpenRouteOptions(options);
@@ -11338,6 +11375,11 @@ window.PlatformCommerce.onReady(function(){
   }
 
   async function restoreRouteState(){
+    if (!projectWindowBridge && window.FirstMateProjectWindows && document.querySelector('main.main, .main')) {
+      const route=window.Portal?.routeState?.get?.() || {};
+      if (route.project && route.photoScope !== 'feed') return window.FirstMateProjectWindows.open(window.Portal.ProjectStore?.get?.(route.project) || {id:route.project}, {fromRoute:true,tab:route.projectTab,photo:route.photo,projectFullscreen:route.projectFullscreen});
+      return;
+    }
     const route = window.Portal?.routeState?.get?.() || {};
     const projectId = String(route.project || '').trim();
     if (projectRouteClosePendingId) {
@@ -11446,7 +11488,7 @@ window.PlatformCommerce.onReady(function(){
     });
   }
 
-  window.Portal.modules.request = { open, openProject, openDocumentDraft, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors };
+  window.Portal.modules.request = { retainedProjectWindows:true, open, openProject, openDocumentDraft, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors };
   window.Portal?.navigation?.registerSchema?.('projectFullscreen', { history:'replace', scope:{ project:true } });
   window.Portal?.navigation?.registerSchema?.('projectNote', { history:'replace', scope:{ project:true } });
   window.Portal?.navigation?.registerSchema?.('projectNotes', { history:'push', values:['1'], default:'', scope:{ project:true } });
@@ -11482,6 +11524,8 @@ window.PlatformCommerce.onReady(function(){
     if (event?.detail?.source !== 'device') refreshProjectModalForAppFlags();
   });
   window.addEventListener('fm:device:updated', () => refreshProjectModalForAppFlags());
+  projectWindowBridge?.ready(projectWindowToken, window, window.Portal.modules.request);
   window.setTimeout(() => restoreRouteState(), 0);
   window.setTimeout(() => restoreRouteState(), 900);
 });
+})();
