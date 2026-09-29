@@ -231,7 +231,7 @@ export function resetRealtimeForTests() {
 
 function ensureReplicaPoller() {
   if (!isFirstMeasurePostgresEnabled() || replicaPollTimer) return;
-  replicaPollTimer = setInterval(() => { void syncReplicaRealtime().catch(() => undefined); }, 1000);
+  replicaPollTimer = setInterval(() => { void syncReplicaRealtime().catch(() => undefined); }, 250);
   replicaPollTimer.unref?.();
 }
 

@@ -148,6 +148,13 @@ test("message language detection and personal translation preferences are user-s
 
   const defaults = await owner.request("GET", "/v1/platform/me/preferences");
   assert.equal(defaults.preferences.left_column_agents, false);
+  const collapse = await owner.request("PATCH", "/v1/platform/me/preferences", {
+    left_column_auto_collapse: { apps: true, todo: false, channels: false, agents: true }
+  });
+  assert.deepEqual(collapse.preferences.left_column_auto_collapse, { apps: true, todo: false, channels: false, agents: true });
+  await owner.request("PATCH", "/v1/platform/me/preferences", { left_column_auto_collapse: { todo: true } });
+  const collapseReloaded = await owner.request("GET", "/v1/platform/me/preferences");
+  assert.deepEqual(collapseReloaded.preferences.left_column_auto_collapse, { apps: true, todo: true, channels: false, agents: true });
   assert.equal(defaults.preferences.translation_language, "en-US");
 
   const posted = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/messages`, {
@@ -203,11 +210,27 @@ test("listing channels seeds #general and creating channels enforces permissions
   assert.equal(configured.channel.settings.huddle_record_video, false);
 });
 
+test("large table messages survive sending, editing, and reloading", async () => {
+  const { client: owner, orgId } = await registerOwner();
+  const listed = await owner.request("GET", `/v1/channels/organizations/${orgId}/channels`);
+  const channelId = listed.channels.find((channel: Json) => channel.name === "general").id;
+  const text = '| Item | Details |\n| --- | --- |\n' + Array.from({length:150}, (_, index) => `| ${index} | ${'detail '.repeat(40)} |`).join('\n');
+  assert.ok(text.length > 20_000);
+  const sent = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${channelId}/messages`, { text });
+  assert.equal(sent.message.text, text);
+  const edited = text.replace('detail', 'updated');
+  await owner.request("PATCH", `/v1/channels/organizations/${orgId}/messages/${sent.message.id}`, { text: edited });
+  const loaded = await owner.request("GET", `/v1/channels/organizations/${orgId}/channels/${channelId}/messages`);
+  assert.equal(loaded.messages.find((message: Json) => message.id === sent.message.id).text, edited);
+});
+
 test("call removal is host-only and blocks rejoin, media changes, and signaling", async () => {
   const { client:owner, orgId, userId, suffix } = await registerOwner();
   const teammate = await createOrgUser(owner, orgId, suffix, "Call Guest");
   const listed = await owner.request("GET", `/v1/channels/organizations/${orgId}/channels`);
   const general = listed.channels.find((channel:Json) => channel.name === "general");
+  const invitedChannel = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/members`, {user_ids:[teammate.userId]});
+  await teammate.client.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/read`, {last_read_seq:invitedChannel.channel.message_seq});
   const created = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/huddles`, {});
   const base = `/v1/channels/organizations/${orgId}/huddles/${created.huddle.id}`;
   await owner.request("POST", `${base}/join`, {});
@@ -246,6 +269,8 @@ test("message lifecycle: post, dedupe, edit history, non-author 403s, soft delet
   const member = await createOrgUser(owner, orgId, suffix, "Second Member");
   const listed = await owner.request("GET", `/v1/channels/organizations/${orgId}/channels`);
   const general = listed.channels.find((channel: Json) => channel.name === "general");
+  const invitedChannel = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/members`, {user_ids:[member.userId]});
+  await member.client.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/read`, {last_read_seq:invitedChannel.channel.message_seq});
 
   const posted = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/messages`, {
     text: "Original wording",
@@ -417,6 +442,8 @@ test("read state, unread counts, and mention badges clear on read", async () => 
   const reader = await createOrgUser(owner, orgId, suffix, "Reader Member");
   const listed = await owner.request("GET", `/v1/channels/organizations/${orgId}/channels`);
   const general = listed.channels.find((channel: Json) => channel.name === "general");
+  const invitedChannel = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/members`, {user_ids:[reader.userId]});
+  await reader.client.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/read`, {last_read_seq:invitedChannel.channel.message_seq});
 
   await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/messages`, { text: "one" });
   await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/messages`, {
@@ -439,11 +466,13 @@ test("read state, unread counts, and mention badges clear on read", async () => 
   assert.equal(cleared.channels[general.id].mention_count, 0);
 });
 
-test("mentions create platform notifications with channel deep-link actions", async () => {
+test("mentions appear only in the message inbox", async () => {
   const { client: owner, orgId, suffix } = await registerOwner();
   const target = await createOrgUser(owner, orgId, suffix, "Mention Target");
   const listed = await owner.request("GET", `/v1/channels/organizations/${orgId}/channels`);
   const general = listed.channels.find((channel: Json) => channel.name === "general");
+  const invitedChannel = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/members`, {user_ids:[target.userId]});
+  await target.client.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/read`, {last_read_seq:invitedChannel.channel.message_seq});
 
   await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/messages`, {
     text: "ping @Mention Target",
@@ -452,9 +481,9 @@ test("mentions create platform notifications with channel deep-link actions", as
 
   const notifications = await target.client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
   const mention = (notifications.notifications ?? []).find((notification: Json) => notification.kind === "mention");
-  assert.ok(mention, "expected a mention notification");
-  assert.equal(mention.frontend_action.kind, "open_channel_message");
-  assert.equal(mention.frontend_action.channel_id, general.id);
+  assert.equal(mention, undefined, "message mentions do not duplicate into the bell");
+  const inbox = await target.client.request("GET", `/v1/channels/organizations/${orgId}/inbox`);
+  assert.ok(inbox.entries.some((entry:Json) => entry.kind === "mention" && entry.channel_id === general.id));
 });
 
 test("pins and saved messages round-trip", async () => {
@@ -481,6 +510,8 @@ test("search finds messages, excludes deleted ones, and respects private members
   const outsider = await createOrgUser(owner, orgId, suffix, "Search Outsider");
   const listed = await owner.request("GET", `/v1/channels/organizations/${orgId}/channels`);
   const general = listed.channels.find((channel: Json) => channel.name === "general");
+  const invitedChannel = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/members`, {user_ids:[outsider.userId]});
+  await outsider.client.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/read`, {last_read_seq:invitedChannel.channel.message_seq});
 
   const keeper = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/messages`, { text: "The zanzibar shipment arrived" });
   const goner = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/messages`, { text: "zanzibar duplicate to remove" });
@@ -511,6 +542,7 @@ test("manage_channels users can delete and restore other people's messages", asy
   });
   const listed = await author.client.request("GET", `/v1/channels/organizations/${orgId}/channels`);
   const general = listed.channels.find((channel: Json) => channel.name === "general");
+  await author.client.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/members`, {user_ids:[moderator.userId]});
 
   const posted = await author.client.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/messages`, { text: "moderate me" });
 
@@ -568,6 +600,8 @@ test("collaboration attention, manual unread, followed threads, drafts, tabs, fo
   const teammate = await createOrgUser(owner, orgId, suffix, "Collaboration Teammate");
   const listed = await owner.request("GET", `/v1/channels/organizations/${orgId}/channels`);
   const general = listed.channels.find((channel: Json) => channel.name === "general");
+  const invitedChannel = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/members`, {user_ids:[teammate.userId]});
+  await teammate.client.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/read`, {last_read_seq:invitedChannel.channel.message_seq});
 
   const root = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/messages`, {
     text: "Please review this work",
@@ -608,7 +642,8 @@ test("collaboration attention, manual unread, followed threads, drafts, tabs, fo
   assert.equal(draft.draft.text, "Saved on another device");
 
   const tabs = await teammate.client.request("GET", `/v1/channels/organizations/${orgId}/channels/${general.id}/tabs`);
-  assert.ok(tabs.tabs.some((tab: Json) => tab.kind === "documents"));
+  assert.ok(tabs.tabs.some((tab: Json) => tab.kind === "files"));
+  assert.ok(!tabs.tabs.some((tab: Json) => tab.kind === "documents"));
   const folder = await teammate.client.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/folders`, {
     label: "Launch assets"
   });
@@ -648,7 +683,7 @@ test("message-to-To-Do and huddle lifecycle keep channel context", async () => {
   assert.equal(reminders.reminders[0].id, reminder.reminder.id);
   assert.equal(reminders.reminders[0].message.id, posted.message.id);
 
-  const started = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/huddles`, {
+  let started = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/huddles`, {
     audio: true,
     video: false,
     recording_enabled: true
@@ -659,6 +694,8 @@ test("message-to-To-Do and huddle lifecycle keep channel context", async () => {
   assert.ok(joined.huddle.signaling.room);
   const left = await owner.request("POST", `/v1/channels/organizations/${orgId}/huddles/${started.huddle.id}/leave`, {});
   assert.ok(left.huddle.participants.some((participant: Json) => participant.left_at), "leaving marks the participant inactive");
+  assert.equal(left.huddle.state,"ended");
+  started = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/huddles`, {audio:true,video:false,recording_enabled:true});
   const rejoined = await owner.request("POST", `/v1/channels/organizations/${orgId}/huddles/${started.huddle.id}/join`, {});
   assert.ok(rejoined.huddle.participants.some((participant: Json) => !participant.left_at), "joining again clears the prior leave state");
   const signal = await owner.request("POST", `/v1/channels/organizations/${orgId}/huddles/${started.huddle.id}/signals`, {
@@ -694,6 +731,160 @@ test("message-to-To-Do and huddle lifecycle keep channel context", async () => {
   assert.ok(activity.items.some((item: Json) => item.kind === "huddle_ended"));
 });
 
+test("DM huddles notify invitees, enforce conversation access, and respect muted invitations", async () => {
+  const { client: owner, orgId, suffix } = await registerOwner();
+  const livia = await createOrgUser(owner, orgId, suffix, "Livia");
+  const outsider = await createOrgUser(owner, orgId, suffix, "Outside Member");
+  const { channel } = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels`, {type:'dm', member_user_ids:[livia.userId]});
+  const { huddle } = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${channel.id}/huddles`, {});
+  const notifications = await livia.client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
+  const invite = notifications.notifications.find((item: Json) => item.kind === 'huddle_invite');
+  assert.ok(invite, 'starting a DM huddle notifies the other person');
+  assert.equal(invite.frontend_action.channel_id, channel.id);
+  assert.equal(invite.frontend_action.huddle_id, huddle.id);
+  assert.equal(invite.frontend_action.message_id, huddle.root_message_id);
+  await owner.request("POST", `/v1/channels/organizations/${orgId}/huddles/${huddle.id}/join`, {});
+  const invited = await owner.request("POST", `/v1/channels/organizations/${orgId}/huddles/${huddle.id}/invite`, {user_ids:[livia.userId]});
+  assert.deepEqual(invited.invited_user_ids, [livia.userId]);
+  const denied = await owner.raw("POST", `/v1/channels/organizations/${orgId}/huddles/${huddle.id}/invite`, {user_ids:[outsider.userId]});
+  assert.equal(denied.statusCode, 400, 'an invitation cannot expose a private conversation');
+  await livia.client.request("PATCH", `/v1/channels/organizations/${orgId}/collaboration-preferences`, {huddle_invites:false});
+  const muted = await owner.request("POST", `/v1/channels/organizations/${orgId}/huddles/${huddle.id}/invite`, {user_ids:[livia.userId]});
+  assert.deepEqual(muted.invited_user_ids, []);
+  await owner.request("POST", `/v1/channels/organizations/${orgId}/huddles/${huddle.id}/end`, {});
+  const ended = await owner.raw("POST", `/v1/channels/organizations/${orgId}/huddles/${huddle.id}/invite`, {user_ids:[livia.userId]});
+  assert.equal(ended.statusCode, 400);
+});
+
+test("Files combines media and documents across message history and excludes drafts and deleted messages", async () => {
+  const {client:owner, orgId, userId, suffix} = await registerOwner();
+  const other = await createOrgUser(owner, orgId, suffix, "Files outsider");
+  const {channel} = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels`, {type:"private",name:"file-history"});
+  const base = `/v1/channels/organizations/${orgId}/channels/${channel.id}`;
+  const storage = await import("../channels/storage.js");
+  const collaboration = await import("../channels/collaboration.js");
+  const upload = (name:string, contentType:string) => storage.createAttachmentRecord({organization_id:orgId, channel_id:channel.id,
+    media_id:`media_${name}`, file_name:name, content_type:contentType, size_bytes:128, uploaded_by:userId});
+  const old = await upload("old-photo.png", "image/png");
+  const root = await storage.createMessageRecord({organization_id:orgId,channel_id:channel.id,author_id:userId,text:"Old photo"});
+  await storage.attachToMessage(orgId,[old.id],root.id,channel.id,userId); // Before resource refs existed.
+  for (let i=0;i<205;i++) await storage.createMessageRecord({organization_id:orgId,channel_id:channel.id,author_id:userId,text:`Later ${i}`});
+  const pdf = await upload("report.pdf", "application/pdf");
+  const reply = await owner.request("POST", `${base}/messages`, {text:"Report",parent_id:root.id,attachment_ids:[pdf.id]});
+  await upload("unsent.png", "image/png");
+  await collaboration.createResourceRefRecord(orgId,channel.id,userId,{resource_type:"document",resource_id:"doc_test",display_note:"Shared document"});
+  const files = await owner.request("GET", `${base}/resources?type=files`);
+  assert.equal(files.resources.length,3);
+  assert.ok(files.resources.some((item:Json)=>item.resource.file_name==="old-photo.png"));
+  assert.equal(files.resources.filter((item:Json)=>item.resource.file_name==="report.pdf").length,1,"indexed attachments are deduplicated");
+  assert.ok(files.resources.some((item:Json)=>item.resource_type==="document"));
+  assert.equal((await other.client.raw("GET",`${base}/resources?type=files`)).statusCode,403);
+  await owner.request("DELETE",`/v1/channels/organizations/${orgId}/messages/${reply.message.id}`);
+  const remaining = await owner.request("GET",`${base}/resources?type=files`);
+  assert.ok(!remaining.resources.some((item:Json)=>item.resource.file_name==="report.pdf"));
+  await collaboration.listTabRecords(orgId,channel.id,userId);
+  await collaboration.createTabRecord(orgId,channel.id,userId,{kind:"documents",label:"Documents"});
+  const tabs = await owner.request("GET",`${base}/tabs`);
+  assert.equal(tabs.tabs.filter((tab:Json)=>tab.kind==="files").length,1);
+  assert.ok(!tabs.tabs.some((tab:Json)=>tab.kind==="documents"));
+});
+
+test("broadcast and channel-name mentions expand current membership and here uses live presence", async () => {
+  const {client:owner,orgId,userId,suffix} = await registerOwner();
+  const livia=await createOrgUser(owner,orgId,suffix,"Mention Livia");
+  const offline=await createOrgUser(owner,orgId,suffix,"Mention Offline");
+  const outsider=await createOrgUser(owner,orgId,suffix,"Mention Outsider");
+  const {channel}=await owner.request("POST",`/v1/channels/organizations/${orgId}/channels`,{type:"private",name:"Gutters",member_user_ids:[livia.userId,offline.userId]});
+  const route=`/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`;
+  const all=await owner.request("POST",route,{text:"@channel hello"});
+  assert.deepEqual(new Set(all.message.mention_users.map((person:Json)=>person.id)),new Set([userId,livia.userId,offline.userId]));
+  const {EventEmitter}=await import("node:events");
+  const {attachPresence}=await import("../platform/presence.js");
+  const raw=new EventEmitter() as any; raw.writeHead=()=>{};raw.write=()=>{};raw.end=()=>{};
+  await attachPresence({headers:{},raw:{socket:{setTimeout(){},setNoDelay(){}}}} as any,{raw,hijack(){}} as any,{orgId,scope:"online",userId:livia.userId,name:"Livia",authorize:async()=>{}});
+  try {
+    const here=await owner.request("POST",route,{text:"@here hello"});
+    assert.deepEqual(here.message.mention_users.map((person:Json)=>person.id),[livia.userId]);
+  } finally {raw.emit("close");}
+  const tagged=await owner.request("POST",`/v1/platform/organizations/${orgId}/tagging/mention-events`,{source:"photo_comment",mention_users:[{id:`channel:${channel.id}`,name:"Gutters"}],comment:{text:"@Gutters review this"}});
+  assert.deepEqual(new Set(tagged.event.target_user_ids),new Set([userId,livia.userId,offline.userId]));
+  assert.equal((await outsider.client.raw("POST",`/v1/platform/organizations/${orgId}/tagging/mention-events`,{mention_users:[{id:`channel:${channel.id}`}]})).statusCode,403);
+  const bell=await livia.client.request("GET",`/v1/platform/organizations/${orgId}/notifications`);
+  assert.ok(!bell.notifications.some((item:Json)=>item.source==="channel_message"));
+  const inbox=await livia.client.request("GET",`/v1/channels/organizations/${orgId}/inbox`);
+  assert.ok(inbox.entries.some((item:Json)=>item.kind==="mention" && item.message_id===all.message.id));
+});
+
+test("uploaded profile pictures persist and refresh cached channel authors", async () => {
+  const {client:owner,orgId,userId}=await registerOwner();
+  const {channel}=await owner.request("POST",`/v1/channels/organizations/${orgId}/channels`,{type:"private",name:"avatar-test"});
+  const route=`/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`;
+  await owner.request("POST",route,{text:"Before avatar upload"});
+  const result=await owner.request("POST","/v1/platform/portal-action",{action:"org_users_upload_avatar_my",user_id:userId,__file:{filename:"avatar.png",mimetype:"image/png",bytes_base64:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII="}});
+  assert.ok(result.avatar_url);
+  const messages=await owner.request("GET",route);
+  assert.equal(messages.messages[0].author.avatar,result.avatar_url);
+  const image=await owner.raw("GET",result.avatar_url);
+  assert.equal(image.statusCode,200);
+  assert.match(image.headers['content-type'],/image\/png/);
+});
+
+test("last huddle participant ends the session and the next huddle gets a new message and timer", async () => {
+  const {client:owner,orgId,suffix}=await registerOwner();
+  const guest=await createOrgUser(owner,orgId,suffix,"Huddle Last Guest");
+  const {channel}=await owner.request("POST",`/v1/channels/organizations/${orgId}/channels`,{type:"private",name:"huddle-lifecycle",member_user_ids:[guest.userId]});
+  const base=`/v1/channels/organizations/${orgId}`;
+  const start=()=>owner.request("POST",`${base}/channels/${channel.id}/huddles`,{});
+  const {huddle:first}=await start();
+  await owner.request("POST",`${base}/huddles/${first.id}/join`,{});
+  await guest.client.request("POST",`${base}/huddles/${first.id}/join`,{});
+  const {getCallsDatabase}=await import("../calls/storage.js");
+  await getCallsDatabase().prepare("UPDATE call_rooms SET started_at = ? WHERE id = ?").run(new Date(Date.now()-125000).toISOString(),first.id);
+  const left=await owner.request("POST",`${base}/huddles/${first.id}/leave`,{});
+  assert.equal(left.huddle.state,"active","remaining participant keeps the huddle open");
+  const last=await guest.client.request("POST",`${base}/huddles/${first.id}/leave`,{});
+  assert.equal(last.huddle.state,"ended","the last participant can end an empty room without being its host");
+  await owner.request("POST",`/v1/calls/organizations/${orgId}/rooms/${first.id}/artifacts`,{kind:"transcript",metadata:{text:"This is the call transcript."}});
+  await guest.client.request("POST",`${base}/huddles/${first.id}/leave`,{});
+  const history=await owner.request("GET",`${base}/channels/${channel.id}/messages`);
+  const original=history.messages.find((message:Json)=>message.id===first.root_message_id);
+  assert.equal(original.huddle.state,"ended");
+  assert.equal(original.huddle.artifacts[0].metadata.text,"This is the call transcript.");
+  const thread=await owner.request("GET",`${base}/messages/${first.root_message_id}/thread`);
+  const endings=thread.replies.filter((message:Json)=>message.metadata.event==="huddle_ended");
+  assert.equal(endings.length,1);
+  assert.ok(endings[0].metadata.duration_seconds>=125);
+  const {huddle:second}=await start();
+  assert.notEqual(second.id,first.id);
+  assert.notEqual(second.root_message_id,first.root_message_id);
+  assert.ok(Date.parse(second.started_at)>Date.parse(original.huddle.started_at));
+  assert.equal(second.state,"active");
+  assert.equal((await guest.client.raw("POST",`${base}/huddles/${first.id}/join`,{})).statusCode,400);
+  await guest.client.request("POST",`${base}/huddles/${second.id}/join`,{});
+  const removed=await owner.request("DELETE",`${base}/huddles/${second.id}/participants/${guest.userId}`);
+  assert.equal(removed.huddle.state,"ended","removing the last participant also closes the room");
+  await getCallsDatabase().prepare("UPDATE call_rooms SET state = 'active', ended_at = NULL WHERE id = ?").run(second.id);
+  const {huddle:third}=await start();
+  assert.notEqual(third.id,second.id,"legacy empty active rooms are closed before creating a fresh call");
+  const repaired=await owner.request("GET",`${base}/huddles/${second.id}`);
+  assert.equal(repaired.huddle.ended_at,removed.huddle.ended_at,"repair uses the last departure time");
+});
+
+test("scheduled messages stay private to the sender until delivery", async () => {
+  const { client: owner, orgId, suffix } = await registerOwner();
+  const recipient = await createOrgUser(owner, orgId, suffix, "Schedule Recipient");
+  const { channel } = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels`, {type:'dm', member_user_ids:[recipient.userId]});
+  const { scheduled_message: scheduled } = await owner.request("POST", `/v1/channels/organizations/${orgId}/scheduled-messages`, {
+    channel_id: channel.id, text: 'Tomorrow morning', scheduled_at:new Date(Date.now()+3600000).toISOString()
+  });
+  const mine = await owner.request("GET", `/v1/channels/organizations/${orgId}/scheduled-messages`);
+  assert.ok(mine.scheduled_messages.some((item: Json) => item.id === scheduled.id));
+  const theirs = await recipient.client.request("GET", `/v1/channels/organizations/${orgId}/scheduled-messages`);
+  assert.equal(theirs.scheduled_messages.length, 0);
+  const messages = await recipient.client.request("GET", `/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`);
+  assert.ok(!messages.messages.some((item: Json) => item.text === 'Tomorrow morning'));
+});
+
 test("directory exposes shared profile details without private account fields", async () => {
   const { client, orgId, suffix } = await registerOwner();
   const created = await client.request("POST", `/v1/platform/organizations/${orgId}/users`, { data: {
@@ -716,4 +907,31 @@ test("directory exposes shared profile details without private account fields", 
   assert.equal(person.time_zone, "America/Los_Angeles");
   assert.equal(person.password, undefined);
   assert.equal(person.private_notes, undefined);
+});
+
+
+test("ordinary channels require membership and members can invite teammates", async () => {
+  const { client: owner, orgId, suffix } = await registerOwner();
+  const invited = await createOrgUser(owner, orgId, suffix, "Invited Member");
+  const outsider = await createOrgUser(owner, orgId, suffix, "Outside Channel");
+  const { channel } = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels`, {type:"public", name:"members-only"});
+  const base = `/v1/channels/organizations/${orgId}`;
+  assert.ok(!(await outsider.client.request("GET", `${base}/channels`)).channels.some((item:Json)=>item.id===channel.id));
+  assert.equal((await outsider.client.raw("GET", `${base}/channels/${channel.id}`)).statusCode,403);
+  assert.equal((await outsider.client.raw("POST", `${base}/channels/${channel.id}/messages`,{text:"Cannot silently join"})).statusCode,403);
+  const { message } = await owner.request("POST", `${base}/channels/${channel.id}/messages`,{text:"hiddenneedle",mention_users:[{id:outsider.userId,name:"Outside Channel"}]});
+  assert.ok(!(await outsider.client.request("GET", `${base}/search?q=hiddenneedle`)).messages?.some((item:Json)=>item.id===message.id));
+  const notifications = await outsider.client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
+  assert.ok(!notifications.notifications.some((item:Json)=>item.context?.channel_id===channel.id));
+  const events = await outsider.client.request("GET", `/v1/platform/organizations/${orgId}/events/poll?after=0`);
+  assert.ok(!(events.events || []).some((item:Json)=>item.payload?.channel_id===channel.id));
+  await owner.request("POST", `${base}/channels/${channel.id}/members`, {user_ids:[invited.userId]});
+  assert.ok((await invited.client.request("GET", `${base}/channels`)).channels.some((item:Json)=>item.id===channel.id));
+  const view = await invited.client.request("GET", `${base}/channels/${channel.id}`);
+  assert.equal(view.channel.can_invite,true);
+  await invited.client.request("POST", `${base}/channels/${channel.id}/members`, {user_ids:[outsider.userId]});
+  assert.equal((await outsider.client.request("GET", `${base}/channels/${channel.id}`)).channel.id,channel.id);
+  await owner.request("DELETE", `${base}/channels/${channel.id}/members/${outsider.userId}`);
+  assert.equal((await outsider.client.raw("GET", `${base}/channels/${channel.id}/messages`)).statusCode,403);
+  assert.ok(!(await outsider.client.request("GET", `${base}/channels`)).channels.some((item:Json)=>item.id===channel.id));
 });

@@ -695,6 +695,8 @@ export async function findChannelByDmKey(orgId: string, dmKey: string) {
 }
 
 export async function updateChannelRecord(orgId: string, channelId: string, patch: {
+  type?: ChannelType;
+  dm_key?: string | null;
   name?: string;
   topic?: string;
   archived_at?: string | null;
@@ -705,9 +707,11 @@ export async function updateChannelRecord(orgId: string, channelId: string, patc
   if (!existing) return null;
   const db = getChannelsDatabase();
   (await db.prepare(`
-    UPDATE channels SET name = ?, topic = ?, archived_at = ?, settings_json = ?, updated_at = ?
+    UPDATE channels SET type = ?, dm_key = ?, name = ?, topic = ?, archived_at = ?, settings_json = ?, updated_at = ?
     WHERE organization_id = ? AND id = ?
   `).run(
+    patch.type ?? existing.type,
+    patch.dm_key !== undefined ? patch.dm_key : existing.dm_key,
     patch.name !== undefined ? cleanText(patch.name) : existing.name,
     patch.topic !== undefined ? cleanText(patch.topic) : existing.topic,
     patch.archived_at !== undefined ? patch.archived_at : existing.archived_at,
@@ -1250,6 +1254,21 @@ export async function attachToMessage(orgId: string, attachmentIds: string[], me
     attached.push({ ...attachment, message_id: messageId, channel_id: channelId });
   }
   return attached;
+}
+
+// Read the full channel history, including replies, without relying on the
+// resource index (older messages may predate that index).
+export async function listChannelAttachmentResources(orgId: string, channelId: string) {
+  const rows = await getChannelsDatabase().prepare(`
+    SELECT m.*, a.id AS attachment_id, a.media_id, a.file_name, a.content_type, a.size_bytes
+    FROM messages m JOIN message_attachments a ON a.message_id = m.id AND a.organization_id = m.organization_id
+    WHERE m.organization_id = ? AND m.channel_id = ? AND m.deleted_at IS NULL
+    ORDER BY m.seq DESC, a.created_at DESC
+  `).all(orgId, channelId) as JsonObject[];
+  return rows.map(row => ({message:messageFromRow(row), resource:{
+    id:row.attachment_id, media_id:row.media_id, file_name:row.file_name,
+    content_type:row.content_type, size_bytes:row.size_bytes
+  }}));
 }
 
 export async function listAttachmentsForMessages(messageIds: string[]) {

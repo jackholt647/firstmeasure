@@ -14,8 +14,8 @@
   if (root.PlatformRealtime) return;
   const APP = root.__APP || {};
 
-  const POLL_INTERVAL_MS = 10_000;
-  const SSE_FAILURE_LIMIT = 4;
+  const POLL_INTERVAL_MS = 1000;
+  const SSE_RETRY_MS = 30_000;
 
   const state = {
     baseUrl: '',
@@ -84,11 +84,13 @@
     entry.source = source;
     entry.mode = 'sse';
     source.addEventListener('platform', (message) => {
+      if (entry.source !== source || !entry.subscribers.size) return;
       entry.failures = 0;
       const id = Number(message.lastEventId || 0);
-      if (Number.isFinite(id) && id > entry.lastEventId) entry.lastEventId = id;
       let data = null;
       try { data = JSON.parse(message.data); } catch (e) { return; }
+      if (id && id <= entry.lastEventId && data.topic !== 'sys.resync') return;
+      if (Number.isFinite(id) && id > entry.lastEventId) entry.lastEventId = id;
       dispatch(orgId, data);
     });
     source.onerror = () => {
@@ -96,13 +98,8 @@
       entry.source = null;
       entry.failures += 1;
       if (!entry.subscribers.size) return;
-      if (entry.failures >= SSE_FAILURE_LIMIT) {
-        startPolling(orgId);
-        return;
-      }
-      const backoff = Math.min(30_000, 1000 * Math.pow(2, entry.failures)) * (0.5 + Math.random());
-      clearTimeout(entry.reconnectTimer);
-      entry.reconnectTimer = setTimeout(() => connect(orgId), backoff);
+      // Keep receiving during an SSE outage instead of waiting through backoff.
+      startPolling(orgId);
     };
   }
 
@@ -115,9 +112,14 @@
       );
       if (!response.ok) return;
       const data = await response.json();
+      if (entry.mode !== 'polling' || !entry.subscribers.size) return;
       entry.failures = 0;
       if (data?.resync) dispatch(orgId, { topic: 'sys.resync', payload: {}, ts: new Date().toISOString() });
-      for (const event of (data?.events || [])) dispatch(orgId, event);
+      for (const event of (data?.events || [])) {
+        if (event.seq && event.seq <= entry.lastEventId) continue;
+        dispatch(orgId, event);
+        if (Number.isFinite(Number(event.seq))) entry.lastEventId = Math.max(entry.lastEventId,Number(event.seq));
+      }
       if (Number.isFinite(Number(data?.next))) entry.lastEventId = Math.max(entry.lastEventId, Number(data.next));
     } catch (error) {
       /* transient network errors are fine while polling */
@@ -132,9 +134,14 @@
     const tick = async () => {
       if (!entry.subscribers.size) return;
       await pollOnce(orgId);
-      entry.pollTimer = setTimeout(tick, POLL_INTERVAL_MS);
+      if (entry.mode === 'polling' && entry.subscribers.size) entry.pollTimer = setTimeout(tick, document.hidden ? 10000 : POLL_INTERVAL_MS);
     };
     tick();
+    clearTimeout(entry.reconnectTimer);
+    if (typeof root.EventSource === 'function') entry.reconnectTimer = setTimeout(() => {
+      if (!entry.subscribers.size || entry.mode !== 'polling') return;
+      clearTimeout(entry.pollTimer); entry.mode = 'idle'; connect(orgId);
+    }, SSE_RETRY_MS);
   }
 
   function teardownIfIdle(orgId){

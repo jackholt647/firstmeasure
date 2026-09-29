@@ -155,6 +155,7 @@
       unreads: (orgId) => request(orgPath(orgId, '/unreads')),
       messages: (orgId, params = {}) => request(orgPath(orgId, `/unreads/messages${queryString(params)}`)),
       inbox: (orgId, params = {}) => request(orgPath(orgId, `/inbox${params.limit ? `?limit=${encodeURIComponent(params.limit)}` : ''}`)),
+      inboxRead: (orgId, entry) => request(orgPath(orgId, '/inbox/read'), {method:'POST', body:{entry_id:entry.entry_id,message_id:entry.message_id,kind:entry.kind}}),
       inboxSeen: (orgId) => request(orgPath(orgId, '/inbox/seen'), { method:'POST', body:{} })
     },
 
@@ -226,6 +227,7 @@
     },
 
     huddles: {
+      invite: (orgId, huddleId, userIds) => request(orgPath(orgId, `/huddles/${enc(huddleId)}/invite`), { method:'POST', body:{user_ids:userIds} }),
       removeParticipant: (orgId, huddleId, userId) => request(orgPath(orgId, `/huddles/${enc(huddleId)}/participants/${enc(userId)}`), { method:'DELETE' }),
       create: (orgId, channelId, input = {}) => request(orgPath(orgId, `/channels/${enc(channelId)}/huddles`), { method:'POST', body:input }),
       get: (orgId, huddleId) => request(orgPath(orgId, `/huddles/${enc(huddleId)}`)),
@@ -239,7 +241,7 @@
     },
 
     typing: {
-      note: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}/typing`), { method: 'POST', body: {} })
+      note: (orgId, channelId, typing = true) => request(orgPath(orgId, `/channels/${enc(channelId)}/typing`), { method: 'POST', body: {typing} })
     },
 
     search: (orgId, q, params = {}) => request(orgPath(orgId, `/search${queryString({ q, ...params })}`)),

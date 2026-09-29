@@ -86,6 +86,9 @@ assistant and the legacy AI Agents settings page.
 The signed-in user's `left_column_agents` preference enables the desktop Agents mode in the
 portal left column, alongside Apps, To Dos and Channels. All left-column tab and layout
 preferences live in Company Settings > My Settings and use `/v1/platform/me/preferences`.
+`left_column_auto_collapse` independently controls Apps, To Dos, Channels and
+Agents. Unset modes retain the legacy compact behavior; explicit false keeps
+that mode expanded even when an app requests a compact rail.
 They do not alter organization capabilities or grant access to an app. The Agents tab reuses the same
 conversation list and controls as the assistant window. Selecting a conversation
 opens the full assistant workspace; docked and mobile layouts retain the compact
@@ -156,6 +159,13 @@ deletes a user's agents. Routes: `agents`, `agents/:id` (GET, PATCH, DELETE),
 `agents/:id/run`, `dashboard` and `dashboard/:itemId` under the organization prefix.
 
 ## Reliability
+
+Channels invitations to an assistant enqueue an immediate reply. Inviting one
+into a two-person DM converts it to a group DM and clears its pair lookup key,
+so future human-only DMs stay separate. Interactive DM and mention requests
+start draining the durable `channel` queue on the serving process; they do not
+depend on a separate worker being present. Queue claims still prevent duplicate
+execution when a worker or another replica is also draining it.
 
 The shared runtime stops after 16 rounds, 64 tool calls, or repeated identical
 tool batches, whichever comes first. Hitting a limit records a failed run and

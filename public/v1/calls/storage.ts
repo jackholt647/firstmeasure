@@ -249,6 +249,7 @@ export async function updateRoomThread(orgId: string, roomId: string, threadId: 
 
 export async function joinRoomRecord(orgId: string, roomId: string, userId: string, displayName = "") {
   return (await getCallsDatabase().transaction(async () => {
+  await getCallsDatabase().prepare("UPDATE call_rooms SET updated_at = updated_at WHERE id = ? AND organization_id = ?").run(roomId, orgId);
   const room = (await roomRecord(orgId, roomId));
   if (room.state !== "active") throw badRequest("call_not_active", "This call has ended.");
   if ((room.participants as JsonObject[]).some(item => item.user_id === userId && item.role === "removed")) {
@@ -302,13 +303,24 @@ export async function updateParticipantMediaRecord(
 
 export async function leaveRoomRecord(orgId: string, roomId: string, userId: string) {
   return (await getCallsDatabase().transaction(async () => {
+  await getCallsDatabase().prepare("UPDATE call_rooms SET updated_at = updated_at WHERE id = ? AND organization_id = ?").run(roomId, orgId);
   (await roomRecord(orgId, roomId));
   const now = nowIso();
   (await getCallsDatabase().prepare(`
     UPDATE call_participants SET left_at = ?, updated_at = ?
-    WHERE room_id = ? AND organization_id = ? AND user_id = ?
+    WHERE room_id = ? AND organization_id = ? AND user_id = ? AND left_at IS NULL
   `).run(now, now, roomId, orgId, userId));
   (await appendEventRecord(orgId, roomId, "participant_left", userId));
+  const db = getCallsDatabase();
+  const remaining = await db.prepare("SELECT COUNT(*) AS n FROM call_participants WHERE room_id = ? AND left_at IS NULL").get(roomId) as JsonObject;
+  if (!Number(remaining.n)) {
+    const room = await roomRecord(orgId, roomId);
+    if (room.state === "active") {
+      const endedAt = (room.participants as JsonObject[]).map(person=>String(person.left_at || "")).filter(Boolean).sort().pop() || now;
+      await db.prepare("UPDATE call_rooms SET state = 'ended', ended_at = ?, updated_at = ? WHERE id = ? AND organization_id = ? AND state = 'active'").run(endedAt, now, roomId, orgId);
+      await appendEventRecord(orgId, roomId, "call_ended", userId, {reason:"last_participant_left"});
+    }
+  }
   return (await roomRecord(orgId, roomId));
 
   }));
@@ -316,6 +328,7 @@ export async function leaveRoomRecord(orgId: string, roomId: string, userId: str
 
 export async function removeParticipantRecord(orgId: string, roomId: string, hostId: string, userId: string) {
   return (await getCallsDatabase().transaction(async () => {
+  await getCallsDatabase().prepare("UPDATE call_rooms SET updated_at = updated_at WHERE id = ? AND organization_id = ?").run(roomId, orgId);
   const room = (await roomRecord(orgId, roomId));
   if (room.started_by !== hostId) throw forbidden("call_host_required", "Only the host can remove participants.");
   if (userId === hostId) throw badRequest("call_remove_self", "Use Leave to leave your call.");
@@ -323,6 +336,11 @@ export async function removeParticipantRecord(orgId: string, roomId: string, hos
   const now = nowIso();
   (await getCallsDatabase().prepare(`UPDATE call_participants SET role = 'removed', left_at = ?, updated_at = ?, microphone_enabled = 0, camera_enabled = 0, screen_enabled = 0 WHERE room_id = ? AND organization_id = ? AND user_id = ?`).run(now, now, roomId, orgId, userId));
   (await appendEventRecord(orgId, roomId, "participant_removed", hostId, { user_id:userId }));
+  const remaining = await roomRecord(orgId, roomId);
+  if (!(remaining.participants as JsonObject[]).some(person=>!person.left_at)) {
+    await getCallsDatabase().prepare("UPDATE call_rooms SET state = 'ended', ended_at = ?, updated_at = ? WHERE id = ? AND organization_id = ?").run(now, now, roomId, orgId);
+    await appendEventRecord(orgId, roomId, "call_ended", hostId, {reason:"last_participant_removed"});
+  }
   return (await roomRecord(orgId, roomId));
 
   }));

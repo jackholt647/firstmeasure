@@ -136,6 +136,61 @@ async function createProject(client: ReturnType<typeof createSessionClient>, org
 
 const AGENT_MENTION = [{ id: "agent_assistant", name: "FirstMate Assistant" }];
 
+test("interactive DM turns execute without a scheduler or worker", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const { channel } = await client.request("POST", `/v1/channels/organizations/${orgId}/channels`, { type: "dm", member_user_ids: ["agent_assistant"] });
+  const mock = mockOpenAI([
+    { output: [functionCall("report_result", { status: "success", summary: "Replied." }, "reply_result")] },
+    { output: [messageOutput("Here without a worker.")] }
+  ]);
+  const previous = process.env.NODE_ENV;
+  try {
+    process.env.NODE_ENV = "development";
+    await client.request("POST", `/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`, { text: "Are you here?" });
+    process.env.NODE_ENV = previous;
+    // Deliberately do not call drainChannelAgentJobs: the request starts it.
+    const deadline = Date.now() + 8000;
+    let reply = null;
+    while (!reply && Date.now() < deadline) {
+      const data = await client.request("GET", `/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`);
+      reply = agentMessagesIn(data.messages)[0];
+      if (!reply) await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    assert.equal(reply?.text, "Here without a worker.");
+  } finally { process.env.NODE_ENV = previous; mock.restore(); }
+});
+
+test("inviting FirstMate into a human DM responds once and preserves future private DMs", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const teammate = await client.request("POST", `/v1/platform/organizations/${orgId}/users`, { data: {
+    email: `teammate-${orgId}@example.test`, password: "correct horse battery staple", name: "Teammate", status: "active", role: "viewer", send_invite: false
+  } });
+  const member = teammate.document.id;
+  const { channel } = await client.request("POST", `/v1/channels/organizations/${orgId}/channels`, { type: "dm", member_user_ids: [member] });
+  await client.request("POST", `/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`, { text: "We are planning the move for Thursday." });
+  const mock = mockOpenAI([
+    { output: [functionCall("report_result", { status: "success", summary: "Joined the conversation." }, "invitation_result")] },
+    { output: [messageOutput("I'm here. How can I help with Thursday's move?")] }
+  ]);
+  try {
+    const added = await client.request("POST", `/v1/channels/organizations/${orgId}/channels/${channel.id}/members`, { user_ids: ["agent_assistant"] });
+    assert.equal(added.channel.type, "group_dm");
+    await waitFor(async () => {
+      const result = await client.request("GET", `/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`);
+      const replies = agentMessagesIn(result.messages);
+      return replies.length === 1 && replies[0].text === "I'm here. How can I help with Thursday's move?";
+    }, "invitation reply");
+    assert.match(JSON.stringify(mock.calls), /planning the move for Thursday/);
+    await client.request("POST", `/v1/channels/organizations/${orgId}/channels/${channel.id}/members`, { user_ids: ["agent_assistant"] });
+    assert.equal(await (await import("../channels/agent.js")).drainChannelAgentJobs("channel"), 0);
+    const privateDm = await client.request("POST", `/v1/channels/organizations/${orgId}/channels`, { type: "dm", member_user_ids: [member] });
+    assert.notEqual(privateDm.channel.id, channel.id);
+    assert.equal(privateDm.channel.members.length, 2);
+  } finally { mock.restore(); }
+});
+
 function agentMessagesIn(messages: any[]) {
   return (messages || []).filter((message: any) => message.author?.id === "agent_assistant" || message.author_id === "agent_assistant");
 }

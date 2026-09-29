@@ -281,6 +281,10 @@ export async function recordAttentionForMessage(channel: ChannelRow, message: Me
       if (userId && !targets.has(userId)) targets.set(userId, "thread_reply");
     }
   }
+  if (channel.type !== "project") {
+    const members = new Set((await listChannelMembers(channel.id)).map(member => member.user_id));
+    for (const recipient of targets.keys()) if (!members.has(recipient)) targets.delete(recipient);
+  }
   const now = nowIso();
   for (const [recipient, kind] of targets) {
     const dedupeKey = `${kind}:${message.id}`;
@@ -663,7 +667,6 @@ export async function removeMessageReminderRecord(orgId: string, userId: string,
 const DEFAULT_TABS = [
   ["messages", "Messages"],
   ["files", "Files"],
-  ["documents", "Documents"],
   ["todos", "To Dos"],
   ["pins", "Pins"]
 ] as const;
@@ -829,8 +832,10 @@ export async function listResourceRefRows(orgId: string, channelId: string, opti
   const clauses = ["organization_id = ?", "channel_id = ?"];
   const params: unknown[] = [orgId, channelId];
   if (cleanText(options.type)) {
-    clauses.push("resource_type = ?");
-    params.push(cleanText(options.type));
+    const type = cleanText(options.type);
+    const types = type === "files" ? ["media", "document"] : [type === "documents" ? "document" : type === "todos" ? "action_item" : type];
+    clauses.push(`resource_type IN (${types.map(() => "?").join(", ")})`);
+    params.push(...types);
   }
   if (cleanText(options.folderId)) {
     clauses.push("folder_id = ?");

@@ -58,20 +58,19 @@
     );
   }
 
-  function restoreRoute(route = window.Portal?.navigation?.read?.() || {}){
+  async function restoreRoute(route = window.Portal?.navigation?.read?.() || {}){
     if (route.tab !== 'channels' || !state.instance || !state.mounted) return;
     const channel = String(route.channel || '');
     const thread = String(route.channelThread || '');
     const message = String(route.channelMessage || '');
     const current = state.instance.state;
     if (channel && channel !== current.activeChannelId) {
-      void state.instance.setChannel(channel, { reveal: message || undefined }).then(() => {
-        if (thread) state.instance.openThread(thread);
-      });
+      await state.instance.setChannel(channel, { reveal: message || undefined });
+      if (thread && !message) await state.instance.openThread(thread);
     } else if (channel && message) {
-      state.instance.revealMessage(message);
+      await state.instance.revealMessage(message);
     } else if (channel && thread && thread !== current.threadRootId) {
-      state.instance.openThread(thread);
+      await state.instance.openThread(thread);
     }
   }
 
@@ -208,7 +207,7 @@
 .fm-channels-overlay[data-window=minimized] .fm-channels-overlay-subhead{display:none}
 
 .fm-channels-overlay-title{flex:1;min-width:0;flex-shrink:1}.fm-channels-overlay-title span{overflow:hidden;text-overflow:ellipsis}
-.fm-channels-overlay-subhead{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #e4e7ec;background:#fafbfc;flex-shrink:0}
+.fm-channels-overlay-card{position:relative}.fm-channels-overlay-subhead{position:absolute;top:48px;right:12px;z-index:8;max-width:calc(100% - 24px);pointer-events:none}.fm-channels-overlay-subhead button{pointer-events:auto;background:#fff;border:1px solid #e4e7ec;box-shadow:0 2px 6px #10182812}.fm-channels-overlay-subhead .fm-ch-header-actions{gap:5px}.fm-channels-overlay-body .fm-ch-list{padding-top:48px}.fm-channels-overlay-tabs{flex:1;min-width:0;overflow:auto}.fm-channels-overlay-tabs .fm-ch-tabs{border:0;padding:0;background:transparent;flex-wrap:nowrap}.fm-channels-overlay-title{flex:0 1 auto;max-width:32%}.fm-channels-overlay .fm-channels-overlay-head{height:44px;padding-top:0;padding-bottom:0;gap:12px}.fm-channels-overlay-head .fm-window-controls{margin-left:auto;flex-shrink:0}.fm-channels-overlay[data-window=minimized] .fm-channels-overlay-tabs{display:none}
 .fm-channels-overlay-subhead .fm-channels-overlay-actions{margin-left:auto;max-width:100%;flex-wrap:wrap}
 .fm-channels-overlay-subhead .fm-ch-header-actions{flex-wrap:wrap}
 .fm-channels-overlay[data-window=minimized] .fm-channels-overlay-subhead{display:none}
@@ -244,9 +243,10 @@
     overlay.topicEl.className = 'fm-channels-overlay-topic';
     overlay.actionsEl = document.createElement('div');
     overlay.actionsEl.className = 'fm-channels-overlay-actions';
-    head.append(overlay.titleEl);
+    overlay.tabsEl = document.createElement('div'); overlay.tabsEl.className = 'fm-channels-overlay-tabs';
+    head.append(overlay.titleEl, overlay.tabsEl);
     const subhead = document.createElement('div'); subhead.className = 'fm-channels-overlay-subhead'; subhead.dataset.windowSecondary='';
-    subhead.append(overlay.topicEl, overlay.actionsEl);
+    subhead.append(overlay.actionsEl);
     overlay.body = document.createElement('div');
     overlay.body.className = 'fm-channels-overlay-body';
     card.append(head, subhead, overlay.body);
@@ -254,7 +254,7 @@
     main.appendChild(root);
     overlay.root = root;
     overlay.window = window.FirstMateWindows.attach({
-      element:root, header:head, title:overlay.titleEl, body:overlay.body, host:main,
+      element:root, header:head, title:overlay.titleEl, titleMenu:false, body:overlay.body, host:main,
       contentTarget:main.querySelector(':scope > #mainPanels, :scope > #app'),
       name:'conversation', label:(globalThis.PlatformLanguage?.text("channels","m_15c39359df33c7","Conversation window") ?? "Conversation window"), mode:overlay.windowMode, width:720, height:680, dockWidth:520,
       topInset:() => { const bar=document.getElementById('platformTopbar'); return bar?.offsetParent ? bar.offsetHeight : 0; },
@@ -300,6 +300,7 @@
         compactHeader: true,
         onCallEnded:() => { if (!overlay.openFlag) setTimeout(() => { if (!overlay.openFlag && !overlay.instance?.state?.inCall) { overlay.instance?.destroy(); overlay.instance=null; } },0); },
         headerActionsTarget: overlay.actionsEl,
+        tabsTarget: overlay.tabsEl,
         onNavigate(route){
           if (route.channel && route.channel !== overlay.channelId) {
             overlay.channelId = route.channel; void loadOverlayHeader(route.channel);
@@ -331,20 +332,23 @@
     }
   }
 
-  function openOverlay(channelId, { reveal, thread, silent = false } = {}){
+  function openOverlay(channelId, { reveal, thread, windowMode, silent = false } = {}){
     if (!channelId || !ensureOverlayInstance()) return;
     overlay.channelId = channelId;
     overlay.titleEl.textContent = '';
     overlay.topicEl.textContent = '';
     void loadOverlayHeader(channelId);
-    void Promise.resolve(overlay.instance.setChannel(channelId, { reveal })).then(() => {
-      if (thread) overlay.instance?.openThread?.(thread);
+    const ready = Promise.resolve(overlay.instance.setChannel(channelId, { reveal })).then(async loaded => {
+      if (thread && !reveal) await overlay.instance?.openThread?.(thread);
+      return loaded !== false;
     });
     showOverlay();
+    if (windowMode === 'docked') overlay.window.setMode('docked');
     if (overlay.windowMode === 'minimized') overlay.window.restore();
     if (silent || window.Portal?.navigation?.applying) {
       overlay.root.classList.add('open');
     } else window.Portal?.navigation?.push?.({channelsOverlay:channelId, channelWindow:overlay.windowMode, channelPinned:overlay.pinned ? '1' : null}, {ownedKeys:['channelsOverlay']});
+    return ready;
   }
 
   function openOverlayView(view){
@@ -397,23 +401,20 @@
     }
   });
 
-  // Mention notifications deep-link here (topbar routes open_channel_message).
-  window.addEventListener('fm:open-channel-message', (event) => {
-    const detail = event.detail || {};
+  async function openChannelMessage(detail = {}){
+    if (!detail.channel_id) return false;
     if (sidebarModeEnabled()) {
-      openOverlay(detail.channel_id, { reveal: detail.message_id, thread: detail.parent_id });
-      return;
+      if (window.Portal?.navigation?.applying) await window.Portal.navigation.applyCurrent();
+      return await openOverlay(detail.channel_id, {reveal:detail.message_id, thread:detail.parent_id});
     }
-    window.Portal?.navigation?.navigate?.(
-      {
-        tab: 'channels',
-        channel: detail.channel_id || null,
-        channelThread: detail.parent_id || null,
-        channelMessage: detail.message_id || null
-      },
-      { ownedKeys: ['tab', 'channel', 'channelThread', 'channelMessage'] }
-    );
-  });
+    const navigation = window.Portal?.navigation;
+    if (!navigation) return false;
+    navigation.navigate({tab:'channels', channel:detail.channel_id, channelThread:detail.parent_id || null, channelMessage:detail.message_id || null}, {source:'message-notification',ownedKeys:['tab','channel','channelThread','channelMessage']});
+    await navigation.applyCurrent?.();
+    return true;
+  }
+  window.FirstMateChannelsNavigation = {openMessage:openChannelMessage};
+  window.addEventListener('fm:open-channel-message', event => { void openChannelMessage(event.detail); });
 
   // --- portal tab registration ------------------------------------------------
   // In integrated sidebar mode the standalone app icon disappears from the

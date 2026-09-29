@@ -222,6 +222,34 @@ test("DM events are not delivered to non-members", async () => {
   assert.ok(!ownerFrames.some((frame) => frame.includes("dm secret payload")), "non-member must not receive DM events");
 });
 
+test("typing starts and stops promptly over SSE and stays private to members", async () => {
+  const { client: owner, orgId, suffix } = await registerOwner();
+  const alice = await createOrgUser(owner, orgId, suffix, "Typing Alice");
+  const bob = await createOrgUser(owner, orgId, suffix, "Typing Bob");
+  const dm = await alice.client.request("POST", `/v1/channels/organizations/${orgId}/channels`, {
+    type: "dm", member_user_ids: [bob.userId]
+  });
+  const initial = await owner.request("GET", `/v1/platform/organizations/${orgId}/events/poll`);
+  const stream = collectStream(bob.client.cookieHeader(), orgId, {
+    until: frames => parseEvents(frames).filter(event => event.data.topic === "channels.typing").length >= 2
+  });
+  await new Promise(resolve => setTimeout(resolve, 300));
+  const started = Date.now();
+  const route = `/v1/channels/organizations/${orgId}/channels/${dm.channel.id}/typing`;
+  await alice.client.request("POST", route, { typing: true });
+  await alice.client.request("POST", route, { typing: false });
+  const events = parseEvents(await stream).filter(event => event.data.topic === "channels.typing");
+  assert.equal(events.length, 2);
+  assert.ok(Date.now() - started < 2000, "typing must not wait for a long polling interval");
+  assert.deepEqual(events.map(event => event.data.payload.typing), [true, false]);
+  assert.equal(events[0]!.data.payload.user_id, alice.userId);
+  assert.equal(events[0]!.data.payload.user_name, "Typing Alice");
+  assert.ok(Date.parse(events[0]!.data.payload.expires_at) > started);
+  assert.equal(events[1]!.data.payload.expires_in_ms, 0);
+  const outsider = await owner.request("GET", `/v1/platform/organizations/${orgId}/events/poll?after=${initial.next || 0}`);
+  assert.ok(!outsider.events.some((event: Json) => event.topic === "channels.typing" && event.payload.channel_id === dm.channel.id));
+});
+
 test("polling fallback returns the same events with a cursor", async () => {
   const { client: owner, orgId } = await registerOwner();
   const listed = await owner.request("GET", `/v1/channels/organizations/${orgId}/channels`);

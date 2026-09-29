@@ -195,6 +195,7 @@ const userPreferencesSchema = z.object({
   left_column_default_mode: z.enum(["apps", "todo", "channels", "agents"]).optional(),
   left_column_expansion_mode: z.enum(["resize", "overlap"]).optional(),
   always_collapsible_left_column: z.boolean().optional(),
+  left_column_auto_collapse: z.object({ apps: z.boolean().optional(), todo: z.boolean().optional(), channels: z.boolean().optional(), agents: z.boolean().optional() }).optional(),
   resizable_left_column: z.boolean().optional()
 }).strict();
 const pricebookGenerationSchema = z.object({
@@ -959,6 +960,7 @@ app.get("/auth/google/config", async () => ({
         left_column_default_mode: ["apps", "todo", "channels", "agents"].includes(String(preferences.left_column_default_mode)) ? preferences.left_column_default_mode : "apps",
         left_column_expansion_mode: preferences.left_column_expansion_mode === "overlap" ? "overlap" : "resize",
         always_collapsible_left_column: preferences.always_collapsible_left_column === true,
+        left_column_auto_collapse: asObject(preferences.left_column_auto_collapse),
         resizable_left_column: preferences.resizable_left_column !== false
       }
     };
@@ -982,6 +984,7 @@ app.get("/auth/google/config", async () => ({
       left_column_default_mode: patch.left_column_default_mode ?? (["apps", "todo", "channels", "agents"].includes(String(current.left_column_default_mode)) ? current.left_column_default_mode : "apps"),
       left_column_expansion_mode: patch.left_column_expansion_mode ?? (current.left_column_expansion_mode === "overlap" ? "overlap" : "resize"),
       always_collapsible_left_column: patch.always_collapsible_left_column ?? (current.always_collapsible_left_column === true),
+      left_column_auto_collapse: { ...asObject(current.left_column_auto_collapse), ...patch.left_column_auto_collapse },
       resizable_left_column: patch.resizable_left_column ?? (current.resizable_left_column !== false)
     };
     await patchIdentity(ctx.identityId, { preferences });
@@ -2586,9 +2589,10 @@ app.get("/auth/google/config", async () => ({
     const mentionUsers = Array.isArray(body.mention_users || body.mentionUsers)
       ? (body.mention_users || body.mentionUsers) as unknown[]
       : [];
-    const normalizedMentionUsers = mentionUsers.map((item) => asObject(item));
+    const { resolveMentionUsers } = await import("../channels/service.js");
+    const requestedMentions = [...mentionUsers.map((item) => asObject(item)), ...normalizeStringArray(body.target_user_ids || body.targetUserIds || body.user_ids || body.userIds).map(id => ({id}))];
+    const normalizedMentionUsers = await resolveMentionUsers(ctx, requestedMentions);
     const targetUserIds = [...new Set(normalizeStringArray([
-      ...normalizeStringArray(body.target_user_ids || body.targetUserIds || body.user_ids || body.userIds),
       ...normalizedMentionUsers.map((user) => user.id || user.user_id || user.userId)
     ]))];
     const event = {
@@ -4083,7 +4087,7 @@ export async function createPlatformNotification(orgId: string, input: Record<st
 }
 
 async function requireVisibleNotification(orgId: string, userId: string, notificationId: string, branchId: string) {
-  const result = await listVisibleNotifications(orgId, userId, { includeDismissed: true, branchId, ignorePreferences: true });
+  const result = await listVisibleNotifications(orgId, userId, { includeDismissed: true, branchId, ignorePreferences: true, includeMessageAlerts:true });
   if (!result.notifications.some((item) => item.id === notificationId)) throw notFound("notification_not_found", "Notification not found.");
 }
 
@@ -4123,7 +4127,13 @@ async function setUserNotificationState(orgId: string, userId: string, notificat
   return next;
 }
 
-async function listVisibleNotifications(orgId: string, userId: string, options: { includeDismissed?: boolean; branchId?: string; ignorePreferences?: boolean } = {}) {
+function isMessageInboxNotification(data: Record<string, unknown>) {
+  if (data.kind === "huddle_invite") return false;
+  return data.kind === "channel_message" || ["channel_message", "project_message"].includes(cleanText(data.source))
+    || ["open_channel_message", "open_project_message"].includes(cleanText(asObject(data.frontend_action).kind));
+}
+
+async function listVisibleNotifications(orgId: string, userId: string, options: { includeDismissed?: boolean; branchId?: string; ignorePreferences?: boolean; includeMessageAlerts?: boolean } = {}) {
   if (!await isAppFlagEnabled(orgId, "apps", "notifications")) return { notifications: [], unread_count: 0, active_count: 0 };
   const measurementsEnabled = await isAppFlagEnabled(orgId, "apps", "firstmeasure");
   const [userDoc, notificationDocs] = await Promise.all([
@@ -4137,7 +4147,9 @@ async function listVisibleNotifications(orgId: string, userId: string, options: 
   const notifications = notificationDocs
     .map((doc) => ({ document: doc, data: asObject(doc.data) }))
     .filter(({ data }) => String(data.status || "active") === "active")
-    .filter(({ data }) => data.passive !== false)
+    .filter(({ data }) => data.passive !== false || (options.includeMessageAlerts && isMessageInboxNotification(data)))
+    // Keep targeted push deep links accessible while excluding messages from the bell.
+    .filter(({ data }) => options.includeMessageAlerts || !isMessageInboxNotification(data))
     .filter(({ data }) => categoryForNotification(data) !== "measurements" || measurementsEnabled)
     .filter(({ data }) => !notificationExpired(data))
     .filter(({ data }) => options.ignorePreferences || notificationPreferenceEnabled(asObject(userDoc.data).notification_preferences,data,"in_app"))
@@ -9562,8 +9574,12 @@ async function portalUploadAvatar(orgId: string, body: JsonObject) {
   const data = asObject(current.data);
   const user = await upsertDocument(orgId, "users", {
     id: userId,
-    data: { ...data, profile: { ...asObject(data.profile), avatar_media_id: media.id, profile_photo: avatarUrl } }
+    data: { ...data, avatar_url:avatarUrl, profile_photo:avatarUrl, profile_photo_url:avatarUrl, profile: { ...asObject(data.profile), avatar_media_id: media.id, profile_photo: avatarUrl } }
   });
+  const { invalidateUserDirectory } = await import("../channels/service.js");
+  invalidateUserDirectory(orgId);
+  const { publishRealtimeEvent } = await import("./realtime.js");
+  await publishRealtimeEvent({organization_id:orgId,topic:"channels.directory.updated",payload:{user_id:userId}});
   return { success: true, avatar_url: avatarUrl, user: portalUserView(user), media };
 }
 

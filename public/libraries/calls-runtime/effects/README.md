@@ -16,3 +16,13 @@ Sources:
 
 Reproduce by extracting the pinned npm tarballs, copying the dist module,
 vision_bundle.mjs and wasm directory, and applying the two import changes.
+
+Required binary assets (SHA-256):
+
+- `wasm/vision_wasm_internal.wasm`: `f82a8e6c05e08a44cc9f9e7ec5f845935bcbb1b1500ebe8c2f4812fb4e2917dc`
+- `wasm/vision_wasm_nosimd_internal.wasm`: `38b61feab2fd7934e05cbe9f68baa308978a5e3b7f85c1913bb8ae89b8ef8b97`
+- `selfie_segmenter.tflite`: `191ac9529ae506ee0beefa6b2c945a172dab9d07d1e802a290a4e4038226658b`
+
+Both WASM variants come from the pinned tasks-vision package; verify its npm
+integrity before extraction. The model comes from the versioned URL above.
+These files must ship alongside the JavaScript; the wrappers alone cannot run effects.

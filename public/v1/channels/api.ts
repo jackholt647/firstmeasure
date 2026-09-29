@@ -1,6 +1,6 @@
 import { platformBackgroundAllowed } from "../platform/runtime.js";
 import type { FastifyPluginAsync } from "fastify";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 
 import { requirePlatformAuth } from "../platform/auth.js";
 import { PlatformError, badRequest } from "../platform/errors.js";
@@ -191,6 +191,13 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     const ctx = await auth(request, orgId);
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
     return { ok: true, ...(await service.personalInbox(ctx, { limit: Number(query.limit) || undefined })) };
+  });
+
+  app.post("/organizations/:orgId/inbox/read", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await auth(request, orgId, {csrf:true});
+    const body = z.object({entry_id:z.string().regex(/^[a-f0-9]{64}$/), message_id:z.string().trim().min(1).max(200), kind:z.enum(["mention","dm","reply","reaction","channel"])}).parse(request.body);
+    return {ok:true, ...(await service.readPersonalInboxEntry(ctx, body))};
   });
 
   app.post("/organizations/:orgId/inbox/seen", async (request) => {
@@ -636,6 +643,13 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, huddle: await service.joinHuddle(ctx, getParam(request.params, "huddleId")) };
   });
 
+  app.post("/organizations/:orgId/huddles/:huddleId/invite", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await auth(request, orgId, { csrf: true, capability: "channels.huddles" });
+    const body = z.object({ user_ids: z.array(z.string().min(1)).min(1).max(50) }).parse(request.body);
+    return { ok: true, ...await service.inviteToHuddle(ctx, getParam(request.params, "huddleId"), body.user_ids) };
+  });
+
   app.post("/organizations/:orgId/huddles/:huddleId/leave", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await auth(request, orgId, { csrf: true, capability: "channels.huddles" });
@@ -700,7 +714,8 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
   app.post("/organizations/:orgId/channels/:channelId/typing", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await auth(request, orgId, { csrf: true });
-    return service.noteTyping(ctx, getParam(request.params, "channelId"));
+    const body = z.object({typing:z.boolean().default(true)}).parse(request.body || {});
+    return service.noteTyping(ctx, getParam(request.params, "channelId"), body.typing);
   });
 
   // --- search -----------------------------------------------------------------

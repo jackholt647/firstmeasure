@@ -41,9 +41,26 @@
   }
 
   function closeNotificationMenus(){
-    notificationMenus().forEach((menu) => menu.classList.remove('visible'));
+    notificationMenus().forEach((menu) => {
+      menu.classList.remove('visible');
+      if (menu.hidePopover && menu.matches(':popover-open')) menu.hidePopover();
+    });
     document.body.classList.remove('mobile-notifications-open');
   }
+
+  function showNotificationMenu(menu, bell){
+    if (!menu || !bell) return;
+    const rect = bell.getBoundingClientRect();
+    Object.assign(menu.style, {position:'fixed', margin:'0', inset:'auto', top:`${Math.min(rect.bottom + 8, innerHeight - 100)}px`, right:'12px', left:'auto', width:'min(380px, calc(100vw - 24px))', maxHeight:`${Math.max(90, innerHeight - rect.bottom - 24)}px`, zIndex:'2147483647'});
+    menu.classList.add('visible');
+    // The browser's top layer escapes every app/window stacking context.
+    if (menu.showPopover) { menu.popover = 'manual'; menu.showPopover(); }
+    else document.body.append(menu);
+  }
+  document.addEventListener('pointerdown', event => {
+    if (!event.target.closest('#platformNotificationMenu,#mobilePlatformNotificationMenu,#platformBell,#mobilePlatformBell,#mobilePlatformMoreNotifications')) closeNotificationMenus();
+  });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeNotificationMenus(); closeMessagesMenus(); } });
 
   function setMobileNotificationsVisible(visible){
     const mobileTopbar = $('.mobile-topbar');
@@ -159,7 +176,7 @@
   }
 
   function closeMessagesMenus(){
-    messagesMenus().forEach((menu) => menu.classList.remove('visible'));
+    messagesMenus().forEach((menu) => { menu.classList.remove('visible'); if (menu.hidePopover && menu.matches(':popover-open')) menu.hidePopover(); });
   }
 
   function renderMessagesBadge(){
@@ -181,7 +198,7 @@
     channel: { icon:'fa-hashtag', label:(globalThis.PlatformLanguage?.text("platform","m_4c04db54662b57","new messages") ?? "new messages") }
   };
 
-  function messageEntryHtml(entry, index){
+  function messageEntryHtml(entry, index, groupedReaction = false){
     const meta = MESSAGE_KIND_META[entry.kind] || MESSAGE_KIND_META.channel;
     const who = escapeHtml(cleanText(entry.author?.name) || 'Someone');
     const line = entry.kind === 'reaction'
@@ -190,12 +207,12 @@
         ? `<b>${escapeHtml(cleanText(entry.channel_name))}</b> · ${Number(entry.count || 0)} new`
         : `<b>${who}</b> ${meta.label}`;
     return `
-      <div class="ptb-msg-row ${entry.unread ? 'unread' : ''}" data-message-entry="${index}">
-        <span class="ptb-msg-ico"><i class="fas ${meta.icon}"></i></span>
+      <div class="ptb-msg-row ${entry.unread ? 'unread' : ''}" data-message-entry="${index}" role="button" tabindex="0">
+        <span class="ptb-msg-ico">${entry.kind === 'reaction' ? `<span class="ptb-msg-reaction-emoji" aria-hidden="true">${escapeHtml(cleanText(entry.emoji))}</span>` : `<i class="fas ${meta.icon}"></i>`}</span>
         <span class="ptb-msg-main">
           <span class="ptb-msg-line">${line}</span>
-          <span class="ptb-msg-snippet">${escapeHtml(cleanText(entry.text))}</span>
-          <span class="ptb-msg-snippet" style="font-size:10.5px;color:#98a2b3;font-weight:700">${escapeHtml(cleanText(entry.channel_name))}</span>
+          ${groupedReaction ? '' : `<span class="ptb-msg-snippet">${escapeHtml(cleanText(entry.text))}</span>
+          <span class="ptb-msg-snippet" style="font-size:10.5px;color:#98a2b3;font-weight:700">${escapeHtml(cleanText(entry.channel_name))}</span>`}
         </span>
         <span class="ptb-msg-meta">
           <span>${escapeHtml(timeAgoLabel(entry.at))}</span>
@@ -215,42 +232,73 @@
     return `${Math.floor(seconds / 86400)}d`;
   }
 
-  function openMessageEntry(entry){
+  const openedMessageEntries = new Set();
+  async function openMessageEntry(entry){
+    if (openedMessageEntries.has(entry.entry_id)) return;
+    openedMessageEntries.add(entry.entry_id);
     closeMessagesMenus();
-    if (entry.channel_type === 'project' && cleanText(entry.project_id)) {
-      window.Portal?.navigation?.navigate?.({
-        project: cleanText(entry.project_id),
-        projectTab: 'materials',
-        projectNote: cleanText(entry.message_id) || null
-      }, { source:'messages-inbox' });
-      return;
+    renderMessagesList();
+    try {
+      if (entry.channel_type === 'project' && cleanText(entry.project_id)) {
+        window.Portal?.navigation?.navigate?.({project:cleanText(entry.project_id), projectTab:'materials', projectNote:cleanText(entry.message_id) || null}, {source:'messages-inbox'});
+        await window.Portal?.navigation?.applyCurrent?.();
+      } else {
+        const detail = {channel_id:cleanText(entry.channel_id), message_id:cleanText(entry.message_id), parent_id:cleanText(entry.parent_id)};
+        if (window.FirstMateChannelsNavigation?.openMessage) {
+          if (await window.FirstMateChannelsNavigation.openMessage(detail) === false) throw new Error('This conversation could not be opened.');
+        } else {
+          window.Portal?.navigation?.navigate?.({tab:'channels', channel:detail.channel_id, channelThread:detail.parent_id || null, channelMessage:detail.message_id || null}, {source:'messages-inbox',ownedKeys:['tab','channel','channelThread','channelMessage']});
+          await window.Portal?.navigation?.applyCurrent?.();
+        }
+      }
+      await window.ChannelsAPI.readState.inboxRead(orgId(), entry);
+      await loadMessagesInbox();
+    } catch (error) {
+      openedMessageEntries.delete(entry.entry_id);
+      await loadMessagesInbox();
+      window.Portal?.ui?.showToast?.('Could not open message', error.message);
     }
-    window.Portal?.navigation?.navigate?.({
-      tab:'channels',
-      channel: cleanText(entry.channel_id),
-      channelThread: cleanText(entry.parent_id) || null,
-      channelMessage: cleanText(entry.message_id) || null
-    }, { source:'messages-inbox', ownedKeys:['channel', 'channelThread', 'channelMessage'] });
-    window.dispatchEvent(new CustomEvent('fm:open-channel-message', { detail:{
-      channel_id: cleanText(entry.channel_id),
-      message_id: cleanText(entry.message_id),
-      parent_id: cleanText(entry.parent_id)
-    } }));
+  }
+
+  function messageInboxHtml(entries){
+    const groups = new Map();
+    entries.forEach((entry, index) => {
+      if (entry.kind !== 'reaction') return;
+      const key = JSON.stringify([entry.channel_id, entry.message_id]);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({entry, index});
+    });
+    const rendered = new Set();
+    return entries.map((entry, index) => {
+      if (entry.kind !== 'reaction') return messageEntryHtml(entry, index);
+      const key = JSON.stringify([entry.channel_id, entry.message_id]);
+      if (rendered.has(key)) return '';
+      rendered.add(key);
+      const group = groups.get(key);
+      const preview = cleanText(entry.text) || 'Attachment or media message';
+      return `<section class="ptb-msg-reaction-group" aria-label="Reactions to your message">
+        <div class="ptb-msg-reaction-context"><strong>${group.length} ${group.length === 1 ? 'reaction' : 'reactions'} to your message</strong>
+        <blockquote>${escapeHtml(preview)}</blockquote><small>${escapeHtml(cleanText(entry.channel_name))}</small></div>
+        ${group.map(item => messageEntryHtml(item.entry, item.index, true)).join('')}
+      </section>`;
+    }).join('');
   }
 
   function renderMessagesList(){
     ['#platformMessagesList', '#mobilePlatformMessagesList'].forEach((selector) => {
       const list = $(selector);
       if (!list) return;
-      const entries = messagesInbox.entries || [];
+      const entries = (messagesInbox.entries || []).filter(entry => !openedMessageEntries.has(entry.entry_id));
       list.innerHTML = entries.length
-        ? entries.map((entry, index) => messageEntryHtml(entry, index)).join('')
+        ? messageInboxHtml(entries)
         : `<div class="ptb-empty">${(globalThis.PlatformLanguage?.htmlText("platform","m_56ea1e42b41667","No messages need your attention.") ?? "No messages need your attention.")}<br>${(globalThis.PlatformLanguage?.htmlText("platform","m_fcc1bb46a8b161","Mentions, DMs, replies, and reactions land here.") ?? "Mentions, DMs, replies, and reactions land here.")}</div>`;
       list.querySelectorAll('[data-message-entry]').forEach((row) => {
-        row.addEventListener('click', () => {
-          const entry = (messagesInbox.entries || [])[Number(row.dataset.messageEntry)];
+        const open = () => {
+          const entry = entries[Number(row.dataset.messageEntry)];
           if (entry) openMessageEntry(entry);
-        });
+        };
+        row.addEventListener('click', open);
+        row.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
       });
     });
   }
@@ -259,7 +307,8 @@
     if (!window.ChannelsAPI?.readState?.inbox || !orgId() || !messagesAllowed()) return;
     try {
       const data = await window.ChannelsAPI.readState.inbox(orgId());
-      messagesInbox = { entries: data.entries || [], unread_total: Number(data.unread_total || 0) };
+      const entries = (data.entries || []).filter(entry => !openedMessageEntries.has(entry.entry_id));
+      messagesInbox = { entries, unread_total: entries.reduce((sum, entry) => sum + (entry.unread ? Math.max(1, Number(entry.count || 1)) : 0), 0) };
       renderMessagesBadge();
       renderMessagesList();
     } catch (_) {}
@@ -511,20 +560,9 @@
     if (String(action.kind || '').trim() !== 'open_channel_message') return false;
     const channelId = String(action.channel_id || item?.context?.channel_id || '').trim();
     if (!channelId) return false;
-    window.Portal?.navigation?.navigate?.({
-      tab:'channels',
-      channel:channelId,
-      channelThread:String(action.parent_id || '').trim() || null,
-      channelMessage:String(action.message_id || '').trim() || null
-    }, {
-      source:'notification-channel-message',
-      ownedKeys:['channel', 'channelThread', 'channelMessage']
-    });
-    window.dispatchEvent(new CustomEvent('fm:open-channel-message', { detail:{
-      channel_id: channelId,
-      message_id: String(action.message_id || '').trim(),
-      parent_id: String(action.parent_id || '').trim()
-    } }));
+    const detail = {channel_id:channelId, message_id:String(action.message_id || '').trim(), parent_id:String(action.parent_id || '').trim()};
+    if (window.FirstMateChannelsNavigation?.openMessage) void window.FirstMateChannelsNavigation.openMessage(detail);
+    else window.dispatchEvent(new CustomEvent('fm:open-channel-message', {detail}));
     return true;
   }
 
@@ -971,7 +1009,7 @@
     });
     document.addEventListener('click', (event) => {
       if (!event.target.closest('.platform-search')) closeSearchResults();
-      if (!event.target.closest('.platform-notifications')) closeNotificationMenus();
+      if (!event.target.closest('.platform-notifications,#platformNotificationMenu,#mobilePlatformNotificationMenu')) closeNotificationMenus();
       if (!event.target.closest('.platform-messages')) closeMessagesMenus();
       if (!event.target.closest('.platform-more')) closeMoreMenu();
     });
@@ -1011,12 +1049,10 @@
         const opening = !targetMenu?.classList.contains('visible');
         closeMessagesMenus();
         closeNotificationMenus();
-        targetMenu?.classList.toggle('visible', opening);
         if (opening) {
+          showNotificationMenu(targetMenu, $(button));
           await loadMessagesInbox();
-          // Opening acknowledges reply/reaction items; mentions and DMs stay
-          // unread until the conversation itself is read.
-          window.ChannelsAPI?.readState?.inboxSeen?.(orgId()).catch(() => null);
+          // Reading an individual item acknowledges it; opening the menu does not.
         }
       });
     });
@@ -1028,14 +1064,14 @@
     ].forEach(({ bell, menu }) => {
       $(bell)?.addEventListener('click', async (event) => {
         event.stopPropagation();
-        await window.PlatformNotifications?.load(orgId(), notificationLoadOptions()).catch(() => null);
         const targetMenu = $(menu);
         const opening = !targetMenu?.classList.contains('visible');
         // Only one topbar dropdown at a time.
         closeNotificationMenus();
         closeMessagesMenus();
-        targetMenu?.classList.toggle('visible', opening);
+        if (opening) showNotificationMenu(targetMenu, $(bell));
         document.body.classList.toggle('mobile-notifications-open', opening && menu === '#mobilePlatformNotificationMenu');
+        if (opening) await window.PlatformNotifications?.load(orgId(), notificationLoadOptions()).catch(() => null);
       });
     });
     ['#platformAssistantBtn', '#mobilePlatformAssistantBtn'].forEach((selector) => {

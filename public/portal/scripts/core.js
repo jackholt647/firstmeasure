@@ -136,14 +136,14 @@
   function syncSidebarMode(){
     const sidebar = document.getElementById('mainSidebar');
     const toggle = document.getElementById('sidebarCompactToggle');
-    const compact = sidebarCompactOwners.size > 0;
+    const mode = sidebar?.dataset.activeMode || 'apps';
+    const perMode = sidebarPreference('left_column_auto_collapse', {});
+    const compact = typeof perMode[mode] === 'boolean' ? perMode[mode] : sidebarCompactOwners.size > 0;
     if (!sidebar) return compact;
-    const wasCompact = sidebar.classList.contains('sidebar-compact');
     if (!compact || sidebarCompactExpanded) sidebar.classList.remove('sidebar-compact-edge-held');
     sidebar.classList.toggle('sidebar-compact', compact);
     sidebar.classList.toggle('sidebar-compact-expanded', compact && sidebarCompactExpanded);
     sidebar.classList.toggle('sidebar-compact-overlap', compact && sidebarTemporaryExpansionMode() === 'overlap');
-    if (compact && !wasCompact) setSidebarPanel('apps');
     if (toggle) {
       const expanded = compact && sidebarCompactExpanded;
       toggle.setAttribute('aria-pressed', expanded ? 'true' : 'false');
@@ -207,7 +207,7 @@
     releaseCompact: releaseCompactSidebar,
     setExpanded: setSidebarCompactExpanded,
     toggleExpanded(){ return setSidebarCompactExpanded(!sidebarCompactExpanded); },
-    current(){ return sidebarCompactOwners.size > 0 ? 'compact' : 'expanded'; },
+    current(){ return document.getElementById('mainSidebar')?.classList.contains('sidebar-compact') ? 'compact' : 'expanded'; },
     expansionMode: sidebarTemporaryExpansionMode
   };
   const sidebarCompactToggle = document.getElementById('sidebarCompactToggle');
@@ -2552,6 +2552,8 @@
     if (mode === 'todo') mountSidebarTodo();
     if (mode === 'channels') mountSidebarChannels();
     if (mode === 'agents') mountSidebarAgents();
+    if (sidebar) sidebar.dataset.activeMode = mode;
+    syncSidebarMode();
   }
 
   function sidebarDefaultMode(){
@@ -2707,8 +2709,8 @@
         recording: !!flags.has?.('channels', 'recording', false),
         recordVideo: !!flags.has?.('channels', 'record_video', true)
       },
-      onOpenChannel(channelId){
-        window.FirstMateChannelsOverlay?.open?.(channelId);
+      onOpenChannel(channelId, options){
+        window.FirstMateChannelsOverlay?.open?.(channelId, options);
         window.__mobileSidebar?.close?.();
       },
       onOpenView(view){

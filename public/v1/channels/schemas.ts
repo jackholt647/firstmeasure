@@ -38,7 +38,7 @@ export const memberPatchSchema = z.object({
 });
 
 export const postMessageSchema = z.object({
-  text: z.string().max(20_000).default(""),
+  text: z.string().max(250_000).default(""),
   content: richContentSchema.optional(),
   content_schema_version: z.number().int().min(1).max(20).default(1),
   client_msg_id: z.string().trim().max(120).optional(),
@@ -53,7 +53,7 @@ export const postMessageSchema = z.object({
 });
 
 export const editMessageSchema = z.object({
-  text: z.string().min(1).max(20_000),
+  text: z.string().min(1).max(250_000),
   content: richContentSchema.optional(),
   content_schema_version: z.number().int().min(1).max(20).optional(),
   audience: z.array(audienceGroup).optional(),
@@ -86,6 +86,7 @@ export const threadSubscriptionSchema = z.object({
 });
 
 export const collaborationPreferencesSchema = z.object({
+  hidden_channel_ids: z.array(z.string().trim().min(1).max(200)).max(5000).optional(),
   default_notify_level: z.enum(["all", "mentions", "muted"]).optional(),
   keywords: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
   dnd: z.record(z.unknown()).optional(),
@@ -97,7 +98,7 @@ export const collaborationPreferencesSchema = z.object({
 export const draftSchema = z.object({
   channel_id: z.string().trim().min(1),
   root_message_id: z.string().trim().optional(),
-  text: z.string().max(20_000).default(""),
+  text: z.string().max(250_000).default(""),
   content: richContentSchema.optional(),
   attachment_ids: z.array(z.string().trim().min(1)).max(50).default([])
 });
@@ -112,7 +113,7 @@ export const scheduledMessageSchema = draftSchema.extend({
 });
 
 export const scheduledMessagePatchSchema = z.object({
-  text: z.string().max(20_000).optional(),
+  text: z.string().max(250_000).optional(),
   content: richContentSchema.optional(),
   attachment_ids: z.array(z.string().trim().min(1)).max(50).optional(),
   scheduled_at: z.string().datetime().optional(),

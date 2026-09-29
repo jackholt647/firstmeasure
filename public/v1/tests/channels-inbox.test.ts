@@ -114,6 +114,7 @@ test("personal inbox: mentions, DMs, replies, and reactions surface; plain chann
   const listed = await owner.request("GET", `/v1/channels/organizations/${orgId}/channels`);
   const general = listed.channels.find((channel: Json) => channel.name === "general");
   assert.ok(general, "general channel exists");
+  await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/members`, {user_ids:[colleagueId]});
 
   // Plain chatter (no mention) must NOT reach the owner's inbox — channel
   // notifications default to mention-driven.
@@ -160,27 +161,49 @@ test("personal inbox: mentions, DMs, replies, and reactions surface; plain chann
   const reaction = inbox.entries.find((entry: Json) => entry.kind === "reaction");
   assert.equal(reaction.emoji, "🔥");
 
-  // Opening the dropdown acknowledges replies/reactions but not mentions/DMs.
-  await owner.request("POST", `/v1/channels/organizations/${orgId}/inbox/seen`, {});
+  const readEntry = (entry:Json) => owner.request("POST", `/v1/channels/organizations/${orgId}/inbox/read`, {entry_id:entry.entry_id,message_id:entry.message_id,kind:entry.kind});
+  await readEntry(reaction);
+  await readEntry(reaction); // idempotent retry
   inbox = await owner.request("GET", `/v1/channels/organizations/${orgId}/inbox`);
-  const unreadKinds = inbox.entries.filter((entry: Json) => entry.unread).map((entry: Json) => entry.kind).sort();
-  assert.deepEqual(unreadKinds, ["dm", "mention"]);
-  assert.equal(inbox.unread_total, 2);
+  assert.ok(!inbox.entries.some((entry:Json)=>entry.entry_id===reaction.entry_id), "clicked reaction disappears on reload");
+  assert.equal(inbox.unread_total,3,"reading one item leaves the others unread");
+  const reply = inbox.entries.find((entry:Json)=>entry.kind==='reply');
+  await readEntry(reply);
+  await readEntry(mention);
+  inbox = await owner.request("GET", `/v1/channels/organizations/${orgId}/inbox`);
+  assert.deepEqual(inbox.entries.map((entry:Json)=>entry.kind),['dm']);
+  const olderDm = inbox.entries[0];
+  await colleague.request("POST", `/v1/channels/organizations/${orgId}/channels/${dm.channel.id}/messages`, {text:"New arrival while opening the older notification"});
+  await readEntry(olderDm);
+  inbox = await owner.request("GET", `/v1/channels/organizations/${orgId}/inbox`);
+  assert.equal(inbox.entries[0].count,1,"only the clicked message is marked read");
+  await readEntry(inbox.entries[0]);
+  inbox = await owner.request("GET", `/v1/channels/organizations/${orgId}/inbox`);
+  assert.equal(inbox.entries.length,0);
+  assert.equal(inbox.unread_total,0);
+  await colleague.request("PUT", `/v1/channels/organizations/${orgId}/messages/${rootMessage.message.id}/reactions`, {emoji:"👍"});
+  inbox = await owner.request("GET", `/v1/channels/organizations/${orgId}/inbox`);
+  assert.equal(inbox.entries[0].emoji,"👍", "new reactions on the same message still notify");
+  const notifications = await owner.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
+  assert.ok(!notifications.notifications.some((item:Json)=>['mention','channel_message'].includes(item.kind)));
+  const {createPlatformNotification} = await import('../platform/api.js');
+  await createPlatformNotification(orgId,{id:'legacy-message-'+suffix,title:'Legacy mention',kind:'mention',passive:true,push:false,target_user_ids:[ownerId],frontend_action:{kind:'open_channel_message',channel_id:general.id,message_id:rootMessage.message.id}});
+  const legacy = await owner.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
+  assert.ok(!legacy.notifications.some((item:Json)=>item.id==='legacy-message-'+suffix), 'legacy duplicates are hidden too');
+  await createPlatformNotification(orgId,{id:'legacy-channel-'+suffix,title:'Channel update',kind:'message',source:'channel_message',passive:true,push:false,target_user_ids:[ownerId],frontend_action:{kind:'open_channel_message',channel_id:general.id,message_id:rootMessage.message.id}});
+  const legacyChannel=await owner.request("GET",`/v1/platform/organizations/${orgId}/notifications`);
+  assert.ok(!legacyChannel.notifications.some((item:Json)=>item.id==='legacy-channel-'+suffix),'channel message alerts stay out of the bell regardless of legacy kind');
+  const direct = await owner.request("GET", `/v1/platform/organizations/${orgId}/notifications/legacy-message-${suffix}`);
+  assert.ok(direct.notification, "push deep links can still resolve a targeted message alert");
 
-  // Reading the channel clears the mention; reading the DM clears the DM.
-  await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/read`, { last_read_seq: 9999 });
-  await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${dm.channel.id}/read`, { last_read_seq: 9999 });
-  inbox = await owner.request("GET", `/v1/channels/organizations/${orgId}/inbox`);
-  assert.equal(inbox.unread_total, 0);
-  assert.ok(!inbox.entries.some((entry: Json) => entry.kind === "mention"), "read mentions drop out");
 });
 
 test("subscribing to a channel (notify all) surfaces its unread chatter; default stays quiet", async () => {
   const { client: owner, orgId, userId: ownerId, suffix } = await registerOwner();
-  const { client: colleague } = await createOrgUser(owner, orgId, suffix, "Nina Noisy");
+  const { client: colleague, userId: colleagueId } = await createOrgUser(owner, orgId, suffix, "Nina Noisy");
 
   const created = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels`, {
-    type: "public", name: "installs", topic: "", member_user_ids: []
+    type: "public", name: "installs", topic: "", member_user_ids: [colleagueId]
   });
   const channelId = created.channel.id as string;
   // Owner joins by posting (Slack-style), then opts into everything. Their

@@ -13364,7 +13364,9 @@
               ${leftColumnSwitch('left-column-channels', 'Channels', 'Show channel conversations on desktop when Channels is available.', preferences.left_column_channels === true)}
               ${leftColumnSwitch('left-column-agents', 'Agents', 'Show agent conversations on desktop when the assistant is available.', preferences.left_column_agents === true)}
               <label class="my-settings-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_1a291e7380a4b2","Default tab") ?? "Default tab")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_8e6a32a6e55da1","Opens when you enter the portal, if available.") ?? "Opens when you enter the portal, if available.")}</small></span><select class="cs-in" data-my-left-column-default-mode><option value="apps">${(globalThis.PlatformLanguage?.htmlText("settings","m_66652419b041ca","Apps") ?? "Apps")}</option><option value="todo">${(globalThis.PlatformLanguage?.htmlText("settings","m_4bec39f8fa90dd","To Dos") ?? "To Dos")}</option><option value="channels">${(globalThis.PlatformLanguage?.htmlText("settings","m_dc8b4f6c066b30","Channels") ?? "Channels")}</option><option value="agents">${(globalThis.PlatformLanguage?.htmlText("settings","m_4380914ceeac71","Agents") ?? "Agents")}</option></select></label>
-              ${leftColumnSwitch('always-collapsible-left-column', 'Compact left column', 'Start each app with the narrow rail.', preferences.always_collapsible_left_column === true)}
+              <h4>Automatically collapse</h4>
+              <p class="cs-note">Choose which tabs use the narrow rail. Turn a tab off to keep its list expanded.</p>
+              ${[['apps', 'Apps'], ['todo', 'To Dos'], ['channels', 'Channels'], ['agents', 'Agents']].map(([mode, label]) => leftColumnSwitch('collapse-' + mode, label, 'Automatically collapse the ' + label + ' list.', preferences.left_column_auto_collapse?.[mode] ?? (preferences.always_collapsible_left_column === true))).join('')}
               ${leftColumnSwitch('resizable-left-column', 'Drag to resize', 'Drag the column edge to adjust its width.', preferences.resizable_left_column !== false)}
               <label class="my-settings-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_4c565950971cc1","Temporary expansion") ?? "Temporary expansion")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_cc91515ec0ede8","Choose how the compact rail expands on hover.") ?? "Choose how the compact rail expands on hover.")}</small></span><select class="cs-in" data-my-left-column-expansion-mode><option value="resize">${(globalThis.PlatformLanguage?.htmlText("settings","m_2bb9b8e0d8a0ae","Resize page") ?? "Resize page")}</option><option value="overlap">${(globalThis.PlatformLanguage?.htmlText("settings","m_a974f0e4a935ab","Overlap page") ?? "Overlap page")}</option></select></label>
             </div>
@@ -13403,7 +13405,7 @@
               left_column_channels: paneMySettings.querySelector('[data-my-left-column-channels]').checked,
               left_column_agents: paneMySettings.querySelector('[data-my-left-column-agents]').checked,
               left_column_default_mode: paneMySettings.querySelector('[data-my-left-column-default-mode]').value,
-              always_collapsible_left_column: paneMySettings.querySelector('[data-my-always-collapsible-left-column]').checked,
+              left_column_auto_collapse: Object.fromEntries(['apps', 'todo', 'channels', 'agents'].map(mode => [mode, paneMySettings.querySelector('[data-my-collapse-' + mode + ']').checked])),
               resizable_left_column: paneMySettings.querySelector('[data-my-resizable-left-column]').checked,
               left_column_expansion_mode: paneMySettings.querySelector('[data-my-left-column-expansion-mode]').value
             });

@@ -30,12 +30,12 @@
     }
   };
   const channelsLibBundles = [
-    versionedBundle('../platform-realtime/platform-realtime.js', '20260928-presence-v1'),
-    versionedBundle('../channels-api/channels-api.js', '20260723-channels-v1'),
+    versionedBundle('../platform-realtime/platform-realtime.js', '20260929-channels-v2'),
+    versionedBundle('../channels-api/channels-api.js', '20260929-channels-v2'),
     versionedBundle('../audio-notes/audio-notes.js', '20260725-communications-voice-v2'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
-    versionedBundle('../window-manager/window-manager.js', '20260907-windows-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20260928-presence-v1'),
+    versionedBundle('../window-manager/window-manager.js', '20260929-channels-v2'),
+    versionedBundle('../channels-ui/channels-ui.js', '20260929-channels-v2'),
     versionedBundle('../project-notes/project-notes.js', '20260723-channels-notes')
   ];
   const fieldApprovalBundles = [
@@ -532,12 +532,12 @@
       order: 44,
       access: { applicationsAny: ['management', 'field'] },
       bundles: [
-        versionedBundle('../platform-realtime/platform-realtime.js', '20260928-presence-v1'),
-        versionedBundle('../channels-api/channels-api.js', '20260723-channels-v1'),
+        versionedBundle('../platform-realtime/platform-realtime.js', '20260929-channels-v2'),
+        versionedBundle('../channels-api/channels-api.js', '20260929-channels-v2'),
         versionedBundle('../audio-notes/audio-notes.js', '20260725-communications-voice-v2'),
-        versionedBundle('../window-manager/window-manager.js', '20260907-windows-v1'),
-        versionedBundle('../channels-ui/channels-ui.js', '20260928-presence-v1'),
-        versionedBundle('channels/app.js', '20260723-channels-v1')
+        versionedBundle('../window-manager/window-manager.js', '20260929-channels-v2'),
+        versionedBundle('../channels-ui/channels-ui.js', '20260929-channels-v2'),
+        versionedBundle('channels/app.js', '20260929-channels-v2')
       ]
     },
     {

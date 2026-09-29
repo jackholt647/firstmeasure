@@ -16,7 +16,7 @@
 .fm-window-header{display:flex;flex:none;align-items:center;gap:8px;min-height:44px;padding:6px 10px;border-bottom:1px solid #e4e7ec;white-space:nowrap;touch-action:none;user-select:none;cursor:default}
 .fm-window-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:700;white-space:nowrap}
 .fm-window-title:after{content:'';display:inline-block;width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);margin-left:6px;vertical-align:3px;opacity:.55;flex:0 0 auto}
-.fm-window[data-window=minimized] .fm-window-title:after{display:none}
+.fm-window[data-window=minimized] .fm-window-title:after,.fm-window-title-plain:after{display:none}
 .fm-window-controls{display:flex;flex:0 0 auto;gap:2px;margin-left:auto}.fm-window-controls button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;background:none;border:0;border-radius:6px;color:inherit;cursor:pointer;font-size:12px}
 .fm-window-controls button:hover{background:#66708520}.fm-window-controls button[data-window-action=close]:hover{background:#d92d20;color:#fff}
 .fm-window-content{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
@@ -111,7 +111,7 @@
       topInset:() => Math.max(0,Number(options.topInset?.(win.host) || 0)),
       rect:{left:Math.max(0,host.clientWidth-(options.width || 640)-24),top:72,width:options.width || 640,height:options.height || 520}
     };
-    windows.add(win); element.classList.add('fm-window'); header.classList.add('fm-window-header'); title?.classList.add('fm-window-title'); options.body?.classList.add('fm-window-content');
+    windows.add(win); element.classList.add('fm-window'); header.classList.add('fm-window-header'); title?.classList.add('fm-window-title'); if (options.titleMenu === false) title?.classList.add('fm-window-title-plain'); options.body?.classList.add('fm-window-content');
     element.setAttribute('role','region'); element.setAttribute('aria-label',options.label || 'Window');
     const controls = document.createElement('div'); controls.className = 'fm-window-controls'; header.append(controls);
     const buttons = {};
@@ -123,7 +123,7 @@
       element.dataset.window = win.mode; element.dataset.pinned=String(win.pinned);
       const dock = win.mode === 'floating' || win.mode === 'full';
       const labels = {place:`${dock ? 'Dock' : 'Float'} ${name}`,minimize:`${win.mode === 'minimized' ? 'Restore' : 'Minimize'} ${name}`,maximize:`${win.mode === 'full' ? 'Float' : 'Maximize'} ${name}`,close:`Close ${name}`};
-      if (title) {
+      if (title && options.titleMenu !== false) {
         title.setAttribute('aria-label',win.mode === 'minimized' ? labels.minimize : ((v0) => globalThis.PlatformLanguage?.text("window-manager","m_d2465937dae930",`${v0} window menu`,{v0}) ?? `${v0} window menu`)(name));
         title.title=win.mode === 'minimized' ? labels.minimize : (globalThis.PlatformLanguage?.text("window-manager","m_e271e8dbdf1d3d","Window menu (right-click or Alt+Space)") ?? "Window menu (right-click or Alt+Space)");
       }
@@ -157,12 +157,12 @@
       document.body.append(menu);const r=header.getBoundingClientRect();menu.style.left=`${Math.max(8,Math.min(r.left,innerWidth-246))}px`;menu.style.top=`${Math.max(8,Math.min(r.bottom,innerHeight-menu.offsetHeight-8))}px`;menu.firstChild.focus();
     }
     header.addEventListener('contextmenu',showMenu);
-    if (title) { title.tabIndex=0; title.setAttribute('role','button'); title.setAttribute('aria-label',((v0) => globalThis.PlatformLanguage?.text("window-manager","m_d2465937dae930",`${v0} window menu`,{v0}) ?? `${v0} window menu`)(name)); title.title=(globalThis.PlatformLanguage?.text("window-manager","m_e271e8dbdf1d3d","Window menu (right-click or Alt+Space)") ?? "Window menu (right-click or Alt+Space)"); }
+    if (title && options.titleMenu !== false) { title.tabIndex=0; title.setAttribute('role','button'); title.setAttribute('aria-label',((v0) => globalThis.PlatformLanguage?.text("window-manager","m_d2465937dae930",`${v0} window menu`,{v0}) ?? `${v0} window menu`)(name)); title.title=(globalThis.PlatformLanguage?.text("window-manager","m_e271e8dbdf1d3d","Window menu (right-click or Alt+Space)") ?? "Window menu (right-click or Alt+Space)"); }
     let dragged=false;
     const titleClick=event=>{
       if(dragged || event.composedPath().includes(controls) || event.target.closest('button,input,a,select'))return;
       if(win.mode === 'minimized')restore();
-      else if(title?.contains(event.target))showMenu(event);
+      else if(options.titleMenu !== false && title?.contains(event.target))showMenu(event);
     }; header.addEventListener('click',titleClick);
     function keydown(event){ if (event.altKey && event.code === 'Space') showMenu(event); else if (event.target === title && ['Enter',' '].includes(event.key)) { if(win.mode === 'minimized'){event.preventDefault();restore();}else showMenu(event); } }
     element.addEventListener('keydown',keydown);element.addEventListener('pointerdown',focus);

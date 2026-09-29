@@ -104,7 +104,9 @@ export async function updateMediaState(
 }
 
 export async function leaveRoom(ctx: PlatformAuthContext, roomId: string) {
-  return withProvider((await storage.leaveRoomRecord(ctx.orgId, roomId, ctx.userId)));
+  const room = await storage.leaveRoomRecord(ctx.orgId, roomId, ctx.userId);
+  if (room.state === "ended") await closeProviderRoom(room);
+  return withProvider(room);
 }
 
 export async function endRoom(ctx: PlatformAuthContext, roomId: string) {
@@ -118,7 +120,9 @@ export async function removeParticipant(ctx: PlatformAuthContext, roomId: string
   if (room.started_by !== ctx.userId) throw forbidden("call_host_required", "Only the host can remove participants.");
   if (userId === ctx.userId) throw badRequest("call_remove_self", "Use Leave to leave your call.");
   await removeProviderParticipant(room, userId);
-  return withProvider((await storage.removeParticipantRecord(ctx.orgId, roomId, ctx.userId, userId)));
+  const updated = await storage.removeParticipantRecord(ctx.orgId, roomId, ctx.userId, userId);
+  if (updated.state === "ended") await closeProviderRoom(updated);
+  return withProvider(updated);
 }
 
 export async function postSignal(
@@ -174,11 +178,17 @@ export async function saveArtifact(
   if (input.kind === "audio_recording" && !["audio", "video"].includes(mode)) {
     throw forbidden("call_recording_disabled", "Recording is disabled for this call.");
   }
-  return (await storage.createArtifactRecord({
+  const artifact = await storage.createArtifactRecord({
     organization_id: ctx.orgId,
     room_id: roomId,
     ...input
-  }));
+  });
+  if (room.context_type === "channel") {
+    const {publishRealtimeEvent} = await import("../platform/realtime.js");
+    const {realtimeChannelTargets} = await import("../channels/service.js");
+    await publishRealtimeEvent({organization_id:ctx.orgId,topic:"channels.huddle.artifact",user_ids:await realtimeChannelTargets(ctx.orgId,String(room.context_id)),payload:{channel_id:room.context_id,huddle_id:roomId}});
+  }
+  return artifact;
 }
 
 export async function listArtifacts(ctx: PlatformAuthContext, roomId: string) {

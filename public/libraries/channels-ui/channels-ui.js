@@ -136,9 +136,9 @@
     const inline = (value) => {
       const tokens = [];
       const keep = html => `\u0000${tokens.push(html) - 1}\u0000`;
-      const html = esc(value)
+      const html = esc(value.replace(/\\\|/g, '|')).replace(/&lt;br\s*\/?&gt;/gi, '<br>')
       .replace(/`([^`\n]+)`/g, (_, code) => keep(`<code>${code}</code>`))
-      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, label, url) => keep(`<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`))
+      .replace(/\[((?:\\.|[^\]\\\n])+)\]\((https?:\/\/[^\s)]+)\)/g, (_, label, url) => keep(`<a href="${url}" target="_blank" rel="noopener noreferrer">${label.replace(/\\([\[\]\\])/g, '$1')}</a>`))
       .replace(/https?:\/\/[^\s<>\u0000]+/g, url => keep(`<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`))
       .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[\s(])_([^_\n]+)_/g, '$1<em>$2</em>')
@@ -154,11 +154,18 @@
         while (++i < lines.length && !lines[i].startsWith('```')) code.push(lines[i]);
         blocks.push(`<pre><code>${esc(code.join('\n'))}</code></pre>`);
       } else if (line.includes('|') && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1] || '')) {
-        const cells = (row, tag) => '<tr>' + row.trim().replace(/^\||\|$/g, '').split('|').map(cell => `<${tag}>${inline(cell.trim())}</${tag}>`).join('') + '</tr>';
+        const cells = (row, tag) => '<tr>' + row.trim().replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map(cell => `<${tag}>${inline(cell.trim())}</${tag}>`).join('') + '</tr>';
         let table = '<table><thead>' + cells(line, 'th') + '</thead><tbody>';
         i++;
         while (i + 1 < lines.length && lines[i + 1].includes('|')) table += cells(lines[++i], 'td');
-        blocks.push(table + '</tbody></table>');
+        table += '</tbody></table>';
+        const widths = /^<!--fm-table-widths:([\d.,]+)-->$/.exec(lines[i + 1] || '');
+        if (widths) {
+          const values = widths[1].split(',').slice(0, 200).map(value => Math.max(48, Math.min(2000, Number(value) || 100)));
+          table = table.replace('<table>', `<table style="width:${values.reduce((a,b) => a+b, 0)}px"><colgroup>${values.map(value => `<col style="width:${value}px">`).join('')}</colgroup>`);
+          i++;
+        }
+        blocks.push(table);
       } else if (/^\s*([-*] |\d+\. )/.test(line)) {
         const ordered = /^\s*\d+\./.test(line);
         const pattern = ordered ? /^\s*\d+\. / : /^\s*[-*] /;
@@ -179,7 +186,112 @@
 
   // The wire format remains Markdown, so drafts, search, edits, scheduled sends,
   // and agent context use the same portable representation as older messages.
-  function createMessageEditor(placeholder){
+  function tableMarkup(rows){
+    return '<table>' + rows.map((row, index) => '<tr>' + row.map(value => `<${index ? 'td' : 'th'}>${esc(value).replace(/\r?\n/g, '<br>') || '<br>'}</${index ? 'td' : 'th'}>`).join('') + '</tr>').join('') + '</table>';
+  }
+
+  function clipboardTable(data){
+    // Extract cell text only: clipboard HTML must never become executable DOM.
+    const html = data.getData('text/html');
+    const source = html ? new DOMParser().parseFromString(html, 'text/html').querySelector('table') : null;
+    if (source) return tableMarkup([...source.rows].map(row => [...row.cells].map(cell => cell.textContent || '')));
+    const text = data.getData('text/plain');
+    if (!text.includes('\t')) return null;
+    // Quoted TSV supports tabs and newlines inside spreadsheet cells.
+    const rows = [[]]; let cell = '', quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '"' && (quoted || !cell)) {
+        if (quoted && text[i + 1] === '"') { cell += '"'; i++; }
+        else quoted = !quoted;
+      } else if (!quoted && (ch === '\t' || ch === '\n' || ch === '\r')) {
+        rows.at(-1).push(cell); cell = '';
+        if (ch !== '\t') { rows.push([]); if (ch === '\r' && text[i + 1] === '\n') i++; }
+      } else cell += ch;
+    }
+    rows.at(-1).push(cell);
+    if (rows.length > 1 && rows.at(-1).length === 1 && !rows.at(-1)[0]) rows.pop();
+    const columns = Math.max(...rows.map(row => row.length));
+    return tableMarkup(rows.map(row => Array.from({length:columns}, (_, i) => row[i] || '')));
+  }
+
+  function downloadTable(table){
+    const text = [...table.rows].map(row => [...row.cells].map(cell => {
+      const value = cell.innerText ?? cell.textContent;
+      return /[\t\r\n"]/.test(value) ? '"' + value.replace(/"/g, '""') + '"' : value;
+    }).join('\t')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([text], {type:'text/tab-separated-values;charset=utf-8'}));
+    const link = el('a'); link.href = url; link.download = 'table.tsv'; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function openTable(table, editor){
+    const clone = table.cloneNode(true);
+    clone.querySelectorAll('[data-preview-hidden]').forEach(row => row.removeAttribute('data-preview-hidden'));
+    const editable = editor ? createMessageEditor('Edit table', true) : el('div', 'fm-ch-table-view');
+    editable.append(clone);
+    showModal('Table', body => {
+      body.closest('.fm-ch-modal').classList.add('fm-ch-table-modal');
+      if (editor) body.append(messageFormatBar(editable, true));
+      body.append(editable);
+    }, [
+      {label:'Download TSV', onClick:() => downloadTable(clone)},
+      ...(editor ? [{label:'Save table', primary:true, onClick:close => {
+        if (editable.contains(clone)) table.replaceWith(clone.cloneNode(true));
+        else (table.closest('.fm-ch-table-card') || table).remove();
+        editor.dispatchEvent(new Event('input', {bubbles:true})); close();
+      }}] : [])
+    ]);
+  }
+
+  function decorateTables(host, editor = null){
+    for (const table of host.querySelectorAll('table')) {
+      const existing = table.closest('.fm-ch-table-card');
+      if (existing) {
+        [...table.rows].forEach((row, index) => row.toggleAttribute('data-preview-hidden', index >= 10));
+        existing.querySelector('button').textContent = `${table.rows.length} rows × ${table.rows[0]?.cells.length || 0} columns · ${editor ? 'Open / edit table' : 'Open full table'}`;
+        continue;
+      }
+      if (editor && table.rows.length <= 10) continue;
+      const card = el('div', 'fm-ch-table-card');
+      if (editor) card.contentEditable = 'false';
+      const button = el('button', 'fm-ch-table-open');
+      button.type = 'button'; button.dataset.tableUi = 'true';
+      button.textContent = `${table.rows.length} rows × ${table.rows[0]?.cells.length || 0} columns · ${editor ? 'Open / edit table' : 'Open full table'}`;
+      button.onclick = event => { event.stopPropagation(); openTable(card.querySelector('table'), editor); };
+      table.replaceWith(card); card.append(table, button);
+      [...table.rows].forEach((row, index) => row.toggleAttribute('data-preview-hidden', index >= 10));
+      card.addEventListener('click', event => { if (!event.target.closest('button,a')) button.click(); });
+    }
+  }
+
+  function tableSizePicker(onChoose){
+    // Matches Documents' expanding size grid: one spare row/column, up to 20.
+    const picker = el('div', 'fm-ch-table-picker');
+    picker.setAttribute('role', 'group'); picker.setAttribute('aria-label', 'Choose table size');
+    const grid = el('div', 'fm-ch-table-picker-grid'), label = el('div', 'fm-ch-table-picker-label');
+    let rows = 3, columns = 3;
+    const draw = () => {
+      grid.style.gridTemplateColumns = `repeat(${Math.min(20, columns + 1)}, 19px)`; grid.replaceChildren();
+      for (let r = 1; r <= Math.min(20, rows + 1); r++) for (let c = 1; c <= Math.min(20, columns + 1); c++) {
+        const cell = el('button', 'fm-ch-table-picker-cell' + (r <= rows && c <= columns ? ' active' : ''));
+        cell.type = 'button'; cell.dataset.row = r; cell.dataset.column = c;
+        cell.setAttribute('aria-label', `${r} rows by ${c} columns`);
+        cell.onmousedown = event => event.preventDefault();
+        cell.onclick = () => onChoose(r, c);
+        grid.append(cell);
+      }
+      label.textContent = `${columns} × ${rows} table`;
+    };
+    grid.onpointermove = event => {
+      const cell = event.target.closest('[data-row]'); if (!cell) return;
+      const r = Number(cell.dataset.row), c = Number(cell.dataset.column);
+      if (r !== rows || c !== columns) { rows = r; columns = c; draw(); }
+    };
+    picker.append(grid, label); draw(); return picker;
+  }
+
+  function createMessageEditor(placeholder, expandTables = false){
     const editor = el('div', 'fm-ch-rich-editor');
     editor.contentEditable = 'true';
     editor.setAttribute('role', 'textbox');
@@ -189,6 +301,7 @@
     editor.mentionUsers = [];
     const serialize = node => {
       if (node.nodeType === 3) return node.textContent;
+      if (node.dataset?.tableUi) return '';
       const tag = node.tagName;
       const children = () => [...node.childNodes].map(serialize).join('');
       if (tag === 'BR') return '\n';
@@ -197,11 +310,12 @@
       if (tag === 'S' || tag === 'STRIKE') return `~~${children()}~~`;
       if (tag === 'PRE') return '\n```\n' + node.textContent + '\n```\n';
       if (tag === 'CODE') return '`' + children() + '`';
-      if (tag === 'A') return /^https?:\/\//i.test(node.getAttribute('href') || '') ? `[${children()}](${node.getAttribute('href')})` : children();
+      if (tag === 'A') return /^https?:\/\//i.test(node.getAttribute('href') || '') ? `[${children().replace(/([\[\]\\])/g, '\\$1')}](${node.getAttribute('href').replace(/\(/g, '%28').replace(/\)/g, '%29')})` : children();
       if (tag === 'TABLE') {
-        const rows = [...node.rows].map(row => '| ' + [...row.cells].map(cell => [...cell.childNodes].map(serialize).join('').replace(/\|/g, '¦').replace(/\n/g, ' ')).join(' | ') + ' |');
+        const rows = [...node.rows].map(row => '| ' + [...row.cells].map(cell => [...cell.childNodes].map(serialize).join('').replace(/\|/g, '\\|').replace(/\n/g, '<br>')).join(' | ') + ' |');
         if (rows.length) rows.splice(1, 0, '| ' + [...node.rows[0].cells].map(() => '---').join(' | ') + ' |');
-        return '\n' + rows.join('\n') + '\n';
+        const widths = [...node.rows[0]?.cells || []].map((cell, index) => parseFloat(cell.style.width || node.querySelectorAll('col')[index]?.style.width) || 0);
+        return '\n' + rows.join('\n') + (widths.length && widths.every(Boolean) ? '\n<!--fm-table-widths:' + widths.join(',') + '-->' : '') + '\n';
       }
       if (tag === 'LI') return (node.parentElement.tagName === 'OL' ? `${[...node.parentElement.children].indexOf(node) + 1}. ` : '- ') + children().trim() + '\n';
       if (tag === 'BLOCKQUOTE') return '> ' + children().trim() + '\n';
@@ -209,17 +323,51 @@
     };
     Object.defineProperty(editor, 'value', {
       get: () => [...editor.childNodes].map(serialize).join('').replace(/\n{3,}/g, '\n\n').trim(),
-      set: value => { editor.innerHTML = value ? renderBody({ text:String(value) }) : ''; }
+      set: value => { editor.innerHTML = value ? renderBody({ text:String(value) }) : ''; if (!expandTables) decorateTables(editor, editor); }
     });
     editor.insertText = text => { editor.focus(); document.execCommand('insertText', false, text); };
     editor.setRangeText = text => editor.insertText(text);
     editor.addEventListener('paste', event => {
+      const files = [...(event.clipboardData?.files || [])];
+      if (files.length && editor.pasteFiles) { event.preventDefault(); void editor.pasteFiles(files); return; }
       event.preventDefault();
       // Never accept executable or styled HTML from the clipboard.
       const text = event.clipboardData.getData('text/plain');
-      document.execCommand('insertHTML', false, renderBody({ text }));
+      document.execCommand('insertHTML', false, (clipboardTable(event.clipboardData) || renderBody({ text })) + '<div><br></div>');
+      editor.dispatchEvent(new Event('input', {bubbles:true}));
+    });
+    editor.addEventListener('input', () => { if (!expandTables) decorateTables(editor, editor); });
+    // Drag a cell's right edge to resize its column, as in Documents.
+    editor.addEventListener('pointerdown', event => {
+      const cell = event.target.closest('td,th');
+      if (!cell || cell.closest('[contenteditable=false]')) return;
+      const rect = cell.getBoundingClientRect();
+      if (Math.abs(event.clientX - rect.right) > 7) return;
+      event.preventDefault();
+      const table = cell.closest('table'), index = cell.cellIndex, startX = event.clientX;
+      const widths = [...table.rows[0].cells].map(item => item.getBoundingClientRect().width);
+      const move = e => {
+        widths[index] = Math.max(48, rect.width + e.clientX - startX);
+        table.querySelectorAll('col').forEach((col, i) => { col.style.width = `${widths[i]}px`; });
+        for (const row of table.rows) [...row.cells].forEach((item, i) => { item.style.width = `${widths[i]}px`; });
+        table.style.width = `${widths.reduce((a,b) => a+b, 0)}px`;
+      };
+      const end = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', end); document.removeEventListener('pointercancel', end); editor.dispatchEvent(new Event('input', {bubbles:true})); };
+      document.addEventListener('pointermove', move); document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
     });
     editor.addEventListener('keydown', event => {
+      const selection = root.getSelection();
+      const quote = selection?.anchorNode?.parentElement?.closest('blockquote');
+      if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.isComposing && quote && editor.contains(quote)) {
+        event.preventDefault();
+        const range = selection.getRangeAt(0); range.deleteContents();
+        const remainder = range.cloneRange(); remainder.setEnd(quote, quote.childNodes.length);
+        const paragraph = el('div'); paragraph.append(remainder.extractContents());
+        if (!paragraph.textContent) paragraph.innerHTML = '<br>';
+        quote.after(paragraph); if (!quote.textContent.trim()) quote.remove();
+        range.setStart(paragraph, 0); range.collapse(true); selection.removeAllRanges(); selection.addRange(range);
+        editor.dispatchEvent(new Event('input', {bubbles:true})); return;
+      }
       if (event.key === 'Tab' && root.getSelection()?.anchorNode?.parentElement?.closest('td,th')) {
         event.preventDefault();
         const cell = root.getSelection()?.anchorNode?.parentElement?.closest('td,th');
@@ -231,43 +379,83 @@
     return editor;
   }
 
-  function messageFormatBar(editor){
+  function messageFormatBar(editor, tableOnly = false){
     const bar = el('div', 'fm-ch-formatbar');
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_f4dce57ac0bb0e","Message formatting") ?? "Message formatting"));
     const commands = [['Bold', '<b>B</b>', 'bold'], ['Italic', '<i>I</i>', 'italic'], ['Strikethrough', '<s>S</s>', 'strikeThrough'], ['Bulleted list', '• List', 'insertUnorderedList'], ['Numbered list', '1. List', 'insertOrderedList'], ['Quote', '❞', 'formatBlock', 'blockquote'], ['Code block', '&lt;/&gt;', 'formatBlock', 'pre'], ['Link', 'Link', 'link'], ['Table', 'Table', 'table'], ['Clear formatting', 'Tx', 'removeFormat']];
     for (const [title, icon, command, value] of commands) {
+      if (tableOnly && command === 'table') continue;
       const button = el('button', '', icon);
       button.type = 'button'; button.title = title; button.setAttribute('aria-label', title);
       button.addEventListener('mousedown', event => event.preventDefault());
       button.addEventListener('click', () => {
         editor.focus();
         if (command === 'table') {
+          const range = root.getSelection()?.rangeCount ? root.getSelection().getRangeAt(0).cloneRange() : null;
           showPopover(button, pop => {
-            pop.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_9cc744f8d3e3a9","Rows ") ?? "Rows ")}<input type="number" min="2" max="20" value="3" data-rows></label><label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_911191f5b684ff","Columns ") ?? "Columns ")}<input type="number" min="2" max="8" value="3" data-columns></label>`;
-            const range = root.getSelection()?.rangeCount ? root.getSelection().getRangeAt(0).cloneRange() : null;
-            const insert = el('button', 'fm-ch-btn', 'Insert table');
-            insert.onclick = () => {
-              const rows = Math.max(2, Math.min(20, Number(pop.querySelector('[data-rows]').value) || 3));
-              const columns = Math.max(2, Math.min(8, Number(pop.querySelector('[data-columns]').value) || 3));
+            pop.append(tableSizePicker((rows, columns) => {
               editor.focus(); if (range) { root.getSelection().removeAllRanges(); root.getSelection().addRange(range); }
-              document.execCommand('insertHTML', false, '<table>' + Array.from({length:rows}, (_, r) => '<tr>' + Array.from({length:columns}, () => r ? '<td><br></td>' : `<th>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_a81c579f34f382","Heading") ?? "Heading")}</th>`).join('') + '</tr>').join('') + '</table><div><br></div>');
+              document.execCommand('insertHTML', false, tableMarkup(Array.from({length:rows}, (_, r) => Array.from({length:columns}, () => r ? '' : 'Heading'))) + '<div><br></div>');
               editor.dispatchEvent(new Event('input', {bubbles:true})); closePopover();
-            }; pop.append(insert);
+            }));
           });
         } else if (command === 'link') {
           const range = root.getSelection()?.rangeCount ? root.getSelection().getRangeAt(0).cloneRange() : null;
-          showModal('Insert link', body => { body.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_b90b7e637a2076","URL") ?? "URL")}</label><input type="url" placeholder="https://" data-url>`; }, [{label:(globalThis.PlatformLanguage?.text("channels-ui","m_900227393b1fd1","Insert") ?? "Insert"), primary:true, onClick:(close, body) => {
-            const url = body.querySelector('[data-url]').value.trim();
-            if (!/^https?:\/\/\S+$/i.test(url)) return body.querySelector('[data-url]').setCustomValidity('Enter an http or https URL.');
-            editor.focus(); if (range) { root.getSelection().removeAllRanges(); root.getSelection().addRange(range); }
-            if (root.getSelection()?.isCollapsed) document.execCommand('insertText', false, url);
-            document.execCommand('createLink', false, url); editor.dispatchEvent(new Event('input', {bubbles:true})); close();
+          const existing = root.getSelection()?.anchorNode?.parentElement?.closest('a');
+          const selectedText = root.getSelection()?.toString() || existing?.textContent || '';
+          const modal = showModal(existing ? 'Edit link' : 'Insert link', body => {
+            body.innerHTML = '<div class="fm-ch-link-form"><label>Link text<input type="text" data-link-text placeholder="Text people will see"></label><label>Web address<input type="url" data-url placeholder="https://example.com" inputmode="url"></label><p class="fm-ch-link-error" role="alert"></p></div>';
+            body.querySelector('[data-link-text]').value = selectedText;
+            body.querySelector('[data-url]').value = existing?.getAttribute('href') || '';
+          }, [{label:'Cancel', onClick:close => close()}, {label:existing ? 'Save link' : 'Insert link', primary:true, onClick:(close, body) => {
+            const field = body.querySelector('[data-url]'); let url = field.value.trim();
+            const label = body.querySelector('[data-link-text]').value.trim();
+            try { const parsed = new URL(url); if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error(); url = parsed.href; }
+            catch (_) { body.querySelector('.fm-ch-link-error').textContent = 'Enter a complete http:// or https:// web address.'; field.focus(); return; }
+            if (!label) { body.querySelector('.fm-ch-link-error').textContent = 'Enter the text for your link.'; body.querySelector('[data-link-text]').focus(); return; }
+            editor.focus();
+            if (existing && editor.contains(existing)) { const selected = document.createRange(); selected.selectNode(existing); root.getSelection().removeAllRanges(); root.getSelection().addRange(selected); }
+            else if (range) { root.getSelection().removeAllRanges(); root.getSelection().addRange(range); }
+            document.execCommand('insertHTML', false, `<a href="${esc(url)}">${esc(label)}</a>`);
+            editor.dispatchEvent(new Event('input', {bubbles:true})); close();
           }}]);
+          modal.body.querySelector(selectedText ? '[data-url]' : '[data-link-text]').focus();
         } else { document.execCommand(command, false, value); editor.dispatchEvent(new Event('input', {bubbles:true})); }
       });
       bar.append(button);
     }
+    const tableControls = el('span', 'fm-ch-table-controls');
+    let selectedCell = null;
+    editor.addEventListener('click', event => { selectedCell = event.target.closest('td,th'); tableControls.hidden = !selectedCell; });
+    editor.addEventListener('keyup', () => { selectedCell = root.getSelection()?.anchorNode?.parentElement?.closest('td,th'); tableControls.hidden = !selectedCell || !editor.contains(selectedCell); });
+    tableControls.hidden = true;
+    for (const [label, operation] of [['Row above', 'row-before'], ['Row below', 'row-after'], ['Column left', 'col-before'], ['Column right', 'col-after'], ['Delete row', 'delete-row'], ['Delete column', 'delete-col'], ['Delete table', 'delete-table']]) {
+      const control = el('button', '', esc(label)); control.type = 'button'; control.title = label;
+      control.onmousedown = event => event.preventDefault();
+      control.onclick = () => {
+        if (!selectedCell || !editor.contains(selectedCell)) return;
+        const table = selectedCell.closest('table'), row = selectedCell.parentElement, column = selectedCell.cellIndex;
+        if (operation === 'delete-table') table.remove();
+        else if (operation === 'delete-row') row.remove();
+        else if (operation === 'delete-col') { for (const r of table.rows) r.cells[column]?.remove(); table.querySelectorAll('col')[column]?.remove(); }
+        else if (operation.startsWith('row')) {
+          const added = el('tr');
+          for (const cell of row.cells) { const item = el('td', '', '<br>'); item.style.width = cell.style.width; added.append(item); }
+          row.insertAdjacentElement(operation === 'row-before' ? 'beforebegin' : 'afterend', added);
+        } else {
+          for (const r of table.rows) { const cell = el(r.cells[column]?.tagName.toLowerCase() || 'td', '', '<br>'); r.cells[column]?.insertAdjacentElement(operation === 'col-before' ? 'beforebegin' : 'afterend', cell); }
+          // A structural change resets widths so every column remains reachable.
+          table.querySelector('colgroup')?.remove(); table.style.width = '';
+          table.querySelectorAll('td,th').forEach(cell => cell.style.width = '');
+        }
+        if (!table.rows.length || !table.rows[0].cells.length) table.remove();
+        tableControls.hidden = true; selectedCell = null;
+        editor.dispatchEvent(new Event('input', {bubbles:true}));
+      };
+      tableControls.append(control);
+    }
+    bar.append(tableControls);
     return bar;
   }
 
@@ -286,14 +474,14 @@
     const style = document.createElement('style');
     style.id = 'fm-channels-ui-styles';
     style.textContent = `
-.fm-ch,.fm-ch-popover,.fm-ch-modal-backdrop{--ch-bg:#fff;--ch-border:#e4e7ec;--ch-muted:#667085;--ch-text:#101828;--ch-accent:var(--primary-readable,var(--primary,#d93025));--ch-accent-soft:rgba(var(--primary-rgb,217,48,37),.08);--ch-danger:#d92d20;--ch-hover:#f7f8fa;--ch-sidebar:#f9fafb}
+.fm-ch,.fm-ch-popover,.fm-ch-modal-backdrop,.fm-channels-overlay-tabs{--ch-bg:#fff;--ch-border:#e4e7ec;--ch-muted:#667085;--ch-text:#101828;--ch-accent:var(--primary-readable,var(--primary,#d93025));--ch-accent-soft:rgba(var(--primary-rgb,217,48,37),.08);--ch-danger:#d92d20;--ch-hover:#f7f8fa;--ch-sidebar:#f9fafb}
 .fm-ch{display:flex;height:100%;min-height:0;background:var(--ch-bg);color:var(--ch-text);font-size:13.5px;line-height:1.45;border:1px solid var(--ch-border);border-radius:12px;overflow:hidden}
 .fm-ch *,.fm-ch-popover *,.fm-ch-modal-backdrop *{box-sizing:border-box}
 .fm-ch--embedded{border:none;border-radius:0}
 .fm-ch--conversation{border:none;border-radius:0}
 .fm-ch--list{border:none;border-radius:0;background:transparent}
 .fm-ch--list .fm-ch-sidebar{width:100%;min-width:0;border-right:none;background:transparent;padding:0}
-:where(.fm-ch,.fm-ch-popover,.fm-ch-modal-backdrop) button{font:inherit;cursor:pointer;border:none;background:none;color:inherit;padding:0}
+:where(.fm-ch,.fm-ch-popover,.fm-ch-modal-backdrop,.fm-channels-overlay-tabs) button{font:inherit;cursor:pointer;border:none;background:none;color:inherit;padding:0}
 .fm-ch-sidebar{width:240px;min-width:200px;background:var(--ch-sidebar);border-right:1px solid var(--ch-border);display:flex;flex-direction:column;overflow-y:auto;padding:10px 0;flex-shrink:0}
 .fm-ch-side-section{padding:8px 10px 2px}
 .fm-ch-side-head{display:flex;align-items:center;gap:2px;padding:2px 8px;color:var(--ch-muted);font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em;cursor:pointer}
@@ -308,6 +496,8 @@
 .fm-ch-side-items[hidden]{display:none}
 .fm-ch-side-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:5px 10px;border-radius:9px;color:#344054;min-height:30px;font-size:12px;font-weight:500}
 .fm-ch-side-item:hover{background:#eef1f5}
+.fm-ch-side-row{display:flex;align-items:center;border-radius:9px;min-width:0}.fm-ch-side-row:hover,.fm-ch-side-row:focus-within{background:#eef1f5}.fm-ch-side-row>.fm-ch-side-item{flex:1;min-width:0;width:auto}.fm-ch-side-actions{display:none;gap:2px;padding-right:4px;flex:none}.fm-ch-side-row:hover .fm-ch-side-actions,.fm-ch-side-row:focus-within .fm-ch-side-actions{display:flex}.fm-ch-side-actions button{display:grid;place-items:center;width:26px;height:26px;border-radius:5px;color:var(--ch-muted)}.fm-ch-side-actions button:hover{background:#dfe4eb;color:var(--ch-text)}.fm-ch-side-actions svg{width:15px;height:15px}.fm-ch-side-row.muted .fm-ch-side-label{color:var(--ch-muted)}
+@media(hover:none){.fm-ch-side-actions{display:flex}}
 .fm-ch-side-item.active{background:var(--ch-accent-soft);color:var(--ch-accent);font-weight:650}
 .fm-ch-side-item .fm-ch-side-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fm-ch-side-item.unread .fm-ch-side-label{font-weight:750;color:var(--ch-text)}
@@ -372,9 +562,11 @@
 .fm-ch-call-name{position:absolute;bottom:9px;left:9px;max-width:calc(100% - 18px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#101828cc;border-radius:5px;padding:4px 7px;font-size:11px}
 
 .fm-ch-huddle-actions{flex-wrap:wrap;flex-shrink:0}
-.fm-ch-call-reaction{position:absolute;left:50%;top:22%;display:flex;flex-direction:column;align-items:center;pointer-events:none;background:#101828cc;border-radius:20px;padding:10px;z-index:5;animation:fm-ch-call-reaction 4s ease-out forwards}.fm-ch-call-reaction span{font-size:54px}
-@keyframes fm-ch-call-reaction{0%{opacity:0;transform:translateY(20px)}15%,80%{opacity:1}100%{opacity:0;transform:translateY(-35px)}}
-@media(prefers-reduced-motion:reduce){.fm-ch-call-reaction{animation:none}}
+.fm-ch-call-reaction{position:absolute;left:var(--reaction-x);bottom:78px;display:flex;flex-direction:column;align-items:center;pointer-events:none;background:none;z-index:5;opacity:0;animation:fm-ch-call-reaction 3.3s ease-out forwards}.fm-ch-call-reaction span{font-size:var(--reaction-size);line-height:1.2}.fm-ch-call-reaction small{background:#8ab4f8;color:#17243b;border-radius:10px;padding:1px 5px;font-size:10px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@keyframes fm-ch-call-reaction{0%{opacity:0;transform:translate(0,15px) scale(.6)}12%,70%{opacity:1}100%{opacity:0;transform:translate(var(--reaction-drift),-230px) scale(1.05)}}
+@media(prefers-reduced-motion:reduce){.fm-ch-call-reaction{animation:none;opacity:1}}
+.fm-ch-mic-test{padding:14px;background:#f8fafc;border:1px solid #e4e7ec;border-radius:10px;margin:12px 0}.fm-ch-mic-test meter{display:block;width:100%;height:24px;margin-top:8px;accent-color:#12b76a}.fm-ch-mic-test small{display:block;color:#667085;margin-top:6px}
+.fm-ch-link-form{display:grid;gap:14px}.fm-ch-link-form label{display:grid;gap:6px;margin:0;font-size:12px;font-weight:650}.fm-ch-link-form input{width:100%;padding:10px 12px;border:1px solid #d0d5dd;border-radius:8px;font:inherit}.fm-ch-link-error{color:#b42318;margin:0;font-size:12px}
 .fm-ch-call-settings-tabs{display:flex;gap:4px;border-bottom:1px solid #e4e7ec;margin-bottom:16px}.fm-ch-call-settings-tabs button{padding:10px 8px;color:#667085}.fm-ch-call-settings-tabs button[aria-selected=true]{color:var(--ch-accent);border-bottom:2px solid currentColor;font-weight:700}
 .fm-ch-call-settings-panel>label{display:block;margin-top:12px}.fm-ch-call-settings-panel>.fm-ch-btn{margin:6px 6px 0 0}.fm-ch-call-settings-panel p{line-height:1.5;color:#667085}
 .fm-ch-huddle-actions button{width:52px;height:50px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:15px}.fm-ch-huddle-actions button small{font-size:10px;font-weight:500}
@@ -393,6 +585,7 @@
 .fm-ch-new-divider::after{content:'';flex:1;height:1px;background:var(--ch-danger)}
 .fm-ch-msg{position:relative;display:flex;gap:10px;padding:3px 16px}
 .fm-ch-msg:hover{background:var(--ch-hover)}
+.fm-ch-scheduled-message{margin:12px 16px;padding:12px 14px;border:1px dashed #98a2b3;border-radius:10px;background:#f8fafc}.fm-ch-scheduled-label{font-size:12px;font-weight:650;color:#475467;display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.fm-ch-scheduled-label span{margin-left:auto;font-size:11px;font-weight:400}.fm-ch-scheduled-message>.fm-ch-btn{margin-top:10px}
 .fm-ch-msg.highlight{background:#fef4e6;animation:fm-ch-flash 2.4s ease forwards}
 @keyframes fm-ch-flash{0%,60%{background:#fef4e6}100%{background:transparent}}
 .fm-ch-msg-gutter{width:36px;flex-shrink:0;display:flex;justify-content:center;align-items:flex-start}
@@ -439,6 +632,9 @@
 .fm-ch-toolbar button:hover{background:var(--ch-hover);color:var(--ch-accent)}
 .fm-ch-toolbar button.danger:hover{color:var(--ch-danger)}
 .fm-ch-toolbar button.on{color:var(--ch-accent)}
+.fm-ch-side-typing{display:none;width:24px;flex:none;align-items:center;justify-content:center;gap:3px}.fm-ch-side-typing>span{width:4px;height:4px;border-radius:50%;background:currentColor;animation:fm-ch-typing-pulse 1s infinite}.fm-ch-side-typing>span:nth-child(2){animation-delay:.15s}.fm-ch-side-typing>span:nth-child(3){animation-delay:.3s}.fm-ch-side-row.is-typing .fm-ch-side-typing{display:inline-flex}.fm-ch-side-row.is-typing .fm-ch-side-item>.fm-ch-avatar,.fm-ch-side-row.is-typing .fm-ch-side-item>.fm-ch-hash{display:none}
+@keyframes fm-ch-typing-pulse{0%,60%,100%{opacity:.4;transform:translateY(0)}30%{opacity:1;transform:translateY(-2px)}}
+@media(prefers-reduced-motion:reduce){.fm-ch-side-typing>span{animation:none}}
 .fm-ch-typing{min-height:20px;color:var(--ch-muted);font-size:11px;padding:0 16px 4px;font-style:italic}
 .fm-ch-composer{border-top:1px solid var(--ch-border);padding:10px 16px 12px}
 .fm-ch-composer-box{border:1px solid var(--ch-border);border-radius:10px;padding:8px 10px;background:#fff}
@@ -455,6 +651,18 @@
 .fm-ch-rich-editor{min-height:64px;max-height:220px;overflow:auto;outline:none;white-space:pre-wrap;overflow-wrap:anywhere;padding:8px 2px;font-size:14px;line-height:1.5}
 .fm-ch-rich-editor:empty:before{content:attr(data-placeholder);color:var(--ch-muted);pointer-events:none}
 .fm-ch-rich-editor table,.fm-ch-msg-body table{border-collapse:collapse;margin:8px 0;width:100%;table-layout:fixed}
+.fm-ch-table-card{border:1px solid var(--ch-border);border-radius:8px;margin:8px 0;overflow:auto;cursor:pointer;background:var(--ch-bg)}
+.fm-ch-table-card tr[data-preview-hidden]{display:none}
+.fm-ch-table-open{display:block!important;width:100%;padding:9px!important;text-align:left;color:var(--ch-accent)!important;background:var(--ch-hover)!important;border-top:1px solid var(--ch-border)!important}
+.fm-ch-table-card table{margin:0!important;min-width:100%}
+.fm-ch-table-picker{display:grid;gap:8px;padding:7px;max-width:calc(100vw - 40px);overflow:auto}
+.fm-ch-table-picker-grid{display:grid;gap:3px}.fm-ch-table-picker-cell{width:19px;height:19px;border:1px solid #cfd5dd!important;border-radius:2px;background:#fff!important}
+.fm-ch-table-picker-cell.active{border-color:var(--ch-accent)!important;background:var(--ch-accent-soft)!important}
+.fm-ch-table-picker-label{text-align:center;font-size:12px;font-weight:700}
+.fm-ch-formatbar{flex-wrap:wrap}.fm-ch-table-controls{display:flex;gap:4px;flex-wrap:wrap;width:100%}.fm-ch-table-controls[hidden]{display:none}.fm-ch-table-controls button{width:auto;padding:3px 6px;font-size:11px}
+.fm-ch-modal.fm-ch-table-modal{width:calc(100vw - 24px);max-width:none;height:calc(100dvh - 24px);max-height:none;display:flex;flex-direction:column}
+.fm-ch-table-modal .fm-ch-modal-body{flex:1;min-height:0;overflow:auto}.fm-ch-table-modal .fm-ch-rich-editor{max-height:none;min-height:100%;overflow:visible}
+.fm-ch-table-view table{border-collapse:collapse;min-width:100%;table-layout:fixed}.fm-ch-table-view td,.fm-ch-table-view th{border:1px solid var(--ch-border);padding:8px;min-width:80px;overflow-wrap:anywhere;vertical-align:top}
 .fm-ch-rich-editor td,.fm-ch-rich-editor th,.fm-ch-msg-body td,.fm-ch-msg-body th{border:1px solid var(--ch-border);padding:7px;min-width:60px;text-align:left;white-space:pre-wrap}
 .fm-ch-rich-editor th,.fm-ch-msg-body th{background:var(--ch-hover);font-weight:700}
 .fm-ch-rich-editor blockquote,.fm-ch-msg-body blockquote{border-left:3px solid #98a2b3;margin:6px 0;padding:4px 12px;color:var(--ch-muted)}
@@ -634,7 +842,8 @@
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
       }
     };
-    const close = () => { document.removeEventListener('keydown', keydown); backdrop.remove(); if (previousFocus?.isConnected) previousFocus.focus(); };
+    let onClose;
+    const close = () => { if (typeof onClose === 'function') onClose(); document.removeEventListener('keydown', keydown); backdrop.remove(); if (previousFocus?.isConnected) previousFocus.focus(); };
     document.addEventListener('keydown', keydown);
     closeBtn.addEventListener('click', close);
     backdrop.addEventListener('mousedown', (event) => { if (event.target === backdrop) close(); });
@@ -643,7 +852,7 @@
       node.addEventListener('click', () => button.onClick(close, body));
       foot.appendChild(node);
     }
-    buildBody(body, close);
+    onClose = buildBody(body, close);
     document.body.appendChild(backdrop);
     closeBtn.focus();
     return { close, body };
@@ -702,8 +911,10 @@
       editingThread: false,
       replyDrafts: new Map(),
       pendingAttachments: [],
+      scheduledMessages: [],
       pendingAudioNote: null,
-      typing: new Map(), // userId -> { name, expires }
+      typing: new Map(), // channelId -> Map(userId, {name, expires})
+      typingExpiryTimer:null,
       searchResults: [],
       searchQuery: '',
       activityFilter: 'all',
@@ -713,6 +924,7 @@
       activeTab: 'messages',
       resources: [],
       huddle: null,
+      huddleStates: new Map(),
       huddleStreams: [],
       huddlePeerId: '',
       huddleSignalCursor: 0,
@@ -734,6 +946,7 @@
     };
     const translationPending = new Map();
     const translationQueue = [];
+    const translatedChannels = new Map();
     let translationActive = 0;
 
     // --- skeleton ---------------------------------------------------------------
@@ -757,7 +970,9 @@
 
     listWrap.append(list, typingBar, composer);
     bodyWrap.append(listWrap, panel);
-    main.append(header, tabsBar, bodyWrap);
+    main.append(header);
+    if (options.tabsTarget instanceof HTMLElement) options.tabsTarget.append(tabsBar); else main.append(tabsBar);
+    main.append(bodyWrap);
     if (mode !== 'embedded' && mode !== 'conversation') shell.appendChild(sidebar);
     if (mode !== 'list') shell.appendChild(main);
     container.appendChild(shell);
@@ -800,6 +1015,11 @@
         state.channels = data.channels || [];
         state.sidebarSections = sectionsData?.sections || [];
         state.channelsById = new Map(state.channels.map((channel) => [channel.id, channel]));
+        if (state.activeChannel && state.activeChannel.type !== 'project' && !state.channelsById.has(state.activeChannelId)) {
+          state.activeChannelId = ''; state.activeChannel = null; state.messages = []; state.scheduledMessages = [];
+          state.thread = null; state.threadRootId = ''; state.tabs = [];
+          renderMessages(); renderComposer(); renderPanel(); renderTabs(); renderHeader();
+        }
         renderSidebar();
         if (mode === 'list') return;
         if (mode === 'conversation') {
@@ -840,21 +1060,23 @@
       state.threadRootId = '';
       state.thread = null;
       state.editingMessageId = '';
-      state.typing = new Map();
+      stopTyping();
       state.revealTarget = reveal || '';
       state.activeTab = 'messages';
       showMobileConversation();
       renderPanel();
       try {
-        const [data, tabsData] = await Promise.all([
+        const [data, tabsData, scheduledData] = await Promise.all([
           api.messages.list(orgId, channelId, { limit: 60 }),
-          features.resources ? api.tabs?.list?.(orgId, channelId).catch(() => ({ tabs:[] })) : Promise.resolve({ tabs:[] })
+          features.resources ? api.tabs?.list?.(orgId, channelId).catch(() => ({ tabs:[] })) : Promise.resolve({ tabs:[] }),
+          features.richMessages && api.scheduled?.list ? api.scheduled.list(orgId).catch(() => null) : null
         ]);
         if (state.destroyed || state.activeChannelId !== channelId) return;
         state.activeChannel = data.channel;
         state.channelsById.set(channelId, data.channel);
         state.messages = data.messages || [];
         state.tabs = tabsData?.tabs || [];
+        state.scheduledMessages = (scheduledData?.scheduled_messages || []).filter(item => ['scheduled','sending','failed'].includes(item.state));
         state.unreadDividerSeq = Number(data.channel?.unread?.last_read_seq ?? 0);
         renderHeader();
         renderTabs();
@@ -864,28 +1086,46 @@
         const profileRoute = root.Portal?.navigation?.read?.();
         if (profileRoute?.channelProfile && profileRoute.channelProfileChannel === channelId && mode !== 'list' && profilePanel?.dataset.userId !== profileRoute.channelProfile) showFullProfile({id:profileRoute.channelProfile}, {silent:true});
         scheduleMarkRead();
-        if (state.revealTarget) revealMessage(state.revealTarget);
+        if (state.revealTarget) await revealMessage(state.revealTarget);
         options.onNavigate?.({ channel: channelId });
+        return true;
       } catch (error) {
         list.innerHTML = `<div class="fm-ch-empty">${esc(error?.message || 'This conversation could not be loaded.')}</div>`;
         header.innerHTML = '';
         if (externalHeaderActions) externalHeaderActions.replaceChildren();
+        return false;
       }
     }
 
     async function refreshActiveMessages(){
       if (!state.activeChannelId || state.view !== 'channel') return;
       try {
-        const data = await api.messages.list(orgId, state.activeChannelId, { limit: 60 });
-        if (state.destroyed) return;
+        const channelId = state.activeChannelId;
+        const data = await api.messages.list(orgId, channelId, { limit: 60 });
+        if (state.destroyed || state.activeChannelId !== channelId) return;
         state.activeChannel = data.channel;
         state.messages = data.messages || [];
         renderMessages();
         scheduleMarkRead();
+        void refreshScheduledMessages();
       } catch (error) {}
     }
     const handlePreferencesUpdated = () => refreshActiveMessages();
     root.addEventListener('fm:user-preferences:updated', handlePreferencesUpdated);
+
+    async function refreshScheduledMessages(){
+      if (!features.richMessages || !api.scheduled?.list || mode === 'list') return;
+      const channelId = state.activeChannelId;
+      try {
+        const data = await api.scheduled.list(orgId);
+        if (state.destroyed || channelId !== state.activeChannelId) return;
+        state.scheduledMessages = (data.scheduled_messages || []).filter(item => ['scheduled','sending','failed'].includes(item.state));
+        renderMessages({keepScroll:true});
+      } catch (_) {}
+    }
+    const scheduledPoll = setInterval(() => {
+      if (state.scheduledMessages.some(item => item.channel_id === state.activeChannelId)) refreshActiveMessages();
+    }, 15000);
 
     async function loadOlder(){
       if (!state.messages.length) return;
@@ -925,7 +1165,11 @@
         if (state.destroyed) return;
         const payload = event.payload || {};
         const topic = event.topic || '';
-        if (topic === 'channels.typing') return mode === 'list' ? undefined : handleTypingEvent(payload);
+        if (topic === 'channels.huddle.ended') { state.huddleStates.set(payload.huddle_id, 'ended'); refreshActiveMessages(); }
+        if (topic === 'channels.huddle.artifact' && payload.channel_id === state.activeChannelId) refreshActiveMessages();
+        if (topic === 'channels.typing') return handleTypingEvent(payload);
+        if (topic === 'channels.directory.updated') { loadChannels(); if (mode !== 'list') refreshActiveMessages(); return; }
+        if (topic === 'channels.message.created' && payload.message?.author?.id) handleTypingEvent({channel_id:payload.channel_id, user_id:payload.message.author.id, typing:false});
         if (mode === 'list') {
           // The rail only cares about names and unread badges.
           debouncedLoadChannels();
@@ -952,6 +1196,9 @@
           debouncedLoadChannels();
           return;
         }
+        if (state.activeTab === 'files' && (topic.startsWith('channels.message.') || topic.startsWith('channels.resource.'))) {
+          void openChannelTab('files');
+        }
         if (payload.stub) {
           refreshActiveMessages();
           if (state.threadRootId) openThread(state.threadRootId, { silent: true });
@@ -970,6 +1217,7 @@
     function applyIncomingMessage(topic, message, payload){
       const inThread = Boolean(message.parent_id);
       if (topic === 'channels.message.created' && !inThread) {
+        if (message.metadata?.scheduled_message_id) state.scheduledMessages = state.scheduledMessages.filter(item => item.id !== message.metadata.scheduled_message_id);
         const existing = state.messages.findIndex((item) => item.id === message.id);
         if (existing >= 0) state.messages[existing] = message;
         else state.messages.push(message);
@@ -992,10 +1240,56 @@
     }
 
     function handleTypingEvent(payload){
-      if (payload.channel_id !== state.activeChannelId || payload.user_id === currentUser.id) return;
-      state.typing.set(payload.user_id, { name: payload.user_name || 'Someone', expires: Date.now() + (payload.expires_in_ms || 6000) });
+      if (!features.typing || !payload.channel_id || !payload.user_id || payload.user_id === currentUser.id) return;
+      const people = state.typing.get(payload.channel_id) || new Map();
+      const expires = payload.expires_at ? Date.parse(payload.expires_at) : Date.now() + Math.min(Number(payload.expires_in_ms) || 6000,6000);
+      if (payload.typing === false || expires <= Date.now()) people.delete(payload.user_id);
+      else people.set(payload.user_id, {name:payload.user_name || 'Someone', expires});
+      if (people.size) state.typing.set(payload.channel_id, people); else state.typing.delete(payload.channel_id);
+      refreshTyping();
+    }
+    function typingNames(channelId){
+      return [...(state.typing.get(channelId)?.values() || [])].filter(person => person.expires > Date.now()).map(person => person.name);
+    }
+    function refreshTyping(){
+      if (state.destroyed) return;
+      clearTimeout(state.typingExpiryTimer);
+      let next = Infinity;
+      for (const [channelId, people] of state.typing) {
+        for (const [id, person] of people) { if (person.expires <= Date.now()) people.delete(id); else next = Math.min(next,person.expires); }
+        if (!people.size) state.typing.delete(channelId);
+      }
+      sidebar.querySelectorAll('.fm-ch-side-row').forEach(row => {
+        const names = features.typing ? typingNames(row.dataset.channelId) : [];
+        row.classList.toggle('is-typing',names.length > 0);
+        const indicator = row.querySelector('.fm-ch-side-typing');
+        if (indicator) { const label = `${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} typing`; indicator.title = label; indicator.setAttribute('aria-label',label); }
+      });
       renderTyping();
-      setTimeout(renderTyping, (payload.expires_in_ms || 6000) + 200);
+      if (Number.isFinite(next)) state.typingExpiryTimer = setTimeout(refreshTyping,Math.max(1,next-Date.now()+20));
+    }
+    let typingChannel = '', typingLastSent = 0, typingIdleTimer = null;
+    let typingRequests = Promise.resolve();
+    function publishTyping(channelId, typing){
+      typingRequests = typingRequests.catch(()=>{}).then(()=>api.typing?.note?.(orgId,channelId,typing)).catch(()=>{});
+    }
+    function stopTyping(){
+      clearTimeout(typingIdleTimer);
+      if (typingChannel) publishTyping(typingChannel,false);
+      typingChannel = ''; typingLastSent = 0;
+    }
+    function bindTyping(editor){
+      const channelId = state.activeChannelId;
+      editor.addEventListener('input', () => {
+        if (!features.typing || state.destroyed || channelId !== state.activeChannelId) return;
+        if (!editor.value.trim()) { stopTyping(); return; }
+        const now = Date.now();
+        if (typingChannel !== channelId || now-typingLastSent >= 1500) {
+          typingChannel = channelId; typingLastSent = now; publishTyping(channelId,true);
+        }
+        clearTimeout(typingIdleTimer); typingIdleTimer = setTimeout(stopTyping,2500);
+      });
+      editor.addEventListener('blur',stopTyping);
     }
 
     const debouncedLoadChannels = debounce(loadChannels, 800);
@@ -1035,18 +1329,87 @@
       return '<i class="fas fa-hashtag"></i>';
     }
 
+    function hiddenChannelIds(){
+      return new Set(state.collaborationPreferences.hidden_channel_ids || []);
+    }
+    async function setChannelHidden(channel, hidden){
+      // Reload before merging so other preference changes are preserved.
+      const current = await api.preferences.collaboration(orgId);
+      const ids = new Set(current.preferences?.hidden_channel_ids || []);
+      if (hidden) ids.add(channel.id); else ids.delete(channel.id);
+      const result = await api.preferences.updateCollaboration(orgId, {hidden_channel_ids:[...ids]});
+      state.collaborationPreferences = result.preferences;
+      root.dispatchEvent(new CustomEvent('fm:channels-sidebar:changed', {detail:{orgId}}));
+      renderSidebar();
+    }
+    const sidebarChanged = async event => {
+      if (event.detail?.orgId !== orgId || state.destroyed) return;
+      try { const result = await api.preferences.collaboration(orgId); state.collaborationPreferences = result.preferences; await loadChannels(); } catch (_) {}
+    };
+    root.addEventListener('fm:channels-sidebar:changed', sidebarChanged);
+
     function sideItem(channel){
       const unread = channel.unread || {};
+      const member = (channel.members || []).find(person => person.id === currentUser.id);
+      const muted = member?.notify_level === 'muted';
+      const row = el('div', `fm-ch-side-row${muted ? ' muted' : ''}`); row.dataset.channelId = channel.id;
       const item = el('button', `fm-ch-side-item${channel.id === state.activeChannelId && state.view === 'channel' ? ' active' : ''}${unread.unread_count ? ' unread' : ''}`);
+      item.type = 'button';
       const isDm = channel.type === 'dm' || channel.type === 'group_dm';
       const label = channel.display_name || channel.name || 'untitled';
       item.innerHTML = `${isDm
-        ? avatarHtml((channel.members || []).find((member) => member.id !== currentUser.id) || { name: label }, 'sm')
+        ? avatarHtml((channel.members || []).find((person) => person.id !== currentUser.id) || { name: label }, 'sm')
         : `<span class="fm-ch-hash">${channelIcon(channel)}</span>`}
         <span class="fm-ch-side-label">${esc(label)}</span>
+        ${muted ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" role="img" aria-label="Muted"><path d="m3 3 18 18M9 5a6 6 0 0 1 9 5v4M6 6v8l-2 3h13M10 21h4"/></svg>' : ''}
         ${unread.mention_count ? `<span class="fm-ch-badge">${unread.mention_count}</span>` : ''}`;
       item.addEventListener('click', () => setChannel(channel.id));
-      return item;
+      const actions = el('div', 'fm-ch-side-actions');
+      const more = el('button', '', '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>');
+      const hide = el('button', '', '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9 5.4A11 11 0 0 1 12 5c6 0 10 7 10 7a18 18 0 0 1-4 4M6 6a22 22 0 0 0-4 6s4 7 10 7a12 12 0 0 0 5-1"/></svg>');
+      more.type = hide.type = 'button';
+      more.title = `More options for ${label}`; more.setAttribute('aria-label', more.title); more.setAttribute('aria-haspopup', 'menu');
+      hide.title = `Hide ${label}`; hide.setAttribute('aria-label', hide.title);
+      hide.onclick = async () => { hide.disabled = true; try { await setChannelHidden(channel, true); } catch (error) { hide.disabled = false; showError(error); } };
+      more.onclick = () => {
+        const pop = showPopover(more, pop => {
+          pop.classList.add('fm-ch-message-menu'); pop.setAttribute('role', 'menu'); pop.setAttribute('aria-label', `Options for ${label}`);
+          const commands = [
+            [muted ? 'Unmute' : 'Mute', async () => {
+              await api.channels.setNotifyLevel(orgId, channel.id, currentUser.id, muted ? (state.collaborationPreferences.default_notify_level === 'all' ? 'all' : 'mentions') : 'muted');
+              root.dispatchEvent(new CustomEvent('fm:channels-sidebar:changed', {detail:{orgId}}));
+            }],
+            ['Open in split view', async () => {
+              if (options.onOpenChannel) options.onOpenChannel(channel.id, {windowMode:'docked'});
+              else if (root.FirstMateChannelsOverlay?.open) root.FirstMateChannelsOverlay.open(channel.id, {windowMode:'docked'});
+              else throw new Error('Split view is available from the FirstMate workspace.');
+            }],
+            ['Mark as read', async () => {
+              await api.readState.markRead(orgId, channel.id, Number(channel.message_seq || 0));
+              channel.unread = {...unread, last_read_seq:Number(channel.message_seq || 0), unread_count:0, mention_count:0};
+              root.dispatchEvent(new CustomEvent('fm:channels-sidebar:changed', {detail:{orgId}})); renderSidebar();
+            }]
+          ];
+          for (const [title, run] of commands) {
+            const action = el('button', '', esc(title)); action.type = 'button'; action.setAttribute('role', 'menuitem');
+            action.disabled = title === 'Open in split view' && !options.onOpenChannel && !root.FirstMateChannelsOverlay?.open;
+            action.onclick = async () => { closePopover(); more.focus(); try { await run(); } catch (error) { showError(error); } }; pop.append(action);
+          }
+          pop.addEventListener('keydown', event => {
+            const buttons = [...pop.querySelectorAll('button')]; const index = buttons.indexOf(document.activeElement);
+            if (event.key === 'Escape') { event.preventDefault(); closePopover(); more.focus(); }
+            if (['ArrowDown','ArrowUp','Home','End'].includes(event.key)) {
+              event.preventDefault(); buttons[event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length].focus();
+            }
+          });
+        });
+        if (pop.showPopover) { pop.popover = 'manual'; pop.style.margin = '0'; pop.style.bottom = 'auto'; pop.style.right = 'auto'; pop.showPopover(); }
+        pop.querySelector('button')?.focus();
+      };
+      const indicator = el('span','fm-ch-side-typing','<span></span><span></span><span></span>'); indicator.setAttribute('role','img');
+      item.prepend(indicator); row.classList.toggle('is-typing', features.typing && typingNames(channel.id).length > 0);
+      const typingLabel = typingNames(channel.id).join(', ') + ' typing'; indicator.title=typingLabel; indicator.setAttribute('aria-label',typingLabel);
+      actions.append(more, hide); row.append(item, actions); return row;
     }
 
     function renderSidebar(){
@@ -1095,10 +1458,23 @@
         sections.addEventListener('click', openSidebarSectionsModal);
         quick.appendChild(sections);
       }
+      const hidden = state.channels.filter(channel => hiddenChannelIds().has(channel.id));
+      if (hidden.length) {
+        const manage = el('button', 'fm-ch-side-item', `Hidden conversations (${hidden.length})`);
+        manage.onclick = () => showModal('Hidden conversations', body => {
+          body.append(el('p', '', 'Hidden only from your sidebar. You remain a member and can restore them here.'));
+          for (const channel of hidden) {
+            const restore = el('button', 'fm-ch-btn', `Show ${esc(channel.display_name || channel.name || 'conversation')}`);
+            restore.onclick = async () => { restore.disabled = true; try { await setChannelHidden(channel, false); restore.remove(); } catch (error) { restore.disabled = false; showError(error); } };
+            body.append(restore);
+          }
+        });
+        quick.append(manage);
+      }
       sidebar.appendChild(quick);
 
       for (const group of groups) {
-        const channels = state.channels.filter(group.filter);
+        const channels = state.channels.filter(channel => !hiddenChannelIds().has(channel.id) && group.filter(channel));
         if (!channels.length && !group.add) continue;
         const collapsed = state.collapsedGroups.has(group.key);
         const unreadCount = channels.reduce((sum, channel) => sum + Number(channel.unread?.unread_count || 0), 0);
@@ -1208,8 +1584,23 @@
         actions.appendChild(button);
         return button;
       };
-      if (mode === 'full' && !['dm', 'group_dm'].includes(channel.type) && channel.type !== 'project') {
-        addAction(`${channel.member_count || 0} members`, '<i class="fas fa-user-group"></i>', () => openMembersModal());
+      if (api.messages?.translate) {
+        const enabled = translatedChannels.get(channel.id) === true;
+        const translateAll = el('button','fm-ch-btn',`<i class="fas fa-language" aria-hidden="true"></i> ${enabled ? 'Show Originals' : 'Translate All'}`);
+        translateAll.type = 'button';
+        translateAll.setAttribute('aria-pressed',String(enabled));
+        translateAll.title = enabled ? 'Show original messages in this conversation' : 'Translate this conversation into your preferred language, including older messages as they load';
+        translateAll.onclick = () => {
+          translatedChannels.set(channel.id,!enabled);
+          const messages = new Map([...state.messages,...(state.thread ? [state.thread.root,...state.thread.replies] : [])].filter(Boolean).map(message=>[message.id,message]));
+          for (const message of messages.values()) {
+            message._show_translation = !enabled;
+            if (!enabled && message.translation?.available && !message.translation.cached_text) requestTranslation(message,true);
+            replaceMessage(message,{inPlace:true});
+          }
+          renderHeader();
+        };
+        actions.append(translateAll);
       }
       if (features.attention) addAction('Conversation notifications', '<i class="fas fa-bell"></i>', openChannelNotificationModal);
       if (features.search && mode === 'full') addAction('Search messages', '<i class="fas fa-magnifying-glass"></i>', () => openSearchPrompt());
@@ -1249,6 +1640,7 @@
           });
         }
       }
+      if (channel.type !== 'project') addAction(`People in channel (${channel.member_count || 0})`, '<i class="fas fa-user-group"></i>', () => openMembersModal().catch(showError));
       if (features.channelSettings && channel.can_manage && !['dm', 'group_dm', 'project'].includes(channel.type)) {
         addAction('Channel settings', '<i class="fas fa-gear"></i>', () => openChannelSettingsModal());
       }
@@ -1384,13 +1776,16 @@
       const tabs = state.tabs.length ? state.tabs : [
         { id:'messages', kind:'messages', label:(globalThis.PlatformLanguage?.text("channels-ui","m_820b9cb136d6ed","Messages") ?? "Messages") },
         { id:'files', kind:'files', label:(globalThis.PlatformLanguage?.text("channels-ui","m_357a58f2b3675d","Files") ?? "Files") },
-        { id:'documents', kind:'documents', label:(globalThis.PlatformLanguage?.text("channels-ui","m_5d7c7ad6033624","Documents") ?? "Documents") },
         { id:'todos', kind:'todos', label:(globalThis.PlatformLanguage?.text("channels-ui","m_4bec39f8fa90dd","To Dos") ?? "To Dos") },
         { id:'pins', kind:'pins', label:(globalThis.PlatformLanguage?.text("channels-ui","m_576cd53c8d929f","Pins") ?? "Pins") }
       ];
+      const seen = new Set();
       for (const tab of tabs) {
-        const kind = cleanText(tab.kind || tab.id);
-        const button = el('button', `fm-ch-tab${state.activeTab === kind ? ' active' : ''}`, esc(tab.label || kind));
+        const originalKind = cleanText(tab.kind || tab.id);
+        const kind = originalKind === 'documents' ? 'files' : originalKind;
+        if (kind === 'files' && seen.has(kind)) continue;
+        seen.add(kind);
+        const button = el('button', `fm-ch-tab${state.activeTab === kind ? ' active' : ''}`, esc(kind === 'files' ? 'Files' : tab.label || kind));
         button.type = 'button';
         button.addEventListener('click', () => openChannelTab(kind));
         tabsBar.appendChild(button);
@@ -1398,7 +1793,8 @@
     }
 
     async function openChannelTab(kind){
-      state.activeTab = cleanText(kind) || 'messages';
+      state.activeTab = kind === 'documents' ? 'files' : cleanText(kind) || 'messages';
+      const channelId = state.activeChannelId, activeTab = state.activeTab;
       renderTabs();
       if (state.activeTab === 'messages') {
         renderMessages();
@@ -1420,7 +1816,8 @@
             : state.activeTab === 'todos' ? 'todos'
               : state.activeTab === 'media' ? 'media'
                 : state.activeTab;
-        const data = await api.resources.list(orgId, state.activeChannelId, { type });
+        const data = await api.resources.list(orgId, channelId, { type });
+        if (state.destroyed || state.activeChannelId !== channelId || state.activeTab !== activeTab) return;
         state.resources = data.resources || [];
         renderResources(state.resources, state.activeTab);
       } catch (error) {
@@ -1458,11 +1855,12 @@
         const title = cleanText(resource.label || resource.title || resource.file_name || resource.name || entry.display_note)
           || (type === 'action_item' ? 'To Do' : type === 'document' ? 'Document' : 'Media');
         const subtitle = cleanText(resource.status || resource.content_type || resource.updated_at || entry.source);
-        const card = el('div', 'fm-ch-resource');
+        const card = el(type === 'media' ? 'a' : 'div', 'fm-ch-resource');
         card.innerHTML = `<span class="fm-ch-resource-icon"><i class="fas ${resourceIcon(type)}"></i></span><span class="fm-ch-resource-copy"><strong>${esc(title)}</strong><span>${esc(subtitle)}</span></span>`;
         if (type === 'media' && entry.resource_id) {
           card.style.cursor = 'pointer';
-          card.addEventListener('click', () => root.open(api.mediaFileUrl(orgId, entry.resource_id), '_blank', 'noopener'));
+          card.href = api.mediaFileUrl(orgId, entry.resource_id);
+          card.target = '_blank'; card.rel = 'noopener';
         }
         grid.appendChild(card);
       }
@@ -1530,12 +1928,13 @@
         // Acquire permission before creating server state so a denied or
         // unavailable microphone cannot leave an empty active huddle behind.
         stream = await navigator.mediaDevices.getUserMedia({ audio:{echoCancellation:true, noiseSuppression:state.huddleNoiseSuppression, autoGainControl:true}, video:false });
-        const data = await api.huddles.create(orgId, state.activeChannelId, {
+        const data = recordingOptions.huddleId ? await api.huddles.get(orgId, recordingOptions.huddleId) : await api.huddles.create(orgId, state.activeChannelId, {
           audio:true,
           video:true,
           recording_enabled:Boolean(recordingEnabled),
           record_video:Boolean(recordVideo)
         });
+        if (data.huddle.state !== 'active') throw new Error('This huddle has ended.');
         state.huddle = (await api.huddles.join(orgId, data.huddle.id)).huddle;
         state.huddleStreams.push(stream);
         if (state.huddle.signaling?.mode === 'livekit') {
@@ -2035,19 +2434,31 @@
       if (!EMOJI_SET.some(group => group.items.includes(emoji))) return;
       const card = (state.huddleWindowRoot || main).querySelector('.fm-ch-huddle');
       if (!card) return;
-      const reaction = el('div', 'fm-ch-call-reaction', `<span>${esc(emoji)}</span><small>${esc(name)}</small>`);
-      reaction.setAttribute('role', 'status'); card.append(reaction);
-      setTimeout(() => reaction.remove(), 4000);
+      const reduced = root.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      // Lightweight independent particles, distributed along the bottom edge.
+      for (let index = 0; index < (reduced ? 1 : 7); index++) {
+        const reaction = el('div', 'fm-ch-call-reaction', `<span>${esc(emoji)}</span>${index === 0 ? `<small>${esc(name)}</small>` : ''}`);
+        reaction.setAttribute('aria-hidden', 'true');
+        reaction.style.setProperty('--reaction-x', `${4 + Math.random() * 30}%`);
+        reaction.style.setProperty('--reaction-drift', `${-35 + Math.random() * 70}px`);
+        reaction.style.setProperty('--reaction-size', `${21 + Math.random() * 12}px`);
+        reaction.style.animationDelay = `${index * 110}ms`;
+        card.append(reaction); setTimeout(() => reaction.remove(), reduced ? 1800 : 4200);
+      }
+      // Bound the DOM when many participants react together.
+      [...card.querySelectorAll('.fm-ch-call-reaction')].slice(0, -70).forEach(node => node.remove());
     }
 
     async function toggleHuddleCamera(){
       const existing = state.huddleCameraTrack;
       if (existing) {
         const track = existing.mediaStreamTrack;
-        if (state.huddleLivekitRoom) await state.huddleLivekitRoom.localParticipant.unpublishTrack(existing);
-        for (const peer of state.huddlePeers.values()) for (const sender of peer.getSenders()) if (sender.track?.id === track.id) await sender.replaceTrack(null);
         state.huddleStreams = state.huddleStreams.filter(stream => !stream._camera);
-        await existing.stopProcessor?.(); existing.stop(); state.huddleCameraTrack = null; state.huddleProcessor = null;
+        state.huddleCameraTrack = null; state.huddleProcessor = null;
+        // Local capture must stop even if a disconnected transport cannot unpublish.
+        try { if (state.huddleLivekitRoom) await state.huddleLivekitRoom.localParticipant.unpublishTrack(existing); } catch (_) {}
+        for (const peer of state.huddlePeers.values()) for (const sender of peer.getSenders()) if (sender.track?.id === track.id) { try { await sender.replaceTrack(null); } catch (_) {} }
+        try { await existing.stopProcessor?.(); } catch (_) {} finally { existing.stop(); }
         syncHuddleMediaState({camera_enabled:false}); renderHuddle(); return;
       }
       const LK = root.LivekitClient;
@@ -2057,7 +2468,10 @@
       if (!joinedId || state.huddle?.id !== joinedId) { camera.stop(); return; }
       state.huddleCameraTrack = camera;
       try {
-        if (state.huddleBackground && state.huddleBackground !== 'off') await applyHuddleBackground(state.huddleBackground);
+        if (state.huddleBackground && state.huddleBackground !== 'off') {
+          try { await applyHuddleBackground(state.huddleBackground); } catch (error) { root.Portal?.ui?.showToast?.('Camera on without effects', error.message); }
+        }
+        if (state.huddleCameraTrack !== camera || state.huddle?.id !== joinedId) { camera.stop(); return; }
         if (state.huddleLivekitRoom) await state.huddleLivekitRoom.localParticipant.publishTrack(camera, {source:LK.Track.Source.Camera});
         const stream = new MediaStream([camera.mediaStreamTrack]); stream._camera = true;
         state.huddleStreams.push(stream); addTracksToHuddlePeers(stream);
@@ -2070,46 +2484,83 @@
       state.huddleBackground = mode;
       if (!camera) return;
       const before = camera.mediaStreamTrack;
-      if (mode === 'off' && !state.huddleProcessor) return;
-      if (!state.huddleProcessor) {
-        const effects = await import('../calls-runtime/effects/track-processors.mjs');
-        if (!effects.supportsBackgroundProcessors()) throw new Error('Background effects require a browser with WebGL2 support. Try current Chrome or Edge.');
-        // CPU segmentation avoids platform-specific GPU teardown stalls; the
-        // final composition still uses the processor's supported canvas path.
-        state.huddleProcessor = effects.BackgroundProcessor({mode:'disabled', maxFps:15, segmenterOptions:{delegate:'CPU'}, assetPaths:{tasksVisionFileSet:'/libraries/calls-runtime/effects/wasm', modelAssetPath:'/libraries/calls-runtime/effects/selfie_segmenter.tflite'}});
-        await camera.setProcessor(state.huddleProcessor);
-        if (state.huddleCameraTrack !== camera) { await camera.stopProcessor(); camera.stop(); return; }
+      try {
+        if (mode === 'off') {
+          await camera.stopProcessor?.(); state.huddleProcessor = null;
+        } else {
+          if (!state.huddleProcessor) {
+            const effects = await import('../calls-runtime/effects/track-processors.mjs');
+            if (!effects.supportsBackgroundProcessors()) throw new Error('This browser does not support background effects.');
+            const processor = effects.BackgroundProcessor({mode:'disabled', maxFps:15, segmenterOptions:{delegate:'CPU'}, assetPaths:{tasksVisionFileSet:'/libraries/calls-runtime/effects/wasm', modelAssetPath:'/libraries/calls-runtime/effects/selfie_segmenter.tflite'}});
+            await camera.setProcessor(processor);
+            if (state.huddleCameraTrack !== camera) { await camera.stopProcessor(); return; }
+            state.huddleProcessor = processor;
+          }
+          await state.huddleProcessor.switchTo(mode === 'blur' ? {mode:'background-blur', blurRadius:12} : {mode:'virtual-background', imagePath:state.huddleBackgroundUrl});
+        }
+      } catch (error) {
+        if (state.huddleCameraTrack === camera) {
+          state.huddleBackground = 'off'; state.huddleProcessor = null;
+          try { await camera.stopProcessor?.(); } catch (_) {}
+        }
+        throw new Error('Background effect unavailable. Your camera is still usable without it. ' + (error?.message || 'Please try again.'));
+      } finally {
+        if (state.huddleCameraTrack === camera) {
+          const after = camera.mediaStreamTrack;
+          if (before.id !== after.id) {
+            for (const peer of state.huddlePeers.values()) for (const sender of peer.getSenders()) if (sender.track?.id === before.id) await sender.replaceTrack(after);
+            for (const stream of state.huddleStreams.filter(stream => stream._camera)) { stream.getTracks().forEach(track => stream.removeTrack(track)); stream.addTrack(after); }
+          }
+          renderHuddle();
+        }
       }
-      await state.huddleProcessor.switchTo(mode === 'off' ? {mode:'disabled'} : mode === 'blur' ? {mode:'background-blur', blurRadius:12} : {mode:'virtual-background', imagePath:state.huddleBackgroundUrl});
-      const after = camera.mediaStreamTrack;
-      if (before.id !== after.id) {
-        for (const peer of state.huddlePeers.values()) for (const sender of peer.getSenders()) if (sender.track?.id === before.id) await sender.replaceTrack(after);
-        for (const stream of state.huddleStreams.filter(stream => stream._camera)) { stream.getTracks().forEach(track => stream.removeTrack(track)); stream.addTrack(after); }
-      }
-      renderHuddle();
     }
 
-    function openHuddleInvite(){
-      if (!state.huddle) return;
-      const channelId = state.huddle.channel_id;
-      const link = `${String(root.location.href).split(/[?#]/)[0]}?tab=channels&channel=${encodeURIComponent(channelId)}`;
-      showModal('Invite to this call', body => {
-        body.innerHTML = `<p>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6c8a4c405347f8","Share this link with a teammate. They can open the conversation and choose Join call. Channel access is still required.") ?? "Share this link with a teammate. They can open the conversation and choose Join call. Channel access is still required.")}</p><label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_2f7e0e85304cb2","Conversation link") ?? "Conversation link")}</label><input data-call-link readonly><p data-copy-status role="status"></p>`;
-        body.querySelector('input').value = link;
-      }, [{label:(globalThis.PlatformLanguage?.text("channels-ui","m_978593789ac461","Copy invite link") ?? "Copy invite link"), primary:true, onClick:async (_close, body) => {
-        try { await navigator.clipboard.writeText(link); body.querySelector('[data-copy-status]').textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_58f26b2d816185","Invite link copied.") ?? "Invite link copied."); }
-        catch (_) { body.querySelector('input').select(); body.querySelector('[data-copy-status]').textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_3478f6639730e7","Select and copy the link above.") ?? "Select and copy the link above."); }
-      }}]);
+    async function openHuddleInvite(){
+      const room = state.huddle;
+      if (!room) return;
+      try {
+        const data = await api.channels.get(orgId, room.channel_id);
+        const members = (data.channel.members || []).filter(user => user.id !== currentUser.id && !user.id.startsWith('agent_') && !(room.participants || []).some(person => person.user_id === user.id && (!person.left_at || person.role === 'removed')));
+        const selected = new Set();
+        showModal('Invite to this call', body => {
+          body.append(el('p', '', 'Choose people in this conversation. They will receive a notification with a link to join.'));
+          const search = el('input'); search.type = 'search'; search.placeholder = 'Find a person'; search.setAttribute('aria-label', 'Find a person'); body.append(search);
+          const choices = el('div', 'fm-ch-invite-choices'); body.append(choices);
+          const draw = () => {
+            choices.replaceChildren();
+            const matches = members.filter(user => `${user.name} ${user.email || ''}`.toLowerCase().includes(search.value.toLowerCase()));
+            for (const user of matches) {
+              const choice = el('button', 'fm-ch-member-row fm-ch-member-choice', `${avatarHtml(user, 'sm')}<span class="name">${esc(user.name)}</span><span aria-hidden="true">${selected.has(user.id) ? '✓' : '+'}</span>`);
+              choice.type = 'button'; choice.setAttribute('aria-pressed', String(selected.has(user.id)));
+              choice.onclick = () => { if (selected.has(user.id)) selected.delete(user.id); else selected.add(user.id); draw(); };
+              choices.append(choice);
+            }
+            if (!matches.length) choices.append(el('p', '', members.length ? 'No matching people.' : 'Everyone in this conversation is already in the call.'));
+          };
+          search.oninput = draw; draw(); body.append(el('p', 'fm-ch-invite-status'));
+        }, [{label:'Cancel', onClick:close => close()}, {label:'Send invitations', primary:true, onClick:async (close, body) => {
+          if (!selected.size) { body.querySelector('.fm-ch-invite-status').textContent = 'Choose at least one person.'; return; }
+          try {
+            const result = await api.huddles.invite(orgId, room.id, [...selected]);
+            const count = result.invited_user_ids?.length || 0;
+            if (!count) { body.querySelector('.fm-ch-invite-status').textContent = 'These people have huddle notifications muted or Do Not Disturb enabled.'; return; }
+            close(); root.Portal?.ui?.showToast?.('Invitations sent', `${count} ${count === 1 ? 'person' : 'people'} notified.`, true);
+          } catch (error) { body.querySelector('.fm-ch-invite-status').textContent = error.message; }
+        }}]);
+      } catch (error) { showError(error); }
     }
 
     function openHuddleSettings(){
       if (!state.huddle) return;
       showModal('Call settings', body => {
+        let stopDiagnostic = () => {};
         const tabs = el('div', 'fm-ch-call-settings-tabs'); tabs.setAttribute('role', 'tablist');
         const panel = el('div', 'fm-ch-call-settings-panel'); panel.setAttribute('role', 'tabpanel');
         body.append(tabs, panel);
         const status = () => { const note = el('p', '', ''); note.setAttribute('role', 'status'); panel.append(note); return note; };
         const choose = async kind => {
+          stopDiagnostic();
           panel.innerHTML = '';
           for (const button of tabs.children) button.setAttribute('aria-selected', String(button.dataset.tab === kind));
           if (kind === 'audio') {
@@ -2161,8 +2612,10 @@
             const apply = async mode => {
               if (mode === 'image' && !state.huddleBackgroundUrl) { note.textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_e9533d60edb911","Choose a background image first.") ?? "Choose a background image first."); return; }
               note.textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_c6c8674cb454c2","Applying background…") ?? "Applying background…");
+              const controls = Array.from(panel.querySelectorAll('select,input')); controls.forEach(control => control.disabled = true);
               try { await applyHuddleBackground(mode); note.textContent = state.huddleCameraTrack ? 'Background applied.' : 'Background will apply when you turn on your camera.'; }
-              catch (error) { note.textContent = error.message; }
+              catch (error) { note.textContent = error.message; const background = panel.querySelector('[data-background]'); if (background) background.value = state.huddleBackground || 'off'; }
+              finally { controls.forEach(control => control.disabled = false); }
             };
             panel.querySelector('[data-background]').onchange = event => apply(event.target.value);
             panel.querySelector('[data-background-file]').onchange = async event => {
@@ -2212,19 +2665,36 @@
                 note.textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_d52bf5eb932218","A short tone played through your speaker.") ?? "A short tone played through your speaker.");
               } catch (error) { note.textContent = error.message; context.close(); }
             };
+            const meterBox = el('div', 'fm-ch-mic-test'); meterBox.hidden = true;
+            const meterLabel = el('strong', '', 'Microphone input');
+            const meter = el('meter'); meter.min = 0; meter.max = 100; meter.low = 8; meter.high = 85; meter.optimum = 55; meter.value = 0; meter.setAttribute('aria-label', 'Microphone input level');
+            const hint = el('small', '', 'Speak normally and watch the bar move.');
+            meterBox.append(meterLabel, meter, hint); panel.append(meterBox);
             microphoneTest.onclick = async () => {
+              stopDiagnostic();
               const track = state.huddleLivekitRoom?.localParticipant.getTrackPublication(root.LivekitClient.Track.Source.Microphone)?.track?.mediaStreamTrack || state.huddleStreams.find(stream => !stream._screen)?.getAudioTracks()[0];
-              if (!track || !track.enabled) { note.textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_08e3b0260b731d","Unmute your microphone to test it.") ?? "Unmute your microphone to test it."); return; }
-              const context = new (root.AudioContext || root.webkitAudioContext)();
-              await context.resume(); const analyser = context.createAnalyser(); context.createMediaStreamSource(new MediaStream([track])).connect(analyser);
-              const values = new Uint8Array(analyser.fftSize); let count = 0;
-              note.textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_147f0c7c427062","Speak for five seconds…") ?? "Speak for five seconds…");
-              const timer = setInterval(() => {
-                if (!note.isConnected || ++count > 25) { clearInterval(timer); context.close(); return; }
-                analyser.getByteTimeDomainData(values);
-                const level = Math.round(Math.sqrt(values.reduce((sum, value) => sum + ((value - 128) / 128) ** 2, 0) / values.length) * 100);
-                note.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("channels-ui","m_73dc65de8b8fbc",`Microphone level: ${v0}% — ${v1}`,{v0,v1}) ?? `Microphone level: ${v0}% — ${v1}`)(level,level > 1 ? 'Voice detected' : 'Speak into the selected microphone');
-              }, 200);
+              if (!track || !track.enabled) { note.textContent = 'Unmute your microphone to test it.'; return; }
+              let context, timer;
+              let active = true;
+              stopDiagnostic = () => { active = false; clearInterval(timer); context?.close().catch(() => {}); microphoneTest.disabled = false; };
+              try {
+                context = new (root.AudioContext || root.webkitAudioContext)(); await context.resume();
+                if (!active || !panel.isConnected) { stopDiagnostic(); return; }
+                const analyser = context.createAnalyser(); context.createMediaStreamSource(new MediaStream([track])).connect(analyser);
+                const values = new Uint8Array(analyser.fftSize); let count = 0, detected = false;
+                meterBox.hidden = false; microphoneTest.disabled = true; note.textContent = 'Speak for five seconds…';
+                timer = setInterval(() => {
+                  if (!meter.isConnected || !state.huddle || ++count > 50) {
+                    note.textContent = detected ? 'Your microphone is working.' : 'No sound detected. Check the selected microphone and browser permissions.';
+                    stopDiagnostic(); return;
+                  }
+                  analyser.getByteTimeDomainData(values);
+                  const rms = Math.sqrt(values.reduce((sum, value) => sum + ((value - 128) / 128) ** 2, 0) / values.length);
+                  meter.value = Math.min(100, Math.round(Math.sqrt(rms) * 160));
+                  if (rms > .01) detected = true;
+                  hint.textContent = rms > .01 ? 'Voice detected' : 'Speak into the selected microphone';
+                }, 100);
+              } catch (error) { stopDiagnostic(); note.textContent = 'Could not test the microphone. ' + error.message; }
             };
           }
         };
@@ -2232,6 +2702,7 @@
           const tab = el('button', '', label); tab.dataset.tab = id; tab.setAttribute('role','tab'); tab.onclick = () => choose(id); tabs.append(tab);
         }
         choose('audio');
+        return () => stopDiagnostic();
       }, [{label:(globalThis.PlatformLanguage?.text("channels-ui","m_8cb6b086a0e69c","Done") ?? "Done"), primary:true, onClick:close => close()}]);
     }
 
@@ -2438,6 +2909,16 @@
       state.huddleWindowBody.append(card);
     }
 
+    function prepareScreenClip(onPrepared){
+      showModal('Record your screen', body => {
+        body.innerHTML = '<p>Recording starts automatically as soon as you share a screen, window, or tab.</p><p>When you are finished, use Chrome’s <strong>Stop sharing</strong> control. Recording stops automatically and your clip will be ready to preview here.</p><p>Choose to share tab or system audio in the screen picker if you want it included. Allow microphone access to include your voice.</p>';
+      }, [{label:'Cancel', onClick:close => close()}, {label:'Share screen', primary:true, onClick:close => {
+        // Call capture directly from this click to preserve browser user activation.
+        const recording = recordClip('screen', onPrepared); close();
+        recording.catch(error => { if (error?.name !== 'NotAllowedError' && error?.name !== 'AbortError') showError(error); });
+      }}]);
+    }
+
     async function recordClip(mode, onPrepared){
       const channelId = state.activeChannelId;
       const capture = mode === 'screen'
@@ -2448,27 +2929,25 @@
       if (state.destroyed) { stream.getTracks().forEach(track => track.stop()); return; }
       const sourceStreams = [stream];
       let audioContext = null;
-      if (mode === 'screen') {
+      // Prepare a mixed audio track synchronously; microphone permission must
+      // never hold up recording after Chrome grants screen sharing.
+      let microphoneDestination = null;
+      if (mode === 'screen' && (root.AudioContext || root.webkitAudioContext)) {
         try {
-          const microphone = await navigator.mediaDevices.getUserMedia({ audio:{echoCancellation:true, noiseSuppression:true}, video:false });
-          sourceStreams.push(microphone);
           audioContext = new (root.AudioContext || root.webkitAudioContext)();
-          const destination = audioContext.createMediaStreamDestination();
-          for (const source of sourceStreams) if (source.getAudioTracks().length) audioContext.createMediaStreamSource(source).connect(destination);
-          // Keep the display stream's source tracks for cleanup, but record one mixed audio track.
+          microphoneDestination = audioContext.createMediaStreamDestination();
+          if (stream.getAudioTracks().length) audioContext.createMediaStreamSource(stream).connect(microphoneDestination);
           sourceStreams.push(new MediaStream([...stream.getTracks()]));
           stream.getAudioTracks().forEach(track => stream.removeTrack(track));
-          destination.stream.getAudioTracks().forEach(track => stream.addTrack(track));
-          await audioContext.resume();
-        } catch (error) {
-          sourceStreams.forEach(source => source.getTracks().forEach(track => track.stop()));
-          await audioContext?.close();
-          throw error;
-        }
+          microphoneDestination.stream.getAudioTracks().forEach(track => stream.addTrack(track));
+          void audioContext.resume().catch(() => {});
+        } catch (_) { await audioContext?.close().catch(() => {}); audioContext = null; }
       }
       const chunks = [];
       const mimeType = ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/mp4'].find(type => MediaRecorder.isTypeSupported(type));
-      const recorder = new MediaRecorder(stream, mimeType ? {mimeType} : undefined);
+      let recorder;
+      try { recorder = new MediaRecorder(stream, mimeType ? {mimeType} : undefined); }
+      catch (error) { sourceStreams.forEach(source => source.getTracks().forEach(track => track.stop())); await audioContext?.close(); throw error; }
       const backdrop = el('div', 'fm-ch-modal-backdrop');
       const modal = el('div', 'fm-ch-modal');
       const head = el('div', 'fm-ch-modal-head', `<span>${mode === 'screen' ? 'Screen clip' : 'Video clip'}</span>`);
@@ -2499,6 +2978,8 @@
       modal.append(head, body, foot);
       backdrop.appendChild(modal);
       document.body.appendChild(backdrop);
+      if (mode === 'screen') backdrop.style.display = 'none';
+      modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.setAttribute('aria-label', mode === 'screen' ? 'Screen clip preview' : 'Video clip');
       let playbackUrl = '';
       let timer = null;
       let discarded = false;
@@ -2520,15 +3001,17 @@
       };
       state.clipCleanup?.(); state.clipCleanup = discardClip;
       cancel.addEventListener('click', discardClip);
-      retake.onclick = () => { discardClip(); recordClip(mode, onPrepared).catch(showError); };
+      retake.onclick = () => { discardClip(); if (mode === 'screen') prepareScreenClip(onPrepared); else recordClip(mode, onPrepared).catch(showError); };
       recorder.addEventListener('dataavailable', (event) => { if (event.data?.size) chunks.push(event.data); });
       recorder.addEventListener('error', () => {
+        backdrop.style.display = ''; retake.hidden = false; root.focus();
         status.textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_2c640a7cfa3b34","Recording failed. Discard this clip and try again.") ?? "Recording failed. Discard this clip and try again.");
         releaseTracks(); start.hidden = true; stop.hidden = true;
       });
       recorder.addEventListener('stop', () => {
         if (discarded || !backdrop.isConnected) return cleanup();
         releaseTracks();
+        backdrop.style.display = ''; root.focus(); cancel.focus();
         start.hidden = true; stop.hidden = true;
         if (!chunks.length) { retake.hidden = false; status.textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_8913da361938b8","No video was captured. Choose Record again to retry.") ?? "No video was captured. Choose Record again to retry."); return; }
         playbackUrl = URL.createObjectURL(new Blob(chunks, {type:recorder.mimeType}));
@@ -2560,7 +3043,7 @@
       stream.getVideoTracks()[0]?.addEventListener('ended', () => {
         if (recorder.state !== 'inactive') recorder.stop();
       });
-      start.addEventListener('click', () => {
+      const startRecording = () => {
         if (!stream.getVideoTracks().some(track => track.readyState === 'live')) { status.textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_3630e6c31b9a9c","Screen or camera capture ended. Discard and try again.") ?? "Screen or camera capture ended. Discard and try again."); return; }
         recorder.start(1000);
         start.hidden = true; stop.hidden = false;
@@ -2570,7 +3053,21 @@
           const seconds = Math.floor((Date.now() - startedAt) / 1000);
           status.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("channels-ui","m_fcfb7b5e997465",`Recording · ${v0}:${v1}`,{v0,v1}) ?? `Recording · ${v0}:${v1}`)(Math.floor(seconds / 60),String(seconds % 60).padStart(2, '0'));
         }, 500);
-      });
+      };
+      start.addEventListener('click', startRecording);
+      if (mode === 'screen') {
+        try { startRecording(); } catch (error) { discardClip(); throw error; }
+        // Ending the display track is the sole normal stop control for screen clips.
+        start.hidden = true; stop.hidden = true;
+        if (recorder.state === 'inactive') { backdrop.style.display = ''; retake.hidden = false; }
+        if (microphoneDestination && navigator.mediaDevices.getUserMedia) {
+          void navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true}, video:false}).then(microphone => {
+            if (discarded || recorder.state === 'inactive' || !audioContext) { microphone.getTracks().forEach(track => track.stop()); return; }
+            sourceStreams.push(microphone);
+            audioContext.createMediaStreamSource(microphone).connect(microphoneDestination);
+          }).catch(() => {}); // Screen/shared audio remains usable without a microphone.
+        }
+      }
     }
 
     // --- message list --------------------------------------------------------------------
@@ -2600,7 +3097,7 @@
             const translated = data?.translation?.translated_text;
             if (!translated) return;
             message.translation = { ...(message.translation || {}), ...data.translation, cached_text:translated, available:true };
-            message._show_translation = true;
+            if (message._show_translation !== false) message._show_translation = true;
           })
           .catch((error) => {
             message._show_translation = false;
@@ -2610,7 +3107,7 @@
             message._translation_loading = false;
             translationPending.delete(message.id);
             translationActive -= 1;
-            replaceMessage(message);
+            replaceMessage(message, {inPlace:true});
             runTranslationQueue();
           });
         translationPending.set(message.id, pending);
@@ -2619,9 +3116,10 @@
 
     function requestTranslation(message, automatic = false){
       if (!message?.translation?.available) return;
+      message._show_translation = true;
       if (message.translation.cached_text) {
         message._show_translation = true;
-        replaceMessage(message);
+        replaceMessage(message, {inPlace:true});
         return;
       }
       if (translationPending.has(message.id) || translationQueue.some((item) => item.id === message.id)) return;
@@ -2720,8 +3218,10 @@
       const audience = audienceLabel(message.audience);
       const translation = message.translation || {};
       const translatedText = translation.cached_text;
-      const shouldShowTranslation = translation.available && (message._show_translation === true || (message._show_translation !== false && translation.auto_translate && translatedText));
-      if (translation.auto_translate && translation.available && !translatedText && !message._auto_translation_requested) {
+      const translationChannelId = message.channel_id || state.activeChannelId;
+      const autoTranslate = translatedChannels.has(translationChannelId) ? translatedChannels.get(translationChannelId) : translation.auto_translate;
+      const shouldShowTranslation = translation.available && Boolean(translatedText) && (message._show_translation === true || (message._show_translation !== false && autoTranslate));
+      if (autoTranslate && message._show_translation !== false && translation.available && !translatedText && !message._auto_translation_requested) {
         message._auto_translation_requested = true;
         queueMicrotask(() => requestTranslation(message, true));
       }
@@ -2735,7 +3235,40 @@
       `);
       head.querySelector('.fm-ch-msg-author').addEventListener('click', event => openUserProfile(message.author, event.currentTarget));
       const body = el('div', 'fm-ch-msg-body', renderBody(message, shouldShowTranslation ? translatedText : message.text));
+      decorateTables(body);
       content.append(head, body);
+      if (features.huddles && message.metadata?.event === 'huddle_started' && message.metadata.huddle_id) {
+        const id = message.metadata.huddle_id;
+        const summary = message.huddle;
+        if (summary?.state === 'ended') {
+          state.huddleStates.set(id,'ended');
+          const seconds = Math.max(0,Math.floor((Date.parse(summary.ended_at)-Date.parse(summary.started_at))/1000));
+          body.textContent = `Huddle ended · ${Math.floor(seconds/60)}m ${seconds%60}s`;
+        }
+        for (const artifact of summary?.artifacts || []) {
+          const label = ({transcript:'Transcript',notes:'Call notes',video_recording:'Video recording',audio_recording:'Audio recording'})[artifact.kind] || 'Call attachment';
+          if (artifact.media_id) {
+            const link = el('a','fm-ch-btn',esc(label)); link.href=api.mediaFileUrl(orgId,artifact.media_id); link.target='_blank'; link.rel='noopener'; content.append(link);
+          } else if (artifact.metadata?.text || artifact.metadata?.transcript) {
+            const details=el('details',''); details.append(el('summary','',esc(label)),el('div','fm-ch-msg-body',esc(artifact.metadata.text || artifact.metadata.transcript))); content.append(details);
+          }
+        }
+        const join = el('button', 'fm-ch-btn primary', 'Join huddle');
+        const update = room => {
+          if (!join.isConnected) return;
+          const ended = room?.state === 'ended' || state.huddleStates.get(id) === 'ended';
+          join.disabled = false; join.textContent = ended ? 'Start a new huddle' : state.huddle?.id === id ? 'Return to huddle' : 'Join huddle';
+        };
+        join.onclick = async () => {
+          if (state.huddle?.id === id) { ensureHuddleWindow(); state.huddleWindow?.setMode?.('floating'); renderHuddle(); return; }
+          if (state.huddle) return showError(new Error('Leave your current huddle before joining another.'));
+          join.disabled = true;
+          try { await startHuddle(state.huddleStates.get(id) === 'ended' ? {} : {huddleId:id}); } finally { join.disabled = false; update(); }
+        };
+        content.append(join);
+        queueMicrotask(() => update());
+        if (!state.huddleStates.has(id)) api.huddles.get(orgId, id).then(data => { state.huddleStates.set(id, data.huddle.state); update(data.huddle); }).catch(() => { join.disabled = true; join.textContent = 'Huddle unavailable'; });
+      }
       if (shouldShowTranslation) {
         content.appendChild(el('div', 'fm-ch-translation-note', `<i class="fas fa-language"></i> Translated from ${esc(translationLabel(translation.source_language))}`));
       }
@@ -2889,15 +3422,15 @@
           }
           else if (act === 'history') openHistoryPopover(target, message);
           else if (act === 'translate') {
-            if (message._show_translation === true || (message._show_translation !== false && message.translation?.auto_translate && message.translation?.cached_text)) {
+            if (target.getAttribute('aria-pressed') === 'true') {
               message._show_translation = false;
-              replaceMessage(message);
+              replaceMessage(message, {inPlace:true});
             } else if (message.translation?.cached_text) {
               message._show_translation = true;
-              replaceMessage(message);
+              replaceMessage(message, {inPlace:true});
             } else {
               requestTranslation(message, false);
-              replaceMessage(message);
+              replaceMessage(message, {inPlace:true});
             }
           }
         } catch (error) {
@@ -2906,18 +3439,37 @@
       });
     }
 
-    function replaceMessage(message){
+    function replaceMessage(message, {inPlace = false} = {}){
       if (!message) return;
       const index = state.messages.findIndex((item) => item.id === message.id);
       if (index >= 0) {
         state.messages[index] = message;
-        renderMessages();
+        if (!inPlace) renderMessages();
       }
       if (state.thread) {
         if (state.thread.root?.id === message.id) state.thread.root = message;
         const replyIndex = state.thread.replies.findIndex((item) => item.id === message.id);
         if (replyIndex >= 0) state.thread.replies[replyIndex] = message;
-        renderPanel();
+        if (!inPlace) renderPanel();
+      }
+      if (inPlace && !state.destroyed) {
+        for (const scroller of [list, panel.querySelector('.fm-ch-panel-body')].filter(Boolean)) {
+          const rows = [...scroller.querySelectorAll('[data-message-id]')];
+          const row = rows.find(item => item.dataset.messageId === message.id);
+          if (!row) continue;
+          const top = scroller.getBoundingClientRect().top;
+          const anchor = rows.find(item => item.getBoundingClientRect().bottom > top);
+          const anchorId = anchor?.dataset.messageId;
+          const offset = anchor?.getBoundingClientRect().top;
+          const scrollTop = scroller.scrollTop;
+          const focused = row.contains(document.activeElement) ? document.activeElement?.dataset.act : null;
+          const replacement = messageRow(message, {inThread:scroller !== list});
+          row.replaceWith(replacement);
+          const nextAnchor = anchorId === message.id ? replacement : anchor;
+          if (nextAnchor?.isConnected && offset !== undefined) scroller.scrollTop += nextAnchor.getBoundingClientRect().top-offset;
+          else scroller.scrollTop = scrollTop;
+          if (focused === 'translate') replacement.querySelector('[data-act="translate"]')?.focus({preventScroll:true});
+        }
       }
     }
 
@@ -2925,7 +3477,7 @@
       if (state.view !== 'channel' || state.activeTab !== 'messages') return;
       const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
       list.innerHTML = '';
-      if (!state.messages.length) {
+      if (!state.messages.length && !state.scheduledMessages.some(item => item.channel_id === state.activeChannelId)) {
         list.innerHTML = `<div class="fm-ch-empty">${esc(options.emptyStateText || 'No messages yet. Say something!')}</div>`;
         return;
       }
@@ -2943,6 +3495,23 @@
         }
         list.appendChild(messageRow(message));
       }
+      for (const scheduled of state.scheduledMessages.filter(item => item.channel_id === state.activeChannelId && ['scheduled','sending','failed'].includes(item.state))) {
+        const card = el('div', 'fm-ch-scheduled-message'); card.dataset.scheduledId = scheduled.id;
+        const label = scheduled.state === 'failed' ? 'Not sent — ' + (scheduled.failure_reason || 'Delivery failed') : scheduled.state === 'sending' ? 'Sending…' : `Scheduled for ${fmtDateTime(scheduled.scheduled_at)}`;
+        card.append(el('div', 'fm-ch-scheduled-label', `<i class="fas fa-clock" aria-hidden="true"></i> ${esc(label)} <span>Only visible to you</span>`));
+        const body = el('div', 'fm-ch-msg-body', renderBody({text:scheduled.text})); decorateTables(body); card.append(body);
+        if (scheduled.attachment_ids?.length) card.append(el('small', '', `${scheduled.attachment_ids.length} attachment(s)`));
+        if (scheduled.state !== 'sending') {
+          const cancel = el('button', 'fm-ch-btn', 'Cancel scheduled message');
+          cancel.onclick = async () => {
+            cancel.disabled = true;
+            try { await api.scheduled.remove(orgId, scheduled.id); await refreshScheduledMessages(); }
+            catch (error) { cancel.disabled = false; showError(error); }
+          };
+          card.append(cancel);
+        }
+        list.append(card);
+      }
       if (scrollOptions.keepScroll && scrollOptions.prevHeight) {
         list.scrollTop = list.scrollHeight - scrollOptions.prevHeight;
       } else if (nearBottom || !scrollOptions.keepScroll) {
@@ -2956,27 +3525,35 @@
 
     function renderTyping(){
       const now = Date.now();
-      const names = [...state.typing.values()].filter((entry) => entry.expires > now).map((entry) => entry.name);
+      const names = typingNames(state.activeChannelId);
       typingBar.textContent = !features.typing || !names.length
         ? ''
         : names.length === 1 ? `${names[0]} is typing…` : `${names.slice(0, 2).join(' and ')}${names.length > 2 ? ' and others' : ''} are typing…`;
     }
 
-    function revealMessage(messageId){
+    async function revealMessage(messageId){
       state.revealTarget = '';
-      const row = list.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`);
-      if (row) {
-        row.scrollIntoView({ block: 'center' });
-        row.classList.add('highlight');
-        setTimeout(() => row.classList.remove('highlight'), 2600);
-        return true;
-      }
-      // Might live in a thread — try opening its thread root.
-      api.messages.get(orgId, messageId).then((data) => {
-        const message = data.message;
-        if (message?.parent_id) openThread(message.parent_id);
-      }).catch(() => {});
-      return false;
+      const channelId = state.activeChannelId;
+      const selector = `[data-message-id="${CSS.escape(messageId)}"]`;
+      const highlight = () => {
+        const row = panel.querySelector(selector) || list.querySelector(selector);
+        if (!row) return false;
+        row.scrollIntoView({block:'center'}); row.classList.add('highlight');
+        setTimeout(() => row.classList.remove('highlight'),2600); return true;
+      };
+      if (highlight()) return true;
+      try {
+        const {message} = await api.messages.get(orgId, messageId);
+        if (state.destroyed || state.activeChannelId !== channelId || message?.channel_id !== channelId) return false;
+        if (message.parent_id) await openThread(message.parent_id, {silent:true});
+        else {
+          const data = await api.messages.list(orgId, channelId, {before:Number(message.seq)+1, limit:60});
+          if (state.destroyed || state.activeChannelId !== channelId) return false;
+          state.messages = data.messages || []; renderMessages();
+        }
+        if (state.activeChannelId !== channelId) return false;
+        return highlight();
+      } catch (error) { showError(error); return false; }
     }
 
     // --- edit history popover --------------------------------------------------------
@@ -3053,7 +3630,7 @@
     }
 
     function collectMentions(text){
-      const confirmed = mentionApi?.confirmedMentions?.() || textarea?.mentionUsers?.filter(user => text.includes(`@${user.name}`)) || [];
+      const confirmed = [...(mentionApi?.confirmedMentions?.() || []), ...(textarea?.mentionUsers?.filter(user => text.includes(`@${user.name}`)) || [])];
       if (Array.isArray(confirmed) && confirmed.length) {
         return confirmed.map((user) => ({
           id: cleanText(user.id || user.user_id),
@@ -3090,6 +3667,28 @@
         } catch (error) { showError(error); }
       };
       box.querySelector('.fm-ch-formatbar')?.append(button);
+    }
+
+    function composerFileUploads(editor, pendingWrap, onAdd, onRemove){
+      const channelId = state.activeChannelId;
+      const upload = async files => {
+        editor.uploadingFiles = (editor.uploadingFiles || 0) + files.length;
+        for (const file of files) {
+          const chip = el('span', 'fm-ch-chip', `<i class="fas fa-circle-notch fa-spin"></i> ${esc(file.name || 'Clipboard file')}`);
+          pendingWrap.append(chip);
+          try {
+            const data = await api.uploads.send(orgId, file, channelId);
+            if (state.destroyed || state.activeChannelId !== channelId || !editor.isConnected) { chip.remove(); continue; }
+            onAdd(data.attachment);
+            chip.innerHTML = `<i class="fas fa-paperclip"></i> ${esc(file.name || data.attachment.file_name || 'Clipboard file')} <button type="button" aria-label="Remove attachment">×</button>`;
+            chip.querySelector('button').onclick = () => { onRemove(data.attachment.id); chip.remove(); editor.dispatchEvent(new Event('input', {bubbles:true})); };
+            editor.dispatchEvent(new Event('input', {bubbles:true}));
+          } catch (error) { chip.remove(); showError(error); }
+          finally { editor.uploadingFiles--; }
+        }
+      };
+      if (features.attachments) editor.pasteFiles = upload;
+      return upload;
     }
 
     function renderComposer(){
@@ -3156,25 +3755,10 @@
         fileInput.multiple = true;
         fileInput.style.display = 'none';
         fileBtn.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', async () => {
-          for (const file of fileInput.files || []) {
-            const chip = el('span', 'fm-ch-chip', `<i class="fas fa-circle-notch fa-spin"></i> ${esc(file.name)}`);
-            pendingWrap.appendChild(chip);
-            try {
-              const data = await api.uploads.send(orgId, file, state.activeChannelId);
-              state.pendingAttachments.push(data.attachment);
-              chip.innerHTML = `<i class="fas fa-paperclip"></i> ${String(esc(file.name))} <button title="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>`;
-              chip.querySelector('button').addEventListener('click', () => {
-                state.pendingAttachments = state.pendingAttachments.filter((item) => item.id !== data.attachment.id);
-                chip.remove();
-              });
-            } catch (error) {
-              chip.remove();
-              showError(error);
-            }
-          }
-          fileInput.value = '';
-        });
+        const upload = composerFileUploads(textarea, pendingWrap,
+          attachment => state.pendingAttachments.push(attachment),
+          id => { state.pendingAttachments = state.pendingAttachments.filter(item => item.id !== id); });
+        fileInput.addEventListener('change', async () => { await upload([...fileInput.files || []]); fileInput.value = ''; });
         row.append(fileBtn, fileInput);
       }
 
@@ -3264,9 +3848,10 @@
         const videoClip = el('button', 'fm-ch-icon-btn', '<i class="fas fa-video"></i>');
         videoClip.title = (globalThis.PlatformLanguage?.text("channels-ui","m_f9d80bb65553c0","Record video clip") ?? "Record video clip");
         videoClip.addEventListener('click', () => recordClip('camera', addClipAttachment).catch(showError));
-        const screenClip = el('button', 'fm-ch-icon-btn', '<i class="fas fa-display"></i>');
+        const screenClip = el('button', 'fm-ch-icon-btn', '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="3"/></svg>');
         screenClip.title = (globalThis.PlatformLanguage?.text("channels-ui","m_be0922566fcacc","Record screen clip") ?? "Record screen clip");
-        screenClip.addEventListener('click', () => recordClip('screen', addClipAttachment).catch(showError));
+        screenClip.setAttribute('aria-label', screenClip.title);
+        screenClip.addEventListener('click', () => prepareScreenClip(addClipAttachment));
         row.append(videoClip, screenClip);
       }
 
@@ -3276,6 +3861,7 @@
         schedule.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_dc866baaa05168","Schedule message") ?? "Schedule message"));
       }
       const send = el('button', 'fm-ch-send', 'Send');
+      send.type = 'button';
       const sendPair = el('div', 'fm-ch-send-pair');
       if (schedule) sendPair.appendChild(schedule);
       sendPair.appendChild(send);
@@ -3311,19 +3897,18 @@
       }).catch(() => {});
 
       // mention autocomplete via the shared tags library
+      mentionApi?.destroy?.();
       mentionApi = null;
       try {
-        if (root.FirstMateTags?.attachMentionTextarea && textarea?.tagName === 'TEXTAREA') {
-          mentionApi = root.FirstMateTags.attachMentionTextarea(textarea, { orgId, source: 'channels' }) || null;
+        if (root.FirstMateTags?.attachMentionTextarea) {
+          mentionApi = root.FirstMateTags.attachMentionTextarea(textarea, { orgId, source: 'channels', onSelect:user=>{if (!textarea.mentionUsers.some(item=>item.id===user.id)) textarea.mentionUsers.push(user);} }) || null;
         }
       } catch (error) {}
 
-      const notifyTyping = debounce(() => {
-        if (features.typing && textarea.value.trim()) api.typing.note(orgId, state.activeChannelId).catch(() => {});
-      }, 1200);
-      textarea.addEventListener('input', notifyTyping);
+      bindTyping(textarea);
 
       const doSend = async () => {
+        if (textarea.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
         const text = textarea.value.trim();
         if (!text && !state.pendingAttachments.length) return;
         send.disabled = true;
@@ -3358,7 +3943,7 @@
             renderMessages();
             scheduleMarkRead();
           }
-          textarea.value = '';
+          stopTyping(); textarea.value = '';
           autosize();
           mentionApi?.setSelectedMentions?.([]);
         } catch (error) {
@@ -3370,6 +3955,7 @@
       };
       send.addEventListener('click', doSend);
       schedule?.addEventListener('click', () => {
+        if (textarea.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
         const text = textarea.value.trim();
         if (!text && !state.pendingAttachments.length) return;
         showModal('Schedule message', (body) => {
@@ -3380,7 +3966,7 @@
           try {
             const date = new Date(body.querySelector('[data-field=scheduled]')?.value);
             if (!Number.isFinite(date.getTime()) || date.getTime() <= Date.now()) throw new Error('Choose a future date and time.');
-            await api.scheduled.create(orgId, {
+            const scheduledResult = await api.scheduled.create(orgId, {
               channel_id:state.activeChannelId,
               text,
               content:{ type:'doc', blocks:[{ type:'paragraph', text }] },
@@ -3389,11 +3975,13 @@
               timezone:Intl.DateTimeFormat(globalThis.PlatformLanguage?.formatLocale?.()).resolvedOptions().timeZone || 'UTC',
               client_operation_id:`schedule_${Date.now().toString(36)}`
             });
+            if (scheduledResult.scheduled_message) { state.scheduledMessages.push(scheduledResult.scheduled_message); renderMessages(); }
             textarea.value = '';
             state.pendingAttachments = [];
             pendingWrap.innerHTML = '';
             api.drafts?.remove?.(orgId, draftKey).catch(() => {});
             close();
+            await refreshScheduledMessages();
             root.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("channels-ui","m_adcf3157ee531f","Message scheduled") ?? "Message scheduled"), ((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_030b85747ce9b2",`It will send ${v0}.`,{v0}) ?? `It will send ${v0}.`)(date.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())), true);
           } catch (error) { showError(error); }
         } }]);
@@ -3401,6 +3989,7 @@
       textarea.addEventListener('keydown', (event) => {
         const modifiedSend = state.collaborationPreferences.send_mode === 'modified_enter';
         const sendKey = event.key === 'Enter'
+          && !event.defaultPrevented
           && !event.shiftKey
           && !event.isComposing
           && !mentionMenuOpen()
@@ -3523,16 +4112,21 @@
     function buildThreadComposer(node){
       const box = el('div', 'fm-ch-composer-box');
       const threadInput = createMessageEditor('Reply…');
+      bindTyping(threadInput);
+      const threadFiles = [];
+      const pendingWrap = el('div', 'fm-ch-pending-files');
+      composerFileUploads(threadInput, pendingWrap, attachment => threadFiles.push(attachment), id => { const i = threadFiles.findIndex(item => item.id === id); if (i >= 0) threadFiles.splice(i, 1); });
       if (features.richMessages) box.appendChild(messageFormatBar(threadInput));
       box.appendChild(threadInput);
       bindRichMentions(threadInput, box);
       const row = el('div', 'fm-ch-composer-row');
       const send = el('button', 'fm-ch-send', 'Reply');
+      send.type = 'button';
       row.appendChild(send);
-      node.append(box, row);
+      node.append(pendingWrap, box, row);
       let threadMentionApi = null;
       try {
-        if (root.FirstMateTags?.attachMentionTextarea && threadInput.tagName === 'TEXTAREA') {
+        if (root.FirstMateTags?.attachMentionTextarea) {
           threadMentionApi = root.FirstMateTags.attachMentionTextarea(threadInput, { orgId, source: 'channels' }) || null;
         }
       } catch (error) {}
@@ -3542,10 +4136,11 @@
       let editingId = '';
       const doSend = async () => {
         const text = threadInput.value.trim();
-        if (!text) return;
+        if (threadInput.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
+        if (!text && !threadFiles.length) return;
         send.disabled = true;
         try {
-          const mentions = threadMentionApi?.confirmedMentions?.() || threadInput.mentionUsers.filter(user => text.includes(`@${user.name}`));
+          const mentions = [...(threadMentionApi?.confirmedMentions?.() || []), ...threadInput.mentionUsers.filter(user => text.includes(`@${user.name}`))];
           if (editingId) {
             const data = await api.messages.edit(orgId, editingId, { text, mention_users: mentions });
             replaceMessage(data.message);
@@ -3555,13 +4150,14 @@
             await api.messages.post(orgId, state.activeChannelId, {
               text,
               parent_id: state.threadRootId,
+              attachment_ids: threadFiles.map(file => file.id),
               client_msg_id: `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
               mention_users: mentions
             });
             await openThread(state.threadRootId, { silent: true });
             await refreshActiveMessages();
           }
-          threadInput.value = '';
+          stopTyping(); threadInput.value = '';
           threadMentionApi?.setSelectedMentions?.([]);
         } catch (error) {
           showError(error);
@@ -3573,6 +4169,7 @@
       threadInput.addEventListener('keydown', (event) => {
         const modifiedSend = state.collaborationPreferences.send_mode === 'modified_enter';
         const sendKey = event.key === 'Enter'
+          && !event.defaultPrevented
           && !event.shiftKey
           && !event.isComposing
           && !mentionMenuOpen()
@@ -3989,16 +4586,12 @@
           <input type="text" data-field="name" placeholder="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_764c04db3ecb32","e.g. installs") ?? "e.g. installs")}">
           <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_e23660d62b184c","Topic (optional)") ?? "Topic (optional)")}</label>
           <input type="text" data-field="topic" placeholder="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_726dc4834a1366","What is this channel about?") ?? "What is this channel about?")}">
-          <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_d1621d1dbd55f1","Visibility") ?? "Visibility")}</label>
-          <select data-field="type">
-            <option value="public">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_605d0d4be17eba","Public — anyone in the company can join") ?? "Public — anyone in the company can join")}</option>
-            <option value="private">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_577f103c68de9e","Private — invite only") ?? "Private — invite only")}</option>
-          </select>`;
+          <p>Only people you add can see this channel. Use the People button to invite them after creating it.</p>`;
       }, [{ label: (globalThis.PlatformLanguage?.text("channels-ui","m_3c21a9590eb762","Create") ?? "Create"), primary: true, onClick: async (close, body) => {
         try {
           const name = body.querySelector('[data-field=name]').value;
           const topic = body.querySelector('[data-field=topic]').value;
-          const type = body.querySelector('[data-field=type]').value;
+          const type = 'private';
           const data = await api.channels.create(orgId, { type, name, topic, member_user_ids: [] });
           close();
           await loadChannels();
@@ -4216,8 +4809,8 @@
           }
           body.appendChild(rowNode);
         }
-        const addable = everyone.filter((user) => !memberIds.has(user.id));
-        if (addable.length && (channel.can_manage || channel.type === 'public')) {
+        const addable = everyone.filter((user) => !memberIds.has(user.id) && (channel.type !== 'dm' || user.id.startsWith('agent_')));
+        if (addable.length && (channel.can_invite || channel.can_manage)) {
           body.appendChild(el('label', '', 'Add people'));
           for (const user of addable) {
             const rowNode = el('div', 'fm-ch-member-row');
@@ -4426,9 +5019,13 @@
         document.removeEventListener('keydown', keyboardHandler);
         root.removeEventListener('fm:channels-sidebar-sections-updated', sidebarSectionsUpdatedHandler);
         stopHuddleSession();
+        clearInterval(scheduledPoll);
         root.removeEventListener('fm:user-preferences:updated', handlePreferencesUpdated);
+        root.removeEventListener('fm:channels-sidebar:changed', sidebarChanged);
+        if (options.tabsTarget instanceof HTMLElement) tabsBar.remove();
         state.unsubscribe?.();
         presenceStop?.(); presenceStop = null;
+        stopTyping(); clearTimeout(state.typingExpiryTimer);
         clearTimeout(state.markReadTimer);
         closePopover();
         if (externalHeaderActions) externalHeaderActions.replaceChildren();
@@ -4436,12 +5033,7 @@
       },
       detachCall,
       setChannel: (channelId, opts) => setChannel(channelId, opts),
-      revealMessage: (messageId) => {
-        if (state.revealTarget !== messageId) {
-          state.revealTarget = '';
-          revealMessage(messageId);
-        }
-      },
+      revealMessage: (messageId) => revealMessage(messageId),
       openThread: (rootId) => openThread(rootId),
       openView(view){
         if (view === 'unreads') return openUnreadsView();

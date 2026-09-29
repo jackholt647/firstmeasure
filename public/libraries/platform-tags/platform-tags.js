@@ -17,7 +17,7 @@
     const id = cleanText(user.id || data.id || data.user_id || data.identity_id || data.email);
     const email = cleanText(data.email || data.user_email);
     const name = cleanText(data.name || data.full_name || email || id);
-    const avatar = cleanText(data.avatar || data.avatar_url || data.photo_url || data.profile_photo_url || data.image_url || data.picture || data.profile_image);
+    const avatar = cleanText(data.profile?.profile_photo || data.profile_photo || data.avatar || data.avatar_url || data.photo_url || data.profile_photo_url || data.image_url || data.picture || data.profile_image);
     return {
       id,
       email,
@@ -30,9 +30,9 @@
   }
   async function listUsers(selectedOrgId = orgId(), options = {}){
     const oid = cleanText(selectedOrgId);
-    if (!oid || !root.PlatformAPI?.users?.list) return [];
+    if (!oid || (!root.PlatformAPI?.users?.list && !root.ChannelsAPI?.directory?.list)) return [];
     if (cache.has(oid) && !options.refresh) return cache.get(oid);
-    const result = await root.PlatformAPI.users.list(oid).catch(() => ({ users: [], documents: [] }));
+    const result = await (root.PlatformAPI?.users?.list ? root.PlatformAPI.users.list(oid) : root.ChannelsAPI.directory.list(oid)).catch(() => ({ users: [], documents: [] }));
     const users = (Array.isArray(result?.users) ? result.users : (Array.isArray(result?.documents) ? result.documents : []))
       .map(normalizeUser)
       .filter((user) => user.id && user.raw?.status !== 'disabled' && user.raw?.deleted !== true);
@@ -98,6 +98,16 @@
   }
 
   function caretQuery(textarea){
+    if (textarea.isContentEditable) {
+      const selection = root.getSelection();
+      if (!selection?.isCollapsed || !textarea.contains(selection.anchorNode) || selection.anchorNode?.nodeType !== 3) return null;
+      const before = selection.anchorNode.textContent.slice(0,selection.anchorOffset);
+      const match = /(?:^|\s)@([^\s@]{0,80})$/.exec(before);
+      if (!match) return null;
+      const range = selection.getRangeAt(0).cloneRange();
+      range.setStart(selection.anchorNode, before.length-match[1].length-1);
+      return {fragment:match[1],range};
+    }
     const value = textarea.value || '';
     const pos = textarea.selectionStart || 0;
     const before = value.slice(0, pos);
@@ -138,6 +148,7 @@
   // token the controller will actually send as a tag. The textarea's own
   // text renders on top, so typing behavior is untouched.
   function attachMentionHighlight(textarea, getMentionLabels){
+    if (textarea.isContentEditable) return {refresh(){},destroy(){}};
     const parent = textarea.parentElement;
     if (!parent) return { refresh(){}, destroy(){} };
     if (getComputedStyle(parent).position === 'static') parent.style.position = 'relative';
@@ -265,8 +276,14 @@
     const includeAgents = options.includeAgents === true || options.source === 'channels';
     Promise.all([
       listUsers(oid).catch(() => []),
-      includeAgents ? listAgentParticipants(oid) : Promise.resolve([])
-    ]).then(([list, agents]) => { users = [...list, ...agents]; }).catch(() => {});
+      includeAgents ? listAgentParticipants(oid) : Promise.resolve([]),
+      (root.ChannelsAPI?.channels?.list ? root.ChannelsAPI.channels.list(oid) : fetch(`/v1/channels/organizations/${encodeURIComponent(oid)}/channels`,{credentials:'include'}).then(res=>res.ok?res.json():{})).catch(()=>({}))
+    ]).then(([list, agents, channels]) => {
+      const groups = (channels.channels || []).filter(channel=>!['dm','group_dm'].includes(channel.type)).map(channel=>normalizeUser({id:`channel:${channel.id}`,name:channel.name || channel.display_name,email:'Everyone in this channel'}));
+      const broadcasts = options.source === 'channels' ? [normalizeUser({id:'broadcast:channel',name:'channel',email:'Everyone in this conversation'}),normalizeUser({id:'broadcast:here',name:'here',email:'Online members of this conversation'})] : [];
+      users = [...broadcasts,...list,...agents,...groups];
+      if (document.activeElement === textarea) update();
+    }).catch(() => {});
 
     // Pills under every token that will actually send as a tag (picked from
     // the menu, seeded via setSelectedMentions, or an exact typed name).
@@ -279,6 +296,7 @@
     });
 
     function hide(){
+      if (menu._mentionOwner && menu._mentionOwner !== textarea) return;
       menu.classList.remove('visible');
       menu.innerHTML = '';
       matches = [];
@@ -287,6 +305,14 @@
     }
     function insert(user){
       if (!query || !user) return;
+      if (query.range) {
+        textarea.focus();
+        const selection = root.getSelection(); selection.removeAllRanges(); selection.addRange(query.range);
+        document.execCommand('insertText',false,`@${user.name || user.id} `);
+        selected.set(user.id,user);
+        textarea.dispatchEvent(new Event('input',{bubbles:true})); hide();
+        options.onSelect?.(user); return;
+      }
       const value = textarea.value || '';
       const before = value.slice(0, query.at);
       const after = value.slice(query.pos);
@@ -301,7 +327,8 @@
     }
     function render(){
       if (!matches.length || !query) return hide();
-      const anchor = caretAnchor(textarea, query.at);
+      menu._mentionOwner = textarea;
+      const anchor = query.range ? query.range.getBoundingClientRect() : caretAnchor(textarea, query.at);
       const menuWidth = 280;
       const menuHeight = Math.min(240, 48 + (matches.slice(0, 8).length * 45));
       const left = Math.max(8, Math.min(anchor.left, window.innerWidth - menuWidth - 8));
@@ -334,7 +361,8 @@
       render();
     }
     function onKeydown(event){
-      if (!menu.classList.contains('visible')) return;
+      if (!menu.classList.contains('visible') || menu._mentionOwner !== textarea) return;
+      if (['ArrowDown','ArrowUp','Enter','Tab','Escape'].includes(event.key)) event.stopImmediatePropagation();
       if (event.key === 'ArrowDown') {
         event.preventDefault();
         activeIndex = Math.min(matches.length - 1, activeIndex + 1);
@@ -354,10 +382,11 @@
     textarea.addEventListener('input', update);
     textarea.addEventListener('keyup', update);
     textarea.addEventListener('click', update);
-    textarea.addEventListener('keydown', onKeydown);
-    document.addEventListener('mousedown', (event) => {
+    textarea.addEventListener('keydown', onKeydown, true);
+    const onOutsideClick = (event) => {
       if (event.target !== textarea && !menu.contains(event.target)) hide();
-    });
+    };
+    document.addEventListener('mousedown', onOutsideClick);
     return {
       selectedMentions(){
         const found = extractMentions(textarea.value || '', users);
@@ -375,10 +404,11 @@
       },
       refreshHighlight(){ highlighter.refresh(); },
       destroy(){
+        document.removeEventListener('mousedown', onOutsideClick);
         textarea.removeEventListener('input', update);
         textarea.removeEventListener('keyup', update);
         textarea.removeEventListener('click', update);
-        textarea.removeEventListener('keydown', onKeydown);
+        textarea.removeEventListener('keydown', onKeydown, true);
         highlighter.destroy();
         hide();
       }

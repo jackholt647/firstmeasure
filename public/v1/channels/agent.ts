@@ -148,6 +148,9 @@ export async function maybeTriggerChannelAgent(ctx: PlatformAuthContext, channel
       origin_channel_id: channel.id, message_id: message.id, session_id: ctx.sessionId,
       created_by_user_id: ctx.userId
     });
+    // Interactive turns must also run on web-only deployments. The durable
+    // queue claim prevents a replica and the background worker running twice.
+    if (process.env.NODE_ENV !== "test") void drainChannelAgentJobs("channel").catch(() => null);
   } catch {
     /* never disturb the message path */
   }
@@ -616,7 +619,7 @@ export async function sweepAgentAwaits(now = new Date()) {
 }
 
 /** Shared queue also carries immediate DM/mention turns off clustered web replicas. */
-export async function drainChannelAgentJobs() {
+export async function drainChannelAgentJobs(kind = "") {
   const { isCapabilityEnabled } = await import("../platform/capabilities.js");
   const count = await drainAgentWakeups(async job => {
     const payload = asObject(job.payload), entry = asObject(payload.record), event = asObject(payload.event);
@@ -645,7 +648,7 @@ export async function drainChannelAgentJobs() {
       if (ctx.orgId !== orgId || !await can(ctx, "apps.channels")) throw new Error("The requesting user no longer has access to Channels.");
       await runChannelAgentTurn(orgId, cleanText(entry.branch_id) || "default", cleanText(entry.agent_id), cleanText(entry.origin_channel_id), cleanText(entry.message_id), ctx);
     }
-  });
+  }, 5, kind);
   const db = getAgentsDatabase();
   for (const job of await db.prepare("SELECT * FROM agent_wakeup_jobs WHERE state='uncertain' AND notified_at='' ORDER BY updated_at LIMIT 20").all()) {
     const entry = asObject(asObject(JSON.parse(cleanText(job.payload_json))).record);
