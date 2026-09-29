@@ -1631,6 +1631,7 @@
       const addAction = (title, icon2, onClick) => {
         const button = el('button', 'fm-ch-icon-btn', icon2);
         button.title = title;
+        button.setAttribute('aria-label', title);
         button.addEventListener('click', onClick);
         actions.appendChild(button);
         return button;
@@ -1764,19 +1765,8 @@
 
     async function requestChannelRecap(){
       try {
-        const agents = await (root.FirstMateTags?.listAgentParticipants?.(orgId) || Promise.resolve([]));
-        const agent = agents?.[0];
-        if (!agent?.id) throw new Error('Turn on the FirstMate Assistant in AI Agents to use channel recaps.');
-        await api.messages.post(orgId, state.activeChannelId, {
-          text:'Please summarize the recent conversation, decisions, open questions, and action items. Reference relevant project resources when useful.',
-          mention_users:[{ id:agent.id, name:agent.name }],
-          client_msg_id:`recap_${Date.now().toString(36)}`
-        });
-        root.Portal?.ui?.showToast?.(
-          (globalThis.PlatformLanguage?.text("channels-ui","m_37203cd3f91687","FirstMate recap requested") ?? "FirstMate recap requested"),
-          (globalThis.PlatformLanguage?.text("channels-ui","m_6522a8013848af","The recap will appear in this conversation when it is ready.") ?? "The recap will appear in this conversation when it is ready."),
-          true
-        );
+        if (!root.PlatformAssistant?.openChannelConversation) throw new Error('FirstMate Assistant is still loading. Please try again.');
+        await root.PlatformAssistant.openChannelConversation({ orgId, channelId:state.activeChannelId });
       } catch (error) { showError(error); }
     }
 

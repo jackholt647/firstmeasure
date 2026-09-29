@@ -205,3 +205,34 @@ personal durable threads and chat renderer. It exposes only `draft_terminology` 
 The tool returns locale-specific editor drafts rather than changing configuration;
 the administrator uses the normal Save action. See [terminology and language](terminology.md)
 for the catalog, inheritance, public projections and validation contract.
+
+
+## Private channel conversations
+
+Channels' recap action calls `PlatformAssistant.openChannelConversation` and uses
+exactly the global assistant drawer, composer, history, settings and window controls.
+It opens docked beside Channels. The first opening sends a recap request privately;
+later openings resume that channel's conversation. Follow-ups use the same assistant
+runtime, provider configuration and permission-gated tools. No recap request or
+answer is posted to the source channel. Explicit assistant mentions in a channel
+continue to use the existing public participant workflow.
+
+`POST /v1/assistant/organizations/:orgId/channels/:channelId/conversation` requires
+both Assistant and Channels access and source membership. A transactional lookup
+returns one personal `assistant` thread with subject `channel:<id>` per user/channel.
+The assistant prepare hook refreshes source context on every turn through the
+Channels domain's authorized readers, including audience filtering. A persisted
+thread subject is carried separately from caller-supplied subjects so the generic
+agent endpoint cannot bypass this check. Source access revoked after creation blocks
+subsequent turns before model invocation. The user's existing private history stays
+in their own assistant history.
+
+The default snapshot includes up to 100 recent top-level messages, up to 30 replies
+for each of the latest 10 threads, and attachment metadata. Text excerpts are capped
+at 2,000 characters each and 60,000 total. The prompt states these bounds and treats
+source content as untrusted data; file metadata is not treated as file content.
+Deeper research uses the existing authorized platform tools.
+
+Regression coverage includes `tests/channel-assistant-browser.test.mjs`, the Channels
+workspace browser fixture, and the channel recap case in `tests/assistant-api.test.ts`.
+Provider requests in these tests are mocked.

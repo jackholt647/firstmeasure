@@ -1,0 +1,60 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { chromium } from 'playwright-core';
+
+test('channel recap uses the shared docked assistant with private follow-ups and preserved drafts', async () => {
+  const browser = await chromium.launch({ executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless:true });
+  try {
+    const page = await browser.newPage({ viewport:{ width:1440, height:1000 } });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.setContent('<style>html,body{margin:0;height:100%;font-family:Arial}.main{position:relative;height:100vh;width:100%;overflow:hidden}</style><main class="main"><div id="mainPanels"><section id="tab_channels" class="fm-tabpanel active">Channel conversation</section></div></main>');
+    await page.evaluate(() => {
+      window.__APP = { userOrgId:'org-test' };
+      window.Portal = { tabs:{ activateTab(){ throw new Error('Opening a recap must not navigate away from Channels'); } } };
+      window.sent = [];
+      const main = { id:'main', title:'Main thread' };
+      const threads = new Map([['main', main]]);
+      const messages = new Map([['main', []]]);
+      window.AssistantAPI = {
+        context:async () => { await new Promise(resolve => setTimeout(resolve, 40)); return { main_thread:main, threads:[...threads.values()], agents:[], dashboard:[] }; },
+        channelConversation:async (_org, channel) => {
+          const id = `private-${channel}`;
+          if (!threads.has(id)) { threads.set(id, { id, subject_id:`channel:${channel}`, title:channel }); messages.set(id, []); }
+          return { thread:threads.get(id) };
+        },
+        thread:async (_org, id) => ({ thread:threads.get(id), messages:messages.get(id) }),
+        send:async (_org, id, body) => {
+          window.sent.push({ id, text:body.message });
+          const reply = { id:`reply-${window.sent.length}`, role:'assistant', content:`Private reply about ${id}`, data:{} };
+          messages.get(id).push({ id:`user-${window.sent.length}`, role:'user', content:body.message }, reply);
+          return { thread:threads.get(id), assistant_message:reply };
+        }
+      };
+    });
+    for (const file of ['window-manager/window-manager.js', 'platform-assistant/platform-assistant.js']) {
+      const source = process.env.ASSISTANT_ASSET_ORIGIN
+        ? await (await fetch(`${process.env.ASSISTANT_ASSET_ORIGIN}/libraries/${file}?verify=${Date.now()}`)).text()
+        : await readFile(new URL(`../../libraries/${file}`, import.meta.url), 'utf8');
+      await page.addScriptTag({ content:source });
+    }
+    // Exercise a cold boot while opening the channel: both callers must await the same boot.
+    await page.evaluate(() => window.PlatformAssistant.openChannelConversation({ channelId:'Gutters' }));
+    assert.equal(await page.locator('.fma-drawer').getAttribute('data-window'), 'docked');
+    assert.match(await page.locator('[data-fma="barSub"]').textContent(), /Private channel conversation/);
+    const input = page.locator('[data-fma="input"]');
+    await input.fill('Who owns the order?');
+    await input.press('Enter');
+    await page.waitForFunction(() => window.sent.length === 2);
+    await page.waitForFunction(() => !document.querySelector('[data-fma="send"]').disabled);
+    await input.fill('Keep this unsent channel draft');
+    await page.evaluate(() => window.PlatformAssistant.openChannelConversation({ channelId:'Roofing' }));
+    await page.evaluate(() => window.PlatformAssistant.openChannelConversation({ channelId:'Gutters' }));
+    assert.equal(await input.inputValue(), 'Keep this unsent channel draft');
+    assert.deepEqual(await page.evaluate(() => window.sent.map(item => item.id)), ['private-Gutters', 'private-Gutters', 'private-Roofing']);
+    assert.equal(await page.locator('.fma-drawer').count(), 1);
+    assert.equal(await page.locator('#tab_channels').getAttribute('class'), 'fm-tabpanel active');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});

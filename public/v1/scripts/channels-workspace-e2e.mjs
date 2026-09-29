@@ -51,7 +51,8 @@ try {
       uploads:{send:async(_org,file,channelId)=>{window.uploaded.push({size:file.size,type:file.type,channelId});return {attachment:{id:'clip1',file_name:file.name}}}},
       huddles:{invite:async(_org,_id,ids)=>{window.invitedUsers.push(...ids);return {invited_user_ids:ids}},create:async()=>{window.createdHuddles++;huddle={id:'call1',channel_id:channel.id,started_by:me.id,state:'active',started_at:new Date().toISOString(),settings:{recording_enabled:false},participants:[{...me,user_id:me.id,display_name:me.name,microphone_enabled:true},{...other,user_id:other.id,display_name:other.name,microphone_enabled:false}]};return {huddle}},join:async()=>({huddle}),get:async()=>({huddle}),mediaState:async(_org,_id,patch)=>{Object.assign(huddle.participants[0],patch);return {huddle}},signals:async()=>({signals:[],cursor:0}),signal:async()=>({}),leave:async()=>{window.leftCalls.push('call1');return {}},end:async()=>({})}
     };
-    window.testOptions = {onOpenChannel:(id,options)=>window.splitOpened={id,options},orgId:'test-org',currentUser:me,realtime:false,mode:'full',features:{attention:false,resources:false,workflows:false,ai:false,typing:false,audioNotes:false,channelCreate:false,channelSettings:true,recording:false}};
+    window.PlatformAssistant = {openChannelConversation:async options => {window.recapOptions=options;}};
+    window.testOptions = {onOpenChannel:(id,options)=>window.splitOpened={id,options},orgId:'test-org',currentUser:me,realtime:false,mode:'full',features:{attention:false,resources:false,workflows:false,ai:true,typing:false,audioNotes:false,channelCreate:false,channelSettings:true,recording:false}};
     // A real camera stream stands in for the display picker in unattended tests.
     navigator.mediaDevices.getDisplayMedia = async () => { window.displayStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true}); return window.displayStream; };
   });
@@ -62,6 +63,11 @@ try {
   await page.addScriptTag({url:origin+'/libraries/platform-tags/platform-tags.js'});
   await page.evaluate(() => window.instance = FirstMateChannels.create(document.querySelector('#app'), window.testOptions));
   console.log('Channels mounted');
+  await page.evaluate(()=>instance.setChannel('general'));
+  await page.getByRole('button',{name:'Ask FirstMate for a recap',exact:true}).click();
+  assert.deepEqual(await page.evaluate(()=>window.recapOptions),{orgId:'test-org',channelId:'general'});
+  assert.equal(await page.evaluate(()=>window.sent.length),0);
+  console.log('PASS channel recap opens private assistant without posting to the channel');
   await page.evaluate(() => {
     testChannel.type='dm';testMessages[0].reactions=[{emoji:'🔥',count:2,user_ids:['guest','owner'],users:[{id:'guest',name:'Jordan Ellis'},{id:'owner',name:'Morgan Lee'}]}];
     window.PlatformRealtime={watchPresence:(_org,_scope,callback)=>{window.statusRoster=callback;return ()=>{};},subscribe:()=>()=>{}};
@@ -537,6 +543,7 @@ try {
   assert.equal(await page.getByRole('dialog').evaluate(node=>node.getBoundingClientRect().right<=innerWidth),true);
   await page.getByRole('button',{name:'Close dialog',exact:true}).click();
   await page.getByRole('dialog').waitFor({state:'detached'});
+  await page.locator('.fm-ch-modal-backdrop').waitFor({state:'detached'});
   await page.setViewportSize({width:1366,height:768});
   await page.evaluate(()=>instance.setFeatures({attention:false}));
   console.log('PASS notification choice cards, keyboard selection, Later sections and mobile layout');

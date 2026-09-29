@@ -12,7 +12,7 @@
  */
 (function(){
   'use strict';
-  if (!window.Portal) return;
+  if (!window.Portal || window.PlatformAssistant) return;
 
   const AGENT_TIMEOUT_MS = 160000;
   const REFRESH_MS = 45000;
@@ -56,6 +56,9 @@
   };
 
   let els = null;
+  let bootPromise = null;
+  let openingChannel = false;
+  const conversationDrafts = new Map();
   let assistantWindow = null;
   let recorder = null;
   let recordingStream = null;
@@ -1108,7 +1111,7 @@
     if (state.threadId && state.threadId === clean(state.mainThread?.id)) return { title:'Main thread', sub:'' };
     if (!state.threadId && !state.booted) return { title:state.assistantName, sub:'' };
     const thread = state.threads.find((entry) => clean(entry.id) === state.threadId);
-    return { title:clean(thread?.title) || 'New side chat', sub:state.threadId ? 'Side chat' : '' };
+    return { title:clean(thread?.title) || 'New side chat', sub:clean(thread?.subject_id).startsWith('channel:') ? 'Private channel conversation' : (state.threadId ? 'Side chat' : '') };
   }
 
   function syncTitles(){
@@ -1542,25 +1545,30 @@
     if (Array.isArray(result.dashboard)) state.dashboard = array(result.dashboard);
   }
 
-  async function boot(){
-    if (state.booted || state.booting || !window.AssistantAPI) return;
+  function boot(){
+    if (bootPromise) return bootPromise;
+    if (state.booted || !window.AssistantAPI) return Promise.resolve();
     state.booting = true;
-    try {
-      const result = await window.AssistantAPI.context(orgId());
-      applyContext(result);
-      renderHistory();
-      syncLayout();
-      const target = clean(state.mainThread?.id) || clean(state.threads[0]?.id);
-      if (target && !state.threadId && state.view !== 'agent') await openThread(target);
-      else renderMessages();
-      state.booted = true;
-      scheduleRefresh();
-    } catch (error) {
-      console.warn('[assistant] boot failed', error);
-      renderMessages();
-    } finally {
-      state.booting = false;
-    }
+    bootPromise = (async () => {
+      try {
+        const result = await window.AssistantAPI.context(orgId());
+        applyContext(result);
+        renderHistory();
+        syncLayout();
+        const target = clean(state.mainThread?.id) || clean(state.threads[0]?.id);
+        if (target && !state.threadId && state.view !== 'agent') await openThread(target);
+        else renderMessages();
+        state.booted = true;
+        scheduleRefresh();
+      } catch (error) {
+        console.warn('[assistant] boot failed', error);
+        renderMessages();
+      } finally {
+        state.booting = false;
+        bootPromise = null;
+      }
+    })();
+    return bootPromise;
   }
 
   function scheduleRefresh(){
@@ -1592,13 +1600,23 @@
     }
   }
 
-  async function openThread(threadId){
+  function saveConversationDraft(){
+    if (els) conversationDrafts.set(state.threadId, { text:els.input.value, attachments:[...state.attachments] });
+  }
+
+  async function openThread(threadId, options = {}){
+    if (state.pending) return false;
+    saveConversationDraft();
     state.agentId = '';
     state.agentDetail = null;
     setView('chat');
     try {
       const result = await window.AssistantAPI.thread(orgId(), threadId);
       state.threadId = clean(object(result.thread).id);
+      const draft = conversationDrafts.get(state.threadId);
+      els.input.value = draft?.text || '';
+      state.attachments = [...(draft?.attachments || [])];
+      renderAttachments();
       if (state.threadId === clean(state.mainThread?.id)) state.mainThread = { ...state.mainThread, ...object(result.thread) };
       state.messages = mapThreadMessages(result.messages);
       renderMessages();
@@ -1607,7 +1625,10 @@
       renderHistory();
     } catch (error) {
       console.warn('[assistant] failed to open conversation', error);
+      if (options.throwOnError) throw error;
+      return false;
     }
+    return true;
   }
 
   function openMainThread(){
@@ -1629,7 +1650,7 @@
   }
 
   async function openAgent(agentId){
-    if (!clean(agentId)) return;
+    if (!clean(agentId) || state.pending) return;
     state.agentId = clean(agentId);
     state.agentDetail = null;
     state.messages = [];
@@ -1675,6 +1696,9 @@
   }
 
   function startNewThread(){
+    if (state.pending) return;
+    saveConversationDraft();
+    if (els) els.input.value = '';
     state.agentId = '';
     state.agentDetail = null;
     state.threadId = '';
@@ -1839,6 +1863,32 @@
     if (state.dashboard.length) setBoardHidden(false);
   }
 
+  /** Reuses the global assistant UI and runtime, scoped to a private channel thread. */
+  async function openChannelConversation(options = {}){
+    if (!available()) throw new Error('FirstMate Assistant is not available for this account.');
+    const channelId = clean(options.channelId || options.channel_id);
+    if (!channelId || clean(options.orgId || orgId()) !== orgId()) throw new Error('Open a channel in your current company.');
+    if (openingChannel) return;
+    if (state.pending || recorder) throw new Error('Finish your current assistant reply or recording before opening a channel recap.');
+    openingChannel = true;
+    try {
+      open();
+      if (!assistantWindow || !window.AssistantAPI?.channelConversation) throw new Error('The assistant is still loading. Please try again.');
+      assistantWindow.setMode('docked');
+      await boot();
+      const result = await window.AssistantAPI.channelConversation(orgId(), channelId);
+      const thread = object(result.thread);
+      if (!clean(thread.id)) throw new Error('The channel conversation could not be opened.');
+      state.threads = [thread, ...state.threads.filter(entry => clean(entry.id) !== clean(thread.id))];
+      if (!await openThread(clean(thread.id), { throwOnError:true })) return;
+      if (!state.messages.length && !clean(els.input.value) && !state.attachments.length) {
+        els.input.value = 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.';
+        await sendMessage();
+      }
+      els.input.focus();
+    } finally { openingChannel = false; }
+  }
+
   function leaveAssistantTab(){
     if (document.querySelector('.fm-tabpanel.active')?.id !== 'tab_assistant') return;
     const destination = state.returnTab || [...document.querySelectorAll('.fm-link[data-tab]')]
@@ -1890,6 +1940,7 @@
     open,
     openFull,
     openConversation,
+    openChannelConversation,
     openAgent(agentId){ openFull(); return boot().then(() => openAgent(agentId)); },
     dockIfFull,
     close,

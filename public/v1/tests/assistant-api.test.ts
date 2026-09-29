@@ -693,3 +693,50 @@ test("the heartbeat lane runs only personal assistant agents", async () => {
   assert.equal(main.messages.at(-1).data.manual, true);
   assert.equal((await client.request("GET", `${base}/agents/${agent!.id}`)).agent.last_result, "Hello from your tracker.");
 });
+
+
+test("channel recaps are private, member-scoped, reusable, and refresh context for follow-ups", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const channelBase = `/v1/channels/organizations/${orgId}/channels`;
+  const assistantBase = `/v1/assistant/organizations/${orgId}`;
+  const outsider = createSessionClient();
+  const email = `channel-outsider-${Date.now()}@example.test`;
+  const user = await client.request("POST", `/v1/platform/organizations/${orgId}/users`, { data:{ email, password:"channel-test-password", name:"Another member", role:"admin", status:"active", send_invite:false } });
+  await outsider.request("POST", "/v1/platform/auth/login", { email, password:"channel-test-password", organization_id:orgId });
+  const created = await client.request("POST", channelBase, { type:"private", name:"Gutters" });
+  const channelId = created.channel.id;
+  const source = await client.request("POST", `${channelBase}/${channelId}/messages`, { text:"Livia will order blue gutters on Friday." });
+  await client.request("POST", `${channelBase}/${channelId}/messages`, { text:"Confirmed: blue, not green.", parent_id:source.message.id });
+  const [first, again] = await Promise.all([1, 2].map(() => client.request("POST", `${assistantBase}/channels/${channelId}/conversation`, {})));
+  assert.equal(first.thread.id, again.thread.id);
+  assert.equal(first.thread.subject_id, `channel:${channelId}`);
+  const threadId = first.thread.id;
+  const mock = mockOpenAI([{ output:[functionCall("report_result", { status:"success", summary:"Livia owns the order." }, "recap"), messageOutput("Livia will order the blue gutters.")] }]);
+  try {
+    await client.request("POST", `${assistantBase}/threads/${threadId}/messages`, { message:"Recap this chat." });
+    const prompt = JSON.stringify(mock.calls[0]);
+    assert.match(prompt, /PRIVATE assistant conversation/);
+    assert.match(prompt, /Livia will order blue gutters on Friday/);
+    assert.match(prompt, /Confirmed: blue, not green/);
+    assert.equal((await client.request("GET", `${channelBase}/${channelId}/messages`)).messages.length, 1);
+    await client.request("POST", `${channelBase}/${channelId}/messages`, { text:"Delivery has moved to Monday." });
+    const before = mock.calls.length;
+    await client.request("POST", `${assistantBase}/threads/${threadId}/messages`, { message:"What changed?" });
+    assert.match(JSON.stringify(mock.calls[before]), /Delivery has moved to Monday/);
+    assert.equal((await client.request("GET", `${assistantBase}/threads/${threadId}`)).messages.length, 4);
+
+    assert.equal((await outsider.raw("POST", `${assistantBase}/channels/${channelId}/conversation`, {})).statusCode, 403);
+    assert.equal((await outsider.raw("GET", `${assistantBase}/threads/${threadId}`)).statusCode, 404);
+    await client.request("POST", `${channelBase}/${channelId}/members`, { user_ids:[user.document.id] });
+    const theirs = await outsider.request("POST", `${assistantBase}/channels/${channelId}/conversation`, {});
+    assert.notEqual(theirs.thread.id, threadId);
+
+    const { removeChannelMember } = await import("../channels/storage.js");
+    await removeChannelMember(channelId, String(first.thread.created_by_user_id));
+    const callsBeforeDenied = mock.calls.length;
+    assert.equal((await client.raw("POST", `${assistantBase}/threads/${threadId}/messages`, { message:"Read the newest messages." })).statusCode, 403);
+    assert.equal(mock.calls.length, callsBeforeDenied);
+    assert.equal((await client.raw("POST", `/v1/agents/organizations/${orgId}/agents/assistant/threads/${threadId}/messages`, { message:"Read it via the generic API.", subject_id:"unscoped" })).statusCode, 403);
+  } finally { mock.restore(); }
+});

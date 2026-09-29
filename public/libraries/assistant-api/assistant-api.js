@@ -76,6 +76,7 @@
   function orgPath(orgId, suffix){ return `organizations/${enc(orgId)}${suffix}`; }
 
   const api = {
+    channelConversation(orgId, channelId){ return request(orgPath(orgId, `/channels/${enc(channelId)}/conversation`), { method:'POST', body:{} }); },
     version:1,
     configure,
     baseUrl,

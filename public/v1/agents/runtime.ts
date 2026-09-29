@@ -316,7 +316,7 @@ async function runClaimedAgentTurn(agentId: string, turn: AgentTurnInput, checkL
     actions: [],
     trace: [],
     renders: [],
-    scratch: {}
+    scratch: { threadSubjectId: cleanText(thread.subject_id) }
   };
 
   if (definition.prepare) await definition.prepare(run);
