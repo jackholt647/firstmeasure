@@ -360,22 +360,29 @@
   const ViewerCSS = `
     .v-wrap{width:100%; max-width:none; margin:0; height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden}
     .v-report-search{box-sizing:border-box;width:100%;min-width:0;flex-shrink:0;border:1px solid #dadce0;border-radius:12px;padding:10px 12px;font:inherit;font-size:16px;background:#fff;color:#202124}
-    .v-head{display:flex; align-items:center; justify-content:flex-start; gap:20px; margin-bottom:8px; flex:0 0 auto}
+    .v-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; flex:0 0 auto}
     .v-title{display:flex; flex-direction:column; gap:2px}
     .v-title h1{margin:0; font-size:22px; font-weight:1000; letter-spacing:-.3px}
-    .v-title .sub{margin:0; color:#777; font-weight:850; font-size:12px}
-    .v-actions{display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-start}
+    .v-actions{display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end; margin-left:auto}
     .v-btn{background:#fff; border:1px solid rgba(0,0,0,0.10); padding:10px 12px; border-radius:14px; cursor:pointer; font-weight:950; color:#333; display:inline-flex; align-items:center; gap:8px; transition:.16s ease; user-select:none}
     .v-btn[hidden]{display:none!important}
     .v-btn:hover{border-color:rgba(var(--primary-rgb,217,48,37),0.45); color:var(--primary-readable, var(--primary,#d93025)); transform:translateY(-1px)}
     .v-btn.active{border-color:rgba(var(--primary-rgb,217,48,37),0.55); box-shadow:0 10px 22px rgba(var(--primary-rgb,217,48,37),0.16)}
     .v-pill{border-radius:999px; padding:10px 14px}
-    .v-bar{display:flex; align-items:center; justify-content:flex-start; gap:12px; margin:8px 0 10px; flex:0 0 auto}
+    .v-bar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin:8px 0 10px; flex:0 0 auto}
     .v-leftbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; min-width:0}
-    .v-rightbar{display:flex; align-items:center; justify-content:flex-start; gap:8px; flex-wrap:wrap; margin-left:0}
     .v-chip{display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid rgba(0,0,0,0.10); border-radius:14px; padding:9px 10px; font-weight:950; color:#333}
-    .v-list-grouping[hidden]{display:none}
     .v-chip select{border:none; outline:none; font-weight:950; background:transparent; color:#333; padding:2px 2px}
+    .v-manage-wrap{position:relative}
+    .v-manage-panel{position:absolute;right:0;top:calc(100% + 7px);z-index:30;width:min(310px,calc(100vw - 30px));box-sizing:border-box;padding:15px;border:1px solid #dfe4ea;border-radius:14px;background:#fff;box-shadow:0 20px 48px rgba(15,23,42,.18);display:grid;gap:13px}
+    .v-manage-panel[hidden]{display:none}
+    .v-manage-title{font-size:14px;font-weight:1000;color:#17212b}
+    .v-manage-field{display:grid;gap:6px;font-size:12px;font-weight:900;color:#344054}
+    .v-manage-field select{width:100%;min-height:38px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:7px 10px;font:inherit;color:#17212b}
+    .v-manage-columns{display:grid;gap:5px}
+    .v-manage-columns label{display:flex;align-items:center;gap:9px;padding:7px 4px;font-size:12px;font-weight:850;color:#344054;cursor:pointer}
+    .v-manage-columns input{accent-color:var(--primary,#d93025)}
+    .v-manage-note{font-size:11px;color:#667085;line-height:1.35}
     .v-toggle-chip{cursor:pointer; user-select:none; font-size:12px; line-height:1}
     .v-toggle-chip input{position:absolute; opacity:0; pointer-events:none}
     .v-toggle-track{width:34px; height:20px; border-radius:999px; background:#d0d5dd; position:relative; flex-shrink:0; transition:.16s ease}
@@ -384,7 +391,6 @@
     .v-toggle-chip input:checked + .v-toggle-track::after{transform:translateX(14px)}
     .v-toggle-chip span:last-child{font-size:12px; font-weight:950; color:#333}
     .v-count{font-weight:1000; color:#666; font-size:12px}
-    .v-tip{font-weight:900; color:#999; font-size:12px; display:none}
     #vResults{flex:1 1 auto; min-height:0; overflow:hidden}
     .v-grid{height:100%; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch; display:grid; align-content:start; grid-auto-rows:max-content; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:16px; padding:2px 2px 16px}
     .v-tile{background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:18px; overflow:hidden; box-shadow:0 14px 34px rgba(0,0,0,0.08); cursor:pointer; display:flex; flex-direction:column; transition:.20s ease; position:relative}
@@ -429,8 +435,7 @@
     .v-m-foot{display:flex; flex-direction:column; gap:12px}
     .v-m-foot .v-dlwrap{margin:0; gap:10px}
     .v-list{height:100%; min-height:0; background:#fff; border:1px solid rgba(0,0,0,0.08); border-radius:18px; overflow:hidden; box-shadow:0 14px 34px rgba(0,0,0,0.08); display:flex; flex-direction:column}
-    .v-lhead{display:grid; grid-template-columns: 160px 1.7fr 1fr 190px; gap:0; align-items:center}
-    .v-lrow{display:grid; grid-template-columns: 160px 1.7fr 1fr 190px; gap:0; align-items:center}
+    .v-lhead,.v-lrow{display:grid;grid-template-columns:var(--v-list-columns,160px 1.7fr 1fr 190px);gap:0;align-items:center}
     .v-lhead{background:#f8f9fa; border-bottom:1px solid rgba(0,0,0,0.08); position:sticky; top:0; z-index:2}
     .v-lcell{padding:12px 14px; font-weight:950; font-size:12px; color:#444; user-select:none}
     .v-lcell.sortable{cursor:pointer}
@@ -442,7 +447,8 @@
     .v-lrow .v-lcell{font-weight:900; color:#333; font-size:12px}
     .v-list-group{border-top:1px solid #e6eaf0}
     .v-list-group:first-child{border-top:0}
-    .v-list-group-header{width:100%;display:flex;align-items:center;gap:10px;padding:11px 14px;border:0;border-left:5px solid var(--stage-color,#667085);background:color-mix(in srgb,var(--stage-color,#667085) 10%,#fff);color:#263442;text-align:left;font:950 13px/1.2 inherit;cursor:pointer}
+    .v-list-group-header{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;border:0;border-left:5px solid var(--stage-color,#667085);background:color-mix(in srgb,var(--stage-color,#667085) 12%,#fff);color:#1d2939;text-align:left;font-family:inherit;font-size:14px;font-weight:1000;line-height:1.2;cursor:pointer}
+    .v-list-group-header>span:first-of-type{font-weight:1000;letter-spacing:-.1px}
     .v-list-group-header:hover,.v-list-group-header:focus-visible{background:color-mix(in srgb,var(--stage-color,#667085) 17%,#fff)}
     .v-list-group-header .v-list-group-count{margin-left:auto;padding:3px 8px;border-radius:999px;background:#fff;font-size:11px}
     .v-list-group-header i{font-size:11px;transition:transform .16s ease}
@@ -701,22 +707,21 @@
        ========================================================== */
     @media (max-width: 820px){
 
-      /* --- Mobile control strip: views left, filters right --- */
+      /* --- Mobile control strip --- */
       .v-wrap{
         display:grid;
         grid-template-columns:minmax(0,1fr) auto;
-        grid-template-rows:auto auto minmax(0,1fr) auto;
+        grid-template-rows:auto auto auto minmax(0,1fr) auto;
       }
-      .v-report-search{grid-column:1 / -1;grid-row:2;margin-top:8px}
+      .v-report-search{grid-column:1 / -1;grid-row:3;margin-top:8px}
       .v-head,.v-bar{display:contents}
       .v-title{display:none}
       .v-title h1{font-size:18px}
-      .v-title .sub{font-size:11px; display:none}
       .v-actions{
-        grid-column:1;
+        grid-column:1 / -1;
         grid-row:1;
         width:auto;
-        justify-content:flex-start;
+        justify-content:flex-end;
         gap:8px;
       }
 
@@ -732,51 +737,20 @@
       /* Hide text labels on view toggles, keep icons */
       #vViewTiles span.btn-label,
       #vViewList span.btn-label,
-      #vViewStages span.btn-label{display:none}
+      #vViewStages span.btn-label,
+      #vManageView span.btn-label{display:none}
 
-      /* The selects retain their native picker, but the compact icon is all
-         that is needed in the mobile header. */
       .v-leftbar{
         display:contents;
       }
-      .v-rightbar{
-        grid-column:2;
-        grid-row:1;
-        display:flex;
-        flex-wrap:nowrap;
-        margin-left:0;
-        gap:6px;
-      }
-      .v-rightbar .v-tip{display:none!important}
-      .v-rightbar .v-chip{
-        position:relative;
-        width:36px;
-        height:36px;
-        flex:0 0 36px;
-        justify-content:center;
-        padding:0;
-        border-radius:12px;
-      }
-      .v-rightbar .v-chip i{pointer-events:none;font-size:13px}
-      .v-rightbar .v-chip select{
-        position:absolute;
-        inset:0;
-        width:100%;
-        height:100%;
-        margin:0;
-        padding:0;
-        opacity:0;
-        cursor:pointer;
-        appearance:none;
-        -webkit-appearance:none;
-      }
+      .v-stages-summary{grid-column:1 / -1;grid-row:2}
       .v-count{
         display:none;
       }
-      #vResults{grid-column:1 / -1;grid-row:3;min-height:0}
+      #vResults{grid-column:1 / -1;grid-row:4;min-height:0}
       #vResults:has(.v-grid),
       #vResults:has(.v-list){padding-top:8px;box-sizing:border-box}
-      .v-pagination{grid-column:1 / -1;grid-row:4}
+      .v-pagination{grid-column:1 / -1;grid-row:5}
 
       /* --- Tile grid: single column on small phones, 2 col on wider --- */
       .v-grid{
@@ -832,10 +806,10 @@
         padding:0;
       }
       /* Re-order list row cells for card layout */
-      .v-lrow .v-lcell:nth-child(1){order:2}
-      .v-lrow .v-lcell:nth-child(2){order:1}
-      .v-lrow .v-lcell:nth-child(3){order:3}
-      .v-lrow .v-lcell:nth-child(4){order:4; color:#999 !important; font-size:11px !important}
+      .v-lrow .v-lcell[data-col="address"]{order:1}
+      .v-lrow .v-lcell[data-col="status"]{order:2}
+      .v-lrow .v-lcell[data-col="resident"]{order:3}
+      .v-lrow .v-lcell[data-col="created_at"]{order:4;color:#999!important;font-size:11px!important}
       .v-lrow .v-statuspill{
         font-size:10px;
         padding:5px 8px;
@@ -1130,7 +1104,6 @@
   const collapsedListBoards = new Set();
   let listGrouping = 'stage';
   let manualStageMoveInFlight = false;
-  let statusFilter = 'all';
   let reportSearchQuery = '';
   let reportSearchTimer = null;
   let hideDrafts = true;
@@ -1138,6 +1111,16 @@
   let tileSortDir = 'desc';
   let listSortKey = 'created_at';
   let listSortDir = 'desc';
+  let stageSortKey = 'created_at';
+  let stageSortDir = 'desc';
+  let tileStageFilter = 'all';
+  const LIST_COLUMNS = [
+    { key:'status', label:'Status', width:'minmax(0,160px)' },
+    { key:'address', label:'Address', width:'minmax(0,1.7fr)' },
+    { key:'resident', label:'Contact', width:'minmax(0,1fr)' },
+    { key:'created_at', label:'Submitted', width:'minmax(0,190px)' }
+  ];
+  const listVisibleColumns = new Set(LIST_COLUMNS.map((column) => column.key));
   let fetchProjectsSeq = 0;
   let hydrateRefreshTimer = null;
   const PAGE_SIZE = 25;
@@ -4939,10 +4922,8 @@
   function selectWorkBoard(boardId, options = {}){
     const value = String(boardId || '').trim();
     if (!(value === 'all' && viewMode === 'list') && !workBoards.some((board) => String(board?.id || '') === value)) return false;
-    const wasAll = activeWorkBoardId === 'all';
     activeWorkBoardId = value;
-    if (value === 'all') listGrouping = 'board';
-    else if (wasAll) listGrouping = 'stage';
+    listGrouping = value === 'all' ? 'board' : 'stage';
     rememberWorkBoardId(value);
     if (options.syncUrl !== false) syncWorkBoardToUrl(options.history || 'push');
     renderResults();
@@ -4968,7 +4949,9 @@
         rememberWorkBoardId(activeWorkBoardId);
         if (routeBoardId !== activeWorkBoardId) syncWorkBoardToUrl('replace');
       }
-      if (viewMode === 'stages' || viewMode === 'list') renderResults();
+      if (viewMode === 'tiles' && tileStageFilter !== 'all') applyQueryFilterSort();
+      else if (viewMode === 'stages' || viewMode === 'list') renderResults();
+      if (viewMode === 'tiles') renderManageViewPanel();
       updateCount();
       return workBoards;
     }).catch((error) => {
@@ -4981,7 +4964,7 @@
   }
   function mountStageItems(list, items){
     if (!list) return;
-    items = (Array.isArray(items) ? items : []).slice().sort(newestProjectFirst);
+    items = (Array.isArray(items) ? items : []).slice().sort((a,b) => compareProjects(a,b,stageSortKey,stageSortDir));
     if (!items.length){
       list.onscroll = null;
       list.innerHTML = `<div class="v-stage-empty"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7eeed0d1bbc9e2","No projects here") ?? "No projects here")}</div>`;
@@ -5191,19 +5174,20 @@
       updateCount();
       return;
     }
-    reconcileStageColumns(board, stageColumnsForProjects(filteredProjects).map((column) => ({
-      ...column,
-      items:column.items.slice().sort(newestProjectFirst)
-    })));
+    reconcileStageColumns(board, stageColumnsForProjects(filteredProjects));
   }
   function getActiveSort(){
     if (viewMode === 'list') return { key:listSortKey, dir:listSortDir };
+    if (viewMode === 'stages') return { key:stageSortKey, dir:stageSortDir };
     return { key:tileSortKey, dir:tileSortDir };
   }
   function setActiveSort(key, dirMaybe){
     if (viewMode === 'list'){
       if (listSortKey === key) listSortDir = dirMaybe || (listSortDir === 'asc' ? 'desc' : 'asc');
       else { listSortKey = key; listSortDir = dirMaybe || (key === 'created_at' ? 'desc' : 'asc'); }
+    } else if (viewMode === 'stages') {
+      if (stageSortKey === key) stageSortDir = dirMaybe || (stageSortDir === 'asc' ? 'desc' : 'asc');
+      else { stageSortKey = key; stageSortDir = dirMaybe || (key === 'created_at' ? 'desc' : 'asc'); }
     } else {
       if (tileSortKey === key) tileSortDir = dirMaybe || (tileSortDir === 'asc' ? 'desc' : 'asc');
       else { tileSortKey = key; tileSortDir = dirMaybe || (key === 'created_at' ? 'desc' : 'asc'); }
@@ -5218,18 +5202,40 @@
     if (key === 'status') return normalizeStr(statusLabel(p));
     return normalizeStr(p[key] || '');
   }
+  function compareProjects(a,b,key,dir){
+    const va=sortableValue(a,key), vb=sortableValue(b,key);
+    const cmp=typeof va === 'number' && typeof vb === 'number' ? va-vb : String(va).localeCompare(String(vb));
+    return dir === 'asc' ? cmp : -cmp;
+  }
+  function tileStageOptions(){
+    const stages=new Map();
+    for (const board of workBoards) for (const column of board.columns || []) {
+      const id=String(column.id || '');
+      if (id && !stages.has(id)) stages.set(id, String(column.title || 'Stage'));
+    }
+    if (!stages.size) for (const column of stageColumnsForProjects(allProjects)) stages.set(String(column.id), column.title);
+    return stages;
+  }
+  function tileStageProjectIds(stageId){
+    const ids=new Set();
+    for (const board of workBoards) for (const column of board.columns || []) {
+      if (String(column.id) !== stageId) continue;
+      for (const card of column.cards || []) ids.add(String(card.project_id || card.project?.id || ''));
+    }
+    if (!workBoards.length) for (const column of stageColumnsForProjects(allProjects)) {
+      if (String(column.id) === stageId) for (const project of column.items) ids.add(String(project.id));
+    }
+    return ids;
+  }
   function applyQueryFilterSort(){
     let arr = allProjects.slice();
     if (hideDrafts) arr = arr.filter((project) => !isDraftProject(project));
+    if (viewMode === 'tiles' && tileStageFilter !== 'all') {
+      const ids=tileStageProjectIds(tileStageFilter);
+      arr=arr.filter((project) => ids.has(String(project.id)));
+    }
     const s = getActiveSort();
-    arr.sort((a,b)=>{
-      const va = sortableValue(a, s.key);
-      const vb = sortableValue(b, s.key);
-      let cmp = 0;
-      if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
-      else cmp = String(va).localeCompare(String(vb));
-      return (s.dir === 'asc') ? cmp : -cmp;
-    });
+    arr.sort((a,b)=>compareProjects(a,b,s.key,s.dir));
     filteredProjects = arr;
     renderResults();
     updateCount();
@@ -5240,14 +5246,7 @@
   }
   function sortedProjectIds(projects){
     const s = getActiveSort();
-    return visibleProjectPool(projects).sort((a,b)=>{
-      const va = sortableValue(a, s.key);
-      const vb = sortableValue(b, s.key);
-      let cmp = 0;
-      if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
-      else cmp = String(va).localeCompare(String(vb));
-      return (s.dir === 'asc') ? cmp : -cmp;
-    }).map(projectStableKey);
+    return visibleProjectPool(projects).sort((a,b)=>compareProjects(a,b,s.key,s.dir)).map(projectStableKey);
   }
   function sameProjectOrder(a, b){
     if (a.length !== b.length) return false;
@@ -5342,7 +5341,7 @@
   function renderPagination(){
     const el = $('#vPagination', panelEl);
     if (!el) return;
-    if (viewMode === 'stages' || viewMode === 'list'){ el.innerHTML = ''; return; }
+    if (viewMode === 'stages' || viewMode === 'list' || tileStageFilter !== 'all'){ el.innerHTML = ''; return; }
     if (totalPages <= 1){ el.innerHTML = ''; return; }
     const btns = [];
     btns.push(`<div class="v-pgbtn${currentPage <= 1 ? ' disabled':''}" data-pg="prev"><i class="fas fa-chevron-left"></i></div>`);
@@ -5412,11 +5411,19 @@
   }
   function enforceDraftsHidden(){
     hideDrafts = true;
-    if (statusFilter === 'draft') {
-      statusFilter = 'all';
-      const statusSel = $('#vStatus', panelEl);
-      if (statusSel) statusSel.value = 'all';
+  }
+  function renderManageViewPanel(){
+    const panel=$('#vManageViewPanel',panelEl);
+    if (!panel) return;
+    if (viewMode === 'list') {
+      panel.innerHTML=`<div class="v-manage-title">List columns</div><div class="v-manage-columns">${LIST_COLUMNS.map((column) => `<label><input type="checkbox" data-list-column="${column.key}" ${listVisibleColumns.has(column.key) ? 'checked' : ''}><span>${column.label}</span></label>`).join('')}</div><div class="v-manage-note">Click a column heading to sort the list.</div>`;
+      return;
     }
+    const sort=getActiveSort();
+    const sorting=`<label class="v-manage-field">Order by<select id="vManageSortKey"><option value="created_at" ${sort.key==='created_at'?'selected':''}>Submitted date</option><option value="address" ${sort.key==='address'?'selected':''}>Address</option><option value="resident" ${sort.key==='resident'?'selected':''}>Contact</option></select></label><button type="button" class="v-btn" id="vManageSortDirection" aria-label="Switch sort direction"><i class="fas fa-arrow-${sort.dir==='asc'?'up':'down'}"></i><span>${sort.dir==='asc'?'Ascending':'Descending'}</span></button>`;
+    const stages=tileStageOptions();
+    const filtering=viewMode==='tiles' ? `<label class="v-manage-field">Stage<select id="vManageStageFilter"><option value="all">All stages</option>${Array.from(stages,([id,title])=>`<option value="${escapeHtml(id)}" ${tileStageFilter===id?'selected':''}>${escapeHtml(title)}</option>`).join('')}</select></label>` : '';
+    panel.innerHTML=`<div class="v-manage-title">${viewMode==='stages'?'Stages':'Tiles'} view</div>${filtering}${sorting}`;
   }
   function updateViewControls(){
     const bT = $('#vViewTiles', panelEl); const bL = $('#vViewList', panelEl); const bS = $('#vViewStages', panelEl);
@@ -5426,23 +5433,18 @@
       bS.hidden = !stagesViewEnabled();
       bS.classList.toggle('active', viewMode === 'stages');
     }
-    const tip = $('#vTip', panelEl);
-    if (tip) tip.style.display = (viewMode === 'list') ? 'block' : 'none';
     const boardSummary = $('#vWorkBoardSummary', panelEl);
     if (boardSummary) boardSummary.classList.toggle('visible', (viewMode === 'stages' || viewMode === 'list') && workBoards.length > 0);
-    const groupingWrap = $('#vListGroupingWrap', panelEl);
-    const groupingSelect = $('#vListGrouping', panelEl);
-    if (groupingWrap) groupingWrap.hidden = viewMode !== 'list';
-    if (groupingSelect) {
-      groupingSelect.value = listGrouping;
-      groupingSelect.querySelector('option[value="stage"]').disabled = activeWorkBoardId === 'all';
-    }
+    renderManageViewPanel();
   }
   function setView(mode, options = {}){
     const previousMode = viewMode;
     viewMode = normalizeViewMode(mode);
-    if (viewMode === 'stages' && activeWorkBoardId === 'all') activeWorkBoardId = String(orderedWorkBoards()[0]?.id || '');
-    if (viewMode === 'stages' || viewMode === 'list') loadWorkBoards().catch(() => null);
+    if (viewMode === 'stages' && activeWorkBoardId === 'all') {
+      activeWorkBoardId = String(orderedWorkBoards()[0]?.id || '');
+      listGrouping = 'stage';
+    }
+    loadWorkBoards().catch(() => null);
     if (options.syncUrl !== false && !window.Portal?.navigation?.applying) syncViewModeToUrl(options);
     updateViewControls();
     syncSortDropdown();
@@ -5466,7 +5468,13 @@
       renderResults();
     }
   }
-  function syncSortDropdown(){ const sel = $('#vSort', panelEl); if (!sel) return; const s = getActiveSort(); sel.value = `${s.key}:${s.dir}`; }
+  function syncSortDropdown(){
+    const s=getActiveSort();
+    const key=$('#vManageSortKey',panelEl);
+    if (key) key.value=s.key;
+    const direction=$('#vManageSortDirection',panelEl);
+    if (direction) direction.innerHTML=`<i class="fas fa-arrow-${s.dir==='asc'?'up':'down'}"></i><span>${s.dir==='asc'?'Ascending':'Descending'}</span>`;
+  }
   function injectSidebarLogout(){
     const footer = document.querySelector('.sidebar-footer');
     if (!footer) return;
@@ -5503,7 +5511,10 @@
     return s.dir === 'asc' ? `<i class="fas fa-sort-up"></i>` : `<i class="fas fa-sort-down"></i>`;
   }
   function renderListShell(){
-    return `<div class="v-list"><div class="v-lhead" id="vListHead"><div class="v-lcell sortable" data-k="status">${(globalThis.PlatformLanguage?.htmlText("projects","m_5b1cdca9bcee11","Status ") ?? "Status ")}<span class="sicon">${String(sortIcon('status'))}</span></div><div class="v-lcell sortable" data-k="address">${(globalThis.PlatformLanguage?.htmlText("projects","m_b1b343667e2302","Address ") ?? "Address ")}<span class="sicon">${String(sortIcon('address'))}</span></div><div class="v-lcell sortable" data-k="resident">${(globalThis.PlatformLanguage?.htmlText("projects","m_af1b50e10cbaa6","Contact ") ?? "Contact ")}<span class="sicon">${String(sortIcon('resident'))}</span></div><div class="v-lcell sortable" data-k="created_at">${(globalThis.PlatformLanguage?.htmlText("projects","m_4bb83270974e09","Submitted ") ?? "Submitted ")}<span class="sicon">${String(sortIcon('created_at'))}</span></div></div><div class="v-lscroll" id="vListScroll"></div></div>`;
+    const columns=LIST_COLUMNS.filter((column)=>listVisibleColumns.has(column.key));
+    const layout=columns.map((column)=>column.width).join(' ');
+    const head=columns.map((column)=>`<div class="v-lcell sortable" data-k="${column.key}">${column.label}<span class="sicon">${sortIcon(column.key)}</span></div>`).join('');
+    return `<div class="v-list" style="--v-list-columns:${layout}"><div class="v-lhead" id="vListHead">${head}</div><div class="v-lscroll" id="vListScroll"></div></div>`;
   }
   function wireListHeaderSort(){
     const head = $('#vListHead', panelEl);
@@ -5592,7 +5603,13 @@
     const expediteTag = projectIsExpedited(p) ? `<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_54ba2332f79022"," Expedited") ?? " Expedited")}</span>` : '';
     const rowTags = `${stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>` : ''}`;
     const statusPill = s ? `<span class="v-statuspill ${s.pill}">${statusBadgeContent(s, true)}</span>` : '';
-    row.innerHTML = `<div class="v-lcell">${statusPill}</div><div class="v-lcell" style="min-width:0;"><div class="v-laddr"><div class="v-laddr1">${escapeHtml(a1)}</div><div class="v-laddr2">${escapeHtml(a2)}</div>${rowTags ? `<div class="v-meta-tags">${rowTags}</div>` : ''}</div></div><div class="v-lcell" style="min-width:0;"><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.displayName || resident.name || '\u2014')}</div><div style="font-weight:850; font-size:11px; color:#777; margin-top:3px;">${escapeHtml((resident.displayDetail || '').toString())}</div></div><div class="v-lcell" data-col="created_at" style="color:#666; font-weight:1000;">${escapeHtml(formatDate(p.created_at))}</div>`;
+    const cells={
+      status:`<div class="v-lcell" data-col="status">${statusPill}</div>`,
+      address:`<div class="v-lcell" data-col="address" style="min-width:0;"><div class="v-laddr"><div class="v-laddr1">${escapeHtml(a1)}</div><div class="v-laddr2">${escapeHtml(a2)}</div>${rowTags ? `<div class="v-meta-tags">${rowTags}</div>` : ''}</div></div>`,
+      resident:`<div class="v-lcell" data-col="resident" style="min-width:0;"><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.displayName || resident.name || '\u2014')}</div><div style="font-weight:850; font-size:11px; color:#777; margin-top:3px;">${escapeHtml((resident.displayDetail || '').toString())}</div></div>`,
+      created_at:`<div class="v-lcell" data-col="created_at" style="color:#666; font-weight:1000;">${escapeHtml(formatDate(p.created_at))}</div>`
+    };
+    row.innerHTML=LIST_COLUMNS.filter((column)=>listVisibleColumns.has(column.key)).map((column)=>cells[column.key]).join('');
     const movable = allowDrag && manualStageMovementEnabled() && canManageProjectStages() && !!p.plan_id && !!p.stage_id;
     row.draggable = movable;
     row.addEventListener('click', ()=>{
@@ -7053,8 +7070,8 @@
     try{
       if (redraw && !_optimisticProjects.length && !allProjects.length){ results.innerHTML = `<div class="v-grid" id="vGrid"><div style="grid-column:1/-1; text-align:center; color:#999; padding:40px 0; font-weight:900;"><i class="fas fa-spinner fa-spin" style="font-size:22px; margin-bottom:10px;"></i><br>${(globalThis.PlatformLanguage?.htmlText("projects","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div>`; }
       const previousVisibleIds = sortedProjectIds(allProjects);
-      const stagesMode = viewMode === 'stages' || viewMode === 'list';
-      const payload = { page: stagesMode ? 1 : currentPage, limit: stagesMode ? 0 : PAGE_SIZE, status_filter: statusFilter || 'all', include_instant_only: '1', view: 'card', hide_drafts: hideDrafts ? '1' : '0' };
+      const stagesMode = viewMode === 'stages' || viewMode === 'list' || (viewMode === 'tiles' && tileStageFilter !== 'all');
+      const payload = { page: stagesMode ? 1 : currentPage, limit: stagesMode ? 0 : PAGE_SIZE, status_filter:'all', include_instant_only: '1', view: 'card', hide_drafts: hideDrafts ? '1' : '0' };
       if (reportSearchQuery.trim()) payload.search = reportSearchQuery.trim();
       const { data } = await postAction('list_projects', payload);
       if (requestSeq !== fetchProjectsSeq) return;
@@ -7111,6 +7128,13 @@
 
   function mount(panel){
     panelEl = panel;
+    try {
+      const saved=JSON.parse(localStorage.getItem(`fm-project-list-columns:${window.__APP?.userOrgId || 'default'}`) || 'null');
+      if (Array.isArray(saved) && saved.some((key)=>LIST_COLUMNS.some((column)=>column.key===key))){
+        listVisibleColumns.clear();
+        saved.filter((key)=>LIST_COLUMNS.some((column)=>column.key===key)).forEach((key)=>listVisibleColumns.add(key));
+      }
+    } catch(error) {}
     injectCSS('viewer', ViewerCSS);
     injectSidebarLogout();
     viewMode = requestedViewMode() || defaultViewMode();
@@ -7120,11 +7144,12 @@
     panelEl.innerHTML = `
       <div class="v-wrap">
         <div class="v-head">
-          <div class="v-title"><h1>${(globalThis.PlatformLanguage?.htmlText("projects","m_1a8d3340c06415","My Projects") ?? "My Projects")}</h1><p class="sub">${(globalThis.PlatformLanguage?.htmlText("projects","m_b898e7a01f3962","Filter and open reports.") ?? "Filter and open reports.")}</p></div>
+          <div class="v-title"><h1>${(globalThis.PlatformLanguage?.htmlText("projects","m_1a8d3340c06415","My Projects") ?? "My Projects")}</h1></div>
           <div class="v-actions">
             <button class="v-btn v-pill" id="vViewStages" hidden><i class="fas fa-table-columns"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_1fae2f2aa8a59c"," Stages") ?? " Stages")}</span></button>
             <button class="v-btn v-pill" id="vViewList"><i class="fas fa-list"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_d9f8d11bfbd0a9"," List") ?? " List")}</span></button>
             <button class="v-btn v-pill" id="vViewTiles"><i class="fas fa-grip"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_073de0eb54464f"," Tiles") ?? " Tiles")}</span></button>
+            <div class="v-manage-wrap" id="vManageViewWrap"><button type="button" class="v-btn v-pill" id="vManageView" aria-label="Manage view" aria-expanded="false" aria-controls="vManageViewPanel"><i class="fas fa-sliders" aria-hidden="true"></i><span class="btn-label">Manage view</span></button><div class="v-manage-panel" id="vManageViewPanel" hidden></div></div>
           </div>
         </div>
         ${String((window.Portal?.appFlags || window.PlatformAPI?.appFlags)?.value?.('platform', 'expanded_access', false) !== true ? `<input id="vReportSearch" class="v-report-search" type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("projects","m_97f68e5486c2f8","Search address, contact…") ?? "Search address, contact…")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_af80d9cead6991","Search projects") ?? "Search projects")}" autocomplete="off">` : '')}
@@ -7133,12 +7158,7 @@
             <div class="v-stages-summary" id="vWorkBoardSummary" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_b87462801059df","Active work board") ?? "Active work board")}"></div>
             <div class="v-count" id="vCount">—</div>
           </div>
-          <div class="v-rightbar">
-            <label class="v-chip v-list-grouping" id="vListGroupingWrap" for="vListGrouping" hidden><i class="fas fa-layer-group"></i><select id="vListGrouping" aria-label="Group list by"><option value="stage">Group by stage</option><option value="board">Group by board</option></select></label>
-            <div class="v-chip" title="${(globalThis.PlatformLanguage?.htmlText("projects","m_79b7b2c4b01ebb","Filter projects by status") ?? "Filter projects by status")}"><i class="fas fa-filter"></i><select id="vStatus" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_79b7b2c4b01ebb","Filter projects by status") ?? "Filter projects by status")}"><option value="all">${(globalThis.PlatformLanguage?.htmlText("projects","m_3dc9c9a4529382","All statuses") ?? "All statuses")}</option><option value="ready">${(globalThis.PlatformLanguage?.htmlText("projects","m_d0dd61f9c0e1d2","Ready") ?? "Ready")}</option><option value="processing">${(globalThis.PlatformLanguage?.htmlText("projects","m_7244c568a68bff","Processing") ?? "Processing")}</option><option value="rejected">${(globalThis.PlatformLanguage?.htmlText("projects","m_61023422d0cb5d","Rejected") ?? "Rejected")}</option><option value="cancelled">${(globalThis.PlatformLanguage?.htmlText("projects","m_9863f11d60b2fa","Cancelled") ?? "Cancelled")}</option></select></div>
-            <div class="v-chip" title="${(globalThis.PlatformLanguage?.htmlText("projects","m_9402b38f071830","Sort projects") ?? "Sort projects")}"><i class="fas fa-arrow-up-wide-short"></i><select id="vSort" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_9402b38f071830","Sort projects") ?? "Sort projects")}"><option value="created_at:desc">${(globalThis.PlatformLanguage?.htmlText("projects","m_20923367c9f84a","Newest first") ?? "Newest first")}</option><option value="created_at:asc">${(globalThis.PlatformLanguage?.htmlText("projects","m_ff649e336c32a9","Oldest first") ?? "Oldest first")}</option><option value="address:asc">${(globalThis.PlatformLanguage?.htmlText("projects","m_7852c02c2473f7","Address A → Z") ?? "Address A → Z")}</option><option value="address:desc">${(globalThis.PlatformLanguage?.htmlText("projects","m_b6517b4f34d553","Address Z → A") ?? "Address Z → A")}</option><option value="resident:asc">${(globalThis.PlatformLanguage?.htmlText("projects","m_7c3998611785d4","Contact A → Z") ?? "Contact A → Z")}</option><option value="resident:desc">${(globalThis.PlatformLanguage?.htmlText("projects","m_1d104147be5bf0","Contact Z → A") ?? "Contact Z → A")}</option><option value="status:asc">${(globalThis.PlatformLanguage?.htmlText("projects","m_6e5ff692711330","Status A → Z") ?? "Status A → Z")}</option><option value="status:desc">${(globalThis.PlatformLanguage?.htmlText("projects","m_6475ed7365aa22","Status Z → A") ?? "Status Z → A")}</option></select></div>
-            <div class="v-tip" id="vTip">${(globalThis.PlatformLanguage?.htmlText("projects","m_6dc2ac8df2a515","Tip: Click a column header to sort.") ?? "Tip: Click a column header to sort.")}</div>
-          </div>
+
         </div>
         <div id="vResults"><div class="v-grid" id="vGrid"><div style="grid-column:1/-1; text-align:center; color:#999; padding:40px 0; font-weight:900;"><i class="fas fa-spinner fa-spin" style="font-size:22px; margin-bottom:10px;"></i><br>${(globalThis.PlatformLanguage?.htmlText("projects","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div></div>
         <div id="vPagination" class="v-pagination"></div>
@@ -7218,21 +7238,41 @@
     $('#vViewTiles', panelEl)?.addEventListener('click', ()=>setView('tiles', { history:'push', source:'projects-view' }));
     $('#vViewList', panelEl)?.addEventListener('click', ()=>setView('list', { history:'push', source:'projects-view' }));
     $('#vViewStages', panelEl)?.addEventListener('click', ()=>setView('stages', { history:'push', source:'projects-view' }));
-    $('#vListGrouping', panelEl)?.addEventListener('change', (event) => {
-      listGrouping = event.target.value === 'board' ? 'board' : 'stage';
-      renderResults();
+    const manageWrap=$('#vManageViewWrap',panelEl);
+    const manageButton=$('#vManageView',panelEl);
+    const managePanel=$('#vManageViewPanel',panelEl);
+    const closeManage=()=>{ managePanel.hidden=true; manageButton.setAttribute('aria-expanded','false'); };
+    manageButton.addEventListener('click',()=>{
+      const opening=managePanel.hidden;
+      managePanel.hidden=!opening;
+      manageButton.setAttribute('aria-expanded',String(opening));
+      if (opening) renderManageViewPanel();
+    });
+    document.addEventListener('click',(event)=>{ if (!manageWrap.contains(event.target)) closeManage(); });
+    managePanel.addEventListener('keydown',(event)=>{ if (event.key==='Escape'){ closeManage(); manageButton.focus(); } });
+    managePanel.addEventListener('change',(event)=>{
+      const column=event.target.dataset.listColumn;
+      if (column){
+        if (event.target.checked) listVisibleColumns.add(column);
+        else if (listVisibleColumns.size>1) listVisibleColumns.delete(column);
+        else event.target.checked=true;
+        try { localStorage.setItem(`fm-project-list-columns:${window.__APP?.userOrgId || 'default'}`,JSON.stringify([...listVisibleColumns])); } catch(error) {}
+        renderResults();
+        return;
+      }
+      if (event.target.id==='vManageStageFilter'){
+        tileStageFilter=event.target.value || 'all';
+        currentPage=1;
+        fetchProjects(true);
+        return;
+      }
+      if (event.target.id==='vManageSortKey') setActiveSort(event.target.value, getActiveSort().dir);
+    });
+    managePanel.addEventListener('click',(event)=>{
+      if (event.target.closest('#vManageSortDirection')) setActiveSort(getActiveSort().key,getActiveSort().dir==='asc'?'desc':'asc');
     });
     window.addEventListener('fm:app-flags:updated', applyStagesViewFlag);
     window.addEventListener('fm:app-flags:failed', applyStagesViewFlag);
-    const statusSel = $('#vStatus', panelEl);
-    statusSel?.addEventListener('change', ()=>{
-      statusFilter = statusSel.value || 'all';
-      enforceDraftsHidden();
-      currentPage = 1;
-      fetchProjects(true);
-    });
-    const sortSel = $('#vSort', panelEl);
-    sortSel?.addEventListener('change', ()=>{ const val = String(sortSel.value||'created_at:desc'); const parts = val.split(':'); setActiveSort(parts[0] || 'created_at', parts[1] || 'desc'); });
     const overlay = $('#vOverlay', panelEl);
     $('#vmX', panelEl).addEventListener('click', closeModal);
     enableSafeBackdropClose(overlay, closeModal);
