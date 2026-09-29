@@ -8,10 +8,11 @@ import path from "node:path";
 test("presence is scoped, deduplicates tabs, streams changes, and expires disconnected sessions", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "view-presence-"));
   process.env.PLATFORM_STORAGE_ROOT = directory;
-  const { attachPresence, presenceRoster } = await import("../platform/presence.js");
+  process.env.PLATFORM_PRESENCE_IDLE_MS = '1000';
+  const { attachPresence, presenceRoster, recordPresenceActivity } = await import("../platform/presence.js");
   const { closeSqlStoresForTests } = await import("../platform/sql_store.js");
   const sockets: EventEmitter[] = [];
-  async function join(orgId: string, scope: string, userId: string) {
+  async function join(orgId: string, scope: string, userId: string, activityAgeMs=0) {
     const raw = new EventEmitter() as any;
     const frames: string[] = [];
     raw.writeHead = () => {};
@@ -19,7 +20,7 @@ test("presence is scoped, deduplicates tabs, streams changes, and expires discon
     raw.end = () => {};
     sockets.push(raw);
     await attachPresence({ headers: {}, raw: { socket: { setTimeout() {}, setNoDelay() {} } } } as any,
-      { raw, hijack() {} } as any, { orgId, scope, userId, name: userId, authorize: async () => {} });
+      { raw, hijack() {} } as any, { orgId, scope, userId, name: userId, activityAgeMs, authorize: async () => {} });
     return { raw, frames };
   }
   try {
@@ -28,7 +29,24 @@ test("presence is scoped, deduplicates tabs, streams changes, and expires discon
     await join("a", "project:2", "Other project");
     await join("b", "project:1", "Other org");
     assert.deepEqual((await presenceRoster("a", "project:1")).map(row => ({ ...row })), [{ user_id: "Bill", name: "Bill" }]);
-    assert.equal((await presenceRoster("a", "online")).length, 2);
+    assert.equal((await presenceRoster("a", "online")).length, 0, 'project viewers do not substitute for global tab presence');
+    const inactiveTab = await join('a','online','Bill',2000);
+    assert.equal((await presenceRoster('a','online'))[0]?.status,'away');
+    const activeTab = await join('a','online','Bill');
+    assert.equal((await presenceRoster('a','online')).length,1);
+    assert.equal((await presenceRoster('a','online'))[0]?.status,'active','activity in any tab wins');
+    activeTab.raw.emit('close');
+    assert.equal((await presenceRoster('a','online'))[0]?.status,'away');
+    const sessionId=JSON.parse(inactiveTab.frames[0]!.split('data: ')[1]!).session_id;
+    assert.equal(await recordPresenceActivity('b','Bill',sessionId),false);
+    assert.equal(await recordPresenceActivity('a','Sam',sessionId),false);
+    assert.equal(await recordPresenceActivity('a','Bill',sessionId),true);
+    assert.equal((await presenceRoster('a','online'))[0]?.status,'active');
+    const realNow=Date.now;
+    try { Date.now=()=>realNow()+1100;assert.equal((await presenceRoster('a','online'))[0]?.status,'away','open tab goes idle without disconnecting'); }
+    finally { Date.now=realNow; }
+    inactiveTab.raw.emit('close');
+    assert.equal((await presenceRoster('a','online')).length,0,'no tabs means offline');
     await join("a", "project:1", "Sam");
     await new Promise(resolve => setTimeout(resolve, 850));
     assert.match(first.frames.at(-1)!, /Sam/);

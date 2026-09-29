@@ -187,7 +187,47 @@
 
   // Each visible surface owns its connection; closing it immediately removes
   // that session without affecting another tab belonging to the same person.
+  const onlineWatches = new Map();
+  let lastActivity = Date.now();
+  function watchOnline(orgId, onChange){
+    let entry = onlineWatches.get(orgId);
+    if (!entry) {
+      entry = {listeners:new Set(), users:[], source:null, session:'', lastSent:0};
+      onlineWatches.set(orgId, entry);
+      entry.connect = () => {
+        if (entry.source || typeof root.EventSource !== 'function') return;
+        const source = entry.source = new EventSource(`${baseUrl()}/organizations/${encodeURIComponent(orgId)}/presence/online?activity_age_ms=${Math.min(604800000,Date.now()-lastActivity)}`, {withCredentials:true});
+        source.addEventListener('session', event => { try { entry.session=JSON.parse(event.data).session_id; } catch (_) {} });
+        source.addEventListener('presence', event => {
+          if (entry.source!==source) return;
+          try { const users=JSON.parse(event.data); if(Array.isArray(users)){entry.users=users;entry.listeners.forEach(listener=>listener(users));} } catch (_) {}
+        });
+        source.onerror = () => { entry.session=''; source.close(); entry.source=null; entry.users=[];entry.listeners.forEach(listener=>listener([])); clearTimeout(entry.retry);entry.retry=setTimeout(entry.connect,3000); };
+      };
+      entry.stop = () => {clearTimeout(entry.retry);entry.source?.close();entry.source=null;entry.session='';};
+      entry.activity = () => {
+        if (!entry.session || Date.now()-entry.lastSent<10000) return;
+        entry.lastSent=Date.now();
+        const cookieName=(APP.platformSessionCookieName || 'fm_platform_session')+'_csrf';
+        const csrf=document.cookie.split('; ').find(value=>value.startsWith(cookieName+'='))?.slice(cookieName.length+1);
+        root.fetch(`${baseUrl()}/organizations/${encodeURIComponent(orgId)}/presence/activity`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',...(csrf?{'x-platform-csrf':decodeURIComponent(csrf)}:{})},body:JSON.stringify({session_id:entry.session})}).catch(()=>{});
+      };
+      root.addEventListener('pagehide',entry.stop);root.addEventListener('pageshow',entry.connect);
+      entry.connect();
+    }
+    entry.listeners.add(onChange);onChange(entry.users);
+    return () => {entry.listeners.delete(onChange);if(!entry.listeners.size){entry.stop();root.removeEventListener('pagehide',entry.stop);root.removeEventListener('pageshow',entry.connect);onlineWatches.delete(orgId);}};
+  }
+  for (const event of ['pointermove','pointerdown','keydown','touchstart','wheel']) document.addEventListener(event,()=>{
+    if(document.hidden)return;lastActivity=Date.now();onlineWatches.forEach(entry=>entry.activity());
+  },{passive:true});
+  let globalPresenceStop=null, globalPresenceOrg='';
+  function startPresence(orgId){
+    orgId=cleanText(orgId);if(orgId===globalPresenceOrg)return;
+    globalPresenceStop?.();globalPresenceOrg=orgId;globalPresenceStop=orgId?watchOnline(orgId,()=>{}):null;
+  }
   function watchPresence(orgId, scope, onChange){
+    if(scope==='online') return watchOnline(orgId,onChange);
     let source = null;
     let disposed = false;
     function stop(){ source?.close(); source = null; onChange([]); }
@@ -214,6 +254,8 @@
     };
   }
 
-  const api = { configure, subscribe, diagnostics, watchPresence };
+  const api = { configure, subscribe, diagnostics, watchPresence, startPresence };
   root.PlatformRealtime = api;
+  startPresence(APP.userOrgId);
+  root.addEventListener('fm:platform-session:updated',event=>startPresence(event.detail?.orgId));
 })();

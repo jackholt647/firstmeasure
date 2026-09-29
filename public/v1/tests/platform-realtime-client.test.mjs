@@ -11,8 +11,8 @@ test('SSE failure immediately polls, refreshes every second and recovers SSE wit
     addEventListener(name,fn){this.listeners[name]=fn;}
     close(){this.closed=true;}
   }
-  const window={EventSource,dispatchEvent(){}};
-  const context=vm.createContext({window,EventSource,console,location:{origin:'https://example.test',hostname:'example.test'},document:{hidden:false},CustomEvent:class {},
+  const window={EventSource,dispatchEvent(){},addEventListener(){}};
+  const context=vm.createContext({window,EventSource,console,location:{origin:'https://example.test',hostname:'example.test'},document:{hidden:false,addEventListener(){}},CustomEvent:class {},
     setTimeout:(fn,ms)=>{timers.set(++timerId,{fn,ms});return timerId;},clearTimeout:id=>timers.delete(id),
     fetch:async url=>{requests.push(url);return {ok:true,json:async()=>({events:[{seq:1,topic:'channels.typing',payload:{typing:true}}],next:1})};}});
   vm.runInContext(await readFile(new URL('../../libraries/platform-realtime/platform-realtime.js',import.meta.url),'utf8'),context);

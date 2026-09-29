@@ -616,6 +616,7 @@
 .fm-ch-tags{display:inline-flex;gap:4px;margin-left:2px}
 .fm-ch-tag{display:inline-flex;align-items:center;gap:4px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#475467;padding:1px 7px;font-size:9px;font-weight:800;letter-spacing:.03em;text-transform:uppercase}
 .fm-ch-audience-note{color:var(--ch-muted);font-size:10px;border:1px solid var(--ch-border);padding:0 6px;border-radius:999px}
+.fm-ch-presence-avatar{position:relative;display:inline-flex;flex:none}.fm-ch-presence-dot{display:inline-block;width:8px;height:8px;margin-left:6px;border-radius:50%;vertical-align:middle}.fm-ch-presence-dot.corner{position:absolute;right:-2px;bottom:-1px;width:10px;height:10px;border:2px solid var(--ch-bg,#fff);margin:0}.fm-ch-icon-btn.voice-active{background:var(--ch-accent-soft,#fee4e2);color:var(--ch-accent,#b42318);box-shadow:inset 0 0 0 1px currentColor}
 .fm-ch-reactions{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .fm-ch-reaction{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--ch-border);background:#fff;border-radius:999px;padding:1px 8px;font-size:12px}
 .fm-ch-reaction:hover{border-color:var(--ch-accent)}
@@ -1142,22 +1143,24 @@
     // --- realtime ------------------------------------------------------------------
 
     let presenceStop = null;
-    let onlineUsers = new Set();
+    let onlineUsers = new Map();
     const presenceInstance = Math.random().toString(36).slice(2);
-    function onlineDot(userId){
-      const online = onlineUsers.has(userId);
-      return `<span data-online-instance="${presenceInstance}" data-online-user="${esc(userId || '')}" role="img" aria-label="${online ? 'Online' : 'Offline'}" title="${online ? 'Online' : 'Offline'}" style="display:inline-block;width:7px;height:7px;margin-left:5px;border-radius:50%;background:#16a34a;vertical-align:middle;${online ? '' : 'visibility:hidden;'}"></span>`;
+    function onlineDot(userId, corner=false){
+      const status=onlineUsers.get(userId), label=status==='active'?'Active':status==='away'?'Away':'Offline';
+      return `<span class="fm-ch-presence-dot${corner?' corner':''}" data-online-instance="${presenceInstance}" data-online-user="${esc(userId || '')}" role="img" aria-label="${label}" title="${label}" style="background:${status==='away'?'#98a2b3':'#16a34a'};visibility:${status?'visible':'hidden'}"></span>`;
     }
     function connectRealtime(){
       if (options.realtime === false || !root.PlatformRealtime) return;
       presenceStop?.();
       presenceStop = root.PlatformRealtime.watchPresence?.(orgId, 'online', users => {
-        onlineUsers = new Set(users.map(user => user.user_id));
+        onlineUsers = new Map(users.map(user => [user.user_id, user.status || 'active']));
         document.querySelectorAll('[data-online-user]').forEach(dot => {
           if (dot.dataset.onlineInstance !== presenceInstance) return;
-          const online = onlineUsers.has(dot.dataset.onlineUser);
+          const status = onlineUsers.get(dot.dataset.onlineUser);
+          const online = !!status;
+          dot.style.background=status==='away'?'#98a2b3':'#16a34a';
           dot.style.visibility = online ? 'visible' : 'hidden';
-          dot.title = online ? 'Online' : 'Offline';
+          dot.title = status === 'active' ? 'Active' : status === 'away' ? 'Away' : 'Offline';
           dot.setAttribute('aria-label', dot.title);
         });
       });
@@ -1358,7 +1361,7 @@
       const isDm = channel.type === 'dm' || channel.type === 'group_dm';
       const label = channel.display_name || channel.name || 'untitled';
       item.innerHTML = `${isDm
-        ? avatarHtml((channel.members || []).find((person) => person.id !== currentUser.id) || { name: label }, 'sm')
+        ? `<span class="fm-ch-presence-avatar">${avatarHtml((channel.members || []).find((person) => person.id !== currentUser.id) || { name: label }, 'sm')}${channel.type === 'dm' ? onlineDot((channel.members || []).find(person => person.id !== currentUser.id)?.id, true) : ''}</span>`
         : `<span class="fm-ch-hash">${channelIcon(channel)}</span>`}
         <span class="fm-ch-side-label">${esc(label)}</span>
         ${muted ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" role="img" aria-label="Muted"><path d="m3 3 18 18M9 5a6 6 0 0 1 9 5v4M6 6v8l-2 3h13M10 21h4"/></svg>' : ''}
@@ -3131,7 +3134,7 @@
     let profilePanel = null;
     const profileWidthObserver = root.ResizeObserver ? new ResizeObserver(() => shell.classList.toggle('fm-ch-profile-narrow', shell.clientWidth <= 680)) : null;
     profileWidthObserver?.observe(shell);
-    const profileSummary = user => `${avatarHtml(user)}<div><strong>${esc(user.name || 'Team member')}</strong>${user.title ? `<span>${esc(user.title)}</span>` : ''}${user.pronouns ? `<small>${esc(user.pronouns)}</small>` : ''}</div>`;
+    const profileSummary = user => `${avatarHtml(user)}<div><strong>${esc(user.name || 'Team member')}${onlineDot(user.id)}</strong>${user.title ? `<span>${esc(user.title)}</span>` : ''}${user.pronouns ? `<small>${esc(user.pronouns)}</small>` : ''}</div>`;
     async function messageProfile(user, button){
       button.disabled = true;
       try {
@@ -3226,7 +3229,7 @@
         queueMicrotask(() => requestTranslation(message, true));
       }
       const head = el('div', 'fm-ch-msg-head', `
-        <button type="button" class="fm-ch-msg-author fm-ch-profile-trigger">${esc(message.author?.name || 'Unknown')}${onlineDot(message.author?.id)}</button>
+        <button type="button" class="fm-ch-msg-author fm-ch-profile-trigger">${esc(message.author?.name || 'Unknown')}</button>
         <span class="fm-ch-msg-time">${esc(fmtTime(message.created_at))}</span>
         ${message.edited_at && features.editHistory ? `<a class="fm-ch-msg-edited" data-act="history">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cd7e9c529b0a41","(edited)") ?? "(edited)")}</a>` : (message.edited_at ? `<span class="fm-ch-msg-edited">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cd7e9c529b0a41","(edited)") ?? "(edited)")}</span>` : '')}
         ${(message.tags || []).map(tagChipHtml).join('')}
@@ -3319,7 +3322,9 @@
         const wrap = el('div', 'fm-ch-reactions');
         for (const reaction of message.reactions) {
           const chip = el('button', `fm-ch-reaction${reaction.reacted ? ' mine' : ''}`, `${esc(reaction.emoji)} ${reaction.count}`);
-          chip.title = (globalThis.PlatformLanguage?.text("channels-ui","m_29b8fde38dbb7a","Toggle reaction") ?? "Toggle reaction");
+          const people = reaction.users || (reaction.user_ids || []).map(id => (state.activeChannel?.members || []).find(user=>user.id===id) || (id===currentUser.id?currentUser:{name:'Former member'}));
+          chip.title = `${people.map(user=>user.name).join(', ') || 'Someone'} reacted with ${reaction.emoji}`;
+          chip.setAttribute('aria-label', chip.title);
           chip.addEventListener('click', () => api.messages.react(orgId, message.id, reaction.emoji, !reaction.reacted).then((data) => replaceMessage(data.message)).catch(showError));
           wrap.appendChild(chip);
         }
@@ -3773,15 +3778,23 @@
         dictateBtn.dataset.voiceMode = 'dictation';
         dictateBtn.title = 'Dictate message';
         dictateBtn.setAttribute('aria-label', dictateBtn.title);
-        let capturing = false;
+        let capturing = false, captureMode='', recorderControl=null;
+        const recordingState = button => control => {
+          recorderControl=control;
+          button.classList.toggle('voice-active',!!control);button.setAttribute('aria-pressed',String(!!control));
+          button.disabled=!control;
+          button.title=control?(button===dictateBtn?'Finish dictation':'Finish recording'):(button===dictateBtn?'Dictate message':'Record an audio note');
+          button.setAttribute('aria-label',button.title);
+        };
         const voiceEditor = textarea;
         dictateBtn.addEventListener('click', async () => {
-          if (capturing) return;
+          if (capturing) { if(captureMode==='dictation') recorderControl?.stop(); return; }
+          captureMode='dictation';
           capturing = true;
           dictateBtn.disabled = audioBtn.disabled = true;
           const channelId = state.activeChannelId;
           try {
-            const prepared = await root.FirstMateAudioNotes.prepareInline(orgId, channelId, { mount:dictationMount, mode:'dictation' });
+            const prepared = await root.FirstMateAudioNotes.prepareInline(orgId, channelId, { mount:dictationMount, mode:'dictation', onRecordingState:recordingState(dictateBtn) });
             if (state.activeChannelId !== channelId || textarea !== voiceEditor || !voiceEditor.isConnected) return;
             voiceEditor.value = [voiceEditor.value, prepared.text].filter(Boolean).join(' ');
             voiceEditor.dispatchEvent(new Event('input', { bubbles:true }));
@@ -3789,13 +3802,18 @@
           } catch (error) {
             if (!String(error?.message || '').toLowerCase().includes('cancelled')) showError(error);
           } finally {
-            capturing = false;
+            capturing = false; recorderControl=null;
+            dictateBtn.classList.remove('voice-active');audioBtn.classList.remove('voice-active');
+            dictateBtn.setAttribute('aria-pressed','false');audioBtn.setAttribute('aria-pressed','false');
+            audioBtn.disabled=!!state.pendingAudioNote;
             dictateBtn.disabled = false;
             audioBtn.disabled = !!state.pendingAudioNote;
           }
         });
         audioBtn.addEventListener('click', async () => {
-          if (capturing || audioBtn.disabled || state.pendingAudioNote || state.editingMessageId) return;
+          if(capturing){if(captureMode==='record')recorderControl?.stop();return;}
+          captureMode='record';
+          if ( audioBtn.disabled || state.pendingAudioNote || state.editingMessageId) return;
           capturing = true;
           dictateBtn.disabled = audioBtn.disabled = true;
           const channelId = state.activeChannelId;
@@ -3810,6 +3828,7 @@
             const prepared = await root.FirstMateAudioNotes.prepareInline(orgId, channelId, {
               mount:audioMount,
               mode:'record',
+              onRecordingState:recordingState(audioBtn),
               onRemove:removeAudio
             });
             if (state.activeChannelId !== channelId || textarea !== voiceEditor || !voiceEditor.isConnected) return;
@@ -3821,7 +3840,10 @@
             if (!String(error?.message || '').toLowerCase().includes('cancelled')) showError(error);
             if (!state.pendingAudioNote) audioBtn.disabled = false;
           } finally {
-            capturing = false;
+            capturing = false; recorderControl=null;
+            dictateBtn.classList.remove('voice-active');audioBtn.classList.remove('voice-active');
+            dictateBtn.setAttribute('aria-pressed','false');audioBtn.setAttribute('aria-pressed','false');
+            audioBtn.disabled=!!state.pendingAudioNote;
             dictateBtn.disabled = false;
           }
         });
@@ -3954,17 +3976,25 @@
         }
       };
       send.addEventListener('click', doSend);
-      schedule?.addEventListener('click', () => {
+      schedule?.addEventListener('click', async () => {
         if (textarea.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
         const text = textarea.value.trim();
         if (!text && !state.pendingAttachments.length) return;
+        if (!root.FirstMateDateTimePicker?.mount) {
+          try { await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/date-time-picker/date-time-picker.js?v=20260929-inline';script.onload=resolve;script.onerror=reject;document.head.append(script);}); }
+          catch (_) { showError(new Error('The scheduling calendar could not load. Please try again.')); return; }
+        }
+        let inlinePicker;
         showModal('Schedule message', (body) => {
           const defaultDate = new Date(Date.now() + 60 * 60_000);
           defaultDate.setMinutes(Math.ceil(defaultDate.getMinutes() / 15) * 15, 0, 0);
-          body.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_3d9611987867da","Send at") ?? "Send at")}</label><input type="datetime-local" data-field="scheduled" value="${String(new Date(defaultDate.getTime() - defaultDate.getTimezoneOffset() * 60000).toISOString().slice(0,16))}">`;
-        }, [{ label:(globalThis.PlatformLanguage?.text("channels-ui","m_fc05a804bd034c","Schedule") ?? "Schedule"), primary:true, onClick:async (close, body) => {
+          body.closest('.fm-ch-modal').style.width='min(680px, calc(100vw - 32px))';
+          body.innerHTML = `<input hidden required aria-label="Scheduled date and time" type="datetime-local" data-field="scheduled" value="${String(new Date(defaultDate.getTime() - defaultDate.getTimezoneOffset() * 60000).toISOString().slice(0,16))}"><div data-schedule-calendar></div>`;
+          inlinePicker=root.FirstMateDateTimePicker.mount(body.querySelector('[data-schedule-calendar]'),body.querySelector('input'));
+          return ()=>inlinePicker?.destroy();
+        }, [{ label:'Schedule send', primary:true, onClick:async (close, body) => {
           try {
-            const date = new Date(body.querySelector('[data-field=scheduled]')?.value);
+            const date = new Date(inlinePicker?.readValue() || '');
             if (!Number.isFinite(date.getTime()) || date.getTime() <= Date.now()) throw new Error('Choose a future date and time.');
             const scheduledResult = await api.scheduled.create(orgId, {
               channel_id:state.activeChannelId,

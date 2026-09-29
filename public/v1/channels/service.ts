@@ -567,7 +567,7 @@ function hydrateMessage(
     text: message.text,
     mention_users: message.mention_users,
     metadata: message.metadata,
-    reactions: [...reactionSummary.values()],
+    reactions: [...reactionSummary.values()].map(reaction => ({...reaction, users: reaction.user_ids.map(id => ({id, name: helpers.directory.get(id)?.name || 'Former member'}))})),
     attachments: helpers.attachments.get(message.id) ?? []
   };
 }

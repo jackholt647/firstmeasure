@@ -1,7 +1,7 @@
 /* FirstMate date/time picker. No dependencies; original inputs own values and validation. */
 (function () {
   'use strict';
-  if (window.FirstMateDateTimePicker) return;
+  if (window.FirstMateDateTimePicker?.version >= 2) return;
   const selector = 'input:is([type="date"],[type="time"],[type="datetime-local"]):not([data-native-picker])';
   const pad = n => String(n).padStart(2, '0');
   const dateKey = d => `${String(d.getFullYear()).padStart(4, '0')}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -38,7 +38,7 @@
     if (restore && input.isConnected) input.focus({ preventScroll: true });
   }
   function position() {
-    if (!active) return;
+    if (!active || active.inline) return;
     const { input, host, shadow } = active;
     const box = input.getBoundingClientRect(), size = shadow.querySelector('.picker').getBoundingClientRect();
     const viewport = window.visualViewport;
@@ -47,7 +47,7 @@
     host.style.setProperty('left', `${Math.max(left + 12, Math.min(box.left, left + width - size.width - 12))}px`, 'important');
     host.style.setProperty('top', `${Math.max(top + 12, Math.min(box.bottom + 8 + size.height <= top + height ? box.bottom + 8 : box.top - size.height - 8, top + height - size.height - 12))}px`, 'important');
   }
-  function open(input) {
+  function open(input, options = {}) {
     if (!(input instanceof HTMLInputElement) || !input.matches(selector) || input.matches(':disabled') || input.readOnly) return;
     if (active?.input === input) return;
     close(false);
@@ -60,7 +60,7 @@
     const fractional = seconds && (input.step === 'any' || (Number(input.step) > 0 && Number(input.step) < 1) || chosenTime.includes('.'));
     const hour12 = new Intl.DateTimeFormat(locale(), { hour:'numeric' }).resolvedOptions().hour12;
     const host = document.createElement('fm-date-time-picker');
-    host.setAttribute('popover', 'manual');
+    if (!options.mount) host.setAttribute('popover', 'manual');
     // The shadow root isolates styles, so carry the app's global font into it.
     host.style.setProperty('--fm-picker-font', getComputedStyle(document.body).fontFamily);
     const theme = getComputedStyle(input);
@@ -73,16 +73,17 @@
     const observer = new MutationObserver(() => {
       if (!input.isConnected || input.matches(':disabled') || input.readOnly || input.type !== kind || input.closest('dialog:not([open])')) close(false);
     });
-    active = { input, host, shadow, observer };
-    (input.closest('dialog,[role="dialog"]') || document.body).append(host);
-    if (host.showPopover) host.showPopover();
+    active = { input, host, shadow, observer, inline:!!options.mount };
+    (options.mount || input.closest('dialog,[role="dialog"]') || document.body).append(host);
+    if (!options.mount && host.showPopover) host.showPopover();
     input.setAttribute('aria-expanded','true');
     const candidate = () => kind === 'date' ? chosenDate : kind === 'time' ? chosenTime : `${chosenDate}T${chosenTime}`;
     function commit(value) {
       if (!valid(input, value)) { shadow.querySelector('.error').textContent = text('Choose a value within the allowed range and time interval.'); return; }
       const changed = input.value !== value;
       input.value = value;
-      close();
+      if (!options.mount) close();
+      else render();
       if (changed) { input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); }
     }
     function render(focusDate) {
@@ -127,6 +128,10 @@
       const custom = hasTime ? `<details><summary>${text('Custom time')}</summary><div class="time"><label>${text('Hour')}<input data-time="hour" type="number" min="${hour12?1:0}" max="${hour12?12:23}" value="${hour12?Number(h)%12||12:Number(h)}"></label><span>:</span><label>${text('Minute')}<input data-time="minute" type="number" min="0" max="59" value="${m}"></label>${seconds?`<span>:</span><label>${text('Second')}<input data-time="second" type="number" min="0" max="59.999" step="${fractional?'0.001':'1'}" value="${s}"></label>`:''}${hour12?`<button type="button" class="period" data-period aria-label="${text('Toggle AM/PM')}">${Number(h)>=12?'PM':'AM'}</button>`:''}</div></details>` : '';
       const customOpen = shadow.querySelector('details')?.open;
       shadow.innerHTML = `<style>${css}</style><div class="picker ${hasDate&&hasTime?'combined':''}" role="dialog" aria-label="${esc(name)}"><div class="heading"><strong>${text(hasDate?hasTime?'Select date & time':'Choose date':'Choose time')}</strong><button type="button" data-close aria-label="${text('Close picker')}">×</button></div><div class="layout">${hasDate?`<section class="calendar">${calendar}</section>`:''}${times}</div>${custom}<div class="error" role="alert"></div><div class="footer"><button type="button" data-clear ${input.required?'disabled':''}>${text('Clear')}</button><span class="spacer"></span><button type="button" data-close>${text('Cancel')}</button><button type="button" class="primary" data-apply>${text('Apply')}</button></div></div>`;
+      if (options.mount) {
+        shadow.querySelector('style').textContent += ':host{position:static!important;display:block;z-index:auto!important}.picker{width:100%!important;max-width:none;max-height:none;box-shadow:none;border:0;padding:0}.heading,.footer{display:none}';
+        shadow.querySelector('.picker').setAttribute('role','group');
+      }
       if (customOpen) shadow.querySelector('details').open = true;
       const slots = shadow.querySelector('.slots');
       const selected = slots?.querySelector('[aria-pressed="true"]:not(:disabled)') || slots?.querySelector('button:not(:disabled)');
@@ -153,7 +158,7 @@
       if (b.dataset.slot) { chosenTime=b.dataset.slot; commit(candidate()); return; }
       if (!readTime()) return;
       if (b.hasAttribute('data-apply')) { commit(candidate()); return; }
-      if (b.dataset.date) { chosenDate = b.dataset.date; month = localDate(chosenDate); month.setDate(1); render(chosenDate); return; }
+      if (b.dataset.date) { chosenDate = b.dataset.date; month = localDate(chosenDate); month.setDate(1); if(options.mount) commit(candidate()); render(chosenDate); return; }
       if (b.dataset.month) { month.setMonth(month.getMonth()+Number(b.dataset.month)); render(); shadow.querySelector(`[data-month="${b.dataset.month}"]`).focus(); return; }
       if (b.dataset.offset) { const d = new Date(now); d.setDate(d.getDate()+Number(b.dataset.offset)); chosenDate = dateKey(d); month = localDate(chosenDate); month.setDate(1); render(chosenDate); return; }
       if (b.hasAttribute('data-period')) { const [h,...rest] = chosenTime.split(':'); chosenTime = [pad((Number(h)+12)%24),...rest].join(':'); }
@@ -161,11 +166,12 @@
       shadow.querySelector(b.hasAttribute('data-period')?'[data-period]':`[data-slot="${b.dataset.slot}"]`)?.focus();
     });
     shadow.addEventListener('change', event => {
+      if(options.mount && event.target.matches('[data-time]') && readTime()) commit(candidate());
       if (event.target.matches('.year') && event.target.validity.valid && event.target.value && readTime()) { month.setFullYear(Number(event.target.value)); render(); shadow.querySelector('.year').focus(); }
     });
     shadow.addEventListener('keydown', event => {
-      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); return; }
-      if (event.key === 'Tab') {
+      if (event.key === 'Escape') { if(options.mount)return; event.preventDefault(); event.stopPropagation(); close(); return; }
+      if (event.key === 'Tab' && !options.mount) {
         const list = [...shadow.querySelectorAll('button:not(:disabled):not([tabindex="-1"]),input:not(:disabled),summary')].filter(el=>el.getClientRects().length);
         const index = list.indexOf(shadow.activeElement);
         if (event.shiftKey && index === 0 || !event.shiftKey && index === list.length-1) { event.preventDefault(); (event.shiftKey?list.at(-1):list[0]).focus(); }
@@ -189,6 +195,7 @@
     render();
     (shadow.querySelector('[data-date][tabindex="0"]:not(:disabled)') || shadow.querySelector('[data-slot][tabindex="0"]') || shadow.querySelector('button')).focus();
     observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled','readonly','type','open']});
+    return { readValue: () => readTime() ? candidate() : '', destroy: () => { if(active?.host===host)close(false); } };
   }
   // Observe only insertions and type changes; no per-field handlers or polling.
   function enhance(node) {
@@ -210,15 +217,15 @@
   document.addEventListener('click', event => {
     const input = event.target.closest?.(selector);
     if (input && !input.matches(':disabled') && !input.readOnly) { event.preventDefault(); open(input); }
-    else if (active && !event.composedPath().includes(active.host)) close(false);
+    else if (active && !active.inline && !event.composedPath().includes(active.host)) close(false);
   }, true);
   document.addEventListener('keydown', event => {
     if (event.target.matches?.(selector) && (event.key === ' ' || event.key === 'F4' || event.key === 'ArrowDown' && event.altKey)) { event.preventDefault(); open(event.target); }
   }, true);
-  document.addEventListener('focusin', event => { if (active && event.target !== active.input && !event.composedPath().includes(active.host)) close(false); });
+  document.addEventListener('focusin', event => { if (active && !active.inline && event.target !== active.input && !event.composedPath().includes(active.host)) close(false); });
   document.addEventListener('reset', () => close(false), true);
   window.addEventListener('resize', position);
   window.addEventListener('scroll', position, true);
   window.visualViewport?.addEventListener('resize', position);
-  window.FirstMateDateTimePicker = Object.freeze({open,close,version:1});
+  window.FirstMateDateTimePicker = Object.freeze({open,close,mount:(container,input)=>open(input,{mount:container}),version:2});
 })();

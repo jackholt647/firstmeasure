@@ -252,6 +252,7 @@
       } catch (error) {}
 
       const cleanup = () => {
+        options.onRecordingState?.(null);
         root.clearInterval(timer);
         root.cancelAnimationFrame(animation);
         stream?.getTracks?.().forEach((track) => track.stop());
@@ -314,6 +315,7 @@
       });
 
       recorder.start(250);
+      options.onRecordingState?.({ stop: () => { if (recorder.state !== 'inactive') recorder.stop(); } });
       timer = root.setInterval(() => {
         const elapsed = (Date.now() - startedAt) / 1000;
         clock.textContent = formatTime(elapsed);
@@ -362,6 +364,7 @@
       let animation = 0;
       let timer = 0;
       const cleanup = () => {
+        options.onRecordingState?.(null);
         root.clearInterval(timer);
         root.cancelAnimationFrame(animation);
         stream?.getTracks?.().forEach((track) => track.stop());
@@ -443,6 +446,7 @@
         mount.querySelector('.fm-an-inline-review-action.approve')?.addEventListener('click', () => finishReview(true));
       });
       recorder.start(250);
+      options.onRecordingState?.({ stop: () => { if (recorder.state !== 'inactive') recorder.stop(); } });
       timer = root.setInterval(() => {
         const elapsed = (Date.now() - startedAt) / 1000;
         clock.textContent = formatTime(elapsed);

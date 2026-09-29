@@ -63,6 +63,31 @@ try {
   await page.evaluate(() => window.instance = FirstMateChannels.create(document.querySelector('#app'), window.testOptions));
   console.log('Channels mounted');
   await page.evaluate(() => {
+    testChannel.type='dm';testMessages[0].reactions=[{emoji:'🔥',count:2,user_ids:['guest','owner'],users:[{id:'guest',name:'Jordan Ellis'},{id:'owner',name:'Morgan Lee'}]}];
+    window.PlatformRealtime={watchPresence:(_org,_scope,callback)=>{window.statusRoster=callback;return ()=>{};},subscribe:()=>()=>{}};
+    const mount=document.createElement('div');mount.id='status-check';mount.style='position:fixed;inset:0;z-index:99999;background:white';document.body.append(mount);
+    window.statusInstance=FirstMateChannels.create(mount,{...testOptions,realtime:true});
+  });
+  const statusRoot=page.locator('#status-check');
+  await statusRoot.locator('.fm-ch-msg').first().waitFor();
+  await page.evaluate(()=>statusRoster([{user_id:'guest',status:'active'}]));
+  const dot=statusRoot.locator('.fm-ch-side-row .fm-ch-presence-dot');
+  assert.equal(await dot.getAttribute('aria-label'),'Active');
+  assert.equal(await dot.evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(22, 163, 74)');
+  assert.equal(await statusRoot.locator('.fm-ch-msg [data-online-user]').count(),0);
+  await statusRoot.locator('.fm-ch-msg-author').first().click();
+  assert.equal(await page.locator('.fm-ch-profile-card [data-online-user]').getAttribute('aria-label'),'Active');
+  await page.keyboard.press('Escape');
+  await page.evaluate(()=>statusRoster([{user_id:'guest',status:'away'}]));
+  assert.equal(await dot.getAttribute('aria-label'),'Away');
+  assert.equal(await dot.evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(152, 162, 179)');
+  await statusRoot.locator('.fm-ch-reaction').hover();
+  assert.equal(await statusRoot.locator('.fm-ch-reaction').getAttribute('title'),'Jordan Ellis, Morgan Lee reacted with 🔥');
+  await page.evaluate(()=>statusRoster([]));assert.equal(await dot.evaluate(node=>getComputedStyle(node).visibility),'hidden');
+  await page.screenshot({path:path.join(output,'presence-reaction-followup.png')});
+  await page.evaluate(()=>{statusInstance.destroy();document.querySelector('#status-check').remove();delete window.PlatformRealtime;testChannel.type='public';testMessages[0].reactions=[];});
+  console.log('PASS DM corner status, profile status, no message dots, active/away/offline and named reaction tooltip');
+  await page.evaluate(() => {
     window.typingSent = [];
     ChannelsAPI.typing = {note:async(_org,id,typing)=>typingSent.push({id,typing,time:performance.now()})};
     instance.setFeatures({typing:true});
@@ -302,7 +327,10 @@ try {
   const scheduleValue = await page.locator('[data-field=scheduled]').inputValue();
   const scheduledDelay = await page.evaluate(value => new Date(value).getTime() - Date.now(), scheduleValue);
   assert.ok(scheduledDelay >= 55 * 60000 && scheduledDelay <= 76 * 60000, 'picker represents a local time about one hour ahead');
-  await page.getByRole('button',{name:'Schedule',exact:true}).click();
+  assert.equal(await page.locator('[data-field=scheduled]').isVisible(),false);
+  assert.ok(await page.locator('fm-date-time-picker').getByRole('group',{name:'Calendar',exact:true}).isVisible());
+  await page.locator('fm-date-time-picker').locator('[data-date][aria-pressed=true]').click();
+  await page.getByRole('button',{name:'Schedule send',exact:true}).click();
   assert.equal(await page.evaluate(()=>scheduled.length),1);
   await page.locator('.fm-ch-scheduled-message').waitFor();
   assert.match(await page.locator('.fm-ch-scheduled-message').innerText(),/Only visible to you/);

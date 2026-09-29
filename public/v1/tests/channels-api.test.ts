@@ -356,7 +356,9 @@ test("reactions toggle on and off", async () => {
   const posted = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${general.id}/messages`, { text: "React to me" });
 
   const reacted = await owner.request("PUT", `/v1/channels/organizations/${orgId}/messages/${posted.message.id}/reactions`, { emoji: "🔥", on: true });
-  assert.deepEqual(reacted.message.reactions, [{ emoji: "🔥", count: 1, user_ids: [userId], reacted: true }]);
+  assert.deepEqual(reacted.message.reactions.map(({users,...reaction}:any)=>reaction), [{ emoji: "🔥", count: 1, user_ids: [userId], reacted: true }]);
+  assert.equal(reacted.message.reactions[0].users[0].id,userId);
+  assert.ok(reacted.message.reactions[0].users[0].name);
 
   const removed = await owner.request("PUT", `/v1/channels/organizations/${orgId}/messages/${posted.message.id}/reactions`, { emoji: "🔥", on: false });
   assert.deepEqual(removed.message.reactions, []);

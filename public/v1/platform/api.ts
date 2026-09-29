@@ -153,7 +153,7 @@ import { attachRealtimeConnection, pollRealtimeEvents } from "./realtime.js";
 import { organizationUserProfileFields, organizationUserProfileView } from "./user_profile.js";
 import { runTerminologyAgent } from "./terminology_agent.js";
 import { activeResourceGroupIdsForUser, assignedProjectIdsForUser } from "../workforce/assignment_scope.js";
-import { attachPresence, closePresenceStreams } from "./presence.js";
+import { attachPresence, closePresenceStreams, recordPresenceActivity } from "./presence.js";
 import { assignmentPolicyForEventType } from "../workforce/assignability.js";
 import { resolveAssignableSubjects } from "../workforce/service.js";
 import { checklistAudioProcessor, reconcileChecklistAudioOperations } from "../audio-structure/checklist.js";
@@ -2685,11 +2685,17 @@ app.get("/auth/google/config", async () => ({
     }));
   });
 
+  app.post("/organizations/:orgId/presence/activity", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, application: false, csrf: true });
+    const body = z.object({ session_id: z.string().uuid() }).strict().parse(request.body);
+    return { ok: await recordPresenceActivity(orgId, ctx.userId, body.session_id) };
+  });
   app.get("/organizations/:orgId/presence/:scopeId", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
     const scopeId = getParam(request.params, "scopeId");
     const authorize = async () => {
-      const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"], ...(scopeId === "online" ? { capability: "apps.channels" } : {}) });
+      const ctx = await requirePlatformAuth(request, { orgId, application: scopeId === "online" ? false : ["management", "field"] });
       if (scopeId !== "online") {
         if (!scopeId.startsWith("project:")) throw badRequest("invalid_presence_scope", "Unknown presence scope.");
         const projectId = scopeId.slice(8);
@@ -2702,6 +2708,7 @@ app.get("/auth/google/config", async () => ({
     };
     const ctx = await authorize();
     await attachPresence(request, reply, { orgId, scope: scopeId, userId: ctx.userId,
+      activityAgeMs: z.object({ activity_age_ms: z.coerce.number().min(0).max(604800000).optional() }).parse(request.query || {}).activity_age_ms,
       name: String(ctx.user.name || ctx.identity.name || "Teammate"), authorize });
   });
 

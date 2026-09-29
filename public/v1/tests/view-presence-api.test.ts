@@ -27,6 +27,13 @@ test("presence requires authentication and organization access, and streams the 
     await enableExpandedPlatformFixture(org);
     const cookies = registration.headers["set-cookie"];
     const cookie = (Array.isArray(cookies) ? cookies : [cookies || ""]).map(value => value.split(";")[0]).join("; ");
+    const activityUrl=`/v1/platform/organizations/${org}/presence/activity`;
+    const payload={session_id:'00000000-0000-4000-8000-000000000000'};
+    assert.equal((await app.inject({method:'POST',url:activityUrl,payload})).statusCode,401);
+    assert.equal((await app.inject({method:'POST',url:activityUrl,payload,headers:{cookie}})).statusCode,403);
+    const csrf=decodeURIComponent(cookie.split('; ').find(value=>value.startsWith('fm_platform_session_csrf='))!.split('=')[1]!);
+    const activity=await app.inject({method:'POST',url:activityUrl,payload,headers:{cookie,'x-platform-csrf':csrf}});
+    assert.equal(activity.statusCode,200,activity.body);assert.equal(activity.json().ok,false,'cannot create presence with an activity request');
     await upsertDocument(org, "projects", { id: "project_presence", data: { title: "Presence" } });
     const url = `/v1/platform/organizations/${org}/presence/project%3Aproject_presence`;
     assert.equal((await app.inject({ method: "GET", url })).statusCode, 401);
