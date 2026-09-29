@@ -1,0 +1,13 @@
+# Also send thread replies to the channel — September 29
+
+Release `72277b85f15f8ce8486029593149e8fda26c7563` is pushed and active on both development web nodes, compatibility and worker. Production is unchanged.
+
+The thread composer has an unchecked Also send to channel option. Selecting it makes the same reply visible in the channel timeline with an author-labelled Replied to a thread link to the original thread. It resets after sending and is hidden while editing. Silent thread refreshes preserve the current composer, draft and selection. Thread actions on a broadcast open the original thread.
+
+The server validates the parent and writes a reserved broadcast flag. A single message ID owns edits, reactions, attachments, deletion and restoration in both views. Ordinary replies remain thread-only. Channel timeline queries and unread counts include broadcast replies without requiring a thread subscription. Client-supplied metadata cannot forge the flag; repeat client message IDs still deduplicate. SQLite and PostgreSQL use explicit JSON predicates, with no schema migration.
+
+Validation passed: TypeScript check, JavaScript syntax, diff check, all 33 Channels API/inbox tests, and a browser harness locally and against dev-served assets. API coverage includes normal replies, canonical thread roots, deduplication, access rejection, invalid broadcasts, unread/read transitions, edits, reactions, tombstones/restoration and attachment-only broadcasts. Browser checks cover the unchecked default, opt-in send, reset, one entry per view, thread navigation and preserving the draft/checkbox during incoming replies; screenshots were reviewed. PostgreSQL storage functions passed timeline, thread, pagination and unread checks against temporary tables within a rolled-back transaction. No real user messages were created by these checks.
+
+The immutable release overlays the shared Channels UI, bundle manifest and three Channels backend modules plus their compiled output. Source baselines matched for all changed backend modules; the worker's older frontend was preserved. All four roles passed source hashes, readiness and development-isolation checks. Two public asset hashes and six public readiness responses matched.
+
+Rollback predecessors: web, pool and compatibility `f973fc17bf8a6a5cb2c145212a6844371bc1fd1b`; worker `b7a178b0e736f87e70c236f158eb0fdffcd457d8`. Check for intervening releases, use the existing atomic symlink/service workflow, and verify public readiness between web nodes. Rolling back hides broadcast replies from the timeline but leaves them in their threads. Evidence is under ignored `output/channels-thread-broadcast-20260929/`. The existing autoscale replacement-image limitation remains.
