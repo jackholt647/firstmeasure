@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 scheduling polish: [Header filters, Timeline and project parity](deploy/digitalocean/development-scheduling-polish-20260929.md) records the development-only four-file frontend release, browser verification against hosted scripts and rollback.
+
 September 29 compact notification UI: [Grouped state buttons and inline Advanced](deploy/digitalocean/development-notification-compact-20260929.md) records the development-only UI update and hosted browser verification.
 
 September 29 notification controls: [Messaging, Silent/Alerting and Advanced placement](deploy/digitalocean/development-notification-controls-20260929.md) records the development rollout, browser/API checks and rollback.
