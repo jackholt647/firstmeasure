@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 Channels quotes: [Preserve multiline quote formatting when sending](deploy/digitalocean/development-channels-quotes-20260929.md) records the development rollout, blank-line and quote-boundary regression checks, hosted browser verification and rollback.
+
 September 29 Channels people picker: [Compact searchable multi-select and clear list icons](deploy/digitalocean/development-channels-people-20260929.md) records the development rollout, 500-user browser verification, mobile checks and rollback.
 
 September 29 Channels settings: [Open settings within Channels with Back](deploy/digitalocean/development-channels-settings-20260929.md) records the development-only embedded settings flow, draft preservation, browser verification and rollback.
