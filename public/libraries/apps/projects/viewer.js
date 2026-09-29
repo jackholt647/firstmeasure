@@ -452,7 +452,6 @@
     .v-statuspill{display:inline-flex; align-items:center; gap:8px; padding:7px 10px; border-radius:999px; font-weight:1000; font-size:11px; letter-spacing:.3px; text-transform:uppercase; width:fit-content}
     .v-statuspill i,.v-badge i{font-size:.95em}
     .v-stages-shell{height:100%; min-height:0; display:flex; flex-direction:column; gap:10px; padding-bottom:0}
-    .v-stage-move-hint{display:flex;align-items:center;gap:7px;align-self:flex-start;border:1px solid #dbe7f4;border-radius:999px;background:#f4f8fc;color:#46627d;padding:6px 10px;font-size:10px;font-weight:900}.v-stage-move-hint i{color:#1769aa}.v-stage-move-hint strong{color:#27445f}
     .v-mobile-stage-switcher{display:none}
     .v-stages-summary{position:relative;display:none;align-items:center;min-width:190px;height:40px;box-sizing:border-box;border:1px solid color-mix(in srgb,var(--board-color,#4f7cac) 30%,#dce2e8);border-left:5px solid var(--board-color,#4f7cac);border-radius:10px;background:color-mix(in srgb,var(--board-color,#4f7cac) 8%,#fff);white-space:nowrap}
     .v-stages-summary.visible{display:inline-flex}.v-board-trigger{appearance:none;border:0;background:transparent;color:color-mix(in srgb,var(--board-color,#4f7cac) 78%,#17212b);width:100%;height:100%;min-width:0;padding:0 7px 0 10px;border-radius:7px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:inherit;font-size:14px;font-weight:1000;line-height:1;letter-spacing:0;cursor:pointer;outline:none}.v-board-trigger:hover{background:color-mix(in srgb,var(--board-color,#4f7cac) 9%,transparent)}.v-board-trigger:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--board-color,#4f7cac) 22%,transparent)}.v-board-trigger-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:1000}.v-board-trigger-icon{width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1px solid color-mix(in srgb,var(--board-color,#4f7cac) 24%,#d4dae1);color:var(--board-color,#4f7cac);font-size:10px;box-shadow:0 1px 2px rgba(15,23,42,.05);transition:transform .16s ease;flex:0 0 auto}.v-board-trigger[aria-expanded="true"] .v-board-trigger-icon{transform:rotate(180deg)}
@@ -4821,7 +4820,6 @@
   function renderStagesShell(){
     return `
       <div class="v-stages-shell">
-        ${String(manualStageMovementEnabled() && canManageProjectStages() ? `<div class="v-stage-move-hint"><i class="fas fa-arrows-left-right"></i><strong>${(globalThis.PlatformLanguage?.htmlText("projects","m_f86eb4b8f9ea2c","Manual movement is on") ?? "Manual movement is on")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_fe74e5ffd55b04","Drag a project card to another stage.") ?? "Drag a project card to another stage.")}</span></div>` : '')}
         <div class="v-mobile-stage-switcher" id="vMobileStageSwitcher" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_46cdcd4517ac63","Project stages") ?? "Project stages")}"></div>
         <div class="v-stages-board" id="vStagesBoard"></div>
       </div>

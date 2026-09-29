@@ -82,7 +82,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
       access: managementAccess,
-      bundles: [versionedBundle('projects/viewer.js', '20260725-project-board-order-memory')]
+      bundles: [versionedBundle('projects/viewer.js', '20260929-project-stage-space')]
     },
     {
       id: 'portal.contacts',
