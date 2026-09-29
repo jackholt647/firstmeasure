@@ -166,12 +166,33 @@
           i++;
         }
         blocks.push(table);
-      } else if (/^\s*([-*] |\d+\. )/.test(line)) {
-        const ordered = /^\s*\d+\./.test(line);
-        const pattern = ordered ? /^\s*\d+\. / : /^\s*[-*] /;
-        let items = `<li>${inline(line.replace(pattern, ''))}</li>`;
-        while (i + 1 < lines.length && pattern.test(lines[i + 1])) items += `<li>${inline(lines[++i].replace(pattern, ''))}</li>`;
-        blocks.push(`<${ordered ? 'ol' : 'ul'}>${items}</${ordered ? 'ol' : 'ul'}>`);
+      } else if (/^[ \t]*([-*] |\d+\. )/.test(line)) {
+        const listLine = value => {
+          const match = /^([ \t]*)([-*]|\d+\.) (.*)$/.exec(value || '');
+          return match && { indent:match[1].replace(/\t/g, '  ').length, tag:/\d/.test(match[2]) ? 'ol' : 'ul', text:match[3] };
+        };
+        let cursor = i;
+        const listHtml = (indent, tag, depth = 0) => {
+          let html = `<${tag}>`;
+          while (cursor < lines.length) {
+            const item = listLine(lines[cursor]);
+            if (!item || item.indent !== indent || item.tag !== tag) break;
+            html += `<li>${inline(item.text)}`; cursor++;
+            while (cursor < lines.length) {
+              const next = listLine(lines[cursor]);
+              if (next && next.indent > indent && depth < 16) { html += listHtml(next.indent, next.tag, depth + 1); continue; }
+              if (!next && lines[cursor].trim() && /^[ \t]+/.test(lines[cursor]) && lines[cursor].match(/^[ \t]*/)[0].replace(/\t/g, '  ').length > indent) {
+                html += '<br>' + inline(lines[cursor].trimStart()); cursor++; continue;
+              }
+              break;
+            }
+            html += '</li>';
+          }
+          return html + `</${tag}>`;
+        };
+        const first = listLine(line);
+        blocks.push(listHtml(first.indent, first.tag));
+        i = cursor - 1;
       } else if (/^>(?: |$)/.test(line)) {
         const quoted = [line.replace(/^> ?/, '')];
         while (i + 1 < lines.length && /^>(?: |$)/.test(lines[i + 1])) quoted.push(lines[++i].replace(/^> ?/, ''));
@@ -331,7 +352,21 @@
         const widths = [...node.rows[0]?.cells || []].map((cell, index) => parseFloat(cell.style.width || node.querySelectorAll('col')[index]?.style.width) || 0);
         return '\n' + rows.join('\n') + (widths.length && widths.every(Boolean) ? '\n<!--fm-table-widths:' + widths.join(',') + '-->' : '') + '\n';
       }
-      if (tag === 'LI') return (node.parentElement.tagName === 'OL' ? `${[...node.parentElement.children].indexOf(node) + 1}. ` : '- ') + children().trim() + '\n';
+      if (tag === 'UL' || tag === 'OL') {
+        const listText = (list, depth = 0) => {
+          let text = '', number = Number(list.getAttribute('start')) || 1;
+          const indent = '  '.repeat(depth);
+          for (const item of list.children) {
+            if (item.matches('ul,ol')) { text += listText(item, depth + 1); continue; }
+            if (item.tagName !== 'LI') continue;
+            const content = [...item.childNodes].filter(child => !['UL','OL'].includes(child.tagName)).map(serialize).join('').trim();
+            text += indent + (list.tagName === 'OL' ? `${number++}. ` : '- ') + content.replace(/\n/g, '\n' + indent + '  ') + '\n';
+            for (const nested of item.children) if (nested.matches('ul,ol')) text += listText(nested, depth + 1);
+          }
+          return text;
+        };
+        return listText(node);
+      }
       if (tag === 'BLOCKQUOTE') {
         let content = children();
         if (blockTags.has(node.lastChild?.tagName) && content.endsWith('\n')) content = content.slice(0, -1);
@@ -376,6 +411,17 @@
     });
     editor.addEventListener('keydown', event => {
       const selection = root.getSelection();
+      if (event.defaultPrevented || event.isComposing) return;
+      const anchor = selection?.anchorNode?.nodeType === 1 ? selection.anchorNode : selection?.anchorNode?.parentElement;
+      if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey && anchor?.closest('li') && editor.contains(anchor)) {
+        // Mention completion gets first refusal before changing list depth.
+        const mentions = document.getElementById('fmMentionMenu');
+        if (mentions?.classList.contains('visible') && mentions._mentionOwner === editor) return;
+        event.preventDefault();
+        document.execCommand(event.shiftKey ? 'outdent' : 'indent', false);
+        editor.dispatchEvent(new Event('input', {bubbles:true}));
+        return;
+      }
       const quote = selection?.anchorNode?.parentElement?.closest('blockquote');
       if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.isComposing && quote && editor.contains(quote)) {
         event.preventDefault();
@@ -387,12 +433,11 @@
         range.setStart(paragraph, 0); range.collapse(true); selection.removeAllRanges(); selection.addRange(range);
         editor.dispatchEvent(new Event('input', {bubbles:true})); return;
       }
-      if (event.key === 'Tab' && root.getSelection()?.anchorNode?.parentElement?.closest('td,th')) {
-        event.preventDefault();
-        const cell = root.getSelection()?.anchorNode?.parentElement?.closest('td,th');
+      if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey && anchor?.closest('td,th') && editor.contains(anchor)) {
+        const cell = anchor.closest('td,th');
         const cells = [...editor.querySelectorAll('td,th')];
         const next = cells[cells.indexOf(cell) + (event.shiftKey ? -1 : 1)];
-        if (next) { const range = document.createRange(); range.selectNodeContents(next); root.getSelection().removeAllRanges(); root.getSelection().addRange(range); }
+        if (next) { event.preventDefault(); const range = document.createRange(); range.selectNodeContents(next); selection.removeAllRanges(); selection.addRange(range); }
       }
     });
     return editor;

@@ -468,6 +468,14 @@ try {
   assert.equal(await editor.locator('blockquote').innerText(),'Quoted text');
   assert.ok((await editor.evaluate(node=>node.value)).includes('\nOutside quote'));
   assert.equal(await page.evaluate(()=>sent.length),3,'quote Enter must not send');
+  await editor.evaluate(node=>{node.innerHTML='<ul><li>Parent</li><li>Child</li></ul>';node.focus();const range=document.createRange();range.selectNodeContents(node.querySelector('li:last-child'));range.collapse(true);getSelection().removeAllRanges();getSelection().addRange(range);});
+  await editor.press('Tab');
+  assert.equal(await editor.evaluate(node=>node.value),'- Parent\n  - Child');
+  await editor.press('Shift+Tab');
+  assert.equal(await editor.evaluate(node=>node.value),'- Parent\n- Child');
+  await editor.press('Tab');
+  await editor.evaluate(node=>{node.value=node.value;});
+  assert.equal(await editor.locator('ul>li>ul>li').innerText(),'Child');
   const quotedHtml = '<blockquote><div>First</div><div><br></div><div><br></div><div>Second</div></blockquote><div><br></div><div>Outside</div>';
   const quotedWire = '> First\n> \n> \n> Second\n\nOutside';
   assert.equal(await editor.evaluate((node,html)=>{node.innerHTML=html;return node.value;},quotedHtml),quotedWire);
