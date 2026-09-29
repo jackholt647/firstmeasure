@@ -1687,18 +1687,6 @@
       if (features.search && mode === 'full') addAction('Search messages', '<i class="fas fa-magnifying-glass"></i>', () => openSearchPrompt());
       if (features.workflows) addAction('Workflow shortcuts', '<i class="fas fa-bolt"></i>', openWorkflowShortcuts);
       if (features.ai) addAction('Ask FirstMate for a recap', '<i class="fas fa-wand-magic-sparkles"></i>', requestChannelRecap);
-      if (features.ai && channel.type === 'dm' && channel.members?.some(member => String(member.id).startsWith('agent_'))) {
-        addAction('New assistant conversation', '<i class="fas fa-comment-medical"></i>', () => {
-          showModal('New assistant conversation', body => {
-            body.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_352a847350c8e8","Conversation name") ?? "Conversation name")}</label><input data-name maxlength="80" placeholder="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_687b63fdcdf9a9","What are you working on?") ?? "What are you working on?")}">`;
-          }, [{label:(globalThis.PlatformLanguage?.text("channels-ui","m_91c3716587c959","Create conversation") ?? "Create conversation"), primary:true, onClick:async (close, body) => {
-            try {
-              const data = await api.channels.create(orgId, {type:'dm', new_conversation:true, name:body.querySelector('[data-name]').value.trim() || 'New assistant conversation', member_user_ids:channel.members.filter(member => String(member.id).startsWith('agent_')).map(member => member.id)});
-              close(); await loadChannels(); await setChannel(data.channel.id);
-            } catch (error) { showError(error); }
-          }}]);
-        });
-      }
       if (api.sidebarSections?.save) {
         const starred = state.sidebarSections.find((section) => section.id === 'starred')?.channel_ids?.includes(channel.id);
         const starButton = addAction(starred ? 'Remove from Starred' : 'Add to Starred', `<i class="${starred ? 'fas' : 'far'} fa-star"></i>`, () => toggleStarredChannel(channel.id));
