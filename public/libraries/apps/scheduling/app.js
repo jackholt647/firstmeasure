@@ -68,7 +68,10 @@
   let ganttZoomPxPerDay = 0;
   let ganttGroupBy = 'project';
   let ganttCollapsedGroups = [];
-  let ganttVisibleKinds = new Set(['labor', 'equipment', 'deliveries', 'sales', 'other']);
+  // Production detail filter inside Timeline; Sales/Production/Other come
+  // from the shared header toggles like every other view.
+  let ganttVisibleKinds = new Set(['labor', 'equipment', 'deliveries']);
+  let ganttVisibleRange = null;
   let ganttShownMenuOpen = false;
   let ganttShownDocHandler = null;
   let ganttZoomPersistTimer = null;
@@ -145,6 +148,28 @@
     .dash-btn.segment{height:32px;border-radius:10px;padding:0 10px;font-size:12px}
     .dash-control-group{display:inline-flex;align-items:center;gap:3px;border:1px solid rgba(15,23,42,.10);background:#fff;border-radius:12px;padding:3px}
     .dash-control-label{font-size:10px;font-weight:1000;text-transform:uppercase;color:#667085;padding:0 7px}
+    .dash-segmented{display:inline-flex;align-items:center;gap:2px;height:36px;box-sizing:border-box;border:1px solid rgba(15,23,42,.10);background:#fff;border-radius:12px;padding:3px}
+    .dash-segmented>button{height:28px;border:0;border-radius:9px;background:transparent;color:#475467;padding:0 10px;font:inherit;font-size:12px;font-weight:950;display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+    .dash-segmented>button i{font-size:11px}
+    .dash-segmented>button:hover{background:#f2f4f7;color:#101828}
+    .dash-segmented>button.active{background:rgba(var(--primary-rgb,217,48,37),.10);color:var(--primary-readable,var(--primary,#d93025))}
+    .dash-segmented>button:focus-visible,.dash-type-chip:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
+    .dash-nav-group>button[data-dash-nav]{width:30px;padding:0;justify-content:center}
+    .dash-segmented-label{font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:#98a2b3;padding:0 6px 0 5px}
+    .dash-type-chips{display:inline-flex;align-items:center;gap:5px;height:36px;box-sizing:border-box;padding:0 3px 0 0}
+    .dash-type-chips .dash-control-label{padding:0 2px 0 4px;color:#98a2b3;letter-spacing:.04em}
+    .dash-type-chip{--dash-chip-color:#64748b;height:30px;border:1px solid rgba(15,23,42,.12);border-radius:999px;background:#fff;color:#667085;padding:0 11px 0 6px;font:inherit;font-size:12px;font-weight:950;display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+    .dash-type-chip.sales{--dash-chip-color:#16a34a}
+    .dash-type-chip.production{--dash-chip-color:#d97706}
+    .dash-type-chip.other{--dash-chip-color:#64748b}
+    .dash-type-chip-box{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--dash-chip-color);box-sizing:border-box;display:grid;place-items:center;color:#fff;font-size:9px}
+    .dash-type-chip-box i{opacity:0}
+    .dash-type-chip:hover{border-color:rgba(15,23,42,.24);color:#344054}
+    .dash-type-chip.active{color:#101828;border-color:color-mix(in srgb,var(--dash-chip-color) 45%,#fff);background:color-mix(in srgb,var(--dash-chip-color) 8%,#fff)}
+    .dash-type-chip.active .dash-type-chip-box{background:var(--dash-chip-color)}
+    .dash-type-chip.active .dash-type-chip-box i{opacity:1}
+    .dash-body.schedule-mode.gantt-mode{grid-template-columns:minmax(0,1fr)}
+    .dash-body.schedule-mode.gantt-mode .dash-right{display:none}
     .dash-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 266px;gap:16px;padding:14px 18px 18px;overflow:hidden}
     .dash-body.schedule-mode{grid-template-columns:minmax(0,1fr) 320px}
     .dash-left,.dash-right{min-height:0;overflow:auto}
@@ -1231,12 +1256,20 @@
   }
   function visibleTitle(){
     if (viewMode === 'appointment_schedule') return window.Portal?.terminology?.get?.('scheduling.routing_view', 'Routing') || 'Routing';
-    if (viewMode === 'gantt') return window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Timeline') || 'Timeline';
+    if (viewMode === 'gantt') return ganttRangeTitle() || window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Timeline') || 'Timeline';
     if (viewMode === 'day') return anchorDate.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric', year:'numeric' });
     if (viewMode === 'month') return anchorDate.toLocaleDateString([], { month:'long', year:'numeric' });
     const start = viewMode === '4day' ? startOfDay(anchorDate) : weekStart(anchorDate);
     const end = addDays(start, viewMode === '4day' ? 3 : 6);
     return `${start.toLocaleDateString([], { month:'short', day:'numeric' })} - ${end.toLocaleDateString([], { month:'short', day:'numeric', year:'numeric' })}`;
+  }
+  function ganttRangeTitle(range = ganttVisibleRange){
+    const start = validDate(range?.start);
+    const end = validDate(range?.end);
+    if (!start || !end) return '';
+    const sameYear = start.getFullYear() === end.getFullYear();
+    if (sameYear && start.getMonth() === end.getMonth()) return start.toLocaleDateString([], { month:'long', year:'numeric' });
+    return `${start.toLocaleDateString([], sameYear ? { month:'short' } : { month:'short', year:'numeric' })} – ${end.toLocaleDateString([], { month:'short', year:'numeric' })}`;
   }
   function productionStatDefs(){
     return [
@@ -1426,7 +1459,14 @@
     const start = weekStart(anchorDate);
     return [start, addDays(start, 7)];
   }
+  function ganttControls(){
+    return window.PlatformScheduleView?.ganttControls?.(rootEl?.querySelector('#dashGanttView')) || null;
+  }
   function nav(delta){
+    if (viewMode === 'gantt') {
+      ganttControls()?.page(delta);
+      return;
+    }
     if (viewMode === 'month') anchorDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + delta, 1);
     else anchorDate = addDays(anchorDate, viewMode === 'week' ? delta * 7 : (viewMode === '4day' ? delta * 4 : delta));
     if (viewMode === 'appointment_schedule') resetScheduleScrollPersistence();
@@ -1438,6 +1478,10 @@
   }
   function goToToday(){
     anchorDate = startOfDay(new Date()) || new Date();
+    if (viewMode === 'gantt' && ganttControls()) {
+      ganttControls().today();
+      return;
+    }
     resetScheduleScrollPersistence();
     appointmentScheduleDraft = null;
     appointmentScheduleEventId = '';
@@ -1718,6 +1762,9 @@
     return allEvents
       .filter(predicate)
       .filter(eventMatchesBreakdown)
+      // Schedule groups take their dates from their items; they are never
+      // placed themselves, so they must not queue as waiting work.
+      .filter((event) => !window.PlatformScheduling?.eventIsGroup?.(event))
       .filter((event) => !eventIsScheduled(event))
       .filter((event) => !['cancelled','canceled'].includes(clean(event.status).toLowerCase()))
       .sort((a, b) => clean(a.title).localeCompare(clean(b.title)) || projectTitle(eventProject(a), a).localeCompare(projectTitle(eventProject(b), b)));
@@ -2079,6 +2126,7 @@
    * calendar mount leaves routing rows with stale lanes and travel bars. */
   function refreshActiveScheduleSurface(){
     if (viewMode === 'appointment_schedule') renderScheduleLibraryViewPreserveScroll();
+    else if (viewMode === 'gantt') renderGanttScheduleView();
     else renderEventCalendarView();
   }
   function eventCalendarMode(){
@@ -3078,7 +3126,9 @@
   }
   function editorAnchorFor(id = ''){
     const escaped = window.CSS?.escape ? window.CSS.escape(String(id || '')) : String(id || '').replace(/["\\]/g, '\\$&');
-    return rootEl?.querySelector(`[data-prs-event-id="${escaped}"]`);
+    return rootEl?.querySelector(`[data-prs-event-id="${escaped}"]`)
+      || rootEl?.querySelector(`[data-psv-gantt-bar="${escaped}"]`)
+      || rootEl?.querySelector(`[data-psv-gantt-open="${escaped}"]`);
   }
   function updateLocalCalendarEvent(eventId = '', patch = {}){
     const id = String(eventId || '');
@@ -5146,12 +5196,23 @@
       if (isSalesEvent(event) || isSalesFollowUpEvent(event)) return 'sales';
       return 'other';
     };
-    const visibleItems = allEvents.filter((event) => !Scheduling?.eventIsGroup?.(event) && ganttVisibleKinds.has(kindFor(event)));
+    const visibleItems = allEvents.filter((event) => {
+      if (Scheduling?.eventIsGroup?.(event) || !eventMatchesMode(event) || !eventMatchesBreakdown(event)) return false;
+      const kind = kindFor(event);
+      return !['labor', 'equipment', 'deliveries'].includes(kind) || ganttVisibleKinds.has(kind);
+    });
     const visibleIds = new Set(visibleItems.map((event) => String(event.id || '')));
     const visibleParentIds = new Set(visibleItems.map((event) => String(Scheduling?.eventParentId?.(event) || event.parent_event_id || '')).filter(Boolean));
     return allEvents.filter((event) => visibleIds.has(String(event.id || '')) || (Scheduling?.eventIsGroup?.(event) && visibleParentIds.has(String(event.id || ''))));
   }
   function ganttResourceLanes(){
+    const workforceKeys = new Set(workforceResources.map((resource) => `${clean(resource.subject_type || resource.resource_kind) || 'resource_group'}:${clean(resource.id)}`));
+    // People who hold visible appointments get their own lane even when they
+    // are not workforce resources (sales reps), instead of piling into Unassigned.
+    const assignedUserIds = new Set(ganttVisibleEvents().flatMap((event) => (Array.isArray(event.assigned_user_ids) ? event.assigned_user_ids : []).map(clean)).filter(Boolean));
+    const peopleLanes = users
+      .filter((user) => assignedUserIds.has(clean(user.id)) && !workforceKeys.has(`organization_user:${clean(user.id)}`))
+      .map((user) => ({ kind:'organization_user', id:clean(user.id), name:clean(user.name || user.email) || clean(user.id), icon:'fa-user' }));
     return [
       ...workforceResources.map((resource) => ({
         kind: clean(resource.subject_type || resource.resource_kind) || 'resource_group',
@@ -5159,6 +5220,7 @@
         name: resource.name,
         icon: clean(resource.icon)
       })),
+      ...peopleLanes,
       ...equipmentUnits.map((unit) => ({
         kind: 'equipment_unit',
         id: clean(unit.id),
@@ -5185,20 +5247,19 @@
     const shownOptions = [
       ['labor', 'Labor', 'fa-helmet-safety'],
       ['equipment', 'Equipment', 'fa-truck-pickup'],
-      ['deliveries', 'Deliveries', 'fa-truck-ramp-box'],
-      ['sales', 'Sales', 'fa-handshake'],
-      ['other', 'Other', 'fa-calendar-plus']
+      ['deliveries', 'Deliveries', 'fa-truck-ramp-box']
     ];
-    const groupControls = `<div class="dash-gantt-groupby"><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8b0eeec3c3b8c8","Group by") ?? "Group by")}</span>${String([
+    const productionDetailAvailable = scheduleTypeActive('production');
+    const groupControls = `<div class="dash-gantt-groupby"><span class="dash-segmented" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8b0eeec3c3b8c8","Group by") ?? "Group by")}"><span class="dash-segmented-label">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8b0eeec3c3b8c8","Group by") ?? "Group by")}</span>${String([
       ['project', 'Project'], ['resource', 'Resource']
-    ].map(([id, label]) => `<button type="button" class="dash-gantt-groupby-btn ${ganttGroupBy === id ? 'active' : ''}" data-gantt-group-by="${id}">${label}</button>`).join(''))}
-      <div class="dash-gantt-shown-wrap">
-        <button type="button" class="dash-gantt-shown-btn ${String(ganttShownMenuOpen || ganttVisibleKinds.size !== shownOptions.length ? 'active' : '')}" data-gantt-shown aria-expanded="${String(ganttShownMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_092ad4c2ce9c6b","Shown") ?? "Shown")}</span></button>
+    ].map(([id, label]) => `<button type="button" class="dash-gantt-groupby-btn ${ganttGroupBy === id ? 'active' : ''}" data-gantt-group-by="${id}" aria-pressed="${ganttGroupBy === id ? 'true' : 'false'}">${label}</button>`).join(''))}</span>
+      ${productionDetailAvailable ? `<div class="dash-gantt-shown-wrap">
+        <button type="button" class="dash-gantt-shown-btn ${String(ganttShownMenuOpen || ganttVisibleKinds.size !== shownOptions.length ? 'active' : '')}" data-gantt-shown aria-expanded="${String(ganttShownMenuOpen ? 'true' : 'false')}" title="Choose which production work is shown"><i class="fas fa-sliders"></i><span>${ganttVisibleKinds.size === shownOptions.length ? 'All production' : `${ganttVisibleKinds.size} of ${shownOptions.length} production`}</span></button>
         ${String(ganttShownMenuOpen ? `<div class="dash-gantt-shown-menu" data-gantt-shown-menu>
           <div class="dash-gantt-shown-head"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_80fdf3a3a8501b","Items shown") ?? "Items shown")}</strong><button type="button" data-gantt-shown-close aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>
           <div class="dash-gantt-shown-options">${shownOptions.map(([id, label, icon]) => `<button type="button" class="dash-gantt-shown-option ${ganttVisibleKinds.has(id) ? 'active' : ''}" data-gantt-kind="${id}" aria-pressed="${ganttVisibleKinds.has(id) ? 'true' : 'false'}"><span class="dash-gantt-shown-check"><i class="fas fa-check"></i></span><i class="fas ${icon}"></i><span>${label}</span></button>`).join('')}</div>
         </div>` : '')}
-      </div>
+      </div>` : ''}
     </div>`;
     window.PlatformScheduleView.renderGanttScheduler(mount, {
       Scheduling: window.PlatformScheduling,
@@ -5213,6 +5274,14 @@
       collapsedGroupIds: ganttCollapsedGroups,
       modeLabel: window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Timeline') || 'Timeline',
       toolbarLeadingHtml:groupControls,
+      stateKey:`scheduling:${ganttGroupBy}`,
+      showTodayButton:false,
+      emptyLabel: activeScheduleTypes().length ? 'Nothing matches the schedules shown. Turn on more schedule types above.' : 'Turn on Sales, Production, or Other above to see the timeline.',
+      onViewportChange(range){
+        ganttVisibleRange = range;
+        const title = rootEl?.querySelector('.dash-toolbar .dash-title');
+        if (title && viewMode === 'gantt') title.textContent = visibleTitle();
+      },
       onZoomChange(next){
         ganttZoomPxPerDay = Number(next) || 0;
         clearTimeout(ganttZoomPersistTimer);
@@ -5237,28 +5306,40 @@
       onProjectAddItem(project, meta){ createGanttProjectItem(project, meta, false); },
       onProjectAddGroup(project, meta){ createGanttProjectItem(project, meta, true); }
     });
-    mount.querySelectorAll('[data-gantt-group-by]').forEach((btn) => btn.addEventListener('click', () => {
-      const next = clean(btn.dataset.ganttGroupBy) || 'project';
-      if (next === ganttGroupBy) return;
-      ganttGroupBy = next;
-      persistSchedulePreference({ gantt_group_by:ganttGroupBy });
-      renderGanttScheduleView();
-    }));
-    mount.querySelectorAll('[data-gantt-kind]').forEach((btn) => btn.addEventListener('click', () => {
-      const kind = clean(btn.dataset.ganttKind);
-      if (ganttVisibleKinds.has(kind)) ganttVisibleKinds.delete(kind);
-      else ganttVisibleKinds.add(kind);
-      ganttShownMenuOpen = true;
-      renderGanttScheduleView();
-    }));
-    mount.querySelector('[data-gantt-shown]')?.addEventListener('click', () => {
-      ganttShownMenuOpen = !ganttShownMenuOpen;
-      renderGanttScheduleView();
-    });
-    mount.querySelector('[data-gantt-shown-close]')?.addEventListener('click', () => {
-      ganttShownMenuOpen = false;
-      renderGanttScheduleView();
-    });
+    // One delegated listener per mount: the timeline keeps its toolbar DOM
+    // across re-renders, so per-render binding would stack handlers.
+    if (!mount.__dashGanttControlsBound) {
+      mount.__dashGanttControlsBound = true;
+      mount.addEventListener('click', (clickEvent) => {
+        const groupBtn = clickEvent.target.closest?.('[data-gantt-group-by]');
+        if (groupBtn && mount.contains(groupBtn)) {
+          const next = clean(groupBtn.dataset.ganttGroupBy) || 'project';
+          if (next === ganttGroupBy) return;
+          ganttGroupBy = next;
+          persistSchedulePreference({ gantt_group_by:ganttGroupBy });
+          renderGanttScheduleView();
+          return;
+        }
+        const kindBtn = clickEvent.target.closest?.('[data-gantt-kind]');
+        if (kindBtn && mount.contains(kindBtn)) {
+          const kind = clean(kindBtn.dataset.ganttKind);
+          if (ganttVisibleKinds.has(kind)) ganttVisibleKinds.delete(kind);
+          else ganttVisibleKinds.add(kind);
+          ganttShownMenuOpen = true;
+          renderGanttScheduleView();
+          return;
+        }
+        if (clickEvent.target.closest?.('[data-gantt-shown-close]')) {
+          ganttShownMenuOpen = false;
+          renderGanttScheduleView();
+          return;
+        }
+        if (clickEvent.target.closest?.('[data-gantt-shown]')) {
+          ganttShownMenuOpen = !ganttShownMenuOpen;
+          renderGanttScheduleView();
+        }
+      });
+    }
     const shownMenu = mount.querySelector('[data-gantt-shown-menu]');
     const shownButton = mount.querySelector('[data-gantt-shown]');
     if (shownMenu && shownButton) {
@@ -5475,12 +5556,15 @@
       'scheduling.routing_view',
       window.PlatformScheduling?.labelFor?.(schedulingConfig, 'ui', 'routing_mode') || 'Routing'
     ) || 'Routing';
+    // Category filters are checkable chips, visually distinct from the view
+    // switch, and shown in every view so the header never shifts.
+    const typeChip = (type, label, on) => `<button type="button" class="dash-type-chip ${type} ${on ? 'active' : ''}" data-schedule-type-toggle="${type}" aria-pressed="${on ? 'true' : 'false'}"><span class="dash-type-chip-box" aria-hidden="true"><i class="fas fa-check"></i></span>${escapeHtml(label)}</button>`;
     const modeButtons = `
-      <span class="dash-control-group">
+      <span class="dash-type-chips" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_92e47dd97f2a57","Schedules to show") ?? "Schedules to show")}">
         <span class="dash-control-label">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_6290719711de40","Show") ?? "Show")}</span>
-        <button class="dash-btn segment ${String(showSalesSchedule ? 'active' : '')}" data-schedule-type-toggle="sales">${String(escapeHtml('Sales'))}</button>
-        <button class="dash-btn segment ${String(showProductionSchedule ? 'active' : '')}" data-schedule-type-toggle="production">${String(escapeHtml('Production'))}</button>
-        <button class="dash-btn segment ${String(showOtherSchedule ? 'active' : '')}" data-schedule-type-toggle="other">${String(escapeHtml('Other'))}</button>
+        ${typeChip('sales', (globalThis.PlatformLanguage?.text("scheduling","m_2680c31facb03d","Sales") ?? "Sales"), showSalesSchedule)}
+        ${typeChip('production', (globalThis.PlatformLanguage?.text("scheduling","m_c2e6380e130020","Production") ?? "Production"), showProductionSchedule)}
+        ${typeChip('other', (globalThis.PlatformLanguage?.text("scheduling","m_4a04382820d2e1","Other") ?? "Other"), showOtherSchedule)}
       </span>`;
     const displayButtons = ENABLE_CALENDAR_DISPLAY_SWITCH ? `
       <span class="dash-control-group">
@@ -5521,18 +5605,24 @@
       ${String(mobileToolbar)}<div class="dash-toolbar">
         <div><h2 class="dash-title">${String(escapeHtml(visibleTitle()))}</h2></div>
         <div class="dash-controls">
-          <button type="button" class="dash-btn" data-dash-nav="-1"><i class="fas fa-chevron-left"></i></button>
-          <button type="button" class="dash-btn" data-dash-today>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_23929ba4ba84dd","Today") ?? "Today")}</button>
-          <button type="button" class="dash-btn" data-dash-nav="1"><i class="fas fa-chevron-right"></i></button>
-          ${String([
-            ['day',window.Portal?.terminology?.get?.('scheduling.day_view', 'Day') || 'Day'],
-            ['4day',window.Portal?.terminology?.get?.('scheduling.four_day_view', '4 Day') || '4 Day'],
-            ['week',window.Portal?.terminology?.get?.('scheduling.week_view', 'Week') || 'Week'],
-            ['month',window.Portal?.terminology?.get?.('scheduling.month_view', 'Month') || 'Month'],
-            ...(routingViewEnabled() ? [['appointment_schedule',routingLabel]] : []),
-            ...(ganttViewEnabled() ? [['gantt', window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Timeline') || 'Timeline']] : [])
-          ].map(([mode,label]) => `<button class="dash-btn ${viewMode === mode ? 'active' : ''}" data-dash-view="${mode}">${escapeHtml(label)}</button>`).join(''))}
-          ${String(viewMode === 'gantt' ? '' : modeButtons)}
+          <span class="dash-segmented dash-nav-group">
+            <button type="button" data-dash-nav="-1" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_bb31fd73cbfe3b","Previous") ?? "Previous")}" title="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_bb31fd73cbfe3b","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button>
+            <button type="button" data-dash-today>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_23929ba4ba84dd","Today") ?? "Today")}</button>
+            <button type="button" data-dash-nav="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_5e03a7c216f500","Next") ?? "Next")}" title="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_5e03a7c216f500","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button>
+          </span>
+          ${[
+            [
+              ['day',window.Portal?.terminology?.get?.('scheduling.day_view', 'Day') || 'Day'],
+              ['4day',window.Portal?.terminology?.get?.('scheduling.four_day_view', '4 Day') || '4 Day'],
+              ['week',window.Portal?.terminology?.get?.('scheduling.week_view', 'Week') || 'Week'],
+              ['month',window.Portal?.terminology?.get?.('scheduling.month_view', 'Month') || 'Month']
+            ],
+            [
+              ...(routingViewEnabled() ? [['appointment_schedule',routingLabel, 'fa-route']] : []),
+              ...(ganttViewEnabled() ? [['gantt', window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Timeline') || 'Timeline', 'fa-chart-gantt']] : [])
+            ]
+          ].filter((group) => group.length).map((group) => `<span class="dash-segmented" role="group">${group.map(([mode, label, icon]) => `<button type="button" class="${viewMode === mode ? 'active' : ''}" data-dash-view="${mode}" aria-pressed="${viewMode === mode ? 'true' : 'false'}">${icon ? `<i class="fas ${icon}"></i>` : ''}${escapeHtml(label)}</button>`).join('')}</span>`).join('')}
+          ${String(modeButtons)}
           ${String(viewMode !== 'appointment_schedule' ? displayButtons : '')}
         </div>
       </div>
@@ -5680,7 +5770,9 @@
     }));
     if (bind._mobileControlsDocHandler) document.removeEventListener('pointerdown', bind._mobileControlsDocHandler, true);
     bind._mobileControlsDocHandler = (event) => {
-      if (!event.target.closest('.dash-mobile-popover,.dash-mobile-control,[data-mobile-tray-open],.dash-mobile-tray')) {
+      // The shared mobile toolbar renders prs-* menus; taps inside them must
+      // reach their buttons instead of closing and re-rendering first.
+      if (!event.target.closest('.dash-mobile-popover,.dash-mobile-control,.prs-mobile-popover,.prs-mobile-control,[data-mobile-tray-open],.dash-mobile-tray')) {
         if (!mobileViewMenuOpen && !mobileMonthMenuOpen && !mobileScheduleMenuOpen && !mobileTrayOpen) return;
         mobileViewMenuOpen = false;
         mobileMonthMenuOpen = false;
@@ -6019,7 +6111,7 @@
         ? renderGanttShell()
         : (calendarDisplayMode === 'events' ? renderEventCalendarShell() : viewMode === 'month' ? renderMonth() : viewMode === 'day' ? renderDay() : renderWeek());
     const mobileTray = mobileTrayOpen ? `<div class="dash-mobile-tray-backdrop ${String(mobileTrayClosing ? 'closing' : '')}" data-mobile-tray-backdrop><aside class="dash-mobile-tray" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><div class="dash-mobile-tray-head"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e9f71e12236d72","Projects to Schedule") ?? "Projects to Schedule")}</strong><button type="button" class="dash-mobile-tray-close" data-mobile-tray-close aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d957e47b7fba31","Close projects to schedule") ?? "Close projects to schedule")}"><i class="fas fa-xmark"></i></button></div>${String(renderGroups())}</aside></div>` : '';
-    rootEl.innerHTML = `<div class="dash-shell">${toolbarHtml()}<div class="dash-body ${['appointment_schedule','gantt'].includes(viewMode) ? 'schedule-mode' : ''} ${!['appointment_schedule','gantt'].includes(viewMode) && calendarDisplayMode === 'events' ? 'events-mode' : ''}"><div class="dash-left">${topStatsHtml()}${main}</div><aside class="dash-right">${renderGroups()}</aside></div>${mobileTray}</div>`;
+    rootEl.innerHTML = `<div class="dash-shell">${toolbarHtml()}<div class="dash-body ${['appointment_schedule','gantt'].includes(viewMode) ? 'schedule-mode' : ''} ${viewMode === 'gantt' ? 'gantt-mode' : ''} ${!['appointment_schedule','gantt'].includes(viewMode) && calendarDisplayMode === 'events' ? 'events-mode' : ''}"><div class="dash-left">${topStatsHtml()}${main}</div><aside class="dash-right">${renderGroups()}</aside></div>${mobileTray}</div>`;
     if (viewMode === 'appointment_schedule') renderScheduleLibraryView();
     else if (viewMode === 'gantt') renderGanttScheduleView();
     else if (calendarDisplayMode === 'events') renderEventCalendarView();

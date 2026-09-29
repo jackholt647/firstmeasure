@@ -793,17 +793,21 @@
       .psv-gantt-head{position:sticky;top:0;z-index:20;display:flex;background:#fff;border-bottom:1px solid rgba(15,23,42,.10)}
       .psv-gantt-corner{position:sticky;left:0;z-index:21;flex:0 0 var(--psv-gantt-left);width:var(--psv-gantt-left);background:#fff;border-right:1px solid rgba(15,23,42,.10);display:flex;align-items:end;padding:0 10px 6px;box-sizing:border-box;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#98a2b3}
       .psv-gantt-ticks{position:relative;height:46px;flex:0 0 auto}
-      .psv-gantt-tick-major{position:absolute;top:3px;height:18px;font-size:10px;font-weight:1000;color:#475467;white-space:nowrap;padding-left:6px;border-left:1px solid rgba(15,23,42,.10);box-sizing:border-box;overflow:hidden}
+      .psv-gantt-tick-major{position:absolute;top:3px;height:18px;font-size:10px;font-weight:1000;color:#475467;white-space:nowrap;border-left:1px solid rgba(15,23,42,.10);box-sizing:border-box;overflow:clip}
+      .psv-gantt-tick-major>span{position:sticky;left:calc(var(--psv-gantt-left) + 6px);display:inline-block;padding:0 6px}
       .psv-gantt-tick-minor{position:absolute;bottom:0;height:24px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#98a2b3;border-left:1px solid rgba(15,23,42,.06);box-sizing:border-box;overflow:hidden}
       .psv-gantt-tick-minor.weekend{background:rgba(15,23,42,.035)}
+      .psv-gantt-tick-minor.today{color:var(--primary-readable,var(--primary,#d93025));font-weight:1000}
+      .psv-gantt-today-flag{position:absolute;bottom:0;width:8px;height:4px;margin-left:-3px;border-radius:3px 3px 0 0;background:rgba(217,48,37,.75);pointer-events:none}
       .psv-gantt-body{position:relative}
       .psv-gantt-row{display:flex;height:32px;border-bottom:1px solid rgba(15,23,42,.05);box-sizing:border-box}
       .psv-gantt-row.section{height:28px;background:#f8fafc}
       .psv-gantt-row.project-row{height:36px;background:#f8fafc;border-top:1px solid rgba(15,23,42,.10)}
       .psv-gantt-row.project-row .psv-gantt-label{background:#f8fafc}
-      .psv-gantt-row.add-row{height:20px;border:0;background:#fff}
-      .psv-gantt-row.add-row .psv-gantt-label{justify-content:center;gap:4px;background:#fff;border-right-color:rgba(15,23,42,.06)}
-      .psv-gantt-add{width:22px;height:16px;border:1px solid rgba(15,23,42,.12);border-radius:999px;background:#fff;color:#667085;display:grid;place-items:center;padding:0;font-size:8px;cursor:pointer;opacity:.72}
+      .psv-gantt-row.add-row{height:30px;border:0;background:#fff}
+      .psv-gantt-row.add-row .psv-gantt-label{justify-content:flex-start;gap:6px;padding-left:22px;background:#fff;border-right-color:rgba(15,23,42,.06)}
+      .psv-gantt-add{height:22px;border:1px dashed rgba(15,23,42,.16);border-radius:999px;background:#fff;color:#667085;display:inline-flex;align-items:center;gap:5px;padding:0 9px;font:inherit;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap}
+      .psv-gantt-add i{font-size:9px}
       .psv-gantt-add:hover,.psv-gantt-add:focus-visible{opacity:1;border-color:var(--primary,#d93025);color:var(--primary,#d93025);outline:none;box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.08)}
       .psv-gantt-label{position:sticky;left:0;z-index:12;flex:0 0 var(--psv-gantt-left);width:var(--psv-gantt-left);display:flex;align-items:center;gap:7px;padding:0 10px;background:#fff;border-right:1px solid rgba(15,23,42,.10);box-sizing:border-box;min-width:0}
       .psv-gantt-row.section .psv-gantt-label{background:#f8fafc;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#667085}
@@ -814,12 +818,14 @@
       .psv-gantt-label .psv-gantt-dot i{font-size:6px;line-height:1}
       .psv-gantt-label-title{min-width:0;font-size:12px;font-weight:900;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
       .psv-gantt-label-title:hover{text-decoration:underline}
-      .psv-gantt-label-meta{flex:0 0 auto;margin-left:auto;font-size:9px;font-weight:900;color:#98a2b3;white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+      .psv-gantt-label-meta{flex:0 1 auto;margin-left:auto;font-size:9px;font-weight:900;color:#98a2b3;white-space:nowrap;max-width:96px;overflow:hidden;text-overflow:ellipsis}
+      .psv-gantt-label-meta:empty{display:none}
+      .psv-gantt-label-meta.unscheduled{border:1px dashed rgba(15,23,42,.18);border-radius:999px;padding:1px 6px;color:#667085}
       .psv-gantt-label.child{padding-left:22px}
       .psv-gantt-label.grandchild{padding-left:38px}
       .psv-gantt-lane{position:relative;flex:0 0 auto;box-sizing:border-box}
       .psv-gantt-lane.unscheduled-lane{cursor:copy}
-      .psv-gantt-lane.unscheduled-lane:hover:after{content:'Drag to schedule';position:sticky;left:calc(var(--psv-gantt-left) + 14px);display:inline-block;margin-top:11px;font-size:9px;font-weight:1000;color:#98a2b3;text-transform:uppercase;letter-spacing:.05em;pointer-events:none}
+      .psv-gantt-lane.unscheduled-lane:hover:after{content:'Click or drag to schedule';position:sticky;left:calc(var(--psv-gantt-left) + 14px);display:inline-block;margin-top:11px;font-size:9px;font-weight:1000;color:#98a2b3;text-transform:uppercase;letter-spacing:.05em;pointer-events:none}
       .psv-gantt-bar{position:absolute;top:5px;height:22px;border-radius:7px;display:flex;align-items:center;gap:6px;padding:0 8px;font-size:10px;font-weight:950;color:#fff;box-sizing:border-box;cursor:grab;overflow:visible;white-space:nowrap;box-shadow:0 3px 8px rgba(15,23,42,.16);background:var(--psv-gantt-color,#2563eb);touch-action:none}
       .psv-gantt-bar .psv-gantt-bar-inner{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}
       .psv-gantt-bar .psv-gantt-bar-inner i{flex:0 0 auto;font-size:10px}
@@ -841,7 +847,7 @@
       .psv-gantt-handle.end{right:-2px}
       .psv-gantt-link-handle{position:absolute;right:-8px;top:50%;transform:translateY(-50%);width:13px;height:13px;border-radius:50%;border:2px solid #fff;background:var(--primary,#d93025);opacity:0;cursor:crosshair;z-index:4;box-sizing:border-box;touch-action:none}
       .psv-gantt-bar:hover .psv-gantt-link-handle{opacity:1}
-      .psv-gantt-links{position:absolute;z-index:7;overflow:visible}
+      .psv-gantt-links{position:absolute;z-index:7;overflow:visible;pointer-events:none}
       .psv-gantt-links path.psv-gantt-link{fill:none;stroke:#94a3b8;stroke-width:1.6;pointer-events:stroke;cursor:pointer}
       .psv-gantt-links path.psv-gantt-link:hover{stroke:var(--primary,#d93025);stroke-width:2.2}
       .psv-gantt-links path.psv-gantt-link-temp{fill:none;stroke:var(--primary,#d93025);stroke-width:1.8;stroke-dasharray:4 3;pointer-events:none}
@@ -1742,6 +1748,20 @@
     return { item, range: clampRange(start, end) || { start, end } };
   }
 
+  // Older events carry no all_day flag. One that starts off midnight and
+  // lasts under a day is a timed appointment, not an all-day bar.
+  function inferLegacyTimeGranularity(event){
+    if (!event || typeof event !== 'object') return event;
+    if (typeof event.all_day === 'boolean' || clean(event.schedule_granularity)) return event;
+    const start = new Date(event.start_at || event.start || '');
+    if (!clean(event.start_at || event.start) || Number.isNaN(start.getTime())) return event;
+    const end = new Date(event.end_at || event.end || '');
+    const minutes = Number.isNaN(end.getTime()) ? Number(event.duration_minutes || 0) : (end.getTime() - start.getTime()) / 60000;
+    const offMidnight = start.getHours() !== 0 || start.getMinutes() !== 0;
+    if (!offMidnight || !(minutes > 0 && minutes < 1440)) return event;
+    return { ...event, all_day:false, schedule_granularity:'time' };
+  }
+
   function rangeItemIsTimed(item = {}){
     return item.all_day === false || item.schedule_granularity === 'time';
   }
@@ -1826,7 +1846,7 @@
     const Scheduling = options.Scheduling || root.PlatformScheduling;
     const mode = ['list','day','4day','week','month'].includes(options.mode) ? options.mode : 'month';
     const anchor = new Date(options.date || Date.now());
-    const workEvents = (options.events || []).map((event) => Scheduling?.normalizeEvent ? Scheduling.normalizeEvent(event, options.config || null, options.project || null) : event);
+    const workEvents = (options.events || []).map((event) => inferLegacyTimeGranularity(Scheduling?.normalizeEvent ? Scheduling.normalizeEvent(event, options.config || null, options.project || null) : event));
     const legacyReadOnly = options.readOnly === true;
     const allowCreate = options.allowCreate !== undefined ? options.allowCreate !== false : !legacyReadOnly;
     const allowEdit = options.allowEdit !== undefined ? options.allowEdit !== false : !legacyReadOnly;
@@ -3529,7 +3549,7 @@
       };
     });
     const draftIds = new Set(draftEvents.map((entry) => String(entry.id || '')));
-    const workEvents = (options.events || []).map((event) => Scheduling?.normalizeEvent ? Scheduling.normalizeEvent(event, options.config || null, options.project || null) : event);
+    const workEvents = (options.events || []).map((event) => inferLegacyTimeGranularity(Scheduling?.normalizeEvent ? Scheduling.normalizeEvent(event, options.config || null, options.project || null) : event));
     const visibleItems = [
       ...workEvents.filter((event) => !draftIds.has(String(event.id || ''))),
       ...draftEvents
@@ -4050,7 +4070,7 @@
       };
     });
     const draftIds = new Set(draftEvents.map((entry) => String(entry.id || '')));
-    const events = (options.events || []).map((event) => Scheduling?.normalizeEvent ? Scheduling.normalizeEvent(event, options.config || null, options.project || null) : event);
+    const events = (options.events || []).map((event) => inferLegacyTimeGranularity(Scheduling?.normalizeEvent ? Scheduling.normalizeEvent(event, options.config || null, options.project || null) : event));
     const visibleItems = [
       ...events.filter((event) => !draftIds.has(String(event.id || ''))),
       ...draftEvents
@@ -4555,7 +4575,7 @@
   const GANTT_ROW_H = 32;
   const GANTT_SECTION_H = 28;
   const GANTT_PROJECT_H = 36;
-  const GANTT_ADD_H = 20;
+  const GANTT_ADD_H = 30;
 
   function ganttZoomFromSlider(value){
     const ratio = Math.max(0, Math.min(100, Number(value) || 0)) / 100;
@@ -4565,6 +4585,25 @@
   function ganttSliderFromZoom(pxPerDay){
     const clamped = Math.max(GANTT_ZOOM_MIN, Math.min(GANTT_ZOOM_MAX, Number(pxPerDay) || GANTT_ZOOM_PRESETS.week));
     return Math.round(100 * Math.log(clamped / GANTT_ZOOM_MIN) / Math.log(GANTT_ZOOM_MAX / GANTT_ZOOM_MIN));
+  }
+
+  // Viewport memory keyed by the host's stateKey, so a host re-render (save,
+  // filter, reload) that rebuilds the container keeps the user's place.
+  const ganttViewports = new Map();
+  const GANTT_DAY_MS = 86400000;
+
+  // Local wall-clock milliseconds: bars and ticks share one day grid across
+  // daylight-saving changes.
+  function ganttWallTime(time){
+    return time - new Date(time).getTimezoneOffset() * 60000;
+  }
+
+  function ganttLocalDay(time, mode = 'round'){
+    const date = new Date(time);
+    const midnight = new Date(date);
+    midnight.setHours(0, 0, 0, 0);
+    if (mode === 'round' && date.getTime() - midnight.getTime() >= GANTT_DAY_MS / 2) midnight.setDate(midnight.getDate() + 1);
+    return midnight.getTime();
   }
 
   function ganttPresentation(Scheduling, event){
@@ -4595,9 +4634,13 @@
     injectCss();
     const Scheduling = options.Scheduling || root.PlatformScheduling;
     container.__psvGanttOptions = options;
+    const stateKey = clean(options.stateKey);
+    const previousScroll = container.querySelector(':scope > .psv-gantt-wrap > .psv-gantt-scroll');
+    if (previousScroll && container.__psvGanttApi?.viewport && !container.__psvGanttFitting) {
+      container.__psvGanttViewport = container.__psvGanttApi.viewport();
+      if (stateKey) ganttViewports.set(stateKey, container.__psvGanttViewport);
+    }
     const readOnly = options.readOnly === true || options.allowEdit === false;
-    const pxPerDay = Math.max(GANTT_ZOOM_MIN, Math.min(GANTT_ZOOM_MAX, Number(container.__psvGanttPxPerDay || options.pxPerDay || GANTT_ZOOM_PRESETS[clean(options.zoom).toLowerCase()] || GANTT_ZOOM_PRESETS.week)));
-    container.__psvGanttPxPerDay = pxPerDay;
     const collapsed = container.__psvGanttCollapsed instanceof Set
       ? container.__psvGanttCollapsed
       : new Set((options.collapsedGroupIds || []).map((id) => String(id || '')));
@@ -4613,6 +4656,32 @@
     const parentIdOf = (event) => Scheduling?.eventParentId ? Scheduling.eventParentId(event) : clean(event.parent_event_id);
     const isGroup = (event) => Scheduling?.eventIsGroup ? Scheduling.eventIsGroup(event) : event.is_schedule_group === true;
     const dependenciesOf = (event) => Scheduling?.eventDependencies ? Scheduling.eventDependencies(event) : [];
+    // Narrow hosts (phones) get a slimmer label column; an inline width would
+    // otherwise override the stylesheet's mobile rule.
+    const leftWidth = Math.max(120, Number(options.leftWidth) || ((container.clientWidth || 1024) < 640 ? 150 : 248));
+    // "Fit" sizes the scale so every scheduled item fits the visible width.
+    const workSpan = () => {
+      const spans = events.filter((event) => !isGroup(event) && isScheduled(event) && evStart(event))
+        .map((event) => [evStart(event).getTime(), (evEnd(event) || evStart(event)).getTime()]);
+      if (!spans.length) return null;
+      return { start:Math.min(...spans.map((span) => span[0])), end:Math.max(...spans.map((span) => span[1])) };
+    };
+    const fitPxPerDay = () => {
+      const span = workSpan();
+      const width = (container.clientWidth || 0) - leftWidth - 16;
+      if (!span || width <= 0) return 0;
+      const days = Math.max(1, (span.end - span.start) / GANTT_DAY_MS) + 2;
+      return Math.max(GANTT_ZOOM_MIN, Math.min(GANTT_ZOOM_PRESETS.day, width / days));
+    };
+    const initialFit = !container.__psvGanttPxPerDay && !Number(options.pxPerDay) && clean(options.zoom).toLowerCase() === 'fit' ? fitPxPerDay() : 0;
+    if (initialFit && !container.__psvGanttViewport) {
+      const span = workSpan();
+      if (span) container.__psvGanttViewport = { centerTime:(span.start + span.end) / 2, top:0 };
+    }
+    const pxPerDay = Math.max(GANTT_ZOOM_MIN, Math.min(GANTT_ZOOM_MAX, Number(container.__psvGanttPxPerDay || options.pxPerDay || initialFit || GANTT_ZOOM_PRESETS[clean(options.zoom).toLowerCase()] || GANTT_ZOOM_PRESETS.week)));
+    container.__psvGanttPxPerDay = pxPerDay;
+    // Report the fitted scale so host re-renders keep it (and the viewport).
+    if (initialFit) options.onZoomChange?.(pxPerDay);
 
     // Build display rows: optional per-project sections, then groups with
     // children, then ungrouped items.
@@ -4739,38 +4808,51 @@
       pushEventRows(events);
     }
 
+    const showTodayButton = options.showTodayButton !== false;
     if (!rows.length) {
-      const emptyZoomButtons = Object.entries(GANTT_ZOOM_PRESETS).map(([key, value]) => `<button type="button" class="psv-gantt-zoom-btn" data-psv-gantt-zoom="${value}">${key[0].toUpperCase()}${key.slice(1)}</button>`).join('');
+      container.__psvGanttApi = null;
+      container.__psvGanttToolbarKey = '';
       container.innerHTML = `<div class="psv-gantt-wrap">
-        ${options.showToolbar === false ? '' : `<div class="psv-gantt-toolbar">${String(options.toolbarLeadingHtml || '')}<button type="button" class="psv-gantt-today-btn" data-psv-gantt-today>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_23929ba4ba84dd","Today") ?? "Today")}</button><div class="psv-gantt-zoom">${String(emptyZoomButtons)}<input type="range" class="psv-gantt-slider" min="0" max="100" step="1" value="${String(ganttSliderFromZoom(pxPerDay))}" data-psv-gantt-slider aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_2e8f0246df6a69","Timeline zoom") ?? "Timeline zoom")}"></div></div>`}
+        ${options.showToolbar === false || !String(options.toolbarLeadingHtml || '') ? '' : `<div class="psv-gantt-toolbar">${String(options.toolbarLeadingHtml || '')}</div>`}
         <div class="psv-gantt-empty">${esc(options.emptyLabel || 'Nothing to schedule yet. Scheduled items from the scope will appear here.')}</div>
       </div>`;
       return;
     }
 
-    // Time range: min start → max end across scheduled events, padded.
-    const starts = events.map(evStart).filter(Boolean).map((d) => d.getTime());
-    const ends = events.map(evEnd).filter(Boolean).map((d) => d.getTime());
+    // Time range: min start → max end across scheduled events, padded, and
+    // always wide enough to page around today.
+    const scheduledEvents = events.filter((event) => isScheduled(event));
+    const starts = scheduledEvents.map(evStart).filter(Boolean).map((d) => d.getTime());
+    const ends = scheduledEvents.map(evEnd).filter(Boolean).map((d) => d.getTime());
     const anchor = new Date(options.date || Date.now());
     anchor.setHours(0, 0, 0, 0);
-    const padDays = pxPerDay >= 960 ? 1 : pxPerDay >= 90 ? 3 : 14;
-    let rangeStart = new Date(starts.length ? Math.min(...starts, anchor.getTime()) : anchor.getTime());
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const padDays = pxPerDay >= 960 ? 1 : pxPerDay >= 90 ? 7 : 28;
+    const minTime = starts.reduce((min, time) => Math.min(min, time), Math.min(anchor.getTime(), today.getTime()));
+    const maxTime = ends.reduce((max, time) => Math.max(max, time), Math.max(anchor.getTime(), today.getTime()));
+    let rangeStart = new Date(minTime);
     rangeStart.setHours(0, 0, 0, 0);
     rangeStart = addDays(rangeStart, -padDays);
-    let rangeEnd = new Date(ends.length ? Math.max(...ends, anchor.getTime()) : anchor.getTime());
+    let rangeEnd = new Date(maxTime);
     rangeEnd.setHours(0, 0, 0, 0);
     rangeEnd = addDays(rangeEnd, padDays + 1);
     const totalDays = Math.max(7, dayDiff(rangeStart, rangeEnd));
     rangeEnd = addDays(rangeStart, totalDays);
     const totalWidth = Math.round(totalDays * pxPerDay);
-    const xForTime = (time) => ((time - rangeStart.getTime()) / 86400000) * pxPerDay;
-    const timeForX = (x) => rangeStart.getTime() + (x / pxPerDay) * 86400000;
+    const rangeWallStart = ganttWallTime(rangeStart.getTime());
+    const xForTime = (time) => ((ganttWallTime(time) - rangeWallStart) / GANTT_DAY_MS) * pxPerDay;
+    const timeForX = (x) => {
+      const wall = rangeWallStart + (x / pxPerDay) * GANTT_DAY_MS;
+      const guess = wall + new Date(wall).getTimezoneOffset() * 60000;
+      return wall + new Date(guess).getTimezoneOffset() * 60000;
+    };
 
     // Header ticks adapt to zoom.
     const minorTicks = [];
     const majorTicks = [];
-    if (pxPerDay >= 960) {
-      const hourStep = pxPerDay >= 1900 ? 1 : 3;
+    if (pxPerDay >= 480) {
+      const hourStep = pxPerDay >= 1900 ? 1 : pxPerDay >= 960 ? 3 : 6;
       for (let day = 0; day < totalDays; day += 1) {
         const dayDate = addDays(rangeStart, day);
         majorTicks.push({ x:day * pxPerDay, width:pxPerDay, label:dayDate.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' }) });
@@ -4783,7 +4865,10 @@
       let monthStart = 0;
       for (let day = 0; day < totalDays; day += 1) {
         const dayDate = addDays(rangeStart, day);
-        minorTicks.push({ x:day * pxPerDay, width:pxPerDay, label:pxPerDay >= 60 ? dayDate.toLocaleDateString([], { weekday:'narrow', day:'numeric' }) : String(dayDate.getDate()), weekend:[0,6].includes(dayDate.getDay()) });
+        const dayLabel = pxPerDay >= 60
+          ? `${dayDate.toLocaleDateString([], { weekday:'short' })} ${dayDate.getDate()}`
+          : String(dayDate.getDate());
+        minorTicks.push({ x:day * pxPerDay, width:pxPerDay, label:dayLabel, weekend:[0,6].includes(dayDate.getDay()), today:dayDate.getTime() === today.getTime() });
         const next = addDays(dayDate, 1);
         if (next.getMonth() !== dayDate.getMonth() || day === totalDays - 1) {
           majorTicks.push({ x:monthStart * pxPerDay, width:(day + 1 - monthStart) * pxPerDay, label:dayDate.toLocaleDateString([], { month:'long', year:'numeric' }) });
@@ -4821,8 +4906,10 @@
 
     const laneBackground = (() => {
       if (pxPerDay >= 24) {
-        const weekendStart = ((8 - rangeStart.getDay()) % 7) * pxPerDay;
-        return `background-image:repeating-linear-gradient(90deg,rgba(15,23,42,.06) 0 1px,transparent 1px ${pxPerDay}px),repeating-linear-gradient(90deg,rgba(15,23,42,.03) 0 ${2 * pxPerDay}px,transparent ${2 * pxPerDay}px ${7 * pxPerDay}px);background-position:0 0,${weekendStart - pxPerDay}px 0;`;
+        // One tile per day for grid lines, one per week for the Saturday +
+        // Sunday band, offset to the first Saturday on or after rangeStart.
+        const saturdayOffset = ((6 - rangeStart.getDay() + 7) % 7) * pxPerDay;
+        return `background-image:linear-gradient(90deg,rgba(15,23,42,.06) 0 1px,transparent 1px),linear-gradient(90deg,rgba(15,23,42,.035) 0 ${2 * pxPerDay}px,transparent ${2 * pxPerDay}px);background-size:${pxPerDay}px 100%,${7 * pxPerDay}px 100%;background-position:0 0,${saturdayOffset}px 0;`;
       }
       const weekOffset = -((rangeStart.getTime() - startOfWeek(rangeStart).getTime()) / 86400000) * pxPerDay;
       return `background-image:repeating-linear-gradient(90deg,rgba(15,23,42,.05) 0 1px,transparent 1px ${7 * pxPerDay}px);background-position:${weekOffset}px 0;`;
@@ -4853,7 +4940,7 @@
 
     const labelHtml = (row) => {
       if (row.type === 'section') return `<div class="psv-gantt-label">${esc(row.label)}</div>`;
-      if (row.type === 'add') return `<div class="psv-gantt-label">${typeof options.onProjectAddItem === 'function' ? `<button type="button" class="psv-gantt-add" data-psv-gantt-add="${String(esc(row.project?.id || ''))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_1371f530e8450b",`Add work item to ${v1}`,{v1}) ?? `Add work item to ${v1}`)(esc(row.rollup?.title || 'project'))}" title="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_5615a483a3982f","Add work item") ?? "Add work item")}"><i class="fas fa-plus"></i></button>` : ''}${typeof options.onProjectAddGroup === 'function' ? `<button type="button" class="psv-gantt-add" data-psv-gantt-add-group="${String(esc(row.project?.id || ''))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_cb322b4f3abe82",`Add section to ${v1}`,{v1}) ?? `Add section to ${v1}`)(esc(row.rollup?.title || 'project'))}" title="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_29c41c89d5fb81","Add section") ?? "Add section")}"><i class="fas fa-layer-group"></i></button>` : ''}</div>`;
+      if (row.type === 'add') return `<div class="psv-gantt-label">${typeof options.onProjectAddItem === 'function' ? `<button type="button" class="psv-gantt-add" data-psv-gantt-add="${String(esc(row.project?.id || ''))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_1371f530e8450b",`Add work item to ${v1}`,{v1}) ?? `Add work item to ${v1}`)(esc(row.rollup?.title || 'project'))}"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_5615a483a3982f","Add work item") ?? "Add work item")}</span></button>` : ''}${typeof options.onProjectAddGroup === 'function' ? `<button type="button" class="psv-gantt-add" data-psv-gantt-add-group="${String(esc(row.project?.id || ''))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_cb322b4f3abe82",`Add section to ${v1}`,{v1}) ?? `Add section to ${v1}`)(esc(row.rollup?.title || 'project'))}"><i class="fas fa-layer-group"></i><span>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_29c41c89d5fb81","Add section") ?? "Add section")}</span></button>` : ''}</div>`;
       const event = row.event;
       const presentation = ganttPresentation(Scheduling, event);
       const kind = presentation.kind || eventKind(event);
@@ -4866,8 +4953,8 @@
       return `<div class="psv-gantt-label ${row.child ? 'child' : ''} ${row.grandchild ? 'grandchild' : ''}">
         ${caret}
         <span class="psv-gantt-dot" style="--psv-gantt-color:${color}">${icon && !row.group ? `<i class="fas ${icon}"></i>` : ''}</span>
-        <span class="psv-gantt-label-title" data-psv-gantt-open="${esc(event.id || '')}">${esc(event.title || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_05017f54f07448","Untitled") ?? "Untitled"))}</span>
-        <span class="psv-gantt-label-meta">${esc(!isScheduled(event) ? 'Unscheduled' : assignee)}</span>
+        <span class="psv-gantt-label-title" data-psv-gantt-open="${esc(event.id || '')}" title="${esc(event.title || '')}">${esc(event.title || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_05017f54f07448","Untitled") ?? "Untitled"))}</span>
+        <span class="psv-gantt-label-meta ${!isScheduled(event) && !row.projectRollup ? 'unscheduled' : ''}" title="${esc(!isScheduled(event) ? '' : assignee)}">${esc(!isScheduled(event) ? (row.projectRollup ? '' : 'Unscheduled') : assignee)}</span>
       </div>`;
     };
 
@@ -4906,24 +4993,25 @@
     });
 
     const todayX = xForTime(Date.now());
-    const zoomButtons = Object.entries(GANTT_ZOOM_PRESETS).map(([key, value]) => {
-      const active = Math.abs(ganttSliderFromZoom(value) - ganttSliderFromZoom(pxPerDay)) <= 4;
-      return `<button type="button" class="psv-gantt-zoom-btn ${active ? 'active' : ''}" data-psv-gantt-zoom="${value}">${key[0].toUpperCase()}${key.slice(1)}</button>`;
-    }).join('');
-
-    container.innerHTML = `<div class="psv-gantt-wrap">
-      ${options.showToolbar === false ? '' : `<div class="psv-gantt-toolbar">
+    const todayHtml = (globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_23929ba4ba84dd","Today") ?? "Today");
+    const zoomButtons = Object.entries(GANTT_ZOOM_PRESETS).map(([key, value]) => (
+      `<button type="button" class="psv-gantt-zoom-btn" data-psv-gantt-zoom="${value}">${key[0].toUpperCase()}${key.slice(1)}</button>`
+    )).join('') + `<button type="button" class="psv-gantt-zoom-btn" data-psv-gantt-fit title="Fit all scheduled work">Fit</button>`;
+    // The toolbar is kept across internal re-renders (zoom, collapse) so the
+    // zoom slider can be dragged continuously; only the scroll surface swaps.
+    const toolbarHtml = options.showToolbar === false ? '' : `<div class="psv-gantt-toolbar">
         ${String(options.toolbarLeadingHtml || '')}
-        <button type="button" class="psv-gantt-today-btn" data-psv-gantt-today>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_23929ba4ba84dd","Today") ?? "Today")}</button>
+        ${showTodayButton ? `<button type="button" class="psv-gantt-today-btn" data-psv-gantt-today>${todayHtml}</button>` : ''}
         <div class="psv-gantt-zoom">${String(zoomButtons)}<input type="range" class="psv-gantt-slider" min="0" max="100" step="1" value="${String(ganttSliderFromZoom(pxPerDay))}" data-psv-gantt-slider aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_2e8f0246df6a69","Timeline zoom") ?? "Timeline zoom")}"></div>
-      </div>`}
-      <div class="psv-gantt-scroll">
-        <div class="psv-gantt-inner" style="--psv-gantt-left:${Math.max(120, Number(options.leftWidth) || 248)}px">
+      </div>`;
+    const scrollHtml = `<div class="psv-gantt-scroll">
+        <div class="psv-gantt-inner" style="--psv-gantt-left:${leftWidth}px">
           <div class="psv-gantt-head">
             <div class="psv-gantt-corner">${esc(options.resourceHeader || 'Work Item')}</div>
             <div class="psv-gantt-ticks" style="width:${totalWidth}px">
-              ${majorTicks.map((tick) => `<div class="psv-gantt-tick-major" style="left:${tick.x}px;width:${tick.width}px">${esc(tick.label)}</div>`).join('')}
-              ${minorTicks.map((tick) => `<div class="psv-gantt-tick-minor ${tick.weekend ? 'weekend' : ''}" style="left:${tick.x}px;width:${tick.width}px">${esc(tick.label)}</div>`).join('')}
+              ${majorTicks.map((tick) => `<div class="psv-gantt-tick-major" style="left:${tick.x}px;width:${tick.width}px"><span>${esc(tick.label)}</span></div>`).join('')}
+              ${minorTicks.map((tick) => `<div class="psv-gantt-tick-minor ${tick.weekend ? 'weekend' : ''} ${tick.today ? 'today' : ''}" style="left:${tick.x}px;width:${tick.width}px">${esc(tick.label)}</div>`).join('')}
+              ${todayX >= 0 && todayX <= totalWidth ? `<div class="psv-gantt-today-flag" style="left:${todayX}px"></div>` : ''}
             </div>
           </div>
           <div class="psv-gantt-body">
@@ -4935,56 +5023,126 @@
             ${todayX >= 0 && todayX <= totalWidth ? `<div class="psv-gantt-today" style="left:calc(var(--psv-gantt-left) + ${todayX}px)"></div>` : ''}
           </div>
         </div>
-      </div>
-    </div>`;
+      </div>`;
+    const toolbarKey = `${showTodayButton ? 1 : 0}|${toolbarHtml ? String(options.toolbarLeadingHtml || '') : '__none__'}`;
+    const existingWrap = container.querySelector(':scope > .psv-gantt-wrap');
+    const existingScroll = existingWrap?.querySelector(':scope > .psv-gantt-scroll');
+    const reuseToolbar = !!existingScroll && container.__psvGanttToolbarKey === toolbarKey;
+    if (reuseToolbar) existingScroll.outerHTML = scrollHtml;
+    else container.innerHTML = `<div class="psv-gantt-wrap">${toolbarHtml}${scrollHtml}</div>`;
+    container.__psvGanttToolbarKey = toolbarKey;
 
-    const scroll = container.querySelector('.psv-gantt-scroll');
-    const body = container.querySelector('.psv-gantt-body');
-    const svg = container.querySelector('.psv-gantt-links');
-    const leftWidth = Math.max(120, Number(options.leftWidth) || 248);
-
-    const rerender = (anchorTime = null) => {
-      const viewportCenterTime = anchorTime ?? (scroll ? timeForX(scroll.scrollLeft + (scroll.clientWidth - leftWidth) / 2) : null);
-      const top = scroll?.scrollTop || 0;
-      renderGanttScheduler(container, container.__psvGanttOptions || options);
-      const nextScroll = container.querySelector('.psv-gantt-scroll');
-      if (nextScroll && viewportCenterTime) {
-        const nextOptions = container.__psvGanttOptions || options;
-        const nextPx = container.__psvGanttPxPerDay || pxPerDay;
-        void nextOptions;
-        const nextInner = container.querySelector('.psv-gantt-inner');
-        void nextInner;
-        // Recompute using the fresh range rendered above.
-        const marker = container.__psvGanttRangeStart || rangeStart.getTime();
-        nextScroll.scrollLeft = Math.max(0, ((viewportCenterTime - marker) / 86400000) * nextPx - (nextScroll.clientWidth - leftWidth) / 2);
-        nextScroll.scrollTop = top;
-      }
+    const scroll = container.querySelector(':scope > .psv-gantt-wrap > .psv-gantt-scroll');
+    const body = scroll?.querySelector('.psv-gantt-body');
+    const svg = scroll?.querySelector('.psv-gantt-links');
+    const viewportWidth = () => Math.max(0, (scroll?.clientWidth || 0) - leftWidth);
+    const scrollToTime = (time, align = 0.25, behavior = 'auto') => {
+      if (!scroll || !viewportWidth()) return;
+      scroll.scrollTo({ left:Math.max(0, xForTime(time) - viewportWidth() * align), behavior });
     };
+    const visibleRange = () => (scroll && viewportWidth()
+      ? { start:new Date(timeForX(scroll.scrollLeft)), end:new Date(timeForX(scroll.scrollLeft + viewportWidth())) }
+      : null);
+    const rerender = () => renderGanttScheduler(container, container.__psvGanttOptions || options);
+    const api = {
+      viewport(){
+        if (!scroll || !viewportWidth()) return container.__psvGanttViewport || null;
+        return { centerTime:timeForX(scroll.scrollLeft + viewportWidth() / 2), top:scroll.scrollTop };
+      },
+      visibleRange,
+      scrollToTime,
+      today(){ scrollToTime(Date.now(), 0.25, 'smooth'); },
+      page(direction = 1){
+        if (!scroll) return;
+        scroll.scrollBy({ left:(Number(direction) < 0 ? -1 : 1) * viewportWidth() * 0.8, behavior:'smooth' });
+      },
+      fit(){
+        const next = fitPxPerDay();
+        const span = workSpan();
+        if (!next || !span) return;
+        container.__psvGanttViewport = { centerTime:(span.start + span.end) / 2, top:scroll?.scrollTop || 0 };
+        if (stateKey) ganttViewports.set(stateKey, container.__psvGanttViewport);
+        container.__psvGanttPxPerDay = next;
+        (container.__psvGanttOptions || options).onZoomChange?.(next);
+        container.__psvGanttFitting = true;
+        try { renderGanttScheduler(container, container.__psvGanttOptions || options); }
+        finally { container.__psvGanttFitting = false; }
+      },
+      setZoom(next){
+        container.__psvGanttPxPerDay = Math.max(GANTT_ZOOM_MIN, Math.min(GANTT_ZOOM_MAX, Number(next) || GANTT_ZOOM_PRESETS.week));
+        (container.__psvGanttOptions || options).onZoomChange?.(container.__psvGanttPxPerDay);
+        rerender();
+      },
+      rerender
+    };
+    container.__psvGanttApi = api;
     container.__psvGanttRangeStart = rangeStart.getTime();
 
-    if (container.__psvGanttInitialScroll !== true && scroll) {
-      container.__psvGanttInitialScroll = true;
-      const firstStart = starts.length ? Math.min(...starts) : anchor.getTime();
-      scroll.scrollLeft = Math.max(0, xForTime(Math.min(firstStart, Date.now())) - pxPerDay);
+    // Place the viewport: keep the user's spot across re-renders, otherwise
+    // open with today a quarter of the way in so upcoming work is visible.
+    const savedViewport = container.__psvGanttViewport || (stateKey ? ganttViewports.get(stateKey) : null);
+    if (scroll && viewportWidth()) {
+      if (savedViewport?.centerTime) {
+        scroll.scrollLeft = Math.max(0, xForTime(savedViewport.centerTime) - viewportWidth() / 2);
+        scroll.scrollTop = savedViewport.top || 0;
+      } else {
+        // Open around today, unless nothing scheduled is in view there; then
+        // open on the nearest work so the first screen is never empty.
+        const now = Date.now();
+        const spanMs = (viewportWidth() / pxPerDay) * GANTT_DAY_MS;
+        const windowStart = now - spanMs * 0.25;
+        const windowEnd = now + spanMs * 0.75;
+        const spans = scheduledEvents.filter((event) => !isGroup(event)).map((event) => {
+          const start = evStart(event)?.getTime();
+          return start ? [start, evEnd(event)?.getTime() || start] : null;
+        }).filter(Boolean);
+        const visibleNearToday = !spans.length || spans.some(([start, end]) => start < windowEnd && end > windowStart);
+        if (visibleNearToday) scrollToTime(now, 0.25);
+        else {
+          const upcoming = spans.filter(([start]) => start >= now).sort((a, b) => a[0] - b[0])[0];
+          const recent = spans.sort((a, b) => b[1] - a[1])[0];
+          scrollToTime(upcoming ? upcoming[0] : recent[1], upcoming ? 0.1 : 0.9);
+        }
+      }
+      container.__psvGanttViewport = api.viewport();
+      if (stateKey) ganttViewports.set(stateKey, container.__psvGanttViewport);
     }
+    let viewportFrame = 0;
+    scroll?.addEventListener('scroll', () => {
+      if (viewportFrame) return;
+      viewportFrame = requestAnimationFrame(() => {
+        viewportFrame = 0;
+        const viewport = api.viewport();
+        if (!viewport) return;
+        container.__psvGanttViewport = viewport;
+        if (stateKey) ganttViewports.set(stateKey, viewport);
+        (container.__psvGanttOptions || options).onViewportChange?.(visibleRange());
+      });
+    }, { passive:true });
+    (container.__psvGanttOptions || options).onViewportChange?.(visibleRange());
 
-    container.querySelector('[data-psv-gantt-today]')?.addEventListener('click', () => {
-      if (!scroll) return;
-      scroll.scrollTo({ left:Math.max(0, todayX - (scroll.clientWidth - leftWidth) / 3), behavior:'smooth' });
+    const toolbar = container.querySelector(':scope > .psv-gantt-wrap > .psv-gantt-toolbar');
+    const slider = toolbar?.querySelector('[data-psv-gantt-slider]');
+    toolbar?.querySelectorAll('[data-psv-gantt-zoom]').forEach((btn) => {
+      btn.classList.toggle('active', Math.abs(ganttSliderFromZoom(Number(btn.dataset.psvGanttZoom)) - ganttSliderFromZoom(pxPerDay)) <= 4);
     });
-    container.querySelectorAll('[data-psv-gantt-zoom]').forEach((btn) => btn.addEventListener('click', () => {
-      container.__psvGanttPxPerDay = Number(btn.dataset.psvGanttZoom) || GANTT_ZOOM_PRESETS.week;
-      options.onZoomChange?.(container.__psvGanttPxPerDay);
-      rerender();
-    }));
-    const slider = container.querySelector('[data-psv-gantt-slider]');
-    const liveZoom = () => {
-      container.__psvGanttPxPerDay = ganttZoomFromSlider(slider.value);
-      options.onZoomChange?.(container.__psvGanttPxPerDay);
-      rerender();
-    };
-    slider?.addEventListener('input', liveZoom);
-    container.querySelectorAll('[data-psv-gantt-toggle]').forEach((btn) => btn.addEventListener('click', (event) => {
+    if (slider && document.activeElement !== slider) slider.value = String(ganttSliderFromZoom(pxPerDay));
+    if (toolbar && !reuseToolbar) {
+      toolbar.querySelector('[data-psv-gantt-today]')?.addEventListener('click', () => container.__psvGanttApi?.today());
+      toolbar.querySelectorAll('[data-psv-gantt-zoom]').forEach((btn) => btn.addEventListener('click', () => {
+        container.__psvGanttApi?.setZoom(Number(btn.dataset.psvGanttZoom));
+      }));
+      toolbar.querySelector('[data-psv-gantt-fit]')?.addEventListener('click', () => container.__psvGanttApi?.fit());
+      let sliderFrame = 0;
+      slider?.addEventListener('input', () => {
+        if (sliderFrame) cancelAnimationFrame(sliderFrame);
+        sliderFrame = requestAnimationFrame(() => {
+          sliderFrame = 0;
+          container.__psvGanttApi?.setZoom(ganttZoomFromSlider(slider.value));
+        });
+      });
+    }
+    scroll?.querySelectorAll('[data-psv-gantt-toggle]').forEach((btn) => btn.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
       const id = String(btn.dataset.psvGanttToggle || '');
@@ -4992,25 +5150,32 @@
       options.onGroupToggle?.(id, collapsed.has(id));
       rerender();
     }));
-    container.querySelectorAll('[data-psv-gantt-open]').forEach((node) => node.addEventListener('click', () => {
+    scroll?.querySelectorAll('[data-psv-gantt-open]').forEach((node) => node.addEventListener('click', () => {
       const item = eventById.get(String(node.dataset.psvGanttOpen || ''));
       if (item) options.onEventClick?.(item, { element:node, action:'open' });
     }));
-    container.querySelectorAll('[data-psv-gantt-add]').forEach((node) => node.addEventListener('click', () => {
+    scroll?.querySelectorAll('[data-psv-gantt-add]').forEach((node) => node.addEventListener('click', () => {
       const project = projects?.find((item) => String(item.id || '') === String(node.dataset.psvGanttAdd || ''));
       if (project) options.onProjectAddItem?.(project, { element:node });
     }));
-    container.querySelectorAll('[data-psv-gantt-add-group]').forEach((node) => node.addEventListener('click', () => {
+    scroll?.querySelectorAll('[data-psv-gantt-add-group]').forEach((node) => node.addEventListener('click', () => {
       const project = projects?.find((item) => String(item.id || '') === String(node.dataset.psvGanttAddGroup || ''));
       if (project) options.onProjectAddGroup?.(project, { element:node });
     }));
     if (typeof options.onDependencyRemove === 'function' && !readOnly) {
-      container.querySelectorAll('[data-psv-gantt-dep]').forEach((path) => path.addEventListener('click', () => {
+      scroll?.querySelectorAll('[data-psv-gantt-dep]').forEach((path) => path.addEventListener('click', () => {
         const [eventId, depId] = String(path.dataset.psvGanttDep || '').split('::');
         const item = eventById.get(eventId);
         const dep = item ? dependenciesOf(item).find((entry) => entry.id === depId) : null;
         if (item && dep) options.onDependencyRemove(item, dep);
       }));
+    }
+
+    // Container-level pointer listeners are replaced, not stacked, on each
+    // render; stale closures would otherwise pin old rows and DOM in memory.
+    if (container.__psvGanttPointerHandlers) {
+      Object.entries(container.__psvGanttPointerHandlers).forEach(([type, handler]) => container.removeEventListener(type, handler));
+      container.__psvGanttPointerHandlers = null;
     }
 
     if (readOnly) return;
@@ -5021,7 +5186,13 @@
       if (pxPerDay >= 240) return 60 * 60000;
       return 86400000;
     };
-    const snapTime = (time, snapMs) => Math.round(time / snapMs) * snapMs;
+    // Whole-day snaps land on local midnight (not UTC); finer snaps round
+    // within the local day so half-hour-offset zones stay on the grid.
+    const snapTime = (time, snapMs) => {
+      if (snapMs >= GANTT_DAY_MS) return ganttLocalDay(time, 'round');
+      const dayStart = ganttLocalDay(time, 'floor');
+      return dayStart + Math.round((time - dayStart) / snapMs) * snapMs;
+    };
     const rangePayload = (event, startMs, endMs) => ({
       start:new Date(startMs),
       end:new Date(endMs),
@@ -5066,6 +5237,7 @@
         if (pointerEvent.target.closest('[data-psv-gantt-link]')) {
           pointerEvent.preventDefault();
           drag = { kind:'link', from:item, fromBar:bar, startX:pointerEvent.clientX, startY:pointerEvent.clientY };
+          bar.__psvGanttDragged = false;
           bar.setPointerCapture?.(pointerEvent.pointerId);
           return;
         }
@@ -5075,9 +5247,10 @@
         const start = evStart(item); const end = evEnd(item);
         if (!start || !end) return;
         pointerEvent.preventDefault();
+        bar.__psvGanttDragged = false;
         drag = {
-          kind:handle, item, bar,
-          startX:pointerEvent.clientX,
+          kind:handle, item, bar, barStyle:bar.style.cssText,
+          startX:pointerEvent.clientX, startY:pointerEvent.clientY,
           baseStart:start.getTime(), baseEnd:end.getTime(),
           snapMs:snapMsFor(item), moved:false,
         };
@@ -5091,8 +5264,8 @@
         const item = eventById.get(String(lane.dataset.psvGanttLane || ''));
         if (!item) return;
         pointerEvent.preventDefault();
-        const startMs = snapTime(timeForX(laneX(pointerEvent.clientX)), 86400000);
-        drag = { kind:'create', item, lane, startMs, endMs:startMs + 86400000, snapMs:86400000, moved:false, startX:pointerEvent.clientX };
+        const startMs = ganttLocalDay(timeForX(laneX(pointerEvent.clientX)), 'floor');
+        drag = { kind:'create', item, lane, startMs, endMs:addDays(new Date(startMs), 1).getTime(), snapMs:GANTT_DAY_MS, moved:false, startX:pointerEvent.clientX, pointerId:pointerEvent.pointerId };
         lane.setPointerCapture?.(pointerEvent.pointerId);
         const ghost = document.createElement('div');
         ghost.className = 'psv-gantt-bar ghost';
@@ -5104,11 +5277,13 @@
       });
     });
 
-    container.addEventListener('pointermove', (pointerEvent) => {
+    const onPointerMove = (pointerEvent) => {
       if (!drag) return;
       pointerEvent.preventDefault();
-      if (Math.abs(pointerEvent.clientX - drag.startX) > 2) drag.moved = true;
+      if (Math.abs(pointerEvent.clientX - drag.startX) > 2 || (drag.kind === 'link' && Math.abs(pointerEvent.clientY - drag.startY) > 2)) drag.moved = true;
       if (drag.moved && drag.bar) drag.bar.__psvGanttDragged = true;
+      // A link drag ends over another bar; its click must not open the source.
+      if (drag.moved && drag.fromBar) drag.fromBar.__psvGanttDragged = true;
       if (drag.kind === 'link') {
         const fromRect = drag.fromBar.getBoundingClientRect();
         const bodyRect = body.getBoundingClientRect();
@@ -5126,8 +5301,8 @@
         return;
       }
       if (drag.kind === 'create') {
-        const currentMs = snapTime(timeForX(laneX(pointerEvent.clientX)), drag.snapMs);
-        drag.endMs = Math.max(drag.startMs + drag.snapMs, currentMs + drag.snapMs);
+        const currentDay = ganttLocalDay(timeForX(laneX(pointerEvent.clientX)), 'floor');
+        drag.endMs = addDays(new Date(Math.max(drag.startMs, currentDay)), 1).getTime();
         drag.ghost.style.width = `${Math.max(6, xForTime(drag.endMs) - xForTime(drag.startMs))}px`;
         return;
       }
@@ -5136,7 +5311,9 @@
       let nextEnd = drag.baseEnd;
       if (drag.kind === 'move') {
         nextStart = snapTime(drag.baseStart + deltaMs, drag.snapMs);
-        nextEnd = nextStart + (drag.baseEnd - drag.baseStart);
+        nextEnd = drag.snapMs >= GANTT_DAY_MS
+          ? addDays(new Date(nextStart), Math.max(1, Math.round((drag.baseEnd - drag.baseStart) / GANTT_DAY_MS))).getTime()
+          : nextStart + (drag.baseEnd - drag.baseStart);
       } else if (drag.kind === 'start') {
         nextStart = Math.min(snapTime(drag.baseStart + deltaMs, drag.snapMs), drag.baseEnd - drag.snapMs);
       } else {
@@ -5150,9 +5327,9 @@
       if (drag.kind === 'move' && Scheduling?.cascadeDependentDrafts) {
         ghostForCascade(Scheduling.cascadeDependentDrafts(events, drag.item.id, rangePayload(drag.item, nextStart, nextEnd)));
       }
-    });
+    };
 
-    container.addEventListener('pointerup', (pointerEvent) => {
+    const onPointerUp = (pointerEvent) => {
       if (!drag) return;
       const activeDrag = drag;
       drag = null;
@@ -5173,12 +5350,25 @@
         return;
       }
       if (!activeDrag.moved || activeDrag.nextStart === undefined) return;
+      if (activeDrag.nextStart === activeDrag.baseStart && activeDrag.nextEnd === activeDrag.baseEnd) return;
       const payload = rangePayload(activeDrag.item, activeDrag.nextStart, activeDrag.nextEnd);
       const cascade = Scheduling?.cascadeDependentDrafts
         ? Scheduling.cascadeDependentDrafts(events, activeDrag.item.id, payload).filter((draft) => String(draft.id) !== String(activeDrag.item.id))
         : [];
       options.onEventRangeChange?.(activeDrag.item, payload, { cascade });
-    });
+    };
+    // A cancelled gesture (touch scroll, lost capture) abandons the drag
+    // instead of committing it on some later pointerup.
+    const onPointerCancel = () => {
+      if (!drag) return;
+      drag.ghost?.remove();
+      drag.bar?.classList.remove('dragging');
+      if (drag.bar) drag.bar.style.cssText = drag.barStyle || drag.bar.style.cssText;
+      drag = null;
+      clearGhosts();
+    };
+    container.__psvGanttPointerHandlers = { pointermove:onPointerMove, pointerup:onPointerUp, pointercancel:onPointerCancel, lostpointercapture:onPointerCancel };
+    Object.entries(container.__psvGanttPointerHandlers).forEach(([type, handler]) => container.addEventListener(type, handler));
   }
 
   function mobileCalendarToolbarHtml(options = {}){
@@ -5218,6 +5408,9 @@
     renderResourceDayScheduler,
     renderResourceTimeScheduler,
     renderGanttScheduler,
+    // Host navigation for a rendered timeline: today(), page(±1),
+    // scrollToTime(ms), visibleRange(), setZoom(pxPerDay).
+    ganttControls(container){ return container?.__psvGanttApi || null; },
     monthWeekRowCount,
     layoutTimedOverlapEntries,
     timedOverlapColumnGeometry,

@@ -172,11 +172,12 @@
       .r-material-tile{--material-list-color:#64748b;border-left:4px solid var(--material-list-color);display:block;width:100%;cursor:pointer}
       .r-material-tile.incomplete{border-left-style:dashed}.r-material-tile.active{background:color-mix(in srgb,var(--material-list-color) 9%,#fff);box-shadow:0 0 0 2px color-mix(in srgb,var(--material-list-color) 18%,transparent)}
       .r-material-tile .r-schedule-tile-title{display:flex;align-items:center;gap:7px}.r-material-tile .r-schedule-tile-title i{color:var(--material-list-color)}.r-schedule-tile:not(.r-material-tile) .r-schedule-tile-title i{margin-right:7px;color:#475467}
-      .r-production-resource-tile{display:grid;grid-template-columns:minmax(0,1fr) minmax(120px,42%);align-items:center;gap:10px;width:100%}
+      .r-production-resource-tile{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;gap:8px;width:100%;box-sizing:border-box}
       .r-production-resource-tile.no-assignment{grid-template-columns:1fr}
       .r-production-resource-main{min-width:0;border:0;background:transparent;padding:0;text-align:left;color:inherit;cursor:pointer}
-      .r-production-resource-assignment{display:grid;gap:4px;min-width:0;font-size:9px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:#667085}
-      .r-production-resource-crew-button{width:100%;height:32px;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;color:#344054;padding:0 8px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:900;text-transform:none;letter-spacing:0;cursor:pointer}
+      .r-production-resource-assignment{display:flex;align-items:center;gap:8px;min-width:0;font-size:9px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:#667085}
+      .r-production-resource-assignment>span{flex:0 0 auto}
+      .r-production-resource-crew-button{flex:1 1 auto;min-width:0;width:auto;height:30px;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;color:#344054;padding:0 8px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:900;text-transform:none;letter-spacing:0;cursor:pointer}
       .r-production-resource-crew-button span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.r-production-resource-crew-button i{flex:0 0 auto;font-size:9px;color:#98a2b3}.r-production-resource-crew-button.unassigned{font-style:italic;color:#667085}
       .r-schedule-crew-popover{position:fixed;z-index:3400;width:220px;max-height:280px;overflow:auto;display:grid;gap:4px;padding:7px;border:1px solid rgba(15,23,42,.12);border-radius:12px;background:#fff;box-shadow:0 20px 50px rgba(15,23,42,.22)}
       .r-schedule-crew-option{height:34px;border:0;border-radius:8px;background:#fff;color:#344054;padding:0 10px;text-align:left;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -342,10 +343,19 @@
   }
 
   function eventAssignedLabel(event){
+    // Stored assignees can carry only an id; resolve it to the loaded user
+    // instead of showing the raw id.
+    const nameFor = (id) => {
+      const user = scheduleCachedUsers.find((candidate) => String(candidate?.id || '') === String(id || ''));
+      return String(user?.name || user?.email || '').trim();
+    };
     const users = Array.isArray(event.assigned_users) ? event.assigned_users : [];
-    if (users.length) return users.map((user) => user.name || user.email || user.id).filter(Boolean).join(', ');
+    const named = users.map((user) => user.name || user.email || nameFor(user.id)).filter(Boolean);
+    if (named.length) return named.join(', ');
     const ids = Array.isArray(event.assigned_user_ids) ? event.assigned_user_ids : [];
-    if (ids.length) return ids.join(', ');
+    const resolved = ids.map(nameFor).filter(Boolean);
+    if (resolved.length) return resolved.join(', ');
+    if (ids.length) return ids.length === 1 ? '1 assignee' : `${ids.length} assignees`;
     return String(event?.work_resource_ref?.name || event?.assigned_resource_name || event?.assigned_crew_name || event?.resource_name || '').trim() || 'Assign later';
   }
 
@@ -1105,9 +1115,10 @@
     try {
       if (outcome === 'send') await client.sendConfirmation(orgId, projectId, event.id);
       else await client.setConfirmation(orgId, projectId, event.id, outcome);
-      document.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+      // Calendar listeners (global Scheduling tab) are registered on window.
+      window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
     } catch (error) {
-      window.Portal?.toast?.((globalThis.PlatformLanguage?.text("project-schedule","m_cac0219c86a9cb","Confirmation update failed") ?? "Confirmation update failed"), String(error?.message || error), 'error');
+      showToast((globalThis.PlatformLanguage?.text("project-schedule","m_cac0219c86a9cb","Confirmation update failed") ?? "Confirmation update failed"), String(error?.message || error), false);
     }
   }
 
@@ -1531,7 +1542,7 @@
     const isScheduling = scheduleIsSchedulingView();
     const isGantt = scheduleViewMode === 'gantt';
     const routingLabel = terminology('scheduling.routing_view', window.PlatformScheduling?.labelFor?.(scheduleCachedConfig, 'ui', 'routing_mode') || 'Routing');
-    const ganttLabel = terminology('scheduling.gantt_view', 'Gantt');
+    const ganttLabel = terminology('scheduling.gantt_view', 'Timeline');
     const surfaceActive = (id) => id === 'gantt' ? isGantt : (id === 'scheduling' ? isScheduling && !isGantt : !isScheduling && !isGantt);
     const surfaceButton = (id, label) => `<button type="button" class="r-schedule-view-btn ${surfaceActive(id) ? 'active' : ''}" data-schedule-surface="${id}">${label}</button>`;
     const targetButton = (id, label) => `<button type="button" class="r-schedule-view-btn ${scheduleSchedulingTarget === id ? 'active' : ''}" data-schedule-target="${id}">${label}</button>`;
@@ -1549,6 +1560,14 @@
     rootEl.querySelectorAll('[data-schedule-anchor-nav]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const delta = Number(btn.dataset.scheduleAnchorNav || 0);
+        const timeline = scheduleViewMode === 'gantt'
+          ? window.PlatformScheduleView?.ganttControls?.(rootEl.querySelector('.psv-gantt-wrap')?.parentElement)
+          : null;
+        if (timeline) {
+          if (delta === 0) timeline.today();
+          else timeline.page(delta);
+          return;
+        }
         const next = delta === 0
           ? new Date()
           : (scheduleViewMode === 'month'
@@ -2712,6 +2731,11 @@
   async function saveProjectGanttRange(event, range, cascade = []){
     const Scheduling = window.PlatformScheduling;
     if (!Scheduling || !event?.id || !range?.start) return;
+    if (!isMaterialDeliveryEvent(event) && (Scheduling.eventIsLocked?.(event) || event.schedule_locked === true || event.locked === true)) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_88e13d64071885","Schedule locked") ?? "Schedule locked"), (globalThis.PlatformLanguage?.text("scheduling","m_0233f74e9faf1e","Unlock this item before moving it.") ?? "Unlock this item before moving it."), false);
+      renderSchedulePanelPreservingScroll();
+      return;
+    }
     if (isMaterialDeliveryEvent(event)) {
       if (materialEventIsLocked(event)) {
         showToast((globalThis.PlatformLanguage?.text("project-schedule","m_a1c7a5d9f83613","Delivery locked") ?? "Delivery locked"), (globalThis.PlatformLanguage?.text("project-schedule","m_6bf220dddda83e","Unlock this ordered delivery before moving it.") ?? "Unlock this ordered delivery before moving it."), false);
@@ -2978,11 +3002,14 @@
         Scheduling,
         config: scheduleCachedConfig || null,
         project: activeBaseProject || null,
-        events: scheduleProjectEvents(),
+        events: scheduleProjectEvents().filter((event) => !equipmentEventHidden(event)),
         date: scheduleAnchorDate,
         pxPerDay: projectGanttZoom || undefined,
+        zoom: 'fit',
         collapsedGroupIds: projectGanttCollapsedGroups,
-        modeLabel: window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Gantt') || 'Gantt',
+        modeLabel: window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Timeline') || 'Timeline',
+        stateKey: `project:${activeBaseProject?.id || ''}`,
+        showTodayButton: false,
         resourceHeader: 'Work Item',
         emptyLabel: 'No schedule items yet. Scheduled items from the scope, production work, and deliveries will appear here.',
         onZoomChange(next){ projectGanttZoom = Number(next) || 0; },
@@ -4354,6 +4381,9 @@
     scheduleCalendarGen = 0;
     scheduleAnchorDate = new Date();
     scheduleViewMode = 'month';
+    // Each project opens its timeline fitted to its own work.
+    projectGanttZoom = 0;
+    projectGanttCollapsedGroups = [];
     projectMobileViewMenuOpen = false;
     projectMobileMonthMenuOpen = false;
     projectMobilePickerMonth = scheduleAnchorDate.getMonth();

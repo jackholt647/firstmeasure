@@ -326,7 +326,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-schedule/panel.js', '20260710-project-production-groups')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20260929-scheduling-polish-v1')]
     },
     {
       id: 'project.comms',

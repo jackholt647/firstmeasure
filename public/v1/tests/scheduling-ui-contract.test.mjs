@@ -220,7 +220,7 @@ test('project scheduling mode uses branch-configurable Routing terminology', () 
   assert.match(platformSchedulingSource, /Object\.fromEntries\(Object\.entries\(\{ \.\.\.defaultLabels, \.\.\.inputLabels \}\)/);
   assert.match(projectScheduleSource, /terminology\('scheduling\.routing_view', window\.PlatformScheduling\?\.labelFor\?\.\(scheduleCachedConfig, 'ui', 'routing_mode'\) \|\| 'Routing'\)/);
   assert.match(projectScheduleSource, /surfaceButton\('scheduling', escapeHtml\(routingLabel\)\)/);
-  assert.match(schedulingSource, /\['month',window\.Portal\?\.terminology\?\.get\?\.\('scheduling\.month_view', 'Month'\)[\s\S]*?\['appointment_schedule',routingLabel\]/);
+  assert.match(schedulingSource, /\['month',window\.Portal\?\.terminology\?\.get\?\.\('scheduling\.month_view', 'Month'\)[\s\S]*?\['appointment_schedule',routingLabel[,\]]/);
   assert.match(schedulingSource, /viewMode === 'appointment_schedule'[\s\S]*?renderAppointmentSchedule\(\)/);
   assert.match(schedulingSource, /\['day','4day','week','month','appointment_schedule','gantt'\]\.includes\(route\.scheduleView\)/);
   assert.match(companySettingsSource, /data-configuration-pane="terminology"/);
@@ -600,7 +600,7 @@ test('range saves reflow the calendar without reloading data or overwriting newe
   // calendar views re-render the calendar. A failed save rolls back locally.
   assert.match(rangeSaveSource, /events = visibleEvents\(\);\s*refreshActiveScheduleSurface\(\);/);
   assert.match(rangeSaveSource, /allEvents = allEvents\.map\(\(item\) => previousById\.get\(String\(item\.id \|\| ''\)\) \|\| item\);/);
-  assert.match(schedulingSource, /function refreshActiveScheduleSurface\(\)\{\s*if \(viewMode === 'appointment_schedule'\) renderScheduleLibraryViewPreserveScroll\(\);\s*else renderEventCalendarView\(\);/);
+  assert.match(schedulingSource, /function refreshActiveScheduleSurface\(\)\{\s*if \(viewMode === 'appointment_schedule'\) renderScheduleLibraryViewPreserveScroll\(\);\s*else if \(viewMode === 'gantt'\) renderGanttScheduleView\(\);\s*else renderEventCalendarView\(\);/);
   assert.match(projectScheduleSource, /const scheduleEventSaveVersions = new Map\(\);/);
   assert.match(projectScheduleSource, /const scheduleEventSaveQueues = new Map\(\);/);
   assert.match(projectScheduleSource, /function beginScheduleEventSave\(eventId = ''\)/);
