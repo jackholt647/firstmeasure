@@ -24,6 +24,19 @@ is excluded. Evidence and per-role manifests: `output/users-menu-20260929/`
 The existing historical development autoscale image limitation remains.
 
 The first web activation was superseded by the concurrent picker-font release
-`298eeb4`, which preserved these assets on that node. Remaining nodes are staged
-from their latest live baselines so the font update is also preserved. Final
-per-role identities and verification are recorded after rollout.
+`298eeb4`, which preserved these assets on that node. The second web node and compatibility were staged
+from that newer font baseline and activated as
+`3550f2bd124f2d5ca92fe3ff8db9eb348f9652db`. The first web node retains
+`298eeb47b31620d987b1d16fae608b1ac98ed4d9` with both corrected menu assets.
+All three roles have matching corrected script hashes and passed local readiness.
+Both web instances were observed healthy through the public load balancer with
+development isolation enforced. Public script hashes match source `4697480`.
+Authenticated browser checks passed against both hosted interfaces, including
+Edit, keyboard opening, Escape, outside dismissal, and zero autosave clicks.
+Temporary verification sessions were revoked.
+
+Rollback must account for intervening work. For the second web node and
+compatibility, the recorded predecessor is `298eeb4`; use the existing guarded
+symlink/service workflow, one node at a time. To undo the menu fix across the
+fleet while retaining other releases, prepare a new two-script delta from the
+current baselines. Do not revert the first node wholesale to its pre-font release.
