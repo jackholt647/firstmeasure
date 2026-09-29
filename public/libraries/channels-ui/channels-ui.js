@@ -383,11 +383,17 @@
     const bar = el('div', 'fm-ch-formatbar');
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_f4dce57ac0bb0e","Message formatting") ?? "Message formatting"));
-    const commands = [['Bold', '<b>B</b>', 'bold'], ['Italic', '<i>I</i>', 'italic'], ['Strikethrough', '<s>S</s>', 'strikeThrough'], ['Bulleted list', '• List', 'insertUnorderedList'], ['Numbered list', '1. List', 'insertOrderedList'], ['Quote', '❞', 'formatBlock', 'blockquote'], ['Code block', '&lt;/&gt;', 'formatBlock', 'pre'], ['Link', 'Link', 'link'], ['Table', 'Table', 'table'], ['Clear formatting', 'Tx', 'removeFormat']];
+    const commands = [['Bold', '<b>B</b>', 'bold'], ['Italic', '<i>I</i>', 'italic'], ['Strikethrough', '<s>S</s>', 'strikeThrough'], ['Bulleted list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h12M9 12h12M9 18h12"/></svg>', 'insertUnorderedList'], ['Numbered list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4l1.5-1v6M3 9h3M2.5 15c0-3 4-3 4-.5 0 1.5-4 3-4 5.5h4M10 6h11M10 12h11M10 18h11"/></svg>', 'insertOrderedList'], ['Quote', '❞', 'formatBlock', 'blockquote'], ['Code block', '&lt;/&gt;', 'formatBlock', 'pre'], ['Link', 'Link', 'link'], ['Table', 'Table', 'table'], ['Clear formatting', 'Tx', 'removeFormat']];
     for (const [title, icon, command, value] of commands) {
       if (tableOnly && command === 'table') continue;
       const button = el('button', '', icon);
       button.type = 'button'; button.title = title; button.setAttribute('aria-label', title);
+      if (command === 'insertUnorderedList' || command === 'insertOrderedList') {
+        button.classList.add('fm-ch-list-format');
+        const update = () => { const selection = root.getSelection(); button.setAttribute('aria-pressed', String(!!selection?.anchorNode && editor.contains(selection.anchorNode) && document.queryCommandState(command))); };
+        button.setAttribute('aria-pressed', 'false');
+        for (const event of ['input', 'keyup', 'mouseup', 'focus']) editor.addEventListener(event, update);
+      }
       button.addEventListener('mousedown', event => event.preventDefault());
       button.addEventListener('click', () => {
         editor.focus();
@@ -749,6 +755,7 @@
 .fm-ch-btn:hover{background:var(--ch-hover)}
 .fm-ch-btn.primary{background:var(--ch-accent);border-color:var(--ch-accent);color:#fff}
 .fm-ch-btn.primary:hover{filter:brightness(1.06)}
+.fm-ch-formatbar .fm-ch-list-format{display:inline-flex;align-items:center;justify-content:center;width:30px;height:28px;padding:4px!important}.fm-ch-formatbar .fm-ch-list-format[aria-pressed=true]{background:var(--ch-accent-soft);color:var(--ch-accent)}
 .fm-ch-member-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:8px}
 .fm-ch-member-row:hover{background:var(--ch-hover)}
 .fm-ch-member-row .name{flex:1}
@@ -761,6 +768,7 @@
 .fm-ch-member-choice .fm-ch-member-check i{opacity:0;transform:scale(.7);transition:.14s ease}
 .fm-ch-member-choice.selected .fm-ch-member-check{border-color:var(--ch-accent);background:var(--ch-accent)}
 .fm-ch-member-choice.selected .fm-ch-member-check i{opacity:1;transform:scale(1)}
+.fm-ch-people-picker{display:grid;gap:8px}.fm-ch-people-summary{font-size:12px;color:var(--ch-muted);padding:4px 0}.fm-ch-people-results{max-height:250px;overflow:auto;overscroll-behavior:contain}.fm-ch-current-members{max-height:140px;overflow:auto;overscroll-behavior:contain}.fm-ch-people-choice.fm-ch-member-choice{box-sizing:border-box;min-height:40px;padding:3px 7px;margin:0;border-radius:7px;gap:8px}.fm-ch-people-choice .name{min-width:0;line-height:16px}.fm-ch-people-choice .name strong,.fm-ch-people-choice .name small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fm-ch-people-choice .name strong{font-size:12px;font-weight:600}.fm-ch-people-choice .name small{font-size:11px;font-weight:400;color:var(--ch-muted)}.fm-ch-people-choice .fm-ch-member-check{width:18px;height:18px;border-radius:5px;font-size:11px}.fm-ch-people-selected{display:flex;flex-wrap:wrap;gap:5px;max-height:80px;overflow:auto}.fm-ch-people-selected[hidden]{display:none}.fm-ch-people-selected button{background:var(--ch-accent-soft);color:var(--ch-accent);padding:4px 7px;border-radius:6px;font-size:11px;max-width:100%;overflow-wrap:anywhere}.fm-ch-people-empty{padding:18px 8px;text-align:center;color:var(--ch-muted)}
 .fm-ch-dm-help{margin:0 0 9px;color:var(--ch-muted);font-size:11.5px;line-height:1.45}
 .fm-ch-result{padding:16px 18px;margin:10px 16px;border:1px solid var(--ch-border);border-radius:12px;background:#fff;cursor:pointer;line-height:1.55;overflow-wrap:anywhere;transition:background .15s,border-color .15s}
 .fm-ch-result:hover{background:var(--ch-hover)}
@@ -4916,6 +4924,50 @@
       } }]);
     }
 
+    function peoplePicker(users, selected, onChange = () => {}){
+      const picker = el('div', 'fm-ch-people-picker');
+      const search = el('input'); search.type = 'search'; search.placeholder = 'Search people by name or email'; search.setAttribute('aria-label', 'Search people by name or email');
+      const summary = el('div', 'fm-ch-people-summary'); summary.setAttribute('role', 'status');
+      const chips = el('div', 'fm-ch-people-selected');
+      const list = el('div', 'fm-ch-people-results'); list.setAttribute('aria-label', 'People');
+      picker.append(search, summary, chips, list);
+      const normalize = text => cleanText(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase();
+      const entries = users.map(user => ({ user, search:normalize(`${user.name} ${user.email || ''}`) }));
+      let limit = 50;
+      const updateSelection = () => {
+        chips.replaceChildren();
+        for (const {user} of entries.filter(({user}) => selected.has(user.id))) {
+          const chip = el('button', '', `${esc(user.name)} <span aria-hidden="true">×</span>`);
+          chip.type = 'button'; chip.setAttribute('aria-label', `Deselect ${user.name}`);
+          chip.onclick = () => { selected.delete(user.id); paint(); search.focus(); };
+          chips.append(chip);
+        }
+        chips.hidden = !selected.size;
+        onChange(selected.size);
+      };
+      const paint = () => {
+        const query = normalize(search.value);
+        const matches = entries.filter(entry => !query || entry.search.includes(query));
+        summary.textContent = `${matches.length} ${matches.length === 1 ? 'person' : 'people'} · ${selected.size} selected`;
+        list.replaceChildren();
+        for (const {user} of matches.slice(0, limit)) {
+          const row = el('button', 'fm-ch-member-row fm-ch-member-choice fm-ch-people-choice'); row.type = 'button';
+          const sync = () => { row.classList.toggle('selected', selected.has(user.id)); row.setAttribute('aria-pressed', String(selected.has(user.id))); row.setAttribute('aria-label', `${selected.has(user.id) ? 'Deselect' : 'Select'} ${user.name}${user.email ? ` (${user.email})` : ''}`); };
+          row.innerHTML = `${avatarHtml(user, 'sm')}<span class="name"><strong>${esc(user.name)}</strong><small>${esc(user.agent ? 'FirstMate assistant' : user.email || '')}</small></span><span class="fm-ch-member-check" aria-hidden="true">✓</span>`;
+          sync(); row.onclick = () => { if (selected.has(user.id)) selected.delete(user.id); else selected.add(user.id); sync(); summary.textContent = `${matches.length} ${matches.length === 1 ? 'person' : 'people'} · ${selected.size} selected`; updateSelection(); };
+          list.append(row);
+        }
+        if (!matches.length) list.append(el('div', 'fm-ch-people-empty', 'No people match your search.'));
+        if (matches.length > limit) {
+          const more = el('button', 'fm-ch-btn', `Show more (${matches.length - limit} remaining)`); more.type = 'button';
+          more.onclick = () => { limit += 50; paint(); list.querySelectorAll('.fm-ch-people-choice')[limit - 50]?.focus(); }; list.append(more);
+        }
+        updateSelection();
+      };
+      search.addEventListener('input', () => { limit = 50; list.scrollTop = 0; paint(); });
+      paint(); return picker;
+    }
+
     async function openNewDmModal(){
       const users = await orgUsers();
       // The AI agent(s) can be DMed like teammates.
@@ -4930,22 +4982,7 @@
           return;
         }
         body.appendChild(el('p', 'fm-ch-dm-help', 'Choose one teammate for a direct message, or select multiple people to start a group conversation.'));
-        for (const user of users) {
-          const rowNode = el('button', 'fm-ch-member-row fm-ch-member-choice');
-          rowNode.type = 'button';
-          rowNode.setAttribute('aria-pressed', 'false');
-          rowNode.setAttribute('aria-label', ((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_65bb5febcad942",`Select ${v0}`,{v0}) ?? `Select ${v0}`)(user.name));
-          rowNode.innerHTML = `${avatarHtml(user, 'sm')}<span class="name">${esc(user.name)}${user.agent ? ` <span class="fm-ch-tag"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_7011e28be0ee19"," AI") ?? " AI")}</span>` : ''}</span><span class="fm-ch-member-check" aria-hidden="true"><i class="fas fa-check"></i></span>`;
-          rowNode.addEventListener('click', () => {
-            const nextSelected = !selected.has(user.id);
-            if (nextSelected) selected.add(user.id);
-            else selected.delete(user.id);
-            rowNode.classList.toggle('selected', nextSelected);
-            rowNode.setAttribute('aria-pressed', nextSelected ? 'true' : 'false');
-            rowNode.setAttribute('aria-label', `${nextSelected ? 'Deselect' : 'Select'} ${user.name}`);
-          });
-          body.appendChild(rowNode);
-        }
+        body.append(peoplePicker(users, selected, count => { body.parentElement.querySelector('.fm-ch-modal-foot button').disabled = !count; }));
       }, [{ label: (globalThis.PlatformLanguage?.text("channels-ui","m_1f492347b01f51","Start conversation") ?? "Start conversation"), primary: true, onClick: async (close) => {
         if (!selected.size) return;
         try {
@@ -4991,8 +5028,11 @@
     async function openMembersModal(){
       const channel = state.activeChannel;
       const everyone = await orgUsers();
+      const selected = new Set();
       const memberIds = new Set((channel.members || []).map((member) => member.id));
       showModal(`Members — ${channel.display_name || channel.name}`, (body) => {
+        const members = el('div', 'fm-ch-current-members');
+        body.append(el('div', 'fm-ch-people-summary', `${memberIds.size} current members`), members);
         for (const member of channel.members || []) {
           const rowNode = el('div', 'fm-ch-member-row');
           rowNode.innerHTML = `${avatarHtml(member, 'sm')}<span class="name">${esc(member.name)}${onlineDot(member.id)}${member.role !== 'member' ? ` <span class="fm-ch-tag">${esc(member.role)}</span>` : ''}</span>`;
@@ -5007,34 +5047,29 @@
             });
             rowNode.appendChild(remove);
           }
-          body.appendChild(rowNode);
+          members.appendChild(rowNode);
         }
         const addable = everyone.filter((user) => !memberIds.has(user.id) && (channel.type !== 'dm' || user.id.startsWith('agent_')));
         if (addable.length && (channel.can_invite || channel.can_manage)) {
           body.appendChild(el('label', '', 'Add people'));
-          for (const user of addable) {
-            const rowNode = el('div', 'fm-ch-member-row');
-            rowNode.innerHTML = `${avatarHtml(user, 'sm')}<span class="name">${esc(user.name)}</span>`;
-            const add = el('button', 'fm-ch-btn', 'Add');
-            add.addEventListener('click', async () => {
-              try {
-                await api.channels.addMembers(orgId, channel.id, [user.id]);
-                add.textContent = (globalThis.PlatformLanguage?.text("channels-ui","m_3c7ae517773d5c","Added") ?? "Added");
-                add.disabled = true;
-              } catch (error) { showError(error); }
-            });
-            rowNode.appendChild(add);
-            body.appendChild(rowNode);
-          }
+          body.append(peoplePicker(addable, selected, count => { body.parentElement.querySelector('.fm-ch-modal-foot button:last-child').disabled = !count; }));
         }
-      }, [{ label: (globalThis.PlatformLanguage?.text("channels-ui","m_8cb6b086a0e69c","Done") ?? "Done"), primary: true, onClick: async (close) => {
+        if (!addable.length && (channel.can_invite || channel.can_manage)) body.parentElement.querySelector('.fm-ch-modal-foot button:last-child').disabled = true;
+      }, [{ label: (globalThis.PlatformLanguage?.text("channels-ui","m_8cb6b086a0e69c","Done") ?? "Done"), primary: false, onClick: async (close) => {
         close();
         await loadChannels();
         if (state.activeChannelId) {
           const data = await api.channels.get(orgId, state.activeChannelId).catch(() => null);
           if (data) { state.activeChannel = data.channel; renderHeader(); }
         }
-      } }]);
+      } }, ...((channel.can_invite || channel.can_manage) ? [{ label:'Add selected people', primary:true, onClick:async (close) => {
+        if (!selected.size) return;
+        try {
+          await api.channels.addMembers(orgId, channel.id, [...selected]);
+          close(); await loadChannels();
+          if (state.activeChannelId === channel.id) { const data = await api.channels.get(orgId, channel.id); state.activeChannel = data.channel; renderHeader(); }
+        } catch (error) { showError(error); }
+      } }] : [])]);
     }
 
     function openChannelSettingsModal(){
