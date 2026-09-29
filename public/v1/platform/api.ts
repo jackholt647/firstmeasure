@@ -153,6 +153,7 @@ import { attachRealtimeConnection, pollRealtimeEvents } from "./realtime.js";
 import { organizationUserProfileFields, organizationUserProfileView } from "./user_profile.js";
 import { runTerminologyAgent } from "./terminology_agent.js";
 import { activeResourceGroupIdsForUser, assignedProjectIdsForUser } from "../workforce/assignment_scope.js";
+import { attachPresence, closePresenceStreams } from "./presence.js";
 import { assignmentPolicyForEventType } from "../workforce/assignability.js";
 import { resolveAssignableSubjects } from "../workforce/service.js";
 import { checklistAudioProcessor, reconcileChecklistAudioOperations } from "../audio-structure/checklist.js";
@@ -444,6 +445,7 @@ function googleWorkspaceWebsite(hostedDomain: string) {
   return domain;
 }
 export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async (app, options) => {
+  app.addHook("preClose", async () => closePresenceStreams());
 app.post("/auth/google", async (request, reply) => {
     const body = googleAuthSchema.parse(request.body ?? {});
     const google = await verifyGoogleCredential(body.credential, options.googleIdTokenVerifier);
@@ -2677,6 +2679,26 @@ app.get("/auth/google/config", async () => ({
       userId: ctx.userId,
       after: Number.isFinite(lastEventId) && lastEventId > 0 ? Math.floor(lastEventId) : 0
     }));
+  });
+
+  app.get("/organizations/:orgId/presence/:scopeId", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    const scopeId = getParam(request.params, "scopeId");
+    const authorize = async () => {
+      const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"], ...(scopeId === "online" ? { capability: "apps.channels" } : {}) });
+      if (scopeId !== "online") {
+        if (!scopeId.startsWith("project:")) throw badRequest("invalid_presence_scope", "Unknown presence scope.");
+        const projectId = scopeId.slice(8);
+        await readDocument(orgId, "projects", projectId);
+        if (asObject(ctx.applicationAccess.management).enabled !== true && !(await assignedProjectIdsForUser(orgId, ctx.userId)).has(projectId)) {
+          throw forbidden("project_access_denied", "This project is not assigned to you.");
+        }
+      }
+      return ctx;
+    };
+    const ctx = await authorize();
+    await attachPresence(request, reply, { orgId, scope: scopeId, userId: ctx.userId,
+      name: String(ctx.user.name || ctx.identity.name || "Teammate"), authorize });
   });
 
   app.get("/organizations/:orgId/events/poll", async (request) => {

@@ -2869,6 +2869,7 @@ window.PlatformCommerce.onReady(function(){
     return window.Portal?.routeState?.mediaId?.(photo) || projectPhotoId(photo);
   }
   function syncActiveProjectRoute(extra = {}, options = {}){
+    syncProjectPresence();
     const projectId = activeProjectRouteId();
     if (!projectId || !activeBaseProject) return;
     const patch = { project: projectId, projectTab: activePreviewTab, projectFullscreen: projectModalFullscreen ? '1' : null, contact:null, user:null, userTab:null, pin:null, day:null, callQueue:null, callIndex:null, callStep:null, ...extra };
@@ -8274,7 +8275,50 @@ window.PlatformCommerce.onReady(function(){
     showToast((globalThis.PlatformLanguage?.text("project-request","m_6c9ffb3d517f10","Note saved") ?? "Note saved"), (globalThis.PlatformLanguage?.text("project-request","m_3b44027b035a28","Project note added to the history.") ?? "Project note added to the history."), true);
   }
 
+  let projectPresenceStop = null;
+  let projectPresenceKey = '';
+  let projectPresenceUsers = [];
+  function syncProjectPresence(){
+    const projectId = activeProjectRouteId();
+    const orgId = projectOrgId();
+    const key = orgId && projectId && document.querySelector('#rOverlay.active') ? `${orgId}:${projectId}` : '';
+    if (key !== projectPresenceKey) {
+      projectPresenceStop?.(); projectPresenceStop = null;
+      projectPresenceKey = key; projectPresenceUsers = [];
+      if (key && window.PlatformRealtime?.watchPresence) {
+        projectPresenceStop = window.PlatformRealtime.watchPresence(orgId, `project:${projectId}`, users => {
+          projectPresenceUsers = users.filter(user => user.user_id !== String(cfg.userId || window.__APP?.userId || ''));
+          renderProjectPresence();
+        });
+      }
+    }
+    renderProjectPresence();
+  }
+  function renderProjectPresence(){
+    const notes = document.querySelector('#rOverlay .r-bottom-notes');
+    if (!notes) return;
+    let indicator = notes.querySelector('.r-project-presence');
+    if (!indicator) {
+      indicator = document.createElement('div'); indicator.className = 'r-project-presence';
+      indicator.setAttribute('role', 'status'); indicator.setAttribute('aria-live', 'polite');
+      indicator.style.cssText = 'font-size:11px;color:#475467;display:flex;align-items:center;gap:6px;padding:4px 0;flex-shrink:0';
+      (notes.querySelector('.r-note-composer-shell') || notes).prepend(indicator);
+    }
+    indicator.replaceChildren();
+    indicator.hidden = !projectPresenceUsers.length;
+    indicator.style.display = projectPresenceUsers.length ? 'flex' : 'none';
+    if (!projectPresenceUsers.length) return;
+    const dot = document.createElement('span');
+    dot.style.cssText = 'width:7px;height:7px;border-radius:50%;background:#16a34a;flex-shrink:0';
+    dot.setAttribute('aria-hidden', 'true');
+    const names = projectPresenceUsers.map(user => user.name || 'Teammate');
+    const label = names.length === 1 ? `${names[0]} is viewing` : names.length === 2 ? `${names.join(' and ')} are viewing` : `${names[0]} and ${names.length - 1} others are viewing`;
+    indicator.title = names.join(', ');
+    indicator.append(dot, document.createTextNode(label));
+  }
+
   function syncProjectNotesPlacement(){
+    renderProjectPresence();
     const notes = document.querySelector('#rOverlay .r-bottom-notes');
     const agent = document.querySelector('#rOverlay #rProposalAgent');
     const inlineMount = $('#rInlineNotesMount');
@@ -10857,6 +10901,7 @@ window.PlatformCommerce.onReady(function(){
     overlay.classList.toggle('route-initial-open', !!options.fromRoute);
     setProjectShellLoading(projectShellLoading);
     overlay.classList.add('active');
+    syncProjectPresence();
     window.requestAnimationFrame(() => document.getElementById('fmProjectRoutePrecover')?.remove());
     requestModalHandle?.unregister?.();
     requestModalHandle = window.Portal?.modals?.register?.(overlay, {
@@ -10896,6 +10941,8 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function close(options = {}){
+    projectPresenceStop?.(); projectPresenceStop = null;
+    projectPresenceKey = ''; projectPresenceUsers = []; renderProjectPresence();
     projectOpenGeneration += 1;
     closeHeaderPropertyTypeMenu();
     closeProjectNoteVisibilityMenu();

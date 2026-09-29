@@ -178,6 +178,35 @@
     }));
   }
 
-  const api = { configure, subscribe, diagnostics };
+  // Each visible surface owns its connection; closing it immediately removes
+  // that session without affecting another tab belonging to the same person.
+  function watchPresence(orgId, scope, onChange){
+    let source = null;
+    let disposed = false;
+    function stop(){ source?.close(); source = null; onChange([]); }
+    function sync(){
+      if (disposed || document.hidden) { stop(); return; }
+      if (source || typeof root.EventSource !== 'function') return;
+      source = new EventSource(`${baseUrl()}/organizations/${encodeURIComponent(orgId)}/presence/${encodeURIComponent(scope)}`, { withCredentials:true });
+      const currentSource = source;
+      source.addEventListener('presence', event => {
+        if (disposed || currentSource !== source || document.hidden) return;
+        try { const users = JSON.parse(event.data); if (Array.isArray(users)) onChange(users); } catch (_) {}
+      });
+      source.onerror = () => { if (!disposed && currentSource === source) onChange([]); };
+    }
+    document.addEventListener('visibilitychange', sync);
+    root.addEventListener('pagehide', stop);
+    root.addEventListener('pageshow', sync);
+    sync();
+    return () => {
+      disposed = true; stop();
+      document.removeEventListener('visibilitychange', sync);
+      root.removeEventListener('pagehide', stop);
+      root.removeEventListener('pageshow', sync);
+    };
+  }
+
+  const api = { configure, subscribe, diagnostics, watchPresence };
   root.PlatformRealtime = api;
 })();

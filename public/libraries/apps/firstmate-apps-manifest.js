@@ -30,12 +30,12 @@
     }
   };
   const channelsLibBundles = [
-    versionedBundle('../platform-realtime/platform-realtime.js', '20260723-channels-v1'),
+    versionedBundle('../platform-realtime/platform-realtime.js', '20260928-presence-v1'),
     versionedBundle('../channels-api/channels-api.js', '20260723-channels-v1'),
     versionedBundle('../audio-notes/audio-notes.js', '20260725-communications-voice-v2'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
     versionedBundle('../window-manager/window-manager.js', '20260907-windows-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20260723-channels-v1'),
+    versionedBundle('../channels-ui/channels-ui.js', '20260928-presence-v1'),
     versionedBundle('../project-notes/project-notes.js', '20260723-channels-notes')
   ];
   const fieldApprovalBundles = [
@@ -283,7 +283,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('project-request/app.js', '20260803-visit-identity-v2')]
+      bundles: [...channelsLibBundles, versionedBundle('project-request/app.js', '20260928-presence-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -532,11 +532,11 @@
       order: 44,
       access: { applicationsAny: ['management', 'field'] },
       bundles: [
-        versionedBundle('../platform-realtime/platform-realtime.js', '20260723-channels-v1'),
+        versionedBundle('../platform-realtime/platform-realtime.js', '20260928-presence-v1'),
         versionedBundle('../channels-api/channels-api.js', '20260723-channels-v1'),
         versionedBundle('../audio-notes/audio-notes.js', '20260725-communications-voice-v2'),
         versionedBundle('../window-manager/window-manager.js', '20260907-windows-v1'),
-        versionedBundle('../channels-ui/channels-ui.js', '20260723-channels-v1'),
+        versionedBundle('../channels-ui/channels-ui.js', '20260928-presence-v1'),
         versionedBundle('channels/app.js', '20260723-channels-v1')
       ]
     },

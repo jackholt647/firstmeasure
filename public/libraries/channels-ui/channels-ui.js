@@ -901,8 +901,26 @@
 
     // --- realtime ------------------------------------------------------------------
 
+    let presenceStop = null;
+    let onlineUsers = new Set();
+    const presenceInstance = Math.random().toString(36).slice(2);
+    function onlineDot(userId){
+      const online = onlineUsers.has(userId);
+      return `<span data-online-instance="${presenceInstance}" data-online-user="${esc(userId || '')}" role="img" aria-label="${online ? 'Online' : 'Offline'}" title="${online ? 'Online' : 'Offline'}" style="display:inline-block;width:7px;height:7px;margin-left:5px;border-radius:50%;background:#16a34a;vertical-align:middle;${online ? '' : 'visibility:hidden;'}"></span>`;
+    }
     function connectRealtime(){
       if (options.realtime === false || !root.PlatformRealtime) return;
+      presenceStop?.();
+      presenceStop = root.PlatformRealtime.watchPresence?.(orgId, 'online', users => {
+        onlineUsers = new Set(users.map(user => user.user_id));
+        document.querySelectorAll('[data-online-user]').forEach(dot => {
+          if (dot.dataset.onlineInstance !== presenceInstance) return;
+          const online = onlineUsers.has(dot.dataset.onlineUser);
+          dot.style.visibility = online ? 'visible' : 'hidden';
+          dot.title = online ? 'Online' : 'Offline';
+          dot.setAttribute('aria-label', dot.title);
+        });
+      });
       state.unsubscribe = root.PlatformRealtime.subscribe(orgId, 'channels.', (event) => {
         if (state.destroyed) return;
         const payload = event.payload || {};
@@ -2708,7 +2726,7 @@
         queueMicrotask(() => requestTranslation(message, true));
       }
       const head = el('div', 'fm-ch-msg-head', `
-        <button type="button" class="fm-ch-msg-author fm-ch-profile-trigger">${esc(message.author?.name || 'Unknown')}</button>
+        <button type="button" class="fm-ch-msg-author fm-ch-profile-trigger">${esc(message.author?.name || 'Unknown')}${onlineDot(message.author?.id)}</button>
         <span class="fm-ch-msg-time">${esc(fmtTime(message.created_at))}</span>
         ${message.edited_at && features.editHistory ? `<a class="fm-ch-msg-edited" data-act="history">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cd7e9c529b0a41","(edited)") ?? "(edited)")}</a>` : (message.edited_at ? `<span class="fm-ch-msg-edited">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cd7e9c529b0a41","(edited)") ?? "(edited)")}</span>` : '')}
         ${(message.tags || []).map(tagChipHtml).join('')}
@@ -4184,7 +4202,7 @@
       showModal(`Members — ${channel.display_name || channel.name}`, (body) => {
         for (const member of channel.members || []) {
           const rowNode = el('div', 'fm-ch-member-row');
-          rowNode.innerHTML = `${avatarHtml(member, 'sm')}<span class="name">${esc(member.name)}${member.role !== 'member' ? ` <span class="fm-ch-tag">${esc(member.role)}</span>` : ''}</span>`;
+          rowNode.innerHTML = `${avatarHtml(member, 'sm')}<span class="name">${esc(member.name)}${onlineDot(member.id)}${member.role !== 'member' ? ` <span class="fm-ch-tag">${esc(member.role)}</span>` : ''}</span>`;
           if (channel.can_manage && member.id !== currentUser.id) {
             const remove = el('button', 'fm-ch-icon-btn', '<i class="fas fa-xmark"></i>');
             remove.title = (globalThis.PlatformLanguage?.text("channels-ui","m_47839980185da7","Remove from channel") ?? "Remove from channel");
@@ -4410,6 +4428,7 @@
         stopHuddleSession();
         root.removeEventListener('fm:user-preferences:updated', handlePreferencesUpdated);
         state.unsubscribe?.();
+        presenceStop?.(); presenceStop = null;
         clearTimeout(state.markReadTimer);
         closePopover();
         if (externalHeaderActions) externalHeaderActions.replaceChildren();
