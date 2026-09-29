@@ -42,13 +42,21 @@ export function getAgentsDatabase() {
   const nextPath = resolvedDatabasePath();
   if (database && databasePath === nextPath) return database;
   void closeAgentsDatabase();
-  database = openSqlStore({ id: "agents", schemaVersion: 6, filename: nextPath, initialize: initializeSchema });
+  database = openSqlStore({ id: "agents", schemaVersion: 7, filename: nextPath, initialize: initializeSchema });
   databasePath = nextPath;
   return database;
 }
 
 async function initializeSchema(db: SqlStore) {
   (await db.exec(`
+    CREATE TABLE IF NOT EXISTS agent_background_tasks (
+      id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, kind TEXT NOT NULL,
+      principal_id TEXT NOT NULL, state TEXT NOT NULL, token TEXT NOT NULL,
+      deadline_at TEXT NOT NULL, input_json TEXT NOT NULL, result_json TEXT NOT NULL DEFAULT '{}',
+      audit_json TEXT NOT NULL DEFAULT '{}', error TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL, finished_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS agent_background_tasks_owner ON agent_background_tasks(organization_id,principal_id,created_at);
     CREATE TABLE IF NOT EXISTS agent_wakeup_jobs (
       id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, conversation_key TEXT NOT NULL,
       kind TEXT NOT NULL, payload_json TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending',

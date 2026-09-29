@@ -67,5 +67,18 @@ function registerDocuments(){
     const values=object(data[kind]);const value=Object.fromEntries(keys.filter((k):k is string=>typeof k==="string"&&Object.hasOwn(values,k)&&!["__proto__","constructor","prototype"].includes(k)).map(k=>[k,values[k]]));
     return {value,revision:String(row.revision),provenance:{documentId:row.id,publishedKeys:Object.keys(value)}};
   }};}
+  exports.signed = {description:'Published parameters from one accepted document snapshot. Requires the exact signed snapshot ID; never recalculates.', schema:{type:'object',additionalProperties:true},schemaVersion:'1',access,
+    argsSchema:{type:'object',properties:{snapshotId:{type:'string'}},required:['snapshotId'],additionalProperties:false},
+    read:async(ctx,ref)=>{
+      const row=await readDocument(ctx.organizationId,'documents',id(ref));const data=object(row.data);projectCheck(data,ref.target);
+      const snapshot=await (await import('../../documents/storage.js')).readDocumentSnapshot(ctx.organizationId,String(ref.args?.snapshotId));
+      if(snapshot.document_id!==row.id)throw forbidden('document_snapshot_mismatch','Snapshot does not belong to this document.');
+      const pkg=await (await import('../../documents/signing/store.js')).packageForSnapshot(ctx.organizationId,String(ref.args?.snapshotId));
+      if(!pkg||pkg.status!=='completed')return {status:'missing',code:'document_not_signed',message:'The snapshot has not completed signing.'};
+      const keys=object(data.publication).params;if(!Array.isArray(keys))return {status:'missing',code:'document_exports_undeclared',message:'No parameters have been published.'};
+      const values=object(pkg.content.params);const value=Object.fromEntries(keys.filter((k):k is string=>typeof k==='string'&&Object.hasOwn(values,k)&&!['__proto__','prototype','constructor'].includes(k)).map(k=>[k,values[k]]));
+      return {value,revision:pkg.content_hash,provenance:{documentId:row.id,snapshotId:pkg.snapshot_id,publishedKeys:Object.keys(value)}};
+    },authorizeSnapshot:async(ctx,ref,result)=>{const row=await readDocument(ctx.organizationId,'documents',id(ref));const keys=object(object(row.data).publication).params;const captured=result.provenance.publishedKeys;if(!Array.isArray(keys)||!Array.isArray(captured)||captured.some(k=>!keys.includes(k)))throw forbidden('document_export_revoked','Captured parameters are no longer published.');}
+  };
   registerDataProvider({id:"documents",version:"1",apps:["documents","docs","signatures"],exports});
 }

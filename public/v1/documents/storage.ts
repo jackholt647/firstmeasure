@@ -1,3 +1,4 @@
+import { documentTags } from "./tags.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import { conflict, notFound } from "../platform/errors.js";
@@ -773,6 +774,7 @@ export async function recordDocumentEvent(
   const eventPayload: JsonObject = {
     document_id: documentId,
     document_type: cleanText(documentValue.document_type),
+    document_tags: documentTags(documentValue.tags),
     template_id: cleanText(templateRef.template_id),
     project_id: cleanText(documentValue.project_id),
     ...payload

@@ -2002,7 +2002,7 @@ async function finalizePublicProposalSignature(publicToken: string, input: JsonO
   }
   await patchProjectSharedProposal(found.orgId, nextSnapshot, publicToken).catch(() => null);
   await expireSiblingProposalOptions(found.orgId, nextSnapshot).catch(() => null);
-  await recordProposalEvent(found.orgId, cleanText(snapshot.proposal_id), "proposal.signed", {
+  await recordProposalEvent(found.orgId, cleanText(snapshot.proposal_id), "document.signed", {
     snapshot_id: cleanText(snapshot.id),
     public: true,
     signer_name: signerName,
@@ -2286,7 +2286,7 @@ export async function recordProposalEvent(orgId: string, proposalIdValue: string
         project_id: projectId,
         type,
         idempotency_key: `${type}:${proposalIdValue}:${cleanText(payload.snapshot_id || data.id)}`,
-        payload: { proposal_id: proposalIdValue, ...payload },
+        payload: { proposal_id: proposalIdValue, ...(type === "document.signed" ? { document_id: proposalIdValue, document_type: "proposal", document_tags: ["proposal"], document_source: "proposals" } : {}), ...payload },
         context: { actor_user_id: ctx?.userId || cleanText(payload.actor_user_id) }
       });
     }

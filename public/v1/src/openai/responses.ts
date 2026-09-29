@@ -13,6 +13,7 @@ export type OpenAIResponseResult = {
 export type OpenAIResponseOptions = {
   apiKey?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 };
 
 function asObject(value: unknown): OpenAIJson {
@@ -59,7 +60,7 @@ export async function requestOpenAIResponse(payload: OpenAIJson, options: OpenAI
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      signal: controller.signal
+      signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal
     });
     const raw = await response.text();
     let json: OpenAIJson | null = null;

@@ -5675,7 +5675,7 @@ Continue with this payment?`)(message));
         ${summaryExtensionPanel(cleanText(activeDescriptor.extensionPageId))}
       `;
     })();
-    mount.innerHTML = `
+    mount.innerHTML = `${!guestAccess && (state.payload?.notifications||[]).length ? `<section class="cp-card" aria-label="Notifications">${state.payload.notifications.map(n=>`<article><strong>${escapeHtml(n.title)}</strong><p>${escapeHtml(n.body)}</p></article>`).join('')}</section>` : ''}
       ${isPreviewMode() ? `<div class="cp-preview-banner">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_15b3e5ee9b709c","Preview Mode") ?? "Preview Mode")}</div>` : ''}
       ${guestAccess ? `<div class="cp-guest-banner"><i class="fa-solid fa-eye" aria-hidden="true"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_7090eed673e7f9","Shared read-only view") ?? "Shared read-only view")}</strong>${state.payload?.access?.label ? ` for ${escapeHtml(state.payload.access.label)}` : ''}</span></div>` : ''}
       <header class="cp-header">

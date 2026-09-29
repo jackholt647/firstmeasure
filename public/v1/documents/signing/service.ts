@@ -1,3 +1,4 @@
+import { documentTags } from "../tags.js";
 import { randomUUID, createHash } from "node:crypto";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { badRequest, conflict, forbidden, notFound } from "../../platform/errors.js";
@@ -13,7 +14,7 @@ import { withSigningLock, signingStore, readPackage, savePackage, packagesForDoc
 
 export function signingSource(document: JsonObject) {
   const defs = object(document.output_defs);
-  return { title: document.title, project_id: document.project_id, branch_id: document.branch_id, document_type: document.document_type, ingestion: document.ingestion, params: document.params, overrides: document.overrides, template_ref: document.template_ref,
+  return { title: document.title, project_id: document.project_id, branch_id: document.branch_id, document_type: document.document_type, ...(document.tags !== undefined ? { tags: documentTags(document.tags) } : {}), ingestion: document.ingestion, params: document.params, overrides: document.overrides, template_ref: document.template_ref,
     workflow_ref: document.workflow_ref, theme_ref: document.theme_ref, theme_overrides: document.theme_overrides,
     output_defs: defs, module_ref: document.module_ref, module_resolved: document.module_resolved,
     outputs: Object.fromEntries(Object.entries(object(document.outputs)).filter(([key]) => !["signature", "payment"].includes(text(object(defs[key]).type)))) };
@@ -119,7 +120,7 @@ export async function prepareSigning(access: SigningAccess) {
       const snapshot = await readDocumentSnapshot(pkg.organization_id, pkg.snapshot_id);
       const unsignedOutputs = Object.fromEntries(Object.entries(object(document.outputs)).filter(([key]) => !pkg.fields[key]));
       const resolved = await resolveDocumentInstance(pkg.organization_id, { ...document, outputs: unsignedOutputs }, { target: "static", snapshot });
-      const content: JsonObject = { ...resolved, title: document.title, params: object(resolved.scope.params), outputs: publicSignatureOutputs(unsignedOutputs), module_ref: document.module_ref, module_binding_manifest: document.module_binding_manifest };
+      const content: JsonObject = { ...resolved, document_type: document.document_type, tags: documentTags(document.tags), title: document.title, params: object(resolved.scope.params), outputs: publicSignatureOutputs(unsignedOutputs), module_ref: document.module_ref, module_binding_manifest: document.module_binding_manifest };
       const pricing = await documentCheckoutPricing(pkg.organization_id, document, object(content.params), {});
       const subtotal = Number(pricing.totals.subtotal_cents || 0) - Number(pricing.totals.adjustments_cents || 0);
       content.contract_basis_cents = Math.max(0, subtotal + Math.round(subtotal * (Number(object(content.params).tax_percent) || 0) / 100)) || Number(object(content.params).amount_cents || object(content.params).total_cents || 0);
@@ -243,8 +244,13 @@ export async function projectSigningPackage(id: string) {
   });
 }
 let draining: Promise<void> | null = null;
+let drainRequested = false;
 export function drainSigningOutbox(): Promise<void> {
-  if (!draining) draining = deliverSigningOutbox().finally(() => { draining = null; });
+  drainRequested = true;
+  if (!draining) draining = (async () => {
+    // A caller may enqueue/expire a package after the current pass took its snapshot.
+    do { drainRequested = false; await deliverSigningOutbox(); } while (drainRequested);
+  })().finally(() => { draining = null; });
   return draining;
 }
 async function deliverSigningOutbox() {
@@ -285,7 +291,7 @@ async function deliverSigningOutbox() {
       await recordDocumentEvent(pkg.organization_id, document, String(entry.event_type), payload, null, { emit: false, eventId: String(entry.id) });
       const { emitWorkEvent } = await import("../../work/engine.js");
       await emitWorkEvent({ organization_id: pkg.organization_id, branch_id: text(document.branch_id) || "default", ...(document.project_id ? { project_id: text(document.project_id) } : {}), type: String(entry.event_type), idempotency_key: String(entry.id),
-        payload: { document_id: pkg.document_id, document_type: document.document_type, template_id: object(document.template_ref).template_id, project_id: document.project_id, ...payload }, context: { source: "document_signing" } });
+        payload: { document_id: pkg.document_id, document_type: pkg.content.document_type || document.document_type, document_tags: documentTags(pkg.content.tags ?? document.tags), template_id: object(document.template_ref).template_id, project_id: document.project_id, ...payload }, context: { source: "document_signing" } });
       await signingStore().prepare("UPDATE document_signing_outbox SET delivered=1 WHERE id=?").run(String(entry.id));
       } catch (error) {
         const reason = error instanceof Error ? error.message.slice(0,1000) : "delivery_failed";
@@ -368,7 +374,7 @@ export async function importSigningEvidence(orgId: string, documentId: string, v
     const { createSnapshot } = await import("../service.js");
     const snapshot = await createSnapshot(orgId, documentId, { reason: "manual" }, ctx);
     const current = await readDocumentInstance(orgId, documentId), now = new Date().toISOString();
-    const content: JsonObject = { kind: "reviewed_paper_upload", title: document.title, params: document.params, resolved_definition: snapshot.resolved_definition, widget_data: snapshot.widget_data, theme: snapshot.theme, theme_vars: snapshot.theme_vars,
+    const content: JsonObject = { kind: "reviewed_paper_upload", document_type: document.document_type, tags: documentTags(document.tags), title: document.title, params: document.params, resolved_definition: snapshot.resolved_definition, widget_data: snapshot.widget_data, theme: snapshot.theme, theme_vars: snapshot.theme_vars,
       original_file: { name: original.fileName, content_type: original.contentType, sha256: createHash("sha256").update(original.bytes).digest("hex"), bytes_base64: original.bytes.toString("base64") } };
     const statement = "The authenticated reviewer attests that they inspected the retained original and the recorded signatures are present. This is an imported signature, not an electronic signature collected by this platform.";
     const pkg: SigningPackage = { id: `sign_${randomUUID()}`, organization_id: orgId, document_id: documentId, snapshot_id: text(snapshot.id), status: "open", signers: signerPlan(fields, []), fields, receipts: {}, created_at: now, expires_at: now, source_hash: digest(signingSource(current)), content_hash: digest(content), content,

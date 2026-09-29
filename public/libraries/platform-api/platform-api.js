@@ -455,6 +455,10 @@
   };
 
   const notifications = {
+    rules(orgId){ return request(orgPath(orgId, '/notification-rules')); },
+    saveRule(orgId, rule){ return request(orgPath(orgId, '/notification-rules'), {method:'PUT',body:rule}); },
+    saveQuietHours(orgId, hours){ return request(orgPath(orgId, '/notification-quiet-hours'), {method:'PATCH',body:hours}); },
+    acknowledge(orgId, id){ return request(orgPath(orgId, `/notification-deliveries/${enc(id)}/ack`), {method:'POST',body:{}}); },
     list(orgId, options = {}){
       const params = new URLSearchParams();
       if (options.branchId || options.branch_id) params.set('branch_id', options.branchId || options.branch_id);

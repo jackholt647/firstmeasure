@@ -51,6 +51,23 @@
     const visibleNotifications = [];
     const dismissedNotifications = [];
     for (const item of nextNotifications) {
+      if (item.delivery_version === 2) {
+        const claim = async method => {
+          const delivery = item.deliveries?.methods?.[method];
+          if (delivery?.state !== 'available') return false;
+          return (await PlatformAPI.notifications.acknowledge(orgId, delivery.id).catch(() => null))?.claimed === true;
+        };
+        if (item.presentation?.celebration && await claim('celebration')) root.PlatformCelebrations?.fromNotification?.({...item, presentation:{...item.presentation,sound:false}});
+        if (item.presentation?.sound && options.silent !== true && await claim('audio')) playNotificationIndicator();
+        if (item.presentation?.toast && await claim('toast')) {
+          const toast=document.createElement('div');toast.setAttribute('role','status');toast.textContent=[item.title,item.body].filter(Boolean).join(' — ');
+          Object.assign(toast.style,{position:'fixed',right:'20px',bottom:'24px',maxWidth:'min(380px,90vw)',padding:'14px 18px',background:'#172033',color:'white',borderRadius:'12px',zIndex:'100000',boxShadow:'0 8px 30px #0003'});
+          document.body.appendChild(toast);setTimeout(()=>toast.remove(),6000);
+        }
+        if (!item.user_state?.completed_at && !item.user_state?.dismissed_at && item.presentation?.bell !== false) visibleNotifications.push(item);
+        if (item.user_state?.dismissed_at && isToday(item.user_state.dismissed_at)) dismissedNotifications.push(item);
+        continue;
+      }
       if (isCelebrationNotification(item) && item.presentation?.sound !== false) {
         const id = String(item?.id || '');
         if (id && !knownIds.has(id) && !item?.user_state?.completed_at) {
@@ -72,13 +89,22 @@
     }
     const newNotification = state.loaded_at && nextNotifications.some((item) => {
       const id = String(item?.id || '');
-      return id && !knownIds.has(id) && !item?.user_state?.seen_at && !item?.user_state?.dismissed_at && !item?.user_state?.completed_at && !isCelebrationNotification(item) && item.presentation?.sound !== false;
+      return item.delivery_version !== 2 && id && !knownIds.has(id) && !item?.user_state?.seen_at && !item?.user_state?.dismissed_at && !item?.user_state?.completed_at && !isCelebrationNotification(item) && item.presentation?.sound !== false;
     });
+    const grouped = new Map();
+    const displayed = [];
+    for (const item of visibleNotifications) {
+      const key = item.deliveries?.groups?.[0]?.group;
+      if (!key) { displayed.push(item); continue; }
+      if (!grouped.has(key)) { const first={...item, grouped_notification_ids:[item.id], group_count:1}; grouped.set(key,first);displayed.push(first); }
+      else { const first=grouped.get(key);first.grouped_notification_ids.push(item.id);first.group_count++;if(!item.user_state?.seen_at)first.user_state={...first.user_state,seen_at:undefined}; }
+    }
+    for (const item of displayed) if(item.group_count>1) item.title=`${item.group_count} updates: ${item.title}`;
     state = {
-      notifications: visibleNotifications,
+      notifications: displayed,
       dismissed_notifications: dismissedNotifications,
-      unread_count: visibleNotifications.filter((item) => !item?.user_state?.seen_at && item.presentation?.badge !== false).length,
-      active_count: visibleNotifications.length,
+      unread_count: displayed.filter((item) => !item?.user_state?.seen_at && item.presentation?.badge !== false).length,
+      active_count: displayed.length,
       loaded_at: new Date().toISOString(),
     };
     knownIds = new Set(nextNotifications.map((item) => String(item?.id || '')).filter(Boolean));
@@ -116,7 +142,9 @@
 
   async function setState(orgId, notificationId, patch = {}, options = {}){
     if (!PlatformAPI?.notifications || !orgId || !notificationId) return null;
-    const result = await PlatformAPI.notifications.setUserState(orgId, notificationId, patch);
+    const group = state.notifications.find(item => item.id === notificationId)?.grouped_notification_ids;
+    const results = await Promise.all((group || [notificationId]).map(id => PlatformAPI.notifications.setUserState(orgId, id, patch)));
+    const result = results[0];
     if (options.reload !== false) await load(orgId, options);
     return result?.state || result;
   }

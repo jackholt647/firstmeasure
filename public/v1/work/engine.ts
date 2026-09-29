@@ -62,6 +62,11 @@ export function conditionMatches(conditions: JsonObject, context: JsonObject) {
   });
 }
 
+/** Saved legacy subscriptions remain readable; only document.signed is emitted. */
+export function matchesWorkEvent(subscription: string, event: JsonObject) {
+  return subscription === event.type || (subscription === "proposal.signed" && event.type === "document.signed" && asObject(event.payload).document_source === "proposals");
+}
+
 function eventTargetsNode(event: JsonObject, node: JsonObject) {
   const payload = asObject(event.payload);
   const entity = asObject(payload.event || payload.delivery || payload.payment);
@@ -99,7 +104,7 @@ async function applyExternalTriggers(event: JsonObject, project: JsonObject) {
     if (!eventTargetsNode(event, node)) continue;
     const triggers = asArray(node.external_triggers).map(asObject);
     for (const trigger of triggers) {
-      if (cleanText(trigger.event) !== type) continue;
+      if (!matchesWorkEvent(cleanText(trigger.event), event)) continue;
       const conditionContext = {
         event,
         payload: asObject(event.payload),
@@ -227,7 +232,7 @@ async function executeEvent(event: JsonObject) {
   const type = cleanText(event.type);
   for (const rule of rules) {
     if (rule.enabled === false || !cleanText(rule.automation)) continue;
-    if (cleanText(rule.event) !== type) continue;
+    if (!matchesWorkEvent(cleanText(rule.event), event)) continue;
     const conditionContext = { event, payload: asObject(event.payload), context: asObject(event.context), project, plan, node };
     if (!conditionMatches(asObject(rule.conditions), conditionContext)) continue;
     const result = await executeBinding(event, {
@@ -289,7 +294,8 @@ export async function emitWorkEvent(input: JsonObject, options: { process?: bool
   }
   const result = (await createEventRecord({
     ...input,
-    type: cleanText(input.type || input.event),
+    type: cleanText(input.type || input.event) === "proposal.signed" ? "document.signed" : cleanText(input.type || input.event),
+    ...(cleanText(input.type || input.event) === "proposal.signed" ? { payload: { ...asObject(input.payload), document_type: "proposal", document_tags: ["proposal"], document_source: "proposals", document_id: asObject(input.payload).proposal_id } } : {}),
     idempotency_key: cleanText(input.idempotency_key) || `${cleanText(input.type || input.event)}:${randomUUID()}`
   }));
   if (options.process !== false && (env.deploymentTopology === "single" || process.env.PLATFORM_PROCESS_ROLE === "worker")) await drainWorkEvents();

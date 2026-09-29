@@ -30,3 +30,16 @@ test('silent deliveries remain visible without alerts; hidden bell items can sti
   assert.equal(celebrations, 0);
   assert.equal(sounds, 1);
 });
+
+
+test('recipient surface claims deduplicate tabs and grouped actions apply to all members',async()=>{
+ const claims=new Set(),changed=[];let sounds=0,celebrations=0;
+ const response={notifications:['a','b'].map(id=>({id,title:'Signed',delivery_version:2,presentation:{bell:true,sound:true,celebration:true},deliveries:{groups:[{group:'same-channel'}],methods:{audio:{id:id+'-audio',state:'available'},celebration:{id:id+'-celebration',state:'available'}}}}))};
+ const window={PlatformAPI:{notifications:{list:async()=>response,acknowledge:async(_org,id)=>{if(claims.has(id))return {claimed:false};claims.add(id);return {claimed:true};},setUserState:async(_org,id)=>{changed.push(id);return {};}}},PlatformCelebrations:{indicator:()=>sounds++,fromNotification:()=>celebrations++}};
+ runInNewContext(source,{window,setTimeout});
+ const result=await window.PlatformNotifications.load('org');
+ assert.equal(result.notifications.length,1);assert.equal(result.notifications[0].group_count,2);assert.equal(result.unread_count,1);
+ assert.equal(sounds,2);assert.equal(celebrations,2);
+ await window.PlatformNotifications.load('org');assert.equal(sounds,2);assert.equal(celebrations,2);
+ await window.PlatformNotifications.dismiss('org','a');assert.deepEqual(changed,['a','b']);
+});

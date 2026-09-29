@@ -1,3 +1,5 @@
+import { notificationEvent } from "./notifications/delivery.js";
+import { notifyRuleSubscriptions } from "./notifications/subscriptions.js";
 import { createHash } from 'node:crypto';
 import { backgroundAuthContext, hasPermission } from './auth.js';
 import { listDocuments } from './storage.js';
@@ -11,6 +13,7 @@ const obj=(v:unknown):Json=>v&&typeof v==='object'&&!Array.isArray(v)?v as Json:
 /** Runs under the durable Work event lease. Opt-in subscriptions never broaden the user's permissions. */
 export async function notifyWorkEvent(event:Json) {
  const org=String(event.organization_id), branch=String(event.branch_id||'default');
+ await notifyRuleSubscriptions(event);
  const key=`event.${event.type}`;
  const definition=builtInEventDefinitions().find(d=>d.key===key);
  if(!definition||!await isAppFlagEnabled(org,'apps','notifications'))return;
@@ -29,14 +32,14 @@ export async function notifyWorkEvent(event:Json) {
  await createPlatformNotification(org,{
   id:'event_notification_'+createHash('sha256').update(String(event.id)).digest('hex'),
   title:definition.label,body:definition.description,source:'work.event',category:definition.category,preference_key:key,
-  target_user_ids:recipients,branch_id:branch,push:true,
+  target_user_ids:recipients,branch_id:branch,push:true,notification_event:notificationEvent(event),
   context:{event_id:event.id,project_id:event.project_id},
   frontend_action:event.project_id?{kind:'open_project',project_id:event.project_id}:{}
  });
 }
 /** Carry the declaration identity across interpolation and code execution. Never use notification text as identity. */
 export async function workflowNotificationInput(event:Json,plan:Json,node:Json,binding:Json,bindingId:string,input:Json):Promise<Json> {
- input={...input,id:input.id||'work_notification_'+createHash('sha256').update(JSON.stringify([event.id,bindingId,input.notification_id||''])).digest('hex')};
+ input={...input,notification_event:notificationEvent(event),id:input.id||'work_notification_'+createHash('sha256').update(JSON.stringify([event.id,bindingId,input.notification_id||''])).digest('hex')};
  const template=String(plan.template_id||''),branch=String(event.branch_id||'default');
  if(bindingId.startsWith('org_rule:') && binding.automation==='notification.create.v1')return {...input,category:'tasks',preference_key:workflowPreferenceKey(branch,'organization-automations',bindingId.slice(9)),preference_defaults:{in_app:input.passive!==false,push:input.push===true},push:true};
  if(!template)return input;

@@ -130,7 +130,7 @@ async function executeLoop(
   run: AgentRun,
   tools: AgentTool[],
   conversation: JsonObject[],
-  options: { maxRounds: number; maxOutputTokens: number; retryOnRetryable: boolean; checkLease?: () => void; maxDurationMs?: number }
+  options: { maxRounds: number; maxOutputTokens: number; retryOnRetryable: boolean; checkLease?: () => void; maxDurationMs?: number; signal?: AbortSignal }
 ): Promise<LoopOutcome> {
   const actionTurnId = randomUUID();
   const model = definition.model();
@@ -158,15 +158,16 @@ async function executeLoop(
   const startedAt = Date.now();
   const maxDurationMs = options.maxDurationMs ?? definition.loop?.maxDurationMs ?? 300_000;
   for (let round = 0; round < options.maxRounds; round += 1) {
+    options.signal?.throwIfAborted();
     options.checkLease?.();
-    if (round > 0 && Date.now() - startedAt > maxDurationMs) {
+    if (Date.now() - startedAt >= maxDurationMs) {
       outcome.loopError = "This request took too long and was stopped. Try asking for a smaller piece at a time.";
       break;
     }
     outcome.rounds = round + 1;
-    let result = await requestOpenAIResponse(requestPayload(), { timeoutMs: model.timeoutMs ?? 120_000 });
+    let result = await requestOpenAIResponse(requestPayload(), { timeoutMs: Math.max(1, Math.min(model.timeoutMs ?? 120_000, maxDurationMs - (Date.now() - startedAt))), signal: options.signal });
     if (!result.ok && options.retryOnRetryable && isRetryableOpenAIStatus(result.status)) {
-      result = await requestOpenAIResponse(requestPayload(), { timeoutMs: model.timeoutMs ?? 120_000 });
+      result = await requestOpenAIResponse(requestPayload(), { timeoutMs: Math.max(1, Math.min(model.timeoutMs ?? 120_000, maxDurationMs - (Date.now() - startedAt))), signal: options.signal });
     }
     if (!result.ok) {
       const detail = openAIErrorMessage(result, `${definition.title} is unavailable right now.`);
@@ -175,6 +176,7 @@ async function executeLoop(
       outcome.loopError = modelFailureMessage(result.status, detail);
       break;
     }
+    options.signal?.throwIfAborted();
     options.checkLease?.();
     const usage = asObject(asObject(result.json).usage);
     outcome.inputTokens += Math.max(0, Number(usage.input_tokens) || 0);
@@ -210,6 +212,7 @@ async function executeLoop(
     }
     conversation.push(...output.map((item) => asObject(item)));
     for (const call of functionCalls) {
+      options.signal?.throwIfAborted();
       options.checkLease?.();
       const callObject = asObject(call);
       const name = cleanText(callObject.name);
@@ -423,6 +426,9 @@ async function runClaimedAgentTurn(agentId: string, turn: AgentTurnInput, checkL
 // ── Threadless runs (auto-responses, external-conversation agents) ─────────
 
 export type AgentOnceInput = {
+  signal?: AbortSignal;
+  maxDurationMs?: number;
+  checkLease?: () => void;
   orgId: string;
   branchId?: string;
   /** The full conversation to run over ({role, content} entries). */
@@ -489,6 +495,9 @@ export async function runAgentOnce(agentId: string, input: AgentOnceInput) {
   const outcome = await executeLoop(definition, run, tools, conversation, {
     maxRounds: Math.max(1, input.maxRounds ?? loop.maxRounds ?? 16),
     maxOutputTokens: loop.maxOutputTokens ?? 8_000,
+    signal: input.signal,
+    maxDurationMs: input.maxDurationMs,
+    checkLease: () => { assertAgentWakeupLease(); input.checkLease?.(); },
     retryOnRetryable: loop.retryOnRetryable !== false
   });
   const failed = outcome.loopError !== "" || (outcome.reported ? outcome.reported.status === "failed" : false);

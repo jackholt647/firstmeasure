@@ -1,3 +1,4 @@
+import { documentTags } from "./tags.js";
 import { companyDocumentLanguage } from "../platform/localization/documents.js";
 import { serverLanguage } from "../platform/localization/server.js";
 import { resolveContext, type LanguageSnapshot } from "../platform/localization/core.js";
@@ -667,6 +668,7 @@ export async function createDocumentInstance(orgId: string, projectId: string, i
     branch_id: cleanText(projectData.branch_id || ctx.branchId || "default") || "default",
     project_id: projectId,
     document_type: typeDef.id,
+    tags: documentTags([...asArray(asObject(template).tags), ...asArray(input.tags)]),
     title: cleanText(input.title || asObject(template).name || projectData.title || typeDef.label) || typeDef.label,
     template_ref: template ? { template_id: cleanText(template.id), version } : null,
     theme_ref: Object.keys(asObject(input.theme_ref)).length
@@ -755,6 +757,7 @@ async function resolveRetemplatePatch(orgId: string, current: JsonObject, patch:
     }
     const definition = asObject(asObject(templateVersion).definition);
     const typeDef = typeDefinitionFor(cleanText(current.document_type));
+    updates.tags = documentTags([...asArray(current.tags), ...asArray(template.tags), ...asArray(patch.tags)]);
     updates.template_ref = { template_id: templateId, version: Number(asObject(templateVersion).version || version) };
     updates.param_defs = { ...typeDef.param_schema, ...asObject(current.param_defs), ...asObject(definition.params) };
     updates.output_defs = { ...typeDef.output_schema, ...asObject(current.output_defs), ...asObject(definition.outputs) };
@@ -799,7 +802,7 @@ async function patchDocumentInstanceLocked(orgId: string, documentId: string, pa
     throw conflict("document_revision_conflict", "Document revision does not match.");
   }
   const statusPatch = cleanText(patch.status);
-  const contentKeys = ["params", "overrides", "title", "theme_ref", "theme_overrides", "contact_ids"];
+  const contentKeys = ["tags", "params", "overrides", "title", "theme_ref", "theme_overrides", "contact_ids"];
   const editsContent = contentKeys.some((key) => Object.prototype.hasOwnProperty.call(patch, key));
   if (editsContent || patch.template_ref || patch.workflow_ref || patch.metadata) await assertSigningEditable(orgId, documentId);
   if (editsContent && isLockedSigned(current)) {
@@ -823,6 +826,7 @@ async function patchDocumentInstanceLocked(orgId: string, documentId: string, pa
   }
   const data: JsonObject = {
     ...current,
+    ...(patch.tags !== undefined ? { tags: documentTags(patch.tags) } : {}),
     ...attach,
     title: Object.prototype.hasOwnProperty.call(patch, "title") ? cleanText(patch.title) || cleanText(current.title) : current.title,
     params: Object.prototype.hasOwnProperty.call(patch, "params") ? { ...asObject(current.params), ...asObject(patch.params) } : current.params,

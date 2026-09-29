@@ -1,3 +1,5 @@
+import { baselinePlan, enqueueNotification, persistNotificationOccurrence, recipientDeliveries, portalNotifications } from "./notifications/delivery.js";
+import { registerNotificationRulesApi } from "./notifications/api.js";
 import { TRANSLATION_CODES, normalizeTranslationLanguage } from "./localization/languages.js";
 import { messageTranslationPreferences } from "./localization/message-preferences.js";
 import { signupCommercialProfile, profileFromGlobal, organizationProfile, currentProfile, customerCommercialView, creditLabel, creditMinorAmount, reportPrice, assertCommercialRevision } from "../commerce/profile.js";
@@ -76,7 +78,7 @@ import {
 } from "./auth.js";
 import { PlatformError } from "./errors.js";
 import { notificationCatalog, catalogDefinitions, definitionPreferences } from "./notification_catalog.js";
-import { notificationPresentation, isMessageInboxNotification, notificationPreferenceEnabled, categoryForNotification, deliverNotificationPush, preferenceKeyForNotification, registerNotificationDevice, saveNotificationPreferences, unregisterNotificationDevice } from "./notification_delivery.js";
+import { notificationPresentation, isMessageInboxNotification, notificationPreferenceEnabled, categoryForNotification, preferenceKeyForNotification, registerNotificationDevice, saveNotificationPreferences, unregisterNotificationDevice } from "./notification_delivery.js";
 import { projectAudienceFacts } from "./portal_audience.js";
 import { customerPortalDocumentId as portalDocumentIdFor, normalizePortalSettings, publicPortalSettings, type PortalSettings } from "./portal_settings.js";
 // Side-effect import: registers the portal.* server widget resolvers into the
@@ -2465,7 +2467,7 @@ app.get("/auth/google/config", async () => ({
     const query=asObject(request.query);
     const branchId=String(query.branch_id || ctx.branchId || "default");
     const catalog=await notificationCatalog(orgId,branchId,ctx);
-    return { ok:true,catalog,custom_keys:Array.isArray(asObject(asObject(user.data).notification_preferences).custom_keys)?asObject(asObject(user.data).notification_preferences).custom_keys:[],preferences:definitionPreferences(asObject(user.data).notification_preferences,catalogDefinitions(catalog)) };
+    return { ok:true,catalog,quiet_hours:asObject(asObject(user.data).notification_preferences).quiet_hours,custom_keys:Array.isArray(asObject(asObject(user.data).notification_preferences).custom_keys)?asObject(asObject(user.data).notification_preferences).custom_keys:[],preferences:definitionPreferences(asObject(user.data).notification_preferences,catalogDefinitions(catalog)) };
   });
 
   app.patch("/organizations/:orgId/notification-preferences", async (request) => {
@@ -3155,6 +3157,7 @@ app.get("/auth/google/config", async () => ({
   });
 
   await app.register(registerPricebookApi, { prefix: "/pricebook" });
+  await registerNotificationRulesApi(app);
   startPlatformHeartbeat(app);
 };
 
@@ -4048,6 +4051,11 @@ function normalizeNotification(input: Record<string, unknown>) {
     category: categoryForNotification(input),
     preference_key: String(input.preference_key || input.preferenceKey || ""),
     preference_defaults: asObject(input.preference_defaults),
+    delivery_version: 2,
+    broadcast: input.broadcast === true,
+    delivery_methods: normalizeStringArray(input.delivery_methods),
+    target_portal_ids: normalizeStringArray(input.target_portal_ids),
+    customer_copy: { title: cleanText(asObject(input.customer_copy).title).slice(0,140), body: cleanText(asObject(input.customer_copy).body).slice(0,2000) },
     push: input.push === true,
     passive: input.passive !== false,
     manual_dismissible: input.manual_dismissible !== false && input.manualDismissible !== false,
@@ -4074,7 +4082,11 @@ function userRoleIds(user: Record<string, unknown>) {
 }
 
 export async function createPlatformNotification(orgId: string, input: Record<string, unknown>) {
-  const notification = normalizeNotification(input);
+  let notification = normalizeNotification(input);
+  const existing = await readDocument(orgId, NOTIFICATION_COLLECTION, notification.id).catch(()=>null);
+  if (existing && asObject(existing.data).delivery_version !== 2) return existing;
+  const occurrence = await persistNotificationOccurrence(orgId, existing ? asObject(existing.data) : notification, asObject(input.notification_event));
+  notification = JSON.parse(String(occurrence.note_json));
   let saved;
   try {
     saved = await upsertDocument(orgId, NOTIFICATION_COLLECTION, {
@@ -4083,16 +4095,14 @@ export async function createPlatformNotification(orgId: string, input: Record<st
       metadata: { kind: "platform_notification", source: notification.source }
     }, { createOnly: true });
   } catch (error) {
-    if (error instanceof PlatformError && error.code === "document_exists") return await readDocument(orgId, NOTIFICATION_COLLECTION, notification.id);
+    if (error instanceof PlatformError && error.code === "document_exists") {
+      const existing = await readDocument(orgId, NOTIFICATION_COLLECTION, notification.id);
+      if (asObject(existing.data).delivery_version === 2) await enqueueNotification(orgId, asObject(existing.data), asObject(input.notification_event));
+      return existing;
+    }
     throw error;
   }
-  if (notification.push) {
-    const log = await deliverNotificationPush(orgId, notification).catch((error) => {
-      console.error("notification push dispatch failed", error);
-      return [{ at: new Date().toISOString(), status: "error" }];
-    });
-    if (log.length) return await upsertDocument(orgId, NOTIFICATION_COLLECTION, { id: notification.id, data: { ...notification, push_log: log }, metadata: saved.metadata }, { replace: true });
-  }
+  await enqueueNotification(orgId, notification, asObject(input.notification_event));
   return saved;
 }
 
@@ -4148,15 +4158,24 @@ async function listVisibleNotifications(orgId: string, userId: string, options: 
   const states = asObject(asObject(userDoc.data).notification_state);
   const roles = new Set(userRoleIds(user));
   const rawPreferences = asObject(userDoc.data).notification_preferences;
+  const deliveryRecords = await recipientDeliveries(orgId, userId);
   const notifications = notificationDocs
     .map((doc) => ({ document: doc, data: asObject(doc.data) }))
     .filter(({ data }) => String(data.status || "active") === "active")
-    .filter(({ data }) => data.passive !== false || isMessageInboxNotification(data))
+    .filter(({ document, data }) => {
+      if (data.delivery_version !== 2) return true;
+      const delivery = deliveryRecords.get(String(data.id || document.id));
+      if (!delivery) return false;
+      if (options.ignorePreferences) return true;
+      return ["in_app","audio","toast","celebration"].some(method=>["available", "presented"].includes(String(asObject(asObject(delivery.methods)[method]).state)));
+    })
+    .filter(({ data }) => data.delivery_version === 2 || data.passive !== false || isMessageInboxNotification(data))
     .filter(({ data }) => categoryForNotification(data) !== "measurements" || measurementsEnabled)
     .filter(({ data }) => !notificationExpired(data))
-    .filter(({ data }) => options.ignorePreferences || notificationPreferenceEnabled(asObject(userDoc.data).notification_preferences,data,"in_app"))
+    .filter(({ data }) => options.ignorePreferences || data.delivery_version === 2 || notificationPreferenceEnabled(asObject(userDoc.data).notification_preferences,data,"in_app"))
     .filter(({ data }) => !data.branch_id || String(data.branch_id) === String(options.branchId || "default"))
     .filter(({ data }) => {
+      if (data.delivery_version === 2) return true; // The durable recipient list is authoritative.
       const targetUserIds = normalizeStringArray(data.target_user_ids);
       const targetRoleIds = normalizeStringArray(data.target_role_ids);
       if (!targetUserIds.length && !targetRoleIds.length) return true;
@@ -4165,7 +4184,7 @@ async function listVisibleNotifications(orgId: string, userId: string, options: 
     })
     .map(({ document, data }) => {
       const state = asObject(states[String(data.id || document.id)]);
-      return { ...data, id: String(data.id || document.id), user_state: state, presentation: notificationPresentation(rawPreferences, data), document_revision: document.revision };
+      return { ...data, id: String(data.id || document.id), user_state: state, presentation: (() => { const p = notificationPresentation(rawPreferences, data), d = deliveryRecords.get(String(data.id || document.id)); if (!d) return p; const m = asObject(d.methods); return {...p, bell: p.bell && ["available","presented"].includes(String(asObject(m.in_app).state)), sound: asObject(m.audio).state === "available" && baselinePlan(data,rawPreferences).audio?.decision !== "suppress", celebration: asObject(m.celebration).state === "available" && baselinePlan(data,rawPreferences).celebration?.decision !== "suppress", toast: asObject(m.toast).state === "available" && baselinePlan(data,rawPreferences).toast?.decision !== "suppress"}; })(), deliveries: deliveryRecords.get(String(data.id || document.id)), document_revision: document.revision };
     })
     .filter((item) => options.includeDismissed || !item.user_state.dismissed_at && !item.user_state.completed_at)
     .sort((a, b) => String((b as Record<string, unknown>).created_at).localeCompare(String((a as Record<string, unknown>).created_at)));
@@ -7123,6 +7142,7 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
       contact_id: found.access_mode === "guest" ? "" : contactId,
       active_project_id: project.id
     },
+    notifications: found.access_mode === "guest" || preview ? [] : await portalNotifications(found.orgId,String(found.document.id)),
     feedback: found.access_mode === "guest" ? null : feedback,
     portal_pages: found.access_mode === "guest" ? null : portalPages,
     tabs,

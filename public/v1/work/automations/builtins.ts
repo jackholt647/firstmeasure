@@ -580,6 +580,7 @@ async function reconcilePaymentRecognition(context: WorkAutomationContext, _inpu
 async function dispatchDocumentSignedBehaviors(context: WorkAutomationContext, _input: JsonObject) {
   const orgId = cleanText(context.event.organization_id);
   const payload = asObject(context.event.payload);
+  if (payload.document_source === "proposals") return { skipped: true, reason: "legacy_proposal_dispatch" };
   const documentId = cleanText(payload.document_id);
   if (!documentId) return { skipped: true, reason: "missing_document_id" };
   const { documentType } = await import("../../documents/types/registry.js");
@@ -941,6 +942,12 @@ export async function createWorkNotification(orgId: string, branchId: string, pr
     status: "active",
     channel: cleanText(input.channel || "passive"),
     kind: cleanText(input.kind || "passive"),
+    notification_event: asObject(input.notification_event),
+    target_portal_ids: asArray(input.target_portal_ids),
+    customer_copy: asObject(input.customer_copy),
+    delivery_methods: asArray(input.delivery_methods),
+    // v1 saved bindings historically broadcast when no audience was supplied.
+    broadcast: input.broadcast === true || (input.broadcast === undefined && !asArray(input.target_user_ids).length && !asArray(input.target_role_ids).length),
     push: input.push === true,
     passive: input.passive !== false,
     manual_dismissible: input.manual_dismissible !== false,

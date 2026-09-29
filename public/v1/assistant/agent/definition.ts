@@ -764,7 +764,7 @@ registerAgent({
   prepare: run => { run.scratch.actionsAllowed = true; },
   tools: notificationAssistantTools,
   systemPrompt: async run => `${await sharedAssistant.systemPrompt(run)}
-This is the focused Notification settings conversation. Only inspect_notifications, configure_notification and report_result are available. Use the scope/task details returned by inspection. Do not attempt unrelated assistant operations or cross-app tools.`,
+This is the focused Notification settings conversation. Use notification inspection/configuration tools and the read-only publication tools to author notification delivery rules. Inspect existing document tags and schemas. Do not perform unrelated operations.`,
   revert: undefined
 });
 

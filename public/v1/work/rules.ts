@@ -64,8 +64,8 @@ export const DEFAULT_AUTOMATION_RULES: JsonObject[] = [
     enabled: true,
     title: "Create payment schedule when a proposal is signed",
     customer_visible: false,
-    event: "proposal.signed",
-    conditions: {},
+    event: "document.signed",
+    conditions: { "payload.document_source": "proposals" },
     automation: "payments.ensureReceivables.v1",
     input: {}
   },

@@ -1,3 +1,4 @@
+import { registerNotificationProvider } from "../notifications/provider.js";
 import { registerBuiltinDataProviders } from "./provider-adapters.js";
 import { registerDomainActions } from "./action-adapters.js";
 import { registerDatasetActions } from "./dataset-actions.js";
@@ -10,6 +11,7 @@ let initialized = false;
 export function initializePublication() {
   if (initialized) return;
   registerBuiltinDataProviders();
+  registerNotificationProvider();
   registerCustomFieldPublication();
   registerDomainActions();
   registerDatasetActions();

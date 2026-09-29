@@ -1,3 +1,4 @@
+import { listRules } from "./notifications/store.js";
 import { createHash } from "node:crypto";
 import { listWorkEventDefinitions } from "../work/events.js";
 import { isAppFlagEnabled } from "./app_flags.js";
@@ -68,6 +69,7 @@ export async function notificationCatalog(orgId:string,branch='default',auth?:Pl
   if(app&&!await isAppFlagEnabled(orgId,app==='scheduling'?'platform':'apps',app))continue;
   groups.push({id:`legacy.${key}`,label,kind:'app',definitions:[{key,label,description:'Notifications created directly by this app.',category:key,defaults:{in_app:true,push:key!=='celebrations'}}]});
  }
+ if(auth){const personal=await listRules(orgId,auth.userId);groups.push({id:'personal-rules',label:'Custom notification rules',kind:'custom',definitions:personal.filter(r=>r.subscribe).map(r=>({key:workflowPreferenceKey(branch,'personal-notification-rules',auth.userId+':'+r.id),label:r.title,description:r.intent,category:'tasks',defaults:{in_app:r.methods.includes('in_app'),push:r.methods.includes('push')}}))});}
  const {rules}=await readAutomationRules(orgId,branch);
  if(!auth||hasPermission(auth,'manage_company_settings')){
   const definitions=rules.filter(r=>r.automation==='notification.create.v1'&&!String(r.id).startsWith('custom_notification_')).map(r=>{const input=obj(r.input);return {key:workflowPreferenceKey(branch,'organization-automations',String(r.id)),label:String(r.title||input.title||r.id),description:String(r.explainer||input.body||'Company automation notification.'),category:'tasks',defaults:{in_app:input.passive!==false,push:input.push===true}};});

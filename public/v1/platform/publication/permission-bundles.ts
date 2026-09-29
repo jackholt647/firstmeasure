@@ -17,7 +17,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   manage_project_billing: { actions: ["payments.invoice.create", "payments.invoice.due", "payments.invoice.void", "payments.payment.clear"] },
   refund_payments: { actions: ["payments.payment.refund"] },
   manage_billing: { data: ["billing.balance"] },
-  view_documents: { actions: ["documents.instance.read", "documents.signing.status"], data: ["documents.params", "documents.outputs", "document-modules.value"] },
+  view_documents: { actions: ["documents.instance.read", "documents.signing.status"], data: ["documents.params", "documents.outputs", "documents.signed", "document-modules.value"] },
   manage_documents: { actions: ["documents.instance.create", "documents.workflow.update", "document-modules.instance.create", "document-modules.instance.refresh", "document-modules.instance.command", "document-modules.instance.freeze", "document-modules.export.write", "document-modules.document.generate", "document-modules.document.materialize"] },
   issue_documents: { actions: ["documents.instance.issue", "documents.instance.send"] },
   view_materials: { actions: ["materials.project.lists", "materials.list.read", "materials.order.read"], data: ["materials.record"] },
@@ -53,7 +53,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   manage_company_settings: { actions:["custom-fields.organization.write"], data: ["scopes.records"] },
   manage_training: { actions: ["training.course.progress"] },
   // Membership and per-subject checks are the permission for these exports.
-  "": { actions: ["channels.list", "channels.messages.list", "channels.message.react", "training.courses.mine"], data: ["channels.records", "training.records"] }
+  "": { actions: ["channels.list", "channels.messages.list", "channels.message.react", "training.courses.mine"], data: ["channels.records", "training.records", "notification-rules.value"] }
 };
 
 function index(kind: "actions" | "data") {

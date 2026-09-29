@@ -73,11 +73,12 @@ export function notificationPreferenceEnabled(raw:unknown, note:Json, surface:"i
 }
 
 export async function saveNotificationPreferences(orgId: string, userId: string, patch: Json, branch="default") {
-  const allowed=new Set(catalogDefinitions(await notificationCatalog(orgId,branch)).map(d=>d.key));
+  const auth=await (await import("./auth.js")).backgroundAuthContext(orgId,userId);
+  const allowed=new Set(catalogDefinitions(await notificationCatalog(orgId,branch,auth)).map(d=>d.key));
   const doc = await readDocument(orgId, "users", userId);
   const data = object(doc.data);
   const current: Record<string, Json> = {in_app:{...object(object(data.notification_preferences).in_app)},push:{...object(object(data.notification_preferences).push)}};
-  for (const surface of ["in_app", "push", ...notificationPresentationSurfaces] as const) {
+  for (const surface of ["in_app", "push", "email", "sms", "toast", "audio", "celebration", ...notificationPresentationSurfaces] as const) {
     current[surface] ??= {...object(object(data.notification_preferences)[surface])};
     const updates = object(patch[surface]);
     for (const [key, enabled] of Object.entries(updates)) {

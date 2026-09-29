@@ -363,7 +363,7 @@ test("the activity feed separates human-relevant events from machinery", async (
   assert.ok(everything.events.some((event: any) => event.type === "work.node.status_changed"), "visibility=all exposes system events");
 
   const catalog = await client.request("GET", `/v1/work/organizations/${orgId}/event-catalog`);
-  assert.ok(catalog.events.some((event: any) => event.name === "proposal.signed" && event.visibility === "activity"));
+  assert.ok(catalog.events.some((event: any) => event.name === "document.signed" && event.visibility === "activity"));
   assert.ok(catalog.events.some((event: any) => event.name === "work.node.status_changed" && event.visibility === "system"));
 });
 
