@@ -2953,7 +2953,8 @@ window.PlatformCommerce.onReady(function(){
       .r-overlay.window-managed .r-win[data-window="minimized"] .r-right > :not(.r-modal-header){display:none!important}
       .r-overlay.window-managed .r-win[data-window="minimized"] .r-right{min-height:0;flex:1}
       .r-overlay.window-managed .r-win[data-window="minimized"] .r-modal-header{display:flex!important}
-      .r-overlay.window-managed .r-win[data-window="minimized"] .r-tabbar{display:none}
+      .r-overlay.window-managed .r-win[data-window="minimized"] .r-tabbar,
+      .r-overlay.window-managed .r-win[data-window="minimized"] #rProjectHeaderAction{display:none}
       .r-overlay.window-managed .r-win[data-window="minimized"] .r-modal-header:before{content:'Project';padding:14px 8px;font-size:12px}
       @media(max-width:1080px){.r-overlay.window-managed .r-win{flex-direction:column}}
       @media(max-width:760px){.r-overlay.window-managed.entitlement-hide-fullscreen .fm-window-controls [data-window-action="fullscreen"]{display:none}.r-overlay.window-managed .fm-window-controls button{width:28px;min-height:39px}}

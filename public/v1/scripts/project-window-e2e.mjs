@@ -23,6 +23,7 @@ try {
   assert.equal(await page.evaluate(()=>registered),['modal','fullscreen'].includes(mode)?1:0);
   assert.equal(await input.inputValue(),'Keep this draft');
   await page.locator('[data-window-action=minimize]').click();assert.equal(await win.getAttribute('data-window'),'minimized');assert.equal(await input.isVisible(),false);
+  const minimized=await win.boundingBox(),closeButton=await page.locator('[data-window-action=close]').boundingBox();assert.ok(closeButton.x+closeButton.width<=minimized.x+minimized.width,'Minimized close stays within the window');
   await page.locator('[data-window-action=minimize]').click();assert.equal(await win.getAttribute('data-window'),mode);assert.equal(await input.inputValue(),'Keep this draft');
  }
  await page.locator('[data-window-action=floating]').click();const before=await win.boundingBox();
