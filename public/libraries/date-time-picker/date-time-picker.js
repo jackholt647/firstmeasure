@@ -135,7 +135,11 @@
       if (customOpen) shadow.querySelector('details').open = true;
       const slots = shadow.querySelector('.slots');
       const selected = slots?.querySelector('[aria-pressed="true"]:not(:disabled)') || slots?.querySelector('button:not(:disabled)');
-      if (selected) { selected.tabIndex=0; slots.scrollTop=selected.offsetTop-slots.offsetTop-slots.clientHeight/3; }
+      if (selected) {
+        selected.tabIndex=0;
+        const reveal=()=>{if(selected.isConnected)slots.scrollTop=selected.offsetTop-slots.offsetTop-slots.clientHeight/3;};
+        reveal();requestAnimationFrame(reveal);
+      }
       // Ensure a keyboard entry point even when the selected date is out of range.
       const days = shadow.querySelector('.days');
       if (days && !days.querySelector('button[tabindex="0"]:not(:disabled)')) days.querySelector('button:not(:disabled)')?.setAttribute('tabindex','0');

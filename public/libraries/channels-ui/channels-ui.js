@@ -3990,6 +3990,8 @@
           defaultDate.setMinutes(Math.ceil(defaultDate.getMinutes() / 15) * 15, 0, 0);
           body.closest('.fm-ch-modal').style.width='min(680px, calc(100vw - 32px))';
           body.innerHTML = `<input hidden required aria-label="Scheduled date and time" type="datetime-local" data-field="scheduled" value="${String(new Date(defaultDate.getTime() - defaultDate.getTimezoneOffset() * 60000).toISOString().slice(0,16))}"><div data-schedule-calendar></div>`;
+          const earliest=new Date(Date.now()+60_000);
+          body.querySelector('input').min=new Date(earliest.getTime()-earliest.getTimezoneOffset()*60_000).toISOString().slice(0,16);
           inlinePicker=root.FirstMateDateTimePicker.mount(body.querySelector('[data-schedule-calendar]'),body.querySelector('input'));
           return ()=>inlinePicker?.destroy();
         }, [{ label:'Schedule send', primary:true, onClick:async (close, body) => {

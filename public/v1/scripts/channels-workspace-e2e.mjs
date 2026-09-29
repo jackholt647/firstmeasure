@@ -325,6 +325,14 @@ try {
   await editor.fill('Send this later');
   await page.getByRole('button',{name:'Schedule message',exact:true}).click();
   const scheduleValue = await page.locator('[data-field=scheduled]').inputValue();
+  await page.waitForFunction(()=>{
+    const shadow=document.querySelector('fm-date-time-picker')?.shadowRoot;
+    const selected=shadow?.querySelector('[data-slot][aria-pressed=true]'),slots=shadow?.querySelector('.slots');
+    if(!selected||!slots)return false;
+    const a=selected.getBoundingClientRect(),b=slots.getBoundingClientRect();return a.top>=b.top&&a.bottom<=b.bottom;
+  });
+  const earliestDate=await page.locator('[data-field=scheduled]').getAttribute('min');
+  if(scheduleValue.slice(0,10)===earliestDate.slice(0,10))assert.ok(await page.locator('fm-date-time-picker').locator('[data-slot]:disabled').count()>0);
   const scheduledDelay = await page.evaluate(value => new Date(value).getTime() - Date.now(), scheduleValue);
   assert.ok(scheduledDelay >= 55 * 60000 && scheduledDelay <= 76 * 60000, 'picker represents a local time about one hour ahead');
   assert.equal(await page.locator('[data-field=scheduled]').isVisible(),false);
