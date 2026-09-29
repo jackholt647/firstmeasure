@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 Channels: [Managers, public discovery, rich paste and GIF sharing](deploy/digitalocean/development-channels-members-paste-20260929.md) records the verified development rollout, message controls, authorization/browser checks, GIPHY beta setup and role-aware rollback.
+
 September 29 Project Modal: [Shared window placements and custom chrome](deploy/digitalocean/development-project-window-20260929.md) records modal, dock, float, workspace/full-screen, minimize and header integration, validation and development rollout.
 
 September 29 Projects stages: [Remove manual movement hint](deploy/digitalocean/development-project-stage-space-20260929.md) records the verified development-only frontend rollout and rollback.
