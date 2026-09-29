@@ -39,7 +39,8 @@
   }
   function closeMenu(){ menu?.remove(); menu = null; }
   document.addEventListener('pointerdown', event => { if (menu && !menu.contains(event.target)) closeMenu(); });
-  document.addEventListener('keydown', event => { if (event.key === 'Escape' && menu) { closeMenu(); event.stopPropagation(); } }, true);
+  // Dismiss placement menus before a containing modal's document Escape handler.
+  window.addEventListener('keydown', event => { if (event.key === 'Escape' && menu) { closeMenu(); event.preventDefault(); event.stopPropagation(); } }, true);
   function registerHost(host){
     if (hosts.has(host)) return;
     const previousPosition = host.style.position;
