@@ -13181,15 +13181,22 @@
           #csPaneNotifications .nc-grid{display:grid;grid-template-columns:repeat(var(--nc-columns,1),minmax(0,1fr));padding:0 0 8px}
           #csPaneNotifications .nc-col{min-width:0;padding:0 12px}
           #csPaneNotifications .nc-col+.nc-col{border-left:1px solid #d0d5dd}
-          #csPaneNotifications .nc-colhead,#csPaneNotifications .nc-row{display:grid;grid-template-columns:minmax(0,1fr) 94px 48px;align-items:center;gap:8px}
+          #csPaneNotifications .nc-colhead,#csPaneNotifications .nc-row{display:grid;grid-template-columns:minmax(0,1fr) 154px 36px 24px;align-items:center;gap:4px}
           #csPaneNotifications .nc-colhead{height:30px;color:#667085;font-size:10px;border-bottom:1px solid #eaecf0}
           #csPaneNotifications .nc-colhead span:not(:first-child){text-align:center}
           #csPaneNotifications .nc-row{min-height:44px;border-bottom:1px solid #f2f4f7}
-          #csPaneNotifications .nc-mode{width:100%;min-height:36px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#344054;font:inherit;font-size:12px}
-          #csPaneNotifications .nc-advanced{grid-column:1/-1;font-size:12px;color:#667085;padding:0 0 8px}
-          #csPaneNotifications .nc-advanced summary{cursor:pointer;width:fit-content;padding:5px 0}
-          #csPaneNotifications .nc-advanced label{display:flex;gap:8px;align-items:center;padding:6px 0;color:#344054}
-          #csPaneNotifications .nc-advanced p{margin:6px 0;line-height:1.5}
+          #csPaneNotifications .nc-mode{display:flex;align-items:center;gap:2px;padding:2px;border-radius:8px;background:#f2f4f7}
+          #csPaneNotifications .nc-mode button{flex:1;min-width:0;border:0;border-radius:6px;background:transparent;color:#667085;padding:7px 4px;font:500 11px inherit;font-family:inherit;font-size:11px;cursor:pointer}
+          #csPaneNotifications .nc-mode button[aria-pressed=true]{background:#fff;color:var(--primary-readable,#18794e);box-shadow:0 1px 3px #10182820}
+          #csPaneNotifications .nc-mode button:focus-visible,#csPaneNotifications .nc-expand:focus-visible{outline:2px solid var(--primary-readable,#18794e);outline-offset:2px}
+          #csPaneNotifications .nc-info .nc-expand{display:grid;place-items:center;width:24px;height:32px;padding:0;cursor:pointer;color:#667085;border-radius:6px}
+          #csPaneNotifications .nc-expand svg{transition:transform .15s}
+          #csPaneNotifications .nc-expand[aria-expanded=true] svg{transform:rotate(180deg)}
+          #csPaneNotifications .nc-advanced{grid-column:1/-1;display:flex;align-items:center;justify-content:flex-end;gap:18px;padding:2px 4px 6px;font-size:11px;color:#667085}
+          #csPaneNotifications .nc-option{display:flex;align-items:center;gap:5px}
+          #csPaneNotifications .nc-option .nc-switch{min-height:28px;min-width:32px}
+          #csPaneNotifications .nc-switch input:disabled{cursor:default}
+          #csPaneNotifications .nc-switch input:disabled+.nc-track{opacity:.4}
           #csPaneNotifications .nc-row:last-child{border-bottom:0}
           #csPaneNotifications .nc-label{display:flex;gap:6px;padding-right:8px;align-items:center;min-width:0;font-size:12px;line-height:1.4}
           #csPaneNotifications .nc-label>span:first-child{min-width:0;overflow-wrap:anywhere}
@@ -13199,7 +13206,7 @@
           #csPaneNotifications .nc-info button i:before{content:'i';font:italic 10px Georgia,serif}
           #csPaneNotifications .nc-tip{position:fixed;z-index:1000;display:none;width:210px;max-width:calc(100vw - 24px);padding:9px 11px;border:1px solid #e4e7ec;border-radius:8px;background:#182230;color:#fff;font-size:12px;line-height:1.5;box-shadow:0 4px 12px #10182820}
           #csPaneNotifications .nc-info:hover .nc-tip,#csPaneNotifications .nc-info:focus-within .nc-tip{display:block}
-          #csPaneNotifications .nc-switch{display:flex;justify-content:center;align-items:center;position:relative;min-height:44px;min-width:44px;margin:0;cursor:pointer}
+          #csPaneNotifications .nc-switch{display:flex;justify-content:center;align-items:center;position:relative;min-height:40px;min-width:32px;margin:0;cursor:pointer}
           #csPaneNotifications .nc-switch input{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;cursor:pointer;z-index:1}
           #csPaneNotifications .nc-track{width:30px;height:18px;border-radius:12px;background:#d0d5dd;position:relative;transition:background .15s}
           #csPaneNotifications .nc-track:after{content:'';position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #10182820;transition:transform .15s}
@@ -13225,7 +13232,7 @@
           shown.sort((a,b)=>Object.keys(sectionNames).indexOf(a.kind)-Object.keys(sectionNames).indexOf(b.kind));
           list.innerHTML=shown.map((g,index)=>{
             const open=query||!collapsed.has(g.id),count=g.visible.length,n=columns,size=Math.floor(count/n),extra=count%n;
-            return `${(section==='all'||query)&&(index===0||shown[index-1].kind!==g.kind)?`<h3 class="nc-section-title">${sectionNames[g.kind]}</h3>`:''}<section class="nc-card"><button class="nc-heading" type="button" data-nc-group="${escapeHtml(g.id)}" aria-expanded="${!!open}" aria-controls="nc-group-${index}"><i class="fas fa-chevron-down" aria-hidden="true"></i><strong>${escapeHtml(g.label)}</strong><small>${g.disabled?'Archived · ':''}${g.definitions.length}</small></button><div id="nc-group-${index}" ${open?'':'hidden'}>${count?`<div class="nc-grid" style="--nc-columns:${n}">${Array.from({length:n},(_,col)=>`<div class="nc-col"><div class="nc-colhead" aria-hidden="true"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_8afbfeae955a57","Notification") ?? "Notification")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ac1052388993fc","In app") ?? "In app")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_beeb4b3fee68a1","Push") ?? "Push")}</span></div>${g.visible.slice(col*size+Math.min(col,extra),(col+1)*size+Math.min(col+1,extra)).map(d=>`<div class="nc-row"><div class="nc-label"><span>${escapeHtml(d.label)}</span><span class="nc-info"><button type="button" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_ad67aa00bf8277",`About ${v1}`,{v1}) ?? `About ${v1}`)(escapeHtml(d.label))}" aria-describedby="nc-info-${escapeHtml(d.key)}"><i class="far fa-circle-info fas fa-info-circle" aria-hidden="true"></i></button><span class="nc-tip" role="tooltip" id="nc-info-${escapeHtml(d.key)}">${escapeHtml(d.description)}</span></span></div><select class="nc-mode" aria-label="${escapeHtml(d.label)} - In app" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="in_app">${[['off','Off'],['silent','Silent'],['alerting','Alerting']].map(([value,label])=>`<option value="${value}" ${value===(!preferences.in_app[d.key]?'off':preferences.in_app_sound[d.key]===false?'silent':'alerting')?'selected':''}>${label}</option>`).join('')}</select><label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(d.label)} - Push" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="push" ${preferences.push[d.key]?'checked':''}><span class="nc-track" aria-hidden="true"></span></label><details class="nc-advanced" data-nc-advanced="${escapeHtml(d.key)}" ${advanced.has(d.key)?'open':''}><summary aria-label="Advanced - ${escapeHtml(d.label)}">Advanced</summary><p>Silent keeps in-app notifications without a sound or celebration. Alerting allows these alerts. Push is controlled separately.</p>${[['in_app_bell','Show in notification bell'],['in_app_badge','Count in the notification bell badge']].map(([surface,label])=>`<label><input type="checkbox" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="${surface}" ${preferences[surface][d.key]!==false?'checked':''} ${preferences.in_app[d.key]?'':'disabled'}>${label}</label>`).join('')}${g.id==='messaging'?'<p>Conversations remain in your messaging inbox.</p>':''}</details></div>`).join('')}</div>`).join('')}</div>`:`<div class="nc-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_72b107c03a2294","No notifications declared in this workflow yet.") ?? "No notifications declared in this workflow yet.")}</div>`}</div></section>`;
+            return `${(section==='all'||query)&&(index===0||shown[index-1].kind!==g.kind)?`<h3 class="nc-section-title">${sectionNames[g.kind]}</h3>`:''}<section class="nc-card"><button class="nc-heading" type="button" data-nc-group="${escapeHtml(g.id)}" aria-expanded="${!!open}" aria-controls="nc-group-${index}"><i class="fas fa-chevron-down" aria-hidden="true"></i><strong>${escapeHtml(g.label)}</strong><small>${g.disabled?'Archived · ':''}${g.definitions.length}</small></button><div id="nc-group-${index}" ${open?'':'hidden'}>${count?`<div class="nc-grid" style="--nc-columns:${n}">${Array.from({length:n},(_,col)=>`<div class="nc-col"><div class="nc-colhead" aria-hidden="true"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_8afbfeae955a57","Notification") ?? "Notification")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ac1052388993fc","In app") ?? "In app")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_beeb4b3fee68a1","Push") ?? "Push")}</span><span></span></div>${g.visible.slice(col*size+Math.min(col,extra),(col+1)*size+Math.min(col+1,extra)).map(d=>`<div class="nc-row"><div class="nc-label"><span>${escapeHtml(d.label)}</span><span class="nc-info"><button type="button" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_ad67aa00bf8277",`About ${v1}`,{v1}) ?? `About ${v1}`)(escapeHtml(d.label))}" aria-describedby="nc-info-${escapeHtml(d.key)}"><i class="far fa-circle-info fas fa-info-circle" aria-hidden="true"></i></button><span class="nc-tip" role="tooltip" id="nc-info-${escapeHtml(d.key)}">${escapeHtml(d.description)}</span></span></div><div class="nc-mode" role="group" aria-label="${escapeHtml(d.label)} - In app">${[['off','Off'],['silent','Silent'],['alerting','Alerting']].map(([value,label])=>`<button type="button" data-nc-mode="${value}" data-notification-key="${escapeHtml(d.key)}" aria-pressed="${value===(!preferences.in_app[d.key]?'off':preferences.in_app_sound[d.key]===false?'silent':'alerting')}">${label}</button>`).join('')}</div><label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(d.label)} - Push" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="push" ${preferences.push[d.key]?'checked':''}><span class="nc-track" aria-hidden="true"></span></label><span class="nc-info"><button type="button" class="nc-expand" data-nc-advanced="${escapeHtml(d.key)}" aria-label="Advanced - ${escapeHtml(d.label)}" aria-expanded="${advanced.has(d.key)}" aria-controls="nc-advanced-${escapeHtml(d.key)}" aria-describedby="nc-advanced-tip-${escapeHtml(d.key)}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button><span class="nc-tip" role="tooltip" id="nc-advanced-tip-${escapeHtml(d.key)}">Advanced</span></span><div class="nc-advanced" id="nc-advanced-${escapeHtml(d.key)}" ${advanced.has(d.key)?'':'hidden'}>${[['in_app_bell','Bell','Show in the notification bell.'],['in_app_badge','Badge','Count unread notifications in the bell badge.']].map(([surface,label,tip])=>`<span class="nc-option nc-info"><span>${label}</span><label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(d.label)} - ${label}" aria-describedby="nc-tip-${surface}-${escapeHtml(d.key)}" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="${surface}" ${preferences[surface][d.key]!==false?'checked':''} ${preferences.in_app[d.key]?'':'disabled'}><span class="nc-track" aria-hidden="true"></span></label><span class="nc-tip" role="tooltip" id="nc-tip-${surface}-${escapeHtml(d.key)}">${tip}</span></span>`).join('')}</div></div>`).join('')}</div>`).join('')}</div>`:`<div class="nc-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_72b107c03a2294","No notifications declared in this workflow yet.") ?? "No notifications declared in this workflow yet.")}</div>`}</div></section>`;
           }).join('')||`<div class="nc-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_d88f1fd665ce8e","No notifications here yet. Describe what you need to the FirstMate assistant to add one.") ?? "No notifications here yet. Describe what you need to the FirstMate assistant to add one.")}</div>`;
         };
         const save=async()=>{
@@ -13243,16 +13250,26 @@
           }catch(error){status.textContent=error?.message||'Could not save notification preferences.';status.dataset.error='true';retry.hidden=false;}
           finally{saving=false;}
         };
-        shell.addEventListener('toggle',event=>{const key=event.target.dataset?.ncAdvanced;if(key)event.target.open?advanced.add(key):advanced.delete(key);},true);
+        shell.addEventListener('click',event=>{
+          const mode=event.target.closest('[data-nc-mode]'),expander=event.target.closest('[data-nc-advanced]');
+          if(expander){
+            const key=expander.dataset.ncAdvanced,open=!advanced.has(key);
+            open?advanced.add(key):advanced.delete(key);
+            expander.setAttribute('aria-expanded',String(open));
+            document.getElementById(expander.getAttribute('aria-controls')).hidden=!open;
+          }
+          if(!mode)return;
+          const key=mode.dataset.notificationKey,value=mode.dataset.ncMode;
+          preferences.in_app[key]=pending.in_app[key]=value!=='off';
+          if(value!=='off')preferences.in_app_sound[key]=pending.in_app_sound[key]=value==='alerting';
+          mode.parentElement.querySelectorAll('button').forEach(button=>button.setAttribute('aria-pressed',String(button===mode)));
+          mode.closest('.nc-row').querySelectorAll('.nc-advanced input').forEach(control=>control.disabled=value==='off');
+          void save();
+        });
         shell.addEventListener('change',event=>{
-          const input=event.target.closest('[data-notification-key]');if(!input)return;
+          const input=event.target.closest('input[data-notification-key]');if(!input)return;
           const key=input.dataset.notificationKey,surface=input.dataset.notificationSurface;
-          const update=(surface,value)=>{preferences[surface][key]=value;pending[surface][key]=value;};
-          if(surface==='in_app'){
-            update('in_app',input.value!=='off');
-            if(input.value!=='off')update('in_app_sound',input.value==='alerting');
-            input.closest('.nc-row').querySelectorAll('.nc-advanced input').forEach(control=>control.disabled=input.value==='off');
-          }else update(surface,input.checked);
+          preferences[surface][key]=pending[surface][key]=input.checked;
           void save();
         });
         shell.addEventListener('click',event=>{const tab=event.target.closest('[data-nc-tab]'),group=event.target.closest('[data-nc-group]');if(tab){section=tab.dataset.ncTab;shell.querySelectorAll('[data-nc-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b===tab)));draw();}if(group){const id=group.dataset.ncGroup;collapsed.has(id)?collapsed.delete(id):collapsed.add(id);draw();}});
@@ -13319,7 +13336,7 @@
           }catch(error){chatStatus.textContent=error?.message||'The assistant is unavailable for this account.';}
           renderChat();
         })();
-        const resize=()=>{const next=Math.max(1,Math.min(3,Math.floor(shell.querySelector('.nc-results').clientWidth/380)));if(next!==columns){columns=next;draw();}};
+        const resize=()=>{const next=Math.max(1,Math.min(3,Math.floor(shell.querySelector('.nc-results').clientWidth/440)));if(next!==columns){columns=next;draw();}};
         paneNotifications.__notificationResize=new ResizeObserver(resize);paneNotifications.__notificationResize.observe(shell);draw();resize();
       }catch(error){paneNotifications.innerHTML=`<div class="my-settings-status" role="alert">${escapeHtml(error?.message||'Notification settings could not be loaded.')}</div>`;}
     }
