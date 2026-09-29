@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 Project windows: [Independent projects, two-row chrome and compact minimization](deploy/digitalocean/development-project-windows-v2-20260929.md) records the verified development-only rollout, retained drafts and hosted browser checks.
+
 September 29 Contact window: [Shared placements and modal identity icons](deploy/digitalocean/development-contact-window-icons-20260929.md) records the verified development-only frontend rollout and rollback.
 
 September 29 Projects List: [Board and stage grouping](deploy/digitalocean/development-project-list-groups-20260929.md) records the verified development-only frontend rollout, browser checks and rollback.
