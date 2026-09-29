@@ -1,0 +1,13 @@
+# Conversation mentions and external channel tags — September 29
+
+Release `ed9789df2c4e54db1b74fdc42705bd19dacafca2` was pushed and verified active on both development web nodes, compatibility and worker. Production is unchanged.
+
+Channel and DM autocomplete, thread autocomplete and the toolbar people picker offer conversation members and FirstMate. They no longer offer channel-name tags. Server validation filters outsiders and channel-name tags on message creation and editing, with FirstMate allowed without membership. Current-conversation `@channel` and `@here` remain available.
+
+Project notes retain their existing project access model and support external channel tags, as do photo comments and other callers of the shared tagging API. A channel tag posts an actor-attributed notice into the destination through the normal messaging service, with member mention attention, unread state and realtime updates. Project/photo notices link back to the source. The notice does not copy private source content. Target channel write access is required; DMs are excluded. Stable source IDs deduplicate retries and project-note edits. External channel tags no longer also send a duplicate general mention notification to expanded channel members.
+
+Validation: TypeScript check, JavaScript syntax and diff checks passed. All 35 Channels API/inbox/media-tag tests passed; the expanded focused mention test also passed after adding project-note creation/edit and notice-inbox checks. Coverage includes channel/DM outsider filtering on send/edit, FirstMate without membership, broadcasts and presence, destination access, linked photo notices, retry deduplication, project-note notices and edit deduplication. The composer/browser suite passed locally and against dev-served assets, including both mention pickers, excluded outsiders/channel names, FirstMate and source navigation.
+
+The immutable overlay changes three frontend files plus Channels service and the shared API source/compiled output. Worker receives backend files only. Role-specific API differences were preserved with a reviewed three-way merge; unrelated workspace changes were not included. All four roles passed release hashes, readiness and development isolation. Three public asset hashes and six public readiness responses matched. No schema or dependency change.
+
+Rollback predecessors: web, compatibility and pool `2e7aa64e5a65d18cdf0c435b8f3d2c82791a306e`; worker `72277b85f15f8ce8486029593149e8fda26c7563`. Check intervening releases before the existing atomic symlink/service workflow. Evidence is under ignored `output/channels-mentions-20260929/`. The existing autoscale replacement-image limitation remains.

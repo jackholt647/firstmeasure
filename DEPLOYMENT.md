@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 mentions: [Conversation members and external channel tag notices](deploy/digitalocean/development-channels-mentions-20260929.md) records the verified development rollout, API/browser checks and rollback.
+
 September 29 huddles: [Global workspace huddle windows](deploy/digitalocean/development-channels-global-huddle-20260929.md) records the verified development rollout, browser checks and rollback.
 
 September 29 membership notices: [Gray channel activity lines](deploy/digitalocean/development-channels-system-lines-20260929.md) records the verified development rollout, browser checks and rollback.
