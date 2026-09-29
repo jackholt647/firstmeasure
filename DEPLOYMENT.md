@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 Projects stages: [Remove manual movement hint](deploy/digitalocean/development-project-stage-space-20260929.md) records the verified development-only frontend rollout and rollback.
+
 September 29 huddle polish: [Compact calls, admin lifecycle and shared Files gallery](deploy/digitalocean/development-channels-huddle-polish-20260929.md) records the verified development rollout, audio/effects/browser checks, recording limitations and rollback.
 
 September 29 notification runtime: [Programmable delivery and bounded background repair](deploy/digitalocean/development-notification-runtime-20260929.md) records the verified development rollout, PostgreSQL and browser checks, and rollback.
