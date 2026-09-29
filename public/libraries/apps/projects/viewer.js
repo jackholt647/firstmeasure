@@ -18,7 +18,7 @@
 
   const { $, escapeHtml, injectCSS, formatDate, postAction, enableSafeBackdropClose, fmJson, fmPost, fmUrl, googleMapsApiKey, currentActor } = window.Portal.util;
 
-  const VIEW_MODES = new Set(['tiles', 'list', 'stages', 'drafts']);
+  const VIEW_MODES = new Set(['tiles', 'list', 'stages']);
   const PROJECT_VIEW_QUERY_KEY = 'projectView';
   const PROJECT_BOARD_QUERY_KEY = 'projectBoard';
   const PROJECT_BOARD_STORAGE_PREFIX = 'fm_projects_board_v1';
@@ -59,16 +59,8 @@
     return permissions['*'] === true || permissions.manage_projects === true;
   }
 
-  // The Drafts view (standalone documents with no project yet) needs the
-  // document engine.
-  function draftsViewEnabled(){
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    return flags?.value?.('platform', 'documents', false) === true && !!window.DocumentsAPI?.documents?.listStandalone;
-  }
-
   function normalizeViewMode(mode){
     const clean = VIEW_MODES.has(mode) ? mode : (stagesViewEnabled() ? 'stages' : 'tiles');
-    if (clean === 'drafts' && !draftsViewEnabled()) return stagesViewEnabled() ? 'stages' : 'tiles';
     return clean === 'stages' && !stagesViewEnabled() ? 'tiles' : clean;
   }
 
@@ -368,20 +360,21 @@
   const ViewerCSS = `
     .v-wrap{width:100%; max-width:none; margin:0; height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden}
     .v-report-search{box-sizing:border-box;width:100%;min-width:0;flex-shrink:0;border:1px solid #dadce0;border-radius:12px;padding:10px 12px;font:inherit;font-size:16px;background:#fff;color:#202124}
-    .v-head{display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:14px; flex:0 0 auto}
+    .v-head{display:flex; align-items:center; justify-content:flex-start; gap:20px; margin-bottom:8px; flex:0 0 auto}
     .v-title{display:flex; flex-direction:column; gap:2px}
     .v-title h1{margin:0; font-size:22px; font-weight:1000; letter-spacing:-.3px}
     .v-title .sub{margin:0; color:#777; font-weight:850; font-size:12px}
-    .v-actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end}
+    .v-actions{display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-start}
     .v-btn{background:#fff; border:1px solid rgba(0,0,0,0.10); padding:10px 12px; border-radius:14px; cursor:pointer; font-weight:950; color:#333; display:inline-flex; align-items:center; gap:8px; transition:.16s ease; user-select:none}
     .v-btn[hidden]{display:none!important}
     .v-btn:hover{border-color:rgba(var(--primary-rgb,217,48,37),0.45); color:var(--primary-readable, var(--primary,#d93025)); transform:translateY(-1px)}
     .v-btn.active{border-color:rgba(var(--primary-rgb,217,48,37),0.55); box-shadow:0 10px 22px rgba(var(--primary-rgb,217,48,37),0.16)}
     .v-pill{border-radius:999px; padding:10px 14px}
-    .v-bar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin:12px 0 12px; flex:0 0 auto}
+    .v-bar{display:flex; align-items:center; justify-content:flex-start; gap:12px; margin:8px 0 10px; flex:0 0 auto}
     .v-leftbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; min-width:0}
-    .v-rightbar{display:flex; align-items:center; justify-content:flex-end; gap:10px; flex-wrap:wrap; margin-left:auto}
+    .v-rightbar{display:flex; align-items:center; justify-content:flex-start; gap:8px; flex-wrap:wrap; margin-left:0}
     .v-chip{display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid rgba(0,0,0,0.10); border-radius:14px; padding:9px 10px; font-weight:950; color:#333}
+    .v-list-grouping[hidden]{display:none}
     .v-chip select{border:none; outline:none; font-weight:950; background:transparent; color:#333; padding:2px 2px}
     .v-toggle-chip{cursor:pointer; user-select:none; font-size:12px; line-height:1}
     .v-toggle-chip input{position:absolute; opacity:0; pointer-events:none}
@@ -447,6 +440,16 @@
     .v-lrow{border-top:1px solid rgba(0,0,0,0.06); cursor:pointer}
     .v-lrow:hover{background:#fafbfc}
     .v-lrow .v-lcell{font-weight:900; color:#333; font-size:12px}
+    .v-list-group{border-top:1px solid #e6eaf0}
+    .v-list-group:first-child{border-top:0}
+    .v-list-group-header{width:100%;display:flex;align-items:center;gap:10px;padding:11px 14px;border:0;border-left:5px solid var(--stage-color,#667085);background:color-mix(in srgb,var(--stage-color,#667085) 10%,#fff);color:#263442;text-align:left;font:950 13px/1.2 inherit;cursor:pointer}
+    .v-list-group-header:hover,.v-list-group-header:focus-visible{background:color-mix(in srgb,var(--stage-color,#667085) 17%,#fff)}
+    .v-list-group-header .v-list-group-count{margin-left:auto;padding:3px 8px;border-radius:999px;background:#fff;font-size:11px}
+    .v-list-group-header i{font-size:11px;transition:transform .16s ease}
+    .v-list-group-header[aria-expanded="false"] i{transform:rotate(-90deg)}
+    .v-list-group-rows[hidden]{display:none}
+    .v-list-group.is-drop-target>.v-list-group-header{background:color-mix(in srgb,var(--stage-color,#667085) 28%,#fff);outline:2px solid var(--stage-color,#667085);outline-offset:-2px}
+    .v-lrow[draggable="true"]{cursor:grab}.v-lrow.is-dragging{opacity:.45}
     .v-laddr1{font-weight:1000; font-size:13px; line-height:1.2}
     .v-laddr2{font-weight:850; font-size:11px; color:#777; margin-top:3px}
     .v-statuspill{display:inline-flex; align-items:center; gap:8px; padding:7px 10px; border-radius:999px; font-weight:1000; font-size:11px; letter-spacing:.3px; text-transform:uppercase; width:fit-content}
@@ -730,9 +733,6 @@
       #vViewTiles span.btn-label,
       #vViewList span.btn-label,
       #vViewStages span.btn-label{display:none}
-      /* Refresh: icon only */
-      #vRefresh span.btn-label{display:none}
-      #vRefresh{display:none}
 
       /* The selects retain their native picker, but the compact icon is all
          that is needed in the mobile header. */
@@ -1126,6 +1126,9 @@
   let workBoardsLoaded = false;
   let workBoardsPromise = null;
   let manualStageDragPayload = null;
+  const collapsedListStages = new Set();
+  const collapsedListBoards = new Set();
+  let listGrouping = 'stage';
   let manualStageMoveInFlight = false;
   let statusFilter = 'all';
   let reportSearchQuery = '';
@@ -4804,7 +4807,7 @@
         card.classList.remove('is-dragging');
         card.__suppressClick = true;
         manualStageDragPayload = null;
-        panelEl?.querySelectorAll('.v-stage-col.is-drop-target').forEach((column) => column.classList.remove('is-drop-target'));
+        panelEl?.querySelectorAll('.is-drop-target').forEach((column) => column.classList.remove('is-drop-target'));
       });
     }
     return card;
@@ -4856,7 +4859,7 @@
     const [boardCard] = source.cards.splice(cardIndex, 1);
     target.cards = [...(target.cards || []), { ...boardCard, stage_id:targetStageId, manual_stage_override:true }];
     manualStageMoveInFlight = true;
-    renderStagesView();
+    renderResults();
     try {
       const result = await window.PlatformAPI.work.setManualStage(String(window.__APP?.userOrgId || ''), planId, targetStageId);
       const current = lastProjectsById.get(projectId);
@@ -4903,7 +4906,8 @@
     const unused = boards.filter((item) => workBoardProjectCount(item) === 0);
     const usedOptions = used.map((item) => workBoardOptionHtml(item, activeBoardId)).join('');
     const unusedSection = unused.length ? `<div class="v-board-unused"><button type="button" class="v-board-unused-toggle" id="vUnusedBoardsToggle" aria-expanded="false" aria-controls="vUnusedBoardsList"><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_164adef2abc1b5","Unused") ?? "Unused")}</span><span class="v-board-unused-total" aria-label="${((v0) => globalThis.PlatformLanguage?.htmlText("projects","m_df6a6980467b68",`${v0} unused boards`,{v0}) ?? `${v0} unused boards`)(unused.length)}">${String(unused.length)}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button><div class="v-board-unused-list" id="vUnusedBoardsList" role="listbox" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_a91ee30942f6fd","Unused work boards") ?? "Unused work boards")}" hidden>${String(unused.map((item) => workBoardOptionHtml(item, activeBoardId)).join(''))}</div></div>` : '';
-    return ("<div class=\"v-board-used-list\" role=\"listbox\" aria-label=\"" + (globalThis.PlatformLanguage?.text("projects","m_f9cb3d542eb9c6","Work boards with projects") ?? "Work boards with projects") + "\">" + String(usedOptions) + "</div>" + String(unusedSection));
+    const allOption = viewMode === 'list' ? `<button type="button" class="v-board-option${activeBoardId === 'all' ? ' active' : ''}" role="option" aria-selected="${activeBoardId === 'all'}" data-board-id="all" style="--option-color:#4f7cac"><span class="v-board-option-dot" aria-hidden="true"></span><span>All boards</span><span class="v-board-option-count">${boards.length}</span>${activeBoardId === 'all' ? '<i class="fas fa-check" aria-hidden="true"></i>' : '<span></span>'}</button>` : '';
+    return ("<div class=\"v-board-used-list\" role=\"listbox\" aria-label=\"" + (globalThis.PlatformLanguage?.text("projects","m_f9cb3d542eb9c6","Work boards with projects") ?? "Work boards with projects") + "\">" + allOption + String(usedOptions) + "</div>" + String(unusedSection));
   }
   function workBoardStorageKey(){
     const orgId = String(window.__APP?.userOrgId || '').trim();
@@ -4934,11 +4938,14 @@
   }
   function selectWorkBoard(boardId, options = {}){
     const value = String(boardId || '').trim();
-    if (!workBoards.some((board) => String(board?.id || '') === value)) return false;
+    if (!(value === 'all' && viewMode === 'list') && !workBoards.some((board) => String(board?.id || '') === value)) return false;
+    const wasAll = activeWorkBoardId === 'all';
     activeWorkBoardId = value;
+    if (value === 'all') listGrouping = 'board';
+    else if (wasAll) listGrouping = 'stage';
     rememberWorkBoardId(value);
     if (options.syncUrl !== false) syncWorkBoardToUrl(options.history || 'push');
-    renderStagesView();
+    renderResults();
     updateCount();
     return true;
   }
@@ -4954,14 +4961,14 @@
       const routeBoardId = requestedWorkBoardId();
       const preferredBoardId = routeBoardId || activeWorkBoardId || rememberedWorkBoardId();
       const boardsByUsage = orderedWorkBoards();
-      activeWorkBoardId = workBoards.some((board) => String(board?.id || '') === preferredBoardId)
+      activeWorkBoardId = (preferredBoardId === 'all' && viewMode === 'list') || workBoards.some((board) => String(board?.id || '') === preferredBoardId)
         ? preferredBoardId
         : String(boardsByUsage[0]?.id || '');
       if (activeWorkBoardId) {
         rememberWorkBoardId(activeWorkBoardId);
         if (routeBoardId !== activeWorkBoardId) syncWorkBoardToUrl('replace');
       }
-      if (viewMode === 'stages') renderStagesView();
+      if (viewMode === 'stages' || viewMode === 'list') renderResults();
       updateCount();
       return workBoards;
     }).catch((error) => {
@@ -5103,29 +5110,14 @@
     for (const [stageId, column] of existing) if (!wantedStages.has(stageId)) column.remove();
     reconcileMobileStageSwitcher(board, columns);
   }
-  function renderStagesView(){
-    const results = $('#vResults', panelEl);
-    if (!results) return;
-    if (!results.querySelector('#vStagesBoard')) results.innerHTML = renderStagesShell();
-    const board = $('#vStagesBoard', panelEl);
-    if (!board) return;
-    if (!workBoardsLoaded) {
-      if (!board.children.length) board.innerHTML = `<div class="v-stage-empty"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_69a7d7da023752","Loading boards") ?? "Loading boards")}</div>`;
-      loadWorkBoards().catch(() => null);
-      return;
-    }
-    board.querySelector(':scope > .v-stage-empty')?.remove();
-    if (workBoards.length) {
-      const boardsByUsage = orderedWorkBoards();
-      const selected = workBoards.find((item) => String(item.id) === activeWorkBoardId) || boardsByUsage[0];
-      activeWorkBoardId = String(selected?.id || '');
+  function renderWorkBoardSummary(selected, boardsByUsage){
       const summary = $('#vWorkBoardSummary', panelEl);
       if (summary) {
         summary.style.setProperty('--board-color', selected?.color || '#4f7cac');
         summary.classList.add('visible');
-        const summarySignature = JSON.stringify([activeWorkBoardId, selected?.title || '', selected?.color || '', boardsByUsage.map((item) => [item.id, item.title, item.color, workBoardProjectCount(item)])]);
+        const summarySignature = JSON.stringify([viewMode, activeWorkBoardId, selected?.title || '', selected?.color || '', boardsByUsage.map((item) => [item.id, item.title, item.color, workBoardProjectCount(item)])]);
         if (summary.__boardSignature !== summarySignature) {
-          summary.innerHTML = `<button type="button" class="v-board-trigger" id="vWorkBoardTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="vWorkBoardMenu"><span class="v-board-trigger-label">${String(escapeHtml(selected?.title || (globalThis.PlatformLanguage?.text("projects","m_48afb49c6f40c4","Board") ?? "Board")))}</span><span class="v-board-trigger-icon" aria-hidden="true"><i class="fas fa-chevron-down"></i></span></button><div class="v-board-menu" id="vWorkBoardMenu" role="dialog" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_3588ddc91fd436","Switch work board") ?? "Switch work board")}" hidden>${String(workBoardMenuHtml(boardsByUsage, activeWorkBoardId))}</div>`;
+          summary.innerHTML = `<button type="button" class="v-board-trigger" id="vWorkBoardTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="vWorkBoardMenu"><span class="v-board-trigger-label">${String(escapeHtml(activeWorkBoardId === 'all' ? 'All boards' : (selected?.title || (globalThis.PlatformLanguage?.text("projects","m_48afb49c6f40c4","Board") ?? "Board"))))}</span><span class="v-board-trigger-icon" aria-hidden="true"><i class="fas fa-chevron-down"></i></span></button><div class="v-board-menu" id="vWorkBoardMenu" role="dialog" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_3588ddc91fd436","Switch work board") ?? "Switch work board")}" hidden>${String(workBoardMenuHtml(boardsByUsage, activeWorkBoardId))}</div>`;
           summary.__boardSignature = summarySignature;
           const trigger = $('#vWorkBoardTrigger', panelEl);
           const menu = $('#vWorkBoardMenu', panelEl);
@@ -5167,13 +5159,34 @@
           }
         }
       }
-      const columns = (Array.isArray(selected?.columns) ? selected.columns : []).map((column) => {
+  }
+  function selectedBoardColumns(selected){
+      return (Array.isArray(selected?.columns) ? selected.columns : []).map((column) => {
         const items = (Array.isArray(column.cards) ? column.cards : []).map((card) => {
           const project = lastProjectsById.get(String(card.project_id || '')) || {};
           return { ...card, ...project, id: card.project_id || project.id, plan_id:card.plan_id, stage_id:column.id, manual_stage_override:card.manual_stage_override === true, title: project.title || card.title, address: project.address || card.address };
-        }).filter((project) => project.id).sort(newestProjectFirst);
+        }).filter((project) => project.id);
         return { id:column.id, title:column.title || (globalThis.PlatformLanguage?.text("projects","m_43f2c4d59757a1","Stage") ?? "Stage"), color:column.color || selected?.color || '#667085', items };
       });
+  }
+  function renderStagesView(){
+    const results = $('#vResults', panelEl);
+    if (!results) return;
+    if (!results.querySelector('#vStagesBoard')) results.innerHTML = renderStagesShell();
+    const board = $('#vStagesBoard', panelEl);
+    if (!board) return;
+    if (!workBoardsLoaded) {
+      if (!board.children.length) board.innerHTML = `<div class="v-stage-empty"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_69a7d7da023752","Loading boards") ?? "Loading boards")}</div>`;
+      loadWorkBoards().catch(() => null);
+      return;
+    }
+    board.querySelector(':scope > .v-stage-empty')?.remove();
+    if (workBoards.length) {
+      const boardsByUsage = orderedWorkBoards();
+      const selected = workBoards.find((item) => String(item.id) === activeWorkBoardId) || boardsByUsage[0];
+      activeWorkBoardId = String(selected?.id || '');
+      renderWorkBoardSummary(selected, boardsByUsage);
+      const columns = selectedBoardColumns(selected);
       reconcileStageColumns(board, columns);
       updateCount();
       return;
@@ -5308,9 +5321,10 @@
   function updateCount(){
     const el = $('#vCount', panelEl);
     if (!el) return;
-    if (viewMode === 'stages') {
+    if (viewMode === 'stages' || (viewMode === 'list' && workBoards.length)) {
       const selected = workBoards.find((board) => String(board?.id || '') === activeWorkBoardId);
-      const selectedCount = selected ? workBoardProjectCount(selected) : 0;
+      const visibleIds = new Set(filteredProjects.map((project) => String(project.id)));
+      const selectedCount = activeWorkBoardId === 'all' ? filteredProjects.length : selected ? new Set(selectedBoardColumns(selected).flatMap((column) => column.items).map((project) => String(project.id)).filter((id) => visibleIds.has(id))).size : 0;
       const total = totalUnfilteredCount || totalCount || filteredProjects.length || allProjects.length;
       el.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("projects","m_083f86b59b7e4c",`${v0} / ${v1} projects`,{v0,v1}) ?? `${v0} / ${v1} projects`)(selectedCount,total);
       return;
@@ -5328,7 +5342,7 @@
   function renderPagination(){
     const el = $('#vPagination', panelEl);
     if (!el) return;
-    if (viewMode === 'stages'){ el.innerHTML = ''; return; }
+    if (viewMode === 'stages' || viewMode === 'list'){ el.innerHTML = ''; return; }
     if (totalPages <= 1){ el.innerHTML = ''; return; }
     const btns = [];
     btns.push(`<div class="v-pgbtn${currentPage <= 1 ? ' disabled':''}" data-pg="prev"><i class="fas fa-chevron-left"></i></div>`);
@@ -5405,31 +5419,34 @@
     }
   }
   function updateViewControls(){
-    const bT = $('#vViewTiles', panelEl); const bL = $('#vViewList', panelEl); const bS = $('#vViewStages', panelEl); const bD = $('#vViewDrafts', panelEl);
+    const bT = $('#vViewTiles', panelEl); const bL = $('#vViewList', panelEl); const bS = $('#vViewStages', panelEl);
     if (bT) bT.classList.toggle('active', viewMode === 'tiles');
     if (bL) bL.classList.toggle('active', viewMode === 'list');
     if (bS) {
       bS.hidden = !stagesViewEnabled();
       bS.classList.toggle('active', viewMode === 'stages');
     }
-    if (bD) {
-      bD.hidden = !draftsViewEnabled();
-      bD.classList.toggle('active', viewMode === 'drafts');
-    }
     const tip = $('#vTip', panelEl);
     if (tip) tip.style.display = (viewMode === 'list') ? 'block' : 'none';
     const boardSummary = $('#vWorkBoardSummary', panelEl);
-    if (boardSummary) boardSummary.classList.toggle('visible', viewMode === 'stages' && workBoards.length > 0);
+    if (boardSummary) boardSummary.classList.toggle('visible', (viewMode === 'stages' || viewMode === 'list') && workBoards.length > 0);
+    const groupingWrap = $('#vListGroupingWrap', panelEl);
+    const groupingSelect = $('#vListGrouping', panelEl);
+    if (groupingWrap) groupingWrap.hidden = viewMode !== 'list';
+    if (groupingSelect) {
+      groupingSelect.value = listGrouping;
+      groupingSelect.querySelector('option[value="stage"]').disabled = activeWorkBoardId === 'all';
+    }
   }
   function setView(mode, options = {}){
     const previousMode = viewMode;
     viewMode = normalizeViewMode(mode);
-    if (viewMode === 'stages') loadWorkBoards().catch(() => null);
-    if (viewMode === 'drafts') loadDraftDocs(true).catch(() => null);
+    if (viewMode === 'stages' && activeWorkBoardId === 'all') activeWorkBoardId = String(orderedWorkBoards()[0]?.id || '');
+    if (viewMode === 'stages' || viewMode === 'list') loadWorkBoards().catch(() => null);
     if (options.syncUrl !== false && !window.Portal?.navigation?.applying) syncViewModeToUrl(options);
     updateViewControls();
     syncSortDropdown();
-    if (previousMode !== viewMode && ((previousMode === 'stages') !== (viewMode === 'stages'))) {
+    if (previousMode !== viewMode && ((previousMode === 'tiles') !== (viewMode === 'tiles'))) {
       currentPage = 1;
       fetchProjects(true);
       return;
@@ -5443,10 +5460,10 @@
       return;
     }
     updateViewControls();
-    if (viewMode === 'stages') {
+    if (viewMode === 'stages' || viewMode === 'list') {
       const results = $('#vResults', panelEl);
       if (results) results.innerHTML = '';
-      renderStagesView();
+      renderResults();
     }
   }
   function syncSortDropdown(){ const sel = $('#vSort', panelEl); if (!sel) return; const s = getActiveSort(); sel.value = `${s.key}:${s.dir}`; }
@@ -5565,7 +5582,7 @@
 
     return div;
   }
-  function createListRow(p){
+  function createListRow(p, allowDrag = false){
     p = normalizeProjectRecord(p);
     const resident = resolveResidentFields(p);
     const id = String(p.id);
@@ -5576,79 +5593,96 @@
     const rowTags = `${stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>` : ''}`;
     const statusPill = s ? `<span class="v-statuspill ${s.pill}">${statusBadgeContent(s, true)}</span>` : '';
     row.innerHTML = `<div class="v-lcell">${statusPill}</div><div class="v-lcell" style="min-width:0;"><div class="v-laddr"><div class="v-laddr1">${escapeHtml(a1)}</div><div class="v-laddr2">${escapeHtml(a2)}</div>${rowTags ? `<div class="v-meta-tags">${rowTags}</div>` : ''}</div></div><div class="v-lcell" style="min-width:0;"><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.displayName || resident.name || '\u2014')}</div><div style="font-weight:850; font-size:11px; color:#777; margin-top:3px;">${escapeHtml((resident.displayDetail || '').toString())}</div></div><div class="v-lcell" data-col="created_at" style="color:#666; font-weight:1000;">${escapeHtml(formatDate(p.created_at))}</div>`;
-    row.addEventListener('click', ()=>openModal(lastProjectsById.get(id) || p));
+    const movable = allowDrag && manualStageMovementEnabled() && canManageProjectStages() && !!p.plan_id && !!p.stage_id;
+    row.draggable = movable;
+    row.addEventListener('click', ()=>{
+      if (row.__suppressClick) { row.__suppressClick = false; return; }
+      openModal(lastProjectsById.get(id) || p);
+    });
+    if (movable) {
+      row.addEventListener('dragstart', (event) => {
+        if (manualStageMoveInFlight) { event.preventDefault(); return; }
+        manualStageDragPayload = { projectId:id, planId:String(p.plan_id), fromStageId:String(p.stage_id) };
+        row.classList.add('is-dragging');
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', JSON.stringify(manualStageDragPayload));
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('is-dragging');
+        row.__suppressClick = true;
+        manualStageDragPayload = null;
+        panelEl?.querySelectorAll('.is-drop-target').forEach((group) => group.classList.remove('is-drop-target'));
+      });
+    }
     return row;
   }
-  // ------------------------------------------------------------ Drafts view
-  // Catch-all for in-progress work that has no project yet. Today that means
-  // standalone document-engine drafts ("Create without a project"); the tile
-  // model carries a `kind` so other draft kinds (payments, …) can join later.
-  let draftDocs = null;
-  let draftDocsLoading = false;
-  async function loadDraftDocs(force = false){
-    if (draftDocsLoading) return;
-    if (draftDocs && !force) return;
-    draftDocsLoading = true;
-    if (viewMode === 'drafts') renderResults();
-    try {
-      const orgId = String(window.__APP?.userOrgId || '').trim();
-      const res = await window.DocumentsAPI?.documents?.listStandalone?.(orgId);
-      draftDocs = (Array.isArray(res?.documents) ? res.documents : [])
-        .filter((doc) => String(doc?.status || '').toLowerCase() !== 'void');
-    } catch (error) {
-      console.warn('Draft documents unavailable', error);
-      draftDocs = [];
-    }
-    draftDocsLoading = false;
-    if (viewMode === 'drafts') renderResults();
+  function appendListGroup(scroll, groupData, order){
+    const { id, title, color, items, kind, dropStageId } = groupData;
+    const group = document.createElement('section');
+    group.className = 'v-list-group';
+    group.dataset[kind] = String(id);
+    group.style.setProperty('--stage-color', color || '#667085');
+    const visibleItems = items.filter((project) => order.has(String(project.id)))
+      .sort((left, right) => order.get(String(left.id)) - order.get(String(right.id)));
+    const collapsed = kind === 'stage' ? collapsedListStages : collapsedListBoards;
+    const key = String(id);
+    const expanded = !collapsed.has(key);
+    const rowsId = `vListGroup${scroll.children.length}`;
+    group.innerHTML = `<button type="button" class="v-list-group-header" aria-expanded="${expanded}" aria-controls="${rowsId}"><i class="fas fa-chevron-down" aria-hidden="true"></i><span>${escapeHtml(title)}</span><span class="v-list-group-count">${visibleItems.length}</span></button><div class="v-list-group-rows" id="${rowsId}" ${expanded ? '' : 'hidden'}></div>`;
+    const header = group.querySelector('.v-list-group-header');
+    const rows = group.querySelector('.v-list-group-rows');
+    header.addEventListener('click', () => {
+      const nextExpanded = header.getAttribute('aria-expanded') !== 'true';
+      header.setAttribute('aria-expanded', String(nextExpanded));
+      rows.hidden = !nextExpanded;
+      if (nextExpanded) collapsed.delete(key);
+      else collapsed.add(key);
+    });
+    for (const project of visibleItems) rows.appendChild(createListRow(project, !!dropStageId));
+    if (dropStageId) bindStageColumnDrop(group, dropStageId);
+    scroll.appendChild(group);
   }
-  function draftTypeLabel(doc = {}){
-    const type = String(doc.document_type || 'document').trim().toLowerCase();
-    return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Document';
-  }
-  function draftStatusLabel(doc = {}){
-    const status = String(doc.status || 'draft').trim().toLowerCase();
-    return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-  function renderDraftsView(){
-    const results = $('#vResults', panelEl); if (!results) return;
-    injectCSS('viewer_drafts_view', `
-      .v-draft-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:14px; padding:4px 2px 24px;}
-      .v-draft-tile{position:relative; border:1px solid #e4e7ec; border-top:4px solid var(--primary,#d93025); border-radius:12px; background:#fff; padding:14px; text-align:left; cursor:pointer; font:inherit; box-shadow:0 10px 24px rgba(16,24,40,.05); transition:.14s ease; display:flex; flex-direction:column; gap:8px; min-height:118px;}
-      .v-draft-tile:hover{transform:translateY(-1px); box-shadow:0 16px 30px rgba(16,24,40,.09);}
-      .v-draft-kind{display:inline-flex; align-items:center; gap:6px; align-self:flex-start; border-radius:999px; padding:3px 9px; background:rgba(var(--primary-rgb,217,48,37),.08); color:var(--primary-readable,var(--primary,#d93025)); font-size:10px; font-weight:1000; text-transform:uppercase; letter-spacing:.05em;}
-      .v-draft-title{font-size:14px; font-weight:1000; color:#101828; line-height:1.3; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
-      .v-draft-meta{margin-top:auto; font-size:11px; font-weight:850; color:#667085;}
-      .v-draft-empty{text-align:center; color:#bbb; padding:44px 0;}
-    `);
-    if (draftDocsLoading && !draftDocs) {
-      results.innerHTML = `<div class="v-draft-empty"><i class="fas fa-circle-notch fa-spin"></i></div>`;
+  function renderGroupedList(){
+    const scroll = $('#vListScroll', panelEl);
+    if (!scroll) return;
+    if (!workBoardsLoaded) { loadWorkBoards().catch(() => null); return; }
+    if (!workBoards.length) {
+      for (const project of filteredProjects) scroll.appendChild(createListRow(project));
       return;
     }
-    const drafts = draftDocs || [];
-    if (!drafts.length){
-      results.innerHTML = `<div class="v-draft-empty"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.htmlText("projects","m_532a53ea6b6258","No drafts.") ?? "No drafts.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.htmlText("projects","m_a4ceefead53c2f","Documents created without a project land here until they're attached.") ?? "Documents created without a project land here until they're attached.")}</div></div>`;
+    const boardsByUsage = orderedWorkBoards();
+    const allBoards = activeWorkBoardId === 'all';
+    const selected = allBoards ? null : workBoards.find((board) => String(board.id) === activeWorkBoardId) || boardsByUsage[0];
+    activeWorkBoardId = allBoards ? 'all' : String(selected?.id || '');
+    if (allBoards) listGrouping = 'board';
+    renderWorkBoardSummary(selected, boardsByUsage);
+    updateViewControls();
+    const order = new Map(filteredProjects.map((project, index) => [String(project.id), index]));
+    if (allBoards || listGrouping === 'board') {
+      const assigned = new Set();
+      for (const board of allBoards ? boardsByUsage : [selected]) {
+        const seen = new Set();
+        const items = selectedBoardColumns(board).flatMap((column) => column.items).filter((project) => {
+          const id = String(project.id);
+          if (seen.has(id)) return false;
+          seen.add(id);
+          assigned.add(id);
+          return true;
+        });
+        appendListGroup(scroll, { id:board.id, title:board.title || 'Board', color:board.color, items, kind:'board' }, order);
+      }
+      if (allBoards) {
+        const unassigned = filteredProjects.filter((project) => !assigned.has(String(project.id)));
+        if (unassigned.length) appendListGroup(scroll, { id:'unassigned', title:'Unassigned', color:'#667085', items:unassigned, kind:'board' }, order);
+      }
       return;
     }
-    const sorted = [...drafts].sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
-    results.innerHTML = `<div class="v-draft-grid">${sorted.map((doc, index) => `
-      <button type="button" class="v-draft-tile" data-draft-index="${String(index)}">
-        <span class="v-draft-kind"><i class="fas fa-pen-to-square"></i>${((v1) => globalThis.PlatformLanguage?.htmlText("projects","m_afa3b70ae874eb",` ${v1} draft`,{v1}) ?? ` ${v1} draft`)(escapeHtml(draftTypeLabel(doc)))}</span>
-        <span class="v-draft-title">${String(escapeHtml(String(doc.title || draftTypeLabel(doc))))}</span>
-        <span class="v-draft-meta">${String(escapeHtml(draftStatusLabel(doc)))}${String(doc.updated_at ? ` · ${escapeHtml(formatDate(doc.updated_at))}` : '')}</span>
-      </button>`).join('')}</div>`;
-    results.querySelectorAll('[data-draft-index]').forEach((tile) => tile.addEventListener('click', () => {
-      const doc = sorted[Number(tile.dataset.draftIndex || 0)];
-      if (!doc) return;
-      // Reopen the doc-first session: standalone modal with this document in
-      // the editor and the project picker in the left column for attaching.
-      window.Portal?.modules?.request?.openDocumentDraft?.(doc);
-    }));
+    for (const column of selectedBoardColumns(selected)) {
+      appendListGroup(scroll, { ...column, kind:'stage', dropStageId:column.id }, order);
+    }
   }
-
   function renderResults(){
     const results = $('#vResults', panelEl); if (!results) return;
-    if (viewMode === 'drafts'){ renderDraftsView(); return; }
     if (!allProjects.length){
       if (hideDrafts && totalUnfilteredCount > 0) {
         results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.htmlText("projects","m_d430072e91bf61","No visible projects.") ?? "No visible projects.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.htmlText("projects","m_abe4b3a1ae323e","No non-draft projects match this view.") ?? "No non-draft projects match this view.")}</div></div>`;
@@ -5659,7 +5693,7 @@
     }
     if (!filteredProjects.length){ results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.htmlText("projects","m_6f8bc477c58867","No matches.") ?? "No matches.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.htmlText("projects","m_d87926e9f2e245","Try clearing filters or searching a different term.") ?? "Try clearing filters or searching a different term.")}</div></div>`; return; }
     if (viewMode === 'stages'){ renderStagesView(); return; }
-    if (viewMode === 'list'){ results.innerHTML = renderListShell(); const scroll = $('#vListScroll', panelEl); for (const p of filteredProjects) scroll.appendChild(createListRow(p)); wireListHeaderSort(); return; }
+    if (viewMode === 'list'){ results.innerHTML = renderListShell(); renderGroupedList(); wireListHeaderSort(); return; }
     results.innerHTML = `<div class="v-grid" id="vGrid"></div>`;
     const grid = $('#vGrid', panelEl);
     for (const p of filteredProjects) grid.appendChild(createTile(p));
@@ -7019,7 +7053,7 @@
     try{
       if (redraw && !_optimisticProjects.length && !allProjects.length){ results.innerHTML = `<div class="v-grid" id="vGrid"><div style="grid-column:1/-1; text-align:center; color:#999; padding:40px 0; font-weight:900;"><i class="fas fa-spinner fa-spin" style="font-size:22px; margin-bottom:10px;"></i><br>${(globalThis.PlatformLanguage?.htmlText("projects","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div>`; }
       const previousVisibleIds = sortedProjectIds(allProjects);
-      const stagesMode = viewMode === 'stages';
+      const stagesMode = viewMode === 'stages' || viewMode === 'list';
       const payload = { page: stagesMode ? 1 : currentPage, limit: stagesMode ? 0 : PAGE_SIZE, status_filter: statusFilter || 'all', include_instant_only: '1', view: 'card', hide_drafts: hideDrafts ? '1' : '0' };
       if (reportSearchQuery.trim()) payload.search = reportSearchQuery.trim();
       const { data } = await postAction('list_projects', payload);
@@ -7089,11 +7123,8 @@
           <div class="v-title"><h1>${(globalThis.PlatformLanguage?.htmlText("projects","m_1a8d3340c06415","My Projects") ?? "My Projects")}</h1><p class="sub">${(globalThis.PlatformLanguage?.htmlText("projects","m_b898e7a01f3962","Filter and open reports.") ?? "Filter and open reports.")}</p></div>
           <div class="v-actions">
             <button class="v-btn v-pill" id="vViewStages" hidden><i class="fas fa-table-columns"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_1fae2f2aa8a59c"," Stages") ?? " Stages")}</span></button>
-            <button class="v-btn v-pill" id="vViewTiles"><i class="fas fa-grip"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_073de0eb54464f"," Tiles") ?? " Tiles")}</span></button>
             <button class="v-btn v-pill" id="vViewList"><i class="fas fa-list"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_d9f8d11bfbd0a9"," List") ?? " List")}</span></button>
-            <!-- fa-file-pen needs FA 6.1+; the portal ships FA 6.0. -->
-            <button class="v-btn v-pill" id="vViewDrafts" hidden><i class="fas fa-pen-to-square"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_15edff78f24414"," Drafts") ?? " Drafts")}</span></button>
-            <button class="v-btn" id="vRefresh"><i class="fas fa-sync-alt"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_4f524800833039"," Refresh") ?? " Refresh")}</span></button>
+            <button class="v-btn v-pill" id="vViewTiles"><i class="fas fa-grip"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_073de0eb54464f"," Tiles") ?? " Tiles")}</span></button>
           </div>
         </div>
         ${String((window.Portal?.appFlags || window.PlatformAPI?.appFlags)?.value?.('platform', 'expanded_access', false) !== true ? `<input id="vReportSearch" class="v-report-search" type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("projects","m_97f68e5486c2f8","Search address, contact…") ?? "Search address, contact…")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_af80d9cead6991","Search projects") ?? "Search projects")}" autocomplete="off">` : '')}
@@ -7103,6 +7134,7 @@
             <div class="v-count" id="vCount">—</div>
           </div>
           <div class="v-rightbar">
+            <label class="v-chip v-list-grouping" id="vListGroupingWrap" for="vListGrouping" hidden><i class="fas fa-layer-group"></i><select id="vListGrouping" aria-label="Group list by"><option value="stage">Group by stage</option><option value="board">Group by board</option></select></label>
             <div class="v-chip" title="${(globalThis.PlatformLanguage?.htmlText("projects","m_79b7b2c4b01ebb","Filter projects by status") ?? "Filter projects by status")}"><i class="fas fa-filter"></i><select id="vStatus" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_79b7b2c4b01ebb","Filter projects by status") ?? "Filter projects by status")}"><option value="all">${(globalThis.PlatformLanguage?.htmlText("projects","m_3dc9c9a4529382","All statuses") ?? "All statuses")}</option><option value="ready">${(globalThis.PlatformLanguage?.htmlText("projects","m_d0dd61f9c0e1d2","Ready") ?? "Ready")}</option><option value="processing">${(globalThis.PlatformLanguage?.htmlText("projects","m_7244c568a68bff","Processing") ?? "Processing")}</option><option value="rejected">${(globalThis.PlatformLanguage?.htmlText("projects","m_61023422d0cb5d","Rejected") ?? "Rejected")}</option><option value="cancelled">${(globalThis.PlatformLanguage?.htmlText("projects","m_9863f11d60b2fa","Cancelled") ?? "Cancelled")}</option></select></div>
             <div class="v-chip" title="${(globalThis.PlatformLanguage?.htmlText("projects","m_9402b38f071830","Sort projects") ?? "Sort projects")}"><i class="fas fa-arrow-up-wide-short"></i><select id="vSort" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_9402b38f071830","Sort projects") ?? "Sort projects")}"><option value="created_at:desc">${(globalThis.PlatformLanguage?.htmlText("projects","m_20923367c9f84a","Newest first") ?? "Newest first")}</option><option value="created_at:asc">${(globalThis.PlatformLanguage?.htmlText("projects","m_ff649e336c32a9","Oldest first") ?? "Oldest first")}</option><option value="address:asc">${(globalThis.PlatformLanguage?.htmlText("projects","m_7852c02c2473f7","Address A → Z") ?? "Address A → Z")}</option><option value="address:desc">${(globalThis.PlatformLanguage?.htmlText("projects","m_b6517b4f34d553","Address Z → A") ?? "Address Z → A")}</option><option value="resident:asc">${(globalThis.PlatformLanguage?.htmlText("projects","m_7c3998611785d4","Contact A → Z") ?? "Contact A → Z")}</option><option value="resident:desc">${(globalThis.PlatformLanguage?.htmlText("projects","m_1d104147be5bf0","Contact Z → A") ?? "Contact Z → A")}</option><option value="status:asc">${(globalThis.PlatformLanguage?.htmlText("projects","m_6e5ff692711330","Status A → Z") ?? "Status A → Z")}</option><option value="status:desc">${(globalThis.PlatformLanguage?.htmlText("projects","m_6475ed7365aa22","Status Z → A") ?? "Status Z → A")}</option></select></div>
             <div class="v-tip" id="vTip">${(globalThis.PlatformLanguage?.htmlText("projects","m_6dc2ac8df2a515","Tip: Click a column header to sort.") ?? "Tip: Click a column header to sort.")}</div>
@@ -7183,11 +7215,13 @@
         reportSearchTimer = setTimeout(() => fetchProjects(true), 250);
       });
     }
-    $('#vRefresh', panelEl)?.addEventListener('click', ()=>{ currentPage = 1; fetchProjects(true); });
     $('#vViewTiles', panelEl)?.addEventListener('click', ()=>setView('tiles', { history:'push', source:'projects-view' }));
     $('#vViewList', panelEl)?.addEventListener('click', ()=>setView('list', { history:'push', source:'projects-view' }));
     $('#vViewStages', panelEl)?.addEventListener('click', ()=>setView('stages', { history:'push', source:'projects-view' }));
-    $('#vViewDrafts', panelEl)?.addEventListener('click', ()=>setView('drafts', { history:'push', source:'projects-view' }));
+    $('#vListGrouping', panelEl)?.addEventListener('change', (event) => {
+      listGrouping = event.target.value === 'board' ? 'board' : 'stage';
+      renderResults();
+    });
     window.addEventListener('fm:app-flags:updated', applyStagesViewFlag);
     window.addEventListener('fm:app-flags:failed', applyStagesViewFlag);
     const statusSel = $('#vStatus', panelEl);
@@ -7208,7 +7242,10 @@
     document.getElementById('vmUpgradeDialog')?.addEventListener('click', (event) => event.stopPropagation());
     setView(viewMode, { syncUrl:false }); syncSortDropdown();
     fetchProjects(true);
-    pollTimer = setInterval(()=>{ fetchProjects(false); }, 60000);
+    pollTimer = setInterval(()=>{
+      fetchProjects(false);
+      if (viewMode === 'stages' || viewMode === 'list') loadWorkBoards({ refresh:true }).catch(() => null);
+    }, 60000);
   }
 
   window.Portal.instantReports = {
@@ -7217,7 +7254,7 @@
   };
   window.Portal.modules = window.Portal.modules || {};
   window.Portal.modules.viewer = { refresh: (redraw=true)=>fetchProjects(!!redraw), openProjectById, openProject };
-  window.Portal?.navigation?.registerSchema?.(PROJECT_VIEW_QUERY_KEY, { default:'stages', values:['stages','tiles','list','drafts'], history:'push' });
+  window.Portal?.navigation?.registerSchema?.(PROJECT_VIEW_QUERY_KEY, { default:'stages', values:['stages','list','tiles'], history:'push' });
   window.Portal?.navigation?.registerSchema?.(PROJECT_BOARD_QUERY_KEY, { history:'push' });
   window.Portal?.navigation?.registerHandler?.('projects-view', {
     priority:400,

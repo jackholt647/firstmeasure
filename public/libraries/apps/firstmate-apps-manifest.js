@@ -82,7 +82,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
       access: managementAccess,
-      bundles: [versionedBundle('projects/viewer.js', '20260929-project-stage-space')]
+      bundles: [versionedBundle('projects/viewer.js', '20260929-project-list-groups')]
     },
     {
       id: 'portal.contacts',
