@@ -64,6 +64,7 @@
     const thread = String(route.channelThread || '');
     const message = String(route.channelMessage || '');
     const current = state.instance.state;
+    if (channel && channel !== current.activeChannelId) state.closeSettings?.();
     if (channel && channel !== current.activeChannelId) {
       await state.instance.setChannel(channel, { reveal: message || undefined });
       if (thread && !message) await state.instance.openThread(thread);
@@ -74,14 +75,56 @@
     }
   }
 
-  function openSettings(){
-    window.Portal?.navigation?.navigate?.(
-      { tab: 'company_settings', sub: 'channels' },
-      { ownedKeys: ['tab', 'sub'] }
-    );
+  function canOpenSettings(){
+    return window.Portal?.util?.hasPerm?.('manage_company_settings') || window.Portal?.util?.hasPerm?.('manage_channels');
+  }
+
+  function openSettings(owner = state){
+    if (!canOpenSettings() || owner.closeSettings) return;
+    const host = owner === state ? state.root : overlay.body;
+    if (!host) return;
+    const previousFocus = document.activeElement;
+    const hidden = [...host.children, ...(owner === state ? [] : [overlay.tabsEl, overlay.actionsEl])].filter(Boolean)
+      .map(element => ({ element, hidden:element.hidden, display:element.style.display }));
+    hidden.forEach(({element}) => { element.hidden = true; element.style.display = 'none'; });
+    const view = document.createElement('section');
+    view.setAttribute('aria-label', 'Channels settings');
+    view.style.cssText = 'height:100%;min-height:0;display:flex;flex-direction:column;background:var(--fm-bg,#fff)';
+    view.innerHTML = '<header style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid #e4e7ec"><button type="button" data-ch-settings-back style="display:inline-flex;align-items:center;gap:8px;border:1px solid #d0d5dd;border-radius:8px;padding:8px 12px;background:transparent;color:inherit;cursor:pointer;font:inherit"><i class="fas fa-arrow-left" aria-hidden="true"></i>Back to Channels</button><h2 style="margin:0;font-size:18px">Channels settings</h2></header><div data-ch-settings-host style="flex:1;min-height:0;overflow:auto;padding:16px"><p role="status">Loading Channels settings…</p></div>';
+    host.append(view);
+    let closed = false;
+    let handle = null;
+    const back = view.querySelector('[data-ch-settings-back]');
+    owner.closeSettings = () => {
+      if (closed) return;
+      closed = true;
+      handle?.destroy?.();
+      view.remove();
+      hidden.forEach(({element,hidden,display}) => { element.hidden = hidden; element.style.display = display; });
+      owner.closeSettings = null;
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+    back.addEventListener('click', owner.closeSettings);
+    back.focus();
+    const settingsHost = view.querySelector('[data-ch-settings-host]');
+    Promise.resolve().then(() => {
+      if (closed) return null;
+      const runtime = window.FirstMateEmbeddableApps;
+      if (!runtime?.mount) throw new Error('Channels settings could not be loaded. Please try again.');
+      return runtime.mount(settingsHost, 'portal.company_settings', {
+        surface:'portal_tab', source:'channels-settings',
+        params:{ embedded:true, settingsTab:'channels' }, roots:{ main:settingsHost }
+      });
+    }).then(result => {
+      if (closed) result?.destroy?.();
+      else handle = result;
+    }).catch(error => {
+      if (!closed) settingsHost.textContent = error?.message || 'Channels settings could not be loaded.';
+    });
   }
 
   function mount(root){
+    state.closeSettings?.();
     state.root = root;
     state.mounted = true;
     root.innerHTML = '';
@@ -100,7 +143,7 @@
       },
       realtime: true,
       features: channelFeatures(),
-      onSettings: (window.Portal?.util?.hasPerm?.('manage_company_settings') || window.Portal?.util?.hasPerm?.('manage_channels')) ? openSettings : undefined,
+      onSettings: canOpenSettings() ? () => openSettings(state) : undefined,
       onNavigate(route){
         const changed = route.channel !== state.lastRoute.channel;
         state.lastRoute = { channel: route.channel || '', thread: route.thread || '' };
@@ -113,6 +156,7 @@
 
     return {
       destroy(){
+        state.closeSettings?.();
         state.mounted = false;
         state.instance?.destroy();
         state.instance = null;
@@ -297,6 +341,7 @@
       overlay.instance = window.FirstMateChannels.create(overlay.body, {
         orgId: orgId(),
         mode: 'conversation',
+        onSettings: canOpenSettings() ? () => openSettings(overlay) : undefined,
         compactHeader: true,
         onCallEnded:() => { if (!overlay.openFlag) setTimeout(() => { if (!overlay.openFlag && !overlay.instance?.state?.inCall) { overlay.instance?.destroy(); overlay.instance=null; } },0); },
         headerActionsTarget: overlay.actionsEl,
@@ -334,6 +379,7 @@
 
   function openOverlay(channelId, { reveal, thread, windowMode, silent = false } = {}){
     if (!channelId || !ensureOverlayInstance()) return;
+    if (overlay.channelId !== channelId || reveal || thread) overlay.closeSettings?.();
     overlay.channelId = channelId;
     overlay.titleEl.textContent = '';
     overlay.topicEl.textContent = '';
@@ -353,6 +399,7 @@
 
   function openOverlayView(view){
     if (!ensureOverlayInstance()) return;
+    overlay.closeSettings?.();
     const views = {
       unreads:['All Unreads', 'fa-inbox'],
       activity:['Activity', 'fa-bell'],
@@ -370,6 +417,7 @@
   }
 
   function closeOverlay({ silent = false } = {}){
+    overlay.closeSettings?.();
     if (!overlay.root || !overlay.openFlag) return;
     if (!silent && !window.Portal?.navigation?.applying && window.Portal?.navigation?.read?.().channelsOverlay) {
       const result = window.Portal.navigation.backOrClose(['channelsOverlay'], {channelsOverlay:null, channelWindow:null, channelPinned:null});

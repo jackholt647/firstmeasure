@@ -1697,7 +1697,7 @@
       if (features.channelSettings && channel.can_manage && !['dm', 'group_dm', 'project'].includes(channel.type)) {
         addAction('Channel settings', '<i class="fas fa-gear"></i>', () => openChannelSettingsModal());
       }
-      if (mode === 'full' && typeof options.onSettings === 'function') addAction('Channels settings', '<i class="fas fa-sliders"></i>', () => options.onSettings());
+      if (typeof options.onSettings === 'function') addAction('Channels settings', '<i class="fas fa-sliders"></i>', () => options.onSettings());
       if (features.huddles) addAction('Start or join huddle', '<i class="fas fa-headphones"></i>', () => openHuddleStartModal());
       // On phones a row of icon actions crowds the title out of the header;
       // collapse them into a single kebab menu with labeled entries.
