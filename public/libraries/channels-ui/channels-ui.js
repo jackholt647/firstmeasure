@@ -2536,16 +2536,17 @@
     function ensureHuddleWindow(){
       if (state.huddleWindow) return;
       const workspace = document.querySelector('main.main') || document.querySelector('.main');
-      const conversation = container.closest('.fm-channels-overlay');
-      const detached = !!workspace && (state.huddleDetached || (conversation && conversation.dataset.window !== 'full'));
-      const host = detached ? workspace : main;
+      // Calls are workspace windows in every Channels layout, including full
+      // conversations and embedded project threads. Never constrain them to chat.
+      const host = workspace || document.body;
+      state.huddleDetached = true;
       const windowRoot = el('div', 'fm-call-window'); windowRoot.dataset.theme='dark';
       const header = el('div','');
       const title = el('div','',`<i class="fas fa-headphones"></i> Call${state.activeChannel?.display_name ? ` · ${esc(state.activeChannel.display_name)}` : ''}`);
       const body = el('div','fm-call-window-body'); header.append(title); windowRoot.append(header,body); host.append(windowRoot);
       state.huddleWindowRoot=windowRoot; state.huddleWindowBody=body;
       state.huddleWindow = root.FirstMateWindows.attach({
-        element:windowRoot, header, title, body, host, contentTarget:detached ? workspace.querySelector(':scope > #mainPanels, :scope > #app') : null,
+        element:windowRoot, header, title, body, host, contentTarget:workspace?.querySelector(':scope > #mainPanels, :scope > #app'),
         name:'call', label:(globalThis.PlatformLanguage?.text("channels-ui","m_a51c881ef80973","Call window") ?? "Call window"), mode:'floating', width:700, height:440, dockWidth:440, minWidth:320, minHeight:260,
         topInset:parent => { const bar=document.getElementById('platformTopbar'); return parent === workspace && bar?.offsetParent ? bar.offsetHeight : 0; },
         onChange:({mode,pinned}) => {

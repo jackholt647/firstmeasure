@@ -574,6 +574,8 @@ try {
   assert.doesNotMatch(await page.locator('.fm-ch-modal').innerText(),/retention|recording/i);
   await page.getByRole('button',{name:'Start or join',exact:true}).click();
   await page.locator('.fm-ch-call-stage').waitFor();
+  assert.equal(await page.locator('main > .fm-call-window').count(),1,'calls open in the global workspace from full Channels');
+  assert.equal(await page.locator('.fm-ch .fm-call-window').count(),0,'call movement is not bounded by the message pane');
   assert.equal(await page.locator('.fm-ch-call-identity').count(),2);
   await page.getByRole('button',{name:'Maximize call',exact:true}).click();
   assert.ok(await page.locator('.fm-call-window[data-window=full]').isVisible());

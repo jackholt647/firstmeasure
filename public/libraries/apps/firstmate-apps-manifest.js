@@ -37,7 +37,7 @@
     versionedBundle('../window-manager/window-manager.js', '20260929-channels-v2'),
     versionedBundle('../assistant-api/assistant-api.js', '20260929-channel-assistant-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20260929-channel-assistant-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20260929-system-lines-v1'),
+    versionedBundle('../channels-ui/channels-ui.js', '20260929-global-huddle-window-v1'),
     versionedBundle('../project-notes/project-notes.js', '20260723-channels-notes')
   ];
   const fieldApprovalBundles = [
@@ -540,7 +540,7 @@
         versionedBundle('../window-manager/window-manager.js', '20260929-channels-v2'),
         versionedBundle('../assistant-api/assistant-api.js', '20260929-channel-assistant-v1'),
         versionedBundle('../platform-assistant/platform-assistant.js', '20260929-channel-assistant-v1'),
-        versionedBundle('../channels-ui/channels-ui.js', '20260929-system-lines-v1'),
+        versionedBundle('../channels-ui/channels-ui.js', '20260929-global-huddle-window-v1'),
         versionedBundle('channels/app.js', '20260929-channels-settings-v1')
       ]
     },
