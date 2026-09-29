@@ -4,7 +4,7 @@
   if (root.FirstMateWindows) return;
   const windows = new Set();
   const hosts = new Map();
-  const modes = ['full', 'floating', 'docked', 'minimized'];
+  const modes = ['full', 'floating', 'docked', 'minimized', 'modal', 'fullscreen'];
   let order = 0;
   let menu = null;
   function styles(){
@@ -55,6 +55,7 @@
     hosts.delete(host);
   }
   function box(win, left, top, width, height){
+    if (win.viewportCoordinates && !['modal','fullscreen'].includes(win.mode)) { const bounds=win.host.getBoundingClientRect(); left+=bounds.left; top+=bounds.top; }
     for (const [key, value] of Object.entries({left:`${left}px`,top:`${top}px`,right:'auto',bottom:'auto',width:`${width}px`,height:`${height}px`})) win.element.style.setProperty(key,value,'important');
   }
   function layout(host){
@@ -80,8 +81,11 @@
     }
     for (const win of active) {
       const inset = win.topInset();
+      if (win.mode === 'fullscreen') box(win,0,0,innerWidth,innerHeight);
+      if (win.mode === 'modal' && win.nativeModalLayout) { for(const key of ['left','top','right','bottom','width','height']) win.element.style.removeProperty(key); }
+      else if (win.mode === 'modal') { const w=Math.min(1720,innerWidth*.96),h=Math.min(1180,innerHeight*.92); box(win,(innerWidth-w)/2,(innerHeight-h)/2,w,h); }
       if (win.mode === 'full') box(win,0,inset,Math.max(0,width-reserved),Math.max(0,height-inset));
-      if (win.mode === 'minimized') { const w = Math.min(340,width); box(win,Math.max(0,width-w-8),Math.max(inset,height-52-(minimized++ * 50)),w,44); }
+      if (win.mode === 'minimized') { const w = Math.min(340,width); box(win,Math.max(0,width-w-8),Math.max(inset,height-52-(minimized++ * 50)),w,win.minimizedHeight); }
       if (win.mode === 'floating') {
         const r = win.rect;
         r.width = Math.min(Math.max(win.minWidth,r.width),width);
@@ -93,7 +97,7 @@
   }
   function restack(){
     [...windows].sort((a,b)=>(a.stackOrder||0)-(b.stackOrder||0)).forEach((win,index)=>{
-      win.element.style.zIndex=String((win.mode === 'docked' ? 80 : win.mode === 'minimized' ? 1200 : 500)+index);
+      (win.stackElement || win.element).style.zIndex=String((['modal','fullscreen'].includes(win.mode) ? 2147483100 : win.mode === 'docked' ? 80 : win.mode === 'minimized' ? 1200 : 500)+index);
     });
   }
   function attach(options){
@@ -103,7 +107,8 @@
     const host = options.host;
     registerHost(host);
     const win = {
-      element, header, host, contentTarget:options.contentTarget,
+      element, header, host, stackElement:options.stackElement, contentTarget:options.contentTarget,
+      viewportCoordinates:options.viewportCoordinates === true, nativeModalLayout:options.nativeModalLayout === true, minimizedHeight:options.minimizedHeight || 44,
       minWidth:options.minWidth || 320, minHeight:options.minHeight || 280,
       mobileFullDock:options.mobileFullDock === true,
       mode:modes.includes(options.mode) ? options.mode : 'floating', previous:'floating',
@@ -111,26 +116,35 @@
       topInset:() => Math.max(0,Number(options.topInset?.(win.host) || 0)),
       rect:{left:Math.max(0,host.clientWidth-(options.width || 640)-24),top:72,width:options.width || 640,height:options.height || 520}
     };
-    windows.add(win); element.classList.add('fm-window'); header.classList.add('fm-window-header'); title?.classList.add('fm-window-title'); if (options.titleMenu === false) title?.classList.add('fm-window-title-plain'); options.body?.classList.add('fm-window-content');
+    windows.add(win); element.classList.add('fm-window'); if (!options.customChrome) header.classList.add('fm-window-header'); title?.classList.add('fm-window-title'); if (options.titleMenu === false) title?.classList.add('fm-window-title-plain'); options.body?.classList.add('fm-window-content');
     element.setAttribute('role','region'); element.setAttribute('aria-label',options.label || 'Window');
-    const controls = document.createElement('div'); controls.className = 'fm-window-controls'; header.append(controls);
+    const controls = document.createElement('div'); controls.className = 'fm-window-controls'; (options.controlsHost || header).append(controls);
     const buttons = {};
     for (const [action, icon] of [['place','table-columns'],['minimize','minus'],['maximize','expand'],['close','xmark']]) {
       const button = document.createElement('button'); button.type='button'; button.dataset.windowAction=action; button.innerHTML=`<i class="fas fa-${icon}" aria-hidden="true"></i>`; controls.append(button); buttons[action]=button;
     }
+    if (options.presentationModes) {
+      for (const [action,icon] of [['modal','window-maximize'],['floating','up-down-left-right'],['fullscreen','up-right-and-down-left-from-center'],['pin','thumbtack']]) {
+        const button=document.createElement('button');button.type='button';button.dataset.windowAction=action;button.innerHTML=`<i class="fas fa-${icon}" aria-hidden="true"></i>`;controls.append(button);buttons[action]=button;
+        button.onclick=()=>action === 'pin' ? setPinned(!win.pinned) : setMode(action);
+      }
+    }
     const name = options.name || 'window';
     function chrome(){
+      element.style.position = win.viewportCoordinates || ['modal','fullscreen'].includes(win.mode) ? 'fixed' : 'absolute';
       element.dataset.window = win.mode; element.dataset.pinned=String(win.pinned);
-      const dock = win.mode === 'floating' || win.mode === 'full';
-      const labels = {place:`${dock ? 'Dock' : 'Float'} ${name}`,minimize:`${win.mode === 'minimized' ? 'Restore' : 'Minimize'} ${name}`,maximize:`${win.mode === 'full' ? 'Float' : 'Maximize'} ${name}`,close:`Close ${name}`};
+      const dock = options.presentationModes || win.mode === 'floating' || win.mode === 'full';
+      const labels = {place:`${dock ? 'Dock' : 'Float'} ${name}`,minimize:`${win.mode === 'minimized' ? 'Restore' : 'Minimize'} ${name}`,maximize:`${win.mode === 'full' ? 'Float' : 'Maximize'} ${name}`,close:`Close ${name}`,modal:`Show ${name} as a modal`,floating:`Float ${name}`,fullscreen:`Fill entire screen with ${name}`,pin:`${win.pinned ? 'Unpin' : 'Pin'} ${name}`};
+      if(options.presentationModes) { labels.place=`Dock ${name} to the right`; labels.maximize=`Fill workspace with ${name}`; }
       if (title && options.titleMenu !== false) {
         title.setAttribute('aria-label',win.mode === 'minimized' ? labels.minimize : ((v0) => globalThis.PlatformLanguage?.text("window-manager","m_d2465937dae930",`${v0} window menu`,{v0}) ?? `${v0} window menu`)(name));
         title.title=win.mode === 'minimized' ? labels.minimize : (globalThis.PlatformLanguage?.text("window-manager","m_e271e8dbdf1d3d","Window menu (right-click or Alt+Space)") ?? "Window menu (right-click or Alt+Space)");
       }
       for (const [key,button] of Object.entries(buttons)) { button.title=labels[key]; button.setAttribute('aria-label',labels[key]); }
       buttons.place.innerHTML=`<i class="fas fa-${dock ? 'table-columns' : 'window-restore'}" aria-hidden="true"></i>`;
-      buttons.maximize.innerHTML=`<i class="fas fa-${win.mode === 'full' ? 'window-restore' : 'expand'}" aria-hidden="true"></i>`;
-      buttons.maximize.style.order=win.mode === 'full' ? '1' : '2'; buttons.minimize.style.order=win.mode === 'full' ? '2' : '1'; buttons.close.style.order='3';
+      buttons.maximize.innerHTML=`<i class="fas fa-${!options.presentationModes && win.mode === 'full' ? 'window-restore' : 'expand'}" aria-hidden="true"></i>`;
+      buttons.maximize.style.order=win.mode === 'full' ? '1' : '2'; buttons.minimize.style.order=win.mode === 'full' ? '2' : '1'; buttons.close.style.order='7';
+      if(options.presentationModes) { for(const [action,mode] of Object.entries({modal:'modal',floating:'floating',place:'docked',maximize:'full',fullscreen:'fullscreen'})) buttons[action].setAttribute('aria-pressed',String(win.mode===mode)); buttons.modal.style.order='0';buttons.floating.style.order='1';buttons.place.style.order='2';buttons.maximize.style.order='3';buttons.fullscreen.style.order='4';buttons.minimize.style.order='5';buttons.pin.style.order='6';buttons.pin.setAttribute('aria-pressed',String(win.pinned)); }
       buttons.minimize.innerHTML=`<i class="fas fa-${win.mode === 'minimized' ? 'window-restore' : 'minus'}" aria-hidden="true"></i>`;
     }
     function notify(reason){ options.onChange?.({mode:win.mode,pinned:win.pinned,reason}); }
@@ -145,16 +159,17 @@
     function setPinned(value,{silent=false}={}){ win.pinned=!!value; chrome(); if (!silent) notify('pin'); }
     function focus(){ win.stackOrder=++order; restack(); }
     async function requestClose(){ if (buttons.close.disabled) return; buttons.close.disabled=true; try { if (options.onClose) await options.onClose(); else {win.visible=false;element.hidden=true;layout(win.host);} } finally { buttons.close.disabled=false; } }
-    buttons.place.onclick=() => setMode(['floating','full'].includes(win.mode) ? 'docked' : 'floating');
+    buttons.place.onclick=() => setMode(options.presentationModes ? 'docked' : ['floating','full'].includes(win.mode) ? 'docked' : 'floating');
     function restore(){if(win.mode === 'minimized'){closeMenu();setMode(win.previous);focus();}}
     buttons.minimize.onclick=() => win.mode === 'minimized' ? restore() : setMode('minimized');
-    buttons.maximize.onclick=() => setMode(win.mode === 'full' ? 'floating' : 'full');
+    buttons.maximize.onclick=() => setMode(options.presentationModes ? 'full' : win.mode === 'full' ? 'floating' : 'full');
     buttons.close.onclick=requestClose;
     function showMenu(event){
       event.preventDefault(); closeMenu(); menu=document.createElement('div'); menu.className='fm-window-menu'; menu.setAttribute('role','menu');
       const items=[['Float',() => setMode('floating')],['Dock',() => setMode('docked')],[win.pinned ? 'Unpin window' : 'Pin window',() => setPinned(!win.pinned)],['Close',requestClose]];
+      if(options.presentationModes) items.unshift(['Modal',()=>setMode('modal')],['Fill workspace',()=>setMode('full')],['Fill entire screen',()=>setMode('fullscreen')]);
       for(const [label,action] of items) { const button=document.createElement('button');button.textContent=label;button.setAttribute('role','menuitem');button.onclick=()=>{closeMenu();action();};menu.append(button); }
-      document.body.append(menu);const r=header.getBoundingClientRect();menu.style.left=`${Math.max(8,Math.min(r.left,innerWidth-246))}px`;menu.style.top=`${Math.max(8,Math.min(r.bottom,innerHeight-menu.offsetHeight-8))}px`;menu.firstChild.focus();
+      menu.style.pointerEvents='auto'; (options.menuHost || document.body).append(menu);const r=header.getBoundingClientRect();menu.style.left=`${Math.max(8,Math.min(r.left,innerWidth-246))}px`;menu.style.top=`${Math.max(8,Math.min(r.bottom,innerHeight-menu.offsetHeight-8))}px`;menu.firstChild.focus();
     }
     header.addEventListener('contextmenu',showMenu);
     if (title && options.titleMenu !== false) { title.tabIndex=0; title.setAttribute('role','button'); title.setAttribute('aria-label',((v0) => globalThis.PlatformLanguage?.text("window-manager","m_d2465937dae930",`${v0} window menu`,{v0}) ?? `${v0} window menu`)(name)); title.title=(globalThis.PlatformLanguage?.text("window-manager","m_e271e8dbdf1d3d","Window menu (right-click or Alt+Space)") ?? "Window menu (right-click or Alt+Space)"); }
@@ -200,6 +215,7 @@
         layout(win.host);
       });element.append(grip);grips.push(grip);
     }
+    const refreshViewport=()=>layout(win.host); window.addEventListener('resize',refreshViewport);
     chrome();layout(host);focus();
     return {
       element, setMode, setPinned, focus,
@@ -208,7 +224,7 @@
       setVisible(value){win.visible=!!value;element.hidden=!win.visible;layout(win.host);if(value)focus();},
       rehost(nextHost,contentTarget){if(nextHost===win.host)return;const old=win.host;registerHost(nextHost);win.host=nextHost;win.contentTarget=contentTarget;nextHost.append(element);layout(old);releaseHost(old);layout(nextHost);},
       refresh(){layout(win.host);},
-      destroy(){endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);element.remove();layout(win.host);releaseHost(win.host);}
+      destroy(){window.removeEventListener('resize',refreshViewport);endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);element.remove();layout(win.host);releaseHost(win.host);}
     };
   }
   root.FirstMateWindows={attach};

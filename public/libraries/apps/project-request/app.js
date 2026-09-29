@@ -241,6 +241,7 @@ window.PlatformCommerce.onReady(function(){
   let projectWorkPlanPromise = null;
   let modalInitialProjectIds = new Set();
   let requestModalHandle = null;
+  let projectModalWindow = null;
   let projectModalFullscreen = false;
   let projectModalFullscreenTimer = null;
   let addonInfoModalHandle = null;
@@ -2899,8 +2900,73 @@ window.PlatformCommerce.onReady(function(){
     if (!viewingExistingProject) return;
     syncActiveProjectRoute({ projectFullscreen: projectModalFullscreen ? '1' : null });
   }
+  function syncProjectWindowModalRegistration(){
+    requestModalHandle?.unregister?.();
+    requestModalHandle = null;
+    const overlay = $('#rOverlay');
+    const mode = projectModalWindow?.state.mode || 'modal';
+    if (overlay && projectModalWindow) {
+      const parent = ['modal','fullscreen'].includes(mode) ? document.body : (document.querySelector('main.main') || document.querySelector('.main'));
+      if (parent && overlay.parentElement !== parent) parent.append(overlay);
+    }
+    if (overlay?.classList.contains('active') && ['modal','fullscreen'].includes(mode)) {
+      requestModalHandle = window.Portal?.modals?.register?.(overlay, {
+        id:'project-modal', closeOnEscape:true, closeOnBackdrop:false, onClose:() => close()
+      }) || null;
+    }
+  }
+  function ensureProjectWindow(){
+    if (projectModalWindow || !window.FirstMateWindows) return;
+    const overlay = $('#rOverlay'), element = overlay?.querySelector('.r-win');
+    const host = document.querySelector('main.main') || document.querySelector('.main');
+    if (!element || !host) return;
+    projectModalWindow = window.FirstMateWindows.attach({
+      element, host, stackElement:overlay, menuHost:overlay, header:element.querySelector('.r-modal-header'),
+      controlsHost:element.querySelector('.modal-shell-actions'),
+      contentTarget:document.getElementById('mainPanels'),
+      customChrome:true, presentationModes:true, viewportCoordinates:true, nativeModalLayout:true,
+      name:'project', label:'Project', mode:'modal', width:1200, height:800,
+      dockWidth:900, minWidth:360, minimizedHeight:48,
+      topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
+      onClose:() => close(),
+      onChange:({mode}) => {
+        overlay.dataset.windowMode = mode;
+        projectModalFullscreen = mode === 'fullscreen';
+        overlay.classList.toggle('fullscreen', projectModalFullscreen);
+        syncProjectWindowModalRegistration();
+        syncProjectModalFullscreenRoute();
+        window.dispatchEvent(new Event('resize'));
+      }
+    });
+    injectCSS('project-window', `
+      .r-overlay.window-managed .r-win{flex-direction:row;transition:none;animation:none}
+      @media(min-width:761px){.r-overlay.window-managed[data-window-mode="modal"] .r-win{border:0;border-radius:14px;box-shadow:0 36px 120px rgba(15,23,42,.28)}}
+      .r-overlay.window-managed .fm-window-controls{align-self:stretch;gap:0}
+      .r-overlay.window-managed .fm-window-controls button[aria-pressed="true"]{background:#e4e7ec;color:#101828}
+      .r-overlay.window-managed .fm-window-controls button{height:100%;min-height:48px;width:34px;border-radius:0;border-left:1px solid #e4e7ec}
+      .r-overlay.window-managed #rFullscreenToggle,.r-overlay.window-managed #rMapCloseX{display:none}
+      .r-overlay.window-managed:not([data-window-mode="modal"]):not([data-window-mode="fullscreen"]){background:transparent;pointer-events:none}
+      .r-overlay.window-managed .r-win{pointer-events:auto}
+      .r-overlay.window-managed .r-win[data-window="full"],.r-overlay.window-managed .r-win[data-window="fullscreen"]{border-radius:0}
+      .r-overlay.window-managed .r-win[data-window="minimized"]{padding:0}
+      .r-overlay.window-managed .r-win[data-window="minimized"] > :not(.r-right):not(.fm-window-resize),
+      .r-overlay.window-managed .r-win[data-window="minimized"] .r-right > :not(.r-modal-header){display:none!important}
+      .r-overlay.window-managed .r-win[data-window="minimized"] .r-right{min-height:0;flex:1}
+      .r-overlay.window-managed .r-win[data-window="minimized"] .r-modal-header{display:flex!important}
+      .r-overlay.window-managed .r-win[data-window="minimized"] .r-tabbar{display:none}
+      .r-overlay.window-managed .r-win[data-window="minimized"] .r-modal-header:before{content:'Project';padding:14px 8px;font-size:12px}
+      @media(max-width:1080px){.r-overlay.window-managed .r-win{flex-direction:column}}
+      @media(max-width:760px){.r-overlay.window-managed.entitlement-hide-fullscreen .fm-window-controls [data-window-action="fullscreen"]{display:none}.r-overlay.window-managed .fm-window-controls button{width:28px;min-height:39px}}
+    `);
+    overlay.classList.add('window-managed');
+    overlay.dataset.windowMode = 'modal';
+    projectModalWindow.setVisible(false);
+  }
   function setProjectModalFullscreen(enabled, options = {}){
     projectModalFullscreen = !!enabled;
+    projectModalWindow?.setMode(enabled ? 'fullscreen' : 'modal', {silent:true});
+    const managedOverlay = $('#rOverlay');
+    if (managedOverlay && projectModalWindow) managedOverlay.dataset.windowMode = enabled ? 'fullscreen' : 'modal';
     const overlay = $('#rOverlay');
     clearTimeout(projectModalFullscreenTimer);
     if (overlay) {
@@ -2908,6 +2974,7 @@ window.PlatformCommerce.onReady(function(){
       void overlay.offsetWidth;
     }
     overlay?.classList.toggle('fullscreen', projectModalFullscreen);
+    if (projectModalWindow) syncProjectWindowModalRegistration();
     const btn = $('#rFullscreenToggle');
     if (btn) {
       btn.setAttribute('aria-label', projectModalFullscreen ? 'Shrink project modal' : 'Open project fullscreen');
@@ -4756,6 +4823,7 @@ window.PlatformCommerce.onReady(function(){
     if (e.key !== 'Escape' || e.defaultPrevented) return;
     const overlay = $('#rOverlay');
     if (!overlay?.classList.contains('active')) return;
+    if (projectModalWindow && !['modal','fullscreen'].includes(projectModalWindow.state.mode) && !overlay.contains(document.activeElement)) return;
     if (hasProjectModalTopLayer()) return;
     e.preventDefault();
     close();
@@ -10777,7 +10845,7 @@ window.PlatformCommerce.onReady(function(){
       history:options.history || 'push',
       source:options.source || 'project-open'
     });
-    if (options.fromRoute) {
+    if (options.fromRoute && routeFullscreenEnabled(options.projectFullscreen) !== projectModalFullscreen) {
       setProjectModalFullscreen(routeFullscreenEnabled(options.projectFullscreen), { syncRoute: false });
     }
   }
@@ -10844,6 +10912,7 @@ window.PlatformCommerce.onReady(function(){
     projectShellLoading = !!options.shellOnly;
     projectRouteBatching = true;
     ensureUI();
+    ensureProjectWindow();
     setMobileProjectNotesOpen(false, { fromRoute:true });
     const overlay = $('#rOverlay');
 
@@ -10903,13 +10972,8 @@ window.PlatformCommerce.onReady(function(){
     overlay.classList.add('active');
     syncProjectPresence();
     window.requestAnimationFrame(() => document.getElementById('fmProjectRoutePrecover')?.remove());
-    requestModalHandle?.unregister?.();
-    requestModalHandle = window.Portal?.modals?.register?.(overlay, {
-      id: 'project-modal',
-      closeOnEscape: true,
-      closeOnBackdrop: false,
-      onClose: () => close()
-    }) || null;
+    projectModalWindow?.setVisible(true);
+    syncProjectWindowModalRegistration();
     projectRouteBatching = false;
     const routePatch = options.routePatch && typeof options.routePatch === 'object' ? options.routePatch : {};
     if (!options.fromRoute) {
@@ -10941,6 +11005,7 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function close(options = {}){
+    projectModalWindow?.setVisible(false);
     projectPresenceStop?.(); projectPresenceStop = null;
     projectPresenceKey = ''; projectPresenceUsers = []; renderProjectPresence();
     projectOpenGeneration += 1;

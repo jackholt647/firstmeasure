@@ -34,7 +34,7 @@
     versionedBundle('../channels-api/channels-api.js', '20260929-huddle-controls-v1'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
-    versionedBundle('../window-manager/window-manager.js', '20260929-channels-v2'),
+    versionedBundle('../window-manager/window-manager.js', '20260929-project-window-v1'),
     versionedBundle('../assistant-api/assistant-api.js', '20260929-channel-assistant-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20260929-channel-assistant-v1'),
     versionedBundle('photos/feed.js', '20260929-shared-files-v1'),
@@ -287,7 +287,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('project-request/app.js', '20260928-presence-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('project-request/app.js', '20260929-project-window-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -539,7 +539,7 @@
         versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
         versionedBundle('../channels-api/channels-api.js', '20260929-huddle-controls-v1'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
-        versionedBundle('../window-manager/window-manager.js', '20260929-channels-v2'),
+        versionedBundle('../window-manager/window-manager.js', '20260929-project-window-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20260929-channel-assistant-v1'),
         versionedBundle('../platform-assistant/platform-assistant.js', '20260929-channel-assistant-v1'),
         versionedBundle('photos/feed.js', '20260929-shared-files-v1'),
