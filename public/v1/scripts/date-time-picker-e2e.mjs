@@ -6,6 +6,10 @@ const browser = await chromium.launch({executablePath:process.env.CHROME_PATH ||
 const page = await browser.newPage({locale:'en-US'});
 const errors=[]; page.on('pageerror',e=>errors.push(e.message));
 const picker=()=>page.locator('fm-date-time-picker');
+async function editTime(name,value){
+ await picker().locator('details').evaluate(el=>el.open=true);
+ await picker().getByLabel(name,{exact:true}).fill(value);
+}
 async function setup(html){
  await page.goto("about:blank");
  await page.setContent(`<html lang="en"><head></head><body style="padding:30px;font:16px system-ui">${html}</body></html>`);
@@ -15,13 +19,13 @@ try {
  await setup('<form><label>Send at <input name="scheduled" type="datetime-local" value="2026-09-28T14:30"></label></form>');
  await page.evaluate(()=>{window.events=[];for(const t of ['input','change'])document.querySelector('input').addEventListener(t,e=>events.push([t,e.target.value]));});
  await page.locator('input').first().click();
- await picker().getByLabel('Minute',{exact:true}).fill('45');
+ await editTime('Minute','45');
  await picker().getByRole('button',{name:'Apply',exact:true}).click();
  assert.equal(await page.locator('input').first().inputValue(),'2026-09-28T14:45');
  assert.deepEqual(await page.evaluate(()=>events),[['input','2026-09-28T14:45'],['change','2026-09-28T14:45']]);
  assert.equal(await page.evaluate(()=>new FormData(document.querySelector('form')).get('scheduled')),'2026-09-28T14:45');
  await page.locator('input').first().click();
- await picker().getByLabel('Minute',{exact:true}).fill('50');
+ await editTime('Minute','50');
  await page.keyboard.press('Escape');
  assert.equal(await page.locator('input').first().inputValue(),'2026-09-28T14:45');
  assert.equal(await page.locator('input').first().evaluate(e=>e===document.activeElement),true);
@@ -29,7 +33,7 @@ try {
 
  await setup('<label>Receipt time <input type="time" step="1" value="23:59:12"></label>');
  await page.locator('input').first().focus(); await page.keyboard.press('Alt+ArrowDown');
- await picker().getByLabel('Second',{exact:true}).fill('25');
+ await editTime('Second','25');
  await picker().getByRole('button',{name:'Apply',exact:true}).click();
  assert.equal(await page.locator('input').first().inputValue(),'23:59:25');
  console.log('PASS seconds and keyboard opening');
@@ -37,11 +41,11 @@ try {
  await setup('<label>Meeting <input type="time" min="09:00" max="17:00" step="900" value="09:00" required></label>');
  await page.locator('input').first().click();
  assert.equal(await picker().getByRole('button',{name:'Clear',exact:true}).isDisabled(),true);
- await picker().getByLabel('Minute',{exact:true}).fill('07');
+ await editTime('Minute','07');
  await picker().getByRole('button',{name:'Apply',exact:true}).click();
  assert.equal(await page.locator('input').first().inputValue(),'09:00');
  assert.match(await picker().getByRole('alert').innerText(),/allowed range/);
- await picker().getByLabel('Minute',{exact:true}).fill('15');
+ await editTime('Minute','15');
  await picker().getByRole('button',{name:'Apply',exact:true}).click();
  assert.equal(await page.locator('input').first().inputValue(),'09:15');
  console.log('PASS min/max/required/step');
@@ -86,7 +90,7 @@ try {
 
  await setup('<label>Precision <input type="time" step="0.001" value="09:00:05.125"></label>');
  await page.locator('input').first().click();
- await picker().getByLabel('Second',{exact:true}).fill('5.25');
+ await editTime('Second','5.25');
  await picker().getByRole('button',{name:'Apply',exact:true}).click();
  assert.equal(await page.locator('input').first().inputValue(),'09:00:05.250');
  console.log('PASS fractional seconds');
@@ -104,11 +108,35 @@ try {
  await page.evaluate(()=>FirstMateDateTimePicker.open(document.querySelector('[data-native-picker]'))); assert.equal(await picker().count(),0);
  console.log('PASS readonly and opt-out');
 
+ await setup('<div style="--primary:#16734a;--on-primary:#fff;--primary-readable:#125f3d"><label>Schedule <input type="datetime-local" value="2026-09-28T14:30" min="2026-09-28T09:00" max="2026-09-30T17:00"></label></div>');
+ await page.setViewportSize({width:1100,height:800});
+ await page.locator('input').first().click();
+ const calendar=await picker().locator('.calendar').boundingBox(), times=await picker().locator('.time-section').boundingBox();
+ assert.ok(times.x>calendar.x+calendar.width&&Math.abs(times.y-calendar.y)<2);
+ assert.equal(await picker().locator('[data-date="2026-09-28"]').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(22, 115, 74)');
+ assert.equal(await picker().locator('[data-slot="08:45"]').isDisabled(),true);
+ await picker().locator('[data-date="2026-09-29"]').click();
+ assert.equal(await page.locator('input').first().inputValue(),'2026-09-28T14:30');
+ assert.equal(await picker().locator('[data-slot="08:45"]').isDisabled(),false);
+ const scrollable=await picker().locator('.slots').evaluate(el=>el.scrollHeight>el.clientHeight&&getComputedStyle(el).touchAction==='pan-y');
+ assert.equal(scrollable,true);
+ await picker().locator('[data-slot="10:15"]').click();
+ assert.equal(await picker().count(),0);
+ assert.equal(await page.locator('input').first().inputValue(),'2026-09-29T10:15');
+ console.log('PASS side-by-side layout, scoped branding, date-first slots, immediate selection and touch scroll');
+ await page.locator('input').first().click();
+ await picker().locator('[data-slot="10:15"]').focus(); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+ assert.equal(await page.locator('input').first().inputValue(),'2026-09-29T10:30');
+ console.log('PASS time-slot arrow navigation and Enter');
+
  await setup('<label>Schedule message <input type="datetime-local" value="2026-09-28T14:30"></label>');
  await page.setViewportSize({width:390,height:844});
  await page.locator('input').first().click();
  const bounds=await picker().locator('.picker').boundingBox();
  assert.ok(bounds.x>=0&&bounds.x+bounds.width<=390&&bounds.y>=0&&bounds.y+bounds.height<=844);
+ const mobileCalendar=await picker().locator('.calendar').boundingBox(), mobileTimes=await picker().locator('.time-section').boundingBox();
+ assert.ok(mobileTimes.x>=mobileCalendar.x+mobileCalendar.width);
+ assert.ok(await picker().locator('.picker').evaluate(el=>el.scrollWidth<=el.clientWidth));
  await picker().getByRole('button',{name:'Apply',exact:true}).focus(); await page.keyboard.press('Tab');
  assert.equal(await picker().getByRole('button',{name:'Close picker',exact:true}).evaluate(e=>e===e.getRootNode().activeElement),true);
  await mkdir(new URL('../../../output/date-time-picker/',import.meta.url),{recursive:true});

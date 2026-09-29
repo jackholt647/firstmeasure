@@ -8,6 +8,14 @@ Open `preview.html` to review all three modes and a modal example.
 
 The library automatically handles existing and dynamically inserted
 `input[type=date]`, `input[type=time]`, and `input[type=datetime-local]` fields.
+Combined fields show a horizontal calendar and independently scrolling time list.
+Clicking a date updates the list; clicking a time commits immediately. Default
+slots are 15 minutes apart; explicit step constraints and offsets are honored.
+Custom time expands precise minute/second entry. The layout stays side by side
+on mobile, with touch scrolling and keyboard slot navigation. Brand colors come
+from the input’s `--primary`, `--on-primary`, and `--primary-readable` tokens
+(with customer-portal aliases), including themes scoped below the page root.
+
 No per-app initialization is needed. The original input remains the source of
 truth: names, values, selectors, typed entry, form submission, required/min/max/
 step validation, and existing event handlers are preserved. Applying a changed
