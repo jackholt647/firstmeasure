@@ -468,6 +468,16 @@ try {
   assert.equal(await editor.locator('blockquote').innerText(),'Quoted text');
   assert.ok((await editor.evaluate(node=>node.value)).includes('\nOutside quote'));
   assert.equal(await page.evaluate(()=>sent.length),3,'quote Enter must not send');
+  const quotedHtml = '<blockquote><div>First</div><div><br></div><div><br></div><div>Second</div></blockquote><div><br></div><div>Outside</div>';
+  const quotedWire = '> First\n> \n> \n> Second\n\nOutside';
+  assert.equal(await editor.evaluate((node,html)=>{node.innerHTML=html;return node.value;},quotedHtml),quotedWire);
+  for (let attempt=0;attempt<3;attempt++) {
+    assert.equal(await editor.evaluate((node,text)=>{node.value=text;return node.value;},quotedWire),quotedWire);
+    assert.equal(await editor.locator('blockquote').count(),1);
+    assert.match(await editor.locator('blockquote').innerText(),/First[\s\S]*Second/);
+    assert.doesNotMatch(await editor.locator('blockquote').innerText(),/Outside/);
+  }
+  assert.equal(await editor.evaluate(node=>{node.innerHTML='<blockquote><br></blockquote>';return node.value;}),'');
   await editor.fill(''); await editor.focus();
   await page.getByRole('button',{name:'Link',exact:true}).click();
   const linkModal=page.getByRole('dialog',{name:'Insert link',exact:true});

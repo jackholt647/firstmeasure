@@ -131,7 +131,7 @@
     return `<span class="${cls}" style="background:hsl(${hue},45%,42%)">${esc(initials(user?.name))}</span>`;
   }
 
-  function renderBody(message, textValue){
+  function renderBody(message, textValue, quoteDepth = 0){
     const source = String(textValue == null ? message.text || '' : textValue);
     const inline = (value) => {
       const tokens = [];
@@ -172,7 +172,14 @@
         let items = `<li>${inline(line.replace(pattern, ''))}</li>`;
         while (i + 1 < lines.length && pattern.test(lines[i + 1])) items += `<li>${inline(lines[++i].replace(pattern, ''))}</li>`;
         blocks.push(`<${ordered ? 'ol' : 'ul'}>${items}</${ordered ? 'ol' : 'ul'}>`);
-      } else if (line.startsWith('> ')) blocks.push(`<blockquote>${inline(line.slice(2))}</blockquote>`);
+      } else if (/^>(?: |$)/.test(line)) {
+        const quoted = [line.replace(/^> ?/, '')];
+        while (i + 1 < lines.length && /^>(?: |$)/.test(lines[i + 1])) quoted.push(lines[++i].replace(/^> ?/, ''));
+        const contents = quoteDepth < 16
+          ? renderBody({ text:quoted.join('\n') }, undefined, quoteDepth + 1)
+          : quoted.map(value => `<div>${inline(value) || '<br>'}</div>`).join('');
+        blocks.push(`<blockquote>${contents}</blockquote>`);
+      }
       else blocks.push(`<div>${inline(line) || '<br>'}</div>`);
     }
     let html = blocks.join('');
@@ -299,12 +306,19 @@
     editor.setAttribute('aria-label', placeholder);
     editor.dataset.placeholder = placeholder;
     editor.mentionUsers = [];
+    const blockTags = new Set(['DIV', 'P', 'BLOCKQUOTE', 'UL', 'OL', 'PRE', 'TABLE']);
+    const serializeChildren = parent => [...parent.childNodes].reduce((text, child) => {
+      const next = serialize(child);
+      // Block elements start on a new line even after an unwrapped text node.
+      return text + (blockTags.has(child.tagName) && text && !text.endsWith('\n') && !next.startsWith('\n') ? '\n' : '') + next;
+    }, '');
     const serialize = node => {
       if (node.nodeType === 3) return node.textContent;
       if (node.dataset?.tableUi) return '';
       const tag = node.tagName;
-      const children = () => [...node.childNodes].map(serialize).join('');
-      if (tag === 'BR') return '\n';
+      const children = () => serializeChildren(node);
+      // A final BR is the editor's caret placeholder, not another blank line.
+      if (tag === 'BR') return !node.nextSibling && (node.parentNode === editor || blockTags.has(node.parentElement?.tagName)) ? '' : '\n';
       if (tag === 'B' || tag === 'STRONG') return `**${children()}**`;
       if (tag === 'I' || tag === 'EM') return `_${children()}_`;
       if (tag === 'S' || tag === 'STRIKE') return `~~${children()}~~`;
@@ -318,11 +332,16 @@
         return '\n' + rows.join('\n') + (widths.length && widths.every(Boolean) ? '\n<!--fm-table-widths:' + widths.join(',') + '-->' : '') + '\n';
       }
       if (tag === 'LI') return (node.parentElement.tagName === 'OL' ? `${[...node.parentElement.children].indexOf(node) + 1}. ` : '- ') + children().trim() + '\n';
-      if (tag === 'BLOCKQUOTE') return '> ' + children().trim() + '\n';
-      return children() + (['DIV', 'P', 'UL', 'OL'].includes(tag) ? '\n' : '');
+      if (tag === 'BLOCKQUOTE') {
+        let content = children();
+        if (blockTags.has(node.lastChild?.tagName) && content.endsWith('\n')) content = content.slice(0, -1);
+        return content.split('\n').map(line => '> ' + line).join('\n') + '\n';
+      }
+      const content = children();
+      return content + (['DIV', 'P', 'UL', 'OL'].includes(tag) && !content.endsWith('\n') ? '\n' : '');
     };
     Object.defineProperty(editor, 'value', {
-      get: () => [...editor.childNodes].map(serialize).join('').replace(/\n{3,}/g, '\n\n').trim(),
+      get: () => !editor.textContent.trim() && !editor.querySelector('table') ? '' : serializeChildren(editor).trim(),
       set: value => { editor.innerHTML = value ? renderBody({ text:String(value) }) : ''; if (!expandTables) decorateTables(editor, editor); }
     });
     editor.insertText = text => { editor.focus(); document.execCommand('insertText', false, text); };
