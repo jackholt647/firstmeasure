@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 presence: [Live channel and project viewers](deploy/digitalocean/development-view-presence-20260929.md) records the development release, shared presence storage, verification and rollback.
+
 September 28 scheduling: [Timeline and equipment assignment confirmation](deploy/digitalocean/development-scheduling-timeline-20260928.md) records the development release, down-equipment confirmation, verification and rollback.
 
 September 28 date/time picker: [Shared form popups across all apps](deploy/digitalocean/development-date-time-picker-20260928.md) records development coverage, deployed browser checks, concurrent Equipment preservation and rollback.
