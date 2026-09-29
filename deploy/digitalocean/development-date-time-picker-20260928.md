@@ -53,3 +53,32 @@ must account for that newer Equipment release. The worker is unchanged.
 Authenticated Channels accounts and physical mobile devices were not exercised;
 the shared control was verified through synthetic app-like dialogs and the live
 preview, without sending messages or modifying application records.
+
+
+## September 29: horizontal calendar and branded time slots
+
+Source: 3c4a4f125ab22e3045e8341e3835421dac4924c3.
+Calendar left, independent touch-scroll time slots right; clicking a slot commits.
+Brand primary, readable-primary and on-primary tokens follow the source input,
+including company/customer themes scoped below the root. Exact time fields remain
+under Custom time. Defaults are 15-minute choices with native constraints.
+
+The browser suite covers side-by-side desktop/mobile geometry, scoped branding,
+time scrollability, date-first selection, immediate commit, slot arrow navigation,
+precision, validation, events, cancellation and modal focus behavior.
+
+Initial activation was correctly blocked by an intervening development presence
+release. Unactivated staged trees were retained under staged suffixes. Final
+staging refreshed each live baseline only after verifying unchanged picker assets,
+then activated with the normal expected-baseline guard. No unrelated code was
+replaced; no database, worker, configuration, topology or production changes.
+Evidence: output/date-time-picker-horizontal/ (ignored).
+
+Final rollout: both development web nodes and compatibility run the picker
+release, each preserving the previous `1474817f9d7479c0b2c620bed5815a8214d27c28`
+presence baseline. All three asset hashes match on all three hosts. Both web
+instances returned to load-balancer traffic with development isolation enforced.
+Public hashes and the browser suite using deployed JavaScript passed, including
+the actual preview's date-then-time selection. Rollback must preserve intervening
+releases; use the per-role predecessors in activation-progress.json and the
+existing symlink/service workflow. Production remains unchanged.
