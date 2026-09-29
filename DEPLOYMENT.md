@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 unread counts: [Unread badges beside each channel and direct conversation](deploy/digitalocean/development-channels-unreads-20260929.md) records the development rollout, hosted browser verification and rollback.
+
 September 29 Channels quotes: [Preserve multiline quote formatting when sending](deploy/digitalocean/development-channels-quotes-20260929.md) records the development rollout, blank-line and quote-boundary regression checks, hosted browser verification and rollback.
 
 September 29 Channels people picker: [Compact searchable multi-select and clear list icons](deploy/digitalocean/development-channels-people-20260929.md) records the development rollout, 500-user browser verification, mobile checks and rollback.
