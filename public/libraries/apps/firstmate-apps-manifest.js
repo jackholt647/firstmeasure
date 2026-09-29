@@ -35,7 +35,7 @@
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
     versionedBundle('../window-manager/window-manager.js', '20260929-channels-v2'),
-    versionedBundle('../channels-ui/channels-ui.js', '20260929-presence-controls-v4'),
+    versionedBundle('../channels-ui/channels-ui.js', '20260929-channels-polish-v1'),
     versionedBundle('../project-notes/project-notes.js', '20260723-channels-notes')
   ];
   const fieldApprovalBundles = [
@@ -536,7 +536,7 @@
         versionedBundle('../channels-api/channels-api.js', '20260929-channels-v2'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20260929-channels-v2'),
-        versionedBundle('../channels-ui/channels-ui.js', '20260929-presence-controls-v4'),
+        versionedBundle('../channels-ui/channels-ui.js', '20260929-channels-polish-v1'),
         versionedBundle('channels/app.js', '20260929-channels-v2')
       ]
     },
@@ -1035,7 +1035,7 @@
   };
 
   apps.forEach((app) => {
-    app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260929-presence-controls-v4'), ...(app.bundles || [])];
+    app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260929-channels-polish-v1'), ...(app.bundles || [])];
     const capability = appCapabilities[app.id];
     if (capability) app.access = { ...(app.access || {}), capability };
     app.route = app.route || routeDefinition(app);

@@ -14,6 +14,7 @@ import { env } from "../src/config/env.js";
 import * as calls from "../calls/service.js";
 import {
   attachToMessage,
+  createAttachmentRecord,
   createChannelRecord,
   createMessageRecord,
   dmKeyForMembers,
@@ -58,6 +59,7 @@ import {
   updateChannelRecord,
   upsertChannelMember,
   upsertReadState,
+  type AttachmentRow,
   type ChannelRow,
   type JsonObject,
   type MessageRow,
@@ -910,6 +912,8 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   tags?: string[];
   mention_users?: JsonObject[];
   attachment_ids?: string[];
+  forwarded_message_id?: string;
+  forward_include_attachments?: boolean;
   metadata?: JsonObject;
 }) {
   const { channel, membership } = await requireChannelAccess(ctx, channelId, { write: true });
@@ -932,36 +936,71 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
     parentId = parent.parent_id ?? parent.id;
   }
 
-  const detectedLanguage = detectMessageLanguage(input.text);
-  input.mention_users = await resolveMentionUsers(ctx, input.mention_users, channelId, input.text);
-  const message = (await createMessageRecord({
-    organization_id: ctx.orgId,
-    channel_id: channelId,
-    parent_id: parentId,
-    client_msg_id: clientMsgId || null,
-    author_id: ctx.userId,
-    text: input.text,
-    content: input.content,
-    content_schema_version: input.content_schema_version,
-    language_code: detectedLanguage.code,
-    language_confidence: detectedLanguage.confidence,
-    audience: channel.type === "project" ? input.audience : [],
-    tags: input.tags,
-    mention_users: input.mention_users,
-    metadata: input.metadata
-  }));
-
-  if (input.attachment_ids?.length) {
-    (await attachToMessage(ctx.orgId, input.attachment_ids, message.id, channelId, ctx.userId));
-    for (const attachment of (await listAttachmentsForMessages([message.id])).get(message.id) ?? []) {
-      (await collaboration.createResourceRefRecord(ctx.orgId, channelId, ctx.userId, {
-        resource_type: "media",
-        resource_id: attachment.media_id,
-        source_message_id: message.id,
-        relationship: "attachment"
-      }));
+  // Forward attribution is a server-authored snapshot of a message the sender
+  // can read. Clients cannot inject a forged original author or hidden body.
+  const metadata = { ...input.metadata };
+  delete metadata.forwarded;
+  let forwardedAttachments: AttachmentRow[] = [];
+  if (input.forwarded_message_id) {
+    const source = await readMessageRecord(ctx.orgId, input.forwarded_message_id);
+    if (!source || source.deleted_at || !messageVisibleTo(source, ctx, viewerAudienceGroups(ctx))) {
+      throw notFound("message_not_found", "The original message is no longer available.");
+    }
+    const { channel: sourceChannel } = await requireChannelAccess(ctx, source.channel_id);
+    const author = (await userDirectory(ctx.orgId)).get(source.author_id);
+    metadata.forwarded = {
+      message_id: source.id, channel_id: source.channel_id,
+      channel_name: sourceChannel.name, channel_type: sourceChannel.type,
+      author: { id: source.author_id, name: author?.name || "Former member", avatar: author?.avatar || "" },
+      created_at: source.created_at, text: source.text, content: source.content,
+      parent_id: source.parent_id, reply_count: source.reply_count,
+      ...(source.metadata.forwarded ? { original: source.metadata.forwarded } : {})
+    };
+    if (input.forward_include_attachments !== false) {
+      forwardedAttachments = (await listAttachmentsForMessages([source.id])).get(source.id) ?? [];
     }
   }
+  const detectedLanguage = detectMessageLanguage(input.text);
+  input.mention_users = await resolveMentionUsers(ctx, input.mention_users, channelId, input.text);
+  const message = await getChannelsDatabase().transaction(async () => {
+    const existing = clientMsgId ? await findMessageByClientId(channelId, ctx.userId, clientMsgId) : null;
+    if (existing) return existing;
+    const message = (await createMessageRecord({
+      organization_id: ctx.orgId,
+      channel_id: channelId,
+      parent_id: parentId,
+      client_msg_id: clientMsgId || null,
+      author_id: ctx.userId,
+      text: input.text,
+      content: input.content,
+      content_schema_version: input.content_schema_version,
+      language_code: detectedLanguage.code,
+      language_confidence: detectedLanguage.confidence,
+      audience: channel.type === "project" ? input.audience : [],
+      tags: input.tags,
+      mention_users: input.mention_users,
+      metadata
+    }));
+
+    const attachmentIds = [...(input.attachment_ids ?? [])];
+    for (const attachment of forwardedAttachments) {
+      const copy = await createAttachmentRecord({ ...attachment, channel_id: channelId, uploaded_by: ctx.userId });
+      attachmentIds.push(copy.id);
+    }
+    if (attachmentIds.length) {
+      (await attachToMessage(ctx.orgId, attachmentIds, message.id, channelId, ctx.userId));
+      for (const attachment of (await listAttachmentsForMessages([message.id])).get(message.id) ?? []) {
+        (await collaboration.createResourceRefRecord(ctx.orgId, channelId, ctx.userId, {
+          resource_type: "media",
+          resource_id: attachment.media_id,
+          source_message_id: message.id,
+          relationship: "attachment"
+        }));
+      }
+    }
+
+    return message;
+  });
 
   const [hydrated] = await hydrateMessages(ctx, channel, [(await readMessageRecord(ctx.orgId, message.id))!]);
   if (parentId) {

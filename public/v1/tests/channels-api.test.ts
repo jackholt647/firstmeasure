@@ -740,7 +740,7 @@ test("DM huddles notify invitees, enforce conversation access, and respect muted
   const { channel } = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels`, {type:'dm', member_user_ids:[livia.userId]});
   const { huddle } = await owner.request("POST", `/v1/channels/organizations/${orgId}/channels/${channel.id}/huddles`, {});
   const notifications = await livia.client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
-  const invite = notifications.notifications.find((item: Json) => item.kind === 'huddle_invite');
+  const invite = [...notifications.notifications, ...(notifications.in_app_alerts || [])].find((item: Json) => item.kind === 'huddle_invite');
   assert.ok(invite, 'starting a DM huddle notifies the other person');
   assert.equal(invite.frontend_action.channel_id, channel.id);
   assert.equal(invite.frontend_action.huddle_id, huddle.id);
@@ -936,4 +936,48 @@ test("ordinary channels require membership and members can invite teammates", as
   await owner.request("DELETE", `${base}/channels/${channel.id}/members/${outsider.userId}`);
   assert.equal((await outsider.client.raw("GET", `${base}/channels/${channel.id}/messages`)).statusCode,403);
   assert.ok(!(await outsider.client.request("GET", `${base}/channels`)).channels.some((item:Json)=>item.id===channel.id));
+});
+
+
+test("forwarding preserves attribution and attachments, checks access, and accepts attachment-only messages", async () => {
+  const {client:owner, orgId, userId, suffix} = await registerOwner();
+  const outsider = await createOrgUser(owner, orgId, suffix, "Forward outsider");
+  const base = `/v1/channels/organizations/${orgId}`;
+  const {channel:source} = await owner.request("POST", `${base}/channels`, {type:"private",name:"forward-source"});
+  const {channel:target} = await owner.request("POST", `${base}/channels`, {type:"public",name:"forward-target",member_user_ids:[outsider.userId]});
+  const storage = await import("../channels/storage.js");
+  const attachment = await storage.createAttachmentRecord({organization_id:orgId,channel_id:source.id,media_id:"media_forward_test",file_name:"plan.pdf",content_type:"application/pdf",size_bytes:128,uploaded_by:userId});
+  const {message:original} = await owner.request("POST", `${base}/channels/${source.id}/messages`, {text:"",attachment_ids:[attachment.id]});
+  assert.equal(original.text, "");
+  assert.equal(original.attachments.length, 1);
+  const input={text:"Please review",forwarded_message_id:original.id,client_msg_id:"forward-once",metadata:{forwarded:{author:{name:"Forged"},text:"Forged"}}};
+  const {message:forward} = await owner.request("POST", `${base}/channels/${target.id}/messages`, input);
+  assert.equal(forward.text, "Please review");
+  assert.equal(forward.metadata.forwarded.author.id, userId);
+  assert.equal(forward.metadata.forwarded.author.name, original.author.name);
+  assert.equal(forward.metadata.forwarded.text, "");
+  assert.equal(forward.metadata.forwarded.channel_id, source.id);
+  assert.equal(forward.attachments[0].media_id, attachment.media_id);
+  assert.notEqual(forward.attachments[0].id, attachment.id);
+  assert.equal((await storage.readAttachmentRecord(orgId,attachment.id))?.message_id, original.id);
+  const repeated = await owner.request("POST", `${base}/channels/${target.id}/messages`, input);
+  assert.equal(repeated.message.id, forward.id);
+  assert.equal(repeated.message.attachments.length, 1);
+  const noFiles = await owner.request("POST", `${base}/channels/${target.id}/messages`, {forwarded_message_id:original.id,forward_include_attachments:false});
+  assert.equal(noFiles.message.text, ""); assert.equal(noFiles.message.attachments.length,0);
+  const forged = await owner.request("POST", `${base}/channels/${target.id}/messages`, {text:"Ordinary note",metadata:{forwarded:{text:"Forged"}}});
+  assert.equal(forged.message.metadata.forwarded, undefined);
+  const schemas = await import("../channels/schemas.js");
+  assert.equal(schemas.scheduledMessageSchema.parse({channel_id:target.id,text:"Note",scheduled_at:new Date(Date.now()+60_000).toISOString(),metadata:{forwarded:{text:"Forged"}}}).metadata.forwarded,undefined);
+  assert.equal(schemas.scheduledMessagePatchSchema.parse({metadata:{forwarded:{text:"Forged"}}}).metadata?.forwarded,undefined);
+  const again = await owner.request("POST", `${base}/channels/${target.id}/messages`, {forwarded_message_id:forward.id});
+  assert.equal(again.message.metadata.forwarded.text, "Please review");
+  assert.equal(again.message.metadata.forwarded.original.message_id, original.id);
+  assert.equal(again.message.attachments[0].media_id,attachment.media_id);
+
+  assert.equal((await outsider.client.raw("POST",`${base}/channels/${target.id}/messages`,{forwarded_message_id:original.id})).statusCode,403);
+  const outsiderSource=await outsider.client.request("POST",`${base}/channels/${target.id}/messages`,{text:"Visible source"});
+  assert.equal((await outsider.client.raw("POST",`${base}/channels/${source.id}/messages`,{forwarded_message_id:outsiderSource.message.id})).statusCode,403);
+  await owner.request("DELETE",`${base}/messages/${original.id}`);
+  assert.equal((await owner.raw("POST",`${base}/channels/${target.id}/messages`,{forwarded_message_id:original.id})).statusCode,404);
 });

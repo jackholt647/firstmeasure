@@ -699,10 +699,34 @@
 .fm-ch-modal-backdrop{position:fixed;inset:0;background:rgba(16,24,40,.4);z-index:1600;display:flex;align-items:center;justify-content:center}
 .fm-ch-modal,.fm-ch-popover{color:var(--ch-text);font-family:inherit;font-size:13.5px;line-height:1.45;box-sizing:border-box}.fm-ch-profile-trigger{border:0;background:none;padding:0;cursor:pointer;color:inherit;font:inherit;text-align:left}.fm-ch-msg-author.fm-ch-profile-trigger{font-weight:700}.fm-ch-profile-trigger:focus-visible{outline:2px solid #2563eb;outline-offset:3px}.fm-ch-profile-card{padding:18px;display:grid;gap:12px;overflow-wrap:anywhere}.fm-ch-modal{background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(15,23,42,.24);width:420px;max-width:calc(100vw - 32px);max-height:80vh;display:flex;flex-direction:column}
 .fm-ch-modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--ch-border);font-weight:900;font-size:14.5px}
-.fm-ch-modal-body{padding:14px 16px;overflow-y:auto}
-.fm-ch-modal-body label{display:block;font-size:12px;font-weight:600;color:#344054;margin:10px 0 4px}
-.fm-ch-modal-body input[type=text],.fm-ch-modal-body select{width:100%;padding:7px 10px;border:1px solid var(--ch-border);border-radius:8px;font:inherit;outline:none}
-.fm-ch-modal-body input[type=text]:focus{border-color:var(--ch-accent)}
+.fm-ch-modal-body{padding:20px 24px;overflow-y:auto;min-height:0;overscroll-behavior:contain}
+.fm-ch-modal-body label{display:block;font-size:12px;font-weight:600;color:#344054;margin:18px 0 7px}
+.fm-ch-modal-body>label:first-child{margin-top:0}
+.fm-ch-modal-body :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]),select,textarea){width:100%;min-height:40px;padding:10px 12px;border:1px solid var(--ch-border);border-radius:10px;background:#fff;color:var(--ch-text);font:inherit;outline:none;transition:border-color .16s ease,box-shadow .16s ease}
+.fm-ch-modal-body textarea{resize:vertical;line-height:1.5;min-height:96px}
+.fm-ch-modal-body :is(input,select,textarea):focus-visible{border-color:var(--ch-accent);box-shadow:0 0 0 3px var(--ch-accent-soft)}
+.fm-ch-modal-body p{line-height:1.55;margin:0 0 16px;color:var(--ch-muted)}
+.fm-ch-modal-body p:last-child{margin-bottom:0}
+.fm-ch-modal{width:480px;border-radius:16px;overflow:hidden;max-height:calc(100dvh - 40px);animation:fm-ch-dialog-in .2s cubic-bezier(.2,.8,.2,1) both}
+.fm-ch-modal-head{padding:18px 24px;font-size:16px;font-weight:700;gap:16px;flex-shrink:0}
+.fm-ch-modal-head .fm-ch-icon-btn{width:32px;height:32px;border-radius:8px;flex-shrink:0}
+.fm-ch-modal-backdrop{padding:20px;animation:fm-ch-fade-in .16s ease both}
+.fm-ch-modal-backdrop.closing{animation:fm-ch-fade-out .14s ease both;pointer-events:none}
+.fm-ch-modal-backdrop.closing .fm-ch-modal{animation:fm-ch-dialog-out .14s ease both}
+@keyframes fm-ch-fade-in{from{opacity:0}to{opacity:1}}
+@keyframes fm-ch-fade-out{to{opacity:0}}
+@keyframes fm-ch-dialog-in{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes fm-ch-dialog-out{to{opacity:0;transform:translateY(6px) scale(.99)}}
+@media(prefers-reduced-motion:reduce){.fm-ch-modal-backdrop,.fm-ch-modal-backdrop .fm-ch-modal{animation:none!important;transition:none!important}}
+@media(max-width:520px){.fm-ch-modal-backdrop{padding:12px}.fm-ch-modal{max-width:100%;max-height:calc(100dvh - 24px)}.fm-ch-modal-head,.fm-ch-modal-body{padding:16px}}
+.fm-ch-choice-list{display:grid;gap:10px}.fm-ch-choice{display:flex;align-items:center;gap:12px;width:100%;padding:14px;border:1px solid var(--ch-border)!important;border-radius:10px;text-align:left;transition:background .15s,border-color .15s}
+.fm-ch-choice strong,.fm-ch-choice small{display:block}.fm-ch-choice small{margin-top:4px;color:var(--ch-muted);font-size:12px;line-height:1.4}.fm-ch-choice>i{width:20px;text-align:center;color:var(--ch-muted)}
+.fm-ch-choice[aria-checked=true]{background:var(--ch-accent-soft);border-color:var(--ch-accent)!important}.fm-ch-choice[aria-checked=true]>i{color:var(--ch-accent)}
+:is(.fm-ch-modal,.fm-ch,.fm-ch-popover) button:focus-visible{outline:2px solid var(--ch-accent);outline-offset:3px}
+.fm-ch-forward-card{border:1px solid var(--ch-border);border-left:3px solid #cbd5e1;border-radius:10px;padding:14px 16px;margin-top:10px;background:#fff;min-width:0;overflow-wrap:anywhere}
+.fm-ch-forward-heading{display:flex;align-items:center;gap:9px;margin-bottom:10px}.fm-ch-forward-heading small{display:block;color:var(--ch-muted);font-size:11px;margin-top:2px}.fm-ch-forward-card .fm-ch-msg-body{margin:0}.fm-ch-forward-origin{margin-top:12px!important;color:var(--ch-accent)!important;font-size:12px!important}
+.fm-ch-forward-preview{max-height:260px;overflow:auto;margin-top:18px}.fm-ch-forward-destinations{max-height:180px;overflow:auto;margin-top:8px;display:grid;gap:5px}.fm-ch-forward-destinations .fm-ch-member-choice{margin:0}
+.fm-ch-forward-hint{font-size:12px;color:var(--ch-muted);margin:10px 0!important}
 .fm-ch-setting-group{margin-top:16px;padding:13px;border:1px solid var(--ch-border);border-radius:10px;background:#f9fafb}
 .fm-ch-setting-group>strong{display:block;font-size:12.5px;color:var(--ch-text)}
 .fm-ch-setting-group>p{margin:4px 0 8px;color:var(--ch-muted);font-size:11px;line-height:1.45}
@@ -710,7 +734,7 @@
 .fm-ch-check-row>span{min-width:0}.fm-ch-check-row strong,.fm-ch-check-row small{display:block}.fm-ch-check-row strong{font-size:12px;color:#344054}.fm-ch-check-row small{margin-top:2px;color:var(--ch-muted);font-size:10.5px;font-weight:500;line-height:1.35}
 .fm-ch-check-row input[type=checkbox]{width:17px;height:17px;flex:0 0 auto;accent-color:var(--ch-accent)}
 .fm-ch-check-row:has(input:disabled){cursor:default;opacity:.55}
-.fm-ch-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--ch-border)}
+.fm-ch-modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid var(--ch-border);flex-shrink:0;background:#fafbfc;flex-wrap:wrap}.fm-ch-modal-foot:empty{display:none}.fm-ch-modal-foot .fm-ch-btn{min-height:38px;font-weight:600}.fm-ch-btn:disabled{opacity:.5;cursor:not-allowed}
 .fm-ch-btn{border-radius:9px;padding:8px 15px;font-weight:850;font-size:12.5px;border:1px solid #d8dee8;color:#344054;background:#fff}
 .fm-ch-btn:hover{background:var(--ch-hover)}
 .fm-ch-btn.primary{background:var(--ch-accent);border-color:var(--ch-accent);color:#fff}
@@ -728,9 +752,9 @@
 .fm-ch-member-choice.selected .fm-ch-member-check{border-color:var(--ch-accent);background:var(--ch-accent)}
 .fm-ch-member-choice.selected .fm-ch-member-check i{opacity:1;transform:scale(1)}
 .fm-ch-dm-help{margin:0 0 9px;color:var(--ch-muted);font-size:11.5px;line-height:1.45}
-.fm-ch-result{padding:8px 14px;border-bottom:1px solid var(--ch-border);cursor:pointer}
+.fm-ch-result{padding:16px 18px;margin:10px 16px;border:1px solid var(--ch-border);border-radius:12px;background:#fff;cursor:pointer;line-height:1.55;overflow-wrap:anywhere;transition:background .15s,border-color .15s}
 .fm-ch-result:hover{background:var(--ch-hover)}
-.fm-ch-result-meta{color:var(--ch-muted);font-size:11px;margin-bottom:2px}
+.fm-ch-result-meta{color:var(--ch-muted);font-size:12px;margin-bottom:8px}.fm-ch-later-heading{margin:20px 18px 6px;font-size:13px;font-weight:700}.fm-ch-result-actions{display:flex;gap:8px;margin-top:12px}.fm-ch-resource-grid{gap:14px;padding:18px}.fm-ch-resource{padding:14px;border-radius:12px}.fm-ch-empty{padding:48px 24px;line-height:1.6}
 .fm-ch-view-toolbar{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:6px;padding:9px 14px;background:rgba(255,255,255,.96);border-bottom:1px solid var(--ch-border);backdrop-filter:blur(8px);flex-wrap:wrap}
 .fm-ch-filter{padding:5px 9px!important;border:1px solid var(--ch-border)!important;border-radius:999px!important;color:var(--ch-muted)!important;font-size:11px!important;font-weight:700!important}.fm-ch-filter:hover{background:var(--ch-hover)!important}.fm-ch-filter.on{border-color:var(--ch-accent)!important;background:var(--ch-accent-soft)!important;color:var(--ch-accent)!important}
 .fm-ch-view-summary{margin-left:auto;color:var(--ch-muted);font-size:10.5px}
@@ -834,7 +858,7 @@
     modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.setAttribute('aria-label', title);
     closeBtn.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_a21847cfbafe98","Close dialog") ?? "Close dialog"));
     const keydown = event => {
-      if (backdrop !== [...document.querySelectorAll('.fm-ch-modal-backdrop')].at(-1)) return;
+      if (backdrop !== [...document.querySelectorAll('.fm-ch-modal-backdrop:not(.closing)')].at(-1)) return;
       if (event.key === 'Escape') { event.preventDefault(); close(); }
       if (event.key === 'Tab') {
         const nodes = [...modal.querySelectorAll('button,input,select,textarea,a[href],[tabindex="0"]')].filter(node => !node.disabled && node.getClientRects().length);
@@ -844,13 +868,25 @@
       }
     };
     let onClose;
-    const close = () => { if (typeof onClose === 'function') onClose(); document.removeEventListener('keydown', keydown); backdrop.remove(); if (previousFocus?.isConnected) previousFocus.focus(); };
+    let closing = false;
+    const close = () => {
+      if (closing) return; closing = true;
+      if (typeof onClose === 'function') onClose();
+      document.removeEventListener('keydown', keydown);
+      backdrop.classList.add('closing'); backdrop.inert = true;
+      if (previousFocus?.isConnected) previousFocus.focus();
+      backdrop.setAttribute('aria-hidden', 'true');
+      setTimeout(() => backdrop.remove(), root.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : 150);
+    };
     document.addEventListener('keydown', keydown);
     closeBtn.addEventListener('click', close);
     backdrop.addEventListener('mousedown', (event) => { if (event.target === backdrop) close(); });
     for (const button of buttons || []) {
       const node = el('button', `fm-ch-btn${button.primary ? ' primary' : ''}`, esc(button.label));
-      node.addEventListener('click', () => button.onClick(close, body));
+      node.addEventListener('click', async () => {
+        if (node.disabled) return; node.disabled = true;
+        try { await button.onClick(close, body); } finally { if (!closing) node.disabled = false; }
+      });
       foot.appendChild(node);
     }
     onClose = buildBody(body, close);
@@ -1451,6 +1487,7 @@
       ];
       for (const [view, label, icon, handler] of quickItems) {
         const item = el('button', `fm-ch-side-item${state.view === view ? ' active' : ''}`, `<span class="fm-ch-hash"><i class="fas ${icon}"></i></span><span class="fm-ch-side-label">${label}</span>`);
+        item.setAttribute('aria-label', label);
         item.addEventListener('click', mode === 'list' && typeof options.onOpenView === 'function'
           ? () => options.onOpenView(view)
           : handler);
@@ -1736,11 +1773,30 @@
         || state.collaborationPreferences.default_notify_level
         || 'mentions';
       showModal('Conversation notifications', (body) => {
-        body.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_06b46f515eff14","Notify me about") ?? "Notify me about")}</label><select data-notify-level><option value="all">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6275935eadd8a4","All new messages") ?? "All new messages")}</option><option value="mentions">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_722ecd47834278","Mentions and replies") ?? "Mentions and replies")}</option><option value="muted">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_3c7c4f2cd743b8","Nothing") ?? "Nothing")}</option></select>`;
-        body.querySelector('[data-notify-level]').value = current;
+        const choices = el('div', 'fm-ch-choice-list');
+        choices.setAttribute('role','radiogroup'); choices.setAttribute('aria-label','Notify me about');
+        for (const [value, title, description, icon] of [
+          ['all','All new messages','Every message sent to this conversation.','fa-comments'],
+          ['mentions','Mentions and replies','Messages that mention you and replies to your threads.','fa-at'],
+          ['muted','Nothing','Mute notifications for this conversation.','fa-bell-slash']
+        ]) {
+          const choice = el('button','fm-ch-choice',`<i class="fas ${icon}" aria-hidden="true"></i><span><strong>${title}</strong><small>${description}</small></span>`);
+          choice.type='button'; choice.dataset.notifyLevel=value; choice.setAttribute('role','radio');
+          choice.setAttribute('aria-checked',String(value===current)); choice.tabIndex=value===current?0:-1;
+          const select=()=>{ for(const node of choices.children){node.setAttribute('aria-checked',String(node===choice));node.tabIndex=node===choice?0:-1;} };
+          choice.addEventListener('click',select);
+          choice.addEventListener('keydown',event=>{
+            if(!['ArrowDown','ArrowUp','ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+            event.preventDefault(); const nodes=[...choices.children], index=nodes.indexOf(choice);
+            const next=event.key==='Home'?0:event.key==='End'?nodes.length-1:(index+(['ArrowDown','ArrowRight'].includes(event.key)?1:-1)+nodes.length)%nodes.length;
+            nodes[next].click();nodes[next].focus();
+          });
+          choices.append(choice);
+        }
+        body.append(el('p','','Choose which activity you want to hear about.'),choices);
       }, [{ label:(globalThis.PlatformLanguage?.text("channels-ui","m_5bab3e72de1ebf","Save") ?? "Save"), primary:true, onClick:async (close, body) => {
         try {
-          const level = body.querySelector('[data-notify-level]')?.value || 'mentions';
+          const level = body.querySelector('[data-notify-level][aria-checked=true]')?.dataset.notifyLevel || 'mentions';
           await api.channels.setNotifyLevel(orgId, state.activeChannelId, currentUser.id, level);
           const member = state.activeChannel?.members?.find((item) => item.id === currentUser.id);
           if (member) member.notify_level = level;
@@ -3240,6 +3296,9 @@
       const body = el('div', 'fm-ch-msg-body', renderBody(message, shouldShowTranslation ? translatedText : message.text));
       decorateTables(body);
       content.append(head, body);
+      if (!message.text) body.hidden = true;
+      const forwardedCard = message.metadata?.forwarded ? forwardCard(message.metadata.forwarded) : null;
+      if (forwardedCard) content.append(forwardedCard);
       if (features.huddles && message.metadata?.event === 'huddle_started' && message.metadata.huddle_id) {
         const id = message.metadata.huddle_id;
         const summary = message.huddle;
@@ -3309,7 +3368,7 @@
             wrap.appendChild(link);
           }
         }
-        content.appendChild(wrap);
+        (forwardedCard || content).appendChild(wrap);
       }
       if (message.metadata?.resource_ref) {
         const ref = message.metadata.resource_ref;
@@ -3367,6 +3426,7 @@
             for (const tool of overflow) {
               const item = el('button', tool.danger ? 'danger' : '', tool.icon + `<span>${esc(tool.title)}</span>`);
               item.setAttribute('role', 'menuitem'); item.dataset.act = tool.act;
+              item.setAttribute('aria-label', tool.title);
               pop.append(item);
             }
             wireRowActions(pop, message, { inThread });
@@ -3946,7 +4006,7 @@
           } else {
             const clientMsgId = `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
             const data = await api.messages.post(orgId, state.activeChannelId, {
-              text: text || '(attachment)',
+              text,
               content:{ type:'doc', blocks:[{ type:'paragraph', text:text || '' }] },
               content_schema_version:1,
               client_msg_id: clientMsgId,
@@ -4452,19 +4512,40 @@
           list.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_b96e086a77005b","Nothing saved yet. Hover a message and choose the bookmark to save it.") ?? "Nothing saved yet. Hover a message and choose the bookmark to save it.")}</div>`;
           return;
         }
+        if (reminders.length) list.append(el('h3','fm-ch-later-heading','Reminders'));
+        const decorateSaved = (result, message) => {
+          const body=result.lastElementChild; body.classList.add('fm-ch-msg-body'); decorateTables(body);
+          if(message.metadata?.forwarded)result.append(forwardCard(message.metadata.forwarded));
+          if(message.attachments?.length){
+            const attachments=el('div','fm-ch-attachments');
+            for(const attachment of message.attachments){
+              const link=el('a','fm-ch-attachment',`<i class="fas fa-paperclip" aria-hidden="true"></i><span>${esc(attachment.file_name||'Attachment')}</span>`);
+              link.href=api.mediaFileUrl(orgId,attachment.media_id);link.target='_blank';link.rel='noopener';attachments.append(link);
+            }
+            result.append(attachments);
+          }
+          const actions=el('div','fm-ch-result-actions');
+          const open=el('button','fm-ch-btn','Open message');open.type='button';open.addEventListener('click',()=>setChannel(message.channel_id,{reveal:message.id}));
+          actions.append(open);result.append(actions);
+        };
         for (const reminder of reminders) {
           const message = reminder.message || {};
           const result = el('div', `fm-ch-result${reminder.due ? ' unread' : ''}`);
           result.innerHTML = `<div class="fm-ch-result-meta"><i class="fas fa-clock"></i> ${reminder.due ? 'Due now' : `Reminder ${esc(fmtDateTime(reminder.remind_at))}`} · ${esc(reminder.channel?.name || '')}</div><div>${renderBody(message)}</div>`;
-          result.addEventListener('click', () => setChannel(message.channel_id, { reveal:message.id }));
+          decorateSaved(result,message);
+          result.setAttribute('role','article');
+          result.addEventListener('click', event => { if(!event.target.closest('a,button')) setChannel(message.channel_id, { reveal:message.id }); });
           list.appendChild(result);
         }
-        for (const message of data.messages) {
+        if (data.messages?.some(message=>!reminders.some(reminder=>reminder.message?.id===message.id))) list.append(el('h3','fm-ch-later-heading','Saved messages'));
+        for (const message of data.messages || []) {
           if (reminders.some((reminder) => reminder.message?.id === message.id)) continue;
           const result = el('div', 'fm-ch-result');
           const channelName = message.channel?.type === 'project' ? `${message.channel?.name || 'Project'}` : `#${message.channel?.name || ''}`;
           result.innerHTML = `<div class="fm-ch-result-meta">${esc(channelName)} · ${esc(message.author?.name || '')} · ${esc(fmtDateTime(message.created_at))}</div><div>${renderBody(message)}</div>`;
-          result.addEventListener('click', () => setChannel(message.channel_id, { reveal: message.id }));
+          decorateSaved(result,message);
+          result.setAttribute('role','article');
+          result.addEventListener('click', event => { if(!event.target.closest('a,button')) setChannel(message.channel_id, { reveal:message.id }); });
           list.appendChild(result);
         }
       } catch (error) {
@@ -4518,7 +4599,9 @@
           const result = el('div', 'fm-ch-result');
           const channelName = message.channel?.type === 'project' ? `${message.channel?.name || 'Project'}` : `#${message.channel?.name || ''}`;
           result.innerHTML = `<div class="fm-ch-result-meta">${esc(channelName)} · ${esc(message.author?.name || '')} · ${esc(fmtDateTime(message.created_at))}</div><div>${renderBody(message)}</div>`;
-          result.addEventListener('click', () => setChannel(message.channel_id, { reveal: message.id }));
+          result.tabIndex=0; result.setAttribute('role','link');
+          result.addEventListener('keydown',event=>{if(event.key==='Enter')result.click();});
+          result.addEventListener('click', event => { if(!event.target.closest('a,button')) setChannel(message.channel_id, { reveal:message.id }); });
           list.appendChild(result);
         }
       } catch (error) {
@@ -4693,34 +4776,74 @@
       } }]);
     }
 
-    function openForwardModal(message){
-      showModal('Forward message', (body) => {
-        body.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_8ea15c3c9b6b15","Send to") ?? "Send to")}</label><select data-forward-channel></select><label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_2badf4ec55e985","Add a note") ?? "Add a note")}</label><textarea data-forward-note rows="3" placeholder="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_532cbb7a6d1e29","Optional context") ?? "Optional context")}"></textarea>`;
-        const select = body.querySelector('[data-forward-channel]');
-        for (const channel of state.channels.filter((item) => !item.archived_at)) {
-          const option = document.createElement('option');
-          option.value = channel.id;
-          option.textContent = channel.display_name || channel.name;
-          select.appendChild(option);
+    function forwardCard(original, { preview = false, depth = 0 } = {}){
+      const card=el('div','fm-ch-forward-card');
+      const author=original.author || {};
+      card.append(el('div','fm-ch-forward-heading',`${avatarHtml(author,'sm')}<span><strong>${esc(author.name || 'Former member')}</strong><small>${esc(fmtDateTime(original.created_at))} · ${esc(original.channel_name || 'Conversation')}</small></span>`));
+      const copy=el('div','fm-ch-msg-body',renderBody(original)); decorateTables(copy); card.append(copy);
+      if(original.original && depth<3)card.append(forwardCard(original.original,{preview,depth:depth+1}));
+      if(!preview){
+        const origin=el('button','fm-ch-forward-origin','View original message'); origin.type='button';
+        const openOriginal=async(thread=false)=>{
+          try{
+            await api.messages.get(orgId,original.message_id);
+            await setChannel(original.channel_id,{reveal:original.message_id});
+            if(thread)await openThread(original.parent_id||original.message_id);
+          }catch(error){showError(error);}
+        };
+        origin.addEventListener('click',()=>openOriginal());card.append(origin);
+        if(original.reply_count>0 || original.parent_id){
+          const thread=el('button','fm-ch-forward-origin',original.reply_count>0?`View thread · ${original.reply_count} ${original.reply_count===1?'reply':'replies'}`:'View thread');
+          thread.type='button';thread.style.marginLeft='16px';thread.addEventListener('click',()=>openOriginal(true));card.append(thread);
         }
-      }, [{ label:(globalThis.PlatformLanguage?.text("channels-ui","m_7f4460f41d3633","Forward") ?? "Forward"), primary:true, onClick:async (close, body) => {
-        try {
-          const targetChannelId = cleanText(body.querySelector('[data-forward-channel]')?.value);
-          const note = cleanText(body.querySelector('[data-forward-note]')?.value);
-          if (!targetChannelId) throw new Error('Choose a conversation.');
-          const actor = cleanText(message.author?.name) || 'a teammate';
-          const forwardedText = `${note ? `${note}\n\n` : ''}Forwarded from ${actor}:\n${message.text}`;
-          await api.messages.post(orgId, targetChannelId, {
-            text:forwardedText,
-            content:{ type:'doc', blocks:[{ type:'quote', text:message.text }] },
-            content_schema_version:1,
-            metadata:{ forwarded_message_id:message.id, forwarded_channel_id:message.channel_id },
-            client_msg_id:`forward_${message.id}_${Date.now().toString(36)}`
-          });
-          close();
-          root.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("channels-ui","m_3a50ebb2d7acc4","Message forwarded") ?? "Message forwarded"), '', true);
-        } catch (error) { showError(error); }
-      } }]);
+      }
+      return card;
+    }
+
+    function openForwardModal(message){
+      const selected=new Set();
+      const sentTo=new Set();
+      const operationId=`forward_${message.id}_${Date.now().toString(36)}`;
+      showModal('Forward message', (body) => {
+        body.closest('.fm-ch-modal').style.width='560px';
+        body.innerHTML=`<label for="fm-forward-search">Send to</label><input id="fm-forward-search" type="search" data-forward-search placeholder="Find a channel or conversation" autocomplete="off"><div class="fm-ch-forward-destinations" role="group" aria-label="Destinations"></div><p class="fm-ch-forward-hint" data-forward-count>Choose up to 10 conversations.</p><label for="fm-forward-note">Add a note <span class="fm-ch-muted">(optional)</span></label><textarea id="fm-forward-note" data-forward-note rows="3" placeholder="Add context for your teammates"></textarea>`;
+        const destinations=body.querySelector('.fm-ch-forward-destinations');
+        const render=()=>{
+          destinations.replaceChildren();const query=body.querySelector('[data-forward-search]').value.trim().toLowerCase();
+          const channels=state.channels.filter(item=>!item.archived_at && item.is_member!==false && (item.display_name||item.name||'').toLowerCase().includes(query));
+          for(const channel of channels){
+            const button=el('button','fm-ch-member-row fm-ch-member-choice',`<i class="fas ${channel.type==='dm'?'fa-user':'fa-hashtag'}" aria-hidden="true"></i><span class="name">${esc(channel.display_name||channel.name)}</span><span class="fm-ch-member-check" aria-hidden="true"><i class="fas fa-check"></i></span>`);
+            button.type='button';button.classList.toggle('selected',selected.has(channel.id));button.setAttribute('aria-pressed',String(selected.has(channel.id)));
+            button.addEventListener('click',()=>{if(selected.has(channel.id))selected.delete(channel.id);else if(selected.size<10)selected.add(channel.id);render();});
+            destinations.append(button);
+          }
+          if(!channels.length)destinations.append(el('div','fm-ch-empty','No matching conversations.'));
+          body.querySelector('[data-forward-count]').textContent=selected.size?`${selected.size} conversation${selected.size===1?'':'s'} selected`:'Choose up to 10 conversations.';
+        };
+        body.querySelector('[data-forward-search]').addEventListener('input',render);render();
+        const preview=el('div','fm-ch-forward-preview');
+        preview.append(forwardCard({...message,channel_name:state.channelsById.get(message.channel_id)?.display_name || state.activeChannel?.name},{preview:true}));body.append(preview);
+        if(message.attachments?.length){
+          const attachments=el('label','fm-ch-check-row',`<span><strong>Include attachments</strong><small>${esc(message.attachments.map(item=>item.file_name||'Attachment').join(', '))}</small></span><input type="checkbox" data-forward-attachments checked>`);body.append(attachments);
+        }
+        body.append(el('p','fm-ch-forward-hint','The original message will be shared with everyone in the selected conversations. Opening its original conversation still requires access.'));
+      }, [{label:'Cancel',onClick:close=>close()},{label:'Forward',primary:true,onClick:async(close,body)=>{
+        try{
+          if(!selected.size)throw new Error('Choose a conversation.');
+          const note=body.querySelector('[data-forward-note]').value.trim();
+          for(const channelId of selected){
+            if(sentTo.has(channelId))continue;
+            const data=await api.messages.post(orgId,channelId,{
+              text:note,forwarded_message_id:message.id,
+              forward_include_attachments:body.querySelector('[data-forward-attachments]')?.checked!==false,
+              client_msg_id:operationId
+            });
+            sentTo.add(channelId);
+            if(channelId===state.activeChannelId && data.message)applyIncomingMessage('channels.message.created',data.message,{channel_id:channelId});
+          }
+          close();root.Portal?.ui?.showToast?.('Message forwarded',`Shared with ${sentTo.size} conversation${sentTo.size===1?'':'s'}.`,true);
+        }catch(error){showError(error);}
+      }}]);
     }
 
     function openCreateTodoModal(message){

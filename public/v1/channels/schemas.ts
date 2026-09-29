@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const audienceGroup = z.enum(["office", "crew", "sales"]);
+const messageMetadataSchema = z.record(z.unknown()).transform(({ forwarded: _forwarded, ...metadata }) => metadata);
 const richContentSchema = z.object({
   type: z.literal("doc").default("doc"),
   blocks: z.array(z.record(z.unknown())).max(500).default([])
@@ -47,8 +48,10 @@ export const postMessageSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(60)).default([]),
   mention_users: z.array(mentionUserSchema).default([]),
   attachment_ids: z.array(z.string().trim().min(1)).default([]),
-  metadata: z.record(z.unknown()).default({})
-}).refine((input) => Boolean(input.text.trim() || input.attachment_ids.length), {
+  forwarded_message_id: z.string().trim().min(1).optional(),
+  forward_include_attachments: z.boolean().default(true),
+  metadata: messageMetadataSchema.default({})
+}).refine((input) => Boolean(input.text.trim() || input.attachment_ids.length || input.forwarded_message_id), {
   message: "A message needs text or an attachment."
 });
 
@@ -106,7 +109,7 @@ export const draftSchema = z.object({
 export const scheduledMessageSchema = draftSchema.extend({
   scheduled_at: z.string().datetime(),
   timezone: z.string().trim().max(80).default("UTC"),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: messageMetadataSchema.default({}),
   client_operation_id: z.string().trim().max(120).optional()
 }).refine((input) => Boolean(input.text.trim() || input.attachment_ids.length), {
   message: "A scheduled message needs text or an attachment."
@@ -118,7 +121,7 @@ export const scheduledMessagePatchSchema = z.object({
   attachment_ids: z.array(z.string().trim().min(1)).max(50).optional(),
   scheduled_at: z.string().datetime().optional(),
   timezone: z.string().trim().max(80).optional(),
-  metadata: z.record(z.unknown()).optional()
+  metadata: messageMetadataSchema.optional()
 });
 
 export const messageReminderSchema = z.object({

@@ -1,0 +1,13 @@
+# Channels forwarding and presentation — September 29
+
+Authorized for Git push and development activation. No production activation.
+
+Forwarding now offers searchable conversation selection (up to ten destinations), an optional note, an attributed original-message preview, and an attachment toggle. Sent forwards render an inset original card with author, time, source conversation, formatted content and attachments. Links open the original message or thread, subject to current access. Previously forwarded messages retain their original context. Destination retries use a stable client message ID and skip destinations already completed.
+
+The server resolves the source message in the current organization, checks source visibility and membership and destination write access, and constructs attribution itself. Client-supplied forward snapshots are stripped from normal and scheduled message metadata. Attachment records are copied transactionally; the original message keeps its attachments. Attachment-only composer sends retain an empty body without generated caption text.
+
+Shared Channels modal styling covers text, search, date, select and textarea controls, consistent spacing, rounded corners, focus states, entrance/exit animation and reduced-motion preferences. Conversation notification settings use keyboard-accessible choice buttons. Later distinguishes reminders from saved messages, displays saved file links and includes explicit Open message controls. Result cards, resource grids and empty states share spacing across the other tabs. The previously pushed scheduling refinement keeps the selected future time visible and disables past slots.
+
+Validation: TypeScript check/build; all 30 Channels API tests; follow-up forwarding/scheduling checks; isolated real-Chrome composer regression covering forwarding, empty attachment captions, notification selection and keyboard navigation, shared modals, Later and mobile widths. Screenshots were reviewed at desktop and 390px width. API fixtures cover source/destination authorization, deleted sources, attribution forgery, attachment preservation, repeat forwarding and idempotent retry. Tests use isolated accounts/data and fake media devices, not real-user messages.
+
+Deployment inherits each role's complete current runtime and applies only reviewed Channels service/schema, UI, shared date picker and manifest files. Worker receives backend changes only. Guarded source hashes and development isolation must pass before activation. Evidence and release receipts are under ignored `output/channels-polish-20260929/`. Rollout verification and predecessor IDs will be recorded after activation.

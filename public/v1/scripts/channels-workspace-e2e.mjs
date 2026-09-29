@@ -42,7 +42,7 @@ try {
     window.Portal = {currentUser:me, ui:{showToast:(title, detail) => window.lastToast = title + ': ' + detail}, appFlags:{current:()=>true, has:()=>true}};
     window.ChannelsAPI = {
       channels:{setNotifyLevel:async(_org,_id,userId,level)=>{channel.members.find(person=>person.id===userId).notify_level=level;return {}},list:async()=>({channels:[channel]}), get:async()=>({channel}), create:async(_org,input)=>{window.createdConversations.push(input);return {channel:{...channel,id:'assistant-new',type:'dm',display_name:input.name,members:[me,agent]}}}},
-      messages:{get:async(_org,id)=>({message:messages.find(item=>item.id===id)}),list:async(_org,_channel,options={})=>({channel,messages:messages.filter(item=>!item.parent_id && (!options.before || item.seq<options.before)).slice(-(options.limit || 60))}),post:async(_org,_channel,input)=>{window.sent.push(input);const message={...messages[0],...input,id:'sent'+window.sent.length,author:me,seq:window.sent.length+1};messages.push(message);return {message}},edit:async(_org,id,input)=>({message:{...messages[0],...input,id}}),thread:async(_org,id)=>({root:messages.find(item=>item.id===id),replies:messages.filter(item=>item.parent_id===id)})},
+      messages:{get:async(_org,id)=>({message:messages.find(item=>item.id===id)}),list:async(_org,_channel,options={})=>({channel,messages:messages.filter(item=>!item.parent_id && (!options.before || item.seq<options.before)).slice(-(options.limit || 60))}),post:async(_org,_channel,input)=>{window.sent.push(input);const message={...messages[0],...input,id:'sent'+window.sent.length,author:me,seq:window.sent.length+1};if(input.forwarded_message_id){const original=messages.find(item=>item.id===input.forwarded_message_id);message.metadata={forwarded:{...original,message_id:original.id,channel_name:'Team room'}};message.attachments=input.forward_include_attachments?original.attachments:[];}messages.push(message);return {message}},edit:async(_org,id,input)=>({message:{...messages[0],...input,id}}),thread:async(_org,id)=>({root:messages.find(item=>item.id===id),replies:messages.filter(item=>item.parent_id===id)})},
       preferences:{collaboration:async()=>({preferences:{...window.sidebarPreferences}}),updateCollaboration:async(_org,patch)=>{Object.assign(window.sidebarPreferences,patch);return {preferences:{...window.sidebarPreferences}}}},
       directory:{list:async()=>({users:[me,other,agent]})},
       readState:{markRead:async(_org,id,seq)=>{window.sidebarReads.push({id,seq});return {}}},
@@ -84,7 +84,7 @@ try {
   await statusRoot.locator('.fm-ch-reaction').hover();
   assert.equal(await statusRoot.locator('.fm-ch-reaction').getAttribute('title'),'Jordan Ellis, Morgan Lee reacted with 🔥');
   await page.evaluate(()=>statusRoster([]));assert.equal(await dot.evaluate(node=>getComputedStyle(node).visibility),'hidden');
-  await page.screenshot({path:path.join(output,'presence-reaction-followup.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'presence-reaction-followup.png')});
   await page.evaluate(()=>{statusInstance.destroy();document.querySelector('#status-check').remove();delete window.PlatformRealtime;testChannel.type='public';testMessages[0].reactions=[];});
   console.log('PASS DM corner status, profile status, no message dots, active/away/offline and named reaction tooltip');
   await page.evaluate(() => {
@@ -266,7 +266,7 @@ try {
   await page.getByRole('menuitem',{name:'Open in split view',exact:true}).click();
   assert.deepEqual(await page.evaluate(()=>splitOpened),{id:'general',options:{windowMode:'docked'}});
   await sideRow.hover();
-  await page.screenshot({path:path.join(output,'channel-hover-actions.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'channel-hover-actions.png')});
   await sideRow.getByRole('button',{name:'Hide Team room',exact:true}).click();
   await sideRow.waitFor({state:'detached'});
   assert.deepEqual(await page.evaluate(()=>sidebarPreferences.hidden_channel_ids),['general']);
@@ -280,11 +280,11 @@ try {
   if (!process.env.CHANNELS_PEER_ONLY) {
   await page.getByRole('button',{name:'View Jordan Ellis profile',exact:true}).click();
   await page.getByRole('link',{name:'jordan@example.test'}).waitFor();
-  await page.screenshot({path:path.join(output,'user-profile.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'user-profile.png')});
   await page.getByRole('button',{name:'View profile',exact:true}).click();
   await page.locator('.fm-ch-profile-panel').waitFor();
   await page.locator('.fm-ch-profile-panel').getByText('Operations',{exact:true}).waitFor();
-  await page.screenshot({path:path.join(output,'full-user-profile.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'full-user-profile.png')});
   await page.goBack(); await page.locator('.fm-ch-profile-panel').waitFor({state:'detached'});
   await page.goForward(); await page.locator('.fm-ch-profile-panel').waitFor();
   await page.getByRole('button',{name:'Close profile',exact:true}).click();
@@ -373,7 +373,7 @@ try {
   await editor.evaluate((node,value)=>node.value=value,serialized);
   assert.equal(await editor.locator('table tr').count(),126);
   assert.equal(await editor.locator('table tr:visible').count(),10);
-  await page.screenshot({path:path.join(output,'large-table-draft.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'large-table-draft.png')});
   await editor.getByRole('button',{name:/Open \/ edit table/}).click();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button',{name:'Download TSV',exact:true}).click();
@@ -389,7 +389,7 @@ try {
   assert.equal(await sentTable.locator('tr:visible').count(),10);
   await sentTable.getByRole('button',{name:/Open full table/}).click();
   assert.equal(await page.getByRole('dialog',{name:'Table',exact:true}).locator('tr:visible').count(),126);
-  await page.screenshot({path:path.join(output,'full-table-viewer.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'full-table-viewer.png')});
   await page.getByRole('button',{name:'Close dialog',exact:true}).click();
   // Resizing survives draft serialization and reopening.
   await editor.evaluate(node=>node.value='| A | B |\n| --- | --- |\n| one | two |');
@@ -446,7 +446,7 @@ try {
   await linkModal.getByRole('button',{name:'Insert link',exact:true}).click();
   assert.match(await linkModal.getByRole('alert').innerText(),/http/);
   await linkModal.getByLabel('Web address').fill('https://example.test/project(one)');
-  await page.screenshot({path:path.join(output,'link-editor.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'link-editor.png')});
   await linkModal.getByRole('button',{name:'Insert link',exact:true}).click();
   const linkText=await editor.evaluate(node=>node.value);
   await editor.evaluate((node,value)=>node.value=value,linkText);
@@ -461,8 +461,63 @@ try {
   await page.waitForFunction(()=>uploaded.length===3);
   assert.equal(await page.locator('.fm-ch-pending-files button[aria-label="Remove attachment"]').count(),2);
   await page.getByRole('button',{name:'Send',exact:true}).click();
+  assert.equal((await page.evaluate(()=>sent.at(-1))).text,'','attachment-only messages must not gain a caption');
   assert.equal((await page.evaluate(()=>sent.at(-1))).attachment_ids.length,3,'recorded clip and pasted files send together');
   console.log('PASS quote exit, link text/URL validation and clipboard image/file attachments');
+  await page.locator('.fm-ch-msg').first().hover();
+  await page.locator('.fm-ch-msg').first().getByRole('button',{name:'More message actions',exact:true}).click();
+  await page.getByRole('menuitem',{name:'Forward message',exact:true}).click();
+  const forwardDialog=page.getByRole('dialog',{name:'Forward message',exact:true});
+  await forwardDialog.getByRole('searchbox').fill('Team room');
+  await forwardDialog.getByRole('button',{name:'Team room',exact:true}).click();
+  await forwardDialog.getByLabel('Add a note',{exact:false}).fill('For our next review');
+  assert.match(await forwardDialog.locator('.fm-ch-forward-card').innerText(),/Jordan Ellis/);
+  assert.equal(await forwardDialog.locator('textarea').evaluate(node=>getComputedStyle(node).borderRadius),'10px');
+  await page.screenshot({animations:'disabled',path:path.join(output,'forward-message.png')});
+  await forwardDialog.getByRole('button',{name:'Forward',exact:true}).click();
+  await forwardDialog.waitFor({state:'detached'});
+  assert.equal(await page.evaluate(()=>sent.at(-1).forwarded_message_id),'message1');
+  const forwardCard=page.locator('.fm-ch-msg .fm-ch-forward-card').last();
+  await forwardCard.waitFor();assert.match(await forwardCard.innerText(),/Jordan Ellis/);
+  assert.equal(await forwardCard.locator('strong').last().innerText(),'project review');
+  await page.screenshot({animations:'disabled',path:path.join(output,'forwarded-message-card.png')});
+  console.log('PASS searchable forwarding, original preview, optional note and attributed card');
+  await page.evaluate(()=>{
+    ChannelsAPI.saved={list:async()=>({messages:[{...testMessages[0],channel:testChannel,attachments:[{media_id:'report',file_name:'Review plan.pdf'}]}]})};
+    ChannelsAPI.reminders={list:async()=>({reminders:[{id:'reminder',due:true,remind_at:new Date().toISOString(),channel:testChannel,message:{...testMessages[0],id:'reminder-message',text:'Confirm the delivery date'}}]})};
+    instance.setFeatures({attention:true});
+  });
+  await page.getByTitle('Conversation notifications',{exact:true}).click();
+  const notificationDialog=page.getByRole('dialog',{name:'Conversation notifications',exact:true});
+  assert.equal(await notificationDialog.locator('select').count(),0);
+  await notificationDialog.getByRole('radio',{name:/All new messages/}).click();
+  await page.keyboard.press('ArrowDown');
+  assert.equal(await notificationDialog.getByRole('radio',{name:/Mentions and replies/}).getAttribute('aria-checked'),'true');
+  await page.screenshot({animations:'disabled',path:path.join(output,'conversation-notifications.png')});
+  await notificationDialog.getByRole('button',{name:'Save',exact:true}).click();
+  await notificationDialog.waitFor({state:'detached'});
+  await page.locator('.fm-ch-modal-backdrop').waitFor({state:'detached'});
+  assert.equal(await page.evaluate(()=>testChannel.members.find(person=>person.id==='owner').notify_level),'mentions');
+  await page.getByRole('button',{name:'Later',exact:true}).click();
+  await page.getByRole('heading',{name:'Reminders',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'Saved messages',exact:true}).waitFor();
+  await page.getByRole('link',{name:'Review plan.pdf',exact:true}).waitFor();
+  await page.screenshot({animations:'disabled',path:path.join(output,'later-tab.png')});
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.screenshot({animations:'disabled',path:path.join(output,'later-mobile.png')});
+  await page.evaluate(()=>instance.setChannel('general'));
+  await page.getByTitle('Conversation actions',{exact:true}).click();
+  await page.locator('.fm-ch-header-menu-item').filter({hasText:'Conversation notifications'}).click();
+  await page.screenshot({animations:'disabled',path:path.join(output,'conversation-notifications-mobile.png')});
+  assert.equal(await page.getByRole('dialog').evaluate(node=>node.getBoundingClientRect().right<=innerWidth),true);
+  await page.getByRole('button',{name:'Close dialog',exact:true}).click();
+  await page.getByRole('dialog').waitFor({state:'detached'});
+  await page.setViewportSize({width:1366,height:768});
+  await page.evaluate(()=>instance.setFeatures({attention:false}));
+  console.log('PASS notification choice cards, keyboard selection, Later sections and mobile layout');
+
+
   if (!process.env.CHANNELS_COMPOSER_ONLY) {
   await page.getByTitle('Start or join huddle',{exact:true}).click();
   console.log('Call starting');
@@ -478,12 +533,12 @@ try {
   await page.locator('.fm-ch-call-reaction').first().waitFor();
   assert.equal(await page.locator('.fm-ch-call-reaction').count(),7);
   assert.equal(await page.locator('.fm-ch-call-reaction').first().evaluate(node=>getComputedStyle(node).backgroundColor),'rgba(0, 0, 0, 0)');
-  await page.screenshot({path:path.join(output,'call-reactions.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'call-reactions.png')});
   await page.getByRole('button',{name:'Invite people',exact:true}).click();
   await page.getByRole('button',{name:/Livia/}).click();
   await page.getByRole('button',{name:'Send invitations',exact:true}).click();
   assert.deepEqual(await page.evaluate(()=>window.invitedUsers),['invitee']);
-  await page.screenshot({path:path.join(output,'fullscreen-invite.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'fullscreen-invite.png')});
   await page.getByRole('button',{name:'Call settings and troubleshooting',exact:true}).click();
   await page.locator('[data-mic] option').nth(1).waitFor({state:'attached'});
   await page.locator('[data-mic]').selectOption({index:1});
@@ -493,7 +548,7 @@ try {
   await page.getByText('Audio settings applied.',{exact:true}).waitFor();
   await page.locator('[data-noise]').check();
   await page.getByText('Audio settings applied.',{exact:true}).waitFor();
-  await page.screenshot({path:path.join(output,'fullscreen-audio-settings.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'fullscreen-audio-settings.png')});
   await page.getByRole('button',{name:'Done',exact:true}).click();
   await page.getByRole('button',{name:'Participants',exact:true}).click();
   await page.getByTitle('Remove Jordan Ellis',{exact:true}).click();
@@ -511,7 +566,7 @@ try {
   await page.mouse.down(); await page.mouse.move(callBox.x + callBox.width - 153,callBox.y + callBox.height + 60,{steps:10}); await page.mouse.up();
   const resized = await page.locator('.fm-call-window').boundingBox();
   assert.ok(resized.width < callBox.width - 50, 'resize grip changes call width');
-  await page.screenshot({path:path.join(output,'resized-call.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'resized-call.png')});
 
   await page.getByRole('button',{name:'Toggle camera',exact:true}).click();
   await page.locator('.fm-ch-call-stage video').waitFor();
@@ -524,7 +579,7 @@ try {
   await page.getByText('Choose a background image first.',{exact:true}).waitFor();
   await page.locator('[data-background-file]').setInputFiles({name:'background.png',mimeType:'image/png',buffer:await page.screenshot()});
   await page.getByText('Background applied.',{exact:true}).waitFor({timeout:60000});
-  await page.screenshot({path:path.join(output,'custom-background.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'custom-background.png')});
   await page.locator('[data-background]').selectOption('blur');
   console.log('Applying background');
   await page.getByText('Background applied.',{exact:true}).waitFor({timeout:60000});
@@ -554,10 +609,10 @@ try {
   await page.getByText('A short tone played through your speaker.',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Test microphone level',exact:true}).click();
   await page.getByRole('meter',{name:'Microphone input level'}).waitFor();
-  await page.screenshot({path:path.join(output,'call-troubleshooting.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'call-troubleshooting.png')});
   await page.getByRole('button',{name:'Done',exact:true}).click();
   console.log('Diagnostics checked');
-  await page.screenshot({path:path.join(output,'call-workspace.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'call-workspace.png')});
   await page.getByRole('button',{name:'Toggle camera',exact:true}).click();
   console.log('Camera disabled');
   await page.waitForFunction(()=>document.querySelectorAll('.fm-ch-call-stage video').length===0);
@@ -577,7 +632,7 @@ try {
   await page.locator('.fm-ch-huddle').waitFor({state:'detached'});
   console.log('PASS huddle message joins existing call');
   console.log('Capturing messaging');
-  await page.screenshot({path:path.join(output,'rich-messaging.png'),timeout:10000});
+  await page.screenshot({animations:'disabled',path:path.join(output,'rich-messaging.png'),timeout:10000});
   await page.getByTitle('Start or join huddle',{exact:true}).click();
   await page.getByRole('button',{name:'Start or join',exact:true}).click();
   await page.getByRole('button',{name:'Participants',exact:true}).click();
@@ -611,7 +666,7 @@ try {
   await page.locator('#underlying-action').click();
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('fm:portal-tab:activated',{detail:{}})));
   assert.ok(await page.locator('.fm-channels-overlay[data-window=docked]').isVisible());
-  await page.screenshot({path:path.join(output,'docked-conversation.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'docked-conversation.png')});
   await page.getByRole('button',{name:'Minimize conversation',exact:true}).click();
   assert.equal(await page.locator('.fm-channels-overlay-body').isVisible(), false);
   await page.getByRole('button',{name:'Float conversation',exact:true}).click();
@@ -632,11 +687,11 @@ try {
   const actionsBox = await page.locator('.fm-channels-overlay-actions').boundingBox();
   assert.ok(controlsBox.y + controlsBox.height <= headBox.y + headBox.height + 1,'controls stay in top row');
   assert.ok(actionsBox.y >= headBox.y + headBox.height,'conversation actions stay below header');
-  await page.screenshot({path:path.join(output,'narrow-floating-conversation.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'narrow-floating-conversation.png')});
   await page.locator('.fm-channels-overlay .fm-ch-msg-author').first().click();
   await page.getByRole('button',{name:'View profile',exact:true}).click();
   await page.locator('.fm-channels-overlay .fm-ch-profile-panel').waitFor();
-  await page.screenshot({path:path.join(output,'floating-profile-panel.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'floating-profile-panel.png')});
   await page.getByRole('button',{name:'Close profile',exact:true}).click();
   await page.locator('.fm-ch-profile-panel').waitFor({state:'detached'});
   assert.ok((await page.locator('.fm-channels-overlay').boundingBox()).width < 380, 'closing profile preserves floating window size');
@@ -695,7 +750,7 @@ try {
   const workspaceContent=await page.locator('#mainPanels').boundingBox();
   assert.ok(callDock.x + callDock.width <= conversationDock.x + 1,'docks do not overlap');
   assert.ok(workspaceContent.x + workspaceContent.width <= callDock.x + 1,'both docks reserve page space');
-  await page.screenshot({path:path.join(output,'shared-window-docks.png')});
+  await page.screenshot({animations:'disabled',path:path.join(output,'shared-window-docks.png')});
   await page.getByRole('button',{name:'Minimize call',exact:true}).click();
   await page.getByRole('button',{name:'Dock call',exact:true}).click();
   assert.ok(await page.locator('.fm-call-window[data-window=docked]').isVisible());
@@ -812,7 +867,7 @@ try {
     await page.locator('.fm-ch-modal .fm-ch-member-row').first().waitFor();
     assert.ok(await page.locator('.fm-ch-modal').getByText('Livia',{exact:true}).isVisible());
     await page.getByRole('button',{name:'Done',exact:true}).click();
-    await page.screenshot({path:path.join(output,'unified-channel-header.png')});
+    await page.screenshot({animations:'disabled',path:path.join(output,'unified-channel-header.png')});
     console.log('PASS unified title/tabs/docking header, plain title, floating actions and people picker');
     console.log('PASS split view opens a docked conversation');
     await page.evaluate(()=>{
@@ -894,7 +949,7 @@ try {
   await notificationsPage.close();
   assert.deepEqual(errors,[]);
   console.log('PASS notifications escape clipping and highest-z-index app overlays');
-} catch (error) { console.error(error); await page.screenshot({path:path.join(output,'failure.png'),timeout:5000}).catch(()=>{}); throw error; }
+} catch (error) { console.error(error); await page.screenshot({animations:'disabled',path:path.join(output,'failure.png'),timeout:5000}).catch(()=>{}); throw error; }
 finally { await browser.close(); server.close(); }
 
 
