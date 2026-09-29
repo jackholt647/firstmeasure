@@ -1626,10 +1626,11 @@
       };
       if (api.messages?.translate) {
         const enabled = translatedChannels.get(channel.id) === true;
-        const translateAll = el('button','fm-ch-btn',`<i class="fas fa-language" aria-hidden="true"></i> ${enabled ? 'Show Originals' : 'Translate All'}`);
+        const translateAll = el('button',`fm-ch-icon-btn${enabled ? ' on' : ''}`,'<i class="fas fa-language" aria-hidden="true"></i>');
         translateAll.type = 'button';
         translateAll.setAttribute('aria-pressed',String(enabled));
-        translateAll.title = enabled ? 'Show original messages in this conversation' : 'Translate this conversation into your preferred language, including older messages as they load';
+        translateAll.title = enabled ? 'Show Originals' : 'Translate All';
+        translateAll.setAttribute('aria-label', translateAll.title);
         translateAll.onclick = () => {
           translatedChannels.set(channel.id,!enabled);
           const messages = new Map([...state.messages,...(state.thread ? [state.thread.root,...state.thread.replies] : [])].filter(Boolean).map(message=>[message.id,message]));
