@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 Scope Sets: [Loading, FirstMeasure values and regeneration](deploy/digitalocean/development-scope-sets-20260929.md) records the development-only frontend fix, verification and rollback.
+
 September 29 My Projects: [View controls and column choices](deploy/digitalocean/development-project-view-controls-20260929.md) records the verified development-only frontend rollout and rollback.
 
 September 29 Project header: [Two-by-three controls beside responsive tabs](deploy/digitalocean/development-project-header-grid-20260929.md) records the verified development-only rollout and resize, draft and window regression checks.
