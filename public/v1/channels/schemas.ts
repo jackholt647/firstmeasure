@@ -1,7 +1,13 @@
 import { z } from "zod";
 
 const audienceGroup = z.enum(["office", "crew", "sales"]);
-const messageMetadataSchema = z.record(z.unknown()).transform(({ forwarded: _forwarded, reply_broadcast: _replyBroadcast, ...metadata }) => metadata);
+export const giphyMessageSchema = z.object({
+  id:z.string().regex(/^[a-zA-Z0-9]+$/).max(120),
+  url:z.string().url().max(2000).refine(value=>/^https:\/\/media\d*\.giphy\.com\/media\//i.test(value)),
+  title:z.string().max(300).default("GIF"),
+  width:z.number().int().min(1).max(4096),height:z.number().int().min(1).max(4096)
+});
+const messageMetadataSchema = z.object({giphy:giphyMessageSchema.optional()}).catchall(z.unknown()).transform(({ forwarded: _forwarded, reply_broadcast: _replyBroadcast, ...metadata }) => metadata);
 const richContentSchema = z.object({
   type: z.literal("doc").default("doc"),
   blocks: z.array(z.record(z.unknown())).max(500).default([])
@@ -52,7 +58,7 @@ export const postMessageSchema = z.object({
   forwarded_message_id: z.string().trim().min(1).optional(),
   forward_include_attachments: z.boolean().default(true),
   metadata: messageMetadataSchema.default({})
-}).refine((input) => Boolean(input.text.trim() || input.attachment_ids.length || input.forwarded_message_id), {
+}).refine((input) => Boolean(input.text.trim() || input.attachment_ids.length || input.forwarded_message_id || input.metadata.giphy), {
   message: "A message needs text or an attachment."
 });
 

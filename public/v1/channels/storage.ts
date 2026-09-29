@@ -1074,7 +1074,7 @@ export async function softDeleteMessageRecord(orgId: string, messageId: string, 
   return (await getChannelsDatabase().transaction(async () => {
   const db = getChannelsDatabase();
   await db.transaction(async () => {
-    (await db.prepare("UPDATE messages SET deleted_at = ?, deleted_by = ?, pinned_at = NULL, pinned_by = NULL WHERE organization_id = ? AND id = ?")
+    (await db.prepare("UPDATE messages SET deleted_at = ?, deleted_by = ?, pinned_at = NULL, pinned_by = NULL WHERE organization_id = ? AND id = ? AND deleted_at IS NULL")
       .run(nowIso(), deletedBy, orgId, messageId));
     (await db.prepare("DELETE FROM messages_fts WHERE message_id = ?").run(messageId));
   

@@ -102,8 +102,12 @@
     directory: {
       list: (orgId) => request(orgPath(orgId, '/directory'))
     },
+    gifs: {config:orgId=>request(orgPath(orgId,'/gifs/config'))},
 
     channels: {
+      discover: (orgId) => request(orgPath(orgId, '/channels/discover')),
+      join: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}/join`), {method:'POST'}),
+      setRole: (orgId, channelId, userId, role) => request(orgPath(orgId, `/channels/${enc(channelId)}/members/${enc(userId)}`), {method:'PATCH',body:{role}}),
       list: (orgId, params = {}) => request(orgPath(orgId, `/channels${queryString(params)}`)),
       create: (orgId, input) => request(orgPath(orgId, '/channels'), { method: 'POST', body: input }),
       get: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}`)),

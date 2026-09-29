@@ -350,11 +350,11 @@ export function isRoomAdmin(room: JsonObject, userId: string) {
   return room.started_by === userId || (Array.isArray((room.settings as JsonObject)?.admin_user_ids) && ((room.settings as JsonObject).admin_user_ids as string[]).includes(userId));
 }
 
-export async function manageRoomRecord(orgId: string, roomId: string, userId: string, input: {admin_user_id?:string; recording_enabled?:boolean}) {
+export async function manageRoomRecord(orgId: string, roomId: string, userId: string, input: {admin_user_id?:string; recording_enabled?:boolean}, channelManager = false) {
   return getCallsDatabase().transaction(async () => {
     await getCallsDatabase().prepare("UPDATE call_rooms SET updated_at=updated_at WHERE id=? AND organization_id=?").run(roomId,orgId);
     const room = await roomRecord(orgId,roomId);
-    if (!isRoomAdmin(room,userId)) throw forbidden("call_host_required","Only a huddle admin can manage this call.");
+    if (!isRoomAdmin(room,userId) && !channelManager) throw forbidden("call_host_required","Only a huddle admin can manage this call.");
     if (room.state !== "active") throw badRequest("call_not_active","This call has ended.");
     const settings = {...room.settings as JsonObject};
     if (input.admin_user_id) {
@@ -371,10 +371,10 @@ export async function manageRoomRecord(orgId: string, roomId: string, userId: st
   });
 }
 
-export async function endRoomRecord(orgId: string, roomId: string, userId: string) {
+export async function endRoomRecord(orgId: string, roomId: string, userId: string, channelManager = false) {
   return (await getCallsDatabase().transaction(async () => {
   const room = (await roomRecord(orgId, roomId));
-  if (!isRoomAdmin(room, userId)) {
+  if (!isRoomAdmin(room, userId) && !channelManager) {
     throw badRequest("call_owner_required", "Only a call admin can end it for everyone.");
   }
   if (room.state === "ended") return room;

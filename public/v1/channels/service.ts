@@ -12,6 +12,7 @@ import { listDocuments, readDocument } from "../platform/storage.js";
 import { registerWorkEvents } from "../work/events.js";
 import { env } from "../src/config/env.js";
 import * as calls from "../calls/service.js";
+import { giphyMessageSchema } from "./schemas.js";
 import {
   attachToMessage,
   createAttachmentRecord,
@@ -265,8 +266,8 @@ export async function requireChannelAccess(ctx: PlatformAuthContext, channelId: 
   return { channel, membership };
 }
 
-async function channelAdminAllowed(ctx: PlatformAuthContext, channel: ChannelRow) {
-  if (canManageChannels(ctx)) return true;
+export async function channelAdminAllowed(ctx: PlatformAuthContext, channel: ChannelRow) {
+  if (channel.type === "project") return canManageChannels(ctx);
   const membership = (await readChannelMember(channel.id, ctx.userId));
   return membership?.role === "owner" || membership?.role === "admin";
 }
@@ -452,7 +453,7 @@ function messageIsAudienceRestricted(message: MessageRow) {
 async function publishMessageEvent(topic: string, channel: ChannelRow, message: MessageRow, hydrated: JsonObject | null | undefined) {
   // Audience-restricted messages are announced as stubs so the body never
   // reaches a connection the read API would have filtered; clients refetch.
-  const payload: JsonObject = messageIsAudienceRestricted(message) || !hydrated
+  const payload: JsonObject = messageIsAudienceRestricted(message) || message.deleted_at || !hydrated
     ? { channel_id: channel.id, channel_type: channel.type, project_id: channel.project_id, message_id: message.id, seq: message.seq, parent_id: message.parent_id, stub: true }
     : { channel_id: channel.id, channel_type: channel.type, project_id: channel.project_id, message: hydrated, seq: message.seq, parent_id: message.parent_id };
   (await publishRealtimeEvent({ organization_id: channel.organization_id, topic, user_ids: (await realtimeTargets(channel)), payload }));
@@ -473,7 +474,7 @@ export async function hydrateMessages(ctx: PlatformAuthContext, channel: Channel
   const reactions = (await listReactionsForMessages(ids));
   const attachments = (await listAttachmentsForMessages(ids));
   const saved = (await listSavedMessageIds(ctx.orgId, ctx.userId));
-  const manage = canManageChannels(ctx);
+  const manage = await channelAdminAllowed(ctx, channel);
   const preferences = await viewerTranslationPreferences(ctx);
   const translations = (await listMessageTranslations(ids, preferences.language));
   return Promise.all(messages.map(async message => {
@@ -530,6 +531,7 @@ function hydrateMessage(
     edited_at: message.edited_at,
     deleted_at: message.deleted_at,
     deleted_by: message.deleted_by,
+    deleted_by_user: message.deleted_by ? helpers.directory.get(message.deleted_by) ?? {id:message.deleted_by,name:"Former member"} : null,
     pinned_at: message.pinned_at,
     reply_count: message.reply_count,
     last_reply_at: message.last_reply_at,
@@ -537,7 +539,7 @@ function hydrateMessage(
     tags: message.tags,
     can_edit: !deleted && isAuthor,
     can_delete: !deleted && canModerate,
-    can_restore: deleted && canModerate,
+    can_restore: deleted && message.deleted_by === ctx.userId,
     is_saved: helpers.saved.has(message.id),
     language_code: message.language_code,
     language_confidence: message.language_confidence,
@@ -556,7 +558,7 @@ function hydrateMessage(
     // Tombstone: the body only survives for people who could restore it.
     return {
       ...base,
-      text: canModerate ? message.text : "",
+      text: "",
       mention_users: [],
       reactions: [],
       attachments: [],
@@ -606,7 +608,7 @@ async function channelView(ctx: PlatformAuthContext, channel: ChannelRow, extras
     members: memberProfiles,
     is_member: members.some((member) => member.user_id === ctx.userId),
     can_manage: (await channelAdminAllowed(ctx, channel)),
-    can_invite: members.some(member => member.user_id === ctx.userId) && (["public", "private"].includes(channel.type) || await channelAdminAllowed(ctx, channel)),
+    can_invite: members.some(member => member.user_id === ctx.userId) && await channelAdminAllowed(ctx, channel),
     ...extras
   };
 }
@@ -631,6 +633,43 @@ export async function listChannelsForUser(ctx: PlatformAuthContext, options: { i
     views.push(await channelView(ctx, channel, { unread: unreads.get(channel.id) ?? { unread_count: 0, mention_count: 0, last_read_seq: 0 } }));
   }
   return views;
+}
+
+export async function discoverChannels(ctx: PlatformAuthContext) {
+  const memberships = new Set(await listMembershipChannelIds(ctx.orgId, ctx.userId));
+  return (await listChannelRecords(ctx.orgId, {types:["public"]})).map(channel => ({
+    id:channel.id, name:channel.name, topic:channel.topic, type:channel.type, is_member:memberships.has(channel.id)
+  }));
+}
+
+export async function joinPublicChannel(ctx: PlatformAuthContext, channelId: string) {
+  return getChannelsDatabase().transaction(async () => {
+  await getChannelsDatabase().prepare("UPDATE channels SET updated_at=updated_at WHERE id=? AND organization_id=?").run(channelId,ctx.orgId);
+  const channel = await readChannelRecord(ctx.orgId,channelId);
+  if (!channel || channel.type !== "public" || channel.archived_at) throw notFound("channel_not_found","This public channel is not available.");
+  if (!(await readChannelMember(channelId,ctx.userId))) {
+    await upsertChannelMember({channel_id:channelId,organization_id:ctx.orgId,user_id:ctx.userId});
+    const directory = await userDirectory(ctx.orgId);
+    await createMessageRecord({organization_id:ctx.orgId,channel_id:channelId,author_id:ctx.userId,kind:"system",text:`${directory.get(ctx.userId)?.name || "Someone"} joined the channel.`});
+    await publishRealtimeEvent({organization_id:ctx.orgId,topic:"channels.channel.updated",user_ids:await realtimeTargets(channel),payload:{channel_id:channelId,action:"members_changed"}});
+  }
+  return channelView(ctx,channel);
+  });
+}
+
+export async function setChannelMemberRole(ctx: PlatformAuthContext, channelId: string, userId: string, role: "owner" | "admin" | "member") {
+  await getChannelsDatabase().transaction(async () => {
+    await getChannelsDatabase().prepare("UPDATE channels SET updated_at=updated_at WHERE id=? AND organization_id=?").run(channelId,ctx.orgId);
+    const {channel} = await requireChannelAccess(ctx,channelId);
+    if (!["public","private"].includes(channel.type) || !(await channelAdminAllowed(ctx,channel))) throw forbidden("channel_manager_required","Only channel managers can change member roles.");
+    const member = await readChannelMember(channelId,userId);
+    if (!member || userId.startsWith("agent_")) throw badRequest("channel_member_required","Choose a person in this channel.");
+    if (role === "member" && member.role !== "member" && (await listChannelMembers(channelId)).filter(item => item.role !== "member").length <= 1) throw badRequest("last_channel_manager","Assign another channel manager first.");
+    await upsertChannelMember({...member,role:role === "member" ? "member" : "admin"});
+  });
+  const {channel} = await requireChannelAccess(ctx,channelId);
+  await publishRealtimeEvent({organization_id:ctx.orgId,topic:"channels.channel.updated",user_ids:await realtimeTargets(channel),payload:{channel_id:channelId,action:"members_changed"}});
+  return channelView(ctx,channel);
 }
 
 async function ensureFirstMateAssistantDm(ctx: PlatformAuthContext) {
@@ -828,8 +867,7 @@ export async function addChannelMembers(ctx: PlatformAuthContext, channelId: str
   let { channel } = await requireChannelAccess(ctx, channelId, { write: true });
   if (channel.type === "dm" && userIds.some(id => !id.startsWith("agent_"))) throw badRequest("dm_fixed_membership", "Start a group conversation to add people to a direct message.");
   if (channel.type === "project") throw badRequest("project_channel", "Project message threads use project access, not membership.");
-  const memberCanInvite = ["public", "private"].includes(channel.type);
-  if (!memberCanInvite && !(await channelAdminAllowed(ctx, channel))) {
+  if (!(await channelAdminAllowed(ctx, channel))) {
     throw forbidden("permission_denied", "Only channel admins can add members.");
   }
   const directory = await userDirectory(ctx.orgId);
@@ -864,11 +902,15 @@ export async function addChannelMembers(ctx: PlatformAuthContext, channelId: str
 }
 
 export async function removeMember(ctx: PlatformAuthContext, channelId: string, userId: string) {
+  return getChannelsDatabase().transaction(async () => {
+  await getChannelsDatabase().prepare("UPDATE channels SET updated_at=updated_at WHERE id=? AND organization_id=?").run(channelId,ctx.orgId);
   const { channel } = await requireChannelAccess(ctx, channelId);
   if (channel.type === "dm") throw badRequest("dm_fixed_membership", "Direct messages have fixed membership.");
   if (userId !== ctx.userId && !(await channelAdminAllowed(ctx, channel))) {
     throw forbidden("permission_denied", "Only channel admins can remove members.");
   }
+  const member = await readChannelMember(channelId,userId);
+  if (["public","private"].includes(channel.type) && member && member.role !== "member" && (await listChannelMembers(channelId)).filter(item => item.role !== "member").length <= 1) throw badRequest("last_channel_manager","Assign another channel manager first.");
   (await removeChannelMember(channelId, userId));
   (await publishRealtimeEvent({
     organization_id: ctx.orgId,
@@ -877,6 +919,7 @@ export async function removeMember(ctx: PlatformAuthContext, channelId: string, 
     payload: { channel_id: channelId, action: "members_changed" }
   }));
   return { ok: true };
+  });
 }
 
 // --- messages -----------------------------------------------------------------
@@ -940,6 +983,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   // Forward attribution is a server-authored snapshot of a message the sender
   // can read. Clients cannot inject a forged original author or hidden body.
   const metadata = { ...input.metadata };
+  if (metadata.giphy) metadata.giphy = giphyMessageSchema.parse(metadata.giphy);
   delete metadata.forwarded;
   delete metadata.reply_broadcast;
   if (input.reply_broadcast) {
@@ -959,6 +1003,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
       channel_name: sourceChannel.name, channel_type: sourceChannel.type,
       author: { id: source.author_id, name: author?.name || "Former member", avatar: author?.avatar || "" },
       created_at: source.created_at, text: source.text, content: source.content,
+      ...(source.metadata.giphy ? {giphy:source.metadata.giphy} : {}),
       parent_id: source.parent_id, reply_count: source.reply_count,
       ...(source.metadata.forwarded ? { original: source.metadata.forwarded } : {})
     };
@@ -1256,9 +1301,10 @@ export async function deleteMessage(ctx: PlatformAuthContext, messageId: string)
   const message = (await readMessageRecord(ctx.orgId, messageId));
   if (!message) throw notFound("message_not_found", "This message does not exist.");
   const { channel } = await requireChannelAccess(ctx, message.channel_id);
-  if (message.author_id !== ctx.userId && !canManageChannels(ctx)) {
+  if (message.author_id !== ctx.userId && !(await channelAdminAllowed(ctx, channel))) {
     throw forbidden("not_message_author", "Only the author or a channels manager can remove a message.");
   }
+  if (message.deleted_at) return (await hydrateMessages(ctx, channel, [message]))[0];
   const deleted = (await softDeleteMessageRecord(ctx.orgId, messageId, ctx.userId))!;
   const [hydrated] = await hydrateMessages(ctx, channel, [deleted]);
   (await publishMessageEvent("channels.message.deleted", channel, deleted, hydrated));
@@ -1271,8 +1317,8 @@ export async function restoreMessage(ctx: PlatformAuthContext, messageId: string
   if (!message) throw notFound("message_not_found", "This message does not exist.");
   const { channel } = await requireChannelAccess(ctx, message.channel_id);
   if (!message.deleted_at) throw badRequest("message_not_deleted", "This message is not removed.");
-  if (message.author_id !== ctx.userId && !canManageChannels(ctx)) {
-    throw forbidden("not_message_author", "Only the author or a channels manager can restore a message.");
+  if (message.deleted_by !== ctx.userId) {
+    throw forbidden("not_message_deleter", "Only the person who deleted this message can restore it.");
   }
   const restored = (await restoreMessageRecord(ctx.orgId, messageId))!;
   const [hydrated] = await hydrateMessages(ctx, channel, [restored]);
@@ -1283,7 +1329,7 @@ export async function restoreMessage(ctx: PlatformAuthContext, messageId: string
 
 export async function messageRevisions(ctx: PlatformAuthContext, messageId: string) {
   const message = (await readMessageRecord(ctx.orgId, messageId));
-  if (!message) throw notFound("message_not_found", "This message does not exist.");
+  if (!message || message.deleted_at) throw notFound("message_not_found", "This message does not exist.");
   await requireChannelAccess(ctx, message.channel_id);
   const groups = viewerAudienceGroups(ctx);
   if (!messageVisibleTo(message, ctx, groups)) throw notFound("message_not_found", "This message does not exist.");
@@ -2000,7 +2046,8 @@ export async function updateHuddleMediaState(
 export async function leaveHuddle(ctx: PlatformAuthContext, huddleId: string) {
   const current = await getHuddle(ctx, huddleId);
   const admins = asObject(current.settings).admin_user_ids;
-  const isAdmin = current.started_by === ctx.userId || (Array.isArray(admins) && admins.includes(ctx.userId));
+  const {channel} = await requireChannelAccess(ctx,cleanText(current.channel_id));
+  const isAdmin = current.started_by === ctx.userId || (Array.isArray(admins) && admins.includes(ctx.userId)) || await channelAdminAllowed(ctx,channel);
   const room = isAdmin ? await calls.endRoom(ctx,huddleId) : await calls.leaveRoom(ctx,huddleId);
   if (room.state === "ended") await publishHuddleEnded(ctx, room);
   (await publishRealtimeEvent({

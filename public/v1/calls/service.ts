@@ -115,11 +115,19 @@ export async function manageRoom(ctx: PlatformAuthContext, roomId: string, input
     const group=room.context_type==='channel'?'channels':'calls';
     if (!(await isCapabilityEnabled(ctx.orgId,`${group}.recording`))) throw forbidden("call_recording_disabled","Recording is disabled for this organization.");
   }
-  return withProvider(await storage.manageRoomRecord(ctx.orgId,roomId,ctx.userId,input));
+  return withProvider(await storage.manageRoomRecord(ctx.orgId,roomId,ctx.userId,input,await channelManagerForRoom(ctx,roomId)));
+}
+
+async function channelManagerForRoom(ctx: PlatformAuthContext, roomId: string) {
+  const room = await storage.roomRecord(ctx.orgId,roomId);
+  if (room.context_type !== "channel") return false;
+  const channels = await import("../channels/service.js");
+  const {channel} = await channels.requireChannelAccess(ctx,String(room.context_id));
+  return channels.channelAdminAllowed(ctx,channel);
 }
 
 export async function endRoom(ctx: PlatformAuthContext, roomId: string) {
-  const room = (await storage.endRoomRecord(ctx.orgId, roomId, ctx.userId));
+  const room = (await storage.endRoomRecord(ctx.orgId, roomId, ctx.userId,await channelManagerForRoom(ctx,roomId)));
   await closeProviderRoom(room);
   return withProvider(room);
 }

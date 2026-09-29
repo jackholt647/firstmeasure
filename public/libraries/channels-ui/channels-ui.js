@@ -139,7 +139,10 @@
       const html = esc(value.replace(/\\\|/g, '|')).replace(/&lt;br\s*\/?&gt;/gi, '<br>')
       .replace(/`([^`\n]+)`/g, (_, code) => keep(`<code>${code}</code>`))
       .replace(/\[((?:\\.|[^\]\\\n])+)\]\((https?:\/\/[^\s)]+)\)/g, (_, label, url) => keep(`<a href="${url}" target="_blank" rel="noopener noreferrer">${label.replace(/\\([\[\]\\])/g, '$1')}</a>`))
-      .replace(/https?:\/\/[^\s<>\u0000]+/g, url => keep(`<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`))
+      .replace(/\b(?:https?:\/\/|www\.)[^\s<>\u0000]+/gi, value => {
+        const url = value.replace(/(?:[.,!?:;]|&quot;|&#39;)+$/g, '').replace(/\)+$/, suffix => (value.match(/\(/g)||[]).length < (value.match(/\)/g)||[]).length ? '' : suffix);
+        return keep(`<a href="${/^www\./i.test(url) ? 'https://' : ''}${url}" target="_blank" rel="noopener noreferrer">${url}</a>`) + value.slice(url.length);
+      })
       .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[\s(])_([^_\n]+)_/g, '$1<em>$2</em>')
       .replace(/~~([^~\n]+)~~/g, '<s>$1</s>');
@@ -243,6 +246,40 @@
     return tableMarkup(rows.map(row => Array.from({length:columns}, (_, i) => row[i] || '')));
   }
 
+  function gifMessageCard(gif){
+    if (!gif || !/^https:\/\/media\d*\.giphy\.com\/media\//i.test(gif.url || '')) return null;
+    const card=el('figure','fm-ch-gif');
+    const link=el('a');link.href=`https://giphy.com/gifs/${encodeURIComponent(gif.id)}`;link.target='_blank';link.rel='noopener noreferrer';
+    const img=el('img');img.src=gif.url;img.alt=gif.title || 'GIF';img.loading='lazy';img.width=gif.width || 240;img.height=gif.height || 180;
+    link.append(img);card.append(link,el('figcaption','','Powered by GIPHY'));return card;
+  }
+
+  function clipboardRichHtml(data){
+    const html = data.getData('text/html');
+    if (!html) return clipboardTable(data) || renderBody({text:data.getData('text/plain')});
+    const source = new DOMParser().parseFromString(html, 'text/html');
+    const allowed = new Set(['P','DIV','BR','STRONG','B','EM','I','S','STRIKE','UL','OL','LI','BLOCKQUOTE','PRE','CODE','A','TABLE','THEAD','TBODY','TFOOT','TR','TH','TD']);
+    const clean = node => {
+      if (node.nodeType === 3) return esc(node.textContent);
+      if (node.nodeType !== 1 || /^(SCRIPT|STYLE|IFRAME|OBJECT|SVG|MATH|NOSCRIPT|TEMPLATE)$/.test(node.tagName)) return '';
+      let inside = [...node.childNodes].map(clean).join('');
+      const tag = node.tagName;
+      // Office and browser copies often express bold/italic as inline styles.
+      if (!['B','STRONG'].includes(tag) && (/bold/i.test(node.style.fontWeight) || Number(node.style.fontWeight) >= 600)) inside = `<strong>${inside}</strong>`;
+      if (!['I','EM'].includes(tag) && node.style.fontStyle === 'italic') inside = `<em>${inside}</em>`;
+      if (!['S','STRIKE'].includes(tag) && node.style.textDecoration.includes('line-through')) inside = `<s>${inside}</s>`;
+      if (!allowed.has(tag)) return inside;
+      if (tag === 'BR') return '<br>';
+      if (tag === 'A') {
+        const href = node.getAttribute('href') || '';
+        return /^https?:\/\//i.test(href) ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${inside}</a>` : inside;
+      }
+      const start = tag === 'OL' && /^\d+$/.test(node.getAttribute('start') || '') ? ` start="${node.getAttribute('start')}"` : '';
+      return `<${tag.toLowerCase()}${start}>${inside}</${tag.toLowerCase()}>`;
+    };
+    return [...source.body.childNodes].map(clean).join('');
+  }
+
   function downloadTable(table){
     const text = [...table.rows].map(row => [...row.cells].map(cell => {
       const value = cell.innerText ?? cell.textContent;
@@ -274,10 +311,12 @@
 
   function decorateTables(host, editor = null){
     for (const table of host.querySelectorAll('table')) {
+      const hidden = Math.max(0, table.rows.length - 10);
+      const label = hidden ? `${hidden} other ${hidden === 1 ? 'row has' : 'rows have'} been hidden · Click to expand` : (editor ? 'Open / edit table' : 'Click to expand table');
       const existing = table.closest('.fm-ch-table-card');
       if (existing) {
         [...table.rows].forEach((row, index) => row.toggleAttribute('data-preview-hidden', index >= 10));
-        existing.querySelector('button').textContent = `${table.rows.length} rows × ${table.rows[0]?.cells.length || 0} columns · ${editor ? 'Open / edit table' : 'Open full table'}`;
+        existing.querySelector('button').textContent = label;
         continue;
       }
       if (editor && table.rows.length <= 10) continue;
@@ -285,7 +324,7 @@
       if (editor) card.contentEditable = 'false';
       const button = el('button', 'fm-ch-table-open');
       button.type = 'button'; button.dataset.tableUi = 'true';
-      button.textContent = `${table.rows.length} rows × ${table.rows[0]?.cells.length || 0} columns · ${editor ? 'Open / edit table' : 'Open full table'}`;
+      button.textContent = label;
       button.onclick = event => { event.stopPropagation(); openTable(card.querySelector('table'), editor); };
       table.replaceWith(card); card.append(table, button);
       [...table.rows].forEach((row, index) => row.toggleAttribute('data-preview-hidden', index >= 10));
@@ -385,9 +424,7 @@
       const files = [...(event.clipboardData?.files || [])];
       if (files.length && editor.pasteFiles) { event.preventDefault(); void editor.pasteFiles(files); return; }
       event.preventDefault();
-      // Never accept executable or styled HTML from the clipboard.
-      const text = event.clipboardData.getData('text/plain');
-      document.execCommand('insertHTML', false, (clipboardTable(event.clipboardData) || renderBody({ text })) + '<div><br></div>');
+      document.execCommand('insertHTML', false, clipboardRichHtml(event.clipboardData) + '<div><br></div>');
       editor.dispatchEvent(new Event('input', {bubbles:true}));
     });
     editor.addEventListener('input', () => { if (!expandTables) decorateTables(editor, editor); });
@@ -413,6 +450,12 @@
       const selection = root.getSelection();
       if (event.defaultPrevented || event.isComposing) return;
       const anchor = selection?.anchorNode?.nodeType === 1 ? selection.anchorNode : selection?.anchorNode?.parentElement;
+      if (event.key === 'Enter' && event.shiftKey && anchor?.closest('li') && editor.contains(anchor)) {
+        event.preventDefault(); event.stopPropagation();
+        document.execCommand('insertLineBreak');
+        editor.dispatchEvent(new Event('input', {bubbles:true}));
+        return;
+      }
       if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey && anchor?.closest('li') && editor.contains(anchor)) {
         // Mention completion gets first refusal before changing list depth.
         const mentions = document.getElementById('fmMentionMenu');
@@ -699,6 +742,14 @@
 .fm-ch-audience-note{color:var(--ch-muted);font-size:10px;border:1px solid var(--ch-border);padding:0 6px;border-radius:999px}
 .fm-ch-presence-avatar{position:relative;display:inline-flex;flex:none}.fm-ch-presence-dot{display:inline-block;width:8px;height:8px;margin-left:6px;border-radius:50%;vertical-align:middle}.fm-ch-presence-dot.corner{position:absolute;right:-2px;bottom:-1px;width:10px;height:10px;border:2px solid var(--ch-bg,#fff);margin:0}.fm-ch-icon-btn.voice-active{background:var(--ch-accent-soft,#fee4e2);color:var(--ch-accent,#b42318);box-shadow:inset 0 0 0 1px currentColor}
 .fm-ch-reactions{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.fm-ch-quick-like{opacity:0;color:var(--ch-muted);transition:opacity .15s;background:transparent}
+.fm-ch-msg:hover .fm-ch-quick-like,.fm-ch-msg:focus-within .fm-ch-quick-like{opacity:.65}
+.fm-ch-quick-like:hover,.fm-ch-quick-like:focus-visible{opacity:1!important}
+.fm-ch-msg-body>.fm-ch-msg-edited{margin-left:6px}
+.fm-ch-gif{margin:8px 0;max-width:320px}.fm-ch-gif img{display:block;max-width:100%;height:auto;border-radius:10px}.fm-ch-gif figcaption{font-size:10px;color:var(--ch-muted);margin-top:4px}
+.fm-ch-gif-grid{min-height:100px;max-height:340px;overflow:auto}.fm-ch-gif-grid [role=button]:focus-visible{outline:3px solid var(--ch-accent)}
+.fm-ch-member-row[hidden]{display:none}
+@media(hover:none){.fm-ch-quick-like{opacity:.65}}
 .fm-ch-reaction{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--ch-border);background:#fff;border-radius:999px;padding:1px 8px;font-size:12px}
 .fm-ch-reaction:hover{border-color:var(--ch-accent)}
 .fm-ch-reaction.mine{background:var(--ch-accent-soft);border-color:var(--ch-accent);color:var(--ch-accent)}
@@ -1604,6 +1655,7 @@
 
       const quick = el('div', 'fm-ch-quick');
       const quickItems = [
+        ['discover','See all company channels','fa-hashtag',() => openChannelDirectory().catch(showError)],
         ...(features.attention ? [
           ['unreads', 'All Unreads', 'fa-inbox', openUnreadsView],
           ['activity', 'Activity', 'fa-bell', openActivityView],
@@ -2920,7 +2972,8 @@
     };
     root.addEventListener('beforeunload',protectRecording);
     function isHuddleAdmin(){
-      return state.huddle?.started_by === currentUser.id || (state.huddle?.settings?.admin_user_ids || []).includes(currentUser.id);
+      const channel = state.channelsById.get(state.huddle?.channel_id) || (state.activeChannel?.id === state.huddle?.channel_id ? state.activeChannel : null);
+      return channel?.can_manage || state.huddle?.started_by === currentUser.id || (state.huddle?.settings?.admin_user_ids || []).includes(currentUser.id);
     }
     async function exitHuddle(){
       const id=state.huddle?.id; if (!id) return;
@@ -3460,7 +3513,7 @@
       if (message.deleted_at) {
         gutter.innerHTML = '';
         const tomb = el('div', 'fm-ch-msg-deleted');
-        tomb.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_98170a72aa7e52","Message removed") ?? "Message removed")}</span>${String(message.can_restore && features.deleteRestore ? `<button class="fm-ch-restore-link" data-act="restore">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_954a04d61ae9d6","Restore") ?? "Restore")}</button>` : '')}`;
+        tomb.innerHTML = `<span>${esc(message.deleted_by_user?.name || message.author?.name || 'A channel member')} deleted a message</span>${message.can_restore && features.deleteRestore ? '<button class="fm-ch-restore-link" data-act="restore">Restore message</button>' : ''}`;
         content.appendChild(tomb);
         wireRowActions(row, message);
         return row;
@@ -3512,7 +3565,11 @@
       head.querySelector('.fm-ch-msg-author').addEventListener('click', event => openUserProfile(message.author, event.currentTarget));
       const body = el('div', 'fm-ch-msg-body', renderBody(message, shouldShowTranslation ? translatedText : message.text));
       decorateTables(body);
+      const edited = head.querySelector('.fm-ch-msg-edited');
+      if (edited) body.append(edited);
       content.append(head, body);
+      const gifCard=gifMessageCard(message.metadata?.giphy || message.metadata?.forwarded?.giphy);
+      if(gifCard)content.append(gifCard);
       if (!message.text) body.hidden = true;
       const forwardedCard = message.metadata?.forwarded ? forwardCard(message.metadata.forwarded) : null;
       if (forwardedCard) content.append(forwardedCard);
@@ -3542,9 +3599,14 @@
         }
         if(artifacts.childElementCount)content.append(artifacts);
         const join = el('button', 'fm-ch-btn primary', 'Join huddle');
+        const end = el('button','fm-ch-btn danger','End huddle');
+        end.style.marginLeft='8px'; end.hidden=true;
+        end.onclick=async()=>{end.disabled=true;try{await api.huddles.end(orgId,id);state.huddleStates.set(id,'ended');if(state.huddle?.id===id)stopHuddleSession();await refreshActiveMessages();}catch(error){end.disabled=false;showError(error);}};
         const update = room => {
           if (!join.isConnected) return;
           const ended = room?.state === 'ended' || state.huddleStates.get(id) === 'ended';
+          const channel=state.channelsById.get(message.channel_id) || (state.activeChannel?.id===message.channel_id?state.activeChannel:null);
+          end.hidden=ended || !channel?.can_manage;
           join.disabled = false; join.textContent = ended ? 'Start a new huddle' : state.huddle?.id === id ? 'Return to huddle' : 'Join huddle';
         };
         join.onclick = async () => {
@@ -3553,7 +3615,7 @@
           join.disabled = true;
           try { await startHuddle(state.huddleStates.get(id) === 'ended' ? {} : {huddleId:id}); } finally { join.disabled = false; update(); }
         };
-        content.append(join);
+        content.append(join,end);
         queueMicrotask(() => update());
         if (!state.huddleStates.has(id)) api.huddles.get(orgId, id).then(data => { state.huddleStates.set(id, data.huddle.state); update(data.huddle); }).catch(() => { join.disabled = true; join.textContent = 'Huddle unavailable'; });
       }
@@ -3614,15 +3676,21 @@
         content.appendChild(card);
       }
 
-      if (features.reactions && (message.reactions || []).length) {
+      if (features.reactions) {
         const wrap = el('div', 'fm-ch-reactions');
-        for (const reaction of message.reactions) {
+        for (const reaction of message.reactions || []) {
           const chip = el('button', `fm-ch-reaction${reaction.reacted ? ' mine' : ''}`, `${esc(reaction.emoji)} ${reaction.count}`);
           const people = reaction.users || (reaction.user_ids || []).map(id => (state.activeChannel?.members || []).find(user=>user.id===id) || (id===currentUser.id?currentUser:{name:'Former member'}));
           chip.title = `${people.map(user=>user.name).join(', ') || 'Someone'} reacted with ${reaction.emoji}`;
           chip.setAttribute('aria-label', chip.title);
           chip.addEventListener('click', () => api.messages.react(orgId, message.id, reaction.emoji, !reaction.reacted).then((data) => replaceMessage(data.message)).catch(showError));
           wrap.appendChild(chip);
+        }
+        if (!(message.reactions || []).some(reaction => reaction.emoji === '👍')) {
+          const quick = el('button','fm-ch-reaction fm-ch-quick-like','<i class="far fa-thumbs-up" aria-hidden="true"></i>');
+          quick.title = 'React with thumbs up'; quick.setAttribute('aria-label',quick.title);
+          quick.onclick = () => api.messages.react(orgId,message.id,'👍',true).then(data=>replaceMessage(data.message,{inPlace:true})).catch(showError);
+          wrap.append(quick);
         }
         content.appendChild(wrap);
       }
@@ -3643,6 +3711,7 @@
       if (features.richMessages) tools.push({ act: 'remind', icon: '<i class="fas fa-clock"></i>', title: (globalThis.PlatformLanguage?.text("channels-ui","m_a3718df1119c03","Remind me about this") ?? "Remind me about this") });
       if (features.richMessages) tools.push({ act: 'forward', icon: '<i class="fas fa-share"></i>', title: (globalThis.PlatformLanguage?.text("channels-ui","m_2ac9359a61d42d","Forward message") ?? "Forward message") });
       tools.push({ act: 'copy-link', icon: '<i class="fas fa-link"></i>', title: (globalThis.PlatformLanguage?.text("channels-ui","m_c84df5383df857","Copy message link") ?? "Copy message link") });
+      tools.push({act:'copy-text',icon:'<i class="far fa-copy"></i>',title:'Copy message text'});
       tools.push({ act: 'todo', icon: '<i class="fas fa-square-check"></i>', title: (globalThis.PlatformLanguage?.text("channels-ui","m_ffae27506c46f3","Create To Do") ?? "Create To Do") });
       tools.push({ act: 'unread', icon: '<i class="fas fa-envelope"></i>', title: (globalThis.PlatformLanguage?.text("channels-ui","m_5d57431152ad0a","Mark unread from here") ?? "Mark unread from here") });
       if (features.pins) tools.push({ act: 'pin', icon: '<i class="fas fa-thumbtack"></i>', title: message.pinned_at ? 'Unpin' : 'Pin to channel', on: !!message.pinned_at });
@@ -3669,7 +3738,7 @@
               pop.append(item);
             }
             wireRowActions(pop, message, { inThread });
-            pop.addEventListener('click', () => { closePopover(); more.focus(); });
+            pop.addEventListener('click', event => { closePopover(); if(event.target.closest('[data-act]')?.dataset.act !== 'edit')more.focus(); });
             pop.addEventListener('keydown', event => {
               const items = [...pop.querySelectorAll('button')];
               const index = items.indexOf(document.activeElement);
@@ -3726,6 +3795,13 @@
           else if (act === 'todo') openCreateTodoModal(message);
           else if (act === 'remind') openReminderModal(message);
           else if (act === 'forward') openForwardModal(message);
+          else if (act === 'copy-text') {
+            const copy = el('div','fm-ch-msg-body',renderBody(message));
+            copy.style.cssText = 'position:fixed;left:-10000px;white-space:pre-wrap'; document.body.append(copy);
+            const text = copy.innerText; copy.remove();
+            await navigator.clipboard.writeText(text);
+            root.Portal?.ui?.showToast?.('Message text copied','',true);
+          }
           else if (act === 'copy-link') {
             const base = String(root.location.href).split(/[?#]/)[0];
             const query = `tab=channels&channel=${encodeURIComponent(message.channel_id)}&channelMessage=${encodeURIComponent(message.id)}`;
@@ -4013,6 +4089,62 @@
       return upload;
     }
 
+    function gifPickerButton(parentId = null){
+      const button=el('button','fm-ch-icon-btn','<span style="font-size:10px;font-weight:800;border:1.5px solid currentColor;border-radius:3px;padding:1px">GIF</span>');
+      button.type='button';button.title='Send a GIF';button.setAttribute('aria-label',button.title);
+      button.onclick=()=>{
+        const channelId=state.activeChannelId;
+        let selected=null, removeGrid=null, timer=null, disposed=false;
+        const operationId=`gif_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+        showModal('Send a GIF',(body)=>{
+          const search=el('input');search.type='search';search.placeholder='Search GIPHY';search.setAttribute('aria-label',search.placeholder);
+          const status=el('p','fm-ch-people-summary','Loading GIFs…');status.setAttribute('role','status');
+          const grid=el('div','fm-ch-gif-grid'),preview=el('div');
+          const attribution=el('a','','Powered by GIPHY');attribution.href='https://giphy.com';attribution.target='_blank';attribution.rel='noopener noreferrer';
+          body.append(search,status,grid,preview,attribution);
+          const send=body.parentElement.querySelector('.fm-ch-modal-foot .primary');send.disabled=true;
+          (async()=>{
+            const config=await api.gifs.config(orgId);
+            if(disposed)return;
+            if(!config.enabled)throw new Error('GIF search is not configured for this environment yet.');
+            const {GiphyFetch,renderGrid}=await import('/libraries/gif-picker/giphy-sdk.js?v=20260929');
+            if(disposed)return;
+            const client=new GiphyFetch(config.sdk_key);
+            let generation=0;
+            const paint=()=>{
+              const query=search.value.trim(),version=++generation;
+              removeGrid?.();grid.replaceChildren();status.textContent='Loading GIFs…';
+              removeGrid=renderGrid({width:Math.max(240,Math.floor(grid.clientWidth)),columns:2,gutter:8,noLink:true,
+                fetchGifs:async offset=>{
+                  try{
+                    const data=await (query?client.search(query,{offset,limit:12,rating:'pg'}):client.trending({offset,limit:12,rating:'pg'}));
+                    if(!disposed && version===generation)status.textContent=data.data.length?'Choose a GIF to preview before sending.':'No GIFs found. Try another search.';
+                    return data;
+                  }catch(error){if(!disposed && version===generation)status.textContent='GIF search is unavailable or its request limit was reached. Try again later.';return {data:[],pagination:{total_count:0,count:0,offset},meta:{status:200,msg:'Unavailable',response_id:''}};}
+                },
+                onGifClick:(gif,event)=>{
+                  event?.preventDefault();
+                  const image=gif.images.fixed_width || gif.images.original;
+                  selected={id:String(gif.id),url:image.url,title:gif.title || 'GIF',width:Number(image.width),height:Number(image.height)};
+                  preview.replaceChildren();const card=gifMessageCard(selected);if(!card){selected=null;return;}
+                  preview.append(card);send.disabled=false;status.textContent='Ready to send. You can choose another GIF.';
+                }
+              },grid);
+            };
+            search.oninput=()=>{clearTimeout(timer);timer=setTimeout(paint,500);};paint();
+          })().catch(error=>{if(!disposed)status.textContent=error.message || 'GIF search is unavailable.';});
+          return ()=>{disposed=true;clearTimeout(timer);removeGrid?.();};
+        },[{label:'Cancel',onClick:close=>close()},{label:'Send GIF',primary:true,onClick:async close=>{
+          if(!selected)return;
+          try{
+            const result=await api.messages.post(orgId,channelId,{text:'',metadata:{giphy:selected},...(parentId?{parent_id:parentId}:{}),client_msg_id:operationId});
+            close();if(state.activeChannelId===channelId)applyIncomingMessage('channels.message.created',result.message,{channel_id:channelId});
+          }catch(error){showError(error);}
+        }}]);
+      };
+      return button;
+    }
+
     function renderComposer(){
       composer.innerHTML = '';
       if (state.view !== 'channel' || state.activeTab !== 'messages' || !state.activeChannel) return;
@@ -4068,6 +4200,7 @@
         textarea.focus();
       }));
       row.appendChild(emojiBtn);
+      if(features.attachments)row.append(gifPickerButton());
 
       if (features.attachments) {
         const fileBtn = el('button', 'fm-ch-icon-btn', '<i class="fas fa-paperclip"></i>');
@@ -4250,6 +4383,7 @@
         if (textarea.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
         const text = textarea.value.trim();
         if (!text && !state.pendingAttachments.length) return;
+        const wasEditing=Boolean(state.editingMessageId && !state.editingThread);
         send.disabled = true;
         try {
           if (state.editingMessageId && !state.editingThread) {
@@ -4282,7 +4416,7 @@
             renderMessages();
             scheduleMarkRead();
           }
-          stopTyping(); textarea.value = '';
+          stopTyping(); if(!wasEditing)textarea.value = '';
           autosize();
           mentionApi?.setSelectedMentions?.([]);
         } catch (error) {
@@ -4350,20 +4484,24 @@
         if (event.key === 'Escape' && state.editingMessageId) cancelEdit();
       });
 
+      let draftBeforeEdit=null;
       function cancelEdit(){
         state.editingMessageId = '';
         editNote.style.display = 'none';
-        textarea.value = '';
+        textarea.value = draftBeforeEdit ?? '';
+        draftBeforeEdit=null;send.textContent='Send';if(schedule)schedule.hidden=false;
         autosize();
       }
 
       composer._startEdit = (message) => {
+        if(!state.editingMessageId)draftBeforeEdit=textarea.value;
         state.editingMessageId = message.id;
         state.editingThread = false;
         editNote.style.display = 'flex';
         editNote.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6a6c0d2dcfcb47","Editing message") ?? "Editing message")}</span><button>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
         editNote.querySelector('button').addEventListener('click', cancelEdit);
         textarea.value = message.text;
+        send.textContent='Save changes';if(schedule)schedule.hidden=true;
         composerState.audience = [...(message.audience || [])];
         autosize();
         textarea.focus();
@@ -4496,6 +4634,7 @@
       broadcast.type = 'checkbox';
       broadcastLabel.append(broadcast, document.createTextNode('Also send to channel'));
       row.append(broadcastLabel, send);
+      if(features.attachments)row.prepend(gifPickerButton(state.threadRootId));
       node.append(pendingWrap, box, row);
       let threadMentionApi = null;
       try {
@@ -4987,12 +5126,12 @@
           <input type="text" data-field="name" placeholder="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_764c04db3ecb32","e.g. installs") ?? "e.g. installs")}">
           <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_e23660d62b184c","Topic (optional)") ?? "Topic (optional)")}</label>
           <input type="text" data-field="topic" placeholder="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_726dc4834a1366","What is this channel about?") ?? "What is this channel about?")}">
-          <p>Only people you add can see this channel. Use the People button to invite them after creating it.</p>`;
+          <label>Visibility</label><label class="fm-ch-check-row"><input type="radio" name="channel-visibility" value="public" checked><span><strong>Public</strong><small>Anyone in the company can find and join.</small></span></label><label class="fm-ch-check-row"><input type="radio" name="channel-visibility" value="private"><span><strong>Private</strong><small>Only invited members can see it. Channel managers add people.</small></span></label>`;
       }, [{ label: (globalThis.PlatformLanguage?.text("channels-ui","m_3c21a9590eb762","Create") ?? "Create"), primary: true, onClick: async (close, body) => {
         try {
           const name = body.querySelector('[data-field=name]').value;
           const topic = body.querySelector('[data-field=topic]').value;
-          const type = 'private';
+          const type = body.querySelector('[name=channel-visibility]:checked').value;
           const data = await api.channels.create(orgId, { type, name, topic, member_user_ids: [] });
           close();
           await loadChannels();
@@ -5258,17 +5397,45 @@
       }, []);
     }
 
+    async function openChannelDirectory(){
+      const {channels} = await api.channels.discover(orgId);
+      showModal('All company channels',(body,close) => {
+        const search = el('input'); search.type='search'; search.placeholder='Search public channels'; search.setAttribute('aria-label',search.placeholder);
+        const results = el('div','fm-ch-current-members');
+        const paint = () => {
+          results.replaceChildren();
+          const matches = channels.filter(channel=>`${channel.name} ${channel.topic}`.toLowerCase().includes(search.value.toLowerCase()));
+          for (const channel of matches) {
+            const row = el('div','fm-ch-member-row',`<span class="name"><strong># ${esc(channel.name)}</strong><small>${esc(channel.topic || '')}</small></span>`);
+            const join = el('button','fm-ch-btn',channel.is_member?'Open':'Join channel');
+            join.onclick=async()=>{ join.disabled=true; try {if(!channel.is_member)await api.channels.join(orgId,channel.id);await loadChannels();close();await setChannel(channel.id);}catch(error){join.disabled=false;showError(error);} };
+            row.append(join);results.append(row);
+          }
+          if(!matches.length)results.append(el('p','fm-ch-people-empty','No public channels match your search.'));
+        };
+        search.oninput=paint;body.append(search,results);paint();
+      },[]);
+    }
+
     async function openMembersModal(){
       const channel = state.activeChannel;
       const everyone = await orgUsers();
       const selected = new Set();
       const memberIds = new Set((channel.members || []).map((member) => member.id));
-      showModal(`Members — ${channel.display_name || channel.name}`, (body) => {
+      showModal(`Members — ${channel.display_name || channel.name}`, (body, close) => {
         const members = el('div', 'fm-ch-current-members');
-        body.append(el('div', 'fm-ch-people-summary', `${memberIds.size} current members`), members);
+        const search = el('input');search.type='search';search.placeholder='Search channel members';search.setAttribute('aria-label',search.placeholder);
+        search.oninput=()=>{for(const row of members.children)row.hidden=!row.dataset.search.includes(search.value.toLowerCase());};
+        body.append(el('div', 'fm-ch-people-summary', `${memberIds.size} current members`), search, members);
         for (const member of channel.members || []) {
           const rowNode = el('div', 'fm-ch-member-row');
-          rowNode.innerHTML = `${avatarHtml(member, 'sm')}<span class="name">${esc(member.name)}${onlineDot(member.id)}${member.role !== 'member' ? ` <span class="fm-ch-tag">${esc(member.role)}</span>` : ''}</span>`;
+          rowNode.dataset.search=`${member.name} ${member.email || ''}`.toLowerCase();
+          rowNode.innerHTML = `${avatarHtml(member, 'sm')}<span class="name">${esc(member.name)}${onlineDot(member.id)} <span class="fm-ch-tag">${member.role !== 'member' ? 'Channel manager' : 'Member'}</span></span>`;
+          if(channel.can_manage && ['public','private'].includes(channel.type) && !member.id.startsWith('agent_')) {
+            const role=el('button','fm-ch-btn',member.role==='member'?'Make manager':'Make member');
+            role.onclick=async()=>{role.disabled=true;try{const data=await api.channels.setRole(orgId,channel.id,member.id,member.role==='member'?'admin':'member');state.activeChannel=data.channel;close();await loadChannels();await openMembersModal();}catch(error){role.disabled=false;showError(error);}};
+            rowNode.append(role);
+          }
           if (channel.can_manage && member.id !== currentUser.id) {
             const remove = el('button', 'fm-ch-icon-btn', '<i class="fas fa-xmark"></i>');
             remove.title = (globalThis.PlatformLanguage?.text("channels-ui","m_47839980185da7","Remove from channel") ?? "Remove from channel");

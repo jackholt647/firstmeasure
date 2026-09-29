@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@giphy/js-components": "^5.13.0",
+    "@giphy/js-fetch-api": "^5.8.0",
+    "esbuild": "^0.28.2"
+  },
+  "name": "firstmate-giphy-browser-runtime",
+  "private": true,
+  "scripts": {
+    "build": "esbuild sdk-entry.js --bundle --format=esm --minify --legal-comments=eof --outfile=giphy-sdk.js"
+  }
+}

@@ -89,8 +89,8 @@ try {
   await page.evaluate(()=>statusRoster([{user_id:'guest',status:'away'}]));
   assert.equal(await dot.getAttribute('aria-label'),'Away');
   assert.equal(await dot.evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(152, 162, 179)');
-  await statusRoot.locator('.fm-ch-reaction').hover();
-  assert.equal(await statusRoot.locator('.fm-ch-reaction').getAttribute('title'),'Jordan Ellis, Morgan Lee reacted with 🔥');
+  await statusRoot.locator('.fm-ch-reaction:not(.fm-ch-quick-like)').hover();
+  assert.equal(await statusRoot.locator('.fm-ch-reaction:not(.fm-ch-quick-like)').getAttribute('title'),'Jordan Ellis, Morgan Lee reacted with 🔥');
   await page.evaluate(()=>statusRoster([]));assert.equal(await dot.evaluate(node=>getComputedStyle(node).visibility),'hidden');
   await page.screenshot({animations:'disabled',path:path.join(output,'presence-reaction-followup.png')});
   await page.evaluate(()=>{statusInstance.destroy();document.querySelector('#status-check').remove();delete window.PlatformRealtime;testChannel.type='public';testMessages[0].reactions=[];});
@@ -409,7 +409,7 @@ try {
   assert.equal(await editor.locator('table tr').count(),125);
   assert.equal(await editor.locator('table tr:visible').count(),10);
   assert.ok((await editor.evaluate(node=>node.value)).length>20000);
-  await editor.getByRole('button',{name:/Open \/ edit table/}).click();
+  await editor.getByRole('button',{name:/hidden · Click to expand/}).click();
   const tableModal = page.getByRole('dialog',{name:'Table',exact:true});
   assert.equal(await tableModal.locator('table tr:visible').count(),125);
   await tableModal.locator('td').first().click();
@@ -425,7 +425,7 @@ try {
   assert.equal(await editor.locator('table tr').count(),126);
   assert.equal(await editor.locator('table tr:visible').count(),10);
   await page.screenshot({animations:'disabled',path:path.join(output,'large-table-draft.png')});
-  await editor.getByRole('button',{name:/Open \/ edit table/}).click();
+  await editor.getByRole('button',{name:/hidden · Click to expand/}).click();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button',{name:'Download TSV',exact:true}).click();
   const download = await downloadPromise;
@@ -438,7 +438,7 @@ try {
   const sentTable = page.locator('.fm-ch-msg-body .fm-ch-table-card').last();
   assert.equal(await sentTable.locator('tr').count(),126);
   assert.equal(await sentTable.locator('tr:visible').count(),10);
-  await sentTable.getByRole('button',{name:/Open full table/}).click();
+  await sentTable.getByRole('button',{name:/hidden · Click to expand/}).click();
   assert.equal(await page.getByRole('dialog',{name:'Table',exact:true}).locator('tr:visible').count(),126);
   await page.screenshot({animations:'disabled',path:path.join(output,'full-table-viewer.png')});
   await page.getByRole('button',{name:'Close dialog',exact:true}).click();
@@ -937,7 +937,7 @@ try {
     assert.equal(await page.locator('.fm-channels-overlay-subhead').evaluate(node=>getComputedStyle(node).position),'absolute');
     await page.getByTitle('People in channel (3)',{exact:true}).click();
     await page.locator('.fm-ch-modal .fm-ch-member-row').first().waitFor();
-    assert.ok(await page.locator('.fm-ch-modal').getByText('Livia',{exact:true}).isVisible());
+    assert.ok(await page.locator('.fm-ch-modal .fm-ch-member-row').filter({hasText:'Livia'}).isVisible());
     await page.getByRole('button',{name:'Done',exact:true}).click();
     await page.screenshot({animations:'disabled',path:path.join(output,'unified-channel-header.png')});
     console.log('PASS unified title/tabs/docking header, plain title, floating actions and people picker');

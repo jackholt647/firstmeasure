@@ -56,6 +56,14 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/", async () => ({ ok: true, api: "channels" }));
 
+  app.get("/organizations/:orgId/gifs/config", async request => {
+    await auth(request,getParam(request.params,"orgId"));
+    // GIPHY's browser SDK requires its web application key in the client.
+    // This is not an account credential; keep it out of source and logs.
+    const key = String(process.env.GIPHY_WEB_SDK_KEY || "").trim();
+    return {ok:true,provider:"giphy",enabled:Boolean(key),sdk_key:key || null};
+  });
+
   if (platformBackgroundAllowed()) {
   const scheduledDeliveryTimer = setInterval(async () => {
     try { (await service.deliverAllDueScheduledMessages()); } catch (error) { app.log.error(error); }
@@ -111,6 +119,16 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, channel };
   });
 
+  app.get("/organizations/:orgId/channels/discover", async (request) => {
+    const ctx = await auth(request, getParam(request.params,"orgId"));
+    return {ok:true,channels:await service.discoverChannels(ctx)};
+  });
+
+  app.post("/organizations/:orgId/channels/:channelId/join", async (request) => {
+    const ctx = await auth(request,getParam(request.params,"orgId"),{csrf:true});
+    return {ok:true,channel:await service.joinPublicChannel(ctx,getParam(request.params,"channelId"))};
+  });
+
   app.get("/organizations/:orgId/channels/:channelId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await auth(request, orgId);
@@ -156,6 +174,7 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     const body = memberPatchSchema.parse(request.body ?? {});
     const channelId = getParam(request.params, "channelId");
     const userId = getParam(request.params, "userId");
+    if (body.role) return {ok:true,channel:await service.setChannelMemberRole(ctx,channelId,userId,body.role)};
     if (body.notify_level && userId === ctx.userId) {
       const { readChannelMember, setMemberNotifyLevel, upsertChannelMember } = await import("./storage.js");
       const { channel } = await service.requireChannelAccess(ctx, channelId);

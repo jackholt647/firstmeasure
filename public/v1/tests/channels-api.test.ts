@@ -135,6 +135,58 @@ async function createOrgUser(
   return { userId, client, email };
 }
 
+test("public discovery, private invitations, channel managers and deletion recovery are scoped", async () => {
+  const {client:owner,orgId,suffix,userId:ownerId}=await registerOwner();
+  const member=await createOrgUser(owner,orgId,suffix,"Regular Member");
+  const outsider=await createOrgUser(owner,orgId,suffix,"Outside Member");
+  const base=`/v1/channels/organizations/${orgId}`;
+  const pub=(await owner.request("POST",`${base}/channels`,{type:"public",name:"open-team",member_user_ids:[member.userId]})).channel;
+  const gif={id:"example",url:"https://media.giphy.com/media/example/giphy.gif",title:"Example GIF",width:200,height:120};
+  const gifMessage=(await owner.request("POST",`${base}/channels/${pub.id}/messages`,{metadata:{giphy:gif}})).message;
+  assert.equal(gifMessage.text,"");assert.deepEqual(gifMessage.metadata.giphy,gif);
+  assert.equal((await owner.raw("POST",`${base}/channels/${pub.id}/messages`,{metadata:{giphy:{...gif,url:"https://untrusted.example/image.gif"}}})).statusCode,400);
+  const priv=(await owner.request("POST",`${base}/channels`,{type:"private",name:"secret-team"})).channel;
+  const discovered=(await outsider.client.request("GET",`${base}/channels/discover`)).channels;
+  assert.ok(discovered.some((c:Json)=>c.id===pub.id));
+  assert.ok(!discovered.some((c:Json)=>c.id===priv.id));
+  assert.equal((await outsider.client.raw("GET",`${base}/channels/${pub.id}/messages`)).statusCode,403);
+  assert.equal((await outsider.client.raw("POST",`${base}/channels/${priv.id}/join`)).statusCode,404);
+  await outsider.client.request("POST",`${base}/channels/${pub.id}/join`);
+  await outsider.client.request("GET",`${base}/channels/${pub.id}/messages`);
+  // Joining an existing membership must retain the manager role.
+  assert.equal((await owner.request("POST",`${base}/channels/${pub.id}/join`)).channel.can_manage,true);
+  assert.equal((await member.client.raw("POST",`${base}/channels/${pub.id}/members`,{user_ids:[outsider.userId]})).statusCode,403);
+  assert.equal((await member.client.raw("PATCH",`${base}/channels/${pub.id}/members/${member.userId}`,{role:"admin"})).statusCode,403);
+  assert.equal((await owner.raw("PATCH",`${base}/channels/${pub.id}/members/${ownerId}`,{role:"member"})).statusCode,400);
+  assert.equal((await owner.raw("DELETE",`${base}/channels/${pub.id}/members/${ownerId}`)).statusCode,400);
+  await owner.request("PATCH",`${base}/channels/${pub.id}/members/${member.userId}`,{role:"admin"});
+  assert.equal((await member.client.request("GET",`${base}/channels/${pub.id}`)).channel.can_manage,true);
+  const posted=(await outsider.client.request("POST",`${base}/channels/${pub.id}/messages`,{text:"Original text"})).message;
+  assert.equal((await member.client.raw("PATCH",`${base}/messages/${posted.id}`,{text:"Not my message"})).statusCode,403);
+  const edited=(await outsider.client.request("PATCH",`${base}/messages/${posted.id}`,{text:"Updated text"})).message;
+  assert.ok(edited.edited_at);
+  const removed=(await member.client.request("DELETE",`${base}/messages/${posted.id}`)).message;
+  assert.equal(removed.can_restore,true);
+  assert.equal(removed.text,"");
+  assert.equal(removed.deleted_by_user.id,member.userId);
+  const tomb=(await outsider.client.request("GET",`${base}/messages/${posted.id}`)).message;
+  assert.equal(tomb.can_restore,false);
+  assert.equal(tomb.text,"");
+  assert.equal((await outsider.client.raw("GET",`${base}/messages/${posted.id}/revisions`)).statusCode,404);
+  assert.equal((await outsider.client.raw("POST",`${base}/messages/${posted.id}/restore`)).statusCode,403);
+  // A second delete must not take ownership of the restore action.
+  await owner.request("DELETE",`${base}/messages/${posted.id}`);
+  assert.equal((await owner.raw("POST",`${base}/messages/${posted.id}/restore`)).statusCode,403);
+  assert.equal((await member.client.request("POST",`${base}/messages/${posted.id}/restore`)).message.text,"Updated text");
+  const huddle=(await outsider.client.request("POST",`${base}/channels/${pub.id}/huddles`,{video:false})).huddle;
+  // Manager can end a huddle without having joined it.
+  assert.equal((await member.client.request("POST",`${base}/huddles/${huddle.id}/end`)).huddle.state,"ended");
+  await owner.request("PATCH",`${base}/channels/${pub.id}/members/${member.userId}`,{role:"member"});
+  assert.equal((await member.client.raw("DELETE",`${base}/messages/${posted.id}`)).statusCode,403);
+  await owner.request("DELETE",`${base}/channels/${pub.id}/members/${outsider.userId}`);
+  assert.equal((await outsider.client.raw("GET",`${base}/messages/${posted.id}`)).statusCode,403);
+});
+
 test("channels API root responds", async () => {
   const response = await app.inject({ method: "GET", url: "/v1/channels/" });
   assert.equal(response.statusCode, 200);
@@ -579,7 +631,7 @@ test("search finds messages, excludes deleted ones, and respects private members
   assert.ok(!outsiderTexts.includes("zanzibar classified intel"), "private channel content must not leak into search");
 });
 
-test("manage_channels users can delete and restore other people's messages", async () => {
+test("global Channels permission does not replace channel manager assignment", async () => {
   const { client: owner, orgId, suffix } = await registerOwner();
   const author = await createOrgUser(owner, orgId, suffix, "Message Author");
   const moderator = await createOrgUser(owner, orgId, suffix, "Channel Moderator", {
@@ -596,6 +648,9 @@ test("manage_channels users can delete and restore other people's messages", asy
   const editDenied = await moderator.client.raw("PATCH", `/v1/channels/organizations/${orgId}/messages/${posted.message.id}`, { text: "rewritten" });
   assert.equal(editDenied.statusCode, 403, editDenied.body);
 
+  const deleteDenied = await moderator.client.raw("DELETE", `/v1/channels/organizations/${orgId}/messages/${posted.message.id}`);
+  assert.equal(deleteDenied.statusCode,403);
+  await author.client.request("PATCH", `/v1/channels/organizations/${orgId}/channels/${general.id}/members/${moderator.userId}`,{role:"admin"});
   const deleted = await moderator.client.request("DELETE", `/v1/channels/organizations/${orgId}/messages/${posted.message.id}`);
   assert.ok(deleted.message.deleted_at);
   const restored = await moderator.client.request("POST", `/v1/channels/organizations/${orgId}/messages/${posted.message.id}/restore`);
@@ -1001,7 +1056,7 @@ test("directory exposes shared profile details without private account fields", 
 });
 
 
-test("ordinary channels require membership and members can invite teammates", async () => {
+test("ordinary channels require membership and only managers can invite teammates", async () => {
   const { client: owner, orgId, suffix } = await registerOwner();
   const invited = await createOrgUser(owner, orgId, suffix, "Invited Member");
   const outsider = await createOrgUser(owner, orgId, suffix, "Outside Channel");
@@ -1019,8 +1074,9 @@ test("ordinary channels require membership and members can invite teammates", as
   await owner.request("POST", `${base}/channels/${channel.id}/members`, {user_ids:[invited.userId]});
   assert.ok((await invited.client.request("GET", `${base}/channels`)).channels.some((item:Json)=>item.id===channel.id));
   const view = await invited.client.request("GET", `${base}/channels/${channel.id}`);
-  assert.equal(view.channel.can_invite,true);
-  await invited.client.request("POST", `${base}/channels/${channel.id}/members`, {user_ids:[outsider.userId]});
+  assert.equal(view.channel.can_invite,false);
+  assert.equal((await invited.client.raw("POST", `${base}/channels/${channel.id}/members`, {user_ids:[outsider.userId]})).statusCode,403);
+  await owner.request("POST", `${base}/channels/${channel.id}/members`, {user_ids:[outsider.userId]});
   assert.equal((await outsider.client.request("GET", `${base}/channels/${channel.id}`)).channel.id,channel.id);
   await owner.request("DELETE", `${base}/channels/${channel.id}/members/${outsider.userId}`);
   assert.equal((await outsider.client.raw("GET", `${base}/channels/${channel.id}/messages`)).statusCode,403);
