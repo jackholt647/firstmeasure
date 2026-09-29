@@ -4306,12 +4306,11 @@
         const body = el('div', 'fm-ch-panel-body');
         if (!state.pinned?.length) body.append(pinsEmptyState());
         for (const message of state.pinned || []) {
-          const result = el('div', 'fm-ch-result fm-ch-pinned-result');
-          result.innerHTML = `<div class="fm-ch-result-meta">${esc(message.author?.name || '')} · ${esc(fmtDateTime(message.created_at))}</div><div>${renderBody(message)}</div>`;
-          result.prepend(el('div','fm-ch-pin-label','<i class="fas fa-thumbtack" aria-hidden="true"></i><span>Pinned to this conversation</span>'));
-          result.tabIndex=0;result.setAttribute('role','link');result.setAttribute('aria-label',`Open pinned message from ${message.author?.name || 'teammate'}`);
-          result.addEventListener('keydown',event=>{if(event.key==='Enter')result.click();});
-          result.addEventListener('click', () => { closePanel(); revealMessage(message.id); });
+          const result = messageRow(message);
+          const open = el('button', 'fm-ch-thread-link', 'View in conversation');
+          open.type = 'button';
+          open.addEventListener('click', () => { closePanel(); revealMessage(message.id); });
+          result.querySelector('.fm-ch-msg-content').append(open);
           body.appendChild(result);
         }
         panel.append(head, body);
