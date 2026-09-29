@@ -1606,6 +1606,7 @@
               root.dispatchEvent(new CustomEvent('fm:channels-sidebar:changed', {detail:{orgId}})); renderSidebar();
             }]
           ];
+          if (channel.type === 'project' && cleanText(channel.project_id)) commands.unshift(['Open project', () => openChannelProject(channel)]);
           for (const [title, run] of commands) {
             const action = el('button', '', esc(title)); action.type = 'button'; action.setAttribute('role', 'menuitem');
             action.disabled = title === 'Open in split view' && !options.onOpenChannel && !root.FirstMateChannelsOverlay?.open;
@@ -1789,7 +1790,9 @@
       if (!channel) return;
       const icon = channelIcon(channel);
       if (!options.compactHeader) {
-        header.appendChild(el('div', 'fm-ch-header-title', `${icon ? `${icon} ` : ''}${esc(channel.display_name || channel.name)}`));
+        const title = el('div', 'fm-ch-header-title', icon ? `${icon} ` : '');
+        title.append(createChannelTitle(channel));
+        header.appendChild(title);
         if (channel.topic) header.appendChild(el('div', 'fm-ch-header-topic', esc(channel.topic)));
         else header.appendChild(el('div', 'fm-ch-header-topic', ''));
       }
@@ -1803,6 +1806,21 @@
         actions.appendChild(button);
         return button;
       };
+      if (channel.type === 'project' && cleanText(channel.project_id)) {
+        if (isMobileFull()) addAction('Open project', '<i class="fas fa-diagram-project"></i>', () => openChannelProject(channel));
+        else {
+          const more = addAction('More channel options', '<i class="fas fa-ellipsis"></i>', () => {
+            showPopover(more, pop => {
+              pop.classList.add('fm-ch-message-menu'); pop.setAttribute('role', 'menu');
+              const open = el('button', '', '<i class="fas fa-diagram-project" aria-hidden="true"></i><span>Open project</span>');
+              open.type = 'button'; open.setAttribute('role', 'menuitem');
+              open.onclick = () => { closePopover(); more.focus(); openChannelProject(channel); };
+              pop.append(open);
+            });
+          });
+          more.setAttribute('aria-haspopup', 'menu');
+        }
+      }
       if (api.messages?.translate) {
         const enabled = translatedChannels.get(channel.id) === true;
         const translateAll = el('button',`fm-ch-icon-btn${enabled ? ' on' : ''}`,'<i class="fas fa-language" aria-hidden="true"></i>');
@@ -5692,5 +5710,26 @@
     return instance;
   }
 
-  root.FirstMateChannels = { create, EMOJI_SET, DEFAULT_FEATURES };
+  function openChannelProject(channel){
+    if (channel?.type !== 'project' || !cleanText(channel.project_id)) return;
+    return root.Portal?.navigation?.navigate?.({
+      project:channel.project_id, projectTab:null, projectNote:null, photo:null, photoScope:null,
+      channelsOverlay:null, channelWindow:null, channelPinned:null
+    }, {source:'channel-project'});
+  }
+
+  function createChannelTitle(channel){
+    const isProject = channel?.type === 'project' && Boolean(cleanText(channel.project_id));
+    const title = el(isProject ? 'button' : 'span', 'fm-ch-channel-title');
+    title.textContent = channel?.display_name || channel?.name || 'Conversation';
+    if (isProject) {
+      title.type = 'button'; title.title = 'Open project';
+      title.setAttribute('aria-label', `Open project: ${title.textContent}`);
+      title.style.cssText = 'appearance:none;border:0;background:transparent;padding:0;color:inherit;font:inherit;text-align:left;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      title.addEventListener('click', () => openChannelProject(channel));
+    }
+    return title;
+  }
+
+  root.FirstMateChannels = { create, createChannelTitle, openChannelProject, EMOJI_SET, DEFAULT_FEATURES };
 })();

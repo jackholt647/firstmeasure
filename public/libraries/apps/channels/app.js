@@ -325,9 +325,8 @@
       const data = await window.ChannelsAPI.channels.get(orgId(), channelId);
       if (overlay.channelId !== channelId) return;
       const channel = data.channel || {};
-      const name = channel.display_name || channel.name || 'Conversation';
-      overlay.titleEl.innerHTML = `<i class="fas ${overlayTypeIcon(channel.type)}"></i><span></span>`;
-      overlay.titleEl.lastChild.textContent = name;
+      overlay.titleEl.innerHTML = `<i class="fas ${overlayTypeIcon(channel.type)}"></i>`;
+      overlay.titleEl.append(window.FirstMateChannels.createChannelTitle(channel));
       overlay.topicEl.textContent = channel.topic || '';
     } catch (error) {
       overlay.titleEl.textContent = (globalThis.PlatformLanguage?.text("channels","m_4cd5e2d9c65130","Conversation") ?? "Conversation");
