@@ -23,6 +23,7 @@
     settingsHandle: null,
     projects: [],
     contacts: [],
+    query: '',
     view: localStorage.getItem(LS_VIEW_KEY) === 'tiles' ? 'tiles' : 'list',
     sort: localStorage.getItem(LS_SORT_KEY) || 'name',
     loading: false,
@@ -289,12 +290,21 @@
       contact.projects.sort((a, b) => (b.dateMs || 0) - (a.dateMs || 0) || a.title.localeCompare(b.title));
       contact.projectCount = contact.projects.length;
       contact.latestDateLabel = dateLabel(new Date(contact.latestDateMs || 0));
+      contact.searchText = [
+        contact.name,
+        contact.email,
+        contact.phone,
+        contact.address,
+        ...contact.tags.map(tagLabel),
+        ...contact.projects.flatMap((project) => [project.title, project.address, project.stage])
+      ].join(' ').toLowerCase();
       return contact;
     });
   }
 
-  function sortedContacts(){
-    const filtered = [...state.contacts];
+  function sortedFilteredContacts(){
+    const query = normalizeKey(state.query);
+    const filtered = state.contacts.filter((contact) => !query || contact.searchText.includes(query));
     if (state.sort === 'recent') {
       filtered.sort((a, b) => (b.latestDateMs || 0) - (a.latestDateMs || 0) || a.name.localeCompare(b.name));
     } else if (state.sort === 'projects') {
@@ -432,9 +442,9 @@
       root.innerHTML = `<div class="ct-state error"><i class="fas fa-triangle-exclamation"></i><span>${escapeHtml(state.error)}</span></div>`;
       return;
     }
-    const contacts = sortedContacts();
+    const contacts = sortedFilteredContacts();
     if (!contacts.length) {
-      root.innerHTML = `<div class="ct-state"><i class="fas fa-address-book"></i><span>No contacts found yet.</span></div>`;
+      root.innerHTML = `<div class="ct-state"><i class="fas fa-address-book"></i><span>${state.query ? 'No contacts match this search.' : 'No contacts found yet.'}</span></div>`;
       return;
     }
     root.innerHTML = state.view === 'list'
@@ -480,7 +490,7 @@
       }) || null;
       return;
     }
-    const visibleCount = sortedContacts().length;
+    const visibleCount = sortedFilteredContacts().length;
     state.root.innerHTML = `
       <div class="ct-shell">
         <header class="ct-top">
@@ -491,6 +501,11 @@
             </div>
           </div>
           <div class="ct-tools">
+            <label class="ct-search">
+              <i class="fas fa-search"></i>
+              <input id="ctSearch" type="search" value="${String(escapeHtml(state.query))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("contacts","m_978eee3aa943f8","Search contacts or projects") ?? "Search contacts or projects")}">
+              ${String(state.query ? `<button id="ctClearSearch" type="button" class="ct-clear" data-fm-tooltip="Clear search"><i class="fas fa-xmark"></i></button>` : '')}
+            </label>
             <select id="ctSort" class="ct-select" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_05b258030f62ea","Sort contacts") ?? "Sort contacts")}">
               <option value="name" ${String(state.sort === 'name' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8cf345002184e5","Name") ?? "Name")}</option>
               <option value="recent" ${String(state.sort === 'recent' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_fec172c2f71d24","Recent") ?? "Recent")}</option>
@@ -511,10 +526,25 @@
   }
 
   function bindChrome(){
+    const search = state.root?.querySelector('#ctSearch');
+    search?.addEventListener('input', (event) => {
+      state.query = event.target.value || '';
+      render();
+      const next = state.root?.querySelector('#ctSearch');
+      next?.focus();
+      try { next?.setSelectionRange(state.query.length, state.query.length); } catch (error) {}
+    });
     state.root?.querySelector('#ctSort')?.addEventListener('change', (event) => {
       state.sort = event.target.value || 'name';
       localStorage.setItem(LS_SORT_KEY, state.sort);
       render();
+    });
+    state.root?.querySelector('#ctClearSearch')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      state.query = '';
+      render();
+      state.root?.querySelector('#ctSearch')?.focus();
     });
     state.root?.querySelector('#ctViewTiles')?.addEventListener('click', () => setView('tiles'));
     state.root?.querySelector('#ctViewList')?.addEventListener('click', () => setView('list'));
@@ -684,6 +714,11 @@
       .ct-title h2{margin:0;color:#101828;font-size:18px;font-weight:1000;letter-spacing:0;line-height:1.2}
       .ct-title span{font-size:12px;font-weight:400;color:#667085;white-space:nowrap}
       .ct-tools{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:10px;min-width:0}
+      .ct-search{box-sizing:border-box;height:38px;width:min(360px,34vw);min-width:170px;display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#98a2b3}
+      .ct-search:focus-within{border-color:var(--primary-readable,var(--primary,#d93025));box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.10)}
+      .ct-search input{border:0;outline:0;background:transparent;color:#101828;font:inherit;font-size:13px;font-weight:850;width:100%;min-width:0}
+      .ct-clear{appearance:none;border:0;background:transparent;color:#98a2b3;width:24px;height:24px;border-radius:7px;display:grid;place-items:center;cursor:pointer;flex:0 0 auto}
+      .ct-clear:hover{background:#f2f4f7;color:#344054}
       .ct-select{height:38px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font:inherit;font-size:12px;font-weight:900;padding:0 10px}
       .ct-segment{height:38px;display:flex;border:1px solid #d0d5dd;border-radius:10px;background:#fff;overflow:hidden;flex:0 0 auto}
       .ct-segment button,.ct-icon,.ct-open-contact{appearance:none;border:0;background:#fff;color:#475467;display:grid;place-items:center;cursor:pointer}
@@ -743,10 +778,11 @@
       .ct-state.error{color:#b42318}
       .ct-workspace-head{flex:0 0 auto;display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid #e5e7eb;background:#fbfcfd}.ct-workspace-head h2{margin:0;font-size:18px;font-weight:1000}.ct-workspace-head p{margin:3px 0 0;color:#667085;font-size:11px;font-weight:800}.ct-back{height:36px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;padding:0 11px;display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:11px;font-weight:950;cursor:pointer}.ct-back:hover{color:var(--primary-readable,var(--primary,#d93025));border-color:rgba(var(--primary-rgb,217,48,37),.3)}.ct-workspace-body{background:#f6f7f9}.ct-workspace-body>[data-ct-settings-host]{width:min(1120px,100%);margin:0 auto}
       @media(max-width:360px){.ct-tools.ct-tools{grid-template-columns:minmax(0,1fr) auto}.ct-select{grid-column:1/-1}}
-      @media(max-width:760px){.ct-tools{display:grid;grid-template-columns:minmax(0,1fr) auto auto}.ct-select{width:100%;min-width:0}}
+      @media(max-width:760px){.ct-tools{display:grid;grid-template-columns:minmax(0,1fr) auto auto}.ct-search{grid-column:1/-1}.ct-select{width:100%;min-width:0}}
       @media(max-width:960px){
         .ct-top{align-items:stretch;flex-direction:column;padding:0 0 14px}
         .ct-tools{flex-wrap:wrap;justify-content:flex-start}
+        .ct-search{min-width:0;flex:1 1 240px}
         .ct-body{padding:0 2px 16px}
         .ct-grid{grid-template-columns:1fr}
         .ct-table{min-width:0}
@@ -754,6 +790,7 @@
         .ct-table-row{grid-template-columns:1fr auto;gap:12px}
         .ct-list-contact,.ct-list-projects{grid-column:1/-1}
         .ct-list-projects{flex-wrap:wrap}
+        .ct-search{width:100%}
       }
     `;
     if (util.injectCSS) util.injectCSS('contacts_tab', css);

@@ -55,10 +55,10 @@ try {
  await page.locator('#ctViewTiles').click();await page.waitForSelector('.ct-card');
  assert.equal(await page.locator('.ct-profile-photo').count(),1);assert.ok(await page.locator('.ct-profile-photo').evaluate(el=>el.getBoundingClientRect().width>200));
  if(screenshotDir) await page.screenshot({path:screenshotDir+'/contacts-tiles.png'});
- assert.equal(await page.locator('#ctSearch, .ct-search').count(),0);assert.equal(await page.locator('.ct-card').count(),2);
+ await page.locator('#ctSearch').fill('Ada');assert.equal(await page.locator('.ct-card').count(),1);
  await page.locator('[data-ct-open-contact]').first().click();assert.equal(await page.evaluate(()=>window.openedContact.name),'Ada Smith');
  await page.locator('[data-ct-project]').first().click();assert.equal(await page.evaluate(()=>window.openedProject.id),'p1');
- await page.locator('#ctSort').selectOption('recent');
+ await page.locator('#ctClearSearch').click();await page.locator('#ctSort').selectOption('recent');
  await page.setViewportSize({width:390,height:780});
  if(screenshotDir) await page.screenshot({path:screenshotDir+'/contacts-mobile.png'});
  assert.ok(await page.locator('.ct-top').evaluate(el=>el.getBoundingClientRect().right<=window.innerWidth));
@@ -68,5 +68,5 @@ try {
  if(screenshotDir) await page.screenshot({path:screenshotDir+'/contacts-list-mobile.png'});
  await page.setViewportSize({width:320,height:780});
  assert.ok(await page.locator('.ct-top').evaluate(el=>el.getBoundingClientRect().right<=window.innerWidth-12));
- assert.deepEqual(errors,[]);console.log('PASS: Contacts views, sort, contact/project links and mobile toolbar');
+ assert.deepEqual(errors,[]);console.log('PASS: Contacts views, search, sort, contact/project links and mobile toolbar');
 } finally {await browser.close()}

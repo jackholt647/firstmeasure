@@ -39,3 +39,26 @@ Rollback: inspect for intervening releases, restore each role's prior `/opt/firs
 symlink, restart its `firstmeasure-development-web.service` or
 `firstmeasure-development-legacy.service` and PHP-FPM, then verify readiness, development
 isolation, outbound safety and web load-balancer return. No migrations require reversal.
+
+## Palette labels and three shape choices
+
+Follow-up source: `e1ca0429f616c1a0017fedb7a80c41834627de88`.
+Palette labels are Primary and Secondary. Both shared Brand Kit instances offer
+Square, Rounded square and Circle; the three choices map to the existing `shape`
+and `rounded_corners` fields. No data or schema migration is needed. The obsolete
+independent corner toggle is removed. Browser checks cover all choices, persistence
+and autosave; Company Settings uses the same shape mapping function.
+
+The three-file frontend release preserves each role's verified
+`42aeee2ac3080232affcfc33bad94ff9746b771e` Contacts baseline. The initial
+activation was blocked by an intervening rollout; unactivated trees were retained
+and staging refreshed after confirming unchanged owned assets. Manifest edits change only
+Brand Kit, Company Settings and Doc Studio bundle tokens, preserving unrelated
+contact-module version differences. Evidence: `output/brand-shapes-deploy/`.
+Activated and verified on both development web nodes and compatibility. All three
+per-role file hashes and readiness/isolation checks passed, as did three public asset
+hashes and six readiness responses. The hosted browser test passed all shape choices,
+exact palette labels, persistence, autosave and desktop/mobile layouts.
+For this follow-up, the per-role rollback predecessor is
+`42aeee2ac3080232affcfc33bad94ff9746b771e`; preserve any newer release before rollback.
+Production and worker are unchanged.
