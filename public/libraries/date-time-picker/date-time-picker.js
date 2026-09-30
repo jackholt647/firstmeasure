@@ -22,6 +22,7 @@
     .time{height:34px;margin:6px 5px 0 3px;padding:2px 4px;gap:3px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-radius:9px;justify-content:center;color:var(--ink)}.time label{flex:1;min-width:0;max-width:52px}.time input{display:block;width:100%;min-width:0;padding:2px 0;text-align:center;border:0;border-radius:4px;font:inherit;font-weight:600;font-variant-numeric:tabular-nums;color:inherit;background:transparent;appearance:textfield}.time input::-webkit-inner-spin-button,.time input::-webkit-outer-spin-button{appearance:none;margin:0}.period{flex:none;padding:2px;width:32px;height:26px;font-size:12px;font-weight:600}.heading [data-close]{display:grid;place-items:center;width:32px;height:32px;padding:0;font-size:26px;line-height:1}.time-date:empty{display:none}
     .footer{border-top:1px solid var(--line);padding-top:8px;margin-top:10px}.footer .spacer{flex:1}.primary{background:var(--accent);color:var(--on-accent);font-weight:600}.primary:hover{background:var(--accent);filter:brightness(.93)}.error{font-size:12px;color:#b42318;margin-top:10px}.error:empty{display:none}
     .time input{padding-inline:0;text-align:center;appearance:textfield;-moz-appearance:textfield}.time input::-webkit-inner-spin-button,.time input::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;display:none;margin:0}
+    .custom-time{margin:8px 5px 0 3px}.custom-time summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;border:1px solid var(--line);border-radius:9px;background:#f3f5fa;color:#202638;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;list-style:none}.custom-time summary::-webkit-details-marker{display:none}.custom-time summary::after{content:'';width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);margin:0 2px 3px 0}.custom-time[open] summary::after{transform:rotate(225deg);margin-bottom:0}.custom-time .time{margin:6px 0 0}.custom-time small{display:block;color:#788196;font-size:11px;line-height:1.4;margin:5px 2px 0}
     @media(max-width:520px){.picker{padding:12px}.combined .layout{grid-template-columns:minmax(0,1fr) 128px;gap:10px}.combined .time-section{padding-left:9px}.quick{flex-wrap:wrap;gap:3px}.quick button{font-size:10px;padding:6px}.navigation{gap:2px}.navigation button{padding:6px}.month{font-size:12px}.year{width:53px;font-size:12px;padding:4px}.days{gap:1px}.days button{font-size:11px;height:32px}.slots{height:194px;padding-right:5px}.slots button{font-size:12px;padding:8px 2px}.time-date{font-size:10px}}
   `;
   function valid(input, value) {
@@ -69,6 +70,7 @@
     const parts = input.value.split('T');
     let chosenDate = hasDate && parts[0] ? parts[0] : dateKey(now);
     let chosenTime = (kind === 'time' ? parts[0] : parts[1]) || `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    let customExpanded = false;
     let month = localDate(chosenDate); month.setDate(1);
     const seconds = hasTime && (Number(input.step) > 0 && Number(input.step) % 60 !== 0 || chosenTime.split(':').length > 2 || input.step === 'any');
     const fractional = seconds && (input.step === 'any' || (Number(input.step) > 0 && Number(input.step) < 1) || chosenTime.includes('.'));
@@ -154,7 +156,8 @@
         }).join('');
       }
       const custom = hasTime ? `<div class="time" role="group" aria-label="${text('Custom time')}"><label><input aria-label="${text('Hour')}" data-time="hour" type="number" inputmode="numeric" min="${hour12?1:0}" max="${hour12?12:23}" value="${pad(hour12?Number(h)%12||12:Number(h))}"></label><span>:</span><label><input aria-label="${text('Minute')}" data-time="minute" type="number" inputmode="numeric" min="0" max="59" value="${m}"></label>${seconds?`<span>:</span><label><input aria-label="${text('Second')}" data-time="second" type="number" inputmode="decimal" min="0" max="59.999" step="${fractional?'0.001':'1'}" value="${s}"></label>`:''}${hour12?`<button type="button" class="period" data-period aria-label="${text('Toggle AM/PM')}">${Number(h)>=12?'PM':'AM'}</button>`:''}</div>` : '';
-      const times = hasTime ? `<section class="time-section"><span class="time-title">${text('Select a time')}</span>${hasDate?`<span class="time-date">${esc(new Intl.DateTimeFormat(locale(),{month:'short',day:'numeric'}).format(localDate(chosenDate)))}</span>`:''}<div class="slots" role="group" aria-label="${text('Available times')}">${slotMarkup}</div>${custom}</section>` : '';
+      const customControl = options.customTimeDropdown && hasTime ? `<details class="custom-time" ${customExpanded?'open':''}><summary>${text('Custom time')}</summary>${custom}<small>${text('Enter an exact hour and minute.')}</small></details>` : custom;
+      const times = hasTime ? `<section class="time-section"><span class="time-title">${text('Select a time')}</span>${hasDate?`<span class="time-date">${esc(new Intl.DateTimeFormat(locale(),{month:'short',day:'numeric'}).format(localDate(chosenDate)))}</span>`:''}<div class="slots" role="group" aria-label="${text('Available times')}">${slotMarkup}</div>${customControl}</section>` : '';
       shadow.innerHTML = `<style>${css}</style><div class="picker ${hasDate&&hasTime?'combined':hasTime?'time-only':''}" role="dialog" aria-label="${esc(name)}"><div class="heading"><strong>${text(hasDate?hasTime?'Select date & time':'Choose date':'Choose time')}</strong><button type="button" data-close aria-label="${text('Close picker')}">×</button></div><div class="layout">${hasDate?`<section class="calendar">${calendar}</section>`:''}${times}</div><div class="error" role="alert"></div><div class="footer"><button type="button" data-clear ${input.required?'disabled':''}>${text('Clear')}</button><span class="spacer"></span><button type="button" data-close>${text('Cancel')}</button><button type="button" class="primary" data-apply>${text('Apply')}</button></div></div>`;
       if (options.mount) {
         shadow.querySelector('style').textContent += ':host{position:static!important;display:block;z-index:auto!important}.picker{width:100%!important;max-width:none;max-height:none;box-shadow:none;border:0;padding:0}.heading,.footer{display:none}';
@@ -182,6 +185,11 @@
       chosenTime = `${pad(h)}:${pad(Number(fields[1].value))}${seconds?`:${Number(fields[2].value).toFixed(fractional ? 3 : 0).padStart(fractional ? 6 : 2, '0')}`:''}`;
       return true;
     }
+    shadow.addEventListener('toggle', event => {
+      if (!event.target.matches?.('.custom-time') || !event.target.isConnected || customExpanded === event.target.open) return;
+      customExpanded = event.target.open;
+      if (customExpanded) shadow.querySelector('[data-time="hour"]')?.focus();
+    }, true);
     shadow.addEventListener('click', event => {
       const b = event.target.closest('button'); if (!b || b.disabled) return;
       if (b.hasAttribute('data-close')) { close(); return; }
@@ -294,5 +302,5 @@
   window.addEventListener('resize', position);
   window.addEventListener('scroll', position, true);
   window.visualViewport?.addEventListener('resize', position);
-  window.FirstMateDateTimePicker = Object.freeze({open,close,mount:(container,input)=>open(input,{mount:container}),version:2});
+  window.FirstMateDateTimePicker = Object.freeze({open,close,mount:(container,input,options={})=>open(input,{...options,mount:container}),version:2});
 })();
