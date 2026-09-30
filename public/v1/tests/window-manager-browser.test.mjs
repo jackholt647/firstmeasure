@@ -39,3 +39,27 @@ test('window docking, swaps, edge previews and project fullscreen restriction',a
  await page.evaluate(()=>a.destroy());assert.equal(await page.locator('#panels').evaluate(e=>e.style.marginLeft),'');assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
+
+
+test('docked header detaches under the pointer and expanded windows return to a usable float',async()=>{
+ const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:1100,height:800}});
+  await page.setContent('<style>body{margin:0}main{position:absolute;left:100px;width:1000px;height:800px}header{height:48px}</style><main><div id="panels"></div><section id="project"><header>Project</header></section></main>');
+  await page.addScriptTag({content:await readFile(new URL('../../libraries/window-manager/window-manager.js',import.meta.url),'utf8')});
+  await page.evaluate(()=>window.project=FirstMateWindows.attach({element:document.querySelector('#project'),header:document.querySelector('header'),host:document.querySelector('main'),contentTarget:document.querySelector('#panels'),mode:'full',presentationModes:true,width:1200,height:800,topInset:()=>40}));
+  const settled=()=>page.waitForTimeout(500),rect=()=>page.locator('#project').boundingBox();
+  await page.click('[data-window-action=floating]');await settled();let r=await rect();assert.equal(r.width,720);assert.equal(r.height,456);assert.ok(r.x>100 && r.y>40);
+  await page.evaluate(()=>project.setMode('fullscreen'));await settled();await page.click('[data-window-action=floating]');await settled();assert.equal((await rect()).height,456);
+  for(const side of ['right','left','top-right','bottom-left','top','bottom']){
+   await page.evaluate(side=>project.dock(side),side);await settled();r=await rect();const x=r.x+Math.min(r.width*.3,120),y=r.y+20;
+   await page.mouse.move(x,y);await page.mouse.down();assert.equal(await page.evaluate(()=>project.state.mode),'docked');
+   await page.mouse.move(x,y);assert.equal(await page.evaluate(()=>project.state.mode),'docked');
+   await page.mouse.move(620,220,{steps:4});assert.equal(await page.evaluate(()=>project.state.mode),'floating');
+   const moved=await rect();assert.ok(620>=moved.x && 620<=moved.x+moved.width && Math.abs(moved.y+20-220)<1,'Detached header stays beneath pointer');
+   await page.mouse.move(650,250,{steps:3});const follow=await rect();assert.ok(Math.abs(follow.y-moved.y-30)<1,'Dragging continues after detach');await page.mouse.up();assert.equal(await page.evaluate(()=>project.state.mode),'floating');
+  }
+  await page.evaluate(()=>project.dock('right'));await settled();r=await rect();await page.mouse.move(r.x+120,r.y+20);await page.mouse.down();await page.mouse.up();assert.equal(await page.evaluate(()=>project.state.mode),'docked');
+  await page.evaluate(()=>project.destroy());
+ }finally{await browser.close();}
+});

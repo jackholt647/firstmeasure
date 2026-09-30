@@ -176,6 +176,13 @@
       topInset:() => Math.max(0,Number(options.topInset?.(win.host) || 0)),
       rect:{left:Math.max(0,host.clientWidth-(options.width || 640)-24),top:72,width:options.width || 640,height:options.height || 520}
     };
+    function fitFloatingSize(){
+      const width=win.host.clientWidth,height=Math.max(0,win.host.clientHeight-win.topInset());
+      win.rect.width=Math.min(width,Math.max(Math.min(win.minWidth,width),Math.min(win.rect.width,width*.72)));
+      win.rect.height=Math.min(height,Math.max(Math.min(win.minHeight,height),Math.min(win.rect.height,height*.60)));
+    }
+    fitFloatingSize();
+    win.rect.left=Math.max(0,host.clientWidth-win.rect.width-24);
     windows.add(win); element.classList.add('fm-window'); if (!options.customChrome) header.classList.add('fm-window-header'); title?.classList.add('fm-window-title'); if (options.titleMenu === false) title?.classList.add('fm-window-title-plain'); options.body?.classList.add('fm-window-content');
     element.setAttribute('role','region'); element.setAttribute('aria-label',options.label || 'Window');
     const controls = document.createElement('div'); controls.className = 'fm-window-controls'; (options.controlsHost || header).append(controls);
@@ -215,6 +222,7 @@
       if (mode !== win.mode) {
         options.onBeforeModeChange?.({mode,previous:win.mode});
         if (mode === 'minimized') win.previous = win.mode;
+        if(mode==='floating' && (win.rect.width>=win.host.clientWidth*.9 || win.rect.height>=Math.max(0,win.host.clientHeight-win.topInset())*.9))fitFloatingSize();
         win.mode=mode;
       }
       chrome(); layout(win.host); restack(); if (!silent) notify('mode');
@@ -252,7 +260,7 @@
     let endGesture=null;
     function gesture(event,edge){
       dragged=false;
-      if(event.button!==0 || (!edge && (win.mode!=='floating' || event.target.closest('button,input,a,select'))))return;
+      if(event.button!==0 || (!edge && (!['floating','docked'].includes(win.mode) || event.target.closest('button,input,a,select'))))return;
       endGesture?.();event.preventDefault(); dragged=false; focus();element.classList.add('is-gesturing');
       let candidate=null,preview=null;
       function clearPreview(){preview?.remove();preview=null;candidate=null;}
@@ -270,9 +278,15 @@
       }
       const handle=event.currentTarget; handle.setPointerCapture(event.pointerId);
       if(edge) handle.classList.add('is-resizing');
-      const start={...win.rect}, bounds=element.getBoundingClientRect();const x=event.screenX,y=event.screenY;
+      let start={...win.rect};const bounds=element.getBoundingClientRect(),grab=outerPoint(event),grabRatio=Math.max(0,Math.min(1,(grab.x-bounds.left)/Math.max(1,bounds.width))),grabY=Math.max(0,Math.min(header.getBoundingClientRect().height,grab.y-bounds.top));const x=event.screenX,y=event.screenY;
       const move=next=>{
         const dx=next.screenX-x,dy=next.screenY-y;if(Math.abs(dx)+Math.abs(dy)>3)dragged=true;
+        if(!edge && win.mode==='docked'){
+          if(!dragged)return;
+          const point=outerPoint(next),hostBounds=win.host.getBoundingClientRect();
+          setMode('floating');
+          start={...win.rect,left:point.x-hostBounds.left-grabRatio*win.rect.width-dx,top:point.y-hostBounds.top-grabY-dy};
+        }
         if(win.mode==='docked'){if(['top','bottom'].includes(win.dockSide))win.dockHeight=Math.max(120,bounds.height+(win.dockSide==='top' ? dy : -dy));else win.dockWidth=Math.max(win.minWidth,Math.min(win.host.clientWidth,bounds.width+(win.dockSide.endsWith('left') ? dx : -dx)));layout(win.host);return;}
         if(!edge){win.rect={...start,left:start.left+dx,top:start.top+dy};layout(win.host);if(dragged)updatePreview(next);return;}
         let l=start.left,t=start.top,r=l+start.width,b=t+start.height;

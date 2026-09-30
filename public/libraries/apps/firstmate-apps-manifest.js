@@ -32,12 +32,12 @@
     versionedBundle('../channels-api/channels-api.js', '20260929-members-paste-gifs-v1'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
-    versionedBundle('../window-manager/window-manager.js', '20260929-project-windows-v3'),
+    versionedBundle('../window-manager/window-manager.js', '20260929-project-windows-v4'),
     versionedBundle('../assistant-api/assistant-api.js', '20260929-channel-assistant-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20260929-recap-refresh-v1'),
     versionedBundle('photos/feed.js', '20260930-contact-gallery-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20260929-linear-pla17'),
+    versionedBundle('../channels-ui/channels-ui.js', '20260929-linear-pla22'),
     versionedBundle('../project-notes/project-notes.js', '20260723-channels-notes')
   ];
   const fieldApprovalBundles = [
@@ -538,12 +538,12 @@
         versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
         versionedBundle('../channels-api/channels-api.js', '20260929-members-paste-gifs-v1'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
-        versionedBundle('../window-manager/window-manager.js', '20260929-project-windows-v3'),
+        versionedBundle('../window-manager/window-manager.js', '20260929-project-windows-v4'),
         versionedBundle('../assistant-api/assistant-api.js', '20260929-channel-assistant-v1'),
         versionedBundle('../platform-assistant/platform-assistant.js', '20260929-recap-refresh-v1'),
         versionedBundle('photos/feed.js', '20260930-contact-gallery-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20260929-linear-pla17'),
+    versionedBundle('../channels-ui/channels-ui.js', '20260929-linear-pla22'),
         versionedBundle('channels/app.js', '20260929-assistant-logo-settings-v1')
       ]
     },

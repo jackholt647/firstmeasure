@@ -101,3 +101,10 @@ Geometry and main content reservations transition together over 320 ms. Direct
 pointer dragging/resizing follows the pointer without interpolation. Reduced
 motion preferences disable animation. Project windows set `allowFullscreen:false`
 to remove and reject the entire-screen mode while retaining workspace maximize.
+
+Dragging a docked header detaches to its saved floating size after the pointer
+moves, preserving the grab position and continuing the same gesture. Header
+clicks and divider resizing do not detach. Initial floating sizes are bounded
+to 72% of workspace width and 60% of usable height (subject to minimum sizes).
+Near-workspace-sized saved floats are reduced on return; other user sizing is
+preserved.
