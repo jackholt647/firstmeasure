@@ -24,19 +24,19 @@ test('portal exposes a reusable compact sidebar mode', () => {
 test('compact sidebar remains a flex-layout rail and expands on hover', () => {
   assert.match(portalIndex, /--sidebar-compact:48px/);
   assert.match(portalIndex, /\.sidebar\.sidebar-compact\{width:var\(--sidebar-compact\)\}/);
-  assert.match(portalIndex, /\.sidebar\.sidebar-compact:hover,[\s\S]*?width:var\(--sidebar\)/);
+  assert.match(portalIndex, /\.sidebar\.sidebar-compact\.sidebar-hover-expanded,[\s\S]*?width:var\(--sidebar\)/);
   assert.match(portalIndex, /logo_square\.png/);
   assert.match(portalIndex, /id="sidebarCompactToggle"/);
   assert.match(portalIndex, /sidebar-new-mini-icon/);
   assert.doesNotMatch(portalIndex, /sidebar-mode-compact-arrow|sidebar-mode-icon/);
-  assert.match(portalIndex, /sidebar-compact[^}]*?\.sidebar-mode-tabs\{display:none\}/s);
+  assert.match(portalIndex, /sidebar-compact[^}]*?\.sidebar-mode-tabs\{visibility:hidden;/s);
   assert.match(portalIndex, /#sidebarMainLinks\{[\s\S]*?overflow-y:auto/);
 });
 
 test('temporary compact expansion can overlap while pinned expansion still pushes', () => {
   assert.match(portalCore, /left_column_expansion_mode/);
   assert.match(portalCore, /sidebar-compact-overlap/);
-  assert.match(portalIndex, /sidebar-compact-overlap:hover:not\(\.sidebar-compact-expanded\)/);
+  assert.match(portalIndex, /sidebar-compact-overlap\.sidebar-hover-expanded:not\(\.sidebar-compact-expanded\)/);
   assert.match(portalIndex, /margin-right:calc\(var\(--sidebar-compact\) - var\(--sidebar\)\)/);
 });
 
@@ -57,7 +57,7 @@ test('the arrow lock state persists locally per organization and user', () => {
 test('My Settings owns left-column layout controls', () => {
   assert.doesNotMatch(capabilityDefs, /key: "platform\.left_column_expansion_mode"/);
   assert.match(companySettings, /data-my-left-column-expansion-mode/);
-  assert.match(companySettings, /data-my-always-collapsible-left-column/);
+  assert.match(companySettings, /data-my-left-column-behavior/);
 });
 
 test('compact sidebar ignores a pointer exit through the browser left edge', () => {

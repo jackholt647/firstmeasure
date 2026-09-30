@@ -298,6 +298,18 @@ test("left-column choices are saved as personal preferences without operator acc
   const reloaded = await client.request("GET", "/v1/platform/me/preferences");
   assert.equal(reloaded.preferences.left_column_agents, true);
   assert.equal(reloaded.preferences.left_column_channels, true);
+  assert.equal(initial.preferences.left_column_behavior, "adaptive");
+  for (const behavior of ["adaptive", "locked", "forced_collapsed", "forced_expanded"]) {
+    await client.request("PATCH", "/v1/platform/me/preferences", { left_column_behavior: behavior, left_column_locked_expanded: true });
+    const settings = await client.request("GET", "/v1/platform/me/preferences");
+    assert.equal(settings.preferences.left_column_behavior, behavior);
+    assert.equal(settings.preferences.left_column_locked_expanded, true);
+  }
+  const other = createSessionClient();
+  await register(other);
+  assert.equal((await other.request("GET", "/v1/platform/me/preferences")).preferences.left_column_behavior, "adaptive");
+  assert.equal((await client.raw("PATCH", "/v1/platform/me/preferences", { left_column_behavior: "invalid" })).statusCode, 400);
+
 });
 
 test("built-in presets exist and applying proposals_only reshapes the org", async () => {

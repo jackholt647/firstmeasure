@@ -101,6 +101,11 @@
     return window.Portal?.currentUser?.identity?.preferences?.[key] ?? fallback;
   }
 
+  function sidebarBehavior(){
+    const value = sidebarPreference('left_column_behavior', 'adaptive');
+    return ['adaptive', 'locked', 'forced_collapsed', 'forced_expanded'].includes(value) ? value : 'adaptive';
+  }
+
   function sidebarTemporaryExpansionMode(){
     return String(sidebarPreference('left_column_expansion_mode', 'resize')).trim().toLowerCase() === 'overlap'
       ? 'overlap'
@@ -150,14 +155,20 @@
     const toggle = document.getElementById('sidebarCompactToggle');
     const mode = sidebar?.dataset.activeMode || 'apps';
     const perMode = sidebarPreference('left_column_auto_collapse', {});
-    const compact = typeof perMode[mode] === 'boolean' ? perMode[mode] : sidebarCompactOwners.size > 0;
+    const behavior = sidebarBehavior();
+    const compact = behavior === 'forced_expanded' ? false : behavior !== 'adaptive' ? true
+      : typeof perMode[mode] === 'boolean' ? perMode[mode] : sidebarCompactOwners.size > 0;
+    const expanded = behavior === 'forced_collapsed' ? false : behavior === 'locked'
+      ? sidebarPreference('left_column_locked_expanded', sidebarCompactExpanded) === true : sidebarCompactExpanded;
     if (!sidebar) return compact;
-    if (!compact || sidebarCompactExpanded) sidebar.classList.remove('sidebar-compact-edge-held');
+    if (!compact || expanded || behavior !== 'adaptive') sidebar.classList.remove('sidebar-compact-edge-held');
+    if (behavior !== 'adaptive') sidebar.classList.remove('sidebar-hover-expanded', 'sidebar-advanced-apps-open');
+    sidebar.classList.toggle('sidebar-forced', behavior.startsWith('forced_'));
+    sidebar.classList.toggle('sidebar-manual', behavior !== 'adaptive');
     sidebar.classList.toggle('sidebar-compact', compact);
-    sidebar.classList.toggle('sidebar-compact-expanded', compact && sidebarCompactExpanded);
+    sidebar.classList.toggle('sidebar-compact-expanded', compact && expanded);
     sidebar.classList.toggle('sidebar-compact-overlap', compact && sidebarTemporaryExpansionMode() === 'overlap');
     if (toggle) {
-      const expanded = compact && sidebarCompactExpanded;
       toggle.setAttribute('aria-pressed', expanded ? 'true' : 'false');
       toggle.setAttribute('aria-label', expanded ? 'Collapse sidebar' : 'Keep sidebar expanded');
       toggle.title = expanded ? 'Collapse sidebar' : 'Keep sidebar expanded';
@@ -191,7 +202,19 @@
     syncSidebarMode();
   }
 
+  let sidebarPositionSave = Promise.resolve();
   function setSidebarCompactExpanded(expanded){
+    if (sidebarBehavior().startsWith('forced_')) return sidebarBehavior() === 'forced_expanded';
+    if (!expanded) {
+      const sidebar = document.getElementById('mainSidebar');
+      sidebar?.classList.remove('sidebar-hover-expanded', 'sidebar-compact-edge-held', 'sidebar-advanced-apps-open');
+    }
+    if (sidebarBehavior() === 'locked') {
+      const preferences = window.Portal.currentUser.identity.preferences;
+      preferences.left_column_locked_expanded = expanded === true;
+      sidebarPositionSave = sidebarPositionSave.catch(() => {}).then(() => window.PlatformAPI.preferences.patch({ left_column_locked_expanded: expanded === true }));
+      sidebarPositionSave.catch(error => window.Portal?.ui?.showToast?.('Could not save sidebar position', error?.message || 'Please try again.', false));
+    }
     sidebarCompactExpanded = expanded === true;
     saveSidebarCompactExpandedPreference(sidebarCompactExpanded);
     syncSidebarMode();
@@ -218,15 +241,22 @@
     requestCompact: requestCompactSidebar,
     releaseCompact: releaseCompactSidebar,
     setExpanded: setSidebarCompactExpanded,
-    toggleExpanded(){ return setSidebarCompactExpanded(!sidebarCompactExpanded); },
+    toggleExpanded(){
+      const expanded = sidebarBehavior() === 'locked' ? sidebarPreference('left_column_locked_expanded', sidebarCompactExpanded) : sidebarCompactExpanded;
+      return setSidebarCompactExpanded(!expanded);
+    },
     current(){ return document.getElementById('mainSidebar')?.classList.contains('sidebar-compact') ? 'compact' : 'expanded'; },
+    expanded(){
+      const sidebar = document.getElementById('mainSidebar');
+      return !!sidebar && (!sidebar.classList.contains('sidebar-compact') ||
+        ['sidebar-compact-expanded', 'sidebar-hover-expanded', 'sidebar-compact-edge-held'].some(name => sidebar.classList.contains(name)));
+    },
     expansionMode: sidebarTemporaryExpansionMode
   };
   const sidebarCompactToggle = document.getElementById('sidebarCompactToggle');
   const sidebarResizeEdge = document.getElementById('sidebarResizeEdge');
   let sidebarResizeGesture = null;
   let sidebarResizeRevision = 0;
-  let sidebarResizeSave = Promise.resolve();
   let suppressSidebarToggleClick = false;
   sidebarCompactToggle?.addEventListener('click', (event) => {
     if (suppressSidebarToggleClick) {
@@ -238,14 +268,14 @@
     window.Portal.sidebarMode.toggleExpanded();
   });
   function beginSidebarResize(event){
-    if (sidebarPreference('resizable_left_column', true) !== true ||
+    if (sidebarBehavior().startsWith('forced_') || sidebarPreference('resizable_left_column', true) !== true ||
         (event.pointerType === 'mouse' && event.button !== 0) ||
         window.matchMedia('(max-width:820px)').matches) return;
     sidebarResizeGesture = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startWidth: normalizeSidebarWidth(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sidebar'))),
-      wasExpanded: sidebarCompactExpanded,
+      wasExpanded: sidebarBehavior() === 'locked' ? sidebarPreference('left_column_locked_expanded', sidebarCompactExpanded) : sidebarCompactExpanded,
       revision: ++sidebarResizeRevision,
       fromToggle: event.currentTarget === sidebarCompactToggle,
       dragging: false
@@ -281,8 +311,8 @@
     }
     const width = applySidebarWidth(gesture.startWidth + event.clientX - gesture.startX);
     try {
-      sidebarResizeSave = sidebarResizeSave.catch(() => {}).then(() => window.PlatformAPI.preferences.patch({ sidebar_width: width }));
-      const saved = await sidebarResizeSave;
+      sidebarPositionSave = sidebarPositionSave.catch(() => {}).then(() => window.PlatformAPI.preferences.patch({ sidebar_width: width }));
+      const saved = await sidebarPositionSave;
       if (gesture.revision !== sidebarResizeRevision) return;
       if (window.Portal?.currentUser?.identity) window.Portal.currentUser.identity.preferences = saved.preferences;
       window.dispatchEvent(new CustomEvent('fm:user-preferences:updated', { detail:{ preferences:saved.preferences } }));
@@ -302,9 +332,12 @@
   }
   document.getElementById('mainSidebar')?.addEventListener('mouseenter', (event) => {
     event.currentTarget?.classList.remove('sidebar-compact-edge-held');
+    if (sidebarBehavior() === 'adaptive') event.currentTarget?.classList.add('sidebar-hover-expanded');
   });
   document.getElementById('mainSidebar')?.addEventListener('mouseleave', (event) => {
     const sidebar = event.currentTarget;
+    sidebar?.classList.remove('sidebar-hover-expanded');
+    if (sidebarBehavior() !== 'adaptive') return;
     if (sidebar?.classList.contains('sidebar-compact') && !sidebar.classList.contains('sidebar-compact-expanded')) {
       const leftEdge = sidebar.getBoundingClientRect().left;
       if (event.relatedTarget === null && event.clientX <= leftEdge) {
@@ -3674,7 +3707,7 @@
       @keyframes fmAdvancedAppsPanelIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
       @keyframes fmAdvancedAppsDismiss{to{opacity:0}}
       @keyframes fmSidebarPinIn{from{opacity:0;transform:translate(-10px,-50%) rotate(-18deg)}to{opacity:1;transform:translate(0,-50%) rotate(0)}}
-      @media(min-width:821px){.sidebar.sidebar-compact.sidebar-advanced-apps-open{width:var(--sidebar);margin-right:0}.sidebar.sidebar-compact.sidebar-compact-overlap.sidebar-advanced-apps-open{margin-right:0}}
+      @media(min-width:821px){.sidebar.sidebar-compact:not(.sidebar-manual).sidebar-advanced-apps-open{width:var(--sidebar);margin-right:0}.sidebar.sidebar-compact.sidebar-compact-overlap.sidebar-advanced-apps-open{margin-right:0}}
       .fm-sidebar-app-pin{position:absolute;top:50%;left:0;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;color:#98a2b3;opacity:0;pointer-events:none;cursor:pointer;transform:translate(-10px,-50%) rotate(-18deg);transition:opacity .16s ease,background .16s ease,color .16s ease,transform .22s ease}
       .sidebar-advanced-apps-open .fm-link{padding-left:32px}
       .sidebar-advanced-apps-open .fm-sidebar-app-pin{opacity:1;pointer-events:auto;animation:fmSidebarPinIn .28s cubic-bezier(.2,.9,.25,1) both}
@@ -3713,11 +3746,11 @@
       .fm-more-apps-foot button{width:100%;border:0;border-radius:9px;background:transparent;padding:8px 6px;color:#475467;font:inherit;font-size:11px;font-weight:900;cursor:pointer;text-align:center}
       .fm-more-apps-foot button:hover,.fm-more-apps-foot button:focus-visible{background:#f5f6f8;color:var(--primary-readable,var(--primary,#d93025));outline:none}
       @media(prefers-reduced-motion:reduce){.fm-more-apps-popover:not([hidden]),.fm-more-apps-popover.closing{animation:none}}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarBottomLinks.sidebar-launchers-split{grid-template-columns:1fr;grid-template-rows:auto 1px auto;gap:4px}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarBottomLinks.sidebar-launchers-integrated{flex-direction:column;gap:4px;padding-bottom:15px}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) #sidebarBottomLinks.sidebar-launchers-integrated>.sidebar-launcher-icon{flex:none;width:28px}
-      .sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .sidebar-launcher-divider{justify-self:center;width:22px;height:1px;flex-basis:1px}
-      @media(max-width:820px){.sidebar.sidebar-compact:not(:hover):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open) .fm-more-apps-popover{right:auto;left:42px;bottom:0;width:min(340px,calc(100vw - 56px));transform-origin:0 100%}}
+      .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) #sidebarBottomLinks.sidebar-launchers-split{grid-template-columns:1fr;grid-template-rows:auto 1px auto;gap:4px}
+      .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) #sidebarBottomLinks.sidebar-launchers-integrated{flex-direction:column;gap:4px;padding-bottom:15px}
+      .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) #sidebarBottomLinks.sidebar-launchers-integrated>.sidebar-launcher-icon{flex:none;width:28px}
+      .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) .sidebar-launcher-divider{justify-self:center;width:22px;height:1px;flex-basis:1px}
+      @media(max-width:820px){.sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) .fm-more-apps-popover{right:auto;left:42px;bottom:0;width:min(340px,calc(100vw - 56px));transform-origin:0 100%}}
       @media(min-width:821px){
         .fm-more-apps-popover{position:fixed;left:var(--fm-more-apps-left,16px);right:auto;bottom:var(--fm-more-apps-bottom,70px);width:var(--fm-more-apps-width,min(960px,calc(100vw - 32px)));height:var(--fm-more-apps-height,640px);max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);box-sizing:border-box;flex-direction:column;padding:clamp(16px,1.5vw,24px);border-radius:20px;transform-origin:var(--fm-more-apps-caret-left,32px) 100%}
         .fm-more-apps-popover:not([hidden]){display:flex}
