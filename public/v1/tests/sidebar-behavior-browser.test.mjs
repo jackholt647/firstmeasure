@@ -10,11 +10,13 @@ test('hover collapse, locked positions, and forced sidebar modes', async () => {
  const browser = await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless:true});
  try {
   const page = await browser.newPage({viewport:{width:1280,height:850}});
-  await page.setContent(`<style>${styles}\n:root{--sidebar:250px;--sidebar-compact:48px}.sidebar{position:absolute;left:0;top:0;height:700px;transition:none!important}</style><aside class="sidebar" id="mainSidebar"><div class="sidebar-resize-edge" id="sidebarResizeEdge"></div><button class="sidebar-compact-toggle" id="sidebarCompactToggle"><i></i></button></aside>`);
+  await page.setContent(`<style>${styles}\n:root{--sidebar:250px;--sidebar-compact:48px}.sidebar{position:absolute;left:0;top:0;height:700px;transition:none!important}</style><aside class="sidebar apps-list-enabled" id="mainSidebar"><div class="sidebar-resize-edge" id="sidebarResizeEdge"></div><button class="sidebar-compact-toggle" id="sidebarCompactToggle"><i></i></button><div class="sidebar-panel" id="sidebarAppsPanel" hidden><button>Apps</button></div><div class="sidebar-panel active" id="sidebarChannelsPanel"><button>Channels</button></div></aside>`);
   await page.addScriptTag({content:`const APP={userId:'user',orgId:'org'};window.Portal={currentUser:{identity:{preferences:{left_column_auto_collapse:{apps:true},resizable_left_column:true}}}};window.savedPatches=[];window.PlatformAPI={preferences:{patch:async patch=>{savedPatches.push(patch);return {preferences:{...Portal.currentUser.identity.preferences,...patch}};}}};function setSidebarPanel(){}function applySidebarFeatureFlags(){applySidebarLayoutFeatureFlags();}${code}\napplySidebarLayoutFeatureFlags();`});
   const width=()=>page.locator('#mainSidebar').evaluate(n=>Math.round(n.getBoundingClientRect().width));
   const prefs=patch=>page.evaluate(patch=>window.dispatchEvent(new CustomEvent('fm:user-preferences:updated',{detail:{preferences:{...Portal.currentUser.identity.preferences,...patch}}})),patch);
   assert.equal(await width(),48);
+  assert.equal(await page.locator('#sidebarAppsPanel').isVisible(),true);
+  assert.equal(await page.locator('#sidebarChannelsPanel').isVisible(),false);
   await page.mouse.move(20,100);assert.equal(await width(),250);
   await page.evaluate(()=>Portal.sidebarMode.setExpanded(true));
   await page.locator('#sidebarCompactToggle').click();assert.equal(await width(),48,'collapse overrides hover');
@@ -45,6 +47,7 @@ test('hover collapse, locked positions, and forced sidebar modes', async () => {
    await prefs({left_column_behavior:behavior});await page.mouse.move(700,100);await page.mouse.move(20,100);
    await page.evaluate(()=>{Portal.sidebarMode.setExpanded(true);Portal.sidebarMode.requestCompact('editor');document.getElementById('mainSidebar').classList.add('sidebar-advanced-apps-open');});
    assert.equal(await width(),expected);
+   assert.equal(await page.locator('#sidebarAppsPanel').isVisible(),behavior==='forced_collapsed');
    assert.equal(await page.locator('#sidebarCompactToggle').isVisible(),false);
    assert.equal(await page.locator('#sidebarResizeEdge').isVisible(),false);
   }

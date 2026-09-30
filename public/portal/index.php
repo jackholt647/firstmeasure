@@ -293,6 +293,12 @@ session_write_close();
       .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) #btnNewReq>span{max-width:0;opacity:0}
       .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) .sidebar-new-mini-icon{opacity:1}
 
+      /* The closed rail keeps app navigation usable without changing the selected tab. */
+      .sidebar.sidebar-compact.apps-list-enabled:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) #sidebarAppsPanel{display:flex!important}
+      .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) #sidebarTodoPanel,
+      .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) #sidebarChannelsPanel,
+      .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) #sidebarAgentsPanel{display:none!important}
+
       /* Keep the tab row's space so app icons do not move when the rail opens. */
       .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) .sidebar-mode-tabs{visibility:hidden;opacity:0;pointer-events:none}
 
