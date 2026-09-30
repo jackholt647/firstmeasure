@@ -5257,25 +5257,38 @@
 
     function openForwardModal(message){
       const selected=new Set();
+      const selectedPeople=new Set();
+      const peopleChannels=new Map();
       const sentTo=new Set();
+      let forwarding=false;
       const operationId=`forward_${message.id}_${Date.now().toString(36)}`;
       showModal('Forward message', (body) => {
         body.closest('.fm-ch-modal').style.width='560px';
         body.innerHTML=`<label for="fm-forward-search">Send to</label><input id="fm-forward-search" type="search" data-forward-search placeholder="Find a channel or conversation" autocomplete="off"><div class="fm-ch-forward-destinations" role="group" aria-label="Destinations"></div><p class="fm-ch-forward-hint" data-forward-count>Choose up to 10 conversations.</p><label for="fm-forward-note">Add a note <span class="fm-ch-muted">(optional)</span></label><textarea id="fm-forward-note" data-forward-note rows="3" placeholder="Add context for your teammates"></textarea>`;
         const destinations=body.querySelector('.fm-ch-forward-destinations');
+        const updateCount=()=>{
+          const count=selected.size+selectedPeople.size;
+          body.querySelector('[data-forward-count]').textContent=count?`${count} destination${count===1?'':'s'} selected${count>10?' — choose up to 10':''}`:'Choose up to 10 conversations or people.';
+        };
         const render=()=>{
           destinations.replaceChildren();const query=body.querySelector('[data-forward-search]').value.trim().toLowerCase();
           const channels=state.channels.filter(item=>!item.archived_at && item.is_member!==false && (item.display_name||item.name||'').toLowerCase().includes(query));
           for(const channel of channels){
             const button=el('button','fm-ch-member-row fm-ch-member-choice',`<i class="fas ${channel.type==='dm'?'fa-user':'fa-hashtag'}" aria-hidden="true"></i><span class="name">${esc(channel.display_name||channel.name)}</span><span class="fm-ch-member-check" aria-hidden="true"><i class="fas fa-check"></i></span>`);
             button.type='button';button.classList.toggle('selected',selected.has(channel.id));button.setAttribute('aria-pressed',String(selected.has(channel.id)));
-            button.addEventListener('click',()=>{if(selected.has(channel.id))selected.delete(channel.id);else if(selected.size<10)selected.add(channel.id);render();});
+            button.addEventListener('click',()=>{if(selected.has(channel.id))selected.delete(channel.id);else if(selected.size+selectedPeople.size<10)selected.add(channel.id);render();});
             destinations.append(button);
           }
           if(!channels.length)destinations.append(el('div','fm-ch-empty','No matching conversations.'));
-          body.querySelector('[data-forward-count]').textContent=selected.size?`${selected.size} conversation${selected.size===1?'':'s'} selected`:'Choose up to 10 conversations.';
+          updateCount();
         };
         body.querySelector('[data-forward-search]').addEventListener('input',render);render();
+        const people=el('div');body.append(people);
+        people.append(el('label','','Or send to a company person'));
+        orgUsers().then(users=>{
+          if(!body.isConnected)return;
+          people.append(peoplePicker(users.filter(user=>!String(user.id).startsWith('agent_')),selectedPeople,updateCount));
+        }).catch(error=>{if(body.isConnected)people.append(el('p','fm-ch-forward-hint','Company people could not be loaded. Try reopening this dialog.'));});
         const preview=el('div','fm-ch-forward-preview');
         preview.append(forwardCard({...message,channel_name:state.channelsById.get(message.channel_id)?.display_name || state.activeChannel?.name},{preview:true}));body.append(preview);
         if(message.attachments?.length){
@@ -5283,10 +5296,27 @@
         }
         body.append(el('p','fm-ch-forward-hint','The original message will be shared with everyone in the selected conversations. Opening its original conversation still requires access.'));
       }, [{label:'Cancel',onClick:close=>close()},{label:'Forward',primary:true,onClick:async(close,body)=>{
+        if(forwarding)return;
+        forwarding=true;
         try{
-          if(!selected.size)throw new Error('Choose a conversation.');
+          if(!selected.size && !selectedPeople.size)throw new Error('Choose a conversation or person.');
+          if(selected.size+selectedPeople.size>10)throw new Error('Choose up to 10 conversations or people.');
           const note=body.querySelector('[data-forward-note]').value.trim();
-          for(const channelId of selected){
+          const channelIds=new Set(selected);
+          for(const userId of selectedPeople){
+            let channelId=peopleChannels.get(userId);
+            if(!channelId){
+              const existing=state.channels.find(channel=>channel.type==='dm' && !channel.archived_at && channel.is_member!==false && channel.members?.length===2 && channel.members.some(member=>member.id===userId) && channel.members.some(member=>member.id===currentUser.id));
+              channelId=existing?.id;
+              if(!channelId){
+                const data=await api.channels.create(orgId,{type:'dm',member_user_ids:[userId]});
+                channelId=data.channel.id;
+              }
+              peopleChannels.set(userId,channelId);
+            }
+            channelIds.add(channelId);
+          }
+          for(const channelId of channelIds){
             if(sentTo.has(channelId))continue;
             const data=await api.messages.post(orgId,channelId,{
               text:note,forwarded_message_id:message.id,
@@ -5297,7 +5327,7 @@
             if(channelId===state.activeChannelId && data.message)applyIncomingMessage('channels.message.created',data.message,{channel_id:channelId});
           }
           close();root.Portal?.ui?.showToast?.('Message forwarded',`Shared with ${sentTo.size} conversation${sentTo.size===1?'':'s'}.`,true);
-        }catch(error){showError(error);}
+        }catch(error){showError(error);}finally{forwarding=false;}
       }}]);
     }
 
