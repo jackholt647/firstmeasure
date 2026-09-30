@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 30 app groups: [Configurable sub-apps and shared headers](deploy/digitalocean/development-app-groups-20260930.md) records the development rollout, settings, source preservation, verification and rollback.
+
 September 30 Channels round 3: [Clear-on-open badges, document-style lists and compact reminders](deploy/digitalocean/development-channels-linear-round3-20260930.md) records sequential development verification, repeated Linear rescans, native checks and rollback.
 
 September 30 Channels follow-ups: [Reopened reply, list and reminder fixes](deploy/digitalocean/development-channels-linear-followups-20260930.md) records sequential development verification, preserved preferences, native browser checks and rollback.
