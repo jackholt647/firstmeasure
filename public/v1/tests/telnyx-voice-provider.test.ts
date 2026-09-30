@@ -20,6 +20,7 @@ test('staff connection uses Telnyx API codec names and parks browser dialing', a
   assert.equal(payload.encrypted_media,'SRTP');
   assert.equal(payload.outbound.call_parking_enabled,true);
   assert.equal(payload.sip_uri_calling_preference,'internal');
+  assert.match(payload.user_name,/^[A-Za-z0-9]+$/);
 });
 
 test('development blocks unapproved PSTN calls and transfers before contacting Telnyx', async () => {

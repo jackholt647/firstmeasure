@@ -63,7 +63,7 @@ export class TelnyxVoiceClient {
   async createConnection(orgId:string) {
     // Every browser-originated call is parked and rejected by our webhook handler.
     // Only server-authorized Call Control calls can reach the customer PSTN leg.
-    return this.data("/credential_connections","POST",{connection_name:`FirstMate ${id("org",orgId)} staff`,user_name:`fm_${randomBytes(12).toString("hex")}`,
+    return this.data("/credential_connections","POST",{connection_name:`FirstMate ${id("org",orgId)} staff`,user_name:`fm${randomBytes(12).toString("hex")}`,
       password:randomBytes(32).toString("base64url"),active:true,sip_uri_calling_preference:"internal",encrypted_media:"SRTP",
       webhook_event_url:voiceWebhookUrl(),webhook_api_version:"2",outbound:{call_parking_enabled:true,channel_limit:1},
       inbound:{codecs:["OPUS","G722","G711U","G711A"]}});
