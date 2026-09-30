@@ -6,7 +6,7 @@ import { env } from '../../src/config/env.js';
 import { ruleSchema, type NotificationRule } from './contracts.js';
 let db:SqlStore|undefined;
 export const identity=(...parts:unknown[])=>createHash('sha256').update(JSON.stringify(parts)).digest('hex');
-export function notificationStore(){return db??=openSqlStore({id:'notification-delivery',filename:path.resolve(env.platformStorageRoot,'notification-delivery.sqlite'),initialize:async db=>{await db.exec(`
+export function notificationStore(){return db??=openSqlStore({id:'notification-delivery',schemaVersion:2,filename:path.resolve(env.platformStorageRoot,'notification-delivery.sqlite'),initialize:async db=>{await db.exec(`
  CREATE TABLE IF NOT EXISTS notification_rule_outputs (organization_id TEXT NOT NULL,user_id TEXT NOT NULL,rule_id TEXT NOT NULL,revision INTEGER NOT NULL,values_json TEXT NOT NULL,dependencies_json TEXT NOT NULL,PRIMARY KEY(organization_id,user_id,rule_id));
  CREATE TABLE IF NOT EXISTS notification_rule_samples (id TEXT PRIMARY KEY,organization_id TEXT NOT NULL,user_id TEXT NOT NULL,rule_id TEXT NOT NULL,input_json TEXT NOT NULL,reads_json TEXT NOT NULL,output_json TEXT NOT NULL,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS notification_occurrences (id TEXT PRIMARY KEY,organization_id TEXT NOT NULL,note_json TEXT NOT NULL,event_json TEXT NOT NULL,audience_json TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'pending');
