@@ -1671,11 +1671,6 @@
       const quick = el('div', 'fm-ch-quick');
       const quickItems = [
         ['discover','See all company channels','fa-hashtag',() => openChannelDirectory().catch(showError)],
-        ...(features.attention ? [
-          ['unreads', 'All Unreads', 'fa-inbox', openUnreadsView],
-          ['activity', 'Activity', 'fa-bell', openActivityView],
-          ['threads', 'Threads', 'fa-comments', openThreadsView]
-        ] : []),
         ...(features.saved ? [['saved', 'Later', 'fa-bookmark', openSavedView]] : [])
       ];
       for (const [view, label, icon, handler] of quickItems) {
