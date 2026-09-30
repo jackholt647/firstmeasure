@@ -62,6 +62,9 @@
     const nextSteps=[['none','Keep open — no work completed'],['complete','Complete selected work'],['follow_up','Create follow-up'],...(c?.project_id?[['scheduled','Link booked appointment']]:[]),...(state.followupOptions?.follow_up_node_ids?.length?(state.followupOptions.outcomes||[]).filter(o=>o.action==='lost').map(o=>[`outcome:${o.id}`,o.label]):[])];
     el.innerHTML=`<header class="fmcp-header"><div class="fmcm-avatar">${String(icon('phone'))}</div><div><strong>${String(esc(title))}</strong><small>${String(esc(number))}${String(number?' · ':'')}<span data-call-status>${String(esc(c?`${label(c.state)}${c.mode==='external'?' · External phone':''}`:'Ready when you are'))}</span></small></div><button data-phone="minimize" aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("comms","m_21406d49c2fdb5",`${v5} call`,{v5}) ?? `${v5} call`)(state.minimized?'Expand':'Minimize')}">${String(icon(state.minimized?'expand':'minus'))}</button><button data-phone="close" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_314202e0941af2","Close call workspace") ?? "Close call workspace")}">${String(icon('xmark'))}</button></header>
       <div class="fmcp-body">${String(state.error?`<div class="fmcm-error" role="alert">${esc(state.error)}</div>`:'')}
+      ${state.deviceCheckRequired&&!c?`<section role="status"><p class="fmcm-help">${esc(state.checkMessage||'Run the microphone and network check before calling on this device. Your call details will stay here.')}</p><button data-phone="diagnose" class="fmcm-primary">${state.busy?'Checking microphone and network…':'Run checks'}</button></section>`:''}
+      ${state.deviceChecked&&state.checkMessage&&!c?`<p class="fmcm-help" role="status">${esc(state.checkMessage)} Click Start call when you are ready.</p>`:''}
+      ${state.outcomeRequested&&c&&!saved?`<p class="fmcm-help" role="status">${active?'Ending the call…':'Choose the call outcome, then click Save outcome to finish.'}</p>`:''}
       ${String(c?.metadata?.provider_error?`<p class="fmcm-error">${esc(c.metadata.provider_error.message)} <button data-phone="reconcile">${(globalThis.PlatformLanguage?.htmlText("comms","m_0594685d991928","Check provider status") ?? "Check provider status")}</button></p>`:'')}
       ${String((state.detail?.operations||[]).filter(job=>job.state==='failed'&&['wrap_up','recording_ingest','missed_callback'].includes(job.kind)).map(job=>`<p class="fmcm-error">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_c27c615bb5fb5f",`${v0} could not finish. Your call record is saved. `,{v0}) ?? `${v0} could not finish. Your call record is saved. `)(esc(label(job.kind)))}<button data-phone="retry-work" data-job="${esc(job.id)}">${(globalThis.PlatformLanguage?.htmlText("comms","m_6bf817428776f2","Retry saved work") ?? "Retry saved work")}</button></p>`).join(''))}
       ${String(c?`<div class="fmcp-controls">${incoming?`<button class="fmcm-primary" data-phone="answer">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_0675e6689d03c4",`${v0} Answer`,{v0}) ?? `${v0} Answer`)(icon('phone'))}</button><button data-phone="decline">${(globalThis.PlatformLanguage?.htmlText("comms","m_0bba16c1fd1444","Decline") ?? "Decline")}</button>`:''}
@@ -92,6 +95,7 @@
     el.querySelectorAll('[data-source]').forEach(e=>{e.checked=checked.has(e.dataset.source);});
     const focusTarget=focusQuestion!==undefined?el.querySelector(`[data-question="${CSS.escape(focusQuestion)}"]`):focusName?el.querySelector(`[name="${CSS.escape(focusName)}"]`):null;
     if(focusTarget){focusTarget.focus({preventScroll:true});try{focusTarget.setSelectionRange(caret,caretEnd);}catch{}}
+    if(state.outcomeRequested&&!active&&!saved&&!processing){const outcome=el.querySelector('[name=disposition]');outcome?.scrollIntoView({block:'nearest'});outcome?.focus({preventScroll:true});}
   }
   async function refreshStatus(){state.status=await request('voice/status');changed();return state.status;}
   async function open(input={},options={}){
@@ -101,7 +105,7 @@
     const ticket=++state.openSequence;
     clearTimeout(state.saveTimer);if(state.dirty&&state.call)await saveNotes();
     if(ticket!==state.openSequence)return false;
-    state.error='';state.minimized=false;state.entry=input.entry||null;state.prepared=input;state.notes='';state.answers={};state.contacts=[];state.appointments=[];state.media=null;state.followupOptions=null;state.policyDate='';state.usePolicy=false;state.wrapId='';state.wrapPayload=null;state.dirty=false;state.localId=uid();
+    state.error='';state.minimized=false;state.outcomeRequested=false;state.deviceCheckRequired=false;state.checkMessage='';state.entry=input.entry||null;state.prepared=input;state.notes='';state.answers={};state.contacts=[];state.appointments=[];state.media=null;state.followupOptions=null;state.policyDate='';state.usePolicy=false;state.wrapId='';state.wrapPayload=null;state.dirty=false;state.localId=uid();
     if(input.call_id){
       // Synchronous shell during browser-history restoration.
       state.call=null;state.loadingCall=true;render();let detail;
@@ -123,6 +127,8 @@
   }
   async function start(){
     const values=readForm();if(!values.customer_number)throw new Error('Enter a phone number.');
+    if(values.mode==='browser'&&!state.deviceChecked){state.deviceCheckRequired=true;state.checkMessage='';return;}
+    state.deviceCheckRequired=false;
     const body={...state.prepared,entry_id:state.entry?.id||state.prepared.entry_id||'',customer_name:values.customer_name,customer_number:values.customer_number,
       purpose:values.purpose,mode:values.mode,script_id:values.script_id,device_id:deviceId,operation_id:state.localId};delete body.entry;delete body.call_id;
     const result=await request('calls',body);state.call=result.call;state.notes=result.call.notes||'';state.answers={};
@@ -224,10 +230,27 @@
   }
   async function handle(name,button){
     if(name==='minimize'){state.minimized=!state.minimized;render();return;}
-    if(name==='close'){if(state.busy||(state.call&&!terminal.has(state.call.state))){state.minimized=true;render();return;}try{await saveNotes();}catch(error){state.error=error.message;render();return;}state.openSequence++;state.loadingCall=false;state.panel.hidden=true;state.call=null;state.entry=null;state.prepared={};clearTimeout(state.poll);Portal.navigation?.backOrClose?.(['customerCall','communicationsEntry'],{customerCall:null,communicationsEntry:null});return;}
+    if(name==='close'){
+      if(state.busy){state.minimized=false;render();return;}
+      const c=state.call,observer=c?.owner_user_id&&c.owner_user_id!==ui.user()&&!state.status?.permissions?.manage;
+      if(c&&!observer&&c.wrap_up_state!=='saved'){
+        state.minimized=false;state.outcomeRequested=true;
+        if(c.metadata?.transfer?.target_user_id===ui.user()&&c.owner_user_id!==ui.user()&&['dialing','consulting'].includes(c.metadata.transfer.state)){await handle('decline');return;}
+        if(c.mode==='browser'&&!terminal.has(c.state)){await handle('hangup');return;}
+        render();return;
+      }
+      try{await saveNotes();}catch(error){state.error=error.message;render();return;}
+      state.openSequence++;state.loadingCall=false;state.panel.hidden=true;state.call=null;state.entry=null;state.prepared={};clearTimeout(state.poll);Portal.navigation?.backOrClose?.(['customerCall','communicationsEntry'],{customerCall:null,communicationsEntry:null});return;
+    }
     if(state.busy)return;state.busy=true;state.error='';state.panel?.querySelectorAll('input,textarea,select,[data-phone]').forEach(e=>{if(!['minimize','close'].includes(e.dataset.phone))e.disabled=true;});
     try{
       if(name==='start')await start();else if(name==='wrap')await wrap();else if(name==='save-notes')await saveNotes();else if(name==='skip'||name==='next')await next(name==='skip');
+      else if(name==='diagnose'){
+        state.checkMessage='Checking microphone and network…';render();
+        const result=await diagnose();state.deviceChecked=['ready','degraded'].includes(result.result?.verdict);
+        state.deviceCheckRequired=!state.deviceChecked;state.checkMessage=result.result?.reason||'The check could not confirm call readiness. Run checks again.';
+        if(!state.deviceChecked)state.error=state.checkMessage;
+      }
       else if(name==='reconcile'){const result=await request(callPath('/reconcile'),{});state.call=result.call;}
       else if(name==='retry-work'){await request(callPath('/retry-work'),{job_id:button.dataset.job});await poll();}
       else if(name==='answer'){await state.sdkCall?.answer();}
@@ -240,7 +263,7 @@
       else if(name==='artifacts')await artifacts();
       else if(name==='delete-artifact')removeArtifact(button.dataset.artifact);
       else await action(name);
-    }catch(error){state.error=error.message;}
+    }catch(error){if(error.code==='device_check_required'){state.deviceChecked=false;state.deviceCheckRequired=true;state.checkMessage='';}else state.error=error.message;}
     finally{state.busy=false;if(state.panel&&!state.panel.hidden){render();if(name==='artifacts')state.panel.querySelector('[data-artifacts]')?.scrollIntoView({block:'nearest'});}}
   }
   async function loadSDK(){
@@ -315,7 +338,7 @@
         }
       }
       const metrics=samples.length?Object.fromEntries(['rtt_ms','jitter_ms','packet_loss_percent'].map(key=>[key,samples.reduce((sum,s)=>sum+s[key],0)/samples.length])):undefined;
-      return await request('voice/diagnostics',{device_id:deviceId,microphone,connectivity:connected?'ready':'inconclusive',provider_verdict:metrics?'ready':'inconclusive',...(metrics?{metrics}:{})});
+      const result=await request('voice/diagnostics',{device_id:deviceId,microphone,connectivity:connected?'ready':'inconclusive',provider_verdict:metrics?'ready':'inconclusive',...(metrics?{metrics}:{})});state.deviceChecked=['ready','degraded'].includes(result.result?.verdict);return result;
     }finally{
       if(state.diagnosticId){await request(`calls/${encodeURIComponent(state.diagnosticId)}/actions`,{operation_id:uid(),action:'hangup'}).catch(()=>{});await state.sdkCall?.hangup();}
       state.diagnosticId='';state.diagnosing=false;state.sdkCall=null;state.available=wasAvailable;await heartbeat();
