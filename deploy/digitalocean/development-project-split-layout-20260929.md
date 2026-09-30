@@ -55,3 +55,5 @@ predecessor above via the atomic current symlink and restart the development
 web service and PHP FPM one web node at a time, checking readiness after each.
 The intermediate `a232984` release contains the layout without focused boot;
 prefer rolling back to the pre-task release when reverting this prototype.
+
+Follow-up: [Split-pane behavior, compact tabs and shared realtime fixes](development-project-split-fixes-20260929.md).
