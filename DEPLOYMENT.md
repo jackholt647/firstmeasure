@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 Project split view: [Content-owned rails and dockable tabs](deploy/digitalocean/development-project-split-layout-20260929.md) records the development prototype, code-only rollback flags, focused embedded boot and verified rollout.
+
 September 29 Scope Sets: [Loading, FirstMeasure values and regeneration](deploy/digitalocean/development-scope-sets-20260929.md) records the development-only frontend fix, verification and rollback.
 
 September 29 My Projects: [View controls and column choices](deploy/digitalocean/development-project-view-controls-20260929.md) records the verified development-only frontend rollout and rollback.
