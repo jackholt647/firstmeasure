@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 30 Feed: [Distinct layouts and Channels-backed posts/comments](deploy/digitalocean/development-feed-posts-20260930.md) records the five views, per-artifact permissions, hidden Feed channel, validation and development rollout.
+
 September 30 Project chrome: [Visible tray icons, placement pickers and joined note controls](deploy/digitalocean/development-project-chrome-fix-20260930.md) records the static-loader/layout fix, iframe tooltip correction, browser validation and development rollout.
 
 September 29 notifications: [Autosave, compact controls and time picker](deploy/digitalocean/development-notification-autosave-20260929.md) records the verified development rollout, defaults reset, browser checks and rollback.
