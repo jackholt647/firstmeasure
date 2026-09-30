@@ -103,6 +103,20 @@ try {
     assert.equal(await editor.locator('li').count(),2);
     assert.equal(await editor.locator('li').nth(1).innerText(),'Continuation');
   }
+  for(const label of ['Bulleted list','Numbered list']) {
+    await editor.evaluate(node=>node.value='');await editor.focus();
+    await page.locator('.fm-ch-composer').getByRole('button',{name:label,exact:true}).click();
+    await page.keyboard.type('First');await editor.press('Shift+Enter');await page.keyboard.type('Second');
+    assert.deepEqual(await editor.locator('li').allTextContents(),['First','Second']);
+  }
+  for(const [input,expected] of [['1.','1. \n2. Next'],['1. First','1. First\n2. Next'],['7. First','7. First\n8. Next']]) {
+    await editor.evaluate(node=>node.value='');await editor.type(input);await editor.press('Shift+Enter');await page.keyboard.type('Next');
+    assert.equal(await editor.evaluate(node=>node.value),expected);
+  }
+  for(const input of ['1.5 decimal','1.First']) {
+    await editor.evaluate(node=>node.value='');await editor.type(input);await editor.press('Home');await editor.press('ArrowRight');await editor.press('ArrowRight');await editor.press('Shift+Enter');
+    assert.equal(await editor.locator('li').count(),0);
+  }
   await paste('<p>Prefix</p><table>'+Array.from({length:57},(_,i)=>`<tr><td>Row ${i}</td></tr>`).join('')+'</table><p>Suffix</p>');
   assert.equal(await editor.locator('tr:visible').count(),10);
   assert.equal(await editor.getByRole('button',{name:'47 other rows have been hidden · Click to expand'}).count(),1);

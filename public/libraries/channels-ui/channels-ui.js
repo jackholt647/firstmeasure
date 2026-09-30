@@ -459,11 +459,55 @@
       const selection = root.getSelection();
       if (event.defaultPrevented || event.isComposing) return;
       const anchor = selection?.anchorNode?.nodeType === 1 ? selection.anchorNode : selection?.anchorNode?.parentElement;
-      if (event.key === 'Enter' && event.shiftKey && anchor?.closest('li') && editor.contains(anchor)) {
-        event.preventDefault(); event.stopPropagation();
-        document.execCommand('insertParagraph');
-        editor.dispatchEvent(new Event('input', {bubbles:true}));
-        return;
+      if (event.key === 'Enter' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && editor.contains(anchor)) {
+        let item = anchor?.closest('li');
+        let typedMarker = false;
+        // Convert a typed numbered prefix before continuing, just like the list toolbar.
+        // Keep quotes, code and tables in their existing format.
+        if (!item && selection.isCollapsed && !anchor.closest('pre,blockquote,td,th')) {
+          const block = anchor.closest('p,div');
+          const paragraph = block && editor.contains(block) ? block : editor;
+          const beforeCaret = selection.getRangeAt(0).cloneRange();
+          beforeCaret.setStart(paragraph, 0);
+          const marker = beforeCaret.toString().match(/^(\d{1,6})\.(?:[ \t]+|$)/);
+          if (marker && /^\d{1,6}\.(?:[ \t]+|$)/.test(paragraph.textContent) && !paragraph.querySelector('br,ul,ol,table')) {
+            const caretOffset = beforeCaret.toString().length - marker[0].length;
+            const prefix = document.createRange(); prefix.setStart(paragraph, 0);
+            const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
+            let remaining = marker[0].length, node;
+            while ((node = walker.nextNode())) {
+              if (remaining <= node.textContent.length) { prefix.setEnd(node, remaining); break; }
+              remaining -= node.textContent.length;
+            }
+            prefix.deleteContents();
+            document.execCommand('insertOrderedList');
+            const current = selection.anchorNode?.nodeType === 1 ? selection.anchorNode : selection.anchorNode?.parentElement;
+            item = current?.closest('li');
+            if (item) {
+              item.parentElement.setAttribute('start', String(Number(marker[1]))); typedMarker = true;
+              const caret = document.createRange(), textNodes = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+              let offset = caretOffset;
+              // The prefix deletion can move Chromium's selection to the paragraph start.
+              while ((node = textNodes.nextNode())) {
+                if (offset <= node.textContent.length) { caret.setStart(node, offset); break; }
+                offset -= node.textContent.length;
+              }
+              if (!node) caret.setStart(item, item.childNodes.length);
+              caret.collapse(true); selection.removeAllRanges(); selection.addRange(caret);
+            }
+          }
+        }
+        if (item) {
+          event.preventDefault(); event.stopPropagation();
+          if (typedMarker && !item.textContent.trim()) {
+            // Native Enter exits an empty list; a freshly typed `1.` should show `2.`.
+            const next = el('li'); next.append(document.createElement('br')); item.after(next);
+            const range = document.createRange(); range.setStart(next, 0); range.collapse(true);
+            selection.removeAllRanges(); selection.addRange(range);
+          } else document.execCommand('insertParagraph');
+          editor.dispatchEvent(new Event('input', {bubbles:true}));
+          return;
+        }
       }
       if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey && anchor?.closest('li') && editor.contains(anchor)) {
         // Mention completion gets first refusal before changing list depth.
