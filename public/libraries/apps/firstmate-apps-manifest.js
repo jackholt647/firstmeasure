@@ -331,7 +331,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-schedule/panel.js', '20260930-scheduling-qa-v1')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20260930-scheduling-qa-v2')]
     },
     {
       id: 'project.comms',
@@ -1047,7 +1047,7 @@
 
   apps.forEach((app) => {
     app.bundles = [versionedBundle('../app-runtime/app-chrome.js', '20260930-app-groups-v1'), ...(app.bundles || [])];
-    app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260930-linear-pla20-round3'), ...(app.bundles || [])];
+    app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260930-scheduling-qa-v2'), ...(app.bundles || [])];
     const capability = appCapabilities[app.id];
     if (capability) app.access = { ...(app.access || {}), capability };
     app.route = app.route || routeDefinition(app);
