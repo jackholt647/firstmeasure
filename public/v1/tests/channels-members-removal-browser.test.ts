@@ -147,12 +147,18 @@ test("real API owner and channel admin retain visible removal after refresh and 
   await owner.request("PATCH",`${base}/channels/${channel.id}/members/${admin.userId}`,{role:"admin"});
   const clients:Record<string,TestClient>={owner,admin:admin.client,member:member.client};
   const publicRoot=path.resolve('..');
-  const output=path.resolve('../../output/channels-linear-20260929/pla15-r2');await mkdir(output,{recursive:true});
+  const output=path.resolve('../../output/channels-linear-20260929/pla15-r3');await mkdir(output,{recursive:true});
+  let failNextRemoval=true;
   const server=createServer(async(req,res)=>{
     const name=new URL(req.url||'/', 'http://localhost').pathname;
     if(name==='/fixture'){
       let body='';for await(const part of req)body+=part;
-      const input=JSON.parse(body);const result=await clients[input.viewer]!.raw(input.method,input.url,input.payload);
+      const input=JSON.parse(body);
+      if(input.method==='DELETE' && input.url.includes('/members/')) {
+        await new Promise(resolve=>setTimeout(resolve,160));
+        if(failNextRemoval){failNextRemoval=false;res.statusCode=503;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({error:{message:'Temporary fixture failure'}}));return;}
+      }
+      const result=await clients[input.viewer]!.raw(input.method,input.url,input.payload);
       res.statusCode=result.statusCode;res.setHeader('Content-Type','application/json');res.end(result.body);return;
     }
     if(name==='/'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><html><body style="margin:0;font-family:Arial"><div id="app" style="height:100vh"></div></body></html>');return;}
@@ -168,7 +174,7 @@ test("real API owner and channel admin retain visible removal after refresh and 
     await page.addInitScript('window.__name = function(value) { return value; };');
     await page.goto(origin);
     await page.evaluate(({orgId,ownerId,base})=>{
-      const w=window as any;w.viewer='owner';w.__APP={userId:ownerId,userOrgId:orgId};w.Portal={currentUser:{id:ownerId,name:'Channels Owner'},ui:{showToast:(...args:any[])=>w.lastToast=args}};
+      const w=window as any;w.viewer='owner';w.__APP={userId:ownerId,userOrgId:orgId};w.Portal={currentUser:{id:ownerId,name:'Channels Owner'},toast:(message:string)=>w.lastToast=message,ui:{showToast:(...args:any[])=>w.lastToast=args}};
       w.request=async(method:string,url:string,payload?:unknown)=>{const response=await fetch('/fixture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({viewer:w.viewer,method,url,payload})});const data=await response.json();if(!response.ok)throw Error(data.error?.message||'API failed');return data;};
       w.ChannelsAPI={channels:{list:()=>w.request('GET',base+'/channels'),get:(_org:string,id:string)=>w.request('GET',base+'/channels/'+id),removeMember:(_org:string,id:string,userId:string)=>w.request('DELETE',base+'/channels/'+id+'/members/'+userId),addMembers:(_org:string,id:string,userIds:string[])=>w.request('POST',base+'/channels/'+id+'/members',{user_ids:userIds}),setRole:(_org:string,id:string,userId:string,role:string)=>w.request('PATCH',base+'/channels/'+id+'/members/'+userId,{role})},messages:{list:(_org:string,id:string)=>w.request('GET',base+'/channels/'+id+'/messages')},directory:{list:()=>w.request('GET',base+'/directory')},drafts:{get:async()=>({}),save:async()=>({}),remove:async()=>({})}};
       w.options={orgId,currentUser:{id:ownerId,name:'Channels Owner'},realtime:false,features:{attention:false,resources:false,workflows:false,typing:false,audioNotes:false,channelCreate:false,channelSettings:true,recording:false}};
@@ -182,23 +188,59 @@ test("real API owner and channel admin retain visible removal after refresh and 
       let dialog=await open();
       let remove=dialog.getByRole('button',{name:'Remove Regular Member from channel',exact:true});await remove.waitFor();assert.equal(await remove.innerText(),'Remove');assert.ok((await remove.boundingBox())!.width>45);
       await page.screenshot({path:path.join(output,`remove-${viewer}${process.env.DEV_ASSETS?'-dev':''}.png`)});
+      await dialog.getByRole('searchbox',{name:'Search channel members',exact:true}).fill('Regular');
+      await page.evaluate(()=>{
+        const w=window as any;w.originalDialog=document.querySelector('[role=dialog]');w.originalBackdrop=w.originalDialog.closest('.fm-ch-modal-backdrop');w.modalCycles=0;
+        w.modalObserver=new MutationObserver(records=>{for(const record of records)for(const node of [...record.addedNodes,...record.removedNodes])if(node===w.originalBackdrop || node===w.originalDialog || (node instanceof Element && node.matches('.fm-ch-modal-backdrop')))w.modalCycles++;});w.modalObserver.observe(document.body,{childList:true,subtree:true});
+      });
       await remove.click();
+      if(viewer==='owner'){
+        await page.waitForFunction(()=>String((window as any).lastToast).includes('Temporary fixture failure'));
+        await page.waitForFunction(()=>!document.querySelector('[aria-label="Remove Regular Member from channel"]')?.hasAttribute('disabled'));
+        assert.equal(await dialog.getByRole('searchbox',{name:'Search channel members',exact:true}).inputValue(),'Regular');
+        assert.equal(await page.evaluate(()=>document.activeElement?.getAttribute('aria-label')),'Remove Regular Member from channel');
+        await dialog.getByRole('button',{name:'Remove Regular Member from channel',exact:true}).click();
+      }
+      assert.equal(await page.evaluate(()=>(window as any).originalDialog.isConnected),true);
+
       await dialog.getByRole('button',{name:new RegExp('Select Regular Member')}).waitFor();
       await page.locator('.fm-ch-system-line').getByText('Regular Member was removed from the channel.',{exact:true}).first().waitFor();
       assert.equal((await member.client.raw('GET',base+'/channels/'+channel.id+'/messages')).statusCode,403);
+      assert.equal(await page.evaluate(()=>document.activeElement?.getAttribute('aria-label')),'Search channel members');
       await dialog.getByRole('button',{name:new RegExp('Select Regular Member')}).click();
-      await dialog.getByRole('button',{name:'Add selected people',exact:true}).click();await dialog.waitFor({state:'hidden'});
-      dialog=await open();await dialog.getByRole('button',{name:'Remove Regular Member from channel',exact:true}).waitFor();
+      await dialog.getByRole('button',{name:'Add selected people',exact:true}).click();
+      await dialog.getByRole('button',{name:'Remove Regular Member from channel',exact:true}).waitFor();
+      assert.equal(await dialog.getByRole('searchbox',{name:'Search channel members',exact:true}).inputValue(),'Regular');
+      assert.equal(await page.evaluate(()=>(window as any).originalDialog.isConnected && (window as any).originalDialog===document.querySelector('[role=dialog]')),true);
+      assert.equal(await page.evaluate(()=>(window as any).modalCycles),0,'no modal/backdrop add or remove cycle');
+      assert.equal(await dialog.getByRole('button',{name:'Add selected people',exact:true}).isDisabled(),true,'Add disabled after selections consumed');
+      await page.evaluate(()=>(window as any).modalObserver.disconnect());
       await dialog.getByRole('button',{name:'Done',exact:true}).click();
       await page.evaluate(async()=>{const w=window as any;await w.instance.refresh();});
       dialog=await open();await dialog.getByRole('button',{name:'Remove Regular Member from channel',exact:true}).waitFor();await dialog.getByRole('button',{name:'Done',exact:true}).click();
     }
+    // Hold a real DELETE until after Done closes the original dialog.
+    let releaseDelete:()=>void=()=>{};let deletionEntered:()=>void=()=>{};
+    const entered=new Promise<void>(resolve=>deletionEntered=resolve);
+    const held=new Promise<void>(resolve=>releaseDelete=resolve);
+    await page.route('**/fixture',async route=>{
+      const input=route.request().postDataJSON();
+      if(input.method==='DELETE' && input.url.endsWith('/members/'+member.userId)){deletionEntered();await held;}
+      await route.continue();
+    });
+    const closingDialog=await open();await closingDialog.getByRole('button',{name:'Remove Regular Member from channel',exact:true}).click();await entered;
+    await closingDialog.getByRole('button',{name:'Done',exact:true}).click();await closingDialog.waitFor({state:'hidden'});
+    const completed=page.waitForResponse(response=>response.url().endsWith('/fixture') && response.request().postDataJSON().method==='DELETE');
+    releaseDelete();await completed;await page.waitForTimeout(200);
+    assert.equal(await page.getByRole('dialog').count(),0,'late removal completion does not resurrect closed modal');
+    await page.unroute('**/fixture');
+    await owner.request('POST',base+'/channels/'+channel.id+'/members',{user_ids:[member.userId]});
     await page.evaluate(async({userId,channelId})=>{const w=window as any;w.instance.destroy();w.viewer='member';w.instance=w.FirstMateChannels.create(document.querySelector('#app'),{...w.options,currentUser:{id:userId,name:'Regular Member'}});await w.instance.setChannel(channelId);},{userId:member.userId,channelId:channel.id});
     const dialog=await open();await dialog.locator('.fm-ch-current-members').waitFor();assert.equal(await dialog.getByRole('button',{name:/Remove .* from channel/}).count(),0);
     assert.equal((await member.client.raw('DELETE',base+'/channels/'+channel.id+'/members/'+admin.userId)).statusCode,403);
     assert.equal((await owner.raw('DELETE',base+'/channels/'+channel.id+'/members/'+ownerId)).statusCode,200); // Admin remains as channel manager.
     assert.equal((await admin.client.raw('DELETE',base+'/channels/'+channel.id+'/members/'+admin.userId)).statusCode,400); // Last manager remains protected.
     assert.deepEqual(errors,[]);
-    console.log('PASS real API payload + visible owner/admin removal, refresh/reopen, immediate add-back, ordinary member denial and last-manager guard');
+    console.log('PASS real API payload + in-place owner/admin removal/add-back, same dialog/no backdrop cycles, error/retry focus, retained search, refresh/reopen, ordinary member denial and last-manager guard');
   }catch(error){console.error(error);throw error;}finally{await page.evaluate(()=>{const w=window as any;w.instance?.destroy();}).catch(()=>{});await browser.close();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });

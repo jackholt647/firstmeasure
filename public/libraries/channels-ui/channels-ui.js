@@ -5632,69 +5632,96 @@
       if (!channelId) return;
       const data = await api.channels.get(orgId, channelId);
       if (state.destroyed || state.activeChannelId !== channelId) return;
-      const channel = data.channel;
+      let channel = data.channel;
       state.activeChannel = channel;
       const everyone = await orgUsers();
       if (state.destroyed || state.activeChannelId !== channelId) return;
       const selected = new Set();
-      const memberIds = new Set((channel.members || []).map((member) => member.id));
-      showModal('Members', (body, close) => {
+      let mutate;
+      showModal('Members', (body) => {
         const members = el('div', 'fm-ch-current-members');
+        const summary = el('div', 'fm-ch-people-summary');
         const search = el('input');search.type='search';search.placeholder='Search channel members';search.setAttribute('aria-label',search.placeholder);
         search.oninput=()=>{for(const row of members.children)row.hidden=!row.dataset.search.includes(search.value.toLowerCase());};
-        body.append(el('div', 'fm-ch-people-summary', `${memberIds.size} current members`), search, members);
-        for (const member of (channel.members || []).filter(member => member.id !== 'agent_assistant')) {
-          const rowNode = el('div', 'fm-ch-member-row');
-          rowNode.dataset.search=`${member.name} ${member.email || ''}`.toLowerCase();
-          rowNode.innerHTML = `${avatarHtml(member, 'sm')}<span class="name">${esc(member.name)}${onlineDot(member.id)} <span class="fm-ch-tag">${member.role !== 'member' ? 'Channel manager' : 'Member'}</span></span>`;
-          if(channel.can_manage && ['public','private'].includes(channel.type) && !member.id.startsWith('agent_')) {
-            const role=el('button','fm-ch-btn',member.role==='member'?'Make manager':'Make member');
-            role.onclick=async()=>{role.disabled=true;try{const data=await api.channels.setRole(orgId,channel.id,member.id,member.role==='member'?'admin':'member');state.activeChannel=data.channel;close();await loadChannels();await openMembersModal();}catch(error){role.disabled=false;showError(error);}};
-            rowNode.append(role);
+        const people = el('div');
+        const add = (channel.can_invite || channel.can_manage) ? el('button','fm-ch-btn primary','Add selected people') : null;
+        if (add) {
+          add.type='button';add.onclick=()=>{if(selected.size)return mutate(()=>api.channels.addMembers(orgId,channelId,[...selected]));};
+          body.parentElement.querySelector('.fm-ch-modal-foot').append(add);
+        }
+        body.append(summary, search, members, people);
+        let pending = false;
+        const active = () => body.isConnected && !body.closest('.fm-ch-modal-backdrop')?.classList.contains('closing') && !state.destroyed && state.activeChannelId === channelId;
+        const syncButtons = () => {
+          members.querySelectorAll('button').forEach(button => { button.disabled = pending; });
+          people.querySelectorAll('button,input').forEach(control => { control.disabled = pending; });
+          if (add) add.disabled = pending || !selected.size || !(channel.can_invite || channel.can_manage);
+        };
+        const paint = (focusHint = null, initial = false) => {
+          if (!initial && !active()) return;
+          const scroll = body.scrollTop;
+          const peopleSearch = people.querySelector('input[type=search]');
+          const query = peopleSearch?.value || '';
+          const peopleScroll = people.querySelector('.fm-ch-people-results')?.scrollTop || 0;
+          const focused = focusHint || (body.contains(document.activeElement) ? document.activeElement : null);
+          const focusedLabel = focused?.getAttribute('aria-label');
+          const memberIds = new Set((channel.members || []).map(member => member.id));
+          for (const id of selected) if (memberIds.has(id)) selected.delete(id);
+          summary.textContent = `${memberIds.size} current members`;
+          members.replaceChildren();
+          for (const member of (channel.members || []).filter(member => member.id !== 'agent_assistant')) {
+            const row = el('div', 'fm-ch-member-row');
+            row.dataset.search=`${member.name} ${member.email || ''}`.toLowerCase();
+            row.innerHTML = `${avatarHtml(member, 'sm')}<span class="name">${esc(member.name)}${onlineDot(member.id)} <span class="fm-ch-tag">${member.role !== 'member' ? 'Channel manager' : 'Member'}</span></span>`;
+            if(channel.can_manage && ['public','private'].includes(channel.type) && !member.id.startsWith('agent_')) {
+              const role=el('button','fm-ch-btn',member.role==='member'?'Make manager':'Make member');
+              role.onclick=()=>mutate(()=>api.channels.setRole(orgId,channelId,member.id,member.role==='member'?'admin':'member'));
+              row.append(role);
+            }
+            if (channel.can_manage && member.id !== currentUser.id) {
+              const remove=el('button','fm-ch-btn','Remove');remove.type='button';
+              remove.title=(globalThis.PlatformLanguage?.text("channels-ui","m_47839980185da7","Remove from channel") ?? "Remove from channel");
+              remove.setAttribute('aria-label',`Remove ${member.name} from channel`);
+              remove.onclick=()=>mutate(()=>api.channels.removeMember(orgId,channelId,member.id));
+              row.append(remove);
+            }
+            members.append(row);
           }
-          if (channel.can_manage && member.id !== currentUser.id) {
-            const remove = el('button', 'fm-ch-btn', 'Remove');
-            remove.type = 'button';
-            remove.title = (globalThis.PlatformLanguage?.text("channels-ui","m_47839980185da7","Remove from channel") ?? "Remove from channel");
-            remove.setAttribute('aria-label', `Remove ${member.name} from channel`);
-            remove.addEventListener('click', async () => {
-              remove.disabled = true;
-              try {
-                await api.channels.removeMember(orgId, channel.id, member.id);
-                await loadChannels();
-                if (state.activeChannelId === channel.id) {
-                  await refreshActiveMessages();
-                  renderHeader();
-                  close();
-                  await openMembersModal();
-                } else close();
-              } catch (error) { remove.disabled = false; showError(error); }
-            });
-            rowNode.appendChild(remove);
+          search.oninput();
+          people.replaceChildren();
+          const addable=everyone.filter(user=>user.id!=='agent_assistant' && !memberIds.has(user.id) && (channel.type!=='dm' || user.id.startsWith('agent_')));
+          if (addable.length && (channel.can_invite || channel.can_manage)) {
+            people.append(el('label','','Add people'),peoplePicker(addable,selected,syncButtons));
+            const input=people.querySelector('input[type=search]');input.value=query;input.dispatchEvent(new Event('input'));
+            people.querySelector('.fm-ch-people-results').scrollTop=peopleScroll;
           }
-          members.appendChild(rowNode);
-        }
-        const addable = everyone.filter((user) => user.id !== 'agent_assistant' && !memberIds.has(user.id) && (channel.type !== 'dm' || user.id.startsWith('agent_')));
-        if (addable.length && (channel.can_invite || channel.can_manage)) {
-          body.appendChild(el('label', '', 'Add people'));
-          body.append(peoplePicker(addable, selected, count => { body.parentElement.querySelector('.fm-ch-modal-foot button:last-child').disabled = !count; }));
-        }
-        if (!addable.length && (channel.can_invite || channel.can_manage)) body.parentElement.querySelector('.fm-ch-modal-foot button:last-child').disabled = true;
-      }, [{ label: (globalThis.PlatformLanguage?.text("channels-ui","m_8cb6b086a0e69c","Done") ?? "Done"), primary: false, onClick: async (close) => {
-        close();
-        await loadChannels();
-        if (state.activeChannelId) {
-          const data = await api.channels.get(orgId, state.activeChannelId).catch(() => null);
-          if (data) { state.activeChannel = data.channel; renderHeader(); }
-        }
-      } }, ...((channel.can_invite || channel.can_manage) ? [{ label:'Add selected people', primary:true, onClick:async (close) => {
-        if (!selected.size) return;
-        try {
-          await api.channels.addMembers(orgId, channel.id, [...selected]);
-          close(); await loadChannels();
-          if (state.activeChannelId === channel.id) { await refreshActiveMessages(); renderHeader(); }
-        } catch (error) { showError(error); }
-      } }] : [])]);
+          syncButtons();
+          if (focused && (!focused.isConnected || focused.disabled)) {
+            const replacement=[...body.querySelectorAll('[aria-label]')].find(node=>node.getAttribute('aria-label')===focusedLabel && !node.disabled);
+            (replacement || search).focus({preventScroll:true});
+          }
+          body.scrollTop=scroll;
+        };
+        mutate = async action => {
+          if (pending || !active()) return;
+          const focused = body.contains(document.activeElement) ? document.activeElement : null;
+          pending=true;syncButtons();
+          try {
+            await action();
+            await loadChannels();
+            if (!active()) return;
+            const fresh=await api.channels.get(orgId,channelId);
+            if (!active()) return;
+            channel=fresh.channel;state.activeChannel=channel;
+            await refreshActiveMessages();
+            if (active()) renderHeader();
+          } catch(error) { if (active()) showError(error); }
+          finally { pending=false;paint(focused); }
+        };
+        paint(null, true);
+      }, [{label:(globalThis.PlatformLanguage?.text("channels-ui","m_8cb6b086a0e69c","Done") ?? "Done"),primary:false,onClick:async close=>{
+        close();await loadChannels();
+      }}]);
     }
 
     function openChannelSettingsModal(){
