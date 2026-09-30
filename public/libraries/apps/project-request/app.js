@@ -3,7 +3,7 @@
  */
 (function(){
   const registryUrl = new URL('../../window-manager/project-windows.js?v=20260929-project-windows-v2', document.currentScript.src);
-  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260929-split-v1', document.currentScript.src);
+  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260929-split-v2', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
 window.PlatformCommerce.onReady(async function(){
   await registryReady;
@@ -11433,6 +11433,8 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   async function restoreRouteState(){
+    // A docked pane is owned by its parent layout, not this document's startup route.
+    if (projectContentPane) return;
     if (!projectWindowBridge && window.FirstMateProjectWindows && document.querySelector('main.main, .main')) {
       const route=window.Portal?.routeState?.get?.() || {};
       if (route.project && route.photoScope !== 'feed') return window.FirstMateProjectWindows.open(window.Portal.ProjectStore?.get?.(route.project) || {id:route.project}, {fromRoute:true,tab:route.projectTab,photo:route.photo,projectFullscreen:route.projectFullscreen});
