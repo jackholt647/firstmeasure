@@ -18,6 +18,12 @@
   if (!runtime?.registerApp) return;
 
   const SCRIPT_URL = (document.currentScript && document.currentScript.src) || '';
+  function documentModuleUrl(file){
+    const source = new URL(SCRIPT_URL || '/libraries/apps/documents/studio.js', window.location.href);
+    const url = new URL(file, source);
+    url.search = source.search;
+    return url.href;
+  }
 
   // ------------------------------------------------------------- utilities
   function cleanText(value){ return String(value ?? '').trim(); }
@@ -935,7 +941,7 @@
       root.querySelector('[data-new-theme]')?.addEventListener('click', () => openNewThemeModal());
       root.querySelector('[data-tag-manager]')?.addEventListener('click', () => editTags());
       root.querySelector('[data-document-modules]')?.addEventListener('click', async () => {
-        try { const modules = await import(new URL('./module-editor.js', SCRIPT_URL).href); await modules.openModuleEditor(orgId()); }
+        try { const modules = await import(documentModuleUrl('./module-editor.js')); await modules.openModuleEditor(orgId()); }
         catch (error) { showToast((globalThis.PlatformLanguage?.text("documents","m_68b21459ee2100","Document modules") ?? "Document modules"), errorMessage(error), false); }
       });
       const body = root.querySelector('[data-studio-body]');
@@ -1727,7 +1733,7 @@
       state.folderItemHeader = root.querySelector('[data-studio-item-screen] > .fmdx-editor-top');
       state.folderItemHeader?.querySelector('[data-item-back]')?.addEventListener('click', () => closeFolderItemEditor());
       state.folderItemHeader?.querySelector('[data-item-tags]')?.addEventListener('click', async () => {
-        try { const { openTagManager } = await import(new URL('./tag-manager.js', SCRIPT_URL).href); await openTagManager(orgId(), { tags:arrayValue(state.folderItem.tags), save:async tags => { const result = await api().folders.items.patch(orgId(),state.folderItem.folder_id,state.folderItem.id,{ tags, expected_revision:state.folderItem.revision }); state.folderItem.tags=tags; if(result?.item?.revision) state.folderItem.revision=result.item.revision; } }); } catch(error) { showToast('Document tags',errorMessage(error),false); }
+        try { const { openTagManager } = await import(documentModuleUrl('./tag-manager.js')); await openTagManager(orgId(), { tags:arrayValue(state.folderItem.tags), save:async tags => { const result = await api().folders.items.patch(orgId(),state.folderItem.folder_id,state.folderItem.id,{ tags, expected_revision:state.folderItem.revision }); state.folderItem.tags=tags; if(result?.item?.revision) state.folderItem.revision=result.item.revision; } }); } catch(error) { showToast('Document tags',errorMessage(error),false); }
       });
       const titleInput = state.folderItemHeader?.querySelector('[data-item-name]');
       titleInput?.addEventListener('input', (event) => {
@@ -2416,7 +2422,7 @@
 
     async function editTags(asset, kind){
       try {
-        const { openTagManager } = await import(new URL('./tag-manager.js', SCRIPT_URL).href);
+        const { openTagManager } = await import(documentModuleUrl('./tag-manager.js'));
         await openTagManager(orgId(), asset ? { tags:arrayValue(asset.tags), save:async tags => {
           const result = await api()[kind].patch(orgId(), asset.id, { tags, expected_revision:asset.revision });
           asset.tags=tags; const saved=result?.[kind === 'templates' ? 'template' : 'workflow']; if(saved?.revision) asset.revision=saved.revision;
