@@ -288,7 +288,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20260930-project-chrome-v2'), versionedBundle('project-request/app.js', '20260930-project-chrome-v2')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20260930-scheduling-qa-v1'), versionedBundle('project-request/app.js', '20260930-scheduling-qa-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -331,7 +331,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-schedule/panel.js', '20260929-overview-content-v1')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20260930-scheduling-qa-v1')]
     },
     {
       id: 'project.comms',
@@ -1046,7 +1046,7 @@
   };
 
   apps.forEach((app) => {
-    app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260929-linear-pla20-r2'), ...(app.bundles || [])];
+    app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260930-scheduling-qa-v1'), ...(app.bundles || [])];
     const capability = appCapabilities[app.id];
     if (capability) app.access = { ...(app.access || {}), capability };
     app.route = app.route || routeDefinition(app);

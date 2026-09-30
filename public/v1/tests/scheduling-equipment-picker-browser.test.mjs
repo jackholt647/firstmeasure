@@ -29,6 +29,13 @@ test('equipment picker requires confirmation for down units and supports keyboar
       window.applyEditorPatch = patch => { patches.push(patch); Object.assign(draft,patch); };
       window.eventStart = window.eventEnd = () => new Date('2026-09-28T12:00:00Z');
       window.editorAnchorFor = () => null;
+      // Down-unit details read the company's conflict mode and any known
+      // maintenance windows; unknown mode keeps the "Assign anyway" confirm.
+      window.floatingEvents = [];
+      window.equipmentConflictMode = '';
+      window.isEquipmentWindowEvent = () => false;
+      window.eventKind = () => '';
+      window.floatingEventIsDisposableDraft = () => false;
     });
     await page.addScriptTag({content: source.slice(source.indexOf('  function equipmentUnitDown('), source.indexOf('  function closeEventDraftPopover(')) + '\nwindow.renderEventDraftPopover = () => { const app=document.querySelector("#app"); app.innerHTML=eventEquipmentSectionHtml({},draft,{}); bindEventEquipmentSection(app,draft); }; renderEventDraftPopover();'});
     const open = () => page.locator('summary').click();

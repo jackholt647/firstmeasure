@@ -434,46 +434,346 @@
     return { amount:Math.max(0, amount), unit, days:Math.max(0, days) };
   }
 
+  /* ── Calendar arithmetic shared by bundles and dependency cascades ─────────
+   * Whole-day items move by local calendar days (DST-safe) and always start at
+   * midnight; timed items keep a time of day (their own, or the workday start)
+   * so a linked item never lands at 00:00 just because its predecessor ended
+   * at midnight. */
+  const FIXED_EVENT_STATUSES = ['completed', 'complete', 'done'];
+
+  function localDayStart(value){
+    const date = new Date(value);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }
+
+  function addLocalDays(value, days){
+    const date = new Date(value);
+    date.setDate(date.getDate() + Math.round(Number(days) || 0));
+    return date;
+  }
+
+  function atLocalMinute(dayValue, minute){
+    const date = localDayStart(dayValue);
+    const value = Math.max(0, Math.min(24 * 60 - 1, Math.round(Number(minute) || 0)));
+    date.setHours(Math.floor(value / 60), value % 60, 0, 0);
+    return date;
+  }
+
+  function isLocalMidnight(value){
+    const date = toDate(value);
+    return !!date && date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0 && date.getMilliseconds() === 0;
+  }
+
+  function minuteOfDay(date){
+    return date.getHours() * 60 + date.getMinutes();
+  }
+
+  function eventIsAllDay(event = {}){
+    if (event.all_day === true || event.allDay === true) return true;
+    if (event.all_day === false || event.allDay === false) return false;
+    const granularity = cleanText(event.schedule_granularity || event.scheduleGranularity).toLowerCase();
+    if (granularity === 'date') return true;
+    if (granularity === 'time') return false;
+    const start = eventStart(event);
+    const end = start ? eventEnd(event) : null;
+    return !!(start && end && end > start && isLocalMidnight(start) && isLocalMidnight(end));
+  }
+
+  // Locked or finished work never moves as a side effect of another change.
+  function eventIsFixed(event = {}){
+    return eventIsLocked(event) || FIXED_EVENT_STATUSES.includes(cleanText(event.status).toLowerCase());
+  }
+
+  function workdayMinutes(options = {}, date = new Date()){
+    const hours = availabilityWindow(options.config || null, localDateInput(toDate(date) || new Date()), 'project_work');
+    const start = options.workdayStartMinute != null && Number.isFinite(Number(options.workdayStartMinute)) ? Number(options.workdayStartMinute) : minutesFromTime(hours.start);
+    const end = options.workdayEndMinute != null && Number.isFinite(Number(options.workdayEndMinute)) ? Number(options.workdayEndMinute) : minutesFromTime(hours.end);
+    return { start, end:end > start ? end : 24 * 60 };
+  }
+
+  // How long an item runs, whether it occupies whole days, and its time of day.
+  function scheduleItemSpan(event = {}, range = null){
+    const allDay = eventIsAllDay(event);
+    const start = range?.start ? toDate(range.start) : eventStart(event);
+    const end = range?.end ? toDate(range.end) : (start ? eventEnd(event) : null);
+    const minutes = start && end && end > start
+      ? Math.round((end.getTime() - start.getTime()) / 60000)
+      : Math.max(1, Number(event.duration_minutes || event.duration || 60));
+    if (allDay) {
+      const days = Math.max(1, Math.round(minutes / 1440));
+      return { allDay:true, days, minutes:days * 1440, timeOfDay:null };
+    }
+    return { allDay:false, days:minutes / 1440, minutes:Math.max(1, minutes), timeOfDay:start ? minuteOfDay(start) : null };
+  }
+
+  function spanEnd(start, span){
+    return span.allDay ? addLocalDays(start, span.days) : new Date(start.getTime() + span.minutes * 60000);
+  }
+
+  function shiftEventDate(value, deltaMs, allDay){
+    const date = toDate(value);
+    if (!date) return null;
+    return allDay ? addLocalDays(date, Math.round(deltaMs / 86400000)) : new Date(date.getTime() + deltaMs);
+  }
+
+  // Earliest start at or after `base` that suits the item: whole days begin at
+  // the next midnight, timed items keep their time of day (next day when it
+  // has already passed) or begin inside the workday.
+  function alignStartOnOrAfter(base, span, options = {}){
+    const at = toDate(base);
+    if (!at) return null;
+    if (span.allDay) {
+      const day = localDayStart(at);
+      return day.getTime() < at.getTime() ? addLocalDays(day, 1) : day;
+    }
+    if (Number.isFinite(span.timeOfDay)) {
+      const sameDay = atLocalMinute(at, span.timeOfDay);
+      return sameDay.getTime() >= at.getTime() ? sameDay : atLocalMinute(addLocalDays(at, 1), span.timeOfDay);
+    }
+    const hours = workdayMinutes(options, at);
+    const minute = minuteOfDay(at);
+    if (minute < hours.start) return atLocalMinute(at, hours.start);
+    if (minute + Math.min(span.minutes, hours.end - hours.start) > hours.end) return atLocalMinute(addLocalDays(at, 1), hours.start);
+    return at;
+  }
+
+  // Latest start whose finish is at or before `limit` (mirror of the above).
+  function alignStartEndingBy(limit, span, options = {}){
+    const at = toDate(limit);
+    if (!at) return null;
+    if (span.allDay) return addLocalDays(localDayStart(at), -span.days);
+    const latest = new Date(at.getTime() - span.minutes * 60000);
+    if (Number.isFinite(span.timeOfDay)) {
+      const sameDay = atLocalMinute(latest, span.timeOfDay);
+      return sameDay.getTime() <= latest.getTime() ? sameDay : atLocalMinute(addLocalDays(latest, -1), span.timeOfDay);
+    }
+    const hours = workdayMinutes(options, latest);
+    const minute = minuteOfDay(latest);
+    const lastStart = Math.max(hours.start, hours.end - span.minutes);
+    if (minute >= hours.start && minute <= lastStart) return latest;
+    if (minute < hours.start) return atLocalMinute(addLocalDays(latest, -1), lastStart);
+    return atLocalMinute(latest, lastStart);
+  }
+
+  function dependencyEarliestStart(edge = {}, predecessorRange = {}, span = {}, options = {}){
+    const predStart = toDate(predecessorRange?.start);
+    if (!predStart) return null;
+    const predEnd = toDate(predecessorRange?.end) || predStart;
+    const lag = (Number(edge.lag_minutes) || 0) * 60000;
+    const base = edge.type === 'start_to_start' ? predStart.getTime() + lag
+      : edge.type === 'finish_to_finish' ? predEnd.getTime() + lag - span.minutes * 60000
+        : predEnd.getTime() + lag;
+    return alignStartOnOrAfter(new Date(base), span, options);
+  }
+
+  function dependencyLatestStart(edge = {}, successorRange = {}, span = {}, options = {}){
+    const succStart = toDate(successorRange?.start);
+    if (!succStart) return null;
+    const succEnd = toDate(successorRange?.end) || succStart;
+    const lag = (Number(edge.lag_minutes) || 0) * 60000;
+    const limit = edge.type === 'start_to_start' ? succStart.getTime() - lag + span.minutes * 60000
+      : edge.type === 'finish_to_finish' ? succEnd.getTime() - lag
+        : succStart.getTime() - lag;
+    return alignStartEndingBy(new Date(limit), span, options);
+  }
+
+  // Dependency order (predecessors first); ties and cycles keep input order.
+  function orderByDependencies(events = []){
+    const list = arrayValue(events);
+    const ids = list.map((event) => cleanText(event?.id));
+    const index = new Map();
+    ids.forEach((id, position) => { if (id && !index.has(id)) index.set(id, position); });
+    const indegree = new Map(ids.map((id) => [id, 0]));
+    const next = new Map();
+    list.forEach((event) => {
+      const id = cleanText(event?.id);
+      new Set(eventDependencies(event).map((dep) => dep.event_id)).forEach((from) => {
+        if (!index.has(from) || from === id) return;
+        indegree.set(id, (indegree.get(id) || 0) + 1);
+        if (!next.has(from)) next.set(from, []);
+        next.get(from).push(id);
+      });
+    });
+    const ready = ids.filter((id) => !indegree.get(id));
+    const ordered = [];
+    const seen = new Set();
+    while (ready.length) {
+      ready.sort((a, b) => (index.get(a) ?? 0) - (index.get(b) ?? 0));
+      const id = ready.shift();
+      if (seen.has(id)) continue;
+      seen.add(id);
+      ordered.push(id);
+      arrayValue(next.get(id)).forEach((to) => {
+        indegree.set(to, (indegree.get(to) || 0) - 1);
+        if (indegree.get(to) === 0) ready.push(to);
+      });
+    }
+    ids.forEach((id) => { if (!seen.has(id)) { seen.add(id); ordered.push(id); } });
+    return ordered.map((id) => list[index.get(id)]).filter(Boolean);
+  }
+
+  // Duration/granularity of a bundle item: a scope rule's default_duration
+  // wins; otherwise the item keeps its own duration_minutes and all-day flag.
+  function bundleItemSpan(event = {}, rule = {}, context = {}){
+    if (rule.default_duration !== undefined && rule.default_duration !== null) {
+      const duration = scheduleDuration(rule.default_duration, context, 1);
+      const allDay = rule.all_day !== false;
+      return { allDay, days:duration.days, minutes:Math.max(1, Math.round(duration.days * 1440)), timeOfDay:null, duration, fromRule:true };
+    }
+    const natural = scheduleItemSpan(event);
+    const material = eventKind(event) === 'material_delivery';
+    const allDay = rule.all_day === true ? true
+      : rule.all_day === false ? false
+        : (natural.allDay || (material && event.all_day !== false && !cleanText(event.schedule_granularity)));
+    const days = allDay ? Math.max(1, Math.round(natural.minutes / 1440)) : natural.minutes / 1440;
+    return {
+      allDay,
+      days,
+      minutes:allDay ? days * 1440 : natural.minutes,
+      timeOfDay:allDay ? null : natural.timeOfDay,
+      duration:{ amount:days, unit:'day', days },
+      fromRule:false
+    };
+  }
+
+  function bundleSpanEnd(start, span, context){
+    return span.fromRule
+      ? addScheduleOffset(start, { value:span.duration.amount, unit:span.duration.unit }, context)
+      : spanEnd(start, span);
+  }
+
+  /* Lay out a waiting bundle from the day the primary item is placed on.
+   * Items are placed in dependency order: each starts once its predecessors
+   * (finish-to-start / start-to-start / finish-to-finish, with lags) allow,
+   * keeps its own duration and all-day/timed granularity, and scope-template
+   * relative_start rules still apply to items without in-bundle links.
+   * options: { primaryEnd, config (branch availability), events (already
+   * scheduled project events that constrain bundle items) }. */
   function interpretScheduleBundle(primaryEvent = {}, bundleEvents = [], anchorStart = new Date(), project = {}, templates = [], options = {}){
     const events = arrayValue(bundleEvents).length ? arrayValue(bundleEvents) : [primaryEvent];
+    const primaryId = cleanText(primaryEvent.id);
     const primaryDescriptor = scheduleBundleDescriptor(primaryEvent, project, templates);
     const measurements = projectScheduleMeasurements(project, primaryEvent);
     const baseContext = { project:{ ...project, measurements }, measurements, event:primaryEvent };
-    const start = new Date(anchorStart);
-    const configuredPrimaryDuration = scheduleDuration(primaryDescriptor.rule.default_duration, baseContext, Math.max(1, Number(primaryEvent.duration_minutes || 1440) / 1440));
-    const requestedPrimaryEnd = options?.primaryEnd ? new Date(options.primaryEnd) : null;
-    const hasRequestedPrimaryEnd = requestedPrimaryEnd instanceof Date && !Number.isNaN(requestedPrimaryEnd.getTime()) && requestedPrimaryEnd > start;
-    const primaryEnd = hasRequestedPrimaryEnd ? requestedPrimaryEnd : addScheduleOffset(start, { value:configuredPrimaryDuration.amount, unit:configuredPrimaryDuration.unit }, baseContext);
+    const anchorDate = toDate(anchorStart) || new Date();
+    const primarySpan = bundleItemSpan(primaryEvent, primaryDescriptor.rule, baseContext);
+    // A whole-day item starts at midnight; a timed item dropped on a date
+    // (midnight) starts at the beginning of the workday instead.
+    const start = primarySpan.fromRule
+      ? anchorDate
+      : primarySpan.allDay
+        ? localDayStart(anchorDate)
+        : (isLocalMidnight(anchorDate) ? atLocalMinute(anchorDate, workdayMinutes(options, anchorDate).start) : anchorDate);
+    const requestedPrimaryEnd = toDate(options?.primaryEnd);
+    const hasRequestedPrimaryEnd = !!requestedPrimaryEnd && requestedPrimaryEnd > start;
+    const primaryEnd = hasRequestedPrimaryEnd ? requestedPrimaryEnd : bundleSpanEnd(start, primarySpan, baseContext);
     const primaryDuration = hasRequestedPrimaryEnd
       ? { amount:(primaryEnd.getTime() - start.getTime()) / 86400000, unit:'day', days:(primaryEnd.getTime() - start.getTime()) / 86400000 }
-      : configuredPrimaryDuration;
+      : primarySpan.duration;
     const anchor = { start, end:primaryEnd, duration:primaryDuration, event:primaryEvent };
     const context = { ...baseContext, anchor };
-    const orderedEvents = [primaryEvent, ...events.filter((event) => String(event.id || '') !== String(primaryEvent.id || ''))];
-    return orderedEvents.map((event) => {
+    const others = orderByDependencies(events.filter((event) => cleanText(event.id) !== primaryId));
+    const bundleIds = new Set([primaryId, ...others.map((event) => cleanText(event.id))]);
+    const placed = new Map([[primaryId, { start, end:primaryEnd }]]);
+    const external = new Map(arrayValue(options?.events)
+      .filter((event) => !bundleIds.has(cleanText(event.id)) && eventIsScheduled(event))
+      .map((event) => [cleanText(event.id), { start:eventStart(event), end:eventEnd(event) }]));
+    const primaryDraft = {
+      ...primaryEvent,
+      id:primaryEvent.id,
+      event_id:primaryEvent.id,
+      start,
+      end:primaryEnd,
+      all_day:primarySpan.allDay,
+      schedule_granularity:primarySpan.allDay ? 'date' : 'time',
+      __schedule_bundle_key:primaryDescriptor.key,
+      __schedule_bundle_role:primaryDescriptor.role,
+      __schedule_bundle_primary:true
+    };
+    // Items the primary itself waits on are laid out backwards from it so the
+    // placed primary date stays where the user dropped it.
+    const byId = new Map(others.map((event) => [cleanText(event.id), event]));
+    const ancestors = new Set();
+    const pending = [primaryEvent];
+    while (pending.length) {
+      eventDependencies(pending.shift()).forEach((dep) => {
+        if (!byId.has(dep.event_id) || ancestors.has(dep.event_id)) return;
+        ancestors.add(dep.event_id);
+        pending.push(byId.get(dep.event_id));
+      });
+    }
+    const backwardRanges = new Map();
+    others.filter((event) => ancestors.has(cleanText(event.id))).reverse().forEach((event) => {
+      const id = cleanText(event.id);
+      const span = bundleItemSpan(event, scheduleBundleDescriptor(event, project, templates).rule, context);
+      let latest = null;
+      [primaryEvent, ...others].forEach((successor) => {
+        const successorId = cleanText(successor.id);
+        const successorRange = successorId === primaryId ? placed.get(primaryId) : backwardRanges.get(successorId);
+        if (!successorRange) return;
+        eventDependencies(successor).filter((dep) => dep.event_id === id).forEach((dep) => {
+          const candidate = dependencyLatestStart(dep, successorRange, span, options);
+          if (candidate && (!latest || candidate < latest)) latest = candidate;
+        });
+      });
+      if (latest) backwardRanges.set(id, { start:latest, end:spanEnd(latest, span) });
+    });
+    const drafts = others.map((event) => {
+      const id = cleanText(event.id);
       const descriptor = scheduleBundleDescriptor(event, project, templates);
       const rule = descriptor.rule;
-      const relative = objectValue(rule.relative_start);
-      const relativeBase = cleanText(relative.anchor || 'start') === 'end' ? primaryEnd : start;
-      const eventStart = descriptor.role === 'primary' ? start : addScheduleOffset(relativeBase, relative.offset, context);
-      const duration = descriptor.role === 'primary' ? primaryDuration : scheduleDuration(rule.default_duration, context, 1);
-      const eventEnd = descriptor.role === 'primary' ? primaryEnd : addScheduleOffset(eventStart, { value:duration.amount, unit:duration.unit }, context);
+      const span = bundleItemSpan(event, rule, context);
+      if (backwardRanges.has(id)) {
+        const range = backwardRanges.get(id);
+        placed.set(id, range);
+        return {
+          ...event,
+          id:event.id,
+          event_id:event.id,
+          start:range.start,
+          end:range.end,
+          all_day:span.allDay,
+          schedule_granularity:span.allDay ? 'date' : 'time',
+          __schedule_bundle_key:primaryDescriptor.key,
+          __schedule_bundle_role:descriptor.role,
+          __schedule_bundle_primary:false
+        };
+      }
+      const links = eventDependencies(event).filter((dep) => dep.event_id !== id && (placed.has(dep.event_id) || external.has(dep.event_id)));
+      let eventStartAt = null;
+      links.forEach((dep) => {
+        const earliest = dependencyEarliestStart(dep, placed.get(dep.event_id) || external.get(dep.event_id), span, options);
+        if (earliest && (!eventStartAt || earliest > eventStartAt)) eventStartAt = earliest;
+      });
+      if (!eventStartAt) {
+        const relative = objectValue(rule.relative_start);
+        if (Object.keys(relative).length) {
+          const relativeBase = cleanText(relative.anchor || 'start') === 'end' ? primaryEnd : start;
+          eventStartAt = addScheduleOffset(relativeBase, relative.offset, context);
+        } else {
+          eventStartAt = alignStartOnOrAfter(span.allDay ? localDayStart(start) : start, span, options);
+        }
+      }
+      const eventEndAt = bundleSpanEnd(eventStartAt, span, context);
+      placed.set(id, { start:eventStartAt, end:eventEndAt });
       return {
         ...event,
         id:event.id,
         event_id:event.id,
-        start:eventStart,
-        end:eventEnd,
-        all_day:rule.all_day !== false,
-        schedule_granularity:rule.all_day === false ? 'time' : 'date',
+        start:eventStartAt,
+        end:eventEndAt,
+        all_day:span.allDay,
+        schedule_granularity:span.allDay ? 'date' : 'time',
         __schedule_bundle_key:primaryDescriptor.key,
         __schedule_bundle_role:descriptor.role,
-        __schedule_bundle_primary:descriptor.role === 'primary'
+        __schedule_bundle_primary:false
       };
     });
+    return [primaryDraft, ...drafts];
   }
 
-  function relatedScheduleRescheduleDrafts(primaryEvent = {}, bundleEvents = [], nextRange = {}, project = {}, templates = []){
+  function templateRelationshipDrafts(primaryEvent = {}, bundleEvents = [], nextRange = {}, project = {}, templates = []){
     if (!nextRange?.start) return [];
     const primaryDescriptor = scheduleBundleDescriptor(primaryEvent, project, templates);
     const policy = scheduleBundleReschedulePolicy(primaryEvent, project, templates);
@@ -486,6 +786,37 @@
     });
     return interpretScheduleBundle(primaryEvent, related, new Date(nextRange.start), project, templates, { primaryEnd:nextRange.end })
       .filter((draft) => String(draft.id || '') !== String(primaryEvent.id || ''));
+  }
+
+  /* Everything a move of one project item implies for its related items:
+   * scope-template bundle rules (reschedule.cascade prompt/always) plus the
+   * item's depends_on links in both directions. Returns
+   * { drafts, blocked } where blocked lists locked/completed items whose
+   * links would be violated (they are never moved). */
+  function relatedScheduleRescheduleImpact(primaryEvent = {}, projectEvents = [], nextRange = {}, project = {}, templates = [], options = {}){
+    if (!nextRange?.start) return { drafts:[], blocked:[] };
+    const primaryId = cleanText(primaryEvent.id);
+    const list = arrayValue(projectEvents);
+    const templateDrafts = templateRelationshipDrafts(primaryEvent, list, nextRange, project, templates)
+      .filter((draft) => !eventIsFixed(list.find((event) => cleanText(event.id) === cleanText(draft.id)) || draft));
+    const templateById = new Map(templateDrafts.map((draft) => [cleanText(draft.id), draft]));
+    const withPrimary = list.some((event) => cleanText(event.id) === primaryId) ? list : [...list, primaryEvent];
+    const effective = withPrimary.map((event) => {
+      const draft = templateById.get(cleanText(event.id));
+      if (!draft) return event;
+      const startIso = new Date(draft.start).toISOString();
+      const endIso = new Date(draft.end).toISOString();
+      return { ...event, status:'scheduled', start_at:startIso, start:startIso, end_at:endIso, end:endIso };
+    });
+    const impact = dependencyRescheduleImpact(effective, primaryId, nextRange, options);
+    const merged = new Map(templateDrafts.map((draft) => [cleanText(draft.id), draft]));
+    impact.drafts.forEach((draft) => merged.set(cleanText(draft.id), draft));
+    merged.delete(primaryId);
+    return { drafts:Array.from(merged.values()), blocked:impact.blocked };
+  }
+
+  function relatedScheduleRescheduleDrafts(primaryEvent = {}, bundleEvents = [], nextRange = {}, project = {}, templates = [], options = {}){
+    return relatedScheduleRescheduleImpact(primaryEvent, bundleEvents, nextRange, project, templates, options).drafts;
   }
 
   const DEPENDENCY_TYPES = ['finish_to_start', 'start_to_start', 'finish_to_finish'];
@@ -544,17 +875,31 @@
     };
   }
 
+  // Groups are date-level containers; only an explicit time granularity makes
+  // one timed (a missing all_day flag is often coerced to false upstream).
+  function groupIsAllDay(event = {}){
+    return event.all_day === true || cleanText(event.schedule_granularity).toLowerCase() !== 'time';
+  }
+
   function applyGroupRollups(events = []){
     const list = arrayValue(events);
     return list.map((event) => {
       if (!eventIsGroup(event) || groupRollupMode(event) === 'manual') return event;
       const range = groupRollupRange(list, event);
       if (!range.derived || !range.start || !range.end) return event;
+      // An all-day group covers whole days: a timed last item (a 2 PM
+      // walkthrough) still ends the group's bar at the end of that day.
+      // Groups are date-level containers unless explicitly timed.
+      const allDay = groupIsAllDay(event);
+      const start = allDay ? localDayStart(range.start) : range.start;
+      const end = allDay && !isLocalMidnight(range.end) ? addLocalDays(localDayStart(range.end), 1) : range.end;
       return {
         ...event,
-        start_at:range.start.toISOString(),
-        end_at:range.end.toISOString(),
-        duration_minutes:Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 60000)),
+        start_at:start.toISOString(),
+        start:start.toISOString(),
+        end_at:end.toISOString(),
+        end:end.toISOString(),
+        duration_minutes:Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)),
         status:cleanText(event.status).toLowerCase() === 'unscheduled' ? 'scheduled' : (event.status || 'scheduled'),
         __rollup_derived:true,
       };
@@ -578,49 +923,196 @@
     return { byId, edges, dependentsOf };
   }
 
-  function dependencyTargetStart(edge, drivingEvent, dependentEvent){
-    const lag = (Number(edge.lag_minutes) || 0) * 60000;
-    if (edge.type === 'start_to_start') {
-      const start = eventStart(drivingEvent);
-      return start ? new Date(start.getTime() + lag) : null;
-    }
-    if (edge.type === 'finish_to_finish') {
-      const end = eventEnd(drivingEvent);
-      const duration = eventDurationMinutes(dependentEvent) * 60000;
-      return end ? new Date(end.getTime() + lag - duration) : null;
-    }
-    const end = eventEnd(drivingEvent);
-    return end ? new Date(end.getTime() + lag) : null;
-  }
-
-  // Walks the dependency graph outward from a moved event and returns drafts
-  // for every dependent whose start no longer satisfies its link. Cycle-safe.
-  function cascadeDependentDrafts(events = [], movedEventId = '', nextRange = {}){
-    const list = arrayValue(events).map((event) => cleanText(event.id) === cleanText(movedEventId) && nextRange?.start
-      ? updateProjectEventRange(event, { start:nextRange.start, end:nextRange.end })
-      : event);
-    const graph = scheduleGraph(list);
+  /* Works out what moving one item does to its depends_on neighbours.
+   * Successors are pushed later only when the new range violates their link
+   * (items with slack stay put — nothing is pulled earlier); predecessors are
+   * pulled earlier only when the moved item now starts before they allow.
+   * Whole-day items land on day boundaries and timed items keep their time
+   * of day. Locked or completed items are never moved: they are reported in
+   * `blocked` so the caller can warn. Cycle-safe. */
+  function dependencyRescheduleImpact(events = [], movedEventId = '', nextRange = {}, options = {}){
+    const movedId = cleanText(movedEventId);
+    const graph = scheduleGraph(events);
+    const moved = graph.byId.get(movedId);
+    const movedStart = toDate(nextRange?.start);
+    if (!moved || !movedStart) return { drafts:[], blocked:[] };
+    const requestedEnd = toDate(nextRange?.end);
+    const movedEnd = requestedEnd && requestedEnd > movedStart ? requestedEnd : new Date(movedStart.getTime() + eventDurationMinutes(moved) * 60000);
+    const predecessorsOf = new Map();
+    graph.edges.forEach((edge) => {
+      if (!predecessorsOf.has(edge.to)) predecessorsOf.set(edge.to, []);
+      predecessorsOf.get(edge.to).push(edge);
+    });
+    const ranges = new Map([[movedId, { start:movedStart, end:movedEnd }]]);
+    const rangeOf = (id) => {
+      if (ranges.has(id)) return ranges.get(id);
+      const event = graph.byId.get(id);
+      const start = event && eventIsScheduled(event) ? eventStart(event) : null;
+      return start ? { start, end:eventEnd(event) || start } : null;
+    };
     const drafts = new Map();
-    const visited = new Set([cleanText(movedEventId)]);
-    const queue = [cleanText(movedEventId)];
-    while (queue.length) {
-      const currentId = queue.shift();
-      const current = drafts.get(currentId) || graph.byId.get(currentId);
+    const blocked = new Map();
+    const block = (event, related, dependency, direction) => {
+      const id = cleanText(event.id);
+      if (!blocked.has(id)) blocked.set(id, { event, related, dependency, direction, reason:eventIsLocked(event) ? 'locked' : 'completed' });
+    };
+    const place = (event, start, span) => {
+      const id = cleanText(event.id);
+      const end = spanEnd(start, span);
+      ranges.set(id, { start, end });
+      drafts.set(id, updateProjectEventRange(event, { start, end }));
+    };
+    const budget = Math.max(8, graph.edges.length * 4);
+    let steps = 0;
+    const forward = [movedId];
+    while (forward.length && steps++ < budget) {
+      const currentId = forward.shift();
+      const currentRange = rangeOf(currentId);
+      if (!currentRange) continue;
       arrayValue(graph.dependentsOf.get(currentId)).forEach((edge) => {
-        const dependent = drafts.get(edge.to) || graph.byId.get(edge.to);
-        if (!dependent || eventIsLocked(dependent) || !eventIsScheduled(dependent)) return;
-        const targetStart = dependencyTargetStart(edge, current, dependent);
-        const existingStart = eventStart(dependent);
-        if (!targetStart || (existingStart && Math.abs(existingStart.getTime() - targetStart.getTime()) < 60000)) return;
-        const duration = eventDurationMinutes(dependent) * 60000;
-        drafts.set(edge.to, updateProjectEventRange(dependent, {
-          start:targetStart,
-          end:new Date(targetStart.getTime() + duration),
-        }));
-        if (!visited.has(edge.to)) { visited.add(edge.to); queue.push(edge.to); }
+        if (edge.to === movedId) return;
+        const dependent = graph.byId.get(edge.to);
+        const dependentRange = rangeOf(edge.to);
+        if (!dependent || !dependentRange) return;
+        const span = scheduleItemSpan(dependent, dependentRange);
+        const earliest = dependencyEarliestStart(edge, currentRange, span, options);
+        if (!earliest || dependentRange.start.getTime() >= earliest.getTime()) return;
+        if (eventIsFixed(dependent)) { block(dependent, graph.byId.get(currentId), edge, 'successor'); return; }
+        place(dependent, earliest, span);
+        forward.push(edge.to);
       });
     }
-    return Array.from(drafts.values());
+    steps = 0;
+    const backward = [movedId];
+    while (backward.length && steps++ < budget) {
+      const currentId = backward.shift();
+      const currentRange = rangeOf(currentId);
+      if (!currentRange) continue;
+      arrayValue(predecessorsOf.get(currentId)).forEach((edge) => {
+        if (edge.from === movedId || drafts.has(edge.from)) return;
+        const predecessor = graph.byId.get(edge.from);
+        const predecessorRange = rangeOf(edge.from);
+        if (!predecessor || !predecessorRange) return;
+        const span = scheduleItemSpan(predecessor, predecessorRange);
+        const latest = dependencyLatestStart(edge, currentRange, span, options);
+        if (!latest || predecessorRange.start.getTime() <= latest.getTime()) return;
+        if (eventIsFixed(predecessor)) { block(predecessor, graph.byId.get(currentId), edge, 'predecessor'); return; }
+        place(predecessor, latest, span);
+        backward.push(edge.from);
+      });
+    }
+    const sortByStart = (a, b) => (eventStart(a)?.getTime() || 0) - (eventStart(b)?.getTime() || 0);
+    return { drafts:Array.from(drafts.values()).sort(sortByStart), blocked:Array.from(blocked.values()) };
+  }
+
+  // Drafts for every linked item a move displaces (see dependencyRescheduleImpact).
+  function cascadeDependentDrafts(events = [], movedEventId = '', nextRange = {}, options = {}){
+    return dependencyRescheduleImpact(events, movedEventId, nextRange, options).drafts;
+  }
+
+  // Links whose successor currently starts before its predecessor allows.
+  function dependencyViolations(events = [], options = {}){
+    const graph = scheduleGraph(events);
+    return graph.edges.map((edge) => {
+      const from = graph.byId.get(edge.from);
+      const to = graph.byId.get(edge.to);
+      if (!eventIsScheduled(from) || !eventIsScheduled(to)) return null;
+      const toRange = { start:eventStart(to), end:eventEnd(to) };
+      const earliest = dependencyEarliestStart(edge, { start:eventStart(from), end:eventEnd(from) }, scheduleItemSpan(to, toRange), options);
+      return earliest && toRange.start.getTime() < earliest.getTime()
+        ? { ...edge, earliest_start:earliest.toISOString() }
+        : null;
+    }).filter(Boolean);
+  }
+
+  function groupDescendants(events = [], groupId = ''){
+    const list = arrayValue(events);
+    const result = [];
+    const seen = new Set([cleanText(groupId)]);
+    const queue = [cleanText(groupId)];
+    while (queue.length) {
+      eventChildren(list, queue.shift()).forEach((child) => {
+        const id = cleanText(child.id);
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        result.push(child);
+        if (eventIsGroup(child)) queue.push(id);
+      });
+    }
+    return result;
+  }
+
+  /* Moving a group moves its scheduled items by the same offset. Locked or
+   * completed items cannot move, so they are returned in `blocked` and the
+   * caller decides (the calendar refuses the move). `resized` is true when the
+   * new range changes the group's length, which an auto-rollup group cannot. */
+  function groupMoveDrafts(events = [], groupEvent = {}, nextRange = {}){
+    const list = arrayValue(events);
+    const current = groupRollupRange(list, groupEvent);
+    const nextStart = toDate(nextRange?.start);
+    const nextEnd = toDate(nextRange?.end);
+    const items = groupDescendants(list, groupEvent.id).filter((event) => !eventIsGroup(event) && eventIsScheduled(event));
+    if (!current.start || !nextStart) return { drafts:[], blocked:[], items, delta:0, resized:false, derived:current.derived };
+    const groupAllDay = groupIsAllDay(groupEvent);
+    const currentStart = groupAllDay ? localDayStart(current.start) : current.start;
+    const currentEnd = current.end ? (groupAllDay && !isLocalMidnight(current.end) ? addLocalDays(localDayStart(current.end), 1) : current.end) : null;
+    const delta = nextStart.getTime() - currentStart.getTime();
+    const resized = !!(nextEnd && currentEnd && Math.abs((nextEnd.getTime() - nextStart.getTime()) - (currentEnd.getTime() - currentStart.getTime())) > 2 * 3600000);
+    const blocked = items.filter(eventIsFixed);
+    const drafts = items.filter((event) => !eventIsFixed(event)).map((event) => {
+      const allDay = eventIsAllDay(event);
+      const start = shiftEventDate(eventStart(event), delta, allDay);
+      const end = shiftEventDate(eventEnd(event) || eventStart(event), delta, allDay);
+      return updateProjectEventRange(event, { start, end });
+    });
+    return { drafts, blocked, items, delta, resized, derived:current.derived };
+  }
+
+  /* Stored group records whose range/status no longer match their items
+   * (auto rollup). Callers persist these after placing or moving children so
+   * every surface — including ones that read stored ranges — agrees. */
+  function groupRollupUpdates(events = [], groupIds = null){
+    const list = arrayValue(events);
+    const only = groupIds ? new Set(arrayValue(groupIds).map(cleanText).filter(Boolean)) : null;
+    return applyGroupRollups(list)
+      .filter((event) => event.__rollup_derived === true && (!only || only.has(cleanText(event.id))))
+      .map((rolled) => {
+        const stored = list.find((event) => cleanText(event.id) === cleanText(rolled.id)) || rolled;
+        const sameStart = eventStart(stored)?.getTime() === eventStart(rolled)?.getTime();
+        const sameEnd = eventEnd(stored)?.getTime() === eventEnd(rolled)?.getTime();
+        const sameStatus = cleanText(stored.status).toLowerCase() === cleanText(rolled.status).toLowerCase();
+        if (sameStart && sameEnd && sameStatus) return null;
+        const allDay = groupIsAllDay(rolled);
+        return {
+          ...updateProjectEventRange(stored, {
+            start:eventStart(rolled),
+            end:eventEnd(rolled),
+            all_day:allDay,
+            schedule_granularity:allDay ? 'date' : 'time'
+          }),
+          status:rolled.status
+        };
+      })
+      .filter(Boolean);
+  }
+
+  // Parent groups (nearest first) of the given items.
+  function eventAncestorGroupIds(events = [], items = []){
+    const list = arrayValue(events);
+    const byId = new Map(list.map((event) => [cleanText(event.id), event]));
+    const ids = [];
+    arrayValue(items).forEach((item) => {
+      let parentId = eventParentId(item);
+      const seen = new Set();
+      while (parentId && !seen.has(parentId)) {
+        seen.add(parentId);
+        const parent = byId.get(parentId);
+        if (!parent || !eventIsGroup(parent)) break;
+        if (!ids.includes(parentId)) ids.push(parentId);
+        parentId = eventParentId(parent);
+      }
+    });
+    return ids;
   }
 
   function createScheduleGroupEvent(project, fields = {}, config = null){
@@ -821,6 +1313,10 @@
     const config = withMappedLabels({ scheduling, mappings });
     config.org_id = orgId;
     config.branch_id = branchId || 'default';
+    // The module list failed to load: the stored modules are unknown, so the
+    // defaults above are a stand-in only. Never cache them or save them over
+    // the organization's real configuration.
+    if (options.ensureDefaults === true && !moduleMap) return config;
     cache.set(key, config);
     if (options.ensureDefaults === true) {
       if (!schedulingRaw || !Object.keys(objectValue(schedulingRaw.event_types)).length) saveModule(orgId, branchId, MODULES.scheduling, scheduling).catch(() => null);
@@ -955,14 +1451,56 @@
     };
   }
 
+  /* List helpers never turn a failed read into an empty list (R3-HDR-1): an
+   * empty schedule is indistinguishable from "nothing booked", so callers
+   * could overwrite good data with it. A failed request rejects with a typed
+   * ScheduleSourceError (error.code 'schedule_source_failed', error.source,
+   * error.status, error.cause) so the caller can keep its last good data and
+   * offer a retry. A permission refusal (401/403) is not a failure of the
+   * source: that viewer simply has no such list, so it still resolves []. A
+   * missing collection (404) resolves [] via PlatformAPI as before. */
+  function scheduleSourceError(source, error){
+    const failure = new Error((globalThis.PlatformLanguage?.text("platform-scheduling","m_schedule_source_failed","Some schedule data could not be loaded.") ?? "Some schedule data could not be loaded."));
+    failure.name = 'ScheduleSourceError';
+    failure.code = 'schedule_source_failed';
+    failure.source = source;
+    failure.status = Number(error?.status || 0);
+    failure.cause = error;
+    return failure;
+  }
+
+  function isScheduleSourceError(error){
+    return error?.code === 'schedule_source_failed' && error?.name === 'ScheduleSourceError';
+  }
+
+  function isPermissionRefusal(error){
+    return [401, 403].includes(Number(error?.status || 0));
+  }
+
+  async function listSource(source, load){
+    try {
+      return await load();
+    } catch (error) {
+      if (isPermissionRefusal(error)) return [];
+      throw scheduleSourceError(source, error);
+    }
+  }
+
   async function listUsers(orgId, config = null){
-    const result = await PlatformAPI.users.list(orgId).catch(() => ({ documents: [], users: [] }));
+    const result = await listSource('users', () => PlatformAPI.users.list(orgId));
     return arrayValue(result?.documents || result?.users || result).map((doc) => normalizeUser(doc, config));
   }
 
   async function listProjects(orgId, config = null){
-    const result = await PlatformAPI.projects.list(orgId).catch(() => ({ documents: [], projects: [] }));
+    const result = await listSource('projects', () => PlatformAPI.projects.list(orgId));
     return arrayValue(result?.documents || result?.projects || result).map((doc) => normalizeProject(doc, config));
+  }
+
+  /* Floating (non-project) calendar events, with the same failure contract. */
+  async function listCalendarEvents(orgId, options = {}){
+    if (!PlatformAPI?.calendarEvents?.list) return [];
+    const result = await listSource('calendar_events', () => PlatformAPI.calendarEvents.list(orgId, options));
+    return arrayValue(result?.documents || result?.calendar_events || result);
   }
 
   function eventsFromProjects(projects, config = null){
@@ -1551,6 +2089,167 @@
     }, config, project);
   }
 
+  /* ── Work assignees (crews / teams / people) ──────────────────────────────
+   * Model shared with the server (public/v1/platform/api.ts
+   * resolveEventWorkAssignees): resource_refs carries every crew-role
+   * assignee (resource_group / organization_connection, and people when a
+   * writer lists them there); work_resource_ref and the legacy crew_* /
+   * assigned_crew_* / assigned_resource_* mirrors carry only the primary
+   * (first) one. People are assigned_user_ids. Write assignee changes through
+   * assigneeSetPayload / setEventWorkAssignees so the whole set is explicit:
+   * an empty crew list unassigns every crew. */
+  const EQUIPMENT_REF_KINDS = ['equipment_unit', 'equipment_type'];
+  const WORK_REF_KIND_ALIASES = { crew:'resource_group', team:'resource_group', person:'organization_user', user:'organization_user', subcontractor:'organization_connection' };
+
+  function workRefKind(value, fallback = 'resource_group'){
+    const kind = cleanText(value).toLowerCase();
+    return WORK_REF_KIND_ALIASES[kind] || kind || fallback;
+  }
+
+  function equipmentRefsOf(event = {}){
+    return arrayValue(objectValue(event).resource_refs).filter((ref) => EQUIPMENT_REF_KINDS.includes(cleanText(ref?.kind)));
+  }
+
+  function primaryWorkRef(event = {}){
+    const value = objectValue(event);
+    const selfId = cleanText(value.id);
+    const ref = objectValue(value.work_resource_ref);
+    if (cleanText(ref.id) && cleanText(ref.id) !== selfId) return { kind:workRefKind(ref.kind), id:cleanText(ref.id), name:cleanText(ref.name || ref.label) };
+    const legacyId = cleanText(value.assigned_resource_id || value.assigned_crew_id || value.crew_id);
+    const legacyKind = workRefKind(value.assigned_resource_kind);
+    if (!legacyId || legacyId === selfId || legacyKind === 'organization_user' || EQUIPMENT_REF_KINDS.includes(legacyKind)) return null;
+    return { kind:legacyKind, id:legacyId, name:cleanText(value.assigned_resource_name || value.assigned_crew_name || value.crew_name || objectValue(value.assigned_crew).name) };
+  }
+
+  /* -> { crews:[{kind,id,name}], people:[{id,name}] } for an event. */
+  function eventWorkAssignees(event = {}){
+    const value = objectValue(event);
+    const refs = arrayValue(value.resource_refs).map(objectValue).filter((ref) => cleanText(ref.id) && !EQUIPMENT_REF_KINDS.includes(cleanText(ref.kind)));
+    const crews = refs.filter((ref) => workRefKind(ref.kind) !== 'organization_user').map((ref) => ({ kind:workRefKind(ref.kind), id:cleanText(ref.id), name:cleanText(ref.name || ref.label) }));
+    const primary = primaryWorkRef(value);
+    if (primary && primary.kind !== 'organization_user' && !crews.some((crew) => crew.id === primary.id)) crews.unshift(primary);
+    const users = arrayValue(value.assigned_users).map(objectValue);
+    const peopleIds = unique([
+      ...arrayValue(value.assigned_user_ids),
+      value.assigned_user_id,
+      ...refs.filter((ref) => workRefKind(ref.kind) === 'organization_user').map((ref) => ref.id),
+      primary?.kind === 'organization_user' ? primary.id : '',
+    ]);
+    const people = peopleIds.map((id) => {
+      const user = users.find((candidate) => cleanText(candidate.id || candidate.user_id) === id);
+      const ref = refs.find((candidate) => cleanText(candidate.id) === id);
+      return { id, name:cleanText(user?.name || user?.email || ref?.name || (id === cleanText(value.assigned_user_id) ? value.assigned_user_name : '')) };
+    });
+    return {
+      crews:crews.filter((crew, index) => crews.findIndex((other) => other.id === crew.id) === index),
+      people,
+    };
+  }
+
+  function workAssignmentMirror(primary){
+    const crewLike = !!primary && primary.kind !== 'organization_user';
+    return {
+      work_resource_ref: primary ? { kind:primary.kind, id:primary.id, name:primary.name } : null,
+      assigned_resource_kind: primary?.kind || '',
+      assigned_resource_id: primary?.id || '',
+      assigned_resource_name: primary?.name || '',
+      resource_id: primary?.id || '',
+      resource_name: primary?.name || '',
+      assigned_crew_id: crewLike ? primary.id : '',
+      assigned_crew_name: crewLike ? primary.name : '',
+      assigned_crew: crewLike ? { id:primary.id, name:primary.name } : null,
+      crew_id: crewLike ? primary.id : '',
+      crew_name: crewLike ? primary.name : '',
+    };
+  }
+
+  /* The explicit assignee set as an event patch: every crew as a crew-role
+   * resource_ref (first = primary, mirrored into the singular fields),
+   * people as assigned_user_ids; equipment refs are kept as they are. */
+  function assigneeSetPayload(event = {}, { crews = [], people = [] } = {}){
+    const crewRefs = arrayValue(crews).map(objectValue).map((crew) => ({
+      kind: workRefKind(crew.kind || crew.resource_kind || crew.subject_type),
+      id: cleanText(crew.id || crew.resource_id),
+      name: cleanText(crew.name || crew.label) || cleanText(crew.id || crew.resource_id),
+      role: 'crew',
+    })).filter((ref, index, list) => ref.id && ref.kind !== 'organization_user' && list.findIndex((other) => other.id === ref.id) === index);
+    const personList = arrayValue(people).map(objectValue).map((person) => ({
+      id: cleanText(person.id || person.user_id),
+      name: cleanText(person.name || person.email || person.label),
+      role_ids: unique(person.role_ids || person.roles || []),
+    })).filter((person, index, list) => person.id && list.findIndex((other) => other.id === person.id) === index);
+    const names = [...crewRefs.map((ref) => ref.name), ...personList.map((person) => person.name)].filter(Boolean);
+    return {
+      ...workAssignmentMirror(crewRefs[0] || null),
+      resource_refs: [...crewRefs, ...equipmentRefsOf(event)],
+      assigned_user_ids: personList.map((person) => person.id),
+      assigned_users: personList.map((person) => ({ id:person.id, name:person.name, role_ids:person.role_ids })),
+      assigned_user_id: personList[0]?.id || '',
+      assigned_user_name: personList[0]?.name || '',
+      assignee_label: names.join(', ') || 'Unassigned',
+    };
+  }
+
+  /* Replace an event's whole work-assignee set. `refs` mixes crews/teams
+   * ({kind:'resource_group'|'crew'|'organization_connection', id, name}) and
+   * people ({kind:'organization_user'|'person', id, name}); [] unassigns. */
+  function setEventWorkAssignees(event = {}, refs = []){
+    const list = arrayValue(refs).map(objectValue);
+    const isPerson = (ref) => workRefKind(ref.kind || ref.subject_type || ref.resource_kind) === 'organization_user';
+    return { ...event, ...assigneeSetPayload(event, { crews:list.filter((ref) => !isPerson(ref)), people:list.filter(isPerson) }) };
+  }
+
+  /* Equipment usage windows follow their item (server mirror:
+   * shiftEquipmentRefWindows in public/v1/platform/api.ts). A window equal to
+   * the previous item window becomes the new item window; any other window
+   * shifts by the start delta, clamped into the new window when it lay inside
+   * the previous one. -> the event's resource_refs with shifted windows. */
+  function shiftEquipmentWindows(event = {}, previous = {}, next = {}){
+    const refs = arrayValue(objectValue(event).resource_refs);
+    const prevStart = toDate(previous.start || previous.start_at);
+    const prevEnd = toDate(previous.end || previous.end_at);
+    const nextStart = toDate(next.start || next.start_at);
+    const nextEnd = toDate(next.end || next.end_at);
+    if (!prevStart || !prevEnd || !nextStart || !nextEnd) return refs;
+    const oldWindow = { start:prevStart.getTime(), end:prevEnd.getTime() };
+    const newWindow = { start:nextStart.getTime(), end:nextEnd.getTime() };
+    if (oldWindow.start === newWindow.start && oldWindow.end === newWindow.end) return refs;
+    const delta = newWindow.start - oldWindow.start;
+    return refs.map((refValue) => {
+      const ref = objectValue(refValue);
+      if (!EQUIPMENT_REF_KINDS.includes(cleanText(ref.kind))) return refValue;
+      const start = toDate(ref.start_at || ref.start)?.getTime();
+      const end = toDate(ref.end_at || ref.end)?.getTime();
+      const hasStart = Number.isFinite(start);
+      const hasEnd = Number.isFinite(end);
+      if (!hasStart && !hasEnd) return refValue;
+      const refStart = hasStart ? start : oldWindow.start;
+      const refEnd = hasEnd ? end : oldWindow.end;
+      let nextRefStart;
+      let nextRefEnd;
+      if (refStart === oldWindow.start && refEnd === oldWindow.end) {
+        nextRefStart = newWindow.start;
+        nextRefEnd = newWindow.end;
+      } else {
+        nextRefStart = refStart + delta;
+        nextRefEnd = refEnd + delta;
+        if (refStart >= oldWindow.start && refEnd <= oldWindow.end) {
+          nextRefStart = Math.min(Math.max(nextRefStart, newWindow.start), newWindow.end);
+          nextRefEnd = Math.min(Math.max(nextRefEnd, newWindow.start), newWindow.end);
+          if (nextRefEnd <= nextRefStart) {
+            nextRefStart = newWindow.start;
+            nextRefEnd = newWindow.end;
+          }
+        }
+      }
+      return {
+        ...ref,
+        ...(hasStart ? { start_at:new Date(nextRefStart).toISOString() } : {}),
+        ...(hasEnd ? { end_at:new Date(nextRefEnd).toISOString() } : {}),
+      };
+    });
+  }
+
   function updateProjectEventRange(event, fields = {}){
     const has = (key) => Object.prototype.hasOwnProperty.call(fields || {}, key);
     const pick = (...keys) => {
@@ -1567,8 +2266,33 @@
     const assignedCrew = pick('assignedCrew', 'assigned_crew');
     const workResourceRef = pick('workResourceRef', 'work_resource_ref');
     const assignedResourceKind = pick('assignedResourceKind', 'assigned_resource_kind');
+    // Every crew is kept on a move; a passed primary crew replaces only the
+    // current primary, and an explicitly cleared one unassigns all crews.
+    const previousStart = eventStart(event);
+    const previousEnd = previousStart ? eventEnd(event) : null;
+    const shiftedRefs = previousStart && previousEnd
+      ? shiftEquipmentWindows(event, { start:previousStart, end:previousEnd }, { start, end:safeEnd })
+      : arrayValue(event?.resource_refs);
+    let resourceRefs = shiftedRefs;
+    if (workResourceRef !== undefined || assignedCrewId !== undefined) {
+      const nextPrimaryId = cleanText(objectValue(workResourceRef).id || assignedCrewId);
+      const currentPrimary = primaryWorkRef(event);
+      const crewRefs = shiftedRefs.filter((ref) => !EQUIPMENT_REF_KINDS.includes(cleanText(ref?.kind)));
+      const equipment = shiftedRefs.filter((ref) => EQUIPMENT_REF_KINDS.includes(cleanText(ref?.kind)));
+      if (!nextPrimaryId) resourceRefs = equipment;
+      else if (nextPrimaryId !== currentPrimary?.id) {
+        const nextPrimary = {
+          kind: workRefKind(objectValue(workResourceRef).kind || assignedResourceKind),
+          id: nextPrimaryId,
+          name: cleanText(objectValue(workResourceRef).name || assignedCrewName) || nextPrimaryId,
+          role: 'crew',
+        };
+        resourceRefs = [nextPrimary, ...crewRefs.filter((ref) => ![nextPrimaryId, currentPrimary?.id].includes(cleanText(ref?.id))), ...equipment];
+      }
+    }
     return {
       ...event,
+      resource_refs: resourceRefs,
       start_at: start.toISOString(),
       start: start.toISOString(),
       end_at: safeEnd.toISOString(),
@@ -1611,13 +2335,109 @@
     return { ...normalizedProject, events, updated_at: nowIso() };
   }
 
+  /* ── Optimistic concurrency ──────────────────────────────────────────────
+   * The server stamps every schedule item with event_revision. Saves send the
+   * revision of the copy they edited (expected_event_revision); a newer
+   * stored revision is refused with 409 `stale_event`, surfaced here as a
+   * typed error (isStaleSaveError / error.stale === true, error.currentEvent
+   * = the stored copy, error.deleted when it was removed). Revisions this page
+   * produced itself never count as "someone else": a caller still holding the
+   * pre-save copy is upgraded to the revision its own save returned. */
+  const ownEventRevisions = new Map();
+
+  function eventRevisionOf(event){
+    const revision = Number(objectValue(event).event_revision);
+    return Number.isFinite(revision) && revision > 0 ? Math.floor(revision) : 0;
+  }
+
+  function expectedRevisionFor(key, revision){
+    const own = ownEventRevisions.get(key);
+    return own && own.superseded.has(revision) ? own.latest : revision;
+  }
+
+  function recordOwnEventRevision(key, sent, saved){
+    if (!key || !Number.isFinite(saved) || saved <= 0) return;
+    const own = ownEventRevisions.get(key) || { latest:0, superseded:new Set() };
+    if (Number.isFinite(sent)) own.superseded.add(sent);
+    if (own.latest && own.latest !== saved) own.superseded.add(own.latest);
+    own.latest = Math.max(own.latest, saved);
+    own.superseded.delete(own.latest);
+    ownEventRevisions.set(key, own);
+  }
+
+  function isStaleSaveError(error){
+    if (!error) return false;
+    if (error.stale === true && error.code === 'stale_event') return true;
+    return Number(error.status) === 409 && cleanText(error.data?.error || error.data?.code || error.code) === 'stale_event';
+  }
+
+  function staleSaveError(error, fallbackEvent = null){
+    const details = objectValue(error?.data?.details);
+    const deleted = details.deleted === true;
+    const message = deleted
+      ? ((globalThis.PlatformLanguage?.text("platform-scheduling","m_stale_event_deleted","This item was deleted by someone else.") ?? "This item was deleted by someone else."))
+      : ((globalThis.PlatformLanguage?.text("platform-scheduling","m_stale_event","Changed by someone else. This item was changed in another window; reload it and apply your change again.") ?? "Changed by someone else. This item was changed in another window; reload it and apply your change again."));
+    const stale = new Error(message);
+    stale.name = 'StaleScheduleEventError';
+    stale.code = 'stale_event';
+    stale.stale = true;
+    stale.status = 409;
+    stale.deleted = deleted;
+    stale.currentEvent = details.current_event || null;
+    stale.currentRevision = Number(details.current_event_revision || 0);
+    stale.expectedRevision = Number(details.expected_event_revision || 0);
+    stale.event = fallbackEvent;
+    stale.data = error?.data || null;
+    stale.cause = error;
+    return stale;
+  }
+
+  /* R3-TG-9: views keep view-only shadow copies of an item's window (start /
+   * end, __start / __end) and draft markers (__draft, __activeDraft, other
+   * __* keys). Only start_at / end_at are stored; a stale shadow copy must
+   * never be written back. (The server strips them too.) */
+  function persistableEvent(event){
+    const value = { ...objectValue(event) };
+    if (!Object.prototype.hasOwnProperty.call(value, 'start_at') && cleanText(value.start)) value.start_at = value.start;
+    if (!Object.prototype.hasOwnProperty.call(value, 'end_at') && cleanText(value.end)) value.end_at = value.end;
+    delete value.start;
+    delete value.end;
+    Object.keys(value).forEach((key) => { if (key.startsWith('__')) delete value[key]; });
+    return value;
+  }
+
   async function saveProjectEvent(orgId, project, event, config = null){
     const normalizedProject = normalizeProject(project, config);
-    const nextEvent = normalizeEvent(event, config, normalizedProject);
+    const nextEvent = persistableEvent(normalizeEvent(event, config, normalizedProject));
     if (PlatformAPI?.projects?.scheduleEvent) {
-      const result = await PlatformAPI.projects.scheduleEvent(orgId, normalizedProject.id, nextEvent, {
-        branchId: config?.branch_id || config?.branchId || 'default'
-      });
+      // Items already on the project send the revision of the copy the
+      // caller edited (its own event_revision, else the cached one); new
+      // items — including copies of another item — send none.
+      const cached = arrayValue(normalizedProject.events).find((item) => cleanText(item?.id) === cleanText(nextEvent.id));
+      const hasRevision = Object.prototype.hasOwnProperty.call(objectValue(event), 'event_revision');
+      const revisionKey = `${cleanText(normalizedProject.id)}:${cleanText(nextEvent.id)}`;
+      const expected = cached
+        ? expectedRevisionFor(revisionKey, hasRevision ? eventRevisionOf(event) : eventRevisionOf(cached))
+        : null;
+      const payload = expected === null ? nextEvent : { ...nextEvent, expected_event_revision: expected };
+      let result;
+      try {
+        result = await PlatformAPI.projects.scheduleEvent(orgId, normalizedProject.id, payload, {
+          branchId: config?.branch_id || config?.branchId || 'default'
+        });
+      } catch (error) {
+        if (isStaleSaveError(error)) throw staleSaveError(error, nextEvent);
+        throw error;
+      }
+      // PlatformAPI answers {missing:true} when the project record is not on
+      // the server; that is only a local draft for a brand-new item.
+      if (result?.missing && cached) {
+        const missing = new Error((globalThis.PlatformLanguage?.text("platform-scheduling","m_project_missing","The project could not be found, so the change was not saved.") ?? "The project could not be found, so the change was not saved."));
+        missing.code = 'project_missing';
+        missing.status = 404;
+        throw missing;
+      }
+      if (result?.event) recordOwnEventRevision(revisionKey, expected, eventRevisionOf(result.event));
       const savedProject = result?.document?.data
         ? { ...result.document.data, id: result.document.id }
         : result?.project || normalizedProject;
@@ -1636,6 +2456,36 @@
     });
     const saved = result?.document?.data ? { ...result.document.data, id: result.document.id } : { ...normalizedProject, events };
     return { event: nextEvent, project: normalizeProject(saved, config), document: result?.document || null };
+  }
+
+  /* Save a floating (non-project) calendar event with the same stale-save
+   * protection as project items. Pass { isNew:true } for a brand-new event
+   * or a copy of another one. Resolves to { event, document }; rejects with
+   * the typed stale error (isStaleSaveError) when someone else saved first. */
+  async function saveCalendarEvent(orgId, event, options = {}){
+    const api = PlatformAPI?.calendarEvents;
+    if (!api?.save) throw new Error('Calendar event persistence is not configured.');
+    const value = objectValue(event);
+    const id = cleanText(value.id);
+    if (!id) throw new Error('A calendar event id is required.');
+    const revisionKey = `calendar:${id}`;
+    const expected = options.isNew === true ? null : expectedRevisionFor(revisionKey, eventRevisionOf(value));
+    const data = { ...persistableEvent(value), ...(expected === null ? {} : { expected_event_revision: expected }) };
+    let result;
+    try {
+      result = await api.save(orgId, id, data, { kind:'calendar_event', ...(options.branchId || options.branch_id ? { branch_id:options.branchId || options.branch_id } : {}), ...objectValue(options.metadata) });
+    } catch (error) {
+      if (isStaleSaveError(error)) throw staleSaveError(error, value);
+      throw error;
+    }
+    if (result?.missing) {
+      const missing = new Error((globalThis.PlatformLanguage?.text("platform-scheduling","m_calendar_save_failed","The calendar event could not be saved.") ?? "The calendar event could not be saved."));
+      missing.code = 'calendar_event_missing';
+      throw missing;
+    }
+    const saved = result?.document?.data ? { ...result.document.data, id:result.document.id || id } : { ...value };
+    recordOwnEventRevision(revisionKey, expected, eventRevisionOf(saved));
+    return { event:saved, document:result?.document || null };
   }
 
   async function removeProjectEvent(orgId, project, eventId, config = null){
@@ -1684,6 +2534,9 @@
     normalizeProject,
     listUsers,
     listProjects,
+    listCalendarEvents,
+    isScheduleSourceError,
+    persistableEvent,
     eventsFromProjects,
     availabilityWindow,
     eventStart,
@@ -1730,17 +2583,35 @@
     applyGroupRollups,
     scheduleGraph,
     cascadeDependentDrafts,
+    dependencyRescheduleImpact,
+    dependencyViolations,
+    dependencyEarliestStart,
+    orderByDependencies,
+    eventIsAllDay,
+    eventIsFixed,
+    scheduleItemSpan,
+    groupDescendants,
+    groupMoveDrafts,
+    groupRollupUpdates,
+    eventAncestorGroupIds,
     createScheduleGroupEvent,
     scheduleBundleDescriptor,
     scheduleBundleReschedulePolicy,
     interpretScheduleBundle,
     relatedScheduleRescheduleDrafts,
+    relatedScheduleRescheduleImpact,
     createProjectEvent,
     createProjectWorkEvent,
     updateProjectEventRange,
     upsertProjectEvent,
     saveProjectEvent,
+    saveCalendarEvent,
     removeProjectEvent,
+    eventWorkAssignees,
+    assigneeSetPayload,
+    setEventWorkAssignees,
+    shiftEquipmentWindows,
+    isStaleSaveError,
     ensureProjectSchedulingDefaults,
     localDateInput,
   };

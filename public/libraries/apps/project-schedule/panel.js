@@ -47,7 +47,6 @@
   let materialScheduleEventId = '';
   let materialScheduleListId = '';
   let materialScheduleDraft = null;
-  let scheduleCrewSettingsOpen = false;
   let scheduleCachedConfig = null;
   let scheduleCachedWorkResources = [];
   let scheduleCachedEquipmentUnits = [];
@@ -65,6 +64,7 @@
   let scheduleRecurrenceLoading = false;
   let scheduleRecurrenceLoaded = false;
   let scheduleRecurrenceProjectId = '';
+  let scheduleDialogHandle = null;
   const scheduleTravelCache = new Map();
   const scheduleEventSaveVersions = new Map();
   const scheduleEventSaveQueues = new Map();
@@ -143,6 +143,11 @@
       .r-schedule-card .r-schedule-advanced{display:grid;gap:12px;margin-top:14px;padding:14px;border:1px solid rgba(15,23,42,.10);border-radius:14px;background:#f8fafc}.r-schedule-card .r-schedule-advanced[hidden]{display:none}.r-schedule-equipment-requirements{display:grid;gap:7px;grid-column:1/-1}.r-schedule-equipment-requirement{display:grid;grid-template-columns:22px minmax(0,1fr) 76px;gap:8px;align-items:center;font-size:12px;font-weight:850;color:#344054}.r-schedule-equipment-requirement input[type="number"]{height:36px}.r-schedule-advanced-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:18px}.r-schedule-advanced-toggle{width:42px;height:42px;border:1px solid rgba(15,23,42,.14);border-radius:13px;background:#fff;color:#667085;cursor:pointer}.r-schedule-advanced-toggle.active{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary,#d93025)}.r-schedule-advanced-actions .r-schedule-actions{display:flex;margin:0}.r-schedule-card select[multiple]{height:auto;min-height:94px;padding:7px 10px}
       .r-schedule-requirement-alert{display:flex;gap:8px;align-items:flex-start;margin:8px 0;border:1px solid #fda29b;border-radius:10px;background:#fef3f2;color:#b42318;padding:9px 10px;font-size:11px;font-weight:850}.r-schedule-requirement-alert ul{margin:0;padding-left:16px}
       .r-schedule-panel.work-mode .r-schedule-calendar.work-calendar{flex:1;height:auto;min-height:0}
+.r-schedule-range-label{margin-left:10px;font-size:13px;font-weight:900;color:#667085;letter-spacing:0;vertical-align:middle}
+      .r-schedule-panel .r-schedule-head{flex-wrap:wrap;align-items:flex-start;row-gap:10px}.r-schedule-panel .r-schedule-head>div:first-child{flex:1 1 220px;min-width:0}.r-schedule-panel .r-schedule-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.r-schedule-panel .r-schedule-head-actions{flex:0 1 auto;min-width:0;max-width:100%}
+      .r-schedule-panel .r-schedule-calendar{min-width:0;-webkit-user-select:none;user-select:none}
+      .r-schedule-panel.work-mode .r-schedule-calendar.work-calendar{container-type:inline-size}
+      @container (max-width:980px){.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-time-grid,.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-all-day-grid{min-width:100%!important;grid-template-columns:56px repeat(var(--prs-days,7),minmax(0,1fr))}.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-day-head,.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-all-day-cell,.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-slot{min-width:0}.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-day-head{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-day-head-desktop{display:none}.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-day-head-mobile{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;line-height:1.05}.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-day-head-mobile strong{font-size:12px}}.r-schedule-panel .r-schedule-calendar input,.r-schedule-panel .r-schedule-calendar textarea{-webkit-user-select:text;user-select:text}
       .r-schedule-view-switch{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
       .r-schedule-view-group{display:inline-flex;align-items:center;gap:3px;border:1px solid rgba(15,23,42,.10);background:#fff;border-radius:12px;padding:3px}
       .r-schedule-view-group.scheduling{border-color:rgba(var(--primary-rgb,217,48,37),.18);background:rgba(var(--primary-rgb,217,48,37),.04)}
@@ -150,24 +155,25 @@
       .r-schedule-view-group.target{border-color:rgba(37,99,235,.18);background:#eef5ff}
       .r-schedule-view-group.navigation{gap:2px}.r-schedule-anchor-nav{min-width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:#475467;padding:0 8px;font-size:11px;font-weight:1000;cursor:pointer}.r-schedule-anchor-nav:hover{background:#f2f4f7;color:#101828}.r-schedule-anchor-nav.today{padding:0 10px}
       .r-schedule-view-label{font-size:10px;font-weight:1000;text-transform:uppercase;color:#667085;padding:0 7px}
-      .r-schedule-left-shell{display:flex;flex-direction:column;gap:12px;height:100%;min-height:0}
-      .r-schedule-left-scroll{display:flex;flex:1;flex-direction:column;gap:12px;min-height:0;max-height:100%;overflow:auto}
+      .r-schedule-left-shell{display:flex;flex-direction:column;gap:12px;height:100%;min-height:0;min-width:0;max-width:100%}
+      .r-schedule-left-scroll{display:flex;flex:1;flex-direction:column;gap:12px;min-height:0;max-height:100%;overflow:auto;overflow-x:hidden;min-width:0}
       .r-overlay.schedule-workspace .r-proposal-section.visible,
       .r-overlay.schedule-workspace .r-proposal-listing{min-height:0}
       .r-overlay.schedule-workspace .r-proposal-listing{flex:1;height:100%;overflow:hidden}
       .r-overlay.schedule-workspace .r-step-shell,
       .r-overlay.schedule-workspace .r-step-inner,
       .r-overlay.schedule-workspace .r-step-body{min-height:0}
-      .r-schedule-section{background:#fff;border:1px solid rgba(15,23,42,.08);border-radius:14px;padding:13px;box-shadow:0 10px 24px rgba(15,23,42,.04)}
+      .r-schedule-section{background:#fff;border:1px solid rgba(15,23,42,.08);border-radius:14px;padding:13px;box-shadow:0 10px 24px rgba(15,23,42,.04);min-width:0}
       .r-schedule-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
-      .r-schedule-section-title{font-size:13px;font-weight:1000;color:#101828;display:flex;align-items:center;gap:8px}
+      .r-schedule-section-title{font-size:13px;font-weight:1000;color:#101828;display:flex;align-items:center;gap:8px;min-width:0}.r-schedule-section-head>.r-schedule-mini-action{flex:none}
       .r-schedule-mini-action{height:30px;border:1px solid rgba(15,23,42,.10);border-radius:10px;background:#fff;color:#344054;display:inline-flex;align-items:center;gap:7px;padding:0 9px;font-size:11px;font-weight:1000;cursor:pointer}
       .r-schedule-mini-action.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:var(--on-primary,#fff)}
       .r-schedule-mini-action:disabled{opacity:.45;cursor:not-allowed}
-      .r-schedule-tile-list{display:grid;gap:8px}
+      .r-schedule-tile-list{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;min-width:0}
       .r-schedule-tile{border:1px solid rgba(15,23,42,.08);border-radius:12px;background:#f8fafc;padding:10px;text-align:left;color:#344054}
       .r-schedule-tile-title{font-size:12px;font-weight:1000;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .r-schedule-tile-kind{font-style:italic;font-weight:800;color:#667085}
+      button.r-schedule-tile.r-sales-tile{display:block;width:100%;box-sizing:border-box;font:inherit;cursor:pointer}button.r-schedule-tile.r-sales-tile:hover,.r-production-resource-main:hover .r-schedule-tile-title{color:var(--primary-readable,var(--primary,#d93025))}
       .r-schedule-tile-meta{margin-top:4px;font-size:11px;font-weight:850;color:#667085;line-height:1.35}
       .r-material-tile{--material-list-color:#64748b;border-left:4px solid var(--material-list-color);display:block;width:100%;cursor:pointer}
       .r-material-tile.incomplete{border-left-style:dashed}.r-material-tile.active{background:color-mix(in srgb,var(--material-list-color) 9%,#fff);box-shadow:0 0 0 2px color-mix(in srgb,var(--material-list-color) 18%,transparent)}
@@ -179,12 +185,15 @@
       .r-production-resource-assignment>span{flex:0 0 auto}
       .r-production-resource-crew-button{flex:1 1 auto;min-width:0;width:auto;height:30px;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;color:#344054;padding:0 8px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:900;text-transform:none;letter-spacing:0;cursor:pointer}
       .r-production-resource-crew-button span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.r-production-resource-crew-button i{flex:0 0 auto;font-size:9px;color:#98a2b3}.r-production-resource-crew-button.unassigned{font-style:italic;color:#667085}
-      .r-schedule-crew-popover{position:fixed;z-index:3400;width:220px;max-height:280px;overflow:auto;display:grid;gap:4px;padding:7px;border:1px solid rgba(15,23,42,.12);border-radius:12px;background:#fff;box-shadow:0 20px 50px rgba(15,23,42,.22)}
+      .r-schedule-crew-popover{position:fixed;z-index:3400;pointer-events:auto;width:220px;max-height:280px;overflow:auto;display:grid;gap:4px;padding:7px;border:1px solid rgba(15,23,42,.12);border-radius:12px;background:#fff;box-shadow:0 20px 50px rgba(15,23,42,.22)}
       .r-schedule-crew-option{height:34px;border:0;border-radius:8px;background:#fff;color:#344054;padding:0 10px;text-align:left;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .r-schedule-crew-option:hover,.r-schedule-crew-option.active{background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025))}
-      .r-schedule-event-popover{position:fixed;z-index:3390;width:min(330px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:auto;display:grid;gap:12px;padding:14px;border:1px solid rgba(15,23,42,.12);border-radius:14px;background:#fff;box-shadow:0 22px 60px rgba(15,23,42,.24)}
+      .r-schedule-event-popover{position:fixed;z-index:3390;pointer-events:auto;width:min(330px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:auto;display:grid;gap:12px;padding:14px;border:1px solid rgba(15,23,42,.12);border-radius:14px;background:#fff;box-shadow:0 22px 60px rgba(15,23,42,.24)}
       .r-schedule-event-popover-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.r-schedule-event-popover-title{min-width:0;font-size:15px;font-weight:1000;color:#101828;line-height:1.25}.r-schedule-event-popover-kind{display:inline-flex;align-items:center;gap:6px;margin-bottom:5px;color:#667085;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.055em}.r-schedule-event-popover-close{flex:0 0 auto;width:28px;height:28px;border:0;border-radius:8px;background:#f2f4f7;color:#475467;cursor:pointer}.r-schedule-event-popover-details{display:grid;gap:8px}.r-schedule-event-popover-row{display:grid;grid-template-columns:18px minmax(0,1fr);align-items:start;gap:8px;color:#475467;font-size:12px;font-weight:850;line-height:1.4}.r-schedule-event-popover-row i{margin-top:2px;color:#98a2b3;text-align:center}.r-schedule-event-popover-field{display:grid;gap:5px;padding-top:2px;color:#667085;font-size:9px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em}.r-schedule-event-popover-field select{width:100%;height:34px;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;color:#344054;padding:0 9px;font-size:12px;font-weight:900;text-transform:none;letter-spacing:0;cursor:pointer}
-      .r-schedule-event-customer{display:grid;border:1px solid rgba(15,23,42,.10);border-radius:10px;background:#f8fafc;overflow:hidden}.r-schedule-event-share{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;align-items:center;padding:10px;cursor:pointer}.r-schedule-event-share input{position:absolute;opacity:0;pointer-events:none}.r-schedule-event-share-toggle{position:relative;width:34px;height:20px;border-radius:999px;background:#d0d5dd;transition:.18s ease}.r-schedule-event-share-toggle:after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.22);transition:.18s ease}.r-schedule-event-share input:checked+.r-schedule-event-share-toggle{background:var(--primary,#d93025)}.r-schedule-event-share input:checked+.r-schedule-event-share-toggle:after{transform:translateX(14px)}.r-schedule-event-share strong{display:block;color:#344054;font-size:11px;font-weight:1000}.r-schedule-event-share small{display:block;margin-top:2px;color:#667085;font-size:9px;font-weight:800;line-height:1.35}.r-schedule-event-customer-options{display:none;gap:8px;padding:0 10px 10px;border-top:1px solid rgba(15,23,42,.08)}.r-schedule-event-customer-options.open{display:grid}.r-schedule-event-customer-option{display:flex;align-items:flex-start;gap:7px;color:#344054;font-size:10px;font-weight:900;line-height:1.35}.r-schedule-event-customer-option:first-child{margin-top:9px}.r-schedule-event-customer-option input{margin:1px 0 0;accent-color:var(--primary,#d93025)}.r-schedule-event-customer-note{display:grid;gap:5px;color:#667085;font-size:9px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em}.r-schedule-event-customer-note textarea{min-height:66px;resize:vertical;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;padding:8px;color:#101828;font:inherit;font-size:11px;font-weight:800;line-height:1.45;text-transform:none;letter-spacing:0}.r-schedule-event-customer-save{height:32px;margin:0 10px 10px;border:0;border-radius:8px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font-size:11px;font-weight:1000;cursor:pointer}
+      .r-schedule-event-customer[hidden]{display:none}.r-schedule-event-customer{display:grid;border:1px solid rgba(15,23,42,.10);border-radius:10px;background:#f8fafc;overflow:hidden}.r-schedule-event-share{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;align-items:center;padding:10px;cursor:pointer}.r-schedule-event-share input{position:absolute;opacity:0;pointer-events:none}.r-schedule-event-share-toggle{position:relative;width:34px;height:20px;border-radius:999px;background:#d0d5dd;transition:.18s ease}.r-schedule-event-share-toggle:after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.22);transition:.18s ease}.r-schedule-event-share input:checked+.r-schedule-event-share-toggle{background:var(--primary,#d93025)}.r-schedule-event-share input:checked+.r-schedule-event-share-toggle:after{transform:translateX(14px)}.r-schedule-event-share strong{display:block;color:#344054;font-size:11px;font-weight:1000}.r-schedule-event-share small{display:block;margin-top:2px;color:#667085;font-size:9px;font-weight:800;line-height:1.35}.r-schedule-event-customer-options{display:none;gap:8px;padding:0 10px 10px;border-top:1px solid rgba(15,23,42,.08)}.r-schedule-event-customer-options.open{display:grid}.r-schedule-event-customer-option{display:flex;align-items:flex-start;gap:7px;color:#344054;font-size:10px;font-weight:900;line-height:1.35}.r-schedule-event-customer-option:first-child{margin-top:9px}.r-schedule-event-customer-option input{margin:1px 0 0;accent-color:var(--primary,#d93025)}.r-schedule-event-customer-note{display:grid;gap:5px;color:#667085;font-size:9px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em}.r-schedule-event-customer-note textarea{min-height:66px;resize:vertical;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;padding:8px;color:#101828;font:inherit;font-size:11px;font-weight:800;line-height:1.45;text-transform:none;letter-spacing:0}.r-schedule-event-customer-save{height:32px;margin:0 10px 10px;border:0;border-radius:8px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font-size:11px;font-weight:1000;cursor:pointer}
+      .r-schedule-slots.checking{opacity:.55;pointer-events:none;transition:opacity .12s ease}
+      .r-schedule-event-popover-actions{display:flex;gap:6px;flex-wrap:wrap}.r-schedule-event-popover-action{height:30px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#344054;padding:0 10px;display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:11px;font-weight:1000;cursor:pointer}.r-schedule-event-popover-action:hover{background:#f2f4f7;color:#101828}
+      .r-schedule-event-popover .r-schedule-confirm{height:auto;width:auto;box-shadow:none;color:inherit}
       .r-schedule-confirm{display:grid;gap:8px;padding:11px;border:1px solid rgba(15,23,42,.10);border-radius:10px;background:#f8fafc}
       .r-schedule-confirm.warn{border-color:rgba(245,158,11,.34);background:#fffbeb}
       .r-schedule-confirm.good{border-color:rgba(22,163,74,.30);background:#f0fdf4}
@@ -226,11 +235,33 @@
       .r-project-mobile-toolbar{display:none}
       .r-schedule-left-status{border:1px solid rgba(var(--primary-rgb,217,48,37),.18);background:rgba(var(--primary-rgb,217,48,37),.06);border-radius:12px;padding:10px;color:#344054;font-size:12px;font-weight:850;line-height:1.4}
       .r-schedule-left-status strong{display:block;color:#101828;font-size:12px;font-weight:1000;margin-bottom:2px}
-      .r-recurrence-tile{width:100%;text-align:left;cursor:pointer}.r-recurrence-tile.cancelled{opacity:.62}.r-recurrence-meta{display:flex;align-items:center;justify-content:space-between;gap:8px}.r-recurrence-pill{border-radius:999px;padding:3px 7px;background:#eef4ff;color:#175cd3;font-size:9px;font-weight:1000;text-transform:uppercase}.r-recurrence-pill.cancelled{background:#f2f4f7;color:#667085}
-      .r-recurrence-modal{position:fixed;inset:0;z-index:3200;background:rgba(16,24,40,.48);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:18px}.r-recurrence-dialog{width:min(700px,100%);max-height:calc(100vh - 36px);overflow:auto;background:#fff;border-radius:16px;box-shadow:0 28px 90px rgba(15,23,42,.32)}.r-recurrence-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 17px;border-bottom:1px solid rgba(15,23,42,.09)}.r-recurrence-head strong{font-size:16px}.r-recurrence-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:16px}.r-recurrence-form label{display:grid;gap:5px;font-size:10px;font-weight:1000;text-transform:uppercase;color:#667085}.r-recurrence-form label.wide{grid-column:1/-1}.r-recurrence-form input,.r-recurrence-form select{height:36px;border:1px solid rgba(15,23,42,.14);border-radius:9px;padding:0 10px;font:inherit;color:#101828;background:#fff}.r-recurrence-form .r-recurrence-check{display:flex;align-items:center;gap:8px;text-transform:none;font-size:12px;color:#344054}.r-recurrence-form .r-recurrence-check input{height:auto}.r-recurrence-actions{grid-column:1/-1;display:flex;justify-content:space-between;gap:8px;padding-top:5px}.r-recurrence-actions div{display:flex;gap:8px}
+      .r-schedule-placement-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px 8px 12px;border:1px solid rgba(37,99,235,.24);border-radius:12px;background:#eff6ff;color:#1e3a8a;font-size:12px;font-weight:850;line-height:1.35}.r-schedule-placement-banner>i{color:#2563eb}.r-schedule-placement-banner>span{flex:1 1 200px;min-width:0}.r-schedule-placement-banner strong{font-weight:1000;color:#172554}.r-schedule-placement-banner .warn{display:block;color:#b45309;font-weight:900}.r-schedule-placement-cancel{flex:0 0 auto;height:30px;border:1px solid rgba(37,99,235,.28);border-radius:9px;background:#fff;color:#1d4ed8;padding:0 10px;font:inherit;font-size:11px;font-weight:1000;cursor:pointer}.r-schedule-placement-cancel:hover{background:#dbeafe}.r-schedule-placement-cancel kbd{font:inherit;font-size:10px;opacity:.7}
+      .r-schedule-panel.work-mode.scheduling-mode .r-schedule-placement-banner{margin:8px 12px 0}.r-schedule-panel:not(.work-mode) .r-schedule-placement-banner{margin:0 0 10px}
+      .r-schedule-panel.r-schedule-saving{cursor:progress}.r-schedule-panel.r-schedule-saving [data-prs-confirm],.r-schedule-panel.r-schedule-saving [data-psv-draft-confirm],.r-schedule-panel.r-schedule-saving [data-schedule-draft-confirm]{pointer-events:none;opacity:.5}
+      .r-schedule-panel.r-schedule-view-only .prs-assignee{cursor:default}.r-schedule-panel.r-schedule-view-only .prs-assignee:after{display:none}.r-schedule-panel.r-schedule-view-only .prs-assignee:hover{background:transparent}
+      .r-schedule-panel .r-schedule-sub{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+      .r-schedule-dialog .r-schedule-card.loading .r-schedule-grid,.r-schedule-dialog .r-schedule-card.loading .r-schedule-allday,.r-schedule-dialog .r-schedule-card.loading #rScheduleRecurringWrap{opacity:.62;transition:opacity .15s}.r-schedule-dialog .r-schedule-card.loading input,.r-schedule-dialog .r-schedule-card.loading select{cursor:progress}
+      .r-schedule-dialog .r-schedule-card{overscroll-behavior:contain}.r-schedule-dialog .r-schedule-card .r-schedule-advanced-actions{position:sticky;bottom:-22px;z-index:3;margin:14px -22px -22px;padding:12px 22px 18px;background:#fff;border-top:1px solid rgba(15,23,42,.08);border-radius:0 0 24px 24px}
+      .r-schedule-dialog .r-schedule-action:disabled,.r-schedule-dialog .r-schedule-action[aria-busy="true"]{opacity:.5;cursor:not-allowed;box-shadow:none;filter:saturate(.6)}.r-schedule-dialog .r-schedule-action[aria-busy="true"]{cursor:progress}
+      .r-schedule-dialog .r-schedule-slots-note{display:inline-flex;align-items:center;gap:7px;color:#667085;font-size:12px;font-weight:850}
+      .r-schedule-dialog .r-schedule-allday{display:flex;align-items:center;gap:8px;margin:12px 0 0;color:#344054;font-size:12px;font-weight:900;cursor:pointer}.r-schedule-dialog [hidden]{display:none!important}
+      .r-schedule-assignees{display:grid;gap:6px}.r-schedule-assignee-chips{display:flex;flex-wrap:wrap;gap:5px}.r-schedule-assignee-chip{display:inline-flex;align-items:center;gap:4px;max-width:100%;height:26px;padding:0 4px 0 9px;border-radius:999px;background:#f2f4f7;color:#344054;font-size:11px;font-weight:900;text-transform:none;letter-spacing:0}.r-schedule-assignee-chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.r-schedule-assignee-chip button{width:20px;height:20px;border:0;border-radius:50%;background:transparent;color:#667085;cursor:pointer;font-size:10px}.r-schedule-assignee-chip button:hover{background:#e4e7ec;color:#b42318}.r-schedule-assignee-empty{color:#667085;font-size:11px;font-style:italic;font-weight:850;text-transform:none;letter-spacing:0}
+      .r-schedule-event-popover-action.danger{color:#b42318}.r-schedule-event-popover-action.danger:hover{background:#fef3f2;color:#912018}
+      .r-schedule-crew-option{display:flex;align-items:center;gap:8px}.r-schedule-crew-option .check{width:12px;flex:0 0 12px;color:var(--primary,#d93025);font-size:10px}.r-schedule-crew-option span{min-width:0;overflow:hidden;text-overflow:ellipsis}.r-schedule-crew-option:disabled{cursor:progress;color:#98a2b3;font-style:italic}.r-schedule-crew-hint{padding:2px 10px 4px;color:#667085;font-size:10px;font-weight:850}.r-schedule-crew-more{height:30px;border:0;border-top:1px solid rgba(15,23,42,.08);border-radius:0 0 8px 8px;background:#fff;color:#475467;font:inherit;font-size:11px;font-weight:950;text-align:left;padding:0 10px;cursor:pointer}.r-schedule-crew-more:hover{background:#f2f4f7}
+      .r-schedule-panel .prs-month-bar>.prs-work-chip{container-type:inline-size}@container (max-width:120px){.r-schedule-panel .prs-month-bar .prs-work-chip .prs-assignee{display:none}}
+      .r-schedule-other-tile{display:block;width:100%;box-sizing:border-box;font:inherit;cursor:pointer}.r-schedule-other-tile:hover .r-schedule-tile-title{color:var(--primary-readable,var(--primary,#d93025))}
+      .r-recurrence-tile{width:100%;min-width:0;max-width:100%;box-sizing:border-box;overflow:hidden;text-align:left;cursor:pointer}.r-recurrence-tile.cancelled{opacity:.62}.r-recurrence-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}.r-recurrence-meta>.r-schedule-tile-title{flex:1 1 auto;min-width:0}.r-recurrence-tile .r-schedule-tile-meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.r-recurrence-pill{flex:none;border-radius:999px;padding:3px 7px;background:#eef4ff;color:#175cd3;font-size:9px;font-weight:1000;text-transform:uppercase}.r-recurrence-pill.cancelled{background:#f2f4f7;color:#667085}
+
       @media(max-width:720px){
+        .r-overlay.schedule-workspace .r-preview-panel[data-panel="schedule"]>.r-tab-content{flex-direction:column}
+        .r-overlay.schedule-workspace .r-preview-panel[data-panel="schedule"]>.r-tab-content>.r-tab-sidebar{flex:0 0 auto;width:auto!important;min-width:0!important;max-width:none!important;max-height:36%;overflow:auto;border-right:0;border-bottom:1px solid rgba(15,23,42,.10)}
+        .r-overlay.schedule-workspace .r-preview-panel[data-panel="schedule"]>.r-tab-content>.r-tab-sidebar .r-step-shell{width:auto;min-width:0}
+        .r-overlay.schedule-workspace .r-preview-panel[data-panel="schedule"]>.r-tab-content>.r-tab-main{flex:1 1 auto;min-height:0;width:100%!important;min-width:0}
+        .r-schedule-left-shell{height:auto}.r-schedule-left-scroll{max-height:none;overflow:visible}
+        .r-schedule-panel.work-mode.scheduling-mode .r-schedule-head{padding:8px 10px;row-gap:6px}.r-schedule-panel.work-mode.scheduling-mode .r-schedule-sub{display:none}.r-schedule-panel.work-mode.scheduling-mode .r-schedule-title{font-size:17px}.r-schedule-panel.work-mode.scheduling-mode .r-schedule-view-switch{justify-content:flex-start;flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding:2px;scrollbar-width:none}.r-schedule-panel.work-mode.scheduling-mode .r-schedule-view-group{flex:0 0 auto}.r-schedule-panel.work-mode.scheduling-mode .r-schedule-head-actions{width:100%}
         .r-schedule-panel.work-mode{padding:0;gap:0;min-width:0;background:#fff}
-        .r-schedule-panel.work-mode:not(.scheduling-mode) .r-schedule-head{display:none}
+        .r-schedule-panel.work-mode:not(.scheduling-mode) .r-schedule-head,.r-schedule-panel:not(.work-mode) .r-schedule-head{display:none}
+        .r-schedule-panel .r-schedule-placement-banner{margin:6px 8px}
         .r-project-mobile-toolbar{position:relative;z-index:40;display:flex;align-items:center;gap:2px;height:50px;padding:0 6px;background:#fff;box-sizing:border-box;white-space:nowrap}
         .r-project-mobile-menu{position:relative;flex:0 0 auto}
         .r-project-mobile-control{height:34px;border:0;border-radius:8px;background:transparent;color:#344054;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:0 8px;font:inherit;font-size:12px;font-weight:1000;cursor:pointer}
@@ -274,6 +305,26 @@
     return typeof window.PlatformAPI?.workforce?.assignableResources === 'function';
   }
 
+  // View-only sessions (no manage_schedule) can open every schedule view but
+  // cannot create, move, assign, lock or share items. Mirrors the global
+  // Scheduling tab's canEditSchedule().
+  function canEditSchedule(){
+    const permissions = window.Portal?.currentUser?.permissions;
+    if (!permissions || typeof permissions !== 'object' || !Object.keys(permissions).length) return true;
+    return permissions.manage_schedule === true || (permissions['*'] === true && permissions.manage_schedule !== false);
+  }
+
+  function scheduleReadOnlyMessage(){
+    return (globalThis.PlatformLanguage?.text("scheduling","m_readonly_schedule","You can view the schedule, but you don't have permission to change it.") ?? "You can view the schedule, but you don't have permission to change it.");
+  }
+
+  function requireScheduleEdit(){
+    if (canEditSchedule()) return true;
+    showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), scheduleReadOnlyMessage(), 'info');
+    if (state.active) renderSchedulePanelPreservingScroll();
+    return false;
+  }
+
   function workforceTerm(kind, form = 'singular'){
     const defaults = {
       resource_group: { singular:'Crew', plural:'Crews' },
@@ -292,8 +343,35 @@
     return callHost('ensureProposalOnlyBaseProject') || activeBaseProject;
   }
 
-  function persistActiveBaseProject(){
-    return callHost('persistProject');
+  // Schedule changes are saved through the event endpoints, which return the
+  // authoritative project document. Only refresh the local project cache here:
+  // rebuilding the whole project from the Overview form (the host's
+  // persistProject) on schedule renders overwrote projects with blank drafts.
+  function cacheActiveBaseProject(){
+    if (!activeBaseProject) return null;
+    // Never replace a cached project with a still-loading placeholder.
+    const loaded = !activeBaseProject.__projectShellLoading
+      && !!String(activeBaseProject.title || activeBaseProject.customer_name || activeBaseProject.address || '').trim();
+    if (loaded) {
+      const store = window.Portal?.ProjectStore;
+      let project = activeBaseProject;
+      // An item this window still holds at an older revision never replaces
+      // a newer stored copy (from the server or another window): the stale
+      // copy's revision would otherwise be sent on every later save.
+      try {
+        const cached = store?.get?.(project.id);
+        const cachedById = new Map((Array.isArray(cached?.events) ? cached.events : []).map((event) => [String(event?.id || ''), event]));
+        if (Array.isArray(project.events) && (cachedById.size || scheduleServerEvents.size)) {
+          project = { ...project, events:project.events.map((event) => {
+            const id = String(event?.id || '');
+            return [cachedById.get(id), latestServerEventCopy(id)].filter(Boolean)
+              .reduce((best, candidate) => scheduleEventRevision(candidate) > scheduleEventRevision(best) ? candidate : best, event);
+          }) };
+        }
+      } catch (_) {}
+      try { store?.cache?.(project); } catch (_) {}
+    }
+    return activeBaseProject;
   }
 
   function setActivePreviewTab(tab){
@@ -369,30 +447,254 @@
     return `${when} - ${eventAssignedLabel(event)}`;
   }
 
-  function ensureSchedulingProject(){
-    if (!activeBaseProject) ensureProposalOnlyBaseProject();
+  // Read-only view of the project being scheduled. Rendering must never create
+  // or save a project record.
+  function currentSchedulingProject(){
     if (!activeBaseProject) return null;
-    activeBaseProject.events = Array.isArray(activeBaseProject.events) ? activeBaseProject.events : [];
-    persistActiveBaseProject();
+    if (!Array.isArray(activeBaseProject.events)) activeBaseProject.events = [];
     return activeBaseProject;
   }
 
+  // Only explicit schedule saves may create the draft project they belong to.
+  function ensureSchedulingProject(){
+    if (!activeBaseProject) ensureProposalOnlyBaseProject();
+    return currentSchedulingProject();
+  }
+
   async function ensureRemoteSchedulingProject(){
-    const project = ensureSchedulingProject();
-    if (!project) return null;
-    if (window.Portal.ProjectStore?.saveRemote) {
+    return ensureSchedulingProject();
+  }
+
+  // Event saves go straight to the event endpoint, which answers with the saved
+  // project document. The API client reports a project that is not on the
+  // server yet (a brand-new draft) as a document-less result; create that
+  // draft once, then retry, and never adopt the placeholder as the project.
+  // Optimistic concurrency: PlatformScheduling.saveProjectEvent sends the
+  // revision of the copy being edited, and the server refuses the save
+  // (409 stale_event) when someone else saved the item since. Every local
+  // save bumps this serial so a read that raced it is not adopted.
+  let scheduleMutationSerial = 0;
+  /* A save the server refused because the item changed since it was read. */
+  function isStaleSaveError(error){
+    if (!error) return false;
+    if (error.stale === true || error.staleSchedule === true) return true;
+    if (window.PlatformAPI?.isStaleError?.(error) === true || window.PlatformScheduling?.isStaleSaveError?.(error) === true) return true;
+    const code = String(error.code || error.data?.code || error.data?.error || error.name || '').trim().toLowerCase();
+    return (Number(error.status) === 409 || code.includes('stale')) && /stale|revision|version|changed_elsewhere|concurrent|modified/.test(code);
+  }
+  function scheduleEventRevision(event = {}){
+    const revision = Number(event?.event_revision);
+    return Number.isFinite(revision) && revision > 0 ? Math.floor(revision) : 0;
+  }
+  /* The stored copies of this project's items that this window read from (or
+   * wrote to) the server, by id and revision. A refused (409) save compares
+   * the copy it edited with the newer stored one to see which fields each
+   * side changed. */
+  const scheduleServerEvents = new Map();
+  function rememberServerEvents(events = []){
+    const projectId = String(activeBaseProject?.id || '');
+    (Array.isArray(events) ? events : []).forEach((event) => {
+      const id = String(event?.id || '');
+      if (!id || !event || typeof event !== 'object') return;
+      const key = `${projectId}:${id}`;
+      const copies = scheduleServerEvents.get(key) || new Map();
+      copies.set(scheduleEventRevision(event), event);
+      // A few recent revisions are enough to find the copy an edit started from.
+      while (copies.size > 6) copies.delete(Math.min(...copies.keys()));
+      scheduleServerEvents.set(key, copies);
+    });
+  }
+  function serverEventCopy(id = '', revision = 0){
+    return scheduleServerEvents.get(`${String(activeBaseProject?.id || '')}:${String(id || '')}`)?.get(Number(revision) || 0) || null;
+  }
+  function latestServerEventCopy(id = ''){
+    const copies = scheduleServerEvents.get(`${String(activeBaseProject?.id || '')}:${String(id || '')}`);
+    return copies?.size ? copies.get(Math.max(...copies.keys())) : null;
+  }
+  /* Field groups a refused save compares, as in the global Scheduling tab: a
+   * save only conflicts with a change made elsewhere when both touched the
+   * same group; otherwise only this window's own changes are written on top
+   * of the stored copy. */
+  const SCHEDULE_TIME_KEYS = ['start', 'end', 'start_at', 'end_at', 'duration_minutes', 'all_day', 'schedule_granularity', 'start_date', 'end_date'];
+  const SCHEDULE_ASSIGNMENT_KEYS = ['assigned_user_ids', 'assigned_users', 'assigned_user_id', 'assigned_user_name', 'work_resource_ref', 'assigned_resource_kind', 'assigned_resource_id', 'assigned_resource_name', 'assigned_crew_id', 'assigned_crew_name', 'assigned_crew', 'crew_id', 'crew_name', 'resource_id', 'resource_name', 'assignee_label', 'crew_label'];
+  const SCHEDULE_LOCK_KEYS = ['locked', 'schedule_locked', 'schedule_lock', 'unlock_confirmed'];
+  const SCHEDULE_COMPARE_IGNORED = new Set(['id', 'updated_at', 'created_at', 'updated_by', 'schedule_history', 'requirement_warnings', 'project_title', 'project_address', 'resource_refs', 'floating_event', 'type_id', 'event_type_id', 'event_type_default_id', 'title_is_custom', 'revision', 'version', 'event_revision', 'expected_event_revision', 'awaiting_crew', 'project_id']);
+  const SCHEDULE_CREW_REF_KINDS = ['resource_group', 'organization_connection', 'organization_user'];
+  function scheduleEmptyValue(value){
+    return value === undefined || value === null || value === '' || value === false
+      || (Array.isArray(value) && !value.length)
+      || (typeof value === 'object' && !Array.isArray(value) && !Object.keys(value).length);
+  }
+  function scheduleEventGroupValue(event = {}, group = ''){
+    const Scheduling = window.PlatformScheduling;
+    const time = (value) => { const date = value ? new Date(value) : null; return date && Number.isFinite(date.getTime()) ? date.getTime() : 0; };
+    if (group === 'time') {
+      const unscheduled = !String(event?.start_at || event?.start || '').trim();
+      return unscheduled ? '[]' : JSON.stringify([Scheduling?.eventStart?.(event)?.getTime?.() || 0, Scheduling?.eventEnd?.(event)?.getTime?.() || 0, event?.all_day === true || String(event?.schedule_granularity || '').toLowerCase() === 'date']);
+    }
+    if (group === 'assignment') return JSON.stringify(eventWorkAssignees(event || {}).map((ref) => ref.id).sort());
+    if (group === 'equipment') return JSON.stringify((Scheduling?.eventEquipmentRefs?.(event || {}) || []).map((ref) => [ref.kind, ref.id, ref.quantity, time(ref.start_at), time(ref.end_at)]).sort());
+    if (group === 'lock') return materialEventIsLocked(event || {}) ? '1' : '0';
+    const value = event?.[group];
+    return scheduleEmptyValue(value) ? '' : JSON.stringify(value);
+  }
+  function scheduleEventChangeGroups(before = {}, after = {}){
+    const grouped = new Set([...SCHEDULE_TIME_KEYS, ...SCHEDULE_ASSIGNMENT_KEYS, ...SCHEDULE_LOCK_KEYS]);
+    const groups = new Set(['time', 'assignment', 'equipment', 'lock']);
+    [...Object.keys(before || {}), ...Object.keys(after || {})].forEach((key) => {
+      if (!key.startsWith('__') && !grouped.has(key) && !SCHEDULE_COMPARE_IGNORED.has(key)) groups.add(key);
+    });
+    return [...groups].filter((group) => scheduleEventGroupValue(before, group) !== scheduleEventGroupValue(after, group));
+  }
+  function scheduleMergeEventChanges(fresh = {}, edited = {}, groups = []){
+    const merged = { ...fresh };
+    const crewRefs = (event) => (Array.isArray(event?.resource_refs) ? event.resource_refs : []).filter((ref) => SCHEDULE_CREW_REF_KINDS.includes(String(ref?.kind || '')));
+    const otherRefs = (event) => (Array.isArray(event?.resource_refs) ? event.resource_refs : []).filter((ref) => !SCHEDULE_CREW_REF_KINDS.includes(String(ref?.kind || '')));
+    groups.forEach((group) => {
+      if (group === 'time') SCHEDULE_TIME_KEYS.forEach((key) => { if (Object.prototype.hasOwnProperty.call(edited, key)) merged[key] = edited[key]; });
+      else if (group === 'assignment') {
+        SCHEDULE_ASSIGNMENT_KEYS.forEach((key) => { if (Object.prototype.hasOwnProperty.call(edited, key)) merged[key] = edited[key]; });
+        merged.resource_refs = [...crewRefs(edited), ...otherRefs(merged)];
+      } else if (group === 'equipment') merged.resource_refs = [...crewRefs(merged), ...otherRefs(edited)];
+      else if (group === 'lock') SCHEDULE_LOCK_KEYS.forEach((key) => { if (Object.prototype.hasOwnProperty.call(edited, key)) merged[key] = edited[key]; });
+      else merged[group] = edited[group];
+    });
+    return merged;
+  }
+  /* A refused save whose change doesn't touch what someone else changed:
+   * the stored copy with this window's changes on top, at the stored
+   * revision. Null when both changed the same thing (or the copy the edit
+   * started from is unknown) — the save is then refused. */
+  function mergeStaleScheduleSave(edited = {}, error = null){
+    if (!isStaleSaveError(error) || error?.deleted === true) return null;
+    const current = error?.currentEvent || error?.data?.details?.current_event || null;
+    if (!current?.id || String(current.id) !== String(edited?.id || '')) return null;
+    // The stored copy is the base of the retry (and of a further merge if
+    // yet another change lands meanwhile).
+    rememberServerEvents([current]);
+    const base = serverEventCopy(edited.id, scheduleEventRevision(edited));
+    if (!base) return null;
+    const ownGroups = scheduleEventChangeGroups(base, edited);
+    const remoteGroups = scheduleEventChangeGroups(base, current);
+    if (!ownGroups.length || ownGroups.some((group) => remoteGroups.includes(group))) return null;
+    const merged = scheduleMergeEventChanges(current, edited, ownGroups);
+    // History entries this save added go on top of the stored history.
+    const baseHistory = Array.isArray(base.schedule_history) ? base.schedule_history : [];
+    const editedHistory = Array.isArray(edited.schedule_history) ? edited.schedule_history : [];
+    if (editedHistory.length > baseHistory.length) merged.schedule_history = [...(Array.isArray(current.schedule_history) ? current.schedule_history : []), ...editedHistory.slice(baseHistory.length)];
+    merged.event_revision = scheduleEventRevision(current);
+    merged.updated_at = new Date().toISOString();
+    return merged;
+  }
+  /* A refused save shows (and caches) the stored copy right away, so the
+   * next change is made on the current revision instead of being refused
+   * again. */
+  function adoptStaleScheduleCopy(error = null){
+    if (!activeBaseProject || !isStaleSaveError(error)) return;
+    const current = error?.currentEvent || error?.data?.details?.current_event || null;
+    const deletedId = String(error?.data?.details?.event_id || error?.event?.id || '');
+    const events = Array.isArray(activeBaseProject.events) ? [...activeBaseProject.events] : [];
+    if (error?.deleted === true && deletedId) {
+      activeBaseProject = { ...activeBaseProject, events:events.filter((item) => String(item.id || '') !== deletedId) };
+    } else if (current?.id) {
+      rememberServerEvents([current]);
+      const idx = events.findIndex((item) => String(item.id || '') === String(current.id));
+      if (idx >= 0) events[idx] = current;
+      else events.push(current);
+      activeBaseProject = { ...activeBaseProject, events };
+    } else return;
+    cacheActiveBaseProject();
+    rememberScheduleProject(activeBaseProject);
+  }
+  // Someone else saved the item first: say so and show the stored schedule.
+  function handleStaleScheduleSave(error = null){
+    const deleted = error?.data?.details?.deleted === true || error?.data?.deleted === true;
+    showToast(
+      (globalThis.PlatformLanguage?.text("scheduling","m_changed_elsewhere_title","Changed by someone else") ?? "Changed by someone else"),
+      deleted
+        ? 'This item was deleted by someone else. The latest schedule is shown.'
+        : (globalThis.PlatformLanguage?.text("scheduling","m_changed_elsewhere_body","Someone else changed this item. The latest schedule is shown — apply your change again if it is still needed.") ?? "Someone else changed this item. The latest schedule is shown — apply your change again if it is still needed."),
+      false
+    );
+    adoptStaleScheduleCopy(error);
+    if (state.active) renderSchedulePanelPreservingScroll();
+    let attempts = 0;
+    const reload = async () => {
+      attempts += 1;
+      const refreshed = await refreshProjectFromServer({ render:true });
+      if (!refreshed && scheduleEventSaveQueues.size && attempts < 12) setTimeout(reload, 400);
+      else if (state.active) renderSchedulePanelPreservingScroll();
+    };
+    setTimeout(reload, 0);
+  }
+
+  // Saves one item. A save refused because someone else changed the item
+  // (409) is retried once on top of the stored copy when the two changes
+  // touch different fields; a same-field conflict is refused (the stored copy
+  // is shown) and the caller reports it.
+  async function saveScheduleEventRemote(orgId, project, event, config){
+    const Scheduling = window.PlatformScheduling;
+    let payload = event;
+    let saved = null;
+    for (let attempt = 0; ; attempt += 1) {
+      scheduleMutationSerial += 1;
       try {
-        activeBaseProject = await window.Portal.ProjectStore.saveRemote(project) || activeBaseProject;
+        saved = await Scheduling.saveProjectEvent(orgId, project, payload, config);
       } catch (error) {
-        console.warn('Platform project save before scheduling failed', error);
+        scheduleMutationSerial += 1;
+        const merged = attempt < 2 ? mergeStaleScheduleSave(payload, error) : null;
+        if (merged) {
+          payload = merged;
+          continue;
+        }
+        adoptStaleScheduleCopy(error);
+        throw error;
+      }
+      scheduleMutationSerial += 1;
+      break;
+    }
+    if (!saved?.document) {
+      const created = window.Portal?.ProjectStore?.saveRemote ? await window.Portal.ProjectStore.saveRemote(project) : null;
+      if (created) {
+        activeBaseProject = { ...activeBaseProject, ...created, events: Array.isArray(activeBaseProject?.events) ? activeBaseProject.events : (created.events || []) };
+        saved = await Scheduling.saveProjectEvent(orgId, activeBaseProject, payload, config);
       }
     }
-    activeBaseProject.events = Array.isArray(activeBaseProject.events) ? activeBaseProject.events : [];
-    return activeBaseProject;
+    if (!saved?.document) {
+      const error = new Error('The schedule could not be saved. Check your connection and try again.');
+      error.status = 0;
+      throw error;
+    }
+    rememberServerEvents([...(Array.isArray(saved.project?.events) ? saved.project.events : []), ...(saved.event ? [saved.event] : [])]);
+    // Callers merge what was actually written (the merged copy after a
+    // refused save), never their pre-merge edit.
+    if (payload !== event) saved = { ...saved, merged:payload };
+    return saved;
   }
 
   function scheduleProjectEvents(){
     return Array.isArray(activeBaseProject?.events) ? activeBaseProject.events : [];
+  }
+
+  // Stored items with auto-rollup groups spanning their members, for display.
+  function scheduleDisplayEvents(){
+    const events = scheduleProjectEvents();
+    return typeof window.PlatformScheduling?.applyGroupRollups === 'function' ? window.PlatformScheduling.applyGroupRollups(events) : events;
+  }
+
+  // After items move, save their parent groups' rolled-up ranges so every
+  // surface that reads stored group ranges agrees.
+  async function persistGroupRollups(items = []){
+    const Scheduling = window.PlatformScheduling;
+    if (typeof Scheduling?.groupRollupUpdates !== 'function' || typeof Scheduling?.eventAncestorGroupIds !== 'function') return;
+    const events = scheduleProjectEvents();
+    const groupIds = Scheduling.eventAncestorGroupIds(events, items);
+    if (!groupIds.length) return;
+    for (const update of Scheduling.groupRollupUpdates(events, groupIds)) {
+      const mutationVersion = beginScheduleEventSave(update.id);
+      upsertLocalProjectEvent(update);
+      await saveProjectEventQuiet(update, { successTitle:'', failureTitle:'Group dates not updated', broadcast:false, preserveLocalEvents:true, mutationVersion });
+    }
   }
 
   function mergeScheduleActiveProject(projects = []){
@@ -410,6 +712,73 @@
     if (config) scheduleCachedConfig = config;
     if (Array.isArray(users) && users.length) scheduleCachedUsers = users;
     if (Array.isArray(projects) && projects.length) scheduleCachedProjects = projects;
+  }
+
+  // Branch config, people and the org's projects change rarely while a project
+  // window is open; re-renders reuse them for a minute instead of refetching
+  // everything (and showing "Loading calendar…") on every click.
+  const SCHEDULE_DATA_TTL_MS = 60000;
+  let scheduleDataLoadedAt = 0;
+  // The session's permission flags, as the global Scheduling tab reads them
+  // (no flags known yet = allowed; the server still decides).
+  function scheduleSessionHasPermission(keys = ''){
+    const wanted = String(keys || '').split('|').map((key) => key.trim()).filter(Boolean);
+    const permissions = window.Portal?.currentUser?.permissions;
+    if (!permissions || typeof permissions !== 'object' || !Object.keys(permissions).length) return true;
+    return wanted.some((key) => permissions[key] === true || (permissions['*'] === true && permissions[key] !== false));
+  }
+  // The org user directory is an admin list; other sessions read people from
+  // the assignable-resources list instead of getting a 403 on every open.
+  let scheduleUsersLoaded = false;
+  let scheduleWorkforceUserEntries = [];
+  async function loadScheduleUsers(config){
+    const Scheduling = window.PlatformScheduling;
+    if (scheduleSessionHasPermission('manage_company_users|manage_company_user_permissions|manage_users|manage_sales_users')) {
+      const users = await Promise.resolve().then(() => Scheduling.listUsers(scheduleOrgId(), config)).catch(() => null);
+      if (!Array.isArray(users)) return scheduleCachedUsers;
+      scheduleUsersLoaded = true;
+      return users;
+    }
+    await loadWorkforceResources();
+    scheduleUsersLoaded = true;
+    return scheduleWorkforceUserEntries
+      .map((entry) => entry?.user && typeof entry.user === 'object'
+        ? { ...entry.user, id:String(entry.user.id || entry.id || '').trim(), ...(Array.isArray(entry.role_ids) && !Array.isArray(entry.user.role_ids) ? { role_ids:entry.role_ids } : {}) }
+        : { id:String(entry?.id || '').trim(), name:String(entry?.name || '').trim(), status:String(entry?.status || '').trim(), role_ids:Array.isArray(entry?.role_ids) ? entry.role_ids : [] })
+      .filter((user) => user.id)
+      .map((user) => (Scheduling.normalizeUser ? Scheduling.normalizeUser(user, config) : user));
+  }
+  async function loadScheduleData({ force = false } = {}){
+    const Scheduling = window.PlatformScheduling;
+    if (!force && scheduleCachedConfig && (scheduleCachedUsers.length || scheduleUsersLoaded) && Date.now() - scheduleDataLoadedAt < SCHEDULE_DATA_TTL_MS) {
+      await loadWorkforceResources();
+      return { config:scheduleCachedConfig, users:scheduleCachedUsers, projects:mergeScheduleActiveProject(scheduleCachedProjects) };
+    }
+    const config = await Scheduling.loadBranchConfig(scheduleOrgId(), scheduleBranchId());
+    const users = await loadScheduleUsers(config);
+    let projects;
+    try {
+      projects = await Scheduling.listProjects(scheduleOrgId(), config);
+    } catch (error) {
+      // The org's projects couldn't be read (other bookings feed the
+      // availability checks): keep the last good list and say so, instead
+      // of treating every crew as free. Nothing loaded yet = a real error.
+      if (!scheduleCachedProjects.length) throw error;
+      scheduleSourceNotice();
+      scheduleCachedConfig = config;
+      await loadWorkforceResources();
+      return { config, users:users.length ? users : scheduleCachedUsers, projects:mergeScheduleActiveProject(scheduleCachedProjects) };
+    }
+    rememberScheduleData(config, users, projects);
+    scheduleDataLoadedAt = Date.now();
+    await loadWorkforceResources();
+    return { config, users, projects:mergeScheduleActiveProject(projects) };
+  }
+  let scheduleSourceNoticeAt = 0;
+  function scheduleSourceNotice(){
+    if (Date.now() - scheduleSourceNoticeAt < 60000) return;
+    scheduleSourceNoticeAt = Date.now();
+    showToast("Couldn't refresh the schedule", 'Other projects’ bookings are from the last successful load, so availability may be out of date. Try again in a moment.', false);
   }
 
   let scheduleConfirmationSettingsLoaded = false;
@@ -436,21 +805,43 @@
       scheduleCachedWorkResources = [];
       return scheduleCachedWorkResources;
     }
-    if (scheduleCachedWorkResources.length && scheduleWorkforceTerminologyLoaded && !options.refresh) return scheduleCachedWorkResources;
+    // Loaded once per window (an org without crews is loaded too, not
+    // re-requested on every render); a refresh asks again.
+    if (scheduleWorkforceLoaded && scheduleWorkforceTerminologyLoaded && !options.refresh) return scheduleCachedWorkResources;
+    if (scheduleWorkforceLoading && !options.refresh) return scheduleWorkforceLoading;
+    scheduleWorkforceLoading = loadWorkforceResourcesNow().finally(() => { scheduleWorkforceLoading = null; });
+    return scheduleWorkforceLoading;
+  }
+  let scheduleWorkforceLoaded = false;
+  let scheduleWorkforceLoading = null;
+  async function loadWorkforceResourcesNow(){
+    // Equipment types are an equipment-admin list; schedule viewers name
+    // types from the units the resource list already carries.
+    const canReadEquipmentTypes = scheduleSessionHasPermission('equipment.view|equipment.manage|equipment.service|manage_company_settings|manage_schedule');
     try {
       const [result, configurationResult, equipmentTypesResult] = await Promise.all([
         window.PlatformAPI.workforce.assignableResources(scheduleOrgId(), scheduleBranchId()),
         window.PlatformAPI.workforce.configuration?.(scheduleOrgId(), scheduleBranchId()).catch(() => ({ configuration:{} })) || Promise.resolve({ configuration:{} }),
-        equipmentSchedulingEnabled() && window.EquipmentAPI?.types
+        equipmentSchedulingEnabled() && canReadEquipmentTypes && window.EquipmentAPI?.types
           ? window.EquipmentAPI.types(scheduleOrgId()).catch(() => ({ types:scheduleCachedEquipmentTypes }))
           : Promise.resolve({ types:[] })
       ]);
       const configuration = configurationResult?.configuration || configurationResult?.settings || configurationResult || {};
       scheduleWorkforceTerminology = configuration.terminology || scheduleWorkforceTerminology;
       scheduleWorkforceTerminologyLoaded = true;
+      scheduleWorkforceLoaded = true;
+      scheduleWorkforceUserEntries = Array.isArray(result?.users) ? result.users : scheduleWorkforceUserEntries;
       const resources = Array.isArray(result?.resources) ? result.resources : (Array.isArray(result?.assignable_resources) ? result.assignable_resources : []);
       scheduleCachedEquipmentUnits = Array.isArray(result?.equipment_units) ? result.equipment_units : [];
-      scheduleCachedEquipmentTypes = Array.isArray(equipmentTypesResult?.types) ? equipmentTypesResult.types : scheduleCachedEquipmentTypes;
+      scheduleCachedEquipmentTypes = Array.isArray(equipmentTypesResult?.types) && equipmentTypesResult.types.length ? equipmentTypesResult.types : scheduleCachedEquipmentTypes;
+      if (!scheduleCachedEquipmentTypes.length && scheduleCachedEquipmentUnits.length) {
+        const seenTypes = new Map();
+        scheduleCachedEquipmentUnits.forEach((unit) => {
+          const id = String(unit?.type_id || unit?.equipment_type_id || '').trim();
+          if (id && !seenTypes.has(id)) seenTypes.set(id, { id, name:String(unit?.type_name || unit?.equipment_type_name || id).trim() });
+        });
+        scheduleCachedEquipmentTypes = [...seenTypes.values()];
+      }
       scheduleCachedWorkResources = resources.map((resource) => {
         const id = String(resource?.resource_id || resource?.id || '').trim();
         const name = String(resource?.name || resource?.work_resource_ref?.name || id).trim();
@@ -471,6 +862,11 @@
       return scheduleCachedWorkResources;
     } catch (error) {
       if (Number(error?.status || 0) !== 403) console.warn('Workforce resources unavailable.', error);
+      else {
+        // Not permitted: asking again on every render only repeats the 403.
+        scheduleWorkforceLoaded = true;
+        scheduleWorkforceTerminologyLoaded = true;
+      }
       return scheduleCachedWorkResources;
     }
   }
@@ -525,7 +921,7 @@
   }
 
   function projectWorkEvents(){
-    return scheduleProjectEvents()
+    return scheduleDisplayEvents()
       .filter(isProjectWorkEvent)
       .filter((event) => !equipmentEventHidden(event))
       .filter(materialEventIsScheduled)
@@ -574,6 +970,7 @@
     const type = productionResourceType(event);
     if (type === 'labor') return 'Labor';
     if (type === 'equipment') return 'Equipment';
+    if (type !== 'material' && isProjectWorkEvent(event) && !isMaterialDeliveryEvent(event)) return (globalThis.PlatformLanguage?.text("project-schedule","m_c2e6380e130020","Production") ?? "Production");
     return 'Material delivery';
   }
 
@@ -608,9 +1005,32 @@
       .sort((a, b) => (a.__start?.getTime?.() ?? Number.MAX_SAFE_INTEGER) - (b.__start?.getTime?.() ?? Number.MAX_SAFE_INTEGER));
   }
 
+  function scheduleEventIsGroup(event = {}){
+    return window.PlatformScheduling?.eventIsGroup?.(event) === true || event.is_schedule_group === true;
+  }
+
+  // Production items listed in the sidebar and placeable on the calendar:
+  // generated scope resources (labor, equipment, deliveries) plus the
+  // project's own production work items. Schedule groups roll up their
+  // members and are managed in the Timeline.
+  function projectProductionEvents(){
+    const Scheduling = window.PlatformScheduling;
+    const resourceIds = new Set(projectMaterialEvents().map((event) => String(event.id || '')));
+    const workItems = scheduleProjectEvents()
+      // Recurring occurrences are managed from their series under Recurring.
+      .filter((event) => isProjectWorkEvent(event) && !scheduleEventIsGroup(event) && !String(event.recurrence_series_id || '').trim() && !resourceIds.has(String(event.id || '')))
+      .map((event) => {
+        const start = materialEventIsScheduled(event) ? (Scheduling?.eventStart?.(event) || null) : null;
+        const end = start ? (Scheduling?.eventEnd?.(event) || new Date(start.getTime() + 60 * 60000)) : null;
+        return { ...event, __start: start, __end: end };
+      });
+    return [...projectMaterialEvents(), ...workItems]
+      .sort((a, b) => (a.__start?.getTime?.() ?? Number.MAX_SAFE_INTEGER) - (b.__start?.getTime?.() ?? Number.MAX_SAFE_INTEGER));
+  }
+
   function selectedMaterialEvent(){
     const byId = materialScheduleEventId
-      ? projectMaterialEvents().find((event) => String(event.id || '') === String(materialScheduleEventId))
+      ? projectProductionEvents().find((event) => String(event.id || '') === String(materialScheduleEventId))
       : null;
     if (byId) return byId;
     return materialScheduleListId
@@ -621,7 +1041,7 @@
   function focusMaterialDelivery(payload = {}){
     const eventId = String(payload.event_id || payload.eventId || '').trim();
     const listId = String(payload.scope_resource_list_id || payload.material_list_id || payload.materialListId || '').trim();
-    const event = (eventId ? projectMaterialEvents().find((item) => String(item.id || '') === eventId) : null)
+    const event = (eventId ? projectProductionEvents().find((item) => String(item.id || '') === eventId) : null)
       || (listId ? projectMaterialEvents().find((item) => String(item.scope_resource_list_id || item.material_list_id || item.materialListId || '') === listId) : null)
       || null;
     const sameSelection = materialScheduleModeActive
@@ -674,9 +1094,9 @@
     const Scheduling = window.PlatformScheduling;
     const project = await ensureRemoteSchedulingProject();
     if (!Scheduling || !project?.id || !event?.id) return null;
-    const saved = await Scheduling.saveProjectEvent(scheduleOrgId(), project, event, scheduleCachedConfig || null);
+    const saved = await saveScheduleEventRemote(scheduleOrgId(), project, event, scheduleCachedConfig || null);
     activeBaseProject = { ...activeBaseProject, ...saved.project, events: saved.project?.events || activeBaseProject?.events || [] };
-    persistActiveBaseProject();
+    cacheActiveBaseProject();
     rememberScheduleProject(activeBaseProject);
     window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
     window.dispatchEvent(new CustomEvent('fm:projects:refresh'));
@@ -684,6 +1104,7 @@
   }
 
   async function saveMaterialScheduleDraft(next = materialScheduleDraft){
+    if (!requireScheduleEdit()) return null;
     const Scheduling = window.PlatformScheduling;
     const event = selectedMaterialEvent();
     if (!Scheduling || !event?.id || !next?.start) return;
@@ -691,6 +1112,7 @@
       showToast((globalThis.PlatformLanguage?.text("project-schedule","m_88e13d64071885","Schedule locked") ?? "Schedule locked"), (globalThis.PlatformLanguage?.text("project-schedule","m_2896561e271b21","Unlock this delivery before rescheduling it.") ?? "Unlock this delivery before rescheduling it."), false);
       return;
     }
+    if (schedulePlacementSaving || schedulePlacementBusy) return;
     const start = new Date(next.start);
     const end = next.end ? new Date(next.end) : (next.all_day === false ? new Date(start.getTime() + 60 * 60000) : scheduleAddDays(start, 1));
     const updated = {
@@ -706,39 +1128,233 @@
       material_list_id: event.material_list_id || materialScheduleListId,
       updated_at: new Date().toISOString()
     };
+    // Busy (not "Saving…") while the past-day and linked-item questions are
+    // open; the banner says Saving only once the save itself runs.
+    schedulePlacementBusy = true;
     try {
+      if (!(await confirmPastPlacement(event, start))) return;
+      const related = await resolveProjectRelatedReschedule(event, { start, end }, { verb:materialEventIsScheduled(event) ? 'Moving' : 'Scheduling' });
+      if (related.cancelled) return;
+      setSchedulePlacementSaving(true);
       await persistMaterialScheduleEvent(updated);
+      // The item is placed: leave placement and show it (and the linked
+      // items' new dates) right away; the linked saves continue behind it.
       materialScheduleDraft = null;
+      materialScheduleModeActive = false;
+      materialScheduleEventId = '';
+      materialScheduleListId = '';
       scheduleAnchorDate = start;
+      setSchedulePlacementSaving(false);
+      showRelatedChangesLocally(related);
       renderSchedulePanel();
-      showToast((globalThis.PlatformLanguage?.text("project-schedule","m_165bc3ab3937ae","Production scheduled") ?? "Production scheduled"), ((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_d30ad66a8eab41",`${v0} was placed on the project schedule.`,{v0}) ?? `${v0} was placed on the project schedule.`)(event.title || productionResourceLabel(event)), true);
+      showToast((globalThis.PlatformLanguage?.text("project-schedule","m_165bc3ab3937ae","Production scheduled") ?? "Production scheduled"), `${((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_d30ad66a8eab41",`${v0} was placed on the project schedule.`,{v0}) ?? `${v0} was placed on the project schedule.`)(event.title || productionResourceLabel(event))}${relatedMoveNote(related)}`, true);
+      await saveRelatedRescheduleChanges(related);
+      await persistGroupRollups([updated, ...related.changes]);
+      renderSchedulePanelPreservingScroll();
     } catch (error) {
-      showToast((globalThis.PlatformLanguage?.text("project-schedule","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), error?.message || 'Could not schedule this production item.', false);
+      if (isStaleSaveError(error)) handleStaleScheduleSave(error);
+      else showToast((globalThis.PlatformLanguage?.text("project-schedule","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), error?.message || 'Could not schedule this production item.', false);
+    } finally {
+      schedulePlacementBusy = false;
+      setSchedulePlacementSaving(false);
     }
   }
 
-  async function saveMaterialScheduleRange(event, range){
+  /* ── Placement (Sales + New, a selected sidebar item, a work draft) ─────
+   * A banner names what is being placed with a Cancel (Esc); Escape cancels
+   * the placement instead of closing the project window. */
+  let schedulePlacementSaving = false;
+  // A placement confirm is running (its questions may be open): a second ✓
+  // is ignored, but nothing says "Saving…" until the save starts.
+  let schedulePlacementBusy = false;
+  let schedulePlacementReturn = null;
+  function setSchedulePlacementSaving(saving){
+    schedulePlacementSaving = !!saving;
+    const panel = $('#rSchedulePanel');
+    panel?.classList.toggle('r-schedule-saving', schedulePlacementSaving);
+    panel?.querySelectorAll('[data-schedule-placement-state]').forEach((node) => {
+      node.textContent = schedulePlacementSaving ? 'Saving…' : '';
+    });
+  }
+  function scheduleIsPastDay(value){
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return date < today;
+  }
+  // Placing an item on a day that has already passed is allowed (catching
+  // up records) but never silent.
+  // Same wording as the global Scheduling tab.
+  async function confirmPastPlacement(event = {}, start){
+    if (!scheduleIsPastDay(start)) return true;
+    const day = new Date(start).toLocaleDateString([], { weekday:'long', month:'short', day:'numeric' });
+    return !!(await scheduleConfirmUi(`“${scheduleEventDisplayTitle(event) || 'This item'}” would be placed on ${day}, which is in the past. Place it anyway?`, { title:'Place in the past?', okLabel:'Place anyway', cancelLabel:'Choose another date' }));
+  }
+  // Touch screens tap; a mouse clicks. Phones have no Escape key to mention.
+  // By the pointer, not the width: a narrow floating or docked window on a
+  // desktop still has a mouse and an Escape key.
+  function scheduleTouchLayout(){
+    return window.matchMedia?.('(pointer:coarse)').matches === true;
+  }
+  function schedulePointerVerb(){
+    return scheduleTouchLayout() ? 'Tap' : 'Click';
+  }
+  function schedulePlacementState(){
+    if (scheduleModeActive) {
+      const existing = projectSalesAppointmentEvents().find((item) => String(item.id || '') === String(scheduleAssignmentEventId || scheduleSelectedEventId || ''));
+      const subject = existing ? scheduleEventDisplayTitle(existing) : 'a new sales appointment';
+      return {
+        subject,
+        text:scheduleDraft?.start
+          ? `${scheduleDraft.label || 'Time chosen'}${scheduleDraft.userLabel ? ` with ${scheduleDraft.userLabel}` : ''}. Confirm it with ✓, or pick another time.`
+          : `${schedulePointerVerb()} an open time on the calendar.`,
+        past:scheduleDraft?.start && scheduleIsPastDay(scheduleDraft.start)
+      };
+    }
+    const workDraft = workScheduleModeActive ? activeWorkDraft() : null;
+    if (workDraft) {
+      return {
+        subject:workDraft.title || 'new work',
+        text:workDraft.start ? `${workRangeLabel({ ...workDraft, __start:new Date(workDraft.start), __end:new Date(workDraft.end) })}. Confirm it with ✓, or place it somewhere else.` : `${schedulePointerVerb()} a day or time on the calendar.`,
+        past:workDraft.start && scheduleIsPastDay(workDraft.start)
+      };
+    }
+    if (materialScheduleModeActive) {
+      const event = selectedMaterialEvent();
+      if (!event) return null;
+      const scheduled = materialEventIsScheduled(event);
+      return {
+        subject:isMaterialDeliveryEvent(event) ? `${materialDeliveryTitle(event)} delivery` : (event.title || productionResourceLabel(event)),
+        text:materialScheduleDraft?.start
+          ? 'Review the date on the calendar and confirm it with ✓.'
+          : (scheduled ? 'Drag it on the calendar to reschedule it.' : (scheduleViewMode === 'gantt' ? 'Drag it from the unscheduled row onto the timeline.' : `${schedulePointerVerb()} a day on the calendar.`)),
+        past:materialScheduleDraft?.start && scheduleIsPastDay(materialScheduleDraft.start)
+      };
+    }
+    return null;
+  }
+  function schedulePlacementActive(){
+    return !!schedulePlacementState();
+  }
+  function schedulePlacementBannerHtml(){
+    const placement = schedulePlacementState();
+    if (!placement || !canEditSchedule()) return '';
+    return `<div class="r-schedule-placement-banner" role="status"><i class="fas fa-location-crosshairs" aria-hidden="true"></i><span><strong>Placing ${escapeHtml(placement.subject)}</strong> — ${escapeHtml(placement.text)}${placement.past ? '<span class="warn">That day is in the past.</span>' : ''} <em data-schedule-placement-state>${schedulePlacementSaving ? 'Saving…' : ''}</em></span><button type="button" class="r-schedule-placement-cancel" data-schedule-placement-cancel>Cancel${scheduleTouchLayout() ? '' : ' <kbd>(Esc)</kbd>'}</button></div>`;
+  }
+  function refreshSchedulePlacementBanner(){
+    const panel = $('#rSchedulePanel');
+    if (!panel || !state.active) return;
+    const current = panel.querySelector('.r-schedule-placement-banner');
+    const html = schedulePlacementBannerHtml();
+    if (!current && !html) return;
+    const holder = document.createElement('div');
+    holder.innerHTML = html;
+    const next = holder.firstElementChild;
+    if (current && next) current.replaceWith(next);
+    else if (current) current.remove();
+    else panel.querySelector('.r-schedule-calendar')?.before(next);
+    bindSchedulePlacementBanner(panel);
+  }
+  function bindSchedulePlacementBanner(rootEl){
+    rootEl?.querySelector('[data-schedule-placement-cancel]')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      cancelSchedulePlacement();
+    });
+  }
+  function cancelSchedulePlacement(){
+    if (scheduleModeActive || scheduleDraft || scheduleAssignmentEventId || scheduleSelectedEventId) {
+      scheduleModeActive = false;
+      scheduleDraft = null;
+      scheduleAssignmentEventId = '';
+      scheduleSelectedEventId = '';
+      // Sales + New returns to the view it started from.
+      if (schedulePlacementReturn) {
+        scheduleViewMode = schedulePlacementReturn.view;
+        scheduleSchedulingTarget = schedulePlacementReturn.target;
+        scheduleAnchorDate = schedulePlacementReturn.date;
+      }
+      schedulePlacementReturn = null;
+      updateScheduleChoiceCard();
+    }
+    if (workScheduleModeActive) {
+      const id = activeWorkScheduleDraftId;
+      if (id) workScheduleDrafts.delete(String(id));
+      setActiveWorkDraftId(lastWorkDraft()?.id || '');
+    }
+    if (materialScheduleModeActive) {
+      materialScheduleModeActive = false;
+      materialScheduleEventId = '';
+      materialScheduleListId = '';
+      materialScheduleDraft = null;
+    }
+    renderSchedulePanelPreservingScroll();
+  }
+  // Switching to another sidebar item while a placed-but-unconfirmed draft
+  // exists asks before dropping it.
+  async function confirmDiscardPlacementDraft(nextEventId = ''){
+    const material = materialScheduleModeActive && materialScheduleDraft?.start && String(materialScheduleEventId || '') !== String(nextEventId || '') ? selectedMaterialEvent() : null;
+    const work = !material && workScheduleModeActive ? activeWorkDraft() : null;
+    const pending = material || (work?.start ? work : null);
+    if (!pending) return true;
+    const title = material ? (isMaterialDeliveryEvent(material) ? `${materialDeliveryTitle(material)} delivery` : material.title) : pending.title;
+    const approved = await scheduleConfirmUi(`“${title || 'This item'}” has a date placed on the calendar that isn't confirmed yet. Discard it?`, { title:'Discard placement', okLabel:'Discard', cancelLabel:'Keep placing', defaultFocus:'cancel' });
+    if (!approved) return false;
+    if (material) materialScheduleDraft = null;
+    if (work) {
+      workScheduleDrafts.delete(String(work.id || ''));
+      setActiveWorkDraftId(lastWorkDraft()?.id || '');
+    }
+    return true;
+  }
+
+  async function saveMaterialScheduleRange(event, range, options = {}){
+    if (!requireScheduleEdit()) return null;
     const Scheduling = window.PlatformScheduling;
-    if (!Scheduling || !event?.id || materialEventIsLocked(event)) return;
+    const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(event?.id || '')) || event;
+    if (!Scheduling || !source?.id) return null;
+    if (materialEventIsLocked(source)) {
+      renderSchedulePanelPreservingScroll();
+      showToast((globalThis.PlatformLanguage?.text("project-schedule","m_a1c7a5d9f83613","Delivery locked") ?? "Delivery locked"), (globalThis.PlatformLanguage?.text("project-schedule","m_6bf220dddda83e","Unlock this ordered delivery before moving it.") ?? "Unlock this ordered delivery before moving it."), false);
+      return null;
+    }
     const next = {
-      ...Scheduling.updateProjectEventRange(event, range),
+      ...Scheduling.updateProjectEventRange(source, range),
       status: 'scheduled',
       updated_at: new Date().toISOString()
     };
+    // Linked items are settled before anything is saved.
+    const related = options.skipRelated ? null : await resolveProjectRelatedReschedule(source, { start:next.start_at, end:next.end_at });
+    if (related?.cancelled) {
+      renderSchedulePanelPreservingScroll();
+      return null;
+    }
     const mutationVersion = beginScheduleEventSave(next.id);
     upsertLocalProjectEvent(next);
-    materialScheduleEventId = String(event.id || materialScheduleEventId);
-    await saveProjectEventQuiet(next, {
-      successTitle: 'Delivery updated',
-      successMessage: 'The material delivery schedule was saved.',
+    if (!options.skipRelated) renderSchedulePanelPreservingScroll();
+    const saved = await saveProjectEventQuiet(next, {
+      successTitle: options.quiet ? '' : 'Delivery updated',
+      successMessage: `The material delivery schedule was saved.${relatedMoveNote(related)}`,
       failureTitle: 'Scheduling failed',
       broadcast: false,
       preserveLocalEvents: true,
       mutationVersion
     });
+    if (!saved) {
+      if (scheduleEventSaveVersions.get(String(next.id || '')) === mutationVersion) {
+        upsertLocalProjectEvent(source);
+        renderSchedulePanelPreservingScroll();
+      }
+      return null;
+    }
+    await saveRelatedRescheduleChanges(related);
+    await persistGroupRollups([next, ...(related?.changes || [])]);
+    if (!options.skipRelated) renderSchedulePanelPreservingScroll();
+    return saved;
   }
 
   async function toggleMaterialScheduleLock(event, requestedLocked = null){
+    if (!requireScheduleEdit()) return null;
     if (!event?.id) return;
     const locked = materialEventIsLocked(event);
     const nextLocked = typeof requestedLocked === 'boolean' ? requestedLocked : !locked;
@@ -775,6 +1391,45 @@
     }
   }
 
+  async function toggleWorkScheduleLock(event, requestedLocked = null){
+    if (!requireScheduleEdit()) return null;
+    const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(event?.id || '')) || event;
+    if (!source?.id) return;
+    const locked = materialEventIsLocked(source);
+    const nextLocked = typeof requestedLocked === 'boolean' ? requestedLocked : !locked;
+    if (nextLocked === locked) return;
+    const now = new Date().toISOString();
+    const next = {
+      ...source,
+      locked: nextLocked,
+      schedule_locked: nextLocked,
+      schedule_lock: {
+        ...(source.schedule_lock || {}),
+        locked: nextLocked,
+        reason: source.schedule_lock?.reason || 'manual',
+        locked_at: nextLocked ? now : '',
+        unlocked_at: nextLocked ? '' : now
+      },
+      unlock_confirmed: locked && !nextLocked,
+      updated_at: now
+    };
+    const mutationVersion = beginScheduleEventSave(next.id);
+    upsertLocalProjectEvent(next);
+    renderSchedulePanelPreservingScroll();
+    const saved = await saveProjectEventQuiet(next, {
+      successTitle: nextLocked ? 'Date locked' : 'Date unlocked',
+      successMessage: nextLocked ? `${scheduleEventDisplayTitle(next)} can no longer be moved until it is unlocked.` : `${scheduleEventDisplayTitle(next)} can be moved again.`,
+      failureTitle: 'Lock update failed',
+      broadcast: false,
+      preserveLocalEvents: true,
+      mutationVersion
+    });
+    if (!saved) {
+      upsertLocalProjectEvent(source);
+      renderSchedulePanelPreservingScroll();
+    }
+  }
+
   function allProjectWorkEvents(){
     const Scheduling = window.PlatformScheduling;
     const projects = mergeScheduleActiveProject(scheduleCachedProjects);
@@ -782,6 +1437,8 @@
     const rawEvents = Scheduling?.eventsFromProjects?.(projects, scheduleCachedConfig || null) || [];
     return rawEvents
       .filter(isProjectWorkEvent)
+      // Groups roll up their members; Routing rows hold the members themselves.
+      .filter((event) => !scheduleEventIsGroup(event))
       .filter((event) => !equipmentEventHidden(event))
       .filter(materialEventIsScheduled)
       .map((event) => {
@@ -994,6 +1651,93 @@
     return crews;
   }
 
+  /* ── Several work assignees (crews, subcontractors, people) ─────────────
+   * resource_refs holds every crew-role assignee; work_resource_ref and its
+   * legacy mirrors name only the primary (the first). A two-crew item keeps
+   * both crews whichever surface edits it. */
+  const EQUIPMENT_REF_KINDS = ['equipment_unit', 'equipment_type'];
+  function workRefKind(kind){
+    const value = String(kind || '').trim().toLowerCase();
+    return ({ crew:'resource_group', team:'resource_group', person:'organization_user', user:'organization_user', subcontractor:'organization_connection' })[value] || value;
+  }
+  function workResourceName(id = ''){
+    const key = String(id || '');
+    const resource = scheduleCachedWorkResources.find((item) => String(item.id || '') === key);
+    if (resource?.name) return String(resource.name);
+    const user = scheduleCachedUsers.find((item) => String(item?.id || '') === key);
+    return String(user?.name || user?.email || '').trim();
+  }
+  function eventWorkAssignees(event = {}){
+    const Scheduling = window.PlatformScheduling;
+    if (typeof Scheduling?.eventWorkAssignees === 'function') {
+      try {
+        // -> { crews:[{kind,id,name}], people:[{id,name}] }
+        const shared = Scheduling.eventWorkAssignees(event);
+        if (shared && (Array.isArray(shared.crews) || Array.isArray(shared.people))) {
+          const primaryId = workCrewId(event);
+          const list = [
+            ...(Array.isArray(shared.crews) ? shared.crews : []).map((ref) => ({ kind:workRefKind(ref?.kind) || 'resource_group', id:String(ref?.id || '').trim(), name:String(ref?.name || '').trim() })),
+            ...(Array.isArray(shared.people) ? shared.people : []).map((ref) => ({ kind:'organization_user', id:String(ref?.id || '').trim(), name:String(ref?.name || '').trim() }))
+          ].filter((ref, index, all) => ref.id && ref.id !== String(event?.id || '') && all.findIndex((other) => other.id === ref.id) === index);
+          // The primary (first) assignee leads.
+          list.sort((a, b) => (b.id === primaryId) - (a.id === primaryId));
+          return list.map((ref) => ({ ...ref, name:ref.name || workResourceName(ref.id) || ref.id }));
+        }
+      } catch (_) {}
+    }
+    const eventId = String(event?.id || '');
+    const list = [];
+    const add = (ref = {}) => {
+      const id = String(ref?.id || '').trim();
+      const kind = workRefKind(ref?.kind) || 'resource_group';
+      if (!id || id === eventId || EQUIPMENT_REF_KINDS.includes(kind) || list.some((item) => item.id === id)) return;
+      list.push({ kind, id, name:String(ref?.name || '').trim() });
+    };
+    const primaryId = workCrewId(event);
+    if (primaryId) add({ kind:workResourceKind(event) || 'resource_group', id:primaryId, name:workCrewName(event) });
+    (Array.isArray(event?.resource_refs) ? event.resource_refs : []).forEach((ref) => add(ref));
+    (Array.isArray(event?.assigned_user_ids) ? event.assigned_user_ids : []).forEach((id) => add({
+      kind:'organization_user',
+      id,
+      name:(Array.isArray(event?.assigned_users) ? event.assigned_users : []).find((user) => String(user?.id || '') === String(id))?.name || ''
+    }));
+    return list.map((ref) => ({ ...ref, name:ref.name || workResourceName(ref.id) || ref.id }));
+  }
+  function workAssigneesLabel(list = []){
+    if (!list.length) return '';
+    return list.length === 1 ? list[0].name : `${list[0].name} +${list.length - 1}`;
+  }
+  // The save payload for an explicit assignee list: primary mirrors for the
+  // first crew (or person) plus the full crew-role list in resource_refs.
+  function workAssigneesPayload(event = {}, assignees = []){
+    const list = [];
+    assignees.forEach((ref) => {
+      const id = String(ref?.id || '').trim();
+      if (id && !list.some((item) => item.id === id)) list.push({ kind:workRefKind(ref.kind) || 'resource_group', id, name:String(ref.name || '').trim() || workResourceName(id) || id });
+    });
+    const resources = workAssignmentResources(event);
+    const subjects = list.map((ref) => {
+      const known = resources.find((resource) => String(resource.id || '') === ref.id);
+      return known || { id:ref.id, name:ref.name, subject_type:ref.kind, resource_kind:ref.kind };
+    });
+    const Scheduling = window.PlatformScheduling;
+    if (typeof Scheduling?.assigneeSetPayload === 'function') {
+      // Shared writer: crews in resource_refs (first = primary, mirrored in
+      // the singular fields), people in assigned_user_ids, equipment kept.
+      const crews = list.filter((ref) => ref.kind !== 'organization_user');
+      const people = subjects.filter((subject) => String(subject.subject_type || subject.resource_kind) === 'organization_user').map((subject) => ({ id:subject.id, name:subject.name || subject.email || subject.id, role_ids:subject.role_ids || subject.roles || [] }));
+      return { ...Scheduling.assigneeSetPayload(event, { crews, people }), crew_label:workAssigneesLabel(list) || 'Unassigned', awaiting_crew:false };
+    }
+    const base = subjects.length ? assignmentPayloadForSubjects(subjects) : crewPayloadForSelection('', resources);
+    const equipment = (Array.isArray(event?.resource_refs) ? event.resource_refs : []).filter((ref) => EQUIPMENT_REF_KINDS.includes(workRefKind(ref?.kind)));
+    return {
+      ...base,
+      crew_label:workAssigneesLabel(list) || 'Unassigned',
+      assignee_label:list.map((ref) => ref.name).filter(Boolean).join(', ') || 'Unassigned',
+      resource_refs:[...list.map((ref) => ({ kind:ref.kind, id:ref.id, name:ref.name, role:'crew' })), ...equipment]
+    };
+  }
+
   function closeWorkAssignmentMenu(){
     scheduleCrewMenuEventId = '';
     document.querySelectorAll('[data-production-resource-crew][aria-expanded="true"]').forEach((node) => node.setAttribute('aria-expanded', 'false'));
@@ -1010,21 +1754,28 @@
       scheduleEventPopoverDocHandler();
       scheduleEventPopoverDocHandler = null;
     }
-    document.querySelectorAll('.r-schedule-event-popover').forEach((node) => node.remove());
+    document.querySelectorAll('.r-schedule-event-popover').forEach((node) => {
+      node.__resizeObserver?.disconnect?.();
+      node.remove();
+    });
   }
 
   function schedulePopoverHost(anchor = null){
     const modalRoot = anchor?.closest?.('[data-fm-modal-id], #rOverlay, .r-overlay');
     if (modalRoot) return modalRoot;
     const contextRoot = state.context?.overlayRoot || state.context?.roots?.overlay || null;
-    if (contextRoot instanceof Element && (!anchor || contextRoot.contains(anchor))) return contextRoot;
+    if (contextRoot instanceof Element && (!anchor || !(anchor instanceof Node) || contextRoot.contains(anchor))) return contextRoot;
     return document.body;
   }
 
   function scheduleEventKind(event = {}){
     if (isMaterialDeliveryEvent(event)) return { label:(globalThis.PlatformLanguage?.text("project-schedule","m_b73185deef6d79","Delivery") ?? "Delivery"), icon:'fa-truck-ramp-box' };
+    if (isSalesAppointmentEvent(event)) return { label:(globalThis.PlatformLanguage?.text("project-schedule","m_f7eaf8f28f8161","Sales appointment") ?? "Sales appointment"), icon:'fa-calendar-check' };
+    if (scheduleEventIsGroup(event)) return { label:'Schedule group', icon:'fa-layer-group' };
     if (productionResourceType(event) === 'labor' || isProjectWorkEvent(event)) return { label:(globalThis.PlatformLanguage?.text("project-schedule","m_7acfa5ed3b7739","Labor") ?? "Labor"), icon:'fa-hammer' };
-    return { label:(globalThis.PlatformLanguage?.text("project-schedule","m_0b0eba838f2956","Event") ?? "Event"), icon:'fa-calendar' };
+    const typeId = String(event.event_type_default_id || event.type_id || event.event_type_id || '').trim();
+    const typeLabel = String(scheduleCachedConfig?.event_types?.[typeId]?.label || '').trim();
+    return { label:typeLabel && typeId !== 'custom' ? typeLabel : (globalThis.PlatformLanguage?.text("project-schedule","m_0b0eba838f2956","Event") ?? "Event"), icon:'fa-calendar' };
   }
 
   function scheduleEventDisplayTitle(event = {}){
@@ -1034,15 +1785,22 @@
     return title || 'Scheduled event';
   }
 
+  // Every crew/person on the item as a removable chip, plus an Add menu of
+  // the remaining eligible resources (a crew is one unit, never expanded).
   function scheduleEventAssignmentField(event = {}){
     if (productionResourceType(event) !== 'labor' && !isProjectWorkEvent(event)) return '';
-    const resources = workAssignmentResources(event);
-    const selectedId = workCrewId(event);
-    const options = [
-      ("<option value=\"\" " + String(selectedId ? '' : 'selected') + ">" + (globalThis.PlatformLanguage?.text("project-schedule","m_8a993ed9b573b4","Unassigned") ?? "Unassigned") + "</option>"),
-      ...resources.map((resource) => `<option value="${escapeHtml(resource.id || '')}" ${String(resource.id || '') === selectedId ? 'selected' : ''}>${escapeHtml(resource.name || resource.id || '')}</option>`)
-    ];
-    return `<label class="r-schedule-event-popover-field">${escapeHtml(workforceTerm('resource_group'))}<select data-schedule-event-crew="${escapeHtml(event.id || '')}">${options.join('')}</select></label>`;
+    const assigned = eventWorkAssignees(event);
+    const assignedIds = new Set(assigned.map((ref) => ref.id));
+    const ready = scheduleResourcesReady();
+    const resources = workAssignmentResources(event).filter((resource) => !assignedIds.has(String(resource.id || '')));
+    const label = `${workforceTerm('resource_group', 'plural')} / people`;
+    const chips = assigned.length
+      ? assigned.map((ref) => `<span class="r-schedule-assignee-chip"><span>${escapeHtml(ref.name || ref.id)}</span><button type="button" data-schedule-assignee-remove="${escapeHtml(ref.id)}" aria-label="${escapeHtml(`Remove ${ref.name || 'assignee'}`)}" title="${escapeHtml(`Remove ${ref.name || 'assignee'}`)}"><i class="fas fa-xmark"></i></button></span>`).join('')
+      : `<span class="r-schedule-assignee-empty">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_8a993ed9b573b4","Unassigned") ?? "Unassigned")}</span>`;
+    const options = ready
+      ? `<option value="">${escapeHtml(assigned.length ? '+ Add another…' : '+ Assign…')}</option>${resources.map((resource) => `<option value="${escapeHtml(resource.id || '')}">${escapeHtml(resource.name || resource.id || '')}</option>`).join('')}`
+      : `<option value="">${escapeHtml(`Loading ${workforceTerm('resource_group', 'plural').toLowerCase()}…`)}</option>`;
+    return `<div class="r-schedule-event-popover-field r-schedule-assignees" data-schedule-event-crew="${escapeHtml(event.id || '')}">${escapeHtml(label)}<div class="r-schedule-assignee-chips">${chips}</div><select data-schedule-assignee-add aria-label="${escapeHtml(`Add a ${workforceTerm('resource_group').toLowerCase()} or person`)}" ${ready ? '' : 'disabled aria-busy="true"'}>${options}</select></div>`;
   }
 
   /* ── Appointment confirmation panel ───────────────────────────────────────
@@ -1072,7 +1830,7 @@
     return `Sending ${formatted}`;
   }
 
-  function scheduleConfirmationBlock(event = {}){
+  function scheduleConfirmationBlock(event = {}, { actions:showActions = true } = {}){
     const state = scheduleConfirmationState(event);
     if (!state) return '';
     const channels = [];
@@ -1101,12 +1859,13 @@
         ${channels.length ? `<div class="r-schedule-confirm-meta">Requested by ${escapeHtml(channels.join(' and '))}${state.confirmed_via ? ` · answered by ${escapeHtml(state.confirmed_via)}` : ''}</div>` : ''}
         ${reply}
         ${error}
-        <div class="r-schedule-confirm-actions">${actions}</div>
+        ${showActions ? `<div class="r-schedule-confirm-actions">${actions}</div>` : ''}
       </div>
     `;
   }
 
   async function applyScheduleConfirmation(event = {}, outcome = 'confirmed'){
+    if (!requireScheduleEdit()) return null;
     const orgId = scheduleOrgId();
     const projectId = String(event.project_id || activeBaseProject?.id || '');
     if (!orgId || !projectId || !event.id) return;
@@ -1115,8 +1874,17 @@
     try {
       if (outcome === 'send') await client.sendConfirmation(orgId, projectId, event.id);
       else await client.setConfirmation(orgId, projectId, event.id, outcome);
-      // Calendar listeners (global Scheduling tab) are registered on window.
+      // Show the new confirmation state here, then tell other surfaces.
+      await refreshProjectFromServer({ render:true });
+      notifyScheduleChanged();
       window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+      const messages = {
+        send:['Confirmation sent', 'The customer was asked to confirm this appointment.'],
+        confirmed:['Marked confirmed', 'This appointment is confirmed.'],
+        reset:['Marked unconfirmed', 'This appointment is waiting for confirmation again.']
+      };
+      const [title, message] = messages[outcome] || ['Confirmation updated', 'The appointment confirmation was updated.'];
+      showToast(title, message, true);
     } catch (error) {
       showToast((globalThis.PlatformLanguage?.text("project-schedule","m_cac0219c86a9cb","Confirmation update failed") ?? "Confirmation update failed"), String(error?.message || error), false);
     }
@@ -1132,7 +1900,41 @@
     const deliveryStatus = isMaterialDeliveryEvent(event)
       ? `<div class="r-schedule-event-popover-row"><i class="fas fa-box"></i><span>${materialEventIsOrdered(event) ? 'Materials ordered' : 'Materials not ordered'}${materialEventIsLocked(event) ? ' · Date locked' : ''}</span></div>`
       : '';
-    const confirmationBlock = scheduleConfirmationBlock(event);
+    const confirmationBlock = scheduleConfirmationBlock(event, { actions:canEditSchedule() });
+    const storedEvent = scheduleProjectEvents().find((item) => String(item.id || '') === String(event.id || '')) || event;
+    const scheduled = materialEventIsScheduled(storedEvent);
+    const locked = materialEventIsLocked(storedEvent);
+    const canEdit = canEditSchedule();
+    const assignmentField = canEdit ? scheduleEventAssignmentField(event) : '';
+    const assigneeRow = !assignmentField && !isMaterialDeliveryEvent(event) && !scheduleEventIsGroup(event)
+      ? `<div class="r-schedule-event-popover-row"><i class="fas fa-user"></i><span>${escapeHtml(eventAssignedLabel(storedEvent))}</span></div>`
+      : '';
+    const equipmentNames = (Array.isArray(storedEvent.resource_refs) ? storedEvent.resource_refs : [])
+      .filter((ref) => String(ref?.kind || '') === 'equipment_unit')
+      .map((ref) => String(ref.name || scheduleCachedEquipmentUnits.find((unit) => String(unit.id || '') === String(ref.id || ''))?.name || ref.id || '').trim())
+      .filter(Boolean);
+    const equipmentRow = equipmentSchedulingEnabled() && equipmentNames.length
+      ? `<div class="r-schedule-event-popover-row"><i class="fas fa-truck-pickup"></i><span>${escapeHtml(equipmentNames.join(', '))}</span></div>`
+      : '';
+    const lockRow = locked && !isMaterialDeliveryEvent(event)
+      ? `<div class="r-schedule-event-popover-row"><i class="fas fa-lock"></i><span>Date locked${storedEvent.schedule_lock?.reason && storedEvent.schedule_lock.reason !== 'manual' ? ` · ${escapeHtml(String(storedEvent.schedule_lock.reason).replace(/_/g, ' '))}` : ''}</span></div>`
+      : '';
+    const canToggleLock = canEdit && !!storedEvent.id && scheduled && !scheduleEventIsGroup(storedEvent) && (!isMaterialDeliveryEvent(storedEvent) || storedEvent.lock_toggle_visible !== false);
+    const occurrence = !!String(storedEvent.recurrence_series_id || '').trim();
+    const series = occurrence ? scheduleRecurringSeries.find((item) => String(item.id || '') === String(storedEvent.recurrence_series_id || '')) : null;
+    const persisted = !!storedEvent.id && !String(storedEvent.id).startsWith('__') && scheduleProjectEvents().some((item) => String(item.id || '') === String(storedEvent.id || ''));
+    const editable = canEdit && persisted && !scheduleEventIsGroup(storedEvent);
+    const action = (attr, icon, label, extra = '') => `<button type="button" class="r-schedule-event-popover-action ${extra}" ${attr}><i class="fas ${icon}"></i>${escapeHtml(label)}</button>`;
+    const actionButtons = [
+      editable && isMaterialDeliveryEvent(storedEvent) ? action('data-schedule-event-reschedule', 'fa-calendar-day', scheduled ? 'Reschedule' : 'Schedule') : '',
+      editable && !isMaterialDeliveryEvent(storedEvent) && !occurrence ? action('data-schedule-event-edit', 'fa-pen', 'Edit') : '',
+      editable && occurrence && series ? action('data-schedule-event-edit-series', 'fa-repeat', 'Edit series') : '',
+      canToggleLock ? action('data-schedule-event-lock', locked ? 'fa-lock-open' : 'fa-lock', locked ? 'Unlock date' : 'Lock date') : '',
+      editable && scheduled && !occurrence ? action('data-schedule-event-unschedule', 'fa-calendar-xmark', 'Unschedule') : '',
+      editable && occurrence && scheduled ? action('data-schedule-event-skip', 'fa-forward', 'Skip this one', 'danger') : '',
+      editable && !occurrence ? action('data-schedule-event-delete', 'fa-trash', 'Delete', 'danger') : ''
+    ].filter(Boolean);
+    const lockAction = actionButtons.length ? `<div class="r-schedule-event-popover-actions">${actionButtons.join('')}</div>` : '';
     const requirementWarnings = window.PlatformScheduling?.eventRequirementWarnings?.(event, {
       equipmentUnits:scheduleCachedEquipmentUnits,
       includeEquipment:equipmentSchedulingEnabled()
@@ -1140,7 +1942,10 @@
     const requirementAlert = requirementWarnings.length
       ? `<div class="r-schedule-requirement-alert" role="alert"><i class="fas fa-triangle-exclamation"></i><ul>${requirementWarnings.map((warning) => `<li>${escapeHtml(warning.label || warning)}</li>`).join('')}</ul></div>`
       : '';
-    const popover = document.createElement('div');
+    // Sections get their own popover (name, Rename, Delete), not a work item's.
+    const sectionPopover = scheduleEventIsGroup(storedEvent) ? openScheduleSectionPopover(storedEvent, anchor) : null;
+    const popover = sectionPopover || document.createElement('div');
+    if (!sectionPopover) {
     popover.className = 'r-schedule-event-popover';
     popover.setAttribute('role', 'dialog');
     popover.setAttribute('aria-label', ((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_3a90498db63efc",`${v0} details`,{v0}) ?? `${v0} details`)(kind.label));
@@ -1150,14 +1955,18 @@
         <button type="button" class="r-schedule-event-popover-close" data-schedule-event-close aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
       </div>
       <div class="r-schedule-event-popover-details">
-        <div class="r-schedule-event-popover-row"><i class="fas fa-calendar-day"></i><span>${String(escapeHtml(workRangeLabel(event)))}</span></div>
+        <div class="r-schedule-event-popover-row"><i class="fas fa-calendar-day"></i><span>${String(escapeHtml(scheduled ? workRangeLabel(storedEvent) : 'Not scheduled yet'))}</span></div>
         ${String(address ? `<div class="r-schedule-event-popover-row"><i class="fas fa-location-dot"></i><span>${escapeHtml(address)}</span></div>` : '')}
+        ${String(assigneeRow)}
+        ${String(equipmentRow)}
+        ${String(lockRow)}
         ${String(deliveryStatus)}
       </div>
       ${String(requirementAlert)}
       ${String(confirmationBlock)}
-      ${String(scheduleEventAssignmentField(event))}
-      <div class="r-schedule-event-customer">
+      ${String(assignmentField)}
+      ${String(lockAction)}
+      <div class="r-schedule-event-customer" ${canEdit ? '' : 'hidden'}>
         <label class="r-schedule-event-share">
           <input type="checkbox" data-schedule-event-customer-visible ${String(event.customer_visible === true ? 'checked' : '')}>
           <span class="r-schedule-event-share-toggle" aria-hidden="true"></span>
@@ -1172,25 +1981,114 @@
         <button type="button" class="r-schedule-event-customer-save" data-schedule-event-customer-save>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_d2ad3eac5a7c69","Save customer view") ?? "Save customer view")}</button>
       </div>
     `;
+    }
     schedulePopoverHost(anchor).appendChild(popover);
-    const rect = anchor.getBoundingClientRect();
-    const popoverRect = popover.getBoundingClientRect();
-    const left = Math.min(window.innerWidth - popoverRect.width - 8, Math.max(8, rect.left));
-    const preferredTop = rect.bottom + 8;
-    const top = preferredTop + popoverRect.height <= window.innerHeight - 8
-      ? preferredTop
-      : Math.max(8, rect.top - popoverRect.height - 8);
-    popover.style.left = `${left}px`;
-    popover.style.top = `${top}px`;
+    // Keep the popover inside the window as it grows (customer sharing
+    // options, confirmation state): flip above the anchor or pin to the
+    // viewport and scroll inside it.
+    const anchorRect = anchor.getBoundingClientRect();
+    const pinned = anchor.__pinnedPopover || null;
+    const placePopover = () => {
+      if (!popover.isConnected) return;
+      popover.style.maxHeight = `${Math.max(160, window.innerHeight - 16)}px`;
+      const popoverRect = popover.getBoundingClientRect();
+      if (pinned) {
+        // Re-opened after an in-place change: stay where it was.
+        popover.style.left = `${Math.max(8, Math.min(window.innerWidth - popoverRect.width - 8, pinned.left))}px`;
+        popover.style.top = `${Math.max(8, Math.min(window.innerHeight - popoverRect.height - 8, pinned.top))}px`;
+        return;
+      }
+      const left = Math.min(window.innerWidth - popoverRect.width - 8, Math.max(8, anchorRect.left));
+      const below = anchorRect.bottom + 8;
+      const above = anchorRect.top - popoverRect.height - 8;
+      const top = below + popoverRect.height <= window.innerHeight - 8
+        ? below
+        : (above >= 8 ? above : Math.max(8, window.innerHeight - popoverRect.height - 8));
+      popover.style.left = `${Math.max(8, left)}px`;
+      popover.style.top = `${top}px`;
+    };
+    placePopover();
+    if (typeof ResizeObserver === 'function') {
+      popover.__resizeObserver = new ResizeObserver(() => placePopover());
+      popover.__resizeObserver.observe(popover);
+    }
+    popover.querySelector('[data-schedule-event-lock]')?.addEventListener('click', (clickEvent) => {
+      clickEvent.stopPropagation();
+      closeScheduleEventPopover();
+      if (isMaterialDeliveryEvent(storedEvent)) toggleMaterialScheduleLock(storedEvent, !locked);
+      else toggleWorkScheduleLock(storedEvent, !locked);
+    });
     popover.querySelector('[data-schedule-event-close]')?.addEventListener('click', (clickEvent) => {
       clickEvent.preventDefault();
       clickEvent.stopPropagation();
       closeScheduleEventPopover();
     });
-    popover.querySelector('[data-schedule-event-crew]')?.addEventListener('change', (changeEvent) => {
+    const reopenRect = () => {
+      const box = popover.getBoundingClientRect();
+      return { left:box.left, top:box.top, anchor:{ left:anchorRect.left, top:anchorRect.top, right:anchorRect.right, bottom:anchorRect.bottom, width:anchorRect.width, height:anchorRect.height } };
+    };
+    popover.__reopenPlacement = reopenRect;
+    popover.querySelectorAll('[data-schedule-assignee-remove]').forEach((button) => button.addEventListener('click', (clickEvent) => {
+      clickEvent.preventDefault();
+      clickEvent.stopPropagation();
+      const removeId = String(button.dataset.scheduleAssigneeRemove || '');
+      saveWorkAssignees(storedEvent, eventWorkAssignees(storedEvent).filter((ref) => ref.id !== removeId), { reopenAt:reopenRect() });
+    }));
+    popover.querySelector('[data-schedule-assignee-add]')?.addEventListener('change', (changeEvent) => {
       changeEvent.stopPropagation();
-      saveWorkCrewAssignment(event, changeEvent.currentTarget.value || '');
+      const addId = String(changeEvent.currentTarget.value || '');
+      if (!addId) return;
+      const resource = workAssignmentResources(storedEvent).find((item) => String(item.id || '') === addId) || {};
+      saveWorkAssignees(storedEvent, [...eventWorkAssignees(storedEvent), { kind:workRefKind(resource.subject_type || resource.resource_kind) || 'resource_group', id:addId, name:resource.name || addId }], { reopenAt:reopenRect() });
+    });
+    if (popover.querySelector('[data-schedule-assignee-add][disabled]')) {
+      // Opened before crews loaded: fill the Add menu once they arrive.
+      ensureScheduleResources().then(() => {
+        if (!popover.isConnected || scheduleEventPopoverId !== String(storedEvent.id || '')) return;
+        reopenScheduleEventPopover(storedEvent, reopenRect());
+      });
+    }
+    popover.querySelector('[data-schedule-event-edit]')?.addEventListener('click', (clickEvent) => {
+      clickEvent.stopPropagation();
       closeScheduleEventPopover();
+      openScheduleDialog(scheduleEventTypeId(storedEvent), null, { event:storedEvent });
+    });
+    popover.querySelector('[data-schedule-section-rename]')?.addEventListener('click', (clickEvent) => {
+      clickEvent.stopPropagation();
+      closeScheduleEventPopover();
+      renameProjectScheduleSection(storedEvent);
+    });
+    popover.querySelector('[data-schedule-section-delete]')?.addEventListener('click', (clickEvent) => {
+      clickEvent.stopPropagation();
+      closeScheduleEventPopover();
+      deleteProjectScheduleSection(storedEvent);
+    });
+    popover.querySelector('[data-schedule-event-edit-series]')?.addEventListener('click', (clickEvent) => {
+      clickEvent.stopPropagation();
+      closeScheduleEventPopover();
+      if (series) openScheduleDialog(String(series.event_template?.event_type_default_id || 'project_work'), series);
+    });
+    popover.querySelector('[data-schedule-event-reschedule]')?.addEventListener('click', (clickEvent) => {
+      clickEvent.stopPropagation();
+      closeScheduleEventPopover();
+      const start = materialEventIsScheduled(storedEvent) ? window.PlatformScheduling?.eventStart?.(storedEvent) : null;
+      if (start && !scheduleDateVisible(start)) scheduleAnchorDate = start;
+      focusMaterialDelivery({ event_id:storedEvent.id });
+    });
+    popover.querySelector('[data-schedule-event-unschedule]')?.addEventListener('click', (clickEvent) => {
+      clickEvent.stopPropagation();
+      closeScheduleEventPopover();
+      unscheduleProjectItem(storedEvent);
+    });
+    popover.querySelector('[data-schedule-event-delete]')?.addEventListener('click', (clickEvent) => {
+      clickEvent.stopPropagation();
+      closeScheduleEventPopover();
+      deleteProjectItem(storedEvent);
+    });
+    popover.querySelector('[data-schedule-event-skip]')?.addEventListener('click', (clickEvent) => {
+      clickEvent.stopPropagation();
+      closeScheduleEventPopover();
+      skipRecurringOccurrence(storedEvent);
     });
     popover.querySelectorAll('[data-schedule-confirm-set]').forEach((button) => {
       button.addEventListener('click', (clickEvent) => {
@@ -1224,7 +2122,141 @@
     }, 0);
   }
 
+  // Re-open the details popover for an item at the place it was shown
+  // (its original anchor was replaced by a re-render).
+  function reopenScheduleEventPopover(event = {}, placement = {}){
+    const rect = placement.anchor || placement;
+    const box = { left:Number(rect.left) || 0, top:Number(rect.top) || 0, right:Number(rect.right ?? rect.left) || 0, bottom:Number(rect.bottom ?? rect.top) || 0, width:Number(rect.width) || 0, height:Number(rect.height) || 0 };
+    const anchor = {
+      __pinnedPopover:Number.isFinite(Number(placement.left)) && Number.isFinite(Number(placement.top)) && placement.anchor ? { left:Number(placement.left), top:Number(placement.top) } : null,
+      getBoundingClientRect:() => box,
+      closest:() => null,
+      contains:() => false
+    };
+    const stored = scheduleProjectEvents().find((item) => String(item.id || '') === String(event.id || '')) || event;
+    openScheduleEventPopover(stored, anchor);
+  }
+
+  function scheduleEventTypeId(event = {}){
+    return String(event.event_type_default_id || event.type_id || event.event_type_id || 'project_work').trim() || 'project_work';
+  }
+
+  function scheduleConfirmUi(message, options = {}){
+    const confirm = window.PlatformUI?.confirm || window.Portal?.ui?.confirm;
+    return confirm ? confirm(message, options) : Promise.resolve(window.confirm(message));
+  }
+
+  // Takes a placed item off the calendar; it waits to be scheduled again.
+  async function unscheduleProjectItem(event = {}){
+    if (!requireScheduleEdit()) return null;
+    const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(event.id || '')) || event;
+    if (!source?.id) return null;
+    if (materialEventIsLocked(source)) {
+      showToast((globalThis.PlatformLanguage?.text("project-schedule","m_88e13d64071885","Schedule locked") ?? "Schedule locked"), 'Unlock this item before taking it off the calendar.', false);
+      return null;
+    }
+    const title = scheduleEventDisplayTitle(source);
+    const approved = await scheduleConfirmUi(`Take “${title}” off the calendar? It stays on the project and waits to be scheduled again.`, { title:'Unschedule item', okLabel:'Unschedule', cancelLabel:'Keep it scheduled' });
+    if (!approved) return null;
+    const next = {
+      ...source,
+      status:'unscheduled',
+      start_at:'',
+      start:'',
+      end_at:'',
+      end:'',
+      start_date:'',
+      end_date:'',
+      schedule_history:[...(Array.isArray(source.schedule_history) ? source.schedule_history : []), scheduleHistoryEntry(source, 'unscheduled')].filter(Boolean),
+      updated_at:new Date().toISOString()
+    };
+    const mutationVersion = beginScheduleEventSave(next.id);
+    upsertLocalProjectEvent(next);
+    renderSchedulePanelPreservingScroll();
+    const saved = await saveProjectEventQuiet(next, {
+      successTitle:'Item unscheduled',
+      successMessage:`${title} is waiting to be scheduled.`,
+      failureTitle:'Item not unscheduled',
+      broadcast:true,
+      preserveLocalEvents:true,
+      mutationVersion
+    });
+    if (!saved) {
+      upsertLocalProjectEvent(source);
+      renderSchedulePanelPreservingScroll();
+      return null;
+    }
+    await persistGroupRollups([source]);
+    renderSchedulePanelPreservingScroll();
+    return saved;
+  }
+
+  async function deleteProjectItem(event = {}){
+    if (!requireScheduleEdit()) return null;
+    const Scheduling = window.PlatformScheduling;
+    const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(event.id || '')) || event;
+    const project = currentSchedulingProject();
+    if (!source?.id || !project?.id || typeof Scheduling?.removeProjectEvent !== 'function') return null;
+    if (materialEventIsLocked(source)) {
+      showToast((globalThis.PlatformLanguage?.text("project-schedule","m_88e13d64071885","Schedule locked") ?? "Schedule locked"), 'Unlock this item before deleting it.', false);
+      return null;
+    }
+    const title = scheduleEventDisplayTitle(source);
+    const approved = await scheduleConfirmUi(`Delete “${title}”? This cannot be undone.`, { title:(globalThis.PlatformLanguage?.text("scheduling","m_7f5580dbb3d648","Delete event") ?? "Delete event"), okLabel:'Delete', cancelLabel:'Keep it', danger:true });
+    if (!approved) return null;
+    try {
+      scheduleMutationSerial += 1;
+      const result = await Scheduling.removeProjectEvent(scheduleOrgId(), project, source.id, scheduleCachedConfig || null);
+      scheduleMutationSerial += 1;
+      const savedProject = result?.project || null;
+      activeBaseProject = savedProject?.id
+        ? { ...activeBaseProject, ...savedProject, events:Array.isArray(savedProject.events) ? savedProject.events : scheduleProjectEvents().filter((item) => String(item.id || '') !== String(source.id)) }
+        : { ...activeBaseProject, events:scheduleProjectEvents().filter((item) => String(item.id || '') !== String(source.id)) };
+      cacheActiveBaseProject();
+      rememberScheduleProject(activeBaseProject);
+      workScheduleDrafts.delete(String(source.id));
+      if (String(materialScheduleEventId || '') === String(source.id)) {
+        materialScheduleModeActive = false;
+        materialScheduleEventId = '';
+        materialScheduleDraft = null;
+      }
+      await persistGroupRollups([source]);
+      renderSchedulePanelPreservingScroll();
+      window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+      window.dispatchEvent(new CustomEvent('fm:projects:refresh'));
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_2183488d5ed71c","Event deleted") ?? "Event deleted"), `${title} was removed from the schedule.`, true);
+      return result;
+    } catch (error) {
+      if (isStaleSaveError(error)) { handleStaleScheduleSave(error); return null; }
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_ad38658fe6f432","Event not deleted") ?? "Event not deleted"), error?.message || 'Could not delete the item.', false);
+      return null;
+    }
+  }
+
+  async function skipRecurringOccurrence(event = {}){
+    if (!requireScheduleEdit()) return null;
+    const seriesId = String(event.recurrence_series_id || '').trim();
+    const api = window.PlatformAPI?.projects;
+    if (!seriesId || !event.id || typeof api?.updateRecurrenceOccurrence !== 'function') return null;
+    const title = scheduleEventDisplayTitle(event);
+    const approved = await scheduleConfirmUi(`Skip “${title}” on ${workRangeLabel(event)}? The rest of the series stays as it is.`, { title:'Skip this occurrence', okLabel:'Skip', cancelLabel:'Keep it' });
+    if (!approved) return null;
+    try {
+      await api.updateRecurrenceOccurrence(scheduleOrgId(), seriesId, event.id, 'skipped');
+      upsertLocalProjectEvent({ ...event, status:'cancelled' });
+      renderSchedulePanelPreservingScroll();
+      await refreshProjectFromServer({ render:true });
+      notifyScheduleChanged();
+      window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+      showToast('Occurrence skipped', 'The rest of the series is unchanged.', true);
+    } catch (error) {
+      showToast('Could not skip occurrence', error?.message || 'Try again.', false);
+    }
+    return null;
+  }
+
   async function saveScheduleEventCustomerSettings(event = {}, settings = {}){
+    if (!requireScheduleEdit()) return null;
     const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(event.id || '')) || event;
     if (!source?.id) return;
     const next = {
@@ -1249,11 +2281,24 @@
     }
   }
 
-  async function saveWorkCrewAssignment(event = {}, crewId = ''){
+  // Replaces the primary assignee (other crews of a multi-crew item stay);
+  // an empty id unassigns every crew.
+  async function saveWorkCrewAssignment(event = {}, crewId = '', options = {}){
+    const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(event.id || '')) || event;
+    const current = eventWorkAssignees(source);
+    const id = String(crewId || '').trim();
+    if (!id) return saveWorkAssignees(source, [], options);
+    const resource = workAssignmentResources(source).find((item) => String(item.id || '') === id) || { id, name:workResourceName(id) || id, resource_kind:'resource_group' };
+    const chosen = { kind:workRefKind(resource.subject_type || resource.resource_kind) || 'resource_group', id, name:String(resource.name || id) };
+    const rest = current.slice(1).filter((ref) => ref.id !== id);
+    return saveWorkAssignees(source, [chosen, ...rest], options);
+  }
+
+  async function saveWorkAssignees(event = {}, assignees = [], options = {}){
+    if (!requireScheduleEdit()) return null;
     const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(event.id || '')) || event;
     if (!source?.id || productionResourceType(source) === 'material') return;
-    const resources = workAssignmentResources(source);
-    const payload = crewPayloadForSelection(crewId, resources);
+    const payload = workAssigneesPayload(source, assignees);
     const next = { ...source, ...payload, updated_at:new Date().toISOString() };
     closeWorkAssignmentMenu();
     upsertLocalProjectEvent(next);
@@ -1264,40 +2309,92 @@
     const scrollPosition = captureScheduleScroll();
     renderSchedulePanel();
     restoreScheduleScroll(scrollPosition);
+    // Editing assignees from the details popover keeps it open on the item.
+    if (options.reopenAt) reopenScheduleEventPopover(next, options.reopenAt);
+    const names = eventWorkAssignees(next).map((ref) => ref.name).filter(Boolean);
     const saved = await saveProjectEventQuiet(next, {
       successTitle: 'Crew updated',
-      successMessage: payload.work_resource_ref?.name ? `${payload.work_resource_ref.name} is assigned.` : 'The work item is unassigned.',
+      successMessage: names.length ? `${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} assigned.` : 'The work item is unassigned.',
       failureTitle: 'Crew update failed'
     });
     if (!saved) {
       upsertLocalProjectEvent(source);
       renderSchedulePanelPreservingScroll();
     }
+    return saved;
+  }
+
+  // Resources load with the rest of the schedule data; a menu opened before
+  // that finishes shows a loading row instead of a partial list.
+  let scheduleResourcesPromise = null;
+  let scheduleResourcesSettled = false;
+  function scheduleResourcesReady(){
+    return !!scheduleCachedConfig && (scheduleCachedUsers.length > 0 || scheduleUsersLoaded) && (scheduleWorkforceTerminologyLoaded || !window.PlatformAPI?.workforce?.assignableResources);
+  }
+  function ensureScheduleResources(){
+    if (scheduleResourcesReady()) return Promise.resolve(true);
+    if (!scheduleResourcesPromise) {
+      scheduleResourcesPromise = loadScheduleData().then(() => true).catch(() => false).finally(() => { scheduleResourcesPromise = null; scheduleResourcesSettled = true; });
+    }
+    return scheduleResourcesPromise;
   }
 
   function openWorkAssignmentMenu(event = {}, anchor = null){
+    if (!requireScheduleEdit()) return null;
     if (!event?.id || !anchor) return;
     if (scheduleCrewMenuEventId === String(event.id || '') && document.querySelector('.r-schedule-crew-popover')) {
       closeWorkAssignmentMenu();
       return;
     }
     closeWorkAssignmentMenu();
-    scheduleCrewMenuEventId = String(event.id || '');
+    const eventId = String(event.id || '');
+    scheduleCrewMenuEventId = eventId;
     anchor.setAttribute?.('aria-expanded', 'true');
-    const currentId = workCrewId(event);
-    const resources = workAssignmentResources(event);
     const rect = anchor.getBoundingClientRect();
     const menu = document.createElement('div');
     menu.className = 'r-schedule-crew-popover';
+    menu.setAttribute('role', 'listbox');
     menu.style.left = `${Math.min(window.innerWidth - 228, Math.max(8, rect.left))}px`;
     menu.style.top = `${Math.min(window.innerHeight - 288, Math.max(8, rect.bottom + 7))}px`;
-    const option = (id, label) => `<button type="button" class="r-schedule-crew-option ${String(currentId || '') === String(id || '') ? 'active' : ''}" data-work-crew-option="${escapeHtml(id || '')}">${escapeHtml(label)}</button>`;
-    menu.innerHTML = `${option('', 'Unassigned')}${resources.map((resource) => option(resource.id, resource.name || resource.id)).join('')}`;
-    menu.querySelectorAll('[data-work-crew-option]').forEach((button) => button.addEventListener('click', (clickEvent) => {
-      clickEvent.preventDefault();
-      clickEvent.stopPropagation();
-      saveWorkCrewAssignment(event, button.dataset.workCrewOption || '');
-    }));
+    const fill = () => {
+      const source = scheduleProjectEvents().find((item) => String(item.id || '') === eventId) || event;
+      const assigned = eventWorkAssignees(source);
+      const assignedIds = new Set(assigned.map((ref) => ref.id));
+      const multi = assigned.length > 1;
+      const resources = workAssignmentResources(source);
+      const option = (id, label) => {
+        const active = id ? assignedIds.has(String(id)) : !assigned.length;
+        return `<button type="button" class="r-schedule-crew-option ${active ? 'active' : ''}" role="option" aria-selected="${active ? 'true' : 'false'}" data-work-crew-option="${escapeHtml(id || '')}"><i class="fas fa-check check" style="visibility:${active ? 'visible' : 'hidden'}"></i><span>${escapeHtml(label)}</span></button>`;
+      };
+      menu.innerHTML = `${multi ? `<div class="r-schedule-crew-hint">${escapeHtml(`${assigned.length} assigned — click to add or remove`)}</div>` : ''}${option('', 'Unassigned')}${resources.map((resource) => option(resource.id, resource.name || resource.id)).join('')}<button type="button" class="r-schedule-crew-more" data-work-crew-more><i class="fas fa-users"></i> ${escapeHtml(multi ? 'Edit crews…' : 'Assign several…')}</button>`;
+      menu.querySelectorAll('[data-work-crew-option]').forEach((button) => button.addEventListener('click', (clickEvent) => {
+        clickEvent.preventDefault();
+        clickEvent.stopPropagation();
+        const id = String(button.dataset.workCrewOption || '');
+        if (multi && id) {
+          // Several crews: toggle this one, keeping the others.
+          const next = assignedIds.has(id)
+            ? assigned.filter((ref) => ref.id !== id)
+            : [...assigned, { kind:workRefKind(resources.find((item) => String(item.id || '') === id)?.subject_type || resources.find((item) => String(item.id || '') === id)?.resource_kind) || 'resource_group', id, name:resources.find((item) => String(item.id || '') === id)?.name || id }];
+          saveWorkAssignees(source, next);
+          return;
+        }
+        saveWorkCrewAssignment(source, id);
+      }));
+      menu.querySelector('[data-work-crew-more]')?.addEventListener('click', (clickEvent) => {
+        clickEvent.preventDefault();
+        clickEvent.stopPropagation();
+        closeWorkAssignmentMenu();
+        openScheduleEventPopover(source, anchor);
+      });
+    };
+    if (scheduleResourcesReady()) fill();
+    else {
+      menu.innerHTML = `<button type="button" class="r-schedule-crew-option" disabled aria-busy="true"><i class="fas fa-circle-notch fa-spin check"></i><span>${escapeHtml(`Loading ${workforceTerm('resource_group', 'plural').toLowerCase()}…`)}</span></button>`;
+      ensureScheduleResources().then(() => {
+        if (menu.isConnected && scheduleCrewMenuEventId === eventId) fill();
+      });
+    }
     schedulePopoverHost(anchor).appendChild(menu);
     setTimeout(() => {
       scheduleCrewMenuDocHandler = bindOutsidePointerDismiss(menu, closeWorkAssignmentMenu, [anchor]);
@@ -1305,28 +2402,23 @@
   }
 
   function decorateWorkEventForCalendar(event, crews = scheduleWorkResources(scheduleCachedConfig, scheduleCachedUsers, event?.scope_template_id)){
+    // A schedule group rolls up its members; it has no crew of its own.
+    if (scheduleEventIsGroup(event)) return { ...event, requirement_warnings:[], crew_label:'', assignee_label:'', awaiting_crew:false };
+    const payload = workCrewCalendarPayload(event, crews);
+    // Several crews show as "Alpha Crew +1" instead of only the first.
+    const assignees = eventWorkAssignees(event);
+    const multi = assignees.length > 1 || (assignees.length === 1 && !workCrewId(event));
     return {
       ...event,
       requirement_warnings:window.PlatformScheduling?.eventRequirementWarnings?.(event, {
         equipmentUnits:scheduleCachedEquipmentUnits,
         includeEquipment:equipmentSchedulingEnabled()
       }) || [],
-      ...workCrewCalendarPayload(event, crews)
+      ...payload,
+      // The chip label comes from the current assignees, not a stored label.
+      assignee_label:'',
+      ...(multi ? { crew_label:workAssigneesLabel(assignees), awaiting_crew:false } : {})
     };
-  }
-
-  function workAssignmentSelectHtml(workScheduleDraft){
-    const crews = scheduleWorkResources(scheduleCachedConfig, scheduleCachedUsers, workScheduleDraft?.scope_template_id);
-    const selected = workCrewId(workScheduleDraft);
-    const historical = selected && !crews.some((crew) => String(crew.id || '') === selected)
-      ? (scheduleWorkResources(scheduleCachedConfig, scheduleCachedUsers).find((crew) => String(crew.id || '') === selected) || { id:selected, name:workCrewName(workScheduleDraft) || selected, resource_kind:workResourceKind(workScheduleDraft), work_resource_ref:{ kind:workResourceKind(workScheduleDraft), id:selected, name:workCrewName(workScheduleDraft) || selected }, capability_scope_ids:[] })
-      : null;
-    if (historical) crews.push(historical);
-    if (crews.length <= 1) return '';
-    return `<label class="r-assignment-field">${String(escapeHtml(workResourceLabel()))}<select id="rWorkAssignment" class="r-assignment-select ${String(selected ? '' : 'waiting')}">
-      <option value="" ${String(selected ? '' : 'selected')}>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_8a993ed9b573b4","Unassigned") ?? "Unassigned")}</option>
-      ${String(crews.map((crew) => `<option value="${escapeHtml(crew.id)}" ${String(crew.id) === selected ? 'selected' : ''}>${escapeHtml(crew.name)}</option>`).join(''))}
-    </select></label>`;
   }
 
   function salesAssignmentSelectHtml(){
@@ -1405,6 +2497,20 @@
     return customerName || address || 'Project';
   }
 
+  // The dates the current view shows, next to the heading (the Routing and
+  // hourly views otherwise show no date at all).
+  function scheduleRangeLabel(){
+    if (scheduleViewMode === 'gantt') return '';
+    const anchor = new Date(scheduleAnchorDate);
+    if (!Number.isFinite(anchor.getTime())) return '';
+    const short = { month:'short', day:'numeric' };
+    if (scheduleViewMode === 'month') return anchor.toLocaleDateString([], { month:'long', year:'numeric' });
+    if (scheduleViewMode === 'day' || scheduleViewMode === 'scheduling-day') return anchor.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+    const start = scheduleViewMode === '4day' ? scheduleAddDays(anchor, 0) : scheduleStartOfWeek(anchor);
+    const end = scheduleAddDays(start, scheduleViewMode === '4day' ? 3 : 6);
+    return `${start.toLocaleDateString([], short)} – ${end.toLocaleDateString([], { ...short, year:'numeric' })}`;
+  }
+
   function scheduleIsSchedulingView(){
     return scheduleViewMode === 'scheduling' || scheduleViewMode === 'scheduling-week' || scheduleViewMode === 'scheduling-day';
   }
@@ -1418,8 +2524,12 @@
   }
 
   function startAppointmentScheduling(){
+    if (!requireScheduleEdit()) return null;
     if (!schedulingEnabled()) return;
+    if (!scheduleModeActive) schedulePlacementReturn = { view:scheduleViewMode, target:scheduleSchedulingTarget, date:new Date(scheduleAnchorDate) };
     materialScheduleModeActive = false;
+    materialScheduleEventId = '';
+    materialScheduleListId = '';
     materialScheduleDraft = null;
     scheduleModeActive = true;
     workScheduleModeActive = false;
@@ -1433,17 +2543,21 @@
     scheduleDraft = null;
     scheduleSelectedEventId = '';
     scheduleAssignmentEventId = '';
-    ensureSchedulingProject();
+    currentSchedulingProject();
     setActivePreviewTab('schedule');
     renderSchedulePanel();
   }
 
   function projectMobileViewChoices(){
+    const terminology = (key, fallback) => window.Portal?.terminology?.get?.(key, fallback) || fallback;
     return [
       ['day', 'Day', 'fa-calendar-day'],
       ['4day', '3 Day', 'fa-calendar-week'],
       ['week', 'Week', 'fa-table-columns'],
-      ['month', 'Month', 'fa-calendar-days']
+      ['month', 'Month', 'fa-calendar-days'],
+      // Routing and Timeline are reachable on a phone too.
+      ...(projectRoutingViewEnabled() ? [['scheduling-week', terminology('scheduling.routing_view', 'Routing'), 'fa-route']] : []),
+      ...(projectGanttViewEnabled() ? [['gantt', terminology('scheduling.gantt_view', 'Timeline'), 'fa-bars-staggered']] : [])
     ];
   }
 
@@ -1495,9 +2609,15 @@
     });
     rootEl.querySelectorAll('[data-project-mobile-view]').forEach((button) => button.addEventListener('click', () => {
       const next = button.dataset.projectMobileView || 'month';
-      if (!['day','4day','week','month'].includes(next)) return;
+      if (!projectMobileViewChoices().some(([id]) => id === next)) return;
       projectMobileViewMenuOpen = false;
       scheduleViewMode = next;
+      if (next === 'gantt' || next === 'scheduling-week') {
+        scheduleModeActive = false;
+        scheduleDraft = null;
+        scheduleSelectedEventId = '';
+        scheduleAssignmentEventId = '';
+      }
       window.Portal?.navigation?.push?.({ projectScheduleView:scheduleViewMode }, { source:'project-schedule-mobile-view', ownedKeys:['projectScheduleView'] });
       renderSchedulePanel();
     }));
@@ -1552,7 +2672,7 @@
       <span class="r-schedule-view-group surface">${String(surfaceButton('calendar', escapeHtml(terminology('scheduling.calendar_view', 'Calendar'))))}${String(projectRoutingViewEnabled() ? surfaceButton('scheduling', escapeHtml(routingLabel)) : '')}${String(projectGanttViewEnabled() ? surfaceButton('gantt', escapeHtml(ganttLabel)) : '')}</span>
       <span class="r-schedule-view-group navigation"><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="-1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button><button type="button" class="r-schedule-anchor-nav today" data-schedule-anchor-nav="0">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_23929ba4ba84dd","Today") ?? "Today")}</button><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button></span>
       ${String(isScheduling && !isGantt ? `<span class="r-schedule-view-group target"><span class="r-schedule-view-label">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</span>${targetButton('production', escapeHtml(terminology('scheduling.production_view', 'Production')))}${targetButton('sales', escapeHtml(terminology('scheduling.sales_view', 'Sales')))}</span>` : '')}
-      ${String(isGantt ? `<span class="r-schedule-view-group"><button type="button" class="r-schedule-view-btn" data-gantt-add-group><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_4657bb8aa4b1c4"," New Group") ?? " New Group")}</button></span>` : `<span class="r-schedule-view-group ${isScheduling ? 'scheduling' : ''}"><span class="r-schedule-view-label">${isScheduling ? escapeHtml(routingLabel) : 'Calendar'}</span>${modes.map(button).join('')}</span>`)}
+      ${String(isGantt ? (!canEditSchedule() ? '' : `<span class="r-schedule-view-group"><button type="button" class="r-schedule-view-btn" data-gantt-add-group><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_4657bb8aa4b1c4"," New Group") ?? " New Group")}</button></span>`) : `<span class="r-schedule-view-group ${isScheduling ? 'scheduling' : ''}"><span class="r-schedule-view-label">${isScheduling ? escapeHtml(routingLabel) : 'Calendar'}</span>${modes.map(button).join('')}</span>`)}
     </div>`;
   }
 
@@ -1647,7 +2767,7 @@
 
   function projectScheduleEvents(){
     const Scheduling = window.PlatformScheduling;
-    return scheduleProjectEvents()
+    return scheduleDisplayEvents()
       .map((event) => {
         const start = Scheduling?.eventStart?.(event) || new Date(event.start_at || event.start || 0);
         const end = Scheduling?.eventEnd?.(event) || new Date(start.getTime() + (Number(event.duration_minutes) || 60) * 60000);
@@ -1747,6 +2867,12 @@
         renderSchedulePanel();
       }
     });
+  }
+
+  function scheduleWorkdayStartMinute(){
+    const window_ = window.PlatformScheduling?.availabilityWindow?.(scheduleCachedConfig || {}, scheduleLocalDate(scheduleAnchorDate), 'project_work') || null;
+    const [hour, minute] = String(window_?.start || '07:00').split(':').map((part) => Number(part) || 0);
+    return Math.max(0, Math.min(20 * 60, hour * 60 + minute - 30));
   }
 
   function scheduleLocalDate(date){
@@ -1940,14 +3066,18 @@
     };
   }
 
-  function upsertLocalProjectEvent(event){
-    if (!event?.id || !activeBaseProject) return;
+  function upsertLocalProjectEvent(input){
+    if (!input?.id || !activeBaseProject) return;
+    const { expected_event_revision:ignoredRevisionToken, ...event } = input;
     const events = Array.isArray(activeBaseProject.events) ? [...activeBaseProject.events] : [];
     const idx = events.findIndex((item) => String(item.id || '') === String(event.id || ''));
+    // A copy older than the one shown (e.g. restoring the pre-save copy after
+    // a refused save that already brought in the stored one) is not applied.
+    if (idx >= 0 && scheduleEventRevision(event) && scheduleEventRevision(events[idx]) > scheduleEventRevision(event)) return;
     if (idx >= 0) events[idx] = { ...events[idx], ...event };
     else events.push(event);
     activeBaseProject = { ...activeBaseProject, events, updated_at: new Date().toISOString() };
-    persistActiveBaseProject();
+    cacheActiveBaseProject();
     rememberScheduleProject(activeBaseProject);
   }
 
@@ -1976,24 +3106,31 @@
     if (!Scheduling || !orgId || !project?.id || !event?.id) return;
     try {
       const config = scheduleCachedConfig || await Scheduling.loadBranchConfig(orgId, scheduleBranchId());
-      const saved = await queueScheduleEventSave(event.id, () => Scheduling.saveProjectEvent(orgId, project, event, config));
+      const saved = await queueScheduleEventSave(event.id, () => saveScheduleEventRemote(orgId, project, event, config));
       const isCurrentMutation = !mutationVersion || scheduleEventSaveVersions.get(String(event.id || '')) === mutationVersion;
       if (isCurrentMutation && preserveLocalEvents) {
         const { events:ignoredEvents, ...savedProjectFields } = saved.project || {};
         activeBaseProject = { ...activeBaseProject, ...savedProjectFields };
-        upsertLocalProjectEvent({ ...event, ...(saved.event || {}) });
+        upsertLocalProjectEvent({ ...(saved.merged || event), ...(saved.event || {}) });
       } else if (isCurrentMutation) {
         activeBaseProject = { ...activeBaseProject, ...saved.project, events: saved.project.events || activeBaseProject?.events || [] };
-        persistActiveBaseProject();
+        cacheActiveBaseProject();
         rememberScheduleProject(activeBaseProject);
       }
       if (broadcast && isCurrentMutation) {
         window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
         window.dispatchEvent(new CustomEvent('fm:projects:refresh'));
-      }
-      if (successTitle && isCurrentMutation) showToast(successTitle, successMessage, true);
+      } else if (isCurrentMutation) notifyScheduleChanged();
+      // A save merged onto someone else's newer copy shows that copy's
+      // changes (their new time, description…) right away.
+      if (saved.merged && isCurrentMutation && state.active) renderSchedulePanelPreservingScroll();
+      if (successTitle && isCurrentMutation) showToast(successTitle, saved.merged ? `${successMessage} Changes someone else made to this item meanwhile were kept.` : successMessage, true);
       return saved;
     } catch (error) {
+      if (isStaleSaveError(error)) {
+        handleStaleScheduleSave(error);
+        return null;
+      }
       if (!mutationVersion || scheduleEventSaveVersions.get(String(event.id || '')) === mutationVersion) {
         showToast(failureTitle, error?.message || 'Could not save this schedule change.', false);
       }
@@ -2001,7 +3138,109 @@
     }
   }
 
+  // Quiet saves skip this window's own calendar reload but still tell other
+  // surfaces (the portal's Scheduling tab, other project windows) that this
+  // project's schedule changed; the project window host relays it.
+  function notifyScheduleChanged(){
+    window.dispatchEvent(new CustomEvent('fm:project-schedule:changed', { detail:{ projectId:String(activeBaseProject?.id || '') } }));
+  }
+
+  // Re-read the project's schedule items after changes made elsewhere (the
+  // global Scheduling tab, another window, a recurring series). Only events are
+  // adopted: the Overview form stays the owner of the project details, and a
+  // read never saves anything.
+  let scheduleServerRefresh = null;
+  let scheduleLastServerRefreshAt = 0;
+  // What a viewer can see of the items; ignores client-side normalization.
+  function scheduleEventsSignature(events = []){
+    return JSON.stringify((Array.isArray(events) ? events : []).map((event) => {
+      const entry = {
+        id:String(event?.id || ''),
+        start:String(event?.start_at || event?.start || ''),
+        end:String(event?.end_at || event?.end || ''),
+        status:String(event?.status || ''),
+        allDay:event?.all_day === true,
+        crew:workCrewId(event || {}),
+        users:(Array.isArray(event?.assigned_user_ids) ? event.assigned_user_ids : []).join(','),
+        locked:materialEventIsLocked(event || {}),
+        title:String(event?.title || ''),
+        parent:String(event?.parent_event_id || ''),
+        shared:event?.customer_visible === true,
+        // The stored revision: a newer server copy (someone else's
+        // description, notes, equipment…) is always adopted, so the next
+        // save is made on it instead of being refused again.
+        revision:scheduleEventRevision(event || {}),
+        description:String(event?.description || ''),
+        notes:String(event?.notes || ''),
+        assignees:eventWorkAssignees(event || {}).map((ref) => ref.id).join(','),
+        equipment:JSON.stringify(window.PlatformScheduling?.eventEquipmentRefs?.(event || {}) || []),
+        deps:JSON.stringify(Array.isArray(event?.depends_on) ? event.depends_on : [])
+      };
+      Object.keys(event || {}).filter((key) => key.includes('confirm')).sort().forEach((key) => { entry[key] = event[key]; });
+      return entry;
+    }).sort((a, b) => a.id.localeCompare(b.id)));
+  }
+  async function refreshProjectFromServer({ render = true } = {}){
+    const id = String(activeBaseProject?.id || '');
+    const orgId = scheduleOrgId();
+    if (!id || !orgId || typeof window.PlatformAPI?.projects?.get !== 'function') return null;
+    if (scheduleEventSaveQueues.size) return null;
+    if (scheduleServerRefresh?.id === id) return scheduleServerRefresh.promise;
+    // A read that raced one of this window's saves is older than the local
+    // copy; adopting it would put moved items back (and skip their group
+    // rollups).
+    const serial = scheduleMutationSerial;
+    const promise = (async () => {
+      await Promise.resolve();
+      try {
+        const result = await window.PlatformAPI.projects.get(orgId, id);
+        const data = result?.document?.data;
+        scheduleLastServerRefreshAt = Date.now();
+        if (data && !result?.missing && String(activeBaseProject?.id || '') === id) rememberServerEvents(Array.isArray(data.events) ? data.events : []);
+        if (!data || result?.missing || String(activeBaseProject?.id || '') !== id || scheduleEventSaveQueues.size || serial !== scheduleMutationSerial) return null;
+        const events = Array.isArray(data.events) ? data.events : [];
+        const changed = scheduleEventsSignature(events) !== scheduleEventsSignature(scheduleProjectEvents());
+        if (!changed) return activeBaseProject;
+        activeBaseProject = { ...activeBaseProject, events };
+        cacheActiveBaseProject();
+        rememberScheduleProject(activeBaseProject);
+        if (render && state.active) renderSchedulePanelPreservingScroll();
+        return activeBaseProject;
+      } catch (_) {
+        return null;
+      } finally {
+        if (scheduleServerRefresh?.promise === promise) scheduleServerRefresh = null;
+      }
+    })();
+    scheduleServerRefresh = { id, promise };
+    return promise;
+  }
+
+  // Placing an appointment over the assignee's existing appointment is allowed
+  // (people double-book on purpose) but never silent.
+  let lastSalesConflictKey = '';
+  function warnSalesDraftConflict(events = [], draft = null){
+    const userId = String(draft?.user?.id || '').trim();
+    const start = draft?.start ? new Date(draft.start) : null;
+    if (!userId || !start || !Number.isFinite(start.getTime())) return;
+    const end = draft?.end ? new Date(draft.end) : new Date(start.getTime() + Math.max(1, Number(draft.duration_minutes) || 60) * 60000);
+    const Scheduling = window.PlatformScheduling;
+    const ownId = String(draft.event_id || '');
+    const conflict = (Array.isArray(events) ? events : []).find((event) => {
+      if (!event?.id || String(event.id) === ownId || ['cancelled', 'canceled'].includes(String(event.status || '').toLowerCase())) return false;
+      if (workCrewId(event) !== userId && !(Array.isArray(event.assigned_user_ids) && event.assigned_user_ids.map(String).includes(userId))) return false;
+      const eventStart = Scheduling?.eventStart?.(event);
+      const eventEnd = Scheduling?.eventEnd?.(event);
+      return eventStart && eventEnd && eventStart < end && eventEnd > start;
+    });
+    const key = conflict ? `${userId}:${start.toISOString()}:${conflict.id}` : '';
+    if (!conflict || key === lastSalesConflictKey) { lastSalesConflictKey = key; return; }
+    lastSalesConflictKey = key;
+    showToast('Double booking', `${draft.user?.name || 'This person'} already has "${conflict.title || conflict.project_title || 'an appointment'}" at that time.`, false);
+  }
+
   function commitSalesAppointmentRange(event, range, user = null, durationMinutes = 60){
+    if (!requireScheduleEdit()) return null;
     if (!event?.id || !range?.start) return;
     const start = new Date(range.start);
     const rangeEnd = range.end ? new Date(range.end) : null;
@@ -2035,7 +3274,19 @@
     });
   }
 
-  async function saveCalendarAppointment({ start = null, user = null, eventTypeId = 'sales_appointment' } = {}){
+  async function saveCalendarAppointment(options = {}){
+    if (!requireScheduleEdit()) return null;
+    // ✓ can be clicked again while the (slow) save runs; only one goes out.
+    if (schedulePlacementSaving) return null;
+    setSchedulePlacementSaving(true);
+    try {
+      return await saveCalendarAppointmentNow(options);
+    } finally {
+      setSchedulePlacementSaving(false);
+    }
+  }
+
+  async function saveCalendarAppointmentNow({ start = null, user = null, eventTypeId = 'sales_appointment' } = {}){
     const Scheduling = window.PlatformScheduling;
     const orgId = scheduleOrgId();
     const project = await ensureRemoteSchedulingProject();
@@ -2073,14 +3324,16 @@
             assignedUsers:assignment.assigned_users,
             ...assignment,
           }, config);
-      const saved = await Scheduling.saveProjectEvent(orgId, project, event, config);
+      const saved = await saveScheduleEventRemote(orgId, project, event, config);
       activeBaseProject = { ...activeBaseProject, ...saved.project, events: saved.project.events || [] };
-      persistActiveBaseProject();
+      cacheActiveBaseProject();
       rememberScheduleProject(activeBaseProject);
       scheduleDraft = null;
       scheduleSelectedEventId = '';
       scheduleAssignmentEventId = '';
       scheduleModeActive = false;
+      schedulePlacementReturn = null;
+      setSchedulePlacementSaving(false);
       updateScheduleChoiceCard();
       const scrollPosition = captureScheduleScroll();
       setActivePreviewTab('schedule');
@@ -2090,11 +3343,13 @@
       window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
       showToast(existing ? 'Appointment updated' : 'Appointment scheduled', ((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_b8e410fbacfc29",`${v0} was saved.`,{v0}) ?? `${v0} was saved.`)(event.title || 'Appointment'), true);
     } catch (error) {
-      showToast((globalThis.PlatformLanguage?.text("project-schedule","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), error?.message || 'Could not save the appointment.', false);
+      if (isStaleSaveError(error)) handleStaleScheduleSave(error);
+      else showToast((globalThis.PlatformLanguage?.text("project-schedule","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), error?.message || 'Could not save the appointment.', false);
     }
   }
 
   async function unassignCurrentAppointment(event){
+    if (!requireScheduleEdit()) return null;
     const Scheduling = window.PlatformScheduling;
     const orgId = scheduleOrgId();
     const project = await ensureRemoteSchedulingProject();
@@ -2111,9 +3366,9 @@
         ...crewPayloadForSelection('', cachedSalesAppointmentUsers()),
         updated_at: new Date().toISOString()
       };
-      const saved = await Scheduling.saveProjectEvent(orgId, project, next, config);
+      const saved = await saveScheduleEventRemote(orgId, project, next, config);
       activeBaseProject = { ...activeBaseProject, ...saved.project, events: saved.project.events || [] };
-      persistActiveBaseProject();
+      cacheActiveBaseProject();
       rememberScheduleProject(activeBaseProject);
       scheduleDraft = null;
       scheduleSelectedEventId = event.id || '';
@@ -2139,9 +3394,12 @@
   function workRangeLabel(event){
     const start = event.__start || window.PlatformScheduling?.eventStart?.(event) || new Date(event.start_at || event.start || Date.now());
     const end = event.__end || window.PlatformScheduling?.eventEnd?.(event) || new Date(event.end_at || event.end || start.getTime() + (Number(event.duration_minutes) || 480) * 60000);
-    const allDay = event.all_day !== false && event.schedule_granularity !== 'time';
+    const allDay = typeof window.PlatformScheduling?.eventIsAllDay === 'function'
+      ? window.PlatformScheduling.eventIsAllDay({ ...event, start_at:event.start_at || start.toISOString(), end_at:event.end_at || end.toISOString() })
+      : event.all_day !== false && event.schedule_granularity !== 'time';
     if (allDay) {
-      const endDisplay = scheduleAddDays(end, -1);
+      const lastDay = scheduleAddDays(end, -1);
+      const endDisplay = lastDay < start ? start : lastDay;
       if (scheduleLocalDate(start) === scheduleLocalDate(endDisplay)) return start.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' });
       return `${start.toLocaleDateString([], { month:'short', day:'numeric' })} - ${endDisplay.toLocaleDateString([], { month:'short', day:'numeric' })}`;
     }
@@ -2178,30 +3436,7 @@
   }
 
   function workDraftTitle(){
-    return String($('#rWorkDraftTitle')?.value || activeWorkDraft()?.title || '').trim() || 'Work';
-  }
-
-  function startNewWorkSchedule(){
-    materialScheduleModeActive = false;
-    materialScheduleDraft = null;
-    const id = newWorkDraftId();
-    workScheduleDrafts.set(id, { id, title: (globalThis.PlatformLanguage?.text("project-schedule","m_222066ef57ae0e","Work") ?? "Work") });
-    setActiveWorkDraftId(id);
-    scheduleModeActive = false;
-    scheduleSchedulingTarget = 'production';
-    scheduleAssignmentEventId = '';
-    scheduleSelectedEventId = '';
-    workScheduleViewMode = 'month';
-    scheduleAnchorDate = new Date();
-    scheduleViewMode = 'week';
-    renderSchedulePanel();
-  }
-
-  function openCrewSettings(){
-    if (!workforceManagementEnabled()) return;
-    scheduleCrewSettingsOpen = true;
-    scheduleModeActive = false;
-    renderSchedulePanel();
+    return String(activeWorkDraft()?.title || '').trim() || 'Work';
   }
 
   function setWorkScheduleDraft(next, options = {}){
@@ -2261,15 +3496,22 @@
   }
 
   async function saveWorkScheduleDraft(){
+    if (!requireScheduleEdit()) return null;
+    // One confirm at a time: a second ✓ (double click) would create the item
+    // twice.
+    if (schedulePlacementSaving || schedulePlacementBusy) return;
     const Scheduling = window.PlatformScheduling;
     const orgId = scheduleOrgId();
+    schedulePlacementBusy = true;
     const project = await ensureRemoteSchedulingProject();
     const workScheduleDraft = activeWorkDraft();
     if (!Scheduling || !orgId || !project?.id || !workScheduleDraft?.start || !workScheduleDraft?.end) {
+      schedulePlacementBusy = false;
       showToast((globalThis.PlatformLanguage?.text("project-schedule","m_15fa17332ed5c6","Work schedule unavailable") ?? "Work schedule unavailable"), (globalThis.PlatformLanguage?.text("project-schedule","m_9eaf6c129707cd","Choose a work start and end before confirming.") ?? "Choose a work start and end before confirming."), false);
       return;
     }
     try {
+      if (!(await confirmPastPlacement(workScheduleDraft, workScheduleDraft.start))) return;
       const config = await Scheduling.loadBranchConfig(orgId, scheduleBranchId());
       scheduleCachedConfig = config;
       await loadWorkforceResources();
@@ -2313,9 +3555,9 @@
             assigned_resource_id:workResourceRef?.id || '',
             assigned_resource_name:workResourceRef?.name || '',
           }, config);
-      const event = {
-        ...base,
-        title: workDraftTitle(),
+      // New ad hoc work gets production defaults; an existing item keeps its
+      // own kind, lock, confirmation and scope-resource settings.
+      const creationDefaults = existing ? {} : {
         kind: 'project_work',
         schedule_item_kind: 'production',
         resource_type: '',
@@ -2323,7 +3565,12 @@
         locked: false,
         schedule_locked: false,
         lock_toggle_visible: false,
-        confirmation_required: false,
+        confirmation_required: false
+      };
+      const event = {
+        ...base,
+        title: existing ? (base.title || workDraftTitle()) : workDraftTitle(),
+        ...creationDefaults,
         start_date: workScheduleDraft.all_day !== false ? scheduleLocalDate(start) : '',
         end_date: workScheduleDraft.all_day !== false ? scheduleLocalDate(scheduleAddDays(end, -1)) : '',
         ...assignment,
@@ -2334,25 +3581,39 @@
         assigned_resource_kind: workResourceRef?.kind || '',
         assigned_resource_id:workResourceRef?.id || '',
         assigned_resource_name:workResourceRef?.name || '',
-        metadata: { ...(base.metadata || {}), ad_hoc_production: true },
+        metadata: existing ? (base.metadata || {}) : { ...(base.metadata || {}), ad_hoc_production: true },
         updated_at: new Date().toISOString()
       };
-      const saved = await Scheduling.saveProjectEvent(orgId, project, event, config);
+      const related = existing ? await resolveProjectRelatedReschedule(existing, { start, end }, { verb:materialEventIsScheduled(existing) ? 'Moving' : 'Scheduling' }) : null;
+      if (related?.cancelled) return;
+      setSchedulePlacementSaving(true);
+      const saved = await saveScheduleEventRemote(orgId, project, event, config);
       activeBaseProject = { ...activeBaseProject, ...saved.project, events: saved.project.events || [] };
-      persistActiveBaseProject();
+      cacheActiveBaseProject();
       rememberScheduleProject(activeBaseProject);
+      // Placed: leave placement and show the result (linked items at their
+      // new dates) now; their saves continue behind it.
       workScheduleDrafts.delete(String(workScheduleDraft.id || ''));
       const remaining = lastWorkDraft();
       setActiveWorkDraftId(remaining?.id || '');
-      window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
-      window.dispatchEvent(new CustomEvent('fm:projects:refresh'));
+      showRelatedChangesLocally(related);
       const scrollPosition = captureScheduleScroll();
+      setSchedulePlacementSaving(false);
       setActivePreviewTab('schedule');
       renderSchedulePanel();
       restoreScheduleScroll(scrollPosition);
-      showToast(existing ? 'Work schedule updated' : 'Work scheduled', ((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_b8e410fbacfc29",`${v0} was saved.`,{v0}) ?? `${v0} was saved.`)(event.title || 'Work'), true);
+      showToast(existing ? 'Work schedule updated' : 'Work scheduled', `${((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_b8e410fbacfc29",`${v0} was saved.`,{v0}) ?? `${v0} was saved.`)(event.title || 'Work')}${relatedMoveNote(related)}`, true);
+      await saveRelatedRescheduleChanges(related);
+      if (existing || related?.changes?.length) await persistGroupRollups([event, ...(related?.changes || [])]);
+      if (related?.changes?.length) renderSchedulePanelPreservingScroll();
+      window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+      window.dispatchEvent(new CustomEvent('fm:projects:refresh'));
     } catch (error) {
-      showToast((globalThis.PlatformLanguage?.text("project-schedule","m_f1b40620f12653","Work scheduling failed") ?? "Work scheduling failed"), error?.message || 'Could not save this work.', false);
+      if (isStaleSaveError(error)) handleStaleScheduleSave(error);
+      else showToast((globalThis.PlatformLanguage?.text("project-schedule","m_f1b40620f12653","Work scheduling failed") ?? "Work scheduling failed"), error?.message || 'Could not save this work.', false);
+    } finally {
+      schedulePlacementBusy = false;
+      setSchedulePlacementSaving(false);
     }
   }
 
@@ -2368,22 +3629,26 @@
     const appointments = projectSalesAppointmentEvents();
     if (!appointments.length) return `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_3f4558f856c78e","No sales appointments scheduled.") ?? "No sales appointments scheduled.")}</div>`;
     return `<div class="r-schedule-tile-list">${appointments.map((event) => `
-      <div class="r-schedule-tile">
+      <button type="button" class="r-schedule-tile r-sales-tile" data-sales-appointment-event="${escapeHtml(event.id || '')}">
         <div class="r-schedule-tile-title">${escapeHtml(event.title || (globalThis.PlatformLanguage?.text("project-schedule","m_600f41e7dca79d","Sales Appointment") ?? "Sales Appointment"))}</div>
         <div class="r-schedule-tile-meta">${escapeHtml(formatEventTime(event))}</div>
         <div class="r-schedule-tile-meta">${escapeHtml(eventAssignedLabel(event))}</div>
-      </div>
+      </button>
     `).join('')}</div>`;
   }
 
-  function workTilesHtml(){
-    const events = projectWorkEvents().filter((event) => !isScopeResourceEvent(event));
-    return events.map((event) => `
-      <button type="button" class="r-schedule-tile" data-edit-work="${escapeHtml(event.id || '')}">
-        <div class="r-schedule-tile-title"><i class="fas fa-hammer"></i>${escapeHtml(event.title || (globalThis.PlatformLanguage?.text("project-schedule","m_c2e6380e130020","Production") ?? "Production"))}</div>
-        <div class="r-schedule-tile-meta">${escapeHtml(workRangeLabel(event))}</div>
-      </button>
-    `).join('');
+  // Whether a date falls inside the range the calendar currently shows.
+  function scheduleDateVisible(value){
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return true;
+    if (scheduleViewMode === 'gantt') return true;
+    const anchor = new Date(scheduleAnchorDate);
+    if (scheduleViewMode === 'month') return date.getFullYear() === anchor.getFullYear() && date.getMonth() === anchor.getMonth();
+    if (scheduleViewMode === 'day' || scheduleViewMode === 'scheduling-day') return scheduleLocalDate(date) === scheduleLocalDate(anchor);
+    const days = scheduleViewMode === '4day' ? 4 : 7;
+    const start = scheduleViewMode === '4day' ? scheduleAddDays(anchor, 0) : scheduleStartOfWeek(anchor);
+    const end = scheduleAddDays(start, days);
+    return date >= start && date < end;
   }
 
   function materialListIdentityColor(event = {}){
@@ -2398,18 +3663,23 @@
   }
 
   function productionCrewSelectHtml(event = {}){
-    if (productionResourceType(event) !== 'labor') return '';
+    const type = productionResourceType(event);
+    if (type !== 'labor' && (type || !isProjectWorkEvent(event) || isMaterialDeliveryEvent(event))) return '';
     const draft = workScheduleDrafts.get(String(event.id || '')) || null;
     const assignmentSource = draft ? { ...event, ...draft } : event;
     const resources = workAssignmentResources(assignmentSource);
+    const assignees = eventWorkAssignees(assignmentSource);
     const selectedId = workCrewId(assignmentSource);
-    const selectedResource = resources.find((resource) => String(resource.id || '') === selectedId) || null;
-    const selectedName = selectedResource?.name || workCrewName(assignmentSource) || 'Unassigned';
-    return `<div class="r-production-resource-assignment"><span>${escapeHtml(workforceTerm('resource_group'))}</span><button type="button" class="r-production-resource-crew-button ${selectedId ? '' : 'unassigned'}" data-production-resource-crew="${escapeHtml(event.id || '')}" aria-haspopup="listbox" aria-expanded="false"><span>${escapeHtml(selectedName)}</span><i class="fas fa-chevron-down"></i></button></div>`;
+    const shownId = selectedId || assignees[0]?.id || '';
+    const selectedResource = resources.find((resource) => String(resource.id || '') === shownId) || null;
+    // Several crews read "Alpha Crew +1".
+    const selectedName = assignees.length > 1 ? workAssigneesLabel(assignees) : (selectedResource?.name || workCrewName(assignmentSource) || assignees[0]?.name || 'Unassigned');
+    if (!canEditSchedule()) return `<div class="r-production-resource-assignment"><span>${escapeHtml(workforceTerm('resource_group'))}</span><span class="r-production-resource-crew-button ${shownId ? '' : 'unassigned'}" aria-disabled="true"><span>${escapeHtml(selectedName)}</span></span></div>`;
+    return `<div class="r-production-resource-assignment"><span>${escapeHtml(workforceTerm('resource_group'))}</span><button type="button" class="r-production-resource-crew-button ${shownId ? '' : 'unassigned'}" data-production-resource-crew="${escapeHtml(event.id || '')}" aria-haspopup="listbox" aria-expanded="false"><span>${escapeHtml(selectedName)}</span><i class="fas fa-chevron-down"></i></button></div>`;
   }
 
   function productionResourceTilesHtml(){
-    const events = projectMaterialEvents()
+    const events = projectProductionEvents()
       .filter((event) => !equipmentEventHidden(event))
       .filter((event) => !['cancelled', 'canceled'].includes(String(event.status || '').toLowerCase()));
     return events.map((event) => {
@@ -2421,7 +3691,7 @@
       const complete = scheduled && (!material || ordered);
       const stateLabel = material
         ? (ordered ? (materialEventIsLocked(event) ? 'Ordered and locked' : (scheduled ? 'Scheduled and ordered' : 'Ordered · Not scheduled')) : (scheduled ? 'Scheduled · Not ordered' : 'Waiting to be scheduled'))
-        : (scheduled ? 'Scheduled' : 'Waiting to be scheduled');
+        : (scheduled ? `${workRangeLabel(event)}${materialEventIsLocked(event) ? ' · Locked' : ''}` : 'Waiting to be scheduled');
       const assignment = productionCrewSelectHtml(event);
       return `<div class="r-schedule-tile r-material-tile r-production-resource-tile ${assignment ? '' : 'no-assignment'} ${complete ? 'complete' : 'incomplete'} ${active ? 'active' : ''}" style="--material-list-color:${escapeHtml(materialListIdentityColor(event))}">
         <button type="button" class="r-production-resource-main" data-production-resource-event="${escapeHtml(event.id || '')}">
@@ -2436,51 +3706,6 @@
   function productionTilesHtml(){
     const tiles = productionResourceTilesHtml();
     return tiles ? `<div class="r-schedule-tile-list">${tiles}</div>` : `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_eb671826d74670","No production items for this project.") ?? "No production items for this project.")}</div>`;
-  }
-
-  function workDraftCardHtml(){
-    const workScheduleDraft = activeWorkDraft();
-    if (!workScheduleDraft?.start || !workScheduleDraft?.end) {
-      return `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5f010df5b92a9b","Click or drag on the calendar to place work.") ?? "Click or drag on the calendar to place work.")}</div>`;
-    }
-    const assignment = workAssignmentSelectHtml(workScheduleDraft);
-    return `<div class="r-work-draft-card">
-      <div class="r-work-title-row ${String(assignment ? '' : 'no-assignment')}">
-        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_29dbd3d8b69f55","Title") ?? "Title")}<input id="rWorkDraftTitle" type="text" value="${String(escapeHtml(workScheduleDraft.title || (globalThis.PlatformLanguage?.text("project-schedule","m_222066ef57ae0e","Work") ?? "Work")))}"></label>
-        ${String(assignment)}
-      </div>
-      <div class="r-schedule-tile-meta">${String(escapeHtml(workRangeLabel({
-        ...workScheduleDraft,
-        __start: new Date(workScheduleDraft.start),
-        __end: new Date(workScheduleDraft.end)
-      })))}</div>
-      <div class="r-work-confirm-row">
-        <button type="button" class="r-schedule-mini-action" data-work-cancel>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-        <button type="button" class="r-schedule-mini-action primary" data-work-confirm><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_4b699ce463481b"," Confirm") ?? " Confirm")}</button>
-      </div>
-    </div>`;
-  }
-
-  function updateVisibleWorkAssignment(workId, payload = {}){
-    const id = String(workId || '');
-    if (!id) return;
-    document.querySelectorAll(`.prs-work-chip[data-prs-event-id="${cssEscape(id)}"]`).forEach((chip) => {
-      chip.classList.toggle('awaiting-crew', payload.awaiting_crew === true);
-      let crew = chip.querySelector('.prs-crew');
-      const label = payload.work_resource_ref?.name || payload.resource_name || payload.assigned_crew_name || payload.crew_name || payload.crew_label || 'Unassigned';
-      if (!label) {
-        crew?.remove();
-        return;
-      }
-      if (!crew) {
-        crew = document.createElement('span');
-        crew.className = 'prs-crew';
-        const title = chip.querySelector('.prs-title');
-        title?.insertAdjacentElement('afterend', crew);
-      }
-      crew.classList.toggle('waiting', payload.awaiting_crew === true);
-      crew.textContent = label;
-    });
   }
 
   function leftContentRoot(){
@@ -2520,12 +3745,9 @@
   }
 
   function leftStatusHtml(){
-    if (materialScheduleModeActive) {
-      const event = selectedMaterialEvent();
-      const selected = materialScheduleDraft?.start;
-      const material = productionResourceType(event || {}) === 'material';
-      return `<div class="r-schedule-left-status"><strong>${escapeHtml(event?.title || productionResourceLabel(event || {}))}</strong>${selected ? 'Review the date on the calendar and confirm this production item.' : (materialEventIsScheduled(event || {}) ? `Drag it to reschedule${material ? ', or use its lock control' : ''}.` : 'Choose a date on the calendar.')}</div>`;
-    }
+    // A selected production item or delivery is described by the placement
+    // banner above the calendar.
+    if (materialScheduleModeActive) return '';
     if (scheduleModeActive) {
       const assignment = salesAssignmentSelectHtml();
       return `<section class="r-schedule-section">
@@ -2542,22 +3764,29 @@
   function recurrenceLabel(series = {}){
     const recurrence = series.recurrence || {};
     const every = Math.max(1, Number(recurrence.interval || 1));
-    const frequency = String(recurrence.frequency || 'monthly').replace(/_/g, ' ');
-    return `Every ${every === 1 ? '' : `${every} `}${frequency}${recurrence.end_at ? ` until ${new Date(recurrence.end_at).toLocaleDateString(globalThis.PlatformLanguage?.formatLocale?.())}` : ' · ongoing'}`;
+    const frequency = String(recurrence.frequency || 'monthly').toLowerCase();
+    const units = { daily:'days', weekly:'weeks', monthly:'months', quarterly:'quarters', yearly:'years' };
+    const readable = frequency.replace(/_/g, ' ');
+    const cadence = every === 1 ? readable.charAt(0).toUpperCase() + readable.slice(1) : `Every ${every} ${units[frequency] || readable}`;
+    const count = Number(recurrence.occurrence_count || 0);
+    const ending = count > 0
+      ? ` · ${count} occurrence${count === 1 ? '' : 's'}`
+      : (recurrence.end_at ? ` · until ${new Date(recurrence.end_at).toLocaleDateString(globalThis.PlatformLanguage?.formatLocale?.())}` : ' · ongoing');
+    return `${cadence}${ending}`;
   }
 
   function recurringTilesHtml(){
     if (scheduleRecurrenceLoading && !scheduleRecurringSeries.length) return `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_0d5c49d331e456","Loading recurring items…") ?? "Loading recurring items…")}</div>`;
     if (!scheduleRecurringSeries.length) return `<div class="r-schedule-empty-small">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_0763a6948a13e2","No recurring items yet.") ?? "No recurring items yet.")}</div>`;
     return `<div class="r-schedule-tile-list">${scheduleRecurringSeries.map((series) => `
-      <button type="button" class="r-schedule-tile r-recurrence-tile ${String(series.status || '') === 'cancelled' ? 'cancelled' : ''}" data-edit-recurrence="${escapeHtml(series.id || '')}">
+      <button type="button" class="r-schedule-tile r-recurrence-tile ${String(series.status || '') === 'cancelled' ? 'cancelled' : ''}" data-edit-recurrence="${escapeHtml(series.id || '')}" title="${escapeHtml(series.title || 'Recurring item')}">
         <div class="r-recurrence-meta"><div class="r-schedule-tile-title"><i class="fas fa-repeat"></i>${escapeHtml(series.title || (globalThis.PlatformLanguage?.text("project-schedule","m_e5d043f205f6a6","Recurring item") ?? "Recurring item"))}</div><span class="r-recurrence-pill ${String(series.status || '') === 'cancelled' ? 'cancelled' : ''}">${escapeHtml(series.status || 'active')}</span></div>
         <div class="r-schedule-tile-meta">${escapeHtml(recurrenceLabel(series))}</div>
       </button>`).join('')}</div>`;
   }
 
   async function loadRecurringSeries({ refresh = false } = {}){
-    const project = ensureSchedulingProject();
+    const project = currentSchedulingProject();
     const client = window.PlatformAPI?.projects;
     if (!project?.id || !scheduleOrgId() || typeof client?.recurrenceSeries !== 'function' || scheduleRecurrenceLoading) return scheduleRecurringSeries;
     if (scheduleRecurrenceProjectId !== String(project.id)) {
@@ -2580,124 +3809,315 @@
     return scheduleRecurringSeries;
   }
 
-  function datetimeLocal(value){
-    const date = new Date(value || Date.now());
-    if (!Number.isFinite(date.getTime())) return '';
-    const offset = date.getTimezoneOffset() * 60_000;
-    return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-  }
 
-  function openRecurrenceDialog(series = null){
-    const existing = series || {};
-    const recurrence = existing.recurrence || {};
-    const event = existing.event_template || {};
-    const billing = existing.billing || {};
-    const expenses = existing.expenses || {};
-    const selectedEventTypeId = String(event.event_type_default_id || 'project_work');
-    const crews = scheduleAssignableSubjects(selectedEventTypeId, existing.scope_template_id || '');
-    const selectedCrew = workCrewId(event);
-    const modal = document.createElement('div');
-    modal.className = 'r-recurrence-modal';
-    modal.innerHTML = `<div class="r-recurrence-dialog" role="dialog" aria-modal="true">
-      <div class="r-recurrence-head"><strong>${String(existing.id ? 'Edit recurring item' : 'New recurring item')}</strong><button type="button" class="r-schedule-mini-action" data-recurrence-close><i class="fas fa-xmark"></i></button></div>
-      <form class="r-recurrence-form">
-        <label class="wide">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_29dbd3d8b69f55","Title") ?? "Title")}<input name="title" required value="${String(escapeHtml(existing.title || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_2e62e58b504501","Monthly maintenance") ?? "Monthly maintenance")}"></label>
-        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_8554cf3361046a","First appointment") ?? "First appointment")}<input name="start_at" type="datetime-local" required value="${String(escapeHtml(datetimeLocal(existing.start_at)))}"></label>
-        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f22e688833733c","Appointment type") ?? "Appointment type")}<select name="event_type"><option value="project_work" ${String(String(event.event_type_default_id || '') === 'project_work' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ff54ed216fbe2f","Production / work") ?? "Production / work")}</option><option value="sales_appointment" ${String(String(event.event_type_default_id || '') === 'sales_appointment' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f7eaf8f28f8161","Sales appointment") ?? "Sales appointment")}</option><option value="delivery" ${String(String(event.event_type_default_id || '') === 'delivery' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_b73185deef6d79","Delivery") ?? "Delivery")}</option><option value="custom">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_6edcf7d7d41112","Custom") ?? "Custom")}</option></select></label>
-        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ff7bb68b2b05a8","Frequency") ?? "Frequency")}<select name="frequency">${String(['daily','weekly','monthly','quarterly','yearly'].map((value) => `<option value="${value}" ${String(recurrence.frequency || 'monthly') === value ? 'selected' : ''}>${value[0].toUpperCase() + value.slice(1)}</option>`).join(''))}</select></label>
-        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_b25bba33f32e79","Every") ?? "Every")}<input name="interval" type="number" min="1" max="120" value="${String(escapeHtml(recurrence.interval || 1))}"></label>
-        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_96601ab236e446","Duration (minutes)") ?? "Duration (minutes)")}<input name="duration" type="number" min="1" value="${String(escapeHtml(event.duration_minutes || 60))}"></label>
-        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_38f8ab5bb6ef24","Ends on (optional)") ?? "Ends on (optional)")}<input name="end_at" type="date" value="${String(escapeHtml(String(recurrence.end_at || '').slice(0, 10)))}"></label>
-        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_efdb53da64e1aa","Scope template (optional)") ?? "Scope template (optional)")}<input name="scope_template_id" value="${String(escapeHtml(existing.scope_template_id || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_513ee206ccb8da","maintenance") ?? "maintenance")}"></label>
-        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_711ce0290d78f6","Scope piece (optional)") ?? "Scope piece (optional)")}<input name="scope_piece_id" value="${String(escapeHtml(existing.scope_piece_id || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_83fe1ce05f034b","maintenance_scope") ?? "maintenance_scope")}"></label>
-        <label class="wide">${String(escapeHtml(workResourceLabel()))}<select name="crew"><option value="">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f63dccd2774d7e","Assign later") ?? "Assign later")}</option>${String(crews.map((crew) => `<option value="${escapeHtml(crew.id)}" ${String(crew.id) === String(selectedCrew) ? 'selected' : ''}>${escapeHtml(crew.name || crew.id)}</option>`).join(''))}</select></label>
-        <label class="wide r-recurrence-check"><input name="bill_enabled" type="checkbox" ${String(billing.enabled === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_710450cda200a8"," Bill the customer on a separate recurring cadence") ?? " Bill the customer on a separate recurring cadence")}</label>
-        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_a605313561dfab","Billing amount") ?? "Billing amount")}<input name="bill_amount" type="number" min="0" step="0.01" value="${String(escapeHtml(billing.amount_cents ? (Number(billing.amount_cents) / 100).toFixed(2) : ''))}" placeholder="0.00"></label>
-        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_71ac82dafe263e","Billing frequency") ?? "Billing frequency")}<select name="bill_frequency">${String(['monthly','quarterly','yearly'].map((value) => `<option value="${value}" ${String(billing.frequency || recurrence.frequency || 'monthly') === value ? 'selected' : ''}>${value[0].toUpperCase() + value.slice(1)}</option>`).join(''))}</select></label>
-        <label class="wide r-recurrence-check"><input name="expense_enabled" type="checkbox" ${String(expenses.enabled === true ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_69b25971120f55"," Track a recurring projected expense") ?? " Track a recurring projected expense")}</label>
-        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_91c9b753132340","Expense per service") ?? "Expense per service")}<input name="expense_amount" type="number" min="0" step="0.01" value="${String(escapeHtml(expenses.amount_cents ? (Number(expenses.amount_cents) / 100).toFixed(2) : ''))}" placeholder="0.00"></label>
-        <label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_2fa6abb915bd45","Expense type") ?? "Expense type")}<select name="expense_kind"><option value="recurring_expense">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_4a04382820d2e1","Other") ?? "Other")}</option><option value="labor">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_7acfa5ed3b7739","Labor") ?? "Labor")}</option><option value="material">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_613d6b4084975e","Material") ?? "Material")}</option><option value="equipment">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_2813f320a63b94","Equipment") ?? "Equipment")}</option></select></label>
-        <div class="r-recurrence-actions"><div>${String(existing.id ? `<button type="button" class="r-schedule-mini-action" data-recurrence-cancel>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_6c097c79cef08a","Cancel series") ?? "Cancel series")}</button>` : '')}</div><div><button type="button" class="r-schedule-mini-action" data-recurrence-close>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_3742924668fb10","Close") ?? "Close")}</button><button type="submit" class="r-schedule-mini-action primary">${String(existing.id ? 'Save' : 'Create')}</button></div></div>
-      </form>
-    </div>`;
-    document.body.appendChild(modal);
-    const close = () => modal.remove();
-    modal.querySelectorAll('[data-recurrence-close]').forEach((button) => button.addEventListener('click', close));
-    modal.querySelector('[name="event_type"]')?.addEventListener('change', (changeEvent) => {
-      const select = modal.querySelector('[name="crew"]');
-      if (!select) return;
-      const candidates = scheduleAssignableSubjects(String(changeEvent.currentTarget.value || 'custom'), modal.querySelector('[name="scope_template_id"]')?.value || '');
-      select.innerHTML = `<option value="">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f63dccd2774d7e","Assign later") ?? "Assign later")}</option>${String(candidates.map((subject) => `<option value="${escapeHtml(subject.id)}">${escapeHtml(subject.name || subject.id)}</option>`).join(''))}`;
+  /* ── Linked items (dependencies and scope rules) ───────────────────────
+   * The same flow as the global Scheduling tab: work out what a move does to
+   * linked items, ask once BEFORE saving (Cancel keeps everything where it
+   * was), then save the move and the linked moves together. Locked or
+   * completed items are never moved; moving past them asks first. */
+  function projectRelatedRescheduleImpact(event = {}, range = {}){
+    const Scheduling = window.PlatformScheduling;
+    if (!event?.id || !range?.start || typeof Scheduling?.relatedScheduleRescheduleImpact !== 'function') return { drafts:[], blocked:[] };
+    const related = scheduleProjectEvents().filter((item) => materialEventIsScheduled(item) || String(item.id || '') === String(event.id || ''));
+    try {
+      return Scheduling.relatedScheduleRescheduleImpact(event, related, range, activeBaseProject || {}, [], { config:scheduleCachedConfig || null });
+    } catch (error) {
+      console.warn('Linked schedule items could not be checked.', error);
+      return { drafts:[], blocked:[] };
+    }
+  }
+  function scheduleItemNames(items = [], { dates = false } = {}){
+    const names = items.map((item) => {
+      const name = `“${String(item?.title || '').trim() || 'Untitled item'}”`;
+      if (!dates) return name;
+      // Where a linked item would go, e.g. “Tear-off” (to Tue, Sep 29).
+      const start = new Date(item?.start || item?.start_at || 0);
+      if (!Number.isFinite(start.getTime()) || !start.getTime()) return name;
+      const allDay = item?.all_day !== false && String(item?.schedule_granularity || '') !== 'time';
+      const when = allDay
+        ? start.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' })
+        : start.toLocaleString([], { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+      return `${name} (to ${when})`;
     });
-    modal.querySelector('[data-recurrence-cancel]')?.addEventListener('click', async () => {
-      if (!confirm((globalThis.PlatformLanguage?.text("project-schedule","m_91303d517f39fa","Cancel this recurring series and its future appointments?") ?? "Cancel this recurring series and its future appointments?"))) return;
-      try {
-        await window.PlatformAPI.projects.cancelRecurrenceSeries(scheduleOrgId(), existing.id);
-        await loadRecurringSeries({ refresh: true });
-        close(); renderSchedulePanel(); window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
-        showToast((globalThis.PlatformLanguage?.text("project-schedule","m_444d3d72c440e4","Recurring series cancelled") ?? "Recurring series cancelled"), (globalThis.PlatformLanguage?.text("project-schedule","m_d673dcfa6aee57","Future appointments and open future charges were cancelled.") ?? "Future appointments and open future charges were cancelled."), true);
-      } catch (error) { showToast((globalThis.PlatformLanguage?.text("project-schedule","m_298cdee921f1fd","Could not cancel recurring series") ?? "Could not cancel recurring series"), error?.message || 'Try again.', false); }
+    if (names.length <= 1) return names.join('');
+    if (names.length > 3) return `${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
+    return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  }
+  async function chooseProjectRelatedReschedule(event = {}, drafts = [], blocked = [], verb = 'Moving'){
+    const fixed = (Array.isArray(blocked) ? blocked : []).map((entry) => entry?.event || entry).filter(Boolean);
+    const count = drafts.length;
+    if (!count && !fixed.length) return 'no';
+    const choose = window.Portal?.ui?.choose || window.PlatformUI?.choose;
+    if (typeof choose !== 'function') return 'no';
+    const subject = `“${scheduleEventDisplayTitle(event) || 'This item'}”`;
+    const fixedNote = fixed.length
+      ? ` ${scheduleItemNames(fixed)} ${fixed.length === 1 ? 'is' : 'are'} locked or completed and won't move, so ${fixed.length === 1 ? 'its' : 'their'} dependency will be out of order.`
+      : '';
+    const cancelLabel = (globalThis.PlatformLanguage?.text("scheduling","m_cbef679b21abb4","Cancel") ?? "Cancel");
+    if (!count) {
+      return await choose(`${verb} ${subject} breaks a dependency.${fixedNote}`, [
+        { value:'cancel', label:cancelLabel },
+        { value:'no', label:'Move anyway', primary:true }
+      ], { title:'Dependency conflict' }) || 'cancel';
+    }
+    return await choose(`${verb} ${subject} affects ${count} linked item${count === 1 ? '' : 's'}: ${scheduleItemNames(drafts, { dates:true })}. Move ${count === 1 ? 'it' : 'them'} too so dependencies and scheduling rules stay in order?${fixedNote}`, [
+      { value:'cancel', label:cancelLabel },
+      { value:'no', label:(globalThis.PlatformLanguage?.text("scheduling","m_2f0222913078f4","No") ?? "No") },
+      { value:'yes', label:(globalThis.PlatformLanguage?.text("scheduling","m_549ccd0e27a3d4","Yes") ?? "Yes"), primary:true }
+    ], { title:(globalThis.PlatformLanguage?.text("scheduling","m_64b37c5695aa34","Move related schedule items") ?? "Move related schedule items") }) || 'cancel';
+  }
+  /* Placing an item that isn't on the calendar yet, as in the global tab:
+   * linked work the placement puts out of order is flagged before saving —
+   * Cancel / Place anyway / Move them too (only later, scheduled successors
+   * move; predecessors are never pulled earlier by a placement). */
+  async function resolveProjectPlacementConflicts(event = {}, range = {}){
+    const Scheduling = window.PlatformScheduling;
+    const none = { cancelled:false, choice:'no', changes:[], leftOutOfOrder:0 };
+    if (!Scheduling?.dependencyViolations || !Scheduling?.updateProjectEventRange || !event?.id || !range?.start) return none;
+    const placed = { ...Scheduling.updateProjectEventRange(event, { start:new Date(range.start), end:new Date(range.end || range.start), all_day:range.all_day, schedule_granularity:range.schedule_granularity }), status:'scheduled' };
+    const placedId = String(event.id);
+    const effective = scheduleProjectEvents().map((item) => String(item.id || '') === placedId ? { ...item, ...placed } : item);
+    let violations = [];
+    try { violations = Scheduling.dependencyViolations(effective, { config:scheduleCachedConfig || null }); } catch (_) { return none; }
+    violations = violations.filter((edge) => (String(edge.from || '') === placedId) !== (String(edge.to || '') === placedId));
+    if (!violations.length) return none;
+    const byId = new Map(effective.map((item) => [String(item.id || ''), item]));
+    const fixed = (item) => materialEventIsLocked(item) || Scheduling.eventIsFixed?.(item) === true || ['completed', 'complete', 'done'].includes(String(item?.status || '').toLowerCase());
+    const movable = new Map();
+    violations.forEach((edge) => {
+      const successor = byId.get(String(edge.to || ''));
+      if (!successor || String(successor.id || '') === placedId || fixed(successor)) return;
+      const earliest = new Date(edge.earliest_start || 0);
+      const start = Scheduling.eventStart?.(successor);
+      if (!Number.isFinite(earliest.getTime()) || !earliest.getTime() || !start) return;
+      const previous = movable.get(String(successor.id || ''));
+      if (previous && new Date(previous.start_at || previous.start) >= earliest) return;
+      const end = Scheduling.eventEnd?.(successor) || scheduleAddDays(start, 1);
+      const allDay = successor.all_day === true || String(successor.schedule_granularity || '').toLowerCase() === 'date';
+      const nextStart = allDay ? (earliest.getHours() || earliest.getMinutes() ? scheduleAddDays(earliest, 1) : earliest) : earliest;
+      movable.set(String(successor.id || ''), { ...Scheduling.updateProjectEventRange(successor, { start:nextStart, end:new Date(nextStart.getTime() + (end.getTime() - start.getTime())), all_day:allDay, schedule_granularity:allDay ? 'date' : 'time' }), status:'scheduled', updated_at:new Date().toISOString() });
     });
-    modal.querySelector('form')?.addEventListener('submit', async (submitEvent) => {
-      submitEvent.preventDefault();
-      const form = new FormData(submitEvent.currentTarget);
-      const amount = Math.round(Number(form.get('bill_amount') || 0) * 100);
-      const expenseAmount = Math.round(Number(form.get('expense_amount') || 0) * 100);
-      const assignmentCandidates = scheduleAssignableSubjects(String(form.get('event_type') || 'custom'), String(form.get('scope_template_id') || ''));
-      const crewPayload = crewPayloadForSelection(form.get('crew'), assignmentCandidates);
-      const payload = {
-        title: String(form.get('title') || '').trim(), start_at: new Date(String(form.get('start_at'))).toISOString(),
-        scope_template_id: String(form.get('scope_template_id') || '').trim(), scope_piece_id: String(form.get('scope_piece_id') || '').trim(),
-        recurrence: { frequency: form.get('frequency'), interval: Number(form.get('interval') || 1), end_at: form.get('end_at') ? new Date(`${form.get('end_at')}T23:59:59`).toISOString() : '' },
-        event_template: { title: String(form.get('title') || '').trim(), event_type_default_id: form.get('event_type'), duration_minutes: Number(form.get('duration') || 60), schedule_item_kind: form.get('event_type') === 'project_work' ? 'production' : '', ...crewPayload },
-        billing: { enabled: form.get('bill_enabled') === 'on' && amount > 0, amount_cents: amount, frequency: form.get('bill_frequency'), label: String(form.get('title') || '').trim() },
-        expenses: { enabled: form.get('expense_enabled') === 'on' && expenseAmount > 0, amount_cents: expenseAmount, kind: form.get('expense_kind') }
+    const describe = violations.slice(0, 3).map((edge) => {
+      const from = byId.get(String(edge.from || ''));
+      const to = byId.get(String(edge.to || ''));
+      return `“${String(to?.title || '').trim() || 'An item'}” would start before “${String(from?.title || '').trim() || 'the item'}” it follows`;
+    });
+    const more = violations.length > 3 ? ` and ${violations.length - 3} more` : '';
+    const choices = [
+      { value:'cancel', label:(globalThis.PlatformLanguage?.text("scheduling","m_cbef679b21abb4","Cancel") ?? "Cancel") },
+      { value:'anyway', label:'Place anyway', primary:!movable.size },
+      ...(movable.size ? [{ value:'move', label:`Move ${movable.size === 1 ? 'it' : 'them'} too`, primary:true }] : [])
+    ];
+    const message = `Placing “${scheduleEventDisplayTitle(event) || 'this item'}” puts linked work out of order: ${describe.join('; ')}${more}.${movable.size ? ` Move the ${movable.size === 1 ? 'later item' : `${movable.size} later items`} (${scheduleItemNames([...movable.values()], { dates:true })}) so the order holds?` : ''}`;
+    const choose = window.Portal?.ui?.choose || window.PlatformUI?.choose;
+    const choice = typeof choose === 'function'
+      ? await choose(message, choices, { title:'Dependency conflict' })
+      : ((await scheduleConfirmUi(message, { title:'Dependency conflict', okLabel:'Place anyway', cancelLabel:'Cancel' })) ? 'anyway' : 'cancel');
+    if (!choice || choice === 'cancel') return { ...none, cancelled:true, choice:'cancel' };
+    if (choice === 'move') return { cancelled:false, choice:'yes', changes:[...movable.values()], leftOutOfOrder:Math.max(0, violations.length - movable.size) };
+    return { cancelled:false, choice:'no', changes:[], leftOutOfOrder:violations.length };
+  }
+  // Linked items a move would put on a day that has already passed are
+  // named and confirmed, like placing an item there directly.
+  async function confirmPastRelatedChanges(changes = []){
+    const past = (Array.isArray(changes) ? changes : []).filter((item) => scheduleIsPastDay(item.start_at || item.start));
+    if (!past.length) return true;
+    return !!(await scheduleConfirmUi(`Moving the linked items puts ${scheduleItemNames(past, { dates:true })} in the past. Place ${past.length === 1 ? 'it' : 'them'} there anyway?`, { title:'Place in the past?', okLabel:'Place anyway', cancelLabel:'Choose another date' }));
+  }
+  // -> { cancelled, choice, changes, leftOutOfOrder }
+  async function resolveProjectRelatedReschedule(event = {}, range = {}, { verb = 'Moving' } = {}){
+    const Scheduling = window.PlatformScheduling;
+    // An item placed for the first time only checks its dependency order.
+    if (!materialEventIsScheduled(scheduleProjectEvents().find((item) => String(item.id || '') === String(event?.id || '')) || event)) {
+      return resolveProjectPlacementConflicts(event, range);
+    }
+    const impact = projectRelatedRescheduleImpact(event, range);
+    const asked = impact.drafts.length || impact.blocked.length;
+    const choice = asked ? await chooseProjectRelatedReschedule(event, impact.drafts, impact.blocked, verb) : 'no';
+    let cancelled = choice === 'cancel' || choice === false || choice == null;
+    if (!cancelled && choice === 'yes' && !(await confirmPastRelatedChanges(impact.drafts))) cancelled = true;
+    const changes = !cancelled && choice === 'yes' && Scheduling?.updateProjectEventRange ? impact.drafts.map((draft) => {
+      const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(draft.id || draft.event_id || '')) || draft;
+      return {
+        ...Scheduling.updateProjectEventRange(source, {
+          start:new Date(draft.start || draft.start_at),
+          end:new Date(draft.end || draft.end_at),
+          all_day:draft.all_day !== false,
+          schedule_granularity:draft.schedule_granularity || (draft.all_day === false ? 'time' : 'date')
+        }),
+        status:'scheduled',
+        updated_at:new Date().toISOString()
       };
-      try {
-        if (existing.id) await window.PlatformAPI.projects.updateRecurrenceSeries(scheduleOrgId(), existing.id, payload);
-        else await window.PlatformAPI.projects.createRecurrenceSeries(scheduleOrgId(), { ...payload, project_id: ensureSchedulingProject()?.id });
-        scheduleRecurringSeries = [];
-        await loadRecurringSeries({ refresh: true });
-        close(); renderSchedulePanel(); window.dispatchEvent(new CustomEvent('fm:calendar:refresh')); window.dispatchEvent(new CustomEvent('fm:projects:refresh'));
-        showToast(existing.id ? 'Recurring item saved' : 'Recurring item created', (globalThis.PlatformLanguage?.text("project-schedule","m_b3232ffa2c08d8","Future appointments and recurring billing were created.") ?? "Future appointments and recurring billing were created."), true);
-      } catch (error) { showToast((globalThis.PlatformLanguage?.text("project-schedule","m_0c17d9fba77f09","Could not save recurring item") ?? "Could not save recurring item"), error?.message || 'Check the details and try again.', false); }
+    }) : [];
+    const leftOutOfOrder = cancelled ? 0 : impact.blocked.length + (choice === 'yes' ? 0 : impact.drafts.length);
+    return { cancelled, choice:cancelled ? 'cancel' : choice, changes, leftOutOfOrder };
+  }
+  function relatedMoveNote(related = null){
+    if (!related) return '';
+    const moved = related.changes?.length || 0;
+    const left = related.leftOutOfOrder || 0;
+    return `${moved ? ` ${moved} linked item${moved === 1 ? '' : 's'} moved too.` : ''}${left ? ` ${left} linked item${left === 1 ? ' is' : 's are'} now out of dependency order.` : ''}`;
+  }
+  // Shows the linked items at their new dates at once (before their saves),
+  // remembering the stored copies so a failed save puts one back.
+  function showRelatedChangesLocally(related = null){
+    if (!related?.changes?.length) return;
+    related.sources = related.sources || new Map();
+    related.changes.forEach((change) => {
+      const id = String(change.id || '');
+      if (!related.sources.has(id)) related.sources.set(id, scheduleProjectEvents().find((item) => String(item.id || '') === id) || null);
+      upsertLocalProjectEvent(change);
     });
   }
+  async function saveRelatedRescheduleChanges(related = null){
+    for (const change of related?.changes || []) {
+      const source = related.sources?.get(String(change.id || '')) || scheduleProjectEvents().find((item) => String(item.id || '') === String(change.id || '')) || change;
+      const version = beginScheduleEventSave(change.id);
+      upsertLocalProjectEvent(change);
+      const saved = await saveProjectEventQuiet(change, { successTitle:'', failureTitle:'Linked item not moved', broadcast:false, preserveLocalEvents:true, mutationVersion:version });
+      if (!saved && scheduleEventSaveVersions.get(String(change.id || '')) === version) upsertLocalProjectEvent(source);
+    }
+  }
 
-  async function commitWorkScheduleRange(event = {}, range = {}){
+  /* A recurring occurrence moved on a calendar: only this one (kept as an
+   * exception), this and the following ones, or the whole series. */
+  async function chooseRecurringMoveScope(event = {}){
+    const choose = window.Portal?.ui?.choose || window.PlatformUI?.choose;
+    if (typeof choose !== 'function') return 'this';
+    const text = (key, fallback) => globalThis.PlatformLanguage?.text("scheduling", key, fallback) ?? fallback;
+    const choice = await choose(`“${scheduleEventDisplayTitle(event)}” repeats. Apply this move to:`, [
+      { value:'cancel', label:text('m_cbef679b21abb4', 'Cancel') },
+      { value:'this', label:text('m_scope_this', 'This event'), primary:true, default:true },
+      { value:'following', label:text('m_scope_following', 'This and following') },
+      { value:'all', label:text('m_scope_all', 'All events') }
+    ], { title:'Move recurring event', defaultFocus:'this' });
+    return ['this', 'following', 'all'].includes(choice) ? choice : 'cancel';
+  }
+  async function saveRecurringSeriesMove(source = {}, next = {}, scope = 'all'){
+    const api = window.PlatformAPI?.projects;
+    const seriesId = String(source.recurrence_series_id || '').trim();
+    if (!seriesId || typeof api?.updateRecurrenceSeries !== 'function') {
+      renderSchedulePanelPreservingScroll();
+      showToast('Could not move the series', 'Recurring series are not available.', false);
+      return null;
+    }
+    try {
+      scheduleMutationSerial += 1;
+      await api.updateRecurrenceSeries(scheduleOrgId(), seriesId, {
+        scope:scope === 'following' ? 'following' : 'all',
+        event_id:String(source.id || ''),
+        occurrence_key:String(source.recurrence_occurrence_key || ''),
+        occurrence_start_at:String(next.start_at || next.start || ''),
+        occurrence_end_at:String(next.end_at || next.end || '')
+      });
+      scheduleMutationSerial += 1;
+      upsertLocalProjectEvent(next);
+      renderSchedulePanelPreservingScroll();
+      await loadRecurringSeries({ refresh:true });
+      await refreshProjectFromServer({ render:true });
+      notifyScheduleChanged();
+      window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+      showToast(scope === 'following' ? 'This and following events moved' : 'All events moved', 'Occurrences you changed on their own keep their own times.', true);
+      return true;
+    } catch (error) {
+      upsertLocalProjectEvent(source);
+      renderSchedulePanelPreservingScroll();
+      showToast('Could not move the series', error?.message || 'Try again.', false);
+      return null;
+    }
+  }
+  function scheduleRangeMoved(source = {}, next = {}){
+    const Scheduling = window.PlatformScheduling;
+    const before = [Scheduling?.eventStart?.(source), Scheduling?.eventEnd?.(source)].map((date) => date?.getTime?.() || 0);
+    const after = [new Date(next.start_at || next.start || 0).getTime(), new Date(next.end_at || next.end || 0).getTime()];
+    return !materialEventIsScheduled(source) || before[0] !== after[0] || before[1] !== after[1];
+  }
+
+  // Saves a moved or resized item straight away, like the global Scheduling
+  // tab. Only Routing rows carry a resource: other surfaces keep the item's
+  // existing assignment and schedule flags. Routing lanes of a multi-crew
+  // item pass the explicit assignee list (options.assignees).
+  async function commitWorkScheduleRange(event = {}, range = {}, options = {}){
+    if (!requireScheduleEdit()) return null;
     const Scheduling = window.PlatformScheduling;
     const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(event.id || '')) || event;
     if (!Scheduling?.updateProjectEventRange || !source?.id || !range?.start || !range?.end) return null;
+    if (materialEventIsLocked(source)) {
+      renderSchedulePanelPreservingScroll();
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_88e13d64071885","Schedule locked") ?? "Schedule locked"), (globalThis.PlatformLanguage?.text("scheduling","m_0233f74e9faf1e","Unlock this item before moving it.") ?? "Unlock this item before moving it."), false);
+      return null;
+    }
+    const resourceKeys = ['resource_id', 'assigned_resource_id', 'assigned_crew_id', 'crew_id'];
+    const rangeAssigns = resourceKeys.some((key) => Object.prototype.hasOwnProperty.call(range, key));
     const rangeResourceId = String(range.resource_id || range.assigned_resource_id || range.assigned_crew_id || range.crew_id || '').trim();
     const rangeResource = scheduleCachedWorkResources.find((resource) => String(resource.id || '') === rangeResourceId) || null;
     const scopeId = String(source.scope_template_id || '').trim();
     const capabilityIds = Array.isArray(rangeResource?.capability_scope_ids) ? rangeResource.capability_scope_ids.map(String) : [];
-    if (scopeId && rangeResourceId && capabilityIds.length && !capabilityIds.includes(scopeId)) {
+    if (rangeAssigns && scopeId && rangeResourceId && capabilityIds.length && !capabilityIds.includes(scopeId)) {
       renderSchedulePanelPreservingScroll();
       showToast(((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_20b9cbe18eee54",`${v0} unavailable`,{v0}) ?? `${v0} unavailable`)(workResourceLabel()), ((v0) => globalThis.PlatformLanguage?.text("project-schedule","m_e3160ab68875db",`That ${v0} is not configured for this scope.`,{v0}) ?? `That ${v0} is not configured for this scope.`)(workResourceLabel()), false);
       return null;
     }
-    const assignment = crewPayloadForSelection(rangeResourceId, workAssignmentResources(source));
+    const assignment = Array.isArray(options.assignees)
+      ? workAssigneesPayload(source, options.assignees)
+      : (rangeAssigns ? workAssigneesPayload(source, rangeResourceId ? [{ id:rangeResourceId, kind:rangeResource?.subject_type || rangeResource?.resource_kind || 'resource_group', name:rangeResource?.name || '' }, ...eventWorkAssignees(source).slice(1).filter((ref) => ref.id !== rangeResourceId)] : []) : {});
+    const moved = Scheduling.updateProjectEventRange(source, { ...range, ...assignment });
+    const allDay = moved.all_day !== false && moved.schedule_granularity !== 'time';
     const next = {
-      ...Scheduling.updateProjectEventRange(source, { ...range, ...assignment }),
+      ...moved,
       ...assignment,
+      start_date:allDay ? scheduleLocalDate(new Date(moved.start_at)) : '',
+      end_date:allDay ? scheduleLocalDate(scheduleAddDays(new Date(moved.end_at), -1)) : '',
       schedule_history:[...(Array.isArray(source.schedule_history) ? source.schedule_history : []), scheduleHistoryEntry(source, 'rescheduled')].filter(Boolean),
       status:'scheduled',
       updated_at:new Date().toISOString()
     };
+    const moved_ = scheduleRangeMoved(source, next);
+    // A recurring occurrence asks which part of its series moves.
+    if (moved_ && !options.skipRelated && String(source.recurrence_series_id || '').trim() && materialEventIsScheduled(source)) {
+      const scope = await chooseRecurringMoveScope(source);
+      if (scope === 'cancel') {
+        renderSchedulePanelPreservingScroll();
+        return null;
+      }
+      if (scope === 'following' || scope === 'all') return saveRecurringSeriesMove(source, next, scope);
+    }
+    const related = moved_ && !options.skipRelated ? await resolveProjectRelatedReschedule(source, { start:next.start_at, end:next.end_at }, { verb:materialEventIsScheduled(source) ? 'Moving' : 'Scheduling' }) : null;
+    if (related?.cancelled) {
+      renderSchedulePanelPreservingScroll();
+      return null;
+    }
     const mutationVersion = beginScheduleEventSave(next.id);
     upsertLocalProjectEvent(next);
+    // Linked items show at their new dates together with the moved item.
+    showRelatedChangesLocally(related);
     workScheduleDrafts.delete(String(source.id || ''));
     if (activeWorkScheduleDraftId === String(source.id || '')) setActiveWorkDraftId('');
-    renderScheduleLeft();
+    if (options.skipRelated) renderScheduleLeft();
+    else renderSchedulePanelPreservingScroll();
+    const title = scheduleEventDisplayTitle(next);
+    const assignedNames = eventWorkAssignees(next).map((ref) => ref.name).filter(Boolean);
     const saved = await saveProjectEventQuiet(next, {
-      successTitle: 'Production updated',
-      successMessage: rangeResourceId ? `${rangeResource?.name || workCrewName(next) || workResourceLabel()} is assigned.` : 'The production item is unassigned.',
+      successTitle: options.quiet ? '' : (isSalesAppointmentEvent(next) ? 'Appointment updated' : (isProjectWorkEvent(next) ? 'Production updated' : 'Schedule updated')),
+      successMessage: (rangeAssigns || Array.isArray(options.assignees)) && !moved_
+        ? (assignedNames.length ? `${assignedNames.join(', ')} ${assignedNames.length === 1 ? 'is' : 'are'} assigned.` : 'The production item is unassigned.')
+        : `${title} ${materialEventIsScheduled(source) ? 'moved to' : 'is scheduled for'} ${workRangeLabel(next)}.${relatedMoveNote(related)}`,
       failureTitle: 'Production update failed',
       broadcast: false,
       preserveLocalEvents: true,
       mutationVersion
     });
+    if (!saved && (!mutationVersion || scheduleEventSaveVersions.get(String(next.id || '')) === mutationVersion)) {
+      upsertLocalProjectEvent(source);
+      // The move wasn't saved, so the linked items stay where they were.
+      related?.sources?.forEach((original) => { if (original) upsertLocalProjectEvent(original); });
+      renderSchedulePanelPreservingScroll();
+    }
+    if (saved) {
+      await saveRelatedRescheduleChanges(related);
+      await persistGroupRollups([next, ...(related?.changes || [])]);
+      if (related?.changes?.length || scheduleEventIsGroup(scheduleProjectEvents().find((item) => String(item.id || '') === String(next.parent_event_id || '')) || {})) renderSchedulePanelPreservingScroll();
+    }
     return saved;
   }
 
@@ -2710,46 +4130,217 @@
       || String(event?.schedule_view_hint || '').trim().toLowerCase() === 'gantt'
     ));
   }
-  async function saveProjectGanttRange(event, range, cascade = []){
+  // Timeline moves use the same linked-item flow as the calendar (asked
+  // before saving, with Cancel and the locked-predecessor conflict).
+  async function saveProjectGanttRange(event, range, options = {}){
+    if (!requireScheduleEdit()) return null;
     const Scheduling = window.PlatformScheduling;
-    if (!Scheduling || !event?.id || !range?.start) return;
-    if (!isMaterialDeliveryEvent(event) && (Scheduling.eventIsLocked?.(event) || event.schedule_locked === true || event.locked === true)) {
+    const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(event?.id || '')) || event;
+    if (!Scheduling || !source?.id || !range?.start) return;
+    if (!isMaterialDeliveryEvent(source) && (Scheduling.eventIsLocked?.(source) || source.schedule_locked === true || source.locked === true)) {
       showToast((globalThis.PlatformLanguage?.text("scheduling","m_88e13d64071885","Schedule locked") ?? "Schedule locked"), (globalThis.PlatformLanguage?.text("scheduling","m_0233f74e9faf1e","Unlock this item before moving it.") ?? "Unlock this item before moving it."), false);
       renderSchedulePanelPreservingScroll();
       return;
     }
-    if (isMaterialDeliveryEvent(event)) {
-      if (materialEventIsLocked(event)) {
-        showToast((globalThis.PlatformLanguage?.text("project-schedule","m_a1c7a5d9f83613","Delivery locked") ?? "Delivery locked"), (globalThis.PlatformLanguage?.text("project-schedule","m_6bf220dddda83e","Unlock this ordered delivery before moving it.") ?? "Unlock this ordered delivery before moving it."), false);
+    // A section bar moves the items inside it together.
+    if (scheduleEventIsGroup(source) && await moveProjectScheduleGroup(source, range)) return;
+    const placing = !materialEventIsScheduled(source);
+    if (options.placing && placing && !(await confirmPastPlacement(source, range.start))) {
+      renderSchedulePanelPreservingScroll();
+      return;
+    }
+    const saved = isMaterialDeliveryEvent(source)
+      ? await saveMaterialScheduleRange(source, { ...range, all_day:true, schedule_granularity:'date' })
+      : await commitWorkScheduleRange(source, range);
+    renderSchedulePanelPreservingScroll();
+    // One click on a waiting item's lane placed it: offer a one-click Undo.
+    if (saved && placing && options.undo) appendScheduleToastAction('Undo', () => undoProjectPlacement(source));
+  }
+  /* Adds one action button (e.g. Undo) to the toast just shown; the next
+   * toast replaces the text and the button with it. */
+  function appendScheduleToastAction(label, onAction){
+    const holder = document.getElementById('fmToastT2');
+    if (!holder || typeof onAction !== 'function') return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'r-schedule-toast-action';
+    button.textContent = label;
+    button.style.cssText = 'margin-left:8px;border:0;background:none;padding:0;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-weight:950;text-decoration:underline;cursor:pointer';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      button.disabled = true;
+      window.PlatformUI?.hideToast?.();
+      document.getElementById('fmToast')?.classList.remove('show');
+      onAction();
+    }, { once:true });
+    holder.appendChild(button);
+  }
+  // Back to exactly how it was before the lane click: no date again.
+  async function undoProjectPlacement(previous = {}){
+    const stored = scheduleProjectEvents().find((item) => String(item.id || '') === String(previous.id || ''));
+    if (!stored || !materialEventIsScheduled(stored)) return;
+    const restored = {
+      ...stored,
+      all_day:previous.all_day,
+      schedule_granularity:previous.schedule_granularity || '',
+      start:previous.start || '', end:previous.end || '',
+      start_at:previous.start_at || '', end_at:previous.end_at || '',
+      start_date:previous.start_date || '', end_date:previous.end_date || '',
+      status:String(previous.status || '').trim() || 'unscheduled',
+      updated_at:new Date().toISOString()
+    };
+    const mutationVersion = beginScheduleEventSave(restored.id);
+    upsertLocalProjectEvent(restored);
+    renderSchedulePanelPreservingScroll();
+    const saved = await saveProjectEventQuiet(restored, {
+      successTitle:'Scheduling undone',
+      successMessage:`“${scheduleEventDisplayTitle(restored)}” is waiting to be scheduled again.`,
+      failureTitle:'Undo failed',
+      broadcast:false,
+      preserveLocalEvents:true,
+      mutationVersion
+    });
+    if (saved) await persistGroupRollups([restored]);
+    else upsertLocalProjectEvent(stored);
+    renderSchedulePanelPreservingScroll();
+  }
+  /* Dragging a section (auto-rollup group) bar moves the items in it by the
+   * same offset. False when the caller should save the section record itself
+   * (manual sections, or sections without placed items). */
+  async function moveProjectScheduleGroup(group = {}, range = {}){
+    const Scheduling = window.PlatformScheduling;
+    if (!Scheduling?.groupMoveDrafts || Scheduling.groupRollupMode?.(group) === 'manual') return false;
+    const move = Scheduling.groupMoveDrafts(scheduleProjectEvents(), group, range);
+    if (!move.items?.length) return false;
+    const refuse = (title, message) => {
+      showToast(title, message, false);
+      renderSchedulePanelPreservingScroll();
+      return true;
+    };
+    if (move.resized) return refuse('Section not resized', 'A section spans its items. Resize or move the items inside it instead.');
+    if (!move.delta) { renderSchedulePanelPreservingScroll(); return true; }
+    if (move.blocked?.length) return refuse('Section not moved', `${scheduleItemNames(move.blocked)} ${move.blocked.length === 1 ? 'is' : 'are'} locked or completed, so this section can't move as a whole. Move its other items individually.`);
+    const changes = move.drafts.map((draft) => ({ ...draft, status:'scheduled', updated_at:new Date().toISOString() }));
+    if (changes.some((item) => scheduleIsPastDay(item.start_at || item.start)) && !(await confirmPastRelatedChanges(changes))) {
+      renderSchedulePanelPreservingScroll();
+      return true;
+    }
+    const related = { changes };
+    showRelatedChangesLocally(related);
+    renderSchedulePanelPreservingScroll();
+    await saveRelatedRescheduleChanges(related);
+    await persistGroupRollups(changes);
+    renderSchedulePanelPreservingScroll();
+    showToast('Section moved', `${changes.length} item${changes.length === 1 ? '' : 's'} in “${scheduleEventDisplayTitle(group)}” moved together.`, true);
+    notifyScheduleChanged();
+    return true;
+  }
+  function scheduleSectionChildren(group = {}){
+    const Scheduling = window.PlatformScheduling;
+    return scheduleProjectEvents().filter((item) => String(Scheduling?.eventParentId?.(item) || item.parent_event_id || '') === String(group.id || ''));
+  }
+  /* A section (schedule group) is a named container whose dates follow its
+   * items: its popover names it and offers Rename and Delete (the items stay
+   * on the schedule, outside the section). No crew or customer sharing. */
+  function openScheduleSectionPopover(group = {}, anchor = null){
+    const stored = scheduleProjectEvents().find((item) => String(item.id || '') === String(group.id || '')) || group;
+    const display = scheduleDisplayEvents().find((item) => String(item.id || '') === String(stored.id || '')) || stored;
+    const children = scheduleSectionChildren(stored);
+    const canEdit = canEditSchedule();
+    const scheduled = materialEventIsScheduled(display);
+    const popover = document.createElement('div');
+    popover.className = 'r-schedule-event-popover r-schedule-section-popover';
+    popover.setAttribute('role', 'dialog');
+    popover.setAttribute('aria-label', `${scheduleEventDisplayTitle(stored)} section`);
+    const datesNote = children.length
+      ? `Its dates follow its ${children.length} item${children.length === 1 ? '' : 's'}.${canEdit ? ' Drag the section bar to move them together.' : ''}`
+      : 'It has no items yet; its dates will follow the items put in it.';
+    popover.innerHTML = `
+      <div class="r-schedule-event-popover-head">
+        <div class="r-schedule-event-popover-title"><span class="r-schedule-event-popover-kind"><i class="fas fa-layer-group"></i>Section</span><br>${escapeHtml(scheduleEventDisplayTitle(stored))}</div>
+        <button type="button" class="r-schedule-event-popover-close" data-schedule-event-close aria-label="Close"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="r-schedule-event-popover-details">
+        <div class="r-schedule-event-popover-row"><i class="fas fa-calendar-day"></i><span>${escapeHtml(scheduled ? workRangeLabel(display) : 'Not scheduled yet')}</span></div>
+        <div class="r-schedule-event-popover-row"><i class="fas fa-list"></i><span>${escapeHtml(datesNote)}</span></div>
+        ${canEdit ? '' : `<div class="r-schedule-event-popover-row"><i class="fas fa-eye"></i><span>${escapeHtml(scheduleReadOnlyMessage())}</span></div>`}
+      </div>
+      ${canEdit ? `<div class="r-schedule-event-popover-actions">
+        <button type="button" class="r-schedule-event-popover-action" data-schedule-section-rename><i class="fas fa-pen"></i>Rename</button>
+        <button type="button" class="r-schedule-event-popover-action danger" data-schedule-section-delete><i class="fas fa-trash"></i>Delete section</button>
+      </div>` : ''}
+    `;
+    return popover;
+  }
+  async function renameProjectScheduleSection(group = {}){
+    if (!requireScheduleEdit()) return;
+    const stored = scheduleProjectEvents().find((item) => String(item.id || '') === String(group.id || '')) || group;
+    const prompt = window.PlatformUI?.prompt || window.Portal?.ui?.prompt;
+    if (typeof prompt !== 'function') return;
+    const name = await prompt('Section name. Its dates follow the work items in it.', String(stored.title || ''), { title:'Rename section', okLabel:'Save', cancelLabel:'Cancel' });
+    if (name == null) return;
+    const title = String(name).trim();
+    if (!title) { showToast('Section not renamed', 'A section needs a name.', false); return; }
+    if (title === String(stored.title || '').trim()) return;
+    const next = { ...stored, title, title_is_custom:true, updated_at:new Date().toISOString() };
+    const mutationVersion = beginScheduleEventSave(next.id);
+    upsertLocalProjectEvent(next);
+    renderSchedulePanelPreservingScroll();
+    const saved = await saveProjectEventQuiet(next, { successTitle:'Section renamed', successMessage:`The section is now “${title}”.`, failureTitle:'Section not renamed', broadcast:false, preserveLocalEvents:true, mutationVersion });
+    if (!saved) {
+      upsertLocalProjectEvent(stored);
+      renderSchedulePanelPreservingScroll();
+    }
+  }
+  // Deleting a section keeps its items: they move out of it (to its parent
+  // section, if any) and the empty section is removed.
+  async function deleteProjectScheduleSection(group = {}){
+    if (!requireScheduleEdit()) return;
+    const Scheduling = window.PlatformScheduling;
+    const stored = scheduleProjectEvents().find((item) => String(item.id || '') === String(group.id || '')) || group;
+    const project = currentSchedulingProject();
+    if (!stored?.id || !project?.id || typeof Scheduling?.removeProjectEvent !== 'function') return;
+    const children = scheduleSectionChildren(stored);
+    const title = scheduleEventDisplayTitle(stored);
+    const approved = await scheduleConfirmUi(children.length
+      ? `Delete the section “${title}”? Its ${children.length} item${children.length === 1 ? ' stays' : 's stay'} on the schedule, outside the section.`
+      : `Delete the empty section “${title}”?`, { title:'Delete section', okLabel:'Delete section', cancelLabel:'Keep it', danger:true });
+    if (!approved) return;
+    const parentId = String(stored.parent_event_id || '');
+    for (const child of children) {
+      const next = { ...child, parent_event_id:parentId, updated_at:new Date().toISOString() };
+      const mutationVersion = beginScheduleEventSave(next.id);
+      upsertLocalProjectEvent(next);
+      const saved = await saveProjectEventQuiet(next, { successTitle:'', failureTitle:'Section not deleted', broadcast:false, preserveLocalEvents:true, mutationVersion });
+      if (!saved) {
+        upsertLocalProjectEvent(child);
         renderSchedulePanelPreservingScroll();
         return;
       }
-      await saveMaterialScheduleRange(event, { ...range, all_day:true, schedule_granularity:'date' });
-    } else {
-      await commitWorkScheduleRange(event, range);
     }
-    let drafts = (cascade || []).filter((draft) => String(draft.id || '') !== String(event.id || ''));
-    drafts = drafts.filter((draft) => !window.PlatformScheduling?.eventIsLocked?.(draft));
-    if (drafts.length) {
-      const choice = await (window.Portal?.ui?.choose?.(
-        `This item drives ${drafts.length} linked item${drafts.length === 1 ? '' : 's'}. Move ${drafts.length === 1 ? 'it' : 'them'} to match?`,
-        [
-          { value:'no', label:(globalThis.PlatformLanguage?.text("project-schedule","m_9b37e2ebc66fc3","Just this item") ?? "Just this item") },
-          { value:'yes', label:(globalThis.PlatformLanguage?.text("project-schedule","m_da2afe8f031395","Move linked items") ?? "Move linked items"), primary:true }
-        ],
-        { title:(globalThis.PlatformLanguage?.text("project-schedule","m_da2afe8f031395","Move linked items") ?? "Move linked items") }
-      ) || 'no');
-      if (choice === 'yes') {
-        for (const draft of drafts) {
-          const draftRange = { start:draft.start_at || draft.start, end:draft.end_at || draft.end, all_day:draft.all_day, schedule_granularity:draft.schedule_granularity };
-          if (isMaterialDeliveryEvent(draft)) await saveMaterialScheduleRange(draft, { ...draftRange, all_day:true, schedule_granularity:'date' });
-          else await commitWorkScheduleRange(draft, draftRange);
-        }
-      }
+    try {
+      scheduleMutationSerial += 1;
+      const result = await Scheduling.removeProjectEvent(scheduleOrgId(), project, stored.id, scheduleCachedConfig || null);
+      scheduleMutationSerial += 1;
+      const savedProject = result?.project || null;
+      activeBaseProject = savedProject?.id
+        ? { ...activeBaseProject, ...savedProject, events:Array.isArray(savedProject.events) ? savedProject.events : scheduleProjectEvents().filter((item) => String(item.id || '') !== String(stored.id)) }
+        : { ...activeBaseProject, events:scheduleProjectEvents().filter((item) => String(item.id || '') !== String(stored.id)) };
+      cacheActiveBaseProject();
+      rememberScheduleProject(activeBaseProject);
+      if (parentId) await persistGroupRollups(children);
+      renderSchedulePanelPreservingScroll();
+      notifyScheduleChanged();
+      window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+      showToast('Section deleted', children.length ? `${children.length} item${children.length === 1 ? ' is' : 's are'} no longer in a section.` : `“${title}” was removed.`, true);
+    } catch (error) {
+      if (isStaleSaveError(error)) { handleStaleScheduleSave(error); return; }
+      showToast('Section not deleted', error?.message || 'Could not delete the section.', false);
+      renderSchedulePanelPreservingScroll();
     }
-    renderSchedulePanelPreservingScroll();
   }
-  async function saveProjectGanttDependencies(event, dependsOn, label){
+  async function saveProjectGanttDependencies(event, dependsOn, label, outOfOrder = false){
     const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(event?.id || '')) || event;
     if (!source?.id) return;
     const next = { ...source, depends_on:dependsOn, updated_at:new Date().toISOString() };
@@ -2758,7 +4349,7 @@
     renderSchedulePanelPreservingScroll();
     await saveProjectEventQuiet(next, {
       successTitle: label,
-      successMessage: label === 'Items linked' ? 'The item now follows the one you connected it to.' : 'The dependency was removed.',
+      successMessage: label === 'Items linked' ? `The item now follows the one you connected it to.${outOfOrder ? ' The link is out of order until one of them moves.' : ''}` : 'The dependency was removed.',
       failureTitle: 'Link not saved',
       broadcast: false,
       preserveLocalEvents: true,
@@ -2781,6 +4372,7 @@
     return false;
   }
   async function createProjectGanttDependency(fromEvent, toEvent){
+    if (!requireScheduleEdit()) return null;
     const Scheduling = window.PlatformScheduling;
     const target = scheduleProjectEvents().find((item) => String(item.id || '') === String(toEvent?.id || '')) || toEvent;
     if (!Scheduling || !target?.id || !fromEvent?.id) return;
@@ -2790,25 +4382,89 @@
       showToast((globalThis.PlatformLanguage?.text("project-schedule","m_574bea457bf625","Circular link") ?? "Circular link"), (globalThis.PlatformLanguage?.text("project-schedule","m_1fda2b3dbe4011","That link would make these items depend on each other.") ?? "That link would make these items depend on each other."), false);
       return;
     }
-    await saveProjectGanttDependencies(target, [...existing, {
+    const source = scheduleProjectEvents().find((item) => String(item.id || '') === String(fromEvent.id || '')) || fromEvent;
+    const nextDeps = [...existing, {
       id:`dep_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
       event_id:String(fromEvent.id),
       type:'finish_to_start',
       lag_minutes:0
-    }], 'Items linked');
+    }];
+    // A link that is out of order from the start (the later item begins
+    // before the earlier one finishes) is flagged before it is saved, as in
+    // the global Timeline: Cancel / Link anyway / Link and move it later.
+    let moveTarget = null;
+    const sourceEnd = Scheduling.eventEnd?.(source) || Scheduling.eventStart?.(source);
+    const targetStart = Scheduling.eventStart?.(target);
+    const targetEnd = Scheduling.eventEnd?.(target) || targetStart;
+    const outOfOrder = materialEventIsScheduled(source) && materialEventIsScheduled(target) && sourceEnd && targetStart && targetStart < sourceEnd;
+    if (outOfOrder) {
+      const fixed = materialEventIsLocked(target) || Scheduling.eventIsFixed?.(target) === true || ['completed', 'complete', 'done'].includes(String(target.status || '').toLowerCase());
+      const sourceLabel = `“${scheduleEventDisplayTitle(source) || 'the first item'}”`;
+      const targetLabel = `“${scheduleEventDisplayTitle(target) || 'the second item'}”`;
+      // Where the later item would go: the earliest start the new link allows
+      // (keeps a timed item's working hours).
+      let earliest = null;
+      try {
+        const linked = scheduleProjectEvents().map((item) => String(item.id || '') === String(target.id) ? { ...item, depends_on:nextDeps } : item);
+        const edge = (Scheduling.dependencyViolations?.(linked, { config:scheduleCachedConfig || null }) || []).find((entry) => String(entry.to || '') === String(target.id) && String(entry.from || '') === String(source.id || ''));
+        earliest = edge?.earliest_start ? new Date(edge.earliest_start) : null;
+      } catch (_) {}
+      if (!earliest || !Number.isFinite(earliest.getTime())) earliest = new Date(sourceEnd);
+      const allDay = typeof Scheduling.eventIsAllDay === 'function' ? Scheduling.eventIsAllDay(target) : (target.all_day !== false && String(target.schedule_granularity || '') !== 'time');
+      const nextStart = allDay && (earliest.getHours() || earliest.getMinutes()) ? scheduleAddDays(new Date(earliest.getFullYear(), earliest.getMonth(), earliest.getDate()), 1) : earliest;
+      const whenLabel = allDay ? nextStart.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' }) : nextStart.toLocaleString([], { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+      const message = `${targetLabel} starts before ${sourceLabel} finishes, so this link would be out of order right away.${fixed ? ` ${targetLabel} is locked or completed and can't move.` : ''}`;
+      const choose = window.Portal?.ui?.choose || window.PlatformUI?.choose;
+      const choice = typeof choose === 'function'
+        ? await choose(message, [
+          { value:'cancel', label:(globalThis.PlatformLanguage?.text("scheduling","m_cbef679b21abb4","Cancel") ?? "Cancel") },
+          { value:'link', label:'Link anyway', primary:fixed },
+          ...(fixed ? [] : [{ value:'move', label:`Link and move ${scheduleEventDisplayTitle(target) || 'it'} later (to ${whenLabel})`, primary:true }])
+        ], { title:'Link out of order' })
+        : ((await scheduleConfirmUi(message, { title:'Link out of order', okLabel:'Link anyway', cancelLabel:'Cancel' })) ? 'link' : 'cancel');
+      if (!choice || choice === 'cancel') { renderSchedulePanelPreservingScroll(); return; }
+      if (choice === 'move' && targetStart && targetEnd) {
+        moveTarget = { start:nextStart, end:new Date(nextStart.getTime() + (targetEnd.getTime() - targetStart.getTime())), all_day:allDay, schedule_granularity:allDay ? 'date' : 'time' };
+      }
+    }
+    await saveProjectGanttDependencies(target, nextDeps, 'Items linked', outOfOrder && !moveTarget);
+    if (moveTarget) {
+      const linked = scheduleProjectEvents().find((item) => String(item.id || '') === String(target.id || '')) || { ...target, depends_on:nextDeps };
+      if (isMaterialDeliveryEvent(linked)) await saveMaterialScheduleRange(linked, { ...moveTarget, all_day:true, schedule_granularity:'date' });
+      else await commitWorkScheduleRange(linked, moveTarget);
+      renderSchedulePanelPreservingScroll();
+    }
   }
   async function removeProjectGanttDependency(event, dependency){
+    if (!requireScheduleEdit()) return null;
     const Scheduling = window.PlatformScheduling;
     const target = scheduleProjectEvents().find((item) => String(item.id || '') === String(event?.id || '')) || event;
     if (!Scheduling || !target?.id) return;
     const existing = Scheduling.eventDependencies ? Scheduling.eventDependencies(target) : [];
+    // Unlinking is explicit: a stray click on a connector must not drop it.
+    const predecessor = scheduleProjectEvents().find((item) => String(item.id || '') === String(dependency?.event_id || ''));
+    const message = `Remove the link so “${scheduleEventDisplayTitle(target) || 'this item'}” no longer follows “${predecessor ? scheduleEventDisplayTitle(predecessor) : 'its predecessor'}”?`;
+    const approved = window.PlatformUI?.confirm
+      ? await window.PlatformUI.confirm(message, { title:'Remove dependency', okLabel:'Unlink', cancelLabel:'Keep link', danger:true })
+      : (await window.Portal?.ui?.choose?.(message, [{ value:'cancel', label:'Keep link' }, { value:'unlink', label:'Unlink', primary:true }], { title:'Remove dependency' })) === 'unlink';
+    if (!approved) {
+      renderSchedulePanelPreservingScroll();
+      return;
+    }
     await saveProjectGanttDependencies(target, existing.filter((dep) => dep.id !== dependency?.id), 'Items unlinked');
   }
   function openCreateGanttGroupDialog(){
+    if (!requireScheduleEdit()) return null;
     const Scheduling = window.PlatformScheduling;
     if (!Scheduling?.createScheduleGroupEvent || !activeBaseProject) return;
     document.querySelector('.r-gantt-group-backdrop')?.remove();
-    const candidates = scheduleProjectEvents().filter((event) => !Scheduling.eventIsGroup?.(event) && !String(event.parent_event_id || '').trim());
+    // Production items only, once each: recurring occurrences belong to their
+    // series (not a group), and cancelled items and appointments stay out.
+    const candidates = scheduleProjectEvents()
+      .filter((event) => !Scheduling.eventIsGroup?.(event) && !String(event.parent_event_id || '').trim())
+      .filter((event) => !String(event.recurrence_series_id || '').trim() && !isSalesAppointmentEvent(event))
+      .filter((event) => !['cancelled', 'canceled'].includes(String(event.status || '').toLowerCase()))
+      .sort((a, b) => (Scheduling.eventStart?.(a)?.getTime?.() ?? Number.MAX_SAFE_INTEGER) - (Scheduling.eventStart?.(b)?.getTime?.() ?? Number.MAX_SAFE_INTEGER));
     const backdrop = document.createElement('div');
     backdrop.className = 'fm-dialog-backdrop r-gantt-group-backdrop';
     backdrop.innerHTML = `
@@ -2819,7 +4475,7 @@
           </label>
           ${String(candidates.length ? `<div style="display:grid;gap:4px;max-height:220px;overflow:auto;border:1px solid rgba(15,23,42,.08);border-radius:10px;padding:8px">
             <span style="font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#98a2b3">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_c83325bf2fc045","Include items") ?? "Include items")}</span>
-            ${candidates.map((event) => `<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:850;color:#101828"><input type="checkbox" value="${escapeHtml(event.id || '')}" class="r-gantt-group-item">${escapeHtml(event.title || (globalThis.PlatformLanguage?.text("project-schedule","m_05017f54f07448","Untitled") ?? "Untitled"))}</label>`).join('')}
+            ${candidates.map((event) => `<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:850;color:#101828"><input type="checkbox" value="${escapeHtml(event.id || '')}" class="r-gantt-group-item"><span style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(scheduleEventDisplayTitle(event) || (globalThis.PlatformLanguage?.text("project-schedule","m_05017f54f07448","Untitled") ?? "Untitled"))}</span><small style="color:#667085;font-weight:800;white-space:nowrap">${escapeHtml(materialEventIsScheduled(event) ? workRangeLabel(event) : 'Not scheduled')}</small></label>`).join('')}
           </div>` : '')}
           <div style="display:flex;justify-content:flex-end;gap:8px">
             <button type="button" class="r-schedule-view-btn r-gantt-group-close">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
@@ -2828,12 +4484,29 @@
         </div>
       </div>`;
     document.body.appendChild(backdrop);
-    backdrop.querySelectorAll('.r-gantt-group-close').forEach((btn) => btn.addEventListener('click', () => backdrop.remove()));
+    let groupDialogHandle = null;
+    const closeGroupDialog = () => {
+      backdrop.remove();
+      const handle = groupDialogHandle;
+      groupDialogHandle = null;
+      handle?.unregister?.();
+    };
+    groupDialogHandle = registerScheduleLayer(backdrop, 'project-schedule-group-dialog', closeGroupDialog);
+    backdrop.addEventListener('mousedown', (event) => { backdrop.__downBackdrop = event.target === backdrop; });
+    backdrop.addEventListener('mouseup', (event) => {
+      if (backdrop.__downBackdrop && event.target === backdrop) closeGroupDialog();
+      backdrop.__downBackdrop = false;
+    });
+    backdrop.querySelector('.r-gantt-group-title')?.focus();
+    backdrop.querySelector('.r-gantt-group-title')?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') backdrop.querySelector('.r-gantt-group-save')?.click();
+    });
+    backdrop.querySelectorAll('.r-gantt-group-close').forEach((btn) => btn.addEventListener('click', closeGroupDialog));
     backdrop.querySelector('.r-gantt-group-save')?.addEventListener('click', async () => {
       const title = String(backdrop.querySelector('.r-gantt-group-title')?.value || '').trim();
       if (!title) { backdrop.querySelector('.r-gantt-group-title')?.focus(); return; }
       const memberIds = [...backdrop.querySelectorAll('.r-gantt-group-item:checked')].map((input) => String(input.value || '')).filter(Boolean);
-      backdrop.remove();
+      closeGroupDialog();
       const group = Scheduling.createScheduleGroupEvent(activeBaseProject, { title }, scheduleCachedConfig);
       const groupVersion = beginScheduleEventSave(group.id);
       upsertLocalProjectEvent(group);
@@ -2844,9 +4517,14 @@
         const nextMember = { ...member, parent_event_id:group.id, updated_at:new Date().toISOString() };
         const memberVersion = beginScheduleEventSave(nextMember.id);
         upsertLocalProjectEvent(nextMember);
-        await saveProjectEventQuiet(nextMember, { successTitle:'Group updated', successMessage:'Item added to the group.', failureTitle:'Group not saved', broadcast:false, preserveLocalEvents:true, mutationVersion:memberVersion });
+        await saveProjectEventQuiet(nextMember, { successTitle:'', failureTitle:'Group not saved', broadcast:false, preserveLocalEvents:true, mutationVersion:memberVersion });
       }
+      // Save the group's range rolled up from its new members, then show the
+      // stored result.
+      await persistGroupRollups(scheduleProjectEvents().filter((item) => String(item.parent_event_id || '') === String(group.id || '')));
+      await refreshProjectFromServer({ render:false });
       renderSchedulePanelPreservingScroll();
+      window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
     });
   }
   function renderScheduleLeft(){
@@ -2862,39 +4540,72 @@
       label.textContent = (globalThis.PlatformLanguage?.text("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule");
       label.hidden = true;
     }
+    const canEdit = canEditSchedule();
     target.innerHTML = `<div class="r-schedule-left-shell"><div class="r-schedule-left-scroll">
+      ${canEdit ? '' : `<div class="r-schedule-left-status r-schedule-view-only"><strong>${escapeHtml((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"))}</strong>${escapeHtml(scheduleReadOnlyMessage())}</div>`}
       <section class="r-schedule-section">
         <div class="r-schedule-section-head">
           <div class="r-schedule-section-title"><i class="fas fa-calendar-check"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc4a079f9b76e3"," Sales") ?? " Sales")}</div>
-          <button type="button" class="r-schedule-mini-action primary" data-new-appointment><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>
+          ${canEdit ? `<button type="button" class="r-schedule-mini-action primary" data-new-appointment><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>` : ''}
         </div>
         ${String(scheduleAppointmentTilesHtml())}
       </section>
       <section class="r-schedule-section">
         <div class="r-schedule-section-head">
           <div class="r-schedule-section-title"><i class="fas fa-hammer"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_60694fdb9845ef"," Production") ?? " Production")}</div>
-          <button type="button" class="r-schedule-mini-action primary" data-new-production><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>
+          ${canEdit ? `<button type="button" class="r-schedule-mini-action primary" data-new-production><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>` : ''}
         </div>
         ${String(productionTilesHtml())}
       </section>
       <section class="r-schedule-section">
         <div class="r-schedule-section-head">
           <div class="r-schedule-section-title"><i class="fas fa-repeat"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5585bec15a89f3"," Recurring") ?? " Recurring")}</div>
-          <button type="button" class="r-schedule-mini-action" data-new-recurrence><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>
+          ${canEdit ? `<button type="button" class="r-schedule-mini-action primary" data-new-recurrence><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>` : ''}
         </div>
         ${String(recurringTilesHtml())}
       </section>
+      ${String(otherEventTilesHtml())}
       ${String(leftStatusHtml())}
     </div></div>`;
-    target.querySelector('[data-new-appointment]')?.addEventListener('click', startAppointmentScheduling);
+    target.querySelector('[data-new-appointment]')?.addEventListener('click', async () => {
+      if (!(await confirmDiscardPlacementDraft())) return;
+      startAppointmentScheduling();
+    });
     target.querySelector('[data-new-production]')?.addEventListener('click', () => openScheduleDialog('project_work'));
-    target.querySelector('[data-new-recurrence]')?.addEventListener('click', () => openScheduleDialog('project_work'));
+    target.querySelector('[data-new-recurrence]')?.addEventListener('click', () => openScheduleDialog('project_work', null, { recurring:true }));
+    target.querySelectorAll('[data-other-event]').forEach((button) => button.addEventListener('click', () => {
+      const item = projectOtherEvents().find((candidate) => String(candidate.id || '') === String(button.dataset.otherEvent || ''));
+      if (!item) return;
+      const start = window.PlatformScheduling?.eventStart?.(item);
+      if (start && Number.isFinite(start.getTime()) && !scheduleDateVisible(start) && scheduleViewMode !== 'gantt') {
+        scheduleAnchorDate = start;
+        renderSchedulePanel();
+      }
+      const anchor = leftContentRoot()?.querySelector(`[data-other-event="${cssEscape(item.id || '')}"]`) || button;
+      openScheduleEventPopover(item, anchor);
+    }));
     target.querySelectorAll('[data-edit-recurrence]').forEach((button) => button.addEventListener('click', () => {
       const series = scheduleRecurringSeries.find((item) => String(item.id || '') === String(button.dataset.editRecurrence || ''));
       if (series) openScheduleDialog(String(series.event_template?.event_type_default_id || 'project_work'), series);
     }));
-    target.querySelectorAll('[data-production-resource-event]').forEach((button) => button.addEventListener('click', () => {
-      focusMaterialDelivery({ event_id: button.dataset.productionResourceEvent });
+    target.querySelectorAll('[data-production-resource-event]').forEach((button) => button.addEventListener('click', async () => {
+      const eventId = String(button.dataset.productionResourceEvent || '');
+      if (!(await confirmDiscardPlacementDraft(eventId))) return;
+      const item = projectProductionEvents().find((candidate) => String(candidate.id || '') === eventId);
+      // Selecting a scheduled item brings its date into view on the calendar.
+      if (item?.__start && String(materialScheduleEventId || '') !== eventId && !scheduleDateVisible(item.__start)) scheduleAnchorDate = new Date(item.__start);
+      focusMaterialDelivery({ event_id: eventId });
+    }));
+    target.querySelectorAll('[data-sales-appointment-event]').forEach((button) => button.addEventListener('click', () => {
+      const item = projectSalesAppointmentEvents().find((candidate) => String(candidate.id || '') === String(button.dataset.salesAppointmentEvent || ''));
+      if (!item) return;
+      const start = window.PlatformScheduling?.eventStart?.(item) || new Date(item.start_at || item.start || Date.now());
+      if (Number.isFinite(start.getTime()) && !scheduleDateVisible(start)) {
+        scheduleAnchorDate = start;
+        renderSchedulePanel();
+      }
+      const anchor = leftContentRoot()?.querySelector(`[data-sales-appointment-event="${cssEscape(item.id || '')}"]`) || button;
+      openScheduleEventPopover(item, anchor);
     }));
     target.querySelectorAll('[data-production-resource-crew]').forEach((button) => {
       button.addEventListener('click', (event) => {
@@ -2903,23 +4614,6 @@
         const item = scheduleProjectEvents().find((candidate) => String(candidate.id || '') === String(button.dataset.productionResourceCrew || ''));
         if (item) openWorkAssignmentMenu(item, button);
       });
-    });
-    target.querySelector('[data-work-confirm]')?.addEventListener('click', saveWorkScheduleDraft);
-    target.querySelector('[data-work-cancel]')?.addEventListener('click', cancelWorkDraft);
-    target.querySelector('#rWorkDraftTitle')?.addEventListener('input', (event) => {
-      const draft = activeWorkDraft();
-      if (draft) {
-        draft.title = event.target.value || 'Work';
-        workScheduleDrafts.set(String(draft.id || ''), draft);
-      }
-    });
-    target.querySelector('#rWorkAssignment')?.addEventListener('change', (event) => {
-      const draft = activeWorkDraft();
-      if (!draft?.start || !draft?.end) return;
-      const crews = scheduleWorkResources(scheduleCachedConfig, scheduleCachedUsers);
-      const payload = crewPayloadForSelection(event.target.value, crews);
-      setWorkScheduleDraft({ ...draft, ...payload }, { render: false, renderLeft: true });
-      updateVisibleWorkAssignment(draft.id, payload);
     });
     target.querySelector('#rSalesAssignment')?.addEventListener('change', (event) => {
       const salespeople = cachedSalesAppointmentUsers();
@@ -2934,41 +4628,12 @@
       }
       renderScheduleLeft();
     });
-    const recurrenceProjectId = String(ensureSchedulingProject()?.id || '');
+    refreshSchedulePlacementBanner();
+    const recurrenceProjectId = String(currentSchedulingProject()?.id || '');
     if (recurrenceProjectId && recurrenceProjectId !== scheduleRecurrenceProjectId) scheduleRecurrenceLoaded = false;
     if (recurrenceProjectId && !scheduleRecurrenceLoading && !scheduleRecurrenceLoaded) {
       loadRecurringSeries().then(() => { if (state.active) renderScheduleLeft(); });
     }
-    target.querySelectorAll('[data-edit-work]').forEach((btn) => btn.addEventListener('click', () => {
-      const event = projectWorkEvents().find((item) => String(item.id || '') === String(btn.dataset.editWork || ''));
-      if (!event) return;
-      workScheduleModeActive = true;
-      scheduleModeActive = false;
-      scheduleAssignmentEventId = '';
-      scheduleSelectedEventId = '';
-      const id = String(event.id || '');
-      workScheduleDrafts.set(id, {
-        id: event.id,
-        event_id: event.id,
-        title: event.title || (globalThis.PlatformLanguage?.text("project-schedule","m_222066ef57ae0e","Work") ?? "Work"),
-        start: event.__start.toISOString(),
-        end: event.__end.toISOString(),
-        all_day: event.all_day !== false,
-        schedule_granularity: event.schedule_granularity || (event.all_day === false ? 'time' : 'date'),
-        crew_id: workCrewId(event),
-        crew_name: workCrewName(event),
-        assigned_crew_id: workCrewId(event),
-        assigned_crew_name: workCrewName(event),
-        assigned_crew: event.assigned_crew || (workCrewId(event) ? { id: workCrewId(event), name: workCrewName(event) } : null),
-        assigned_resource_id:workCrewId(event),
-        assigned_resource_name:workCrewName(event),
-        assigned_resource_kind:workResourceKind(event),
-        work_resource_ref:workCrewId(event) ? { kind:workResourceKind(event), id:workCrewId(event), name:workCrewName(event) } : null
-      });
-      setActiveWorkDraftId(id);
-      scheduleAnchorDate = event.__start;
-      renderSchedulePanel();
-    }));
   }
 
   function renderWorkScheduler(target){
@@ -2981,10 +4646,11 @@
     }
     if (scheduleViewMode === 'gantt' && projectGanttViewEnabled() && window.PlatformScheduleView?.renderGanttScheduler) {
       window.PlatformScheduleView.renderGanttScheduler(target, {
+        readOnly: !canEditSchedule(),
         Scheduling,
         config: scheduleCachedConfig || null,
         project: activeBaseProject || null,
-        events: scheduleProjectEvents().filter((event) => !equipmentEventHidden(event)),
+        events: scheduleDisplayEvents().filter((event) => !equipmentEventHidden(event)),
         date: scheduleAnchorDate,
         pxPerDay: projectGanttZoom || undefined,
         zoom: 'fit',
@@ -3004,14 +4670,30 @@
           if (!event?.id) return;
           openScheduleEventPopover(event, meta.element);
         },
-        onEventRangeChange(event, range, meta = {}){ saveProjectGanttRange(event, range, meta?.cascade || []); },
-        onEventSchedule(event, range){ saveProjectGanttRange(event, range, []); },
+        // Section bars move their items together (moveProjectScheduleGroup).
+        allowGroupMove: canEditSchedule(),
+        onReadOnlyDragAttempt: canEditSchedule() ? undefined : () => showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), scheduleReadOnlyMessage(), 'info'),
+        onEventRangeChange(event, range){ saveProjectGanttRange(event, range); },
+        onEventSchedule(event, range){ saveProjectGanttRange(event, range, { placing:true }); },
+        // A click on a waiting item's lane: past days ask first, linked work
+        // is checked, and the toast offers Undo.
+        onUnscheduledLaneSchedule(event, range){ saveProjectGanttRange(event, range, { placing:true, undo:true }); },
         onDependencyCreate(fromEvent, toEvent){ createProjectGanttDependency(fromEvent, toEvent); },
         onDependencyRemove(event, dependency){ removeProjectGanttDependency(event, dependency); }
       });
+      // "Fit" is worked out once; later renders (after scheduling an item
+      // from its lane) keep that zoom instead of re-fitting to a new span.
+      if (!projectGanttZoom && Number(target.__psvGanttPxPerDay) > 0) projectGanttZoom = Number(target.__psvGanttPxPerDay);
       return;
     }
     const forceCrewScheduler = scheduleIsSchedulingView() && !materialScheduleModeActive;
+    // Crew lanes wait for the crews: drawn without them, crew work would sit
+    // in Unassigned and a drag from there would unassign it.
+    if (forceCrewScheduler && !scheduleResourcesReady() && !scheduleResourcesSettled) {
+      target.innerHTML = `<div class="r-schedule-loading"><i class="fas fa-circle-notch fa-spin"></i>&nbsp; ${escapeHtml(`Loading ${workforceTerm('resource_group', 'plural').toLowerCase()}…`)}</div>`;
+      ensureScheduleResources().then(() => { if (state.active && scheduleIsSchedulingView()) renderSchedulePanelPreservingScroll(); });
+      return;
+    }
     const crews = scheduleWorkResources(scheduleCachedConfig, scheduleCachedUsers);
     const crewRows = crews.length ? crews : (forceCrewScheduler ? [{ id: 'default_work_resource', name: workResourceLabel() }] : []);
     const currentWorkEvents = projectWorkEvents();
@@ -3020,17 +4702,48 @@
       .filter(isMaterialDeliveryEvent)
       .filter(materialEventIsScheduled);
     const calendarEvents = [...calendarWorkEvents, ...calendarMaterialEvents, ...projectSalesAppointmentEvents()];
+    // Meetings, inspections and custom project events show here too.
+    calendarEvents.push(...projectOtherEvents());
     const materialEvent = materialScheduleModeActive ? selectedMaterialEvent() : null;
     const materialDraft = materialEvent && materialScheduleDraft?.start
       ? { ...materialEvent, ...materialScheduleDraft, id:materialEvent.id, event_id:materialEvent.id }
       : null;
     const calendarDrafts = [...workDraftList(), ...(materialDraft ? [materialDraft] : [])];
     const calendarActiveDraftId = materialDraft?.id || activeWorkScheduleDraftId;
-    const allowProjectMobileCreate = mobileLayout && !scheduleIsSchedulingView() && !materialScheduleModeActive;
+    const allowProjectMobileCreate = canEditSchedule() && mobileLayout && !scheduleIsSchedulingView() && !materialScheduleModeActive;
     const draftIsMaterial = (draft = {}) => isMaterialDeliveryEvent(draft)
       || (!!materialScheduleEventId && String(draft.id || '') === String(materialScheduleEventId));
-    const schedulerWorkEvents = forceCrewScheduler ? allProjectWorkEvents() : currentWorkEvents;
-    const editableWorkEventIds = currentWorkEvents.map((event) => String(event.id || '')).filter(Boolean);
+    // Routing lanes: an item with several crews sits in every crew's lane.
+    const schedulerWorkEvents = forceCrewScheduler ? routingLaneEvents(allProjectWorkEvents()) : currentWorkEvents;
+    const currentIds = new Set(currentWorkEvents.map((event) => String(event.id || '')).filter(Boolean));
+    const editableWorkEventIds = forceCrewScheduler
+      ? schedulerWorkEvents.filter((event) => currentIds.has(routingLaneSourceId(event))).map((event) => String(event.id || ''))
+      : Array.from(currentIds);
+    const routingEventRangeChange = (event, range) => {
+      const lane = routingLaneInfo(event);
+      if (!lane) return commitWorkScheduleRange(event, range);
+      const resourceKeys = ['resource_id', 'assigned_resource_id', 'assigned_crew_id', 'crew_id'];
+      const assigns = resourceKeys.some((key) => Object.prototype.hasOwnProperty.call(range || {}, key));
+      const targetId = String(range?.resource_id || range?.assigned_resource_id || range?.assigned_crew_id || range?.crew_id || '').trim();
+      const { resource_id, assigned_resource_id, assigned_crew_id, crew_id, ...timeRange } = range || {};
+      if (!assigns || targetId === lane.laneId) return commitWorkScheduleRange(lane.source, timeRange);
+      // Dragged from one crew's lane to another: that crew is replaced, the
+      // other crews stay.
+      const current = eventWorkAssignees(lane.source);
+      const target = targetId ? (crews.find((crew) => String(crew.id || '') === targetId) || { id:targetId, name:targetId }) : null;
+      const next = current.flatMap((ref) => ref.id === lane.laneId ? (target ? [{ id:target.id, kind:target.subject_type || target.resource_kind || 'resource_group', name:target.name || target.id }] : []) : [ref]);
+      return commitWorkScheduleRange(lane.source, timeRange, { assignees:next });
+    };
+    const routingEventClick = (event, meta = {}) => {
+      const source = routingLaneInfo(event)?.source || event;
+      if (!source?.id) return;
+      if (meta.action === 'assignee' && meta.element) {
+        if (canEditSchedule()) openWorkAssignmentMenu(source, meta.element);
+        else openScheduleEventPopover(source, meta.element);
+        return;
+      }
+      openScheduleEventPopover(source, meta.element);
+    };
     if (forceCrewScheduler && scheduleSchedulingMode() === 'day' && crewRows.length && window.PlatformScheduleView?.renderResourceTimeScheduler) {
       window.PlatformScheduleView.renderResourceTimeScheduler(target, {
         Scheduling,
@@ -3040,8 +4753,8 @@
         drafts: workDraftList(),
         activeDraftId: activeWorkScheduleDraftId,
         resources: crewRows,
-        allowCreate: workScheduleModeActive && !activeWorkDraft()?.event_id,
-        allowEdit: true,
+        allowCreate: canEditSchedule() && workScheduleModeActive && !activeWorkDraft()?.event_id,
+        allowEdit: canEditSchedule(),
         editableEventIds: editableWorkEventIds,
         date: scheduleAnchorDate,
         slotMinutes: 30,
@@ -3050,6 +4763,8 @@
         modeLabel: 'Production hourly view',
         resourceHeader: workResourceLabel(),
         unassignedLabel: 'Unassigned',
+        // Person-assigned work sits on that person's row, not Unassigned.
+        resourceIdForItem: (item) => routingLaneInfo(item)?.laneId ?? workCrewId(item),
         onSmartScrollToggle(next){
           scheduleSmartScroll = !!next;
           const scrollPosition = captureScheduleScroll();
@@ -3059,17 +4774,9 @@
         onNavigate(nextDate){ scheduleAnchorDate = nextDate; renderSchedulePanel(); },
         onDraftChange(next){ setWorkScheduleDraft(next, { render: false, renderLeft: true }); },
         onDraftConfirm(){ saveWorkScheduleDraft(); },
-        onEventRangeChange(event, range){
-          commitWorkScheduleRange(event, range);
-        },
-        onEventClick(event, meta = {}){
-          if (!event?.id) return;
-          if (meta.action === 'assignee' && meta.element) {
-            openWorkAssignmentMenu(event, meta.element);
-            return;
-          }
-          openScheduleEventPopover(event, meta.element);
-        },
+        onEventRangeChange: routingEventRangeChange,
+        onEventClick: routingEventClick,
+        onReadOnlyDragAttempt: canEditSchedule() ? undefined : () => showToast((globalThis.PlatformLanguage?.text('scheduling','m_view_only','View only') ?? 'View only'), scheduleReadOnlyMessage(), 'info'),
         onDraftSelect(draft){
           if (!draft?.id) return;
           setActiveWorkDraftId(draft.id);
@@ -3087,39 +4794,36 @@
         drafts: workDraftList(),
         activeDraftId: activeWorkScheduleDraftId,
         resources: crewRows,
-        allowCreate: workScheduleModeActive && !activeWorkDraft()?.event_id,
-        allowEdit: true,
+        allowCreate: canEditSchedule() && workScheduleModeActive && !activeWorkDraft()?.event_id,
+        allowEdit: canEditSchedule(),
         editableEventIds: editableWorkEventIds,
         mode: scheduleSchedulingMode(),
         dayCount: 180,
-        date: scheduleAnchorDate,
+        date: scheduleStartOfWeek(scheduleAnchorDate),
         smartScroll: false,
         showToolbar: false,
         modeLabel: 'Production daily view',
         resourceHeader: workResourceLabel(),
         unassignedLabel: 'Unassigned',
+        // Person-assigned work sits on that person's row, not Unassigned.
+        resourceIdForItem: (item) => routingLaneInfo(item)?.laneId ?? workCrewId(item),
         onNavigate(nextDate){ scheduleAnchorDate = nextDate; renderSchedulePanel(); },
         onDraftChange(next){ setWorkScheduleDraft(next, { render: false, renderLeft: true }); },
         onDraftConfirm(){ saveWorkScheduleDraft(); },
-        onEventRangeChange(event, range){
-          commitWorkScheduleRange(event, range);
-        },
-        onEventClick(event, meta = {}){
-          if (!event?.id) return;
-          if (meta.action === 'assignee' && meta.element) {
-            openWorkAssignmentMenu(event, meta.element);
-            return;
-          }
-          openScheduleEventPopover(event, meta.element);
-        },
+        onEventRangeChange: routingEventRangeChange,
+        onEventClick: routingEventClick,
+        onReadOnlyDragAttempt: canEditSchedule() ? undefined : () => showToast((globalThis.PlatformLanguage?.text('scheduling','m_view_only','View only') ?? 'View only'), scheduleReadOnlyMessage(), 'info'),
         onDraftSelect(draft){
           if (!draft?.id) return;
           setActiveWorkDraftId(draft.id);
           renderScheduleLeft();
         }
       });
+      alignRoutingWeek(target);
       return;
     }
+    const clickToCreate = canEditSchedule() && !mobileLayout && !materialScheduleModeActive && !workScheduleModeActive && !scheduleIsSchedulingView();
+    const renderedMode = scheduleIsSchedulingView() ? scheduleSchedulingMode() : (['day','4day','week','month'].includes(scheduleViewMode) ? scheduleViewMode : workScheduleViewMode);
     window.PlatformScheduleView.renderProjectRangeScheduler(target, {
       Scheduling,
       config: scheduleCachedConfig || null,
@@ -3128,15 +4832,20 @@
       drafts: calendarDrafts,
       activeDraftId: calendarActiveDraftId,
       allowCreate: materialScheduleModeActive
-        ? !!materialEvent && !materialEventIsScheduled(materialEvent)
-        : (workScheduleModeActive && !activeWorkDraft()?.event_id) || allowProjectMobileCreate,
-      allowEdit: true,
-      canEditEvent: (event) => !isMaterialDeliveryEvent(event) || !materialEventIsLocked(event),
-      eventIsEditable: (event) => !isMaterialDeliveryEvent(event) || !materialEventIsLocked(event),
-      onEventLockToggle: (event, nextLocked) => {
+        ? !!materialEvent && !materialEventIsScheduled(materialEvent) && canEditSchedule()
+        : (canEditSchedule() && workScheduleModeActive && !activeWorkDraft()?.event_id) || allowProjectMobileCreate || clickToCreate,
+      allowEdit: canEditSchedule(),
+      allowAssign: canEditSchedule(),
+      onReadOnlyDragAttempt: canEditSchedule() ? undefined : () => showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), scheduleReadOnlyMessage(), 'info'),
+      stateKey: `project-schedule:${activeBaseProject?.id || ''}`,
+      // Locked items and schedule groups (which roll up their members) are not dragged here.
+      canEditEvent: (event) => !materialEventIsLocked(event) && !scheduleEventIsGroup(event),
+      eventIsEditable: (event) => !materialEventIsLocked(event) && !scheduleEventIsGroup(event),
+      // View-only sessions get the passive lock badge (no toggle).
+      onEventLockToggle: canEditSchedule() ? (event, nextLocked) => {
         if (isMaterialDeliveryEvent(event)) toggleMaterialScheduleLock(event, nextLocked);
-      },
-      mode: scheduleIsSchedulingView() ? scheduleSchedulingMode() : (['day','4day','week','month'].includes(scheduleViewMode) ? scheduleViewMode : workScheduleViewMode),
+      } : undefined,
+      mode: renderedMode,
       showModeSwitch: false,
       showToolbar: false,
       mobileLayout,
@@ -3145,6 +4854,9 @@
       touchHoldDelayMs: 360,
       date: scheduleAnchorDate,
       slotMinutes: 30,
+      // Timed views open at the start of the working day (or the first item
+      // shown, when it starts earlier), not midnight.
+      initialScrollMinute: scheduleInitialScrollMinute(calendarEvents, renderedMode),
       resourceHeader: workResourceLabel(),
       unassignedLabel: 'Unassigned',
       defaultDraftPayload(){
@@ -3174,6 +4886,20 @@
       },
       onDraftChange(next){
         if (draftIsMaterial(next)) setMaterialScheduleDraft(next);
+        else if (clickToCreate && !workScheduleModeActive && next?.start) {
+          // Click (or drag) on an empty day/time: the schedule dialog opens
+          // with that date and time filled in.
+          const start = new Date(next.start);
+          const end = next.end ? new Date(next.end) : null;
+          const allDay = next.all_day !== false && next.schedule_granularity !== 'time';
+          renderSchedulePanelPreservingScroll();
+          openScheduleDialog('project_work', null, {
+            start,
+            allDay,
+            days:allDay && end ? Math.max(1, Math.round((scheduleAddDays(end, 0) - scheduleAddDays(start, 0)) / 86400000)) : 1,
+            durationMinutes:!allDay && end && end > start ? Math.round((end - start) / 60000) : 0
+          });
+        }
         else setWorkScheduleDraft(next, { render: false, renderLeft: true });
       },
       onDraftConfirm(next){
@@ -3185,21 +4911,12 @@
           saveMaterialScheduleRange(event, range);
           return;
         }
-        const crewPayload = workCrewCalendarPayload(event, crews);
-        setWorkScheduleDraft({
-          id: event.id,
-          event_id: event.event_id || event.id,
-          title: event.title || (globalThis.PlatformLanguage?.text("project-schedule","m_222066ef57ae0e","Work") ?? "Work"),
-          start: range.start,
-          end: range.end,
-          all_day: range.all_day,
-          schedule_granularity: range.schedule_granularity,
-          ...crewPayload
-        }, { render: false, renderLeft: true });
+        // Moves and resizes save on drop, as in the global Scheduling tab.
+        commitWorkScheduleRange(event, range);
       },
       onEventClick(event, meta = {}){
         if (!event?.id) return;
-        if (meta.action === 'assignee' && meta.element && !isMaterialDeliveryEvent(event)) {
+        if (meta.action === 'assignee' && meta.element && !isMaterialDeliveryEvent(event) && canEditSchedule()) {
           openWorkAssignmentMenu(event, meta.element);
           return;
         }
@@ -3215,67 +4932,218 @@
         renderScheduleLeft();
       }
     });
+    if (renderedMode === 'month') revealMonthAnchor(target);
+  }
+
+  // Timed views open at the working day's start, or earlier when a shown
+  // item starts before it.
+  function scheduleInitialScrollMinute(events = [], mode = 'week'){
+    const workdayStart = scheduleWorkdayStartMinute();
+    if (!['day', '4day', 'week'].includes(mode)) return workdayStart;
+    const Scheduling = window.PlatformScheduling;
+    const anchor = new Date(scheduleAnchorDate);
+    const rangeStart = mode === 'week' ? scheduleStartOfWeek(anchor) : scheduleAddDays(anchor, 0);
+    const rangeEnd = scheduleAddDays(rangeStart, mode === 'week' ? 7 : (mode === '4day' ? (window.matchMedia?.('(max-width:720px)').matches ? 3 : 4) : 1));
+    const minutes = events.filter((event) => {
+      const allDay = typeof Scheduling?.eventIsAllDay === 'function' ? Scheduling.eventIsAllDay(event) : event.all_day !== false && event.schedule_granularity !== 'time';
+      if (allDay) return false;
+      const start = Scheduling?.eventStart?.(event);
+      return start && start >= rangeStart && start < rangeEnd;
+    }).map((event) => {
+      const start = Scheduling.eventStart(event);
+      return start.getHours() * 60 + start.getMinutes();
+    });
+    return minutes.length ? Math.min(workdayStart, Math.max(0, Math.min(...minutes) - 30)) : workdayStart;
+  }
+
+  // The first time a month is shown, bring today's (or the anchor's) week
+  // into view instead of leaving it below the fold at smaller heights; after
+  // that the month keeps the position it was left at across re-renders.
+  const scheduleMonthScroll = new Map();
+  function revealMonthAnchor(target){
+    const surface = target?.querySelector?.('.prs-surface');
+    if (!surface) return;
+    const anchor = new Date(scheduleAnchorDate);
+    const key = `${activeBaseProject?.id || ''}|${anchor.getFullYear()}-${anchor.getMonth()}`;
+    surface.addEventListener('scroll', () => { if (surface.isConnected) scheduleMonthScroll.set(key, surface.scrollTop); }, { passive:true });
+    if (scheduleMonthScroll.has(key)) {
+      const top = scheduleMonthScroll.get(key);
+      if (Math.abs(surface.scrollTop - top) > 1) surface.scrollTop = top;
+      return;
+    }
+    if (surface.scrollHeight <= surface.clientHeight + 2) return;
+    const today = new Date();
+    const day = today.getFullYear() === anchor.getFullYear() && today.getMonth() === anchor.getMonth() ? today : anchor;
+    // The shared month helper scrolls to a row boundary (never leaving a
+    // row's date numbers under the sticky weekday header) and does nothing
+    // when the row already shows.
+    if (typeof window.PlatformScheduleView?.revealMonthDate === 'function') {
+      window.PlatformScheduleView.revealMonthDate(target, day);
+      scheduleMonthScroll.set(key, surface.scrollTop);
+      return;
+    }
+    const cell = surface.querySelector(`[data-prs-date="${scheduleLocalDate(day)}"]`);
+    if (!cell) return;
+    const cellBox = cell.getBoundingClientRect();
+    const surfaceBox = surface.getBoundingClientRect();
+    if (cellBox.bottom > surfaceBox.bottom - 2) surface.scrollTop += cellBox.bottom - surfaceBox.bottom + 8;
+    scheduleMonthScroll.set(key, surface.scrollTop);
+  }
+
+  // Routing (daily) starts its columns at the week the heading names, just
+  // right of the sticky resource column.
+  function alignRoutingWeek(target){
+    const scroll = target?.querySelector?.('.prs-resource-scroll');
+    if (!scroll || !scheduleIsSchedulingView() || scheduleSchedulingMode() !== 'week') return;
+    const weekStart = scheduleLocalDate(scheduleStartOfWeek(scheduleAnchorDate));
+    const cell = scroll.querySelector(`.prs-resource-cell[data-prs-date="${weekStart}"]`);
+    if (!cell) return;
+    const label = scroll.querySelector('.prs-resource-label:not(.mobile-resource-rows), .prs-resource-corner');
+    const sticky = label && getComputedStyle(label).position === 'sticky' ? label.getBoundingClientRect().width : 0;
+    scroll.scrollLeft = Math.max(0, Math.round(scroll.scrollLeft + cell.getBoundingClientRect().left - scroll.getBoundingClientRect().left - sticky));
+  }
+
+  // One copy of a multi-crew item per crew lane, with its own id so the
+  // lanes can be told apart; routingLaneInfo() maps a copy back.
+  const ROUTING_LANE_SEPARATOR = '::lane::';
+  function routingLaneEvents(events = []){
+    return events.flatMap((event) => {
+      const assignees = eventWorkAssignees(event);
+      if (assignees.length <= 1) return [event];
+      return assignees.map((ref) => ({ ...event, id:`${event.id}${ROUTING_LANE_SEPARATOR}${ref.id}`, event_id:event.id, __lane_resource_id:ref.id, __lane_source_id:String(event.id || ''), crew_label:workAssigneesLabel(assignees) }));
+    });
+  }
+  function routingLaneSourceId(event = {}){
+    return String(event.__lane_source_id || String(event.id || '').split(ROUTING_LANE_SEPARATOR)[0] || '');
+  }
+  function routingLaneInfo(event = {}){
+    const id = String(event?.id || '');
+    if (!id.includes(ROUTING_LANE_SEPARATOR)) return null;
+    const [sourceId, laneId] = id.split(ROUTING_LANE_SEPARATOR);
+    const source = scheduleProjectEvents().find((item) => String(item.id || '') === sourceId)
+      || allProjectWorkEvents().find((item) => String(item.id || '') === sourceId)
+      || { ...event, id:sourceId };
+    return { source, laneId:String(event.__lane_resource_id || laneId || '') };
+  }
+
+  // Project items other than sales, production and deliveries (meetings,
+  // inspections, custom events) still belong on the project's schedule.
+  function projectOtherEvents(){
+    return scheduleDisplayEvents()
+      .filter((event) => !isSalesAppointmentEvent(event) && !isProjectWorkEvent(event) && !isScopeResourceEvent(event) && !isMaterialDeliveryEvent(event) && !scheduleEventIsGroup(event))
+      .filter((event) => !equipmentEventHidden(event) && !/^equipment_/.test(String(event.event_type_default_id || event.type_id || '')))
+      .filter((event) => !['cancelled', 'canceled'].includes(String(event.status || '').toLowerCase()))
+      .filter(materialEventIsScheduled)
+      .sort((a, b) => (window.PlatformScheduling?.eventStart?.(a) || 0) - (window.PlatformScheduling?.eventStart?.(b) || 0));
+  }
+  function otherEventTilesHtml(){
+    const events = projectOtherEvents();
+    if (!events.length) return '';
+    return `<section class="r-schedule-section">
+        <div class="r-schedule-section-head"><div class="r-schedule-section-title"><i class="fas fa-calendar"></i> ${escapeHtml('Other events')}</div></div>
+        <div class="r-schedule-tile-list">${events.map((event) => `
+          <button type="button" class="r-schedule-tile r-schedule-other-tile" data-other-event="${escapeHtml(event.id || '')}">
+            <div class="r-schedule-tile-title"><i class="fas fa-calendar"></i>${escapeHtml(scheduleEventDisplayTitle(event))}</div>
+            <div class="r-schedule-tile-meta">${escapeHtml(workRangeLabel(event))}</div>
+            <div class="r-schedule-tile-meta">${escapeHtml(eventAssignedLabel(event))}</div>
+          </button>`).join('')}</div>
+      </section>`;
   }
 
   function renderProjectScheduleHome(){
     const panel = $('#rSchedulePanel');
     if (!panel) return;
+    // A sales calendar still loading for an earlier render must not draw
+    // into this one (e.g. Escape right after Sales + New).
+    scheduleCalendarGen += 1;
     panel.classList.add('work-mode');
     setScheduleWorkspaceChrome(state.active);
     renderScheduleLeft();
     const isScheduling = scheduleIsSchedulingView();
     panel.classList.toggle('scheduling-mode', isScheduling);
+    panel.classList.toggle('r-schedule-view-only', !canEditSchedule());
+    const sub = isScheduling
+      ? `Assign production by ${workResourceLabel()} and date.`
+      : (canEditSchedule() && scheduleViewMode !== 'gantt' ? 'Project calendar views show scheduled production and appointments. Click an empty day or time to add work.' : 'Project calendar views show scheduled production and appointments.');
     panel.innerHTML = `
       <div class="r-schedule-head">
         <div>
-          <h2 class="r-schedule-title">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</h2>
-          <div class="r-schedule-sub">${String(escapeHtml(isScheduling ? `Assign production by ${workResourceLabel()} and date.` : 'Project calendar views show scheduled production and appointments.'))}</div>
+          <h2 class="r-schedule-title">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}${String(scheduleRangeLabel() ? `<span class="r-schedule-range-label">${escapeHtml(scheduleRangeLabel())}</span>` : '')}</h2>
+          <div class="r-schedule-sub" title="${escapeHtml(sub)}">${String(escapeHtml(sub))}</div>
         </div>
         <div class="r-schedule-head-actions">${String(scheduleViewSwitchHtml())}</div>
       </div>
       ${String(isScheduling ? '' : projectMobileToolbarHtml())}
+      ${String(schedulePlacementBannerHtml())}
       <div class="r-schedule-calendar work-calendar ${String(projectMobileCalendarSwipeDirection ? `mobile-swipe-${projectMobileCalendarSwipeDirection}` : '')}"></div>
     `;
     bindScheduleViewSwitch(panel);
+    bindSchedulePlacementBanner(panel);
     panel.querySelector('[data-gantt-add-group]')?.addEventListener('click', () => openCreateGanttGroupDialog());
     if (isScheduling) clearProjectMobileControls();
     else bindProjectMobileToolbar(panel);
     renderWorkScheduler(panel.querySelector('.work-calendar'));
     if (scheduleWorkResourceDataLoaded) return;
     scheduleWorkResourceDataLoaded = true;
-    (async () => {
-      if (!window.PlatformScheduling || !scheduleOrgId()) return;
+    if (!window.PlatformScheduling || !scheduleOrgId()) return;
+    // Menus opened meanwhile wait for this same load (ensureScheduleResources).
+    scheduleResourcesPromise = (async () => {
       try {
         const config = await window.PlatformScheduling.loadBranchConfig(scheduleOrgId(), scheduleBranchId());
-        const users = await window.PlatformScheduling.listUsers(scheduleOrgId(), config).catch(() => []);
-        const projects = await window.PlatformScheduling.listProjects(scheduleOrgId(), config).catch(() => []);
+        const users = await loadScheduleUsers(config);
+        // A failed read keeps the last good list (rememberScheduleData skips
+        // an empty one) and says so.
+        const projects = await window.PlatformScheduling.listProjects(scheduleOrgId(), config).catch(() => { scheduleSourceNotice(); return []; });
         rememberScheduleData(config, users, projects);
         await loadWorkforceResources();
-        if (state.active) renderSchedulePanel();
-      } catch (_) {}
-    })();
-  }
-
-  function renderCrewSettingsPanel(){
-    window.dispatchEvent(new CustomEvent('fm:open-crew-settings'));
+        if (scheduleUsersLoaded) scheduleDataLoadedAt = Date.now();
+        if (state.active) renderSchedulePanelPreservingScroll();
+        return true;
+      } catch (_) {
+        return false;
+      }
+    })().finally(() => { scheduleResourcesPromise = null; scheduleResourcesSettled = true; });
   }
 
   function renderSchedulePanel(){
+    // A details popover that is open while data arrives (crews loading, a
+    // refresh from another surface) stays open on its item and is redrawn
+    // with the new data; actions that close it do so before rendering.
+    const openPopover = document.querySelector('.r-schedule-event-popover');
+    const keepPopover = openPopover?.isConnected && scheduleEventPopoverId && typeof openPopover.__reopenPlacement === 'function'
+      ? { id:scheduleEventPopoverId, placement:openPopover.__reopenPlacement() }
+      : null;
     closeScheduleEventPopover();
     if (!state.active) {
       setScheduleWorkspaceChrome(false);
       clearScheduleLeft();
       return;
     }
-    if (scheduleCrewSettingsOpen && workforceManagementEnabled()) {
-      renderCrewSettingsPanel();
-      return;
-    }
+    syncScheduleRoute();
     if ((scheduleIsSchedulingView() && scheduleSchedulingTarget === 'sales') || scheduleModeActive || scheduleDraft || scheduleAssignmentEventId || scheduleSelectedEventId) {
       renderAppointmentSchedulePanel();
-      return;
+    } else renderProjectScheduleHome();
+    if (keepPopover) {
+      const item = scheduleProjectEvents().find((candidate) => String(candidate.id || '') === String(keepPopover.id));
+      if (item) reopenScheduleEventPopover(item, keepPopover.placement);
     }
-    renderProjectScheduleHome();
+  }
+
+  // The shown view, target and date live in the route (the project window
+  // mirrors them to the browser address), so a reload or shared link opens
+  // the same schedule.
+  function syncScheduleRoute(){
+    const navigation = window.Portal?.navigation;
+    if (!navigation?.replace || navigation.applying || !state.mounted || activeBaseProject?.__projectShellLoading) return;
+    const route = navigation.read?.() || {};
+    if (!route.project || route.projectTab !== 'schedule') return;
+    const patch = {
+      projectScheduleView:scheduleViewMode,
+      projectScheduleTarget:scheduleIsSchedulingView() ? scheduleSchedulingTarget : null,
+      projectScheduleDate:scheduleViewMode === 'gantt' ? null : scheduleLocalDate(scheduleAnchorDate)
+    };
+    if (Object.entries(patch).every(([key, value]) => String(route[key] || '') === String(value || ''))) return;
+    try { navigation.replace(patch, { source:'project-schedule-sync', ownedKeys:Object.keys(patch) }); } catch (_) {}
   }
 
   function captureScheduleScroll(){
@@ -3303,6 +5171,9 @@
     const panel = $('#rSchedulePanel');
     if (!panel) return;
     panel.classList.toggle('work-mode', scheduleIsSchedulingView());
+    // Routing keeps its heading (date, prev/today/next, views) on a phone too.
+    panel.classList.toggle('scheduling-mode', scheduleIsSchedulingView());
+    panel.classList.toggle('r-schedule-view-only', !canEditSchedule());
     setScheduleWorkspaceChrome(state.active);
     renderScheduleLeft();
     const Scheduling = window.PlatformScheduling;
@@ -3319,16 +5190,24 @@
     panel.innerHTML = `
       <div class="r-schedule-head">
         <div>
-          <h2 class="r-schedule-title">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</h2>
-          <div class="r-schedule-sub">${String(escapeHtml(scheduleSub))}</div>
+          <h2 class="r-schedule-title">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}${String(scheduleRangeLabel() ? `<span class="r-schedule-range-label">${escapeHtml(scheduleRangeLabel())}</span>` : '')}</h2>
+          <div class="r-schedule-sub" title="${escapeHtml(scheduleSub)}">${String(escapeHtml(scheduleSub))}</div>
         </div>
         <div class="r-schedule-head-actions">${String(scheduleViewSwitchHtml())}</div>
       </div>
+      ${String(scheduleIsSchedulingView() ? '' : projectMobileToolbarHtml())}
+      ${String(schedulePlacementBannerHtml())}
       <div class="r-schedule-calendar"><div class="r-schedule-loading"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_1d56a895701e1c","&nbsp; Loading calendar...") ?? "&nbsp; Loading calendar...")}</div></div>
     `;
     bindScheduleViewSwitch(panel);
+    bindSchedulePlacementBanner(panel);
+    if (scheduleIsSchedulingView()) clearProjectMobileControls();
+    else bindProjectMobileToolbar(panel);
     updateSchedulePanelConfirm();
-    if (!scheduleIsSchedulingView()) {
+    // Browsing an appointment stays on the read-only project calendar. Placing
+    // one (Sales + New) waits for the assignee list below, then opens the
+    // single-person week or the team routing view.
+    if (!scheduleIsSchedulingView() && !scheduleModeActive) {
       renderProjectScheduleView(panel.querySelector('.r-schedule-calendar'), scheduleCachedConfig?.event_types?.sales_appointment || {}, scheduleCachedConfig || {});
       return;
     }
@@ -3341,12 +5220,7 @@
       let users = [];
       let projects = [];
       try {
-        config = await Scheduling.loadBranchConfig(scheduleOrgId(), scheduleBranchId());
-        users = await Scheduling.listUsers(scheduleOrgId(), config);
-        projects = await Scheduling.listProjects(scheduleOrgId(), config);
-        projects = mergeScheduleActiveProject(projects);
-        rememberScheduleData(config, users, projects);
-        await loadWorkforceResources();
+        ({ config, users, projects } = await loadScheduleData());
       } catch (error) {
         if (gen !== scheduleCalendarGen) return;
         console.warn('Project scheduling data refresh failed; using last known data when available.', error);
@@ -3415,12 +5289,12 @@
           draft: salesDraft,
           activeDraftId: salesDraft?.id || '',
           resources: salespeople,
-          allowCreate: scheduleModeActive,
-          allowEdit: true,
+          allowCreate: canEditSchedule() && scheduleModeActive,
+          allowEdit: canEditSchedule(),
           editableEventIds: Array.from(appointmentEventIds),
           mode: 'week',
           dayCount: 180,
-          date: scheduleAnchorDate,
+          date: scheduleStartOfWeek(scheduleAnchorDate),
           smartScroll: false,
           showToolbar: false,
           modeLabel: 'Sales weekly view',
@@ -3450,7 +5324,10 @@
               scheduleAssignmentEventId = String(next.event_id);
               scheduleSelectedEventId = String(next.event_id);
             }
+            warnSalesDraftConflict(allSalesEvents, scheduleDraft);
             updateSchedulePanelConfirm();
+            // Show the placed draft with its sales title and refresh the rail's assignee and status.
+            renderSchedulePanelPreservingScroll();
           },
           onDraftConfirm(draft){
             const start = scheduleDraft?.start ? new Date(scheduleDraft.start) : (draft?.start ? new Date(draft.start) : null);
@@ -3479,11 +5356,13 @@
             renderSchedulePanel();
           }
         });
+        alignRoutingWeek(target);
         return;
       }
       if (scheduleIsSchedulingView() && scheduleSchedulingMode() === 'day' && window.PlatformScheduleView?.renderResourceTimeScheduler) {
         const allSalesEvents = (Scheduling.eventsFromProjects?.(projects, config) || []).filter(isSalesAppointmentEvent);
         const draftStart = scheduleDraft?.start ? new Date(scheduleDraft.start) : null;
+        const draftAssignment = userPayload(scheduleDraft?.user || null);
         const salesDraft = draftStart ? {
           id: scheduleAssignmentEventId || '__sales_day_draft',
           event_id: scheduleAssignmentEventId || '',
@@ -3505,8 +5384,8 @@
           draft: salesDraft,
           activeDraftId: salesDraft?.id || '',
           resources: salespeople,
-          allowCreate: scheduleModeActive,
-          allowEdit: true,
+          allowCreate: canEditSchedule() && scheduleModeActive,
+          allowEdit: canEditSchedule(),
           editableEventIds: Array.from(appointmentEventIds),
           date: scheduleAnchorDate,
           slotMinutes,
@@ -3540,7 +5419,10 @@
               scheduleAssignmentEventId = String(next.event_id);
               scheduleSelectedEventId = String(next.event_id);
             }
+            warnSalesDraftConflict(allSalesEvents, scheduleDraft);
             updateSchedulePanelConfirm();
+            // Show the placed draft with its sales title and refresh the rail's assignee and status.
+            renderSchedulePanelPreservingScroll();
           },
           onDraftConfirm(draft){
             const start = scheduleDraft?.start ? new Date(scheduleDraft.start) : (draft?.start ? new Date(draft.start) : null);
@@ -3703,8 +5585,8 @@
           events: appointmentEvents,
           draft: salesDraft,
           activeDraftId: salesDraft?.id || '',
-          allowCreate: scheduleModeActive,
-          allowEdit: true,
+          allowCreate: canEditSchedule() && scheduleModeActive,
+          allowEdit: canEditSchedule(),
           mode: appointmentMode,
           modes: scheduleIsSchedulingView() ? ['week','day'] : [appointmentMode],
           showModeSwitch: false,
@@ -3733,7 +5615,10 @@
               scheduleAssignmentEventId = String(next.event_id);
               scheduleSelectedEventId = String(next.event_id);
             }
+            warnSalesDraftConflict((Scheduling.eventsFromProjects?.(projects, config) || []).filter(isSalesAppointmentEvent), scheduleDraft);
             updateSchedulePanelConfirm();
+            // Show the placed draft with its sales title and refresh the rail's assignee and status.
+            renderSchedulePanelPreservingScroll();
           },
           onDraftConfirm(draft){
             if (!draft?.start && !scheduleDraft?.start) return;
@@ -3888,17 +5773,19 @@
     dialog.id = 'rScheduleDialog';
     dialog.className = 'r-schedule-dialog';
     dialog.innerHTML = `
-      <div class="r-schedule-card">
+      <div class="r-schedule-card" role="dialog" aria-modal="true" aria-labelledby="rScheduleDialogTitle">
         <h3 id="rScheduleDialogTitle">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_e5aee059bf2f35","Schedule Appointment") ?? "Schedule Appointment")}</h3>
         <p id="rScheduleDialogSub">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_b90dbdb90ce3a1","Choose a time and assign one or more eligible resources.") ?? "Choose a time and assign one or more eligible resources.")}</p>
         <div class="r-schedule-grid">
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_29dbd3d8b69f55","Title") ?? "Title")}</label><input type="text" id="rScheduleItemTitle" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5a654ad9b6d2e3","Appointment") ?? "Appointment")}"></div>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_2a0b11100c22a4","Date") ?? "Date")}</label><input type="date" id="rScheduleDate"></div>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_727840a47c2e4c","Time") ?? "Time")}</label><input type="time" id="rScheduleTime" step="900"></div>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bd8fd6e973f6e8","Duration") ?? "Duration")}</label><input type="number" id="rScheduleDuration" min="15" step="15"></div>
-          <div class="r-schedule-field" id="rScheduleUsersWrap"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ef1dde5e6d8239","Assign People / Crews") ?? "Assign People / Crews")}</label><select id="rScheduleUsers" multiple size="4"></select></div>
-          <div class="r-schedule-field" id="rScheduleEquipmentWrap"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_09d7f821d4f1df","Assign Vehicles / Equipment") ?? "Assign Vehicles / Equipment")}</label><select id="rScheduleEquipment" multiple size="4"></select></div>
+          <div class="r-schedule-field"><label for="rScheduleItemTitle">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_29dbd3d8b69f55","Title") ?? "Title")}</label><input type="text" id="rScheduleItemTitle" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5a654ad9b6d2e3","Appointment") ?? "Appointment")}"></div>
+          <div class="r-schedule-field"><label for="rScheduleDate">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_2a0b11100c22a4","Date") ?? "Date")}</label><input type="date" id="rScheduleDate"></div>
+          <div class="r-schedule-field" id="rScheduleTimeWrap"><label for="rScheduleTime">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_727840a47c2e4c","Time") ?? "Time")}</label><input type="time" id="rScheduleTime" step="900"></div>
+          <div class="r-schedule-field" id="rScheduleDurationWrap"><label for="rScheduleDuration">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bd8fd6e973f6e8","Duration") ?? "Duration")}</label><input type="number" id="rScheduleDuration" min="15" step="15"></div>
+          <div class="r-schedule-field" id="rScheduleDaysWrap" hidden><label for="rScheduleDays">Days</label><input type="number" id="rScheduleDays" min="1" max="365" step="1" value="1"></div>
+          <div class="r-schedule-field" id="rScheduleUsersWrap"><label for="rScheduleUsers">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ef1dde5e6d8239","Assign People / Crews") ?? "Assign People / Crews")}</label><select id="rScheduleUsers" multiple size="4"></select></div>
+          <div class="r-schedule-field" id="rScheduleEquipmentWrap"><label for="rScheduleEquipment">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_09d7f821d4f1df","Assign Vehicles / Equipment") ?? "Assign Vehicles / Equipment")}</label><select id="rScheduleEquipment" multiple size="4"></select></div>
         </div>
+        <label class="r-schedule-allday" id="rScheduleAllDayWrap"><input type="checkbox" id="rScheduleAllDay"> All day</label>
         <label class="r-schedule-override" style="display:flex" id="rScheduleRecurringWrap"><input type="checkbox" id="rScheduleRecurring">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fe2abf52e30aa8"," Make this item recur") ?? " Make this item recur")}</label>
         <div class="r-schedule-grid" id="rScheduleRecurringFields" hidden>
           <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ff7bb68b2b05a8","Frequency") ?? "Frequency")}</label><select id="rScheduleFrequency"><option value="weekly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_093d55e6272fc0","Weekly") ?? "Weekly")}</option><option value="monthly" selected>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_d7014f792d2583","Monthly") ?? "Monthly")}</option><option value="quarterly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_03e59d03617275","Quarterly") ?? "Quarterly")}</option><option value="yearly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ef289ba5429ef5","Yearly") ?? "Yearly")}</option></select></div>
@@ -3907,11 +5794,11 @@
           <div class="r-schedule-field" id="rScheduleEndDateWrap" hidden><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_75319fcfef3f5e","End date") ?? "End date")}</label><input type="date" id="rScheduleEndDate"></div>
           <div class="r-schedule-field" id="rScheduleCountWrap" hidden><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_328e02d666e842","Occurrences") ?? "Occurrences")}</label><input type="number" id="rScheduleCount" min="1" max="240" value="1"></div>
           <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_767fe02ce7276a","Bill each cycle") ?? "Bill each cycle")}</label><input type="number" id="rScheduleBillingAmount" min="0" step="0.01" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_a3f9a6b065b2d8","Optional") ?? "Optional")}"></div>
-          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_d0aa9ef5b7f01c","Billing cadence") ?? "Billing cadence")}</label><select id="rScheduleBillingFrequency"><option value="monthly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_d7014f792d2583","Monthly") ?? "Monthly")}</option><option value="quarterly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_03e59d03617275","Quarterly") ?? "Quarterly")}</option><option value="yearly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ef289ba5429ef5","Yearly") ?? "Yearly")}</option></select></div>
+          <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_d0aa9ef5b7f01c","Billing cadence") ?? "Billing cadence")}</label><select id="rScheduleBillingFrequency"><option value="weekly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_093d55e6272fc0","Weekly") ?? "Weekly")}</option><option value="monthly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_d7014f792d2583","Monthly") ?? "Monthly")}</option><option value="quarterly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_03e59d03617275","Quarterly") ?? "Quarterly")}</option><option value="yearly">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ef289ba5429ef5","Yearly") ?? "Yearly")}</option></select></div>
           <div class="r-schedule-field"><label>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_768d0068b06fa1","Expense per visit") ?? "Expense per visit")}</label><input type="number" id="rScheduleExpenseAmount" min="0" step="0.01" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_a3f9a6b065b2d8","Optional") ?? "Optional")}"></div>
         </div>
         <div class="r-schedule-slots" id="rScheduleSlots"></div>
-        <div class="r-schedule-status" id="rScheduleStatus"></div>
+        <div class="r-schedule-status" id="rScheduleStatus" role="status"></div>
         <label class="r-schedule-override" id="rScheduleOverrideWrap"><input type="checkbox" id="rScheduleOverride">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_2ae9d90aead238"," Schedule anyway") ?? " Schedule anyway")}</label>
         <div class="r-schedule-advanced" id="rScheduleAdvancedFields" hidden>
           <div class="r-schedule-grid">
@@ -3922,6 +5809,7 @@
         </div>
         <div class="r-schedule-advanced-actions">
           <button type="button" class="r-schedule-advanced-toggle" id="rScheduleAdvanced" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_c8cf170a6999a6","Show advanced event fields") ?? "Show advanced event fields")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bec5274b269a70","Advanced event fields") ?? "Advanced event fields")}" aria-pressed="false"><i class="fas fa-sliders"></i></button>
+          <button type="button" class="r-schedule-action secondary r-schedule-series-cancel" id="rScheduleSeriesCancel" hidden>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_6c097c79cef08a","Cancel series") ?? "Cancel series")}</button>
           <div class="r-schedule-actions">
             <button type="button" class="r-schedule-action secondary" id="rScheduleCancel">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
             <button type="button" class="r-schedule-action" id="rScheduleSave">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</button>
@@ -3932,26 +5820,145 @@
     document.body.appendChild(dialog);
     dialog.addEventListener('mousedown', (event) => { dialog.__downBackdrop = event.target === dialog; });
     dialog.addEventListener('mouseup', (event) => {
-      if (dialog.__downBackdrop && event.target === dialog) dialog.classList.remove('active');
+      if (dialog.__downBackdrop && event.target === dialog) closeScheduleDialog();
       dialog.__downBackdrop = false;
     });
-    $('#rScheduleCancel')?.addEventListener('click', () => dialog.classList.remove('active'));
+    $('#rScheduleCancel')?.addEventListener('click', () => closeScheduleDialog());
     return dialog;
   }
 
-  async function openScheduleDialog(eventTypeId = 'sales_appointment', recurringSeries = null){
+  // Schedule dialogs join the portal modal stack so they paint above the
+  // project window in every placement and Escape closes them before it.
+  function registerScheduleLayer(element, id, onClose){
+    const handle = window.Portal?.modals?.register?.(element, { id, closeOnEscape:true, closeOnBackdrop:false, onClose }) || null;
+    if (!handle) element.style.zIndex = '2147483600';
+    return handle;
+  }
+
+  let scheduleDialogReturnFocus = null;
+  let scheduleDialogReturnSelector = '';
+  function showScheduleDialog(dialog){
+    // Last in the document so it also wins against an equal stacking level.
+    if (dialog.parentElement !== document.body || dialog.nextElementSibling) document.body.appendChild(dialog);
+    const active = document.activeElement;
+    if (!dialog.classList.contains('active')) {
+      scheduleDialogReturnFocus = active && active !== document.body && !dialog.contains(active) ? active : null;
+      // The sidebar may re-render while the dialog is open; remember how to
+      // find the same control again.
+      const attr = scheduleDialogReturnFocus ? ['data-new-production', 'data-new-recurrence', 'data-new-appointment', 'data-edit-recurrence', 'data-production-resource-event', 'data-other-event'].find((name) => scheduleDialogReturnFocus.hasAttribute?.(name)) : '';
+      scheduleDialogReturnSelector = attr ? `[${attr}="${cssEscape(scheduleDialogReturnFocus.getAttribute(attr) || '')}"]` : '';
+    }
+    dialog.classList.add('active');
+    dialog.querySelector('.r-schedule-card')?.scrollTo?.(0, 0);
+    scheduleDialogHandle?.unregister?.();
+    scheduleDialogHandle = registerScheduleLayer(dialog, 'project-schedule-dialog', () => closeScheduleDialog());
+  }
+
+  function closeScheduleDialog(){
+    const dialog = $('#rScheduleDialog');
+    const wasOpen = !!dialog?.classList.contains('active');
+    if (dialog?.contains(document.querySelector('fm-date-time-picker'))) window.FirstMateDateTimePicker?.close?.(false);
+    dialog?.classList.remove('active');
+    const handle = scheduleDialogHandle;
+    scheduleDialogHandle = null;
+    handle?.unregister?.();
+    // Focus returns to what opened the dialog (when it is still there).
+    const returnTo = scheduleDialogReturnFocus?.isConnected ? scheduleDialogReturnFocus : (scheduleDialogReturnSelector ? document.querySelector(scheduleDialogReturnSelector) : null);
+    scheduleDialogReturnFocus = null;
+    scheduleDialogReturnSelector = '';
+    if (wasOpen && returnTo?.isConnected && typeof returnTo.focus === 'function') {
+      try { returnTo.focus({ preventScroll:true }); } catch (_) {}
+    }
+  }
+
+  function scheduleDialogOpen(){
+    return !!$('#rScheduleDialog')?.classList.contains('active');
+  }
+
+  // One name per item type for the whole life of the dialog (the loaded
+  // configuration's own labels, e.g. "Project Work", never replace it).
+  function scheduleDialogTypeLabel(eventTypeId = '', eventType = {}){
+    if (eventTypeId === 'project_work') return window.Portal?.terminology?.get?.('scheduling.production_view', 'Production') || (globalThis.PlatformLanguage?.text("project-schedule","m_c2e6380e130020","Production") ?? "Production");
+    if (eventTypeId === 'sales_appointment') return 'Sales Appointment';
+    return String(eventType?.label || '').trim() || 'Appointment';
+  }
+
+  function scheduleDialogHeading(eventTypeId = '', eventType = {}, recurring = false, existingSeries = false, editing = false){
+    if (existingSeries) return 'Edit recurring item';
+    const label = scheduleDialogTypeLabel(eventTypeId, eventType);
+    if (editing) return `Edit ${label.toLowerCase()}`;
+    return recurring ? `New recurring ${label.toLowerCase()}` : `Schedule ${label}`;
+  }
+
+  // Defaults land on the next working-hour slot instead of late evening.
+  function defaultScheduleStart(windowStart = '08:00', windowEnd = '17:00'){
+    const [startHour, startMinute] = String(windowStart || '08:00').split(':').map((part) => Number(part) || 0);
+    const [endHour, endMinute] = String(windowEnd || '17:00').split(':').map((part) => Number(part) || 0);
+    const next = new Date(Date.now() + 60 * 60000);
+    next.setMinutes(0, 0, 0);
+    const minutes = next.getHours() * 60 + next.getMinutes();
+    const open = startHour * 60 + startMinute;
+    const close = endHour * 60 + endMinute;
+    if (minutes < open) next.setHours(startHour, startMinute, 0, 0);
+    else if (minutes >= close - 60) {
+      next.setDate(next.getDate() + 1);
+      next.setHours(startHour, startMinute, 0, 0);
+    }
+    return next;
+  }
+
+  // Crews/subcontractors already booked on another scheduled item (any
+  // project) for the chosen time. People are checked by availability.
+  function scheduleCrewConflicts(resourceIds = [], start, end, { excludeId = '', excludeSeriesId = '', includePeople = false } = {}){
+    const Scheduling = window.PlatformScheduling;
+    const ids = new Set(resourceIds.map(String).filter(Boolean));
+    if (!ids.size || !(start instanceof Date) || !(end instanceof Date) || !Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return [];
+    const projects = mergeScheduleActiveProject(scheduleCachedProjects);
+    const events = (Scheduling?.eventsFromProjects?.(projects, scheduleCachedConfig || null) || [])
+      .filter((event) => String(event.id || '') !== String(excludeId || '') && (!excludeSeriesId || String(event.recurrence_series_id || '') !== String(excludeSeriesId)))
+      .filter((event) => !scheduleEventIsGroup(event) && materialEventIsScheduled(event))
+      .filter((event) => !['cancelled', 'canceled', 'completed', 'done'].includes(String(event.status || '').toLowerCase()));
+    const conflicts = [];
+    events.forEach((event) => {
+      const eventStart = Scheduling?.eventStart?.(event);
+      const eventEnd = Scheduling?.eventEnd?.(event);
+      if (!eventStart || !eventEnd || !(eventStart < end && eventEnd > start)) return;
+      eventWorkAssignees(event).filter((ref) => (includePeople || ref.kind !== 'organization_user') && ids.has(ref.id)).forEach((ref) => {
+        conflicts.push({ resource:ref, event });
+      });
+    });
+    return conflicts;
+  }
+
+  // The dialog element is reused; answers that arrive for an earlier opening
+  // (availability checks) must not touch the current one.
+  let scheduleDialogSession = 0;
+  async function openScheduleDialog(eventTypeId = 'sales_appointment', recurringSeries = null, options = {}){
+    if (!requireScheduleEdit()) return null;
+    const session = ++scheduleDialogSession;
+    const isCurrentSession = () => session === scheduleDialogSession;
     const Scheduling = window.PlatformScheduling;
     const orgId = scheduleOrgId();
-    const project = ensureSchedulingProject();
-    if (!Scheduling || !orgId || !project?.id) {
+    let project = currentSchedulingProject();
+    if (!Scheduling || !orgId) {
       showToast((globalThis.PlatformLanguage?.text("project-schedule","m_9cae930e9e6682","Scheduling unavailable") ?? "Scheduling unavailable"), (globalThis.PlatformLanguage?.text("project-schedule","m_467e6db386c0e7","Could not load the scheduling tools for this project.") ?? "Could not load the scheduling tools for this project."), false);
       return;
     }
+    // Editing a placed item (the details popover's Edit).
+    const editEvent = !recurringSeries && options.event?.id
+      ? (scheduleProjectEvents().find((item) => String(item.id || '') === String(options.event.id)) || options.event)
+      : null;
     const dialog = ensureScheduleDialog();
     const dateInput = $('#rScheduleDate');
     const timeInput = $('#rScheduleTime');
     const itemTitleInput = $('#rScheduleItemTitle');
     const durationInput = $('#rScheduleDuration');
+    const daysInput = $('#rScheduleDays');
+    const allDayInput = $('#rScheduleAllDay');
+    const allDayWrap = $('#rScheduleAllDayWrap');
+    const timeWrap = $('#rScheduleTimeWrap');
+    const durationWrap = $('#rScheduleDurationWrap');
+    const daysWrap = $('#rScheduleDaysWrap');
     const usersInput = $('#rScheduleUsers');
     const slotsEl = $('#rScheduleSlots');
     const statusEl = $('#rScheduleStatus');
@@ -3961,6 +5968,7 @@
     const titleEl = $('#rScheduleDialogTitle');
     const subEl = $('#rScheduleDialogSub');
     const recurringInput = $('#rScheduleRecurring');
+    const recurringWrap = $('#rScheduleRecurringWrap');
     const recurringFields = $('#rScheduleRecurringFields');
     const frequencyInput = $('#rScheduleFrequency');
     const intervalInput = $('#rScheduleInterval');
@@ -3980,8 +5988,50 @@
     const equipmentRequirements = $('#rScheduleEquipmentRequirements');
     const equipmentStartInput = $('#rScheduleEquipmentStart');
     const equipmentEndInput = $('#rScheduleEquipmentEnd');
+    const seriesCancelButton = $('#rScheduleSeriesCancel');
+    const wantsRecurring = !!recurringSeries || options.recurring === true;
 
-    dialog.classList.add('active');
+    titleEl.textContent = scheduleDialogHeading(eventTypeId, scheduleCachedConfig?.event_types?.[eventTypeId] || {}, wantsRecurring, !!recurringSeries, !!editEvent);
+    subEl.textContent = 'Loading who can be assigned…';
+    recurringInput.checked = wantsRecurring;
+    recurringFields.hidden = !wantsRecurring;
+    // An existing item is edited as itself; repeating it is a new series.
+    if (recurringWrap) recurringWrap.hidden = !!editEvent;
+    if (seriesCancelButton) seriesCancelButton.hidden = !recurringSeries?.id || String(recurringSeries?.status || '') === 'cancelled';
+    saveBtn.disabled = true;
+    saveBtn.removeAttribute('aria-busy');
+    delete saveBtn.dataset.saving;
+    // Editing an item or a series saves it; only a new item is "scheduled".
+    const saveLabel = editEvent || recurringSeries ? 'Save' : 'Schedule';
+    saveBtn.textContent = saveLabel;
+    overrideInput.checked = false;
+    overrideWrap?.classList.remove('visible');
+    // Until the branch settings and people are loaded the form shows what is
+    // already known (title, date, time) but can't be edited, so nothing typed
+    // meanwhile is overwritten when the data arrives.
+    const dialogCard = dialog.querySelector('.r-schedule-card');
+    const setDialogLoading = (loading) => {
+      dialogCard?.classList.toggle('loading', loading);
+      if (loading) dialogCard?.setAttribute('aria-busy', 'true');
+      else dialogCard?.removeAttribute('aria-busy');
+      dialogCard?.querySelectorAll('.r-schedule-grid input, .r-schedule-grid select, .r-schedule-allday input, #rScheduleRecurringWrap input, #rScheduleOverride, #rScheduleAdvanced').forEach((control) => { control.disabled = loading; });
+    };
+    {
+      const knownEvent = recurringSeries?.event_template || editEvent || {};
+      const knownStart = recurringSeries?.start_at ? new Date(recurringSeries.start_at) : (editEvent ? (Scheduling.eventStart?.(editEvent) || null) : (options.start ? new Date(options.start) : null));
+      itemTitleInput.value = recurringSeries?.title || knownEvent.title || '';
+      itemTitleInput.placeholder = eventTypeId === 'project_work' ? 'e.g. Gutter install' : scheduleDialogTypeLabel(eventTypeId, scheduleCachedConfig?.event_types?.[eventTypeId] || {});
+      if (knownStart && Number.isFinite(knownStart.getTime())) {
+        const knownAllDay = editEvent ? (typeof Scheduling.eventIsAllDay === 'function' ? Scheduling.eventIsAllDay(editEvent) : editEvent.all_day !== false) : options.allDay === true;
+        dateInput.value = scheduleLocalDate(knownStart);
+        timeInput.value = knownAllDay ? '' : `${String(knownStart.getHours()).padStart(2, '0')}:${String(knownStart.getMinutes()).padStart(2, '0')}`;
+      } else {
+        dateInput.value = '';
+        timeInput.value = '';
+      }
+    }
+    setDialogLoading(true);
+    showScheduleDialog(dialog);
     statusEl.textContent = (globalThis.PlatformLanguage?.text("project-schedule","m_e936b49093ae54","Loading availability...") ?? "Loading availability...");
     statusEl.classList.remove('bad');
     usersInput.innerHTML = '';
@@ -3991,47 +6041,73 @@
     let users = [];
     let projects = [];
     try {
-      config = await Scheduling.loadBranchConfig(orgId, scheduleBranchId());
-      users = await Scheduling.listUsers(orgId, config);
-      projects = await Scheduling.listProjects(orgId, config);
-      rememberScheduleData(config, users, projects);
-      await loadWorkforceResources();
+      ({ config, users, projects } = await loadScheduleData());
     } catch (error) {
+      if (!isCurrentSession()) return;
+      setDialogLoading(false);
       statusEl.textContent = (globalThis.PlatformLanguage?.text("project-schedule","m_162d3a1aa54d57","Could not load scheduling data.") ?? "Could not load scheduling data.");
       statusEl.classList.add('bad');
       return;
     }
+    if (!isCurrentSession()) return;
+    setDialogLoading(false);
 
-    const seriesEvent = recurringSeries?.event_template || {};
+    // The item (or series template) being edited supplies every field.
+    const seriesEvent = recurringSeries?.event_template || editEvent || {};
     const seriesRule = recurringSeries?.recurrence || {};
     const seriesBilling = recurringSeries?.billing || {};
     const seriesExpenses = recurringSeries?.expenses || {};
-    eventTypeId = recurringSeries ? String(seriesEvent.event_type_default_id || eventTypeId) : eventTypeId;
+    eventTypeId = recurringSeries ? String(seriesEvent.event_type_default_id || eventTypeId) : (editEvent ? scheduleEventTypeId(editEvent) : eventTypeId);
     const eventType = config.event_types?.[eventTypeId] || {};
     const requiredRoleIds = Array.isArray(eventType.required_role_ids) ? eventType.required_role_ids : (Array.isArray(eventType.role_ids) ? eventType.role_ids : []);
     const allowedRoleIds = Array.isArray(eventType.allowed_role_ids) ? eventType.allowed_role_ids : (Array.isArray(eventType.role_ids) ? eventType.role_ids : requiredRoleIds);
     const roleIds = Array.from(new Set([...requiredRoleIds, ...allowedRoleIds]));
-    const primaryRoleId = requiredRoleIds[0] || allowedRoleIds[0] || 'sales_appointments';
     const assignableSubjects = scheduleAssignableSubjects(eventTypeId, String(seriesEvent.scope_template_id || ''), config, users);
+    // Whoever is already assigned stays selected (and listed) when editing.
+    const initialAssignees = eventWorkAssignees(seriesEvent);
+    initialAssignees.forEach((ref) => {
+      if (!assignableSubjects.some((subject) => String(subject.id) === ref.id)) assignableSubjects.push({ id:ref.id, name:ref.name, subject_type:ref.kind, resource_kind:ref.kind });
+    });
     const duration = Number(eventType.duration_minutes || 60);
-    titleEl.textContent = recurringSeries ? 'Edit recurring item' : (eventType.label ? `Schedule ${eventType.label}` : 'Schedule Appointment');
-    subEl.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("project-schedule","m_d9a86fd7f6df2c",`Choose from ${v0} eligible ${v1} allowed by this event type.`,{v0,v1}) ?? `Choose from ${v0} eligible ${v1} allowed by this event type.`)(assignableSubjects.length,assignableSubjects.length === 1 ? 'assignee' : 'assignees');
-    const now = new Date();
-    const nextHour = new Date(now.getTime() + 60 * 60 * 1000);
-    nextHour.setMinutes(0, 0, 0);
-    const seriesStart = recurringSeries?.start_at ? new Date(recurringSeries.start_at) : null;
-    dateInput.value = seriesStart && Number.isFinite(seriesStart.getTime()) ? Scheduling.localDateInput(seriesStart) : Scheduling.localDateInput(nextHour);
-    const internalLimitsEnabled = !!(config?.availability?.apply_limits_to_internal_users || config?.scheduling?.availability?.apply_limits_to_internal_users);
-    const internalWindowForDate = (dateValue) => {
-      if (internalLimitsEnabled) return Scheduling.availabilityWindow ? Scheduling.availabilityWindow(config, dateValue, eventTypeId) : { start: '09:00', end: '17:00' };
-      return { start: '00:00', end: '23:59' };
-    };
-    const initialWindow = internalWindowForDate(dateInput.value);
-    const seedTime = seriesStart || nextHour;
+    const typeLabel = scheduleDialogTypeLabel(eventTypeId, eventType);
+    titleEl.textContent = scheduleDialogHeading(eventTypeId, eventType, wantsRecurring, !!recurringSeries, !!editEvent);
+    const subjectCounts = assignableSubjects.reduce((counts, subject) => {
+      if (String(subject.subject_type || subject.resource_kind || 'organization_user') === 'organization_user') counts.people += 1;
+      else counts.groups += 1;
+      return counts;
+    }, { people:0, groups:0 });
+    const countParts = [
+      subjectCounts.groups ? `${subjectCounts.groups} ${workforceTerm('resource_group', subjectCounts.groups === 1 ? 'singular' : 'plural').toLowerCase()}` : '',
+      subjectCounts.people ? `${subjectCounts.people} ${subjectCounts.people === 1 ? 'person' : 'people'}` : ''
+    ].filter(Boolean);
+    subEl.textContent = countParts.length
+      ? `Choose a time, then assign any of the ${countParts.join(' and ')} this event type allows.`
+      : 'Choose a time. Nobody is eligible for this event type yet, so it will be left unassigned.';
+    const seriesStart = recurringSeries?.start_at
+      ? new Date(recurringSeries.start_at)
+      : (editEvent ? (Scheduling.eventStart?.(editEvent) || null) : (options.start ? new Date(options.start) : null));
+    const workWindow = Scheduling.availabilityWindow ? Scheduling.availabilityWindow(config, Scheduling.localDateInput(seriesStart && Number.isFinite(seriesStart.getTime()) ? seriesStart : new Date()), eventTypeId) : null;
+    const defaultStart = defaultScheduleStart(workWindow?.start || '08:00', workWindow?.end || '17:00');
+    const editAllDay = editEvent ? (typeof Scheduling.eventIsAllDay === 'function' ? Scheduling.eventIsAllDay(editEvent) : editEvent.all_day !== false && editEvent.schedule_granularity !== 'time') : false;
+    const startsAllDay = editEvent ? editAllDay : (!recurringSeries && options.allDay === true);
+    dateInput.value = seriesStart && Number.isFinite(seriesStart.getTime()) ? Scheduling.localDateInput(seriesStart) : Scheduling.localDateInput(defaultStart);
+    // A whole-day click keeps the working day's start as its time.
+    const seedTime = seriesStart && Number.isFinite(seriesStart.getTime()) && !startsAllDay
+      ? seriesStart
+      : (() => { const [h, m] = String(workWindow?.start || '08:00').split(':').map(Number); const date = new Date(defaultStart); if (seriesStart) date.setHours(Number(h) || 8, Number(m) || 0, 0, 0); return date; })();
     timeInput.value = `${String(seedTime.getHours()).padStart(2, '0')}:${String(seedTime.getMinutes()).padStart(2, '0')}`;
-    durationInput.value = Number(seriesEvent.duration_minutes || duration);
-    itemTitleInput.value = recurringSeries?.title || seriesEvent.title || eventType.label || 'Appointment';
-    recurringInput.checked = !!recurringSeries;
+    const editDuration = editEvent ? Math.max(15, Math.round(((Scheduling.eventEnd?.(editEvent) || seedTime) - (Scheduling.eventStart?.(editEvent) || seedTime)) / 60000) || duration) : 0;
+    durationInput.value = editEvent ? (editAllDay ? duration : editDuration) : Number(options.durationMinutes || seriesEvent.duration_minutes || duration);
+    if (editEvent && editAllDay) {
+      const start = Scheduling.eventStart?.(editEvent);
+      const end = Scheduling.eventEnd?.(editEvent);
+      daysInput.value = String(start && end ? Math.max(1, Math.round((scheduleAddDays(end, 0) - scheduleAddDays(start, 0)) / 86400000) || 1) : 1);
+    } else daysInput.value = String(Math.max(1, Number(options.days) || 1));
+    allDayInput.checked = startsAllDay;
+    if (allDayWrap) allDayWrap.hidden = !!recurringSeries || wantsRecurring;
+    itemTitleInput.placeholder = eventTypeId === 'project_work' ? 'e.g. Gutter install' : typeLabel;
+    itemTitleInput.value = recurringSeries?.title || seriesEvent.title || '';
+    recurringInput.checked = wantsRecurring;
     frequencyInput.value = String(seriesRule.frequency || 'monthly');
     intervalInput.value = String(seriesRule.interval || 1);
     endModeInput.value = Number(seriesRule.occurrence_count) > 0 ? 'count' : (seriesRule.end_at ? 'date' : 'never');
@@ -4039,6 +6115,13 @@
     countInput.value = String(Math.max(1, Number(seriesRule.occurrence_count || 1)));
     billingAmountInput.value = seriesBilling.amount_cents ? (Number(seriesBilling.amount_cents) / 100).toFixed(2) : '';
     billingFrequencyInput.value = String(seriesBilling.frequency || seriesRule.frequency || 'monthly');
+    if (!billingFrequencyInput.value) billingFrequencyInput.value = 'monthly';
+    // Billing follows the visit cadence until it is chosen separately.
+    let billingEdited = !!seriesBilling.frequency && String(seriesBilling.frequency) !== String(seriesRule.frequency || '');
+    billingFrequencyInput.onchange = () => { billingEdited = true; };
+    frequencyInput.onchange = () => {
+      if (!billingEdited && [...billingFrequencyInput.options].some((option) => option.value === frequencyInput.value)) billingFrequencyInput.value = frequencyInput.value;
+    };
     expenseAmountInput.value = seriesExpenses.amount_cents ? (Number(seriesExpenses.amount_cents) / 100).toFixed(2) : '';
     const selectedEquipmentIds = new Set((Array.isArray(seriesEvent.resource_refs) ? seriesEvent.resource_refs : [])
       .filter((ref) => String(ref?.kind || '') === 'equipment_unit').map((ref) => String(ref.id || '')));
@@ -4050,8 +6133,29 @@
       const pad = (part) => String(part).padStart(2, '0');
       return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
     };
-    if (equipmentStartInput) equipmentStartInput.value = localDateTime(firstEquipmentRef.start_at || selectedStart());
-    if (equipmentEndInput) equipmentEndInput.value = localDateTime(firstEquipmentRef.end_at || new Date(selectedStart().getTime() + Number(durationInput.value || duration) * 60000));
+    // The equipment window follows the appointment time until someone edits it.
+    // (An item being edited whose equipment window matches its own time keeps
+    // following it; only a window set separately stays put.)
+    const followsEditedItem = !!editEvent && (() => {
+      const refStart = Date.parse(firstEquipmentRef.start_at || '');
+      const refEnd = Date.parse(firstEquipmentRef.end_at || '');
+      const itemStart = Scheduling.eventStart?.(editEvent)?.getTime?.();
+      const itemEnd = Scheduling.eventEnd?.(editEvent)?.getTime?.();
+      return (!Number.isFinite(refStart) || refStart === itemStart) && (!Number.isFinite(refEnd) || refEnd === itemEnd);
+    })();
+    let equipmentWindowEdited = !followsEditedItem && !!(firstEquipmentRef.start_at || firstEquipmentRef.end_at);
+    const syncEquipmentWindow = () => {
+      if (equipmentWindowEdited) return;
+      const { start, end } = selectedRange();
+      if (!Number.isFinite(start.getTime())) return;
+      if (equipmentStartInput) equipmentStartInput.value = localDateTime(start);
+      if (equipmentEndInput) equipmentEndInput.value = localDateTime(end);
+    };
+    if (equipmentStartInput) equipmentStartInput.value = localDateTime(firstEquipmentRef.start_at || selectedRange().start);
+    if (equipmentEndInput) equipmentEndInput.value = localDateTime(firstEquipmentRef.end_at || selectedRange().end);
+    [equipmentStartInput, equipmentEndInput].forEach((input) => {
+      if (input) input.onchange = () => { equipmentWindowEdited = true; };
+    });
     const existingRequirements = Array.isArray(seriesEvent.resource_requirements) ? seriesEvent.resource_requirements : [];
     if (equipmentRequirements) equipmentRequirements.innerHTML = scheduleCachedEquipmentTypes.length
       ? scheduleCachedEquipmentTypes.map((type) => {
@@ -4080,8 +6184,26 @@
     };
     renderRecurrenceEnd();
 
+    function allDaySelected(){
+      return allDayInput.checked === true && !recurringInput.checked;
+    }
+    function renderAllDay(){
+      const allDay = allDaySelected();
+      if (timeWrap) timeWrap.hidden = allDay;
+      if (durationWrap) durationWrap.hidden = allDay;
+      if (daysWrap) daysWrap.hidden = !allDay;
+      if (allDayWrap) allDayWrap.hidden = !!recurringSeries || recurringInput.checked;
+    }
+    renderAllDay();
+
     function selectedStart(){
+      if (allDaySelected()) return new Date(`${dateInput.value}T00:00:00`);
       return new Date(`${dateInput.value}T${timeInput.value || '09:00'}:00`);
+    }
+    function selectedRange(){
+      const start = selectedStart();
+      if (allDaySelected()) return { start, end:scheduleAddDays(start, Math.max(1, Math.round(Number(daysInput.value) || 1))) };
+      return { start, end:new Date(start.getTime() + Math.max(1, Number(durationInput.value || duration)) * 60000) };
     }
 
     function selectedUserIds(){
@@ -4096,11 +6218,15 @@
       }).filter(Boolean);
     }
 
+    // Seed the list with the current assignees selected, so the first
+    // availability pass keeps them.
+    usersInput.innerHTML = initialAssignees.map((ref) => `<option value="${escapeHtml(ref.id)}" selected>${escapeHtml(ref.name || ref.id)}</option>`).join('');
+
     let availabilityGeneration = 0;
     let authoritativeSlots = [];
     const authoritativeAvailability = () => window.PlatformAPI?.appointments?.availability?.(orgId, {
-      project_id:project.id,
-      event_id:String(scheduleAssignmentEventId || scheduleSelectedEventId || ''),
+      project_id:project?.id || '',
+      event_id:String(editEvent?.id || scheduleAssignmentEventId || scheduleSelectedEventId || ''),
       event_type_id:eventTypeId,
       start_date:dateInput.value,
       end_date:dateInput.value,
@@ -4110,74 +6236,119 @@
     const selectedResourceKeys = () => assignableSubjects
       .filter((subject) => selectedUserIds().includes(subject.id))
       .map((subject) => `${subject.subject_type || subject.resource_kind || 'organization_user'}:${subject.id}`.toLowerCase());
+    // The routed availability service reports people and equipment units. A
+    // selected crew or subcontractor has no candidate key there; those are
+    // checked against the items they are already booked on instead.
+    let reportedCandidateKinds = new Set();
+    const resourceKeyKind = (key) => String(key || '').split(':')[0];
     const slotSupportsSelection = (slot) => {
-      const selectedKeys = selectedResourceKeys();
+      const selectedKeys = selectedResourceKeys().filter((key) => reportedCandidateKinds.has(resourceKeyKind(key)));
       if (!selectedKeys.length) return slot?.available === true;
       const candidateKeys = new Set((Array.isArray(slot?.candidates) ? slot.candidates : []).map((candidate) => String(candidate.resource_key || '').toLowerCase()));
       return slot?.available === true && selectedKeys.every((key) => candidateKeys.has(key));
     };
+    const crewConflictText = () => {
+      const { start, end } = selectedRange();
+      const crewIds = assignableSubjects.filter((subject) => selectedUserIds().includes(subject.id) && subject.subject_type !== 'organization_user').map((subject) => subject.id);
+      const conflicts = scheduleCrewConflicts(crewIds, start, end, { excludeId:editEvent?.id || '', excludeSeriesId:recurringSeries?.id || '' });
+      if (!conflicts.length) return '';
+      const first = conflicts[0];
+      const more = conflicts.length > 1 ? ` (+${conflicts.length - 1} more)` : '';
+      return `${first.resource.name || 'That crew'} is already booked on “${scheduleEventDisplayTitle(first.event)}” (${workRangeLabel(first.event)})${more}.`;
+    };
+    const applyOutcome = (available, message) => {
+      const conflict = crewConflictText();
+      const ok = available && !conflict;
+      statusEl.classList.toggle('bad', !ok);
+      statusEl.textContent = conflict ? `${conflict} Pick another time or check “Schedule anyway”.` : message;
+      if (overrideWrap) overrideWrap.classList.toggle('visible', !ok || !!overrideInput?.checked);
+      saveBtn.disabled = !ok && !overrideInput?.checked;
+      saveBtn.textContent = saveLabel === 'Save' ? (ok || !overrideInput?.checked ? 'Save' : 'Save anyway') : (ok ? 'Schedule' : (overrideInput?.checked ? 'Schedule Anyway' : 'Schedule'));
+    };
 
     function renderAvailability(){
+      renderAllDay();
       const start = selectedStart();
       const durationMinutes = Number(durationInput.value || duration);
       const selectedIds = selectedUserIds();
       const selectedAssignedUsers = assignedUsersForIds(selectedIds);
       const selectedResourceSubjects = assignableSubjects.filter((subject) => selectedIds.includes(subject.id) && subject.subject_type !== 'organization_user');
-      const availability = Scheduling.availabilityForRole({
-        users,
-        projects,
-        roleId: primaryRoleId,
-        start,
-        durationMinutes,
-      });
+      const allDay = allDaySelected();
+      // A series being edited never clashes with its own occurrences.
+      const availabilityProjects = recurringSeries?.id
+        ? projects.map((item) => ({ ...item, events:(Array.isArray(item?.events) ? item.events : []).filter((entry) => String(entry?.recurrence_series_id || '') !== String(recurringSeries.id)) }))
+        : projects;
       const eventAvailability = Scheduling.availabilityForEventType({
         users,
-        projects,
+        projects:availabilityProjects,
         eventType,
         eventTypeId,
         start,
         durationMinutes,
         assignedUserIds: selectedAssignedUsers.map((user) => user.id),
         assignedUsers: selectedAssignedUsers,
+        excludeEventId: editEvent?.id || ''
       });
-      const availableUserIds = new Set((eventAvailability.eligibleUsers?.length ? eventAvailability.eligibleUsers : availability.availableUsers).map((user) => String(user.id)));
-      const eligibleUsers = assignableSubjects.filter((subject) => subject.subject_type !== 'organization_user' || availableUserIds.has(String(subject.id)) || selectedIds.includes(subject.id));
-      usersInput.innerHTML = `<option value="">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f63dccd2774d7e","Assign later") ?? "Assign later")}</option>` + eligibleUsers.map((user) => {
+      // Everyone this event type allows is listed (the heading counts them);
+      // crews and people already booked on another item then are marked
+      // instead of hidden.
+      const range = selectedRange();
+      const booked = new Set(scheduleCrewConflicts(assignableSubjects.map((subject) => subject.id), range.start, range.end, { excludeId:editEvent?.id || '', excludeSeriesId:recurringSeries?.id || '', includePeople:true }).map((entry) => entry.resource.id));
+      usersInput.innerHTML = `<option value="">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f63dccd2774d7e","Assign later") ?? "Assign later")}</option>` + assignableSubjects.map((user) => {
         const roleLabel = (user.mapped_roles || []).map((role) => role.label).join(', ');
         const selected = selectedIds.includes(user.id) ? 'selected' : '';
-        return `<option value="${escapeHtml(user.id)}" ${selected}>${escapeHtml(user.name || user.email || user.id)}${roleLabel ? ` - ${escapeHtml(roleLabel)}` : ''}</option>`;
+        return `<option value="${escapeHtml(user.id)}" ${selected}>${escapeHtml(user.name || user.email || user.id)}${roleLabel ? ` - ${escapeHtml(roleLabel)}` : ''}${booked.has(String(user.id)) ? ' — booked then' : ''}</option>`;
       }).join('');
-      const hasAvailability = eventAvailability.hasAvailability || selectedResourceSubjects.length > 0 || (!selectedIds.length && eventType.assignment_policy?.allow_unassigned !== false);
-      statusEl.classList.toggle('bad', !hasAvailability);
+      const hasAvailability = allDay || eventAvailability.hasAvailability || selectedResourceSubjects.length > 0 || (!selectedIds.length && eventType.assignment_policy?.allow_unassigned !== false);
       const assignedBusy = (eventAvailability.assignedStatus || []).filter((entry) => entry.busy).map((entry) => entry.user.name || entry.user.email || entry.user.id);
-      statusEl.textContent = hasAvailability
-        ? `${eligibleUsers.length} eligible for ${start.toLocaleString([], { weekday:'short', hour:'numeric', minute:'2-digit' })}.`
-        : assignedBusy.length
-          ? `${assignedBusy.join(', ')} is already booked at that time.`
-          : 'Required roles are not fully available at that time.';
-      if (overrideWrap) overrideWrap.classList.toggle('visible', !hasAvailability);
-      saveBtn.disabled = !hasAvailability && !overrideInput?.checked;
-      saveBtn.textContent = hasAvailability ? 'Schedule' : (overrideInput?.checked ? 'Schedule Anyway' : 'Schedule');
+      applyOutcome(hasAvailability, allDay
+        ? `All day, ${selectedRange().start.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' })}${Number(daysInput.value) > 1 ? ` for ${Math.round(Number(daysInput.value))} days` : ''}.`
+        : hasAvailability
+          ? `${assignableSubjects.length} eligible for ${start.toLocaleString([], { weekday:'short', hour:'numeric', minute:'2-digit' })}.`
+          : assignedBusy.length
+            ? `${assignedBusy.join(', ')} is already booked at that time.`
+            : 'Required roles are not fully available at that time.');
+      syncEquipmentWindow();
       void renderSlots();
     }
 
     async function renderSlots(){
       const generation = ++availabilityGeneration;
+      // Whole days and series are not limited to appointment slots.
+      if (allDaySelected() || recurringInput.checked) {
+        slotsEl.classList.remove('checking');
+        slotsEl.removeAttribute('aria-busy');
+        slotsEl.innerHTML = '';
+        return;
+      }
       saveBtn.disabled = true;
-      slotsEl.innerHTML = `<span class="r-schedule-slot unavailable">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_e3f33bfdf56cf1","Checking availability…") ?? "Checking availability…")}</span>`;
+      // Keep the previous times on screen while re-checking so the centered
+      // dialog does not jump under the pointer mid-click.
+      if (slotsEl.querySelector('[data-time]')) {
+        slotsEl.classList.add('checking');
+        slotsEl.setAttribute('aria-busy', 'true');
+      } else slotsEl.innerHTML = `<span class="r-schedule-slots-note" aria-busy="true"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_e3f33bfdf56cf1","Checking availability…") ?? "Checking availability…")}</span>`;
       let result;
       try {
         result = await authoritativeAvailability();
       } catch (error) {
-        if (generation !== availabilityGeneration) return;
+        if (generation !== availabilityGeneration || !isCurrentSession()) return;
+        slotsEl.classList.remove('checking');
+        slotsEl.removeAttribute('aria-busy');
         authoritativeSlots = [];
-        slotsEl.innerHTML = `<span class="r-schedule-slot unavailable">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f40ba07aaa433a","Availability unavailable") ?? "Availability unavailable")}</span>`;
+        slotsEl.innerHTML = `<span class="r-schedule-slots-note">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f40ba07aaa433a","Availability unavailable") ?? "Availability unavailable")}</span>`;
         statusEl.textContent = error?.message || 'Could not check authoritative availability.';
         statusEl.classList.add('bad');
+        overrideWrap?.classList.add('visible');
         saveBtn.disabled = !overrideInput?.checked;
         return;
       }
-      if (generation !== availabilityGeneration) return;
+      if (generation !== availabilityGeneration || !isCurrentSession()) return;
+      slotsEl.classList.remove('checking');
+      slotsEl.removeAttribute('aria-busy');
+      reportedCandidateKinds = new Set((Array.isArray(result?.slots) ? result.slots : [])
+        .flatMap((slot) => (Array.isArray(slot?.candidates) ? slot.candidates : []).map((candidate) => resourceKeyKind(String(candidate.resource_key || '').toLowerCase())))
+        .filter(Boolean));
       authoritativeSlots = (Array.isArray(result?.slots) ? result.slots : []).map((slot) => {
         const instant = new Date(slot.start_at || slot.start);
         return {
@@ -4201,15 +6372,12 @@
       const selectedIso = selectedStart().toISOString();
       const selectedSlot = slots.find((slot) => slot.start_at === selectedIso || slot.start === selectedIso);
       const available = slotSupportsSelection(selectedSlot);
-      statusEl.classList.toggle('bad', !available);
-      statusEl.textContent = available
+      applyOutcome(available, available
         ? `${Number(selectedSlot.available_count || 0)} routed assignment${Number(selectedSlot.available_count || 0) === 1 ? '' : 's'} available for this time.`
-        : 'This time is not available under the routed scheduling rules.';
-      saveBtn.disabled = !available && !overrideInput?.checked;
-      saveBtn.textContent = available ? 'Schedule' : (overrideInput?.checked ? 'Schedule Anyway' : 'Schedule');
+        : 'This time is not available under the routed scheduling rules. Choose another time or check “Schedule anyway”.');
     }
 
-    [dateInput, timeInput, durationInput, usersInput, overrideInput].forEach((input) => {
+    [dateInput, timeInput, durationInput, daysInput, usersInput, overrideInput, allDayInput].forEach((input) => {
       if (input) input.oninput = renderAvailability;
       if (input) input.onchange = renderAvailability;
     });
@@ -4218,19 +6386,59 @@
       renderAvailability();
     };
     endModeInput.onchange = renderRecurrenceEnd;
+    if (seriesCancelButton) seriesCancelButton.onclick = async () => {
+      if (!recurringSeries?.id) return;
+      const confirmed = await (Portal?.ui?.confirm?.((globalThis.PlatformLanguage?.text("project-schedule","m_91303d517f39fa","Cancel this recurring series and its future appointments?") ?? "Cancel this recurring series and its future appointments?"), {
+        title:(globalThis.PlatformLanguage?.text("project-schedule","m_6c097c79cef08a","Cancel series") ?? "Cancel series"),
+        okLabel:'Cancel series',
+        cancelLabel:'Keep series',
+        danger:true
+      }) ?? Promise.resolve(window.confirm('Cancel this recurring series and its future appointments?')));
+      if (!confirmed) return;
+      seriesCancelButton.disabled = true;
+      try {
+        await window.PlatformAPI.projects.cancelRecurrenceSeries(orgId, recurringSeries.id);
+        await loadRecurringSeries({ refresh: true });
+        closeScheduleDialog();
+        await refreshProjectFromServer({ render:false });
+        renderSchedulePanel();
+        window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+        showToast((globalThis.PlatformLanguage?.text("project-schedule","m_444d3d72c440e4","Recurring series cancelled") ?? "Recurring series cancelled"), (globalThis.PlatformLanguage?.text("project-schedule","m_d673dcfa6aee57","Future appointments and open future charges were cancelled.") ?? "Future appointments and open future charges were cancelled."), true);
+      } catch (error) {
+        statusEl.textContent = error?.message || 'Could not cancel the recurring series.';
+        statusEl.classList.add('bad');
+      } finally {
+        seriesCancelButton.disabled = false;
+      }
+    };
     saveBtn.onclick = async () => {
+      if (saveBtn.dataset.saving === 'true') return;
+      project = ensureSchedulingProject();
+      if (!project?.id) {
+        statusEl.textContent = 'Save the project details before scheduling it.';
+        statusEl.classList.add('bad');
+        return;
+      }
+      const allDay = allDaySelected();
+      const { start:rangeStart, end:rangeEnd } = selectedRange();
+      if (!Number.isFinite(rangeStart.getTime()) || !Number.isFinite(rangeEnd.getTime())) {
+        statusEl.textContent = 'Choose a date first.';
+        statusEl.classList.add('bad');
+        return;
+      }
       const selectedIds = selectedUserIds();
       const selectedSubjects = assignableSubjects.filter((subject) => selectedIds.includes(subject.id));
-      const assignment = assignmentPayloadForSubjects(selectedSubjects);
+      // Every selected crew and person is assigned (not only the first).
+      const assignment = workAssigneesPayload({}, selectedSubjects.map((subject) => ({ id:subject.id, kind:subject.subject_type || subject.resource_kind || 'organization_user', name:subject.name || subject.email || subject.id })));
       const selectedUnitIds = Array.from(equipmentInput?.selectedOptions || []).map((option) => String(option.value || '')).filter(Boolean);
-      const equipmentWindowStart = new Date(equipmentStartInput?.value || selectedStart());
-      const equipmentWindowEnd = new Date(equipmentEndInput?.value || (selectedStart().getTime() + Number(durationInput.value || duration) * 60000));
+      const equipmentWindowStart = new Date(equipmentStartInput?.value || rangeStart);
+      const equipmentWindowEnd = new Date(equipmentEndInput?.value || rangeEnd);
       if (selectedUnitIds.length && Number.isFinite(equipmentWindowStart.getTime()) && Number.isFinite(equipmentWindowEnd.getTime()) && equipmentWindowEnd <= equipmentWindowStart) {
         statusEl.textContent = (globalThis.PlatformLanguage?.text("project-schedule","m_a7c91be49bc6e0","Equipment must be released after it is assigned.") ?? "Equipment must be released after it is assigned.");
         statusEl.classList.add('bad');
         return;
       }
-      const resourceRefs = selectedUnitIds.map((id) => {
+      const equipmentRefs = selectedUnitIds.map((id) => {
         const unit = scheduleCachedEquipmentUnits.find((item) => String(item.id || '') === id);
         const existingRef = (Array.isArray(seriesEvent.resource_refs) ? seriesEvent.resource_refs : []).find((ref) => String(ref?.kind || '') === 'equipment_unit' && String(ref?.id || '') === id) || {};
         const startAt = new Date(equipmentStartInput?.value || existingRef.start_at || equipmentWindowStart);
@@ -4243,27 +6451,67 @@
         const quantity = Math.max(1, Math.round(Number(equipmentRequirements.querySelector(`[data-equipment-requirement-quantity="${window.CSS?.escape ? window.CSS.escape(typeId) : typeId}"]`)?.value || 1)));
         return { kind:'equipment_type', equipment_type_id:typeId, label:String(type?.name || typeId), quantity };
       });
-      const event = Scheduling.createProjectEvent(project, eventTypeId, {
-        start: selectedStart(),
-        durationMinutes: Number(durationInput.value || duration),
-        ...assignment,
-        title: itemTitleInput.value || eventType.label || 'Appointment',
-        availability_override: !!overrideInput?.checked,
-        resource_refs:resourceRefs,
-        resource_requirements:resourceRequirements,
-      }, config);
+      const title = String(itemTitleInput.value || '').trim() || (editEvent ? scheduleEventDisplayTitle(editEvent) : typeLabel);
+      const timing = allDay
+        ? { start:rangeStart, end:rangeEnd, all_day:true, schedule_granularity:'date', start_date:scheduleLocalDate(rangeStart), end_date:scheduleLocalDate(scheduleAddDays(rangeEnd, -1)) }
+        : { start:rangeStart, end:rangeEnd, all_day:false, schedule_granularity:'time', start_date:'', end_date:'' };
+      const crewRefs = (assignment.resource_refs || []).filter((ref) => !EQUIPMENT_REF_KINDS.includes(workRefKind(ref.kind)));
+      const resourceRefs = [...crewRefs, ...equipmentRefs];
+      const event = editEvent
+        ? {
+            ...Scheduling.updateProjectEventRange(editEvent, timing),
+            ...assignment,
+            title,
+            start_date:timing.start_date,
+            end_date:timing.end_date,
+            status:materialEventIsScheduled(editEvent) ? (editEvent.status || 'scheduled') : 'scheduled',
+            resource_refs:resourceRefs,
+            resource_requirements:resourceRequirements,
+            availability_override:!!overrideInput?.checked,
+            schedule_history:[...(Array.isArray(editEvent.schedule_history) ? editEvent.schedule_history : []), scheduleHistoryEntry(editEvent, 'edited')].filter(Boolean),
+            updated_at:new Date().toISOString()
+          }
+        : Scheduling.createProjectEvent(project, eventTypeId, {
+            ...timing,
+            durationMinutes: Math.max(1, Math.round((rangeEnd - rangeStart) / 60000)),
+            ...assignment,
+            title,
+            availability_override: !!overrideInput?.checked,
+            resource_refs:resourceRefs,
+            resource_requirements:resourceRequirements,
+          }, config);
+      // A day that has already passed is allowed (catching up records) but
+      // never silent — asked when the item is new or its date changed.
+      const originalStart = recurringSeries?.start_at ? new Date(recurringSeries.start_at) : (editEvent && materialEventIsScheduled(editEvent) ? Scheduling.eventStart?.(editEvent) : null);
+      const dateChanged = !originalStart || !Number.isFinite(originalStart.getTime()) || scheduleLocalDate(originalStart) !== scheduleLocalDate(rangeStart);
+      if (dateChanged && scheduleIsPastDay(rangeStart)) {
+        saveBtn.dataset.saving = 'true';
+        const placeInPast = await confirmPastPlacement({ ...event, title }, rangeStart);
+        delete saveBtn.dataset.saving;
+        if (!placeInPast || !scheduleDialogOpen() || !isCurrentSession()) return;
+      }
+      saveBtn.dataset.saving = 'true';
+      saveBtn.disabled = true;
+      saveBtn.setAttribute('aria-busy', 'true');
+      const idleLabel = saveBtn.textContent;
+      saveBtn.textContent = 'Saving…';
+      let related = null;
       try {
-        if (!recurringInput.checked && !recurringSeries && !overrideInput?.checked) {
+        if (!recurringInput.checked && !recurringSeries && !overrideInput?.checked && !allDay) {
           const latest = await authoritativeAvailability();
           const selectedIso = selectedStart().toISOString();
           const slot = (Array.isArray(latest?.slots) ? latest.slots : []).find((entry) => entry.start_at === selectedIso && slotSupportsSelection(entry));
           if (!slot) throw new Error('That time is no longer available under the routed scheduling rules. Choose another time or explicitly schedule anyway.');
         }
+        if (editEvent && scheduleRangeMoved(editEvent, event)) {
+          related = await resolveProjectRelatedReschedule(editEvent, { start:event.start_at, end:event.end_at });
+          if (related.cancelled) return;
+        }
         if (recurringInput.checked || recurringSeries) {
           const billingAmount = Math.max(0, Math.round(Number(billingAmountInput.value || 0) * 100));
           const expenseAmount = Math.max(0, Math.round(Number(expenseAmountInput.value || 0) * 100));
           const payload = {
-            title: itemTitleInput.value || event.title || (globalThis.PlatformLanguage?.text("project-schedule","m_e5d043f205f6a6","Recurring item") ?? "Recurring item"),
+            title: title || (globalThis.PlatformLanguage?.text("project-schedule","m_e5d043f205f6a6","Recurring item") ?? "Recurring item"),
             start_at: selectedStart().toISOString(),
             recurrence: {
               frequency: frequencyInput.value || 'monthly',
@@ -4271,31 +6519,59 @@
               end_at: endModeInput.value === 'date' && endDateInput.value ? new Date(`${endDateInput.value}T23:59:59`).toISOString() : '',
               occurrence_count: endModeInput.value === 'count' ? Math.max(1, Math.min(240, Math.round(Number(countInput.value || 1)))) : null
             },
-            event_template: { ...event, id: undefined, title: itemTitleInput.value || event.title || (globalThis.PlatformLanguage?.text("project-schedule","m_e5d043f205f6a6","Recurring item") ?? "Recurring item") },
-            billing: { enabled: billingAmount > 0, amount_cents: billingAmount, frequency: billingFrequencyInput.value || frequencyInput.value || 'monthly', label: itemTitleInput.value || event.title || (globalThis.PlatformLanguage?.text("project-schedule","m_e5d043f205f6a6","Recurring item") ?? "Recurring item") },
+            event_template: { ...event, id: undefined, title: title || (globalThis.PlatformLanguage?.text("project-schedule","m_e5d043f205f6a6","Recurring item") ?? "Recurring item") },
+            billing: { enabled: billingAmount > 0, amount_cents: billingAmount, frequency: billingFrequencyInput.value || frequencyInput.value || 'monthly', label: title || (globalThis.PlatformLanguage?.text("project-schedule","m_e5d043f205f6a6","Recurring item") ?? "Recurring item") },
             expenses: { enabled: expenseAmount > 0, amount_cents: expenseAmount, kind: 'recurring_expense' }
           };
           if (!window.PlatformAPI?.projects?.createRecurrenceSeries) throw new Error('Recurring scheduling is not available.');
+          scheduleMutationSerial += 1;
           if (recurringSeries?.id) await window.PlatformAPI.projects.updateRecurrenceSeries(orgId, recurringSeries.id, payload);
           else await window.PlatformAPI.projects.createRecurrenceSeries(orgId, { ...payload, project_id: project.id });
+          scheduleMutationSerial += 1;
           scheduleRecurringSeries = [];
           await loadRecurringSeries({ refresh: true });
         } else {
-          const saved = await Scheduling.saveProjectEvent(orgId, project, event, config);
+          const saved = await saveScheduleEventRemote(orgId, project, event, config);
           activeBaseProject = { ...activeBaseProject, ...saved.project, events: saved.project?.events || [] };
+          if (editEvent) {
+            await saveRelatedRescheduleChanges(related);
+            await persistGroupRollups([event, ...(related?.changes || [])]);
+          }
         }
-        persistActiveBaseProject();
-        renderSchedulePanel();
-        dialog.classList.remove('active');
+        const wasRecurring = recurringInput.checked || !!recurringSeries;
+        if (wasRecurring) await refreshProjectFromServer({ render:false });
+        cacheActiveBaseProject();
+        rememberScheduleProject(activeBaseProject);
+        closeScheduleDialog();
+        const eventStart = selectedStart();
+        if (Number.isFinite(eventStart.getTime()) && !scheduleDateVisible(eventStart)) scheduleAnchorDate = eventStart;
+        renderSchedulePanelPreservingScroll();
         window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
-        showToast(recurringInput.checked || recurringSeries ? 'Recurring item saved' : 'Appointment scheduled', recurringInput.checked || recurringSeries ? 'Its future occurrences were updated.' : `${event.title} was added to the project.`, true);
+        window.dispatchEvent(new CustomEvent('fm:projects:refresh'));
+        showToast(
+          wasRecurring ? 'Recurring item saved' : (editEvent ? `${typeLabel} updated` : (eventTypeId === 'project_work' ? 'Production scheduled' : 'Appointment scheduled')),
+          wasRecurring ? 'Its future occurrences were updated.' : `${event.title} ${editEvent ? 'was saved' : 'was added to the project'}.${relatedMoveNote(related)}`,
+          true
+        );
       } catch (error) {
+        if (isStaleSaveError(error)) {
+          closeScheduleDialog();
+          handleStaleScheduleSave(error);
+          return;
+        }
         statusEl.textContent = error?.message || 'Could not save the appointment.';
         statusEl.classList.add('bad');
+      } finally {
+        delete saveBtn.dataset.saving;
+        saveBtn.removeAttribute('aria-busy');
+        if (saveBtn.textContent === 'Saving…') saveBtn.textContent = idleLabel;
+        if (scheduleDialogOpen()) saveBtn.disabled = false;
       }
     };
 
     renderAvailability();
+    // Keyboard users start in the first field.
+    setTimeout(() => { if (scheduleDialogOpen() && !dialog.contains(document.activeElement)) itemTitleInput.focus({ preventScroll:true }); }, 0);
   }
 
 
@@ -4333,6 +6609,9 @@
     state.active = true;
     setScheduleWorkspaceChrome(true);
     renderSchedulePanel();
+    // A retained window or cached project may be behind the server; re-read
+    // its items (re-rendering only when something changed).
+    if (Date.now() - scheduleLastServerRefreshAt > 15000) refreshProjectFromServer({ render:true });
   }
 
   function deactivate(context = {}){
@@ -4347,8 +6626,10 @@
   function setActive(active){
     state.active = !!active;
     setScheduleWorkspaceChrome(state.active);
-    if (state.active) renderSchedulePanel();
-    else {
+    if (state.active) {
+      renderSchedulePanel();
+      if (Date.now() - scheduleLastServerRefreshAt > 15000) refreshProjectFromServer({ render:true });
+    } else {
       closeWorkAssignmentMenu();
       closeScheduleEventPopover();
       clearScheduleLeft();
@@ -4358,6 +6639,8 @@
   function reset(){
     closeWorkAssignmentMenu();
     closeScheduleEventPopover();
+    closeScheduleDialog();
+    scheduleDataLoadedAt = 0;
     clearProjectMobileControls();
     scheduleModeActive = false;
     scheduleCalendarGen = 0;
@@ -4386,10 +6669,12 @@
     materialScheduleEventId = '';
     materialScheduleListId = '';
     materialScheduleDraft = null;
-    scheduleCrewSettingsOpen = false;
     scheduleWorkResourceDataLoaded = false;
+    scheduleResourcesSettled = false;
     scheduleWorkforceTerminology = {};
     scheduleWorkforceTerminologyLoaded = false;
+    scheduleWorkforceLoaded = false;
+    scheduleServerEvents.clear();
     scheduleRecurringSeries = [];
     scheduleRecurrenceLoading = false;
     scheduleRecurrenceLoaded = false;
@@ -4424,6 +6709,68 @@
   };
   window.addEventListener('fm:workforce:updated', refreshWorkforceResources);
   window.addEventListener('fm:organization-connections:updated', refreshWorkforceResources);
+
+  // Escape closes the topmost schedule layer (menu, popover) before the portal
+  // modal stack's document-capture handler closes the whole project window.
+  // Registered dialogs are closed by that modal stack; open pickers are closed
+  // first by the project host.
+  function handleScheduleEscape(event){
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (document.querySelector('fm-date-time-picker[popover]')) return;
+    if (scheduleDialogOpen() || document.querySelector('.r-gantt-group-backdrop')) return;
+    let handled = false;
+    if (document.querySelector('.r-schedule-crew-popover')) {
+      closeWorkAssignmentMenu();
+      handled = true;
+    } else if (document.querySelector('.r-schedule-event-popover')) {
+      closeScheduleEventPopover();
+      handled = true;
+    } else if (state.active && (projectMobileViewMenuOpen || projectMobileMonthMenuOpen)) {
+      projectMobileViewMenuOpen = false;
+      projectMobileMonthMenuOpen = false;
+      renderSchedulePanel();
+      handled = true;
+    } else if (state.active && !document.querySelector('.fm-dialog-backdrop') && schedulePlacementActive()) {
+      // Placing something: Escape cancels the placement, not the window.
+      cancelSchedulePlacement();
+      handled = true;
+    }
+    if (!handled) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+  window.addEventListener('keydown', handleScheduleEscape, true);
+
+  // After a tap, the browser's compatibility mouse events land on whatever
+  // control the tap re-rendered into place (e.g. the next "Next" button) and
+  // open its hover tooltip, which then never closes without a mouse.
+  // Schedule controls show no hover tooltips right after a touch.
+  let scheduleLastTouchAt = 0;
+  document.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'touch' || event.pointerType === 'pen') scheduleLastTouchAt = Date.now();
+  }, true);
+  document.addEventListener('mouseover', (event) => {
+    if (Date.now() - scheduleLastTouchAt > 1500) return;
+    if (!event.target?.closest?.('#rSchedulePanel, .r-schedule-left-shell, .r-schedule-event-popover, .r-schedule-crew-popover')) return;
+    event.stopPropagation();
+    window.PlatformUI?.hideTooltip?.();
+  }, true);
+
+  // Changes saved on another surface (the portal's Scheduling tab or another
+  // project window) arrive as a relayed refresh; re-read this project's items.
+  const refreshFromOtherSurface = () => {
+    scheduleDataLoadedAt = 0;
+    if (!state.mounted || !activeBaseProject?.id) return;
+    refreshProjectFromServer({ render:state.active });
+  };
+  window.addEventListener('fm:project-schedule:external', refreshFromOtherSurface);
+  // Not every surface announces its saves, so returning to this window
+  // re-reads the project's items (re-rendering only when they changed).
+  window.addEventListener('focus', () => {
+    if (!state.active || !activeBaseProject?.id || Date.now() - scheduleLastServerRefreshAt < 4000) return;
+    if (scheduleDialogOpen() || document.querySelector('.r-schedule-event-popover,.r-schedule-crew-popover')) return;
+    refreshProjectFromServer({ render:true });
+  });
 
   function invoke(name, args = []){
     const fn = api[name];

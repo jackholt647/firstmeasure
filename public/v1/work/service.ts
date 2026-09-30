@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { badRequest, notFound } from "../platform/errors.js";
 import { listDocuments, readDocument, upsertDocument } from "../platform/storage.js";
+import { updateProjectData } from "../platform/project_document_mutation.js";
 import { listScopeTemplates } from "../scopes/storage.js";
 import { normalizeAssignmentPolicy } from "../workforce/assignability.js";
 import { resolveAssignableSubjects } from "../workforce/service.js";
@@ -302,12 +303,7 @@ export async function transitionWorkNode(orgId: string, nodeId: string, statusVa
   const status = workNodeStatusSchema.parse(statusValue);
   const node = (await readNodeRecord(orgId, nodeId));
   if (!node) throw notFound("work_node_not_found", "Work node was not found.");
-  const owningPlan = (await readPlanRecord(orgId, cleanText(node.plan_id)));
-  if (owningPlan && Object.keys(manualPlanStageOverride(owningPlan)).length) {
-    (await updatePlanRecord(orgId, cleanText(node.plan_id), {
-      metadata: { ...asObject(owningPlan.metadata), manual_stage_override: {} }
-    }));
-  }
+  const statusChanged = cleanText(node.status) !== status;
   const metadata = asObject(node.metadata);
   const typeTags = Array.isArray(metadata.type_tags) ? metadata.type_tags.map(cleanText) : [];
   const isFollowUp = cleanText(metadata.kind) === "follow_up" || typeTags.includes("follow_up");
@@ -350,7 +346,35 @@ export async function transitionWorkNode(orgId: string, nodeId: string, statusVa
     }
   }
   await recalculateWorkPlan(orgId, cleanText(next.plan_id));
+  if (statusChanged) await releaseCaughtUpManualStage(orgId, cleanText(next.plan_id));
   return (await readNodeRecord(orgId, nodeId)) || next;
+}
+
+/* A manually chosen board stage (setManualPlanStage) yields to the workflow
+ * only once the workflow has reached or passed that stage. Automatic node
+ * transitions — e.g. booking or completing a sales appointment checks off
+ * "Contact lead" — used to clear the override unconditionally, dropping sold
+ * projects back to "Appointment" (R3-EQ-6). A stage that is not part of this
+ * plan's stage sequence (the canceled column, a column kept from an older
+ * template) is only released by an explicit stage change. */
+async function releaseCaughtUpManualStage(orgId: string, planId: string) {
+  if (!planId) return;
+  const plan = (await readPlanRecord(orgId, planId));
+  if (!plan) return;
+  const manual = manualPlanStageOverride(plan);
+  const manualStageId = cleanText(manual.stage_id);
+  if (!manualStageId) return;
+  const order = (await listNodeRecords(orgId, { plan_id: planId }))
+    .filter((entry) => cleanText(entry.terminology_key).endsWith("stage"))
+    .map((entry) => cleanText(entry.template_node_id));
+  const manualIndex = order.indexOf(manualStageId);
+  if (manualIndex < 0) return;
+  const workflowIndex = order.indexOf(cleanText((await workflowPlanStageSnapshot(orgId, plan)).stage_id));
+  if (workflowIndex < manualIndex) return;
+  (await updatePlanRecord(orgId, planId, {
+    metadata: { ...asObject(plan.metadata), manual_stage_override: {} }
+  }));
+  if (cleanText(plan.project_id)) await syncProjectWorkProjection(orgId, cleanText(plan.project_id)).catch(() => null);
 }
 
 export async function patchWorkNode(orgId: string, nodeId: string, patch: JsonObject) {
@@ -753,19 +777,16 @@ export async function syncProjectWorkProjection(orgId: string, projectId: string
   if (!projectId) return null;
   const document = await readDocument(orgId, "projects", projectId).catch(() => null);
   if (!document) return null;
-  const data = asObject(document.data);
   const projection = (await projectWorkProjection(orgId, projectId));
-  const saved = await upsertDocument(orgId, "projects", {
-    id: projectId,
-    data: {
-      ...data,
-      work_projection: projection,
-      lifecycle: projection.lifecycle,
-      updated_at: new Date().toISOString()
-    },
-    metadata: document.metadata
-  }, { replace: true });
-  return { id: projectId, ...asObject(saved.data) };
+  // Only the projection fields change; the write is conditional on the
+  // revision it read so it never drops schedule items saved meanwhile.
+  const saved = await updateProjectData(orgId, projectId, (data) => ({
+    ...data,
+    work_projection: projection,
+    lifecycle: projection.lifecycle,
+    updated_at: new Date().toISOString()
+  }));
+  return { id: projectId, ...asObject(saved?.data) };
 }
 
 // Cancels the project's live pipeline scope instances (e.g. when a follow-up

@@ -174,9 +174,13 @@
     return Number(error?.status || 0) === 404;
   }
 
+  // Status 0 counts as "missing" only when this frontend has no Platform API
+  // configured (request() marks that with data.missing). A network failure
+  // (fetch TypeError, offline, dropped connection) is a real error: callers
+  // must not treat a write that never reached the server as saved.
   function isMissingRecord(error){
     const message = cleanText(error?.message || error?.data?.message || error?.data?.error || error?.responseText).toLowerCase();
-    return Number(error?.status || 0) === 0
+    return (Number(error?.status || 0) === 0 && error?.data?.missing === true)
       || isNotFound(error)
       || message.includes('requested platform record was not found')
       || message.includes('platform record was not found')
@@ -994,11 +998,31 @@
    * added without a schema migration. Use documents.setField() for one-off fields and
    * documents.uploadFieldFile() when a field should point at a stored file/media item.
    */
+  /* R2-EQ-5: per-page baseline of each project as this page first read it
+   * from the server. Edit saves (Portal.ProjectStore.saveRemote) send only the
+   * top-level fields that differ from the baseline, so a window opened before
+   * another session's change never writes that change back. The first read
+   * wins; saves advance only the fields they sent. */
+  const projectBaselines = new Map();
+
+  function rememberProjectBaseline(document){
+    const id = cleanText(document?.id);
+    const data = document?.data;
+    if (!id || projectBaselines.has(id) || !data || typeof data !== 'object' || Array.isArray(data)) return;
+    try {
+      projectBaselines.set(id, { data: JSON.parse(JSON.stringify(data)), revision: Number(document.revision || 0) });
+    } catch {}
+  }
+
   function collectionMethods(collection, metadataKind){
     const normalizedCollection = normalizeCollection(collection);
+    const remember = normalizedCollection === 'projects' ? rememberProjectBaseline : () => {};
     return {
       list(orgId){
-        return request(collectionPath(orgId, normalizedCollection)).catch((error) => {
+        return request(collectionPath(orgId, normalizedCollection)).then((result) => {
+          (Array.isArray(result?.documents) ? result.documents : []).forEach((document) => remember(document));
+          return result;
+        }).catch((error) => {
           if (isMissingRecord(error)) return emptyCollectionResult(normalizedCollection);
           throw error;
         });
@@ -1030,7 +1054,10 @@
         });
       },
       get(orgId, id){
-        return request(collectionPath(orgId, normalizedCollection, id)).catch((error) => {
+        return request(collectionPath(orgId, normalizedCollection, id)).then((result) => {
+          remember(result?.document);
+          return result;
+        }).catch((error) => {
           if (isMissingRecord(error)) return { ok: true, document: null, missing: true };
           throw error;
         });
@@ -3114,6 +3141,17 @@
       }
     }
   };
+
+  api.projects.baseline = (id) => {
+    const entry = projectBaselines.get(cleanText(id));
+    return entry ? { data: JSON.parse(JSON.stringify(entry.data)), revision: entry.revision } : null;
+  };
+  api.projects.advanceBaseline = (id, fields = {}) => {
+    const entry = projectBaselines.get(cleanText(id));
+    if (!entry || !fields || typeof fields !== 'object') return;
+    try { Object.assign(entry.data, JSON.parse(JSON.stringify(fields))); } catch {}
+  };
+  api.projects.forgetBaseline = (id) => { projectBaselines.delete(cleanText(id)); };
 
   configure({ baseUrl: APP.platformApiBase || '' });
   root.PlatformAPI = api;

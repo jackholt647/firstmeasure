@@ -83,6 +83,14 @@ async function requireViewer(request: Parameters<typeof requirePlatformAuth>[0],
   return requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: VIEW_PERMISSION, capability: CAPABILITY });
 }
 
+/* Read-only equipment data the scheduler needs to book units (types, conflict
+ * mode, availability) is also open to schedule editors without equipment
+ * permissions, so they see reserved/down units before saving instead of
+ * after a 409. */
+async function requireScheduleReader(request: Parameters<typeof requirePlatformAuth>[0], orgId: string) {
+  return requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: `${VIEW_PERMISSION}|manage_schedule`, capability: CAPABILITY });
+}
+
 async function requireManager(request: Parameters<typeof requirePlatformAuth>[0], orgId: string) {
   return requirePlatformAuth(request, { orgId, permission: MANAGE_PERMISSION, capability: CAPABILITY, csrf: true });
 }
@@ -131,7 +139,7 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/types", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireViewer(request, orgId);
+    await requireScheduleReader(request, orgId);
     (await ensureEquipmentSeed(orgId));
     const types = (await listTypes(orgId, {
       includeArchived: getQuery(request.query, "include_archived") === "1",
@@ -382,7 +390,7 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/availability", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireViewer(request, orgId);
+    await requireScheduleReader(request, orgId);
     const result = await availabilityForEquipment(orgId, {
       start: getQuery(request.query, "start"),
       end: getQuery(request.query, "end"),
@@ -404,7 +412,7 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/settings", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireViewer(request, orgId);
+    await requireScheduleReader(request, orgId);
     return { ok: true, ...(await readModuleSettings(orgId)) };
   });
 

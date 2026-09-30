@@ -2,7 +2,7 @@
  * Staged request workflow with optional roof-report ordering.
  */
 (function(){
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20260929-project-windows-v3', document.currentScript.src);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20260930-scheduling-qa-v1', document.currentScript.src);
   const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260929-overview-v1', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
 window.PlatformCommerce.onReady(async function(){
@@ -226,6 +226,9 @@ window.PlatformCommerce.onReady(async function(){
   let projectRouteClosePendingId = '';
   let projectOpenGeneration = 0;
   let projectShellLoading = false;
+  // True while an opened project is still a provisional (cached or id-only)
+  // record waiting for the saved document. Saves are refused until then.
+  let projectRecordPending = false;
   let projectRouteBatching = false;
   let viewingExistingProject = false;
   let newProjectCreationSession = false;
@@ -869,8 +872,8 @@ window.PlatformCommerce.onReady(async function(){
     .r-schedule-action.secondary{background:#fff;color:#344054;border:1px solid rgba(15,23,42,.12);box-shadow:none}
     .r-schedule-calendar{display:flex;flex-direction:column;gap:14px;min-height:0;flex:1}
     .r-schedule-footer{display:none}
-    .r-schedule-confirm{border:0;border-radius:13px;background:var(--primary,#d93025);color:var(--on-primary,#fff);height:40px;padding:0 18px;font-size:12px;font-weight:1000;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;box-shadow:0 12px 24px rgba(var(--primary-rgb,217,48,37),.18)}
-    .r-schedule-confirm:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+    button.r-schedule-confirm{border:0;border-radius:13px;background:var(--primary,#d93025);color:var(--on-primary,#fff);height:40px;padding:0 18px;font-size:12px;font-weight:1000;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;box-shadow:0 12px 24px rgba(var(--primary-rgb,217,48,37),.18)}
+    button.r-schedule-confirm:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
     .r-schedule-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px}
     .r-schedule-nav{display:flex;align-items:center;gap:8px}
     .r-schedule-nav button{width:36px;height:36px;border-radius:12px;border:1px solid rgba(15,23,42,.1);background:#fff;color:#344054;cursor:pointer;font-weight:1000}
@@ -937,6 +940,7 @@ window.PlatformCommerce.onReady(async function(){
     .r-schedule-card p{margin:0 0 18px;font-size:13px;font-weight:800;color:#667085;line-height:1.5}
     .r-schedule-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
     .r-schedule-field{display:flex;flex-direction:column;gap:6px}
+    .r-schedule-grid[hidden],.r-schedule-field[hidden],.r-schedule-action[hidden]{display:none}
     .r-schedule-field label{font-size:11px;font-weight:1000;color:#667085;letter-spacing:.08em;text-transform:uppercase}
     .r-schedule-field input,.r-schedule-field select{height:44px;border:1px solid rgba(15,23,42,.14);border-radius:14px;padding:0 12px;font-weight:850;color:#101828;background:#fff}
     .r-schedule-slots{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
@@ -4666,6 +4670,9 @@ window.PlatformCommerce.onReady(async function(){
       '.dash-modal-backdrop',
       '.b-overlay.active',
       '.r-schedule-dialog',
+      '.r-schedule-event-popover',
+      '.r-schedule-crew-popover',
+      'fm-date-time-picker[popover]',
       '.r-signature-modal',
       '.r-signing-overlay',
       '.r-proposal-media-pick'
@@ -4682,6 +4689,20 @@ window.PlatformCommerce.onReady(async function(){
     e.preventDefault();
     close();
   }
+
+  // The shared date/time picker listens for Escape inside its own shadow root,
+  // which runs after the portal modal stack's document-capture handler closes
+  // the project window. Close an open picker first, from window capture, so
+  // Escape dismisses only the topmost layer.
+  function closeProjectPickerOnEscape(event){
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (!$('#rOverlay')?.classList.contains('active')) return;
+    if (!document.querySelector('fm-date-time-picker[popover]') || typeof window.FirstMateDateTimePicker?.close !== 'function') return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.FirstMateDateTimePicker.close();
+  }
+  window.addEventListener('keydown', closeProjectPickerOnEscape, true);
 
   let projectPhotosContextAccessorsInstalled = false;
   let proposalContextAccessorsInstalled = false;
@@ -6519,7 +6540,8 @@ window.PlatformCommerce.onReady(async function(){
         materialList:null, materialSection:null,
         reportView:null,
         customerPortalView:null,
-        projectScheduleView:null, projectScheduleTarget:null
+        // Re-selecting Schedule (including a deep-linked open) keeps its view.
+        ...(activePreviewTab === 'schedule' ? {} : { projectScheduleView:null, projectScheduleTarget:null })
       }, options);
     }
   }
@@ -8157,9 +8179,14 @@ window.PlatformCommerce.onReady(async function(){
       : (mode === 'address'
         ? (address || customerName || (window.PlatformLanguage?.text('project-request','terminology_new_project','New Project') || 'New Project'))
         : (customerName || address || (window.PlatformLanguage?.text('project-request','terminology_new_project','New Project') || 'New Project')));
-    const mobileDisplayTitle = hasReportOrdered()
+    let mobileDisplayTitle = hasReportOrdered()
       ? (mode === 'manual' ? (savedTitle || computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project') : (computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project'))
       : (mode === 'manual' ? (savedTitle || computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project') : computed);
+    // An existing project that is still loading has no names yet; keep its
+    // loading title instead of flashing "New Project".
+    if ((projectRecordPending || projectShellLoading) && viewingExistingProject && !customerName && !address) {
+      mobileDisplayTitle = savedTitle || (globalThis.PlatformLanguage?.text("project-request","m_4de8a87782a9e4","Loading project…") ?? "Loading project…");
+    }
     if (mobileTitle) mobileTitle.textContent = mobileDisplayTitle;
     const windowTitle = document.getElementById('rWindowProjectTitle');
     if (windowTitle) windowTitle.textContent = mobileDisplayTitle;
@@ -8168,20 +8195,28 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function persistActiveBaseProject(){
-    // Routed shells and contact hydration contain incomplete field values.
-    // They must never overwrite the saved project while it is still loading.
-    if (projectShellLoading || projectFormHydrating) return;
+    // Routed shells, provisional records and contact hydration contain
+    // incomplete field values. They must never overwrite the saved project.
+    if (projectShellLoading || projectFormHydrating || projectRecordPending) return;
+    if (activeBaseProject?.__projectShellLoading) return;
     if (!activeBaseProject && requestedWorkflow === 'contact') ensureContactOnlyBaseProject();
     if (!activeBaseProject && requestedWorkflow === 'document' && docPickerDismissed) ensureDocumentBaseProject();
     if (!activeBaseProject && addressSelected) ensureDraftBaseProject();
     if (!activeBaseProject || !window.Portal.ProjectStore) return;
     syncProjectPhotosFromLibrary();
-    const currentPrimary = primaryContact();
+    // Without the Overview details form there are no edited values to read;
+    // keep the stored contacts instead of saving an empty list.
+    const formContacts = $('#rContactList') ? collectContacts() : null;
+    const savedContacts = Array.isArray(activeBaseProject.contacts) ? activeBaseProject.contacts : [];
+    const contacts = formContacts && (formContacts.length || !savedContacts.length) ? formContacts : savedContacts;
+    const currentPrimary = formContacts ? primaryContact() : {};
     const projectContact = projectPrimaryContactAlias({
       ...activeBaseProject,
-      contacts: collectContacts()
+      contacts
     });
-    const customerName = projectText(currentPrimary.name, projectContact.name);
+    const stored = projectPrimaryContactAlias(activeBaseProject);
+    // Never replace a stored title, customer or address with a blank value.
+    const customerName = projectText(currentPrimary.name, projectContact.name, stored.name);
     const customerEmail = projectText(currentPrimary.email, projectContact.email);
     const customerPhone = projectText(currentPrimary.phone, projectContact.phone);
     const measurement = activeBaseProject.measurement_project || activeBaseProject.measurement || reportOrderState?.data?.measurement || {};
@@ -8213,13 +8248,14 @@ window.PlatformCommerce.onReady(async function(){
       ...activeBaseProject,
       title: manualProjectTitle() || projectTitleAlias(activeBaseProject) || '',
       project_title: manualProjectTitle() || projectTitleAlias(activeBaseProject) || '',
-      address: ($('#rAddress')?.value || activeBaseProject.address || '').trim(),
+      address: projectText($('#rAddress')?.value, activeBaseProject.address),
       project_type: selectedType || activeBaseProject.project_type || 'residential',
-      lat: ($('#rLat')?.value || activeBaseProject.lat || '').trim(),
-      lng: ($('#rLng')?.value || activeBaseProject.lng || '').trim(),
-      address_components: (() => { try { return JSON.parse($('#rComps')?.value || '{}'); } catch (e) { return activeBaseProject.address_components || {}; } })(),
-      pins: getMarkersData(),
-      contacts: collectContacts(),
+      lat: projectText($('#rLat')?.value, activeBaseProject.lat),
+      lng: projectText($('#rLng')?.value, activeBaseProject.lng),
+      address_components: (() => { try { return $('#rComps')?.value ? JSON.parse($('#rComps').value) : (activeBaseProject.address_components || {}); } catch (e) { return activeBaseProject.address_components || {}; } })(),
+      // Markers exist only once the map has loaded; an unloaded map has no pins to report.
+      pins: (() => { const markers = getMarkersData(); const saved = Array.isArray(activeBaseProject.pins) ? activeBaseProject.pins : []; return !markers.length && saved.length && !window.google?.maps?.Marker ? saved : markers; })(),
+      contacts,
       customer_name: customerName,
       primary_contact_name: customerName,
       customer_email: customerEmail,
@@ -10524,6 +10560,7 @@ window.PlatformCommerce.onReady(async function(){
     // Create its controls before hydrating values into them.
     ensureOverviewDetails();
     hydrateFromBaseProject(project, { preferredTab:desiredTab });
+    projectRecordPending = false;
     viewingExistingProject = true;
     setProjectShellLoading(false);
     // The routed shell is already the modal the user can see. Keep that exact
@@ -10568,6 +10605,7 @@ window.PlatformCommerce.onReady(async function(){
       ? (unfinishedReportDraft ? 'report' : 'project')
       : normalizeWorkflow(options.workflow || options.createWorkflow || options.intent);
     projectShellLoading = !!options.shellOnly;
+    if (!baseProject) projectRecordPending = false;
     projectRouteBatching = true;
     ensureUI();
     ensureProjectWindow();
@@ -10675,6 +10713,7 @@ window.PlatformCommerce.onReady(async function(){
     routeRestorePromise = null;
     routeRestoreProjectId = '';
     projectShellLoading = false;
+    projectRecordPending = false;
     clearTimeout(projectMapInitTimer);
     projectMapInitTimer = 0;
     clearTimeout(projectModalFullscreenTimer);
@@ -10915,7 +10954,13 @@ window.PlatformCommerce.onReady(async function(){
     const result = await window.PlatformAPI.projects.get(oid, id).catch(() => null);
     const remote = projectFromPlatformDocument(result?.document);
     if (!remote) return project;
-    return mergeProjectForViewing(remote, project);
+    const merged = mergeProjectForViewing(remote, project);
+    // Schedule items are saved straight to the server's event endpoints, so
+    // the stored copies (with their current revisions) win over a cached or
+    // route-seed copy, which may be stale and would get every later save of
+    // that item refused as "changed by someone else".
+    if (merged && merged !== remote && Array.isArray(remote.events)) merged.events = remote.events;
+    return merged;
   }
 
   function localIsPlatformProjectId(value){
@@ -10973,6 +11018,8 @@ window.PlatformCommerce.onReady(async function(){
       ? (window.Portal.ProjectStore?.ensureFromMeasurement?.(project) || project)
       : project;
     const base = useMeasurementResolver ? mergeProjectForViewing(immediate, project) : immediate;
+    // The passed record may be an id-only route seed or a stale cache entry.
+    projectRecordPending = !!base;
     open(base, { ...options, history:options.history || (options.fromRoute ? 'replace' : 'push') });
     try {
       const resolved = !useMeasurementResolver
@@ -10982,8 +11029,10 @@ window.PlatformCommerce.onReady(async function(){
       if (hydrated !== base || projectShellLoading) {
         hydrateOpenProjectContent(hydrated, options, generation, projectOpenId(base));
       }
+      if (generation === projectOpenGeneration) projectRecordPending = false;
       return hydrated;
     } catch (error) {
+      // A record that never loaded stays provisional: it must not be saved.
       if (generation === projectOpenGeneration) setProjectShellLoading(false);
       throw error;
     }
@@ -11030,6 +11079,7 @@ window.PlatformCommerce.onReady(async function(){
         title: (globalThis.PlatformLanguage?.text("project-request","m_4de8a87782a9e4","Loading project…") ?? "Loading project…"),
         __projectShellLoading: true
       };
+      projectRecordPending = true;
       open(seed, { ...openOptions, shellOnly: !cached });
     }
     routeRestoreInFlight = true;

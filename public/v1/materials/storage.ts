@@ -4,6 +4,7 @@ import type { PlatformAuthContext } from "../platform/auth.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { isCapabilityEnabled } from "../platform/capabilities.js";
 import { badRequest, conflict, forbidden, notFound } from "../platform/errors.js";
+import { mutateProjectDocument, writeProjectDocument } from "../platform/project_document_mutation.js";
 import {
   listDocuments,
   readDocument,
@@ -1146,11 +1147,12 @@ async function lockMaterialScheduleEventForOrder(orgId: string, listId: string, 
   const event = await ensureMaterialListScheduleEvent(orgId, listId);
   const list = await readMaterialList(orgId, listId);
   const projectId = cleanText(list.project_id);
-  const projectDoc = await readDocument(orgId, "projects", projectId);
+  // Conditional, per-project serialized write (platform/project_document_mutation.ts).
+  const lockedResult = await mutateProjectDocument(orgId, projectId, async (projectDoc) => {
   const project = documentData(projectDoc);
   const events = (Array.isArray(project.events) ? project.events : []).map(asObject);
   const index = events.findIndex((entry) => cleanText(entry.id) === cleanText(event.id));
-  if (index < 0) return event;
+  if (index < 0) return null;
   const now = nowIso();
   const currentEvent = asObject(events[index]);
   const currentScheduleLock = asObject(currentEvent.schedule_lock);
@@ -1175,13 +1177,12 @@ async function lockMaterialScheduleEventForOrder(orgId: string, listId: string, 
     updated_at: now
   };
   events[index] = lockedEvent;
-  await upsertDocument(orgId, "projects", {
-    id: projectId,
-    data: { ...project, events, updated_at: now },
-    metadata: projectDoc.metadata
-  }, { replace: true });
-  await syncMaterialListFromScheduleEvent(orgId, lockedEvent);
+  await writeProjectDocument(orgId, projectDoc, { ...project, events, updated_at: now });
   return lockedEvent;
+  });
+  if (!lockedResult) return event;
+  await syncMaterialListFromScheduleEvent(orgId, lockedResult);
+  return lockedResult;
 }
 
 async function syncMaterialScheduleFulfillment(orgId: string, listId: string, status: string, orderId = "") {
@@ -1189,7 +1190,7 @@ async function syncMaterialScheduleFulfillment(orgId: string, listId: string, st
   const projectId = cleanText(list?.project_id);
   const eventId = cleanText(list?.schedule_event_id);
   if (!projectId || !eventId) return null;
-  const projectDoc = await readDocument(orgId, "projects", projectId);
+  return await mutateProjectDocument(orgId, projectId, async (projectDoc) => {
   const project = documentData(projectDoc);
   const events = (Array.isArray(project.events) ? project.events : []).map(asObject);
   const index = events.findIndex((entry) => cleanText(entry.id) === eventId);
@@ -1205,12 +1206,9 @@ async function syncMaterialScheduleFulfillment(orgId: string, listId: string, st
     updated_at: now
   };
   events[index] = event;
-  await upsertDocument(orgId, "projects", {
-    id: projectId,
-    data: { ...project, events, updated_at: now },
-    metadata: projectDoc.metadata
-  }, { replace: true });
+  await writeProjectDocument(orgId, projectDoc, { ...project, events, updated_at: now });
   return event;
+  });
 }
 
 type ScopeMaterialFact = {

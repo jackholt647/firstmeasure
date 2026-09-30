@@ -21,6 +21,16 @@
   let activeCrewSettingsModal = null;
   let pendingRouteDay = '';
   let loading = false;
+  // False until the first data load settles: views and the waiting rail show
+  // a loading state instead of a false "nothing here" empty state.
+  let dataLoaded = false;
+  // Unsaved edits of the open event editor. Edits never touch the live
+  // collections until Save succeeds, so Cancel / outside click / a failed save
+  // leave the calendar showing the stored event. { id, patch }
+  let eventEditorDraft = null;
+  let equipmentConflictMode = '';
+  let lastDataRefreshAt = 0;
+  let pendingGanttScrollDate = null;
   let schedulingConfig = null;
   let dashboardConfig = null;
   let branchProjectConfig = { title_mode:'customer_name' };
@@ -56,7 +66,6 @@
   let appointmentScheduleEventId = '';
   let appointmentScheduleMenuEventId = '';
   let appointmentScheduleLiveTravel = true;
-  let appointmentScheduleLockTime = true;
   let appointmentScheduleScrollLeft = null;
   let appointmentScheduleScrollTop = null;
   let salesRoutingScale = 'hourly';
@@ -115,14 +124,30 @@
   let loadQueued = false;
   let loadTimer = null;
   let lastLoadFailedAt = 0;
+  // Projects / company calendar items that could not be fetched. Before the
+  // first good load this is an error state with Retry; after it, the last
+  // good data stays on screen with a "Couldn't refresh" notice.
+  let scheduleLoadError = '';
+  let scheduleRefreshFailedAt = 0;
+  // "View only" explains a permission, it is not an error: neutral info toast.
+  const VIEW_ONLY_TOAST = { tone:'info' };
   const eventRangeSaveVersions = new Map();
   const eventRangeSaveQueues = new Map();
 
+  /* A transient layer (date/time picker, assignee menu, confirm dialog) that
+   * sits above an editor owns the next outside gesture: it closes itself and
+   * the editor underneath stays open. */
+  function openTransientLayer(surface = null){
+    if (document.querySelector('fm-date-time-picker')) return true;
+    if (document.querySelector('.fm-dialog-backdrop')) return true;
+    if (surface && !surface.classList?.contains('dash-assignee-popover') && document.querySelector('.dash-assignee-popover')) return true;
+    return false;
+  }
   function bindOutsidePointerDismiss(surface, onDismiss, insideNodes = []){
     let pointerStartedOutside = false;
     const isInside = (target) => !!target && (surface.contains(target) || target.closest?.('.fm-dialog-backdrop') || insideNodes.some((node) => node?.contains?.(target)));
     const pointerTarget = (event) => document.elementFromPoint?.(Number(event.clientX), Number(event.clientY)) || event.target;
-    const onPointerDown = (event) => { pointerStartedOutside = !isInside(pointerTarget(event)); };
+    const onPointerDown = (event) => { pointerStartedOutside = !isInside(pointerTarget(event)) && !openTransientLayer(surface); };
     const onPointerUp = (event) => {
       const pointerEndedOutside = !isInside(pointerTarget(event));
       if (pointerStartedOutside && pointerEndedOutside) onDismiss();
@@ -139,7 +164,38 @@
   const css = `
     .dash-shell{height:100%;min-height:0;display:flex;flex-direction:column;background:#eef2f6;color:#101828}
     .dash-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px;border-bottom:1px solid rgba(15,23,42,.08);background:#f8fafc}
-    .dash-title{margin:0;font-size:22px;font-weight:1000;color:#101828}
+    .dash-toolbar>.dash-title-wrap{flex:0 1 250px;min-width:min(210px,34%)}
+    .dash-controls{flex:1 1 auto}
+    .dash-title{margin:0;font-size:22px;font-weight:1000;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
+    .dash-title-wrap:focus-visible{outline:none}
+    .dash-title-wrap{position:relative;min-width:0}
+    .dash-title-status{position:absolute;left:0;top:100%;display:flex;align-items:center;gap:6px;max-width:100%;min-width:0;height:18px;overflow:hidden}
+    .dash-view-only-note{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;height:18px;padding:0 8px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#475467;font-size:10.5px;font-weight:950;white-space:nowrap;cursor:default}
+    .dash-view-only-note{font-family:inherit;line-height:1;cursor:help}
+    .dash-view-only-note i{font-size:10.5px}
+    .dash-view-only-note:focus-visible,.dash-mobile-view-only:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+    @media(max-width:1100px){.dash-title-status:has(.dash-filter-indicator) .dash-view-only-note{font-size:0;gap:0;padding:0 6px}}
+    .dash-mobile-view-only{flex:0 0 auto;height:30px;display:inline-flex;align-items:center;gap:4px;padding:0 7px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#475467;font:inherit;font-size:11px;font-weight:900;cursor:pointer}
+    .dash-filter-indicator{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%;height:18px;padding:0 3px 0 8px;border:1px solid rgba(var(--primary-rgb,217,48,37),.28);border-radius:999px;background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary-readable,var(--primary,#d93025));font-size:11px;font-weight:950;white-space:nowrap}
+    .dash-filter-indicator span{overflow:hidden;text-overflow:ellipsis}
+    .dash-filter-indicator button{width:14px;height:14px;flex:0 0 auto;border:0;border-radius:999px;background:rgba(15,23,42,.08);color:inherit;display:inline-grid;place-items:center;cursor:pointer;font-size:10px;padding:0}
+    .dash-loading-state{height:100%;min-height:220px;display:flex;align-items:center;justify-content:center;gap:10px;color:#667085;font-size:13px;font-weight:900;background:#fff;border:1px solid rgba(15,23,42,.08);border-radius:14px}
+    .dash-loading-rail{display:flex;align-items:center;gap:9px;padding:14px;border:1px dashed rgba(15,23,42,.14);border-radius:14px;background:#fff;color:#667085;font-size:12px;font-weight:900}
+    .dash-empty-hint{flex:0 0 auto;margin:0 0 10px;padding:12px;border:1px dashed rgba(15,23,42,.16);border-radius:12px;background:#fff;color:#667085;font-size:12px;font-weight:850;line-height:1.4}
+    .dash-load-error{height:100%;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px;text-align:center;color:#475467;font-size:13px;font-weight:800;background:#fff;border:1px solid rgba(15,23,42,.08);border-radius:14px}
+    .dash-load-error>i{font-size:22px;color:#b54708}
+    .dash-load-error strong{font-size:15px;font-weight:1000;color:#101828}
+    .dash-refresh-notice{flex:0 0 auto;display:flex;align-items:center;gap:9px;margin:0 0 10px;padding:7px 8px 7px 12px;border:1px solid #fedf89;border-radius:12px;background:#fffaeb;color:#93370d;font-size:12px;font-weight:850;line-height:1.35}
+    .dash-refresh-notice>span{flex:1 1 auto;min-width:0}
+    .dash-load-retry{flex:0 0 auto;height:30px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;border:1px solid rgba(15,23,42,.16);border-radius:10px;background:#fff;color:#344054;font-size:12px;font-weight:950;cursor:pointer}
+    .dash-load-retry:hover:not(:disabled){border-color:rgba(15,23,42,.3);background:#f8fafc}
+    .dash-load-retry:disabled{cursor:progress;opacity:.75}
+    .dash-shell .prs-mobile-toolbar{display:none}
+    @media(max-width:720px){.dash-shell .prs-mobile-toolbar{display:flex}}
+    /* Month/year lists scroll on their own (and open centred on the current
+     * choice) instead of the whole popover scrolling. */
+    .dash-shell .prs-mobile-month-picker{height:min(280px,calc(100vh - 150px));grid-template-rows:minmax(0,1fr)}
+    .dash-shell .prs-mobile-month-picker section{min-height:0}
     .dash-sub{margin:3px 0 0;font-size:12px;font-weight:800;color:#667085}
     .dash-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
     .dash-btn{height:36px;border:1px solid rgba(15,23,42,.12);border-radius:11px;background:#fff;color:#344054;padding:0 12px;font-weight:950;display:inline-flex;align-items:center;gap:7px;cursor:pointer}
@@ -165,10 +221,20 @@
     .dash-type-chip-box{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--dash-chip-color);box-sizing:border-box;display:grid;place-items:center;color:#fff;font-size:9px}
     .dash-type-chip-box i{opacity:0}
     .dash-type-chip:hover{border-color:rgba(15,23,42,.24);color:#344054}
+    .dash-type-chip:disabled{opacity:.45;cursor:not-allowed}
     .dash-type-chip.active{color:#101828;border-color:color-mix(in srgb,var(--dash-chip-color) 45%,#fff);background:color-mix(in srgb,var(--dash-chip-color) 8%,#fff)}
     .dash-type-chip.active .dash-type-chip-box{background:var(--dash-chip-color)}
     .dash-type-chip.active .dash-type-chip-box i{opacity:1}
     .dash-body.schedule-mode.gantt-mode{grid-template-columns:minmax(0,1fr)}
+    /* Narrower desktops keep the toolbar on one row: Routing/Timeline become
+     * icon buttons (named by their tooltip) and the chips tighten. */
+    @media(max-width:1320px){
+      .dash-segmented>button.has-icon .dash-view-label{display:none}
+      .dash-segmented>button.has-icon{padding:0 9px}
+      .dash-type-chips>.dash-control-label{display:none}
+      .dash-type-chip{padding:0 9px 0 5px}
+      .dash-toolbar{gap:12px}
+    }
     .dash-body.schedule-mode.gantt-mode .dash-right{display:none}
     .dash-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 266px;gap:16px;padding:14px 18px 18px;overflow:hidden}
     .dash-body.schedule-mode{grid-template-columns:minmax(0,1fr) 320px}
@@ -176,8 +242,11 @@
     .dash-body.schedule-mode .dash-right{overflow:hidden}
     .dash-body.schedule-mode .dash-right>.dash-groups{height:100%;min-height:0}
     .dash-body.schedule-mode .dash-right>.dash-groups>.dash-rail-title{flex:0 0 auto}
-    .dash-body.schedule-mode .dash-right>.dash-groups>.dash-group{display:flex;flex:1 1 0;min-height:0;flex-direction:column}
+    .dash-body.schedule-mode .dash-right>.dash-groups>.dash-group{display:flex;flex:0 1 auto;min-height:min(118px,100%);flex-direction:column}
     .dash-body.schedule-mode .dash-right>.dash-groups>.dash-group.empty{flex:0 0 auto}
+    .dash-body.schedule-mode .dash-right>.dash-groups>.dash-group.empty,.dash-body.schedule-mode .dash-right>.dash-groups>.dash-group:has(>.dash-rail-loading){min-height:0}
+    .dash-body.schedule-mode .dash-right>.dash-groups>.dash-group:has(>.dash-group-head[aria-expanded="false"]){flex:0 0 auto;min-height:0}
+    .dash-body.schedule-mode .dash-right>.dash-groups>.dash-vehicle-bank{flex:0 1 auto;min-height:min(96px,100%);overflow-y:auto;overscroll-behavior:contain}
     .dash-body.schedule-mode .dash-right>.dash-groups>.dash-group.empty>.dash-group-body{display:none}
     .dash-body.schedule-mode .dash-right>.dash-groups>.dash-group>.dash-group-head{flex:0 0 auto}
     .dash-body.schedule-mode .dash-right>.dash-groups>.dash-group>.dash-group-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
@@ -276,6 +345,8 @@
     .dash-day-list{display:grid;gap:10px}
     .dash-list-event{border:1px solid rgba(15,23,42,.08);border-radius:16px;background:#fff;padding:14px;display:grid;grid-template-columns:96px 1fr auto;gap:14px;align-items:center;cursor:pointer}
     .dash-list-time{font-size:12px;font-weight:1000;color:#1d4ed8}
+    .dash-day-list .dash-list-event{width:100%;text-align:left;font:inherit;color:inherit;padding:12px 14px;grid-template-columns:132px minmax(0,1fr) auto}.dash-day-list .dash-list-event:hover,.dash-day-list .dash-list-event:focus-visible{border-color:rgba(var(--primary-rgb,217,48,37),.35);background:#fcfcfd;outline:none}.dash-day-list .dash-list-title,.dash-day-list .dash-list-meta{display:block}
+    .dash-schedule-view .prs-month .prs-day-num{cursor:pointer;position:relative;z-index:12;border-radius:999px}.dash-schedule-view .prs-month .prs-day-num:hover{text-decoration:underline}.dash-schedule-view .prs-month .prs-day-num:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
     .dash-list-title{font-size:14px;font-weight:1000;color:#101828}
     .dash-list-meta{font-size:12px;font-weight:800;color:#667085;margin-top:2px}
     .dash-empty{border:1px dashed rgba(15,23,42,.18);border-radius:18px;background:#fff;padding:24px;text-align:center;color:#667085;font-weight:850}
@@ -292,6 +363,7 @@
     .dash-appt-tile.selected:before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:999px;background:var(--primary,#d93025)}
     .dash-appt-tile.selected .dash-appt-title{color:var(--primary-readable,var(--primary,#d93025))}
     .dash-appt-tile.selected .dash-appt-sales,.dash-appt-tile.selected .dash-appt-address{color:#344054}
+    .dash-appt-tile.selected .dash-appt-title,.dash-appt-tile.selected .dash-appt-address{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
     .dash-appt-tile.selected .dash-stage-pill{background:rgba(var(--primary-rgb),.14);color:var(--primary-readable,var(--primary,#d93025))}
     .dash-appt-tile.unscheduled{border-top-style:dashed;background:linear-gradient(90deg,rgba(15,23,42,.022),transparent 70%)}
     .dash-appt-tile.unscheduled .dash-appt-title{font-style:italic}
@@ -321,7 +393,7 @@
     .dash-event-confirm-status.bad{color:#b42318}
     .dash-event-confirm-options{display:none;gap:9px;padding-top:9px;border-top:1px solid rgba(15,23,42,.08)}
     .dash-event-confirm-options.open{display:grid}
-    .dash-event-confirm-channels{display:flex;flex-wrap:wrap;gap:10px}
+    .dash-event-confirm-channels{display:flex;flex-wrap:wrap;gap:10px}.dash-event-confirm-channels .dash-event-customer-option,.dash-event-confirm-channels .dash-event-customer-option:first-child{margin-top:0;align-items:center}
     .dash-event-confirm-detail{display:flex;flex-wrap:wrap;gap:9px}
     .dash-event-confirm-field{display:grid;gap:4px;color:#667085;font-size:9px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em}
     .dash-event-confirm-field select,.dash-event-confirm-field input{height:32px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#344054;padding:0 8px;font-size:11.5px;font-weight:900;text-transform:none;letter-spacing:0}
@@ -335,8 +407,33 @@
     .dash-bundle-item{height:27px;border:0;border-radius:8px;background:transparent;color:#475467;padding:0 7px;display:flex;align-items:center;gap:7px;text-align:left;font-size:11px;font-weight:900;cursor:pointer;min-width:0}
     .dash-bundle-item:hover,.dash-bundle-item.selected{background:rgba(var(--primary-rgb),.08);color:var(--primary-readable,var(--primary,#d93025))}
     .dash-bundle-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .dash-bundle-item .dash-bundle-child-cancel{margin-left:auto;width:20px;height:20px;flex:0 0 20px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:rgba(15,23,42,.07);color:#667085}
+    .dash-bundle-item{height:auto;min-height:27px;padding-top:4px;padding-bottom:4px}.dash-bundle-item>span:not(.dash-bundle-item-pill){white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.3}
+    .dash-bundle-item-row{display:flex;align-items:center;gap:4px;min-width:0}.dash-bundle-item-row>.dash-bundle-item{flex:1 1 auto}
+    .dash-bundle-item-pill{margin-left:auto;flex:0 0 auto;border-radius:999px;padding:2px 6px;background:#f2f4f7;color:#667085;font-size:9.5px;font-weight:1000}.dash-bundle-item-pill.ordered{background:#dcfce7;color:#15803d}
+    .dash-bundle-child-cancel{width:22px;height:22px;flex:0 0 22px;border:0;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;background:rgba(15,23,42,.07);color:#667085;cursor:pointer}
     .dash-bundle-cancel{width:22px;height:22px;border:0;border-radius:7px;background:rgba(15,23,42,.06);color:#667085;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+    .dash-bundle-cancel:hover,.dash-bundle-child-cancel:hover{background:#fee4e2;color:#b42318}
+    .dash-schedule-pile{position:relative}.dash-schedule-pile>.dash-bundle-cancel{position:absolute;top:10px;right:10px;z-index:1}.dash-bundle-cancel-slot{width:22px;height:22px;justify-self:end}
+    .dash-group-head .fa-chevron-up,.dash-group-head .fa-chevron-down{margin-left:6px;font-size:9px}
+    .dash-group-head[aria-expanded="false"]+.dash-group-body{display:none}
+    .dash-group-head:focus-visible,.dash-appt-tile:focus-visible,.dash-bundle-item:focus-visible,.dash-bundle-summary:focus-visible,.dash-bundle-cancel:focus-visible,.dash-bundle-child-cancel:focus-visible,.dash-vehicle-bank-item:focus-visible,.dash-placement-cancel:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:-2px}
+    .dash-appt-draft-time{color:var(--primary-readable,var(--primary,#d93025))}
+    .dash-rail-loading,.dash-schedule-loading{display:flex;align-items:center;justify-content:center;gap:9px;min-height:120px;border:1px dashed rgba(15,23,42,.14);border-radius:14px;background:#fff;color:#667085;font-size:12px;font-weight:900}
+    .dash-placement-banner{flex:0 0 auto;display:flex;align-items:center;gap:10px;margin:0 0 8px;padding:7px 8px 7px 12px;border:1px solid rgba(var(--primary-rgb,217,48,37),.28);border-radius:11px;background:rgba(var(--primary-rgb,217,48,37),.06);color:#344054;font-size:12px;font-weight:850;line-height:1.35}
+    .dash-placement-banner>i{color:var(--primary-readable,var(--primary,#d93025))}.dash-placement-banner>span{flex:1;min-width:0}.dash-placement-banner strong{color:#101828;font-weight:1000}
+    .dash-placement-banner.past{border-color:#f5c26b;background:#fffbeb}.dash-placement-banner-warn{color:#b45309;font-weight:950;white-space:nowrap}
+    .dash-rail-viewonly{display:flex;align-items:center;gap:7px;margin:0 0 8px;padding:7px 10px;border:1px dashed rgba(15,23,42,.18);border-radius:10px;background:#fff;color:#667085;font-size:11px;font-weight:900;line-height:1.35}
+    .dash-groups.view-only .dash-appt-tile,.dash-groups.view-only .dash-bundle-item,.dash-groups.view-only .dash-vehicle-bank-item{cursor:default}
+    .dash-groups.view-only .dash-appt-tile:hover,.dash-groups.view-only .dash-bundle-item:hover{transform:none;box-shadow:none;border-color:rgba(15,23,42,.08)}
+    .dash-groups .dash-group-body>.dash-empty{padding:9px 12px!important;font-size:12px;font-weight:850;color:#667085}
+    @media(min-width:721px){.dash-schedule-card:has(>.dash-placement-banner){position:relative}.dash-schedule-card>.dash-placement-banner{position:absolute;z-index:40;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:min(760px,calc(100% - 32px));margin:0;background:#fff7f6;box-shadow:0 10px 28px rgba(15,23,42,.18)}.dash-schedule-card>.dash-placement-banner.past{background:#fffbeb}.dash-schedule-card:has(>.dash-placement-banner) :is(.prs-surface,.dash-schedule-pane:last-child .prs-resource-scroll){padding-bottom:var(--dash-banner-space,68px);scroll-padding-bottom:var(--dash-banner-space,68px);box-sizing:border-box}}
+    .dash-placement-busy [data-prs-confirm],.dash-placement-busy .prs-draft-confirm{pointer-events:none;opacity:.5;cursor:progress}
+    [data-dash-key-place]:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:-2px}
+    .dash-placement-banner[data-saving]>span{color:#475467}.dash-placement-banner[data-saving]>span i{margin-right:4px}
+    .dash-placement-cancel{height:28px;flex:0 0 auto;border:1px solid rgba(15,23,42,.14);border-radius:8px;background:#fff;color:#344054;padding:0 10px;font:inherit;font-size:11px;font-weight:950;cursor:pointer;white-space:nowrap}.dash-placement-cancel:hover{background:#f8fafc}
+    .dash-routing-flag.double-booked{background:#fee2e2;color:#b42318;border:1px solid #fca5a5}
+    .dash-schedule-view .prs-work-chip.dash-double-booked{outline:2px solid #f04438;outline-offset:-2px}
+    .dash-schedule-view .prs-work-chip.compact-resource-item{display:flex;align-items:center;gap:6px}.dash-schedule-view .prs-work-chip.compact-resource-item>.prs-chip-top{flex:1 1 auto;min-width:0}.dash-schedule-view .prs-work-chip.compact-resource-item>.prs-chip-bottom{flex:0 1 auto;min-width:0;max-width:45%;margin:0}.dash-schedule-view .prs-work-chip.compact-resource-item>.prs-chip-bottom>.prs-project-title,.dash-schedule-view .prs-work-chip.compact-resource-item>.prs-chip-bottom>.prs-time{display:none}
     .dash-appt-title{font-size:13px;font-weight:1000;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .dash-appt-kind{font-style:italic;font-weight:800;color:#667085}
     .dash-appt-sales{font-size:11px;font-weight:950;color:#475467;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis}
@@ -351,6 +448,10 @@
     .dash-assignee-option.active{background:rgba(var(--primary-rgb),.09);color:var(--primary-readable,var(--primary,#d93025))}
     .dash-assignee-option.warn i{color:#f59e0b}
     .dash-assignee-option span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .dash-assignee-option .dash-assignee-check{flex:0 0 auto;color:#98a2b3;font-size:13px}
+    .dash-assignee-option.active .dash-assignee-check{color:inherit}
+    .dash-assignee-option .dash-assignee-check+span{flex:1 1 auto}
+    .dash-assignee-head{padding:4px 9px 6px;color:#667085;font-size:10.5px;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
     .dash-event-popover{position:fixed;z-index:2600;width:420px;height:620px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;box-sizing:border-box;background:#fff;border:1px solid rgba(15,23,42,.12);border-radius:16px;box-shadow:0 22px 60px rgba(15,23,42,.20);padding:16px;display:flex;flex-direction:column;gap:12px}.dash-event-popover>*{flex-shrink:0}
     .dash-event-title-input{width:100%;height:34px;border:1px solid rgba(15,23,42,.12);border-radius:10px;padding:0 9px;font-size:14px;font-weight:1000;color:#101828;outline:none;box-sizing:border-box}
     .dash-event-title-input:focus{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb),.10)}
@@ -375,7 +476,7 @@
     .dash-gantt-shown-wrap{position:relative}
     .dash-gantt-shown-btn{height:28px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#475467;padding:0 10px;display:inline-flex;align-items:center;gap:7px;font:850 11px/1 inherit;cursor:pointer}
     .dash-gantt-shown-btn.active{border-color:rgba(var(--primary-rgb,217,48,37),.3);background:rgba(var(--primary-rgb,217,48,37),.06);color:var(--primary-readable,var(--primary,#d93025))}
-    .dash-gantt-shown-menu{position:absolute;left:0;top:34px;z-index:40;width:260px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;box-shadow:0 20px 55px rgba(15,23,42,.2);padding:8px}
+    .dash-gantt-shown-menu{position:absolute;left:0;top:34px;z-index:40;width:260px;max-width:calc(100vw - 16px);box-sizing:border-box;border:1px solid #e4e7ec;border-radius:14px;background:#fff;box-shadow:0 20px 55px rgba(15,23,42,.2);padding:8px}
     .dash-gantt-shown-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 7px 9px}
     .dash-gantt-shown-head strong{font-size:13px;color:#101828}.dash-gantt-shown-head button{width:26px;height:26px;border:0;border-radius:8px;background:#f2f4f7;color:#475467;cursor:pointer}
     .dash-gantt-shown-options{display:grid;gap:5px;border-top:1px solid #f2f4f7;padding-top:7px}
@@ -400,7 +501,7 @@
     .dash-equipment-option.down,.dash-event-equipment-chip.down{color:#b42318;background:#fef3f2}.dash-equipment-option.down small{color:#b42318}.dash-equipment-option.down strong,.dash-event-equipment-chip.down .dash-equipment-name{text-decoration:line-through}
     .dash-equipment-confirm{padding:10px;border:1px solid #fda29b;border-radius:8px;background:#fef3f2;color:#b42318;font-size:12px}.dash-equipment-confirm p{margin:0 0 8px}.dash-equipment-confirm button{padding:7px 10px;border:1px solid #fda29b;border-radius:6px;background:#fff;color:#b42318;font:inherit;cursor:pointer}.dash-equipment-confirm button+button{margin-left:6px}.dash-equipment-confirm [data-equipment-confirm]{background:#b42318;color:#fff}
     .dash-event-equipment-require{display:grid;grid-template-columns:minmax(0,1fr) 72px 34px;gap:6px;align-items:end}.dash-event-equipment-require input{height:34px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:8px;padding:0 8px;font:850 11px/1 inherit}.dash-event-equipment-require button{height:34px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#475467;cursor:pointer}.dash-event-advanced-note{font-size:10px;font-weight:800;color:#667085;line-height:1.4}.dash-event-advanced-toggle{width:36px;height:34px;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;color:#667085;display:inline-grid;place-items:center;cursor:pointer}.dash-event-advanced-toggle.active{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb),.07);color:var(--primary,#d93025)}
-    .dash-event-equipment-allocation{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;padding:7px;border-radius:9px;background:#f8fafc}.dash-event-equipment-allocation strong{grid-column:1/-1;font-size:10px;color:#475467}.dash-event-equipment-allocation label{display:grid;gap:3px;font-size:8px;font-weight:950;color:#667085;text-transform:uppercase}.dash-event-equipment-allocation input{width:100%;min-width:0;height:30px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:7px;padding:0 6px;font:800 9px/1 inherit;color:#344054}.dash-event-requirement-alert{display:flex;gap:8px;align-items:flex-start;border:1px solid #fda29b;border-radius:10px;background:#fef3f2;color:#b42318;padding:9px 10px;font-size:11px;font-weight:850;line-height:1.35}.dash-event-requirement-alert ul{margin:0;padding-left:16px}.dash-routing-vehicles{height:30px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#667085;padding:0 9px;cursor:pointer}.dash-routing-vehicles.active{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb),.07);color:var(--primary,#d93025)}.dash-vehicle-bank{display:grid;gap:7px;padding:10px 12px;border-top:1px solid rgba(15,23,42,.08)}.dash-vehicle-bank-title{font-size:10px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;color:#667085}.dash-vehicle-bank-items{display:grid;gap:6px}.dash-vehicle-bank-item{display:flex;align-items:center;gap:8px;text-align:left;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;padding:8px;color:#344054;font-size:11px;font-weight:900;cursor:grab}.dash-vehicle-bank-item.active{border-color:var(--primary,#d93025);box-shadow:0 0 0 2px rgba(var(--primary-rgb),.08)}
+    .dash-event-equipment-allocation{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding:7px;border-radius:9px;background:#f8fafc}.dash-event-equipment-allocation strong{grid-column:1/-1;font-size:10px;color:#475467}.dash-event-equipment-allocation label{display:grid;gap:3px;font-size:8px;font-weight:950;color:#667085;text-transform:uppercase}.dash-event-equipment-allocation input{width:100%;min-width:0;height:30px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:7px;padding:0 6px;font:800 11px/1 inherit;color:#344054}.dash-event-requirement-alert{display:flex;gap:8px;align-items:flex-start;border:1px solid #fda29b;border-radius:10px;background:#fef3f2;color:#b42318;padding:9px 10px;font-size:11px;font-weight:850;line-height:1.35}.dash-event-requirement-alert ul{margin:0;padding-left:16px}.dash-routing-vehicles{height:30px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#667085;padding:0 9px;cursor:pointer}.dash-routing-vehicles.active{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb),.07);color:var(--primary,#d93025)}.dash-vehicle-bank{display:grid;gap:7px;padding:10px 12px;border-top:1px solid rgba(15,23,42,.08)}.dash-vehicle-bank-title{font-size:10px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;color:#667085}.dash-vehicle-bank-items{display:grid;gap:6px}.dash-vehicle-bank-item{display:flex;align-items:center;gap:8px;text-align:left;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;padding:8px;color:#344054;font-size:11px;font-weight:900;cursor:pointer}.dash-vehicle-bank-item>span{min-width:0;display:grid;gap:1px}.dash-vehicle-bank-item small{font-size:10px;font-weight:800;color:#667085}.dash-vehicle-bank-item.reserved{border-style:dashed;background:#fffbeb}.dash-vehicle-bank-flag{margin-left:auto;flex:0 0 auto;border-radius:999px;padding:2px 6px;background:#fef3c7;color:#b45309;font-size:9.5px;font-weight:1000}.dash-routing-vehicles{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:10px;font-weight:1000;text-transform:none;letter-spacing:0}.dash-vehicle-bank-item.active{border-color:var(--primary,#d93025);box-shadow:0 0 0 2px rgba(var(--primary-rgb),.08)}
     .dash-event-customer-panel{display:grid;border:1px solid rgba(15,23,42,.10);border-radius:11px;background:#f8fafc;overflow:hidden}.dash-event-customer-head{display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:center}.dash-event-customer-share{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;align-items:center;padding:11px;cursor:pointer}
     .dash-event-customer-details-toggle{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:#667085;cursor:pointer}.dash-event-customer-details-toggle:hover{background:#eaecf0;color:#344054}
     .dash-event-customer-share input{position:absolute;opacity:0;pointer-events:none}.dash-event-share-switch{position:relative;width:34px;height:20px;border-radius:999px;background:#d0d5dd;transition:.18s ease}.dash-event-share-switch:after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.22);transition:.18s ease}.dash-event-customer-share input:checked+.dash-event-share-switch{background:var(--primary,#d93025)}.dash-event-customer-share input:checked+.dash-event-share-switch:after{transform:translateX(14px)}.dash-event-customer-share strong{display:block;color:#344054;font-size:12px;font-weight:1000}.dash-event-customer-share small{display:block;margin-top:2px;color:#667085;font-size:10px;font-weight:800;line-height:1.35}
@@ -424,11 +525,11 @@
     .dash-event-assign-menu button{width:100%;border:0;border-radius:8px;background:transparent;color:#344054;text-align:left;padding:7px 9px;font-size:12px;font-weight:950;cursor:pointer}
     .dash-event-assign-menu button:hover{background:#f8fafc}
     .dash-event-assign-menu small{color:#98a2b3;font-weight:800}.dash-event-type-pill{height:30px;border-radius:999px;background:#f2f4f7;color:#344054;padding:0 10px;display:inline-flex;align-items:center;width:max-content;max-width:100%;font-size:11px;font-weight:1000}.dash-event-status-pill{height:30px;border:1px dotted #b54708;border-radius:999px;background:#fffaeb;color:#93370d;padding:0 10px;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:1000}
-    .dash-event-type-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+    .dash-event-type-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
     .dash-event-type-btn{height:32px;border:1px solid rgba(15,23,42,.10);border-radius:10px;background:#f8fafc;color:#344054;font-size:11px;font-weight:950;cursor:pointer}
     .dash-event-type-btn:hover{border-color:rgba(15,23,42,.22);background:#fff}
     .dash-event-type-btn.active{border-color:var(--primary,#d93025);box-shadow:inset 0 0 0 1px var(--primary,#d93025);background:rgba(var(--primary-rgb),.07);color:#101828}
-    .dash-event-project-picker{position:relative;z-index:5}.dash-event-project-picker-row{display:grid;grid-template-columns:minmax(0,1fr) 38px;gap:7px}.dash-event-project-create{width:38px;height:38px;border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#fff;color:#475467;display:grid;place-items:center;cursor:pointer}.dash-event-project-create:hover,.dash-event-project-create:focus-visible{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb),.06);color:var(--primary,#d93025);outline:none}.dash-event-search{width:100%;height:38px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:10px;padding:0 10px;font-size:12px;font-weight:850;color:#101828;outline:none}
+    .dash-event-project-picker{position:relative;z-index:3}.dash-event-project-picker:has(.dash-event-project-list:not([hidden])){z-index:7}.dash-event-project-picker-row{display:grid;grid-template-columns:minmax(0,1fr) 38px;gap:7px}.dash-event-project-create{width:38px;height:38px;border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#fff;color:#475467;display:grid;place-items:center;cursor:pointer}.dash-event-project-create:hover,.dash-event-project-create:focus-visible{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb),.06);color:var(--primary,#d93025);outline:none}.dash-event-search{width:100%;height:38px;box-sizing:border-box;border:1px solid rgba(15,23,42,.12);border-radius:10px;padding:0 10px;font-size:12px;font-weight:850;color:#101828;outline:none}
     .dash-event-search:focus{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb),.10)}
     .dash-event-desc{min-height:74px;resize:vertical;border:1px solid rgba(15,23,42,.12);border-radius:10px;padding:9px 10px;font-size:12px;font-weight:850;color:#101828;outline:none;font-family:inherit}
     .dash-event-desc:focus{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb),.10)}
@@ -437,10 +538,23 @@
     .dash-event-project-option:hover{background:#f8fafc}
     .dash-event-project-option strong{font-size:12px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .dash-event-project-option span{font-size:10px;font-weight:850;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .dash-event-pop-actions{position:sticky;bottom:-16px;z-index:4;display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:auto;padding:10px 0 2px;background:#fff;border-top:1px solid rgba(15,23,42,.07)}
+    .dash-event-pop-actions{position:sticky;bottom:-16px;z-index:6;display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:auto;padding:10px 0 2px;background:#fff;border-top:1px solid rgba(15,23,42,.07)}
     .dash-event-view-btn{height:34px;border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#fff;color:#344054;padding:0 11px;font-size:12px;font-weight:950;cursor:pointer}
     .dash-event-delete{height:34px;border:1px solid #fecdca;border-radius:10px;background:#fff;color:#b42318;padding:0 11px;font-size:12px;font-weight:950;cursor:pointer}.dash-event-delete:hover{background:#fef3f2}.dash-event-delete:disabled{opacity:.55;cursor:wait}
     .dash-event-save{height:34px;border:0;border-radius:10px;background:var(--primary,#d93025);color:var(--on-primary,#fff);padding:0 13px;font-size:12px;font-weight:1000;cursor:pointer}
+    .dash-event-save:disabled{background:#d0d5dd;color:#667085;cursor:not-allowed}.dash-event-view-btn:disabled{opacity:.55;cursor:wait}
+    .dash-event-notice{display:flex;align-items:flex-start;gap:8px;padding:9px 10px;border-radius:10px;font-size:11px;font-weight:850;line-height:1.4;border:1px solid #d0d5dd;background:#f8fafc;color:#475467}.dash-event-notice i{margin-top:2px}.dash-event-notice.locked{border-color:#fedf89;background:#fffaeb;color:#93370d}.dash-event-notice.error{border-color:#fda29b;background:#fef3f2;color:#b42318}.dash-event-notice ul{margin:4px 0 0;padding-left:16px}
+    .dash-event-popover.read-only input:disabled,.dash-event-popover.read-only textarea:disabled,.dash-event-popover.read-only select:disabled,.dash-event-popover .dash-event-time-field input:disabled{background:#f8fafc;color:#475467;cursor:default}
+    .dash-event-popover.read-only [data-event-assign-add],.dash-event-popover.read-only [data-event-assign-remove],.dash-event-popover.read-only [data-event-equipment-remove],.dash-event-popover.read-only [data-event-equipment-require-remove]{display:none}.dash-event-popover.read-only button:disabled{opacity:.5;cursor:default}
+    .dash-event-popover .dash-event-switch input:disabled+.dash-event-switch-track{opacity:.5}.dash-event-popover .dash-event-switch:has(input:disabled){cursor:default}
+    .dash-event-title-input.invalid,.dash-event-title-input.invalid:focus{border-color:#d92d20;background:#fef3f2 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23d92d20'/%3E%3Cpath d='M8 4v5' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'/%3E%3Ccircle cx='8' cy='11.6' r='1' fill='%23fff'/%3E%3C/svg%3E") no-repeat right 10px center/15px;padding-right:32px;box-shadow:0 0 0 3px rgba(217,45,32,.18)}
+    .dash-event-title-input.invalid::placeholder{color:#b42318}
+    #dashEventCalendarView .prs-work-chip.dash-dep-conflict{box-shadow:inset 0 0 0 1.5px #d92d20}
+    #dashEventCalendarView .dash-dep-conflict-marker{position:relative;display:inline-grid;vertical-align:-2px;margin-right:3px;flex:0 0 auto;width:13px;height:13px;border-radius:999px;background:#d92d20;color:#fff;place-items:center;font-size:7px;line-height:1;pointer-events:auto;cursor:pointer}
+    .dash-assignee-popover.above{box-shadow:0 -18px 50px rgba(15,23,42,.18)}
+    .dash-event-confirm-actions{display:flex;flex-wrap:wrap;gap:6px}.dash-event-confirm-actions button{height:28px;border:1px solid rgba(15,23,42,.14);border-radius:8px;background:#fff;color:#344054;padding:0 9px;font:inherit;font-size:11px;font-weight:950;cursor:pointer}.dash-event-confirm-actions button.primary{border-color:#1f8a57;background:#1f8a57;color:#fff}.dash-event-confirm-actions button:disabled{opacity:.55;cursor:wait}
+    .dash-event-equipment-meta{display:grid;gap:4px;padding:9px 10px;border:1px solid rgba(15,23,42,.10);border-radius:10px;background:#f8fafc;font-size:12px;font-weight:850;color:#344054}.dash-event-equipment-meta small{color:#667085;font-weight:800}
+    .dash-equipment-option:disabled{cursor:not-allowed;opacity:.75}
     .dash-modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.42);z-index:2400;display:flex;align-items:center;justify-content:center;padding:20px}
     .dash-modal{width:min(760px,94vw);max-height:min(720px,90vh);overflow:auto;background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(15,23,42,.28);border:1px solid rgba(15,23,42,.12)}
     .dash-modal-head{padding:16px 18px;border-bottom:1px solid rgba(15,23,42,.08);display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
@@ -473,14 +587,41 @@
     .dash-crew-member-row.crew-pay .member-pay-field{display:none}
     .dash-modal-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px}
     .dash-modal-actions-right{display:flex;align-items:center;justify-content:flex-end;gap:10px}
+    .dash-section-modal{width:min(520px,94vw)}.dash-section-modal h3{margin:0;font-size:17px;font-weight:1000;color:#101828}
+    .dash-section-name{display:grid;gap:6px;color:#475467;font-size:12px;font-weight:950}.dash-section-name input{height:38px;border:1px solid rgba(15,23,42,.14);border-radius:10px;padding:0 10px;font:inherit;font-size:14px;font-weight:850;color:#101828;outline:none}.dash-section-name input:focus{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.1)}
+    .dash-section-note{margin:8px 0 14px;color:#667085;font-size:12px;font-weight:800;line-height:1.4}
+    .dash-section-items-head{margin:0 0 6px;color:#475467;font-size:11px;font-weight:1000;letter-spacing:.04em;text-transform:uppercase}
+    .dash-section-items{display:grid;gap:4px;max-height:min(320px,40vh);overflow:auto;padding:4px;border:1px solid rgba(15,23,42,.08);border-radius:12px;background:#f8fafc}
+    .dash-section-item{display:flex;align-items:flex-start;gap:9px;padding:7px 8px;border-radius:9px;background:#fff;cursor:pointer}.dash-section-item:hover{background:#f2f4f7}.dash-section-item input{margin-top:2px;flex:0 0 auto}
+    .dash-section-item span{display:grid;gap:2px;min-width:0}.dash-section-item strong{font-size:13px;font-weight:950;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dash-section-item small{font-size:11px;font-weight:800;color:#667085}
+    .dash-section-empty{padding:10px;color:#667085;font-size:12px;font-weight:800}
+    .dash-section-delete{color:#b42318;border-color:#fecdca}.dash-section-delete:hover{background:#fef3f2}
+    [data-section-status]:empty{display:none}[data-section-status]{margin-top:8px;color:#b42318;font-size:12px;font-weight:900}
     .dash-modal-status{font-size:12px;font-weight:850;color:#667085}
     @media(max-width:1100px){
-      .dash-body{grid-template-columns:1fr}.dash-right{overflow:visible}.dash-shell{height:auto}.dash-left{overflow:auto}
+      /* The shell keeps the tab's height: the toolbar stays put, the calendar
+       * fills the visible body and scrolls inside itself, and the waiting rail
+       * sits below it, reached by scrolling the body. */
+      .dash-body,.dash-body.schedule-mode{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(360px,calc(100% - 4px)) auto;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
+      .dash-body.schedule-mode.gantt-mode{grid-template-rows:minmax(0,1fr)}
+      .dash-right,.dash-body.schedule-mode .dash-right{overflow:visible;min-height:0}
+      .dash-body.schedule-mode .dash-right>.dash-groups{height:auto}
+      .dash-body.schedule-mode .dash-right>.dash-groups>.dash-group{flex:0 0 auto}
+      .dash-body.schedule-mode .dash-right>.dash-groups>.dash-group>.dash-group-body{max-height:420px}
+      .dash-left{overflow:hidden;min-height:0}
+      .dash-title{font-size:19px}.dash-toolbar{gap:12px}
       .dash-stats-row{grid-template-columns:var(--dash-mode-col) minmax(126px,var(--dash-filter-col)) repeat(var(--dash-stat-count),minmax(92px,1fr));overflow-x:auto;padding-bottom:2px}
       .dash-filter-menu{left:calc(var(--dash-mode-col) + var(--dash-stat-gap));right:auto;width:650px}
     }
     .dash-mobile-toolbar{display:none}
     @media(max-width:720px){
+      /* Phone Routing lanes: the person's name gets the full label width and
+       * the lane actions sit on a line below it instead of truncating it. */
+      .dash-schedule-view .psv-resource-label-main{flex-wrap:wrap;row-gap:2px;justify-content:flex-start}
+      .dash-schedule-view .psv-resource-label-name{flex:1 1 100%;font-size:10.5px;line-height:1.2;letter-spacing:-.1px}
+      .dash-schedule-view .psv-resource-label-actions:empty{display:none}
+      /* Timeline "Items shown" opens toward the screen's middle. */
+      .dash-gantt-shown-menu{left:auto;right:0}
       .dash-toolbar{display:none}
       .dash-mobile-toolbar{position:relative;z-index:40;display:flex;align-items:center;gap:2px;height:50px;padding:0 6px;background:#fff;border-bottom:0;box-sizing:border-box;white-space:nowrap}
       .dash-mobile-menu-wrap{position:relative;flex:0 0 auto}
@@ -544,20 +685,24 @@
       .dash-body.events-mode .dash-schedule-view .prs-surface{width:100%;max-width:100%;overflow-x:hidden!important}
       .dash-body.events-mode .dash-schedule-view .prs-time-grid,.dash-body.events-mode .dash-schedule-view .prs-all-day-grid{width:100%!important;max-width:100%!important;box-sizing:border-box;grid-template-columns:40px repeat(var(--prs-days),minmax(0,1fr));min-width:100%!important}
       .dash-body.events-mode .dash-schedule-view .prs-time-head,.dash-body.events-mode .dash-schedule-view .prs-day-head,.dash-body.events-mode .dash-schedule-view .prs-all-day-cell{min-width:0;overflow:hidden}
-      .dash-body.events-mode .dash-schedule-view .prs-slot{min-width:0;overflow:visible;z-index:1}.dash-body.events-mode .dash-schedule-view .prs-slot.has-chip{z-index:4}.dash-body.events-mode .dash-schedule-view .prs-slot .prs-work-chip{z-index:4}
+      .dash-body.events-mode .dash-schedule-view .prs-slot{min-width:0;overflow:visible}.dash-body.events-mode .dash-schedule-view .prs-slot .prs-work-chip{z-index:4}
+      /* Slots stay free of z-index (no stacking context, as on desktop): a
+       * later slot's white background never paints over a longer chip that
+       * starts in an earlier slot, and never takes its taps. */
       .dash-schedule-view .prs-time-grid.prs-time-header-grid{height:48px}
       .dash-schedule-view .prs-time-head,.dash-schedule-view .prs-day-head{height:48px;font-size:10px;line-height:1.1}
       .dash-schedule-view .prs-day-head{flex-direction:column;gap:2px}
       .dash-schedule-view .prs-day-head-desktop{display:none}
       .dash-schedule-view .prs-day-head-mobile{display:flex;flex-direction:column;align-items:center;line-height:1.05}
       .dash-schedule-view .prs-day-head-mobile strong{font-size:12px;color:#101828}
-      .dash-schedule-view .prs-all-day-grid{top:48px;min-height:48px!important;height:48px!important;grid-template-rows:48px!important}
+      .dash-schedule-view .prs-all-day-grid,.dash-schedule-view .prs-wrap.mobile-layout .prs-all-day-grid{top:48px}
+      .dash-schedule-view .prs-all-day-grid:not(.week-overflow),.dash-schedule-view .prs-wrap.mobile-layout .prs-all-day-grid:not(.week-overflow){min-height:48px!important;height:auto!important;max-height:118px;grid-template-rows:auto!important;padding-bottom:4px;box-sizing:border-box}
       .dash-schedule-view .prs-all-day-label-cell{font-size:8px;line-height:1.05;text-align:center;text-transform:uppercase;padding:3px}
       .dash-schedule-view .prs-all-day-label-desktop{display:none}
       .dash-schedule-view .prs-all-day-label-mobile{display:inline}
       .dash-schedule-view .prs-all-day-cell{min-height:48px}
       .dash-schedule-view .prs-all-day-bar-top{margin:3px 1px 0}
-      .dash-schedule-view .prs-all-day-bar-top .prs-work-chip{height:40px;min-height:40px;border-left-width:2px;border-radius:5px;padding:3px;font-size:8px;box-shadow:none}
+      .dash-schedule-view .prs-all-day-bar-top .prs-work-chip{height:24px;min-height:24px;border-left-width:2px;border-radius:5px;padding:2px 3px;font-size:8px;box-shadow:none}
       .dash-schedule-view .prs-all-day-bar-top .prs-chip-bottom,.dash-schedule-view .prs-all-day-bar-top .prs-assignee{display:none}
       .dash-schedule-view .prs-time-label{height:48px;font-size:9px;padding-top:4px}
       .dash-schedule-view .prs-slot{height:48px}
@@ -584,7 +729,7 @@
       .dash-schedule-split.mobile-routing .psv-hour span{display:block}
       .dash-schedule-split.mobile-routing .prs-resource-day-head{padding:2px;font-size:9px;line-height:1.05}
       .dash-schedule-split.mobile-routing .prs-resource-day-head.today span:last-child:after{display:none}
-      .dash-schedule-split.mobile-routing .prs-resource-label{position:sticky;left:0;z-index:6;min-height:34px;height:34px;padding:0 8px;flex-direction:row;align-items:center;justify-content:space-between;font-size:12px;border-bottom:1px solid rgba(15,23,42,.08)}
+      .dash-schedule-split.mobile-routing .prs-resource-label{position:sticky;left:0;z-index:6;min-height:34px;height:34px;padding:0 4px 0 6px;flex-direction:row;align-items:center;justify-content:space-between;font-size:12px;border-bottom:1px solid rgba(15,23,42,.08)}
       .dash-schedule-split.mobile-routing .prs-resource-label .psv-resource-label-main{max-width:100%}
       .dash-schedule-split.mobile-routing .prs-resource-cell{min-height:0}
       .dash-routing-placement-dock{flex:0 0 auto;position:relative;z-index:12;min-height:94px;padding:7px 8px 9px;background:#fff;border-top:1px solid rgba(15,23,42,.10);box-shadow:0 -8px 22px rgba(15,23,42,.07)}
@@ -598,7 +743,12 @@
       .dash-routing-placement-tile span{margin-top:4px;font-size:9px;font-weight:850;color:#667085}
       .dash-routing-placement-empty{font-size:11px;font-weight:850;color:#98a2b3;padding:14px 3px}
       .dash-schedule-split.mobile-routing .prs-resource-time-head{font-size:9px;line-height:1.05}
-      .dash-event-popover{z-index:2147483000!important;top:var(--portal-mobile-header-height,56px)!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:calc(100dvh - var(--portal-mobile-header-height,56px))!important;max-width:none!important;max-height:none!important;border:0;border-radius:0;box-shadow:none;padding:16px;gap:12px}
+      .dash-event-popover{z-index:2147483000!important;top:0!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:100dvh!important;max-width:none!important;max-height:none!important;border:0;border-radius:0;box-shadow:none;padding:16px;padding-top:max(16px,env(safe-area-inset-top));gap:12px}
+      .dash-event-time-options{gap:10px 14px}.dash-event-switch{white-space:normal;min-width:0}
+      .dash-event-pop-head>.dash-event-time-fields,.dash-event-pop-head>.dash-event-time-options,.dash-event-pop-head>.dash-event-recurrence-fields{grid-column:1/-1}
+      .dash-shell .prs-mobile-control.month{width:auto;max-width:min(150px,40vw)}
+      .dash-mobile-toolbar-placeholder{height:50px;background:#fff}
+      .dash-event-time-fields{grid-template-columns:minmax(0,1fr)}
       .dash-event-pop-head{display:grid;grid-template-columns:minmax(0,1fr) 38px;column-gap:8px;align-items:center;padding-right:0}
       .dash-event-title-input{height:40px;padding:0 11px;font-size:15px}
       .dash-event-close{position:static;width:38px;height:38px}
@@ -615,30 +765,66 @@
   injectCSS('dashboard_tab', css);
 
   function orgId(){ return String(cfg.userOrgId || cfg.orgId || '').trim(); }
+  /* Session permission gate. Reads the signed-in user's effective permission
+   * flags (Portal.currentUser.permissions); any of the '|'-separated keys
+   * grants. Unknown sessions (permissions not loaded) stay permissive because
+   * the API enforces the same rule on every write. */
+  function sessionHasPermission(keys = ''){
+    const wanted = String(keys || '').split('|').map((key) => key.trim()).filter(Boolean);
+    const permissions = window.Portal?.currentUser?.permissions;
+    if (!permissions || typeof permissions !== 'object' || !Object.keys(permissions).length) return true;
+    return wanted.some((key) => permissions[key] === true || (permissions['*'] === true && permissions[key] !== false));
+  }
+  /* Whether this session may change the schedule (create, move, resize,
+   * edit, lock or delete schedule items). Every renderer call and editor
+   * surface in this app derives allowCreate/allowEdit/allowEventDrag and
+   * read-only states from this one helper. */
+  function canEditSchedule(){
+    return sessionHasPermission('manage_schedule');
+  }
+  function scheduleReadOnlyMessage(){
+    return (globalThis.PlatformLanguage?.text("scheduling","m_readonly_schedule","You can view the schedule, but you don't have permission to change it.") ?? "You can view the schedule, but you don't have permission to change it.");
+  }
   function currentUserDoc(){
     const email = String(cfg.userEmail || window.__APP?.userEmail || '').trim().toLowerCase();
-    if (!email) return null;
-    return users.find((user) => String(user.email || '').trim().toLowerCase() === email) || null;
+    const sessionUser = window.Portal?.currentUser?.user || {};
+    const sessionId = clean(sessionUser.id || sessionUser.user_id);
+    return (email ? users.find((user) => String(user.email || '').trim().toLowerCase() === email) : null)
+      || (sessionId ? users.find((user) => clean(user.id) === sessionId) : null)
+      || (sessionId ? sessionUser : null);
+  }
+  const SCHEDULE_USER_PREFS_KEY = 'fm:scheduling:user-preferences';
+  function localSchedulePreferences(){
+    try { return JSON.parse(window.localStorage?.getItem(SCHEDULE_USER_PREFS_KEY) || '{}') || {}; } catch (error) { return {}; }
   }
   function applyUserSchedulePreferences(){
     if (schedulePrefsApplied) return;
     const me = currentUserDoc();
-    if (!me) return;
+    const local = localSchedulePreferences();
+    if (!me && !Object.keys(local).length) return;
     schedulePrefsApplied = true;
-    const prefs = me.preferences?.scheduling || {};
+    // The account copy wins; this browser's copy covers settings the account
+    // could not store.
+    const prefs = { ...local, ...(me?.preferences?.scheduling || {}) };
     if (typeof prefs.live_travel === 'boolean') appointmentScheduleLiveTravel = prefs.live_travel;
     if (typeof prefs.production_live_travel === 'boolean') productionLiveTravel = prefs.production_live_travel;
+    if (typeof prefs.production_vehicles === 'boolean') productionVehiclesVisible = prefs.production_vehicles;
     if (Number(prefs.gantt_zoom) > 0) ganttZoomPxPerDay = Number(prefs.gantt_zoom);
     if (['project', 'resource'].includes(clean(prefs.gantt_group_by))) ganttGroupBy = clean(prefs.gantt_group_by);
   }
+  /* Saves the signed-in person's own scheduling view settings (their own
+   * user record's preferences — every member may write those), and keeps a
+   * copy in this browser. A refused save is not retried for the session. */
   async function persistSchedulePreference(patch = {}){
+    try { window.localStorage?.setItem(SCHEDULE_USER_PREFS_KEY, JSON.stringify({ ...localSchedulePreferences(), ...patch })); } catch (error) {}
     const me = currentUserDoc();
-    if (!me?.id || !window.PlatformAPI?.documents?.setField) return;
+    if (!me?.id || !window.PlatformAPI?.documents?.setField || persistSchedulePreference._refused) return;
     const preferences = { ...(me.preferences || {}), scheduling: { ...((me.preferences || {}).scheduling || {}), ...patch } };
     me.preferences = preferences;
     try {
       await window.PlatformAPI.documents.setField(orgId(), 'users', me.id, 'preferences', preferences, { kind:'user_preferences' });
     } catch (error) {
+      if ([401, 403].includes(Number(error?.status))) persistSchedulePreference._refused = true;
       console.warn('Could not save scheduling preference', error);
     }
   }
@@ -670,13 +856,69 @@
   function startOfDay(date){ const d = validDate(date); if (!d) return null; d.setHours(0,0,0,0); return d; }
   function addDays(date, days){ const d = new Date(date); d.setDate(d.getDate() + days); return d; }
   function sameDay(a, b){ const left = startOfDay(a); const right = startOfDay(b); return !!left && !!right && left.getTime() === right.getTime(); }
-  function weekStart(date){ const d = startOfDay(date); d.setDate(d.getDate() - d.getDay()); return d; }
+  function weekStart(date){ const d = startOfDay(date) || startOfDay(new Date()); d.setDate(d.getDate() - d.getDay()); return d; }
   function monthStart(date){ return new Date(date.getFullYear(), date.getMonth(), 1); }
   function monthEnd(date){ return new Date(date.getFullYear(), date.getMonth() + 1, 1); }
   function routeDate(value = anchorDate){
     const date = value instanceof Date ? value : new Date(value);
     if (!Number.isFinite(date.getTime())) return '';
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+  /* date=YYYY-MM-DD from a link; anything that is not a real calendar date
+   * (2026-13-45, 2026-00-10, garbage) is ignored instead of crashing. */
+  // Links can open at most ten years either side of today: far-off dates
+  // would make the Timeline lay out every day in between.
+  const ROUTE_YEAR_MIN = new Date().getFullYear() - 10;
+  const ROUTE_YEAR_MAX = new Date().getFullYear() + 10;
+  function parseRouteDate(value){
+    const text = clean(value);
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+    if (!match) return null;
+    // Years outside that range are clamped (0000-01-01 → the earliest year).
+    const year = Math.max(ROUTE_YEAR_MIN, Math.min(ROUTE_YEAR_MAX, Number(match[1])));
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const date = new Date(year, month, day, 12, 0, 0, 0);
+    // A day that doesn't exist in its month (2026-02-30) is not rolled over.
+    if (!Number.isFinite(date.getTime()) || date.getMonth() !== month || date.getDate() !== day) return null;
+    return date;
+  }
+  const SCHEDULE_TYPE_KEYS = ['sales', 'production', 'other'];
+  /* scheduleType= carries the Show chips: one type (sales | production |
+   * materials, as documented) or a comma list; "none" hides everything. */
+  function scheduleTypesFromRoute(value){
+    const text = clean(value).toLowerCase();
+    if (!text) return null;
+    if (text === 'none') return [];
+    const list = [...new Set(text.split(',').map((item) => item.trim()).map((item) => item === 'materials' ? 'production' : item).filter((item) => SCHEDULE_TYPE_KEYS.includes(item)))];
+    return list.length ? list : null;
+  }
+  function applyScheduleTypes(list = SCHEDULE_TYPE_KEYS){
+    showSalesSchedule = list.includes('sales');
+    showProductionSchedule = list.includes('production');
+    showOtherSchedule = list.includes('other');
+    scheduleMode = showSalesSchedule ? 'sales' : (showProductionSchedule ? 'production' : 'sales');
+  }
+  function scheduleTypeRouteValue(){
+    const active = activeScheduleTypes();
+    if (active.length === SCHEDULE_TYPE_KEYS.length) return null;
+    return active.length ? active.join(',') : 'none';
+  }
+  const SCHEDULE_VIEW_PREF_KEY = 'fm:scheduling:view';
+  const SCHEDULE_TYPES_PREF_KEY = 'fm:scheduling:types';
+  function readSchedulePref(key){
+    try { return window.localStorage?.getItem(key) || ''; } catch (error) { return ''; }
+  }
+  function writeSchedulePref(key, value){
+    try {
+      if (value === null || value === undefined || value === '') window.localStorage?.removeItem(key);
+      else window.localStorage?.setItem(key, String(value));
+    } catch (error) {}
+  }
+  function scheduleViewAllowed(view = ''){
+    return ['day','4day','week','month','appointment_schedule','gantt'].includes(view)
+      && (view !== 'gantt' || ganttViewEnabled())
+      && (view !== 'appointment_schedule' || routingViewEnabled());
   }
   function isMobileScheduleLayout(){ return window.matchMedia?.('(max-width: 720px)').matches === true; }
   function openMobileTray(){
@@ -812,6 +1054,9 @@
   function calendarEventCategory(event = {}){
     if (isSalesEvent(event) || isSalesFollowUpEvent(event)) return 'sales';
     if (isProductionEvent(event) || isMaterialEvent(event)) return 'production';
+    // A project's schedule group (e.g. "Roof Replacement") is production
+    // work, so it follows the Production chip rather than Other.
+    if (clean(event.project_id) && (window.PlatformScheduling?.eventIsGroup?.(event) || ['group', 'schedule_group'].includes(eventKind(event)))) return 'production';
     return 'other';
   }
   function eventIsScheduled(event){
@@ -1021,14 +1266,32 @@
     }) || [];
   }
   function decorateWorkEvent(event = {}){
+    // A section/group bar only spans its items: it has no assignee picker.
+    const group = window.PlatformScheduling?.eventIsGroup?.(event) === true;
+    const assigneeNames = group ? [] : workAssigneeNames(event);
     return {
       ...event,
       requirement_warnings:requirementWarningsForEvent(event),
       project_title: projectTitle(eventProject(event), event),
       project_address: event.project_address || projectAddress(eventProject(event), event),
-      assignee_label: workCrewName(event) || assignedLabel(event) || 'Unassigned',
-      ...assignmentPayloadForEvent(event)
+      ...assignmentPayloadForEvent(event),
+      // Every crew/person, in the same form the assignee picker stores
+      // ("Alpha Crew, Bravo Crew"), so a save of this copy never trims the
+      // label to the first crew. The pill shows the compact "Alpha Crew +1".
+      assignee_label: group ? '' : (assigneeNames.length > 1 ? assigneeNames.join(', ') : (workCrewName(event) || assignedLabel(event) || 'Unassigned')),
+      __assignee_names: assigneeNames,
+      __assignee_short_label: assigneeNames.length > 1 ? `${assigneeNames[0]} +${assigneeNames.length - 1}` : ''
     };
+  }
+  /* Names of every crew and person on a work item, crews first. */
+  function workAssigneeNames(event = {}){
+    const crewNames = eventCrewRefs(event).map((ref) => {
+      const known = workforceResources.find((resource) => clean(resource.id) === ref.id);
+      return clean(ref.name && ref.name !== ref.id ? ref.name : (known?.name || ref.name));
+    });
+    const people = (Array.isArray(event.assigned_users) ? event.assigned_users : [])
+      .map((user) => clean(user?.name || user?.email || userDisplayName(user?.id)));
+    return [...new Set([...crewNames, ...people].filter(Boolean))];
   }
   function decorateSalesEvent(event = {}){
     const project = eventProject(event);
@@ -1049,10 +1312,21 @@
       assignee_label: assignedLabel(event)
     };
   }
+  /* Routing lanes under a person filter: that person's lane plus any lane
+   * (e.g. their crew) that holds one of the filtered items. */
+  function routingLanesForFilter(resources = [], items = [], resourceIdFn = currentAssignmentId){
+    if (breakdownValue === 'all' || breakdownMode !== 'user') return resources;
+    const used = new Set(items.map((item) => norm(resourceIdFn(item))).filter(Boolean));
+    const kept = new Set(resources.filter((resource) => norm(resource.id) === norm(breakdownValue) || used.has(norm(resource.id))).map((resource) => norm(resource.id)));
+    return resources.filter((resource) => kept.has(norm(resource.id))
+      || clean(resource.resource_kind) === 'materials'
+      || (clean(resource.resource_kind) === 'vehicle_lane' && kept.has(norm(resource.vehicle_crew_id))));
+  }
   function salesRoutingEvents(){
     const byId = new Map();
     [...allEvents, ...floatingEvents].forEach((event, index) => {
-      if (!isSalesEvent(event) || !eventIsScheduled(event)) return;
+      // Routing honours the header's person/lead-source/city filter too.
+      if (!isSalesEvent(event) || !eventIsScheduled(event) || !eventMatchesBreakdown(event)) return;
       const key = clean(event.id || event.event_id) || `sales_routing_${index}`;
       byId.set(key, decorateSalesEvent(event));
     });
@@ -1063,8 +1337,13 @@
   function decorateMaterialEvent(event = {}){
     const project = eventProject(event);
     const ordered = materialEventIsOrdered(event);
+    // A timed delivery shows its window ("7:00 AM – 9:00 AM") under the title.
+    const windowStart = event.all_day === false || clean(event.schedule_granularity).toLowerCase() === 'time' ? eventStart(event) : null;
+    const windowEnd = windowStart ? eventEnd(event) : null;
+    const deliveryWindow = windowStart && windowEnd && sameDay(windowStart, windowEnd) ? `${fmtTime(windowStart)} – ${fmtTime(windowEnd)}` : '';
     return {
       ...event,
+      ...(deliveryWindow && !clean(event.secondary_label) ? { secondary_label:deliveryWindow } : {}),
       kind: 'material_delivery',
       project_title: projectTitle(project, event),
       project_address: event.project_address || projectAddress(project, event),
@@ -1137,6 +1416,10 @@
     const id = clean(subjectId);
     const date = clean(dateValue);
     if (!id || !date) return;
+    if (!canEditSchedule()) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), scheduleReadOnlyMessage(), VIEW_ONLY_TOAST);
+      return;
+    }
     const map = { ...subjectUnavailabilityMap() };
     const list = Array.isArray(map[id]) ? map[id].map(clean).filter(Boolean) : [];
     const next = list.includes(date) ? list.filter((entry) => entry !== date) : [...list, date].sort();
@@ -1251,13 +1534,36 @@
   function openProjectFromEvent(event){
     const project = eventProject(event);
     if (!project?.id) return;
-    if (window.Portal.modules?.request?.openProject) window.Portal.modules.request.openProject(project);
-    else window.dispatchEvent(new CustomEvent('fm:projects:open', { detail: { project } }));
+    // Land on the event itself: the project's Schedule tab, on the week that
+    // contains it. A project's summary bar (Timeline) opens the project's own
+    // Timeline at its next upcoming work instead of an arbitrary week.
+    const pad = (value) => String(value).padStart(2, '0');
+    const dateKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    if (event?.__project_rollup === true) {
+      const today = startOfDay(new Date());
+      const upcoming = projectScheduleItems(project.id).filter(eventIsScheduled)
+        .map((item) => ({ start:eventStart(item), end:eventEnd(item) }))
+        .filter((item) => item.start && (item.end || item.start) >= today)
+        .sort((a, b) => a.start - b.start)[0];
+      const target = upcoming ? (upcoming.start < today ? today : upcoming.start) : (eventStart(event) || today);
+      const rollupOptions = { tab:'schedule', projectScheduleView:'gantt', projectScheduleDate:dateKey(target) };
+      if (window.Portal.modules?.request?.openProject) window.Portal.modules.request.openProject(project, rollupOptions);
+      else window.dispatchEvent(new CustomEvent('fm:projects:open', { detail: { project, ...rollupOptions } }));
+      return;
+    }
+    const start = eventStart(event);
+    const options = start
+      ? { tab:'schedule', projectScheduleView:'week', projectScheduleDate:dateKey(start) }
+      : { tab:'schedule' };
+    if (window.Portal.modules?.request?.openProject) window.Portal.modules.request.openProject(project, options);
+    else window.dispatchEvent(new CustomEvent('fm:projects:open', { detail: { project, ...options } }));
   }
   function visibleTitle(){
-    if (viewMode === 'appointment_schedule') return window.Portal?.terminology?.get?.('scheduling.routing_view', 'Routing') || 'Routing';
+    // Compact formats keep the title on one line so the toolbar height (and
+    // the calendar under it) never jumps between views.
+    if (viewMode === 'appointment_schedule') return `${window.Portal?.terminology?.get?.('scheduling.routing_view', 'Routing') || 'Routing'} · ${anchorDate.toLocaleDateString([], anchorDate.getFullYear() === new Date().getFullYear() ? { weekday:'short', month:'short', day:'numeric' } : { weekday:'short', month:'short', day:'numeric', year:'numeric' })}`;
     if (viewMode === 'gantt') return ganttRangeTitle() || window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Timeline') || 'Timeline';
-    if (viewMode === 'day') return anchorDate.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+    if (viewMode === 'day') return anchorDate.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric', year:'numeric' });
     if (viewMode === 'month') return anchorDate.toLocaleDateString([], { month:'long', year:'numeric' });
     const start = viewMode === '4day' ? startOfDay(anchorDate) : weekStart(anchorDate);
     const end = addDays(start, viewMode === '4day' ? 3 : 6);
@@ -1462,31 +1768,78 @@
   function ganttControls(){
     return window.PlatformScheduleView?.ganttControls?.(rootEl?.querySelector('#dashGanttView')) || null;
   }
+  /* Timeline paging scrolls smoothly; once it settles, date= follows the
+   * middle of what is on screen so reloads and shared links land there. */
+  function syncGanttRouteDate(options = {}){
+    clearTimeout(syncGanttRouteDate._timer);
+    syncGanttRouteDate._timer = setTimeout(() => {
+      if (viewMode !== 'gantt') return;
+      const range = ganttControls()?.visibleRange?.() || ganttVisibleRange;
+      const start = validDate(range?.start);
+      const end = validDate(range?.end);
+      if (!start || !end) return;
+      // The left edge of the visible range; a reload scrolls it back there.
+      // A manual scroll only records it in the link (the date other views
+      // open on stays the one picked with the header).
+      const leftEdge = startOfDay(start) || anchorDate;
+      if (options.moveAnchor !== false) anchorDate = leftEdge;
+      // Prev/Next/Today are their own history entries (like the other
+      // views); plain scrolling only updates the current one. A header page
+      // keeps its "push" even when scroll events re-arm the timer.
+      const push = syncGanttRouteDate._push === true;
+      syncGanttRouteDate._push = false;
+      syncScheduleRoute({ date:routeDate(leftEdge) }, { history:push ? 'push' : 'replace', source:'scheduling-date', ownedKeys:['date'] });
+    }, 450);
+    if (options.history === 'push') syncGanttRouteDate._push = true;
+  }
+  /* Rapid Prev/Next clicks add up: each page moves on from where the
+   * previous (still animating) page is heading, not from the current
+   * scroll position. */
+  let ganttPageTarget = null;
+  function pageGantt(delta){
+    const controls = ganttControls();
+    if (!controls) return;
+    const range = controls.visibleRange?.();
+    const start = validDate(range?.start);
+    const end = validDate(range?.end);
+    if (!start || !end || typeof controls.scrollToTime !== 'function') {
+      controls.page?.(delta);
+      return;
+    }
+    const span = (end.getTime() - start.getTime()) * 0.8;
+    const base = ganttPageTarget && Date.now() - ganttPageTarget.at < 900 ? ganttPageTarget.time : start.getTime();
+    const target = base + (delta < 0 ? -1 : 1) * span;
+    ganttPageTarget = { time:target, at:Date.now() };
+    controls.scrollToTime(target, 0, 'smooth');
+  }
   function nav(delta){
     if (viewMode === 'gantt') {
-      ganttControls()?.page(delta);
+      pageGantt(delta);
+      syncGanttRouteDate({ history:'push' });
       return;
     }
     if (viewMode === 'month') anchorDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + delta, 1);
     else anchorDate = addDays(anchorDate, viewMode === 'week' ? delta * 7 : (viewMode === '4day' ? delta * 4 : delta));
     if (viewMode === 'appointment_schedule') resetScheduleScrollPersistence();
-    appointmentScheduleDraft = null;
-    appointmentScheduleEventId = '';
+    // Paging keeps a rail selection (and its staged draft) like production
+    // placement does; the banner keeps saying where the draft sits.
     appointmentScheduleMenuEventId = '';
-    syncScheduleRoute({ date:routeDate() }, { history:'replace', source:'scheduling-date', ownedKeys:['date'] });
+    // Each page is its own history entry: Back returns to the previous
+    // range instead of leaving Scheduling.
+    syncScheduleRoute({ date:routeDate() }, { history:'push', source:'scheduling-date', ownedKeys:['date'] });
     render();
   }
   function goToToday(){
     anchorDate = startOfDay(new Date()) || new Date();
     if (viewMode === 'gantt' && ganttControls()) {
+      ganttPageTarget = null;
       ganttControls().today();
+      syncScheduleRoute({ date:routeDate() }, { history:'push', source:'scheduling-today', ownedKeys:['date'] });
       return;
     }
     resetScheduleScrollPersistence();
-    appointmentScheduleDraft = null;
-    appointmentScheduleEventId = '';
     appointmentScheduleMenuEventId = '';
-    syncScheduleRoute({ date:routeDate() }, { history:'replace', source:'scheduling-today', ownedKeys:['date'] });
+    syncScheduleRoute({ date:routeDate() }, { history:'push', source:'scheduling-today', ownedKeys:['date'] });
     render();
   }
   function primaryProjectContact(project = {}){
@@ -1552,6 +1905,18 @@
     if (mode === 'manual') return savedTitle || customerName || address || 'Project';
     if (mode === 'address') return address || customerName || savedTitle || 'Project';
     return customerName || address || savedTitle || 'Project';
+  }
+  /* Title for new work created from a project with no schedule items yet
+   * ("sold, unscheduled"): the job's own title, never the customer's name
+   * (the chip's second line already shows the customer). */
+  function projectWorkTitle(project = {}){
+    const manifest = project?.manifest && typeof project.manifest === 'object' && !Array.isArray(project.manifest) ? project.manifest : {};
+    const address = clean(project?.address || project?.project_address || manifest.address);
+    const customer = clean(primaryProjectContact(project || {})?.name);
+    const saved = [project?.project_title, project?.project_name, project?.projectName, project?.title, project?.name, manifest.project_title, manifest.project_name, manifest.title]
+      .map(clean)
+      .find((value) => value && norm(value) !== norm(address) && norm(value) !== norm(customer));
+    return saved || (globalThis.PlatformLanguage?.text("scheduling","m_222066ef57ae0e","Work") ?? "Work");
   }
   function projectAddress(project, event){
     return projectAddressValue(project, event) || 'No address yet';
@@ -1785,26 +2150,90 @@
       const key = descriptor.key || String(event.id || '');
       const group = groups.get(key) || { key, events:[], primary:null, project:eventProject(event) };
       group.events.push(event);
-      if (!group.primary || descriptor.role === 'primary' || (isProductionEvent(event) && !isProductionEvent(group.primary))) group.primary = event;
       groups.set(key, group);
     });
-    return [...groups.values()].map((group) => ({
-      ...group,
-      primary:group.primary || group.events[0],
-      dependents:group.events.filter((event) => String(event.id || '') !== String((group.primary || group.events[0])?.id || ''))
-    })).sort((a, b) => projectTitle(a.project, a.primary).localeCompare(projectTitle(b.project, b.primary)));
+    const Scheduling = window.PlatformScheduling;
+    return [...groups.values()].map((group) => {
+      // Items list in dependency order, and the bundle is placed from its
+      // first work item that nothing else in the bundle waits on.
+      const dependencyOrdered = Scheduling?.orderByDependencies ? Scheduling.orderByDependencies(group.events) : group.events;
+      const ids = new Set(dependencyOrdered.map((event) => String(event.id || '')));
+      // A waiting item is a chain start only when nothing waiting comes before
+      // it, also through already-scheduled work in between (tear-off →
+      // [scheduled install] → gutters: gutters is not a start).
+      const byId = new Map(allEvents.map((event) => [String(event.id || ''), event]));
+      const depsOf = (event) => (Scheduling?.eventDependencies ? Scheduling.eventDependencies(event) : []);
+      const hasWaitingAncestor = (event, seen = new Set()) => depsOf(event).some((dep) => {
+        const id = String(dep.event_id || '');
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        if (ids.has(id)) return true;
+        const predecessor = byId.get(id);
+        return predecessor ? hasWaitingAncestor(predecessor, seen) : false;
+      });
+      const isRoot = (event) => !hasWaitingAncestor(event);
+      const ordered = [...dependencyOrdered.filter(isRoot), ...dependencyOrdered.filter((event) => !isRoot(event))];
+      const isPrimaryRole = (event) => scheduleBundleDescriptor(event).role === 'primary';
+      const primary = ordered.find((event) => isPrimaryRole(event) && isRoot(event))
+        || ordered.find(isPrimaryRole)
+        || ordered.find(isProductionEvent)
+        || ordered[0];
+      return {
+        ...group,
+        events:ordered,
+        primary,
+        dependents:ordered.filter((event) => String(event.id || '') !== String(primary?.id || ''))
+      };
+    }).sort((a, b) => projectTitle(a.project, a.primary).localeCompare(projectTitle(b.project, b.primary)));
   }
   function selectedProductionBundle(){
     if (!productionScheduleBundleKey) return null;
     return scheduleBundleGroups(unscheduledEvents((event) => isProductionEvent(event) || isMaterialEvent(event)))
       .find((group) => group.key === productionScheduleBundleKey) || null;
   }
+  /* Bundle drafts that follow already-scheduled work (or an earlier draft)
+   * start no earlier than their links allow, using the shared dependency
+   * layout (whole days on the next free day, timed work keeps its time of
+   * day). The primary keeps the day the user picked. */
+  function layoutAfterScheduledPredecessors(drafts = [], sources = [], scheduled = [], primaryId = ''){
+    const Scheduling = window.PlatformScheduling;
+    if (!Scheduling?.dependencyEarliestStart || !Scheduling?.scheduleItemSpan || !Scheduling?.eventDependencies) return drafts;
+    const ranges = new Map(scheduled.map((item) => [String(item.id || ''), { start:eventStart(item), end:eventEnd(item) }]));
+    const sourceById = new Map(sources.map((item) => [String(item.id || ''), item]));
+    return drafts.map((draft) => {
+      const id = String(draft.id || draft.event_id || '');
+      const source = sourceById.get(id) || draft;
+      let start = validDate(draft.start);
+      let end = validDate(draft.end);
+      if (start && id !== primaryId) {
+        const span = Scheduling.scheduleItemSpan(source, { start, end:end || start });
+        let earliest = null;
+        Scheduling.eventDependencies(source).forEach((dep) => {
+          const predecessor = ranges.get(String(dep.event_id || ''));
+          if (!predecessor?.start) return;
+          const allowed = validDate(Scheduling.dependencyEarliestStart(dep, predecessor, span, { config:schedulingConfig }));
+          if (allowed && (!earliest || allowed > earliest)) earliest = allowed;
+        });
+        if (earliest && earliest > start) {
+          start = earliest;
+          end = span.allDay ? addDays(startOfDay(start), Math.max(1, span.days)) : new Date(start.getTime() + span.minutes * 60000);
+          draft = { ...draft, start, end, start_at:start.toISOString(), end_at:end.toISOString() };
+        }
+      }
+      if (start) ranges.set(id, { start, end:end || start });
+      return draft;
+    });
+  }
   function scheduleBundleDrafts(primaryDraft = productionScheduleDraft){
     const bundle = selectedProductionBundle();
     const primary = bundle?.primary || selectedProductionEvent();
     const project = bundle?.project || selectedProductionProject() || eventProject(primary || {});
     if (!primary || !primaryDraft?.start || !window.PlatformScheduling?.interpretScheduleBundle) return primaryDraft?.start ? [primaryDraft] : [];
-    return window.PlatformScheduling.interpretScheduleBundle(primary, bundle?.events || [primary], primaryDraft.start, project, scopeTemplates)
+    // Already-scheduled project items constrain bundle items that depend on them.
+    const projectId = String(project?.id || primary.project_id || '');
+    const scheduledProjectEvents = allEvents.filter((item) => String(item.project_id || '') === projectId && eventIsScheduled(item));
+    const interpreted = window.PlatformScheduling.interpretScheduleBundle(primary, bundle?.events || [primary], primaryDraft.start, project, scopeTemplates, { config:schedulingConfig, events:scheduledProjectEvents });
+    return layoutAfterScheduledPredecessors(interpreted, bundle?.events || [primary], scheduledProjectEvents, String(primary.id || ''))
       .map((draft) => ({
         ...draft,
         project_title:projectTitle(project, draft),
@@ -1822,109 +2251,141 @@
       .filter((item) => !item.scheduled || !item.assigned)
       .sort((a, b) => (eventStart(a.event)?.getTime() ?? Number.MAX_SAFE_INTEGER) - (eventStart(b.event)?.getTime() ?? Number.MAX_SAFE_INTEGER));
   }
+  /* Rail group heads collapse their group (state kept per session in
+   * collapsedGroups under a "rail:" key). The expanded state lives on the head
+   * so CSS can hide the body and release the group's rail height. */
+  // Rail group collapse is remembered per viewer and organization.
+  function railCollapseStorageKey(){ return `fm.scheduling.rail.collapsed:${orgId() || 'org'}`; }
+  function restoreRailCollapsed(){
+    if (restoreRailCollapsed.done) return;
+    restoreRailCollapsed.done = true;
+    try {
+      const saved = JSON.parse(window.localStorage?.getItem(railCollapseStorageKey()) || '{}');
+      if (saved && typeof saved === 'object') Object.entries(saved).forEach(([key, value]) => { if (key.startsWith('rail:') && !(key in collapsedGroups)) collapsedGroups[key] = value === true; });
+    } catch (error) {}
+  }
+  function persistRailCollapsed(){
+    try {
+      const rail = Object.fromEntries(Object.entries(collapsedGroups).filter(([key, value]) => key.startsWith('rail:') && value === true));
+      window.localStorage?.setItem(railCollapseStorageKey(), JSON.stringify(rail));
+    } catch (error) {}
+  }
+  function railGroupHeadHtml(id, label, count){
+    restoreRailCollapsed();
+    const key = `rail:${id}`;
+    const collapsed = collapsedGroups[key] === true;
+    return `<button type="button" class="dash-group-head" data-toggle-group="${escapeHtml(key)}" aria-expanded="${collapsed ? 'false' : 'true'}"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(count)}<i class="fas fa-chevron-${collapsed ? 'down' : 'up'}" aria-hidden="true"></i></span></button>`;
+  }
+  function salesRailWhenHtml(item, selected){
+    const draftStart = selected && appointmentScheduleDraft?.start ? validDate(appointmentScheduleDraft.start) : null;
+    if (draftStart) return `<span class="dash-appt-draft-time">${escapeHtml(`Draft · ${fmtDayTime(draftStart)}`)}</span>`;
+    return item.scheduled ? escapeHtml(fmtDayTime(eventStart(item.event))) : 'Choose a date and time';
+  }
+  // Keeps the selected sales tile's time in step with a draft that is dragged
+  // on the calendar without re-rendering the whole tab.
+  function refreshRailDraftLabel(){
+    const item = scheduleAppointmentItems().find((entry) => String(entry.event?.id || '') === String(appointmentScheduleEventId || ''));
+    if (!item || !rootEl) return;
+    rootEl.querySelectorAll('[data-schedule-event-id]').forEach((tile) => {
+      if (String(tile.dataset.scheduleEventId || '') !== String(item.event.id || '')) return;
+      const label = tile.querySelector('.dash-appt-sales');
+      if (label) label.innerHTML = salesRailWhenHtml(item, true);
+    });
+  }
   function renderScheduleGroups(){
     const items = scheduleAppointmentItems();
     const tile = (item) => {
       const project = item.project || {};
       const selected = String(item.event.id || '') === String(appointmentScheduleEventId || '');
       const missingAddress = !projectAddressValue(project, item.event);
-      return `<button type="button" class="dash-appt-tile unscheduled ${missingAddress ? 'missing-address' : ''} ${selected ? 'selected' : ''}" data-schedule-event-id="${escapeHtml(item.event.id || '')}" data-schedule-project-id="${escapeHtml(project.id || '')}">
+      return `<button type="button" class="dash-appt-tile unscheduled ${missingAddress ? 'missing-address' : ''} ${selected ? 'selected' : ''}" data-schedule-event-id="${escapeHtml(item.event.id || '')}" data-schedule-project-id="${escapeHtml(project.id || '')}" aria-pressed="${selected ? 'true' : 'false'}">
         <div class="dash-appt-title">${escapeHtml(projectTitle(project, item.event))}</div>
-        <div class="dash-appt-sales">${item.scheduled ? escapeHtml(fmtDayTime(eventStart(item.event))) : 'Choose a date and time'}</div>
+        <div class="dash-appt-sales">${salesRailWhenHtml(item, selected)}</div>
         <div class="dash-appt-address">${missingAddress ? missingAddressLabel() : escapeHtml(projectAddress(project, item.event))}</div>
         <div class="dash-stage-pill">${item.scheduled ? 'Unassigned' : 'Unscheduled'}</div>
       </button>`;
     };
     const group = (label, rows) => `<div class="dash-group ${rows.length ? '' : 'empty'}">
-      <div class="dash-group-head" style="cursor:default"><strong>${escapeHtml(label)}</strong><span>${rows.length}</span></div>
+      ${railGroupHeadHtml('sales', label, rows.length)}
       <div class="dash-group-body">${rows.length ? rows.map(tile).join('') : `<div class="dash-empty" style="padding:16px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_9edea1c187a128","No unscheduled sales appointments.") ?? "No unscheduled sales appointments.")}</div>`}</div>
     </div>`;
     return group('Sales', items);
+  }
+  function bundleChildIsSelected(event = {}){
+    const id = String(event.id || '');
+    if (!id) return false;
+    return isMaterialEvent(event)
+      ? id === String(materialScheduleEventId || '')
+      : !productionScheduleBundleKey && id === String(productionScheduleEventId || '');
   }
   function renderProductionScheduleGroups(){
     const canonical = unscheduledEvents(isProductionEvent);
     const materials = unscheduledEvents(isMaterialEvent);
     const inferred = unscheduledProductionProjects();
     const eventGroups = scheduleBundleGroups([...canonical, ...materials]);
-    const eventTile = (event) => {
-      const project = eventProject(event);
-      const missingAddress = !projectAddressValue(project, event);
-      return `<button type="button" class="dash-appt-tile project-only unscheduled ${String(missingAddress ? 'missing-address' : '')}" data-production-project-id="${String(escapeHtml(project.id || event.project_id || ''))}" data-production-event-id="${String(escapeHtml(event.id || ''))}">
-        <div class="dash-appt-title">${String(escapeHtml(event.title || projectTitle(project, event)))}</div>
-        <div class="dash-stage-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c84286da8f58e9","Waiting") ?? "Waiting")}</div>
-        <div class="dash-appt-address">${String(escapeHtml(projectTitle(project, event)))}${String(missingAddress ? ` ${missingAddressLabel()}` : '')}</div>
-      </button>`;
+    const cancelLabel = (globalThis.PlatformLanguage?.htmlText("scheduling","m_3714e2e80f69ac","Cancel placement") ?? "Cancel placement");
+    const orderedPill = (event, className = 'dash-bundle-item-pill') => {
+      const ordered = materialEventIsOrdered(event);
+      return `<span class="${className} ${ordered ? 'ordered' : ''}">${ordered ? 'Ordered' : 'Not ordered'}</span>`;
+    };
+    // Children keep their real kind: work items place as production work and
+    // deliveries as deliveries (a work child must never be saved as a delivery).
+    const childRow = (event, project) => {
+      const material = isMaterialEvent(event);
+      const selected = bundleChildIsSelected(event);
+      const label = material
+        ? (String(escapeHtml(materialDeliveryTitle(event))) + "<span class=\"dash-appt-kind\">" + (globalThis.PlatformLanguage?.htmlText("scheduling","m_658f2deb4256b0"," &mdash; delivery") ?? " &mdash; delivery") + "</span>")
+        : escapeHtml(event.title || (globalThis.PlatformLanguage?.text("scheduling","m_d0a9ffb325f8e6","Schedule item") ?? "Schedule item"));
+      return `<div class="dash-bundle-item-row"><button type="button" class="dash-bundle-item ${selected ? 'selected' : ''}" data-production-bundle-child="${escapeHtml(event.id || '')}" data-bundle-child-project-id="${escapeHtml(project.id || event.project_id || '')}" data-bundle-child-kind="${material ? 'materials' : 'production'}" aria-pressed="${selected ? 'true' : 'false'}" title="${escapeHtml(material ? `${materialDeliveryTitle(event)} — delivery` : clean(event.title) || 'Schedule item')}" aria-label="${escapeHtml(material ? `${materialDeliveryTitle(event)} — delivery, ${materialEventIsOrdered(event) ? 'ordered' : 'not ordered'}` : clean(event.title) || 'Schedule item')}"><i class="fas ${material ? 'fa-truck-ramp-box' : 'fa-calendar-day'}" aria-hidden="true"></i><span>${label}</span>${material ? orderedPill(event) : ''}</button>${selected ? `<button type="button" class="dash-bundle-child-cancel" data-bundle-child-cancel aria-label="${cancelLabel}" title="${cancelLabel}"><i class="fas fa-xmark" aria-hidden="true"></i></button>` : ''}</div>`;
     };
     const eventPile = (group) => {
       const primary = group.primary;
       const project = group.project || eventProject(primary);
-      const selected = group.key === productionScheduleBundleKey || String(primary.id || '') === String(productionScheduleEventId || '');
+      const primaryIsMaterial = isMaterialEvent(primary);
+      const selected = group.key === productionScheduleBundleKey
+        || (!primaryIsMaterial && String(primary.id || '') === String(productionScheduleEventId || ''))
+        || (primaryIsMaterial && String(primary.id || '') === String(materialScheduleEventId || ''));
       const missingAddress = !projectAddressValue(project, primary);
-      const childSelected = group.dependents.some((event) => String(event.id || '') === String(materialScheduleEventId || ''));
+      const childSelected = group.dependents.some(bundleChildIsSelected);
       const expanded = expandedProductionBundles.has(group.key) || childSelected;
       const deliveryCount = group.dependents.filter(isMaterialEvent).length;
       const dependentLabel = deliveryCount === group.dependents.length
         ? `${deliveryCount} ${deliveryCount === 1 ? 'delivery' : 'deliveries'}`
         : `${group.dependents.length} related item${group.dependents.length === 1 ? '' : 's'}`;
-      const cancel = selected ? `<span class="dash-bundle-cancel" data-production-bundle-cancel="${String(escapeHtml(group.key))}" role="button" tabindex="0" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3714e2e80f69ac","Cancel placement") ?? "Cancel placement")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3714e2e80f69ac","Cancel placement") ?? "Cancel placement")}"><i class="fas fa-xmark"></i></span>` : `<div class="dash-stage-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c84286da8f58e9","Waiting") ?? "Waiting")}</div>`;
+      const status = selected
+        ? '<span class="dash-bundle-cancel-slot" aria-hidden="true"></span>'
+        : (primaryIsMaterial ? orderedPill(primary, 'dash-stage-pill') : `<div class="dash-stage-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c84286da8f58e9","Waiting") ?? "Waiting")}</div>`);
       return `<div class="dash-schedule-pile ${selected ? 'selected' : ''}" data-production-bundle="${escapeHtml(group.key)}">
-        <button type="button" class="dash-appt-tile project-only unscheduled ${missingAddress ? 'missing-address' : ''} ${selected ? 'selected' : ''}" data-production-bundle-primary="${escapeHtml(group.key)}" data-production-project-id="${escapeHtml(project.id || primary.project_id || '')}" data-production-event-id="${escapeHtml(primary.id || '')}">
-          <div class="dash-appt-title">${escapeHtml(primary.title || projectTitle(project, primary))}</div>
-          ${cancel}
+        <button type="button" class="dash-appt-tile project-only unscheduled ${missingAddress ? 'missing-address' : ''} ${selected ? 'selected' : ''}" data-production-bundle-primary="${escapeHtml(group.key)}" data-production-project-id="${escapeHtml(project.id || primary.project_id || '')}" data-production-event-id="${escapeHtml(primary.id || '')}" aria-pressed="${selected ? 'true' : 'false'}">
+          <div class="dash-appt-title">${primaryIsMaterial ? `<i class="fas fa-truck-ramp-box" aria-hidden="true" style="margin-right:6px"></i>${materialDeliveryQueueTitle(primary)}` : escapeHtml(primary.title || projectTitle(project, primary))}</div>
+          ${status}
           <div class="dash-appt-address">${escapeHtml(projectTitle(project, primary))}${missingAddress ? ` ${missingAddressLabel()}` : ''}</div>
         </button>
+        ${selected ? `<button type="button" class="dash-bundle-cancel" data-production-bundle-cancel="${escapeHtml(group.key)}" aria-label="${cancelLabel}" title="${cancelLabel}"><i class="fas fa-xmark" aria-hidden="true"></i></button>` : ''}
         ${group.dependents.length ? `<button type="button" class="dash-bundle-summary" data-production-bundle-toggle="${escapeHtml(group.key)}" aria-expanded="${expanded ? 'true' : 'false'}"><i class="fas fa-chevron-${expanded ? 'up' : 'down'}"></i><span>${expanded ? 'Hide' : 'Show'} ${escapeHtml(dependentLabel)}</span></button>` : ''}
-        ${group.dependents.length && expanded ? `<div class="dash-bundle-items">${group.dependents.map((event) => {
-          const childSelected = String(event.id || '') === String(materialScheduleEventId || '');
-          return `<button type="button" class="dash-bundle-item ${childSelected ? 'selected' : ''}" data-production-bundle-child="${escapeHtml(event.id || '')}" data-material-project-id="${escapeHtml(project.id || event.project_id || '')}" data-material-event-id="${escapeHtml(event.id || '')}"><i class="fas ${isMaterialEvent(event) ? 'fa-truck-ramp-box' : 'fa-calendar-day'}"></i><span>${isMaterialEvent(event) ? (String(escapeHtml(materialDeliveryTitle(event))) + "<span class=\"dash-appt-kind\">" + (globalThis.PlatformLanguage?.htmlText("scheduling","m_658f2deb4256b0"," &mdash; delivery") ?? " &mdash; delivery") + "</span>") : escapeHtml(event.title || (globalThis.PlatformLanguage?.text("scheduling","m_d0a9ffb325f8e6","Schedule item") ?? "Schedule item"))}</span>${childSelected ? `<span class="dash-bundle-child-cancel" data-bundle-child-cancel role="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3714e2e80f69ac","Cancel placement") ?? "Cancel placement")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3714e2e80f69ac","Cancel placement") ?? "Cancel placement")}"><i class="fas fa-xmark"></i></span>` : ''}</button>`;
-        }).join('')}</div>` : ''}
+        ${group.dependents.length && expanded ? `<div class="dash-bundle-items">${group.dependents.map((event) => childRow(event, project)).join('')}</div>` : ''}
       </div>`;
     };
     const unscheduledTile = (project) => {
       const selected = String(project.id || '') === String(productionScheduleProjectId || '') && !productionScheduleEventId;
       const missingAddress = !projectAddressValue(project, {});
-      return `<button type="button" class="dash-appt-tile project-only unscheduled ${String(missingAddress ? 'missing-address' : '')} ${String(selected ? 'selected' : '')}" data-production-project-id="${String(escapeHtml(project.id || ''))}">
+      return `<button type="button" class="dash-appt-tile project-only unscheduled ${String(missingAddress ? 'missing-address' : '')} ${String(selected ? 'selected' : '')}" data-production-project-id="${String(escapeHtml(project.id || ''))}" aria-pressed="${selected ? 'true' : 'false'}">
         <div class="dash-appt-title">${String(escapeHtml(projectTitle(project)))}</div>
         <div class="dash-stage-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2b7432531aba4c","Unscheduled") ?? "Unscheduled")}</div>
         <div class="dash-appt-address">${String(missingAddress ? missingAddressLabel() : escapeHtml(projectAddress(project, {})))}</div>
       </button>`;
     };
-    const materialTile = (event) => {
-      const project = eventProject(event);
-      const selected = String(event.id || '') === String(materialScheduleEventId || '');
-      const ordered = materialEventIsOrdered(event);
-      const color = clean(event.material_list_color || event.accent_color || event.material_color || event.sub_color || '#f97316');
-      const missingAddress = !projectAddressValue(project, event);
-      return `<button type="button" class="dash-appt-tile project-only unscheduled material ${String(missingAddress ? 'missing-address' : '')} ${String(ordered ? 'ordered' : 'unordered')} ${String(selected ? 'selected' : '')}" data-material-project-id="${String(escapeHtml(project.id || event.project_id || ''))}" data-material-event-id="${String(escapeHtml(event.id || ''))}" style="--material-list-color:${String(escapeHtml(color))}">
-        <div class="dash-appt-title"><i class="fas fa-truck-ramp-box" style="color:${String(escapeHtml(color))};margin-right:6px"></i>${String(materialDeliveryQueueTitle(event))}</div>
-        <div class="dash-stage-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c84286da8f58e9","Waiting") ?? "Waiting")}</div>
-        <div class="dash-appt-address">${String(escapeHtml(projectTitle(project, event)))}${String(missingAddress ? ` ${missingAddressLabel()}` : '')}</div>
-      </button>`;
-    };
+    // Decision (RAIL-27): the rail lists work that has no date yet. A
+    // production item leaves it once it is dated even without a crew — it then
+    // shows in Routing's "Unassigned" lane and flags "Unassigned" on its chip.
+    // A sales appointment only counts as scheduled once it has both a time and
+    // a salesperson, so dated-but-unassigned appointments stay in the rail.
     const rows = [...eventGroups.map((group) => ({ kind:'bundle', value:group })), ...inferred.map((project) => ({ kind:'project', value:project }))];
     const group = (label, items) => `<div class="dash-group ${items.length ? '' : 'empty'}">
-      <div class="dash-group-head" style="cursor:default"><strong>${escapeHtml(label)}</strong><span>${items.length}</span></div>
+      ${railGroupHeadHtml('production', label, items.length)}
       <div class="dash-group-body">${items.length ? items.map((item) => item.kind === 'bundle' ? eventPile(item.value) : unscheduledTile(item.value)).join('') : `<div class="dash-empty" style="padding:16px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_75626addb77eff","No unscheduled production projects.") ?? "No unscheduled production projects.")}</div>`}</div>
     </div>`;
     return group('Production', rows);
-  }
-  function renderMaterialScheduleGroups(){
-    const rows = unscheduledEvents(isMaterialEvent);
-    const tile = (event) => {
-      const project = eventProject(event);
-      const selected = String(event.id || '') === String(materialScheduleEventId || '');
-      const ordered = materialEventIsOrdered(event);
-      const color = clean(event.material_list_color || event.accent_color || event.material_color || event.sub_color || '#f97316');
-      return `<button type="button" class="dash-appt-tile project-only unscheduled material ${ordered ? 'ordered' : 'unordered'} ${selected ? 'selected' : ''}" data-material-project-id="${escapeHtml(project.id || event.project_id || '')}" data-material-event-id="${escapeHtml(event.id || '')}" style="--material-list-color:${escapeHtml(color)}">
-        <div class="dash-appt-title"><i class="fas fa-truck-ramp-box" style="color:${escapeHtml(color)};margin-right:6px"></i>${materialDeliveryQueueTitle(event)}</div>
-        <div class="dash-stage-pill">${ordered ? 'Ordered' : 'Not ordered'}</div>
-        <div class="dash-appt-address">${escapeHtml(projectAddress(project, event))}</div>
-      </button>`;
-    };
-    return `<div class="dash-group">
-      <div class="dash-group-head" style="cursor:default"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_b8dfba90769476","Material deliveries") ?? "Material deliveries")}</strong><span>${String(rows.length)}</span></div>
-      <div class="dash-group-body">${String(rows.length ? rows.map(tile).join('') : `<div class="dash-empty" style="padding:16px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_85c85d8d0ddcb3","No material deliveries waiting to be scheduled.") ?? "No material deliveries waiting to be scheduled.")}</div>`)}</div>
-    </div>`;
   }
   function selectedScheduleProject(){
     const visible = visibleProjects().find((project) => String(project.id) === String(appointmentScheduleProjectId));
@@ -2037,29 +2498,450 @@
     materialScheduleProjectId = '';
     materialScheduleEventId = '';
   }
+  /* A placed-but-unsaved rail item keeps its real event id on the calendar,
+   * so the renderers can't tell it from the stored (unscheduled) item by id.
+   * Drafts handed to a renderer are flagged __draft so clicks, drags and ✓
+   * route to the draft callbacks (onDraftSelect / onDraftChange), never to
+   * the stored item's editor or an immediate save. */
+  function renderedPlacementDraft(draft){
+    if (!draft || draft.floating_event === true || String(draft.id || '').startsWith('floating_')) return draft || null;
+    return { ...draft, __draft:true };
+  }
+  function placementDraftIds(){
+    const ids = new Set();
+    const add = (value) => { const id = clean(value); if (id) ids.add(id); };
+    if (productionScheduleDraft?.start) { add(productionScheduleDraft.id); add(productionScheduleDraft.event_id); }
+    productionScheduleBundleDrafts.forEach((draft) => { if (draft?.start) { add(draft.id); add(draft.event_id); } });
+    if (materialScheduleDraft?.start) { add(materialScheduleDraft.id); add(materialScheduleDraft.event_id); }
+    if (appointmentScheduleDraft?.start) add(appointmentScheduleEventId);
+    if (vehiclePlacementDraft?.start) add(vehiclePlacementDraft.id || '__vehicle_draft');
+    return ids;
+  }
+  /* A waiting item moved straight on the calendar (e.g. an unassigned
+   * appointment dropped into a rep's Routing row) is saved by that move. When
+   * that leaves it scheduled and assigned, placing it is finished: clear the
+   * selection so the rail tile, banner and chip update at once (the rail and
+   * banner live outside the calendar surface, so the tab re-renders). */
+  function settlePlacementSelectionAfterSave(saved = {}){
+    const id = String(saved?.id || '');
+    if (!id || id !== String(appointmentScheduleEventId || '')) return false;
+    if (eventIsScheduled(saved) && currentAssignmentId(saved)) clearPlacementSelection();
+    render();
+    return true;
+  }
+  function isPlacementDraftEvent(event = null){
+    if (!event?.id || event.floating_event === true || String(event.id || '').startsWith('floating_')) return false;
+    return event.__draft === true || placementDraftIds().has(clean(event.id));
+  }
+  /* Opens the editor for the placement draft (its staged time, crew, notes);
+   * Save there commits the placement exactly like the draft's ✓. */
+  /* A placement draft's editor edits of dates, times, crew or assignee show
+   * on the staged draft at once: its chip (and the bundle that follows it),
+   * the rail label and the banner update without waiting for Save. */
+  function placementDraftEdited(ctx = null, patch = {}){
+    if (!ctx || ctx.editorOnly === true || ctx.kind === 'floating' || !placementWaitingItem()) return;
+    const keys = Object.keys(patch || {});
+    const visible = ['start', 'end', 'start_at', 'end_at', 'all_day', 'schedule_granularity', 'resource_refs', 'work_resource_ref', 'assigned_crew_id', 'assigned_resource_id', 'assigned_user_id', 'assigned_user_ids', 'crew_id', 'resource_id'];
+    if (!keys.some((key) => visible.includes(key))) return;
+    if (ctx.kind === 'production' && productionScheduleBundleKey && productionScheduleDraft?.start) productionScheduleBundleDrafts = scheduleBundleDrafts(productionScheduleDraft);
+    clearTimeout(placementDraftEdited.timer);
+    placementDraftEdited.timer = setTimeout(() => {
+      if (!placementWaitingItem()) return;
+      refreshActiveScheduleSurface();
+      refreshRailDraftLabel();
+      refreshPlacementBanner();
+    }, 0);
+  }
+  /* The placement editor always shows the staged draft: when the draft moves
+   * (click, drag, lane drop) an open placement editor is rebuilt from it, so
+   * Save commits exactly what the editor shows. */
+  function refreshPlacementEditor(){
+    if (!document.querySelector('.dash-event-popover') || eventEditorEventId || eventDraftPopoverId || !placementWaitingItem()) return;
+    const ctx = eventEditorContext();
+    if (!ctx || ctx.editorOnly === true || ctx.kind === 'floating') return;
+    const id = String(ctx.event?.id || '');
+    setTimeout(() => {
+      const pop = document.querySelector('.dash-event-popover');
+      if (!pop || eventEditorEventId || eventDraftPopoverId || !placementWaitingItem()) return;
+      renderEventDraftPopover(editorAnchorFor(id) || null);
+    }, 0);
+  }
+  function openPlacementDraftEditor(draft = {}, anchor = null){
+    if (!placementWaitingItem()) return false;
+    closeAssignmentMenu();
+    discardEventEditorDraft();
+    eventDraftPopoverId = '';
+    eventEditorEventId = '';
+    eventDraftProjectQuery = '';
+    eventCustomerDetailsOpen = false;
+    eventAdvancedOpen = false;
+    renderEventDraftPopover(anchor || editorAnchorFor(draft?.id));
+    return true;
+  }
+  // The first load has not produced any data yet: rail and Routing show a
+  // loading state instead of "0 / nothing waiting".
+  function scheduleInitialLoading(){
+    return !dataLoaded;
+  }
+  /* The waiting item currently being placed (rail selection or vehicle), or
+   * null. An already-placed event that is merely open in the editor is not a
+   * placement. */
+  function placementWaitingItem(){
+    // Vehicle lanes only exist in Routing; elsewhere a vehicle pick waits.
+    if (vehiclePlacementUnitId && viewMode !== 'appointment_schedule') return null;
+    if (vehiclePlacementUnitId) {
+      const unit = equipmentUnits.find((item) => clean(item.id) === vehiclePlacementUnitId);
+      return unit ? { kind:'vehicle', label:clean(unit.name || unit.id), start:vehiclePlacementDraft?.start || null } : null;
+    }
+    const kind = selectedPlacementKind();
+    if (kind === 'materials') {
+      const event = selectedMaterialEvent();
+      return event && !eventIsScheduled(event) ? { kind, label:`${materialDeliveryTitle(event)} delivery`, start:materialScheduleDraft?.start || null, click:true } : null;
+    }
+    if (kind === 'production') {
+      const bundle = selectedProductionBundle();
+      if (bundle?.primary) {
+        const extra = Math.max(0, (bundle.events || []).length - 1);
+        return { kind, label:`${clean(bundle.primary.title) || projectTitle(bundle.project, bundle.primary)}${extra ? ` + ${extra} related item${extra === 1 ? '' : 's'}` : ''}`, start:productionScheduleDraft?.start || null, click:true };
+      }
+      const event = selectedProductionEvent();
+      if (event) return !eventIsScheduled(event) ? { kind, label:clean(event.title) || projectTitle(eventProject(event), event), start:productionScheduleDraft?.start || null, click:true } : null;
+      const project = selectedProductionProject();
+      return project ? { kind, label:projectTitle(project), start:productionScheduleDraft?.start || null, click:true } : null;
+    }
+    if (kind === 'sales') {
+      const event = selectedScheduleEvent();
+      if (!event || (eventIsScheduled(event) && currentAssignmentId(event))) return null;
+      return { kind, label:projectTitle(eventProject(event), event), start:appointmentScheduleDraft?.start || null, scheduled:eventIsScheduled(event) };
+    }
+    return null;
+  }
+  function placementDateIsPast(start){
+    const day = startOfDay(start);
+    const today = startOfDay(new Date());
+    return !!day && !!today && day < today;
+  }
+  function placementBannerHtml(surface = 'calendar'){
+    if (scheduleInitialLoading()) return '';
+    const item = placementWaitingItem();
+    if (!item) return '';
+    const name = `<strong>${escapeHtml(item.label)}</strong>`;
+    const start = validDate(item.start);
+    let text = '';
+    // Phones: touch wording, and no keyboard hint on Cancel.
+    const touch = isMobileScheduleLayout();
+    const confirmVerb = touch ? 'tap' : 'click';
+    if (item.kind === 'vehicle') {
+      text = start ? `${name} is booked as a draft. Drag it to adjust, then ${confirmVerb} ✓ to save.` : `${touch ? 'Touch and hold' : 'Click'} a crew's vehicle lane to book ${name}.`;
+    } else if (start) {
+      text = `${name} is placed as a draft on ${escapeHtml(start.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' }))}. Drag it to adjust, then ${confirmVerb} ✓ on it to save.`;
+    } else if (item.kind === 'sales' && item.scheduled) {
+      text = surface === 'routing'
+        ? `${name} has no salesperson. Drag it into a salesperson's row to assign it (or to a new time), then ${confirmVerb} ✓ to save.`
+        : `${name} has no salesperson. ${touch ? 'Tap' : 'Click'} it on the calendar to assign someone, or drag it to a new time.`;
+    } else if (isMobileScheduleLayout()) {
+      // Phones place with a touch-and-hold (a tap scrolls or opens items).
+      text = surface === 'routing' ? `Touch and hold a cell in a row to place ${name}.` : `Touch and hold a day to place ${name}.`;
+    } else if (surface === 'routing') {
+      text = `Click a cell in a row to place ${name}.`;
+    } else if (item.click) {
+      text = `Click a day to place ${name}. Other items can't be moved until you finish or cancel.`;
+    } else {
+      text = `Click or drag on the calendar to place ${name}.`;
+    }
+    const past = !!start && placementDateIsPast(start);
+    return `<div class="dash-placement-banner ${past ? 'past' : ''}" data-placement-banner role="status"><i class="fas fa-location-crosshairs" aria-hidden="true"></i><span>${text}</span>${past ? '<span class="dash-placement-banner-warn"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> Date is in the past</span>' : ''}<button type="button" class="dash-placement-cancel" data-placement-cancel title="${touch ? 'Stop placing' : 'Stop placing (Esc)'}">Cancel${touch ? '' : ' <span aria-hidden="true">· Esc</span>'}</button></div>`;
+  }
+  function bindPlacementBanner(scope = rootEl){
+    scope?.querySelectorAll?.('[data-placement-cancel]').forEach((btn) => btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      cancelPlacement();
+    }));
+    // The floating banner must not cover the calendar's last row: the
+    // calendar scrollers get that much room at the bottom (CSS var).
+    const banner = (scope?.matches?.('[data-placement-banner]') ? scope : scope?.querySelector?.('.dash-schedule-card>[data-placement-banner]')) || null;
+    const card = banner?.closest?.('.dash-schedule-card');
+    if (card && banner) requestAnimationFrame(() => { if (banner.isConnected) card.style.setProperty('--dash-banner-space', `${Math.ceil(banner.offsetHeight + 24)}px`); });
+  }
+  // Updates the banner in place after a draft changes without a full render.
+  function refreshPlacementBanner(){
+    const current = rootEl?.querySelector('[data-placement-banner]');
+    const html = placementBannerHtml(viewMode === 'appointment_schedule' ? 'routing' : 'calendar');
+    if (!current || !html) return;
+    const holder = document.createElement('div');
+    holder.innerHTML = html;
+    const next = holder.firstElementChild;
+    if (!next) return;
+    current.replaceWith(next);
+    bindPlacementBanner(next);
+  }
+  // The rail control of the item being placed, so focus can go back to it
+  // when placing ends (instead of dropping to <body>).
+  function placementRailFocusSelector(){
+    if (vehiclePlacementUnitId) return railAttrSelector('data-vehicle-bank-unit', vehiclePlacementUnitId);
+    if (productionScheduleBundleKey) return railAttrSelector('data-production-bundle-primary', productionScheduleBundleKey);
+    const kind = selectedPlacementKind();
+    if (kind === 'materials' && materialScheduleEventId) return `${railAttrSelector('data-production-bundle-child', materialScheduleEventId)},${railAttrSelector('data-production-event-id', materialScheduleEventId)}`;
+    if (kind === 'production' && productionScheduleEventId) return railAttrSelector('data-production-bundle-child', productionScheduleEventId);
+    if (kind === 'production' && productionScheduleProjectId) return `[data-production-project-id="${window.CSS?.escape ? window.CSS.escape(productionScheduleProjectId) : productionScheduleProjectId}"]:not([data-production-event-id])`;
+    if (kind === 'sales' && appointmentScheduleEventId) return railAttrSelector('data-schedule-event-id', appointmentScheduleEventId);
+    return '';
+  }
+  function cancelPlacement(){
+    const focusSelector = placementRailFocusSelector();
+    clearPlacementSelection();
+    vehiclePlacementUnitId = '';
+    vehiclePlacementDraft = null;
+    if (!eventEditorEventId && !eventDraftPopoverId) closeEventDraftPopover();
+    render();
+    if (focusSelector) focusRailControl(`.dash-right ${focusSelector.split(',').join(',.dash-right ')}`);
+  }
+  // Escape stops placing when nothing is layered above the calendar; open
+  // popovers and dialogs handle their own Escape first. A draft that was
+  // already placed is only discarded after confirmation.
+  function placementEscapeHandler(event){
+    if (event.key !== 'Escape' || event.defaultPrevented || !rootEl?.isConnected) return;
+    const panel = rootEl.closest?.('.fm-tabpanel');
+    if (panel && !panel.classList.contains('active')) return;
+    const item = placementWaitingItem();
+    if (!item) return;
+    if (document.querySelector('.dash-event-popover,.dash-assignee-popover,.dash-modal-backdrop,.fm-dialog-backdrop')) return;
+    if (event.target?.closest?.('input,textarea,select,[contenteditable="true"]')) return;
+    event.preventDefault();
+    requestCancelPlacement();
+  }
+  // Stop placing; a placed-but-unsaved draft asks before it is discarded.
+  function requestCancelPlacement(){
+    const item = placementWaitingItem();
+    if (!item) return;
+    if (!item.start) { cancelPlacement(); return; }
+    if (requestCancelPlacement.pending) return;
+    requestCancelPlacement.pending = true;
+    confirmDiscardPendingPlacement()
+      .then((discard) => { if (discard && placementWaitingItem()) cancelPlacement(); })
+      .finally(() => { requestCancelPlacement.pending = false; });
+  }
+  function placementOverlayOpen(){
+    return !!document.querySelector('.dash-event-popover,.dash-assignee-popover,.dash-modal-backdrop,.fm-dialog-backdrop');
+  }
+  /* Moving a stored item onto an earlier day than today asks first, the
+   * same way placing a waiting item there does. Items already in the past
+   * that stay on their own day (a time tweak) don't ask. */
+  async function confirmPastMove(event = {}, range = {}){
+    const start = validDate(range.start);
+    if (!start || !placementDateIsPast(start)) return true;
+    const stored = allEvents.find((item) => String(item.id || '') === String(event.id || ''))
+      || floatingEvents.find((item) => String(item.id || '') === String(event.id || ''))
+      || event;
+    const before = eventStart(stored);
+    if (before && startOfDay(before)?.getTime() === startOfDay(start)?.getTime()) return true;
+    return confirmPastPlacement(start, clean(event.title || event.project_title) ? `“${clean(event.title || event.project_title)}”` : 'This item', { move:true });
+  }
+  async function confirmPastPlacement(start, label = 'This item', options = {}){
+    if (!placementDateIsPast(start)) return true;
+    const confirmPlacement = window.Portal?.ui?.confirm || window.PlatformUI?.confirm;
+    if (typeof confirmPlacement !== 'function') return true;
+    const day = startOfDay(start);
+    const dayLabel = day.toLocaleDateString([], { weekday:'long', month:'short', day:'numeric' });
+    return !!(await confirmPlacement(options.move
+      ? `${label} would move to ${dayLabel}, which is in the past. Move it anyway?`
+      : `${label} would be placed on ${dayLabel}, which is in the past. Place it anyway?`, {
+      title:options.move ? 'Move into the past?' : 'Place in the past?',
+      okLabel:options.move ? 'Move anyway' : 'Place anyway',
+      cancelLabel:options.move ? 'Cancel' : 'Choose another date',
+      defaultFocus:'cancel'
+    }));
+  }
+  // Switching the rail selection discards an unsaved draft; ask first.
+  async function confirmDiscardPendingPlacement(){
+    const item = placementWaitingItem();
+    if (!item?.start) return true;
+    const confirmDiscard = window.Portal?.ui?.confirm || window.PlatformUI?.confirm;
+    if (typeof confirmDiscard !== 'function') return true;
+    // The control that asked keeps focus after the dialog, even when the
+    // answer re-renders it.
+    const focusSelector = scheduleFocusSelector(document.activeElement);
+    const discard = !!(await confirmDiscard(`${item.label} is placed as a draft but not saved yet. Discard that placement?`, {
+      title:'Discard unsaved placement?',
+      okLabel:'Discard',
+      cancelLabel:'Keep it',
+      danger:true,
+      // Enter keeps the draft; discarding takes a deliberate click.
+      defaultFocus:'cancel'
+    }));
+    if (focusSelector) requestAnimationFrame(() => {
+      if (!document.activeElement || document.activeElement === document.body) focusRailControl(focusSelector);
+    });
+    return discard;
+  }
+  function focusRailControl(selector = ''){
+    if (!selector) return;
+    try { rootEl?.querySelector(selector)?.focus?.({ preventScroll:true }); } catch (error) {}
+  }
+  function railAttrSelector(attr, value){
+    const escaped = window.CSS?.escape ? window.CSS.escape(String(value || '')) : String(value || '').replace(/["\\]/g, '\\$&');
+    return `[${attr}="${escaped}"]`;
+  }
+  /* Assignment a sales placement will save: an explicit lane/menu choice, then
+   * an assignee edited in the popover, otherwise the appointment keeps its
+   * current salesperson (a placement never silently unassigns). */
+  function salesDraftAssignment(draft = null, existing = null){
+    if (draft?.assignment && typeof draft.assignment === 'object') return draft.assignment;
+    if (draft && (Array.isArray(draft.assigned_user_ids) || Object.prototype.hasOwnProperty.call(draft, 'assigned_user_id') || draft.work_resource_ref)) return assignmentPayloadForEvent(draft);
+    return assignmentPayloadForEvent(existing || {});
+  }
+  function salesAssignmentLabel(assignment = {}){
+    return clean(assignment.assigned_user_name || assignment.assigned_users?.[0]?.name || assignment.assigned_resource_name) || 'Unassigned';
+  }
+  // People who already hold sales appointments, used as Routing rows when the
+  // user directory could not be read (e.g. a viewer without /users access), so
+  // their appointments stay in their own rows instead of "Unassigned".
+  function salesAssigneesFromEvents(){
+    const byId = new Map();
+    allEvents.filter((event) => isSalesEvent(event) || isSalesFollowUpEvent(event)).forEach((event) => {
+      (Array.isArray(event.assigned_users) ? event.assigned_users : []).forEach((user) => {
+        const id = clean(user?.id);
+        if (id && !byId.has(id)) byId.set(id, { id, name:clean(user?.name || user?.email || id), email:clean(user?.email), roles:user?.role_ids || [] });
+      });
+      const id = clean(event.assigned_user_id);
+      if (id && !byId.has(id)) byId.set(id, { id, name:clean(event.assigned_user_name || id) });
+    });
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+  function doubleBookedEventIds(items = [], resourceIdFn = currentAssignmentId){
+    const ids = new Set();
+    const byResource = new Map();
+    items.forEach((item) => {
+      if (item?.__draft === true || ['cancelled','canceled'].includes(clean(item?.status).toLowerCase())) return;
+      const resourceId = clean(resourceIdFn(item));
+      const start = eventStart(item);
+      const end = eventEnd(item);
+      if (!resourceId || !start || !end) return;
+      if (!byResource.has(resourceId)) byResource.set(resourceId, []);
+      byResource.get(resourceId).push({ id:String(item.id || ''), start:start.getTime(), end:end.getTime() });
+    });
+    byResource.forEach((list) => {
+      list.sort((a, b) => a.start - b.start);
+      for (let i = 0; i < list.length; i += 1) {
+        for (let j = i + 1; j < list.length && list[j].start < list[i].end; j += 1) {
+          if (list[j].id === list[i].id) continue;
+          ids.add(list[i].id);
+          ids.add(list[j].id);
+        }
+      }
+    });
+    return ids;
+  }
+  function markDoubleBookedChips(mount, ids = new Set(), message = 'Double-booked: this person has another appointment at the same time'){
+    if (!mount) return;
+    mount.querySelectorAll('[data-prs-event-id]').forEach((chip) => {
+      const booked = ids.has(String(chip.dataset.prsEventId || ''));
+      chip.classList.toggle('dash-double-booked', booked);
+      if (booked) chip.setAttribute('title', message);
+    });
+  }
+  /* " X is double-booked with Y." when a moved/placed item now overlaps
+   * another item of the same salesperson or crew; '' otherwise. */
+  function scheduleOverlapNote(event = {}){
+    if (isSalesEvent(event)) return salesOverlapWarning(event);
+    if (!isProductionEvent(event) || window.PlatformScheduling?.eventIsGroup?.(event)) return '';
+    const crewId = clean(workCrewId(event));
+    const start = eventStart(event);
+    const end = eventEnd(event);
+    if (!crewId || !start || !end) return '';
+    const clash = allEvents.find((other) => String(other.id || '') !== String(event.id || '')
+      && isProductionEvent(other) && eventIsScheduled(other) && !window.PlatformScheduling?.eventIsGroup?.(other)
+      && !['cancelled', 'canceled', 'completed', 'complete', 'done'].includes(clean(other.status).toLowerCase())
+      && eventCrewRefs(other).some((ref) => clean(ref.id) === crewId)
+      && eventStart(other) < end && start < eventEnd(other));
+    return clash ? ` ${workCrewName(event) || 'This crew'} is double-booked with ${clean(clash.title) || 'another job'} (${projectTitle(eventProject(clash), clash)}).` : '';
+  }
+  function salesOverlapWarning(event = {}){
+    const assigneeId = currentAssignmentId(event);
+    const start = eventStart(event);
+    const end = eventEnd(event);
+    if (!assigneeId || !start || !end) return '';
+    const clash = allEvents.find((other) => String(other.id || '') !== String(event.id || '')
+      && isSalesEvent(other) && eventIsScheduled(other)
+      && !['cancelled','canceled'].includes(clean(other.status).toLowerCase())
+      && currentAssignmentId(other) === assigneeId
+      && eventStart(other) < end && start < eventEnd(other));
+    return clash ? ` ${assignedLabel(event)} is double-booked with ${projectTitle(eventProject(clash), clash)} at ${fmtTime(eventStart(clash))}.` : '';
+  }
+  function equipmentTypeKind(unit = {}){
+    const type = equipmentTypes.find((entry) => clean(entry?.id) === clean(unit.type_id));
+    return clean(type?.kind || unit.type_kind).toLowerCase();
+  }
+  // The vehicle bank offers vehicle-type units only; units that are down or
+  // retired are left out and reserved/in-use units are marked.
+  // The Routing day the vehicle bank describes (flags are for that day, not
+  // for "right now").
+  function vehicleBankDayRange(){
+    const start = startOfDay(anchorDate) || startOfDay(new Date());
+    return { id:'__vehicle_bank_day', start, end:addDays(start, 1), all_day:true };
+  }
+  function vehicleBankUnits(){
+    const day = vehicleBankDayRange();
+    // Retired units never; a unit that is down is left out only when its
+    // maintenance window covers the Routing day.
+    const usable = equipmentUnits.filter((unit) => {
+      const status = clean(unit.status).toLowerCase();
+      if (status === 'retired') return false;
+      if (status !== 'down') return true;
+      return !equipmentDownDetail(unit, day);
+    });
+    const kindsKnown = usable.some((unit) => equipmentTypeKind(unit));
+    // The type list can be missing (slow load) or kind-less; fetch the kinds
+    // once so trailers, tools and dumpsters stay out of the vehicle bank.
+    if (!kindsKnown && usable.length && !vehicleBankUnits.requested && window.EquipmentAPI?.types) {
+      vehicleBankUnits.requested = true;
+      Promise.resolve(window.EquipmentAPI.types(orgId())).then((result) => {
+        const types = Array.isArray(result?.types) ? result.types : [];
+        if (!types.some((type) => clean(type?.kind))) return;
+        const byId = new Map(types.map((type) => [clean(type.id), type]));
+        equipmentTypes = equipmentTypes.length
+          ? equipmentTypes.map((type) => ({ ...(byId.get(clean(type.id)) || {}), ...type, kind:clean(type.kind || byId.get(clean(type.id))?.kind) }))
+          : types;
+        if (rootEl?.querySelector('.dash-vehicle-bank')) render();
+      }).catch(() => { vehicleBankUnits.requested = false; });
+    }
+    return usable
+      .filter((unit) => !kindsKnown || equipmentTypeKind(unit) === 'vehicle')
+      .sort((a, b) => clean(a.name || a.id).localeCompare(clean(b.name || b.id)));
+  }
   function renderSchedulingRail(){
+    const title = `<div class="dash-rail-title">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_428e8510d14f87","Waiting to be scheduled") ?? "Waiting to be scheduled")}</div>`;
+    if (scheduleInitialLoading()) return `<div class="dash-groups">${title}<div class="dash-rail-loading" role="status"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i>Loading waiting work…</div></div>`;
     const chunks = [];
     if (scheduleTypeActive('sales')) chunks.push(renderScheduleGroups());
     if (scheduleTypeActive('production')) chunks.push(renderProductionScheduleGroups());
-    if (scheduleTypeActive('production') && productionVehiclesVisible && equipmentSchedulingOn()) chunks.push(renderVehicleBank());
-    return `<div class="dash-groups"><div class="dash-rail-title">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_428e8510d14f87","Waiting to be scheduled") ?? "Waiting to be scheduled")}</div>${String(chunks.join(''))}</div>`;
+    // Vehicles are booked into crews' vehicle lanes, which only Routing's
+    // Production pane shows. Booking one needs schedule edit, and view-only
+    // sessions can't read the equipment types that tell vehicles apart from
+    // trailers and tools, so they get no bank.
+    if (scheduleTypeActive('production') && productionVehiclesVisible && equipmentSchedulingOn() && viewMode === 'appointment_schedule' && showProductionSchedule && canEditSchedule()) chunks.push(renderVehicleBank());
+    if (!chunks.length) chunks.push('<div class="dash-empty" style="padding:16px;">Turn on Sales or Production to see work waiting to be scheduled.</div>');
+    // View-only sessions see what is waiting, but nothing here is actionable.
+    const viewOnly = !canEditSchedule();
+    const viewOnlyNote = viewOnly ? '<div class="dash-rail-viewonly" role="note"><i class="fas fa-eye" aria-hidden="true"></i><span>View only — you can see waiting work but not schedule it.</span></div>' : '';
+    return `<div class="dash-groups ${viewOnly ? 'view-only' : ''}">${title}${viewOnlyNote}${String(chunks.join(''))}</div>`;
   }
   function renderVehicleBank(){
-    const units = equipmentUnits.filter((unit) => !['down', 'retired'].includes(clean(unit.status).toLowerCase()));
-    return `<div class="dash-vehicle-bank"><div class="dash-vehicle-bank-title">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_fc1b55cfc4dfbc","Vehicles") ?? "Vehicles")}</div><div class="dash-vehicle-bank-items">${String(units.map((unit) => `<button type="button" class="dash-vehicle-bank-item ${clean(unit.id) === vehiclePlacementUnitId ? 'active' : ''}" data-vehicle-bank-unit="${escapeHtml(unit.id)}"><i class="fas ${escapeHtml(clean(unit.icon) || 'fa-truck-pickup')}"></i><span>${escapeHtml(unit.name || unit.id)}${unit.type_name ? `<small>${escapeHtml(unit.type_name)}</small>` : ''}</span></button>`).join('') || `<span class="dash-event-equipment-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_788928fd084fda","No available vehicles.") ?? "No available vehicles.")}</span>`)}</div></div>`;
-  }
-  function clearScheduleSelectionDom(){
-    rootEl?.querySelectorAll('.dash-appt-tile.selected').forEach((node) => node.classList.remove('selected'));
-    rootEl?.querySelectorAll('.psv-appt.moving').forEach((node) => node.classList.remove('moving'));
-    rootEl?.querySelectorAll('.psv-appt.open').forEach((node) => node.classList.remove('open'));
-    rootEl?.querySelectorAll('.psv-event-menu').forEach((node) => node.remove());
-  }
-  function markScheduleSelectionDom(eventId){
-    clearScheduleSelectionDom();
-    if (!eventId) return;
-    const escaped = window.CSS?.escape ? window.CSS.escape(String(eventId)) : String(eventId).replace(/["\\]/g, '\\$&');
-    rootEl?.querySelectorAll(`[data-schedule-event-id="${escaped}"]`).forEach((node) => node.classList.add('selected'));
-    rootEl?.querySelectorAll(`.psv-appt[data-psv-event-id="${escaped}"]`).forEach((node) => node.classList.add('moving'));
+    const units = vehicleBankUnits();
+    const day = vehicleBankDayRange();
+    const dayLabel = day.start.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' });
+    const unitButton = (unit) => {
+      const active = clean(unit.id) === vehiclePlacementUnitId;
+      // Flags describe the Routing day shown: booked (job, reservation or
+      // another booking) or partly out of service that day.
+      const down = equipmentDownDetail(unit, day);
+      const booked = !down && equipmentUnitConflict(day, unit.id);
+      const flag = down ? 'Down' : booked ? 'Booked' : '';
+      const flagTitle = down ? down.reason : booked ? `${clean(unit.name) || 'This vehicle'} already has a booking on ${dayLabel} — check its schedule before booking.` : '';
+      return `<button type="button" class="dash-vehicle-bank-item ${active ? 'active' : ''} ${flag ? 'reserved' : ''}" data-vehicle-bank-unit="${escapeHtml(unit.id)}" aria-pressed="${active ? 'true' : 'false'}" title="${escapeHtml(flagTitle || `${clean(unit.name) || 'Vehicle'} — free on ${dayLabel}. Pick it, then click a crew's vehicle lane.`)}"><i class="fas ${escapeHtml(clean(unit.icon) || 'fa-truck-pickup')}" aria-hidden="true"></i><span>${escapeHtml(unit.name || unit.id)}${unit.type_name ? `<small>${escapeHtml(unit.type_name)}</small>` : ''}</span>${flag ? `<span class="dash-vehicle-bank-flag">${escapeHtml(flag)}</span>` : ''}</button>`;
+    };
+    return `<div class="dash-vehicle-bank"><div class="dash-vehicle-bank-title">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_fc1b55cfc4dfbc","Vehicles") ?? "Vehicles")}</div><div class="dash-vehicle-bank-items">${String(units.map(unitButton).join('') || `<span class="dash-event-equipment-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_788928fd084fda","No available vehicles.") ?? "No available vehicles.")}</span>`)}</div></div>`;
   }
   function scheduleScrollNodes(){
     return Array.from(rootEl?.querySelectorAll([
@@ -2138,7 +3020,25 @@
     if (id === 'sales_follow_up') return { id, label: (globalThis.PlatformLanguage?.text("scheduling","m_7369721d2af9d8","Sales follow-up") ?? "Sales follow-up"), title: (globalThis.PlatformLanguage?.text("scheduling","m_0d91fb6ec435fc","Sales Follow-up") ?? "Sales Follow-up") };
     if (id === 'project_work') return { id, label: (globalThis.PlatformLanguage?.text("scheduling","m_222066ef57ae0e","Work") ?? "Work"), title: (globalThis.PlatformLanguage?.text("scheduling","m_222066ef57ae0e","Work") ?? "Work") };
     if (id === 'delivery' || id === 'material_delivery' || id.startsWith('material_delivery_')) return { id, label: (globalThis.PlatformLanguage?.text("scheduling","m_c12b1c3407d059","Material delivery") ?? "Material delivery"), title: (globalThis.PlatformLanguage?.text("scheduling","m_e1abe67a7e3ecb","Material Delivery") ?? "Material Delivery") };
-    return { id: '', label: (globalThis.PlatformLanguage?.text("scheduling","m_4960a2c95a5672","Untyped") ?? "Untyped"), title: (globalThis.PlatformLanguage?.text("scheduling","m_90c93de8e3e9de","Untyped Event") ?? "Untyped Event") };
+    if (id === 'equipment_maintenance') return { id, label: (globalThis.PlatformLanguage?.text("scheduling","m_type_equipment_maintenance","Equipment maintenance") ?? "Equipment maintenance"), title: (globalThis.PlatformLanguage?.text("scheduling","m_type_equipment_maintenance","Equipment maintenance") ?? "Equipment maintenance") };
+    if (id === 'equipment_reservation') return { id, label: (globalThis.PlatformLanguage?.text("scheduling","m_type_equipment_reservation","Equipment reservation") ?? "Equipment reservation"), title: (globalThis.PlatformLanguage?.text("scheduling","m_type_equipment_reservation","Equipment reservation") ?? "Equipment reservation") };
+    if (id === 'equipment_booking') return { id, label: (globalThis.PlatformLanguage?.text("scheduling","m_type_vehicle_booking","Vehicle booking") ?? "Vehicle booking"), title: (globalThis.PlatformLanguage?.text("scheduling","m_type_vehicle_booking","Vehicle booking") ?? "Vehicle booking") };
+    if (id) {
+      // Company-defined and "other" types keep their configured name.
+      const configured = schedulingConfig?.event_types?.[id] || schedulingConfig?.scheduling?.event_types?.[id] || {};
+      const humanized = id.replace(/[_-]+/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
+      const label = clean(configured.label || configured.name || configured.title) || (id === 'custom' ? (globalThis.PlatformLanguage?.text("scheduling","m_4a04382820d2e1","Other") ?? "Other") : humanized);
+      return { id, label, title: label };
+    }
+    return { id: '', label: (globalThis.PlatformLanguage?.text("scheduling","m_type_event","Event") ?? "Event"), title: (globalThis.PlatformLanguage?.text("scheduling","m_2ac9ecd66d638b","New Event") ?? "New Event") };
+  }
+  /* Equipment windows hold a unit for a time: maintenance, reservations and
+   * Routing vehicle bookings. Their editor edits only the window (no type
+   * conversion, project, assignee or customer sections). */
+  function isEquipmentWindowEvent(event = {}){
+    const kind = eventKind(event);
+    const type = eventTypeId(event);
+    return ['equipment_maintenance', 'equipment_reservation', 'equipment_booking'].includes(kind) || ['equipment_maintenance', 'equipment_reservation', 'equipment_booking'].includes(type) || event?.vehicle_booking === true;
   }
   function defaultEventTitles(){
     return new Set(['New Event', 'Untyped Event', 'Sales Appointment', 'Sales Follow-up', 'Work', 'Project', 'Delivery', 'Material Delivery']);
@@ -2184,12 +3084,13 @@
   }
   function eventCalendarItems(){
     return [
-      ...events.filter(eventIsScheduled).map((event) => isProductionEvent(event)
+      // Sections (schedule groups) decorate as work: no assignee pill.
+      ...withGroupRollups(events).filter(eventIsScheduled).map((event) => isProductionEvent(event) || window.PlatformScheduling?.eventIsGroup?.(event) === true
         ? decorateWorkEvent(event)
         : isMaterialEvent(event)
           ? decorateMaterialEvent(event)
           : decorateSalesEvent(event)),
-      ...floatingEvents.filter((event) => !isVehicleBooking(event)).filter(eventMatchesMode).filter(eventMatchesBreakdown).map(decorateFloatingEvent)
+      ...floatingEvents.filter((event) => !isVehicleBooking(event) && !['cancelled', 'canceled'].includes(clean(event.status).toLowerCase())).filter(eventMatchesMode).filter(eventMatchesBreakdown).map(decorateFloatingEvent)
     ];
   }
   function updateFloatingEvent(next = {}){
@@ -2218,12 +3119,32 @@
     floatingEvents = [event, ...floatingEvents.filter((item) => String(item.id || '') !== id)];
     return event;
   }
+  /* The stored form of a company calendar item: start_at/end_at are the
+   * times; the in-memory Date shadows (start/end) and __ working flags are
+   * never written, so a later edit can't write an old time back. */
+  function floatingEventStoragePayload(event = {}){
+    const shared = window.PlatformScheduling?.persistableEvent;
+    if (typeof shared === 'function') return shared(event);
+    const payload = {};
+    Object.keys(event || {}).forEach((key) => {
+      if (key === 'start' || key === 'end' || key.startsWith('__')) return;
+      payload[key] = event[key];
+    });
+    return payload;
+  }
   async function persistFloatingEvent(event = {}){
-    const payload = { ...event, branch_id: branchId() };
+    const payload = { ...floatingEventStoragePayload(event), branch_id: branchId() };
     const api = window.PlatformAPI;
+    // Saves of a stored event carry its revision, so the server refuses a
+    // stale copy (typed stale error) instead of overwriting a newer change.
+    if (window.PlatformScheduling?.saveCalendarEvent && api?.calendarEvents?.save) {
+      const id = payload.id || floatingEventId();
+      const result = await window.PlatformScheduling.saveCalendarEvent(orgId(), { ...payload, id }, { isNew:!(Number(payload.event_revision) > 0), branchId:branchId() });
+      return normalizePersistedFloatingEvent(result, { ...payload, id });
+    }
     if (api?.calendarEvents?.save) {
       const result = await api.calendarEvents.save(orgId(), payload.id || floatingEventId(), payload, { kind: 'calendar_event', branch_id: branchId() });
-      if (result?.missing) throw new Error('Calendar events are not available in the platform backend.');
+      if (result?.missing) throw new Error('The event could not be saved: the server could not be reached. Check your connection and try again.');
       return normalizePersistedFloatingEvent(result, payload);
     }
     if (api?.calendarEvents?.upsert) return normalizePersistedFloatingEvent(await api.calendarEvents.upsert(orgId(), payload), payload);
@@ -2257,19 +3178,32 @@
       : Array.isArray(result?.documents) ? result.documents
         : Array.isArray(result) ? result
           : [];
-    return source.map((entry) => ({ ...(entry?.data || entry || {}), id: entry?.id || entry?.data?.id || entry?.id })).map(decorateFloatingEvent);
+    return source.map((entry) => storedFloatingTimes({ ...(entry?.data || entry || {}), id: entry?.id || entry?.data?.id || entry?.id })).map(decorateFloatingEvent);
+  }
+  /* A stored copy's times come from start_at/end_at; an old copy that still
+   * carries start/end shadows (written by earlier versions) can't override a
+   * newer start_at set by another writer. */
+  function storedFloatingTimes(data = {}){
+    const next = { ...data };
+    ['__start', '__end'].forEach((key) => { delete next[key]; });
+    if (validDate(next.start_at)) delete next.start;
+    if (validDate(next.end_at)) delete next.end;
+    return next;
   }
   function normalizePersistedFloatingEvent(result, fallback = {}){
     const document = result?.document || result?.event || result?.calendar_event || result;
     const data = document?.data && typeof document.data === 'object' ? document.data : document;
     return decorateFloatingEvent({
       ...fallback,
-      ...(data || {}),
+      ...storedFloatingTimes(data || {}),
       id: data?.id || document?.id || fallback.id
     });
   }
   function selectedEventCalendarDraft(){
-    const floatingDraft = floatingEvents.find((event) => String(event.id || '') === String(eventDraftPopoverId || '') && event.status !== 'scheduled');
+    // Only a never-saved floating event is a draft; a stored one (scheduled,
+    // or an equipment window with its own status) keeps its normal styling
+    // while its editor is open.
+    const floatingDraft = floatingEvents.find((event) => String(event.id || '') === String(eventDraftPopoverId || '') && floatingEventIsDisposableDraft(event));
     if (floatingDraft) return floatingDraft;
     const placementKind = selectedPlacementKind();
     if (placementKind === 'materials') {
@@ -2277,7 +3211,7 @@
       const project = selectedMaterialProject() || eventProject(event || {});
       if (!event) return null;
       const scheduled = eventIsScheduled(event);
-      return {
+      return draftWithIsoRange({
         ...decorateMaterialEvent(event),
         id: event.id,
         event_id: event.id,
@@ -2286,12 +3220,12 @@
         end: materialScheduleDraft?.end || (scheduled ? eventEnd(event) : null),
         all_day: materialScheduleDraft?.all_day ?? event.all_day ?? true,
         schedule_granularity: materialScheduleDraft?.schedule_granularity || event.schedule_granularity || 'date'
-      };
+      });
     }
     if (placementKind === 'production') {
       const event = selectedProductionEvent();
       const project = selectedProductionProject() || eventProject(event || {});
-      if (event) return {
+      if (event) return draftWithIsoRange({
         ...event,
         id: event.id,
         event_id: event.id,
@@ -2302,13 +3236,18 @@
         end: productionScheduleDraft?.end || (eventIsScheduled(event) ? eventEnd(event) : null),
         all_day: productionScheduleDraft?.all_day ?? event.all_day ?? true,
         schedule_granularity: productionScheduleDraft?.schedule_granularity || event.schedule_granularity || (event.all_day === false ? 'time' : 'date'),
-        assignee_label: workCrewName(event) || 'Unassigned',
-        ...workResourcePayload(productionScheduleDraft || event)
-      };
-      if (project?.id) return productionScheduleDraft || {
+        // The draft editor's crew/people choice shows on the draft chip.
+        assignee_label: (productionScheduleDraft ? (clean(productionScheduleDraft.assignee_label) || workCrewName(productionScheduleDraft)) : '') || workCrewName(event) || 'Unassigned',
+        ...workResourcePayload(productionScheduleDraft || event),
+        ...(Array.isArray(productionScheduleDraft?.resource_refs) ? { resource_refs:productionScheduleDraft.resource_refs } : {}),
+        ...(Array.isArray(productionScheduleDraft?.assigned_user_ids) ? { assigned_user_ids:productionScheduleDraft.assigned_user_ids, assigned_users:productionScheduleDraft.assigned_users || [], assigned_user_id:productionScheduleDraft.assigned_user_id || '', assigned_user_name:productionScheduleDraft.assigned_user_name || '' } : {})
+      });
+      if (project?.id) return (productionScheduleDraft ? draftWithIsoRange(productionScheduleDraft) : null) || {
         id: '__production_event_draft',
         event_id: '',
-        title: projectTitle(project),
+        event_type_default_id: 'project_work',
+        type_id: 'project_work',
+        title: projectWorkTitle(project),
         project_title: projectTitle(project),
         project_address: projectAddress(project, {}),
         all_day: eventCalendarMode() === 'month',
@@ -2320,20 +3259,33 @@
     const event = selectedScheduleEvent();
     if (!event) return null;
     const project = eventProject(event);
-    return {
+    // The draft carries the assignee picked in the popover or a lane so the
+    // editor shows it and the confirm saves it.
+    const assignment = salesDraftAssignment(appointmentScheduleDraft, event);
+    return draftWithIsoRange({
       id: event.id,
       event_id: event.id,
+      event_type_default_id: eventTypeId(event) || 'sales_appointment',
+      type_id: eventTypeId(event) || 'sales_appointment',
       title: event.title || (globalThis.PlatformLanguage?.text("scheduling","m_600f41e7dca79d","Sales Appointment") ?? "Sales Appointment"),
       project_title: projectTitle(project, event),
       project_address: projectAddress(project, event),
       start: appointmentScheduleDraft?.start || eventStart(event),
-      end: appointmentScheduleDraft?.start
-        ? new Date(new Date(appointmentScheduleDraft.start).getTime() + Number(event.duration_minutes || schedulingConfig?.event_types?.sales_appointment?.duration_minutes || 60) * 60000)
-        : eventEnd(event),
-      all_day: event.all_day === true,
-      schedule_granularity: event.schedule_granularity || 'time',
-      assignee_label: assignedLabel(event),
-    };
+      end: appointmentScheduleDraft?.start ? salesDraftEnd(event) : eventEnd(event),
+      all_day: appointmentScheduleDraft?.start ? false : event.all_day === true,
+      schedule_granularity: appointmentScheduleDraft?.start ? 'time' : (event.schedule_granularity || 'time'),
+      ...assignment,
+      assignee_label: salesAssignmentLabel(assignment),
+    });
+  }
+  /* A staged draft carries start_at/end_at matching its start/end: editors
+   * and chips that read the stored item's fields then show the draft's time
+   * (never the stored item's old one). */
+  function draftWithIsoRange(draft = null){
+    if (!draft) return draft;
+    const start = validDate(draft.start);
+    const end = validDate(draft.end);
+    return { ...draft, ...(start ? { start_at:start.toISOString() } : {}), ...(end ? { end_at:end.toISOString() } : {}) };
   }
   function eventCalendarDefaultDraftPayload(range = {}, requestedMode = scheduleMode){
     if (!selectedScheduleEvent() && !selectedProductionProject() && !selectedProductionEvent() && !selectedMaterialEvent()) {
@@ -2375,8 +3327,10 @@
       return {
         id: productionScheduleEventId || '__production_event_draft',
         event_id: productionScheduleEventId || '',
+        event_type_default_id: eventTypeId(selectedEvent || {}) || 'project_work',
+        type_id: eventTypeId(selectedEvent || {}) || 'project_work',
         project_id: project?.id || productionScheduleProjectId || '',
-        title: selectedEvent?.title || projectTitle(project || {}, productionScheduleDraft || {}),
+        title: selectedEvent?.title || clean(productionScheduleDraft?.title) || projectWorkTitle(project || {}),
         project_title: projectTitle(project || {}, productionScheduleDraft || {}),
         project_address: projectAddress(project || {}, productionScheduleDraft || {}),
         assignee_label: workCrewName(productionScheduleDraft || {}) || 'Unassigned',
@@ -2386,15 +3340,141 @@
     }
     const event = selectedScheduleEvent();
     const project = eventProject(event || {});
+    const assignment = salesDraftAssignment(appointmentScheduleDraft, event);
     return {
       id: appointmentScheduleEventId || '__sales_event_draft',
       event_id: appointmentScheduleEventId || '',
+      event_type_default_id: eventTypeId(event || {}) || 'sales_appointment',
+      type_id: eventTypeId(event || {}) || 'sales_appointment',
       project_id: project?.id || appointmentScheduleProjectId || event?.project_id || '',
       title: event?.title || (globalThis.PlatformLanguage?.text("scheduling","m_600f41e7dca79d","Sales Appointment") ?? "Sales Appointment"),
       project_title: projectTitle(project, event || {}),
       project_address: projectAddress(project, event || {}),
-      assignee_label: appointmentScheduleDraft?.user?.name || appointmentScheduleDraft?.user?.email || assignedLabel(event || {}),
+      ...assignment,
+      assignee_label: salesAssignmentLabel(assignment),
     };
+  }
+  /* Where a click/drop places a waiting item. The calendar reports the spot
+   * (a day in the band or month, a time in the grid); the item keeps its own
+   * nature: all-day work, deliveries and project-only placements become
+   * all-day on that day (never a 24-hour timed block), timed work keeps the
+   * clicked time with its own length (a band click starts it at its usual
+   * time), and a sales appointment dropped on the all-day band starts at the
+   * day's booking window instead of midnight. */
+  function placementNaturalRange(next = null, { drag = false } = {}){
+    const start = validDate(next?.start);
+    if (!start || !placementWaitingItem() || vehiclePlacementUnitId) return next;
+    const clickedAllDay = next.all_day !== false && clean(next.schedule_granularity).toLowerCase() !== 'time';
+    const kind = selectedPlacementKind();
+    const unchanged = (result) => {
+      const same = validDate(result.start)?.getTime() === start.getTime()
+        && validDate(result.end)?.getTime() === validDate(next.end)?.getTime()
+        && (result.all_day !== false) === (next.all_day !== false);
+      return same ? next : result;
+    };
+    if (kind === 'sales') {
+      if (!clickedAllDay) return next;
+      const event = selectedScheduleEvent() || {};
+      // A dated appointment (e.g. scheduled but unassigned) keeps its own
+      // time of day; otherwise it starts at the day's booking window.
+      const ownStart = event.all_day !== true ? eventStart(event) : null;
+      const minutes = ownStart ? ownStart.getHours() * 60 + ownStart.getMinutes() : minutesForClock(appointmentWindowForDate(routeDate(start)).start, 9 * 60);
+      const timedStart = startOfDay(start);
+      timedStart.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+      const duration = Math.max(15, Number(event.duration_minutes || schedulingConfig?.event_types?.sales_appointment?.duration_minutes || 60));
+      return unchanged({ ...next, start:timedStart, end:new Date(timedStart.getTime() + duration * 60000), all_day:false, schedule_granularity:'time' });
+    }
+    // A drag of a staged draft is the user's explicit choice of day/time.
+    if (drag || !['production', 'materials'].includes(kind)) return next;
+    const source = kind === 'materials' ? selectedMaterialEvent() : selectedProductionEvent();
+    const project = kind === 'materials' ? (selectedMaterialProject() || eventProject(source || {})) : (selectedProductionProject() || eventProject(source || {}));
+    let interpreted = null;
+    if (source && kind === 'production' && window.PlatformScheduling?.interpretScheduleBundle) {
+      try { interpreted = window.PlatformScheduling.interpretScheduleBundle(source, [source], startOfDay(start), project, scopeTemplates, { config:schedulingConfig })[0] || null; } catch (error) { interpreted = null; }
+    }
+    const interpretedStart = validDate(interpreted?.start);
+    const interpretedEnd = validDate(interpreted?.end);
+    const sourceTimed = source && (source.all_day === false || clean(source.schedule_granularity).toLowerCase() === 'time');
+    const naturalAllDay = interpreted ? interpreted.all_day !== false : !sourceTimed;
+    const sourceMinutes = Number(source?.duration_minutes || 0);
+    const durationMs = interpretedStart && interpretedEnd && interpretedEnd > interpretedStart
+      ? interpretedEnd.getTime() - interpretedStart.getTime()
+      : (sourceMinutes > 0 ? sourceMinutes * 60000 : (naturalAllDay ? 86400000 : 60 * 60000));
+    if (naturalAllDay) {
+      const day = startOfDay(start);
+      const days = Math.max(1, Math.round(durationMs / 86400000));
+      return unchanged({ ...next, start:day, end:addDays(day, days), all_day:true, schedule_granularity:'date' });
+    }
+    let timedStart = start;
+    if (clickedAllDay) {
+      // A timed item that already has a time of day keeps it on the new day.
+      const ownStart = sourceTimed ? eventStart(source) : null;
+      if (ownStart) {
+        timedStart = startOfDay(start);
+        timedStart.setHours(ownStart.getHours(), ownStart.getMinutes(), 0, 0);
+      } else {
+        timedStart = interpretedStart && sameDay(interpretedStart, start) ? interpretedStart : startOfDay(start);
+        if (!(interpretedStart && sameDay(interpretedStart, start))) timedStart.setHours(8, 0, 0, 0);
+      }
+    }
+    return unchanged({ ...next, start:timedStart, end:new Date(timedStart.getTime() + durationMs), all_day:false, schedule_granularity:'time' });
+  }
+  /* Click placement on a day/slot that is covered by existing items: find the
+   * day (or time slot) under the last pointer press and stage the draft
+   * there, exactly as a click on an empty spot would. */
+  function placeOnPointerDay(mount){
+    const pointer = mount?.__dashLastPointer;
+    if (!pointer || !placementWaitingItem() || !document.elementsFromPoint) return false;
+    const cell = document.elementsFromPoint(pointer.x, pointer.y)
+      .find((node) => node.matches?.('.prs-slot[data-prs-date][data-prs-time],.prs-all-day-cell[data-prs-date],.prs-day[data-prs-date]') && mount.contains(node));
+    return placeOnCalendarCell(cell);
+  }
+  /* Stage the waiting item on a calendar cell (a day in Month / the all-day
+   * band, or a time slot), exactly as a click there would. */
+  /* Keyboard placement: while a waiting item is being placed, the day cells
+   * (Month days, the Week/Day all-day band) are Tab stops; Enter or Space
+   * stages the draft there, and focus moves to the placed draft (its ✓
+   * saves it). */
+  function enableKeyboardPlacement(mount){
+    const item = placementWaitingItem();
+    if (!mount || !item || item.kind === 'vehicle' || !canEditSchedule()) return;
+    mount.querySelectorAll('.prs-month-week .prs-day[data-prs-date],.prs-all-day-cell[data-prs-date]').forEach((cell) => {
+      const day = parseRouteDate(cell.dataset.prsDate);
+      if (!day || cell.dataset.dashKeyPlace === '1') return;
+      cell.dataset.dashKeyPlace = '1';
+      cell.tabIndex = 0;
+      cell.setAttribute('role', 'button');
+      cell.setAttribute('aria-label', `Place ${item.label} on ${day.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })}`);
+      cell.addEventListener('keydown', (keyEvent) => {
+        if (!['Enter', ' '].includes(keyEvent.key) || keyEvent.target !== cell || !placementWaitingItem()) return;
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
+        if (!placeOnCalendarCell(cell)) return;
+        const placedId = String(productionScheduleDraft?.id || materialScheduleDraft?.id || appointmentScheduleEventId || '');
+        requestAnimationFrame(() => {
+          const chip = placedId ? editorAnchorFor(placedId) : null;
+          try { (chip || rootEl?.querySelector(`[data-prs-date="${cell.dataset.prsDate}"][data-dash-key-place]`))?.focus?.({ preventScroll:false }); } catch (error) {}
+        });
+      });
+    });
+  }
+  function placeOnCalendarCell(cell){
+    const day = parseRouteDate(cell?.dataset?.prsDate);
+    if (!cell || !day || !placementWaitingItem()) return false;
+    const timed = cell.matches('.prs-slot') && /^\d{1,2}:\d{2}$/.test(clean(cell.dataset.prsTime));
+    const start = startOfDay(day);
+    if (timed) {
+      const [hours, minutes] = clean(cell.dataset.prsTime).split(':').map(Number);
+      start.setHours(hours, minutes, 0, 0);
+    }
+    const range = { start, end:timed ? new Date(start.getTime() + 60 * 60000) : addDays(start, 1), allDay:!timed };
+    const base = eventCalendarDefaultDraftPayload(range);
+    const next = placementNaturalRange({ ...base, start:range.start, end:range.end, all_day:!timed, schedule_granularity:timed ? 'time' : 'date' });
+    applyEventCalendarDraft(next);
+    if (selectedPlacementKind() === 'production' && productionScheduleBundleKey) productionScheduleBundleDrafts = scheduleBundleDrafts(productionScheduleDraft || next);
+    render();
+    refreshPlacementEditor();
+    return true;
   }
   function applyEventCalendarDraft(next){
     if (!next?.start) return;
@@ -2423,10 +3503,38 @@
       };
       return;
     }
-    const user = appointmentScheduleDraft?.user || null;
-    appointmentScheduleDraft = { ...(appointmentScheduleDraft || {}), start: next.start, user };
+    // Only the time comes from the calendar; any assignee already chosen for
+    // the draft (popover, chip menu) is kept, and so is a length set in the
+    // draft editor.
+    appointmentScheduleDraft = salesDraftAtStart(next.start, next.all_day === false ? next.end : null);
     appointmentScheduleEventId = String(next.event_id || appointmentScheduleEventId || '');
     appointmentScheduleProjectId = String(selectedScheduleEvent()?.project_id || appointmentScheduleProjectId || '');
+  }
+  /* The sales placement draft's end: the one set in its editor (or by the
+   * calendar) when it follows the start, else start + the appointment length. */
+  function salesDraftEnd(event = selectedScheduleEvent() || {}){
+    const start = validDate(appointmentScheduleDraft?.start);
+    if (!start) return eventEnd(event);
+    const end = validDate(appointmentScheduleDraft?.end);
+    if (end && end > start) return end;
+    const storedStart = eventStart(event);
+    const storedEnd = eventEnd(event);
+    const minutes = storedStart && storedEnd && storedEnd > storedStart && event.all_day !== true
+      ? Math.round((storedEnd.getTime() - storedStart.getTime()) / 60000)
+      : Number(event.duration_minutes || schedulingConfig?.event_types?.sales_appointment?.duration_minutes || 60);
+    return new Date(start.getTime() + Math.max(15, minutes) * 60000);
+  }
+  // Moves the sales draft to `start`, keeping its length unless `end` is given.
+  function salesDraftAtStart(start, end = null){
+    const nextStart = validDate(start);
+    if (!nextStart) return appointmentScheduleDraft;
+    const previousStart = validDate(appointmentScheduleDraft?.start);
+    const previousEnd = previousStart ? salesDraftEnd() : null;
+    const nextEnd = validDate(end) && validDate(end) > nextStart
+      ? validDate(end)
+      : (previousStart && previousEnd ? new Date(nextStart.getTime() + (previousEnd.getTime() - previousStart.getTime())) : null);
+    const { end:_previous, end_at:_previousAt, start_at:_previousStartAt, ...rest } = appointmentScheduleDraft || {};
+    return { ...rest, start:nextStart, ...(nextEnd ? { end:nextEnd } : {}) };
   }
   function applyMaterialScheduleDraft(next){
     if (!next?.start) return;
@@ -2444,23 +3552,54 @@
       schedule_granularity: next.schedule_granularity || (next.all_day === false ? 'time' : 'date')
     };
   }
-  function scheduledRelationshipRescheduleDrafts(event = {}, range = {}){
+  function projectScheduleItems(projectId = ''){
+    const id = String(projectId || '');
+    return id ? allEvents.filter((item) => String(item.project_id || '') === id) : [];
+  }
+  /* Linked items a move of `event` to `range` displaces: depends_on links in
+   * both directions (successors pushed later only when violated, predecessors
+   * pulled earlier only when needed) plus scope-template bundle rules.
+   * Returns { drafts, blocked } — blocked are locked/completed items whose
+   * link would break. */
+  function scheduledRelationshipRescheduleImpact(event = {}, range = {}){
     const Scheduling = window.PlatformScheduling;
     const project = eventProject(event);
-    if (!Scheduling?.relatedScheduleRescheduleDrafts || !project?.id || !range?.start) return [];
-    return Scheduling.relatedScheduleRescheduleDrafts(
-      event,
-      allEvents.filter((item) => String(item.project_id || '') === String(project.id || '') && eventIsScheduled(item)),
-      range,
-      project,
-      scopeTemplates
-    );
+    if (!project?.id || !range?.start || !event?.id) return { drafts:[], blocked:[] };
+    const related = projectScheduleItems(project.id).filter((item) => eventIsScheduled(item) || String(item.id || '') === String(event.id || ''));
+    if (Scheduling?.relatedScheduleRescheduleImpact) return Scheduling.relatedScheduleRescheduleImpact(event, related, range, project, scopeTemplates, { config:schedulingConfig });
+    if (Scheduling?.relatedScheduleRescheduleDrafts) return { drafts:Scheduling.relatedScheduleRescheduleDrafts(event, related, range, project, scopeTemplates), blocked:[] };
+    return { drafts:[], blocked:[] };
   }
-  async function chooseRelationshipReschedule(event = {}, relatedDrafts = []){
-    if (!relatedDrafts.length) return 'no';
-    const count = relatedDrafts.length;
+  function scheduledRelationshipRescheduleDrafts(event = {}, range = {}){
+    return scheduledRelationshipRescheduleImpact(event, range).drafts;
+  }
+  function scheduleItemNames(items = []){
+    const names = items.map((item) => `“${clean(item?.title) || 'Untitled item'}”`);
+    if (names.length <= 1) return names.join('');
+    if (names.length > 3) return `${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
+    return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  }
+  async function chooseRelationshipReschedule(event = {}, relatedDrafts = [], blocked = []){
+    const drafts = Array.isArray(relatedDrafts) ? relatedDrafts : [];
+    const fixed = (Array.isArray(blocked) ? blocked : []).map((entry) => entry?.event || entry).filter(Boolean);
+    if (!drafts.length && !fixed.length) return 'no';
+    const count = drafts.length;
+    const subject = `“${clean(event?.title) || 'This item'}”`;
+    const fixedNote = fixed.length
+      ? ` ${scheduleItemNames(fixed)} ${fixed.length === 1 ? 'is' : 'are'} locked or completed and won't move, so ${fixed.length === 1 ? 'its' : 'their'} dependency will be out of order.`
+      : '';
+    if (!count) {
+      return window.Portal?.ui?.choose?.(
+        `Moving ${subject} breaks a dependency.${fixedNote}`,
+        [
+          { value:'cancel', label:(globalThis.PlatformLanguage?.text("scheduling","m_cbef679b21abb4","Cancel") ?? "Cancel") },
+          { value:'no', label:'Move anyway', primary:true }
+        ],
+        { title:'Dependency conflict' }
+      ) || 'cancel';
+    }
     return window.Portal?.ui?.choose?.(
-      `This schedule item controls ${count} related event${count === 1 ? '' : 's'}. Would you like to move ${count === 1 ? 'it' : 'them'} using the scope's scheduling rules?`,
+      `Moving ${subject} affects ${count} linked item${count === 1 ? '' : 's'}: ${scheduleItemNames(drafts)}. Move ${count === 1 ? 'it' : 'them'} too so dependencies and scheduling rules stay in order?${fixedNote}`,
       [
         { value:'cancel', label:(globalThis.PlatformLanguage?.text("scheduling","m_cbef679b21abb4","Cancel") ?? "Cancel") },
         { value:'no', label:(globalThis.PlatformLanguage?.text("scheduling","m_2f0222913078f4","No") ?? "No") },
@@ -2469,10 +3608,238 @@
       { title:(globalThis.PlatformLanguage?.text("scheduling","m_64b37c5695aa34","Move related schedule items") ?? "Move related schedule items") }
     ) || 'cancel';
   }
+  /* Single entry point for any surface that reschedules a placed project item
+   * (calendar drags, Routing ✓ confirm, editor saves, Timeline): computes the
+   * linked items, asks once, and returns the related changes to save.
+   * -> { cancelled, choice, changes, impact } */
+  async function resolveRelatedReschedule(event = {}, range = {}){
+    const Scheduling = window.PlatformScheduling;
+    const impact = scheduledRelationshipRescheduleImpact(event, range);
+    const asked = impact.drafts.length || impact.blocked.length;
+    const choice = asked ? await chooseRelationshipReschedule(event, impact.drafts, impact.blocked) : 'no';
+    const cancelled = choice === 'cancel' || choice === false || choice == null;
+    const changes = !cancelled && choice === 'yes' && Scheduling?.updateProjectEventRange ? impact.drafts.map((draft) => {
+      const source = allEvents.find((item) => String(item.id || '') === String(draft.id || draft.event_id || '')) || draft;
+      return {
+        ...Scheduling.updateProjectEventRange(source, {
+          start:new Date(draft.start || draft.start_at),
+          end:new Date(draft.end || draft.end_at),
+          all_day:draft.all_day !== false,
+          schedule_granularity:draft.schedule_granularity || (draft.all_day === false ? 'time' : 'date')
+        }),
+        status:'scheduled'
+      };
+    }) : [];
+    const leftOutOfOrder = cancelled ? 0 : impact.blocked.length + (choice === 'yes' ? 0 : impact.drafts.length);
+    return { cancelled, choice:cancelled ? 'cancel' : choice, changes, impact, leftOutOfOrder };
+  }
+  // Save related changes one by one (after the moved item) and merge results.
+  /* Save the linked items of a move. They go one at a time (they usually
+   * share one project record, so parallel writes would race on it), with a
+   * progress note for longer chains. The chain keeps going when one item
+   * fails and does not depend on the view staying open, so moving around the
+   * app never leaves it half-applied; failures are reported at the end. */
+  async function saveRelatedRescheduleChanges(project = {}, changes = []){
+    const Scheduling = window.PlatformScheduling;
+    const list = Array.isArray(changes) ? changes : [];
+    const failed = [];
+    // Saved one after another (writes to one project must not race); a
+    // running count shows the cascade is progressing.
+    const progress = list.length > 1;
+    for (const [index, related] of list.entries()) {
+      if (progress) showToast('Moving linked items…', `${index + 1} of ${list.length}: ${clean(related.title) || 'schedule item'}`, { tone:'info', duration:15000 });
+      const relatedProject = eventProject(related)?.id ? eventProject(related) : project;
+      const relatedVersion = beginEventRangeSave(related.id);
+      try {
+        const relatedSaved = await queueEventRangeSave(related.id, () => Scheduling.saveProjectEvent(orgId(), relatedProject, withExplicitAssignees(related), schedulingConfig));
+        mergeSavedCalendarEvent(relatedSaved, related, relatedVersion);
+      } catch (error) {
+        failed.push({ item:related, error });
+      }
+    }
+    if (failed.length) {
+      scheduleLoad();
+      const error = new Error(`${scheduleItemNames(failed.map((entry) => entry.item))} ${failed.length === 1 ? 'was' : 'were'} not moved: ${scheduleSaveErrorMessage(failed[0].error, 'Could not save.')}`);
+      error.relatedFailures = failed;
+      throw error;
+    }
+  }
+  function outOfOrderNote(count = 0){
+    return count ? ` ${count} linked item${count === 1 ? ' is' : 's are'} now out of dependency order.` : '';
+  }
+  /* Auto-rollup groups display the span of their items in every view; the
+   * stored group range can lag behind item moves made elsewhere. */
+  function withGroupRollups(list = []){
+    const Scheduling = window.PlatformScheduling;
+    if (!Scheduling?.applyGroupRollups || !Scheduling?.eventIsGroup || !list.some((event) => Scheduling.eventIsGroup(event))) return list;
+    const rolled = new Map(Scheduling.applyGroupRollups(allEvents)
+      .filter((event) => event.__rollup_derived === true)
+      .map((event) => [String(event.id || ''), event]));
+    return list.map((event) => {
+      const rollup = rolled.get(String(event.id || ''));
+      return rollup ? {
+        ...event,
+        start_at:rollup.start_at,
+        start:rollup.start_at,
+        end_at:rollup.end_at,
+        end:rollup.end_at,
+        duration_minutes:rollup.duration_minutes,
+        status:rollup.status,
+        __rollup_derived:true
+      } : event;
+    });
+  }
+  /* Persist parent groups whose stored range/status no longer matches their
+   * items (after items were placed or moved), so every surface agrees. */
+  async function persistGroupRollups(project = {}, changedItems = []){
+    const Scheduling = window.PlatformScheduling;
+    if (!Scheduling?.groupRollupUpdates || !Scheduling?.eventAncestorGroupIds || !project?.id) return [];
+    const projectEvents = projectScheduleItems(project.id);
+    const groupIds = Scheduling.eventAncestorGroupIds(projectEvents, changedItems);
+    if (!groupIds.length) return [];
+    const updates = Scheduling.groupRollupUpdates(projectEvents, groupIds).filter((group) => !eventIsLocked(group));
+    for (const update of updates) {
+      updateLocalCalendarEvent(update.id, update);
+      const version = beginEventRangeSave(update.id);
+      try {
+        const saved = await queueEventRangeSave(update.id, () => Scheduling.saveProjectEvent(orgId(), project, update, schedulingConfig));
+        mergeSavedCalendarEvent(saved, update, version);
+      } catch (error) {
+        // The rollup is re-derived on every render, so a failed sync of the
+        // stored group range is not user-visible; the next change retries it.
+      }
+    }
+    if (updates.length) events = visibleEvents();
+    return updates;
+  }
+  /* Dragging an auto-rollup group bar moves the items inside it together.
+   * Returns false when the caller should save the group record itself
+   * (manual groups, or groups without placed items). */
+  async function moveScheduleGroup(group = {}, range = {}){
+    const Scheduling = window.PlatformScheduling;
+    const project = eventProject(group);
+    if (!Scheduling?.groupMoveDrafts || !project?.id || Scheduling.groupRollupMode?.(group) === 'manual') return false;
+    const move = Scheduling.groupMoveDrafts(projectScheduleItems(project.id), group, range);
+    if (!move.items.length) return false;
+    const refuse = (title, message) => {
+      showToast(title, message, false);
+      refreshActiveScheduleSurface();
+      return true;
+    };
+    if (move.resized) return refuse('Group not resized', 'A group spans its items. Resize or move the items inside it instead.');
+    if (!move.delta) { refreshActiveScheduleSurface(); return true; }
+    if (move.blocked.length) {
+      return refuse('Group not moved', `${scheduleItemNames(move.blocked)} ${move.blocked.length === 1 ? 'is' : 'are'} locked or completed, so this group can't move as a whole. Move its other items individually.`);
+    }
+    const changes = move.drafts.map((draft) => ({ ...draft, status:'scheduled' }));
+    const changesById = new Map(changes.map((item) => [String(item.id || ''), item]));
+    const previousById = new Map();
+    allEvents.forEach((item) => { const id = String(item.id || ''); if (changesById.has(id)) previousById.set(id, item); });
+    allEvents = allEvents.map((item) => changesById.has(String(item.id || '')) ? { ...item, ...changesById.get(String(item.id || '')) } : item);
+    events = visibleEvents();
+    refreshActiveScheduleSurface();
+    try {
+      await saveRelatedRescheduleChanges(project, changes);
+      await persistGroupRollups(project, changes);
+      refreshActiveScheduleSurface();
+      showToast('Group moved', `${changes.length} item${changes.length === 1 ? '' : 's'} moved together.`, true);
+    } catch (error) {
+      showToast('Group not moved', error?.message || 'Could not move every item in this group.', false);
+      allEvents = allEvents.map((item) => previousById.get(String(item.id || '')) || item);
+      events = visibleEvents();
+      refreshActiveScheduleSurface();
+      scheduleLoad();
+    }
+    return true;
+  }
+  /* An editor open on a moved item shows its new time. */
+  function refreshOpenEditorFor(eventId = ''){
+    const pop = document.querySelector('.dash-event-popover');
+    if (!pop || pop.dataset.eventId !== String(eventId || '')) return;
+    if (String(eventEditorEventId || '') !== String(eventId || '') && String(eventDraftPopoverId || '') !== String(eventId || '')) return;
+    renderEventDraftPopover(editorAnchorFor(eventId));
+  }
+  /* Toast body for a finished move/resize. */
+  function scheduleMoveMessage(before = {}, after = {}){
+    const sameStart = eventStart(before)?.getTime() === eventStart(after)?.getTime();
+    const sameEnd = eventEnd(before)?.getTime() === eventEnd(after)?.getTime();
+    // A drop into another lane (Routing) reassigns: say who has it now.
+    // Work items compare their whole crew/person set (a multi-crew item can
+    // change a non-primary crew).
+    const workSet = (item) => isProductionEvent(item) && !isMaterialEvent(item)
+      ? [...eventCrewRefs(item), ...editorAssignmentUserList(item)]
+      : null;
+    const setBefore = workSet(before);
+    const setAfter = workSet(after);
+    const assigned = setBefore && setAfter
+      ? (setBefore.map((item) => item.id).join('|') !== setAfter.map((item) => item.id).join('|')
+        ? (setAfter.length ? ` Assigned to ${setAfter.map((item) => clean(item.name) || item.id).join(', ')}.` : ' It is now unassigned.')
+        : '')
+      : (clean(currentAssignmentId(before)) !== clean(currentAssignmentId(after))
+        ? (clean(currentAssignmentId(after)) ? ` Assigned to ${workCrewName(after) || salesAssignmentLabel(assignmentPayloadForEvent(after))}.` : ' It is now unassigned.')
+        : '');
+    // Dropping onto a slot the same person/crew already holds is allowed but
+    // said out loud (the lane also marks both chips double-booked).
+    const overlap = scheduleOverlapNote(after);
+    if (sameStart && sameEnd && assigned) return `${assigned.trim()}${overlap}`;
+    if (sameStart && !sameEnd) return `The calendar item was resized: ${formatEventDraftTime(after)}.${assigned}${overlap}`;
+    return `The calendar item was moved to ${formatEventDraftTime(after)}.${assigned}${overlap}`;
+  }
+  /* Moving an occurrence of a recurring series asks which occurrences move
+   * (This event / This and following / All events) — same as the editor.
+   * -> 'this' | 'following' | 'all' | 'cancel' */
+  async function chooseRecurringMoveScope(event = {}, range = {}){
+    if (!clean(event?.recurrence_series_id) || !window.PlatformAPI?.projects?.updateRecurrenceSeries) return 'this';
+    const choose = window.Portal?.ui?.choose;
+    if (typeof choose !== 'function') return 'this';
+    const text = (key, fallback) => globalThis.PlatformLanguage?.text("scheduling", key, fallback) ?? fallback;
+    const label = clean(event.title || event.project_title) || 'This event';
+    // "This event" is the safe default (focused, primary): Enter never moves
+    // the whole series by accident. Short labels keep the four buttons on
+    // one row.
+    const choice = await choose(
+      `“${label}” repeats. Move to ${formatEventDraftTime({ ...event, start:range.start, end:range.end, start_at:validDate(range.start)?.toISOString(), end_at:validDate(range.end)?.toISOString(), all_day:range.all_day === true || (range.all_day === undefined && event.all_day === true) })} — which events?`,
+      [
+        { value:'cancel', label:text('m_cbef679b21abb4', 'Cancel') },
+        { value:'all', label:text('m_scope_all', 'All events') },
+        { value:'following', label:text('m_scope_following_short', 'This & following') },
+        { value:'this', label:text('m_scope_this', 'This event'), primary:true, default:true }
+      ],
+      { title:text('m_scope_move_title', 'Move recurring event'), defaultFocus:'this' }
+    );
+    return ['this', 'following', 'all'].includes(choice) ? choice : 'cancel';
+  }
+  async function saveRecurringMove(event = {}, range = {}, scope = 'all'){
+    const seriesId = clean(event.recurrence_series_id);
+    const start = validDate(range.start);
+    const end = validDate(range.end) || (start ? new Date(start.getTime() + Math.max(15 * 60000, (eventEnd(event)?.getTime() || 0) - (eventStart(event)?.getTime() || 0))) : null);
+    if (!seriesId || !start || !end) return;
+    const moved = { ...event, start:start.toISOString(), end:end.toISOString(), start_at:start.toISOString(), end_at:end.toISOString(), all_day:range.all_day ?? event.all_day, schedule_granularity:range.schedule_granularity || event.schedule_granularity };
+    try {
+      await window.PlatformAPI.projects.updateRecurrenceSeries(orgId(), seriesId, recurrencePayloadForEvent(moved, { scope, hasRecurrenceFields:false }));
+      await loadData({ force:true });
+      window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+      showToast(scope === 'following' ? 'This and following events moved' : 'All events moved', 'Occurrences you changed on their own keep their own changes.', true);
+    } catch (error) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), scheduleSaveErrorMessage(error, 'Could not move the recurring events.'), false);
+      refreshActiveScheduleSurface();
+    }
+  }
   async function saveEventCalendarRange(event, range){
     const Scheduling = window.PlatformScheduling;
     const currentEvent = allEvents.find((item) => String(item.id || '') === String(event?.id || '')) || event;
     const project = eventProject(currentEvent);
+    range = rangeKeepingLaneAssignment(currentEvent, range, event);
+    if (!canEditSchedule()) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), scheduleReadOnlyMessage(), VIEW_ONLY_TOAST);
+      refreshActiveScheduleSurface();
+      return;
+    }
+    // A drag replaces any unsaved time edits for the same item in the editor.
+    if (eventEditorDraft && String(eventEditorDraft.id || '') === String(event?.id || '')) {
+      const { start, end, start_at, end_at, all_day, schedule_granularity, ...rest } = eventEditorDraft.patch || {};
+      eventEditorDraft = { ...eventEditorDraft, patch:rest };
+    }
     if (eventIsLocked(event)) {
       showToast(
         (globalThis.PlatformLanguage?.text("scheduling","m_88e13d64071885","Schedule locked") ?? "Schedule locked"),
@@ -2483,8 +3850,19 @@
       );
       return;
     }
+    if (!(await confirmPastMove(currentEvent, range))) { refreshActiveScheduleSurface(); return; }
+    // An occurrence of a recurring series asks which occurrences move, the
+    // same choice the editor offers.
+    const recurrenceScope = await chooseRecurringMoveScope(currentEvent, range);
+    if (recurrenceScope === 'cancel') { refreshActiveScheduleSurface(); return; }
+    if (recurrenceScope === 'following' || recurrenceScope === 'all') {
+      await saveRecurringMove(currentEvent, range, recurrenceScope);
+      return;
+    }
     if (event?.floating_event === true || String(event?.id || '').startsWith('floating_')) {
       const saveVersion = beginEventRangeSave(event.id);
+      const originalFloating = floatingEvents.find((item) => String(item.id || '') === String(event.id || '')) || null;
+      const persistedFloating = !!originalFloating && !floatingEventIsDisposableDraft(originalFloating);
       const next = updateFloatingEvent({
         ...event,
         ...range,
@@ -2492,22 +3870,59 @@
         end: range.end,
         all_day: range.all_day,
         schedule_granularity: range.schedule_granularity || (range.all_day === false ? 'time' : 'date'),
-        status: event.status === 'scheduled' ? 'scheduled' : (event.status || 'draft')
+        status: event.status === 'scheduled' ? 'scheduled' : (event.status || 'draft'),
+        ...equipmentWindowPatch(originalFloating || event, { start:eventStart(originalFloating || event), end:eventEnd(originalFloating || event) }, { start:range.start, end:range.end })
       });
       try {
-        const saved = await queueEventRangeSave(event.id, () => persistFloatingEvent(next));
+        const saved = await queueEventRangeSave(event.id, async () => {
+          let toSave = next;
+          if (persistedFloating) {
+            // Only the time is this move's change: anything else changed
+            // elsewhere (title, notes, equipment) is kept.
+            const ownGroups = eventChangeGroups(originalFloating, next).filter((group) => group !== 'equipment');
+            const check = await checkStoredScheduleEvent(originalFloating, ownGroups);
+            if (check.conflict) {
+              await reloadAfterStaleChange();
+              throw staleScheduleError();
+            }
+            if (check.fresh && check.remoteGroups.length) {
+              const merged = mergeEventChanges(check.fresh, next, ownGroups);
+              toSave = decorateFloatingEvent({ ...merged, ...equipmentWindowPatch(check.fresh, { start:eventStart(check.fresh), end:eventEnd(check.fresh) }, { start:eventStart(next), end:eventEnd(next) }) });
+            }
+          }
+          return persistFloatingEvent(toSave);
+        });
         if (eventRangeSaveVersions.get(String(event.id || '')) === saveVersion) {
           updateFloatingEvent({ ...next, ...saved, status: next.status || saved?.status || 'scheduled' });
+          refreshOpenEditorFor(event.id);
+          if (persistedFloating) {
+            refreshActiveScheduleSurface();
+            showToast((globalThis.PlatformLanguage?.text("scheduling","m_a1da9bcb050cbb","Schedule updated") ?? "Schedule updated"), scheduleMoveMessage(originalFloating, next), true);
+          }
         }
       } catch (error) {
-        showToast((globalThis.PlatformLanguage?.text("scheduling","m_90522d8e2312ca","Event not saved") ?? "Event not saved"), error?.message || 'Could not save the event change.', false);
+        if (error?.staleSchedule) return;
+        if (isStaleSaveError(error)) {
+          if (originalFloating) floatingEvents = [originalFloating, ...floatingEvents.filter((item) => String(item.id || '') !== String(originalFloating.id || ''))];
+          await reloadAfterStaleChange(error);
+          return;
+        }
+        if (eventRangeSaveVersions.get(String(event.id || '')) === saveVersion) {
+          showToast((globalThis.PlatformLanguage?.text("scheduling","m_90522d8e2312ca","Event not saved") ?? "Event not saved"), scheduleSaveErrorMessage(error, 'Could not save the event change.'), false);
+          // Put the item back where storage has it instead of leaving it at
+          // the unsaved position.
+          if (originalFloating) floatingEvents = [originalFloating, ...floatingEvents.filter((item) => String(item.id || '') !== String(originalFloating.id || ''))];
+          refreshActiveScheduleSurface();
+        }
       }
       return;
     }
     if (!Scheduling || !event?.id || !project?.id || !range?.start) return;
-    const relatedDrafts = isProductionEvent(currentEvent) ? scheduledRelationshipRescheduleDrafts(currentEvent, range) : [];
-    const relationshipChoice = relatedDrafts.length ? await chooseRelationshipReschedule(currentEvent, relatedDrafts) : 'no';
-    if (relationshipChoice === 'cancel' || relationshipChoice === false || relationshipChoice == null) {
+    // A group bar carries its items with it (or is refused when some are locked).
+    if (Scheduling.eventIsGroup?.(currentEvent) && await moveScheduleGroup(currentEvent, range)) return;
+    // depends_on links and scope rules decide which linked items move too.
+    const related = await resolveRelatedReschedule(currentEvent, range);
+    if (related.cancelled) {
       refreshActiveScheduleSurface();
       return;
     }
@@ -2519,11 +3934,20 @@
       schedule_granularity: range.schedule_granularity || (range.all_day === false ? 'time' : 'date')
     };
     const assignment = assignmentPayloadForEvent({ ...currentEvent, ...range });
+    // A work item's lane drop carries its whole new assignee set (see
+    // rangeKeepingLaneAssignment): applied before the range so the crew list
+    // is replaced, not merged with the old crew.
+    const laneAssignees = isProductionEvent(currentEvent) && rangeCarriesAssignment(range)
+      ? Object.fromEntries(Object.entries(range).filter(([key]) => !['start', 'end', 'start_at', 'end_at', 'all_day', 'schedule_granularity', 'status'].includes(key)))
+      : null;
+    const assignedEvent = laneAssignees ? { ...currentEvent, ...laneAssignees } : currentEvent;
     const next = (isProductionEvent(currentEvent) || isMaterialEvent(currentEvent))
-      ? Scheduling.updateProjectEventRange(currentEvent, payload)
+      ? Scheduling.updateProjectEventRange(assignedEvent, payload)
       : {
           ...withScheduleHistory(currentEvent, 'rescheduled'),
-          ...assignment,
+          // Only a lane drop changes who is assigned; a plain move keeps every
+          // crew and person on the item.
+          ...(rangeCarriesAssignment(range) ? assignment : {}),
           start_at: payload.start.toISOString(),
           start: payload.start.toISOString(),
           end_at: payload.end.toISOString(),
@@ -2532,18 +3956,9 @@
           schedule_granularity: payload.schedule_granularity,
           updated_at: new Date().toISOString()
         };
-    const relatedChanges = relationshipChoice === 'yes' ? relatedDrafts.map((draft) => {
-      const source = allEvents.find((item) => String(item.id || '') === String(draft.id || draft.event_id || '')) || draft;
-      return {
-        ...Scheduling.updateProjectEventRange(source, {
-          start:new Date(draft.start),
-          end:new Date(draft.end),
-          all_day:draft.all_day !== false,
-          schedule_granularity:draft.schedule_granularity || (draft.all_day === false ? 'time' : 'date')
-        }),
-        status:'scheduled'
-      };
-    }) : [];
+    // Equipment usage windows move with the item.
+    Object.assign(next, equipmentWindowPatch(assignedEvent, { start:eventStart(currentEvent), end:eventEnd(currentEvent) }, { start:payload.start, end:payload.end }));
+    const relatedChanges = related.changes;
     const changes = [next, ...relatedChanges];
     const changesById = new Map(changes.map((item) => [String(item.id || ''), item]));
     // Keep the untouched originals so a failed save can be reverted locally
@@ -2554,18 +3969,51 @@
     events = visibleEvents();
     refreshActiveScheduleSurface();
     try {
-      const saved = await queueEventRangeSave(event.id, () => Scheduling.saveProjectEvent(orgId(), project, next, schedulingConfig));
+      const known = previousById.get(String(event.id || ''));
+      const saved = await queueEventRangeSave(event.id, async () => {
+        // Never overwrite a newer change from another window with this
+        // view's older copy: only the moved fields (time, and the lane's
+        // assignment) are this save's; anything else changed elsewhere since
+        // this view loaded the item (description, equipment…) is kept.
+        let toSave = next;
+        if (known) {
+          const ownGroups = eventChangeGroups(known, next).filter((group) => group !== 'equipment');
+          const check = await checkStoredScheduleEvent(known, ownGroups);
+          if (check.conflict) {
+            await reloadAfterStaleChange();
+            throw staleScheduleError();
+          }
+          if (check.fresh && check.remoteGroups.length) {
+            toSave = mergeEventChanges(check.fresh, next, ownGroups);
+            Object.assign(toSave, equipmentWindowPatch(check.fresh, { start:eventStart(check.fresh), end:eventEnd(check.fresh) }, { start:payload.start, end:payload.end }));
+          }
+        }
+        return Scheduling.saveProjectEvent(orgId(), project, withExplicitAssignees(toSave), schedulingConfig);
+      });
       mergeSavedCalendarEvent(saved, next, saveVersion);
-      for (const related of relatedChanges) {
-        const relatedVersion = beginEventRangeSave(related.id);
-        const relatedSaved = await queueEventRangeSave(related.id, () => Scheduling.saveProjectEvent(orgId(), project, related, schedulingConfig));
-        mergeSavedCalendarEvent(relatedSaved, related, relatedVersion);
-      }
+      refreshOpenEditorFor(event.id);
+      await saveRelatedRescheduleChanges(project, relatedChanges);
+      await persistGroupRollups(project, changes);
+      settlePlacementSelectionAfterSave(next);
       refreshActiveScheduleSurface();
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_a1da9bcb050cbb","Schedule updated") ?? "Schedule updated"), relatedChanges.length ? `The calendar item and ${relatedChanges.length} related event${relatedChanges.length === 1 ? '' : 's'} were moved.` : 'The calendar item was moved.', true);
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_a1da9bcb050cbb","Schedule updated") ?? "Schedule updated"), `${relatedChanges.length ? `The calendar item and ${relatedChanges.length} linked item${relatedChanges.length === 1 ? '' : 's'} were moved.` : scheduleMoveMessage(known || currentEvent, next)}${outOfOrderNote(related.leftOutOfOrder)}`, !related.leftOutOfOrder);
     } catch (error) {
+      // A stale copy was refused before writing; the view already reloaded.
+      if (error?.staleSchedule) return;
+      if (isStaleSaveError(error)) {
+        allEvents = allEvents.map((item) => previousById.get(String(item.id || '')) || item);
+        events = visibleEvents();
+        await reloadAfterStaleChange(error);
+        return;
+      }
+      // The item itself was saved; some linked items were not (the view
+      // reloads the stored state).
+      if (error?.relatedFailures) {
+        showToast('Some linked items were not moved', error.message, false);
+        return;
+      }
       if (eventRangeSaveVersions.get(String(event.id || '')) === saveVersion) {
-        showToast((globalThis.PlatformLanguage?.text("scheduling","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), error?.message || 'Could not update this calendar item.', false);
+        showToast((globalThis.PlatformLanguage?.text("scheduling","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), scheduleSaveErrorMessage(error, 'Could not update this calendar item.'), false);
         // Roll the optimistic move back so the view matches storage instead
         // of showing a phantom position.
         allEvents = allEvents.map((item) => previousById.get(String(item.id || '')) || item);
@@ -2579,16 +4027,85 @@
     const eventType = schedulingConfig?.event_types?.[eventTypeId] || {};
     const Scheduling = window.PlatformScheduling;
     const policy = Scheduling?.assignmentPolicyForEventType?.(eventType, eventTypeId) || eventType.assignment_policy || {};
-    const people = users.map((user) => ({
-      ...Scheduling.normalizeUser(user),
+    const person = (user) => ({
+      ...(Scheduling?.normalizeUser ? Scheduling.normalizeUser(user) : user),
       subject_type:'organization_user',
       id:clean(user.id),
       name:clean(user.name || user.email || user.id),
       user
-    }));
-    return (Scheduling?.filterAssignableSubjects?.([...people, ...workforceResources], policy) || people)
+    });
+    const people = users.map(person);
+    const eligible = (Scheduling?.filterAssignableSubjects?.([...people, ...workforceResources], policy) || people)
       .filter((subject) => clean(subject.status || 'active') !== 'disabled')
       .filter((user) => user.id);
+    // Without a readable user directory the assignment policy cannot be
+    // evaluated; fall back to the people already holding appointments so a
+    // drag keeps them in their own row instead of saving "Unassigned".
+    if (users.length) return eligible;
+    const known = new Set(eligible.map((subject) => clean(subject.id)));
+    return [...eligible, ...salesAssigneesFromEvents().filter((user) => !known.has(user.id)).map(person)];
+  }
+  function rangeCarriesAssignment(range = {}){
+    return ['assigned_user_id', 'assigned_user_ids', 'assigned_resource_id', 'work_resource_ref'].some((key) => Object.prototype.hasOwnProperty.call(range || {}, key));
+  }
+  /* A lane drop reassigns only when the lanes can represent the item:
+   * - an item whose assignee has no row of its own (unknown/unloaded person)
+   *   is drawn in "Unassigned"; moving it within that row keeps the assignee;
+   * - a work item's dropped copy hands its lane over to the target lane: the
+   *   dragged crew/person is REPLACED (never added), other crews of a
+   *   multi-crew item stay, and "Unassigned" removes every crew and person.
+   *   `dragged` is the lane copy that was moved (a multi-crew item is drawn
+   *   once per crew). Production drops return the item's whole assignee set
+   *   (resource_refs included) so the save writes exactly that set. */
+  function rangeKeepingLaneAssignment(event = {}, range = {}, dragged = event){
+    if (!range || !rangeCarriesAssignment(range)) return range;
+    const stripAssignment = () => Object.fromEntries(Object.entries(range).filter(([key]) => ![
+      'assigned_user_id', 'assigned_user_ids', 'assigned_users', 'assigned_user_name', 'work_resource_ref', 'assigned_resource_kind', 'assigned_resource_id', 'assigned_resource_name',
+      'assigned_crew_id', 'assigned_crew_name', 'assigned_crew', 'crew_id', 'crew_name', 'resource_id', 'resource_name'
+    ].includes(key)));
+    const currentId = currentAssignmentId(event);
+    const nextId = currentAssignmentId({ ...event, ...range });
+    if (isProductionEvent(event) && !isMaterialEvent(event)) {
+      // The dragged copy's own lane (the renderer has already rewritten the
+      // copy's assignment to the drop lane); single-crew items have one lane.
+      const fromId = clean(dragged?.__lane_crew_id) || currentId;
+      // Moved within its own lane: only the dates change.
+      if (fromId === nextId) return stripAssignment();
+      const laneIds = new Set(productionWorkResources(event?.scope_template_id, event).map((resource) => clean(resource.id)));
+      // Drawn in "Unassigned" because its assignee has no lane: kept.
+      if (!nextId && fromId && !laneIds.has(fromId)) return stripAssignment();
+      const crews = eventCrewRefs(event);
+      const people = editorAssignmentUserList(event);
+      let nextCrews = [];
+      let nextPeople = [];
+      if (nextId) {
+        const target = productionWorkResources(event?.scope_template_id, event).find((resource) => clean(resource.id) === nextId)
+          || { id:nextId, name:clean(range.assigned_resource_name || range.assigned_crew_name || range.assigned_user_name) || nextId, subject_type:clean(range.assigned_resource_kind) || (clean(range.assigned_user_id) ? 'organization_user' : 'resource_group') };
+        const targetIsPerson = clean(target.subject_type || target.resource_kind) === 'organization_user';
+        const targetCrew = { id:nextId, name:clean(target.name) || nextId, kind:clean(target.resource_kind || target.work_resource_ref?.kind) || 'resource_group' };
+        const targetPerson = { id:nextId, name:clean(target.name) || userDisplayName(nextId) };
+        const fromIsCrew = crews.some((crew) => crew.id === fromId);
+        nextCrews = crews.flatMap((crew) => crew.id === fromId ? (targetIsPerson ? [] : [targetCrew]) : [crew]);
+        nextPeople = people.filter((person) => person.id !== fromId);
+        if (targetIsPerson) nextPeople = [targetPerson, ...nextPeople];
+        else if (!fromIsCrew) nextCrews = [targetCrew, ...nextCrews];
+      }
+      const dedupe = (list) => list.filter((item, index) => item.id && list.findIndex((other) => other.id === item.id) === index);
+      return { ...stripAssignment(), ...assigneeSetPatch(event, dedupe(nextCrews), dedupe(nextPeople)) };
+    }
+    if (!currentId || nextId) return range;
+    const laneIds = new Set(salesResources(event).map((resource) => clean(resource.id)));
+    return laneIds.has(currentId) ? range : stripAssignment();
+  }
+  // Crews/teams referenced by a work item (a multi-crew job lists several).
+  function eventCrewRefs(event = {}){
+    const refs = (Array.isArray(event.resource_refs) ? event.resource_refs : [])
+      .filter((ref) => ['resource_group', 'organization_connection'].includes(clean(ref?.kind)))
+      .map((ref) => ({ id:clean(ref.id), name:clean(ref.name || ref.id), kind:clean(ref.kind) }))
+      .filter((ref) => ref.id);
+    const primaryId = workCrewId(event);
+    if (primaryId && !refs.some((ref) => ref.id === primaryId)) refs.unshift({ id:primaryId, name:workCrewName(event) || primaryId, kind:clean(event.work_resource_ref?.kind || event.assigned_resource_kind) || 'resource_group' });
+    return refs.filter((ref, index) => refs.findIndex((other) => other.id === ref.id) === index);
   }
   function closeScheduleSettingsModal(){
     document.querySelector('.dash-modal-backdrop[data-schedule-settings-modal]')?.remove();
@@ -2746,7 +4263,8 @@
   function patchRenderedAssignment(event){
     const id = String(event?.id || '');
     if (!id || !rootEl) return;
-    const label = currentAssignmentId(event) ? (workCrewName(event) || assignedLabel(event)) : 'Unassigned';
+    const names = isProductionEvent(event) ? workAssigneeNames(event) : [];
+    const label = names.length > 1 ? `${names[0]} +${names.length - 1}` : (currentAssignmentId(event) ? (workCrewName(event) || assignedLabel(event)) : 'Unassigned');
     rootEl.querySelectorAll('[data-prs-event-id]').forEach((chip) => {
       if (String(chip.dataset.prsEventId || '') !== id) return;
       const assignee = chip.querySelector('[data-prs-assignee]');
@@ -2758,51 +4276,117 @@
       chip.classList.toggle('awaiting-crew', label === 'Unassigned');
     });
   }
+  /* The people on an item as { id, name } (assigned_users, else ids). */
+  function eventAssignedPeople(event = {}){
+    const listed = Array.isArray(event.assigned_users) && event.assigned_users.length
+      ? event.assigned_users.map((user) => ({ id:clean(user?.id), name:clean(user?.name || user?.email) || userDisplayName(user?.id) }))
+      : (Array.isArray(event.assigned_user_ids) ? event.assigned_user_ids : []).map((id) => ({ id:clean(id), name:userDisplayName(id) }));
+    return listed.filter((user, index) => user.id && listed.findIndex((other) => other.id === user.id) === index);
+  }
+  /* Every crew and person on an item (ids) — the pill's picker marks them all. */
+  function eventAssigneeIds(event = {}){
+    return [...new Set([...eventCrewRefs(event).map((ref) => ref.id), ...eventAssignedPeople(event).map((user) => user.id)].filter(Boolean))];
+  }
   async function saveAssignment(event, resourceId = ''){
+    return saveAssignmentChange(event, resourceId);
+  }
+  // options.toggle: add/remove this one crew or person and keep the others
+  // (the picker of an item with several assignees); otherwise the pick
+  // replaces the whole assignment.
+  async function saveAssignmentChange(event, resourceId = '', options = {}){
     const Scheduling = window.PlatformScheduling;
-    const project = eventProject(event);
     if (!event?.id || isMaterialEvent(event)) return;
-    const resource = assignmentResourcesForEvent(event).find((item) => String(item.id || '') === String(resourceId || '')) || null;
-    const userSubject = clean(resource?.subject_type || resource?.resource_kind) === 'organization_user';
-    const next = userSubject
-      ? {
-          ...withScheduleHistory(event, resource ? 'assigned' : 'unassigned'),
-          ...assignmentPayloadForSubject(resource),
-          assignee_label: resource?.name || 'Unassigned',
-          updated_at: new Date().toISOString()
-        }
-      : {
-          ...event,
-          ...assignmentPayloadForSubject(resource),
-          assignee_label: resource?.name || 'Unassigned',
-          updated_at: new Date().toISOString()
-        };
     closeAssignmentMenu();
-    if (event?.floating_event === true || String(event?.id || '').startsWith('floating_')) {
-      const saved = updateFloatingEvent(next);
-      patchRenderedAssignment(saved);
-      try {
-        await persistFloatingEvent(saved);
-        showToast((globalThis.PlatformLanguage?.text("scheduling","m_2926f24620d13c","Assignment updated") ?? "Assignment updated"), resource ? `${resource.name} is assigned.` : 'The item is unassigned.', true);
-      } catch (error) {
-        const restored = updateFloatingEvent(event);
-        patchRenderedAssignment(restored);
-        showToast((globalThis.PlatformLanguage?.text("scheduling","m_d916f201614a78","Assignment failed") ?? "Assignment failed"), error?.message || 'Could not update the assignment.', false);
-      }
+    if (!canEditSchedule()) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), scheduleReadOnlyMessage(), VIEW_ONLY_TOAST);
       return;
     }
-    if (!Scheduling || !project?.id) return;
-    allEvents = allEvents.map((item) => String(item.id || '') === String(next.id || event.id || '') ? { ...item, ...next } : item);
-    events = visibleEvents();
-    patchRenderedAssignment(next);
-    try {
-      await Scheduling.saveProjectEvent(orgId(), project, next, schedulingConfig);
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_2926f24620d13c","Assignment updated") ?? "Assignment updated"), resource ? `${resource.name} is assigned.` : 'The item is unassigned.', true);
-    } catch (error) {
-      allEvents = allEvents.map((item) => String(item.id || '') === String(event.id || '') ? { ...item, ...event } : item);
+    const floating = event?.floating_event === true || String(event?.id || '').startsWith('floating_');
+    // Work from the stored item, not the chip's decorated copy.
+    const known = floating
+      ? (floatingEvents.find((item) => String(item.id || '') === String(event.id || '')) || event)
+      : (allEvents.find((item) => String(item.id || '') === String(event.id || '')) || event);
+    const project = eventProject(known);
+    // An assignee that is on the item but not in the pickable list (e.g. a
+    // crew outside this scope) can still be removed.
+    const onItem = options.toggle === true ? (eventCrewRefs(known).find((ref) => ref.id === clean(resourceId))
+      || eventAssignedPeople(known).map((user) => ({ ...user, subject_type:'organization_user' })).find((user) => user.id === clean(resourceId))) : null;
+    const resource = assignmentResourcesForEvent(known).find((item) => String(item.id || '') === String(resourceId || ''))
+      || (onItem ? { ...onItem, resource_kind:onItem.subject_type || onItem.kind } : null);
+    const userSubject = clean(resource?.subject_type || resource?.resource_kind) === 'organization_user';
+    const toggle = options.toggle === true && !!resource;
+    if (options.toggle === true && !resource) return;
+    let toggledOff = false;
+    // Toggling one assignee of a multi-assignee item keeps every other crew
+    // and person; the result is written as the explicit set.
+    const toggledAssignmentFor = (base = {}) => {
+      const id = clean(resource.id);
+      let crews = eventCrewRefs(base);
+      let people = eventAssignedPeople(base);
+      if (userSubject) {
+        toggledOff = people.some((user) => user.id === id);
+        people = toggledOff ? people.filter((user) => user.id !== id) : [...people, { id, name:clean(resource.name || resource.email || id) }];
+      } else {
+        toggledOff = crews.some((crew) => crew.id === id);
+        crews = toggledOff ? crews.filter((crew) => crew.id !== id) : [...crews, { id, name:clean(resource.name), kind:clean(resource.work_resource_ref?.kind || resource.resource_kind || resource.subject_type) || 'resource_group' }];
+      }
+      return {
+        ...(userSubject ? withScheduleHistory(base, toggledOff ? 'unassigned' : 'assigned') : base),
+        ...assigneeSetPatch(base, crews, people),
+        updated_at: new Date().toISOString()
+      };
+    };
+    // The picked assignee replaces the whole assignment (every crew and
+    // person), written as an explicit set so no old crew reference lingers.
+    const assignmentFor = (base = {}) => toggle ? toggledAssignmentFor(base) : ({
+      ...(userSubject ? withScheduleHistory(base, resource ? 'assigned' : 'unassigned') : base),
+      ...assigneeSetPatch(
+        base,
+        resource && !userSubject ? [{ id:clean(resource.id), name:clean(resource.name), kind:clean(resource.work_resource_ref?.kind || resource.resource_kind || resource.subject_type) || 'resource_group' }] : [],
+        resource && userSubject ? [{ id:clean(resource.id), name:clean(resource.name || resource.email || resource.id) }] : []
+      ),
+      ...(resource && userSubject ? { assigned_users:[{ id:clean(resource.id), name:clean(resource.name || resource.email || resource.id), role_ids:resource.role_ids || resource.roles || resource.user?.roles || [] }] } : {}),
+      assignee_label: resource?.name || 'Unassigned',
+      updated_at: new Date().toISOString()
+    });
+    if (!floating && (!Scheduling || !project?.id)) return;
+    const next = assignmentFor(known);
+    if (floating) updateFloatingEvent(next);
+    else {
+      allEvents = allEvents.map((item) => String(item.id || '') === String(known.id || '') ? { ...item, ...next } : item);
       events = visibleEvents();
+    }
+    patchRenderedAssignment(next);
+    const revert = () => {
+      if (floating) floatingEvents = [known, ...floatingEvents.filter((item) => String(item.id || '') !== String(known.id || ''))];
+      else {
+        allEvents = allEvents.map((item) => String(item.id || '') === String(known.id || '') ? known : item);
+        events = visibleEvents();
+      }
       patchRenderedAssignment(event);
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_d916f201614a78","Assignment failed") ?? "Assignment failed"), error?.message || 'Could not update the assignment.', false);
+    };
+    try {
+      // Re-read first: only the assignment is written, on top of whatever is
+      // stored now; an assignment changed elsewhere refuses the save.
+      const check = await checkStoredScheduleEvent(known, ['assignment']);
+      if (check.conflict) throw staleScheduleError();
+      const payload = check.fresh ? assignmentFor(floating ? decorateFloatingEvent(check.fresh) : check.fresh) : next;
+      if (floating) {
+        const saved = await persistFloatingEvent(updateFloatingEvent(payload));
+        updateFloatingEvent({ ...payload, ...(saved || {}) });
+      } else {
+        const saved = await Scheduling.saveProjectEvent(orgId(), project, payload, schedulingConfig);
+        updateLocalCalendarEvent(known.id, saved?.event || payload);
+        events = visibleEvents();
+      }
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_2926f24620d13c","Assignment updated") ?? "Assignment updated"), toggle ? `${resource.name} ${toggledOff ? 'was removed' : 'was added'}.` : (resource ? `${resource.name} is assigned.` : 'The item is unassigned.'), true);
+    } catch (error) {
+      revert();
+      if (isStaleSaveError(error)) {
+        await reloadAfterStaleChange(error);
+        return;
+      }
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_d916f201614a78","Assignment failed") ?? "Assignment failed"), scheduleSaveErrorMessage(error, 'Could not update the assignment.'), false);
     }
   }
   function closeAssignmentMenu(){
@@ -2813,7 +4397,8 @@
     }
     document.querySelectorAll('.dash-assignee-popover').forEach((node) => node.remove());
   }
-  function openAssignmentMenu(event, anchor){
+  // onSelect lets an unsaved placement draft pick its assignee without saving.
+  function openAssignmentMenu(event, anchor, onSelect = null){
     if (!event?.id || !anchor) return;
     if (assignmentMenuEventId && String(assignmentMenuEventId) === String(event.id || '') && document.querySelector('.dash-assignee-popover')) {
       closeAssignmentMenu();
@@ -2822,26 +4407,59 @@
     closeAssignmentMenu();
     assignmentMenuEventId = String(event.id || '');
     const currentId = currentAssignmentId(event);
-    const resources = assignmentResourcesForEvent(event);
+    // Work items list crews first, other items people first; each group
+    // alphabetical (same order as the editor's Add menu).
+    const crewsFirst = isProductionEvent(event);
+    const isPerson = (resource) => clean(resource.subject_type || resource.resource_kind) === 'organization_user';
+    const resources = assignmentResourcesForEvent(event).slice()
+      .sort((a, b) => ((isPerson(a) === crewsFirst ? 1 : 0) - (isPerson(b) === crewsFirst ? 1 : 0)) || clean(a.name).localeCompare(clean(b.name), undefined, { sensitivity:'base' }));
     const rect = anchor.getBoundingClientRect();
     const menu = document.createElement('div');
     menu.className = 'dash-assignee-popover';
     menu.style.left = `${Math.min(window.innerWidth - 236, Math.max(8, rect.left))}px`;
     menu.style.top = `${Math.max(8, rect.bottom + 8)}px`;
     menu.style.maxHeight = `${Math.max(72, window.innerHeight - rect.bottom - 16)}px`;
+    // The chip's hover tooltip would sit over the menu.
+    window.PlatformUI?.hideTooltip?.();
+    // An item with several crews/people shows every one of them selected;
+    // a pick adds or removes that one and keeps the rest.
+    const assignedIds = typeof onSelect === 'function' || isMaterialEvent(event) ? [] : eventAssigneeIds(event);
+    const multi = assignedIds.length > 1;
     const option = (id, label) => {
       const conflict = assignmentHasConflict(event, id);
-      return `<button type="button" class="dash-assignee-option ${String(currentId || '') === String(id || '') ? 'active' : ''} ${conflict ? 'warn' : ''}" data-assign-resource="${escapeHtml(id || '')}">
-        <span>${escapeHtml(label)}</span>${conflict ? ("<i class=\"fas fa-triangle-exclamation\" title=\"" + (globalThis.PlatformLanguage?.htmlText("scheduling","m_ba1a70707ee55c","Potential conflict") ?? "Potential conflict") + "\"></i>") : ''}
+      const selected = multi ? assignedIds.includes(String(id || '')) : String(currentId || '') === String(id || '');
+      const checkable = multi && id;
+      return `<button type="button" class="dash-assignee-option ${selected ? 'active' : ''} ${conflict ? 'warn' : ''}" data-assign-resource="${escapeHtml(id || '')}"${checkable ? ` role="menuitemcheckbox" aria-checked="${selected ? 'true' : 'false'}"` : ''}>
+        ${checkable ? `<i class="${selected ? 'fas fa-square-check' : 'far fa-square'} dash-assignee-check" aria-hidden="true"></i>` : ''}<span>${escapeHtml(label)}</span>${conflict ? ("<i class=\"fas fa-triangle-exclamation\" title=\"" + (globalThis.PlatformLanguage?.htmlText("scheduling","m_ba1a70707ee55c","Potential conflict") ?? "Potential conflict") + "\"></i>") : ''}
       </button>`;
     };
-    menu.innerHTML = `${option('', 'Unassigned')}${resources.map((resource) => option(resource.id, resource.name)).join('')}`;
+    const multiHead = multi ? `<div class="dash-assignee-head">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_assignee_toggle_hint","Pick to add or remove") ?? "Pick to add or remove")}</div>` : '';
+    const offList = multi
+      ? [...eventCrewRefs(event), ...eventAssignedPeople(event)].filter((item) => !resources.some((resource) => String(resource.id || '') === item.id))
+      : [];
+    menu.innerHTML = `${multiHead}${option('', multi ? 'Unassign all' : 'Unassigned')}${offList.map((item) => option(item.id, item.name || item.id)).join('')}${resources.map((resource) => option(resource.id, resource.name)).join('')}`;
     menu.querySelectorAll('[data-assign-resource]').forEach((btn) => btn.addEventListener('click', (clickEvent) => {
       clickEvent.preventDefault();
       clickEvent.stopPropagation();
-      saveAssignment(event, btn.dataset.assignResource || '');
+      if (typeof onSelect === 'function') {
+        closeAssignmentMenu();
+        onSelect(resources.find((resource) => String(resource.id || '') === String(btn.dataset.assignResource || '')) || null);
+        return;
+      }
+      saveAssignmentChange(event, btn.dataset.assignResource || '', { toggle:multi && !!btn.dataset.assignResource });
     }));
     document.body.appendChild(menu);
+    // Open upward when the list doesn't fit below the chip and there is
+    // more room above (bottom-row chips).
+    const spaceBelow = window.innerHeight - rect.bottom - 16;
+    const spaceAbove = rect.top - 16;
+    const contentHeight = menu.scrollHeight;
+    if (contentHeight > spaceBelow && spaceAbove > spaceBelow) {
+      const height = Math.min(contentHeight, spaceAbove);
+      menu.style.maxHeight = `${Math.max(72, spaceAbove)}px`;
+      menu.style.top = `${Math.max(8, rect.top - 8 - height)}px`;
+      menu.classList.add('above');
+    }
     setTimeout(() => {
       assignmentMenuDocHandler = bindOutsidePointerDismiss(menu, closeAssignmentMenu, [anchor]);
     }, 0);
@@ -2859,17 +4477,64 @@
   function eventEquipRefs(event = {}){
     return window.PlatformScheduling?.eventEquipmentRefs?.(event) || [];
   }
-  function equipmentUnitConflict(event, unitId){
+  /* Why a unit is taken during the event: "Reserved until …", "In
+   * maintenance until …", or a generic booking note. */
+  function equipmentUnitBookingNote(event, unitId){
     const Scheduling = window.PlatformScheduling;
-    if (!Scheduling?.availabilityForEquipment || !eventStart(event)) return false;
+    const generic = (globalThis.PlatformLanguage?.text("scheduling","m_c71ee644be52a3","Booked elsewhere in this window") ?? "Booked elsewhere in this window");
+    if (!Scheduling?.availabilityForEquipment || !eventStart(event)) return generic;
     const availability = Scheduling.availabilityForEquipment({
       units: equipmentUnits.filter((unit) => clean(unit.id) === clean(unitId)),
-      events: allEvents,
+      events: [...allEvents, ...floatingEvents.filter((item) => (isVehicleBooking(item) ? eventIsScheduled(item) : !floatingEventIsDisposableDraft(item)))],
       start: eventStart(event),
       end: eventEnd(event),
       excludeEventId: clean(event.id)
     });
-    return availability.units.some((unit) => !unit.available);
+    const bookings = availability.units[0]?.bookings || [];
+    if (!bookings.length) return generic;
+    const untilOf = (booking) => {
+      const ref = eventEquipRefs(booking).find((item) => clean(item.id) === clean(unitId));
+      return validDate(ref?.end_at) || eventEnd(booking);
+    };
+    const describe = (booking) => {
+      const until = untilOf(booking);
+      const allDay = booking.all_day === true || clean(booking.schedule_granularity) === 'date';
+      // An all-day window ends at midnight: name its last day.
+      const shown = until && allDay ? new Date(until.getTime() - 1) : until;
+      return shown ? shown.toLocaleString([], allDay ? { month:'short', day:'numeric' } : { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '';
+    };
+    const kindOf = (booking) => {
+      const kind = eventKind(booking);
+      const type = eventTypeId(booking);
+      if (kind === 'equipment_maintenance' || type === 'equipment_maintenance') return 'maintenance';
+      if (['equipment_reservation', 'equipment_booking'].includes(kind) || ['equipment_reservation', 'equipment_booking'].includes(type) || isVehicleBooking(booking)) return 'reserved';
+      return 'booked';
+    };
+    const booking = bookings.find((item) => kindOf(item) === 'maintenance') || bookings.find((item) => kindOf(item) === 'reserved') || bookings[0];
+    const until = describe(booking);
+    const kind = kindOf(booking);
+    if (kind === 'maintenance') return until ? `In maintenance until ${until}` : 'In maintenance';
+    if (kind === 'reserved') return until ? `Reserved until ${until}` : 'Reserved';
+    const title = clean(booking.title);
+    return title ? `Booked: ${title}${until ? ` (until ${until})` : ''}` : generic;
+  }
+  function equipmentUnitConflict(event, unitId){
+    const Scheduling = window.PlatformScheduling;
+    if (!Scheduling?.availabilityForEquipment || !eventStart(event)) return false;
+    // Company calendar items (equipment reservations, maintenance windows,
+    // vehicle bookings) hold units too, not only project events.
+    const availability = Scheduling.availabilityForEquipment({
+      units: equipmentUnits.filter((unit) => clean(unit.id) === clean(unitId)),
+      // Saved vehicle bookings always hold their unit (older ones were stored
+      // with a leftover draft flag).
+      events: [...allEvents, ...floatingEvents.filter((item) => (isVehicleBooking(item) ? eventIsScheduled(item) : !floatingEventIsDisposableDraft(item)))],
+      start: eventStart(event),
+      end: eventEnd(event),
+      excludeEventId: clean(event.id)
+    });
+    // Only real bookings count here; a unit's down/retired state is judged
+    // against the event's own window by equipmentDownDetail().
+    return availability.units.some((unit) => Array.isArray(unit.bookings) ? unit.bookings.length > 0 : !unit.available);
   }
   async function saveEventEquipment(event, nextRefs){
     const Scheduling = window.PlatformScheduling;
@@ -2896,6 +4561,62 @@
   function equipmentUnitDown(unit){
     return ['down', 'retired'].includes(clean(unit?.status).toLowerCase());
   }
+  function equipmentTypeLabel(unit = {}, type = null){
+    const typeId = clean(unit?.type_id);
+    const candidates = [type?.name, unit?.type_name].map(clean).filter((value) => value && value !== typeId);
+    if (candidates.length) return candidates[0];
+    return typeId ? typeId.replace(/^eqt_/, '').replace(/[_-]+/g, ' ').replace(/^./, (letter) => letter.toUpperCase()) : 'Equipment';
+  }
+  /* The unit's known out-of-service windows (maintenance calendar items that
+   * reference it), latest first. */
+  function equipmentUnitMaintenanceWindows(unit, excludeEventId = ''){
+    const id = clean(unit?.id);
+    if (!id) return [];
+    return floatingEvents
+      .filter((item) => !['cancelled', 'canceled'].includes(clean(item.status).toLowerCase()))
+      .filter((item) => clean(item.id) !== clean(excludeEventId))
+      .filter((item) => isEquipmentWindowEvent(item) && (eventKind(item) === 'equipment_maintenance' || eventTypeId(item) === 'equipment_maintenance'))
+      .filter((item) => eventEquipRefs(item).some((ref) => clean(ref.id) === id))
+      .map((item) => ({ start:eventStart(item), end:eventEnd(item), title:clean(item.title) }))
+      .filter((item) => item.end)
+      .sort((a, b) => b.end - a.end);
+  }
+  function equipmentUnitMaintenanceWindow(unit){
+    return equipmentUnitMaintenanceWindows(unit)[0] || null;
+  }
+  /* Down/retired units for the event's own window. A unit that is down
+   * because of a scheduled maintenance window is only out of service during
+   * that window: an event entirely before or after it can book the unit
+   * (the server checks the windows the same way). The server rejects
+   * bookings of an out-of-service unit when the company blocks equipment
+   * conflicts, so the picker never offers "Assign anyway" in that mode. */
+  function equipmentDownDetail(unit, draft = {}){
+    if (!equipmentUnitDown(unit)) return null;
+    const retired = clean(unit?.status).toLowerCase() === 'retired';
+    // A maintenance item never counts as a booking of its own unit.
+    const windows = retired ? [] : equipmentUnitMaintenanceWindows(unit, isEquipmentWindowEvent(draft) ? draft.id : '');
+    if (!retired && isEquipmentWindowEvent(draft) && eventEquipRefs(draft).some((ref) => clean(ref.id) === clean(unit?.id)) && !windows.length) return null;
+    const eventStartAt = eventStart(draft);
+    const eventEndAt = eventEnd(draft) || eventStartAt;
+    if (!retired && windows.length && eventStartAt && eventEndAt) {
+      const overlapping = windows.find((item) => (item.start || item.end) < eventEndAt && item.end > eventStartAt);
+      // Outside every known window the "down" badge does not apply here.
+      if (!overlapping) return null;
+      const until = overlapping.end.toLocaleDateString([], { month:'short', day:'numeric' });
+      return {
+        label:`Down until ${until}`,
+        reason:`${unit.name || unit.id} is down for service until ${until}, during this event.`,
+        blocked:equipmentConflictMode === 'block'
+      };
+    }
+    const maintenance = windows[0] || null;
+    const until = maintenance?.end ? maintenance.end.toLocaleDateString([], { month:'short', day:'numeric' }) : '';
+    const label = retired ? 'Retired' : (until ? `Down until ${until}` : 'Down for service');
+    const reason = retired
+      ? `${unit.name || unit.id} is retired and can't be booked.`
+      : `${unit.name || unit.id} is down for service${until ? ` until ${until}` : ''}.`;
+    return { label, reason, blocked:equipmentConflictMode === 'block' || retired };
+  }
   function eventEquipmentSectionHtml(ctx, draft, project){
     if (!equipmentSchedulingOn()) return '';
     const delivery = isMaterialEvent(draft) || eventTypeId(draft) === 'delivery';
@@ -2906,10 +4627,11 @@
     const chips = refs.map((ref) => {
       const unit = equipmentUnits.find((item) => clean(item.id) === clean(ref.id)) || null;
       const conflicted = ref.kind === 'equipment_unit' && equipmentUnitConflict(draft, ref.id);
-      return `<span class="dash-event-equipment-chip ${String(equipmentUnitDown(unit) ? 'down' : conflicted ? 'warn' : '')}">
+      const downDetail = equipmentDownDetail(unit, draft);
+      return `<span class="dash-event-equipment-chip ${String(downDetail ? 'down' : conflicted ? 'warn' : '')}" ${downDetail ? `title="${escapeHtml(downDetail.reason)}"` : ''}>
         <i class="fas ${String(escapeHtml(clean(unit?.icon) || 'fa-truck-pickup'))}"></i>
-        <span class="dash-equipment-name">${String(escapeHtml(ref.name || unit?.name || ref.id))}</span>${equipmentUnitDown(unit) ? '<small>Down</small>' : ''}
-        ${String(conflicted ? `<i class="fas fa-triangle-exclamation" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c71ee644be52a3","Booked elsewhere in this window") ?? "Booked elsewhere in this window")}"></i>` : '')}
+        <span class="dash-equipment-name">${String(escapeHtml(ref.name || unit?.name || ref.id))}</span>${downDetail ? `<small>${escapeHtml(downDetail.label)}</small>` : ''}
+        ${String(conflicted ? `<i class="fas fa-triangle-exclamation" title="${escapeHtml(equipmentUnitBookingNote(draft, ref.id))}"></i>` : '')}
         <button type="button" data-event-equipment-remove="${String(escapeHtml(ref.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e6c8bec001e544","Remove equipment") ?? "Remove equipment")}"><i class="fas fa-xmark"></i></button>
       </span>`;
     }).join('');
@@ -2943,9 +4665,14 @@
         <summary class="dash-event-equipment-add"><i class="fas fa-plus" aria-hidden="true"></i>Add equipment…<i class="fas fa-chevron-down" aria-hidden="true"></i></summary>
         <div class="dash-equipment-options" role="group" aria-label="Equipment to assign">${options.map((unit) => {
           const type = equipmentTypes.find((item) => clean(item.id) === clean(unit.type_id));
-          const down = equipmentUnitDown(unit);
-          const conflicted = equipmentUnitConflict(draft, unit.id);
-          return `<button type="button" class="dash-equipment-option ${down ? 'down' : ''}" data-event-equipment-add="${escapeHtml(unit.id)}"><i class="fas ${escapeHtml(clean(unit.icon) || clean(type?.icon) || 'fa-truck-pickup')}" aria-hidden="true"></i><span><strong>${escapeHtml(unit.name || unit.id)}</strong><small>${escapeHtml(unit.type_name || type?.name || 'Equipment')}${down ? ' · Down' : ''}${conflicted ? ' · Booked elsewhere in this window' : ''}</small></span></button>`;
+          const downDetail = equipmentDownDetail(unit, draft);
+          const down = !!downDetail;
+          const conflicted = !down && equipmentUnitConflict(draft, unit.id);
+          // In "block" mode the server rejects these bookings outright, so
+          // they are listed (with the reason) but can't be picked.
+          const blocked = (down && downDetail.blocked) || (conflicted && equipmentConflictMode === 'block' && type?.allow_double_booking !== true);
+          const note = down ? downDetail.label : (conflicted ? equipmentUnitBookingNote(draft, unit.id) : '');
+          return `<button type="button" class="dash-equipment-option ${down ? 'down' : ''}" data-event-equipment-add="${escapeHtml(unit.id)}" ${blocked ? `disabled aria-disabled="true" title="${escapeHtml(down ? downDetail.reason : `${note}. This unit can't be booked during this window.`)}"` : ''}><i class="fas ${escapeHtml(clean(unit.icon) || clean(type?.icon) || 'fa-truck-pickup')}" aria-hidden="true"></i><span><strong>${escapeHtml(unit.name || unit.id)}</strong><small>${escapeHtml(equipmentTypeLabel(unit, type))}${note ? ` · ${escapeHtml(note)}` : ''}${blocked ? ' · Unavailable' : ''}</small></span></button>`;
         }).join('')}</div>
         <div class="dash-equipment-confirm" data-equipment-warning hidden role="alert"><p data-equipment-warning-text></p><button type="button" data-equipment-cancel>Cancel</button><button type="button" data-equipment-confirm>Assign anyway</button></div>
       </details>` : '')}
@@ -2993,6 +4720,20 @@
       setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.id)), 0);
     }));
     const picker = section.querySelector('[data-equipment-picker]');
+    // The opened list scrolls into view above the editor's sticky footer.
+    picker?.addEventListener('toggle', () => {
+      if (!picker.open) return;
+      requestAnimationFrame(() => {
+        const pop = picker.closest('.dash-event-popover');
+        if (!pop) return;
+        const footer = pop.querySelector('.dash-event-pop-actions');
+        const popRect = pop.getBoundingClientRect();
+        const rect = picker.getBoundingClientRect();
+        const visibleBottom = popRect.bottom - (footer?.offsetHeight || 0) - 8;
+        const overflow = rect.bottom - visibleBottom;
+        if (overflow > 0) pop.scrollTop += Math.min(overflow, Math.max(0, rect.top - popRect.top - 8));
+      });
+    });
     const warning = section.querySelector('[data-equipment-warning]');
     let pendingUnit = null;
     let pendingButton = null;
@@ -3019,10 +4760,10 @@
     section.querySelectorAll('[data-event-equipment-add]').forEach((button) => button.addEventListener('click', () => {
       const unit = equipmentUnits.find((item) => clean(item.id) === clean(button.dataset.eventEquipmentAdd));
       if (!unit) return;
-      if (!equipmentUnitDown(unit)) return assignUnit(unit);
+      if (!equipmentDownDetail(unit, eventEditorContext()?.event || draft)) return assignUnit(unit);
       pendingUnit = unit;
       pendingButton = button;
-      section.querySelector('[data-equipment-warning-text]').textContent = `${unit.name || unit.id} is down. Are you sure you want to assign this equipment to the event?`;
+      section.querySelector('[data-equipment-warning-text]').textContent = `${equipmentDownDetail(unit, eventEditorContext()?.event || draft)?.reason || `${unit.name || unit.id} is down.`} Are you sure you want to assign this equipment to the event?`;
       warning.hidden = false;
       section.querySelector('[data-equipment-cancel]').focus();
       section.querySelector('.dash-equipment-options').hidden = true;
@@ -3081,14 +4822,56 @@
     const undo = eventDraftProjectUndo;
     const current = eventEditorContext();
     if (!undo || current?.kind !== 'floating' || String(current.event?.id || '') !== undo.eventId) return false;
-    const next = updateFloatingEvent({ ...current.event, ...undo.snapshot });
+    stageEditorEdit(current, undo.snapshot);
     eventDraftProjectUndo = null;
     eventDraftProjectQuery = '';
-    render();
-    setTimeout(() => renderEventDraftPopover(editorAnchorFor(next.id)), 0);
+    if (!editorUsesDraftCopy(current)) render();
+    setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.event.id)), 0);
     return true;
   }
+  function floatingEventIsDisposableDraft(event = {}){
+    return event?.__draft === true || clean(event?.status).toLowerCase() === 'draft';
+  }
+  function editorUsesDraftCopy(ctx){
+    return !!ctx && (ctx.editorOnly === true || (ctx.kind === 'floating' && !floatingEventIsDisposableDraft(ctx.event)));
+  }
+  /* The editor context with any unsaved edits layered over the stored event. */
   function eventEditorContext(){
+    const ctx = baseEventEditorContext();
+    if (!ctx || !eventEditorDraft || !editorUsesDraftCopy(ctx)) return ctx;
+    if (String(eventEditorDraft.id || '') !== String(ctx.event?.id || '')) return ctx;
+    const event = { ...ctx.event, ...eventEditorDraft.patch };
+    if (ctx.kind !== 'floating') return { ...ctx, event, dirty:true };
+    const project = event.project_id ? (projects.find((item) => String(item.id || '') === String(event.project_id || '')) || {}) : {};
+    return { ...ctx, event:decorateFloatingEvent(event), project, dirty:true };
+  }
+  /* Route an editor edit: persisted events collect it on the draft copy; a
+   * brand-new floating draft (discarded on cancel anyway) updates in place so
+   * its calendar chip follows the editor. */
+  function stageEditorEdit(ctx, patch = {}){
+    const id = String(ctx?.event?.id || '');
+    if (!id) return;
+    if (ctx.kind === 'floating' && !editorUsesDraftCopy(ctx)) {
+      updateFloatingEvent({ ...ctx.event, ...patch });
+      return;
+    }
+    const previous = eventEditorDraft && String(eventEditorDraft.id || '') === id ? eventEditorDraft.patch : {};
+    eventEditorDraft = { id, patch:{ ...previous, ...patch } };
+  }
+  // With an id, only that item's pending edits go: a save that finishes after
+  // the user already opened another item leaves the new editor alone.
+  function discardEventEditorDraft(eventId = ''){
+    if (eventId && eventEditorDraft && String(eventEditorDraft.id || '') !== String(eventId)) return;
+    eventEditorDraft = null;
+  }
+  /* True while the editor still shows `eventId` (or nothing at all): only
+   * then may a finished save close it and clear its placement. */
+  function editorStillShows(eventId = ''){
+    const id = String(eventId || '');
+    const open = String(eventEditorEventId || eventDraftPopoverId || '');
+    return !open || open === id;
+  }
+  function baseEventEditorContext(){
     const floating = floatingEvents.find((event) => String(event.id || '') === String(eventDraftPopoverId || ''));
     if (floating) return { kind: 'floating', event: floating, project: floating.project_id ? (projects.find((project) => String(project.id || '') === String(floating.project_id || '')) || {}) : {} };
     const selectedEditorEvent = eventEditorEventId
@@ -3098,12 +4881,19 @@
     if (selectedEditorEvent) {
       const project = eventProject(selectedEditorEvent || {});
       if (isProductionEvent(selectedEditorEvent)) {
-        return { kind: 'production', editorOnly: true, event: { ...selectedEditorEvent, event_type_default_id: 'project_work', type_id: 'project_work' }, project };
+        // Keep the item's own type (sections, custom work types); only
+        // untyped production rows read as generic work.
+        const typeId = eventTypeId(selectedEditorEvent) || 'project_work';
+        return { kind: 'production', editorOnly: true, event: { ...selectedEditorEvent, event_type_default_id: typeId, type_id: typeId }, project };
       }
       if (isMaterialEvent(selectedEditorEvent)) {
         return { kind: 'materials', editorOnly: true, event: selectedEditorEvent, project };
       }
-      return { kind: 'sales', editorOnly: true, event: { ...selectedEditorEvent, event_type_default_id: 'sales_appointment', type_id: 'sales_appointment' }, project };
+      // Sales appointments, follow-ups and custom project meetings keep their
+      // real type so the editor labels them correctly.
+      const salesLike = isSalesEvent(selectedEditorEvent) || isSalesFollowUpEvent(selectedEditorEvent);
+      const typeId = eventTypeId(selectedEditorEvent) || (salesLike ? eventKind(selectedEditorEvent) : '') || 'sales_appointment';
+      return { kind: salesLike ? 'sales' : 'appointment', editorOnly: true, event: { ...selectedEditorEvent, event_type_default_id: typeId, type_id: typeId }, project };
     }
     const placementKind = selectedPlacementKind() || scheduleMode;
     if (placementKind === 'materials') {
@@ -3114,7 +4904,7 @@
     } else if (placementKind === 'production') {
       const event = selectedProductionEvent();
       const project = selectedProductionProject() || eventProject(event || {});
-      const draft = productionScheduleDraft || (event ? selectedEventCalendarDraft() : null) || { id: '__production_event_draft', title: projectTitle(project), project_id: project?.id || '', project_title: projectTitle(project), project_address: projectAddress(project || {}, {}), description: '' };
+      const draft = productionScheduleDraft || (event ? selectedEventCalendarDraft() : null) || { id: '__production_event_draft', title: projectWorkTitle(project), project_id: project?.id || '', project_title: projectTitle(project), project_address: projectAddress(project || {}, {}), description: '' };
       if (project?.id || event?.id) return { kind: 'production', event: { ...draft, event_type_default_id: 'project_work', type_id: 'project_work' }, project };
     } else {
       const event = selectedScheduleEvent();
@@ -3186,18 +4976,19 @@
   function updateEditorDescription(value = ''){
     const ctx = eventEditorContext();
     if (!ctx) return;
-    if (ctx.kind === 'floating') updateFloatingEvent({ ...ctx.event, description: value, notes: value });
-    else if (ctx.editorOnly) updateLocalCalendarEvent(ctx.event?.id, { description: value, notes: value });
+    if (ctx.kind === 'floating' || ctx.editorOnly) stageEditorEdit(ctx, { description: value, notes: value });
     else if (ctx.kind === 'materials') materialScheduleDraft = { ...(materialScheduleDraft || ctx.event || {}), description: value, notes: value };
     else if (ctx.kind === 'production') productionScheduleDraft = { ...(productionScheduleDraft || ctx.event || {}), description: value, notes: value };
     else appointmentScheduleDraft = { ...(appointmentScheduleDraft || {}), description: value, notes: value };
   }
   function updateEditorTitle(value = ''){
-    const title = clean(value) || 'New Event';
+    // An emptied title stays empty on the draft; Save asks for one instead of
+    // silently storing a placeholder.
+    const title = clean(value);
     const ctx = eventEditorContext();
     if (!ctx) return;
-    if (ctx.kind === 'floating') updateFloatingEvent({ ...ctx.event, title, project_title: ctx.event.project_id ? ctx.event.project_title : '', title_is_custom: true });
-    else if (ctx.editorOnly) updateLocalCalendarEvent(ctx.event?.id, { title, title_is_custom: true });
+    if (ctx.kind === 'floating') stageEditorEdit(ctx, { title, project_title: ctx.event.project_id ? ctx.event.project_title : '', title_is_custom: !!title });
+    else if (ctx.editorOnly) stageEditorEdit(ctx, { title, title_is_custom: !!title });
     else if (ctx.kind === 'materials') materialScheduleDraft = { ...(materialScheduleDraft || ctx.event || {}), title, project_title: title, title_is_custom: true };
     else if (ctx.kind === 'production') productionScheduleDraft = { ...(productionScheduleDraft || ctx.event || {}), title, project_title: title, title_is_custom: true };
     else appointmentScheduleDraft = { ...(appointmentScheduleDraft || {}), title, project_title: title, title_is_custom: true };
@@ -3220,61 +5011,151 @@
     if (!ctx || !current) return;
     const allDay = current.all_day === true || clean(current.schedule_granularity).toLowerCase() === 'date';
     const dateOnly = allDay && /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
-    const nextValue = dateOnly
+    let nextValue = dateOnly
       ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
       : validDate(value);
-    if (!nextValue) return;
+    if (!nextValue) return false;
+    // All-day End is shown as the last included day; storage keeps the
+    // exclusive midnight boundary after it.
+    if (allDay && which === 'end') nextValue = addDays(nextValue, 1);
     const previousStart = eventStart(current) || new Date();
     const previousEnd = eventEnd(current) || new Date(previousStart.getTime() + (allDay ? 86400000 : 3600000));
     let start = which === 'start' ? nextValue : previousStart;
     let end = which === 'end' ? nextValue : previousEnd;
     const minimumDuration = allDay ? 86400000 : 15 * 60000;
     const previousDuration = Math.max(minimumDuration, previousEnd.getTime() - previousStart.getTime());
-    if (which === 'start' && end <= start) end = new Date(start.getTime() + previousDuration);
-    if (which === 'end' && end <= start) end = new Date(start.getTime() + minimumDuration);
+    // Moving Start keeps the length (like dragging the item); an End before
+    // Start moves the item so it ends there, still keeping its length.
+    const previousDays = Math.max(1, Math.round(previousDuration / 86400000));
+    if (which === 'start') end = allDay ? addDays(start, previousDays) : new Date(start.getTime() + previousDuration);
+    if (which === 'end' && end <= start) start = allDay ? addDays(end, -previousDays) : new Date(end.getTime() - previousDuration);
     const patch = {
       start,
       end,
       start_at:start.toISOString(),
       end_at:end.toISOString(),
       all_day:allDay,
-      schedule_granularity:allDay ? 'date' : 'time'
+      schedule_granularity:allDay ? 'date' : 'time',
+      ...equipmentWindowPatch(current, { start:previousStart, end:previousEnd }, { start, end })
     };
-    if (ctx.kind === 'floating') updateFloatingEvent({ ...current, ...patch });
-    else if (ctx.editorOnly) updateLocalCalendarEvent(current.id, patch);
+    if (ctx.kind === 'floating' || ctx.editorOnly) stageEditorEdit(ctx, patch);
     else if (ctx.kind === 'materials') materialScheduleDraft = { ...(materialScheduleDraft || current), ...patch };
     else if (ctx.kind === 'production') productionScheduleDraft = { ...(productionScheduleDraft || current), ...patch };
     else appointmentScheduleDraft = { ...(appointmentScheduleDraft || current), ...patch };
+    placementDraftEdited(ctx, patch);
+    return true;
+  }
+  /* Equipment usage windows ride along when the event's time changes: a
+   * window that matched the event's start/end follows it exactly, a custom
+   * window keeps its offset. Otherwise the server would still hold (and check
+   * conflicts against) the unit on the old dates. -> { resource_refs } or {} */
+  function equipmentWindowPatch(event = {}, previous = {}, next = {}){
+    const refs = Array.isArray(event?.resource_refs) ? event.resource_refs : [];
+    const windowed = refs.some((ref) => ['equipment_unit', 'equipment_type'].includes(clean(ref?.kind)) && (clean(ref?.start_at) || clean(ref?.end_at)));
+    if (!windowed) return {};
+    const helper = window.PlatformScheduling?.shiftEquipmentWindows;
+    if (typeof helper === 'function') {
+      const shifted = helper(event, previous, next);
+      const list = Array.isArray(shifted) ? shifted : shifted?.resource_refs;
+      if (Array.isArray(list)) return { resource_refs:list };
+    }
+    const prevStart = validDate(previous.start);
+    const prevEnd = validDate(previous.end);
+    const nextStart = validDate(next.start);
+    const nextEnd = validDate(next.end);
+    if (!prevStart || !nextStart) return {};
+    const delta = nextStart.getTime() - prevStart.getTime();
+    return { resource_refs:refs.map((ref) => {
+      if (!['equipment_unit', 'equipment_type'].includes(clean(ref?.kind))) return ref;
+      const refStart = validDate(ref.start_at);
+      const refEnd = validDate(ref.end_at);
+      if (!refStart && !refEnd) return ref;
+      const start = !refStart || refStart.getTime() === prevStart.getTime() ? nextStart : new Date(refStart.getTime() + delta);
+      let end = nextEnd && (!refEnd || (prevEnd && refEnd.getTime() === prevEnd.getTime())) ? nextEnd : new Date((refEnd || prevEnd || prevStart).getTime() + delta);
+      if (end <= start) end = nextEnd && nextEnd > start ? nextEnd : new Date(start.getTime() + 3600000);
+      return { ...ref, start_at:start.toISOString(), end_at:end.toISOString() };
+    }) };
+  }
+  /* Redraw the editor's equipment list so conflict/down states follow a time
+   * change without rebuilding (and refocusing) the whole editor. */
+  function refreshEditorEquipmentSection(pop){
+    const section = pop?.querySelector?.('[data-event-equipment]');
+    const ctx = eventEditorContext();
+    if (!section || !ctx?.event) return;
+    const openPicker = !!section.querySelector('[data-equipment-picker][open]');
+    const holder = document.createElement('div');
+    holder.innerHTML = eventEquipmentSectionHtml(ctx, ctx.event, ctx.project || {});
+    const next = holder.firstElementChild;
+    if (!next) return;
+    section.replaceWith(next);
+    if (openPicker) next.querySelector('[data-equipment-picker]')?.setAttribute('open', '');
+    bindEventEquipmentSection(pop, ctx.event);
+    if (pop.classList.contains('read-only')) {
+      next.querySelectorAll('input,textarea,select,button').forEach((field) => { field.disabled = true; });
+      next.querySelectorAll('[data-equipment-picker]').forEach((picker) => { picker.hidden = true; });
+    }
+  }
+  /* Keep the editor's time fields and summary line in step with the draft
+   * after an edit (the stored end can move when Start moves past it). */
+  function syncEditorTimeFields(pop){
+    const current = eventEditorContext()?.event;
+    if (!pop || !current) return;
+    const allDay = current.all_day === true || clean(current.schedule_granularity).toLowerCase() === 'date';
+    const format = allDay ? dateInputValue : dateTimeLocalValue;
+    const startInput = pop.querySelector('[data-event-start]');
+    const endInput = pop.querySelector('[data-event-end]');
+    if (startInput) startInput.value = format(eventStart(current));
+    if (endInput) endInput.value = format(editorDisplayEnd(current));
+    const line = pop.querySelector('.dash-event-pop-time');
+    if (line) line.textContent = formatEventDraftTime(current);
+    refreshEditorEquipmentSection(pop);
+  }
+  /* All-day items store an exclusive end (midnight after the last day); the
+   * editor shows the last included day. */
+  function editorDisplayEnd(event = {}){
+    const end = eventEnd(event);
+    const allDay = event?.all_day === true || clean(event?.schedule_granularity).toLowerCase() === 'date';
+    if (!allDay || !end) return end;
+    const start = eventStart(event);
+    const atMidnight = end.getHours() === 0 && end.getMinutes() === 0 && end.getSeconds() === 0;
+    const inclusive = atMidnight ? addDays(end, -1) : end;
+    return start && inclusive < start ? start : inclusive;
   }
   /* Stage a patch onto whatever the event editor is currently editing —
    * same dispatch the title/range/customer setters use. */
   function applyEditorPatch(patch = {}){
     const ctx = eventEditorContext();
     if (!ctx) return null;
-    if (ctx.kind === 'floating') updateFloatingEvent({ ...ctx.event, ...patch });
-    else if (ctx.editorOnly) updateLocalCalendarEvent(ctx.event?.id, patch);
+    if (ctx.kind === 'floating' || ctx.editorOnly) stageEditorEdit(ctx, patch);
     else if (ctx.kind === 'materials') materialScheduleDraft = { ...(materialScheduleDraft || ctx.event || {}), ...patch };
     else if (ctx.kind === 'production') productionScheduleDraft = { ...(productionScheduleDraft || ctx.event || {}), ...patch };
     else appointmentScheduleDraft = { ...(appointmentScheduleDraft || ctx.event || {}), ...patch };
+    placementDraftEdited(ctx, patch);
     return ctx;
   }
   function updateEditorAllDay(nextAllDay = true){
     const current = eventEditorContext()?.event;
     if (!current) return;
     const start = eventStart(current) || new Date();
+    const currentId = String(current.id || '');
+    const wasTimed = current.all_day !== true && clean(current.schedule_granularity) !== 'date';
     let patch;
     if (nextAllDay) {
+      // Remember the times so turning All day off again restores them.
+      if (wasTimed) updateEditorAllDay.remembered = { id:currentId, minutes:start.getHours() * 60 + start.getMinutes(), duration:Math.round(((eventEnd(current) || start).getTime() - start.getTime()) / 60000) };
       const dayStart = startOfDay(start) || start;
       const dayEnd = new Date(dayStart.getTime() + 86400000);
       patch = { start:dayStart, end:dayEnd, start_at:dayStart.toISOString(), end_at:dayEnd.toISOString(), all_day:true, schedule_granularity:'date' };
     } else {
+      const remembered = updateEditorAllDay.remembered?.id === currentId ? updateEditorAllDay.remembered : null;
       const timedStart = new Date(start);
-      timedStart.setHours(9, 0, 0, 0);
-      const duration = Math.max(15, Number(schedulingConfig?.event_types?.[eventTypeId(current)]?.duration_minutes || 60));
+      if (remembered) timedStart.setHours(Math.floor(remembered.minutes / 60), remembered.minutes % 60, 0, 0);
+      else timedStart.setHours(9, 0, 0, 0);
+      const duration = remembered ? Math.max(15, remembered.duration) : Math.max(15, Number(schedulingConfig?.event_types?.[eventTypeId(current)]?.duration_minutes || 60));
       const timedEnd = new Date(timedStart.getTime() + duration * 60000);
       patch = { start:timedStart, end:timedEnd, start_at:timedStart.toISOString(), end_at:timedEnd.toISOString(), all_day:false, schedule_granularity:'time' };
     }
-    applyEditorPatch(patch);
+    applyEditorPatch({ ...patch, ...equipmentWindowPatch(current, { start, end:eventEnd(current) }, { start:patch.start, end:patch.end }) });
   }
   function editorAssignmentUserList(event = {}){
     const ids = Array.isArray(event.assigned_user_ids) ? event.assigned_user_ids.map(clean).filter(Boolean) : [];
@@ -3282,22 +5163,57 @@
     return ids.map((id) => ({ id, name: clean(named.find((user) => clean(user?.id) === id)?.name) || userDisplayName(id) }));
   }
   function updateEditorAssignees(list = []){
-    const first = list[0] || null;
-    applyEditorPatch({
-      ...workResourcePayload({}),
-      assigned_user_ids: list.map((user) => user.id),
-      assigned_users: list.map((user) => ({ id:user.id, name:user.name })),
-      assigned_user_id: first?.id || '',
-      assigned_user_name: first?.name || ''
-    });
+    const current = eventEditorContext()?.event || {};
+    applyEditorPatch(assigneeSetPatch(current, eventCrewRefs(current), list));
+  }
+  /* The editor's explicit assignee set: every crew/team reference plus every
+   * person. Saving writes exactly this set — crews as crew-role
+   * resource_refs, people as assigned_user_ids — so a removed crew never
+   * lingers in resource_refs and multi-crew items keep all of their crews. */
+  function assigneeSetPatch(event = {}, crews = [], people = []){
+    const helper = window.PlatformScheduling?.assigneeSetPayload;
+    if (typeof helper === 'function') {
+      const result = helper(event, { crews, people });
+      if (result && typeof result === 'object') return result;
+    }
+    const crewRefs = crews.map((crew) => ({ kind:clean(crew.kind) || 'resource_group', id:clean(crew.id), name:clean(crew.name) || clean(crew.id), role:'crew' })).filter((ref) => ref.id);
+    const primary = crewRefs[0] || null;
+    const single = workResourcePayload(primary ? { id:primary.id, name:primary.name, resource_kind:primary.kind } : {});
+    const names = [...crewRefs.map((ref) => ref.name), ...people.map((user) => clean(user.name))].filter(Boolean);
+    return {
+      ...single,
+      // Several crews: the list is authoritative; the server mirrors the first
+      // crew into the legacy single-crew fields.
+      ...(crewRefs.length > 1 ? { work_resource_ref:null } : {}),
+      resource_refs:[...crewRefs, ...equipmentRefsOf(event)],
+      assigned_user_ids:people.map((user) => clean(user.id)).filter(Boolean),
+      assigned_users:people.map((user) => ({ id:clean(user.id), name:clean(user.name) })).filter((user) => user.id),
+      assigned_user_id:clean(people[0]?.id),
+      assigned_user_name:clean(people[0]?.name),
+      assignee_label:names.join(', ') || 'Unassigned'
+    };
+  }
+  /* Saves of a multi-crew item send the crew list without a singular
+   * work_resource_ref, so the server keeps every crew instead of rebuilding
+   * the list from the first one. Single-crew items are sent unchanged. */
+  function withExplicitAssignees(event = {}){
+    const helper = window.PlatformScheduling?.explicitAssigneePayload;
+    if (typeof helper === 'function') {
+      const result = helper(event);
+      if (result && typeof result === 'object') return result;
+    }
+    const crews = eventCrewRefs(event);
+    if (crews.length < 2) return event;
+    const crewRefs = crews.map((crew) => ({ kind:crew.kind || 'resource_group', id:crew.id, name:crew.name || crew.id, role:'crew' }));
+    const otherRefs = (Array.isArray(event.resource_refs) ? event.resource_refs : []).filter((ref) => !['resource_group', 'organization_connection'].includes(clean(ref?.kind)));
+    return { ...event, work_resource_ref:null, resource_refs:[...crewRefs, ...otherRefs] };
   }
   function updateEditorCustomerSetting(field = '', value = false){
     if (!['customer_visible', 'customer_show_title', 'customer_show_crew', 'customer_description'].includes(field)) return;
     const patch = { [field]: field === 'customer_description' ? String(value || '') : value === true };
     const ctx = eventEditorContext();
     if (!ctx) return;
-    if (ctx.kind === 'floating') updateFloatingEvent({ ...ctx.event, ...patch });
-    else if (ctx.editorOnly) updateLocalCalendarEvent(ctx.event?.id, patch);
+    if (ctx.kind === 'floating' || ctx.editorOnly) stageEditorEdit(ctx, patch);
     else if (ctx.kind === 'materials') materialScheduleDraft = { ...(materialScheduleDraft || ctx.event || {}), ...patch };
     else if (ctx.kind === 'production') productionScheduleDraft = { ...(productionScheduleDraft || ctx.event || {}), ...patch };
     else appointmentScheduleDraft = { ...(appointmentScheduleDraft || {}), ...patch };
@@ -3346,13 +5262,22 @@
       schedule: { ...current.schedule, ...(patch.schedule || {}) },
     };
     const update = { confirmation: next };
-    if (ctx.kind === 'floating') updateFloatingEvent({ ...ctx.event, ...update });
-    else if (ctx.editorOnly) updateLocalCalendarEvent(ctx.event?.id, update);
+    if (ctx.kind === 'floating' || ctx.editorOnly) stageEditorEdit(ctx, update);
     else if (ctx.kind === 'materials') materialScheduleDraft = { ...(materialScheduleDraft || ctx.event || {}), ...update };
     else if (ctx.kind === 'production') productionScheduleDraft = { ...(productionScheduleDraft || ctx.event || {}), ...update };
     else appointmentScheduleDraft = { ...(appointmentScheduleDraft || {}), ...update };
   }
 
+  /* Status line for the editor: a staff member marking the outcome is not
+   * the customer answering. */
+  function confirmationStatusLabel(state = {}){
+    if (clean(state?.confirmed_via).toLowerCase() === 'manual' && (state.confirmed || state.declined)) {
+      const by = clean(state.confirmed_by);
+      if (state.confirmed) return by ? `Marked confirmed by ${by}` : 'Marked confirmed by staff';
+      return by ? `Marked declined by ${by}` : 'Marked declined by staff';
+    }
+    return clean(state?.label);
+  }
   function confirmationPillHtml(event = {}){
     const state = window.PlatformScheduling?.visibleConfirmationState?.(event);
     if (!state) return '';
@@ -3366,8 +5291,12 @@
     // when this viewer isn't allowed to see confirmation state at all.
     if (settings.enabled !== true) return '';
     if (Scheduling?.confirmationVisible && !Scheduling.confirmationVisible(settings)) return '';
-    if (!project?.id && ctx.kind !== 'floating') return '';
-    if (isMaterialEvent(draft)) return '';
+    // Customer confirmation is an appointment feature: it needs a project
+    // (a customer to ask) and does not apply to crew work, deliveries or
+    // equipment windows.
+    if (!project?.id) return '';
+    // Sections/groups are containers of work, not appointments.
+    if (isMaterialEvent(draft) || isProductionEvent(draft) || isEquipmentWindowEvent(draft) || window.PlatformScheduling?.eventIsGroup?.(draft) === true) return '';
     const confirmation = editorConfirmation(draft);
     const schedule = confirmation.schedule || {};
     const mode = clean(schedule.mode) || 'morning_of';
@@ -3377,14 +5306,24 @@
     const statusLine = state && state.required && state.status !== 'pending'
       ? `<div class="dash-event-confirm-status ${escapeHtml(state.tone)}"><i class="fas ${escapeHtml(state.icon)}"></i> ${escapeHtml(state.label)}</div>`
       : '';
+    // Manual outcome controls for a saved appointment that asks for a reply
+    // (same actions as the project Schedule tab).
+    const storedEvent = ctx.editorOnly ? allEvents.find((item) => String(item.id || '') === String(draft.id || '')) : null;
+    const storedState = storedEvent ? Scheduling?.confirmationState?.(storedEvent) : null;
+    const confirmActions = storedState?.required && window.PlatformAPI?.appointments?.setConfirmation && canEditSchedule()
+      ? `<div class="dash-event-confirm-actions" data-event-confirm-actions>${storedState.confirmed || storedState.declined
+          ? `<button type="button" data-event-confirm-set="reset">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_80ae2923b672d0","Mark unconfirmed") ?? "Mark unconfirmed")}</button>`
+          : `<button type="button" class="primary" data-event-confirm-set="confirmed">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_617e25cc0ca1b3","Mark confirmed") ?? "Mark confirmed")}</button><button type="button" data-event-confirm-set="declined">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_mark_declined","Mark declined") ?? "Mark declined")}</button>`}${window.PlatformAPI?.appointments?.sendConfirmation && !storedState.confirmed ? `<button type="button" data-event-confirm-send>${storedState.sent_at ? (globalThis.PlatformLanguage?.htmlText("scheduling","m_resend_confirmation","Resend request") ?? "Resend request") : (globalThis.PlatformLanguage?.htmlText("project-schedule","m_b495e5473c85e0","Send now") ?? "Send now")}</button>` : ''}</div>`
+      : '';
     return `
       <div class="dash-event-confirm-panel">
+        ${storedState?.required ? `<div class="dash-event-confirm-status ${escapeHtml(storedState.tone)}"><i class="fas ${escapeHtml(storedState.icon)}"></i> ${escapeHtml(confirmationStatusLabel(storedState) || 'Awaiting confirmation')}</div>${confirmActions}` : ''}
         <label class="dash-event-customer-share">
           <input type="checkbox" data-event-confirm-required ${String(open ? 'checked' : '')}>
           <span class="dash-event-share-switch" aria-hidden="true"></span>
           <span><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_ae86d3ed019015","Ask the customer to confirm") ?? "Ask the customer to confirm")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_956b2b7eb54d56","The appointment shows as unconfirmed until they reply.") ?? "The appointment shows as unconfirmed until they reply.")}</small></span>
         </label>
-        ${String(statusLine)}
+        ${String(storedState?.required ? '' : statusLine)}
         <div class="dash-event-confirm-options ${String(open ? 'open' : '')}" data-event-confirm-options>
           <div class="dash-event-confirm-channels">
             <label class="dash-event-customer-option"><input type="checkbox" data-event-confirm-email ${String(confirmation.channels.email ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_5d2b9327181e33","Email") ?? "Email")}</span></label>
@@ -3415,6 +5354,30 @@
 
   function bindConfirmationEditor(pop, draft = {}){
     const rerender = () => setTimeout(() => renderEventDraftPopover(editorAnchorFor(draft.id)), 0);
+    const runConfirmationAction = async (outcome, button) => {
+      const ctx = eventEditorContext();
+      const projectId = clean(ctx?.project?.id || draft.project_id);
+      const eventId = clean(ctx?.event?.id || draft.id);
+      const client = window.PlatformAPI?.appointments;
+      if (!projectId || !eventId || !client) return;
+      pop.querySelectorAll('[data-event-confirm-actions] button').forEach((entry) => { entry.disabled = true; });
+      try {
+        if (outcome === 'send') await client.sendConfirmation(orgId(), projectId, eventId);
+        else await client.setConfirmation(orgId(), projectId, eventId, outcome);
+        await loadData({ force:true });
+        showToast(
+          outcome === 'send' ? 'Confirmation request sent' : outcome === 'confirmed' ? 'Marked confirmed' : outcome === 'declined' ? 'Marked declined' : 'Marked unconfirmed',
+          outcome === 'send' ? 'The customer was asked to confirm this appointment.' : 'The appointment confirmation was updated.',
+          true
+        );
+        rerender();
+      } catch (error) {
+        pop.querySelectorAll('[data-event-confirm-actions] button').forEach((entry) => { entry.disabled = false; });
+        showToast((globalThis.PlatformLanguage?.text("project-schedule","m_cac0219c86a9cb","Confirmation update failed") ?? "Confirmation update failed"), scheduleSaveErrorMessage(error, 'Could not update the confirmation.'), false);
+      }
+    };
+    pop.querySelectorAll('[data-event-confirm-set]').forEach((button) => button.addEventListener('click', () => runConfirmationAction(button.dataset.eventConfirmSet || 'confirmed', button)));
+    pop.querySelector('[data-event-confirm-send]')?.addEventListener('click', (event) => runConfirmationAction('send', event.currentTarget));
     pop.querySelector('[data-event-confirm-required]')?.addEventListener('change', (event) => {
       updateEditorConfirmation({ required: event.target.checked === true });
       pop.querySelector('[data-event-confirm-options]')?.classList.toggle('open', event.target.checked === true);
@@ -3474,8 +5437,7 @@
     if (!ctx) return;
     const current = editorCustomerScheduling(ctx.event || {});
     const update = { customer_scheduling:{ ...current, ...patch } };
-    if (ctx.kind === 'floating') updateFloatingEvent({ ...ctx.event, ...update });
-    else if (ctx.editorOnly) updateLocalCalendarEvent(ctx.event?.id, update);
+    if (ctx.kind === 'floating' || ctx.editorOnly) stageEditorEdit(ctx, update);
     else if (ctx.kind === 'materials') materialScheduleDraft = { ...(materialScheduleDraft || ctx.event || {}), ...update };
     else if (ctx.kind === 'production') productionScheduleDraft = { ...(productionScheduleDraft || ctx.event || {}), ...update };
     else appointmentScheduleDraft = { ...(appointmentScheduleDraft || {}), ...update };
@@ -3483,7 +5445,7 @@
 
   function customerSchedulingEditorHtml(ctx, draft = {}, project = {}){
     if (window.Portal?.can?.('scheduling.customer_rescheduling') !== true) return '';
-    if (!project?.id || isMaterialEvent(draft)) return '';
+    if (!project?.id || isMaterialEvent(draft) || isProductionEvent(draft) || isEquipmentWindowEvent(draft) || window.PlatformScheduling?.eventIsGroup?.(draft) === true) return '';
     const policy = editorCustomerScheduling(draft);
     const open = policy.enabled === true;
     const request = draft.reschedule_request && typeof draft.reschedule_request === 'object' ? draft.reschedule_request : {};
@@ -3536,15 +5498,252 @@
         await loadData({ force:true });
         showToast(decision === 'approved' ? 'Appointment change approved' : 'Appointment change declined', decision === 'approved' ? 'The new time is now on the project schedule.' : 'The original appointment remains scheduled.', true);
       } catch (error) {
-        showToast((globalThis.PlatformLanguage?.text("scheduling","m_3330f4f8d5af70","Could not review change") ?? "Could not review change"), error?.message || 'Try again.', false);
+        showToast((globalThis.PlatformLanguage?.text("scheduling","m_3330f4f8d5af70","Could not review change") ?? "Could not review change"), scheduleSaveErrorMessage(error, 'Try again.'), false);
         pop.querySelectorAll('[data-event-reschedule-review]').forEach((entry) => { entry.disabled = false; });
       }
     }));
   }
 
-  function cancelEventEditor(){
+  /* ── Save errors and stale-data checks ─────────────────────────────────── */
+  function scheduleSaveErrorLines(error){
+    const conflicts = Array.isArray(error?.data?.details?.conflicts) ? error.data.details.conflicts : [];
+    const issues = Array.isArray(error?.data?.details?.issues) ? error.data.details.issues : [];
+    // All-day bookings read as dates, not "12:00 AM".
+    const when = (item = {}) => {
+      const date = validDate(item?.start_at);
+      if (!date) return '';
+      const allDay = item?.all_day === true || clean(item?.schedule_granularity).toLowerCase() === 'date' || (date.getHours() === 0 && date.getMinutes() === 0);
+      return allDay ? date.toLocaleDateString([], { month:'short', day:'numeric' }) : date.toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+    };
+    return [
+      ...conflicts.map((conflict) => {
+        const booked = (Array.isArray(conflict?.events) ? conflict.events : []).slice(0, 2)
+          .map((item) => [clean(item?.title || item?.project_title), when(item)].filter(Boolean).join(' · '))
+          .filter(Boolean);
+        return [clean(conflict?.message) || `${clean(conflict?.ref_name) || 'Equipment'} is not available.`, booked.length ? `Booked: ${booked.join('; ')}` : ''].filter(Boolean).join(' ');
+      }),
+      ...issues.map((issue) => clean(issue?.message || issue?.label || issue)).filter(Boolean)
+    ];
+  }
+  function scheduleSaveErrorMessage(error, fallback = 'Could not save the change.'){
+    if (Number(error?.status) === 403) return scheduleReadOnlyMessage();
+    // A request that never reached the server (offline, dropped connection).
+    if (!Number(error?.status) && /failed to fetch|networkerror|network request failed|load failed/i.test(clean(error?.message))) {
+      return 'The server could not be reached, so nothing was changed. Check your connection and try again.';
+    }
+    const lines = scheduleSaveErrorLines(error);
+    return lines.length ? lines.join(' ') : (clean(error?.message) || fallback);
+  }
+  /* Field groups a stale-save check compares. A save only conflicts with a
+   * change made elsewhere when both touch the same group; otherwise the
+   * other change (a colleague's description, equipment, lock…) is kept and
+   * only this view's own changes are written on top of the stored copy. */
+  const EVENT_TIME_KEYS = ['start', 'end', 'start_at', 'end_at', 'duration_minutes', 'all_day', 'schedule_granularity', 'start_date', 'end_date'];
+  const EVENT_ASSIGNMENT_KEYS = ['assigned_user_ids', 'assigned_users', 'assigned_user_id', 'assigned_user_name', 'work_resource_ref', 'assigned_resource_kind', 'assigned_resource_id', 'assigned_resource_name', 'assigned_crew_id', 'assigned_crew_name', 'assigned_crew', 'crew_id', 'crew_name', 'resource_id', 'resource_name', 'assignee_label'];
+  const EVENT_LOCK_KEYS = ['locked', 'schedule_locked', 'schedule_lock', 'unlock_confirmed'];
+  const EVENT_COMPARE_IGNORED = new Set(['id', 'updated_at', 'created_at', 'schedule_history', 'requirement_warnings', 'project_title', 'project_address', 'resource_refs', 'floating_event', 'type_id', 'event_type_id', 'event_type_default_id', 'title_is_custom', 'revision', 'version']);
+  const CREW_REF_KINDS = ['resource_group', 'organization_connection', 'organization_user'];
+  function crewRefsOf(event = {}){
+    return (Array.isArray(event?.resource_refs) ? event.resource_refs : []).filter((ref) => CREW_REF_KINDS.includes(clean(ref?.kind)));
+  }
+  function equipmentRefsOf(event = {}){
+    return (Array.isArray(event?.resource_refs) ? event.resource_refs : []).filter((ref) => !CREW_REF_KINDS.includes(clean(ref?.kind)));
+  }
+  function emptyEventValue(value){
+    return value === undefined || value === null || value === '' || value === false
+      || (Array.isArray(value) && !value.length)
+      || (typeof value === 'object' && !Array.isArray(value) && !Object.keys(value).length);
+  }
+  function eventGroupValue(event = {}, group = ''){
+    const time = (value) => validDate(value)?.getTime() || 0;
+    if (group === 'time') return JSON.stringify([eventStart(event)?.getTime() || 0, eventEnd(event)?.getTime() || 0, event?.all_day === true || clean(event?.schedule_granularity).toLowerCase() === 'date']);
+    if (group === 'assignment') {
+      const people = [...new Set([clean(event?.assigned_user_id), ...(Array.isArray(event?.assigned_user_ids) ? event.assigned_user_ids : []).map(clean)].filter(Boolean))].sort();
+      return JSON.stringify([eventCrewRefs(event || {}).map((ref) => ref.id).sort(), people]);
+    }
+    if (group === 'equipment') return JSON.stringify(eventEquipRefs(event || {}).map((ref) => [ref.kind, ref.id, ref.quantity, time(ref.start_at), time(ref.end_at)]).sort());
+    if (group === 'lock') return eventIsLocked(event || {}) ? '1' : '0';
+    const value = event?.[group];
+    return emptyEventValue(value) ? '' : JSON.stringify(value);
+  }
+  /* The groups that differ between two copies of one schedule item. */
+  function eventChangeGroups(before = {}, after = {}){
+    const grouped = new Set([...EVENT_TIME_KEYS, ...EVENT_ASSIGNMENT_KEYS, ...EVENT_LOCK_KEYS]);
+    const groups = new Set(['time', 'assignment', 'equipment', 'lock']);
+    [...Object.keys(before || {}), ...Object.keys(after || {})].forEach((key) => {
+      if (!key.startsWith('__') && !grouped.has(key) && !EVENT_COMPARE_IGNORED.has(key)) groups.add(key);
+    });
+    return [...groups].filter((group) => eventGroupValue(before, group) !== eventGroupValue(after, group));
+  }
+  /* The stored copy with this view's changes (the groups it edited) on top. */
+  function mergeEventChanges(fresh = {}, edited = {}, groups = []){
+    const merged = { ...fresh };
+    groups.forEach((group) => {
+      if (group === 'time') EVENT_TIME_KEYS.forEach((key) => { if (Object.prototype.hasOwnProperty.call(edited, key)) merged[key] = edited[key]; });
+      else if (group === 'assignment') {
+        EVENT_ASSIGNMENT_KEYS.forEach((key) => { merged[key] = edited[key]; });
+        merged.resource_refs = [...crewRefsOf(edited), ...equipmentRefsOf(merged)];
+      } else if (group === 'equipment') merged.resource_refs = [...crewRefsOf(merged), ...equipmentRefsOf(edited)];
+      else if (group === 'lock') EVENT_LOCK_KEYS.forEach((key) => { if (Object.prototype.hasOwnProperty.call(edited, key)) merged[key] = edited[key]; });
+      else merged[group] = edited[group];
+    });
+    return merged;
+  }
+  /* A save the server refused because the item changed since it was read
+   * (typed stale error from the API), or this view's own pre-save check. */
+  function isStaleSaveError(error){
+    if (!error) return false;
+    if (error.staleSchedule === true || error.stale === true) return true;
+    if (window.PlatformAPI?.isStaleError?.(error) === true || window.PlatformScheduling?.isStaleSaveError?.(error) === true) return true;
+    const code = clean(error.code || error.data?.code || error.data?.error || error.name).toLowerCase();
+    return (Number(error.status) === 409 || code.includes('stale')) && /stale|revision|version|changed_elsewhere|concurrent|modified/.test(code);
+  }
+  function scheduleEventFingerprint(event = {}){
+    return ['time', 'assignment', 'equipment', 'lock', 'title', 'status', 'description', 'notes'].map((group) => eventGroupValue(event, group)).join('|');
+  }
+  /* Read the stored copy of a schedule item straight from the server. */
+  async function fetchStoredScheduleEvent(event = {}){
+    const id = clean(event.id);
+    const api = window.PlatformAPI;
+    if (!id || !api) return null;
+    const floating = event.floating_event === true || id.startsWith('floating_') || floatingEvents.some((item) => clean(item.id) === id);
+    if (floating) {
+      const result = await api.calendarEvents?.get?.(orgId(), id);
+      const document = result?.document;
+      if (!document) return null;
+      return decorateFloatingEvent({ ...(document.data || {}), id:document.id || id });
+    }
+    const projectId = clean(event.project_id);
+    if (!projectId || !api.projects?.get) return null;
+    const result = await api.projects.get(orgId(), projectId);
+    if (!result?.document) return null;
+    const freshEvents = window.PlatformScheduling?.eventsFromProjects?.([result.document], schedulingConfig || {}) || [];
+    return freshEvents.find((item) => clean(item.id) === id) || null;
+  }
+  /* Before writing, make sure nobody else changed the item since this view
+   * loaded it. On a mismatch the calendar reloads and the caller aborts, so a
+   * stale copy never silently overwrites a newer change. */
+  /* Read the stored copy and compare it with the copy this view loaded
+   * (`known`). `ownGroups` are the groups this save changes: it conflicts
+   * only when the other change touched one of them. -> { fresh, conflict,
+   * remoteGroups } — fresh is null when the stored copy can't be read (the
+   * server's own stale check then decides). */
+  async function checkStoredScheduleEvent(known, ownGroups = []){
+    if (!known?.id) return { fresh:null, conflict:false, remoteGroups:[] };
+    let fresh = null;
+    try {
+      fresh = await withTimeout(fetchStoredScheduleEvent(known), 6000, 'Schedule freshness check');
+    } catch (error) {
+      return { fresh:null, conflict:false, remoteGroups:[] };
+    }
+    if (!fresh) return { fresh:null, conflict:false, remoteGroups:[] };
+    const remoteGroups = eventChangeGroups(known, fresh);
+    return { fresh, remoteGroups, conflict:remoteGroups.some((group) => ownGroups.includes(group)) };
+  }
+  /* A refused stale save: say so and reload the latest stored schedule. */
+  // The toast says the calendar "now shows the latest version", so it only
+  // appears once the reload has finished.
+  async function reloadAfterStaleChange(error = null){
+    await loadData({ force:true });
+    if (error?.deleted === true) deletedElsewhereToast();
+    else changedElsewhereToast();
+  }
+  function deletedElsewhereToast(){
+    showToast(
+      (globalThis.PlatformLanguage?.text("scheduling","m_deleted_elsewhere","Deleted by someone else") ?? "Deleted by someone else"),
+      (globalThis.PlatformLanguage?.text("scheduling","m_deleted_elsewhere_body","This item was deleted in another window, so your changes were not saved.") ?? "This item was deleted in another window, so your changes were not saved."),
+      STALE_TOAST
+    );
+  }
+  // Stays up until dismissed (or replaced): it asks the user to redo work.
+  const STALE_TOAST = { tone:'warning', duration:600000 };
+  function changedElsewhereToast(){
+    showToast(
+      (globalThis.PlatformLanguage?.text("scheduling","m_changed_elsewhere","Changed by someone else") ?? "Changed by someone else"),
+      (globalThis.PlatformLanguage?.text("scheduling","m_changed_elsewhere_body","This item was changed in another window. The calendar now shows the latest version; review it and apply your change again.") ?? "This item was changed in another window. The calendar now shows the latest version; review it and apply your change again."),
+      STALE_TOAST
+    );
+  }
+  function scheduleItemExists(eventId = ''){
+    const id = String(eventId || '');
+    return !!id && (allEvents.some((event) => String(event.id || '') === id) || floatingEvents.some((event) => String(event.id || '') === id));
+  }
+  /* The item being saved was deleted elsewhere: drop it, close its editor
+   * (never reopen it as an empty placement) and say what happened. */
+  function closeEditorForDeletedItem(eventId = ''){
+    const id = String(eventId || '');
+    allEvents = allEvents.filter((event) => String(event.id || '') !== id);
+    floatingEvents = floatingEvents.filter((event) => String(event.id || '') !== id);
+    events = visibleEvents();
+    discardEventEditorDraft(id);
+    if (String(eventEditorEventId || '') === id || String(eventDraftPopoverId || '') === id) {
+      eventDraftPopoverId = '';
+      eventEditorEventId = '';
+      eventDraftProjectQuery = '';
+      if (productionScheduleEventId === id || appointmentScheduleEventId === id || materialScheduleEventId === id) clearPlacementSelection();
+      closeEventDraftPopover();
+    }
+    render();
+    showToast(
+      (globalThis.PlatformLanguage?.text("scheduling","m_deleted_elsewhere","Deleted by someone else") ?? "Deleted by someone else"),
+      (globalThis.PlatformLanguage?.text("scheduling","m_deleted_elsewhere_body","This item was deleted in another window, so your changes were not saved.") ?? "This item was deleted in another window, so your changes were not saved."),
+      STALE_TOAST
+    );
+  }
+  /* Before writing, make sure nobody else changed what this save changes
+   * since this view loaded the item. On a conflict the calendar reloads and
+   * the caller aborts, so a stale copy never overwrites a newer change. */
+  async function eventChangedElsewhere(edited, stored){
+    if (!stored?.id) return false;
+    const check = await checkStoredScheduleEvent(stored, eventChangeGroups(stored, edited || stored));
+    if (!check.conflict) return false;
+    await reloadAfterStaleChange();
+    return true;
+  }
+  function staleScheduleError(){
+    const error = new Error('This item was changed in another window.');
+    error.staleSchedule = true;
+    return error;
+  }
+  /* After a refused stale save: reload, then reopen the editor on the latest
+   * stored copy with the user's pending edits still layered on top. */
+  async function handleStaleEditorSave(eventId = '', error = null){
+    await loadData({ force:true });
+    // Refused because the item no longer exists (or the reload shows it gone).
+    if (error?.deleted === true || (dataLoaded && !scheduleRefreshFailedAt && eventId && !scheduleItemExists(eventId))) {
+      closeEditorForDeletedItem(eventId);
+      return;
+    }
+    changedElsewhereToast();
+    reopenEventEditorAfterConflict(eventId, { stale:true });
+  }
+  function reopenEventEditorAfterConflict(eventId = '', options = {}){
+    const id = String(eventId || '');
+    if (!id || (String(eventEditorEventId || '') !== id && String(eventDraftPopoverId || '') !== id)) return;
+    setTimeout(() => renderEventDraftPopover(editorAnchorFor(id), options.stale ? { stale:true } : {}), 0);
+  }
+  /* Close the editor and throw away its unsaved edits. The stored event was
+   * never touched, so nothing needs restoring; a brand-new floating draft is
+   * removed. A rail placement keeps its selection (placing continues on the
+   * calendar) — only the popover closes. */
+  function cancelEventEditor({ deferRender = false, restoreFocus = false } = {}){
     const ctx = eventEditorContext();
-    if (ctx?.kind === 'floating' && ctx.event?.status === 'draft') {
+    discardEventEditorDraft();
+    window.PlatformUI?.hideTooltip?.();
+    // Keyboard close (Escape / ×) returns focus to the item it was opened from.
+    const focusItem = () => {
+      if (!restoreFocus || !ctx?.event?.id) return;
+      if (document.activeElement && document.activeElement !== document.body && document.activeElement.isConnected) return;
+      const anchor = editorAnchorFor(ctx.event.id);
+      if (anchor && !anchor.hasAttribute('tabindex') && !anchor.matches('button,a,[tabindex]')) anchor.setAttribute('tabindex', '-1');
+      anchor?.focus?.({ preventScroll:true });
+    };
+    if (ctx && ctx.kind !== 'floating' && !ctx.editorOnly) {
+      closeEventDraftPopover();
+      focusItem();
+      return;
+    }
+    if (ctx?.kind === 'floating' && floatingEventIsDisposableDraft(ctx.event)) {
       floatingEvents = floatingEvents.filter((event) => String(event.id || '') !== String(ctx.event.id || ''));
     } else if (ctx) clearPlacementSelection();
     eventDraftPopoverId = '';
@@ -3553,7 +5752,78 @@
     eventCustomerDetailsOpen = false;
     eventAdvancedOpen = false;
     closeEventDraftPopover();
-    render();
+    // An outside click can land on another calendar item; redraw after that
+    // click is delivered so it still opens.
+    if (deferRender) setTimeout(() => { render(); focusItem(); }, 0);
+    else { render(); focusItem(); }
+  }
+  /* Browser Back/Forward moved the calendar under an open editor: a clean
+   * editor closes; unsaved edits ask before they are thrown away (Keep
+   * editing leaves the editor open on the new range). Rail placements keep
+   * their selection, as paging does. */
+  async function settleEditorAfterRouteChange(){
+    if (!document.querySelector('.dash-event-popover')) return;
+    const ctx = eventEditorContext();
+    if (!ctx || (ctx.kind !== 'floating' && !ctx.editorOnly)) return;
+    const id = String(ctx.event?.id || '');
+    const disposable = ctx.kind === 'floating' && floatingEventIsDisposableDraft(ctx.event);
+    const unsaved = disposable || (!!eventEditorDraft && String(eventEditorDraft.id || '') === id && Object.keys(eventEditorDraft.patch || {}).length > 0);
+    if (!unsaved) { cancelEventEditor(); return; }
+    if (settleEditorAfterRouteChange.pending) return;
+    settleEditorAfterRouteChange.pending = true;
+    try {
+      const label = clean(ctx.event?.title) || 'this event';
+      const discard = window.PlatformUI?.confirm
+        ? await window.PlatformUI.confirm(`You have unsaved changes to “${label}”. Discard them?`, { title:'Unsaved changes', okLabel:'Discard', cancelLabel:'Keep editing', danger:true, defaultFocus:'cancel' })
+        : true;
+      if (!editorStillShows(id)) return;
+      if (discard) cancelEventEditor();
+      else renderEventDraftPopover(editorAnchorFor(id));
+    } finally {
+      settleEditorAfterRouteChange.pending = false;
+    }
+  }
+  /* Outside click: same as Cancel for an event being edited; a rail
+   * placement only closes its popover and keeps the selection. */
+  function dismissEventEditor(){
+    cancelEventEditor({ deferRender:true });
+  }
+  /* Escape closes only the topmost layer: an open date/time picker or dialog
+   * handles its own Escape, then the assignee menus, the project results and
+   * the equipment picker inside the editor, and only then the editor. */
+  function handleEventEditorEscape(pop, event){
+    if (!pop?.isConnected) return false;
+    if (document.querySelector('fm-date-time-picker') || document.querySelector('.fm-dialog-backdrop')) return false;
+    const consume = () => { event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.(); return true; };
+    if (document.querySelector('.dash-assignee-popover')) { closeAssignmentMenu(); return consume(); }
+    const assignMenu = pop.querySelector('[data-event-assign-menu]:not([hidden])');
+    if (assignMenu) {
+      assignMenu.hidden = true;
+      pop.querySelector('[data-event-assign-add]')?.setAttribute('aria-expanded', 'false');
+      pop.querySelector('[data-event-assign-add]')?.focus();
+      return consume();
+    }
+    const results = pop.querySelector('[data-event-project-results]:not([hidden])');
+    if (results) {
+      results.hidden = true;
+      eventDraftProjectQuery = '';
+      return consume();
+    }
+    const equipmentPicker = pop.querySelector('[data-equipment-picker][open]');
+    if (equipmentPicker) {
+      equipmentPicker.open = false;
+      equipmentPicker.querySelector('summary')?.focus();
+      return consume();
+    }
+    // The "apply to which events?" choice: Escape is its Back button, the
+    // edit stays in the editor.
+    const scopeBack = pop.querySelector('[data-event-recurrence-scope] [data-event-scope-back]');
+    if (scopeBack) {
+      scopeBack.click();
+      return consume();
+    }
+    cancelEventEditor({ deferRender:true, restoreFocus:true });
+    return consume();
   }
   function eventRecurrenceOptions(popover){
     const enabled = popover?.querySelector('[data-event-recurring]')?.checked === true;
@@ -3586,7 +5856,7 @@
     const end = eventEnd(event);
     const duration = start && end && end > start ? Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)) : 60;
     const type = eventTypeId(event) || 'custom';
-    return {
+    const payload = {
       branch_id: branchId(),
       project_id: clean(event.project_id),
       title: clean(event.title || event.project_title) || 'Recurring appointment',
@@ -3614,11 +5884,182 @@
       billing: options.billing,
       expenses: options.expenses
     };
+    if (!clean(event.recurrence_series_id)) return payload;
+    // Editing an existing series from one of its occurrences: name the
+    // occurrence and its edited times instead of re-anchoring the series on it.
+    delete payload.start_at;
+    delete payload.project_id;
+    payload.scope = options.scope === 'following' ? 'following' : 'all';
+    payload.event_id = clean(event.id);
+    payload.occurrence_key = clean(event.recurrence_occurrence_key);
+    payload.occurrence_start_at = start?.toISOString() || '';
+    payload.occurrence_end_at = end?.toISOString() || '';
+    // Only send what the editor actually shows: project occurrences have no
+    // cadence fields and the charge/cost inputs start empty.
+    if (!options.hasRecurrenceFields) delete payload.recurrence;
+    if (!options.billing?.enabled) delete payload.billing;
+    if (!options.expenses?.enabled) delete payload.expenses;
+    if (options.stopRepeating) {
+      const day = start || new Date();
+      return {
+        scope: 'all',
+        event_id: payload.event_id,
+        occurrence_key: payload.occurrence_key,
+        recurrence: { end_at: new Date(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59).toISOString(), occurrence_count: null }
+      };
+    }
+    return payload;
+  }
+  function recurrenceSummaryText(recurrence = {}){
+    const rule = recurrence && typeof recurrence === 'object' ? recurrence : {};
+    const frequency = clean(rule.frequency || 'monthly').toLowerCase();
+    const interval = Math.max(1, Math.round(Number(rule.interval || 1) || 1));
+    const units = { daily:['day', 'days', 'daily'], weekly:['week', 'weeks', 'weekly'], monthly:['month', 'months', 'monthly'], quarterly:['quarter', 'quarters', 'quarterly'], yearly:['year', 'years', 'yearly'] }[frequency] || ['month', 'months', 'monthly'];
+    const cadence = interval === 1 ? `Repeats ${units[2]}` : `Repeats every ${interval} ${units[1]}`;
+    const count = Math.round(Number(rule.occurrence_count) || 0);
+    const endAt = clean(rule.end_at) ? new Date(rule.end_at) : null;
+    // An end date (set when the series was ended or split) is the effective
+    // limit even if the original rule also counted occurrences.
+    const ending = endAt && Number.isFinite(endAt.getTime())
+      ? `until ${endAt.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' })}`
+      : count > 0
+        ? `${count} time${count === 1 ? '' : 's'}`
+        : 'no end date';
+    return (globalThis.PlatformLanguage?.text("scheduling","m_recurrence_summary",`${cadence} · ${ending}`,{ cadence, ending }) ?? `${cadence} · ${ending}`);
+  }
+  // Saving an occurrence asks which part of the series the change is for.
+  function showRecurrenceScopeChoice(options = {}){
+    const pop = document.querySelector('.dash-event-popover');
+    const actions = pop?.querySelector('.dash-event-pop-actions');
+    if (!pop || !actions) return;
+    pop.querySelector('[data-event-recurrence-scope]')?.remove();
+    const toggle = pop.querySelector('[data-event-recurring]');
+    const stopping = !!toggle && !toggle.checked;
+    const text = (key, fallback) => globalThis.PlatformLanguage?.text("scheduling", key, fallback) ?? fallback;
+    const choices = stopping
+      ? [['this', text('m_scope_this_only', 'Keep repeating, save this event')], ['stop', text('m_scope_stop', 'End the series after this event')]]
+      : [['this', text('m_scope_this', 'This event')], ['following', text('m_scope_following', 'This and following')], ['all', text('m_scope_all', 'All events')]];
+    const box = document.createElement('div');
+    box.className = 'dash-event-notice';
+    box.setAttribute('data-event-recurrence-scope', '');
+    box.setAttribute('role', 'group');
+    box.setAttribute('aria-label', text('m_scope_label', 'Apply changes to'));
+    box.style.cssText = 'order:-1;flex:1 1 100%;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 2px';
+    box.innerHTML = `<span style="flex:1 1 0;min-width:0">${escapeHtml(stopping ? text('m_scope_stop_label', 'Recurring is off for this event. What should happen to the series?') : text('m_scope_prompt', 'This event repeats. Apply your changes to:'))}</span><button type="button" class="dash-event-view-btn" data-event-scope-back style="height:28px">${escapeHtml(text('m_scope_back', 'Back'))}</button><span style="flex-basis:100%;height:0" aria-hidden="true"></span>${choices.map(([scope, label], index) => `<button type="button" class="${index === 0 ? 'dash-event-save' : 'dash-event-view-btn'}" data-event-scope="${scope}">${escapeHtml(label)}</button>`).join('')}`;
+    actions.style.flexWrap = 'wrap';
+    actions.insertBefore(box, actions.firstChild);
+    // The choice sits in the sticky footer; keep the title and time (what is
+    // being saved) in view above it.
+    pop.scrollTop = 0;
+    box.querySelectorAll('[data-event-scope]').forEach((button) => button.addEventListener('click', () => {
+      const scope = button.getAttribute('data-event-scope');
+      box.remove();
+      saveEventEditor({ ...options, scope: scope === 'stop' ? 'all' : scope, stopRepeating: scope === 'stop' });
+    }));
+    box.querySelector('[data-event-scope-back]')?.addEventListener('click', () => {
+      box.remove();
+      pop.querySelector('[data-event-save]')?.focus();
+    });
+    box.querySelector('[data-event-scope]')?.focus();
+  }
+  async function saveRecurrenceSeriesEdit(ctx, seriesId, options = {}){
+    const event = ctx.event || {};
+    const api = window.PlatformAPI?.projects;
+    if (!api?.updateRecurrenceSeries) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_0c17d9fba77f09","Could not save recurring item") ?? "Could not save recurring item"), 'Recurring series are not available.', false);
+      return;
+    }
+    const payload = recurrencePayloadForEvent(event, options);
+    closeEventDraftPopover();
+    try {
+      await api.updateRecurrenceSeries(orgId(), seriesId, payload);
+      discardEventEditorDraft();
+      if (ctx.editorOnly) clearPlacementSelection();
+      eventDraftPopoverId = '';
+      eventEditorEventId = '';
+      eventDraftProjectQuery = '';
+      render();
+      await loadData({ force: true });
+      window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+      const title = options.stopRepeating ? 'Series ended' : payload.scope === 'following' ? 'This and following events updated' : 'All events updated';
+      const body = options.stopRepeating ? 'Occurrences after this event were removed.' : 'Occurrences you changed on their own keep their own changes.';
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_series_saved_title",title) ?? title), (globalThis.PlatformLanguage?.text("scheduling","m_series_saved_body",body) ?? body), true);
+    } catch (error) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_0c17d9fba77f09","Could not save recurring item") ?? "Could not save recurring item"), scheduleSaveErrorMessage(error, 'Try again.'), false);
+      setTimeout(() => renderEventDraftPopover(editorAnchorFor(event.id), { error }), 0);
+    }
+  }
+  async function skipRecurrenceOccurrence(ctx, draft = {}, button = null){
+    const seriesId = clean(draft.recurrence_series_id);
+    const eventId = clean(draft.id);
+    if (!seriesId || !eventId) return;
+    if (!canEditSchedule()) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), scheduleReadOnlyMessage(), VIEW_ONLY_TOAST);
+      return;
+    }
+    const api = window.PlatformAPI?.projects;
+    if (!api?.updateRecurrenceOccurrence) return;
+    const label = clean(draft.title || draft.project_title) || 'this occurrence';
+    const approved = window.PlatformUI?.confirm
+      ? await window.PlatformUI.confirm(`Skip “${label}” on ${formatEventDraftTime(draft)}? The rest of the series stays as it is.`, { title: 'Skip this occurrence', okLabel: 'Skip', cancelLabel: 'Keep it' })
+      : true;
+    if (!approved) return;
+    if (button) button.disabled = true;
+    try {
+      await api.updateRecurrenceOccurrence(orgId(), seriesId, eventId, 'skipped');
+      discardEventEditorDraft();
+      closeEventDraftPopover();
+      if (ctx?.editorOnly) clearPlacementSelection();
+      const hide = (item) => String(item?.id || '') === eventId ? { ...item, status:'cancelled' } : item;
+      floatingEvents = floatingEvents.map(hide);
+      allEvents = allEvents.map(hide);
+      events = events.map(hide);
+      eventDraftPopoverId = '';
+      eventEditorEventId = '';
+      eventDraftProjectQuery = '';
+      render();
+      await loadData({ force: true });
+      showToast('Occurrence skipped', 'The rest of the series is unchanged.', true);
+    } catch (error) {
+      if (button) button.disabled = false;
+      showToast('Could not skip occurrence', scheduleSaveErrorMessage(error, 'Try again.'), false);
+    }
   }
   async function saveEventEditor(recurrenceOptions = {}){
     const ctx = eventEditorContext();
     if (!ctx) return;
-    if (ctx.kind === 'floating' && recurrenceOptions.enabled) {
+    if (!canEditSchedule()) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), scheduleReadOnlyMessage(), VIEW_ONLY_TOAST);
+      return;
+    }
+    // The title field is what the user sees: a company item's stored copy
+    // falls back to its type name ("Other"), so an emptied field would
+    // otherwise save that placeholder silently.
+    const shownTitleInput = document.querySelector('.dash-event-popover [data-event-title]');
+    const titleMissing = shownTitleInput && !shownTitleInput.disabled ? !clean(shownTitleInput.value) : !clean(ctx.event?.title);
+    if (titleMissing && (ctx.kind === 'floating' || ctx.editorOnly)) {
+      const titleInput = shownTitleInput;
+      titleInput?.classList.add('invalid');
+      titleInput?.setAttribute('aria-invalid', 'true');
+      titleInput?.focus();
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_title_required","Add a title") ?? "Add a title"), (globalThis.PlatformLanguage?.text("scheduling","m_title_required_body","Give this event a title before saving.") ?? "Give this event a title before saving."), false);
+      return;
+    }
+    const recurrenceSeriesId = clean(ctx.event?.recurrence_series_id);
+    if (recurrenceSeriesId) {
+      // An occurrence of a series: "This event" is an ordinary save of this
+      // occurrence (kept as an exception); the other scopes edit the series.
+      const options = { ...recurrenceOptions, hasRecurrenceFields: recurrenceOptions.hasRecurrenceFields ?? !!document.querySelector('.dash-event-popover [data-event-recurrence-frequency]') };
+      if (!options.scope) {
+        showRecurrenceScopeChoice(options);
+        return;
+      }
+      if (options.scope === 'following' || options.scope === 'all') {
+        await saveRecurrenceSeriesEdit(ctx, recurrenceSeriesId, options);
+        return;
+      }
+    }
+    if (ctx.kind === 'floating' && recurrenceOptions.enabled && !recurrenceSeriesId) {
       const payload = recurrencePayloadForEvent(ctx.event, recurrenceOptions);
       if (!payload.start_at) {
         showToast((globalThis.PlatformLanguage?.text("scheduling","m_1de685e881b782","Choose a time first") ?? "Choose a time first"), (globalThis.PlatformLanguage?.text("scheduling","m_52ca64c3f28350","Recurring items need a first calendar date and time.") ?? "Recurring items need a first calendar date and time."), false);
@@ -3626,36 +6067,59 @@
       }
       closeEventDraftPopover();
       try {
-        const seriesId = clean(ctx.event.recurrence_series_id);
-        if (seriesId) await window.PlatformAPI?.projects?.updateRecurrenceSeries?.(orgId(), seriesId, payload);
-        else await window.PlatformAPI?.projects?.createRecurrenceSeries?.(orgId(), payload);
+        await window.PlatformAPI?.projects?.createRecurrenceSeries?.(orgId(), payload);
         floatingEvents = floatingEvents.filter((event) => String(event.id || '') !== String(ctx.event.id || ''));
+        discardEventEditorDraft();
         eventDraftPopoverId = '';
         eventEditorEventId = '';
         eventDraftProjectQuery = '';
         render();
         await loadData({ force: true });
-        showToast(seriesId ? 'Recurring item updated' : 'Recurring item created', (globalThis.PlatformLanguage?.text("scheduling","m_bd00f676f7e893","Its upcoming calendar occurrences are ready.") ?? "Its upcoming calendar occurrences are ready."), true);
+        showToast('Recurring item created', (globalThis.PlatformLanguage?.text("scheduling","m_bd00f676f7e893","Its upcoming calendar occurrences are ready.") ?? "Its upcoming calendar occurrences are ready."), true);
       } catch (error) {
-        showToast((globalThis.PlatformLanguage?.text("scheduling","m_0c17d9fba77f09","Could not save recurring item") ?? "Could not save recurring item"), error?.message || 'Try again.', false);
+        showToast((globalThis.PlatformLanguage?.text("scheduling","m_0c17d9fba77f09","Could not save recurring item") ?? "Could not save recurring item"), scheduleSaveErrorMessage(error, 'Try again.'), false);
         setTimeout(() => renderEventDraftPopover(editorAnchorFor(ctx.event.id)), 0);
       }
       return;
     }
-    closeEventDraftPopover();
     if (ctx.kind === 'floating') {
+      const disposable = floatingEventIsDisposableDraft(baseEventEditorContext()?.event || {});
+      const original = floatingEvents.find((event) => String(event.id || '') === String(ctx.event?.id || '')) || null;
+      const saveButton = document.querySelector('.dash-event-popover [data-event-save]');
+      if (saveButton) saveButton.disabled = true;
+      // Write only this editor's changes on top of the latest stored copy; a
+      // change elsewhere to the same fields refuses the save and reopens the
+      // editor on the latest version with the pending edits kept.
+      let editedFloating = ctx.event;
+      if (!disposable && original) {
+        const ownGroups = eventChangeGroups(original, ctx.event);
+        const check = await checkStoredScheduleEvent(original, ownGroups);
+        if (check.conflict) { await handleStaleEditorSave(ctx.event.id); return; }
+        if (check.fresh && check.remoteGroups.length) editedFloating = decorateFloatingEvent(mergeEventChanges(check.fresh, ctx.event, ownGroups));
+      }
+      // Another item opened while the check ran keeps its editor.
+      const savedId = String(ctx.event?.id || '');
+      const stillShown = editorStillShows(savedId);
+      if (stillShown) closeEventDraftPopover();
+      // An event saved without picking a type is stored as "Other" (custom),
+      // never with an undefined type.
+      const typeFields = eventTypeId(editedFloating) ? {} : { type_id:'custom', event_type_id:'custom', event_type_default_id:'custom' };
       const next = updateFloatingEvent({
-        ...ctx.event,
+        ...editedFloating,
+        ...typeFields,
         __draft: false,
         __activeDraft: false,
         status: 'scheduled'
       });
-      eventDraftPopoverId = '';
-      eventEditorEventId = '';
-      eventDraftProjectQuery = '';
+      if (stillShown) {
+        eventDraftPopoverId = '';
+        eventEditorEventId = '';
+        eventDraftProjectQuery = '';
+      }
       render();
       try {
         const saved = await persistFloatingEvent(next);
+        discardEventEditorDraft(savedId);
         updateFloatingEvent({
           ...next,
           ...saved,
@@ -3664,44 +6128,124 @@
           status: 'scheduled'
         });
         render();
+        const savedTitle = clean(next.title) || 'The event';
+        showToast(
+          disposable ? ((globalThis.PlatformLanguage?.text("scheduling","m_event_added","Event added") ?? "Event added")) : ((globalThis.PlatformLanguage?.text("scheduling","m_13c761fb4b644a","Event updated") ?? "Event updated")),
+          disposable ? `${savedTitle} is on the calendar.` : 'Your changes are saved.',
+          true
+        );
       } catch (error) {
-        const draft = updateFloatingEvent({
-          ...next,
-          __draft: true,
-          __activeDraft: true,
-          status: 'draft'
-        });
-        eventDraftPopoverId = draft.id;
-        eventEditorEventId = '';
-        showToast((globalThis.PlatformLanguage?.text("scheduling","m_90522d8e2312ca","Event not saved") ?? "Event not saved"), error?.message || 'Could not save the event.', false);
+        // A failed save reopens its editor only if no other item was opened
+        // in the meantime.
+        const reopen = editorStillShows(savedId);
+        if (!disposable && original && isStaleSaveError(error)) {
+          floatingEvents = [original, ...floatingEvents.filter((event) => String(event.id || '') !== String(original.id || ''))];
+          if (reopen) {
+            eventDraftPopoverId = String(original.id || '');
+            eventEditorEventId = '';
+          }
+          await handleStaleEditorSave(original.id, error);
+          return;
+        }
+        // A persisted event goes back to its stored state; the edits stay on
+        // the editor's draft copy so the user can retry or cancel them. A new
+        // draft stays a draft.
+        const draft = disposable || !original
+          ? updateFloatingEvent({ ...next, __draft: true, __activeDraft: true, status: 'draft' })
+          : original;
+        if (!disposable && original) floatingEvents = [original, ...floatingEvents.filter((event) => String(event.id || '') !== String(original.id || ''))];
+        if (reopen) {
+          eventDraftPopoverId = draft.id;
+          eventEditorEventId = '';
+        }
+        showToast((globalThis.PlatformLanguage?.text("scheduling","m_90522d8e2312ca","Event not saved") ?? "Event not saved"), scheduleSaveErrorMessage(error, 'Could not save the event.'), false);
         render();
-        setTimeout(() => renderEventDraftPopover(editorAnchorFor(draft.id)), 0);
+        if (reopen) setTimeout(() => renderEventDraftPopover(editorAnchorFor(draft.id), { error }), 0);
       }
       return;
     }
     if (ctx.editorOnly) {
-      const next = eventCalendarItems().find((event) => String(event.id || '') === String(ctx.event?.id || ''))
-        || allEvents.find((event) => String(event.id || '') === String(ctx.event?.id || ''))
-        || ctx.event;
+      const next = ctx.event;
+      let savePayload = next;
       const Scheduling = window.PlatformScheduling;
       if (!Scheduling || !ctx.project?.id || !next?.id) return;
-      closeEventDraftPopover();
+      const saveButton = document.querySelector('.dash-event-popover [data-event-save]');
+      if (saveButton) saveButton.disabled = true;
+      const stored = allEvents.find((event) => String(event.id || '') === String(next.id || '')) || null;
+      // Only this editor's own changes are written, on top of the latest
+      // stored copy (a colleague's new description or equipment survives).
+      // A change elsewhere to the same fields refuses the save instead.
+      if (stored) {
+        const ownGroups = eventChangeGroups(stored, next);
+        const check = await checkStoredScheduleEvent(stored, ownGroups);
+        if (check.conflict) {
+          if (saveButton) saveButton.disabled = false;
+          await handleStaleEditorSave(next.id);
+          return;
+        }
+        if (check.fresh && check.remoteGroups.length) savePayload = mergeEventChanges(check.fresh, next, ownGroups);
+      }
+      savePayload = withExplicitAssignees(savePayload);
+      // A time change moves linked items the same way a drag does: the
+      // dependency/scope rules compare the stored range with the new one.
+      const rangeChanged = !!stored && (eventStart(stored)?.getTime() !== eventStart(next)?.getTime() || eventEnd(stored)?.getTime() !== eventEnd(next)?.getTime());
+      const related = rangeChanged && typeof resolveRelatedReschedule === 'function'
+        ? await resolveRelatedReschedule(stored, {
+          start:eventStart(next),
+          end:eventEnd(next),
+          all_day:next.all_day === true || clean(next.schedule_granularity) === 'date',
+          schedule_granularity:next.schedule_granularity || (next.all_day === true ? 'date' : 'time')
+        })
+        : { cancelled:false, changes:[], leftOutOfOrder:0 };
+      if (related.cancelled) {
+        if (saveButton) saveButton.disabled = false;
+        return;
+      }
+      // Another item opened while the checks ran keeps its editor.
+      if (editorStillShows(next.id)) closeEventDraftPopover();
       try {
-        await Scheduling.saveProjectEvent(orgId(), ctx.project, next, schedulingConfig);
-        clearPlacementSelection();
-        eventEditorEventId = '';
-        eventDraftProjectQuery = '';
+        await Scheduling.saveProjectEvent(orgId(), ctx.project, savePayload, schedulingConfig);
+        discardEventEditorDraft(next.id);
+        if (related.changes?.length && typeof saveRelatedRescheduleChanges === 'function') await saveRelatedRescheduleChanges(ctx.project, related.changes);
+        if (rangeChanged && typeof persistGroupRollups === 'function') await persistGroupRollups(ctx.project, [next, ...(related.changes || [])]);
+        // Only reset the editor if it still shows this item: the user may
+        // have opened another one while the save was running.
+        if (editorStillShows(next.id)) {
+          clearPlacementSelection();
+          eventEditorEventId = '';
+          eventDraftProjectQuery = '';
+        }
         await loadData({ force: true });
-        showToast((globalThis.PlatformLanguage?.text("scheduling","m_13c761fb4b644a","Event updated") ?? "Event updated"), next.customer_visible === true ? 'This event is shared with the customer.' : 'This event is internal only.', true);
+        const movedNote = related.changes?.length ? ` ${related.changes.length} linked item${related.changes.length === 1 ? ' was' : 's were'} moved too.` : '';
+        // Mention customer sharing only when it actually changed.
+        const sharingChanged = !!stored && (stored.customer_visible === true) !== (next.customer_visible === true);
+        const savedNote = sharingChanged
+          ? (next.customer_visible === true ? 'This event is now shared with the customer.' : 'This event is no longer shared with the customer.')
+          : 'Your changes are saved.';
+        showToast((globalThis.PlatformLanguage?.text("scheduling","m_13c761fb4b644a","Event updated") ?? "Event updated"), `${savedNote}${movedNote}${typeof outOfOrderNote === 'function' ? outOfOrderNote(related.leftOutOfOrder) : ''}`, true);
       } catch (error) {
-        showToast((globalThis.PlatformLanguage?.text("scheduling","m_90522d8e2312ca","Event not saved") ?? "Event not saved"), error?.message || 'Could not update the event.', false);
-        setTimeout(() => renderEventDraftPopover(editorAnchorFor(next.id)), 0);
+        if (isStaleSaveError(error)) { await handleStaleEditorSave(next.id, error); return; }
+        if (error?.relatedFailures) {
+          // The item itself was saved; only some linked items were not.
+          discardEventEditorDraft(next.id);
+          if (editorStillShows(next.id)) eventEditorEventId = '';
+          showToast('Some linked items were not moved', error.message, false);
+          await loadData({ force:true });
+          return;
+        }
+        // Nothing was applied to the live calendar; reopen the editor on the
+        // same draft with the server's reason next to the fields.
+        showToast((globalThis.PlatformLanguage?.text("scheduling","m_90522d8e2312ca","Event not saved") ?? "Event not saved"), scheduleSaveErrorMessage(error, 'Could not update the event.'), false);
+        setTimeout(() => renderEventDraftPopover(editorAnchorFor(next.id), { error }), 0);
       }
       return;
     }
+    closeEventDraftPopover();
     if (ctx.kind === 'production') {
       if (!productionScheduleDraft?.start && ctx.event?.start) productionScheduleDraft = { ...(productionScheduleDraft || {}), ...ctx.event };
-      await confirmProductionDraft();
+      // Same commit as the draft's ✓: a bundle places all of its items.
+      if (productionScheduleBundleKey) await confirmProductionBundleDraft(productionScheduleDraft);
+      else await confirmProductionDraft();
       return;
     }
     if (ctx.kind === 'materials') {
@@ -3714,9 +6258,84 @@
       await confirmDashboardDraft();
     }
   }
+  /* Sections (schedule groups). Shared by the editor's Delete and the
+   * Timeline's section delete: deleting a section keeps its items on the
+   * schedule and ungroups them (parent_event_id cleared) so none points at a
+   * section that no longer exists. */
+  function sectionItems(sectionId = ''){
+    const Scheduling = window.PlatformScheduling;
+    const id = String(sectionId || '');
+    return id ? allEvents.filter((item) => String(Scheduling?.eventParentId?.(item) || item.parent_event_id || '') === id) : [];
+  }
+  function sectionDeleteMessage(section = {}){
+    const count = sectionItems(section.id).length;
+    const label = clean(section.title) || 'this section';
+    return count
+      ? `Delete the section “${label}”? Its ${count} item${count === 1 ? '' : 's'} stay${count === 1 ? 's' : ''} on the schedule and ${count === 1 ? 'is' : 'are'} no longer grouped. This cannot be undone.`
+      : `Delete the section “${label}”? It has no items. This cannot be undone.`;
+  }
+  // -> number of items ungrouped; throws when one of them could not be saved.
+  async function ungroupSectionItems(project, sectionId = ''){
+    const Scheduling = window.PlatformScheduling;
+    const items = sectionItems(sectionId);
+    let done = 0;
+    for (const item of items) {
+      const next = { ...item, parent_event_id:'', parentEventId:'', ...(item.metadata && typeof item.metadata === 'object' ? { metadata:{ ...item.metadata, parent_event_id:'' } } : {}), updated_at:new Date().toISOString() };
+      await Scheduling.saveProjectEvent(orgId(), project, withExplicitAssignees(next), schedulingConfig);
+      allEvents = allEvents.map((event) => String(event.id || '') === String(item.id || '') ? next : event);
+      done += 1;
+    }
+    events = visibleEvents();
+    return done;
+  }
+  /* Delete a section after confirmation; its items stay and are ungrouped.
+   * -> true when deleted. */
+  async function deleteScheduleSection(section = {}, project = null){
+    const Scheduling = window.PlatformScheduling;
+    const sectionProject = project?.id ? project : eventProject(section);
+    if (!section?.id || !sectionProject?.id || !Scheduling?.removeProjectEvent) return false;
+    if (!canEditSchedule()) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), scheduleReadOnlyMessage(), { tone:'info' });
+      return false;
+    }
+    const approved = window.PlatformUI?.confirm
+      ? await window.PlatformUI.confirm(sectionDeleteMessage(section), { title:'Delete section', okLabel:'Delete section', cancelLabel:'Keep section', danger:true })
+      : false;
+    if (!approved) return false;
+    try {
+      const count = await ungroupSectionItems(sectionProject, section.id);
+      await Scheduling.removeProjectEvent(orgId(), sectionProject, section.id, schedulingConfig);
+      allEvents = allEvents.filter((event) => String(event.id || '') !== String(section.id));
+      events = visibleEvents();
+      await loadData({ force:true });
+      showToast('Section deleted', count ? `${count} item${count === 1 ? ' is' : 's are'} no longer grouped.` : `${clean(section.title) || 'The section'} was removed.`, true);
+      return true;
+    } catch (error) {
+      await loadData({ force:true });
+      if (isStaleSaveError(error)) { changedElsewhereToast(); return false; }
+      showToast('Section not deleted', scheduleSaveErrorMessage(error, 'Could not delete the section.'), false);
+      return false;
+    }
+  }
   async function deleteEventEditor(ctx, draft, button = null){
     const eventId = clean(draft?.id);
     if (!eventId || eventId.startsWith('__')) return;
+    if (ctx.kind !== 'floating' && window.PlatformScheduling?.eventIsGroup?.(draft) === true) {
+      // A section: its items stay and are ungrouped (shared with Timeline).
+      if (button) button.disabled = true;
+      const deleted = await deleteScheduleSection(allEvents.find((event) => String(event.id || '') === eventId) || draft, ctx.project);
+      if (button) button.disabled = false;
+      if (deleted && editorStillShows(eventId)) {
+        discardEventEditorDraft(eventId);
+        eventDraftPopoverId = '';
+        eventEditorEventId = '';
+        eventDraftProjectQuery = '';
+        clearPlacementSelection();
+        closeEventDraftPopover();
+        render();
+      }
+      return;
+    }
     const disposableFloatingDraft = ctx.kind === 'floating'
       && (draft.__draft === true || clean(draft.status).toLowerCase() === 'draft');
     const confirmDelete = window.PlatformUI?.confirm;
@@ -3725,7 +6344,11 @@
       return;
     }
     const label = clean(draft.title || draft.project_title) || 'this event';
-    const approved = await confirmDelete(`Delete “${label}”? This cannot be undone.`, {
+    // An occurrence of a series: only this one goes; the rest stay.
+    const occurrence = !!clean(draft.recurrence_series_id);
+    const approved = await confirmDelete(occurrence
+      ? `Delete only this occurrence of “${label}” (${formatEventDraftTime(draft)})? The other events in the series stay. This cannot be undone.`
+      : `Delete “${label}”? This cannot be undone.`, {
       title: (globalThis.PlatformLanguage?.text("scheduling","m_7f5580dbb3d648","Delete event") ?? "Delete event"),
       okLabel: 'Delete',
       cancelLabel: 'Keep event',
@@ -3738,7 +6361,9 @@
       if (ctx.kind === 'floating') {
         if (!disposableFloatingDraft) {
           if (!window.PlatformAPI?.calendarEvents?.remove) throw new Error('Calendar event deletion is not configured.');
-          await window.PlatformAPI.calendarEvents.remove(orgId(), eventId);
+          const removed = await window.PlatformAPI.calendarEvents.remove(orgId(), eventId);
+          // A request that never reached the server reports "missing".
+          if (removed?.missing) throw new Error('The event could not be deleted: the server could not be reached. Check your connection and try again.');
         }
         floatingEvents = floatingEvents.filter((event) => String(event.id || '') !== eventId);
       } else {
@@ -3764,7 +6389,7 @@
       showToast((globalThis.PlatformLanguage?.text("scheduling","m_2183488d5ed71c","Event deleted") ?? "Event deleted"), disposableFloatingDraft ? `${label} was discarded.` : `${label} was removed from the calendar.`, true);
     } catch (error) {
       if (button) button.disabled = false;
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_ad38658fe6f432","Event not deleted") ?? "Event not deleted"), error?.message || 'Could not delete the event.', false);
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_ad38658fe6f432","Event not deleted") ?? "Event not deleted"), scheduleSaveErrorMessage(error, 'Could not delete the event.'), false);
     }
   }
   /* Assignee editor inside the event popover: shows every current assignee
@@ -3773,19 +6398,32 @@
    * persisted events and floating items; placement drafts keep their own
    * single-assignee flow. */
   function eventAssigneeSectionHtml(ctx, draft){
+    // Equipment reservation/maintenance windows hold a unit, not people.
+    if (isEquipmentWindowEvent(draft)) return '';
     const delivery = isMaterialEvent(draft) || eventTypeId(draft) === 'delivery';
     if (delivery && !eventAdvancedOpen) return '';
-    if (ctx.editorOnly !== true && ctx.kind !== 'floating' && !eventAdvancedOpen) return '';
-    const crewId = workCrewId(draft);
-    const crewName = workCrewName(draft);
-    const assignees = crewId ? [] : editorAssignmentUserList(draft);
+    // Rail placements (sales/production) show the assignee too: an unassigned
+    // appointment is the reason it is still waiting (RAIL-15).
+    if (ctx.editorOnly !== true && ctx.kind !== 'floating' && !['sales', 'production'].includes(ctx.kind) && !eventAdvancedOpen) return '';
+    // Every crew/team and every person on the item is its own chip (a crew is
+    // one reference, never expanded to its members).
+    const crews = eventCrewRefs(draft);
+    const assignees = editorAssignmentUserList(draft);
     const eligible = assignmentResourcesForEvent(draft);
     const eligibleIds = new Set(eligible.map((resource) => clean(resource.id)));
-    const chips = crewId
-      ? `<span class="dash-event-assignee-chip">${String(escapeHtml(crewName || userDisplayName(crewId)))}<button type="button" data-event-assign-remove="${String(escapeHtml(crewId))}" aria-label="${((v2) => globalThis.PlatformLanguage?.htmlText("scheduling","m_b44c243626b37c",`Remove ${v2}`,{v2}) ?? `Remove ${v2}`)(escapeHtml(crewName || 'assignment'))}">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_dd0c616953d455","&times;") ?? "&times;")}</button></span>`
-      : assignees.map((user) => ("<span class=\"dash-event-assignee-chip " + String(eligibleIds.has(user.id) ? '' : 'warn') + "\" " + String(eligibleIds.has(user.id) ? '' : 'title="Not eligible for this event type — saving may be rejected"') + ">" + String(escapeHtml(user.name)) + "<button type=\"button\" data-event-assign-remove=\"" + String(escapeHtml(user.id)) + "\" aria-label=\"" + ((v4) => globalThis.PlatformLanguage?.text("scheduling","m_ab4ce544c27195",`Remove ${v4}`,{v4}) ?? `Remove ${v4}`)(escapeHtml(user.name)) + "\">" + (globalThis.PlatformLanguage?.text("scheduling","m_dd0c616953d455","&times;") ?? "&times;") + "</button></span>")).join('');
+    const assigneeChip = (id, name, icon = '') => ("<span class=\"dash-event-assignee-chip " + String(eligibleIds.has(id) ? '' : 'warn') + "\" " + String(eligibleIds.has(id) ? '' : 'title="Not eligible for this event type — saving may be rejected"') + ">" + (icon ? `<i class="fas ${icon}" aria-hidden="true"></i> ` : '') + String(escapeHtml(name)) + "<button type=\"button\" data-event-assign-remove=\"" + String(escapeHtml(id)) + "\" aria-label=\"" + ((v4) => globalThis.PlatformLanguage?.text("scheduling","m_ab4ce544c27195",`Remove ${v4}`,{v4}) ?? `Remove ${v4}`)(escapeHtml(name)) + "\">" + (globalThis.PlatformLanguage?.text("scheduling","m_dd0c616953d455","&times;") ?? "&times;") + "</button></span>");
+    const chips = [
+      ...crews.map((crew) => assigneeChip(crew.id, crew.name || userDisplayName(crew.id), 'fa-users')),
+      ...assignees.map((user) => assigneeChip(user.id, user.name))
+    ].join('');
+    // Work items list crews first, other items people first; each group
+    // alphabetical.
+    const isPerson = (resource) => clean(resource.subject_type || resource.resource_kind) === 'organization_user';
+    const crewsFirst = isProductionEvent(draft);
     const options = eligible
-      .filter((resource) => clean(resource.id) !== crewId && !assignees.some((user) => user.id === clean(resource.id)))
+      .filter((resource) => !crews.some((crew) => crew.id === clean(resource.id)) && !assignees.some((user) => user.id === clean(resource.id)))
+      .slice()
+      .sort((a, b) => ((isPerson(a) === crewsFirst ? 1 : 0) - (isPerson(b) === crewsFirst ? 1 : 0)) || clean(a.name).localeCompare(clean(b.name), undefined, { sensitivity:'base' }))
       .map((resource) => `<button type="button" data-event-assign-id="${escapeHtml(resource.id)}">${escapeHtml(resource.name)}${clean(resource.subject_type || resource.resource_kind) === 'organization_user' ? '' : ` <small>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d3cad057a8d23c","(assigns the whole team as one unit)") ?? "(assigns the whole team as one unit)")}</small>`}</button>`)
       .join('');
     return `<div class="dash-event-assignees">
@@ -3794,15 +6432,37 @@
       <div class="dash-event-assign-menu" data-event-assign-menu hidden>${String(options || `<div class="dash-event-assignee-empty" style="padding:7px 9px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0a906f5bfd87a7","Nobody else is eligible for this event type.") ?? "Nobody else is eligible for this event type.")}</div>`)}</div>
     </div>`;
   }
-  function renderEventDraftPopover(anchor = null){
+  function renderEventDraftPopover(anchor = null, renderOptions = {}){
     const ctx = eventEditorContext();
     if (!ctx) return;
     const draft = ctx.event || {};
     const project = ctx.project || {};
+    // Re-rendering the same editor keeps its scroll position so a change
+    // deep in the form (equipment, confirmation) stays in view.
+    const previousPop = document.querySelector('.dash-event-popover');
+    const previousScrollTop = previousPop && previousPop.dataset.eventId === String(draft.id || '') ? previousPop.scrollTop : 0;
     closeEventDraftPopover();
     const rect = anchor?.getBoundingClientRect?.() || editorAnchorFor(draft.id)?.getBoundingClientRect?.();
     const pop = document.createElement('div');
     pop.className = 'dash-event-popover';
+    pop.dataset.eventId = String(draft.id || '');
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("scheduling","m_event_editor","Event details") ?? "Event details"));
+    // A cancelled item (shown greyed on the Timeline) is history: read-only.
+    const cancelledItem = ['cancelled', 'canceled'].includes(clean(draft.status).toLowerCase());
+    const readOnly = !canEditSchedule() || cancelledItem;
+    const equipmentWindow = isEquipmentWindowEvent(draft);
+    const saveError = renderOptions.error || null;
+    const SchedulingLib = window.PlatformScheduling;
+    // A section/group row spans its items, so its dates follow them: they are
+    // shown read-only here (move the section bar or its items instead).
+    const groupRow = !equipmentWindow && SchedulingLib?.eventIsGroup?.(draft) === true;
+    const groupDerivedDates = groupRow && SchedulingLib?.groupRollupMode?.(draft) !== 'manual'
+      && (SchedulingLib?.eventChildren?.(projectScheduleItems(draft.project_id), draft.id) || []).length > 0;
+    // A rail placement edits an unsaved draft: it never offers Delete/Lock of
+    // the stored record behind it.
+    const placementContext = ctx.kind !== 'floating' && ctx.editorOnly !== true;
+    if (readOnly) pop.classList.add('read-only');
     const activeType = eventTypeId(draft);
     const typeButton = (id, label) => `<button type="button" class="dash-event-type-btn ${activeType === id ? 'active' : ''}" data-event-type="${escapeHtml(id)}">${escapeHtml(label)}</button>`;
     const results = projectSearchResults(eventDraftProjectQuery);
@@ -3824,13 +6484,43 @@
     const persistedFloatingEvent = ctx.kind === 'floating'
       && clean(draft.status).toLowerCase() === 'scheduled'
       && draft.__draft !== true;
+    // A never-saved event has nothing to delete (Close discards it).
+    // A work item/section just added from the Timeline is not stored until
+    // Save: nothing to delete or lock yet (Close discards it).
+    const unsavedTimelineItem = !!ganttPendingNewItem && ganttPendingNewItem.id === String(draft.id || '');
     const canDelete = !!clean(draft.id)
       && !clean(draft.id).startsWith('__')
-      && (ctx.kind === 'floating' ? (persistedFloatingEvent || disposableFloatingDraft) : !!project?.id);
+      && !unsavedTimelineItem
+      && (ctx.kind === 'floating' ? persistedFloatingEvent : (!!project?.id && !placementContext));
+    // Equipment reservation/maintenance windows are not locked like work.
     const canToggleLock = (!!project?.id || persistedFloatingEvent)
+      && !placementContext
+      && !unsavedTimelineItem
+      && !equipmentWindow
       && !!clean(draft.id)
       && !clean(draft.id).startsWith('__')
       && draft.__draft !== true;
+    // Locked items keep their time: the time fields stay read-only until the
+    // item is unlocked (the server rejects time changes on locked items).
+    const lockedTime = eventIsLocked(draft) && !disposableFloatingDraft;
+    const rawLockReason = clean(draft.schedule_lock?.reason) === 'material_order' || (isMaterialEvent(draft) && materialEventIsOrdered(draft))
+      ? 'Materials are ordered for this delivery'
+      : clean(draft.locked_reason || draft.schedule_lock?.note || '');
+    const lockReason = rawLockReason ? `${rawLockReason.replace(/[.\s]+$/, '')}.` : '';
+    const titleEdited = !!eventEditorDraft && String(eventEditorDraft.id || '') === String(draft.id || '') && Object.prototype.hasOwnProperty.call(eventEditorDraft.patch || {}, 'title');
+    const titleValue = titleEdited ? clean(draft.title) : clean(draft.title || draft.project_title || '');
+    const errorLines = saveError ? scheduleSaveErrorLines(saveError) : [];
+    const noticeHtml = [
+      readOnly ? `<div class="dash-event-notice" role="note"><i class="fas fa-${cancelledItem ? 'ban' : 'eye'}" aria-hidden="true"></i><span>${escapeHtml(cancelledItem ? 'This item was cancelled. It is shown for reference and can’t be changed.' : scheduleReadOnlyMessage())}</span></div>` : '',
+      !readOnly && lockedTime ? `<div class="dash-event-notice locked" role="note"><i class="fas fa-lock" aria-hidden="true"></i><span>${escapeHtml(isMaterialEvent(draft) ? 'This delivery date is locked.' : 'This schedule item is locked.')} ${escapeHtml(lockReason)} ${escapeHtml('Unlock it to change the time.')}</span></div>` : '',
+      renderOptions.stale ? `<div class="dash-event-notice locked" role="alert" data-event-stale-notice><i class="fas fa-rotate" aria-hidden="true"></i><span>${escapeHtml(globalThis.PlatformLanguage?.text("scheduling","m_changed_elsewhere_editor","Changed by someone else. This shows the latest saved version with your unsaved changes on top. Review them and Save again.") ?? "Changed by someone else. This shows the latest saved version with your unsaved changes on top. Review them and Save again.")}</span></div>` : '',
+      !readOnly && groupDerivedDates ? `<div class="dash-event-notice" role="note" data-event-group-dates><i class="fas fa-layer-group" aria-hidden="true"></i><span>${escapeHtml(globalThis.PlatformLanguage?.text("scheduling","m_group_dates_derived","This section's dates come from the items in it. Drag the section bar on the calendar to move them all, or change the items themselves.") ?? "This section's dates come from the items in it. Drag the section bar on the calendar to move them all, or change the items themselves.")}</span></div>` : '',
+      saveError ? `<div class="dash-event-notice error" role="alert" data-event-save-error><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span>${escapeHtml(errorLines.length ? 'Not saved:' : `Not saved: ${scheduleSaveErrorMessage(saveError)}`)}${errorLines.length ? `<ul>${errorLines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>` : ''}</span></div>` : ''
+    ].join('');
+    const equipmentNames = equipmentWindow ? eventEquipRefs(draft).map((ref) => clean(ref.name) || clean(equipmentUnits.find((unit) => clean(unit.id) === clean(ref.id))?.name) || clean(ref.id)).filter(Boolean) : [];
+    const equipmentWindowHtml = equipmentWindow
+      ? `<div class="dash-event-equipment-meta"><span><i class="fas fa-truck-pickup" aria-hidden="true"></i> ${escapeHtml(equipmentNames.join(', ') || 'Equipment')}</span><small>${escapeHtml(isVehicleBooking(draft) ? `Booked for ${clean(draft.vehicle_crew_name) || clean(workforceResources.find((resource) => clean(resource.id) === clean(draft.vehicle_crew_id))?.name) || 'a crew'} — shown in that crew's vehicle lane in Routing.` : eventTypeId(draft) === 'equipment_reservation' || eventKind(draft) === 'equipment_reservation' ? 'Reserved — not available for other bookings in this window.' : 'Out of service — not available for bookings in this window.')}</small></div>`
+      : '';
     const editorAllDay = draft.all_day === true || clean(draft.schedule_granularity).toLowerCase() === 'date';
     const timeInputType = editorAllDay ? 'date' : 'datetime-local';
     const timeValue = editorAllDay ? dateInputValue : dateTimeLocalValue;
@@ -3840,41 +6530,46 @@
     const recurrenceEndMode = Number(draftRecurrence.occurrence_count) > 0 ? 'count' : (clean(draftRecurrence.end_at) ? 'date' : 'never');
     const recurrenceEndDate = clean(draftRecurrence.end_at).slice(0, 10);
     const recurrenceCount = Math.max(1, Math.round(Number(draftRecurrence.occurrence_count || 1) || 1));
-    const recurrenceEnabled = clean(draft.recurrence_series_id) || draft.__recurrence_enabled === true;
+    const recurrenceEnabled = draft.__recurrence_enabled === false ? false : (clean(draft.recurrence_series_id) || draft.__recurrence_enabled === true);
+    const recurrenceSeriesInfoHtml = clean(draft.recurrence_series_id)
+      ? `<div class="dash-event-recurrence-note" data-event-recurrence-summary><i class="fas fa-repeat" aria-hidden="true"></i> ${escapeHtml(recurrenceSummaryText(draftRecurrence))}. ${(globalThis.PlatformLanguage?.htmlText("scheduling","m_series_save_hint","Saving asks whether to change this event, this and following, or all events.") ?? "Saving asks whether to change this event, this and following, or all events.")}</div>${canEditSchedule() && !clean(draft.id).startsWith('__') ? `<button type="button" class="dash-event-view-btn" data-event-occurrence-skip style="grid-column:1/-1;justify-self:start"><i class="fas fa-forward" aria-hidden="true"></i> ${(globalThis.PlatformLanguage?.htmlText("scheduling","m_skip_occurrence","Skip this occurrence") ?? "Skip this occurrence")}</button>` : ''}`
+      : '';
     pop.innerHTML = `
       <div class="dash-event-pop-head">
-        <input class="dash-event-title-input" data-event-title value="${String(escapeHtml(draft.title || draft.project_title || 'New Event'))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e070e90d9c7a33","Event title") ?? "Event title")}">
-        <button type="button" class="dash-event-close" data-event-cancel aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_304d419cb3596b","Cancel event") ?? "Cancel event")}"><i class="fas fa-xmark"></i></button>
+        <input class="dash-event-title-input" data-event-title value="${String(escapeHtml(titleValue))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e070e90d9c7a33","Event title") ?? "Event title")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e070e90d9c7a33","Event title") ?? "Event title")}">
+        <button type="button" class="dash-event-close" data-event-cancel aria-label="${!readOnly && (ctx.kind === 'floating' || ctx.editorOnly) ? (globalThis.PlatformLanguage?.htmlText("scheduling","m_close_discard","Close without saving") ?? "Close without saving") : (globalThis.PlatformLanguage?.htmlText("scheduling","m_close","Close") ?? "Close")}" title="${!readOnly && (ctx.kind === 'floating' || ctx.editorOnly) ? (globalThis.PlatformLanguage?.htmlText("scheduling","m_close_discard","Close without saving") ?? "Close without saving") : (globalThis.PlatformLanguage?.htmlText("scheduling","m_close","Close") ?? "Close")} (Esc)"><i class="fas fa-xmark"></i></button>
         <div class="dash-event-pop-meta">
-          ${String(projectNameRowHtml)}
-          <div class="dash-event-pop-address">${String(escapeHtml(projectAddressLabel))}</div>
+          ${String(equipmentWindow ? '' : projectNameRowHtml)}
+          ${String(equipmentWindow ? '' : `<div class="dash-event-pop-address">${escapeHtml(projectAddressLabel)}</div>`)}
           <div class="dash-event-pop-time">${String(escapeHtml(formatEventDraftTime(draft)))}</div>
         </div>
         <div class="dash-event-time-fields">
           <label class="dash-event-time-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_5a35275926b722","Start") ?? "Start")}<input type="${String(timeInputType)}" data-event-start value="${String(escapeHtml(timeValue(eventStart(draft))))}"></label>
-          <label class="dash-event-time-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_80cfdb09a78f4b","End") ?? "End")}<input type="${String(timeInputType)}" data-event-end value="${String(escapeHtml(timeValue(eventEnd(draft))))}"></label>
+          <label class="dash-event-time-field">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_80cfdb09a78f4b","End") ?? "End")}<input type="${String(timeInputType)}" data-event-end value="${String(escapeHtml(timeValue(editorDisplayEnd(draft))))}"></label>
         </div>
         <div class="dash-event-time-options">
-          <label class="dash-event-switch"><input type="checkbox" data-event-allday ${String(editorAllDay ? 'checked' : '')}><span class="dash-event-switch-track" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_42b02bf1587e27","All day") ?? "All day")}</span></label>
-          ${String(ctx.kind === 'floating' ? `<label class="dash-event-switch"><input type="checkbox" data-event-recurring ${recurrenceEnabled ? 'checked' : ''}><span class="dash-event-switch-track" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_14bec9b094ca21","Recurring") ?? "Recurring")}</span></label>` : '')}
+          ${String(equipmentWindow && !editorAllDay ? '' : `<label class="dash-event-switch"><input type="checkbox" data-event-allday ${String(editorAllDay ? 'checked' : '')}><span class="dash-event-switch-track" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_42b02bf1587e27","All day") ?? "All day")}</span></label>`)}
+          ${String(ctx.kind === 'floating' && !equipmentWindow ? `<label class="dash-event-switch"><input type="checkbox" data-event-recurring ${recurrenceEnabled ? 'checked' : ''}><span class="dash-event-switch-track" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_14bec9b094ca21","Recurring") ?? "Recurring")}</span></label>` : '')}
         </div>
         ${String(ctx.kind === 'floating' ? `<div class="dash-event-recurrence-fields ${recurrenceEnabled ? 'open' : ''}" data-event-recurrence-fields>
           <label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_477ebb1c6c5f83","Repeats") ?? "Repeats")}<select data-event-recurrence-frequency><option value="weekly" ${recurrenceFrequency === 'weekly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_093d55e6272fc0","Weekly") ?? "Weekly")}</option><option value="monthly" ${recurrenceFrequency === 'monthly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d7014f792d2583","Monthly") ?? "Monthly")}</option><option value="quarterly" ${recurrenceFrequency === 'quarterly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_03e59d03617275","Quarterly") ?? "Quarterly")}</option><option value="yearly" ${recurrenceFrequency === 'yearly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_ef289ba5429ef5","Yearly") ?? "Yearly")}</option><option value="daily" ${recurrenceFrequency === 'daily' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_aa2628166dd6f2","Daily") ?? "Daily")}</option></select></label>
           <label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_b25bba33f32e79","Every") ?? "Every")}<input type="number" min="1" max="120" value="${escapeHtml(recurrenceInterval)}" data-event-recurrence-interval></label>
-          <label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_949158d13efad4","Ends") ?? "Ends")}<select data-event-recurrence-end-mode><option value="never" ${recurrenceEndMode === 'never' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_35304e673f218d","Never") ?? "Never")}</option><option value="date" ${recurrenceEndMode === 'date' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_ab4cb92c128c9b","On a date") ?? "On a date")}</option><option value="count" ${recurrenceEndMode === 'count' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_58e24f3e842b25","After a number of times") ?? "After a number of times")}</option></select></label>
+          <label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_949158d13efad4","Ends") ?? "Ends")}<select data-event-recurrence-end-mode><option value="never" ${recurrenceEndMode === 'never' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_35304e673f218d","Never") ?? "Never")}</option><option value="date" ${recurrenceEndMode === 'date' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_ab4cb92c128c9b","On a date") ?? "On a date")}</option><option value="count" ${recurrenceEndMode === 'count' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_after_n_times","After N times") ?? "After N times")}</option></select></label>
           <label data-event-recurrence-end-date ${recurrenceEndMode === 'date' ? '' : 'hidden'}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_75319fcfef3f5e","End date") ?? "End date")}<input type="date" value="${escapeHtml(recurrenceEndDate)}" data-event-recurrence-end></label>
           <label data-event-recurrence-end-count ${recurrenceEndMode === 'count' ? '' : 'hidden'}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_328e02d666e842","Occurrences") ?? "Occurrences")}<input type="number" min="1" max="240" value="${escapeHtml(recurrenceCount)}" data-event-recurrence-count></label>
           ${project?.id ? `<label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_07092d81e20aa1","Charge each time") ?? "Charge each time")}<input type="number" min="0" step="0.01" placeholder="$0.00" data-event-billing-amount></label>
             <label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8392c3fac72956","Bill cadence") ?? "Bill cadence")}<select data-event-billing-frequency><option value="monthly">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d7014f792d2583","Monthly") ?? "Monthly")}</option><option value="quarterly">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_03e59d03617275","Quarterly") ?? "Quarterly")}</option><option value="yearly">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_ef289ba5429ef5","Yearly") ?? "Yearly")}</option></select></label>
             <label>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_1afa80926cecc4","Cost per visit") ?? "Cost per visit")}<input type="number" min="0" step="0.01" placeholder="$0.00" data-event-expense-amount></label>` : `<div class="dash-event-recurrence-note">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_50ffa923d4cef5","Assign a project to add recurring billing and per-visit costs.") ?? "Assign a project to add recurring billing and per-visit costs.")}</div>`}
-          ${clean(draft.recurrence_series_id) ? `<div class="dash-event-recurrence-note">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_cea9172cdfbc16","This is part of an existing series. Saving changes updates future occurrences.") ?? "This is part of an existing series. Saving changes updates future occurrences.")}</div>` : ''}
-        </div>` : '')}
+          ${recurrenceSeriesInfoHtml}
+        </div>` : (recurrenceSeriesInfoHtml ? `<div class="dash-event-recurrence-fields open" data-event-recurrence-series>${recurrenceSeriesInfoHtml}</div>` : ''))}
       </div>
-      ${String(ctx.kind === 'floating' ? `<div class="dash-event-type-row">
+      ${String(noticeHtml)}
+      ${String(ctx.kind === 'floating' && !equipmentWindow ? `<div class="dash-event-type-row" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_event_type","Event type") ?? "Event type")}">
           ${typeButton('sales_appointment', 'Sales')}
           ${typeButton('project_work', 'Work')}
           ${typeButton('delivery', 'Delivery')}
-        </div>` : `<div class="dash-event-type-pills"><span class="dash-event-type-pill">${escapeHtml(typeMeta.label)}</span>${materialNotOrdered ? `<span class="dash-event-status-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0c10cb9ccabd39","Not ordered yet") ?? "Not ordered yet")}</span>` : ''}${confirmationPillHtml(draft)}</div>`)}
+          ${['', 'sales_appointment', 'project_work', 'delivery'].includes(activeType) ? typeButton('custom', 'Other') : `<button type="button" class="dash-event-type-btn active" data-event-type="${escapeHtml(activeType)}">${escapeHtml(typeMeta.label)}</button>`}
+        </div>` : `${equipmentWindowHtml}<div class="dash-event-type-pills"><span class="dash-event-type-pill">${escapeHtml(typeMeta.label)}</span>${materialNotOrdered ? `<span class="dash-event-status-pill">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0c10cb9ccabd39","Not ordered yet") ?? "Not ordered yet")}</span>` : ''}${confirmationPillHtml(draft)}</div>`)}
       ${String(requirementAlertHtml(draft))}
       ${String(eventAssigneeSectionHtml(ctx, draft))}
       <textarea class="dash-event-desc" data-event-description placeholder="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_aa136ecb65672f","Description") ?? "Description")}">${String(escapeHtml(draft.description || draft.notes || ''))}</textarea>
@@ -3896,7 +6591,7 @@
       ${String(confirmationEditorHtml(ctx, draft, project))}
       ${String(customerSchedulingEditorHtml(ctx, draft, project))}
       ${String(eventEquipmentSectionHtml(ctx, draft, project))}
-      ${String(ctx.kind === 'floating' ? `<div class="dash-event-project-picker"><div class="dash-event-project-picker-row"><input class="dash-event-search" data-event-project-search value="${escapeHtml(eventDraftProjectQuery)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_90a374781263be","Search to assign a project") ?? "Search to assign a project")}" autocomplete="off"><button type="button" class="dash-event-project-create" data-event-project-create aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_89250227eee734","Create a new project") ?? "Create a new project")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_89250227eee734","Create a new project") ?? "Create a new project")}"><i class="fas fa-plus"></i></button></div>
+      ${String(ctx.kind === 'floating' && !equipmentWindow && !readOnly ? `<div class="dash-event-project-picker"><div class="dash-event-project-picker-row"><input class="dash-event-search" data-event-project-search value="${escapeHtml(eventDraftProjectQuery)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_90a374781263be","Search to assign a project") ?? "Search to assign a project")}" autocomplete="off"><button type="button" class="dash-event-project-create" data-event-project-create aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_89250227eee734","Create a new project") ?? "Create a new project")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_89250227eee734","Create a new project") ?? "Create a new project")}"><i class="fas fa-plus"></i></button></div>
         <div class="dash-event-project-list" data-event-project-results ${clean(eventDraftProjectQuery) ? '' : 'hidden'}>
           ${results.map((project) => `<button type="button" class="dash-event-project-option" data-event-project-id="${escapeHtml(project.id || '')}">
             <strong>${escapeHtml(projectTitle(project))}</strong>
@@ -3904,14 +6599,16 @@
           </button>`).join('') || (clean(eventDraftProjectQuery) ? `<div class="dash-empty" style="padding:12px;">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_0e31fa9fe147f8","No matching projects.") ?? "No matching projects.")}</div>` : '')}
         </div></div>` : '')}
       <div class="dash-event-pop-actions">
-        <span style="display:flex;gap:7px"><button type="button" class="dash-event-advanced-toggle ${String(eventAdvancedOpen ? 'active' : '')}" data-event-advanced aria-label="${((v21) => globalThis.PlatformLanguage?.htmlText("scheduling","m_407444280ca9bb",`${v21} advanced event fields`,{v21}) ?? `${v21} advanced event fields`)(eventAdvancedOpen ? 'Hide' : 'Show')}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_bec5274b269a70","Advanced event fields") ?? "Advanced event fields")}" aria-pressed="${String(eventAdvancedOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i></button>${String(canDelete ? `<button type="button" class="dash-event-delete" data-event-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_90e27d705bee80"," Delete") ?? " Delete")}</button>` : '')}${String(project?.id ? `<button type="button" class="dash-event-view-btn" data-event-view-project>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_438062886ff2f5","View Project") ?? "View Project")}</button>` : '')}${String(canToggleLock ? `<button type="button" class="dash-event-view-btn" data-event-lock-toggle><i class="fas fa-${eventIsLocked(draft) ? 'lock' : 'lock-open'}"></i> ${eventIsLocked(draft) ? 'Unlock' : 'Lock'}</button>` : '')}</span>
-        <button type="button" class="dash-event-save" data-event-save ${String(canSave ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
+        <span style="display:flex;gap:7px"><button type="button" class="dash-event-advanced-toggle ${String(eventAdvancedOpen ? 'active' : '')}" data-event-advanced aria-label="${((v21) => globalThis.PlatformLanguage?.htmlText("scheduling","m_407444280ca9bb",`${v21} advanced event fields`,{v21}) ?? `${v21} advanced event fields`)(eventAdvancedOpen ? 'Hide' : 'Show')}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_bec5274b269a70","Advanced event fields") ?? "Advanced event fields")}" aria-pressed="${String(eventAdvancedOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i></button>${String(canDelete && !readOnly ? `<button type="button" class="dash-event-delete" data-event-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_90e27d705bee80"," Delete") ?? " Delete")}</button>` : '')}${String(project?.id ? `<button type="button" class="dash-event-view-btn" data-event-view-project>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_438062886ff2f5","View Project") ?? "View Project")}</button>` : '')}${String(canToggleLock && !readOnly ? `<button type="button" class="dash-event-view-btn" data-event-lock-toggle aria-pressed="${eventIsLocked(draft) ? 'true' : 'false'}" title="${eventIsLocked(draft) ? 'Unlock to allow time changes' : 'Protect the scheduled time from changes'}"><i class="fas fa-${eventIsLocked(draft) ? 'lock' : 'lock-open'}"></i> ${eventIsLocked(draft) ? 'Unlock' : 'Lock'}</button>` : '')}</span>
+        ${String(readOnly ? '' : `<button type="button" class="dash-event-save" data-event-save ${String(canSave ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_5bab3e72de1ebf","Save") ?? "Save")}</button>`)}
       </div>
     `;
     document.body.appendChild(pop);
-    const schedulingViewport = rootEl?.querySelector('.dash-left')
+    // The editor may use the whole scheduling body (calendar and rail) so it
+    // can sit beside the item it edits instead of covering it.
+    const schedulingViewport = rootEl?.querySelector('.dash-body')
+      || rootEl?.querySelector('.dash-left')
       || rootEl?.querySelector('#dashEventCalendarView')
-      || rootEl?.querySelector('.dash-body')
       || rootEl;
     const rawContentRect = schedulingViewport?.getBoundingClientRect?.()
       || { left: 8, right: window.innerWidth - 8, top: 8, bottom: window.innerHeight - 8 };
@@ -3921,38 +6618,57 @@
       top:Math.max(0, Number(rawContentRect.top || 0)),
       bottom:Math.min(window.innerHeight, Number(rawContentRect.bottom || window.innerHeight))
     };
+    // A floating placement banner (bottom of the calendar) stays readable:
+    // the editor keeps above it instead of covering its text and Cancel.
+    const bannerRect = rootEl?.querySelector?.('[data-placement-banner]')?.getBoundingClientRect?.();
+    if (bannerRect && bannerRect.height > 0 && bannerRect.top > contentRect.top + (contentRect.bottom - contentRect.top) / 2) {
+      contentRect.bottom = Math.min(contentRect.bottom, bannerRect.top - 6);
+    }
     const width = Math.min(420, Math.max(0, Number(contentRect.right || window.innerWidth) - Number(contentRect.left || 0) - 16), window.innerWidth - 16);
     const height = Math.min(620, Math.max(0, Number(contentRect.bottom || window.innerHeight) - Number(contentRect.top || 0) - 16), window.innerHeight - 16);
     pop.style.width = `${width}px`;
     pop.style.height = `${height}px`;
     const minLeft = Math.max(8, Number(contentRect.left || 8) + 8);
     const maxLeft = Math.max(minLeft, Math.min(window.innerWidth - width - 8, Number(contentRect.right || window.innerWidth) - width - 8));
-    let left = maxLeft;
-    if (rect) {
-      if (eventCalendarMode() === 'day') {
-        left = rect.left + (rect.width / 2) - (width / 2);
-      } else if (rect.left - width - 10 >= minLeft) {
-        left = rect.left - width - 10;
-      } else if (rect.right + 10 <= maxLeft) {
-        left = rect.right + 10;
-      } else {
-        left = rect.left + (rect.width / 2) - (width / 2);
-      }
-      left = Math.max(minLeft, Math.min(maxLeft, left));
-    }
-    const estimatedHeight = height;
-    const centeredTop = rect ? rect.top + (rect.height / 2) - (estimatedHeight / 2) : 90;
     const minTop = Math.max(8, Number(contentRect.top || 8) + 8);
-    const maxTop = Math.max(minTop, Math.min(window.innerHeight - estimatedHeight - 8, Number(contentRect.bottom || window.innerHeight) - estimatedHeight - 8));
-    const top = Math.max(minTop, Math.min(maxTop, centeredTop));
+    const maxTop = Math.max(minTop, Math.min(window.innerHeight - height - 8, Number(contentRect.bottom || window.innerHeight) - height - 8));
+    // The visible part of the item (a tall bar can extend past the screen).
+    const itemRect = rect ? {
+      left:Math.max(0, rect.left), right:Math.min(window.innerWidth, rect.right),
+      top:Math.max(0, rect.top), bottom:Math.min(window.innerHeight, rect.bottom)
+    } : null;
+    const overlapWith = (x, y) => {
+      if (!itemRect) return 0;
+      const w = Math.max(0, Math.min(x + width, itemRect.right) - Math.max(x, itemRect.left));
+      const h = Math.max(0, Math.min(y + height, itemRect.bottom) - Math.max(y, itemRect.top));
+      return w * h;
+    };
+    let left = maxLeft;
+    let top = Math.max(minTop, Math.min(maxTop, 90));
+    if (itemRect) {
+      const centeredTop = Math.max(minTop, Math.min(maxTop, itemRect.top + ((itemRect.bottom - itemRect.top) / 2) - (height / 2)));
+      // Beside the item (left first, then right); otherwise the spot that
+      // covers the least of it, including above/below it.
+      const candidates = [
+        { x:itemRect.left - width - 10, y:centeredTop },
+        { x:itemRect.right + 10, y:centeredTop },
+        { x:minLeft, y:centeredTop },
+        { x:maxLeft, y:centeredTop },
+        { x:Math.max(minLeft, Math.min(maxLeft, itemRect.left)), y:itemRect.bottom + 10 },
+        { x:Math.max(minLeft, Math.min(maxLeft, itemRect.left)), y:itemRect.top - height - 10 }
+      ].map((spot) => ({ x:Math.max(minLeft, Math.min(maxLeft, spot.x)), y:Math.max(minTop, Math.min(maxTop, spot.y)) }));
+      const best = candidates.reduce((winner, spot) => (overlapWith(spot.x, spot.y) < overlapWith(winner.x, winner.y) ? spot : winner), candidates[0]);
+      left = best.x;
+      top = best.y;
+    }
     pop.style.left = `${left}px`;
     pop.style.top = `${top}px`;
     pop.querySelectorAll('[data-event-type]').forEach((btn) => btn.addEventListener('click', () => {
       const id = btn.dataset.eventType || '';
       const meta = eventTypeMeta(id);
-      const current = eventEditorContext()?.event || draft;
-      const next = updateFloatingEvent({
-        ...current,
+      const editCtx = eventEditorContext();
+      const current = editCtx?.event || draft;
+      stageEditorEdit(editCtx || ctx, {
         type_id: id,
         event_type_id: id,
         event_type_default_id: id,
@@ -3960,8 +6676,8 @@
         project_title: current.project_id ? current.project_title : (shouldAutoTitle(current) ? meta.title : current.project_title),
         title_is_custom: current.title_is_custom === true
       });
-      render();
-      setTimeout(() => renderEventDraftPopover(editorAnchorFor(next.id)), 0);
+      if (!editorUsesDraftCopy(editCtx || ctx)) render();
+      setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.id)), 0);
     }));
     pop.querySelector('[data-event-title]')?.addEventListener('input', (event) => updateEditorTitle(event.target.value || ''));
     pop.querySelector('[data-event-description]')?.addEventListener('input', (event) => updateEditorDescription(event.target.value || ''));
@@ -3971,9 +6687,24 @@
     pop.querySelector('[data-event-advanced]')?.addEventListener('click', () => {
       eventAdvancedOpen = !eventAdvancedOpen;
       renderEventDraftPopover(editorAnchorFor(draft.id));
+      // The redrawn button (still under the pointer, and refocused) would
+      // show its tooltip again over the fields it just revealed: keep it
+      // quiet until the pointer leaves or focus moves on.
+      window.PlatformUI?.hideTooltip?.();
+      const next = document.querySelector('.dash-event-popover [data-event-advanced]');
+      const tip = next?.getAttribute('data-fm-tooltip') || next?.getAttribute('title') || '';
+      if (next && tip) {
+        ['title', 'data-fm-tooltip', 'data-fm-native-title'].forEach((name) => next.removeAttribute(name));
+        const restore = () => { if (next.isConnected && !next.hasAttribute('data-fm-tooltip')) next.setAttribute('title', tip); };
+        next.addEventListener('mouseleave', restore, { once:true });
+        next.addEventListener('blur', restore, { once:true });
+      }
     });
-    pop.querySelector('[data-event-start]')?.addEventListener('change', (event) => updateEditorRange('start', event.target.value || ''));
-    pop.querySelector('[data-event-end]')?.addEventListener('change', (event) => updateEditorRange('end', event.target.value || ''));
+    // Every accepted edit re-syncs both fields and the summary line; a cleared
+    // or invalid value snaps back to the stored time instead of drifting.
+    pop.querySelector('[data-event-start]')?.addEventListener('change', (event) => { updateEditorRange('start', event.target.value || ''); syncEditorTimeFields(pop); });
+    pop.querySelector('[data-event-end]')?.addEventListener('change', (event) => { updateEditorRange('end', event.target.value || ''); syncEditorTimeFields(pop); });
+    pop.querySelector('[data-event-title]')?.addEventListener('input', (event) => { event.target.classList.toggle('invalid', false); event.target.removeAttribute('aria-invalid'); });
     pop.querySelector('[data-event-allday]')?.addEventListener('change', (event) => {
       const current = eventEditorContext()?.event || draft;
       updateEditorAllDay(event.target.checked === true);
@@ -3989,21 +6720,20 @@
       const current = eventEditorContext()?.event || draft;
       const resource = assignmentResourcesForEvent(current).find((item) => clean(item.id) === clean(btn.dataset.eventAssignId));
       if (!resource) return;
-      if (clean(resource.subject_type || resource.resource_kind) === 'organization_user') {
-        // Adding a person: drop any crew reference and append to the list.
-        const list = workCrewId(current) ? [] : editorAssignmentUserList(current);
-        updateEditorAssignees([...list.filter((user) => user.id !== clean(resource.id)), { id:clean(resource.id), name:clean(resource.name) }]);
-      } else {
-        // Groups are assigned as one reference, never fanned out to members.
-        applyEditorPatch(assignmentPayloadForSubject(resource));
-      }
+      // Adding appends to the explicit set; groups are one reference each,
+      // never fanned out to their members.
+      const id = clean(resource.id);
+      const crews = eventCrewRefs(current).filter((crew) => crew.id !== id);
+      const people = editorAssignmentUserList(current).filter((user) => user.id !== id);
+      if (clean(resource.subject_type || resource.resource_kind) === 'organization_user') people.push({ id, name:clean(resource.name) || userDisplayName(id) });
+      else crews.push({ id, name:clean(resource.name) || id, kind:clean(resource.work_resource_ref?.kind || resource.resource_kind || resource.subject_type) || 'resource_group' });
+      applyEditorPatch(assigneeSetPatch(current, crews, people));
       setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.id)), 0);
     }));
     pop.querySelectorAll('[data-event-assign-remove]').forEach((btn) => btn.addEventListener('click', () => {
       const current = eventEditorContext()?.event || draft;
       const removeId = clean(btn.dataset.eventAssignRemove);
-      if (workCrewId(current) === removeId) applyEditorPatch(assignmentPayloadForSubject(null));
-      else updateEditorAssignees(editorAssignmentUserList(current).filter((user) => user.id !== removeId));
+      applyEditorPatch(assigneeSetPatch(current, eventCrewRefs(current).filter((crew) => crew.id !== removeId), editorAssignmentUserList(current).filter((user) => user.id !== removeId)));
       setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.id)), 0);
     }));
     pop.querySelector('[data-event-customer-visible]')?.addEventListener('change', (event) => {
@@ -4022,17 +6752,17 @@
     const bindProjectResultOptions = () => pop.querySelectorAll('[data-event-project-id]').forEach((btn) => btn.addEventListener('click', () => {
       const selectedProject = projects.find((item) => String(item.id || '') === String(btn.dataset.eventProjectId || ''));
       if (!selectedProject) return;
-      const current = eventEditorContext()?.event || draft;
+      const editCtx = eventEditorContext();
+      const current = editCtx?.event || draft;
       rememberFloatingProjectAssignment(current);
-      const next = updateFloatingEvent({
-        ...current,
+      stageEditorEdit(editCtx || ctx, {
         project_id: selectedProject.id || '',
         project_title: projectTitle(selectedProject),
         project_address: projectAddress(selectedProject, {}),
       });
       eventDraftProjectQuery = '';
-      render();
-      setTimeout(() => renderEventDraftPopover(editorAnchorFor(next.id)), 0);
+      if (!editorUsesDraftCopy(editCtx || ctx)) render();
+      setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.id)), 0);
     }));
     const search = pop.querySelector('[data-event-project-search]');
     search?.addEventListener('input', () => {
@@ -4046,31 +6776,55 @@
     });
     bindProjectResultOptions();
     pop.querySelector('[data-event-project-clear]')?.addEventListener('click', () => {
-      const current = eventEditorContext()?.event || draft;
+      const editCtx = eventEditorContext();
+      const current = editCtx?.event || draft;
       rememberFloatingProjectAssignment(current);
-      const next = updateFloatingEvent({ ...current, project_id:'', project_title:'', project_address:'' });
+      stageEditorEdit(editCtx || ctx, { project_id:'', project_title:'', project_address:'' });
       eventDraftProjectQuery = '';
-      render();
-      setTimeout(() => renderEventDraftPopover(editorAnchorFor(next.id)), 0);
+      if (!editorUsesDraftCopy(editCtx || ctx)) render();
+      setTimeout(() => renderEventDraftPopover(editorAnchorFor(current.id)), 0);
     });
     pop.querySelector('[data-event-project-create]')?.addEventListener('click', () => {
       closeEventDraftPopover();
       window.dispatchEvent(new CustomEvent('fm:new-project-workflow', { detail:{ workflow:'project', source:'scheduling-event' } }));
     });
-    pop.querySelector('[data-event-view-project]')?.addEventListener('click', () => {
-      if (project?.id) openProjectFromEvent({ project_id: project.id });
+    // View Project opens the project window on this item's week and closes
+    // the editor (it would otherwise stay open underneath and catch Escape).
+    pop.querySelector('[data-event-view-project]')?.addEventListener('click', async () => {
+      window.PlatformUI?.hideTooltip?.();
+      if (!project?.id) return;
+      const current = eventEditorContext()?.event || draft;
+      const dirty = !readOnly && ((!!eventEditorDraft && String(eventEditorDraft.id || '') === String(current.id || '') && Object.keys(eventEditorDraft.patch || {}).length > 0)
+        || (ctx.kind === 'floating' && floatingEventIsDisposableDraft(current)));
+      if (dirty && window.PlatformUI?.confirm) {
+        const discard = await window.PlatformUI.confirm('You have unsaved changes to this event. Discard them and open the project?', { title:'Unsaved changes', okLabel:'Discard and open', cancelLabel:'Keep editing' });
+        if (!discard) return;
+      }
+      cancelEventEditor();
+      openProjectFromEvent({ ...current, project_id:project.id });
     });
-    pop.querySelector('[data-event-lock-toggle]')?.addEventListener('click', () => {
-      closeEventDraftPopover();
-      toggleScheduleEventLock(draft);
+    // Lock/unlock applies to the stored item right away and keeps the editor
+    // (and any unsaved edits on its draft) open with the new lock state.
+    pop.querySelector('[data-event-lock-toggle]')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const stored = floatingEvents.find((item) => String(item.id || '') === String(draft.id || ''))
+        || allEvents.find((item) => String(item.id || '') === String(draft.id || ''))
+        || draft;
+      button.disabled = true;
+      button.innerHTML = `<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> ${eventIsLocked(stored) ? 'Unlocking…' : 'Locking…'}`;
+      await toggleScheduleEventLock(stored);
+      if (document.querySelector('.dash-event-popover') === pop || !document.querySelector('.dash-event-popover')) {
+        renderEventDraftPopover(editorAnchorFor(draft.id));
+      }
     });
     pop.querySelector('[data-event-delete]')?.addEventListener('click', (event) => deleteEventEditor(ctx, draft, event.currentTarget));
     pop.querySelector('[data-event-recurring]')?.addEventListener('change', (event) => {
       const enabled = event.target.checked === true;
       const current = eventEditorContext()?.event || draft;
-      if (ctx.kind === 'floating') updateFloatingEvent({ ...current, __recurrence_enabled:enabled });
+      if (ctx.kind === 'floating') stageEditorEdit(eventEditorContext() || ctx, { __recurrence_enabled:enabled });
       pop.querySelector('[data-event-recurrence-fields]')?.classList.toggle('open', enabled);
     });
+    pop.querySelector('[data-event-occurrence-skip]')?.addEventListener('click', (event) => skipRecurrenceOccurrence(ctx, draft, event.currentTarget));
     pop.querySelector('[data-event-recurrence-end-mode]')?.addEventListener('change', (event) => {
       const mode = clean(event.target.value || 'never');
       const dateField = pop.querySelector('[data-event-recurrence-end-date]');
@@ -4082,12 +6836,46 @@
     pop.querySelector('[data-event-cancel]')?.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      cancelEventEditor();
+      cancelEventEditor({ restoreFocus:true });
     });
+    if (readOnly) {
+      // View-only sessions see every field but can't change any of them.
+      pop.querySelectorAll('input,textarea,select').forEach((field) => { field.disabled = true; });
+      pop.querySelectorAll('button').forEach((button) => {
+        if (!button.matches('[data-event-cancel],[data-event-view-project],[data-event-advanced],[data-event-customer-details-toggle]')) button.disabled = true;
+      });
+      pop.querySelectorAll('[data-equipment-picker]').forEach((picker) => { picker.hidden = true; });
+    } else if (lockedTime) {
+      pop.querySelectorAll('[data-event-start],[data-event-end],[data-event-allday],[data-event-recurring],[data-event-equipment-start],[data-event-equipment-end]').forEach((field) => {
+        field.disabled = true;
+        field.title = 'Unlock this item to change its time.';
+      });
+    } else if (groupDerivedDates) {
+      pop.querySelectorAll('[data-event-start],[data-event-end],[data-event-allday]').forEach((field) => {
+        field.disabled = true;
+        field.title = 'A section spans its items: move the section bar or its items to change these dates.';
+      });
+    }
+    if (previousScrollTop) pop.scrollTop = previousScrollTop;
+    // A freshly opened editor takes keyboard focus (title, or Close when
+    // view-only); a re-render keeps whatever field the user was in.
+    if (!previousPop && !isMobileScheduleLayout()) {
+      (pop.querySelector('[data-event-title]:not(:disabled)') || pop.querySelector('[data-event-cancel]'))?.focus({ preventScroll:true });
+    }
+    if (saveError && scheduleSaveErrorLines(saveError).length && Array.isArray(saveError?.data?.details?.conflicts)) {
+      // Equipment conflicts: bring the equipment list into view next to the
+      // server's per-unit explanation.
+      requestAnimationFrame(() => pop.querySelector('[data-event-equipment]')?.scrollIntoView?.({ block:'nearest' }));
+    }
     if (!isMobileScheduleLayout()) setTimeout(() => {
-      eventDraftDocHandler = bindOutsidePointerDismiss(pop, closeEventDraftPopover, [anchor].filter(Boolean));
+      if (!pop.isConnected || eventDraftDocHandler) return;
+      eventDraftDocHandler = bindOutsidePointerDismiss(pop, dismissEventEditor, [anchor].filter(Boolean));
     }, 0);
     eventDraftKeyHandler = (event) => {
+      if (event.key === 'Escape') {
+        handleEventEditorEscape(pop, event);
+        return;
+      }
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || String(event.key || '').toLowerCase() !== 'z') return;
       if (event.target?.closest?.('input,textarea,select,[contenteditable="true"]')) return;
       if (!restoreFloatingProjectAssignment()) return;
@@ -4097,14 +6885,43 @@
     document.addEventListener('keydown', eventDraftKeyHandler, true);
   }
   function formatEventDraftTime(event){
-    if (event?.all_day === true || clean(event?.schedule_granularity).toLowerCase() === 'date') return 'All day';
     const start = eventStart(event);
+    const dayLabel = (date) => date.toLocaleDateString([], { month:'short', day:'numeric' });
+    if (event?.all_day === true || clean(event?.schedule_granularity).toLowerCase() === 'date') {
+      const allDayLabel = (globalThis.PlatformLanguage?.text("scheduling","m_42b02bf1587e27","All day") ?? "All day");
+      if (!start) return allDayLabel;
+      const last = editorDisplayEnd(event) || start;
+      return sameDay(start, last) ? `${dayLabel(start)} · ${allDayLabel}` : `${dayLabel(start)} – ${dayLabel(last)} · ${allDayLabel}`;
+    }
     const end = eventEnd(event);
     if (!start || !end) return 'New event';
-    return `${start.toLocaleDateString([], { month:'short', day:'numeric' })}, ${fmtTime(start)} - ${fmtTime(end)}`;
+    if (!sameDay(start, end)) return `${dayLabel(start)}, ${fmtTime(start)} – ${dayLabel(end)}, ${fmtTime(end)}`;
+    return `${dayLabel(start)}, ${fmtTime(start)} - ${fmtTime(end)}`;
   }
   function openPlacedCalendarEvent(event, meta = {}){
     if (!event?.id) return;
+    // A narrow chip is mostly its assignee control; a click there opens the
+    // editor (which has the assignee section) instead of the quick menu.
+    // View-only sessions never get the quick assign / lock actions.
+    if (['assignee', 'lock'].includes(meta.action)) {
+      const chip = meta.element?.closest?.('[data-prs-event-id]') || null;
+      const chipWidth = chip?.getBoundingClientRect?.().width || 0;
+      if (!canEditSchedule() || (meta.action === 'assignee' && ((chipWidth > 0 && chipWidth < 96) || eventIsLocked(event)))) {
+        meta = { ...meta, action:'', element:chip || meta.element };
+      }
+    }
+    if (!meta.action && eventEditorDraft && String(eventEditorDraft.id || '') !== String(event.id || '')) discardEventEditorDraft();
+    // A placed-but-unsaved rail item is a draft everywhere: its assignee is
+    // picked locally, a click opens the draft editor (✓ / Save commit it) and
+    // never the stored unscheduled item.
+    if (isPlacementDraftEvent(event)) {
+      if (meta.action === 'view') { openProjectFromEvent(event); return; }
+      if (meta.action === 'assignee' && meta.element && canEditSchedule()) {
+        openDraftAssignmentMenu(event, meta.element);
+        return;
+      }
+      if (openPlacementDraftEditor(event, meta.element?.closest?.('[data-prs-event-id]') || meta.element || null)) return;
+    }
     if (isMaterialEvent(event) && meta.action === 'lock') {
       toggleScheduleEventLock(event);
       return;
@@ -4127,11 +6944,33 @@
       renderEventDraftPopover(meta.element || editorAnchorFor(eventDraftPopoverId));
       return;
     }
+    // Opening another item ends the placement: an unsaved placed draft is
+    // only dropped after confirmation (as when switching rail items).
+    const pendingPlacement = placementWaitingItem();
+    if (pendingPlacement?.start && !meta.placementDiscardConfirmed) {
+      confirmDiscardPendingPlacement().then((discard) => {
+        if (!discard) return;
+        vehiclePlacementUnitId = '';
+        vehiclePlacementDraft = null;
+        clearPlacementSelection();
+        render();
+        openPlacedCalendarEvent(event, { ...meta, element:editorAnchorFor(event.id) || null, placementDiscardConfirmed:true });
+      });
+      return;
+    }
     eventDraftPopoverId = '';
     eventEditorEventId = String(event.id || '');
     eventDraftProjectQuery = '';
     eventCustomerDetailsOpen = false;
     eventAdvancedOpen = requirementWarningsForEvent(event).length > 0;
+    if (pendingPlacement) {
+      // Placing stopped: drop its banner and rail highlight in place (a full
+      // render would detach the chip the editor is anchored to).
+      rootEl?.querySelector('[data-placement-banner]')?.remove();
+      rootEl?.querySelectorAll('.dash-right .selected[aria-pressed]').forEach((node) => { node.classList.remove('selected'); node.setAttribute('aria-pressed', 'false'); });
+      vehiclePlacementUnitId = '';
+      vehiclePlacementDraft = null;
+    }
     clearPlacementSelection();
     if (isProductionEvent(event)) {
       productionScheduleProjectId = String(event.project_id || '');
@@ -4147,17 +6986,66 @@
     }
     renderEventDraftPopover(meta.element || editorAnchorFor(event.id));
   }
+  /* Renderer callback (onLockedDragAttempt): a refused drag says why. Other
+   * renderers in this app can pass the same function. */
+  function scheduleLockedDragAttempt(event = {}, detail = {}){
+    if (detail.locked === false) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), canEditSchedule() ? 'This item can’t be moved.' : scheduleReadOnlyMessage(), VIEW_ONLY_TOAST);
+      return;
+    }
+    showToast(
+      (globalThis.PlatformLanguage?.text("scheduling","m_88e13d64071885","Schedule locked") ?? "Schedule locked"),
+      isMaterialEvent(event) && materialEventIsOrdered(event) ? 'Unlock this ordered delivery before moving it.' : 'Unlock this item before moving it.',
+      false
+    );
+  }
+  /* Renderer callback (onReadOnlyDragAttempt): throttled so a drag gesture
+   * doesn't stack toasts. */
+  function scheduleReadOnlyDragAttempt(){
+    const now = Date.now();
+    if (now - (scheduleReadOnlyDragAttempt._last || 0) < 2500) return;
+    scheduleReadOnlyDragAttempt._last = now;
+    showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), scheduleReadOnlyMessage(), VIEW_ONLY_TOAST);
+  }
   function renderEventCalendarView(){
     const mount = rootEl?.querySelector('#dashEventCalendarView');
     if (!mount || !window.PlatformScheduleView?.renderProjectRangeScheduler || !schedulingConfig) return;
     const draft = selectedEventCalendarDraft();
     const activeDraft = draft?.start && draft.status !== 'scheduled' ? draft : null;
-    const allowCreate = true;
+    // View-only sessions get a read-only calendar: no drag-create, no moving
+    // or resizing (clicks still open the read-only editor).
+    const scheduleEditable = canEditSchedule();
+    const allowCreate = scheduleEditable;
     const placementKind = selectedPlacementKind() || scheduleMode;
     const clickPlacement = !!draft && !draft.start && ['materials','production'].includes(placementKind);
     const bundleDrafts = placementKind === 'production' && productionScheduleBundleDrafts.length
       ? productionScheduleBundleDrafts
       : (activeDraft ? [activeDraft] : []);
+    // Moving a placement draft only restages it (nothing is saved until ✓ or
+    // the editor's Save). A dragged bundle item carries the whole bundle.
+    const handlePlacementDraftChange = (rawNext) => {
+      let next = placementNaturalRange(rawNext, { drag:true });
+      if (placementKind === 'production' && productionScheduleBundleKey && next?.start) {
+        const primaryId = clean(productionScheduleDraft?.id || productionScheduleEventId);
+        const nextId = clean(next.id || next.event_id);
+        if (nextId && primaryId && nextId !== primaryId && productionScheduleDraft?.start) {
+          const before = productionScheduleBundleDrafts.find((item) => clean(item.id || item.event_id) === nextId);
+          const delta = before?.start ? new Date(next.start).getTime() - new Date(before.start).getTime() : 0;
+          const primaryStart = new Date(new Date(productionScheduleDraft.start).getTime() + delta);
+          const primaryEnd = productionScheduleDraft.end ? new Date(new Date(productionScheduleDraft.end).getTime() + delta) : null;
+          next = { ...productionScheduleDraft, start:primaryStart, ...(primaryEnd ? { end:primaryEnd } : {}) };
+        }
+      }
+      applyEventCalendarDraft(next);
+      if (placementKind === 'production' && productionScheduleBundleKey) {
+        productionScheduleBundleDrafts = scheduleBundleDrafts(productionScheduleDraft || next);
+        // Related bundle items follow the moved primary draft.
+        setTimeout(() => refreshActiveScheduleSurface(), 0);
+      } else if (next !== rawNext) setTimeout(() => refreshActiveScheduleSurface(), 0);
+      refreshRailDraftLabel();
+      refreshPlacementBanner();
+      if (document.querySelector('.dash-event-popover')) setTimeout(() => renderEventDraftPopover(editorAnchorFor(next?.id || eventDraftPopoverId)), 0);
+    };
     window.PlatformScheduleView.renderProjectRangeScheduler(mount, {
       Scheduling: window.PlatformScheduling,
       config: schedulingConfig,
@@ -4167,25 +7055,29 @@
           ? (selectedMaterialProject() || eventProject(selectedMaterialEvent() || {}))
           : eventProject(selectedScheduleEvent() || {}),
       events: eventCalendarItems(),
-      draft: activeDraft,
-      drafts: bundleDrafts,
+      draft: renderedPlacementDraft(activeDraft),
+      drafts: bundleDrafts.map(renderedPlacementDraft),
       activeDraftId: activeDraft?.id || '',
       allowCreate,
-      allowEdit: true,
-      allowEventDrag: false,
+      allowEdit: scheduleEditable,
+      readOnly: !scheduleEditable,
+      // Placed events move and resize in place; locked events are refused by the renderer.
+      allowEventDrag: scheduleEditable && !clickPlacement,
       placementMode: clickPlacement ? 'click' : 'drag',
       touchHoldToPlace: isMobileScheduleLayout(),
       touchHoldDelayMs: 360,
       derivePlacementDrafts(primaryDraft){
-        return placementKind === 'production' && productionScheduleBundleKey ? scheduleBundleDrafts(primaryDraft) : [primaryDraft];
+        // Month rows grow to fit multi-item hover previews, which moves the
+        // day under the pointer; month previews only the primary item (the
+        // staged draft still shows the whole bundle).
+        const placed = placementNaturalRange(primaryDraft);
+        if (eventCalendarMode() === 'month') return [placed];
+        return placementKind === 'production' && productionScheduleBundleKey ? scheduleBundleDrafts(placed) : [placed];
       },
       onPlacementCancel(){
-        clearPlacementSelection();
-        if (vehiclePlacementUnitId) {
-          vehiclePlacementUnitId = '';
-          vehiclePlacementDraft = null;
-        }
-        render();
+        // Escape inside an open popover or dialog closes only that layer.
+        if (placementOverlayOpen() || !placementWaitingItem()) return;
+        requestCancelPlacement();
       },
       mode: eventCalendarMode(),
       modes: [eventCalendarMode()],
@@ -4203,22 +7095,40 @@
       canEditEvent: (event) => !eventIsLocked(event),
       eventIsEditable: (event) => !eventIsLocked(event),
       onEventLockToggle: (event, nextLocked) => toggleScheduleEventLock(event, nextLocked),
+      onLockedDragAttempt: scheduleLockedDragAttempt,
+      // View-only sessions: a drag or drag-create attempt says why nothing moves.
+      onReadOnlyDragAttempt: scheduleReadOnlyDragAttempt,
       onNavigate(nextDate, delta, meta = {}){
-        anchorDate = nextDate;
+        anchorDate = validDate(nextDate) || anchorDate;
         expandedMonthDates = [];
         if (meta.source === 'swipe') animateMobileCalendarSwipe(delta);
+        // Swipes and in-calendar paging keep date= in step like the header.
+        syncScheduleRoute({ date:routeDate() }, { history:'replace', source:'scheduling-date', ownedKeys:['date'] });
         render();
       },
       expandedMonthDates,
       onMonthExpansionChange(nextDates){ expandedMonthDates = Array.isArray(nextDates) ? nextDates : []; },
       onDraftChange(next){
-        applyEventCalendarDraft(next);
-        if (placementKind === 'production' && productionScheduleBundleKey) productionScheduleBundleDrafts = scheduleBundleDrafts(next);
-        if (document.querySelector('.dash-event-popover')) setTimeout(() => renderEventDraftPopover(editorAnchorFor(next?.id || eventDraftPopoverId)), 0);
+        if (next?.floating_event === true || String(next?.id || '').startsWith('floating_') || !placementWaitingItem()) {
+          applyEventCalendarDraft(next);
+          if (document.querySelector('.dash-event-popover')) setTimeout(() => renderEventDraftPopover(editorAnchorFor(next?.id || eventDraftPopoverId)), 0);
+          return;
+        }
+        handlePlacementDraftChange(next);
       },
-      onDraftConfirm(next){
+      onDraftConfirm(rawNext, meta = {}){
+        const next = meta?.sourceEvent ? placementNaturalRange(rawNext) : rawNext;
         applyEventCalendarDraft(next);
         const kind = selectedPlacementKind() || scheduleMode;
+        // A click in placement mode only stages the item as a draft; the ✓ on
+        // the draft saves it. Same draft + ✓ model as sales placement and
+        // Routing, so a stray click can never commit a placement.
+        if (meta?.sourceEvent) {
+          if (kind === 'production' && productionScheduleBundleKey) productionScheduleBundleDrafts = scheduleBundleDrafts(productionScheduleDraft || next);
+          render();
+          refreshPlacementEditor();
+          return;
+        }
         if (kind === 'materials') confirmMaterialDraft();
         else if (kind === 'production') {
           if (productionScheduleBundleKey) confirmProductionBundleDraft(next);
@@ -4226,12 +7136,25 @@
         }
         else confirmDashboardDraft();
       },
-      onDraftCreateComplete(next, meta = {}){
-        if (next?.event_id) {
+      onDraftCreateComplete(rawNext, meta = {}){
+        if (rawNext?.event_id || placementWaitingItem()) {
+          const next = placementNaturalRange(rawNext);
           applyEventCalendarDraft(next);
+          if (next !== rawNext && !meta?.drafts) setTimeout(() => refreshActiveScheduleSurface(), 0);
+          refreshRailDraftLabel();
+          refreshPlacementBanner();
+          // A placed sales appointment opens its editor beside the draft (never
+          // over it) so a salesperson can be picked before saving.
+          if (selectedPlacementKind() === 'sales' && !isMobileScheduleLayout()) {
+            eventDraftPopoverId = '';
+            eventEditorEventId = '';
+            eventCustomerDetailsOpen = false;
+            eventAdvancedOpen = false;
+            setTimeout(() => renderEventDraftPopover(editorAnchorFor(next.id) || meta.element), 0);
+          }
           return;
         }
-        const draft = updateFloatingEvent({ ...next, floating_event: true });
+        const draft = updateFloatingEvent({ ...rawNext, floating_event: true });
         eventDraftPopoverId = draft.id;
         eventEditorEventId = '';
         eventDraftProjectQuery = '';
@@ -4242,6 +7165,7 @@
       },
       onDraftSelect(draft, meta = {}){
         if (!draft?.id) return;
+        if (isPlacementDraftEvent(draft) && openPlacementDraftEditor(draft, meta.element || null)) return;
         eventDraftPopoverId = String(draft.id);
         eventEditorEventId = '';
         eventDraftProjectQuery = '';
@@ -4249,29 +7173,113 @@
         eventAdvancedOpen = false;
         renderEventDraftPopover(meta.element || editorAnchorFor(draft.id));
       },
-      onEventRangeChange(event, range){ saveEventCalendarRange(event, range); },
-      onEventClick(event, meta = {}){ openPlacedCalendarEvent(event, meta); }
+      onEventRangeChange(event, range){
+        // A placement draft is never saved by a drag, only restaged.
+        if (isPlacementDraftEvent(event)) { handlePlacementDraftChange({ ...event, ...range }); return; }
+        saveEventCalendarRange(event, range);
+      },
+      onEventClick(event, meta = {}){
+        // While placing, a click on a day that already holds items places the
+        // waiting item on that day (as Routing does) instead of opening one.
+        if (clickPlacement && !isPlacementDraftEvent(event) && placeOnPointerDay(mount)) return;
+        openPlacedCalendarEvent(event, meta);
+      }
+    });
+    if (!mount.__dashPointerTracked) {
+      mount.__dashPointerTracked = true;
+      mount.addEventListener('pointerdown', (pointerEvent) => { mount.__dashLastPointer = { x:pointerEvent.clientX, y:pointerEvent.clientY }; }, true);
+    }
+    markDependencyConflicts(mount);
+    scrollMonthToToday(mount);
+    enableKeyboardPlacement(mount);
+  }
+  /* Items that start before a dependency allows (left out of order) carry a
+   * marker on the calendar too, not only on the Timeline. */
+  function markDependencyConflicts(mount){
+    const Scheduling = window.PlatformScheduling;
+    if (!mount || !Scheduling?.dependencyViolations) return;
+    let violations = [];
+    try { violations = Scheduling.dependencyViolations(allEvents, { config:schedulingConfig }); } catch (error) { return; }
+    if (!violations.length) return;
+    const byTarget = new Map();
+    violations.forEach((violation) => {
+      const id = clean(violation.to);
+      if (!id) return;
+      const predecessor = allEvents.find((item) => clean(item.id) === clean(violation.from));
+      const earliest = validDate(violation.earliest_start);
+      const line = `Starts before “${clean(predecessor?.title) || 'a linked item'}” allows${earliest ? ` (earliest ${earliest.toLocaleDateString([], { month:'short', day:'numeric' })})` : ''}.`;
+      byTarget.set(id, [...(byTarget.get(id) || []), line]);
+    });
+    mount.querySelectorAll('[data-prs-event-id]').forEach((chip) => {
+      const lines = byTarget.get(clean(chip.dataset.prsEventId));
+      if (!lines || chip.querySelector('.dash-dep-conflict-marker')) return;
+      chip.classList.add('dash-dep-conflict');
+      const marker = document.createElement('span');
+      marker.className = 'dash-dep-conflict-marker';
+      marker.setAttribute('role', 'img');
+      marker.setAttribute('aria-label', `Out of dependency order. ${lines.join(' ')}`);
+      marker.title = `Out of dependency order. ${lines.join(' ')} Open the item to fix its dates.`;
+      marker.innerHTML = '<i class="fas fa-link-slash" aria-hidden="true"></i>';
+      // Inline at the start of the title (like the lock/requirement marks),
+      // so it never sits over the crew pill; a click opens the item.
+      const title = chip.querySelector('.prs-title');
+      if (title) title.insertBefore(marker, title.querySelector('.prs-title-text') || title.firstChild);
+      else chip.appendChild(marker);
+      marker.addEventListener('pointerdown', (event) => event.stopPropagation());
+      marker.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const item = eventCalendarItems().find((entry) => clean(entry.id) === clean(chip.dataset.prsEventId));
+        if (item) openPlacedCalendarEvent(item, { element:chip });
+      });
     });
   }
-  function toggleScheduleSelection(event, { rerender = false } = {}){
-    if (!event?.id) return;
-    const same = String(appointmentScheduleEventId || '') === String(event.id || '');
-    appointmentScheduleDraft = null;
-    if (same) {
-      appointmentScheduleProjectId = '';
-      appointmentScheduleEventId = '';
-      appointmentScheduleMenuEventId = '';
-      clearScheduleSelectionDom();
-    } else {
-      appointmentScheduleProjectId = String(event.project_id || eventProject(event).id || '');
-      appointmentScheduleEventId = String(event.id || '');
-      appointmentScheduleMenuEventId = '';
-      markScheduleSelectionDom(appointmentScheduleEventId);
+  /* Month view (short screens): open with today's week in view the first
+   * time a month containing today is shown, without fighting later scrolls. */
+  function scrollMonthToToday(mount){
+    if (!mount || eventCalendarMode() !== 'month') return;
+    const todayKey = routeDate(new Date());
+    const key = `${routeDate(monthStart(anchorDate))}`;
+    if (scrollMonthToToday._key === key) return;
+    scrollMonthToToday._key = key;
+    const cell = mount.querySelector(`[data-prs-date="${todayKey}"]`);
+    if (!cell) return;
+    // The shared helper lands on a row boundary under the weekday header and
+    // doesn't move when today's row already shows (R3-MOB-4).
+    const reveal = window.PlatformScheduleView?.revealMonthDate;
+    if (typeof reveal === 'function') {
+      requestAnimationFrame(() => reveal(mount, new Date()));
+      return;
     }
-    const btn = rootEl?.querySelector('[data-dash-confirm-schedule]');
-    if (btn) btn.disabled = true;
-    if (rerender) {
-      render();
+    requestAnimationFrame(() => {
+      const scroller = cell.closest('.prs-surface') || mount;
+      const cellRect = cell.getBoundingClientRect();
+      const scrollerRect = scroller.getBoundingClientRect();
+      if (cellRect.bottom > scrollerRect.bottom || cellRect.top < scrollerRect.top) {
+        scroller.scrollTop += cellRect.top - scrollerRect.top - Math.max(0, (scroller.clientHeight - cellRect.height) / 3);
+      }
+    });
+  }
+  // Assignee menu for an unsaved placement draft: the choice is kept on the
+  // draft (shown on its chip) and saved with ✓ / Save.
+  function openDraftAssignmentMenu(draft = {}, anchor = null){
+    const kind = selectedPlacementKind();
+    if (kind === 'sales') {
+      const event = selectedScheduleEvent();
+      if (!event) return;
+      openAssignmentMenu({ ...event, ...draft, id:event.id }, anchor, (resource) => {
+        appointmentScheduleDraft = { ...(appointmentScheduleDraft || {}), assignment:assignmentPayloadForSubject(resource), user:resource };
+        refreshActiveScheduleSurface();
+        refreshPlacementBanner();
+      });
+      return;
+    }
+    if (kind === 'production') {
+      openAssignmentMenu({ ...draft, id:draft.id || productionScheduleEventId || '__production_event_draft' }, anchor, (resource) => {
+        productionScheduleDraft = { ...(productionScheduleDraft || draft), ...assignmentPayloadForSubject(resource) };
+        if (productionScheduleBundleKey) productionScheduleBundleDrafts = scheduleBundleDrafts(productionScheduleDraft);
+        refreshActiveScheduleSurface();
+      });
     }
   }
   function scheduleHistoryEntry(event, reason){
@@ -4301,43 +7309,32 @@
     if (!entry) return event;
     return { ...event, schedule_history: [...(Array.isArray(event.schedule_history) ? event.schedule_history : []), entry] };
   }
-  async function unassignScheduleEvent(event){
-    const Scheduling = window.PlatformScheduling;
-    if (!Scheduling || !event?.id) return;
-    const project = eventProject(event);
-    if (!project?.id) return;
-    const nextEvent = {
-      ...withScheduleHistory(event, 'unassigned'),
-      ...assignmentPayloadForSubject(null),
-      updated_at: new Date().toISOString(),
-    };
-    try {
-      await Scheduling.saveProjectEvent(orgId(), project, nextEvent, schedulingConfig);
-      appointmentScheduleDraft = null;
-      appointmentScheduleProjectId = String(project.id || '');
-      appointmentScheduleEventId = String(event.id || '');
-      appointmentScheduleMenuEventId = '';
-      await loadData({ force: true });
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_b98fb3c2854487","Appointment unassigned") ?? "Appointment unassigned"), (globalThis.PlatformLanguage?.text("scheduling","m_44b8bc6f65b2f3","The appointment is ready to assign again.") ?? "The appointment is ready to assign again."), true);
-    } catch (error) {
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_915800930cfd7e","Unassign failed") ?? "Unassign failed"), error?.message || 'Could not unassign this appointment.', false);
-    }
-  }
-  async function confirmDashboardDraft(){
+  async function confirmDashboardDraftNow(){
     const Scheduling = window.PlatformScheduling;
     const project = selectedScheduleProject();
     if (!Scheduling || !project?.id || !appointmentScheduleDraft?.start) return;
+    const existing = selectedScheduleEvent();
+    const wasScheduled = !!existing && eventIsScheduled(existing);
+    const draftStart = new Date(appointmentScheduleDraft.start);
+    const timeChanged = !wasScheduled || eventStart(existing)?.getTime() !== draftStart.getTime();
+    if (timeChanged && !(await confirmPastPlacement(draftStart, projectTitle(project, existing || {})))) return;
     captureScheduleScroll();
     const eventType = schedulingConfig?.event_types?.sales_appointment || {};
-    const user = appointmentScheduleDraft.user || null;
-    const assignment = assignmentPayloadForSubject(user);
-    const existing = selectedScheduleEvent();
+    // Lane/menu/popover choice, else the appointment keeps its salesperson.
+    const assignment = salesDraftAssignment(appointmentScheduleDraft, existing);
+    // Exactly what the draft (and its editor) shows: start and end.
+    const draftEnd = salesDraftEnd(existing || {});
+    const draftMinutes = Math.max(15, Math.round((draftEnd.getTime() - draftStart.getTime()) / 60000));
     const event = existing
       ? {
           ...withScheduleHistory(existing, 'rescheduled_or_assigned'),
-          start_at: new Date(appointmentScheduleDraft.start).toISOString(),
-          start: new Date(appointmentScheduleDraft.start).toISOString(),
-          duration_minutes: Number(existing.duration_minutes || eventType.duration_minutes || 60),
+          start_at: draftStart.toISOString(),
+          start: draftStart.toISOString(),
+          end_at: draftEnd.toISOString(),
+          end: draftEnd.toISOString(),
+          all_day: false,
+          schedule_granularity: 'time',
+          duration_minutes: draftMinutes,
           ...assignment,
           title: appointmentScheduleDraft.title || existing.title || clean(Scheduling.autoEventTitle?.(schedulingConfig, existing, project)) || 'Sales Appointment',
           project_title: appointmentScheduleDraft.project_title || existing.project_title || projectTitle(project, existing),
@@ -4351,8 +7348,9 @@
           updated_at: new Date().toISOString(),
         }
       : Scheduling.createProjectEvent(project, 'sales_appointment', {
+          id: placementNewItemId(appointmentScheduleDraft),
           start: appointmentScheduleDraft.start,
-          durationMinutes: Number(eventType.duration_minutes || 60),
+          durationMinutes: draftMinutes || Number(eventType.duration_minutes || 60),
           ...assignment,
           title: appointmentScheduleDraft.title || clean(Scheduling.autoEventTitle?.(schedulingConfig, { event_type_default_id:'sales_appointment' }, project)) || 'Sales Appointment',
           project_title: appointmentScheduleDraft.project_title || projectTitle(project),
@@ -4364,22 +7362,83 @@
           customer_show_crew: appointmentScheduleDraft.customer_show_crew === true,
           customer_description: clean(appointmentScheduleDraft.customer_description),
         }, schedulingConfig);
+    showPlacementSaving();
     try {
       await Scheduling.saveProjectEvent(orgId(), project, event, schedulingConfig);
       appointmentScheduleDraft = null;
       appointmentScheduleProjectId = '';
       appointmentScheduleEventId = '';
       appointmentScheduleMenuEventId = '';
+      if (eventDraftPopoverId === String(event.id || '') || (!eventEditorEventId && !eventDraftPopoverId)) closeEventDraftPopover();
+      // Placed: draft, banner and rail tile update before the reload.
+      if (existing) {
+        updateLocalCalendarEvent(event.id, event);
+        events = visibleEvents();
+      }
+      render();
       await loadData({ force: true });
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_da42e64e20d9f0","Appointment scheduled") ?? "Appointment scheduled"), (globalThis.PlatformLanguage?.text("scheduling","m_b3e9ab9f7ab3c0","The appointment was added to the project.") ?? "The appointment was added to the project."), true);
+      const assigneeName = currentAssignmentId(event) ? salesAssignmentLabel(event) : '';
+      const when = fmtDayTime(eventStart(event));
+      const overlap = salesOverlapWarning(event);
+      showToast(
+        wasScheduled ? (timeChanged ? 'Appointment rescheduled' : 'Appointment updated') : (globalThis.PlatformLanguage?.text("scheduling","m_da42e64e20d9f0","Appointment scheduled") ?? "Appointment scheduled"),
+        `${when ? `${projectTitle(project, event)} · ${when}.` : 'The appointment was saved.'}${assigneeName ? ` Assigned to ${assigneeName}.` : ' No salesperson assigned yet.'}${overlap}`,
+        !overlap
+      );
     } catch (error) {
+      if (isStaleSaveError(error)) { await reloadAfterStaleChange(); return; }
       showToast((globalThis.PlatformLanguage?.text("scheduling","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), error?.message || 'Could not schedule this appointment.', false);
     }
   }
-  async function confirmProductionDraft(draft = productionScheduleDraft){
+  /* One placement commit at a time: the draft's ✓ and its editor's Save both
+   * come through these wrappers, so a double-click (or ✓ while Save runs) never
+   * saves twice. ✓ badges are disabled at once and the banner says "Saving…"
+   * as soon as the save itself starts. */
+  let placementSaveInFlight = false;
+  async function runPlacementSave(task){
+    if (placementSaveInFlight) return undefined;
+    placementSaveInFlight = true;
+    rootEl?.classList.add('dash-placement-busy');
+    try {
+      return await task();
+    } finally {
+      placementSaveInFlight = false;
+      rootEl?.classList.remove('dash-placement-busy');
+      if (rootEl?.querySelector('[data-placement-banner][data-saving]')) refreshPlacementBanner();
+    }
+  }
+  function showPlacementSaving(){
+    const banner = rootEl?.querySelector('[data-placement-banner]');
+    const text = banner?.querySelector(':scope > span');
+    if (!banner || !text) return;
+    banner.dataset.saving = '1';
+    text.innerHTML = `<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> ${escapeHtml(globalThis.PlatformLanguage?.text("scheduling","m_placement_saving","Saving…") ?? "Saving…")}`;
+    banner.querySelector('[data-placement-cancel]')?.setAttribute('disabled', '');
+  }
+  /* One stable client id per staged new item: stored on the live draft (and
+   * on the object passed in), reused by every save attempt of it. */
+  function placementNewItemId(draft = null){
+    const holders = [draft, productionScheduleDraft && clean(productionScheduleDraft.id) === clean(draft?.id) ? productionScheduleDraft : null, appointmentScheduleDraft === draft ? appointmentScheduleDraft : null].filter((item) => item && typeof item === 'object');
+    const existing = holders.map((item) => clean(item.__new_event_id)).find(Boolean);
+    const id = existing || `event_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    holders.forEach((item) => { item.__new_event_id = id; });
+    return id;
+  }
+  function editorFieldsFromDraft(draft = {}){
+    return Object.fromEntries(['title', 'title_is_custom', 'description', 'notes', 'customer_visible', 'customer_show_title', 'customer_show_crew', 'customer_description']
+      .filter((key) => Object.prototype.hasOwnProperty.call(draft || {}, key) && draft[key] !== undefined && !(key === 'title' && !clean(draft.title)))
+      .map((key) => [key, draft[key]]));
+  }
+  function confirmProductionDraft(draft = productionScheduleDraft){ return runPlacementSave(() => confirmProductionDraftNow(draft)); }
+  function confirmProductionBundleDraft(primaryDraft = productionScheduleDraft){ return runPlacementSave(() => confirmProductionBundleDraftNow(primaryDraft)); }
+  function confirmMaterialDraft(draft = materialScheduleDraft){ return runPlacementSave(() => confirmMaterialDraftNow(draft)); }
+  function confirmDashboardDraft(){ return runPlacementSave(() => confirmDashboardDraftNow()); }
+  async function confirmProductionDraftNow(draft = productionScheduleDraft){
     const Scheduling = window.PlatformScheduling;
     const project = selectedProductionProject();
     if (!Scheduling || !project?.id || !draft?.start) return;
+    const placing = !selectedProductionEvent() || !eventIsScheduled(selectedProductionEvent());
+    if (placing && !(await confirmPastPlacement(draft.start, clean(draft.title) || projectTitle(project, draft)))) return;
     captureScheduleScroll();
     const resource = productionWorkResources(draft.scope_template_id, draft).find((item) => String(item.id || '') === String(currentAssignmentId(draft))) || null;
     const title = draft.title || draft.project_title || projectTitle(project, draft);
@@ -4402,62 +7461,215 @@
       ...(resource ? assignmentPayloadForSubject(resource) : assignmentPayloadForEvent(draft))
     };
     const existing = selectedProductionEvent();
+    // A placed waiting item becomes scheduled locally too, so its parent
+    // group's rollup (dates + status) follows right away.
+    // What was typed in the draft editor (title, notes, customer sharing) is
+    // saved with the placement, as the bundle path does.
+    // A crew/people set chosen in the draft editor (several crews, or crews
+    // plus people) is saved as that exact set; a single lane/primary choice
+    // replaces the primary crew.
+    const draftCrewIds = (Array.isArray(draft.resource_refs) ? draft.resource_refs : []).filter((ref) => ['resource_group', 'organization_connection'].includes(clean(ref?.kind))).map((ref) => clean(ref.id));
+    const draftSet = existing && draftCrewIds.length && (!workCrewId(draft) || draftCrewIds.includes(workCrewId(draft)))
+      ? assigneeSetPatch(existing, eventCrewRefs(draft), editorAssignmentUserList(draft))
+      : null;
+    const rangePayload = draftSet
+      ? Object.fromEntries(Object.entries(payload).filter(([key]) => !['work_resource_ref', 'assigned_resource_kind', 'assigned_resource_id', 'assigned_resource_name', 'assigned_crew_id', 'assigned_crew_name', 'assigned_crew', 'crew_id', 'crew_name', 'resource_id', 'resource_name', 'assigned_user_id', 'assigned_user_ids', 'assigned_users', 'assigned_user_name'].includes(key)))
+      : payload;
     const event = existing
-      ? Scheduling.updateProjectEventRange(existing, payload)
-      : Scheduling.createProjectWorkEvent(project, payload, schedulingConfig);
+      ? { ...Scheduling.updateProjectEventRange(draftSet ? { ...existing, ...draftSet } : existing, rangePayload), ...editorFieldsFromDraft(draft), ...(placing ? { status:'scheduled' } : {}) }
+      // A new item keeps one client id for this placement, so a retried or
+      // repeated ✓ writes the same item instead of a second one.
+      : Scheduling.createProjectWorkEvent(project, { ...payload, id:placementNewItemId(draft) }, schedulingConfig);
+    // Rescheduling a placed item follows its depends_on links (shared prompt);
+    // placing a waiting one checks it against already-scheduled linked work.
+    const related = existing && eventIsScheduled(existing)
+      ? await resolveRelatedReschedule(existing, { start:payload.start, end:payload.end })
+      : (existing ? await resolvePlacementDependencyConflicts(project, [event], title) : null);
+    if (related?.cancelled) { refreshActiveScheduleSurface(); return; }
+    // Predecessors that have no date yet: the placement can't be checked
+    // against them, so say so.
+    const waitingPredecessors = existing && Scheduling.eventDependencies
+      ? Scheduling.eventDependencies(existing).map((dep) => allEvents.find((item) => String(item.id || '') === String(dep.event_id || ''))).filter((item) => item && !eventIsScheduled(item))
+      : [];
+    // Placing onto a crew that already has work then says so (the lane also
+    // marks both chips double-booked).
+    const overlap = scheduleOverlapNote(event);
+    showPlacementSaving();
     try {
-      await Scheduling.saveProjectEvent(orgId(), project, event, schedulingConfig);
+      await Scheduling.saveProjectEvent(orgId(), project, withExplicitAssignees(event), schedulingConfig);
+      // The placement is done: the draft, banner and rail tile go at once;
+      // linked moves and group rollups finish behind it.
       updateLocalCalendarEvent(event.id, event);
       events = visibleEvents();
-      productionScheduleDraft = null;
-      productionScheduleEventId = '';
-      productionScheduleProjectId = '';
+      clearPlacementSelection();
       render();
+      if (related?.changes?.length) await saveRelatedRescheduleChanges(project, related.changes);
+      await persistGroupRollups(project, [event, ...(related?.changes || [])]);
       await loadData({ force: true });
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_9e8700da1990da","Work scheduled") ?? "Work scheduled"), (globalThis.PlatformLanguage?.text("scheduling","m_c0406f40f63018","The production schedule was updated.") ?? "The production schedule was updated."), true);
+      const when = eventStart(event) ? eventStart(event).toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' }) : '';
+      const movedNote = related?.changes?.length ? ` ${related.changes.length} linked item${related.changes.length === 1 ? ' was' : 's were'} moved too.` : '';
+      const waitingNote = waitingPredecessors.length ? ` It follows ${scheduleItemNames(waitingPredecessors)}, which ${waitingPredecessors.length === 1 ? 'has' : 'have'} no date yet.` : '';
+      showToast(
+        (globalThis.PlatformLanguage?.text("scheduling","m_9e8700da1990da","Work scheduled") ?? "Work scheduled"),
+        `${placing ? `“${clean(event.title) || 'The work'}” was placed${when ? ` on ${when}` : ''}.` : (globalThis.PlatformLanguage?.text("scheduling","m_c0406f40f63018","The production schedule was updated.") ?? "The production schedule was updated.")}${movedNote}${waitingNote}${outOfOrderNote(related?.leftOutOfOrder || 0)}${overlap}`,
+        !(related?.leftOutOfOrder) && !overlap
+      );
     } catch (error) {
+      if (isStaleSaveError(error)) { await reloadAfterStaleChange(); return; }
       showToast((globalThis.PlatformLanguage?.text("scheduling","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), error?.message || 'Could not schedule this production work.', false);
     }
   }
-  async function confirmProductionBundleDraft(primaryDraft = productionScheduleDraft){
+  async function confirmProductionBundleDraftNow(primaryDraft = productionScheduleDraft){
     const Scheduling = window.PlatformScheduling;
     const bundle = selectedProductionBundle();
     const project = bundle?.project || selectedProductionProject();
     if (!Scheduling || !bundle?.primary || !project?.id || !primaryDraft?.start) return;
     const drafts = scheduleBundleDrafts(primaryDraft);
     if (!drafts.length) return;
+    if (!(await confirmPastPlacement(primaryDraft.start, clean(bundle.primary.title) || projectTitle(project, bundle.primary)))) return;
     captureScheduleScroll();
     let savedCount = 0;
+    const placedItems = [];
+    // Refuse up front so a locked item never leaves the bundle half placed.
+    const lockedSource = drafts
+      .map((draft) => bundle.events.find((event) => String(event.id || '') === String(draft.id || draft.event_id || '')))
+      .find((source) => source && eventIsLocked(source));
+    if (lockedSource) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_84d1c4fbb42b86","Bundle scheduling failed") ?? "Bundle scheduling failed"), `${lockedSource.title || (globalThis.PlatformLanguage?.text("scheduling","m_ab2a08d55b6265","A schedule item") ?? "A schedule item")} is locked and could not be placed. Nothing was placed.`, false);
+      return;
+    }
+    // Drafts arrive in dependency order, so predecessors are saved first.
+    // The primary keeps what was typed in its draft editor.
+    const primaryId = String(bundle.primary.id || '');
+    const editorFields = (draft) => String(draft.id || draft.event_id || '') !== primaryId ? {} : Object.fromEntries(['title', 'title_is_custom', 'description', 'notes', 'customer_visible', 'customer_show_title', 'customer_show_crew', 'customer_description']
+      .filter((key) => Object.prototype.hasOwnProperty.call(primaryDraft, key) && primaryDraft[key] !== undefined && !(key === 'title' && !clean(primaryDraft.title)))
+      .map((key) => [key, primaryDraft[key]]));
+    drafts.forEach((draft) => {
+      const source = bundle.events.find((event) => String(event.id || '') === String(draft.id || draft.event_id || ''));
+      if (!source) return;
+      const material = isMaterialEvent(source);
+      placedItems.push({
+        ...Scheduling.updateProjectEventRange(source, {
+          start:new Date(draft.start),
+          end:new Date(draft.end),
+          all_day:draft.all_day !== false,
+          schedule_granularity:draft.schedule_granularity || (draft.all_day === false ? 'time' : 'date'),
+          ...(!material ? workResourcePayload(primaryDraft) : {})
+        }),
+        ...editorFields(draft),
+        status:'scheduled'
+      });
+    });
+    // Already-scheduled work outside the bundle that the placement puts out
+    // of dependency order: ask before placing (move them / place anyway).
+    const conflicts = await resolvePlacementDependencyConflicts(project, placedItems, clean(bundle.primary.title) || projectTitle(project, bundle.primary));
+    if (conflicts.cancelled) { refreshActiveScheduleSurface(); return; }
+    const linkedMoves = conflicts.changes;
+    const originals = new Map([...placedItems, ...linkedMoves].map((item) => [String(item.id || ''), allEvents.find((event) => String(event.id || '') === String(item.id || '')) || null]));
+    // Show the placed bundle right away; the saves run in order behind it,
+    // with progress, and leaving the page mid-save asks first.
+    [...placedItems, ...linkedMoves].forEach((next) => updateLocalCalendarEvent(next.id, next));
+    events = visibleEvents();
+    clearPlacementSelection();
+    render();
+    const toSave = [...placedItems, ...linkedMoves];
+    const guardUnload = (event) => { event.preventDefault(); event.returnValue = ''; return ''; };
+    window.addEventListener('beforeunload', guardUnload);
+    if (toSave.length > 1) showToast('Placing schedule', `Saving ${toSave.length} items in dependency order… Keep this page open until it finishes.`, true);
+    const savedItems = [];
     try {
-      for (const draft of drafts) {
-        const source = bundle.events.find((event) => String(event.id || '') === String(draft.id || draft.event_id || ''));
-        if (!source) continue;
-        if (eventIsLocked(source)) throw new Error(`${source.title || (globalThis.PlatformLanguage?.text("scheduling","m_ab2a08d55b6265","A schedule item") ?? "A schedule item")} is locked and could not be placed.`);
-        const material = isMaterialEvent(source);
-        const next = {
-          ...Scheduling.updateProjectEventRange(source, {
-            start:new Date(draft.start),
-            end:new Date(draft.end),
-            all_day:draft.all_day !== false,
-            schedule_granularity:draft.schedule_granularity || (draft.all_day === false ? 'time' : 'date'),
-            ...(!material ? workResourcePayload(primaryDraft) : {})
-          }),
-          status:'scheduled'
-        };
-        await Scheduling.saveProjectEvent(orgId(), project, next, schedulingConfig);
-        updateLocalCalendarEvent(next.id, next);
+      for (const next of toSave) {
+        const result = await Scheduling.saveProjectEvent(orgId(), project, next, schedulingConfig);
+        savedItems.push(result?.event?.id ? result.event : next);
         savedCount += 1;
       }
-      clearPlacementSelection();
-      render();
+      // The parent group takes its dates (and scheduled status) from its items.
+      await persistGroupRollups(project, toSave);
       await loadData({ force:true });
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_5f33d082e19857","Project schedule placed") ?? "Project schedule placed"), ((v0,v1) => globalThis.PlatformLanguage?.text("scheduling","m_b1f283577c009d",`${v0} related schedule item${v1} were placed from the project start date.`,{v0,v1}) ?? `${v0} related schedule item${v1} were placed from the project start date.`)(savedCount,savedCount === 1 ? '' : 's'), true);
+      const firstStart = placedItems.map((item) => eventStart(item)).filter(Boolean).sort((a, b) => a - b)[0];
+      const startLabel = firstStart ? firstStart.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' }) : '';
+      const placedCount = placedItems.length;
+      const movedNote = linkedMoves.length ? ` ${linkedMoves.length} linked item${linkedMoves.length === 1 ? ' was' : 's were'} moved to keep the order.` : '';
+      showToast(
+        (globalThis.PlatformLanguage?.text("scheduling","m_5f33d082e19857","Project schedule placed") ?? "Project schedule placed"),
+        `${placedCount === 1 ? `“${clean(placedItems[0].title) || 'The item'}” was placed` : `${placedCount} schedule items were placed in dependency order`}${startLabel ? `${placedCount === 1 ? ' on' : ', starting'} ${startLabel}` : ''}.${movedNote}${outOfOrderNote(conflicts.leftOutOfOrder)}`,
+        !conflicts.leftOutOfOrder
+      );
     } catch (error) {
+      // Keep the bundle all-or-nothing where possible: put the items that
+      // were already saved back the way they were.
+      let restored = 0;
+      for (const saved of savedItems.reverse()) {
+        const original = originals.get(String(saved.id || ''));
+        if (!original) continue;
+        // Put the schedule fields back on the copy just saved (its revision).
+        const restore = {
+          ...saved,
+          status:original.status, all_day:original.all_day, schedule_granularity:original.schedule_granularity || '',
+          start:original.start || '', end:original.end || '', start_at:original.start_at || '', end_at:original.end_at || '',
+          duration_minutes:original.duration_minutes
+        };
+        try { await Scheduling.saveProjectEvent(orgId(), project, restore, schedulingConfig); restored += 1; } catch (restoreError) {}
+      }
       await loadData({ force:true });
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_84d1c4fbb42b86","Bundle scheduling failed") ?? "Bundle scheduling failed"), `${error?.message || 'Could not place every schedule item.'}${savedCount ? ` ${savedCount} item${savedCount === 1 ? '' : 's'} were saved before the error.` : ''}`, false);
+      const kept = savedItems.length - restored;
+      if (isStaleSaveError(error) && !kept) { changedElsewhereToast(); return; }
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_84d1c4fbb42b86","Bundle scheduling failed") ?? "Bundle scheduling failed"), `${scheduleSaveErrorMessage(error, 'Could not place every schedule item.')}${kept ? ` ${kept} item${kept === 1 ? ' was' : 's were'} saved before the error and could not be undone.` : ' Nothing was placed.'}`, false);
+    } finally {
+      window.removeEventListener('beforeunload', guardUnload);
     }
   }
-  async function confirmMaterialDraft(draft = materialScheduleDraft){
+  /* Dependency links between the items being placed and already-scheduled
+   * work that the placement would put out of order. Asks once:
+   *   Cancel / Place anyway / Move linked items (scheduled successors that can
+   *   move are pushed to the earliest start the link allows).
+   * -> { cancelled, changes, leftOutOfOrder } */
+  async function resolvePlacementDependencyConflicts(project = {}, placedItems = [], label = 'This item'){
+    const Scheduling = window.PlatformScheduling;
+    const none = { cancelled:false, changes:[], leftOutOfOrder:0 };
+    if (!Scheduling?.dependencyViolations || !project?.id || !placedItems.length) return none;
+    const placedById = new Map(placedItems.map((item) => [String(item.id || ''), item]));
+    const effective = projectScheduleItems(project.id).map((item) => placedById.get(String(item.id || '')) || item);
+    let violations = [];
+    try { violations = Scheduling.dependencyViolations(effective, { config:schedulingConfig }); } catch (error) { return none; }
+    violations = violations.filter((edge) => placedById.has(String(edge.from || '')) !== placedById.has(String(edge.to || '')));
+    if (!violations.length) return none;
+    const byId = new Map(effective.map((item) => [String(item.id || ''), item]));
+    const fixed = (event) => eventIsLocked(event) || Scheduling.eventIsFixed?.(event) === true || ['completed', 'complete', 'done'].includes(clean(event?.status).toLowerCase());
+    const movable = new Map();
+    violations.forEach((edge) => {
+      const successor = byId.get(String(edge.to || ''));
+      if (!successor || placedById.has(String(successor.id || '')) || fixed(successor)) return;
+      const earliest = validDate(edge.earliest_start);
+      const start = eventStart(successor);
+      if (!earliest || !start) return;
+      const previous = movable.get(String(successor.id || ''));
+      if (previous && validDate(previous.start) >= earliest) return;
+      const end = eventEnd(successor) || addDays(start, 1);
+      const allDay = successor.all_day === true || clean(successor.schedule_granularity).toLowerCase() === 'date';
+      const nextStart = allDay ? (earliest.getHours() || earliest.getMinutes() ? addDays(startOfDay(earliest), 1) : earliest) : earliest;
+      movable.set(String(successor.id || ''), { ...Scheduling.updateProjectEventRange(successor, { start:nextStart, end:new Date(nextStart.getTime() + (end.getTime() - start.getTime())), all_day:allDay, schedule_granularity:allDay ? 'date' : 'time' }), status:'scheduled' });
+    });
+    const describe = violations.slice(0, 3).map((edge) => {
+      const from = byId.get(String(edge.from || ''));
+      const to = byId.get(String(edge.to || ''));
+      return `“${clean(to?.title) || 'An item'}” would start before “${clean(from?.title) || 'the item'}” it follows`;
+    });
+    const more = violations.length > 3 ? ` and ${violations.length - 3} more` : '';
+    const choices = [
+      { value:'cancel', label:(globalThis.PlatformLanguage?.text("scheduling","m_cbef679b21abb4","Cancel") ?? "Cancel") },
+      { value:'anyway', label:'Place anyway' },
+      ...(movable.size ? [{ value:'move', label:`Move ${movable.size === 1 ? 'it' : 'them'} too`, primary:true }] : [])
+    ];
+    const message = `Placing “${clean(label) || 'this item'}” puts linked work out of order: ${describe.join('; ')}${more}.${movable.size ? ` Move the ${movable.size === 1 ? 'later item' : `${movable.size} later items`} so the order holds?` : ''}`;
+    const choice = window.Portal?.ui?.choose
+      ? await window.Portal.ui.choose(message, movable.size ? choices : choices.map((item) => item.value === 'anyway' ? { ...item, primary:true } : item), { title:'Dependency conflict' })
+      : ((await (window.PlatformUI?.confirm?.(message, { title:'Dependency conflict', okLabel:'Place anyway', cancelLabel:'Cancel' }))) ? 'anyway' : 'cancel');
+    if (!choice || choice === 'cancel') return { ...none, cancelled:true };
+    if (choice === 'move') return { cancelled:false, changes:[...movable.values()], leftOutOfOrder:Math.max(0, violations.length - movable.size) };
+    return { cancelled:false, changes:[], leftOutOfOrder:violations.length };
+  }
+  async function confirmMaterialDraftNow(draft = materialScheduleDraft){
     const Scheduling = window.PlatformScheduling;
     const event = selectedMaterialEvent();
     const project = selectedMaterialProject() || eventProject(event || {});
@@ -4473,6 +7685,7 @@
       return;
     }
     const start = new Date(draft.start);
+    if (!eventIsScheduled(event) && !(await confirmPastPlacement(start, `${materialDeliveryTitle(event)} delivery`))) return;
     const allDay = draft.all_day !== false;
     const fallbackEnd = allDay ? addDays(start, 1) : new Date(start.getTime() + Math.max(15, Number(event.duration_minutes || 60)) * 60000);
     const next = {
@@ -4489,6 +7702,7 @@
       customer_show_crew: draft.customer_show_crew === true,
       customer_description: clean(draft.customer_description)
     };
+    showPlacementSaving();
     try {
       await Scheduling.saveProjectEvent(orgId(), project, next, schedulingConfig);
       materialScheduleDraft = null;
@@ -4498,9 +7712,14 @@
       productionScheduleEventId = '';
       productionScheduleProjectId = '';
       focusedScheduleEventId = next.id;
+      // Placed: draft, banner and rail tile update before the reload.
+      updateLocalCalendarEvent(next.id, next);
+      events = visibleEvents();
+      render();
       await loadData({ force: true });
       showToast((globalThis.PlatformLanguage?.text("scheduling","m_0c0a1a5bde2186","Delivery scheduled") ?? "Delivery scheduled"), ((v0) => globalThis.PlatformLanguage?.text("scheduling","m_ffc8470f2fd563",`${v0} was placed on the calendar.`,{v0}) ?? `${v0} was placed on the calendar.`)(event.title || 'Material delivery'), true);
     } catch (error) {
+      if (isStaleSaveError(error)) { await reloadAfterStaleChange(); return; }
       showToast((globalThis.PlatformLanguage?.text("scheduling","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), error?.message || 'Could not schedule this material delivery.', false);
       await loadData({ force: true });
     }
@@ -4512,9 +7731,19 @@
       || String(event?.id || '').startsWith('floating_')
       || floatingEvents.some((item) => String(item.id || '') === String(event?.id || ''));
     if (!event?.id || (!floating && (!Scheduling || !project?.id))) return;
-    const material = isMaterialEvent(event);
-    const locked = eventIsLocked(event);
-    const ordered = material && materialEventIsOrdered(event);
+    if (!canEditSchedule()) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), scheduleReadOnlyMessage(), VIEW_ONLY_TOAST);
+      return false;
+    }
+    // Lock the stored item (never an editor's unsaved draft copy), as it is
+    // stored right now: only the lock fields change, so a move or edit made
+    // elsewhere since this view loaded is never reverted by the lock save.
+    const knownEvent = floating
+      ? (floatingEvents.find((item) => String(item.id || '') === String(event.id || '')) || event)
+      : (allEvents.find((item) => String(item.id || '') === String(event.id || '')) || event);
+    const material = isMaterialEvent(knownEvent);
+    const locked = eventIsLocked(knownEvent);
+    const ordered = material && materialEventIsOrdered(knownEvent);
     const nextLocked = typeof requestedLocked === 'boolean' ? requestedLocked : !locked;
     if (nextLocked === locked) return;
     if (locked && !nextLocked && ordered) {
@@ -4527,12 +7756,11 @@
       if (!confirmed) return;
     }
     const now = new Date().toISOString();
-    const next = {
-      ...event,
+    const lockFieldsFor = (base = {}) => ({
       locked: nextLocked,
       schedule_locked: nextLocked,
       schedule_lock: {
-        ...(event.schedule_lock || {}),
+        ...(base.schedule_lock || {}),
         locked: nextLocked,
         reason: ordered ? 'material_order' : 'manual',
         locked_at: nextLocked ? now : '',
@@ -4540,24 +7768,49 @@
       },
       unlock_confirmed: locked && !nextLocked,
       updated_at: now
+    });
+    // The chip and editor show the new lock state right away; a failed or
+    // refused save puts the stored state back.
+    const revertLocal = () => {
+      if (floating) floatingEvents = [knownEvent, ...floatingEvents.filter((item) => String(item.id || '') !== String(knownEvent.id || ''))];
+      else updateLocalCalendarEvent(knownEvent.id, { locked:knownEvent.locked, schedule_locked:knownEvent.schedule_locked, schedule_lock:knownEvent.schedule_lock, unlock_confirmed:knownEvent.unlock_confirmed });
+      events = visibleEvents();
+      refreshActiveScheduleSurface();
     };
+    if (floating) updateFloatingEvent({ ...knownEvent, ...lockFieldsFor(knownEvent) });
+    else updateLocalCalendarEvent(knownEvent.id, lockFieldsFor(knownEvent));
+    events = visibleEvents();
+    refreshActiveScheduleSurface();
     try {
+      const lockCheck = await checkStoredScheduleEvent(knownEvent, ['lock']);
+      if (lockCheck.conflict) throw staleScheduleError();
+      const base = lockCheck.fresh || knownEvent;
+      const next = { ...base, ...lockFieldsFor(base) };
       if (floating) {
-        const saved = updateFloatingEvent(next);
-        render();
-        await persistFloatingEvent(saved);
+        const saved = await persistFloatingEvent(decorateFloatingEvent(next));
+        updateFloatingEvent({ ...next, ...(saved || {}) });
       } else {
-        await Scheduling.saveProjectEvent(orgId(), project, next, schedulingConfig);
+        const saved = await Scheduling.saveProjectEvent(orgId(), project, withExplicitAssignees(next), schedulingConfig);
+        updateLocalCalendarEvent(knownEvent.id, saved?.event ? { locked:saved.event.locked, schedule_locked:saved.event.schedule_locked, schedule_lock:saved.event.schedule_lock } : {});
       }
-      focusedScheduleEventId = event.id;
-      await loadData({ force: true });
+      events = visibleEvents();
+      refreshActiveScheduleSurface();
+      focusedScheduleEventId = knownEvent.id;
+      loadData({ force: true }).catch(() => null);
       showToast(
         nextLocked ? (material ? 'Delivery locked' : 'Schedule locked') : (material ? 'Delivery unlocked' : 'Schedule unlocked'),
         nextLocked ? 'The scheduled time is protected.' : 'You can move this item now.',
         true
       );
+      return true;
     } catch (error) {
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_b20cc0a5a8b73a","Lock update failed") ?? "Lock update failed"), error?.message || 'Could not update this scheduling lock.', false);
+      revertLocal();
+      if (isStaleSaveError(error)) {
+        await reloadAfterStaleChange();
+        return false;
+      }
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_b20cc0a5a8b73a","Lock update failed") ?? "Lock update failed"), scheduleSaveErrorMessage(error, 'Could not update this scheduling lock.'), false);
+      return false;
     }
   }
   function routingScaleButtons(scope, active){
@@ -4593,12 +7846,19 @@
     const travelBtn = scale === 'hourly' && travelTimeEnabled()
       ? `<button type="button" class="dash-routing-travel ${String(travelOn ? 'active' : '')}" data-routing-travel="${String(scopeId)}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_b5b71930035fd1","Show live travel time between stops") ?? "Show live travel time between stops")}" aria-pressed="${String(travelOn ? 'true' : 'false')}"><i class="fas fa-route"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_4f79c5c52d9990"," Travel") ?? " Travel")}</button>`
       : '';
-    const autoRouteBtn = scale === 'hourly'
-      ? `<button type="button" class="dash-routing-travel" data-routing-optimize="${String(scopeId)}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_de861b5028f734","Assign this day's appointments to the best people by travel time") ?? "Assign this day's appointments to the best people by travel time")}"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d9a77d0e85805b"," Auto-route") ?? " Auto-route")}</button>`
+    // Auto-route changes assignments, so view-only sessions don't get it. In
+    // Production it only orders timed single-crew jobs by travel (crews stay).
+    const autoRouteTitle = scopeId === 'production'
+      ? 'Order this day’s timed single-crew jobs by travel time. Crews stay as assigned; all-day, multi-crew and unassigned work is left alone.'
+      : (globalThis.PlatformLanguage?.text("scheduling","m_de861b5028f734","Assign this day's appointments to the best people by travel time") ?? "Assign this day's appointments to the best people by travel time");
+    const autoRouteBtn = scale === 'hourly' && canEditSchedule()
+      ? `<button type="button" class="dash-routing-travel" data-routing-optimize="${String(scopeId)}" title="${escapeHtml(autoRouteTitle)}"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d9a77d0e85805b"," Auto-route") ?? " Auto-route")}</button>`
       : '';
     const conflictCount = scale === 'hourly' ? routingDayConflicts(scopeId).length : 0;
     const overbookedCount = scale === 'hourly' ? Number(routingOverbooked[`${scopeId}:${routingDateValue()}`] || 0) : 0;
+    const doubleBookedCount = scale === 'hourly' && scopeId === 'sales' ? routingDoubleBookedIds().size : 0;
     const flagHtml = [
+      doubleBookedCount ? `<span class="dash-routing-flag double-booked" title="${escapeHtml(`${doubleBookedCount} appointments overlap another appointment for the same salesperson`)}"><i class="fas fa-user-clock" aria-hidden="true"></i> ${escapeHtml(`${doubleBookedCount} double-booked`)}</span>` : '',
       conflictCount ? `<span class="dash-routing-flag conflict" title="${((v0,v1,v2) => globalThis.PlatformLanguage?.htmlText("scheduling","m_1e000bf8e3efa8",`${v0} appointment${v1} assigned to an unavailable team member and need${v2} rescheduling`,{v0,v1,v2}) ?? `${v0} appointment${v1} assigned to an unavailable team member and need${v2} rescheduling`)(conflictCount,conflictCount === 1 ? ' is' : 's are',conflictCount === 1 ? 's' : '')}"><i class="fas fa-triangle-exclamation"></i>${((v3,v4) => globalThis.PlatformLanguage?.htmlText("scheduling","m_f2fd2f6805fe78",` ${v3} conflict${v4}`,{v3,v4}) ?? ` ${v3} conflict${v4}`)(conflictCount,conflictCount === 1 ? '' : 's')}</span>` : '',
       overbookedCount ? `<span class="dash-routing-flag overbooked" title="${((v0,v1) => globalThis.PlatformLanguage?.htmlText("scheduling","m_6085bc21c921bf",`The day is overbooked: ${v0} appointment${v1} could not be assigned to anyone`,{v0,v1}) ?? `The day is overbooked: ${v0} appointment${v1} could not be assigned to anyone`)(overbookedCount,overbookedCount === 1 ? '' : 's')}"><i class="fas fa-calendar-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_86a7bd113ad386"," Overbooked") ?? " Overbooked")}</span>` : ''
     ].join('');
@@ -4606,7 +7866,7 @@
       ? `<time class="dash-routing-date" datetime="${routingDateValue()}">${escapeHtml(routingDateLabel())}</time>`
       : '';
     const vehicleButton = scopeId === 'production' && equipmentSchedulingOn()
-      ? `<button type="button" class="dash-routing-vehicles ${String(productionVehiclesVisible ? 'active' : '')}" data-routing-vehicles aria-pressed="${String(productionVehiclesVisible ? 'true' : 'false')}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_266a463e7e8cbd","Show vehicle assignment lanes") ?? "Show vehicle assignment lanes")}"><i class="fas fa-truck-pickup"></i></button>`
+      ? `<button type="button" class="dash-routing-vehicles ${String(productionVehiclesVisible ? 'active' : '')}" data-routing-vehicles aria-pressed="${String(productionVehiclesVisible ? 'true' : 'false')}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_266a463e7e8cbd","Show vehicle assignment lanes") ?? "Show vehicle assignment lanes")}"><i class="fas fa-truck-pickup" aria-hidden="true"></i><span>Vehicles</span></button>`
       : '';
     return `<div class="dash-schedule-pane" data-routing-pane="${scopeId}">
       <div class="dash-schedule-pane-title"><span class="dash-schedule-pane-heading"><span>${escapeHtml(scope)}</span>${dateLabel}</span><span class="dash-routing-pane-controls">${flagHtml}${autoRouteBtn}${travelBtn}${vehicleButton}${routingScaleButtons(scope, scale)}</span></div>
@@ -4647,17 +7907,45 @@
       return `<div class="dash-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_1364a554d79704","Turn on Sales or Production to show a routing schedule.") ?? "Turn on Sales or Production to show a routing schedule.")}</div>`;
     }
     if (!isMobileScheduleLayout()) {
-      return `<div class="dash-card dash-schedule-card"><div class="dash-schedule-split">${availablePanes.map((pane) => routingPane(pane.label, pane.mount, pane.scale)).join('')}</div></div>`;
+      return `<div class="dash-card dash-schedule-card">${placementBannerHtml('routing')}<div class="dash-schedule-split">${availablePanes.map((pane) => routingPane(pane.label, pane.mount, pane.scale)).join('')}</div></div>`;
     }
     if (!availablePanes.some((pane) => pane.id === mobileRoutingPane)) {
       mobileRoutingPane = availablePanes.some((pane) => pane.id === scheduleMode) ? scheduleMode : availablePanes[0].id;
     }
     const activePane = availablePanes.find((pane) => pane.id === mobileRoutingPane) || availablePanes[0];
     const tabs = ("<div class=\"dash-routing-tabs\" role=\"tablist\" aria-label=\"" + (globalThis.PlatformLanguage?.text("scheduling","m_584e2a4849003b","Routing schedule") ?? "Routing schedule") + "\">" + String(availablePanes.map((pane) => `<button type="button" class="dash-routing-tab ${pane.id === activePane.id ? 'active' : ''}" data-mobile-routing-pane="${pane.id}" role="tab" aria-selected="${pane.id === activePane.id ? 'true' : 'false'}">${escapeHtml(pane.label)}</button>`).join('')) + "</div>");
-    return `<div class="dash-card dash-schedule-card">${tabs}<div class="dash-schedule-split mobile-routing">${routingPane(activePane.label, activePane.mount, activePane.scale)}</div>${renderMobileRoutingPlacementDock(activePane.id)}</div>`;
+    return `<div class="dash-card dash-schedule-card">${tabs}${placementBannerHtml('routing')}<div class="dash-schedule-split mobile-routing">${routingPane(activePane.label, activePane.mount, activePane.scale)}</div>${renderMobileRoutingPlacementDock(activePane.id)}</div>`;
   }
   function renderEventCalendarShell(){
-    return `<div class="dash-card dash-schedule-card"><div id="dashEventCalendarView" class="dash-schedule-view ${mobileCalendarSwipeDirection ? `mobile-swipe-${mobileCalendarSwipeDirection}` : ''}"></div></div>`;
+    return `<div class="dash-card dash-schedule-card">${placementBannerHtml('calendar')}<div id="dashEventCalendarView" class="dash-schedule-view ${mobileCalendarSwipeDirection ? `mobile-swipe-${mobileCalendarSwipeDirection}` : ''}"></div></div>`;
+  }
+  // Sales appointments on the Routing day that overlap another appointment
+  // of the same salesperson.
+  function routingDoubleBookedIds(){
+    const day = routingDateValue();
+    return doubleBookedEventIds(salesRoutingEvents().filter((event) => {
+      const start = eventStart(event);
+      return start && routingDateValue(start) === day;
+    }));
+  }
+  // Brings a selected, already-dated appointment into view in the Sales pane.
+  function scrollRoutingToEvent(eventId = ''){
+    const pane = rootEl?.querySelector('#dashScheduleViewSales');
+    const chip = pane?.querySelector(`[data-prs-event-id="${window.CSS?.escape ? window.CSS.escape(String(eventId)) : String(eventId)}"]`);
+    const scroll = chip?.closest('.prs-resource-scroll');
+    if (!chip || !scroll) return;
+    const chipRect = chip.getBoundingClientRect();
+    const scrollRect = scroll.getBoundingClientRect();
+    const label = scroll.querySelector('.prs-resource-label');
+    const labelWidth = label?.getBoundingClientRect?.().width || 0;
+    const visibleLeft = scrollRect.left + labelWidth;
+    if (chipRect.left < visibleLeft + 8 || chipRect.right > scrollRect.right - 8) {
+      scroll.scrollLeft += Math.round(chipRect.left - visibleLeft - Math.max(24, (scrollRect.width - labelWidth - chipRect.width) / 2));
+    }
+    if (chipRect.top < scrollRect.top || chipRect.bottom > scrollRect.bottom) {
+      scroll.scrollTop += Math.round(chipRect.top - scrollRect.top - 40);
+    }
+    captureScheduleScroll();
   }
   function stackMobileRoutingTimeHeaders(mount){
     if (!isMobileScheduleLayout() || !mount) return;
@@ -4678,50 +7966,96 @@
     if (!mount || !window.PlatformScheduleView || !schedulingConfig) return;
     const selected = selectedScheduleProject();
     const selectedEvent = selectedScheduleEvent();
+    const scheduleEditable = canEditSchedule();
+    const placementEnabled = scheduleEditable && !!(selected?.id && selectedEvent && (!eventIsScheduled(selectedEvent) || !currentAssignmentId(selectedEvent)));
+    const creationEnabled = scheduleEditable && !!(selected?.id && selectedEvent && !eventIsScheduled(selectedEvent));
+    // A waiting appointment that is being placed shows as its draft only (the
+    // stored copy in "Unassigned" steps aside while the draft is staged).
+    const stagedSalesId = placementEnabled && appointmentScheduleDraft?.start ? String(selectedEvent?.id || '') : '';
     const routingEvents = salesRoutingEvents();
-    const placementEnabled = !!(selected?.id && selectedEvent && (!eventIsScheduled(selectedEvent) || !currentAssignmentId(selectedEvent)));
-    const creationEnabled = !!(selected?.id && selectedEvent && !eventIsScheduled(selectedEvent));
+    if (stagedSalesId) routingEvents.splice(0, routingEvents.length, ...routingEvents.filter((event) => String(event.id || '') !== stagedSalesId));
+    // Dragging the waiting appointment itself (dated but unassigned) stages a
+    // draft + ✓ as in Week/Month instead of saving at once.
+    const isWaitingSalesItem = (event = {}) => placementEnabled && !!selectedEvent && String(event?.id || '') === String(selectedEvent.id || '') && event?.__draft !== true;
+    const stageWaitingSalesMove = (range = {}) => {
+      if (!range?.start) return;
+      recordPlacementHistory();
+      const user = assignableResources.find((resource) => clean(resource.id) === clean(currentAssignmentId(range))) || null;
+      const assignment = user ? assignmentPayloadForSubject(user) : assignmentPayloadForEvent({ ...selectedEvent, ...range });
+      appointmentScheduleEventId = String(selectedEvent.id || '');
+      appointmentScheduleProjectId = String(selectedEvent.project_id || selected?.id || '');
+      appointmentScheduleDraft = { ...salesDraftAtStart(range.start, range.all_day === false ? range.end : null), user, assignment };
+      render();
+      refreshPlacementEditor();
+    };
     const assignableResources = salesResources(selectedEvent || { event_type_default_id:'sales_appointment' });
     const salesResourceId = (event = {}) => currentAssignmentId(event);
     const resourcePayload = (resource = {}) => assignmentPayloadForSubject(resource);
-    const openAssignmentResourceSettings = (resource, meta = {}) => {
+    // Row the draft sits in: a lane chosen for it, else the appointment's own
+    // salesperson (never silently "Unassigned").
+    const draftAssignment = salesDraftAssignment(appointmentScheduleDraft, selectedEvent);
+    const laneAssignment = (next = {}) => {
+      const user = assignableResources.find((resource) => clean(resource.id) === clean(currentAssignmentId(next))) || null;
+      return { user, assignment:user ? assignmentPayloadForSubject(user) : assignmentPayloadForEvent(next) };
+    };
+    // Lane settings (profile, crew settings) are for schedule managers only.
+    const openAssignmentResourceSettings = scheduleEditable ? (resource, meta = {}) => {
       if (clean(resource?.subject_type || resource?.resource_kind) === 'organization_user') openScheduleUserSettings(resource, meta);
       else openScheduleWorkResourceSettings(resource, meta);
-    };
+    } : undefined;
     if (salesRoutingScale === 'daily' && window.PlatformScheduleView.renderResourceDayScheduler) {
       const duration = Number(selectedEvent?.duration_minutes || schedulingConfig?.event_types?.sales_appointment?.duration_minutes || 60);
       const draftStart = appointmentScheduleDraft?.start ? new Date(appointmentScheduleDraft.start) : null;
-      const draft = draftStart ? {
-        ...appointmentScheduleDraft,
+      // Before it has a day the draft is still passed (without a start) so the
+      // hover preview and first placement look like this appointment, not a
+      // grey untyped "New Event".
+      const draft = draftStart || placementEnabled ? {
+        ...(selectedEvent || {}),
+        ...(appointmentScheduleDraft || {}),
         id:appointmentScheduleEventId || '__sales_routing_draft',
         event_id:appointmentScheduleEventId || '',
-        title:appointmentScheduleDraft.title || selectedEvent?.title || (globalThis.PlatformLanguage?.text("scheduling","m_600f41e7dca79d","Sales Appointment") ?? "Sales Appointment"),
+        event_type_default_id:eventTypeId(selectedEvent || {}) || 'sales_appointment',
+        type_id:eventTypeId(selectedEvent || {}) || 'sales_appointment',
+        title:appointmentScheduleDraft?.title || selectedEvent?.title || (globalThis.PlatformLanguage?.text("scheduling","m_600f41e7dca79d","Sales Appointment") ?? "Sales Appointment"),
+        project_title:projectTitle(selected || {}, selectedEvent || {}),
         start:draftStart,
-        end:new Date(draftStart.getTime() + duration * 60000),
+        end:draftStart ? new Date(draftStart.getTime() + duration * 60000) : null,
         all_day:false,
         schedule_granularity:'time',
-        ...resourcePayload(appointmentScheduleDraft.user || null)
+        ...draftAssignment
       } : null;
       const applyDailyDraft = (next = {}) => {
         if (!next?.start) return;
-        const originalStart = appointmentScheduleDraft?.start ? new Date(appointmentScheduleDraft.start) : eventStart(selectedEvent);
         const start = new Date(next.start);
-        start.setHours(originalStart?.getHours?.() ?? 9, originalStart?.getMinutes?.() ?? 0, 0, 0);
-        const user = assignableResources.find((resource) => clean(resource.id) === clean(next.resource_id || next.assigned_user_id || next.assigned_resource_id || '')) || null;
-        appointmentScheduleDraft = { ...(appointmentScheduleDraft || {}), start, user };
-        const btn = rootEl?.querySelector('[data-dash-confirm-schedule]');
-        if (btn) btn.disabled = false;
+        // A day cell only carries the date: keep the draft's (or the
+        // appointment's) time of day, else start of the booking window.
+        if (next.all_day !== false && next.schedule_granularity !== 'time') {
+          const originalStart = appointmentScheduleDraft?.start ? new Date(appointmentScheduleDraft.start) : eventStart(selectedEvent);
+          const fallbackMinutes = minutesForClock(appointmentWindowForDate(routeDate(start)).start, 9 * 60);
+          start.setHours(originalStart ? originalStart.getHours() : Math.floor(fallbackMinutes / 60), originalStart ? originalStart.getMinutes() : fallbackMinutes % 60, 0, 0);
+        }
+        const { user, assignment } = laneAssignment(next);
+        appointmentScheduleDraft = { ...salesDraftAtStart(start), user, assignment };
+        refreshRailDraftLabel();
+        refreshPlacementBanner();
+        refreshPlacementEditor();
       };
       window.PlatformScheduleView.renderResourceDayScheduler(mount, {
         Scheduling:window.PlatformScheduling,
         config:schedulingConfig,
         project:selected || null,
         events:routingEvents,
-        draft,
+        draft:renderedPlacementDraft(draft),
         activeDraftId:draft?.id || '',
-        resources:assignableResources,
+        resources:routingLanesForFilter(assignableResources, routingEvents, salesResourceId),
         allowCreate:placementEnabled,
-        allowEdit:true,
+        // View-only sessions can look but not move appointments; every chip
+        // (locked ones too) still opens its read-only/locked editor, and the
+        // renderer refuses drags of locked chips.
+        allowEdit:scheduleEditable,
+        canEditEvent:() => true,
+        onLockedDragAttempt:scheduleLockedDragAttempt,
+        onReadOnlyDragAttempt:scheduleReadOnlyDragAttempt,
         date:anchorDate,
         mode:'week',
         dayCount:180,
@@ -4732,21 +8066,26 @@
         showToolbar:false,
         modeLabel:'Sales daily view',
         resourceHeader:'Assignee',
-        unassignedLabel:'Assign later',
+        unassignedLabel:'Unassigned',
         resourceIdForItem:salesResourceId,
         resourcePayload,
         onResourceSettings:openAssignmentResourceSettings,
-        onNavigate(nextDate){ anchorDate = nextDate; render(); },
+        // Paging the lanes keeps date= (and the title) in step.
+        onNavigate(nextDate){ anchorDate = validDate(nextDate) || anchorDate; syncScheduleRoute({ date:routeDate() }, { history:'replace', source:'sales-routing-date', ownedKeys:['date'] }); render(); },
         onDraftChange(next){ recordPlacementHistory(); applyDailyDraft(next); },
+        // Clicking the staged draft opens its editor beside it (Save = ✓).
+        onDraftSelect(draft){ if (isPlacementDraftEvent(draft)) openPlacementDraftEditor(draft); },
         onDraftConfirm(next){ applyDailyDraft(next); return confirmDashboardDraft(); },
+        // Moving a placed appointment saves right away like every other view;
+        // the renderer keeps its time of day on a day-to-day move. The waiting
+        // appointment being placed is staged as a draft instead.
         onEventRangeChange(event, range){
-          appointmentScheduleProjectId = String(event?.project_id || '');
-          appointmentScheduleEventId = String(event?.id || '');
-          applyDailyDraft(range);
-          confirmDashboardDraft();
+          if (isWaitingSalesItem(event)) { stageWaitingSalesMove(range); return; }
+          saveEventCalendarRange(event, range);
         },
         onEventClick(event, meta = {}){ openPlacedCalendarEvent(event, meta); }
       });
+      markDoubleBookedChips(mount, doubleBookedEventIds(routingEvents));
       return;
     }
     if (!window.PlatformScheduleView.renderResourceTimeScheduler) return;
@@ -4756,31 +8095,34 @@
     const workStartMinutes = minutesForClock(windowForDay.start, 8 * 60);
     const workEndMinutes = Math.max(workStartMinutes + 30, minutesForClock(windowForDay.end, 18 * 60));
     const draftStart = appointmentScheduleDraft?.start ? new Date(appointmentScheduleDraft.start) : null;
-    const draftResource = appointmentScheduleDraft?.user || null;
-    const draft = creationEnabled ? {
+    const draft = creationEnabled || (placementEnabled && draftStart) ? {
       ...(selectedEvent || {}),
       ...(appointmentScheduleDraft || {}),
       id:appointmentScheduleEventId || selectedEvent?.id || '__sales_routing_draft',
       event_id:selectedEvent?.id || '',
+      event_type_default_id:eventTypeId(selectedEvent || {}) || 'sales_appointment',
       title:appointmentScheduleDraft?.title || selectedEvent?.title || (globalThis.PlatformLanguage?.text("scheduling","m_600f41e7dca79d","Sales Appointment") ?? "Sales Appointment"),
       start:draftStart,
-      end:draftStart ? new Date(draftStart.getTime() + duration * 60000) : null,
+      end:draftStart ? salesDraftEnd(selectedEvent || {}) : null,
       all_day:false,
       schedule_granularity:'time',
-      ...resourcePayload(draftResource)
+      ...draftAssignment
     } : null;
     window.PlatformScheduleView.renderResourceTimeScheduler(mount, {
       Scheduling:window.PlatformScheduling,
       config:schedulingConfig,
       project:selected || null,
       events:routingEvents,
-      draft,
+      draft:renderedPlacementDraft(draft),
       activeDraftId:draft?.id || '',
-      resources:schedulerResourcesForDay(assignableResources, routingDateValue()),
-      onResourceAvailabilityToggle(resource, meta = {}){ toggleSubjectAvailability(resource?.id, meta.date || routingDateValue()); },
+      resources:schedulerResourcesForDay(routingLanesForFilter(assignableResources, routingEvents, salesResourceId), routingDateValue()),
+      // View-only sessions see availability but can't change it.
+      ...(scheduleEditable ? { onResourceAvailabilityToggle(resource, meta = {}){ toggleSubjectAvailability(resource?.id, meta.date || routingDateValue()); } } : {}),
       allowCreate:creationEnabled,
-      allowEdit:true,
-      canEditEvent:(event) => !eventIsLocked(event),
+      allowEdit:scheduleEditable,
+      canEditEvent:() => true,
+      onLockedDragAttempt:scheduleLockedDragAttempt,
+      onReadOnlyDragAttempt:scheduleReadOnlyDragAttempt,
       date:anchorDate,
       slotMinutes:30,
       fixedDurationMinutes:creationEnabled ? duration : 0,
@@ -4798,33 +8140,39 @@
       onResourceSettings:openAssignmentResourceSettings,
       onNavigate(nextDate){
         anchorDate = startOfDay(nextDate) || new Date();
-        appointmentScheduleDraft = null;
-        appointmentScheduleProjectId = '';
-        appointmentScheduleEventId = '';
+        // Paging days keeps the rail selection; a staged draft stays on its day.
         appointmentScheduleMenuEventId = '';
         resetScheduleScrollPersistence();
         syncScheduleRoute({ date:routeDate() }, { history:'replace', source:'sales-routing-date', ownedKeys:['date'] });
         render();
       },
-      onEventRangeChange(event, range){ saveEventCalendarRange(event, range); },
+      onEventRangeChange(event, range){
+        // The waiting appointment being placed is staged (draft + ✓), as in
+        // Week/Month; other appointments save right away.
+        if (isWaitingSalesItem(event)) { stageWaitingSalesMove(range); return; }
+        saveEventCalendarRange(event, range);
+      },
       onEventClick(event, meta = {}){ openPlacedCalendarEvent(event, meta); },
       onTravelTimeResolved(result){ persistTravelTime(result); },
+      onDraftSelect(draft){ if (isPlacementDraftEvent(draft)) openPlacementDraftEditor(draft); },
       onDraftChange(selection){
-        if (!creationEnabled || !selection?.start) return;
+        if (!placementEnabled || !selection?.start) return;
         recordPlacementHistory();
         appointmentScheduleMenuEventId = '';
-        const user = assignableResources.find((resource) => clean(resource.id) === clean(currentAssignmentId(selection))) || null;
-        appointmentScheduleDraft = { ...(appointmentScheduleDraft || {}), ...selection, start:selection.start, user };
-        const btn = rootEl?.querySelector('[data-dash-confirm-schedule]');
-        if (btn) btn.disabled = false;
+        const { user, assignment } = laneAssignment(selection);
+        appointmentScheduleDraft = { ...(appointmentScheduleDraft || {}), ...selection, start:selection.start, user, assignment };
+        refreshRailDraftLabel();
+        refreshPlacementBanner();
+        refreshPlacementEditor();
       },
       onDraftConfirm(draft){
-        if (!creationEnabled || !draft?.start) return;
-        const user = assignableResources.find((resource) => clean(resource.id) === clean(currentAssignmentId(draft))) || null;
-        appointmentScheduleDraft = { ...(appointmentScheduleDraft || {}), ...draft, user };
+        if (!placementEnabled || !draft?.start) return;
+        const { user, assignment } = laneAssignment(draft);
+        appointmentScheduleDraft = { ...(appointmentScheduleDraft || {}), ...draft, user, assignment };
         return confirmDashboardDraft();
       }
     });
+    markDoubleBookedChips(mount, routingDoubleBookedIds());
   }
   function fitRoutingScheduleHeights(){
     const split = rootEl?.querySelector('.dash-schedule-split');
@@ -4857,74 +8205,18 @@
   function renderScheduleLibraryView(){
     const splitSales = rootEl?.querySelector('#dashScheduleViewSales');
     const splitProduction = rootEl?.querySelector('#dashScheduleViewProduction');
+    // First load: show a loading state rather than empty lanes.
+    if (scheduleInitialLoading()) {
+      [splitSales, splitProduction].filter(Boolean).forEach((mount) => {
+        mount.innerHTML = '<div class="dash-schedule-loading" role="status"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i>Loading schedule…</div>';
+      });
+      requestAnimationFrame(fitRoutingScheduleHeights);
+      return;
+    }
     if (splitSales) renderSalesScheduleView(splitSales);
     if (splitProduction) renderProductionScheduleView(splitProduction);
     bindScheduleScrollPersistence();
     requestAnimationFrame(fitRoutingScheduleHeights);
-    return;
-    const selected = selectedScheduleProject();
-    const selectedEvent = selectedScheduleEvent();
-    const placementEnabled = !!(selected?.id && selectedEvent && (!eventIsScheduled(selectedEvent) || !currentAssignmentId(selectedEvent)));
-    window.PlatformScheduleView.renderDailyTeam(mount, {
-      Scheduling: window.PlatformScheduling,
-      config: schedulingConfig,
-      users,
-      projects,
-      date: anchorDate,
-      eventTypeId: 'sales_appointment',
-      windowForDate: appointmentWindowForDate,
-      placementProject: placementEnabled ? selected : null,
-      draft: appointmentScheduleDraft,
-      liveTravel: appointmentScheduleLiveTravel,
-      travelTimeCache: dashboardTravelTimeCache(),
-      lockTime: appointmentScheduleLockTime,
-      smartScroll: false,
-      showToolbar: false,
-      readOnly: !placementEnabled,
-      assignmentEventId: appointmentScheduleEventId,
-      lockPlacementStart: appointmentScheduleLockTime && placementEnabled ? (selectedEvent?.start_at || selectedEvent?.start || '') : '',
-      lockPlacementEnd: appointmentScheduleLockTime && placementEnabled ? (eventEnd(selectedEvent)?.toISOString() || '') : '',
-      onEventClick({ event, element }){
-        const assigned = !!currentAssignmentId(event);
-        if (!assigned) {
-          toggleScheduleSelection(event, { rerender: true });
-          return;
-        }
-        if (!element) return;
-        rootEl?.querySelectorAll('.psv-appt.open').forEach((node) => node.classList.remove('open'));
-        rootEl?.querySelectorAll('.psv-event-menu').forEach((node) => node.remove());
-        element.classList.add('open');
-        const menu = document.createElement('div');
-        menu.className = 'psv-event-menu';
-        menu.innerHTML = `
-          <div class="psv-event-action danger" data-psv-unassign-event><i class="fas fa-user-minus"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_07454f15891016"," Unassign") ?? " Unassign")}</div>
-        `;
-        menu.querySelector('[data-psv-unassign-event]')?.addEventListener('click', (clickEvent) => {
-          clickEvent.preventDefault();
-          clickEvent.stopPropagation();
-          unassignScheduleEvent(event);
-        });
-        element.appendChild(menu);
-      },
-      onNavigate(delta){ anchorDate = addDays(anchorDate, delta); appointmentScheduleDraft = null; appointmentScheduleProjectId = ''; appointmentScheduleEventId = ''; appointmentScheduleMenuEventId = ''; render(); },
-      onLockTimeToggle(next){ appointmentScheduleLockTime = !!next; appointmentScheduleDraft = null; renderScheduleLibraryViewPreserveScroll(); },
-      onLiveTravelToggle(next){ appointmentScheduleLiveTravel = !!next; renderScheduleLibraryViewPreserveScroll(); },
-      onTravelTimeResolved(result){ persistTravelTime(result); },
-      onDraftChange(selection){
-        if (!placementEnabled) return;
-        appointmentScheduleMenuEventId = '';
-        appointmentScheduleDraft = selection?.start ? { start: selection.start, user: selection.user, laneIndex: selection.laneIndex } : null;
-        window.PlatformScheduleView?.updateDraft?.(mount, appointmentScheduleDraft);
-        const btn = rootEl?.querySelector('[data-dash-confirm-schedule]');
-        if (btn) btn.disabled = !appointmentScheduleDraft?.start;
-      },
-      onDraftConfirm(draft){
-        if (!placementEnabled || !draft?.start) return;
-        appointmentScheduleDraft = draft;
-        return confirmDashboardDraft();
-      },
-    });
-    bindScheduleScrollPersistence();
   }
   function renderMaterialScheduleView(mount){
     if (!mount || !window.PlatformScheduleView?.renderProjectRangeScheduler || !schedulingConfig) return;
@@ -4941,7 +8233,7 @@
       config: schedulingConfig,
       project: selectedProject || null,
       events: allEvents.filter(isMaterialEvent).filter(eventIsScheduled).map(decorateMaterialEvent),
-      draft,
+      draft: renderedPlacementDraft(draft),
       activeDraftId: draft?.id || '',
       allowCreate: !!selectedEvent && !eventIsScheduled(selectedEvent),
       allowEdit: true,
@@ -4955,7 +8247,7 @@
       date: anchorDate,
       defaultDraftPayload: (range) => eventCalendarDefaultDraftPayload(range, 'materials'),
       placementMode: selectedEvent && !eventIsScheduled(selectedEvent) ? 'click' : 'drag',
-      onPlacementCancel(){ clearPlacementSelection(); render(); },
+      onPlacementCancel(){ if (!placementOverlayOpen() && placementWaitingItem()) requestCancelPlacement(); },
       onNavigate(nextDate){ anchorDate = nextDate; expandedMonthDates = []; render(); },
       expandedMonthDates,
       onMonthExpansionChange(nextDates){ expandedMonthDates = Array.isArray(nextDates) ? nextDates : []; },
@@ -4973,28 +8265,57 @@
   }
   function renderProductionScheduleView(mount){
     const Scheduling = window.PlatformScheduling;
+    const scheduleEditable = canEditSchedule();
     const selectedProject = selectedProductionProject();
     const selectedEventCandidate = selectedProductionEvent();
     const selectedEvent = isProductionEvent(selectedEventCandidate) ? selectedEventCandidate : null;
+    // A delivery picked in the rail is placed into the Materials lane.
+    const selectedMaterial = selectedPlacementKind() === 'materials' ? selectedMaterialEvent() : null;
+    const placingMaterial = !!selectedMaterial && !eventIsScheduled(selectedMaterial);
     const materialsResourceId = '__materials__';
-    const materialsResource = { id:materialsResourceId, name:'Materials', resource_kind:'materials', settings_disabled:true };
-    const crews = productionWorkResources(productionScheduleDraft?.scope_template_id || selectedEvent?.scope_template_id, productionScheduleDraft || selectedEvent);
+    const materialsResource = { id:materialsResourceId, name:'Materials', resource_kind:'materials', settings_disabled:true, availability_disabled:true };
+    // Crews and teams first, then individual people, each alphabetical.
+    const personLane = (resource) => clean(resource?.subject_type || resource?.resource_kind) === 'organization_user' ? 1 : 0;
+    const crews = productionWorkResources(productionScheduleDraft?.scope_template_id || selectedEvent?.scope_template_id, productionScheduleDraft || selectedEvent)
+      .slice()
+      .sort((a, b) => personLane(a) - personLane(b) || clean(a.name).localeCompare(clean(b.name)));
     const vehicleLaneId = (crewId) => `__vehicle__:${clean(crewId)}`;
     const vehicleLaneCrewId = (resourceId) => clean(resourceId).startsWith('__vehicle__:') ? clean(resourceId).slice('__vehicle__:'.length) : '';
+    // A booking stores the crew it travels with (id + name) and the unit as an
+    // equipment ref; the lane's internal "__vehicle__:<crew>" id is only a
+    // renderer row id and never saved as the booking's resource/assignee.
+    const vehicleBookingFields = (item = {}) => {
+      const { resource_id, resource_name, ...rest } = item || {};
+      const crewId = clean(rest.vehicle_crew_id) || vehicleLaneCrewId(resource_id);
+      const crew = crews.find((resource) => clean(resource.id) === crewId) || workforceResources.find((resource) => clean(resource.id) === crewId);
+      const keep = clean(resource_id) && !clean(resource_id).startsWith('__vehicle__:') ? { resource_id, resource_name } : {};
+      return { ...rest, ...keep, vehicle_crew_id:crewId, vehicle_crew_name:clean(crew?.name) || clean(rest.vehicle_crew_name) || crewId };
+    };
+    // Vehicles travel with crews/teams, so only they get a vehicle lane.
     const vehicleLanes = productionVehiclesVisible && equipmentSchedulingOn()
-      ? crews.map((crew) => ({ id:vehicleLaneId(crew.id), name:`${crew.name || workResourceLabel()} vehicles`, resource_kind:'vehicle_lane', vehicle_crew_id:clean(crew.id), settings_disabled:true }))
+      ? crews.filter((crew) => !personLane(crew)).map((crew) => ({ id:vehicleLaneId(crew.id), name:`${crew.name || workResourceLabel()} vehicles`, resource_kind:'vehicle_lane', vehicle_crew_id:clean(crew.id), settings_disabled:true, availability_disabled:true }))
       : [];
     const resources = productionVehiclesVisible && equipmentSchedulingOn()
-      ? [...crews.flatMap((crew) => [crew, vehicleLanes.find((lane) => lane.vehicle_crew_id === clean(crew.id))]), materialsResource]
+      ? [...crews.flatMap((crew) => [crew, vehicleLanes.find((lane) => lane.vehicle_crew_id === clean(crew.id))].filter(Boolean)), materialsResource]
       : [...crews, materialsResource];
     const vehicleBookings = productionVehiclesVisible && equipmentSchedulingOn()
-      ? floatingEvents.filter(isVehicleBooking).filter(eventIsScheduled).map(decorateFloatingEvent)
+      ? floatingEvents.filter(isVehicleBooking).filter(eventIsScheduled).map((event) => ({ ...vehicleBookingFields(decorateFloatingEvent(event)), __draft:false, __activeDraft:false }))
       : [];
+    // A job worked by several crews shows in each crew's lane.
+    const workItems = allEvents.filter(isProductionEvent).filter(eventIsScheduled).map(decorateWorkEvent).flatMap((item) => {
+      const refs = eventCrewRefs(item);
+      if (refs.length < 2) return [item];
+      const label = refs.map((ref) => ref.name).join(' + ');
+      // __lane_crew_id remembers which crew's copy this is (the renderer
+      // rewrites the copy's assignment fields to the drop lane).
+      return refs.map((ref) => ({ ...item, ...workResourcePayload({ id:ref.id, name:ref.name, resource_kind:ref.kind }), assignee_label:label, __lane_crew_id:ref.id }));
+    });
+    // The header's person/lead-source/city filter applies here as in Week.
     const productionEvents = [
-      ...allEvents.filter(isProductionEvent).filter(eventIsScheduled).map(decorateWorkEvent),
+      ...workItems,
       ...allEvents.filter(isMaterialEvent).filter(eventIsScheduled).map(decorateMaterialEvent),
       ...vehicleBookings
-    ];
+    ].filter(eventMatchesBreakdown);
     const projectForEvent = selectedEvent ? eventProject(selectedEvent) : null;
     const selectedVehicle = equipmentUnits.find((unit) => clean(unit.id) === vehiclePlacementUnitId) || null;
     const vehicleDraft = selectedVehicle ? (vehiclePlacementDraft || {
@@ -5007,9 +8328,19 @@
       schedule_granularity:productionRoutingScale === 'hourly' ? 'time' : 'date',
       resource_refs:[{ kind:'equipment_unit', id:clean(selectedVehicle.id), name:clean(selectedVehicle.name) || clean(selectedVehicle.id), role:'equipment' }]
     }) : null;
-    const draft = vehicleDraft || productionScheduleDraft || (selectedEvent ? {
+    const materialDraft = placingMaterial ? {
+      ...decorateMaterialEvent(selectedMaterial),
+      id:selectedMaterial.id,
+      event_id:selectedMaterial.id,
+      start:materialScheduleDraft?.start || null,
+      end:materialScheduleDraft?.end || null,
+      all_day:materialScheduleDraft?.all_day ?? selectedMaterial.all_day ?? true,
+      schedule_granularity:materialScheduleDraft?.schedule_granularity || selectedMaterial.schedule_granularity || 'date'
+    } : null;
+    const draft = vehicleDraft || materialDraft || productionScheduleDraft || (selectedEvent ? {
       id: selectedEvent.id,
       event_id: selectedEvent.id,
+      event_type_default_id: eventTypeId(selectedEvent) || 'project_work',
       title: selectedEvent.title || (globalThis.PlatformLanguage?.text("scheduling","m_2ac9ecd66d638b","New Event") ?? "New Event"),
       project_title: projectTitle(projectForEvent || {}, selectedEvent),
       project_address: projectAddress(projectForEvent || {}, selectedEvent),
@@ -5035,11 +8366,30 @@
         vehiclePlacementDraft = next?.start ? { ...(vehicleDraft || {}), ...next, vehicle_booking:true, kind:'equipment_booking', event_type_default_id:'equipment_booking', vehicle_crew_id:clean(next.vehicle_crew_id) || vehicleLaneCrewId(next.resource_id) } : null;
         return;
       }
+      if (placingMaterial) {
+        if (!next?.start) { materialScheduleDraft = null; return; }
+        applyMaterialScheduleDraft({ ...next, id:selectedMaterial.id, event_id:selectedMaterial.id });
+        return;
+      }
       if (!next?.start) {
         productionScheduleDraft = null;
-        const btn = rootEl?.querySelector('[data-dash-confirm-schedule]');
-        if (btn) btn.disabled = true;
         return;
+      }
+      // Moving one item of a staged bundle carries the whole bundle (by the
+      // same shift, into the lane it was dropped in): the primary draft moves.
+      if (productionScheduleBundleKey && productionScheduleDraft?.start) {
+        const primaryId = clean(productionScheduleDraft.id || productionScheduleEventId);
+        const nextId = clean(next.id || next.event_id);
+        if (nextId && primaryId && nextId !== primaryId) {
+          const before = productionScheduleBundleDrafts.find((item) => clean(item.id || item.event_id) === nextId);
+          const delta = before?.start ? new Date(next.start).getTime() - new Date(before.start).getTime() : 0;
+          next = {
+            ...productionScheduleDraft,
+            ...assignmentPayloadForEvent(next),
+            start:new Date(new Date(productionScheduleDraft.start).getTime() + delta),
+            end:productionScheduleDraft.end ? new Date(new Date(productionScheduleDraft.end).getTime() + delta) : null
+          };
+        }
       }
       const project = selectedProject || eventProject(selectedEvent || {});
       productionScheduleProjectId = String(project?.id || productionScheduleProjectId || '');
@@ -5049,10 +8399,17 @@
       const draftResourceId = currentAssignmentId(next);
       const draftResource = resources.find((resource) => clean(resource.id) === draftResourceId);
       const typedAssignment = draftResource ? assignmentPayloadForSubject(draftResource) : assignmentPayloadForEvent(next);
+      // Notes and customer sharing typed in the draft editor survive a move.
+      const { title:_editedTitle, ...editedFields } = clean(productionScheduleDraft?.event_id || productionScheduleDraft?.id) === clean(next.event_id || next.id) ? editorFieldsFromDraft(productionScheduleDraft) : {};
       productionScheduleDraft = {
+        ...editedFields,
+        ...(productionScheduleDraft?.__new_event_id ? { __new_event_id:productionScheduleDraft.__new_event_id } : {}),
         id: next.id || next.event_id || '__production_draft',
         event_id: next.event_id || productionScheduleEventId || '',
-        title: next.title || title || 'New Event',
+        // Typed like the item it places so the draft keeps its category color.
+        event_type_default_id: eventTypeId(selectedEvent || next) || 'project_work',
+        // New work for a project with nothing scheduled is titled from the job.
+        title: (clean(next.title) && !(!selectedEvent && ['New Event', title].includes(clean(next.title))) ? next.title : '') || (selectedEvent ? (selectedEvent.title || title) : projectWorkTitle(project || {})) || 'New Event',
         project_title: next.project_title || title,
         project_address: next.project_address || address,
         start: next.start,
@@ -5061,23 +8418,30 @@
         schedule_granularity: next.schedule_granularity || (next.all_day === false ? 'time' : 'date'),
         ...typedAssignment
       };
-      const btn = rootEl?.querySelector('[data-dash-confirm-schedule]');
-      if (btn) btn.disabled = !productionScheduleDraft?.start;
     };
     const common = {
       Scheduling,
       config: schedulingConfig,
-      project: selectedProject || null,
+      project: selectedProject || (selectedMaterial ? eventProject(selectedMaterial) : null) || null,
       events: productionEvents,
-      draft,
-      drafts:productionScheduleBundleDrafts.length ? productionScheduleBundleDrafts : (draft ? [draft] : []),
+      // Only a waiting item being placed is a draft (✓ saves it); an already
+      // scheduled item that is merely selected moves and saves directly.
+      draft: placementWaitingItem() ? renderedPlacementDraft(draft) : draft,
+      drafts:(productionScheduleBundleDrafts.length ? productionScheduleBundleDrafts : (draft ? [draft] : [])).map((item) => placementWaitingItem() ? renderedPlacementDraft(item) : item),
       activeDraftId: draft?.id || '',
-      resources,
-      allowCreate: !!vehiclePlacementUnitId || (!!selectedProject && (!selectedEvent || !eventIsScheduled(selectedEvent))),
-      placementMode: selectedEvent && !eventIsScheduled(selectedEvent) ? 'click' : 'drag',
-      derivePlacementDrafts(primaryDraft){ return scheduleBundleDrafts(primaryDraft); },
-      onPlacementCancel(){ clearPlacementSelection(); render(); },
-      allowEdit: true,
+      resources:routingLanesForFilter(resources, productionEvents, resourceIdForItem),
+      allowCreate: scheduleEditable && (!!vehiclePlacementUnitId || placingMaterial || (!!selectedProject && (!selectedEvent || !eventIsScheduled(selectedEvent)))),
+      placementMode: (selectedEvent && !eventIsScheduled(selectedEvent)) || placingMaterial ? 'click' : 'drag',
+      derivePlacementDrafts(primaryDraft){ return placingMaterial || vehiclePlacementUnitId ? [primaryDraft] : scheduleBundleDrafts(primaryDraft); },
+      onPlacementCancel(){ if (!placementOverlayOpen() && placementWaitingItem()) requestCancelPlacement(); },
+      // Clicking a staged draft opens its editor beside it (Save = ✓).
+      onDraftSelect(draft){ if (isPlacementDraftEvent(draft) && !vehiclePlacementUnitId) openPlacementDraftEditor(draft); },
+      // View-only sessions and locked items still open (read-only / locked
+      // editor); moves are refused by allowEdit / the renderer's lock check.
+      allowEdit: scheduleEditable,
+      canEditEvent:() => true,
+      onLockedDragAttempt:scheduleLockedDragAttempt,
+      onReadOnlyDragAttempt:scheduleReadOnlyDragAttempt,
       date: anchorDate,
       smartScroll: false,
       showToolbar: false,
@@ -5091,17 +8455,29 @@
       mobileResourceRows:isMobileScheduleLayout(),
       mobileCompactResourceHeaders:isMobileScheduleLayout(),
       canPlaceItemInResource,
-      onResourceSettings(resource, meta){ if (clean(resource?.id) !== materialsResourceId) openScheduleWorkResourceSettings(resource, meta); },
-      onNavigate(nextDate){ anchorDate = nextDate; render(); },
+      ...(scheduleEditable ? { onResourceSettings(resource, meta){ if (clean(resource?.id) !== materialsResourceId) openScheduleWorkResourceSettings(resource, meta); } } : {}),
+      onNavigate(nextDate){ anchorDate = validDate(nextDate) || anchorDate; syncScheduleRoute({ date:routeDate() }, { history:'replace', source:'production-routing-date', ownedKeys:['date'] }); render(); },
       onDraftChange(next){
         recordPlacementHistory();
         applyDraft(next);
-        if (vehiclePlacementUnitId) {
+        if (vehiclePlacementUnitId || placingMaterial) {
           renderScheduleLibraryViewPreserveScroll();
+          refreshPlacementBanner();
+          // A vehicle that is already booked (or out of service) then is
+          // flagged as soon as it is staged, not only at ✓.
+          const unit = vehiclePlacementUnitId ? equipmentUnits.find((item) => clean(item.id) === vehiclePlacementUnitId) : null;
+          const staged = vehiclePlacementDraft?.start ? { id:'__vehicle_draft', start:new Date(vehiclePlacementDraft.start), end:new Date(vehiclePlacementDraft.end || addDays(new Date(vehiclePlacementDraft.start), 1)) } : null;
+          if (unit && staged) {
+            const down = typeof equipmentDownDetail === 'function' ? equipmentDownDetail(unit, staged) : null;
+            const booked = equipmentUnitConflict(staged, unit.id);
+            if (down || booked) showToast('Vehicle not free then', `${clean(unit.name) || 'This vehicle'} is ${down ? 'out of service' : 'already booked'} at that time. Pick another time or vehicle.`, { tone:'warning', duration:6000 });
+          }
           return;
         }
-        productionScheduleBundleDrafts = scheduleBundleDrafts(next);
+        productionScheduleBundleDrafts = scheduleBundleDrafts(productionScheduleDraft || next);
         renderScheduleLibraryViewPreserveScroll();
+        refreshPlacementBanner();
+        refreshPlacementEditor();
       },
       async onDraftConfirm(next){
         if (vehiclePlacementUnitId) {
@@ -5109,15 +8485,33 @@
           const pending = vehiclePlacementDraft;
           const unit = equipmentUnits.find((item) => clean(item.id) === vehiclePlacementUnitId);
           if (!pending?.start || !unit) return;
+          // A vehicle is equipment: it can't be booked over another booking,
+          // reservation or maintenance window (conflict mode "block"), and
+          // otherwise only after confirming the double booking.
+          const pendingRange = { id:'__vehicle_draft', start:new Date(pending.start), end:new Date(pending.end || addDays(new Date(pending.start), 1)) };
+          const downDetail = typeof equipmentDownDetail === 'function' ? equipmentDownDetail(unit, pendingRange) : null;
+          const unitType = equipmentTypes.find((type) => clean(type?.id) === clean(unit.type_id)) || null;
+          const conflicted = equipmentUnitConflict(pendingRange, unit.id);
+          if ((downDetail && downDetail.blocked) || (conflicted && equipmentConflictMode === 'block' && unitType?.allow_double_booking !== true)) {
+            showToast((globalThis.PlatformLanguage?.text("scheduling","m_f9ef6bab2b4dce","Vehicle not scheduled") ?? "Vehicle not scheduled"), downDetail?.blocked ? `${downDetail.reason || `${clean(unit.name) || 'This vehicle'} is out of service then.`} Pick another time or vehicle.` : `${clean(unit.name) || 'This vehicle'} is already booked at that time. Pick another time or vehicle.`, false);
+            return;
+          }
+          if (conflicted || downDetail) {
+            const confirmBooking = window.Portal?.ui?.confirm || window.PlatformUI?.confirm;
+            if (typeof confirmBooking === 'function' && !(await confirmBooking(`${clean(unit.name) || 'This vehicle'} is ${conflicted ? 'already booked' : 'marked unavailable'} at that time. Book it anyway?`, { title:'Vehicle double-booked', okLabel:'Book anyway', cancelLabel:'Keep editing' }))) return;
+          }
           const booking = updateFloatingEvent({
-            ...pending,
+            ...vehicleBookingFields(pending),
             id:floatingEventId(),
             title:unit.name || unit.id,
             kind:'equipment_booking',
             event_type_default_id:'equipment_booking',
             vehicle_booking:true,
-            vehicle_crew_id:clean(pending.vehicle_crew_id) || vehicleLaneCrewId(pending.resource_id),
             resource_refs:[{ kind:'equipment_unit', id:clean(unit.id), name:clean(unit.name) || clean(unit.id), role:'equipment', start_at:new Date(pending.start).toISOString(), end_at:new Date(pending.end).toISOString() }],
+            // The staged draft's renderer flags must not be stored with the
+            // booking (a stored "__draft" booking is ignored by conflicts).
+            __draft:false,
+            __activeDraft:false,
             status:'scheduled'
           });
           vehiclePlacementDraft = null;
@@ -5128,54 +8522,118 @@
             await loadData({ force:true });
             showToast((globalThis.PlatformLanguage?.text("scheduling","m_b2d1b5ccb88ec2","Vehicle scheduled") ?? "Vehicle scheduled"), ((v0) => globalThis.PlatformLanguage?.text("scheduling","m_db094a7481e01d",`${v0} was added to the crew lane.`,{v0}) ?? `${v0} was added to the crew lane.`)(unit.name || 'Vehicle'), true);
           } catch (error) {
-            showToast((globalThis.PlatformLanguage?.text("scheduling","m_f9ef6bab2b4dce","Vehicle not scheduled") ?? "Vehicle not scheduled"), error?.message || 'Could not save the vehicle assignment.', false);
+            // Nothing was stored: drop the optimistic booking from the lane.
+            floatingEvents = floatingEvents.filter((item) => String(item.id || '') !== String(booking.id || ''));
+            renderScheduleLibraryViewPreserveScroll();
+            if (isStaleSaveError(error)) { await reloadAfterStaleChange(); return; }
+            showToast((globalThis.PlatformLanguage?.text("scheduling","m_f9ef6bab2b4dce","Vehicle not scheduled") ?? "Vehicle not scheduled"), scheduleSaveErrorMessage(error, 'Could not save the vehicle assignment.'), false);
           }
           return;
         }
+        if (placingMaterial) {
+          if (next) applyDraft(next);
+          return confirmMaterialDraft();
+        }
+        // A bundle is committed from its primary draft whichever item's ✓
+        // was clicked.
+        if (productionScheduleBundleKey && productionScheduleDraft?.start) return confirmProductionBundleDraft(productionScheduleDraft);
         if (next) applyDraft(next);
-        return productionScheduleBundleKey ? confirmProductionBundleDraft(next) : confirmProductionDraft(next);
+        return productionScheduleBundleKey ? confirmProductionBundleDraft(productionScheduleDraft || next) : confirmProductionDraft(productionScheduleDraft || next);
       },
+      // Moving an already-placed item saves right away (as in every other
+      // view); only waiting items from the rail are staged as ✓ drafts.
       onEventRangeChange(event, range){
         if (isVehicleBooking(event)) {
           const rangeStart = validDate(range.start || range.start_at);
           const rangeEnd = validDate(range.end || range.end_at);
+          // Moving a booking onto a time the vehicle is already booked is
+          // refused in "block" mode, like booking it there would be.
+          const movedUnitId = clean(eventEquipRefs(event).find((ref) => clean(ref?.kind) === 'equipment_unit')?.id);
+          const movedUnit = equipmentUnits.find((item) => clean(item.id) === movedUnitId);
+          const movedType = equipmentTypes.find((type) => clean(type?.id) === clean(movedUnit?.type_id)) || null;
+          if (movedUnitId && rangeStart && rangeEnd && equipmentConflictMode === 'block' && movedType?.allow_double_booking !== true
+            && equipmentUnitConflict({ id:event.id, start:rangeStart, end:rangeEnd }, movedUnitId)) {
+            showToast((globalThis.PlatformLanguage?.text("scheduling","m_fed89027106fe3","Vehicle not moved") ?? "Vehicle not moved"), `${clean(event.title) || 'This vehicle'} is already booked at that time.`, false);
+            renderScheduleLibraryViewPreserveScroll();
+            return;
+          }
           const resourceRefs = (Array.isArray(event.resource_refs) ? event.resource_refs : []).map((ref) => clean(ref?.kind) === 'equipment_unit'
             ? { ...ref, ...(rangeStart ? { start_at:rangeStart.toISOString() } : {}), ...(rangeEnd ? { end_at:rangeEnd.toISOString() } : {}) }
             : ref);
-          const next = updateFloatingEvent({ ...event, ...range, resource_refs:resourceRefs, vehicle_crew_id:vehicleLaneCrewId(range.resource_id) || event.vehicle_crew_id, status:'scheduled' });
+          const next = updateFloatingEvent(vehicleBookingFields({ ...event, ...range, resource_refs:resourceRefs, vehicle_crew_id:vehicleLaneCrewId(range.resource_id) || clean(range.vehicle_crew_id) || event.vehicle_crew_id, status:'scheduled' }));
           renderScheduleLibraryViewPreserveScroll();
-          void persistFloatingEvent(next).catch((error) => showToast((globalThis.PlatformLanguage?.text("scheduling","m_fed89027106fe3","Vehicle not moved") ?? "Vehicle not moved"), error?.message || 'Could not update the vehicle assignment.', false));
+          void persistFloatingEvent(next)
+            .then(() => showToast('Vehicle moved', `${clean(next.title) || 'The vehicle'} booking was updated.`, true))
+            .catch((error) => showToast((globalThis.PlatformLanguage?.text("scheduling","m_fed89027106fe3","Vehicle not moved") ?? "Vehicle not moved"), error?.message || 'Could not update the vehicle assignment.', false));
           return;
         }
-        if (isMaterialEvent(event)) {
-          saveEventCalendarRange(event, { ...range, all_day:true, schedule_granularity:'date' });
-          return;
-        }
-        productionScheduleProjectId = String(event.project_id || '');
-        productionScheduleEventId = String(event.id || '');
-        const nextResourceId = firstOwnedClean(range, ['resource_id', 'assigned_crew_id', 'crew_id'], workCrewId(event));
-        const nextResourceName = firstOwnedClean(range, ['resource_name', 'assigned_crew_name', 'crew_name'], workCrewName(event));
-        const selectedResource = resources.find((resource) => clean(resource.id) === nextResourceId);
-        const nextAssignment = selectedResource ? assignmentPayloadForSubject(selectedResource) : assignmentPayloadForSubject(null);
-        applyDraft({
-          ...range,
-          id: event.id,
-          event_id: event.id,
-          title: event.title || (globalThis.PlatformLanguage?.text("scheduling","m_2ac9ecd66d638b","New Event") ?? "New Event"),
-          project_title: projectTitle(eventProject(event), event),
-          project_address: event.project_address || projectAddress(eventProject(event), event),
-          ...nextAssignment,
-          resource_name:nextAssignment.resource_name || nextResourceName
-        });
-        renderScheduleLibraryViewPreserveScroll();
+        // Timed deliveries keep their time; all-day ones stay all-day. A
+        // multi-crew job's drop replaces the crew of the lane it was dragged
+        // from (the lane under the pointer when the drag started).
+        const startLane = clean(mount.__dashPointerLane);
+        const stored = allEvents.find((item) => String(item.id || '') === String(event?.id || '')) || event;
+        const dragged = startLane && isProductionEvent(stored) && eventCrewRefs(stored).some((ref) => ref.id === startLane) ? { ...event, __lane_crew_id:startLane } : event;
+        saveEventCalendarRange(dragged, range);
       },
-      onEventClick(event, meta = {}){ openPlacedCalendarEvent(event, meta); }
+      onEventClick(event, meta = {}){
+        if (placeIntoOccupiedCell(event)) return;
+        openPlacedCalendarEvent(event, meta);
+      }
     };
+    // While placing, a click on a cell that already holds a job places the
+    // waiting item in that cell (as an empty cell would) instead of opening
+    // the job that happens to sit there.
+    const placeIntoOccupiedCell = (event) => {
+      const placing = !!vehiclePlacementUnitId || placingMaterial || (!!placementWaitingItem() && !!selectedProject && (!selectedEvent || !eventIsScheduled(selectedEvent)));
+      const pointer = mount.__dashLastPointer;
+      if (!placing || !pointer || event?.__draft === true) return false;
+      const cell = [...mount.querySelectorAll('.prs-resource-cell[data-prs-resource],.prs-resource-time-cell[data-prs-resource]')].find((node) => {
+        const rect = node.getBoundingClientRect();
+        return pointer.x >= rect.left && pointer.x <= rect.right && pointer.y >= rect.top && pointer.y <= rect.bottom;
+      });
+      if (!cell) return false;
+      const resource = resources.find((item) => clean(item.id) === clean(cell.dataset.prsResource)) || { id:'', name:'Unassigned', unassigned:true };
+      const base = draft || {};
+      if (!canPlaceItemInResource(base, resource)) return false;
+      const baseStart = validDate(base.start);
+      const baseEnd = validDate(base.end);
+      let start;
+      let end;
+      let allDay = true;
+      if (cell.dataset.prsDate) {
+        start = new Date(`${cell.dataset.prsDate}T00:00:00`);
+        end = addDays(start, baseStart && baseEnd ? Math.max(1, Math.round((baseEnd - baseStart) / 86400000)) : 1);
+      } else {
+        start = startOfDay(anchorDate) || new Date();
+        start.setMinutes(Number(cell.dataset.prsMinute || 0));
+        const timedSpan = baseStart && baseEnd && base.all_day === false ? Math.max(30 * 60000, baseEnd - baseStart) : 60 * 60000;
+        end = new Date(start.getTime() + timedSpan);
+        allDay = false;
+      }
+      common.onDraftChange({ ...base, ...resourcePayload(resource), id:base.id || '__draft', start, end, all_day:allDay, schedule_granularity:allDay ? 'date' : 'time' });
+      return true;
+    };
+    if (!mount.__dashPointerTracked) {
+      mount.__dashPointerTracked = true;
+      mount.addEventListener('pointerdown', (pointerEvent) => {
+        mount.__dashLastPointer = { x:pointerEvent.clientX, y:pointerEvent.clientY };
+        // The lane (row) a drag starts in: a multi-crew job is drawn once per
+        // crew, and a drop replaces only the crew whose copy was dragged.
+        const x = pointerEvent.clientX;
+        const y = pointerEvent.clientY;
+        const cell = [...mount.querySelectorAll('.prs-resource-cell[data-prs-resource],.prs-resource-time-cell[data-prs-resource]')].find((node) => {
+          const rect = node.getBoundingClientRect();
+          return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+        });
+        mount.__dashPointerLane = cell ? clean(cell.dataset.prsResource) : null;
+      }, true);
+    }
     if (viewMode === 'appointment_schedule' && productionRoutingScale === 'hourly' && window.PlatformScheduleView.renderResourceTimeScheduler) {
       window.PlatformScheduleView.renderResourceTimeScheduler(mount, {
         ...common,
         resources: schedulerResourcesForDay(resources, routingDateValue()),
-        onResourceAvailabilityToggle(resource, meta = {}){ toggleSubjectAvailability(resource?.id, meta.date || routingDateValue()); },
+        // Materials and vehicle lanes are not people or crews: no availability.
+        ...(scheduleEditable ? { onResourceAvailabilityToggle(resource, meta = {}){ if (resource?.availability_disabled !== true) toggleSubjectAvailability(resource?.id, meta.date || routingDateValue()); } } : {}),
         slotMinutes:30,
         liveTravel: productionLiveTravel && travelTimeEnabled(),
         travelTimeCache: dashboardTravelTimeCache(),
@@ -5185,7 +8643,53 @@
     } else if (viewMode === 'appointment_schedule' && window.PlatformScheduleView.renderResourceDayScheduler) {
       window.PlatformScheduleView.renderResourceDayScheduler(mount, { ...common, mode:'week', dayCount:180, pastDays:14 });
     }
+    // Flag lanes that are double-booked: a crew/person on two overlapping
+    // jobs, or one vehicle booked twice at the same time.
+    const vehicleUnitId = (event) => clean(eventEquipRefs(event).find((ref) => clean(ref?.kind) === 'equipment_unit')?.id);
+    const crewBooked = doubleBookedEventIds(workItems.filter((item) => !['completed', 'complete', 'done'].includes(clean(item.status).toLowerCase())), (item) => workCrewId(item) || clean(item?.assigned_user_id || item?.assigned_user_ids?.[0]));
+    const vehicleBooked = doubleBookedEventIds(vehicleBookings, vehicleUnitId);
+    markDoubleBookedChips(mount, new Set([...crewBooked, ...vehicleBooked]), 'Double-booked: this crew or vehicle has another booking at the same time');
     bindScheduleScrollPersistence();
+  }
+  // Timeline collapse state is remembered per viewer and organization.
+  let ganttCollapsedRestored = false;
+  // A work item/section added from the Timeline stays local until the editor
+  // saves it; closing the editor any other way discards it.
+  let ganttPendingNewItem = null;
+  function ganttCollapseStorageKey(){
+    return `fm.scheduling.timeline.collapsed:${orgId() || 'org'}`;
+  }
+  function restoreGanttCollapsed(){
+    if (ganttCollapsedRestored) return;
+    ganttCollapsedRestored = true;
+    try {
+      const saved = JSON.parse(window.localStorage?.getItem(ganttCollapseStorageKey()) || '[]');
+      if (Array.isArray(saved)) ganttCollapsedGroups = [...new Set([...ganttCollapsedGroups, ...saved.map((id) => String(id || '')).filter(Boolean)])];
+    } catch (error) {}
+  }
+  function persistGanttCollapsed(){
+    try { window.localStorage?.setItem(ganttCollapseStorageKey(), JSON.stringify(ganttCollapsedGroups.slice(-300))); } catch (error) {}
+  }
+  function ganttCanEdit(){
+    return typeof canEditSchedule === 'function' ? canEditSchedule() : true;
+  }
+  // Legacy items without an all_day flag: an off-midnight start lasting
+  // under a day is timed (same inference as the calendar renderers).
+  function ganttItemIsTimed(event = {}){
+    const granularity = clean(event.schedule_granularity).toLowerCase();
+    if (typeof event.all_day === 'boolean' || granularity) return event.all_day === false || granularity === 'time';
+    const start = eventStart(event);
+    if (!start) return false;
+    const end = eventEnd(event);
+    const minutes = end && end > start ? (end.getTime() - start.getTime()) / 60000 : Number(event.duration_minutes || 0);
+    return (start.getHours() !== 0 || start.getMinutes() !== 0) && minutes > 0 && minutes < 1440;
+  }
+  // Rows keep a stable order across saves and reloads: projects by name,
+  // items in creation order (the server may re-append a saved item).
+  function ganttStableOrder(list = []){
+    const position = new Map(list.map((event, index) => [String(event.id || ''), index]));
+    const created = (event) => Date.parse(event.created_at || '') || 0;
+    return [...list].sort((a, b) => (created(a) - created(b)) || (position.get(String(a.id || '')) - position.get(String(b.id || ''))));
   }
   function ganttVisibleEvents(){
     const Scheduling = window.PlatformScheduling;
@@ -5203,7 +8707,21 @@
     });
     const visibleIds = new Set(visibleItems.map((event) => String(event.id || '')));
     const visibleParentIds = new Set(visibleItems.map((event) => String(Scheduling?.eventParentId?.(event) || event.parent_event_id || '')).filter(Boolean));
-    return allEvents.filter((event) => visibleIds.has(String(event.id || '')) || (Scheduling?.eventIsGroup?.(event) && visibleParentIds.has(String(event.id || ''))));
+    // A section with nothing in it yet (e.g. just added) still shows, so work
+    // can be added to it; sections whose items are all filtered out do not.
+    const parentIds = new Set(allEvents.map((event) => String(Scheduling?.eventParentId?.(event) || event.parent_event_id || '')).filter(Boolean));
+    const emptySection = (event) => !parentIds.has(String(event.id || ''))
+      && !['cancelled', 'canceled'].includes(clean(event.status).toLowerCase())
+      && eventMatchesBreakdown(event)
+      && (scheduleTypeActive('production') || eventMatchesMode(event));
+    const projectItems = allEvents.filter((event) => visibleIds.has(String(event.id || '')) || (Scheduling?.eventIsGroup?.(event) && (visibleParentIds.has(String(event.id || '')) || emptySection(event))));
+    // Company and equipment calendar events (no project) share the board, as
+    // they do in the calendar views.
+    const calendarItems = floatingEvents
+      .filter((event) => !isVehicleBooking(event) && eventIsScheduled(event) && eventMatchesMode(event) && eventMatchesBreakdown(event))
+      .map(decorateFloatingEvent)
+      .sort((a, b) => (eventStart(a)?.getTime() || 0) - (eventStart(b)?.getTime() || 0) || String(a.id || '').localeCompare(String(b.id || '')));
+    return [...ganttStableOrder(projectItems), ...calendarItems];
   }
   function ganttResourceLanes(){
     const workforceKeys = new Set(workforceResources.map((resource) => `${clean(resource.subject_type || resource.resource_kind) || 'resource_group'}:${clean(resource.id)}`));
@@ -5239,11 +8757,14 @@
       ganttShownDocHandler();
       ganttShownDocHandler = null;
     }
+    restoreGanttCollapsed();
+    const canEdit = ganttCanEdit();
     const ganttEvents = ganttVisibleEvents();
     const projectIds = new Set(ganttEvents.map((event) => String(event.project_id || '')));
     const ganttProjects = projects
       .filter((project) => projectIds.has(String(project.id || '')))
-      .map((project) => ({ ...project, display_name:projectTitle(project) }));
+      .map((project) => ({ ...project, display_name:projectTitle(project) }))
+      .sort((a, b) => String(a.display_name || '').localeCompare(String(b.display_name || ''), undefined, { sensitivity:'base' }) || String(a.id || '').localeCompare(String(b.id || '')));
     const shownOptions = [
       ['labor', 'Labor', 'fa-helmet-safety'],
       ['equipment', 'Equipment', 'fa-truck-pickup'],
@@ -5252,9 +8773,9 @@
     const productionDetailAvailable = scheduleTypeActive('production');
     const groupControls = `<div class="dash-gantt-groupby"><span class="dash-segmented" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8b0eeec3c3b8c8","Group by") ?? "Group by")}"><span class="dash-segmented-label">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8b0eeec3c3b8c8","Group by") ?? "Group by")}</span>${String([
       ['project', 'Project'], ['resource', 'Resource']
-    ].map(([id, label]) => `<button type="button" class="dash-gantt-groupby-btn ${ganttGroupBy === id ? 'active' : ''}" data-gantt-group-by="${id}" aria-pressed="${ganttGroupBy === id ? 'true' : 'false'}">${label}</button>`).join(''))}</span>
+    ].map(([id, label]) => `<button type="button" class="dash-gantt-groupby-btn ${ganttGroupBy === id ? 'active' : ''}" data-gantt-group-by="${id}" aria-pressed="${ganttGroupBy === id ? 'true' : 'false'}"${id === 'resource' ? ' title="One row per crew, person or unit. Dragging a bar changes its dates; open the item to change who it is assigned to."' : ''}>${label}</button>`).join(''))}</span>
       ${productionDetailAvailable ? `<div class="dash-gantt-shown-wrap">
-        <button type="button" class="dash-gantt-shown-btn ${String(ganttShownMenuOpen || ganttVisibleKinds.size !== shownOptions.length ? 'active' : '')}" data-gantt-shown aria-expanded="${String(ganttShownMenuOpen ? 'true' : 'false')}" title="Choose which production work is shown"><i class="fas fa-sliders"></i><span>${ganttVisibleKinds.size === shownOptions.length ? 'All production' : `${ganttVisibleKinds.size} of ${shownOptions.length} production`}</span></button>
+        <button type="button" class="dash-gantt-shown-btn ${String(ganttShownMenuOpen || ganttVisibleKinds.size !== shownOptions.length ? 'active' : '')}" data-gantt-shown aria-expanded="${String(ganttShownMenuOpen ? 'true' : 'false')}" aria-haspopup="true"${ganttShownMenuOpen ? '' : ' title="Choose which production work is shown"'}><i class="fas fa-sliders"></i><span>${ganttVisibleKinds.size === shownOptions.length ? 'All production' : `${ganttVisibleKinds.size} of ${shownOptions.length} production`}</span></button>
         ${String(ganttShownMenuOpen ? `<div class="dash-gantt-shown-menu" data-gantt-shown-menu>
           <div class="dash-gantt-shown-head"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_80fdf3a3a8501b","Items shown") ?? "Items shown")}</strong><button type="button" data-gantt-shown-close aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>
           <div class="dash-gantt-shown-options">${shownOptions.map(([id, label, icon]) => `<button type="button" class="dash-gantt-shown-option ${ganttVisibleKinds.has(id) ? 'active' : ''}" data-gantt-kind="${id}" aria-pressed="${ganttVisibleKinds.has(id) ? 'true' : 'false'}"><span class="dash-gantt-shown-check"><i class="fas fa-check"></i></span><i class="fas ${icon}"></i><span>${label}</span></button>`).join('')}</div>
@@ -5276,11 +8797,25 @@
       toolbarLeadingHtml:groupControls,
       stateKey:`scheduling:${ganttGroupBy}`,
       showTodayButton:false,
+      readOnly: !canEdit,
+      onReadOnlyDragAttempt: scheduleReadOnlyDragAttempt,
+      // Section bars move their items through the shared group move.
+      allowGroupMove: typeof moveScheduleGroup === 'function',
+      otherEventsLabel: (globalThis.PlatformLanguage?.text("scheduling","m_timeline_other_events","Company & equipment events") ?? "Company & equipment events"),
       emptyLabel: activeScheduleTypes().length ? 'Nothing matches the schedules shown. Turn on more schedule types above.' : 'Turn on Sales, Production, or Other above to see the timeline.',
       onViewportChange(range){
         ganttVisibleRange = range;
         const title = rootEl?.querySelector('.dash-toolbar .dash-title');
-        if (title && viewMode === 'gantt') title.textContent = visibleTitle();
+        if (title && viewMode === 'gantt') { title.textContent = visibleTitle(); title.title = title.textContent; }
+        // The phone header's month button follows the scrolled Timeline too.
+        const phoneMonth = rootEl?.querySelector('[data-mobile-month-menu] > span');
+        const rangeStart = validDate(range?.start);
+        const rangeEnd = validDate(range?.end);
+        if (phoneMonth && viewMode === 'gantt' && rangeStart && rangeEnd) {
+          phoneMonth.textContent = new Date((rangeStart.getTime() + rangeEnd.getTime()) / 2).toLocaleDateString([], { month:'long', year:'numeric' });
+        }
+        // Wheel/scrollbar scrolling keeps date= in step like Prev/Next.
+        if (viewMode === 'gantt') syncGanttRouteDate({ moveAnchor:false });
       },
       onZoomChange(next){
         ganttZoomPxPerDay = Number(next) || 0;
@@ -5291,20 +8826,31 @@
         ganttCollapsedGroups = isCollapsed
           ? [...new Set([...ganttCollapsedGroups, String(groupId)])]
           : ganttCollapsedGroups.filter((id) => id !== String(groupId));
+        persistGanttCollapsed();
       },
       onEventClick(event, meta = {}){
-        if (event.__project_rollup === true) openProjectFromEvent(event);
-        else openPlacedCalendarEvent(event, meta);
+        if (event.__project_rollup === true) openGanttProject(event);
+        // Sections are named containers whose dates follow their items.
+        else if (window.PlatformScheduling?.eventIsGroup?.(event) && event.floating_event !== true) openGanttSectionEditor(event, meta);
+        else {
+          openPlacedCalendarEvent(event, meta);
+          returnFocusAfterEditor(event.id);
+        }
       },
       onEventRangeChange(event, range, meta = {}){
-        if (event.__project_rollup === true) saveGanttProjectRange(event, range);
-        else saveGanttEventRange(event, range, meta?.cascade || []);
+        if (event.__project_rollup === true) saveGanttProjectRange(event, range, meta);
+        else saveGanttEventRange(event, range, meta);
       },
-      onEventSchedule(event, range){ saveGanttEventRange(event, range, []); },
+      onEventSchedule(event, range){ saveGanttEventRange(event, range, { action:'schedule' }); },
+      // A click/drag on a waiting item's lane: past days ask first, linked
+      // work is checked, and the toast offers Undo (saveGanttEventRange).
+      onUnscheduledLaneSchedule(event, range, meta = {}){ saveGanttEventRange(event, range, { action:'schedule', source:meta.source || '' }); },
       onDependencyCreate(fromEvent, toEvent){ createGanttDependency(fromEvent, toEvent); },
       onDependencyRemove(event, dependency){ removeGanttDependency(event, dependency); },
-      onProjectAddItem(project, meta){ createGanttProjectItem(project, meta, false); },
-      onProjectAddGroup(project, meta){ createGanttProjectItem(project, meta, true); }
+      ...(canEdit ? {
+        onProjectAddItem(project, meta){ createGanttProjectItem(project, meta, false); },
+        onProjectAddGroup(project, meta){ createGanttSection(project, meta); }
+      } : {})
     });
     // One delegated listener per mount: the timeline keeps its toolbar DOM
     // across re-renders, so per-render binding would stack handlers.
@@ -5344,16 +8890,349 @@
     const shownButton = mount.querySelector('[data-gantt-shown]');
     if (shownMenu && shownButton) {
       setTimeout(() => {
-        ganttShownDocHandler = bindOutsidePointerDismiss(shownMenu, () => {
+        if (!shownMenu.isConnected) return;
+        const dismiss = () => {
           ganttShownMenuOpen = false;
           renderGanttScheduleView();
-        }, [shownButton]);
+        };
+        const removePointer = bindOutsidePointerDismiss(shownMenu, dismiss, [shownButton]);
+        // Escape closes only this menu (the topmost layer) and returns focus
+        // to its button.
+        const onKey = (keyEvent) => {
+          if (keyEvent.key !== 'Escape' || document.querySelector('.dash-event-popover, .fm-dialog-backdrop')) return;
+          keyEvent.preventDefault();
+          keyEvent.stopPropagation();
+          dismiss();
+          rootEl?.querySelector('#dashGanttView [data-gantt-shown]')?.focus();
+        };
+        document.addEventListener('keydown', onKey, true);
+        ganttShownDocHandler = () => {
+          removePointer();
+          document.removeEventListener('keydown', onKey, true);
+        };
       }, 0);
     }
   }
-  async function createGanttProjectItem(project, meta = {}, group = false){
+  /* When the editor opened from a Timeline bar closes (Save, Cancel, Esc,
+   * outside click), keyboard focus goes back to that bar instead of <body>. */
+  function returnFocusAfterEditor(eventId = ''){
+    const id = String(eventId || '');
+    if (!id || !document.querySelector('.dash-event-popover')) return;
+    const escaped = window.CSS?.escape ? window.CSS.escape(id) : id.replace(/["\\]/g, '\\$&');
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('.dash-event-popover')) return;
+      observer.disconnect();
+      setTimeout(() => {
+        // Re-rendered (not closed): keep watching.
+        if (document.querySelector('.dash-event-popover')) { returnFocusAfterEditor(id); return; }
+        const active = document.activeElement;
+        if (active && active !== document.body && active.isConnected) return;
+        const target = rootEl?.querySelector(`[data-psv-gantt-open="${escaped}"],[data-psv-gantt-bar="${escaped}"],[data-prs-event-id="${escaped}"]`);
+        try { target?.focus?.({ preventScroll:true }); } catch (error) {}
+      }, 60);
+    });
+    observer.observe(document.body, { childList:true });
+    setTimeout(() => observer.disconnect(), 10 * 60 * 1000);
+  }
+  /* Adds one action button (e.g. Undo) to the toast that was just shown; the
+   * next toast replaces the text and with it the button. */
+  function appendToastAction(label, onAction){
+    const holder = document.getElementById('fmToastT2');
+    if (!holder || typeof onAction !== 'function') return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'dash-toast-action';
+    button.textContent = label;
+    button.style.cssText = 'margin-left:8px;border:0;background:none;padding:0;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-weight:950;text-decoration:underline;cursor:pointer';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      button.disabled = true;
+      window.PlatformUI?.hideToast?.();
+      document.getElementById('fmToast')?.classList.remove('show');
+      onAction();
+    }, { once:true });
+    holder.appendChild(button);
+  }
+  /* The project title bar opens the project on its own Timeline, at its next
+   * upcoming work (or its first item when everything is in the past). */
+  function openGanttProject(rollup = {}){
+    const project = projects.find((candidate) => String(candidate.id || '') === String(rollup.project_id || '')) || eventProject(rollup);
+    if (!project?.id) return;
+    const Scheduling = window.PlatformScheduling;
+    const today = startOfDay(new Date());
+    const items = allEvents
+      .filter((item) => String(item.project_id || '') === String(project.id) && eventIsScheduled(item) && !Scheduling?.eventIsGroup?.(item))
+      .sort((a, b) => (eventStart(a)?.getTime() || 0) - (eventStart(b)?.getTime() || 0));
+    const next = items.find((item) => (eventEnd(item) || eventStart(item)) > today) || items[0] || null;
+    const start = next ? eventStart(next) : today;
+    const pad = (value) => String(value).padStart(2, '0');
+    const options = { tab:'schedule', projectScheduleView:'gantt', projectScheduleDate:`${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}` };
+    if (window.Portal.modules?.request?.openProject) window.Portal.modules.request.openProject(project, options);
+    else window.dispatchEvent(new CustomEvent('fm:projects:open', { detail: { project, ...options } }));
+  }
+  /* A section (schedule group) is a named container; its dates follow the
+   * items in it, so its editor only names it. */
+  async function openGanttSectionEditor(group = {}, meta = {}){
+    const Scheduling = window.PlatformScheduling;
+    const stored = allEvents.find((item) => String(item.id || '') === String(group.id || '')) || group;
+    const project = eventProject(stored);
+    const focusBack = () => focusGanttRow(stored.id, meta.element);
+    const members = allEvents.filter((item) => String(Scheduling?.eventParentId?.(item) || item.parent_event_id || '') === String(stored.id || ''));
+    const itemCount = members.length;
+    const scheduledCount = members.filter(eventIsScheduled).length;
+    // Only a section with scheduled items has a bar to move.
+    const datesNote = !itemCount
+      ? 'It has no items yet; its dates will follow the items you put in it.'
+      : scheduledCount
+        ? `Its dates follow its ${itemCount} item${itemCount === 1 ? '' : 's'}; drag the section bar to move ${scheduledCount === 1 ? 'it' : 'them'} together.`
+        : `Its dates will follow its ${itemCount} item${itemCount === 1 ? '' : 's'} once ${itemCount === 1 ? 'it is' : 'they are'} scheduled.`;
+    if (!ganttCanEdit() || !project?.id) {
+      showToast(clean(stored.title) || 'Section', `${datesNote}${ganttCanEdit() ? '' : ` ${typeof scheduleReadOnlyMessage === 'function' ? scheduleReadOnlyMessage() : 'View only.'}`}`, { tone:'info' });
+      focusBack();
+      return;
+    }
+    const result = await openGanttSectionDialog(stored, project, datesNote);
+    focusGanttRow(stored.id, meta.element);
+    if (!result) return;
+    if (result.action === 'delete') {
+      if (typeof deleteScheduleSection === 'function' && await deleteScheduleSection(stored, project)) renderGanttScheduleView();
+      focusGanttRow(stored.id);
+      return;
+    }
+    const title = clean(result.title);
+    const renamed = title && title !== clean(stored.title);
+    // Items put into (or taken out of) this section: parent_event_id links
+    // them; the section's dates then follow its items.
+    const moved = result.changes.map(({ item, inSection }) => ({
+      ...item,
+      parent_event_id:inSection ? String(stored.id) : '',
+      parentEventId:inSection ? String(stored.id) : '',
+      ...(item.metadata && typeof item.metadata === 'object' ? { metadata:{ ...item.metadata, parent_event_id:inSection ? String(stored.id) : '' } } : {}),
+      updated_at:new Date().toISOString()
+    }));
+    if (!renamed && !moved.length) return;
+    const next = renamed ? { ...stored, title, title_is_custom:true, updated_at:new Date().toISOString() } : stored;
+    const previous = new Map([stored, ...result.changes.map(({ item }) => item)].map((item) => [String(item.id || ''), item]));
+    const applied = new Map([next, ...moved].map((item) => [String(item.id || ''), item]));
+    allEvents = allEvents.map((item) => applied.get(String(item.id || '')) || item);
+    events = visibleEvents();
+    renderGanttScheduleView();
+    focusGanttRow(stored.id);
+    const saveKeepingRevision = async (item) => {
+      const version = beginEventRangeSave(item.id);
+      const saved = await Scheduling.saveProjectEvent(orgId(), project, withExplicitAssignees(item), schedulingConfig);
+      mergeSavedCalendarEvent(saved, item, version);
+    };
+    try {
+      if (renamed) await saveKeepingRevision(next);
+      for (const item of moved) await saveKeepingRevision(item);
+      if (moved.length && typeof persistGroupRollups === 'function') await persistGroupRollups(project, [...moved, ...result.changes.map(({ item }) => item)]);
+      renderGanttScheduleView();
+      focusGanttRow(stored.id);
+      const added = result.changes.filter((change) => change.inSection).length;
+      const removed = result.changes.length - added;
+      const parts = [
+        renamed ? `The section is now “${title}”.` : '',
+        added ? `${added} item${added === 1 ? '' : 's'} moved into it.` : '',
+        removed ? `${removed} item${removed === 1 ? '' : 's'} taken out of it.` : ''
+      ].filter(Boolean);
+      showToast(renamed && !moved.length ? 'Section renamed' : 'Section updated', parts.join(' '), true);
+    } catch (error) {
+      allEvents = allEvents.map((item) => previous.get(String(item.id || '')) || item);
+      events = visibleEvents();
+      renderGanttScheduleView();
+      if (isStaleSaveError(error)) { await reloadAfterStaleChange(); return; }
+      showToast('Section not saved', scheduleSaveErrorMessage(error, 'Could not save the section.'), false);
+      scheduleLoad();
+    }
+  }
+  /* Keyboard focus goes back to a Timeline row after its dialog closes (the
+   * row is looked up again: a re-render replaces the element). */
+  function focusGanttRow(eventId = '', fallback = null){
+    const id = String(eventId || '');
+    const find = () => {
+      const escaped = window.CSS?.escape ? window.CSS.escape(id) : id.replace(/["\\]/g, '\\$&');
+      return id ? rootEl?.querySelector(`[data-psv-gantt-open="${escaped}"],[data-psv-gantt-bar="${escaped}"]`) : null;
+    };
+    const focus = () => { try { (find() || (fallback?.isConnected ? fallback : null))?.focus?.({ preventScroll:true }); } catch (error) {} };
+    focus();
+    requestAnimationFrame(focus);
+  }
+  /* The Timeline section dialog: name, which of the project's work items are
+   * in the section, and Delete section.
+   * -> null (cancel) | { action:'delete' } | { action:'save', title, changes:[{ item, inSection }] } */
+  function openGanttSectionDialog(section = {}, project = {}, datesNote = ''){
+    const Scheduling = window.PlatformScheduling;
+    const sectionId = String(section.id || '');
+    const parentOf = (item) => String(Scheduling?.eventParentId?.(item) || item.parent_event_id || '');
+    const candidates = projectScheduleItems(project.id)
+      // Sections group production work (and its deliveries), not appointments.
+      .filter((item) => !Scheduling?.eventIsGroup?.(item) && (isProductionEvent(item) || isMaterialEvent(item)) && String(item.id || '') !== sectionId && !['cancelled', 'canceled'].includes(clean(item.status).toLowerCase()))
+      .sort((a, b) => (eventStart(a)?.getTime() ?? Number.MAX_SAFE_INTEGER) - (eventStart(b)?.getTime() ?? Number.MAX_SAFE_INTEGER) || clean(a.title).localeCompare(clean(b.title)));
+    const sectionTitle = (id) => clean(allEvents.find((item) => String(item.id || '') === id)?.title) || 'another section';
+    const when = (item) => eventIsScheduled(item) ? formatEventDraftTime(item) : 'Unscheduled';
+    const rows = candidates.map((item) => {
+      const parent = parentOf(item);
+      const elsewhere = parent && parent !== sectionId ? ` · now in “${escapeHtml(sectionTitle(parent))}”` : '';
+      return `<label class="dash-section-item"><input type="checkbox" value="${escapeHtml(item.id)}" ${parent === sectionId ? 'checked' : ''}><span><strong>${escapeHtml(clean(item.title) || 'Untitled item')}</strong><small>${escapeHtml(when(item))}${elsewhere}</small></span></label>`;
+    }).join('');
+    return new Promise((resolve) => {
+      const backdrop = document.createElement('div');
+      backdrop.className = 'dash-modal-backdrop';
+      backdrop.dataset.ganttSectionDialog = '1';
+      backdrop.innerHTML = `
+        <div class="dash-modal dash-section-modal" role="dialog" aria-modal="true" aria-labelledby="dashSectionDialogTitle">
+          <div class="dash-modal-head"><h3 id="dashSectionDialogTitle">Edit section</h3><button type="button" class="dash-modal-close" data-section-cancel aria-label="Close"><i class="fas fa-xmark"></i></button></div>
+          <div class="dash-modal-body">
+            <label class="dash-section-name"><span>Section name</span><input type="text" data-section-name value="${escapeHtml(clean(section.title))}" autocomplete="off"></label>
+            <p class="dash-section-note">${escapeHtml(datesNote)}</p>
+            <div class="dash-section-items-head">Work items in this section</div>
+            <div class="dash-section-items" role="group" aria-label="Work items in this section">${rows || '<div class="dash-section-empty">This project has no work items yet. Add work items to the project first.</div>'}</div>
+            <div class="dash-modal-status" data-section-status role="alert"></div>
+            <div class="dash-modal-actions">
+              <button type="button" class="dash-btn dash-section-delete" data-section-delete><i class="fas fa-trash"></i> Delete section</button>
+              <div class="dash-modal-actions-right">
+                <button type="button" class="dash-btn" data-section-cancel>Cancel</button>
+                <button type="button" class="dash-btn active" data-section-save>Save</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      const finish = (value) => {
+        document.removeEventListener('keydown', onKey, true);
+        backdrop.remove();
+        resolve(value);
+      };
+      const save = () => {
+        const title = clean(backdrop.querySelector('[data-section-name]')?.value);
+        if (!title) {
+          const status = backdrop.querySelector('[data-section-status]');
+          if (status) status.textContent = 'A section needs a name.';
+          backdrop.querySelector('[data-section-name]')?.focus();
+          return;
+        }
+        const checked = new Set([...backdrop.querySelectorAll('.dash-section-items input[type="checkbox"]')].filter((box) => box.checked).map((box) => box.value));
+        const changes = candidates
+          .filter((item) => (parentOf(item) === sectionId) !== checked.has(String(item.id || '')))
+          .map((item) => ({ item, inSection:checked.has(String(item.id || '')) }));
+        finish({ action:'save', title, changes });
+      };
+      const onKey = (keyEvent) => {
+        if (!backdrop.isConnected || document.querySelector('.fm-dialog-backdrop')) return;
+        if (keyEvent.key === 'Escape') { keyEvent.preventDefault(); keyEvent.stopPropagation(); finish(null); return; }
+        if (keyEvent.key === 'Enter' && keyEvent.target?.matches?.('[data-section-name]')) { keyEvent.preventDefault(); save(); return; }
+        if (keyEvent.key === 'Tab') {
+          const focusable = [...backdrop.querySelectorAll('button,input')].filter((node) => !node.disabled && node.getClientRects().length);
+          if (!focusable.length) return;
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (keyEvent.shiftKey && document.activeElement === first) { keyEvent.preventDefault(); last.focus(); }
+          else if (!keyEvent.shiftKey && document.activeElement === last) { keyEvent.preventDefault(); first.focus(); }
+        }
+      };
+      backdrop.addEventListener('click', (clickEvent) => {
+        if (clickEvent.target === backdrop || clickEvent.target.closest('[data-section-cancel]')) { finish(null); return; }
+        if (clickEvent.target.closest('[data-section-save]')) { save(); return; }
+        if (clickEvent.target.closest('[data-section-delete]')) finish({ action:'delete' });
+      });
+      document.addEventListener('keydown', onKey, true);
+      document.body.appendChild(backdrop);
+      const input = backdrop.querySelector('[data-section-name]');
+      input?.focus();
+      input?.select?.();
+    });
+  }
+  async function createGanttSection(project, meta = {}){
+    const Scheduling = window.PlatformScheduling;
+    if (!Scheduling?.createScheduleGroupEvent || !Scheduling?.saveProjectEvent || !project?.id) return;
+    if (!ganttCanEdit()) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), typeof scheduleReadOnlyMessage === 'function' ? scheduleReadOnlyMessage() : 'You do not have permission to change the schedule.', VIEW_ONLY_TOAST);
+      return;
+    }
+    const prompt = window.PlatformUI?.prompt || window.Portal?.ui?.prompt;
+    const name = typeof prompt === 'function'
+      ? await prompt('Name the new section. Its dates will follow the work items in it.', 'New Section', { title:'Add section', okLabel:'Add section', cancelLabel:'Cancel' })
+      : 'New Section';
+    try { meta.element?.focus?.({ preventScroll:true }); } catch (error) {}
+    if (name == null) return;
+    const title = clean(name) || 'New Section';
+    const item = Scheduling.createScheduleGroupEvent(project, { title, title_is_custom:true, status:'unscheduled', all_day:true, schedule_granularity:'date' }, schedulingConfig);
+    allEvents = [...allEvents, item];
+    projects = projects.map((candidate) => String(candidate.id || '') === String(project.id || '')
+      ? { ...candidate, events:[...(Array.isArray(candidate.events) ? candidate.events : []), item] }
+      : candidate);
+    events = visibleEvents();
+    renderGanttScheduleView();
+    // Keyboard focus lands on the new section's row.
+    try { rootEl?.querySelector(`[data-psv-gantt-open="${window.CSS?.escape ? window.CSS.escape(String(item.id)) : item.id}"]`)?.focus?.({ preventScroll:false }); } catch (error) {}
+    try {
+      // Keep the stored copy (with its revision) so the next edit of the new
+      // section is not refused as stale.
+      const version = beginEventRangeSave(item.id);
+      const saved = await Scheduling.saveProjectEvent(orgId(), project, item, schedulingConfig);
+      mergeSavedCalendarEvent(saved, item, version);
+      showToast('Section added', `“${title}” was added to ${projectTitle(project)}.`, true);
+    } catch (error) {
+      removeLocalGanttItem(item.id, project.id);
+      renderGanttScheduleView();
+      showToast('Section not added', scheduleSaveErrorMessage(error, 'Could not save the section.'), false);
+    }
+  }
+  function removeLocalGanttItem(itemId = '', projectId = ''){
+    const id = String(itemId || '');
+    allEvents = allEvents.filter((event) => String(event.id || '') !== id);
+    projects = projects.map((candidate) => String(candidate.id || '') === String(projectId || '')
+      ? { ...candidate, events:(Array.isArray(candidate.events) ? candidate.events : []).filter((event) => String(event.id || '') !== id) }
+      : candidate);
+    events = visibleEvents();
+  }
+  function settleGanttPendingItem({ discard = false } = {}){
+    const pending = ganttPendingNewItem;
+    if (!pending) return;
+    ganttPendingNewItem = null;
+    pending.stop();
+    if (!discard) return;
+    removeLocalGanttItem(pending.id, pending.projectId);
+    if (String(eventEditorEventId || '') === pending.id && !document.querySelector('.dash-event-popover')) eventEditorEventId = '';
+    renderGanttScheduleView();
+  }
+  // Watches the editor opened for a Timeline-added item: Save persists it
+  // (the editor's own save), any other close discards the local draft.
+  function watchGanttPendingItem(pending){
+    const editorOpen = () => !!document.querySelector(`.dash-event-popover[data-event-id="${window.CSS?.escape ? window.CSS.escape(pending.id) : pending.id}"]`);
+    let seen = false;
+    let timer = 0;
+    const onClick = (clickEvent) => {
+      if (clickEvent.target?.closest?.('.dash-event-popover [data-event-save]') && editorOpen()) pending.saving = true;
+    };
+    const check = () => {
+      if (ganttPendingNewItem !== pending) return;
+      if (editorOpen()) { seen = true; pending.saving = false; return; }
+      if (!seen) return;
+      settleGanttPendingItem({ discard:!pending.saving });
+    };
+    const observer = new MutationObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(check, 80);
+    });
+    observer.observe(document.body, { childList:true });
+    document.addEventListener('click', onClick, true);
+    pending.stop = () => {
+      clearTimeout(timer);
+      observer.disconnect();
+      document.removeEventListener('click', onClick, true);
+    };
+    setTimeout(check, 0);
+  }
+  function createGanttProjectItem(project, meta = {}, group = false){
     const Scheduling = window.PlatformScheduling;
     if (!Scheduling?.createProjectWorkEvent || !Scheduling?.saveProjectEvent || !project?.id) return;
+    if (!ganttCanEdit()) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), typeof scheduleReadOnlyMessage === 'function' ? scheduleReadOnlyMessage() : 'You do not have permission to change the schedule.', VIEW_ONLY_TOAST);
+      return;
+    }
+    settleGanttPendingItem({ discard:true });
     const factory = group && Scheduling.createScheduleGroupEvent ? Scheduling.createScheduleGroupEvent : Scheduling.createProjectWorkEvent;
     const item = factory(project, {
       title:group ? 'New Section' : 'New Work Item',
@@ -5361,105 +9240,234 @@
       all_day:true,
       schedule_granularity:'date'
     }, schedulingConfig);
+    // Local draft only: the editor's Save persists it, Cancel/close drops it.
     allEvents = [...allEvents, item];
     projects = projects.map((candidate) => String(candidate.id || '') === String(project.id || '')
       ? { ...candidate, events:[...(Array.isArray(candidate.events) ? candidate.events : []), item] }
       : candidate);
     events = visibleEvents();
+    const pending = { id:String(item.id || ''), projectId:String(project.id || ''), saving:false, stop(){} };
+    ganttPendingNewItem = pending;
     renderGanttScheduleView();
-    try {
-      const saved = await Scheduling.saveProjectEvent(orgId(), project, item, schedulingConfig);
-      mergeSavedCalendarEvent(saved, item, beginEventRangeSave(item.id));
-      renderGanttScheduleView();
-      const escapedId = window.CSS?.escape ? window.CSS.escape(String(item.id)) : String(item.id);
-      const anchor = rootEl?.querySelector?.(`[data-psv-gantt-open="${escapedId}"]`);
-      openPlacedCalendarEvent(saved?.event || item, { element:anchor || meta.element });
-    } catch (error) {
-      allEvents = allEvents.filter((event) => String(event.id || '') !== String(item.id || ''));
-      projects = projects.map((candidate) => String(candidate.id || '') === String(project.id || '')
-        ? { ...candidate, events:(Array.isArray(candidate.events) ? candidate.events : []).filter((event) => String(event.id || '') !== String(item.id || '')) }
-        : candidate);
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_39e03ba47e7ee8","Item not added") ?? "Item not added"), error?.message || 'Could not add the project work item.', false);
-      renderGanttScheduleView();
-    }
+    const escapedId = window.CSS?.escape ? window.CSS.escape(String(item.id)) : String(item.id);
+    const anchor = rootEl?.querySelector?.(`[data-psv-gantt-open="${escapedId}"]`);
+    anchor?.scrollIntoView?.({ block:'nearest' });
+    openPlacedCalendarEvent(item, { element:anchor || meta.element });
+    watchGanttPendingItem(pending);
   }
-  async function saveGanttProjectRange(rollup, range){
+  async function saveGanttProjectRange(rollup, range, meta = {}){
     const Scheduling = window.PlatformScheduling;
+    if (!ganttCanEdit()) { renderGanttScheduleView(); return; }
     const previousStart = eventStart(rollup);
     const nextStart = validDate(range?.start);
     if (!Scheduling?.updateProjectEventRange || !previousStart || !nextStart) return;
+    // Whole calendar days (DST-safe): every item keeps its time of day.
+    const days = Math.round(Number(meta?.dayDelta) || ((nextStart.getTime() - previousStart.getTime()) / 86400000));
+    if (!days) { renderGanttScheduleView(); return; }
     const childIds = new Set((rollup.__project_child_ids || []).map(String));
-    const children = allEvents.filter((event) => childIds.has(String(event.id || '')) && !Scheduling.eventIsGroup?.(event) && eventIsScheduled(event) && !eventIsLocked(event));
-    const delta = nextStart.getTime() - previousStart.getTime();
-    if (!delta || !children.length) return;
+    const fixed = (event) => eventIsLocked(event) || Scheduling.eventIsFixed?.(event) === true || ['completed', 'complete', 'done'].includes(clean(event.status).toLowerCase());
+    const placed = allEvents.filter((event) => childIds.has(String(event.id || '')) && !Scheduling.eventIsGroup?.(event) && eventIsScheduled(event));
+    const children = placed.filter((event) => !fixed(event));
+    const stayed = placed.length - children.length;
+    if (!children.length) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_520e15b9c887fd","Project not moved") ?? "Project not moved"), 'Every scheduled item in this project is locked or completed.', false);
+      renderGanttScheduleView();
+      return;
+    }
     const changes = children.map((event) => {
       const start = eventStart(event);
-      const end = eventEnd(event) || addDays(start, 1);
+      const end = eventEnd(event) && eventEnd(event) > start ? eventEnd(event) : addDays(start, 1);
+      const timed = ganttItemIsTimed(event);
       return Scheduling.updateProjectEventRange(event, {
-        start:new Date(start.getTime() + delta),
-        end:new Date(end.getTime() + delta),
-        all_day:event.all_day !== false,
-        schedule_granularity:event.schedule_granularity
+        start:addDays(start, days),
+        end:addDays(end, days),
+        all_day:!timed,
+        schedule_granularity:timed ? 'time' : 'date'
       });
     });
+    const previousById = new Map(children.map((event) => [String(event.id || ''), event]));
     const byId = new Map(changes.map((event) => [String(event.id || ''), event]));
     allEvents = allEvents.map((event) => byId.get(String(event.id || '')) || event);
     events = visibleEvents();
     renderGanttScheduleView();
+    const project = projects.find((candidate) => String(candidate.id || '') === String(rollup.project_id || '')) || eventProject(changes[0]);
+    const stayedNote = stayed ? ` ${stayed} locked or completed item${stayed === 1 ? '' : 's'} stayed in place.` : '';
     try {
+      if (changes.length > 1) showToast('Moving project', `Saving ${changes.length} work items…`, true);
       for (const change of changes) {
-        const project = eventProject(change);
-        if (!project?.id) continue;
-        const version = beginEventRangeSave(change.id);
-        const saved = await queueEventRangeSave(change.id, () => Scheduling.saveProjectEvent(orgId(), project, change, schedulingConfig));
-        mergeSavedCalendarEvent(saved, change, version);
-      }
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_77017e64d76f74","Project moved") ?? "Project moved"), ((v0,v1) => globalThis.PlatformLanguage?.text("scheduling","m_c2ee34769a4c38",`${v0} work item${v1} moved together.`,{v0,v1}) ?? `${v0} work item${v1} moved together.`)(changes.length,changes.length === 1 ? '' : 's'), true);
-      renderGanttScheduleView();
-    } catch (error) {
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_520e15b9c887fd","Project not moved") ?? "Project not moved"), error?.message || 'Could not move all project work items.', false);
-      scheduleLoad();
-    }
-  }
-  async function saveGanttEventRange(event, range, cascade = []){
-    const Scheduling = window.PlatformScheduling;
-    const currentEvent = allEvents.find((item) => String(item.id || '') === String(event?.id || '')) || event;
-    const project = eventProject(currentEvent);
-    if (eventIsLocked(currentEvent)) {
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_88e13d64071885","Schedule locked") ?? "Schedule locked"), (globalThis.PlatformLanguage?.text("scheduling","m_0233f74e9faf1e","Unlock this item before moving it.") ?? "Unlock this item before moving it."), false);
-      renderGanttScheduleView();
-      return;
-    }
-    if (!Scheduling || !currentEvent?.id || !project?.id || !range?.start) return;
-    const drafts = (cascade || []).filter((draft) => String(draft.id || '') !== String(currentEvent.id || ''));
-    let moveLinked = false;
-    if (drafts.length) {
-      const choice = await chooseRelationshipReschedule(currentEvent, drafts);
-      if (choice === 'cancel' || choice === false || choice == null) {
-        renderGanttScheduleView();
-        return;
-      }
-      moveLinked = choice === 'yes';
-    }
-    const next = { ...Scheduling.updateProjectEventRange(currentEvent, range), status:'scheduled' };
-    const changes = [next, ...(moveLinked ? drafts.map((draft) => ({ ...draft, status:'scheduled' })) : [])];
-    const changesById = new Map(changes.map((item) => [String(item.id || ''), item]));
-    allEvents = allEvents.map((item) => changesById.has(String(item.id || '')) ? { ...item, ...changesById.get(String(item.id || '')) } : item);
-    events = visibleEvents();
-    renderGanttScheduleView();
-    try {
-      for (const change of changes) {
-        const changeProject = eventProject(change);
+        const changeProject = eventProject(change)?.id ? eventProject(change) : project;
         if (!changeProject?.id) continue;
         const version = beginEventRangeSave(change.id);
         const saved = await queueEventRangeSave(change.id, () => Scheduling.saveProjectEvent(orgId(), changeProject, change, schedulingConfig));
         mergeSavedCalendarEvent(saved, change, version);
       }
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_a1da9bcb050cbb","Schedule updated") ?? "Schedule updated"), changes.length > 1 ? `Moved this item and ${changes.length - 1} linked item${changes.length === 2 ? '' : 's'}.` : 'The schedule item was updated.', true);
+      if (project?.id && typeof persistGroupRollups === 'function') await persistGroupRollups(project, changes);
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_77017e64d76f74","Project moved") ?? "Project moved"), `${((v0,v1) => globalThis.PlatformLanguage?.text("scheduling","m_c2ee34769a4c38",`${v0} work item${v1} moved together.`,{v0,v1}) ?? `${v0} work item${v1} moved together.`)(changes.length,changes.length === 1 ? '' : 's')}${stayedNote}`, true);
       renderGanttScheduleView();
     } catch (error) {
-      showToast((globalThis.PlatformLanguage?.text("scheduling","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), error?.message || 'Could not update this schedule item.', false);
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_520e15b9c887fd","Project not moved") ?? "Project not moved"), error?.message || 'Could not move all project work items.', false);
+      allEvents = allEvents.map((event) => previousById.get(String(event.id || '')) || event);
+      events = visibleEvents();
+      renderGanttScheduleView();
       scheduleLoad();
+    }
+  }
+  async function saveGanttEventRange(event, range, meta = {}){
+    const Scheduling = window.PlatformScheduling;
+    const floating = event?.floating_event === true || String(event?.id || '').startsWith('floating_');
+    const currentEvent = floating ? event : (allEvents.find((item) => String(item.id || '') === String(event?.id || '')) || event);
+    if (!ganttCanEdit()) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), typeof scheduleReadOnlyMessage === 'function' ? scheduleReadOnlyMessage() : 'You do not have permission to change the schedule.', VIEW_ONLY_TOAST);
+      renderGanttScheduleView();
+      return;
+    }
+    if (eventIsLocked(currentEvent)) {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_88e13d64071885","Schedule locked") ?? "Schedule locked"), (globalThis.PlatformLanguage?.text("scheduling","m_0233f74e9faf1e","Unlock this item before moving it.") ?? "Unlock this item before moving it."), false);
+      renderGanttScheduleView();
+      return;
+    }
+    if (!currentEvent?.id || !range?.start || ['cancelled', 'canceled'].includes(clean(currentEvent.status).toLowerCase())) return;
+    // Placed items and company events take the shared reschedule path, so
+    // linked items, scope rules, locked successors and group rollups behave
+    // exactly as in the calendar views.
+    if (floating) {
+      const saving = saveEventCalendarRange(currentEvent, range);
+      renderGanttScheduleView();
+      await saving;
+      renderGanttScheduleView();
+      return;
+    }
+    if (eventIsScheduled(currentEvent)) {
+      await saveEventCalendarRange(currentEvent, range);
+      return;
+    }
+    // Scheduling an unplaced item from its lane.
+    const project = eventProject(currentEvent);
+    if (!Scheduling?.updateProjectEventRange || !project?.id) return;
+    // Same protections as placing from the rail: a past day asks first, and
+    // linked work the placement puts out of order is flagged before saving.
+    const itemLabel = clean(currentEvent.title) || 'This item';
+    // A day click on a timed item (e.g. a 4-hour job) keeps it timed at its
+    // usual start and length instead of turning it into an all-day bar.
+    if (range.all_day !== false && Scheduling.interpretScheduleBundle) {
+      try {
+        const interpreted = Scheduling.interpretScheduleBundle(currentEvent, [currentEvent], startOfDay(range.start), project, scopeTemplates, { config:schedulingConfig })[0];
+        const interpretedStart = validDate(interpreted?.start);
+        const interpretedEnd = validDate(interpreted?.end);
+        if (interpreted && interpreted.all_day === false && interpretedStart && interpretedEnd && sameDay(interpretedStart, range.start)) {
+          range = { ...range, start:interpretedStart, end:interpretedEnd, all_day:false, schedule_granularity:'time' };
+        }
+      } catch (error) {}
+    }
+    // A single click books an all-day item for its planned length (e.g. a
+    // 2-day job gets 2 days), not just the clicked day; a drag keeps the
+    // days it covered.
+    if (meta.source === 'lane-click' && range.all_day !== false) {
+      let days = 0;
+      try {
+        const interpreted = Scheduling.interpretScheduleBundle?.(currentEvent, [currentEvent], startOfDay(range.start), project, scopeTemplates, { config:schedulingConfig })?.[0];
+        const iStart = validDate(interpreted?.start);
+        const iEnd = validDate(interpreted?.end);
+        if (interpreted && interpreted.all_day !== false && iStart && iEnd && iEnd > iStart) days = Math.round((iEnd.getTime() - iStart.getTime()) / 86400000);
+      } catch (error) {}
+      if (!days) days = Math.round(Number(currentEvent.duration_minutes || 0) / 1440);
+      if (days > 1) {
+        const dayStart = startOfDay(range.start);
+        range = { ...range, start:dayStart, end:addDays(dayStart, days), all_day:true, schedule_granularity:'date' };
+      }
+    }
+    if (!(await confirmPastPlacement(range.start, itemLabel))) { renderGanttScheduleView(); return; }
+    const next = { ...Scheduling.updateProjectEventRange(currentEvent, range), status:'scheduled' };
+    const conflicts = await resolvePlacementDependencyConflicts(project, [next], itemLabel);
+    if (conflicts.cancelled) { renderGanttScheduleView(); return; }
+    // Linked items "Move it too" pushes later: Undo puts them back as well.
+    const linkedBefore = conflicts.changes
+      .map((change) => ({ change, original:allEvents.find((item) => String(item.id || '') === String(change.id || '')) }))
+      .filter((entry) => entry.original);
+    if (ganttPendingNewItem?.id === String(currentEvent.id || '')) settleGanttPendingItem();
+    const previous = currentEvent;
+    allEvents = allEvents.map((item) => String(item.id || '') === String(next.id || '') ? { ...item, ...next } : item);
+    events = visibleEvents();
+    renderGanttScheduleView();
+    const version = beginEventRangeSave(next.id);
+    try {
+      const saved = await queueEventRangeSave(next.id, () => Scheduling.saveProjectEvent(orgId(), project, next, schedulingConfig));
+      mergeSavedCalendarEvent(saved, next, version);
+      if (conflicts.changes.length) await saveRelatedRescheduleChanges(project, conflicts.changes);
+      if (typeof persistGroupRollups === 'function') await persistGroupRollups(project, [next, ...conflicts.changes]);
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_a1da9bcb050cbb","Schedule updated") ?? "Schedule updated"), `“${clean(next.title) || 'Item'}” is scheduled for ${formatEventDraftTime(next)}.${conflicts.changes.length ? ` ${conflicts.changes.length} linked item${conflicts.changes.length === 1 ? ' was' : 's were'} moved too.` : ''}${outOfOrderNote(conflicts.leftOutOfOrder)}`, !conflicts.leftOutOfOrder);
+      // A single click placed it: offer a one-click undo in the toast.
+      appendToastAction('Undo', async () => {
+        const stored = allEvents.find((item) => String(item.id || '') === String(next.id || ''));
+        if (!stored || eventStart(stored)?.getTime() !== eventStart(next)?.getTime()) return;
+        // Back to exactly how it was: no date (every start/end alias
+        // cleared, or the scheduler re-derives a date from a leftover one).
+        // Built on the copy just saved (its current revision), with the
+        // schedule fields put back.
+        const restored = {
+          ...stored,
+          all_day:previous.all_day,
+          schedule_granularity:previous.schedule_granularity || '',
+          start:previous.start || '', end:previous.end || '',
+          start_at:previous.start_at || '', end_at:previous.end_at || '',
+          status:clean(previous.status) || 'unscheduled',
+          updated_at:new Date().toISOString()
+        };
+        allEvents = allEvents.map((item) => String(item.id || '') === String(restored.id || '') ? restored : item);
+        events = visibleEvents();
+        renderGanttScheduleView();
+        // Linked items moved with it go back to where they were (only those
+        // still where this placement put them).
+        const linkedRestores = linkedBefore.map(({ change, original }) => {
+          const current = allEvents.find((item) => String(item.id || '') === String(change.id || ''));
+          if (!current || eventStart(current)?.getTime() !== eventStart(change)?.getTime()) return null;
+          return {
+            ...current,
+            all_day:original.all_day,
+            schedule_granularity:original.schedule_granularity || '',
+            start:original.start || '', end:original.end || '',
+            start_at:original.start_at || '', end_at:original.end_at || '',
+            duration_minutes:original.duration_minutes,
+            status:original.status,
+            ...equipmentWindowPatch(current, { start:eventStart(current), end:eventEnd(current) }, { start:eventStart(original), end:eventEnd(original) }),
+            updated_at:new Date().toISOString()
+          };
+        }).filter(Boolean);
+        linkedRestores.forEach((item) => { allEvents = allEvents.map((event) => String(event.id || '') === String(item.id || '') ? item : event); });
+        events = visibleEvents();
+        renderGanttScheduleView();
+        try {
+          const undoVersion = beginEventRangeSave(restored.id);
+          const undone = await queueEventRangeSave(restored.id, () => Scheduling.saveProjectEvent(orgId(), project, restored, schedulingConfig));
+          mergeSavedCalendarEvent(undone, restored, undoVersion);
+          for (const item of linkedRestores) {
+            const linkedVersion = beginEventRangeSave(item.id);
+            const saved = await queueEventRangeSave(item.id, () => Scheduling.saveProjectEvent(orgId(), project, withExplicitAssignees(item), schedulingConfig));
+            mergeSavedCalendarEvent(saved, item, linkedVersion);
+          }
+          if (typeof persistGroupRollups === 'function') await persistGroupRollups(project, [restored, ...linkedRestores]);
+          showToast('Scheduling undone', `“${clean(restored.title) || 'Item'}” is waiting to be scheduled again.${linkedRestores.length ? ` ${linkedRestores.length} linked item${linkedRestores.length === 1 ? ' was' : 's were'} moved back.` : ''}`, true);
+        } catch (undoError) {
+          if (isStaleSaveError(undoError)) changedElsewhereToast();
+          else showToast('Undo failed', scheduleSaveErrorMessage(undoError, 'Could not undo the scheduling.'), false);
+          scheduleLoad();
+        }
+        renderGanttScheduleView();
+      });
+      renderGanttScheduleView();
+    } catch (error) {
+      if (isStaleSaveError(error)) {
+        allEvents = allEvents.map((item) => String(item.id || '') === String(previous.id || '') ? previous : item);
+        events = visibleEvents();
+        await reloadAfterStaleChange();
+        return;
+      }
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_84ef35ed03b1c5","Scheduling failed") ?? "Scheduling failed"), error?.message || 'Could not update this schedule item.', false);
+      if (eventRangeSaveVersions.get(String(next.id || '')) === version) {
+        allEvents = allEvents.map((item) => String(item.id || '') === String(previous.id || '') ? previous : item);
+        events = visibleEvents();
+        renderGanttScheduleView();
+      }
     }
   }
   function ganttDependencyWouldCycle(fromEvent, toEvent){
@@ -5483,11 +9491,17 @@
     const source = fromEvent?.__project_rollup === true
       ? scheduledChildren(fromEvent).sort((a, b) => (eventEnd(b)?.getTime() || 0) - (eventEnd(a)?.getTime() || 0))[0]
       : fromEvent;
+    // A project bar as the target resolves to its first item that can still
+    // move (not a completed or locked one).
+    const fixedItem = (item) => eventIsLocked(item) || Scheduling?.eventIsFixed?.(item) === true || ['completed', 'complete', 'done'].includes(clean(item?.status).toLowerCase());
+    const targetCandidates = toEvent?.__project_rollup === true
+      ? scheduledChildren(toEvent).sort((a, b) => (eventStart(a)?.getTime() || Number.MAX_SAFE_INTEGER) - (eventStart(b)?.getTime() || Number.MAX_SAFE_INTEGER))
+      : [];
     const resolvedTarget = toEvent?.__project_rollup === true
-      ? scheduledChildren(toEvent).sort((a, b) => (eventStart(a)?.getTime() || Number.MAX_SAFE_INTEGER) - (eventStart(b)?.getTime() || Number.MAX_SAFE_INTEGER))[0]
+      ? (targetCandidates.find((item) => !fixedItem(item)) || targetCandidates[0])
       : toEvent;
     const target = allEvents.find((item) => String(item.id || '') === String(resolvedTarget?.id || '')) || resolvedTarget;
-    if (!Scheduling || !target?.id || !source?.id) return;
+    if (!Scheduling || !target?.id || !source?.id || !ganttCanEdit()) return;
     const existing = Scheduling.eventDependencies ? Scheduling.eventDependencies(target) : [];
     if (existing.some((dep) => dep.event_id === String(source.id || ''))) return;
     if (ganttDependencyWouldCycle(source, target)) {
@@ -5500,16 +9514,63 @@
       type:'finish_to_start',
       lag_minutes:0
     }];
-    await saveGanttDependencies(target, nextDeps, 'Items linked');
+    // A link that is already out of order (the later item starts before the
+    // earlier one finishes) is flagged before it is saved.
+    const sourceEnd = eventEnd(source) || eventStart(source);
+    const targetStart = eventStart(target);
+    const targetEnd = eventEnd(target) || targetStart;
+    const outOfOrder = eventIsScheduled(source) && eventIsScheduled(target) && sourceEnd && targetStart && targetStart < sourceEnd;
+    let moveTarget = null;
+    if (outOfOrder) {
+      const sourceLabel = `“${clean(source.title) || 'the first item'}”`;
+      const targetLabel = `“${clean(target.title) || 'the second item'}”`;
+      const canMove = !fixedItem(target);
+      const crossProject = String(source.project_id || '') !== String(target.project_id || '');
+      const message = `${targetLabel} starts before ${sourceLabel} finishes, so this link would be out of order right away.${fixedItem(target) ? ` ${targetLabel} is locked or completed and can't move.` : ''}${crossProject ? ' The two items belong to different projects.' : ''}`;
+      const choice = window.Portal?.ui?.choose
+        ? await window.Portal.ui.choose(message, [
+          { value:'cancel', label:(globalThis.PlatformLanguage?.text("scheduling","m_cbef679b21abb4","Cancel") ?? "Cancel") },
+          { value:'link', label:'Link anyway', primary:!canMove },
+          ...(canMove ? [{ value:'move', label:`Link and move ${clean(target.title) || 'it'} later`, primary:true }] : [])
+        ], { title:'Link out of order' })
+        : ((await window.PlatformUI?.confirm?.(message, { title:'Link out of order', okLabel:'Link anyway', cancelLabel:'Cancel' })) ? 'link' : 'cancel');
+      if (!choice || choice === 'cancel') { renderGanttScheduleView(); return; }
+      if (choice === 'move' && targetStart && targetEnd) {
+        const allDay = !ganttItemIsTimed(target);
+        // The shared dependency layout: whole days start on the next free
+        // day, timed work keeps its own time of day (never midnight).
+        const span = Scheduling.scheduleItemSpan?.(target) || null;
+        const laidOut = span && Scheduling.dependencyEarliestStart
+          ? validDate(Scheduling.dependencyEarliestStart({ type:'finish_to_start', lag_minutes:0 }, { start:eventStart(source), end:sourceEnd }, span, { config:schedulingConfig }))
+          : null;
+        const nextStart = laidOut || (allDay && (sourceEnd.getHours() || sourceEnd.getMinutes()) ? addDays(startOfDay(sourceEnd), 1) : new Date(sourceEnd));
+        const nextEnd = span?.allDay ? addDays(nextStart, Math.max(1, span.days)) : new Date(nextStart.getTime() + (targetEnd.getTime() - targetStart.getTime()));
+        moveTarget = { start:nextStart, end:nextEnd, all_day:allDay, schedule_granularity:allDay ? 'date' : 'time' };
+      }
+    }
+    await saveGanttDependencies(target, nextDeps, 'Items linked', outOfOrder && !moveTarget);
+    if (moveTarget) {
+      const linked = allEvents.find((item) => String(item.id || '') === String(target.id || '')) || { ...target, depends_on:nextDeps };
+      await saveEventCalendarRange(linked, moveTarget);
+      renderGanttScheduleView();
+    }
   }
   async function removeGanttDependency(event, dependency){
     const Scheduling = window.PlatformScheduling;
     const target = allEvents.find((item) => String(item.id || '') === String(event?.id || '')) || event;
     if (!Scheduling || !target?.id) return;
+    if (!ganttCanEdit()) return;
     const existing = Scheduling.eventDependencies ? Scheduling.eventDependencies(target) : [];
+    // Unlinking is explicit: a stray click on a connector must not drop it.
+    const source = allEvents.find((item) => String(item.id || '') === String(dependency?.event_id || ''));
+    const message = `Remove the link so “${clean(target.title) || 'this item'}” no longer follows “${clean(source?.title) || 'its predecessor'}”?`;
+    const approved = window.PlatformUI?.confirm
+      ? await window.PlatformUI.confirm(message, { title:'Remove dependency', okLabel:'Unlink', cancelLabel:'Keep link', danger:true })
+      : (await window.Portal?.ui?.choose?.(message, [{ value:'cancel', label:'Keep link' }, { value:'unlink', label:'Unlink', primary:true }], { title:'Remove dependency' })) === 'unlink';
+    if (!approved) return;
     await saveGanttDependencies(target, existing.filter((dep) => dep.id !== dependency?.id), 'Items unlinked');
   }
-  async function saveGanttDependencies(target, dependsOn, label){
+  async function saveGanttDependencies(target, dependsOn, label, outOfOrder = false){
     const project = eventProject(target);
     if (!project?.id || !window.PlatformScheduling?.saveProjectEvent) return;
     const next = { ...target, depends_on: dependsOn, updated_at: new Date().toISOString() };
@@ -5517,8 +9578,9 @@
     renderGanttScheduleView();
     try {
       await window.PlatformScheduling.saveProjectEvent(orgId(), project, next, schedulingConfig);
-      showToast(label, label === 'Items linked' ? 'The item now follows the one you connected it to.' : 'The dependency was removed.', true);
+      showToast(label, label === 'Items linked' ? `The item now follows the one you connected it to.${outOfOrder ? ' The link is out of order until one of them moves.' : ''}` : 'The dependency was removed.', !outOfOrder);
     } catch (error) {
+      if (isStaleSaveError(error)) { await reloadAfterStaleChange(); return; }
       showToast((globalThis.PlatformLanguage?.text("scheduling","m_250f0841a2c9ea","Link not saved") ?? "Link not saved"), error?.message || 'Could not update the dependency.', false);
       scheduleLoad();
     }
@@ -5564,7 +9626,11 @@
         <span class="dash-control-label">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_6290719711de40","Show") ?? "Show")}</span>
         ${typeChip('sales', (globalThis.PlatformLanguage?.text("scheduling","m_2680c31facb03d","Sales") ?? "Sales"), showSalesSchedule)}
         ${typeChip('production', (globalThis.PlatformLanguage?.text("scheduling","m_c2e6380e130020","Production") ?? "Production"), showProductionSchedule)}
-        ${typeChip('other', (globalThis.PlatformLanguage?.text("scheduling","m_4a04382820d2e1","Other") ?? "Other"), showOtherSchedule)}
+        ${viewMode === 'appointment_schedule'
+          // Routing has only Sales and Production lanes: "Other" can't apply
+          // there, so it stays in place (no header shift) but is disabled.
+          ? typeChip('other', (globalThis.PlatformLanguage?.text("scheduling","m_4a04382820d2e1","Other") ?? "Other"), showOtherSchedule).replace('<button type="button"', `<button type="button" disabled aria-disabled="true" title="${escapeHtml(globalThis.PlatformLanguage?.text("scheduling","m_other_not_in_routing","Routing shows sales and production lanes only") ?? "Routing shows sales and production lanes only")}"`)
+          : typeChip('other', (globalThis.PlatformLanguage?.text("scheduling","m_4a04382820d2e1","Other") ?? "Other"), showOtherSchedule)}
       </span>`;
     const displayButtons = ENABLE_CALENDAR_DISPLAY_SWITCH ? `
       <span class="dash-control-group">
@@ -5580,7 +9646,7 @@
       ['week', window.Portal?.terminology?.get?.('scheduling.week_view', 'Week') || 'Week', 'fa-table-columns'],
       ['month', window.Portal?.terminology?.get?.('scheduling.month_view', 'Month') || 'Month', 'fa-calendar-days']
     ];
-    const mobileToolbarExtras = `<span class="dash-mobile-menu-wrap"><button type="button" class="dash-mobile-control dash-mobile-show" data-mobile-schedule-menu aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2ea71a7fc7dec5","Choose schedules to show") ?? "Choose schedules to show")}" aria-expanded="${String(mobileScheduleMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><i class="fas fa-chevron-down" style="font-size:8px"></i></button>${String(mobileScheduleMenuOpen ? `<div class="dash-mobile-popover schedules" role="menu" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_92e47dd97f2a57","Schedules to show") ?? "Schedules to show")}"><button type="button" class="${showSalesSchedule ? 'active' : ''}" data-schedule-type-toggle="sales" role="menuitemcheckbox" aria-checked="${showSalesSchedule ? 'true' : 'false'}"><i class="fas fa-handshake"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2680c31facb03d","Sales") ?? "Sales")}</button><button type="button" class="${showProductionSchedule ? 'active' : ''}" data-schedule-type-toggle="production" role="menuitemcheckbox" aria-checked="${showProductionSchedule ? 'true' : 'false'}"><i class="fas fa-helmet-safety"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c2e6380e130020","Production") ?? "Production")}</button><button type="button" class="${showOtherSchedule ? 'active' : ''}" data-schedule-type-toggle="other" role="menuitemcheckbox" aria-checked="${showOtherSchedule ? 'true' : 'false'}"><i class="fas fa-calendar-plus"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_4a04382820d2e1","Other") ?? "Other")}</button></div>` : '')}</span><button type="button" class="dash-mobile-control dash-mobile-type" data-mobile-tray-open aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_858d2ae4d1a804","Open projects to schedule") ?? "Open projects to schedule")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><i class="fas fa-inbox"></i></button>`;
+    const mobileToolbarExtras = `${canEditSchedule() ? '' : `<button type="button" class="dash-mobile-view-only" data-view-only-info aria-label="${escapeHtml(`${(globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only")}: ${scheduleReadOnlyMessage()}`)}" title="${escapeHtml(scheduleReadOnlyMessage())}"><i class="fas fa-eye" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_view_short","View") ?? "View")}</span></button>`}<span class="dash-mobile-menu-wrap"><button type="button" class="dash-mobile-control dash-mobile-show" data-mobile-schedule-menu aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2ea71a7fc7dec5","Choose schedules to show") ?? "Choose schedules to show")}" aria-expanded="${String(mobileScheduleMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><i class="fas fa-chevron-down" style="font-size:8px"></i></button>${String(mobileScheduleMenuOpen ? `<div class="dash-mobile-popover schedules" role="menu" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_92e47dd97f2a57","Schedules to show") ?? "Schedules to show")}"><button type="button" class="${showSalesSchedule ? 'active' : ''}" data-schedule-type-toggle="sales" role="menuitemcheckbox" aria-checked="${showSalesSchedule ? 'true' : 'false'}"><i class="fas fa-handshake"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2680c31facb03d","Sales") ?? "Sales")}</button><button type="button" class="${showProductionSchedule ? 'active' : ''}" data-schedule-type-toggle="production" role="menuitemcheckbox" aria-checked="${showProductionSchedule ? 'true' : 'false'}"><i class="fas fa-helmet-safety"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c2e6380e130020","Production") ?? "Production")}</button><button type="button" class="${showOtherSchedule ? 'active' : ''}" data-schedule-type-toggle="other" role="menuitemcheckbox" aria-checked="${showOtherSchedule ? 'true' : 'false'}"><i class="fas fa-calendar-plus"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_4a04382820d2e1","Other") ?? "Other")}</button></div>` : '')}</span><button type="button" class="dash-mobile-control dash-mobile-type" data-mobile-tray-open aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_858d2ae4d1a804","Open projects to schedule") ?? "Open projects to schedule")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><i class="fas fa-inbox"></i></button>`;
     const mobileToolbar = window.PlatformScheduleView?.mobileCalendarToolbarHtml?.({
       view: viewMode,
       date: anchorDate,
@@ -5601,9 +9667,25 @@
         nav:'data-dash-nav'
       }
     }) || '';
+    // The phone toolbar exists only at phone width, and only once the shared
+    // schedule styles are on the page (they install with the first calendar
+    // render in this same pass), so it never flashes as unstyled buttons.
+    const mobileToolbarReady = isMobileScheduleLayout() && (document.getElementById('platform_schedule_view_css') || (dataLoaded && schedulingConfig));
+    const mobileToolbarMarkup = isMobileScheduleLayout() ? (mobileToolbarReady ? mobileToolbar : '<div class="dash-mobile-toolbar-placeholder" aria-hidden="true"></div>') : '';
+    // Links can carry a person/lead-source/city filter (scheduleGroup +
+    // scheduleResource). Its controls are hidden, so show what is applied
+    // and let it be cleared.
+    // View-only sessions (no manage_schedule) see why nothing can be moved.
+    // A focusable button: keyboard and touch users get the explanation too
+    // (click/tap shows it), not only a mouse hover tooltip.
+    const viewOnlyNote = canEditSchedule() ? '' : `<button type="button" class="dash-view-only-note" data-view-only-info aria-label="${escapeHtml(`${(globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only")}: ${scheduleReadOnlyMessage()}`)}" title="${escapeHtml(scheduleReadOnlyMessage())}"><i class="fas fa-eye" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_view_only","View only") ?? "View only")}</button>`;
+    const filterText = breakdownValue !== 'all' ? `${(FILTER_TYPES[breakdownMode]?.label || 'Filter')}: ${breakdownMode === 'user' ? (!dataLoaded || !users.length || users.some((user) => clean(user.id) === clean(breakdownValue)) ? userDisplayName(breakdownValue) : 'Unknown person') : breakdownValue}` : '';
+    const filterIndicator = breakdownValue !== 'all'
+      ? `<span class="dash-filter-indicator" role="status" title="${escapeHtml(filterText)}"><span>${escapeHtml(filterText)}</span><button type="button" data-clear-schedule-filter aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_clear_filter","Clear filter") ?? "Clear filter")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_clear_filter","Clear filter") ?? "Clear filter")}"><i class="fas fa-xmark"></i></button></span>`
+      : '';
     return `
-      ${String(mobileToolbar)}<div class="dash-toolbar">
-        <div><h2 class="dash-title">${String(escapeHtml(visibleTitle()))}</h2></div>
+      ${String(mobileToolbarMarkup)}<div class="dash-toolbar">
+        <div class="dash-title-wrap"><h2 class="dash-title" title="${escapeHtml(visibleTitle())}">${String(escapeHtml(visibleTitle()))}</h2>${viewOnlyNote || filterIndicator ? `<div class="dash-title-status">${viewOnlyNote}${filterIndicator}</div>` : ''}</div>
         <div class="dash-controls">
           <span class="dash-segmented dash-nav-group">
             <button type="button" data-dash-nav="-1" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_bb31fd73cbfe3b","Previous") ?? "Previous")}" title="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_bb31fd73cbfe3b","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button>
@@ -5621,7 +9703,7 @@
               ...(routingViewEnabled() ? [['appointment_schedule',routingLabel, 'fa-route']] : []),
               ...(ganttViewEnabled() ? [['gantt', window.Portal?.terminology?.get?.('scheduling.gantt_view', 'Timeline') || 'Timeline', 'fa-chart-gantt']] : [])
             ]
-          ].filter((group) => group.length).map((group) => `<span class="dash-segmented" role="group">${group.map(([mode, label, icon]) => `<button type="button" class="${viewMode === mode ? 'active' : ''}" data-dash-view="${mode}" aria-pressed="${viewMode === mode ? 'true' : 'false'}">${icon ? `<i class="fas ${icon}"></i>` : ''}${escapeHtml(label)}</button>`).join('')}</span>`).join('')}
+          ].filter((group) => group.length).map((group) => `<span class="dash-segmented" role="group">${group.map(([mode, label, icon]) => `<button type="button" class="${viewMode === mode ? 'active' : ''} ${icon ? 'has-icon' : ''}" data-dash-view="${mode}" aria-pressed="${viewMode === mode ? 'true' : 'false'}"${icon ? ` aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"` : ''}>${icon ? `<i class="fas ${icon}" aria-hidden="true"></i>` : ''}<span class="dash-view-label">${escapeHtml(label)}</span></button>`).join('')}</span>`).join('')}
           ${String(modeButtons)}
           ${String(viewMode !== 'appointment_schedule' ? displayButtons : '')}
         </div>
@@ -5634,36 +9716,88 @@
     const dayKey = routeDate(day);
     if (activeDayModal?.day === dayKey && activeDayModal.element?.isConnected) return;
     activeDayModal?.close?.({ fromRoute:true });
-    const dayEvents = events.filter((event) => sameDay(eventStart(event), day));
-    const items = dayEvents.map((event) => ({ event, project: eventProject(event), salesperson: assignedLabel(event) }));
+    // Everything on the calendar that touches this day: timed and all-day
+    // items, multi-day items passing through it, and company calendar items.
+    const dayStart = startOfDay(day);
+    const dayEnd = addDays(dayStart, 1);
+    const touchesDay = (event) => {
+      const start = eventStart(event);
+      if (!start || !eventIsScheduled(event)) return false;
+      const end = eventEnd(event) || start;
+      return start < dayEnd && (end > dayStart || (end.getTime() === start.getTime() && start >= dayStart));
+    };
+    // Vehicle bookings live only in Routing's vehicle lanes, but they are
+    // part of the day too.
+    const vehicleBookings = showProductionSchedule
+      ? floatingEvents.filter((event) => isVehicleBooking(event) && !['cancelled', 'canceled'].includes(clean(event.status).toLowerCase())).map(decorateFloatingEvent)
+      : [];
+    const dayEvents = [...eventCalendarItems(), ...vehicleBookings]
+      .filter(touchesDay)
+      .sort((a, b) => {
+        const allDayA = a.all_day === true || clean(a.schedule_granularity) === 'date' || eventStart(a) < dayStart;
+        const allDayB = b.all_day === true || clean(b.schedule_granularity) === 'date' || eventStart(b) < dayStart;
+        if (allDayA !== allDayB) return allDayA ? -1 : 1;
+        return (eventStart(a)?.getTime() || 0) - (eventStart(b)?.getTime() || 0);
+      });
+    const itemTime = (event) => {
+      const start = eventStart(event);
+      const end = eventEnd(event) || start;
+      if (event.all_day === true || clean(event.schedule_granularity) === 'date') return (globalThis.PlatformLanguage?.text("scheduling","m_42b02bf1587e27","All day") ?? "All day");
+      if (start < dayStart && end > dayEnd) return 'All day (continues)';
+      if (start < dayStart) return `Until ${fmtTime(end)}`;
+      if (end > dayEnd) return `${fmtTime(start)} onward`;
+      return `${fmtTime(start)} – ${fmtTime(end)}`;
+    };
+    const itemRow = (event) => {
+      const project = event.project_id ? eventProject(event) : {};
+      const vehicleCrew = isVehicleBooking(event) ? (clean(event.vehicle_crew_name) || clean(workforceResources.find((resource) => clean(resource.id) === clean(event.vehicle_crew_id))?.name)) : '';
+      const meta = isVehicleBooking(event)
+        ? [eventEquipRefs(event).map((ref) => clean(ref.name || equipmentUnits.find((unit) => clean(unit.id) === clean(ref.id))?.name)).filter(Boolean).join(', '), vehicleCrew ? `for ${vehicleCrew}` : ''].filter(Boolean)
+        : [project?.id ? projectTitle(project, event) : '', event.assignee_label || (currentAssignmentId(event) ? assignedLabel(event) : '')].map(clean).filter((value) => value && value !== 'Assign later');
+      const kind = isEquipmentWindowEvent(event) ? eventTypeMeta(eventTypeId(event) || eventKind(event)).label : calendarEventCategory(event) === 'sales' ? eventTypeMeta(eventKind(event) === 'sales_follow_up' ? 'sales_follow_up' : 'sales_appointment').label : isMaterialEvent(event) ? eventTypeMeta('delivery').label : isProductionEvent(event) ? eventTypeMeta(eventTypeId(event) || 'project_work').label : eventTypeMeta(eventTypeId(event)).label;
+      return `<button type="button" class="dash-list-event" data-day-event-id="${escapeHtml(event.id)}"><span class="dash-list-time">${escapeHtml(itemTime(event))}</span><span><span class="dash-list-title">${escapeHtml(clean(event.title) || eventTypeMeta(eventTypeId(event)).title)}</span><span class="dash-list-meta">${escapeHtml(meta.join(' · '))}</span></span><span class="dash-stage-pill">${escapeHtml(kind)}</span></button>`;
+    };
     const back = document.createElement('div');
     back.className = 'dash-modal-backdrop';
     back.innerHTML = `
-      <div class="dash-modal">
+      <div class="dash-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(day.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' }))}">
         <div class="dash-modal-head">
-          <div><h3>${String(escapeHtml(day.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })))}</h3><div class="dash-sub">${((v1,v2) => globalThis.PlatformLanguage?.htmlText("scheduling","m_766a1e29082f39",`${v1} appointment${v2}`,{v1,v2}) ?? `${v1} appointment${v2}`)(dayEvents.length,dayEvents.length === 1 ? '' : 's')}</div></div>
-          <button type="button" class="dash-modal-close"><i class="fas fa-xmark"></i></button>
+          <div><h3>${String(escapeHtml(day.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })))}</h3><div class="dash-sub">${escapeHtml(`${dayEvents.length} scheduled item${dayEvents.length === 1 ? '' : 's'}`)}</div></div>
+          <button type="button" class="dash-modal-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_close","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
         </div>
         <div class="dash-modal-body">
           ${String(topStatsHtmlForDay(day))}
-          <div class="dash-groups"><div class="dash-group"><div class="dash-group-body">${String(items.length ? items.map(appointmentTile).join('') : `<div class="dash-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2c20082e994482","No appointments.") ?? "No appointments.")}</div>`)}</div></div></div>
+          <div class="dash-day-list">${String(dayEvents.length ? dayEvents.map(itemRow).join('') : `<div class="dash-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_nothing_scheduled_day","Nothing is scheduled on this day.") ?? "Nothing is scheduled on this day.")}</div>`)}</div>
         </div>
       </div>
     `;
     let modalHandle = null;
+    // Focus moves into the list and returns to the date that opened it.
+    const returnFocusDate = dayKey;
     const close = (closeOptions = {}) => {
       modalHandle?.unregister?.();
       modalHandle = null;
+      const hadFocus = back.contains(document.activeElement);
       back.remove();
       if (activeDayModal?.element === back) activeDayModal = null;
+      if (hadFocus || document.activeElement === document.body) {
+        // Closing may navigate back and redraw the calendar; the redraw
+        // (render) puts focus back on this date's number.
+        pendingDayNumberFocus = returnFocusDate;
+        focusPendingDayNumber();
+        setTimeout(() => { pendingDayNumberFocus = ''; }, 1500);
+      }
       if (!closeOptions.fromRoute && !window.Portal?.navigation?.applying) {
         window.Portal?.navigation?.backOrClose?.(['day'], { day:null }, { source:'schedule-day-close' });
       }
     };
     back.querySelector('.dash-modal-close')?.addEventListener('click', close);
-    back.querySelectorAll('[data-event-id]').forEach((node) => node.addEventListener('click', () => {
-      const event = events.find((item) => item.id === node.dataset.eventId);
-      if (event) { close({ fromRoute:true }); openProjectFromEvent(event); }
+    back.querySelectorAll('[data-day-event-id]').forEach((node) => node.addEventListener('click', () => {
+      const event = dayEvents.find((item) => String(item.id || '') === String(node.dataset.dayEventId || ''));
+      if (!event) return;
+      // Leaving the list clears day= so the modal doesn't come back.
+      close();
+      openPlacedCalendarEvent(event, { element:editorAnchorFor(event.id) });
     }));
     document.body.appendChild(back);
     activeDayModal = { day:dayKey, element:back, close };
@@ -5681,6 +9815,29 @@
       node.addEventListener('focus', () => showStatTooltip(node));
       node.addEventListener('blur', hideStatTooltip);
     });
+    // Keyboard focus stays inside the dialog while it is open.
+    back.addEventListener('keydown', (event) => {
+      if (event.key !== 'Tab') return;
+      const focusable = [...back.querySelectorAll('button:not([disabled]),[href],[tabindex]:not([tabindex="-1"])')].filter((node) => node.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      else if (!back.contains(document.activeElement)) { event.preventDefault(); first.focus(); }
+    });
+    (back.querySelector('.dash-list-event') || back.querySelector('.dash-modal-close'))?.focus?.({ preventScroll:true });
+  }
+  let pendingDayNumberFocus = '';
+  function focusPendingDayNumber(){
+    if (!pendingDayNumberFocus || activeDayModal?.element?.isConnected) return;
+    const dateNumber = rootEl?.querySelector(`#dashEventCalendarView [data-prs-date="${pendingDayNumberFocus}"] .prs-day-num`);
+    if (!dateNumber) return;
+    // It becomes its week's Tab stop (month date numbers use a roving stop).
+    dateNumber.closest('.prs-month-week')?.querySelectorAll('.prs-day-num[tabindex="0"]').forEach((node) => node.setAttribute('tabindex', '-1'));
+    if (dateNumber.hasAttribute('tabindex')) dateNumber.setAttribute('tabindex', '0');
+    bind._monthFocusDate = pendingDayNumberFocus;
+    dateNumber.focus({ preventScroll:true });
   }
   function topStatsHtmlForDay(day){
     if (!SHOW_CALENDAR_STATS) return '';
@@ -5738,6 +9895,8 @@
       mobilePickerMonth = Number(btn.dataset.mobilePickerMonth || 0);
       anchorDate = new Date(mobilePickerYear, mobilePickerMonth, 1);
       expandedMonthDates = [];
+      // Picking a month completes the choice; the year list only adjusts it.
+      mobileMonthMenuOpen = false;
       syncScheduleRoute({ date:routeDate() }, { history:'replace', source:'scheduling-month', ownedKeys:['date'] });
       render();
     }));
@@ -5749,6 +9908,52 @@
       syncScheduleRoute({ date:routeDate() }, { history:'replace', source:'scheduling-month', ownedKeys:['date'] });
       render();
     }));
+    // Keyboard: one date number per week is a Tab stop (arrow keys move
+    // between dates), so Tab reaches each week's items right after its date
+    // instead of passing all seven date numbers first.
+    const monthDayNums = [...rootEl.querySelectorAll('#dashEventCalendarView .prs-month .prs-day-num')];
+    const todayKey = routeDate(new Date());
+    monthDayNums.forEach((node) => {
+      const date = parseRouteDate(node.closest('[data-prs-date]')?.dataset?.prsDate);
+      if (!date) return;
+      node.setAttribute('role', 'button');
+      node.setAttribute('tabindex', '-1');
+      node.setAttribute('aria-label', `Show everything on ${date.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })}`);
+      node.title = 'Show everything on this day';
+    });
+    rootEl.querySelectorAll('#dashEventCalendarView .prs-month-week').forEach((week) => {
+      const nums = [...week.querySelectorAll('.prs-day-num')];
+      const keyOf = (node) => node.closest('[data-prs-date]')?.dataset?.prsDate || '';
+      const stop = nums.find((node) => keyOf(node) === bind._monthFocusDate) || nums.find((node) => keyOf(node) === todayKey) || nums[0];
+      stop?.setAttribute('tabindex', '0');
+    });
+    monthDayNums.forEach((node, index) => node.addEventListener('keydown', (event) => {
+      const step = { ArrowRight:1, ArrowLeft:-1, ArrowDown:7, ArrowUp:-7 }[event.key];
+      if (!step) return;
+      const target = monthDayNums[index + step];
+      if (!target) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const week = node.closest('.prs-month-week');
+      const targetWeek = target.closest('.prs-month-week');
+      if (week === targetWeek) node.setAttribute('tabindex', '-1');
+      targetWeek?.querySelectorAll('.prs-day-num[tabindex="0"]').forEach((other) => other.setAttribute('tabindex', '-1'));
+      target.setAttribute('tabindex', '0');
+      bind._monthFocusDate = target.closest('[data-prs-date]')?.dataset?.prsDate || '';
+      target.focus();
+    }));
+    // Open month/year lists start at the current choice, not January/-12y.
+    rootEl.querySelectorAll('.prs-mobile-month-picker section').forEach((section) => {
+      const active = section.querySelector('button.active');
+      if (active) section.scrollTop = Math.max(0, active.getBoundingClientRect().top - section.getBoundingClientRect().top + section.scrollTop - section.clientHeight / 2 + active.offsetHeight / 2);
+    });
+    rootEl.querySelector('[data-clear-schedule-filter]')?.addEventListener('click', () => {
+      breakdownValue = 'all';
+      syncScheduleRoute({ scheduleGroup:null, scheduleResource:null }, { history:'replace', source:'schedule-filter', ownedKeys:['scheduleGroup','scheduleResource'] });
+      render();
+      // The cleared chip is gone: keep keyboard focus in the toolbar.
+      rootEl.querySelector('.dash-toolbar [data-dash-today]')?.focus({ preventScroll:true });
+    });
     rootEl.querySelector('[data-mobile-tray-open]')?.addEventListener('click', () => {
       openMobileTray();
       mobileViewMenuOpen = false;
@@ -5805,9 +10010,11 @@
       const eventTypeId = scope === 'production' ? 'project_work' : 'sales_appointment';
       const id = orgId();
       if (!id || btn.disabled) return;
+      if (!canEditSchedule()) { showToast('View only', scheduleReadOnlyMessage(), VIEW_ONLY_TOAST); return; }
       btn.disabled = true;
       const originalHtml = btn.innerHTML;
       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Routing…';
+      const startsBefore = new Map(allEvents.filter(isProductionEvent).map((item) => [String(item.id || ''), eventStart(item)?.getTime() || 0]));
       try {
         const result = await window.PlatformAPI.routing.optimize(id, {
           event_type_id: eventTypeId,
@@ -5821,25 +10028,43 @@
         const cleared = Number(result?.cleared_count || 0);
         const clearedNote = cleared ? ` ${cleared} previously assigned appointment${cleared === 1 ? ' was' : 's were'} moved back to Unassigned.` : '';
         const missingAddressNote = missingAddress ? ` ${missingAddress} project${missingAddress === 1 ? ' was' : 's were'} skipped because ${missingAddress === 1 ? 'it has' : 'they have'} no address.` : '';
+        if (scope === 'production' || clean(result?.mode) === 'sequence_only') {
+          // Production only re-orders timed single-crew jobs; crews stay put.
+          const skipped = Array.isArray(result?.skipped_production) ? result.skipped_production.length : 0;
+          const skippedNote = skipped ? ` ${skipped} item${skipped === 1 ? ' was' : 's were'} left as scheduled (all-day, several crews, or no crew).` : '';
+          // Say what actually moved: the server counts every job it sequenced,
+          // including ones already in the best order.
+          await loadData({ force: true });
+          const moved = allEvents.filter((item) => isProductionEvent(item) && startsBefore.has(String(item.id || '')) && startsBefore.get(String(item.id || '')) !== (eventStart(item)?.getTime() || 0));
+          const movedNames = moved.slice(0, 3).map((item) => clean(item.title) || 'Job').join(', ') + (moved.length > 3 ? ` +${moved.length - 3} more` : '');
+          showToast(
+            moved.length ? 'Jobs re-timed by travel' : 'Nothing to reorder',
+            `${moved.length ? `${moved.length} job${moved.length === 1 ? '' : 's'} re-timed to cut travel (${movedNames}); crews unchanged.` : (routed ? 'Timed jobs are already in the best order; nothing moved.' : 'No timed single-crew jobs needed reordering.')}${skippedNote}${missingAddressNote}`,
+            true
+          );
+          return;
+        }
         const overbookedKey = `${scope}:${routingDateValue()}`;
         if (unrouted) routingOverbooked[overbookedKey] = unrouted; else delete routingOverbooked[overbookedKey];
         if (unrouted) {
           showToast(
             (globalThis.PlatformLanguage?.text("scheduling","m_1a3086087f3e32","Auto-route: day is overbooked") ?? "Auto-route: day is overbooked"),
-            ((v0,v1,v2,v3,v4,v5) => globalThis.PlatformLanguage?.text("scheduling","m_968883a1455a5e",`${v0} appointment${v1} assigned (${v2} min total travel), but the day is overbooked — ${v3} could not fit anyone's schedule.${v4}${v5}`,{v0,v1,v2,v3,v4,v5}) ?? `${v0} appointment${v1} assigned (${v2} min total travel), but the day is overbooked — ${v3} could not fit anyone's schedule.${v4}${v5}`)(routed,routed === 1 ? '' : 's',travelTotal,unrouted,missingAddressNote,clearedNote),
+            ((v0,v1,v2,v3,v4,v5) => globalThis.PlatformLanguage?.text("scheduling","m_968883a1455a5e",`${v0} appointment${v1} assigned (${v2} min total travel), but the day is overbooked — ${v3} could not fit anyone's schedule.${v4}${v5}`,{v0,v1,v2,v3,v4,v5}) ?? `${v0} appointment${v1} assigned (${v2} min total travel), but the day is overbooked — ${v3} could not fit anyone's schedule.${v4}${v5}`)(routed,routed === 1 ? '' : 's',travelTotal,unrouted,missingAddressNote,clearedNote).replace(travelTotal > 0 ? '' : ' (0 min total travel)', travelTotal > 0 ? '' : ' (no travel times available)'),
             false
           );
         } else {
           showToast(
             missingAddress ? 'Auto-route complete with skipped projects' : 'Auto-route complete',
-            ((v0,v1,v2,v3) => globalThis.PlatformLanguage?.text("scheduling","m_bcfe6241b8a874",`${v0} appointment${v1} assigned (${v2} min total travel).${v3}`,{v0,v1,v2,v3}) ?? `${v0} appointment${v1} assigned (${v2} min total travel).${v3}`)(routed,routed === 1 ? '' : 's',travelTotal,missingAddressNote),
+            ((v0,v1,v2,v3) => globalThis.PlatformLanguage?.text("scheduling","m_bcfe6241b8a874",`${v0} appointment${v1} assigned (${v2} min total travel).${v3}`,{v0,v1,v2,v3}) ?? `${v0} appointment${v1} assigned (${v2} min total travel).${v3}`)(routed,routed === 1 ? '' : 's',travelTotal,missingAddressNote).replace(travelTotal > 0 ? '' : ' (0 min total travel)', travelTotal > 0 ? '' : ' (no travel times available)'),
             !missingAddress
           );
         }
         await loadData({ force: true });
       } catch (error) {
         const message = error?.data?.error === 'routing_no_events'
-          ? `No ${scope} appointments are scheduled on ${routingDateLabel()}. Use the pane's arrows to move to the day you want to route.`
+          ? (scope === 'production'
+            ? `No timed single-crew jobs are scheduled on ${routingDateLabel()}, so there is nothing to order. All-day and multi-crew work is never re-routed.`
+            : `No ${scope} appointments are scheduled on ${routingDateLabel()}. Use the pane's arrows to move to the day you want to route.`)
           : (error?.message || 'Could not optimize this day.');
         showToast((globalThis.PlatformLanguage?.text("scheduling","m_7e3392260e8172","Auto-route failed") ?? "Auto-route failed"), message, false);
         btn.disabled = false;
@@ -5855,6 +10080,7 @@
     }));
     rootEl.querySelector('[data-routing-vehicles]')?.addEventListener('click', () => {
       productionVehiclesVisible = !productionVehiclesVisible;
+      persistSchedulePreference({ production_vehicles: productionVehiclesVisible });
       if (!productionVehiclesVisible) {
         vehiclePlacementUnitId = '';
         vehiclePlacementDraft = null;
@@ -5862,11 +10088,16 @@
       resetScheduleScrollPersistence();
       render();
     });
-    rootEl.querySelectorAll('[data-vehicle-bank-unit]').forEach((btn) => btn.addEventListener('click', () => {
-      vehiclePlacementUnitId = clean(btn.dataset.vehicleBankUnit);
-      vehiclePlacementDraft = null;
+    rootEl.querySelectorAll('[data-vehicle-bank-unit]').forEach((btn) => btn.addEventListener('click', async () => {
+      const unitId = clean(btn.dataset.vehicleBankUnit);
+      const deselecting = vehiclePlacementUnitId === unitId;
+      if (!canEditSchedule()) { showToast('View only', scheduleReadOnlyMessage(), VIEW_ONLY_TOAST); return; }
+      if (!(await confirmDiscardPendingPlacement())) return;
       clearPlacementSelection();
+      vehiclePlacementUnitId = deselecting ? '' : unitId;
+      vehiclePlacementDraft = null;
       render();
+      focusRailControl(railAttrSelector('data-vehicle-bank-unit', unitId));
     }));
     rootEl.querySelectorAll('[data-breakdown-mode]').forEach((btn) => btn.addEventListener('click', () => {
       breakdownMode = btn.dataset.breakdownMode || 'user';
@@ -5900,36 +10131,44 @@
       const nextView = btn.dataset.dashView || 'week';
       const enteringSchedule = viewMode !== 'appointment_schedule' && nextView === 'appointment_schedule';
       viewMode = nextView;
-      if (enteringSchedule) {
-        anchorDate = new Date();
-        resetScheduleScrollPersistence();
-      }
+      // Every view (Routing included) keeps the date being looked at.
+      if (enteringSchedule) resetScheduleScrollPersistence();
+      if (viewMode === 'gantt') pendingGanttScrollDate = { date:anchorDate, fraction:0.25 };
+      writeSchedulePref(SCHEDULE_VIEW_PREF_KEY, viewMode);
       mobileViewMenuOpen = false;
       mobileMonthMenuOpen = false;
       mobileScheduleMenuOpen = false;
       syncScheduleRoute({ scheduleView:viewMode, date:routeDate() }, { history:'push', source:'schedule-view', ownedKeys:['scheduleView'] });
       render();
     }));
-    rootEl.querySelectorAll('[data-schedule-type-toggle]').forEach((btn) => btn.addEventListener('click', () => {
+    rootEl.querySelectorAll('[data-schedule-type-toggle]').forEach((btn) => btn.addEventListener('click', async () => {
       const next = btn.dataset.scheduleTypeToggle || 'sales';
+      // Hiding the type being placed ends the placement: a placed draft is
+      // only discarded after confirmation (Keep it leaves the chip on).
+      const placing = placementWaitingItem();
+      const turningOff = next === 'production' ? showProductionSchedule : next === 'other' ? showOtherSchedule : showSalesSchedule;
+      const hidesPlacement = !!placing && turningOff && (next === 'sales' ? placing.kind === 'sales' : next === 'production' ? ['production', 'materials', 'vehicle'].includes(placing.kind) : false);
+      if (hidesPlacement && !(await confirmDiscardPendingPlacement())) return;
       if (next === 'production') showProductionSchedule = !showProductionSchedule;
       else if (next === 'other') showOtherSchedule = !showOtherSchedule;
       else showSalesSchedule = !showSalesSchedule;
       scheduleMode = showSalesSchedule ? 'sales' : (showProductionSchedule ? 'production' : 'sales');
-      appointmentScheduleDraft = null;
-      appointmentScheduleProjectId = '';
-      appointmentScheduleEventId = '';
+      const typesValue = scheduleTypeRouteValue();
+      writeSchedulePref(SCHEDULE_TYPES_PREF_KEY, typesValue || '');
       appointmentScheduleMenuEventId = '';
-      productionScheduleDraft = null;
-      productionScheduleProjectId = '';
-      productionScheduleEventId = '';
-      materialScheduleDraft = null;
-      materialScheduleProjectId = '';
-      materialScheduleEventId = '';
+      if (hidesPlacement || !placing) {
+        clearPlacementSelection();
+        vehiclePlacementUnitId = '';
+        vehiclePlacementDraft = null;
+        if (hidesPlacement) closeEventDraftPopover();
+      }
       eventEditorEventId = '';
-      breakdownValue = 'all';
-      mobileScheduleMenuOpen = false;
-      syncScheduleRoute({ scheduleType:scheduleMode }, { history:'push', source:'schedule-type', ownedKeys:['scheduleType'] });
+      // A person/lead-source/city filter is independent of the Show chips: it
+      // stays applied (on screen and in the URL) while types are toggled.
+      // The phone Schedules menu stays open so several types can be toggled.
+      // The URL records exactly which chips are on (and survives reloads);
+      // toggling a filter replaces the entry instead of stacking history.
+      syncScheduleRoute({ scheduleType:typesValue }, { history:'replace', source:'schedule-type', ownedKeys:['scheduleType'] });
       render();
     }));
     rootEl.querySelectorAll('[data-calendar-display]').forEach((btn) => btn.addEventListener('click', () => {
@@ -5938,79 +10177,110 @@
     }));
     rootEl.querySelectorAll('[data-dash-nav]').forEach((btn) => btn.addEventListener('click', () => nav(Number(btn.dataset.dashNav) || 0)));
     rootEl.querySelectorAll('[data-dash-today]').forEach((btn) => btn.addEventListener('click', goToToday));
-    rootEl.querySelectorAll('[data-schedule-unassign-event]').forEach((node) => node.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const target = events.find((item) => String(item.id || '') === String(node.dataset.scheduleUnassignEvent || ''));
-      unassignScheduleEvent(target);
+    rootEl.querySelectorAll('[data-view-only-info]').forEach((btn) => btn.addEventListener('click', () => {
+      showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), scheduleReadOnlyMessage(), VIEW_ONLY_TOAST);
     }));
-    rootEl.querySelectorAll('[data-schedule-view-event]').forEach((node) => node.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const target = events.find((item) => String(item.id || '') === String(node.dataset.scheduleViewEvent || ''));
-      if (target) openProjectFromEvent(target);
+    rootEl.querySelectorAll('[data-schedule-retry]').forEach((btn) => btn.addEventListener('click', () => {
+      if (loading) return;
+      loadData({ force:true }).catch(() => null);
     }));
     rootEl.querySelectorAll('[data-event-id]').forEach((node) => node.addEventListener('click', () => {
       const event = events.find((item) => item.id === node.dataset.eventId);
       if (event) openProjectFromEvent(event);
     }));
+    bindPlacementBanner(rootEl);
+    // Rail group heads collapse/expand their group.
     rootEl.querySelectorAll('[data-toggle-group]').forEach((node) => node.addEventListener('click', () => {
       const id = node.dataset.toggleGroup || '';
-      const groupEl = node.closest('.dash-group');
-      collapsedGroups[id] = groupEl?.dataset.collapsed !== '1';
+      if (!id) return;
+      collapsedGroups[id] = node.getAttribute('aria-expanded') !== 'false';
+      persistRailCollapsed();
       render();
+      focusRailControl(railAttrSelector('data-toggle-group', id));
     }));
-    rootEl.querySelectorAll('[data-schedule-project-id]').forEach((node) => node.addEventListener('click', () => {
-      const event = events.find((item) => String(item.id || '') === String(node.dataset.scheduleEventId || ''));
-      if (!event) return;
-      const deselecting = String(appointmentScheduleEventId || '') === String(event.id || '') && selectedPlacementKind() === 'sales';
+    /* Selecting a waiting item starts placement mode (banner + previews). The
+     * editor is not opened over the calendar: it opens beside the placed
+     * draft, or beside the appointment when it already has a time. An unsaved
+     * draft is only discarded after confirmation. */
+    const beginRailSelection = async () => {
+      if (!canEditSchedule()) {
+        showToast('View only', scheduleReadOnlyMessage(), VIEW_ONLY_TOAST);
+        return false;
+      }
+      if (!(await confirmDiscardPendingPlacement())) return false;
+      closeAssignmentMenu();
+      if (!eventEditorEventId) closeEventDraftPopover();
       clearPlacementSelection();
-      if (deselecting) { render(); return; }
-      appointmentScheduleProjectId = String(event.project_id || eventProject(event).id || '');
-      appointmentScheduleEventId = String(event.id || '');
-      appointmentScheduleDraft = { ...(appointmentScheduleDraft || {}), description: event.description || event.notes || '' };
-      // Jump the routing pane to the event's day so the selection is visible.
-      const scheduledStart = eventIsScheduled(event) ? eventStart(event) : null;
-      if (scheduledStart) anchorDate = startOfDay(scheduledStart) || anchorDate;
+      vehiclePlacementUnitId = '';
+      vehiclePlacementDraft = null;
       eventDraftPopoverId = '';
       eventEditorEventId = '';
       eventDraftProjectQuery = '';
+      eventCustomerDetailsOpen = false;
+      eventAdvancedOpen = false;
+      return true;
+    };
+    rootEl.querySelectorAll('[data-schedule-project-id]').forEach((node) => node.addEventListener('click', async () => {
+      const event = events.find((item) => String(item.id || '') === String(node.dataset.scheduleEventId || ''));
+      if (!event) return;
+      const focusSelector = railAttrSelector('data-schedule-event-id', event.id);
+      const deselecting = String(appointmentScheduleEventId || '') === String(event.id || '') && selectedPlacementKind() === 'sales';
+      if (!(await beginRailSelection())) return;
+      if (deselecting) { render(); focusRailControl(focusSelector); return; }
+      appointmentScheduleProjectId = String(event.project_id || eventProject(event).id || '');
+      appointmentScheduleEventId = String(event.id || '');
+      appointmentScheduleDraft = { description: event.description || event.notes || '' };
+      // Jump to the appointment's day so the selection is visible.
+      const scheduledStart = eventIsScheduled(event) ? eventStart(event) : null;
+      if (scheduledStart) anchorDate = startOfDay(scheduledStart) || anchorDate;
       render();
       if (node.closest('.dash-routing-placement-dock')) return;
-      const anchor = [...rootEl.querySelectorAll('[data-schedule-event-id]')].find((item) => String(item.dataset.scheduleEventId || '') === String(event.id || ''));
-      renderEventDraftPopover(anchor);
+      focusRailControl(focusSelector);
+      if (viewMode === 'appointment_schedule') {
+        if (scheduledStart) requestAnimationFrame(() => scrollRoutingToEvent(event.id));
+        return;
+      }
+      // Already dated but unassigned: nothing to place, so open its editor
+      // beside it on the calendar to pick a salesperson.
+      // (Not on phones: the full-screen editor would cover the calendar and
+      // the banner; the chip there can be dragged or tapped instead.)
+      if (scheduledStart && viewMode !== 'gantt' && !isMobileScheduleLayout()) {
+        setTimeout(() => {
+          const anchor = editorAnchorFor(event.id);
+          if (anchor) renderEventDraftPopover(anchor);
+        }, 0);
+      }
     }));
-    rootEl.querySelectorAll('[data-production-project-id]:not([data-production-event-id])').forEach((node) => node.addEventListener('click', () => {
+    rootEl.querySelectorAll('[data-production-project-id]:not([data-production-event-id])').forEach((node) => node.addEventListener('click', async () => {
       const projectId = String(node.dataset.productionProjectId || '');
+      const focusSelector = `[data-production-project-id="${window.CSS?.escape ? window.CSS.escape(projectId) : projectId}"]:not([data-production-event-id])`;
       const deselecting = productionScheduleProjectId === projectId && !productionScheduleEventId && selectedPlacementKind() === 'production';
-      clearPlacementSelection();
-      if (deselecting) { render(); return; }
+      if (!(await beginRailSelection())) return;
+      if (deselecting) { render(); focusRailControl(focusSelector); return; }
       productionScheduleProjectId = projectId;
-      productionScheduleEventId = String(node.dataset.productionEventId || '');
+      productionScheduleEventId = '';
       const project = selectedProductionProject();
       productionScheduleDraft = {
         id: '__production_event_draft',
         event_id: '',
-        title: projectTitle(project || {}),
+        event_type_default_id: 'project_work',
+        type_id: 'project_work',
+        title: projectWorkTitle(project || {}),
         project_id: project?.id || productionScheduleProjectId || '',
         project_title: projectTitle(project || {}),
         project_address: projectAddress(project || {}, {}),
         description: ''
       };
-      eventDraftPopoverId = '';
-      eventEditorEventId = '';
-      eventDraftProjectQuery = '';
       render();
-      if (node.closest('.dash-routing-placement-dock')) return;
-      const anchor = [...rootEl.querySelectorAll('[data-production-project-id]:not([data-production-event-id])')].find((item) => String(item.dataset.productionProjectId || '') === productionScheduleProjectId);
-      renderEventDraftPopover(anchor);
+      if (!node.closest('.dash-routing-placement-dock')) focusRailControl(focusSelector);
     }));
-    rootEl.querySelectorAll('[data-production-bundle-cancel]').forEach((node) => node.addEventListener('click', (event) => {
+    const cancelRailPlacement = (event) => {
       event.preventDefault();
       event.stopPropagation();
-      clearPlacementSelection();
-      render();
-    }));
+      cancelPlacement();
+    };
+    rootEl.querySelectorAll('[data-production-bundle-cancel]').forEach((node) => node.addEventListener('click', cancelRailPlacement));
+    rootEl.querySelectorAll('[data-bundle-child-cancel]').forEach((node) => node.addEventListener('click', cancelRailPlacement));
     rootEl.querySelectorAll('[data-production-bundle-toggle]').forEach((node) => node.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -6019,76 +10289,80 @@
       if (expandedProductionBundles.has(key)) expandedProductionBundles.delete(key);
       else expandedProductionBundles.add(key);
       render();
+      focusRailControl(railAttrSelector('data-production-bundle-toggle', key));
     }));
-    rootEl.querySelectorAll('[data-bundle-child-cancel]').forEach((node) => node.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      clearPlacementSelection();
-      render();
-    }));
-    rootEl.querySelectorAll('[data-production-bundle-primary]').forEach((node) => node.addEventListener('click', (event) => {
-      if (event.target.closest('[data-production-bundle-cancel]')) return;
+    const selectMaterialForPlacement = (event) => {
+      materialScheduleProjectId = String(event.project_id || '');
+      materialScheduleEventId = String(event.id || '');
+      materialScheduleDraft = null;
+      productionScheduleDraft = null;
+      focusedScheduleEventId = String(event.id || '');
+    };
+    rootEl.querySelectorAll('[data-production-bundle-primary]').forEach((node) => node.addEventListener('click', async () => {
       const bundleKey = String(node.dataset.productionBundlePrimary || '');
       const bundle = scheduleBundleGroups(unscheduledEvents((item) => isProductionEvent(item) || isMaterialEvent(item))).find((item) => item.key === bundleKey);
       if (!bundle?.primary) return;
-      const deselecting = productionScheduleBundleKey === bundleKey;
-      clearPlacementSelection();
-      if (deselecting) { render(); return; }
       const primary = bundle.primary;
-      productionScheduleBundleKey = bundleKey;
-      productionScheduleProjectId = String(primary.project_id || bundle.project?.id || '');
-      productionScheduleEventId = String(primary.id || '');
-      productionScheduleDraft = {
-        ...primary,
-        id:primary.id,
-        event_id:primary.id,
-        title:primary.title || projectTitle(bundle.project, primary),
-        project_title:projectTitle(bundle.project, primary),
-        project_address:projectAddress(bundle.project, primary),
-        start:null,
-        end:null,
-        all_day:true,
-        schedule_granularity:'date',
-        ...workResourcePayload(primary)
-      };
-      productionScheduleBundleDrafts = [];
+      // A lone delivery is placed as a delivery, not as a work bundle.
+      const loneDelivery = isMaterialEvent(primary) && !bundle.dependents.length;
+      const deselecting = loneDelivery ? materialScheduleEventId === String(primary.id || '') : productionScheduleBundleKey === bundleKey;
+      if (!(await beginRailSelection())) return;
+      const focusSelector = railAttrSelector('data-production-bundle-primary', bundleKey);
+      if (deselecting) { render(); focusRailControl(focusSelector); return; }
+      if (loneDelivery) {
+        selectMaterialForPlacement(primary);
+      } else {
+        productionScheduleBundleKey = bundleKey;
+        productionScheduleProjectId = String(primary.project_id || bundle.project?.id || '');
+        productionScheduleEventId = String(primary.id || '');
+        productionScheduleDraft = {
+          ...primary,
+          id:primary.id,
+          event_id:primary.id,
+          title:primary.title || projectTitle(bundle.project, primary),
+          project_title:projectTitle(bundle.project, primary),
+          project_address:projectAddress(bundle.project, primary),
+          start:null,
+          end:null,
+          all_day:true,
+          schedule_granularity:'date',
+          ...workResourcePayload(primary)
+        };
+        productionScheduleBundleDrafts = [];
+      }
       render();
+      if (!node.closest('.dash-routing-placement-dock')) focusRailControl(focusSelector);
     }));
-    rootEl.querySelectorAll('[data-production-event-id]:not([data-production-bundle-primary])').forEach((node) => node.addEventListener('click', () => {
-      const eventId = String(node.dataset.productionEventId || '');
-      const deselecting = productionScheduleEventId === eventId && selectedPlacementKind() === 'production';
-      clearPlacementSelection();
-      if (deselecting) { render(); return; }
-      productionScheduleProjectId = String(node.dataset.productionProjectId || '');
-      productionScheduleEventId = eventId;
-      const event = selectedProductionEvent();
-      productionScheduleDraft = event ? {
-        id: event.id,
-        event_id: event.id,
-        title: event.title || (globalThis.PlatformLanguage?.text("scheduling","m_2ac9ecd66d638b","New Event") ?? "New Event"),
-        start: eventStart(event),
-        end: eventEnd(event),
-        all_day: event.all_day !== false,
-        schedule_granularity: event.schedule_granularity || (event.all_day === false ? 'time' : 'date'),
-        ...workResourcePayload(event)
-      } : null;
+    // Bundle children place by their real kind: work as production work,
+    // deliveries as deliveries.
+    rootEl.querySelectorAll('[data-production-bundle-child]').forEach((node) => node.addEventListener('click', async () => {
+      const eventId = String(node.dataset.productionBundleChild || '');
+      const event = allEvents.find((item) => String(item.id || '') === eventId);
+      if (!event) return;
+      const deselecting = bundleChildIsSelected(event);
+      if (!(await beginRailSelection())) return;
+      const focusSelector = railAttrSelector('data-production-bundle-child', eventId);
+      if (deselecting) { render(); focusRailControl(focusSelector); return; }
+      if (isMaterialEvent(event)) {
+        selectMaterialForPlacement(event);
+      } else {
+        productionScheduleProjectId = String(node.dataset.bundleChildProjectId || event.project_id || '');
+        productionScheduleEventId = eventId;
+        productionScheduleDraft = {
+          id: event.id,
+          event_id: event.id,
+          event_type_default_id: eventTypeId(event) || 'project_work',
+          type_id: eventTypeId(event) || 'project_work',
+          title: event.title || (globalThis.PlatformLanguage?.text("scheduling","m_2ac9ecd66d638b","New Event") ?? "New Event"),
+          start: null,
+          end: null,
+          all_day: event.all_day !== false,
+          schedule_granularity: event.schedule_granularity || (event.all_day === false ? 'time' : 'date'),
+          ...workResourcePayload(event)
+        };
+      }
       render();
-    }));
-    rootEl.querySelectorAll('[data-material-event-id]').forEach((node) => node.addEventListener('click', () => {
-      const eventId = String(node.dataset.materialEventId || '');
-      const deselecting = materialScheduleEventId === eventId && selectedPlacementKind() === 'materials';
-      clearPlacementSelection();
-      if (deselecting) { render(); return; }
-      materialScheduleProjectId = String(node.dataset.materialProjectId || '');
-      materialScheduleEventId = eventId;
-      const event = selectedMaterialEvent();
-      productionScheduleDraft = null;
-      materialScheduleDraft = null;
-      focusedScheduleEventId = event?.id || '';
-      eventDraftPopoverId = '';
-      eventEditorEventId = '';
-      eventDraftProjectQuery = '';
-      render();
+      focusRailControl(focusSelector);
     }));
     rootEl.querySelectorAll('[data-day]').forEach((node) => node.addEventListener('click', () => openDayModal(node.dataset.day)));
     rootEl.querySelectorAll('[data-stat-tip]').forEach((node) => {
@@ -6105,18 +10379,63 @@
     const skipScheduleScrollCapture = scheduleScrollResetPending;
     if (viewMode === 'appointment_schedule' && !skipScheduleScrollCapture) captureScheduleScroll();
     events = visibleEvents();
-    const main = viewMode === 'appointment_schedule'
-      ? renderAppointmentSchedule()
-      : viewMode === 'gantt'
-        ? renderGanttShell()
-        : (calendarDisplayMode === 'events' ? renderEventCalendarShell() : viewMode === 'month' ? renderMonth() : viewMode === 'day' ? renderDay() : renderWeek());
-    const mobileTray = mobileTrayOpen ? `<div class="dash-mobile-tray-backdrop ${String(mobileTrayClosing ? 'closing' : '')}" data-mobile-tray-backdrop><aside class="dash-mobile-tray" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><div class="dash-mobile-tray-head"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e9f71e12236d72","Projects to Schedule") ?? "Projects to Schedule")}</strong><button type="button" class="dash-mobile-tray-close" data-mobile-tray-close aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d957e47b7fba31","Close projects to schedule") ?? "Close projects to schedule")}"><i class="fas fa-xmark"></i></button></div>${String(renderGroups())}</aside></div>` : '';
-    rootEl.innerHTML = `<div class="dash-shell">${toolbarHtml()}<div class="dash-body ${['appointment_schedule','gantt'].includes(viewMode) ? 'schedule-mode' : ''} ${viewMode === 'gantt' ? 'gantt-mode' : ''} ${!['appointment_schedule','gantt'].includes(viewMode) && calendarDisplayMode === 'events' ? 'events-mode' : ''}"><div class="dash-left">${topStatsHtml()}${main}</div><aside class="dash-right">${renderGroups()}</aside></div>${mobileTray}</div>`;
-    if (viewMode === 'appointment_schedule') renderScheduleLibraryView();
-    else if (viewMode === 'gantt') renderGanttScheduleView();
-    else if (calendarDisplayMode === 'events') renderEventCalendarView();
+    // Keyboard users keep their place: the control that had focus is found
+    // again (by its data attribute) after the markup is rebuilt.
+    const focusSelector = scheduleFocusSelector(document.activeElement);
+    // Until the first load settles, show loading states instead of an empty
+    // calendar and a false "nothing waiting" rail.
+    const showLoading = !dataLoaded;
+    const loadingText = (globalThis.PlatformLanguage?.htmlText("scheduling","m_loading_schedule","Loading schedule…") ?? "Loading schedule…");
+    const loadNotice = scheduleLoadNoticeHtml();
+    const firstLoadFailed = showLoading && !!scheduleLoadError;
+    const main = firstLoadFailed
+      ? loadNotice
+      : showLoading
+      ? `<div class="dash-loading-state" role="status" aria-live="polite"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i>${loadingText}</div>`
+      : viewMode === 'appointment_schedule'
+        ? renderAppointmentSchedule()
+        : viewMode === 'gantt'
+          ? renderGanttShell()
+          : (calendarDisplayMode === 'events' ? renderEventCalendarShell() : viewMode === 'month' ? renderMonth() : viewMode === 'day' ? renderDay() : renderWeek());
+    const allTypesHidden = !activeScheduleTypes().length;
+    const hiddenHint = allTypesHidden && !showLoading
+      ? `<div class="dash-empty-hint" role="status">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_all_types_hidden","Every schedule is hidden. Turn on Sales, Production or Other to see items here.") ?? "Every schedule is hidden. Turn on Sales, Production or Other to see items here.")}</div>`
+      : '';
+    const railHtml = showLoading
+      ? `<div class="dash-groups"><div class="dash-rail-title">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_waiting_title","Waiting to be scheduled") ?? "Waiting to be scheduled")}</div><div class="dash-loading-rail" role="status">${firstLoadFailed ? `<i class="fas fa-triangle-exclamation" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_schedule_load_error","Couldn't load the schedule") ?? "Couldn't load the schedule")}` : `<i class="fas fa-spinner fa-spin" aria-hidden="true"></i>${loadingText}`}</div></div>`
+      : renderGroups();
+    // Calendar views explain an empty grid when every Show chip is off
+    // (Routing and Timeline render their own empty messages).
+    const calendarHint = ['appointment_schedule', 'gantt'].includes(viewMode) ? '' : hiddenHint;
+    const mobileTray = mobileTrayOpen ? `<div class="dash-mobile-tray-backdrop ${String(mobileTrayClosing ? 'closing' : '')}" data-mobile-tray-backdrop><aside class="dash-mobile-tray" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><div class="dash-mobile-tray-head"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_e9f71e12236d72","Projects to Schedule") ?? "Projects to Schedule")}</strong><button type="button" class="dash-mobile-tray-close" data-mobile-tray-close aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_d957e47b7fba31","Close projects to schedule") ?? "Close projects to schedule")}"><i class="fas fa-xmark"></i></button></div>${String(railHtml)}</aside></div>` : '';
+    rootEl.innerHTML = `<div class="dash-shell">${toolbarHtml()}<div class="dash-body ${['appointment_schedule','gantt'].includes(viewMode) ? 'schedule-mode' : ''} ${viewMode === 'gantt' ? 'gantt-mode' : ''} ${!['appointment_schedule','gantt'].includes(viewMode) && calendarDisplayMode === 'events' ? 'events-mode' : ''}" aria-busy="${showLoading ? 'true' : 'false'}"><div class="dash-left">${topStatsHtml()}${firstLoadFailed ? '' : loadNotice}${calendarHint}${main}</div><aside class="dash-right">${railHtml}</aside></div>${mobileTray}</div>`;
+    if (!showLoading) {
+      if (viewMode === 'appointment_schedule') renderScheduleLibraryView();
+      else if (viewMode === 'gantt') {
+        renderGanttScheduleView();
+        if (pendingGanttScrollDate && ganttControls()?.scrollToTime) {
+          const target = pendingGanttScrollDate;
+          pendingGanttScrollDate = null;
+          ganttControls().scrollToTime(target.date.getTime(), target.fraction);
+        }
+      }
+      else if (calendarDisplayMode === 'events') renderEventCalendarView();
+    }
     bind();
     if (skipScheduleScrollCapture) scheduleScrollResetPending = false;
+    if (focusSelector) {
+      const target = rootEl.querySelector(focusSelector);
+      if (target && typeof target.focus === 'function') target.focus({ preventScroll:true });
+    }
+    focusPendingDayNumber();
+  }
+  function scheduleFocusSelector(element){
+    if (!element || !rootEl?.contains?.(element) || element === document.body) return '';
+    if (!element.matches?.('button,[tabindex],a,input,select,textarea')) return '';
+    const attribute = [...(element.attributes || [])].find((attr) => attr.name.startsWith('data-') && !attr.name.startsWith('data-prs-') && !attr.name.startsWith('data-psv-'));
+    if (!attribute) return '';
+    const value = window.CSS?.escape ? window.CSS.escape(attribute.value) : String(attribute.value).replace(/["\\]/g, '\\$&');
+    return attribute.value ? `[${attribute.name}="${value}"]` : `[${attribute.name}]`;
   }
   function withTimeout(promise, ms, label){
     return Promise.race([
@@ -6132,6 +10451,34 @@
       console.warn(label || 'Dashboard request failed', error);
       return fallback;
     }
+  }
+  /* The schedule itself (projects, company calendar items): a failed or slow
+   * request is reported as a failure, never as "no items", so the caller
+   * keeps the last good data. A slow server gets a generous wait. */
+  async function settleScheduleSource(promise, label){
+    try {
+      const value = await withTimeout(promise, 45000, label);
+      if (value == null) throw new Error(`${label || 'Schedule request'} returned nothing.`);
+      return { ok:true, value };
+    } catch (error) {
+      console.warn(label || 'Schedule request failed', error);
+      return { ok:false, error };
+    }
+  }
+  function scheduleLoadErrorMessage(error){
+    const text = `${clean(error?.message)} ${clean(error?.cause?.message)}`;
+    if ((typeof navigator !== 'undefined' && navigator.onLine === false) || /failed to fetch|networkerror|load failed/i.test(text)) return (globalThis.PlatformLanguage?.text("scheduling","m_schedule_load_offline","The server could not be reached. Check your connection.") ?? "The server could not be reached. Check your connection.");
+    if (/timed out/i.test(text)) return (globalThis.PlatformLanguage?.text("scheduling","m_schedule_load_slow","The server is taking too long to respond.") ?? "The server is taking too long to respond.");
+    return (globalThis.PlatformLanguage?.text("scheduling","m_schedule_load_failed","The server could not return the schedule.") ?? "The server could not return the schedule.");
+  }
+  function scheduleLoadNoticeHtml(){
+    const retry = `<button type="button" class="dash-load-retry" data-schedule-retry ${loading ? 'disabled aria-busy="true"' : ''}>${loading ? `<i class="fas fa-spinner fa-spin" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_retrying","Retrying…") ?? "Retrying…")}` : (globalThis.PlatformLanguage?.htmlText("scheduling","m_retry","Retry") ?? "Retry")}</button>`;
+    if (!dataLoaded && scheduleLoadError) {
+      return `<div class="dash-load-error" role="alert"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_schedule_load_error","Couldn't load the schedule") ?? "Couldn't load the schedule")}</strong><span>${escapeHtml(scheduleLoadError)}</span>${retry}</div>`;
+    }
+    if (!scheduleRefreshFailedAt) return '';
+    const shownAt = lastDataRefreshAt ? fmtTime(new Date(lastDataRefreshAt)) : '';
+    return `<div class="dash-refresh-notice" role="status"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span>${escapeHtml(shownAt ? `Couldn't refresh — showing the schedule as of ${shownAt}.` : "Couldn't refresh the schedule.")}</span>${retry}</div>`;
   }
   function storedScheduleFocus(){
     try { return JSON.parse(sessionStorage.getItem('fm:scheduling:focus') || 'null'); } catch (error) { return null; }
@@ -6232,19 +10579,33 @@
         'Scheduling project title configuration'
       );
       branchProjectConfig = normalizeProjectConfig(loadedProjectConfig?.data || loadedProjectConfig || {});
-      const loadedUsers = await settleValue(
+      // The org user directory is an admin list; sessions without user-admin
+      // permission read people from the assignable-resources list below
+      // instead of triggering a 403 on every load.
+      const canListUsers = sessionHasPermission('manage_company_users|manage_company_user_permissions|manage_users|manage_sales_users');
+      const loadedUsers = canListUsers ? await settleValue(
         Scheduling.listUsers(id, schedulingConfig),
-        [],
+        users,
         'Dashboard users'
-      );
-      const loadedProjects = await settleValue(
-        Scheduling.listProjects(id, schedulingConfig),
-        [],
+      ) : [];
+      const projectsResult = await settleScheduleSource(
+        Promise.resolve().then(() => Scheduling.listProjects(id, schedulingConfig)).then(async (value) => {
+          if (!Array.isArray(value)) throw new Error('Projects could not be read.');
+          // The list helper rejects on failure (ScheduleSourceError). An older
+          // helper turned a failure into "no projects": confirm an empty list
+          // before showing an empty schedule.
+          if (!value.length && typeof Scheduling.isScheduleSourceError !== 'function' && window.PlatformAPI?.projects?.list) {
+            const check = await window.PlatformAPI.projects.list(id);
+            const docs = check?.documents || check?.projects || check;
+            if (!Array.isArray(docs) || docs.length) throw new Error('Projects could not be read.');
+          }
+          return value;
+        }),
         'Dashboard projects'
       );
       const loadedWorkforce = await settleValue(
         window.PlatformAPI?.workforce?.assignableResources ? window.PlatformAPI.workforce.assignableResources(id, branchId()) : Promise.resolve({ resources:[] }),
-        { resources:workforceResources },
+        { resources:workforceResources, equipment_units:equipmentUnits },
         'Dashboard work resources'
       );
       const loadedWorkforceConfiguration = await settleValue(
@@ -6252,23 +10613,52 @@
         { configuration:{ terminology:workforceTerminology } },
         'Dashboard workforce terminology'
       );
+      // Schedule editors may read equipment types and the conflict mode too,
+      // so reserved/down units are flagged before saving instead of by a 409.
+      const canReadEquipment = sessionHasPermission('equipment.view|equipment.manage|equipment.service|manage_company_settings|manage_schedule');
       const loadedEquipmentTypes = await settleValue(
-        equipmentSchedulingOn() && window.EquipmentAPI?.types ? window.EquipmentAPI.types(id) : Promise.resolve({ types:[] }),
+        equipmentSchedulingOn() && canReadEquipment && window.EquipmentAPI?.types ? window.EquipmentAPI.types(id) : Promise.resolve({ types:[] }),
         { types:equipmentTypes },
         'Dashboard equipment types'
       );
-      const loadedFloatingEvents = await settleValue(
-        window.PlatformAPI?.calendarEvents?.list ? window.PlatformAPI.calendarEvents.list(id, { branch_id: branchId(), branchId: branchId() }) : Promise.resolve([]),
-        [],
+      if (equipmentSchedulingOn() && canReadEquipment && !equipmentConflictMode && window.EquipmentAPI?.settings) {
+        const equipmentSettings = await settleValue(window.EquipmentAPI.settings(id), null, 'Equipment settings');
+        equipmentConflictMode = clean(equipmentSettings?.settings?.conflict_mode || equipmentSettings?.conflict_mode) || '';
+      }
+      // Same failure contract as projects: a failed list rejects, it never
+      // reads as "no company items".
+      const floatingResult = await settleScheduleSource(
+        typeof Scheduling.listCalendarEvents === 'function'
+          ? Promise.resolve().then(() => Scheduling.listCalendarEvents(id, { branch_id: branchId(), branchId: branchId() }))
+          : (window.PlatformAPI?.calendarEvents?.list ? window.PlatformAPI.calendarEvents.list(id, { branch_id: branchId(), branchId: branchId() }) : Promise.resolve([])),
         'Dashboard floating events'
       );
+      const loadedFloatingEvents = floatingResult.ok ? floatingResult.value : null;
       const loadedScopeTemplates = await settleValue(
         window.PlatformAPI?.scopes?.list ? window.PlatformAPI.scopes.list(id, branchId(), { include_disabled:true, includeDisabled:true }) : Promise.resolve({ templates:[] }),
         { templates:scopeTemplates },
         'Dashboard scope scheduling rules'
       );
       users = Array.isArray(loadedUsers) ? loadedUsers : [];
-      projects = Array.isArray(loadedProjects) ? loadedProjects : [];
+      if (!users.length && Array.isArray(loadedWorkforce?.users)) {
+        users = loadedWorkforce.users
+          .map((entry) => entry?.user && typeof entry.user === 'object'
+            ? { ...entry.user, id:clean(entry.user.id || entry.id), ...(Array.isArray(entry.role_ids) && !Array.isArray(entry.user.role_ids) ? { role_ids:entry.role_ids } : {}) }
+            : { id:clean(entry?.id), name:clean(entry?.name), status:clean(entry?.status), role_ids:Array.isArray(entry?.role_ids) ? entry.role_ids : [] })
+          .filter((user) => user.id)
+          .map((user) => (Scheduling.normalizeUser ? Scheduling.normalizeUser(user, schedulingConfig) : user));
+      }
+      const scheduleSourceFailure = !projectsResult.ok ? projectsResult.error : (!floatingResult.ok ? floatingResult.error : null);
+      if (scheduleSourceFailure && !dataLoaded) {
+        // Nothing good to show yet: an error state with Retry, never an
+        // empty calendar that looks like "no work scheduled".
+        scheduleLoadError = scheduleLoadErrorMessage(scheduleSourceFailure);
+        lastLoadFailedAt = Date.now();
+        return;
+      }
+      if (projectsResult.ok) projects = projectsResult.value;
+      scheduleLoadError = '';
+      scheduleRefreshFailedAt = scheduleSourceFailure ? Date.now() : 0;
       const workforceConfiguration = loadedWorkforceConfiguration?.configuration || loadedWorkforceConfiguration || loadedWorkforce?.configuration || {};
       workforceTerminology = workforceConfiguration?.terminology || workforceTerminology;
       workforceGroupKinds = Array.isArray(workforceConfiguration?.resource_group_kinds)
@@ -6276,10 +10666,21 @@
         : (Array.isArray(loadedWorkforce?.configuration?.resource_group_kinds) ? loadedWorkforce.configuration.resource_group_kinds : workforceGroupKinds);
       workforceResources = normalizeWorkforceResources(loadedWorkforce, workforceGroupKinds);
       equipmentUnits = Array.isArray(loadedWorkforce?.equipment_units) ? loadedWorkforce.equipment_units : [];
-      equipmentTypes = Array.isArray(loadedEquipmentTypes?.types) ? loadedEquipmentTypes.types : equipmentTypes;
+      equipmentTypes = Array.isArray(loadedEquipmentTypes?.types) && loadedEquipmentTypes.types.length ? loadedEquipmentTypes.types : equipmentTypes;
+      if (!equipmentTypes.length && equipmentUnits.length) {
+        // Without equipment-admin access, the unit list still names each type.
+        const seenTypes = new Map();
+        equipmentUnits.forEach((unit) => {
+          const typeId = clean(unit.type_id);
+          if (typeId && !seenTypes.has(typeId)) seenTypes.set(typeId, { id:typeId, name:equipmentTypeLabel(unit, null), icon:clean(unit.icon) });
+        });
+        equipmentTypes = [...seenTypes.values()];
+      }
       scopeTemplates = Array.isArray(loadedScopeTemplates?.templates) ? loadedScopeTemplates.templates : scopeTemplates;
-      const loadedFloatingList = normalizeFloatingEventList(loadedFloatingEvents);
-      floatingEvents = loadedFloatingEvents?.missing && !loadedFloatingList.length ? floatingEvents : loadedFloatingList;
+      if (floatingResult.ok) {
+        const loadedFloatingList = normalizeFloatingEventList(loadedFloatingEvents);
+        floatingEvents = loadedFloatingEvents?.missing && !loadedFloatingList.length ? floatingEvents : loadedFloatingList;
+      }
       allEvents = Scheduling.eventsFromProjects(projects, schedulingConfig || {}).sort((a, b) => (eventStart(a)?.getTime() ?? Number.MAX_SAFE_INTEGER) - (eventStart(b)?.getTime() ?? Number.MAX_SAFE_INTEGER));
       events = visibleEvents();
       applyUserSchedulePreferences();
@@ -6293,17 +10694,19 @@
         }
       }
       applyScheduleFocus();
-      lastLoadFailedAt = 0;
+      lastLoadFailedAt = scheduleRefreshFailedAt ? Date.now() : 0;
+      if (!scheduleRefreshFailedAt) lastDataRefreshAt = Date.now();
     } catch (error) {
       lastLoadFailedAt = Date.now();
-      if (!loadData._lastToastAt || Date.now() - loadData._lastToastAt > 5000) {
-        loadData._lastToastAt = Date.now();
-        showToast((globalThis.PlatformLanguage?.text("scheduling","m_59ae500cc30197","Dashboard unavailable") ?? "Dashboard unavailable"), error?.message || 'Could not load dashboard events.', false);
-      }
+      if (!dataLoaded) scheduleLoadError = scheduleLoadErrorMessage(error);
+      else scheduleRefreshFailedAt = Date.now();
+      // The error state / "Couldn't refresh" notice on screen reports it.
+      console.warn('Scheduling load failed', error);
     } finally {
       loading = false;
+      if (!scheduleLoadError) dataLoaded = true;
       render();
-      if (pendingRouteDay) {
+      if (pendingRouteDay && dataLoaded) {
         const day = pendingRouteDay;
         pendingRouteDay = '';
         openDayModal(`${day}T12:00:00`, { fromRoute:true });
@@ -6333,19 +10736,85 @@
       else undoPlacement();
     };
     document.addEventListener('keydown', mount._placementKeyHandler);
+    if (mount._escapeHandler) document.removeEventListener('keydown', mount._escapeHandler);
+    // Escape closes the topmost scheduling layer that has no handler of its
+    // own: a quick assignee menu, the phone menus, then the phone tray.
+    mount._escapeHandler = (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const panel = rootEl?.closest?.('.fm-tabpanel');
+      if (panel && !panel.classList.contains('active')) return;
+      if (document.querySelector('.dash-event-popover') || document.querySelector('fm-date-time-picker') || document.querySelector('.fm-dialog-backdrop')) return;
+      if (document.querySelector('.dash-assignee-popover')) {
+        closeAssignmentMenu();
+      } else if (mobileViewMenuOpen || mobileMonthMenuOpen || mobileScheduleMenuOpen) {
+        mobileViewMenuOpen = false;
+        mobileMonthMenuOpen = false;
+        mobileScheduleMenuOpen = false;
+        render();
+      } else if (mobileTrayOpen) {
+        closeMobileTray();
+        render();
+      } else return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    document.addEventListener('keydown', mount._escapeHandler, true);
+    if (!rootEl.__dayListBound) {
+      // Month view: the date number opens that day's full list (day modal).
+      rootEl.__dayListBound = true;
+      const dayNumberFrom = (target) => eventCalendarMode() === 'month' && !['appointment_schedule','gantt'].includes(viewMode)
+        ? target?.closest?.('#dashEventCalendarView .prs-day-num')
+        : null;
+      const openFromDayNumber = (event) => {
+        const node = dayNumberFrom(event.target);
+        const date = node?.closest?.('[data-prs-date]')?.dataset?.prsDate;
+        if (!date) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openDayModal(`${date}T12:00:00`);
+      };
+      rootEl.addEventListener('pointerdown', (event) => { if (dayNumberFrom(event.target)) event.stopPropagation(); }, true);
+      rootEl.addEventListener('click', openFromDayNumber, true);
+      rootEl.addEventListener('keydown', (event) => {
+        // An open day list owns the keyboard; Enter behind it never stacks a second one.
+        if (activeDayModal?.element?.isConnected) return;
+        if (event.key === 'Enter' || event.key === ' ') openFromDayNumber(event);
+      }, true);
+    }
     const route = window.Portal?.navigation?.read?.() || {};
-    if (['day','4day','week','month','appointment_schedule','gantt'].includes(route.scheduleView)
-      && (route.scheduleView !== 'gantt' || ganttViewEnabled())
-      && (route.scheduleView !== 'appointment_schedule' || routingViewEnabled())) {
+    let restoredFromPreference = false;
+    if (scheduleViewAllowed(route.scheduleView)) {
       viewMode = route.scheduleView;
       routeSpecifiedView = true;
+    } else {
+      // No view in the link: reopen the view this person used last.
+      const remembered = readSchedulePref(SCHEDULE_VIEW_PREF_KEY);
+      if (scheduleViewAllowed(remembered)) {
+        viewMode = remembered;
+        routeSpecifiedView = true;
+        restoredFromPreference = true;
+      }
     }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(route.date || '')) anchorDate = new Date(`${route.date}T12:00:00`);
-    if (['sales','production','materials'].includes(route.scheduleType)) scheduleMode = route.scheduleType;
-    breakdownMode = route.scheduleGroup || breakdownMode;
-    breakdownValue = route.scheduleResource || 'all';
-    pendingRouteDay = /^\d{4}-\d{2}-\d{2}$/.test(route.day || '') ? route.day : '';
+    const routeDateValue = parseRouteDate(route.date);
+    // A clamped out-of-range date is written back so the link shows it.
+    if (routeDateValue && routeDate(routeDateValue) !== clean(route.date)) setTimeout(() => syncScheduleRoute({ date:routeDate(routeDateValue) }, { history:'replace', source:'scheduling-date', ownedKeys:['date'] }), 0);
+    if (routeDateValue) {
+      anchorDate = routeDateValue;
+      if (viewMode === 'gantt') pendingGanttScrollDate = { date:routeDateValue, fraction:0 };
+    }
+    const routeTypes = scheduleTypesFromRoute(route.scheduleType);
+    const rememberedTypes = routeTypes ? null : scheduleTypesFromRoute(readSchedulePref(SCHEDULE_TYPES_PREF_KEY));
+    if (routeTypes) applyScheduleTypes(routeTypes);
+    else if (rememberedTypes) {
+      applyScheduleTypes(rememberedTypes);
+      restoredFromPreference = true;
+    }
+    // Only known filter kinds apply; an unknown scheduleGroup is ignored.
+    breakdownMode = FILTER_TYPES[clean(route.scheduleGroup)] ? clean(route.scheduleGroup) : 'user';
+    breakdownValue = !clean(route.scheduleGroup) || FILTER_TYPES[clean(route.scheduleGroup)] ? (clean(route.scheduleResource) || 'all') : 'all';
+    pendingRouteDay = parseRouteDate(route.day) ? route.day : '';
     render();
+    if (restoredFromPreference) syncScheduleRoute({ scheduleView:viewMode, date:routeDate(), scheduleType:scheduleTypeRouteValue() }, { history:'replace', source:'schedule-preferences', ownedKeys:['scheduleView','date','scheduleType'] });
     loadData();
   }
 
@@ -6355,6 +10824,16 @@
       loadTimer = null;
       loadData().catch(() => null);
     }, 120);
+  }
+  /* Coming back through the left nav lands on bare ?tab=scheduling: put the
+   * view/date/types on screen back into the URL so it matches. */
+  function restoreScheduleRouteIfBare(){
+    if (!rootEl) return;
+    setTimeout(() => {
+      const route = window.Portal?.navigation?.read?.() || {};
+      if (route.tab !== 'scheduling' || clean(route.scheduleView)) return;
+      syncScheduleRoute({ scheduleView:viewMode, date:routeDate(), scheduleType:scheduleTypeRouteValue() }, { history:'replace', source:'schedule-restore', ownedKeys:['scheduleView','date','scheduleType'] });
+    }, 0);
   }
   let tabRegistered = false;
   async function syncSchedulingTab(){
@@ -6369,7 +10848,7 @@
     }
     if (!tabRegistered) {
       tabRegistered = true;
-      window.Portal.apps.registerPortalApp({ id: 'portal.scheduling', tabId: 'scheduling', title: (globalThis.PlatformLanguage?.text("scheduling","m_4249990706c50e","Scheduling") ?? "Scheduling"), icon: 'fa-calendar-days', order: 18, fullBleed: true, mount, onShow: () => loadData() });
+      window.Portal.apps.registerPortalApp({ id: 'portal.scheduling', tabId: 'scheduling', title: (globalThis.PlatformLanguage?.text("scheduling","m_4249990706c50e","Scheduling") ?? "Scheduling"), icon: 'fa-calendar-days', order: 18, fullBleed: true, mount, onShow: () => { restoreScheduleRouteIfBare(); loadData(); } });
       window.Portal.tabs.renderTabs?.();
     }
   }
@@ -6378,23 +10857,60 @@
     immediate:true,
     apply:(route) => {
       if (route.tab !== 'scheduling' || !rootEl) return;
-      if (['day','4day','week','month','appointment_schedule','gantt'].includes(route.scheduleView)
-        && (route.scheduleView !== 'gantt' || ganttViewEnabled())
-        && (route.scheduleView !== 'appointment_schedule' || routingViewEnabled())) {
+      const bareRoute = !['scheduleView', 'date', 'scheduleType', 'day', 'scheduleGroup', 'scheduleResource'].some((key) => clean(route[key]));
+      if (bareRoute) {
+        // Returning through the left nav (?tab=scheduling): keep what is on
+        // screen and put it back in the URL.
+        activeDayModal?.close?.({ fromRoute:true });
+        setTimeout(() => syncScheduleRoute({ scheduleView:viewMode, date:routeDate(), scheduleType:scheduleTypeRouteValue() }, { history:'replace', source:'schedule-restore', ownedKeys:['scheduleView','date','scheduleType'] }), 0);
+        render();
+        return;
+      }
+      const shownBefore = `${viewMode}|${routeDate(anchorDate)}`;
+      if (['day','4day','week','month','appointment_schedule','gantt'].includes(route.scheduleView) && scheduleViewAllowed(route.scheduleView)) {
         viewMode = route.scheduleView;
         routeSpecifiedView = true;
-      } else viewMode = 'week';
-      if (/^\d{4}-\d{2}-\d{2}$/.test(route.date || '')) anchorDate = new Date(`${route.date}T12:00:00`);
-      if (['sales','production','materials'].includes(route.scheduleType)) scheduleMode = route.scheduleType;
-      breakdownMode = route.scheduleGroup || breakdownMode;
-      breakdownValue = route.scheduleResource || 'all';
-      const day = /^\d{4}-\d{2}-\d{2}$/.test(route.day || '') ? route.day : '';
+      } else if (clean(route.scheduleView)) viewMode = 'week';
+      const nextRouteDate = parseRouteDate(route.date);
+      if (nextRouteDate) {
+        if (viewMode === 'gantt' && routeDate(nextRouteDate) !== routeDate(anchorDate)) pendingGanttScrollDate = { date:nextRouteDate, fraction:0 };
+        anchorDate = nextRouteDate;
+      }
+      // An entry without scheduleType shows the remembered chips, exactly as
+      // a reload of that entry would.
+      applyScheduleTypes(scheduleTypesFromRoute(route.scheduleType) || scheduleTypesFromRoute(readSchedulePref(SCHEDULE_TYPES_PREF_KEY)) || SCHEDULE_TYPE_KEYS);
+      breakdownMode = FILTER_TYPES[clean(route.scheduleGroup)] ? clean(route.scheduleGroup) : 'user';
+      breakdownValue = !clean(route.scheduleGroup) || FILTER_TYPES[clean(route.scheduleGroup)] ? (clean(route.scheduleResource) || 'all') : 'all';
+      const day = parseRouteDate(route.day) ? route.day : '';
       if (!day) activeDayModal?.close?.({ fromRoute:true });
       else if (loading) pendingRouteDay = day;
       else openDayModal(`${day}T12:00:00`, { fromRoute:true });
       render();
+      if (`${viewMode}|${routeDate(anchorDate)}` !== shownBefore) settleEditorAfterRouteChange().catch(() => null);
     }
   });
+  document.addEventListener('keydown', placementEscapeHandler);
+  /* Keep the schedule current without a manual reload: refetch when the tab
+   * comes back into view or the window regains focus, and every couple of
+   * minutes while it stays open and idle. Never while an editor is open or
+   * a drag is running, so in-progress work is not disturbed. */
+  function schedulingSurfaceIdle(){
+    if (!rootEl?.isConnected || document.hidden) return false;
+    const panel = rootEl.closest?.('.fm-tabpanel');
+    if (panel && !panel.classList.contains('active')) return false;
+    if (document.querySelector('.dash-event-popover,.dash-assignee-popover,.fm-dialog-backdrop,fm-date-time-picker')) return false;
+    if (rootEl.querySelector('.prs-work-chip.dragging,.prs-work-chip.moving,.live-preview')) return false;
+    // A first load that failed retries with the same triggers.
+    return !loading && (dataLoaded || !!scheduleLoadError);
+  }
+  function refreshScheduleIfStale(maxAgeMs = 20000){
+    if (!schedulingSurfaceIdle()) return;
+    if (Date.now() - lastDataRefreshAt < maxAgeMs) return;
+    scheduleLoad();
+  }
+  window.addEventListener('focus', () => refreshScheduleIfStale());
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshScheduleIfStale(); });
+  setInterval(() => refreshScheduleIfStale(110000), 30000);
   window.addEventListener('fm:calendar:refresh', () => scheduleLoad());
   window.addEventListener('fm:dashboard:refresh', () => scheduleLoad());
   window.addEventListener('fm:projects:refresh', () => scheduleLoad());

@@ -591,6 +591,68 @@
     };
   };
 
+  /* R2-EQ-5: an edit save must not revert what another session changed while
+   * this window was open. Once this page has read the project from the
+   * server (PlatformAPI keeps that first copy as the baseline), saves send
+   * only the top-level fields that differ from it, as a PATCH the server
+   * merges; saves run one at a time per project (a save requested while one
+   * is in flight is coalesced into the latest copy, which carries every
+   * edit) and advance the baseline only for fields that reached the server,
+   * so a failed save is resent. Server-owned fields (schedule items, work
+   * projection) are never written from here. Without a baseline (a
+   * brand-new project) the full save stays. */
+  const SERVER_OWNED_PROJECT_KEYS = new Set(['events', 'work_projection', 'lifecycle', 'claims']);
+  const stableJson = (value) => JSON.stringify(value, (key, entry) => (
+    entry && typeof entry === 'object' && !Array.isArray(entry)
+      ? Object.keys(entry).sort().reduce((sorted, name) => { sorted[name] = entry[name]; return sorted; }, {})
+      : entry
+  ));
+  // Representation-only differences (missing vs empty, 47.6 vs "47.6") are
+  // not edits and must not be written over another session's value.
+  const comparableField = (value) => {
+    if (value === undefined || value === null || value === '') return '';
+    if (Array.isArray(value) && !value.length) return '';
+    if (typeof value === 'object' && !Array.isArray(value) && !Object.keys(value).length) return '';
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return stableJson(value);
+  };
+  const sendProjectChanges = async (orgId, next, metadata) => {
+    const id = next.id;
+    const projects = window.PlatformAPI.projects;
+    const baseline = typeof projects.baseline === 'function' ? projects.baseline(id) : null;
+    if (!baseline || typeof projects.patch !== 'function') return projects.save(orgId, id, next, metadata);
+    const changed = {};
+    Object.keys(next).forEach((key) => {
+      if (SERVER_OWNED_PROJECT_KEYS.has(key)) return;
+      if (comparableField(next[key]) !== comparableField(baseline.data[key])) changed[key] = next[key];
+    });
+    const result = await projects.patch(orgId, id, changed, metadata);
+    // The record is gone from the server: only a full save can recreate it.
+    if (result?.missing) return projects.save(orgId, id, next, metadata);
+    projects.advanceBaseline?.(id, changed);
+    return result;
+  };
+  const projectSaveQueues = new Map();
+  const pumpProjectSaves = (id, state) => {
+    if (state.running) return;
+    if (!state.pending) { projectSaveQueues.delete(id); return; }
+    const job = state.pending;
+    state.pending = null;
+    state.running = sendProjectChanges(job.orgId, job.next, job.metadata)
+      .then((result) => job.waiters.forEach((waiter) => waiter.resolve(result)),
+        (error) => job.waiters.forEach((waiter) => waiter.reject(error)))
+      .finally(() => { state.running = null; pumpProjectSaves(id, state); });
+  };
+  const saveProjectChanges = (orgId, next, metadata) => new Promise((resolve, reject) => {
+    const id = next.id;
+    const state = projectSaveQueues.get(id) || { running: null, pending: null };
+    projectSaveQueues.set(id, state);
+    const waiters = state.pending ? state.pending.waiters : [];
+    waiters.push({ resolve, reject });
+    state.pending = { orgId, next, metadata, waiters };
+    pumpProjectSaves(id, state);
+  });
+
   window.Portal.ProjectStore = {
     cache(project){
       if (!isProjectLike(project)) return project || null;
@@ -620,16 +682,21 @@
         id: nextId,
         platform_project_id: firstText(project?.platform_project_id, project?.base_project_id, nextId),
         base_project_id: firstText(project?.base_project_id, project?.platform_project_id, nextId),
-        stage: firstText(project?.stage, project?.stage_id, 'contacting'),
-        stage_id: firstText(project?.stage_id, project?.stage, 'contacting'),
+        // The pipeline stage lives in the work projection; only echo a legacy
+        // stage the record already has, never invent one on an edit save.
+        ...(firstText(project?.stage, project?.stage_id) ? {
+          stage: firstText(project?.stage, project?.stage_id),
+          stage_id: firstText(project?.stage_id, project?.stage)
+        } : {}),
         measurement: project?.measurement || measurementProject,
         measurement_project: project?.measurement_project || measurementProject,
         updated_at: new Date().toISOString()
       };
-      const result = await window.PlatformAPI.projects.save(orgId, next.id, next, {
+      const metadata = {
         workflow_state: next.workflow_state || '',
         measurement_keys: measurementKeys(next.measurement_project || next.measurement || {})
-      });
+      };
+      const result = await saveProjectChanges(orgId, next, metadata);
       if (discardedProjectIds.has(next.id)) {
         await window.PlatformAPI.projects.remove(orgId, next.id).catch(() => null);
         return null;

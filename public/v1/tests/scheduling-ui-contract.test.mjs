@@ -33,14 +33,18 @@ test('scheduling styles are installed before the async tab mount can render', ()
 });
 
 test('global Gantt keeps editing and visibility controls recoverable', () => {
-  assert.match(scheduleViewSource, /if \(!projectCollapsed && \(typeof options\.onProjectAddItem === 'function' \|\| typeof options\.onProjectAddGroup === 'function'\)\) rows\.push\(\{ type:'add'/);
-  assert.match(scheduleViewSource, /options\.toolbarLeadingHtml \|\| ''[\s\S]*?psv-gantt-empty/);
+  // Add rows are offered only to schedule editors (TL-10); an empty timeline
+  // keeps its full toolbar and axis so filters stay recoverable (TL-26).
+  assert.match(scheduleViewSource, /if \(!projectCollapsed && !readOnly && \(typeof options\.onProjectAddItem === 'function' \|\| typeof options\.onProjectAddGroup === 'function'\)\) rows\.push\(\{ type:'add'/);
+  assert.match(scheduleViewSource, /psv-gantt-empty-row[\s\S]*?options\.toolbarLeadingHtml \|\| ''/);
   assert.match(schedulingSource, /class="dash-gantt-shown-menu" data-gantt-shown-menu/);
   assert.match(schedulingSource, /data-gantt-kind="\$\{id\}" aria-pressed=/);
   assert.match(schedulingSource, /ganttShownMenuOpen = true;\s*renderGanttScheduleView\(\);/);
   assert.match(schedulingSource, /eventCalendarItems\(\)\.find[\s\S]*?\|\| allEvents\.find\(\(event\) => String\(event\.id \|\| ''\) === String\(eventEditorEventId \|\| ''\)\)/);
   assert.match(schedulingSource, /const canSave = ctx\.kind === 'floating' \|\| ctx\.editorOnly === true/);
-  assert.match(schedulingSource, /const next = eventCalendarItems\(\)\.find[\s\S]*?\|\| allEvents\.find\(\(event\) => String\(event\.id \|\| ''\) === String\(ctx\.event\?\.id \|\| ''\)\)/);
+  // The editor saves its draft copy (ED-1): unsaved edits never touch the
+  // live calendar items, so the saved event is the editor context's event.
+  assert.match(schedulingSource, /if \(ctx\.editorOnly\) \{\s*const next = ctx\.event;/);
   assert.match(capabilityDefsSource, /key: "scheduling\.routing"[\s\S]*?label: "Routing View"/);
   assert.match(capabilityDefsSource, /key: "scheduling\.gantt"[\s\S]*?label: "Gantt Project View"/);
 });
@@ -203,7 +207,9 @@ test('scheduling calendars expose a routed four-day view between day and week', 
   assert.match(scheduleViewSource, /const shortRangeDayCount = Math\.max\(2, Math\.min\(4,/);
   assert.match(scheduleViewSource, /const timedDayCount = mode === 'day' \? 1 : \(mode === '4day' \? shortRangeDayCount : 7\);/);
   assert.match(scheduleViewSource, /const navDayCount = mode === 'week' \? 7 : \(mode === '4day' \? shortRangeDayCount : 1\);/);
-  assert.match(scheduleViewSource, /const timedGridMinWidth = 62 \+ days\.length \* 120;/);
+  // Week columns shrink to fit (Saturday stays visible) before the grid scrolls sideways.
+  assert.match(scheduleViewSource, /const timedDayMinWidth = days\.length >= 7 \? 92 : 120;/);
+  assert.match(scheduleViewSource, /const timedGridMinWidth = 62 \+ days\.length \* timedDayMinWidth;/);
   assert.match(scheduleViewSource, /id === '4day' \? '4 Day'/);
   assert.match(schedulingSource, /\['day',window\.Portal\?\.terminology\?\.get\?\.\('scheduling\.day_view', 'Day'\)/);
   assert.match(schedulingSource, /\['4day',window\.Portal\?\.terminology\?\.get\?\.\('scheduling\.four_day_view', '4 Day'\)/);
@@ -253,7 +259,9 @@ test('Routing placement supports keyboard history and full hover previews', () =
 
 test('Routing queues scroll independently and distinguish waiting work', () => {
   assert.match(schedulingSource, /\.dash-body\.schedule-mode \.dash-right\{overflow:hidden\}/);
-  assert.match(schedulingSource, /\.dash-body\.schedule-mode \.dash-right>\.dash-groups>\.dash-group\{display:flex;flex:1 1 0;min-height:0;flex-direction:column\}/);
+  // Rail groups size to their content (a one-item Sales group no longer takes
+  // half the rail) and shrink together when the rail overflows.
+  assert.match(schedulingSource, /\.dash-body\.schedule-mode \.dash-right>\.dash-groups>\.dash-group\{display:flex;flex:0 1 auto;min-height:min\(118px,100%\);flex-direction:column\}/);
   assert.match(schedulingSource, /\.dash-group\.empty\{flex:0 0 auto\}/);
   assert.match(schedulingSource, /\.dash-group\.empty>\.dash-group-body\{display:none\}/);
   assert.ok([...schedulingSource.matchAll(/<div class="dash-group \$\{(?:rows|items)\.length \? '' : 'empty'\}">/g)].length >= 2, 'sales and production queues should both mark empty groups');
@@ -307,7 +315,11 @@ test('sales hourly Routing shows its date and renders persisted off-grid appoint
   assert.match(schedulingSource, /const routingEvents = salesRoutingEvents\(\);/);
   assert.ok([...schedulingSource.matchAll(/events:routingEvents/g)].length >= 2, 'daily and hourly Sales Routing should share project and floating calendar events');
   assert.match(schedulingSource, /salesRoutingScale === 'daily'[\s\S]*?renderResourceDayScheduler[\s\S]*?renderResourceTimeScheduler\(mount, \{/);
-  assert.match(schedulingSource, /renderResourceTimeScheduler\(mount, \{[\s\S]*?allowCreate:creationEnabled,[\s\S]*?allowEdit:true,[\s\S]*?onEventRangeChange\(event, range\)\{ saveEventCalendarRange\(event, range\); \}/);
+  // View-only sessions can't move appointments (allowEdit follows the
+  // manage_schedule permission); chips still open read-only (R2-RES-4).
+  // The waiting (unassigned) appointment being placed is staged as a draft +
+  // ✓ like Week/Month (R3-RAIL-9); every other appointment saves on drop.
+  assert.match(schedulingSource, /renderResourceTimeScheduler\(mount, \{[\s\S]*?allowCreate:creationEnabled,[\s\S]*?allowEdit:scheduleEditable,[\s\S]*?onEventRangeChange\(event, range\)\{[\s\S]*?if \(isWaitingSalesItem\(event\)\) \{ stageWaitingSalesMove\(range\); return; \}[\s\S]*?saveEventCalendarRange\(event, range\);/);
   assert.match(schedulingSource, /function goToToday\(\)\{[\s\S]*?anchorDate = startOfDay\(new Date\(\)\)[\s\S]*?syncScheduleRoute\(\{ date:routeDate\(\) \}/);
   assert.match(schedulingSource, /querySelectorAll\('\[data-dash-today\]'\)\.forEach\(\(btn\) => btn\.addEventListener\('click', goToToday\)\)/);
   assert.match(scheduleViewSource, /eventsForDate\(Scheduling, projects, dateValue, null, options\.events\)/);
@@ -335,7 +347,9 @@ test('sales hourly Routing persists dragged assignees and keeps cards behind the
   const rangeSaveSource = rangeSaveStart >= 0 && rangeSaveEnd > rangeSaveStart ? schedulingSource.slice(rangeSaveStart, rangeSaveEnd) : '';
   assert.match(rangeSaveSource, /updateFloatingEvent\(\{\s*\.\.\.event,\s*\.\.\.range,/);
   assert.match(rangeSaveSource, /const assignment = assignmentPayloadForEvent\(\{ \.\.\.currentEvent, \.\.\.range \}\);/);
-  assert.match(rangeSaveSource, /\.\.\.withScheduleHistory\(currentEvent, 'rescheduled'\),\s*\.\.\.assignment,/);
+  // A lane drop (the range carries an assignee) reassigns; a plain move keeps
+  // every crew and person on the item (P3b: no dropped people on crew items).
+  assert.match(rangeSaveSource, /\.\.\.withScheduleHistory\(currentEvent, 'rescheduled'\),[\s\S]*?\.\.\.\(rangeCarriesAssignment\(range\) \? assignment : \{\}\),/);
   assert.match(scheduleViewSource, /\.prs-resource-label\{position:sticky;left:0;z-index:10;/);
   assert.match(scheduleViewSource, /\.prs-resource-time-grid\{[^}]*repeat\(var\(--prs-slots,24\),minmax\(60px,1fr\)\)/);
   assert.match(scheduleViewSource, /\.prs-work-chip\.type-sales-appointment[^}]*background:#dcfce7/);
@@ -472,7 +486,7 @@ test('placed scheduling items distinguish clicks from drags and open assignment 
 
 test('regular Day Week and Month appointments stay click-first while Routing owns dragging', () => {
   const rendererStart = schedulingSource.indexOf('function renderEventCalendarView(){');
-  const rendererEnd = schedulingSource.indexOf('  function toggleScheduleSelection', rendererStart);
+  const rendererEnd = schedulingSource.indexOf('  function openDraftAssignmentMenu', rendererStart);
   const eventCalendarRenderer = rendererStart >= 0 && rendererEnd > rendererStart ? schedulingSource.slice(rendererStart, rendererEnd) : '';
   assert.match(eventCalendarRenderer, /allowEdit: true,\s*allowEventDrag: false,/);
   assert.match(eventCalendarRenderer, /onEventClick\(event, meta = \{\}\)\{ openPlacedCalendarEvent\(event, meta\); \}/);
@@ -493,10 +507,11 @@ test('scheduling popovers dismiss only when the full pointer gesture is outside'
 });
 
 test('weekly timed moves keep the cursor inside the dragged event', () => {
-  assert.match(scheduleViewSource, /const TIMED_MOVE_CURSOR_OFFSET_MINUTES = 7\.5;/);
-  assert.match(scheduleViewSource, /const eventForDragTarget =/);
-  assert.match(scheduleViewSource, /activeDrag\?\.kind !== 'move' \|\| !rangeItemIsTimed\(activeDrag\?\.item\)/);
-  assert.match(scheduleViewSource, /clientY:y - TIMED_MOVE_CURSOR_OFFSET_MINUTES \* pixelsPerMinute/);
+  // Moves keep the grab offset: the item shifts by the pointer's travel since
+  // pointerdown (a fixed cursor offset made items jump to the pointer).
+  assert.doesNotMatch(scheduleViewSource, /TIMED_MOVE_CURSOR_OFFSET_MINUTES/);
+  assert.match(scheduleViewSource, /const grab = calendarPointAt\(event, \{ gridOnly: zone === 'grid' \}\);/);
+  assert.match(scheduleViewSource, /snapMinuteDelta\(target\.minute - Number\(grab\?\.minute \|\| 0\)\)/);
   assert.match(scheduleViewSource, /const targetRange = rangeForDragTarget\(event, activeDrag\);/);
   assert.match(scheduleViewSource, /if \(chip\.classList\.contains\('dragging'\)\) \{[\s\S]*?chip\.style\.cursor = 'grabbing';/);
 });
@@ -573,7 +588,8 @@ test('weekly timed overlaps pack into leftmost free columns per overlap cluster'
   assert.match(scheduleViewSource, /const compactMobileWeek = options\.mobileLayout === true && mode === 'week';/);
   assert.match(scheduleViewSource, /const placedLeftInset = compactMobileWeek \? 1 : 0;/);
   assert.match(scheduleViewSource, /const placedRightGutter = compactMobileWeek \? 1 : TIMED_PLACED_RIGHT_GUTTER_PX;/);
-  assert.match(scheduleViewSource, /const rightGutter = layout\.preview \? 0 : placedRightGutter;/);
+  // Side-by-side items use the full column width (R3-TG-10); a lone item keeps the gutter.
+  assert.match(scheduleViewSource, /const rightGutter = layout\.preview \? 0 : \(Number\(layout\.columnCount \|\| 1\) > 1 \? Math\.min\(placedRightGutter, 3\) : placedRightGutter\);/);
   assert.match(scheduleViewSource, /const geometry = timedOverlapColumnGeometry\(layout, rightGutter\);/);
   assert.match(scheduleViewSource, /chip\.style\.left = preview \? '0px' : `\$\{placedLeftInset\}px`;/);
   assert.match(scheduleViewSource, /chip\.style\.right = preview \? '0px' : `\$\{placedRightGutter\}px`;/);
@@ -590,7 +606,10 @@ test('range saves reflow the calendar without reloading data or overwriting newe
   assert.match(schedulingSource, /function beginEventRangeSave\(eventId = ''\)/);
   assert.match(schedulingSource, /function queueEventRangeSave\(eventId = '', save\)/);
   assert.match(schedulingSource, /function mergeSavedCalendarEvent\(saved = \{\}, fallback = \{\}, version = 0\)[\s\S]*?eventRangeSaveVersions\.get\(id\) !== version/);
-  assert.match(schedulingSource, /const saved = await queueEventRangeSave\(event\.id, \(\) => Scheduling\.saveProjectEvent\(orgId\(\), project, next, schedulingConfig\)\);\s*mergeSavedCalendarEvent\(saved, next, saveVersion\)/);
+  // Queued saves first re-read the stored item (EQ-10 / R2-EQ-2): a change
+  // elsewhere to the moved fields refuses the save; other changes made
+  // elsewhere are kept by writing only the move on top of the stored copy.
+  assert.match(schedulingSource, /const saved = await queueEventRangeSave\(event\.id, async \(\) => \{[\s\S]*?checkStoredScheduleEvent\(known, ownGroups\)[\s\S]*?toSave = mergeEventChanges\(check\.fresh, next, ownGroups\)[\s\S]*?return Scheduling\.saveProjectEvent\(orgId\(\), project, withExplicitAssignees\(toSave\), schedulingConfig\);\s*\}\);\s*mergeSavedCalendarEvent\(saved, next, saveVersion\)/);
   const rangeSaveStart = schedulingSource.indexOf('async function saveEventCalendarRange(event, range){');
   const rangeSaveEnd = schedulingSource.indexOf('  function salesResources', rangeSaveStart);
   const rangeSaveSource = rangeSaveStart >= 0 && rangeSaveEnd > rangeSaveStart ? schedulingSource.slice(rangeSaveStart, rangeSaveEnd) : '';
@@ -607,17 +626,19 @@ test('range saves reflow the calendar without reloading data or overwriting newe
   assert.match(projectScheduleSource, /function queueScheduleEventSave\(eventId = '', save\)/);
   assert.match(projectScheduleSource, /broadcast = true, preserveLocalEvents = false, mutationVersion = 0/);
   assert.match(projectScheduleSource, /if \(broadcast && isCurrentMutation\)/);
-  assert.match(projectScheduleSource, /async function saveMaterialScheduleRange\(event, range\)[\s\S]*?broadcast: false,[\s\S]*?preserveLocalEvents: true,[\s\S]*?mutationVersion/);
+  assert.match(projectScheduleSource, /async function saveMaterialScheduleRange\(event, range(?:, options = \{\})?\)[\s\S]*?broadcast: false,[\s\S]*?preserveLocalEvents: true,[\s\S]*?mutationVersion/);
 });
 
 test('appointment editor has stable bounded dimensions and disclosure controls', () => {
   assert.match(schedulingSource, /\.dash-event-popover\{[^}]*width:420px;height:620px;[^}]*max-height:calc\(100vh - 16px\)[^}]*display:flex;flex-direction:column;/);
   assert.match(schedulingSource, /\.dash-event-pop-actions\{[^}]*justify-content:flex-end;[^}]*margin-top:auto;/);
   assert.match(schedulingSource, /const height = Math\.min\(620,[\s\S]*?pop\.style\.height = `\$\{height\}px`;/);
-  assert.match(schedulingSource, /const schedulingViewport = rootEl\?\.querySelector\('\.dash-left'\)/);
+  // The editor may use the whole scheduling body (calendar + rail) so it can
+  // sit beside the item instead of covering it (R2-ED-9).
+  assert.match(schedulingSource, /const schedulingViewport = rootEl\?\.querySelector\('\.dash-body'\)/);
   assert.match(schedulingSource, /left:Math\.max\(0, Number\(rawContentRect\.left \|\| 0\)\)/);
   assert.match(schedulingSource, /right:Math\.min\(window\.innerWidth, Number\(rawContentRect\.right \|\| window\.innerWidth\)\)/);
-  assert.match(schedulingSource, /const top = Math\.max\(minTop, Math\.min\(maxTop, centeredTop\)\);/);
+  assert.match(schedulingSource, /const best = candidates\.reduce\(\(winner, spot\) => \(overlapWith\(spot\.x, spot\.y\) < overlapWith\(winner\.x, winner\.y\)/);
   assert.match(schedulingSource, /data-event-customer-details-toggle aria-expanded=/);
   assert.match(schedulingSource, /eventCustomerDetailsOpen = !eventCustomerDetailsOpen;/);
 });
@@ -701,7 +722,8 @@ test('project work crew controls assign in place and stay synchronized', () => {
   assert.match(projectScheduleSource, /schedulePopoverHost\(anchor\)\.appendChild\(menu\)/);
   assert.match(projectScheduleSource, /schedulePopoverHost\(anchor\)\.appendChild\(popover\)/);
   assert.match(projectScheduleSource, /meta\.action === 'assignee'[\s\S]*?openWorkAssignmentMenu\(event, meta\.element\);[\s\S]*?return;/);
-  assert.match(projectScheduleSource, /async function saveWorkCrewAssignment\(event = \{\}, crewId = ''\)[\s\S]*?upsertLocalProjectEvent\(next\)[\s\S]*?saveProjectEventQuiet\(next/);
+  assert.match(projectScheduleSource, /async function saveWorkCrewAssignment\(event = \{\}, crewId = ''(?:, options = \{\})?\)[\s\S]*?saveWorkAssignees\(/);
+  assert.match(projectScheduleSource, /async function saveWorkAssignees\(event = \{\}, assignees = \[\], options = \{\}\)[\s\S]*?upsertLocalProjectEvent\(next\)[\s\S]*?saveProjectEventQuiet\(next/);
   assert.match(projectScheduleSource, /const draft = workScheduleDrafts\.get\(String\(event\.id \|\| ''\)\) \|\| null;[\s\S]*?const selectedId = workCrewId\(assignmentSource\);/);
   assert.doesNotMatch(projectScheduleSource, /Waiting for \$\{workResourceLabel\(\)\}/);
   assert.match(scheduleViewSource, /const crewLabel = waitingForCrew \? \(crewLabelRaw \|\| 'Unassigned'\) : crewLabelRaw;/);
@@ -724,31 +746,38 @@ test('resource scheduling packs only visually overlapping items into extra lanes
 });
 
 test('global all-day appointments reuse the highest available row', () => {
-  assert.match(scheduleViewSource, /const allDayLanes = \[\];[\s\S]*?let laneIndex = allDayLanes\.findIndex\(\(laneEndCol\) => laneEndCol <= startCol\);/);
-  assert.match(scheduleViewSource, /allDayLanes\[laneIndex\] = endCol;[\s\S]*?margin-top:\$\{allDayTop \+ laneIndex \* allDayStep\}px[\s\S]*?const allDayRows = Math\.max\(1, allDayLanes\.length\);/);
+  // Lanes hold span lists, so a bar placed first (a staged draft) only claims its own days (R3-TG-4).
+  assert.match(scheduleViewSource, /const allDayLanes = \[\];[\s\S]*?let laneIndex = allDayLanes\.findIndex\(\(spans\) => spans\.every\(\(\[spanStart, spanEnd\]\) => spanEnd <= startCol \|\| spanStart >= endCol\)\);/);
+  assert.match(scheduleViewSource, /allDayLanes\[laneIndex\]\.push\(\[startCol, endCol\]\);[\s\S]*?margin-top:\$\{allDayTop \+ laneIndex \* allDayStep\}px[\s\S]*?const allDayRows = Math\.max\(1, allDayLanes\.length\);/);
   assert.doesNotMatch(scheduleViewSource, /\.map\(\(\{ item, range \}, stackIndex\) => \{/);
 });
 
 test('all-day work keeps its compact layout after drag or resize', () => {
   assert.match(scheduleViewSource, /\.prs-all-day-bar-top \.prs-work-chip\{height:42px;min-height:42px;/);
   assert.match(scheduleViewSource, /\.prs-all-day-grid\.week-overflow \.prs-all-day-bar-top \.prs-work-chip\{height:24px;min-height:24px;/);
-  assert.match(scheduleViewSource, /const upsertDraft = \(draft\) => \{[\s\S]*?mode: allDay \? 'month' : mode,/);
-  assert.match(scheduleViewSource, /const upsertCalendarItem = \(item, optionsForItem = \{\}\) => \{[\s\S]*?mode: allDay \? 'month' : mode,/);
+  // Band/month re-renders after a drop share one helper that always draws the
+  // compact month-style chip.
+  assert.match(scheduleViewSource, /const appendBandItemNodes = \(next, start, end, allDay, \{ draft = false, marginTop = '' \} = \{\}\) => \{[\s\S]*?mode: 'month',/);
+  assert.match(scheduleViewSource, /const upsertDraft = \(draft\) => \{[\s\S]*?appendBandItemNodes\(next, start, end, allDay, \{ draft: true/);
+  assert.match(scheduleViewSource, /const upsertCalendarItem = \(item, optionsForItem = \{\}\) => \{[\s\S]*?appendBandItemNodes\(next, start, end, allDay, \{ draft: false/);
 });
 
 test('week view caps and expands only its all-day event band', () => {
   assert.match(scheduleViewSource, /const WEEK_ALL_DAY_VISIBLE_ITEM_COUNT = 3;/);
   assert.match(scheduleViewSource, /const expandedMonthDates = new Set\([\s\S]*?const renderMonth = \(\) => \{/);
-  assert.match(scheduleViewSource, /const compactWeekAllDay = mode === 'week';/);
-  assert.match(scheduleViewSource, /class="prs-all-day-grid \$\{compactWeekAllDay \? 'week-overflow' : ''\}/);
+  assert.match(scheduleViewSource, /const compactWeekAllDay = mode === 'week' \|\| compactAllDayBand;/);
+  assert.match(scheduleViewSource, /class="prs-all-day-grid \$\{String\(compactWeekAllDay \? 'week-overflow' : ''\)\}/);
   assert.match(scheduleViewSource, /const hiddenAllDayByDay = compactWeekAllDay \? days\.map/);
   assert.match(scheduleViewSource, /entry\.startCol <= gridColumn && entry\.endCol > gridColumn/);
   assert.match(scheduleViewSource, /data-prs-week-all-day-overflow/);
-  assert.match(scheduleViewSource, /style="grid-column:\$\{dayOverflow\.gridColumn\}"/);
-  assert.match(scheduleViewSource, /prs-week-all-day-overflow-more">\+ \$\{dayOverflow\.count\} more/);
+  assert.match(scheduleViewSource, /style="grid-column:\$\{String\(dayOverflow\.gridColumn\)\}"/);
+  assert.match(scheduleViewSource, /prs-week-all-day-overflow-more">[\s\S]{0,160}`\+ \$\{v7\} more`/);
   assert.doesNotMatch(scheduleViewSource, /week-overflow\.has-overflow:after/);
-  assert.match(scheduleViewSource, /\.prs-week-all-day-overflow\{[^}]*height:14px;[^}]*margin:0 1px;[^}]*border-radius:0;[^}]*background:#fff;[^}]*font-size:8px/);
-  assert.match(scheduleViewSource, /\.prs-week-all-day-overflow:before\{[^}]*left:0;right:0;top:-10px;[^}]*linear-gradient/);
+  // Readable 10px "+N more" / "Show less" controls; lanes past the third stay
+  // hidden (not peeking through a fade) until the band expands.
+  assert.match(scheduleViewSource, /\.prs-week-all-day-overflow\{[^}]*height:18px;[^}]*background:#fff;[^}]*font-size:10px/);
+  assert.match(scheduleViewSource, /\.prs-week-all-day-overflow \.prs-week-all-day-overflow-less\{display:none\}/);
+  assert.match(scheduleViewSource, /\.prs-all-day-grid\.week-overflow:not\(\.expanded\):not\(\.peeking\) \.prs-all-day-bar-top\.lane-overflow\{visibility:hidden\}/);
   assert.match(scheduleViewSource, /btn\.addEventListener\('pointerenter', previewOverflow\)/);
   assert.match(scheduleViewSource, /const expanded = !band\.classList\.contains\('expanded'\) \|\| !btn\.classList\.contains\('is-controller'\)/);
   assert.match(scheduleViewSource, /transition:height 300ms cubic-bezier/);
@@ -778,7 +807,7 @@ test('month overflow controls scroll and expand only their own day without creat
   assert.doesNotMatch(scheduleViewSource, /week\.style\.setProperty\('--prs-month-scroll-y'/);
   assert.match(scheduleViewSource, /btn\.addEventListener\('pointerdown', \(event\) => \{[\s\S]*?event\.stopPropagation\(\);[\s\S]*?btn\.setPointerCapture\?\.\(event\.pointerId\);[\s\S]*?\}\);/);
   assert.match(scheduleViewSource, /event\.target\.closest\('\.prs-work-chip,\[data-prs-month-overflow\]'\)/);
-  assert.match(scheduleViewSource, /event\.target\.closest\('\.prs-work-chip,\.prs-toolbar,\.prs-view-switch,\[data-prs-month-overflow\]'\)/);
+  assert.match(scheduleViewSource, /event\.target\.closest\('\.prs-work-chip,\.prs-toolbar,\.prs-view-switch,\[data-prs-month-overflow\],\.prs-month-day-peek'\)/);
   assert.match(scheduleViewSource, /\.prs-work-chip:not\(\.prs-month-day-peek-chip\)/);
 });
 
@@ -855,10 +884,11 @@ test('month view renders only the week rows required by the selected month', () 
 
 test('crew row drops save assignments immediately', () => {
   assert.match(projectScheduleSource, /return resource\.subject_type === 'organization_user' \|\| !normalizedScopeId \|\| !ids\.length \|\| ids\.includes\(normalizedScopeId\);/);
-  assert.match(projectScheduleSource, /async function commitWorkScheduleRange\(event = \{\}, range = \{\}\)/);
+  assert.match(projectScheduleSource, /async function commitWorkScheduleRange\(event = \{\}, range = \{\}(?:, options = \{\})?\)/);
   assert.match(projectScheduleSource, /Scheduling\.updateProjectEventRange\(source, \{ \.\.\.range, \.\.\.assignment \}\)/);
   assert.match(projectScheduleSource, /upsertLocalProjectEvent\(next\);[\s\S]*?saveProjectEventQuiet\(next/);
-  assert.match(projectScheduleSource, /onEventRangeChange\(event, range\)\{\s*commitWorkScheduleRange\(event, range\);\s*\}/);
+  assert.match(projectScheduleSource, /const routingEventRangeChange = \(event, range\) => \{[\s\S]*?return commitWorkScheduleRange\(event, range\);/);
+  assert.match(projectScheduleSource, /onEventRangeChange: routingEventRangeChange/);
   assert.doesNotMatch(projectScheduleSource, /That \$\{workResourceLabel\(\)\} does not declare capability for this scope/);
 });
 
@@ -935,16 +965,21 @@ test('customer rescheduling is feature gated and uses the canonical live-slot wo
 });
 
 test('short mobile week events keep their title space unless they show a confirmation control', () => {
-  assert.match(scheduleViewSource, /\.prs-work-chip\.timed\.has-confirm\.compact-confirm\{padding-right:38px;padding-bottom:12px\}/);
-  assert.doesNotMatch(scheduleViewSource, /\.prs-work-chip\.timed\.compact-confirm\{padding-right:38px;padding-bottom:12px\}/);
+  // Timed drafts carry the confirm control as a round badge in the column's
+  // right gutter (it used to sit inside the chip, over the title).
+  assert.match(scheduleViewSource, /\.prs-work-chip\.timed\.has-confirm\{overflow:visible\}/);
+  assert.match(scheduleViewSource, /\.prs-work-chip\.timed\.has-confirm \.prs-confirm\{top:3px;right:-13px;bottom:auto;width:20px;height:20px/);
+  assert.doesNotMatch(scheduleViewSource, /\.prs-work-chip\.timed\.has-confirm\{padding-right:9px;padding-bottom:34px\}/);
+  assert.doesNotMatch(scheduleViewSource, /\.prs-work-chip\.timed\.compact-confirm\{padding-right:/);
   assert.match(scheduleViewSource, /\.prs-wrap\.mobile-layout \.prs-slot \.prs-work-chip\[data-prs-mode="week"\]\{left:1px;right:1px;border-left-width:2px;border-radius:6px;font-size:7px/);
   assert.match(scheduleViewSource, /\.prs-work-chip\[data-prs-mode="week"\]:not\(\.has-confirm\)\{padding:3px 2px\}/);
   assert.match(scheduleViewSource, /\.prs-work-chip\[data-prs-mode="week"\] \.prs-title-text\{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;/);
 });
 
 test('waiting production events render their project title instead of the address', () => {
-  assert.match(schedulingSource, /function renderProductionScheduleGroups\(\)[\s\S]*?const eventTile = \(event\) => \{[\s\S]*?<div class="dash-appt-address">\$\{escapeHtml\(projectTitle\(project, event\)\)\}\$\{missingAddress/);
-  assert.match(schedulingSource, /function renderProductionScheduleGroups\(\)[\s\S]*?const materialTile = \(event\) => \{[\s\S]*?<div class="dash-appt-address">\$\{escapeHtml\(projectTitle\(project, event\)\)\}\$\{missingAddress/);
+  // Waiting work (bundles, including lone deliveries) renders through eventPile;
+  // the unused eventTile/materialTile markup was removed.
+  assert.match(schedulingSource, /function renderProductionScheduleGroups\(\)[\s\S]*?const eventPile = \(group\) => \{[\s\S]*?<div class="dash-appt-address">\$\{escapeHtml\(projectTitle\(project, primary\)\)\}\$\{missingAddress/);
 });
 
 test('scope schedule rules derive a roofing bundle from its primary start date', () => {
@@ -1049,7 +1084,10 @@ test('global scheduling renders grouped bundles with click placement and derived
   assert.match(scheduleViewSource, /options\.onPlacementCancel\?\.\(\)/);
   assert.match(scheduleViewSource, /layoutClickPlacementPreviews/);
   assert.match(scheduleViewSource, /--prs-preview-color/);
-  assert.match(scheduleViewSource, /content:"PREVIEW"/);
+  // Placement previews look like the item being placed (dashed outline),
+  // not a hatched "PREVIEW" block.
+  assert.doesNotMatch(scheduleViewSource, /content:"PREVIEW"/);
+  assert.match(scheduleViewSource, /\.prs-work-chip\.preview\{--prs-preview-color:var\(--primary,#d93025\);border-style:dashed;outline:2px dashed/);
   assert.match(scheduleViewSource, /repeating-linear-gradient\(135deg/);
   assert.match(scheduleViewSource, /function prioritizePrimaryPlacementDraft/);
   assert.match(scheduleViewSource, /if \(primaryIndex < 0 && primary\?\.start && primary\?\.end\) drafts\.unshift\(primary\)/);

@@ -8,7 +8,6 @@
   const root = window;
   const STYLE_ID = 'platform_schedule_view_css';
   const POINTER_DRAG_THRESHOLD = 8;
-  const TIMED_MOVE_CURSOR_OFFSET_MINUTES = 7.5;
   const TIMED_HEADER_DURATION_MS = 60 * 60 * 1000;
   const TIMED_PLACED_RIGHT_GUTTER_PX = 20;
   const MONTH_ITEM_TOP_PX = 23;
@@ -21,6 +20,207 @@
   const WEEK_ALL_DAY_VISIBLE_ITEM_COUNT = 3;
   const WEEK_ALL_DAY_COLLAPSED_HEIGHT_PX = 110;
   const travelCache = new Map();
+  // A drag that ends where it started, within this travel, is still a click.
+  const CLICK_WOBBLE_PX = 16;
+  const DRAG_AUTO_SCROLL_EDGE_PX = 44;
+  const DRAG_AUTO_SCROLL_MAX_STEP_PX = 22;
+  // Timed items lasting a day or more read as spans (all-day band / month
+  // bars), not as full-height columns that squeeze real appointments.
+  const TIMED_SPAN_BAND_MS = 24 * 60 * 60 * 1000;
+  // Scroll memory keyed by host stateKey (or mount id) so a host re-render
+  // that recreates the mount keeps the user's place.
+  const scheduleViewports = new Map();
+  const CHIP_INNER_CONTROL_SELECTOR = '[data-prs-assignee],[data-prs-view]';
+  const containerKeyHandlers = new Map();
+  let containerKeyDispatcherInstalled = false;
+
+  function dispatchContainerKeydown(event){
+    Array.from(containerKeyHandlers.entries()).forEach(([node, handler]) => {
+      if (!node.isConnected) {
+        containerKeyHandlers.delete(node);
+        return;
+      }
+      try { handler(event); } catch (error) { console.warn('Schedule key handler failed.', error); }
+    });
+  }
+  /* One document keydown listener serves every mounted renderer. Hosts often
+   * recreate the mount on each render, so per-render document listeners
+   * leaked; entries for detached mounts are pruned on every registration. */
+  function setContainerKeyHandler(container, handler){
+    containerKeyHandlers.forEach((_, node) => { if (!node.isConnected) containerKeyHandlers.delete(node); });
+    if (typeof handler === 'function') containerKeyHandlers.set(container, handler);
+    else containerKeyHandlers.delete(container);
+    if (!containerKeyDispatcherInstalled && typeof document !== 'undefined') {
+      document.addEventListener('keydown', dispatchContainerKeydown);
+      containerKeyDispatcherInstalled = true;
+    }
+  }
+  /* Container-level listeners are replaced, not stacked, when a host renders
+   * into the same mount again. */
+  function resetContainerListeners(container){
+    try { container.__prsListenerAbort?.abort?.(); } catch {}
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    container.__prsListenerAbort = controller;
+    return controller ? controller.signal : undefined;
+  }
+  function capturePointer(element, pointerId){
+    try { element?.setPointerCapture?.(pointerId); } catch {}
+  }
+  function releasePointer(element, pointerId){
+    try { if (element?.hasPointerCapture?.(pointerId)) element.releasePointerCapture(pointerId); } catch {}
+  }
+  function timedRangeSpansDays(range = {}){
+    const start = new Date(range.start);
+    const end = new Date(range.end);
+    return Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) && end.getTime() - start.getTime() >= TIMED_SPAN_BAND_MS;
+  }
+  /* Whole calendar days a timed range touches: [start day, day after end). */
+  function dayBandRange(range = {}){
+    const start = startOfDay(range.start);
+    const endDay = startOfDay(range.end);
+    const end = new Date(range.end).getTime() === endDay.getTime() ? endDay : addDays(endDay, 1);
+    return { start, end: end > start ? end : addDays(start, 1) };
+  }
+  /* Scrolls a drag surface while the pointer rests near an edge. onScroll
+   * re-runs the drag update so the preview follows the moving grid. */
+  function createDragAutoScroller(scroller, { topInset = () => 0, leftInset = () => 0, onScroll = () => {} } = {}){
+    let frame = 0;
+    let pointer = null;
+    // The pointer must rest in an edge zone briefly, so sweeping through one
+    // (e.g. from the all-day band down into the grid) never scrolls.
+    let zoneEnteredAt = 0;
+    // Where the drag started. A drag that begins inside an edge zone (an
+    // item at the very top of the view) only scrolls that way once the
+    // pointer has moved further toward that edge, or left the zone and come
+    // back: moving such an item sideways never scrolls.
+    let origin = null;
+    const START_ZONE_TRAVEL_PX = 14;
+    const speed = (distance) => Math.max(2, Math.ceil(((DRAG_AUTO_SCROLL_EDGE_PX - Math.max(0, distance)) / DRAG_AUTO_SCROLL_EDGE_PX) * DRAG_AUTO_SCROLL_MAX_STEP_PX));
+    const axisStep = (value, low, high, outerLow) => {
+      if (value >= high - DRAG_AUTO_SCROLL_EDGE_PX) return speed(high - value);
+      if (value < outerLow) return -DRAG_AUTO_SCROLL_MAX_STEP_PX;
+      if (value >= low && value <= low + DRAG_AUTO_SCROLL_EDGE_PX) return -speed(value - low);
+      return 0;
+    };
+    const armedStep = (step, axis, value, low, high) => {
+      if (!step || !origin) return step;
+      const key = `${axis}${step < 0 ? '-' : '+'}`;
+      if (!origin.startedIn[key]) return step;
+      // Still inside the zone it started in: only travel toward the edge
+      // counts (half the way to the edge, at most START_ZONE_TRAVEL_PX).
+      const travel = step < 0 ? origin[axis] - value : value - origin[axis];
+      const room = step < 0 ? origin[axis] - low : high - origin[axis];
+      return travel >= Math.max(3, Math.min(START_ZONE_TRAVEL_PX, room / 2)) ? step : 0;
+    };
+    const zoneBounds = (rect) => ({
+      top: rect.top + Math.max(0, Number(topInset()) || 0),
+      left: rect.left + Math.max(0, Number(leftInset()) || 0),
+    });
+    const zoneSteps = (point, rect) => {
+      const bounds = zoneBounds(rect);
+      return {
+        dy: axisStep(point.clientY, bounds.top, rect.bottom, rect.top),
+        dx: axisStep(point.clientX, bounds.left, rect.right, rect.left),
+      };
+    };
+    const tick = () => {
+      frame = 0;
+      if (!pointer || !scroller?.isConnected) return;
+      const rect = scroller.getBoundingClientRect();
+      const raw = zoneSteps(pointer, rect);
+      if (origin) {
+        // Leaving the zone a drag started in re-arms it normally.
+        if (!raw.dy) { delete origin.startedIn['y-']; delete origin.startedIn['y+']; }
+        if (!raw.dx) { delete origin.startedIn['x-']; delete origin.startedIn['x+']; }
+      }
+      const bounds = zoneBounds(rect);
+      const dy = armedStep(raw.dy, 'y', pointer.clientY, bounds.top, rect.bottom);
+      const dx = armedStep(raw.dx, 'x', pointer.clientX, bounds.left, rect.right);
+      const now = Date.now();
+      if (!dx && !dy) zoneEnteredAt = 0;
+      else if (!zoneEnteredAt) zoneEnteredAt = now;
+      const ready = zoneEnteredAt && now - zoneEnteredAt >= 220;
+      const beforeTop = scroller.scrollTop;
+      const beforeLeft = scroller.scrollLeft;
+      if (ready && dy) scroller.scrollTop = beforeTop + dy;
+      if (ready && dx) scroller.scrollLeft = beforeLeft + dx;
+      if (scroller.scrollTop !== beforeTop || scroller.scrollLeft !== beforeLeft) {
+        try { onScroll(pointer); } catch (error) { console.warn('Schedule drag auto-scroll failed.', error); }
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    return {
+      update(event){
+        pointer = { clientX:Number(event.clientX), clientY:Number(event.clientY), target:event.target, pointerId:event.pointerId, synthetic:true, preventDefault(){} };
+        if (!origin && scroller?.isConnected) {
+          const start = { clientX:Number(event.dragStartX ?? event.clientX), clientY:Number(event.dragStartY ?? event.clientY) };
+          const steps = zoneSteps(start, scroller.getBoundingClientRect());
+          origin = { x:start.clientX, y:start.clientY, startedIn:{} };
+          if (steps.dy) origin.startedIn[`y${steps.dy < 0 ? '-' : '+'}`] = true;
+          if (steps.dx) origin.startedIn[`x${steps.dx < 0 ? '-' : '+'}`] = true;
+        }
+        if (!frame) frame = requestAnimationFrame(tick);
+      },
+      stop(){
+        pointer = null;
+        origin = null;
+        zoneEnteredAt = 0;
+        if (frame) cancelAnimationFrame(frame);
+        frame = 0;
+      },
+    };
+  }
+  /* Transient "why can't I move this" hint for hosts that do not toast. */
+  function showRefusedDragHint(node, reason = 'locked', message = ''){
+    if (!node?.getBoundingClientRect || typeof document === 'undefined') return;
+    document.querySelectorAll('.prs-refused-hint').forEach((hint) => hint.remove());
+    const rect = node.getBoundingClientRect();
+    const hint = document.createElement('div');
+    hint.className = 'prs-refused-hint';
+    hint.setAttribute('role', 'status');
+    const text = clean(message) || (reason === 'locked'
+      ? (globalThis.PlatformLanguage?.text("platform-schedule-view","m_locked_drag_hint","Locked - unlock this item before moving it.") ?? "Locked - unlock this item before moving it.")
+      : reason === 'lane'
+        ? (globalThis.PlatformLanguage?.text("platform-schedule-view","m_lane_drop_hint","This item can't go in that row.") ?? "This item can't go in that row.")
+        : reason === 'view-only'
+          ? (globalThis.PlatformLanguage?.text("platform-schedule-view","m_viewonly_drag_hint","View only - you can't move items here.") ?? "View only - you can't move items here.")
+          : (globalThis.PlatformLanguage?.text("platform-schedule-view","m_readonly_drag_hint","You can't move this item.") ?? "You can't move this item."));
+    hint.innerHTML = `<i class="fas ${reason === 'locked' ? 'fa-lock' : reason === 'view-only' ? 'fa-eye' : 'fa-ban'}" aria-hidden="true"></i><span>${esc(text)}</span>`;
+    hint.style.left = `${Math.max(8, Math.min(window.innerWidth - 260, rect.left))}px`;
+    hint.style.top = `${Math.max(8, rect.top - 34)}px`;
+    document.body.appendChild(hint);
+    setTimeout(() => hint.remove(), 1800);
+  }
+
+  /* Calls onHold when a touch rests (moving less than the drag threshold)
+   * for delayMs; lifting, cancelling or moving first abandons it. Used to
+   * explain a view-only calendar's refusal on a touch-and-hold. */
+  function armTouchHoldFeedback(event, onHold, delayMs = 480){
+    if (event?.pointerType !== 'touch' || typeof onHold !== 'function') return () => {};
+    const pointerId = event.pointerId;
+    const startX = Number(event.clientX);
+    const startY = Number(event.clientY);
+    let timer = 0;
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      timer = 0;
+      document.removeEventListener('pointermove', onMove, true);
+      document.removeEventListener('pointerup', onEnd, true);
+      document.removeEventListener('pointercancel', onEnd, true);
+    };
+    const onMove = (moveEvent) => {
+      if (moveEvent.pointerId === pointerId && Math.hypot(Number(moveEvent.clientX) - startX, Number(moveEvent.clientY) - startY) > POINTER_DRAG_THRESHOLD) cleanup();
+    };
+    const onEnd = (endEvent) => { if (endEvent.pointerId === pointerId) cleanup(); };
+    document.addEventListener('pointermove', onMove, true);
+    document.addEventListener('pointerup', onEnd, true);
+    document.addEventListener('pointercancel', onEnd, true);
+    timer = setTimeout(() => {
+      cleanup();
+      try { onHold(); } catch (error) { console.warn('Schedule touch-hold feedback failed.', error); }
+    }, Math.max(250, Number(delayMs) || 480));
+    return cleanup;
+  }
 
   function monthWeekRowCount(value = new Date()){
     const anchor = new Date(value);
@@ -528,19 +728,21 @@
       .prs-view-switch{padding:3px;border-radius:12px;background:#fff;border:1px solid rgba(15,23,42,.10)}
       .prs-view-btn{height:28px;border:0;border-radius:9px;background:transparent;color:#667085;padding:0 9px;font-size:11px;font-weight:1000;cursor:pointer}
       .prs-view-btn.active{background:rgba(var(--primary-rgb,217,48,37),.10);color:var(--primary-readable,var(--primary,#d93025))}
-      .prs-surface{position:relative;flex:1;min-height:0;overflow:auto;overflow-anchor:none;border:1px solid rgba(15,23,42,.04);border-radius:18px;background:#eef2f6;box-shadow:0 14px 34px rgba(15,23,42,.05);touch-action:none}
-      .prs-month{min-width:840px;min-height:100%;display:flex;flex-direction:column;overflow-anchor:none}
-      .prs-month-head-row{display:grid;grid-template-columns:repeat(7,minmax(108px,1fr));height:34px;flex:0 0 auto}
+      .prs-surface{position:relative;flex:1;min-height:0;overflow:auto;overflow-anchor:none;border:1px solid rgba(15,23,42,.04);border-radius:18px;background:#eef2f6;box-shadow:0 14px 34px rgba(15,23,42,.05);touch-action:none;-webkit-user-select:none;user-select:none}
+      .prs-month{min-width:420px;min-height:100%;display:flex;flex-direction:column;overflow-anchor:none}
+      .prs-month-head-row{display:grid;grid-template-columns:repeat(7,minmax(60px,1fr));height:34px;flex:0 0 auto;position:sticky;top:0;z-index:14}
+      .prs-month-head.weekend{color:#98a2b3}
       .prs-month-head{height:34px;background:#f8fafc;border-right:1px solid rgba(15,23,42,.06);border-bottom:1px solid rgba(15,23,42,.08);display:flex;align-items:center;justify-content:center;color:#667085;font-size:11px;font-weight:1000}
-      .prs-month-week{position:relative;display:grid;grid-template-columns:repeat(7,minmax(108px,1fr));min-height:124px;flex:1 1 124px;overflow:hidden;overflow-anchor:none;transition:height .3s cubic-bezier(.25,.1,.25,1),min-height .3s cubic-bezier(.25,.1,.25,1),flex-basis .3s cubic-bezier(.25,.1,.25,1)}
+      .prs-month-week{position:relative;display:grid;grid-template-columns:repeat(7,minmax(60px,1fr));min-height:124px;flex:1 1 124px;overflow:hidden;overflow-anchor:none;transition:height .3s cubic-bezier(.25,.1,.25,1),min-height .3s cubic-bezier(.25,.1,.25,1),flex-basis .3s cubic-bezier(.25,.1,.25,1)}
       .prs-month-week.expanded{min-height:var(--prs-month-expanded-height,124px);flex-basis:var(--prs-month-expanded-height,124px)}
       .prs-day{position:relative;min-height:104px;border-right:1px solid rgba(15,23,42,.06);border-bottom:1px solid rgba(15,23,42,.06);padding:5px;background:#fff;cursor:crosshair;overflow:hidden}
       .prs-month-week .prs-day{grid-row:1;min-height:124px;padding:3px 5px 5px}
       .prs-wrap.readonly .prs-day{cursor:default}
+      .prs-day.weekend{background:#fafbfc}
       .prs-day.muted{background:#f8fafc;color:#98a2b3}
       .prs-day.past{background:linear-gradient(135deg,rgba(148,163,184,.10),rgba(248,250,252,.74));color:#64748b}
       .prs-day.past:after,.prs-resource-cell.past:after,.prs-slot.past:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(100,116,139,.055) 0,rgba(100,116,139,.055) 1px,transparent 1px,transparent 9px);pointer-events:none}
-      .prs-day.today{background:rgba(var(--primary-rgb,217,48,37),.055);box-shadow:inset 0 0 0 2px rgba(var(--primary-rgb,217,48,37),.22)}
+      .prs-day.today{background:linear-gradient(rgba(var(--primary-rgb,217,48,37),.055),rgba(var(--primary-rgb,217,48,37),.055)),#fff;box-shadow:inset 0 0 0 2px rgba(var(--primary-rgb,217,48,37),.22)}
       .prs-day.in-range{background:rgba(var(--primary-rgb,217,48,37),.06)}
       .prs-day.drag-over{box-shadow:inset 0 0 0 2px rgba(var(--primary-rgb,217,48,37),.32)}
       .prs-day-num{font-size:11px;font-weight:1000;line-height:18px;color:#344054;margin-bottom:2px}
@@ -561,14 +763,16 @@
       .prs-confirm-marker{display:inline-flex;align-items:center;margin-right:4px;font-size:9.5px;vertical-align:baseline}
       .prs-confirm-marker.warn{color:#b45309}
       .prs-confirm-marker.bad{color:#b42318}
-      .prs-requirement-warning{position:absolute;left:5px;bottom:4px;z-index:5;display:inline-grid;place-items:center;width:15px;height:15px;color:#dc2626;font-size:12px;filter:drop-shadow(0 1px 1px rgba(255,255,255,.9));cursor:pointer}
-      .prs-work-chip.has-requirement-warning .prs-chip-bottom{padding-left:16px}
+      .prs-requirement-warning{position:static;flex:0 0 auto;display:inline-flex;align-items:center;margin-right:1px;color:#dc2626;font-size:10px;font-style:normal;cursor:help}
+      .prs-lock-badge{flex:0 0 auto;font-size:8px;color:#64748b;font-style:normal}
+      .prs-continuation-mark{flex:0 0 auto;color:#64748b;font-weight:1000;font-style:normal}
       .prs-work-chip.continues-before{border-top-style:dashed;border-top-left-radius:5px;border-top-right-radius:5px}
       .prs-work-chip.continues-after{border-bottom-style:dashed;border-bottom-left-radius:5px;border-bottom-right-radius:5px}
       .prs-month-item-viewport{position:absolute;inset:0 0 auto;height:calc(100% - 22px);overflow:hidden;z-index:5;pointer-events:none;transition:height .3s cubic-bezier(.25,.1,.25,1)}
+      .prs-month-week:not(.expanded):not(.collapsing):not(.preview-expanded) .prs-month-item-viewport{max-height:104px}
       .prs-month-week.expanded .prs-month-item-viewport,.prs-month-week.collapsing .prs-month-item-viewport{height:calc(100% - 22px)}
       .prs-month-week.preview-expanded .prs-month-item-viewport{height:calc(100% - 8px)}
-      .prs-month-item-track{position:relative;display:grid;grid-template-columns:repeat(7,minmax(108px,1fr));height:var(--prs-month-track-height,105px);min-width:100%;pointer-events:none}
+      .prs-month-item-track{position:relative;display:grid;grid-template-columns:repeat(7,minmax(60px,1fr));height:var(--prs-month-track-height,105px);min-width:100%;pointer-events:none}
       .prs-month-bar{grid-row:1;z-index:5;align-self:start;margin:23px 4px 0;min-width:0;pointer-events:auto}
       .prs-month-bar .prs-work-chip{height:24px;min-height:24px;border-radius:8px;padding:2px 5px;font-size:10px}
       .prs-month-bar.continues-before .prs-work-chip{border-top-left-radius:3px;border-bottom-left-radius:3px;border-left-width:1px}
@@ -577,7 +781,8 @@
       .prs-month-day-peek{grid-row:1;align-self:start;z-index:6;height:82px;margin-top:23px;padding:0 4px;box-sizing:border-box;overflow:hidden;opacity:0;background:#fff;pointer-events:none;transition:height .28s cubic-bezier(.2,.75,.25,1),opacity .14s ease}
       .prs-month-day-peek.muted,.prs-month-day-peek.past{background:#f8fafc}
       .prs-month-day-peek.today{background:#fff8f7}
-      .prs-month-day-peek.active{opacity:1}
+      .prs-month-day-peek.active{opacity:1;pointer-events:auto}
+      .prs-month-day-peek.active .prs-month-day-peek-chip{cursor:pointer}
       .prs-month-day-peek-track{transform:translateY(var(--prs-month-day-scroll-y,0px));transition:transform var(--prs-month-day-scroll-duration,220ms) cubic-bezier(.2,.75,.25,1);will-change:transform}
       .prs-month-week.expanded .prs-month-day-peek,.prs-month-week.collapsing .prs-month-day-peek{opacity:0;pointer-events:none}
       .prs-month-day-peek-item{height:24px;margin-bottom:4px}
@@ -585,24 +790,28 @@
       .prs-month-day-peek-item .prs-work-chip{height:24px;min-height:24px;border-radius:8px;padding:2px 5px;font-size:10px;box-shadow:0 6px 12px rgba(15,23,42,.10)}
       .prs-month-day-peek-chip.continues-from-previous-day{border-top-left-radius:3px;border-bottom-left-radius:3px;border-left-width:1px}
       .prs-month-day-peek-chip.continues-into-next-day{border-top-right-radius:3px;border-bottom-right-radius:3px}
-      .prs-month-day-peek-item [data-prs-assignee]{pointer-events:auto}
+      .prs-month-day-peek.active .prs-month-day-peek-item [data-prs-assignee]{pointer-events:auto}
       .prs-month-overflow{grid-row:1;align-self:end;justify-self:stretch;z-index:9;width:calc(100% - 8px);height:18px;max-width:none;margin:0 4px 2px;padding:0 5px;border:0;border-radius:6px;background:rgba(255,255,255,.92);color:#667085;font-size:9px;font-weight:1000;line-height:18px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;box-sizing:border-box;box-shadow:0 1px 4px rgba(15,23,42,.08);transition:color .16s ease,background .16s ease,opacity .2s ease,transform .2s ease;overflow-anchor:none}
       .prs-month-overflow:hover,.prs-month-overflow:focus-visible{background:#fff;color:var(--primary-readable,var(--primary,#d93025));outline:none;transform:translateY(-1px)}
       .prs-month-overflow-less{display:none}
       .prs-month-week.expanded .prs-month-overflow:not(.is-controller),.prs-month-week.collapsing .prs-month-overflow:not(.is-controller){opacity:0;pointer-events:none}
       .prs-month-week.expanded .prs-month-overflow.is-controller .prs-month-overflow-more{display:none}
       .prs-month-week.expanded .prs-month-overflow.is-controller .prs-month-overflow-less{display:inline}
+      .prs-month-week.expanded .prs-month-overflow.is-controller{font-size:10px;color:var(--primary-readable,var(--primary,#d93025));background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.12)}
       .prs-work-chip:hover{transform:translateY(-1px);box-shadow:0 12px 22px rgba(15,23,42,.16)}
       .prs-work-chip.draft{border-style:dashed;color:#101828;opacity:.92}
       .prs-work-chip.draft.suspended{background:rgba(37,99,235,.10);border-color:rgba(37,99,235,.34);border-left-color:#2563eb;color:#1e3a8a;opacity:.82}
       .prs-work-chip.timed-month{background:#e8f1ff;border-color:rgba(37,99,235,.30);border-left-color:#2563eb;color:#1e3a8a}
       .prs-work-chip.timed-month .prs-time{color:#2563eb}
+      .prs-work-chip.timed-month:where(.type-project-work){border-color:rgba(202,138,4,.42);border-left-color:#ca8a04;background:#fef3c7;color:#101828}
+      .prs-work-chip.timed-month:where(.type-delivery){border-color:rgba(249,115,22,.42);border-left-color:#f97316;background:#ffedd5;color:#101828}
+      .prs-work-chip.timed-month:where(.type-project-work,.type-delivery) .prs-time{color:#475467}
       .prs-work-chip.type-sales-appointment.timed-month,.prs-work-chip.type-sales-follow-up.timed-month{border-color:rgba(22,163,74,.42);border-left-color:#16a34a;background:#dcfce7;color:#14532d}
       .prs-work-chip.material-delivery.timed-month{border-color:color-mix(in srgb,var(--prs-material-main) 44%,transparent);background:color-mix(in srgb,var(--prs-material-main) 10%,white);color:#101828}
       .prs-work-chip.material-delivery.timed-month .prs-time{color:#475467}
-      .prs-work-chip.preview{--prs-preview-color:var(--primary,#d93025);border-style:dashed;background-color:color-mix(in srgb,var(--prs-preview-color) 13%,white);background-image:repeating-linear-gradient(135deg,transparent 0 7px,color-mix(in srgb,var(--prs-preview-color) 10%,transparent) 7px 11px);border-color:color-mix(in srgb,var(--prs-preview-color) 54%,transparent);border-left-color:var(--prs-preview-color);outline:1px dashed color-mix(in srgb,var(--prs-preview-color) 58%,transparent);outline-offset:-2px;color:#101828;box-shadow:0 10px 22px color-mix(in srgb,var(--prs-preview-color) 16%,transparent);padding-right:58px!important;pointer-events:none;isolation:isolate}
-      .prs-work-chip.preview::after{content:"PREVIEW";position:absolute;right:5px;top:5px;height:15px;display:inline-flex;align-items:center;border:1px solid color-mix(in srgb,var(--prs-preview-color) 48%,transparent);border-radius:5px;background:color-mix(in srgb,var(--prs-preview-color) 17%,white);color:color-mix(in srgb,var(--prs-preview-color) 78%,#101828);padding:0 4px;font-size:7px;font-weight:1000;line-height:1;letter-spacing:.06em;box-shadow:0 1px 2px rgba(15,23,42,.08)}
-      .prs-month-bar .prs-work-chip.preview::after{top:4px;height:13px;font-size:6px;padding:0 3px}
+      .prs-work-chip.preview{--prs-preview-color:var(--primary,#d93025);border-style:dashed;outline:2px dashed color-mix(in srgb,var(--prs-preview-color) 55%,transparent);outline-offset:1px;opacity:.88;box-shadow:0 12px 24px rgba(15,23,42,.18);pointer-events:none;isolation:isolate}
+      .prs-work-chip.untyped.preview{border-color:color-mix(in srgb,var(--prs-preview-color) 50%,transparent);border-left-color:var(--prs-preview-color);background:color-mix(in srgb,var(--prs-preview-color) 9%,white)}
+      .prs-work-chip.drag-preview{pointer-events:none;opacity:.94;outline:2px dashed rgba(15,23,42,.38);outline-offset:-1px;box-shadow:0 16px 30px rgba(15,23,42,.24);transform:none}
       .prs-work-chip.dragging{opacity:.55;transform:scale(.99)}
       .prs-work-chip.schedule-locked{cursor:not-allowed;font-style:italic;box-shadow:0 8px 18px rgba(15,23,42,.10),inset 0 0 0 1px rgba(15,23,42,.06)}
       .prs-work-chip.schedule-locked:hover{transform:none;box-shadow:0 8px 18px rgba(15,23,42,.10),inset 0 0 0 1px rgba(15,23,42,.06)}
@@ -612,9 +821,17 @@
       .prs-month-bar .prs-work-chip.no-start-handle{padding-left:6px}
       .prs-month-bar .prs-work-chip.no-end-handle{padding-right:6px}
       .prs-work-chip.timed{padding:6px 4px;min-height:30px}
-      .prs-work-chip.timed.has-confirm{padding-right:9px;padding-bottom:34px}
-      .prs-work-chip.timed.has-confirm.compact-confirm{padding-right:38px;padding-bottom:12px}
-      .prs-chip-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,46%);gap:8px;align-items:center;min-width:0}
+      .prs-work-chip.timed.has-confirm{overflow:visible}
+      .prs-work-chip.timed.has-confirm .prs-confirm{top:3px;right:-13px;bottom:auto;width:20px;height:20px;border:2px solid #fff;border-radius:999px;font-size:9px;box-sizing:border-box;box-shadow:0 3px 8px rgba(15,23,42,.22);transform:none;z-index:2}
+      .prs-work-chip.timed.compact-confirm:not(.prs-short){padding-top:3px;padding-bottom:1px}
+      .prs-work-chip.timed.compact-confirm:not(.prs-short) .prs-chip-bottom{margin-top:1px}
+      .prs-work-chip.timed.compact-confirm:not(.prs-short) .prs-assignee{margin-top:1px;padding-top:0;padding-bottom:0;line-height:14px}
+      .prs-work-chip.timed.prs-short{display:flex;align-items:center;gap:5px;padding:0 5px;line-height:1.1;border-radius:6px}
+      .prs-work-chip.timed.prs-short .prs-chip-top{flex:0 1 auto;min-width:0}
+      .prs-work-chip.timed.prs-short .prs-chip-bottom{display:block;flex:0 10 auto;min-width:0;margin:0}
+      .prs-work-chip.timed.prs-short .prs-assignee,.prs-work-chip.timed.prs-short .prs-chip-view{display:none}
+      .prs-work-chip.timed.prs-short.has-confirm .prs-confirm{top:50%;transform:translateY(-50%)}
+      .prs-chip-top{display:grid;grid-template-columns:minmax(0,1fr) fit-content(46%);gap:8px;align-items:center;min-width:0}
       .prs-work-chip.no-assignee .prs-chip-top{display:block}
       .prs-work-chip .prs-title{display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
       .prs-work-chip .prs-title .prs-title-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -626,6 +843,8 @@
       .prs-assignee{display:inline-flex;align-items:center;justify-self:end;gap:5px;max-width:100%;min-width:0;border:0;background:transparent;color:#344054;font-family:inherit;font-size:10px;font-weight:1000;white-space:nowrap;border-radius:8px;padding:2px 6px;cursor:pointer;user-select:none;box-sizing:border-box}
       .prs-assignee:hover{background:rgba(15,23,42,.08);color:#101828}
       .prs-assignee span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+      .prs-assignee.readonly{cursor:inherit;pointer-events:none}
+      .prs-assignee.readonly:after{display:none}
       .prs-assignee:after{content:"";width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;opacity:.7;flex:0 0 auto}
       .prs-chip-bottom{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:3px;min-width:0;margin-top:2px}
       .prs-work-chip .prs-time{display:block;min-width:0;color:#475467;font-size:10px;font-weight:850;margin:0;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -644,54 +863,62 @@
       .prs-confirm{position:absolute;right:25px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:8px;background:var(--primary,#d93025);color:var(--on-primary,#fff);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:10px}
       .prs-work-chip.material-delivery .prs-confirm{background:var(--prs-material-main);color:#fff}
       .prs-work-chip.timed .prs-confirm{right:7px;top:auto;bottom:7px;transform:none}
+      .prs-month-bar .prs-work-chip.has-confirm,.prs-all-day-bar-top .prs-work-chip.has-confirm,.prs-resource-bar .prs-work-chip.has-confirm,.prs-resource-time-bar .prs-work-chip.has-confirm{padding-right:17px;overflow:visible}
+      .prs-month-bar .prs-work-chip.has-confirm .prs-confirm,.prs-all-day-bar-top .prs-work-chip.has-confirm .prs-confirm,.prs-resource-bar .prs-work-chip.has-confirm .prs-confirm,.prs-resource-time-bar .prs-work-chip.has-confirm .prs-confirm{right:-4px;width:20px;height:20px;border:2px solid #fff;border-radius:999px;font-size:9px;box-sizing:border-box;box-shadow:0 3px 8px rgba(15,23,42,.22);z-index:2}
+      .prs-month-bar .prs-work-chip.has-confirm .prs-assignee,.prs-all-day-grid.week-overflow .prs-work-chip.has-confirm .prs-assignee{display:none}
       .prs-crew{display:block;color:#475467;font-size:10px;font-weight:900;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .prs-crew.waiting{color:#92400e;font-style:italic}
       .prs-work-chip.awaiting-crew{background:#fff7ed;border-color:rgba(245,158,11,.36);border-left-color:#f59e0b;color:#78350f}
       .prs-work-chip.awaiting-crew .prs-time{color:#92400e}
-      .prs-time-grid{display:grid;grid-template-columns:62px repeat(var(--prs-days,7),minmax(120px,1fr));min-width:920px;min-height:100%;align-content:start}
+      .prs-time-grid{display:grid;grid-template-columns:62px repeat(var(--prs-days,7),minmax(var(--prs-day-min,120px),1fr));min-width:920px;min-height:100%;align-content:start}
       .prs-time-grid.prs-time-header-grid{min-height:0;position:sticky;top:0;z-index:7;background:#f8fafc}
       .prs-time-head,.prs-day-head{height:40px;background:#f8fafc;border-right:1px solid rgba(15,23,42,.06);border-bottom:1px solid rgba(15,23,42,.08);display:flex;align-items:center;justify-content:center;color:#344054;font-size:11px;font-weight:1000;position:sticky;top:0;z-index:7}
       .prs-day-head-mobile,.prs-all-day-label-mobile{display:none}
-      .prs-all-day-grid{display:grid;grid-template-columns:62px repeat(var(--prs-days,7),minmax(120px,1fr));min-width:920px;background:#fff;border-bottom:1px solid rgba(15,23,42,.08);position:sticky;top:40px;z-index:6;min-height:58px}
+      .prs-all-day-grid{display:grid;grid-template-columns:62px repeat(var(--prs-days,7),minmax(var(--prs-day-min,120px),1fr));min-width:920px;background:#fff;border-bottom:1px solid rgba(15,23,42,.08);position:sticky;top:40px;z-index:6;min-height:58px}
       .prs-all-day-label-cell{grid-column:1;grid-row:1;background:#f8fafc;border-right:1px solid rgba(15,23,42,.08);color:#667085;font-size:9px;font-weight:1000;text-transform:uppercase;display:flex;align-items:center;justify-content:center;padding:6px;box-sizing:border-box}
       .prs-all-day-cell{min-height:58px;border-right:1px solid rgba(15,23,42,.06);background:#fff;box-sizing:border-box}
-      .prs-all-day-cell.today{background:rgba(var(--primary-rgb,217,48,37),.018)}
+      .prs-all-day-cell.today{background:linear-gradient(rgba(var(--primary-rgb,217,48,37),.022),rgba(var(--primary-rgb,217,48,37),.022)),#fff}
       .prs-all-day-bar-top{z-index:7;align-self:start;margin:4px 3px 0;min-width:0}
       .prs-all-day-bar-top .prs-work-chip{height:42px;min-height:42px;border-radius:9px;padding-top:4px;padding-bottom:4px}
-      .prs-all-day-grid.week-overflow{overflow:hidden;transition:height 300ms cubic-bezier(.22,.8,.24,1),min-height 300ms cubic-bezier(.22,.8,.24,1)}
+      .prs-all-day-grid.week-overflow{overflow:hidden;overflow:clip;transition:height 300ms cubic-bezier(.22,.8,.24,1),min-height 300ms cubic-bezier(.22,.8,.24,1)}
       .prs-all-day-grid.week-overflow .prs-all-day-bar-top{transition:transform var(--prs-week-all-day-scroll-duration,180ms) cubic-bezier(.22,.8,.24,1);transform:translateY(var(--prs-week-all-day-scroll-y,0px))}
       .prs-all-day-grid.week-overflow.expanded .prs-all-day-bar-top{transform:translateY(0)}
       .prs-all-day-grid.week-overflow .prs-all-day-bar-top .prs-work-chip{height:24px;min-height:24px;border-radius:8px;padding:2px 5px;font-size:10px}
       .prs-all-day-grid.week-overflow .prs-all-day-bar-top .prs-chip-bottom{display:none}
       .prs-all-day-grid.week-overflow .prs-all-day-bar-top.continues-before .prs-work-chip{border-top-left-radius:0;border-bottom-left-radius:0}
       .prs-all-day-grid.week-overflow .prs-all-day-bar-top.continues-after .prs-work-chip{border-top-right-radius:0;border-bottom-right-radius:0}
-      .prs-week-all-day-overflow{position:relative;grid-row:1;align-self:end;justify-self:stretch;z-index:10;height:14px;margin:0 1px;padding:0 3px;border:0;border-radius:0;background:#fff;box-shadow:none;color:#667085;font-family:inherit;font-size:8px;font-weight:1000;line-height:14px;cursor:pointer;text-align:left;white-space:nowrap;overflow:visible;text-overflow:clip}
-      .prs-week-all-day-overflow:before{content:"";position:absolute;left:0;right:0;top:-10px;height:10px;background:linear-gradient(180deg,rgba(255,255,255,0),#fff);pointer-events:none}
-      .prs-week-all-day-overflow span{position:relative;z-index:1;display:block;overflow:hidden;text-overflow:ellipsis}
-      .prs-week-all-day-overflow:hover,.prs-week-all-day-overflow:focus-visible{background:#fff;color:#101828;outline:none;text-decoration:underline}
-      .prs-week-all-day-overflow-less{display:none}
+      .prs-week-all-day-overflow{position:relative;grid-row:1;align-self:end;justify-self:stretch;z-index:10;height:18px;margin:0 1px 1px;padding:0 5px;border:0;border-radius:6px;background:#fff;box-shadow:none;color:#475467;font-family:inherit;font-size:10px;font-weight:1000;line-height:18px;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .16s ease}
+      .prs-week-all-day-overflow .prs-week-all-day-overflow-more,.prs-week-all-day-overflow .prs-week-all-day-overflow-less{display:block;overflow:hidden;text-overflow:ellipsis}
+      .prs-week-all-day-overflow:hover,.prs-week-all-day-overflow:focus-visible{background:#f8fafc;color:var(--primary-readable,var(--primary,#d93025));outline:none}
+      .prs-week-all-day-overflow .prs-week-all-day-overflow-less{display:none}
+      .prs-all-day-grid.week-overflow.expanded .prs-week-all-day-overflow:not(.is-controller){opacity:0;pointer-events:none}
       .prs-all-day-grid.week-overflow.expanded .prs-week-all-day-overflow.is-controller .prs-week-all-day-overflow-more{display:none}
-      .prs-all-day-grid.week-overflow.expanded .prs-week-all-day-overflow.is-controller .prs-week-all-day-overflow-less{display:inline}
+      .prs-all-day-grid.week-overflow.expanded .prs-week-all-day-overflow.is-controller .prs-week-all-day-overflow-less{display:block}
+      .prs-all-day-grid.week-overflow.expanded .prs-week-all-day-overflow.is-controller{color:var(--primary-readable,var(--primary,#d93025))}
+      .prs-all-day-grid.week-overflow:not(.expanded):not(.peeking) .prs-all-day-bar-top.lane-overflow{visibility:hidden}
       .prs-day-head.past{background:#f1f5f9;color:#94a3b8}
-      .prs-day-head.today{background:rgba(var(--primary-rgb,217,48,37),.045);color:var(--primary-readable,var(--primary,#d93025));box-shadow:inset 0 -1px 0 rgba(var(--primary-rgb,217,48,37),.32)}
+      .prs-day-head.today{background:linear-gradient(rgba(var(--primary-rgb,217,48,37),.045),rgba(var(--primary-rgb,217,48,37),.045)),#f8fafc;color:var(--primary-readable,var(--primary,#d93025));box-shadow:inset 0 -1px 0 rgba(var(--primary-rgb,217,48,37),.32)}
       .prs-time-label{height:54px;border-right:1px solid rgba(15,23,42,.08);border-bottom:1px solid rgba(15,23,42,.045);background:#f8fafc;color:#667085;font-size:10px;font-weight:900;display:flex;align-items:flex-start;justify-content:center;padding-top:5px;box-sizing:border-box}
-      .prs-slot{position:relative;height:54px;border-right:1px solid rgba(15,23,42,.045);border-bottom:1px solid rgba(15,23,42,.045);background:#fff;cursor:crosshair}.prs-slot.has-chip{z-index:4}
+      .prs-time-grid.prs-time-body{position:relative;isolation:isolate}
+      .prs-slot{position:relative;height:54px;border-right:1px solid rgba(15,23,42,.045);border-bottom:1px solid rgba(15,23,42,.045);background:#fff;cursor:crosshair}
+      .prs-now-line{position:absolute;height:0;border-top:2px solid #ea4335;z-index:60;pointer-events:none}
+      .prs-now-line:before{content:"";position:absolute;left:-5px;top:-6px;width:10px;height:10px;border-radius:50%;background:#ea4335}
       .prs-slot.past{background:#f8fafc;color:#94a3b8}
-      .prs-slot.today{background:rgba(var(--primary-rgb,217,48,37),.018)}
+      .prs-slot.today{background:linear-gradient(rgba(var(--primary-rgb,217,48,37),.022),rgba(var(--primary-rgb,217,48,37),.022)),#fff}
       .prs-wrap.readonly .prs-slot{cursor:default}
       .prs-slot.in-range{background:rgba(var(--primary-rgb,217,48,37),.06)}
       .prs-slot.drag-over{box-shadow:inset 0 0 0 2px rgba(var(--primary-rgb,217,48,37),.32)}
       .prs-slot .prs-work-chip{position:absolute;left:0;right:20px;top:3px;width:auto;z-index:3}
-      .prs-resource-scroll{flex:1;min-height:0;overflow:auto;border:1px solid rgba(15,23,42,.04);border-radius:18px;background:linear-gradient(to right,#f8fafc 0 150px,#eef2f6 150px 100%);box-shadow:0 14px 34px rgba(15,23,42,.05);touch-action:none}
+      .prs-resource-scroll{flex:1;min-height:0;overflow:auto;border:1px solid rgba(15,23,42,.04);border-radius:18px;background:linear-gradient(to right,#f8fafc 0 150px,#eef2f6 150px 100%);box-shadow:0 14px 34px rgba(15,23,42,.05);touch-action:none;-webkit-user-select:none;user-select:none}
       .prs-resource-grid{display:grid;grid-template-columns:150px repeat(var(--prs-days,56),minmax(86px,1fr));grid-template-rows:38px repeat(var(--prs-resources,1),56px);min-width:calc(150px + var(--prs-days,56) * 86px);min-height:100%;position:relative;isolation:isolate;background:#eef2f6}
       .prs-resource-grid:before,.prs-resource-time-grid:before{content:"";position:sticky;left:0;grid-column:1;grid-row:1/-1;background:#f8fafc;border-right:1px solid rgba(15,23,42,.08);z-index:1;min-height:100%}
       .prs-resource-corner,.prs-resource-day-head,.prs-resource-label,.prs-resource-cell{border-right:1px solid rgba(15,23,42,.06);border-bottom:1px solid rgba(15,23,42,.06);box-sizing:border-box}
-      .prs-resource-corner,.prs-resource-day-head{position:sticky;top:0;z-index:7;background:#f8fafc}
-      .prs-resource-corner{left:0;z-index:8;display:flex;align-items:center;padding:0 6px;font-size:11px;font-weight:1000;color:#344054}
+      .prs-resource-corner,.prs-resource-day-head{position:sticky;top:0;z-index:12;background:#f8fafc}
+      .prs-resource-corner{left:0;z-index:13;display:flex;align-items:center;padding:0 6px;font-size:11px;font-weight:1000;color:#344054}
       .prs-resource-day-head{height:38px;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:10px;font-weight:1000;color:#475467}
       .prs-resource-day-head.weekend,.prs-resource-cell.weekend{background:#f8fafc}
       .prs-resource-day-head.past{background:#f1f5f9;color:#94a3b8}
-      .prs-resource-day-head.today{background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary-readable,var(--primary,#d93025));box-shadow:inset 0 -2px 0 var(--primary,#d93025)}
+      .prs-resource-day-head.today{background:linear-gradient(rgba(var(--primary-rgb,217,48,37),.09),rgba(var(--primary-rgb,217,48,37),.09)),#fff;color:var(--primary-readable,var(--primary,#d93025));box-shadow:inset 0 -2px 0 var(--primary,#d93025)}
       .prs-resource-day-head.today span:last-child:after{content:"Today";display:inline-flex;margin-left:5px;border-radius:999px;background:var(--primary,#d93025);color:var(--on-primary,#fff);padding:1px 5px;font-size:8px;font-weight:1000;vertical-align:middle}
       .prs-resource-label{position:sticky;left:0;z-index:10;background:#f8fafc;padding:5px 6px;display:flex;flex-direction:column;justify-content:center;font-size:11px;font-weight:1000;color:#101828;overflow:hidden;border-bottom:0}
       .prs-resource-label small{font-size:10px;font-weight:850;color:#667085;margin-top:3px}
@@ -706,29 +933,35 @@
       .prs-resource-cell{background:#fff;cursor:crosshair}
       .prs-resource-cell{position:relative}
       .prs-resource-cell.past{background:#f8fafc}
-      .prs-resource-cell.today{background:rgba(var(--primary-rgb,217,48,37),.035)}
+      .prs-resource-cell.today{background:linear-gradient(rgba(var(--primary-rgb,217,48,37),.035),rgba(var(--primary-rgb,217,48,37),.035)),#fff}
       .prs-resource-cell.in-range{background:rgba(var(--primary-rgb,217,48,37),.06)}
       .prs-resource-cell.weekend.in-range{background:rgba(var(--primary-rgb,217,48,37),.09)}
       .prs-resource-bar{z-index:4;align-self:start;margin:var(--prs-bar-top,3px) 3px 0;min-width:0}
       .prs-resource-bar .prs-work-chip{height:46px;min-height:46px;border-radius:12px;padding-top:4px;padding-bottom:4px}
+      .prs-resource-bar .prs-work-chip:not(.has-confirm){overflow:clip}
+      .prs-resource-bar .prs-work-chip .prs-title{position:sticky;left:calc(var(--prs-resource-label-width,150px) + 8px);width:max-content;max-width:100%}
+      .prs-resource-grid.mobile-resource-rows{--prs-resource-label-width:0px}
       .prs-resource-bar .prs-work-chip.compact-resource-item,.prs-resource-time-bar .prs-work-chip.compact-resource-item{height:24px;min-height:24px;border-radius:7px;padding:2px 6px;font-size:10px;box-shadow:0 6px 12px rgba(15,23,42,.10)}
       .prs-resource-bar.live-preview{z-index:9;pointer-events:none}
       .prs-resource-time-grid{display:grid;grid-template-columns:150px repeat(var(--prs-slots,24),minmax(60px,1fr));grid-template-rows:40px repeat(var(--prs-resources,1),72px);min-width:calc(150px + var(--prs-slots,24) * 60px);min-height:100%;position:relative;isolation:isolate;background:#eef2f6}
       .prs-resource-time-head,.prs-resource-time-cell{border-right:1px solid rgba(15,23,42,.06);border-bottom:1px solid rgba(15,23,42,.06);box-sizing:border-box}
-      .prs-resource-time-head{position:sticky;top:0;z-index:7;background:#f8fafc;display:flex;align-items:center;justify-content:center;color:#667085;font-size:10px;font-weight:1000}
+      .prs-resource-time-head{position:sticky;top:0;z-index:12;background:#f8fafc;display:flex;align-items:center;justify-content:center;color:#667085;font-size:10px;font-weight:1000}
       .prs-resource-time-cell{position:relative;background:#fff;cursor:crosshair}
-      .prs-resource-time-grid.today .prs-resource-time-head{background:rgba(var(--primary-rgb,217,48,37),.085);color:var(--primary-readable,var(--primary,#d93025));box-shadow:inset 0 -2px 0 var(--primary,#d93025)}
+      .prs-resource-time-grid.today .prs-resource-time-head{background:linear-gradient(rgba(var(--primary-rgb,217,48,37),.085),rgba(var(--primary-rgb,217,48,37),.085)),#fff;color:var(--primary-readable,var(--primary,#d93025));box-shadow:inset 0 -2px 0 var(--primary,#d93025)}
       .prs-resource-time-grid.past .prs-resource-time-head{background:#f1f5f9;color:#94a3b8}
       .prs-resource-time-grid.past .prs-resource-time-cell{background:#f8fafc}
       .prs-resource-time-grid.past .prs-resource-time-cell:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(100,116,139,.055) 0,rgba(100,116,139,.055) 1px,transparent 1px,transparent 9px);pointer-events:none}
-      .prs-resource-time-grid.today .prs-resource-time-cell{background:rgba(var(--primary-rgb,217,48,37),.025)}
+      .prs-resource-time-grid.today .prs-resource-time-cell{background:linear-gradient(rgba(var(--primary-rgb,217,48,37),.012),rgba(var(--primary-rgb,217,48,37),.012)),#fff}
       .prs-resource-time-cell.in-range{background:rgba(var(--primary-rgb,217,48,37),.06)}
-      .prs-resource-all-day-bar{z-index:3;align-self:start;margin:5px 5px 0;min-width:0;height:24px;border:1px solid rgba(71,85,105,.20);border-left:4px solid #64748b;border-radius:8px;background:#f1f5f9;color:#334155;box-sizing:border-box;box-shadow:0 6px 14px rgba(15,23,42,.06);pointer-events:none;overflow:hidden}
+      .prs-resource-all-day-bar{z-index:3;align-self:start;margin:5px 5px 0;min-width:0;height:24px;border:1px solid rgba(71,85,105,.20);border-left:4px solid #64748b;border-radius:8px;background:#f1f5f9;color:#334155;box-sizing:border-box;box-shadow:0 6px 14px rgba(15,23,42,.06);pointer-events:auto;cursor:pointer;overflow:hidden}
+      .prs-resource-all-day-bar:hover{border-color:rgba(71,85,105,.36);box-shadow:0 8px 16px rgba(15,23,42,.10)}
       .prs-resource-all-day-bar.material-delivery{--prs-material-main:#64748b;border-color:color-mix(in srgb,var(--prs-material-main) 44%,transparent);border-left-width:1px;background:color-mix(in srgb,var(--prs-material-main) 10%,white)}
       .prs-resource-all-day-bar.material-delivery.material-unordered{border-style:dotted;border-width:2px}
       .prs-resource-all-day-bar.material-delivery.material-ordered{border-style:solid}
       .prs-resource-all-day-bar.schedule-locked{box-shadow:0 5px 12px rgba(15,23,42,.05),inset 0 0 0 1px rgba(15,23,42,.06)}
       .prs-resource-all-day-label{z-index:6;align-self:start;position:sticky;left:150px;margin:6px 0 0 8px;width:max-content;max-width:min(420px,calc(100vw - 270px));height:22px;pointer-events:none;color:#334155}
+      .prs-resource-all-day-label .prs-all-day-chip{pointer-events:auto;cursor:pointer;border-radius:6px}
+      .prs-resource-all-day-label .prs-all-day-chip:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
       .prs-all-day-chip{--prs-material-main:#0f766e;position:relative;width:max-content;max-width:100%;height:22px;display:flex;align-items:center;gap:7px;min-width:0;padding:0 6px 0 10px;box-sizing:border-box;font-size:11px;font-weight:950}
       .prs-all-day-chip strong{flex:0 0 auto;font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
       .prs-all-day-chip .prs-all-day-title{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -765,10 +998,13 @@
         .prs-mobile-toolbar{position:relative;z-index:40;display:flex;align-items:center;gap:2px;height:50px;padding:0 6px;background:#fff;box-sizing:border-box;white-space:nowrap}.prs-mobile-menu{position:relative;flex:0 0 auto}.prs-mobile-control{height:34px;border:0;border-radius:8px;background:transparent;color:#344054;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:0 8px;font:inherit;font-size:12px;font-weight:1000;cursor:pointer}.prs-mobile-control:hover,.prs-mobile-control[aria-expanded="true"]{background:#f2f4f7}.prs-mobile-control.view{width:34px;padding:0;font-size:13px}.prs-mobile-control.view .fa-chevron-down{font-size:8px;margin-left:1px}.prs-mobile-control.month{width:112px;max-width:112px;overflow:hidden;text-overflow:ellipsis}.prs-mobile-control.month span{overflow:hidden;text-overflow:ellipsis}.prs-mobile-control.today{width:32px;padding:0;margin-left:auto;color:#475467}.prs-mobile-control.nav{width:25px;padding:0;font-size:10px}.prs-mobile-today-date{width:19px;height:20px;border:1.5px solid currentColor;border-radius:3px;display:grid;place-items:center;padding-top:5px;box-sizing:border-box;font-size:9px;line-height:1;font-weight:1000;position:relative}.prs-mobile-today-date:before{content:"";position:absolute;left:-1.5px;right:-1.5px;top:4px;border-top:1.5px solid currentColor}.prs-mobile-popover{position:absolute;top:calc(100% + 6px);left:0;width:190px;max-height:min(420px,calc(100vh - 70px));overflow:auto;padding:6px;border:1px solid rgba(15,23,42,.10);border-radius:12px;background:#fff;box-shadow:0 18px 45px rgba(15,23,42,.18);box-sizing:border-box}.prs-mobile-popover.months{width:min(334px,calc(100vw - 16px));padding:10px}.prs-mobile-month-picker{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-height:280px}.prs-mobile-month-picker section{min-width:0;overflow:auto;border:1px solid rgba(15,23,42,.08);border-radius:9px;padding:3px}.prs-mobile-month-picker button{height:31px;font-size:11px}.prs-mobile-popover button{width:100%;height:36px;border:0;border-radius:8px;background:transparent;color:#344054;display:flex;align-items:center;gap:10px;padding:0 9px;font:inherit;font-size:12px;font-weight:950;text-align:left;cursor:pointer}.prs-mobile-popover button:hover,.prs-mobile-popover button.active{background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025))}.prs-mobile-popover button i{width:15px;text-align:center}
         .prs-wrap.mobile-layout{min-height:0;gap:8px}.prs-wrap.mobile-layout .prs-toolbar{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;padding:0 2px}.prs-wrap.mobile-layout .prs-nav{display:grid;grid-template-columns:34px 58px 34px minmax(0,1fr);gap:5px}.prs-wrap.mobile-layout.list-mode .prs-nav{display:block}.prs-wrap.mobile-layout .prs-range{min-width:0;font-size:12px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;align-self:center}.prs-wrap.mobile-layout .prs-view-switch{width:100%;box-sizing:border-box;overflow-x:auto;overscroll-behavior-x:contain}.prs-wrap.mobile-layout .prs-view-btn{flex:1 0 auto;min-width:54px;padding:0 7px;font-size:10px}.prs-wrap.mobile-layout .prs-surface{border:0;border-radius:0;box-shadow:none}
         .prs-wrap.mobile-layout .prs-month,.prs-wrap.mobile-layout .prs-month-head-row,.prs-wrap.mobile-layout .prs-month-week,.prs-wrap.mobile-layout .prs-month-item-track{min-width:100%!important;grid-template-columns:repeat(7,minmax(0,1fr))!important}.prs-wrap.mobile-layout .prs-month-head-row{height:28px}.prs-wrap.mobile-layout .prs-month-head{height:28px;font-size:9px}.prs-wrap.mobile-layout .prs-month-week{min-height:max(84px,calc((100dvh - 220px) / 6));flex-basis:max(84px,calc((100dvh - 220px) / 6))}.prs-wrap.mobile-layout .prs-month-week .prs-day{min-height:84px;padding:2px}.prs-wrap.mobile-layout .prs-day-num{font-size:10px;line-height:15px;margin-bottom:0}.prs-wrap.mobile-layout .prs-month-item-viewport{height:calc(100% - 17px)}.prs-wrap.mobile-layout .prs-month-bar{margin:17px 1px 0}.prs-wrap.mobile-layout .prs-month-bar .prs-work-chip,.prs-wrap.mobile-layout .prs-month-day-peek-item .prs-work-chip{height:18px;min-height:18px;border-left-width:2px;border-radius:4px;padding:1px 2px;font-size:7px;line-height:1.1;box-shadow:none}.prs-wrap.mobile-layout .prs-month-bar .prs-chip-bottom,.prs-wrap.mobile-layout .prs-month-bar .prs-assignee,.prs-wrap.mobile-layout .prs-month-bar .prs-work-chip:after{display:none}
-        .prs-wrap.mobile-layout .prs-surface{width:100%;max-width:100%;overflow-x:hidden!important;touch-action:none;overscroll-behavior:contain}.prs-wrap.mobile-layout .prs-time-grid,.prs-wrap.mobile-layout .prs-all-day-grid{width:100%!important;max-width:100%!important;box-sizing:border-box;grid-template-columns:40px repeat(var(--prs-days),minmax(0,1fr));min-width:100%!important}.prs-wrap.mobile-layout .prs-time-head,.prs-wrap.mobile-layout .prs-day-head,.prs-wrap.mobile-layout .prs-all-day-cell{min-width:0;overflow:hidden}.prs-wrap.mobile-layout .prs-slot{min-width:0;overflow:visible;z-index:1}.prs-wrap.mobile-layout .prs-slot.has-chip{z-index:4}.prs-wrap.mobile-layout .prs-slot .prs-work-chip{z-index:4}.prs-wrap.mobile-layout .prs-time-grid.prs-time-header-grid{height:48px}.prs-wrap.mobile-layout .prs-time-head,.prs-wrap.mobile-layout .prs-day-head{height:48px;font-size:10px;line-height:1.1}.prs-wrap.mobile-layout .prs-day-head{flex-direction:column;gap:2px}.prs-wrap.mobile-layout .prs-day-head-desktop{display:none}.prs-wrap.mobile-layout .prs-day-head-mobile{display:flex;flex-direction:column;align-items:center;line-height:1.05}.prs-wrap.mobile-layout .prs-day-head-mobile strong{font-size:12px;color:#101828}.prs-wrap.mobile-layout .prs-all-day-grid{top:48px;min-height:48px!important;height:48px!important;grid-template-rows:48px!important}.prs-wrap.mobile-layout .prs-all-day-label-cell{font-size:8px;line-height:1.05;text-align:center;text-transform:uppercase;padding:3px}.prs-wrap.mobile-layout .prs-all-day-label-desktop{display:none}.prs-wrap.mobile-layout .prs-all-day-label-mobile{display:block}.prs-wrap.mobile-layout .prs-time-label{font-size:8px}.prs-wrap.mobile-layout .prs-work-chip{font-size:9px}.prs-wrap.mobile-layout .prs-list{padding:1px}.prs-wrap.mobile-layout .prs-list-item{grid-template-columns:48px minmax(0,1fr);gap:9px;padding:10px}.prs-wrap.mobile-layout .prs-list-date{padding-right:7px}.prs-wrap.mobile-layout .prs-list-date strong{font-size:16px}.prs-wrap.mobile-layout .prs-list-meta{grid-column:2;text-align:left;display:flex;gap:6px;align-items:center}.prs-wrap.mobile-layout .prs-list-meta span,.prs-wrap.mobile-layout .prs-list-meta small{display:inline;margin:0}
+        .prs-wrap.mobile-layout .prs-surface{width:100%;max-width:100%;overflow-x:hidden!important;touch-action:none;overscroll-behavior:contain}.prs-wrap.mobile-layout .prs-time-grid,.prs-wrap.mobile-layout .prs-all-day-grid{width:100%!important;max-width:100%!important;box-sizing:border-box;grid-template-columns:40px repeat(var(--prs-days),minmax(0,1fr));min-width:100%!important}.prs-wrap.mobile-layout .prs-time-head,.prs-wrap.mobile-layout .prs-day-head,.prs-wrap.mobile-layout .prs-all-day-cell{min-width:0;overflow:hidden}.prs-wrap.mobile-layout .prs-slot{min-width:0;overflow:visible}.prs-wrap.mobile-layout .prs-time-grid.prs-time-header-grid{height:48px}.prs-wrap.mobile-layout .prs-time-head,.prs-wrap.mobile-layout .prs-day-head{height:48px;font-size:10px;line-height:1.1}.prs-wrap.mobile-layout .prs-day-head{flex-direction:column;gap:2px}.prs-wrap.mobile-layout .prs-day-head-desktop{display:none}.prs-wrap.mobile-layout .prs-day-head-mobile{display:flex;flex-direction:column;align-items:center;line-height:1.05}.prs-wrap.mobile-layout .prs-day-head-mobile strong{font-size:12px;color:#101828}.prs-wrap.mobile-layout .prs-all-day-grid{top:48px}.prs-wrap.mobile-layout .prs-all-day-label-cell{font-size:8px;line-height:1.05;text-align:center;text-transform:uppercase;padding:3px}.prs-wrap.mobile-layout .prs-all-day-label-desktop{display:none}.prs-wrap.mobile-layout .prs-all-day-label-mobile{display:block}.prs-wrap.mobile-layout .prs-time-label{font-size:8px}.prs-wrap.mobile-layout .prs-work-chip{font-size:9px}.prs-wrap.mobile-layout .prs-list{padding:1px}.prs-wrap.mobile-layout .prs-list-item{grid-template-columns:48px minmax(0,1fr);gap:9px;padding:10px}.prs-wrap.mobile-layout .prs-list-date{padding-right:7px}.prs-wrap.mobile-layout .prs-list-date strong{font-size:16px}.prs-wrap.mobile-layout .prs-list-meta{grid-column:2;text-align:left;display:flex;gap:6px;align-items:center}.prs-wrap.mobile-layout .prs-list-meta span,.prs-wrap.mobile-layout .prs-list-meta small{display:inline;margin:0}
         .prs-wrap.mobile-layout .prs-slot .prs-work-chip[data-prs-mode="week"]{left:1px;right:1px;border-left-width:2px;border-radius:6px;font-size:7px;line-height:1.08;box-shadow:0 4px 9px rgba(15,23,42,.10)}
         .prs-wrap.mobile-layout .prs-slot .prs-work-chip[data-prs-mode="week"]:not(.has-confirm){padding:3px 2px}
-        .prs-wrap.mobile-layout .prs-work-chip[data-prs-mode="week"] .prs-title,.prs-wrap.mobile-layout .prs-work-chip[data-prs-mode="week"] .prs-title-text{white-space:normal;overflow-wrap:anywhere;text-overflow:clip}
+        .prs-wrap.mobile-layout .prs-week-all-day-overflow{padding:0 2px;font-size:9px;letter-spacing:-.01em}
+        .prs-wrap.mobile-layout .prs-slot .prs-work-chip.timed.has-confirm{padding:3px 2px}
+        .prs-wrap.mobile-layout .prs-slot .prs-work-chip.timed.has-confirm .prs-confirm{right:auto;left:50%;top:auto;bottom:-10px;width:20px;height:20px;transform:translateX(-50%)}
+        .prs-wrap.mobile-layout .prs-work-chip[data-prs-mode="week"] .prs-title,.prs-wrap.mobile-layout .prs-work-chip[data-prs-mode="week"] .prs-title-text{white-space:normal;overflow-wrap:normal;word-break:normal;text-overflow:ellipsis}
         .prs-wrap.mobile-layout .prs-work-chip[data-prs-mode="week"] .prs-title-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden}
         .prs-wrap.mobile-layout .prs-work-chip[data-prs-mode="week"] .prs-chip-bottom{margin-top:1px}
         .prs-wrap.mobile-layout .prs-work-chip[data-prs-mode="week"] .prs-project-title,.prs-wrap.mobile-layout .prs-work-chip[data-prs-mode="week"] .prs-time{font-size:6px;line-height:1.05}
@@ -778,6 +1014,24 @@
       .prs-resource-travel.bridge{border-radius:0;border-right:0}
       .prs-resource-travel.insufficient{border-color:#f87171;color:#b42318;background:#fee2e2}
       .prs-resource-travel.pending{visibility:hidden}
+      .prs-work-chip:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
+      .prs-all-day-grid.week-overflow .prs-all-day-bar-top .prs-work-chip.has-confirm,.prs-resource-bar .prs-work-chip.compact-resource-item.has-confirm,.prs-resource-time-bar .prs-work-chip.compact-resource-item.has-confirm,.prs-wrap.mobile-layout .prs-month-bar .prs-work-chip.has-confirm{padding-right:19px}
+      @media (pointer:coarse){.prs-confirm:after,.psv-draft-confirm:after{content:"";position:absolute;inset:-6px;border-radius:999px}}
+      .prs-wrap:not(.events-click-only):not(.readonly) .prs-work-chip.timed:not(.no-end-handle):not(.drag-preview):not(.preview):not(.dragging):hover::after{content:"";position:absolute;left:50%;bottom:2px;width:18px;height:3px;margin-left:-9px;border-radius:2px;background:rgba(15,23,42,.30);pointer-events:none}
+      .prs-wrap:not(.events-click-only):not(.readonly) .prs-work-chip:not(.timed):not(.no-end-handle):not(.drag-preview):not(.preview):not(.dragging):hover::after{content:"";position:absolute;right:2px;top:50%;width:3px;height:12px;margin-top:-6px;border-radius:2px;background:rgba(15,23,42,.30);pointer-events:none}
+      .prs-wrap:not(.events-click-only):not(.readonly) .prs-work-chip:not(.timed):not(.no-start-handle):not(.drag-preview):not(.preview):not(.dragging):hover::before{content:"";position:absolute;left:2px;top:50%;width:3px;height:12px;margin-top:-6px;border-radius:2px;background:rgba(15,23,42,.30);pointer-events:none}
+      .prs-wrap.prs-drag-move,.prs-wrap.prs-drag-move *{cursor:grabbing}
+      .prs-wrap.prs-drag-resize-y,.prs-wrap.prs-drag-resize-y *{cursor:ns-resize}
+      .prs-wrap.prs-drag-resize-x,.prs-wrap.prs-drag-resize-x *{cursor:ew-resize}
+      .prs-wrap.prs-drag-refused,.prs-wrap.prs-drag-refused *{cursor:not-allowed}
+      @keyframes prs-refuse-shake{0%,100%{translate:0 0}25%{translate:-3px 0}75%{translate:3px 0}}
+      .prs-work-chip.lock-refused{animation:prs-refuse-shake .24s ease 2}
+      .prs-refused-hint{position:fixed;z-index:2147483000;display:flex;align-items:center;gap:7px;max-width:260px;padding:7px 11px;border-radius:10px;background:#101828;color:#fff;font-size:11px;font-weight:900;box-shadow:0 12px 28px rgba(15,23,42,.28);pointer-events:none}
+      .prs-wrap.no-create .prs-day,.prs-wrap.no-create .prs-slot,.prs-wrap.no-create .prs-all-day-cell,.prs-wrap.no-create .prs-resource-cell,.prs-wrap.no-create .prs-resource-time-cell{cursor:default}
+      .prs-wrap.placement-active{position:relative}
+      .prs-wrap.placement-active .prs-day,.prs-wrap.placement-active .prs-slot,.prs-wrap.placement-active .prs-all-day-cell{cursor:copy}
+      .prs-placement-hint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:70;display:flex;align-items:center;gap:7px;max-width:calc(100% - 32px);padding:7px 13px;border-radius:999px;background:#101828;color:#fff;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 10px 26px rgba(15,23,42,.28);opacity:.94;pointer-events:none}
+      .prs-placement-hint kbd{font:inherit;font-size:10px;border:1px solid rgba(255,255,255,.35);border-radius:5px;padding:0 4px}
       .psv-gantt-wrap{display:flex;flex-direction:column;gap:10px;min-height:0;height:100%;--psv-gantt-left:248px}
       .psv-gantt-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
       .psv-gantt-toolbar .psv-pill{margin-right:auto}
@@ -785,6 +1039,7 @@
       .psv-gantt-zoom-btn{height:28px;border:0;border-radius:7px;background:transparent;color:#475467;padding:0 10px;font:inherit;font-size:11px;font-weight:1000;cursor:pointer}
       .psv-gantt-zoom-btn:hover{background:#f2f4f7}
       .psv-gantt-zoom-btn.active{background:rgba(var(--primary-rgb,217,48,37),.10);color:var(--primary-readable,var(--primary,#d93025))}
+      .psv-gantt-zoom-btn:focus-visible,.psv-gantt-today-btn:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
       .psv-gantt-slider{width:132px;accent-color:var(--primary,#d93025)}
       .psv-gantt-today-btn{height:34px;border:1px solid rgba(15,23,42,.10);border-radius:10px;background:#fff;color:#344054;padding:0 12px;font:inherit;font-size:11px;font-weight:1000;cursor:pointer}
       .psv-gantt-today-btn:hover{background:#f2f4f7}
@@ -797,9 +1052,10 @@
       .psv-gantt-tick-major>span{position:sticky;left:calc(var(--psv-gantt-left) + 6px);display:inline-block;padding:0 6px}
       .psv-gantt-tick-minor{position:absolute;bottom:0;height:24px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#98a2b3;border-left:1px solid rgba(15,23,42,.06);box-sizing:border-box;overflow:hidden}
       .psv-gantt-tick-minor.weekend{background:rgba(15,23,42,.035)}
+      .psv-gantt-tick-minor.week{justify-content:flex-start;padding-left:4px}
       .psv-gantt-tick-minor.today{color:var(--primary-readable,var(--primary,#d93025));font-weight:1000}
       .psv-gantt-today-flag{position:absolute;bottom:0;width:8px;height:4px;margin-left:-3px;border-radius:3px 3px 0 0;background:rgba(217,48,37,.75);pointer-events:none}
-      .psv-gantt-body{position:relative}
+      .psv-gantt-body{position:relative;-webkit-user-select:none;user-select:none}
       .psv-gantt-row{display:flex;height:32px;border-bottom:1px solid rgba(15,23,42,.05);box-sizing:border-box}
       .psv-gantt-row.section{height:28px;background:#f8fafc}
       .psv-gantt-row.project-row{height:36px;background:#f8fafc;border-top:1px solid rgba(15,23,42,.10)}
@@ -809,11 +1065,14 @@
       .psv-gantt-add{height:22px;border:1px dashed rgba(15,23,42,.16);border-radius:999px;background:#fff;color:#667085;display:inline-flex;align-items:center;gap:5px;padding:0 9px;font:inherit;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap}
       .psv-gantt-add i{font-size:9px}
       .psv-gantt-add:hover,.psv-gantt-add:focus-visible{opacity:1;border-color:var(--primary,#d93025);color:var(--primary,#d93025);outline:none;box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.08)}
-      .psv-gantt-label{position:sticky;left:0;z-index:12;flex:0 0 var(--psv-gantt-left);width:var(--psv-gantt-left);display:flex;align-items:center;gap:7px;padding:0 10px;background:#fff;border-right:1px solid rgba(15,23,42,.10);box-sizing:border-box;min-width:0}
+      .psv-gantt-label{position:sticky;left:0;z-index:12;flex:0 0 var(--psv-gantt-left);width:var(--psv-gantt-left);display:flex;align-items:center;gap:7px;padding:0 10px;background:#fff;border-right:1px solid rgba(15,23,42,.10);box-sizing:border-box;min-width:0;box-shadow:0 1px 0 #f3f4f6}
       .psv-gantt-row.section .psv-gantt-label{background:#f8fafc;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#667085}
       .psv-gantt-row.group-row .psv-gantt-label{font-weight:1000}
       .psv-gantt-label .psv-gantt-caret{flex:0 0 auto;width:20px;height:20px;border:0;border-radius:6px;background:transparent;color:#667085;display:grid;place-items:center;font-size:9px;cursor:pointer;padding:0}
       .psv-gantt-label .psv-gantt-caret:hover{background:#f2f4f7}
+      .psv-gantt-label .psv-gantt-caret:focus-visible,.psv-gantt-label-title:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
+      .psv-gantt-section-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .psv-gantt-label-count{margin-left:auto;font-size:9px;font-weight:900;color:#98a2b3;letter-spacing:0;text-transform:none}
       .psv-gantt-label .psv-gantt-dot{flex:0 0 auto;width:10px;height:10px;border-radius:4px;background:var(--psv-gantt-color,#64748b);display:grid;place-items:center;color:#fff;font-size:6px}
       .psv-gantt-label .psv-gantt-dot i{font-size:6px;line-height:1}
       .psv-gantt-label-title{min-width:0;font-size:12px;font-weight:900;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
@@ -821,38 +1080,56 @@
       .psv-gantt-label-meta{flex:0 1 auto;margin-left:auto;font-size:9px;font-weight:900;color:#98a2b3;white-space:nowrap;max-width:96px;overflow:hidden;text-overflow:ellipsis}
       .psv-gantt-label-meta:empty{display:none}
       .psv-gantt-label-meta.unscheduled{border:1px dashed rgba(15,23,42,.18);border-radius:999px;padding:1px 6px;color:#667085}
+      .psv-gantt-label-meta.cancelled{color:#b42318;text-decoration:line-through}
+      .psv-gantt-label-meta i{font-size:8px;margin-right:3px}
       .psv-gantt-label.child{padding-left:22px}
       .psv-gantt-label.grandchild{padding-left:38px}
       .psv-gantt-lane{position:relative;flex:0 0 auto;box-sizing:border-box}
       .psv-gantt-lane.unscheduled-lane{cursor:copy}
       .psv-gantt-lane.unscheduled-lane:hover:after{content:'Click or drag to schedule';position:sticky;left:calc(var(--psv-gantt-left) + 14px);display:inline-block;margin-top:11px;font-size:9px;font-weight:1000;color:#98a2b3;text-transform:uppercase;letter-spacing:.05em;pointer-events:none}
-      .psv-gantt-bar{position:absolute;top:5px;height:22px;border-radius:7px;display:flex;align-items:center;gap:6px;padding:0 8px;font-size:10px;font-weight:950;color:#fff;box-sizing:border-box;cursor:grab;overflow:visible;white-space:nowrap;box-shadow:0 3px 8px rgba(15,23,42,.16);background:var(--psv-gantt-color,#2563eb);touch-action:none}
+      .psv-gantt-bar{position:absolute;top:5px;height:22px;border-radius:7px;display:flex;align-items:center;gap:6px;padding:0 8px;font-size:10px;font-weight:950;color:#fff;box-sizing:border-box;cursor:grab;overflow:visible;white-space:nowrap;box-shadow:0 3px 8px rgba(15,23,42,.16);background:var(--psv-gantt-color,#2563eb);touch-action:pan-x pan-y;-webkit-touch-callout:none;z-index:8}
+      .psv-gantt-bar:focus-visible{outline:2px solid #101828;outline-offset:2px}
+      .psv-gantt-bar.read-only{cursor:pointer}
       .psv-gantt-bar .psv-gantt-bar-inner{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}
       .psv-gantt-bar .psv-gantt-bar-inner i{flex:0 0 auto;font-size:10px}
       .psv-gantt-bar .psv-gantt-bar-inner span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+      .psv-gantt-bar.compact{padding:0;justify-content:center}
+      .psv-gantt-bar-outside{position:absolute;left:calc(100% + 18px);top:50%;transform:translateY(-50%);max-width:220px;overflow:hidden;text-overflow:ellipsis;color:#344054;font-size:10px;font-weight:900;pointer-events:none}
+      .psv-gantt-bar.group-bar .psv-gantt-bar-outside{display:none}
       .psv-gantt-bar.dragging{opacity:.85;cursor:grabbing;z-index:15}
       .psv-gantt-bar.overlap{outline:2px solid #ef4444;outline-offset:1px;box-shadow:0 4px 12px rgba(239,68,68,.4)}
       .psv-gantt-bar.downtime{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.28) 0 6px,transparent 6px 12px);filter:saturate(.65)}
       .psv-gantt-bar.locked{cursor:not-allowed;filter:saturate(.55)}
-      .psv-gantt-bar.locked:after{content:'\\f023';font-family:'Font Awesome 6 Free','Font Awesome 5 Free';font-weight:900;font-size:9px;margin-left:4px}
+      .psv-gantt-bar.locked:not(.group-bar):after{content:'\\f023';font-family:'Font Awesome 6 Free','Font Awesome 5 Free';font-weight:900;font-size:9px;margin-left:4px}
+      .psv-gantt-bar.cancelled{cursor:pointer;opacity:.5;filter:grayscale(1);box-shadow:none;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.35) 0 4px,transparent 4px 8px)}
+      .psv-gantt-bar.cancelled .psv-gantt-bar-inner span,.psv-gantt-bar.cancelled .psv-gantt-bar-outside{text-decoration:line-through}
       .psv-gantt-bar.ghost{opacity:.45;pointer-events:none;box-shadow:none}
       .psv-gantt-bar.group-bar{top:11px;height:10px;border-radius:3px;padding:0;background:var(--psv-gantt-color,#334155);cursor:grab;box-shadow:none}
       .psv-gantt-row.project-row .psv-gantt-bar.group-bar{top:12px;height:11px}
-      .psv-gantt-bar.group-bar.derived{cursor:default}
+      .psv-gantt-bar.group-bar.read-only{cursor:pointer}
       .psv-gantt-bar.group-bar:before,.psv-gantt-bar.group-bar:after{content:'';position:absolute;top:0;width:0;height:0;border:6px solid transparent;border-top-color:var(--psv-gantt-color,#334155)}
       .psv-gantt-bar.group-bar:before{left:0;transform:translateY(11px)}
       .psv-gantt-bar.group-bar:after{right:0;transform:translateY(11px)}
+      .psv-gantt-bar.group-bar.narrow{border-radius:5px}
+      .psv-gantt-bar.group-bar.narrow:before,.psv-gantt-bar.group-bar.narrow:after{display:none}
       .psv-gantt-handle{position:absolute;top:0;bottom:0;width:8px;cursor:ew-resize;z-index:3}
       .psv-gantt-handle.start{left:-2px}
       .psv-gantt-handle.end{right:-2px}
-      .psv-gantt-link-handle{position:absolute;right:-8px;top:50%;transform:translateY(-50%);width:13px;height:13px;border-radius:50%;border:2px solid #fff;background:var(--primary,#d93025);opacity:0;cursor:crosshair;z-index:4;box-sizing:border-box;touch-action:none}
-      .psv-gantt-bar:hover .psv-gantt-link-handle{opacity:1}
+      .psv-gantt-link-handle{position:absolute;right:-16px;top:50%;transform:translateY(-50%);width:13px;height:13px;border-radius:50%;border:2px solid #fff;background:var(--primary,#d93025);box-shadow:0 0 0 1px rgba(15,23,42,.12);opacity:0;cursor:crosshair;z-index:4;box-sizing:border-box;touch-action:none}
+      .psv-gantt-link-handle:before{content:'';position:absolute;top:-4px;bottom:-4px;left:-2px;right:-3px}
+      .psv-gantt-bar:hover .psv-gantt-link-handle,.psv-gantt-bar:focus-visible .psv-gantt-link-handle{opacity:1}
+      .psv-gantt-bar:hover .psv-gantt-bar-outside{opacity:0}
+      .psv-gantt-bar.outside-clipped .psv-gantt-bar-outside{visibility:hidden}
       .psv-gantt-links{position:absolute;z-index:7;overflow:visible;pointer-events:none}
       .psv-gantt-links path.psv-gantt-link{fill:none;stroke:#94a3b8;stroke-width:1.6;pointer-events:stroke;cursor:pointer}
       .psv-gantt-links path.psv-gantt-link:hover{stroke:var(--primary,#d93025);stroke-width:2.2}
+      .psv-gantt-links path.psv-gantt-link.violated{stroke:#ef4444;stroke-dasharray:4 3}
+      .psv-gantt-links.read-only path.psv-gantt-link{cursor:default}
+      .psv-gantt-links.read-only path.psv-gantt-link:hover{stroke:#94a3b8;stroke-width:1.6}
       .psv-gantt-links path.psv-gantt-link-temp{fill:none;stroke:var(--primary,#d93025);stroke-width:1.8;stroke-dasharray:4 3;pointer-events:none}
       .psv-gantt-today{position:absolute;top:0;bottom:0;width:0;border-left:2px solid rgba(217,48,37,.55);z-index:6;pointer-events:none}
       .psv-gantt-empty{padding:26px;text-align:center;color:#667085;font-weight:850;font-size:12px}
+      .psv-gantt-empty-row{position:sticky;left:0;box-sizing:border-box;padding:40px 20px;text-align:center;color:#667085;font-weight:850;font-size:12px}
       @media(max-width:720px){.psv-gantt-wrap{--psv-gantt-left:150px}.psv-gantt-label-meta{display:none}.psv-gantt-slider{width:90px}}
     `;
     const existing = document.getElementById(STYLE_ID);
@@ -1664,24 +1941,89 @@
       if (dateKey(start) === dateKey(endDisplay)) return start.toLocaleDateString([], { month:'short', day:'numeric' });
       return `${start.toLocaleDateString([], { month:'short', day:'numeric' })} - ${endDisplay.toLocaleDateString([], { month:'short', day:'numeric' })}`;
     }
+    const spansDays = dateKey(start) !== dateKey(new Date(end.getTime() - 1));
+    if (spansDays) return `${start.toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })} - ${end.toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}`;
     if (timeOnly) return `${start.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })} - ${end.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })}`;
     return `${start.toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })} - ${end.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })}`;
   }
 
-  function workChipHtml(item, range, { draft = false, suspended = false, preview = false, confirmable = false, mode = 'month', day = '', showDetails = true, showTime = true, showSecondary = true, showAssignee = true, showStartHandle = true, showEndHandle = true, chipStyle = '', chipClass = '' } = {}){
+  /* Display names of every crew / team / person on an item, primary first
+   * (the host's own label leads when it names one of them). */
+  function assigneeNames(item = {}, hostLabel = ''){
+    let set = null;
+    try { set = root.PlatformScheduling?.eventWorkAssignees?.(item) || null; } catch { set = null; }
+    if (!set) return hostLabel ? [hostLabel] : [];
+    const entries = [...(set.crews || []), ...(set.people || [])]
+      .map((entry) => clean(entry?.name) || clean(entry?.id))
+      .filter(Boolean)
+      .filter((name, index, list) => list.indexOf(name) === index);
+    if (entries.length <= 1) return hostLabel ? [hostLabel] : entries;
+    const lead = entries.indexOf(hostLabel);
+    if (lead > 0) entries.unshift(...entries.splice(lead, 1));
+    return entries;
+  }
+
+  function chipTooltipText(item = {}, range = {}, allDay = false, { locked = false, continuation = false, assignees = [] } = {}){
+    const start = new Date(item.__start || item.start_at || item.start || range.start);
+    const end = new Date(item.__end || item.end_at || item.end || range.end);
+    const fullStart = Number.isFinite(start.getTime()) ? start : new Date(range.start);
+    const fullEnd = Number.isFinite(end.getTime()) && end > fullStart ? end : new Date(range.end);
+    const title = clean(item.title || item.event_title) || (isMaterialDeliveryEvent(item) ? materialDeliveryTitle(item) : 'New Event');
+    const lines = [title];
+    if (Number.isFinite(fullStart.getTime()) && Number.isFinite(fullEnd.getTime()) && fullEnd > fullStart) {
+      lines.push(allDay
+        ? formatRange(fullStart, fullEnd, true)
+        : (dateKey(fullStart) === dateKey(new Date(fullEnd.getTime() - 1))
+          ? `${fullStart.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' })}, ${formatRange(fullStart, fullEnd, false, { timeOnly:true })}`
+          : formatRange(fullStart, fullEnd, false)));
+    }
+    const projectTitle = clean(item.project_title || item.project_name || item.customer_name);
+    if (projectTitle && projectTitle !== title) lines.push(projectTitle);
+    if (assignees.length > 1) lines.push(`Assigned: ${assignees.join(', ')}`);
+    if (continuation) lines.push('Continues from an earlier day');
+    if (locked) lines.push('Locked');
+    return lines.join('\n');
+  }
+
+  function workChipHtml(item, range, { draft = false, suspended = false, preview = false, dragPreview = false, confirmable = false, mode = 'month', day = '', showDetails = true, continuation = false, tabbable = true, showTime = true, showSecondary = true, showAssignee = true, showStartHandle = true, showEndHandle = true, chipStyle = '', chipClass = '', assigneeReadOnly = false } = {}){
+    // A drag preview draws like the item it previews (drag-preview), while a
+    // placement preview keeps the dashed PREVIEW treatment.
+    if (dragPreview) {
+      preview = true;
+      chipClass = `${chipClass || ''} drag-preview`;
+    }
     const id = esc(item.id || (draft ? '__draft' : ''));
     const allDay = item.all_day !== false && item.schedule_granularity !== 'time';
-    const projectTitle = clean(item.project_title || item.project_name || item.project?.title || item.project?.name || item.customer_name || '');
+    const rawProjectTitle = clean(item.project_title || item.project_name || item.project?.title || item.project?.name || item.customer_name || '');
+    // A project-only item is titled after its project; don't repeat it
+    // ("Marco Rossi / Marco Rossi") on the second line.
+    const projectTitle = rawProjectTitle && rawProjectTitle.toLowerCase() === clean(item.title || item.event_title).toLowerCase() ? '' : rawProjectTitle;
     const materialDelivery = isMaterialDeliveryEvent(item);
-    const crewLabelRaw = clean(item.assignee_label || item.assigned_user_name || item.crew_label || item.assigned_crew_name || item.crew_name || item.resource_name || item.assigned_crew?.name || item.crew?.name || '');
+    const hostCrewLabel = clean(item.__assignee_short_label || item.assignee_label || item.assigned_user_name || item.crew_label || item.assigned_crew_name || item.crew_name || item.resource_name || item.assigned_crew?.name || item.crew?.name || '');
     const waitingForCrew = !materialDelivery && (item.awaiting_crew === true || item.__waiting_for_crew === true);
+    // Several crews / people: the pill names the first ("Alpha Crew +1") and
+    // the tooltip lists them all. Hosts may pass the names (__assignee_names)
+    // and the pill text (__assignee_short_label); otherwise both come from
+    // the item's assignee set.
+    const hostAssigneeNames = Array.isArray(item.__assignee_names) ? item.__assignee_names.map(clean).filter(Boolean) : [];
+    const assignees = materialDelivery || waitingForCrew || !hostCrewLabel ? [] : (hostAssigneeNames.length ? hostAssigneeNames : assigneeNames(item, hostCrewLabel));
+    const crewLabelRaw = assignees.length > 1 && !clean(item.__assignee_short_label) ? `${assignees[0]} +${assignees.length - 1}` : hostCrewLabel;
     const crewLabel = waitingForCrew ? (crewLabelRaw || 'Unassigned') : crewLabelRaw;
     const timed = mode !== 'month';
     const timedMonth = String(chipClass || '').includes('timed-month');
     // secondary_label lets the caller pick the second line (e.g. the address
     // when the title already carries the customer/project name).
     const bottomLabel = showSecondary ? (clean(item.secondary_label) || projectTitle || (showTime ? formatRange(range.start, range.end, allDay, { timeOnly: timed || timedMonth }) : '')) : '';
-    const assigneeHtml = !preview && !materialDelivery && showAssignee && showDetails && crewLabel ? `<button type="button" class="prs-assignee ${String(waitingForCrew ? 'waiting' : '')}" data-prs-assignee aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_9e5fd4e73c5442",`Assign ${v1}`,{v1}) ?? `Assign ${v1}`)(esc(crewLabel))}"><span>${String(esc(crewLabel))}</span></button>` : '';
+    const assigneeAria = /^assign\b/i.test(crewLabel) ? esc(crewLabel) : ((v1) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_9e5fd4e73c5442",`Assign ${v1}`,{v1}) ?? `Assign ${v1}`)(esc(assignees.length > 1 ? assignees.join(', ') : crewLabel));
+    // View-only calendars show who is assigned as plain text: no picker
+    // arrow, no button semantics (a click opens the item like the rest of it).
+    const assigneeHtml = !preview && !materialDelivery && showAssignee && showDetails && !continuation && crewLabel
+      ? (assigneeReadOnly
+        ? `<span class="prs-assignee readonly ${String(waitingForCrew ? 'waiting' : '')}"><span>${String(esc(crewLabel))}</span></span>`
+        // Not a separate Tab stop: the chip is (Enter opens it), so Tab
+        // moves item to item.
+        : `<button type="button" class="prs-assignee ${String(waitingForCrew ? 'waiting' : '')}" data-prs-assignee tabindex="-1" aria-label="${assigneeAria}"><span>${String(esc(crewLabel))}</span></button>`)
+      : '';
     const rawType = clean(item.event_type_default_id || item.type_id || item.event_type_id || item.type).toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/_/g, '-');
     const typeClass = rawType ? `type-${rawType}` : 'untyped';
     const unsavedClass = draft || item.status === 'draft' ? 'unsaved' : '';
@@ -1715,28 +2057,34 @@
     const confirmationClass = confirmation
       ? `confirmation-${confirmation.status} ${confirmation.awaiting ? 'unconfirmed' : ''} ${confirmation.declined ? 'confirmation-declined' : ''}`
       : '';
-    const confirmationMarker = confirmation && !preview && showDetails && (confirmation.awaiting || confirmation.declined)
-      ? `<span class="prs-confirm-marker ${confirmation.declined ? 'bad' : 'warn'}" title="${esc(confirmation.label)}"><i class="fas ${esc(confirmation.icon)}" aria-hidden="true"></i></span>`
+    const confirmationLabel = clean(confirmation?.label) || (confirmation?.declined ? 'Customer asked to reschedule' : 'Waiting for customer confirmation');
+    const confirmationMarker = confirmation && !preview && showDetails && !continuation && (confirmation.awaiting || confirmation.declined)
+      ? `<span class="prs-confirm-marker ${confirmation.declined ? 'bad' : 'warn'}" title="${esc(confirmationLabel)}" aria-label="${esc(confirmationLabel)}"><i class="fas ${esc(confirmation.icon)}" aria-hidden="true"></i></span>`
       : '';
     const requirementWarnings = Array.isArray(item.requirement_warnings)
       ? item.requirement_warnings
       : (root.PlatformScheduling?.eventRequirementWarnings?.(item, { includeEquipment:false }) || []);
     const requirementLabel = requirementWarnings.map((warning) => clean(warning?.label || warning)).filter(Boolean).join('; ');
-    const requirementMarker = requirementLabel && !preview && showDetails
+    // Inline in the title row so it never covers the first letters.
+    const requirementMarker = requirementLabel && !preview && showDetails && !continuation
       ? `<span class="prs-requirement-warning" title="${esc(requirementLabel)}" aria-label="${esc(requirementLabel)}"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i></span>`
       : '';
     const showLockControl = !draft && !preview && materialDelivery && item.lock_toggle_visible !== false;
+    const lockBadge = locked && !showLockControl && !preview && showDetails
+      ? `<i class="fas fa-lock prs-lock-badge" aria-label="Locked" title="Locked"></i>`
+      : '';
+    const continuationMark = continuation ? '<span class="prs-continuation-mark" aria-hidden="true">&lsaquo;</span>' : '';
+    const tooltip = preview ? '' : chipTooltipText(item, range, allDay, { locked, continuation, assignees:assignees.length > 1 ? assignees : [] });
     const lockLabel = locked ? 'Unlock schedule' : 'Lock schedule';
     const lockControl = showLockControl
       ? `<button type="button" class="prs-event-lock ${locked ? 'locked' : 'unlocked'}" data-prs-lock-toggle aria-label="${lockLabel}" title="${lockLabel}"><i class="fas ${locked ? 'fa-lock' : 'fa-lock-open'}" aria-hidden="true"></i></button>`
       : '';
     const renderStartHandle = showStartHandle && !locked;
     const renderEndHandle = showEndHandle && !locked;
-    return `<div class="prs-work-chip ${timed ? 'timed' : ''} ${typeClass} ${unsavedClass} ${chipClass ? esc(chipClass) : ''} ${materialDelivery ? `material-delivery ${ordered ? 'material-ordered' : 'material-unordered'}` : ''} ${locked ? 'schedule-locked' : ''} ${showLockControl ? 'has-lock-control' : ''} ${waitingForCrew ? 'awaiting-crew' : ''} ${requirementLabel ? 'has-requirement-warning' : ''} ${draft ? 'draft' : ''} ${suspended ? 'suspended' : ''} ${preview ? 'preview' : ''} ${draft && confirmable ? 'has-confirm' : ''} ${confirmationClass} ${renderStartHandle ? '' : 'no-start-handle'} ${renderEndHandle ? '' : 'no-end-handle'} ${assigneeHtml ? 'has-assignee' : 'no-assignee'}" data-prs-event-id="${id}" data-prs-day="${esc(day)}" data-prs-mode="${esc(mode)}" data-prs-locked="${locked ? '1' : '0'}"${rangeAttrs}${styleAttr}>
-      <span class="prs-chip-top"><span class="prs-title">${showDetails ? `${materialMarker}${confirmationMarker}<span class="prs-title-text">${title}</span>` : '&nbsp;'}</span>${timed ? '' : assigneeHtml}</span>
+    return `<div class="prs-work-chip ${timed ? 'timed' : ''} ${typeClass} ${unsavedClass} ${chipClass ? esc(chipClass) : ''} ${materialDelivery ? `material-delivery ${ordered ? 'material-ordered' : 'material-unordered'}` : ''} ${locked ? 'schedule-locked' : ''} ${showLockControl ? 'has-lock-control' : ''} ${waitingForCrew ? 'awaiting-crew' : ''} ${requirementLabel ? 'has-requirement-warning' : ''} ${draft ? 'draft' : ''} ${suspended ? 'suspended' : ''} ${preview && !dragPreview ? 'preview' : ''} ${draft && confirmable ? 'has-confirm' : ''} ${confirmationClass} ${renderStartHandle ? '' : 'no-start-handle'} ${renderEndHandle ? '' : 'no-end-handle'} ${assigneeHtml ? 'has-assignee' : 'no-assignee'} ${continuation ? 'continuation' : ''}" data-prs-event-id="${id}" data-prs-day="${esc(day)}" data-prs-mode="${esc(mode)}" data-prs-locked="${locked ? '1' : '0'}"${rangeAttrs}${styleAttr}${tooltip ? ` title="${esc(tooltip)}"` : ''}${preview ? '' : ` role="button" tabindex="${tabbable ? '0' : '-1'}"`}>
+      <span class="prs-chip-top"><span class="prs-title">${showDetails ? `${continuationMark}${lockBadge}${requirementMarker}${materialMarker}${confirmationMarker}<span class="prs-title-text">${title}</span>` : '&nbsp;'}</span>${timed ? '' : assigneeHtml}</span>
       ${showDetails && bottomLabel ? `<span class="prs-chip-bottom"><span class="${projectTitle ? 'prs-project-title' : 'prs-time'}">${esc(bottomLabel)}</span>${lockControl}</span>` : ''}
       ${timed ? assigneeHtml : ''}
-      ${requirementMarker}
       ${!bottomLabel && lockControl ? `<span class="prs-chip-lock-only">${lockControl}</span>` : ''}
       ${draft && confirmable ? `<button type="button" class="prs-confirm" data-prs-confirm aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_bab4540ec11ac4","Confirm New Event") ?? "Confirm New Event")}"><i class="fas fa-check"></i></button>` : ''}
     </div>`;
@@ -1807,10 +2155,39 @@
     const timed = chip.classList.contains('timed');
     const position = timed ? event.clientY - rect.top : event.clientX - rect.left;
     const size = timed ? rect.height : rect.width;
-    const edgeSize = Math.min(10, Math.max(5, size / 3));
-    if (position <= edgeSize && !chip.classList.contains('no-start-handle')) return 'start';
-    if (position >= size - edgeSize && !chip.classList.contains('no-end-handle')) return 'end';
+    // Vertical (timed) chips keep their title row grabbable: a thin top band
+    // and a slightly larger bottom band are the only resize zones.
+    // The assignee pill (at the bottom of short timed chips) always grabs to
+    // move; the resize strip stays usable beside it.
+    if (event.target?.closest?.(CHIP_INNER_CONTROL_SELECTOR)) return 'move';
+    const startEdge = timed ? Math.min(6, Math.max(3, size / 6)) : Math.min(10, Math.max(5, size / 3));
+    const endEdge = timed ? Math.min(8, Math.max(4, size / 5)) : Math.min(10, Math.max(5, size / 3));
+    if (position <= startEdge && !chip.classList.contains('no-start-handle')) return 'start';
+    if (position >= size - endEdge && !chip.classList.contains('no-end-handle')) return 'end';
     return 'move';
+  }
+
+  /* A press on a chip's own buttons is not a drag — except inside a resize
+   * strip, where a short chip's assignee pill would otherwise block resizing
+   * (a plain click there still reaches the pill). */
+  function chipPressIgnoredForDrag(chip, event){
+    return !!event.target.closest('[data-prs-confirm],[data-prs-lock-toggle]');
+  }
+  /* A press on a chip's assignee pill still becomes a drag once the pointer
+   * travels, but pointer capture waits for that movement: capturing at
+   * pointerdown retargets the click to the chip, so a plain click on the pill
+   * would never open the assignee picker. */
+  function captureChipPress(chip, event, activeDrag){
+    if (activeDrag && event.target?.closest?.(CHIP_INNER_CONTROL_SELECTOR)) {
+      activeDrag.captureDeferred = true;
+      return;
+    }
+    capturePointer(chip, event.pointerId);
+  }
+  function captureDeferredDrag(activeDrag){
+    if (!activeDrag?.captureDeferred) return;
+    activeDrag.captureDeferred = false;
+    capturePointer(activeDrag.captureNode, activeDrag.pointerId);
   }
 
   function bindEdgeResizeCursor(chip, canEdit){
@@ -1821,26 +2198,43 @@
         chip.style.cursor = 'grabbing';
         return;
       }
-      if (!canEdit() || event.target.closest('[data-prs-confirm],[data-prs-assignee],[data-prs-view],[data-prs-lock-toggle]')) {
+      if (chip.closest('.prs-drag-move,.prs-drag-resize-x,.prs-drag-resize-y,.prs-drag-refused')) {
         chip.style.cursor = '';
         return;
       }
+      if (!canEdit() || event.target.closest('[data-prs-confirm],[data-prs-lock-toggle]')) {
+        chip.style.cursor = '';
+        return;
+      }
+      // Locked items refuse drags: say so before the user tries.
+      if (chip.dataset.prsDragRefused === '1') {
+        chip.style.cursor = chip.dataset.prsLocked === '1' ? 'not-allowed' : 'pointer';
+        return;
+      }
       const edge = resizeEdgeAtPointer(chip, event);
+      // The resize strips win over an assignee pill that overlaps them on a
+      // short chip; elsewhere the pill keeps its own cursor.
+      if (edge === 'move' && event.target.closest(CHIP_INNER_CONTROL_SELECTOR)) {
+        chip.style.cursor = '';
+        return;
+      }
       chip.style.cursor = edge === 'move' ? 'grab' : (chip.classList.contains('timed') ? 'ns-resize' : 'ew-resize');
     });
     chip.addEventListener('pointerleave', () => { chip.style.cursor = ''; });
   }
 
+  // Month bars cover every day a timed item touches (one day for most).
   function timedMonthRange(range){
-    const start = dateAt(dateKey(range.start), '00:00');
-    return { start, end: addDays(start, 1) };
+    return dayBandRange(range);
   }
 
   function renderProjectRangeScheduler(container, options = {}){
     if (!container) return;
-    if (container.__prsPlacementKeyHandler) {
-      document.removeEventListener('keydown', container.__prsPlacementKeyHandler);
-      container.__prsPlacementKeyHandler = null;
+    const listenerSignal = resetContainerListeners(container);
+    setContainerKeyHandler(container, null);
+    if (container.__prsNowTimer) {
+      clearInterval(container.__prsNowTimer);
+      container.__prsNowTimer = null;
     }
     injectCss();
     const Scheduling = options.Scheduling || root.PlatformScheduling;
@@ -1904,7 +2298,15 @@
       return allowedById && eventPassesEditPredicate(options, item);
     };
     const itemCanAdjustRange = (item = {}) => itemIsEditable(item) && !eventIsLocked(item);
+    // Assignee pills are pickers only when this calendar may edit.
+    const chipHtml = (item, range, chipOptions = {}) => workChipHtml(item, range, { assigneeReadOnly: !allowEdit, ...chipOptions });
     const shortRangeDayCount = Math.max(2, Math.min(4, Number(options.shortRangeDayCount || 4) || 4));
+    // Compact 24px all-day lanes, capped at three with "+N more", in every
+    // time-grid view (Week, 4 Day, Day) and on phones: an uncapped band of
+    // tall bars would otherwise eat the grid.
+    const compactAllDayBand = ['week', '4day', 'day'].includes(mode) || options.mobileLayout === true;
+    const allDayBandTop = compactAllDayBand ? WEEK_ALL_DAY_ITEM_TOP_PX : 6;
+    const allDayBandStep = compactAllDayBand ? WEEK_ALL_DAY_ITEM_STEP_PX : 48;
     const timedDayCount = mode === 'day' ? 1 : (mode === '4day' ? shortRangeDayCount : 7);
     const timedStartDay = mode === 'week' ? startOfWeek(anchor) : startOfDay(anchor);
     const viewLabel = mode === 'list'
@@ -1917,7 +2319,11 @@
     const navDayCount = mode === 'week' ? 7 : (mode === '4day' ? shortRangeDayCount : 1);
     const snapMinutes = Math.max(5, Number(options.slotMinutes || 15) || 15);
     const renderSlotMinutes = Math.max(snapMinutes, Number(options.renderSlotMinutes || 60) || 60);
-    const slotHeight = Math.max(24, Number(options.renderSlotHeight || 54) || 54);
+    // Hosts may restyle rows (phones use 48px); the rendered height is
+    // measured after mount and replaces this nominal value.
+    let slotHeight = Math.max(24, Number(options.renderSlotHeight || 54) || 54);
+    // An all-day item dropped into the time grid becomes a timed item this long.
+    const defaultTimedDurationMinutes = Math.max(snapMinutes, Number(options.defaultTimedDurationMinutes || 60) || 60);
     const workStart = Math.max(0, Number(options.workStartMinute ?? 0) || 0);
     const workEnd = Math.min(24 * 60, Number(options.workEndMinute ?? (24 * 60)) || (24 * 60));
     const rowStartMinute = (date) => {
@@ -1929,7 +2335,25 @@
       const offsetMinutes = Math.max(0, Math.min(renderSlotMinutes - snapMinutes, minute - rowStartMinute(date)));
       return 4 + (offsetMinutes / renderSlotMinutes) * slotHeight;
     };
-    const chipHeightForRange = (start, end) => Math.max(30, ((end.getTime() - start.getTime()) / 60000 / renderSlotMinutes) * slotHeight - 8);
+    const chipHeightForRange = (start, end) => {
+      const pixels = ((end.getTime() - start.getTime()) / 60000 / renderSlotMinutes) * slotHeight;
+      // Short items keep (close to) their true height instead of a 30px
+      // block that covers the next quarter hour; they draw on one line.
+      return pixels >= 38 ? pixels - 8 : Math.max(18, pixels - 2);
+    };
+    /* Top/height of a timed chip inside its hour row. A chip never runs past
+     * the end of the grid (e.g. 11:30 PM items stay fully visible). */
+    const timedChipGeometry = (start, end) => {
+      const height = chipHeightForRange(start, end);
+      // Short chips start at their exact time (no top inset) so they read
+      // against the right quarter hour.
+      let top = chipOffsetTop(start) - (height < 38 ? 3 : 0);
+      const rowsBelow = Math.max(1, (workEnd - rowStartMinute(start)) / renderSlotMinutes);
+      const maxBottom = rowsBelow * slotHeight - 2;
+      if (top + height > maxBottom) top = Math.max(1, maxBottom - height);
+      const classes = [height <= 64 ? 'compact-confirm' : '', height < 38 ? 'prs-short' : ''].filter(Boolean).join(' ');
+      return { top, height, classes, style:`top:${top}px;height:${height}px;min-height:${height}px` };
+    };
     const timedSegments = (item, range, visibleStart = null, visibleEnd = null) => {
       if (!range?.start || !range?.end || range.end <= range.start) return [];
       const segments = [];
@@ -1999,25 +2423,39 @@
       const weekBars = (weekDays) => {
         const weekStart = weekDays[0];
         const weekEnd = addDays(weekStart, 7);
+        // Each lane lists the [startCol, endCol) spans it already holds.
         const lanes = [];
         const dayItems = weekDays.map(() => []);
         const html = normalized
           .filter(({ displayRange }) => displayRange.start < weekEnd && displayRange.end > weekStart)
-          .sort((a, b) => a.displayRange.start - b.displayRange.start || a.displayRange.end - b.displayRange.end)
-          .map(({ item, range, displayRange }) => {
-            const timedMonth = rangeItemIsTimed(item);
-            const barRange = displayRange || range;
+          .map((entry) => {
+            const barRange = entry.displayRange || entry.range;
             const segmentStart = barRange.start > weekStart ? barRange.start : weekStart;
             const segmentEnd = barRange.end < weekEnd ? barRange.end : weekEnd;
             const startCol = Math.max(1, Math.min(7, dayDiff(weekStart, segmentStart) + 1));
             const endCol = Math.max(startCol + 1, Math.min(8, dayDiff(weekStart, segmentEnd) + 1));
-            let laneIndex = lanes.findIndex((laneEndCol) => laneEndCol <= startCol);
+            return { ...entry, barRange, segmentStart, segmentEnd, startCol, endCol, carriedIn: barRange.start < weekStart };
+          })
+          // Items that start this week claim the top lanes first (longest
+          // first on a shared day); bars carried in from an earlier week fill
+          // the gaps, so continuations never bury what begins this week.
+          // Staged drafts always take the first lanes so they never hide
+          // under "+N items".
+          .sort((a, b) => Number(b.item.__draft === true) - Number(a.item.__draft === true)
+            || Number(a.carriedIn) - Number(b.carriedIn)
+            || a.startCol - b.startCol
+            || (b.endCol - b.startCol) - (a.endCol - a.startCol)
+            || a.displayRange.start - b.displayRange.start
+            || a.displayRange.end - b.displayRange.end)
+          .map(({ item, range, barRange, segmentStart, segmentEnd, startCol, endCol }) => {
+            const timedMonth = rangeItemIsTimed(item);
+            const timedSpan = timedMonth && timedRangeSpansDays(range);
+            let laneIndex = lanes.findIndex((spans) => spans.every(([spanStart, spanEnd]) => spanEnd <= startCol || spanStart >= endCol));
             if (laneIndex < 0) {
               laneIndex = lanes.length;
-              lanes.push(endCol);
-            } else {
-              lanes[laneIndex] = endCol;
+              lanes.push([]);
             }
+            lanes[laneIndex].push([startCol, endCol]);
             const beginsHere = barRange.start >= weekStart && barRange.start < weekEnd;
             const continuesBefore = barRange.start < weekStart;
             const continuesAfter = barRange.end > weekEnd;
@@ -2038,18 +2476,20 @@
               };
             }
             return `<div class="prs-month-bar ${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''}" style="grid-column:${startCol}/${endCol};margin-top:${MONTH_ITEM_TOP_PX + laneIndex * MONTH_ITEM_STEP_PX}px" data-prs-date="${esc(dateKey(segmentStart))}" data-prs-month-lane="${laneIndex}">
-              ${workChipHtml(item, segmentRange, {
+              ${chipHtml(item, segmentRange, {
                 draft: item.__draft === true || item.id === '__draft',
                 suspended: item.__draft === true && item.__activeDraft !== true,
                 confirmable: item.__activeDraft === true && typeof options.onDraftConfirm === 'function' && !continuesAfter,
                 mode,
                 day: dateKey(segmentStart),
                 chipClass: timedMonth ? 'timed-month' : '',
-                showDetails: beginsHere,
+                showDetails: true,
+                continuation: !beginsHere,
+                tabbable: laneIndex < MONTH_VISIBLE_ITEM_COUNT,
                 showTime: false,
                 showSecondary: false,
-                showStartHandle: timedMonth ? false : !continuesBefore,
-                showEndHandle: timedMonth ? false : !continuesAfter
+                showStartHandle: timedMonth ? (timedSpan && !continuesBefore) : !continuesBefore,
+                showEndHandle: timedMonth ? (timedSpan && !continuesAfter) : !continuesAfter
               })}
             </div>`;
           }).join('');
@@ -2059,14 +2499,16 @@
           const peekHtml = Array.from({ length:items.length }, (_, laneIndex) => items[laneIndex]).map((entry) => {
             if (!entry) return '<div class="prs-month-day-peek-item is-gap" aria-hidden="true"></div>';
             const { item, range, timedMonth, beginsHere, continuesBefore, continuesAfter } = entry;
-            return `<div class="prs-month-day-peek-item">${workChipHtml(item, range, {
+            return `<div class="prs-month-day-peek-item">${chipHtml(item, range, {
             draft:item.__draft === true || item.id === '__draft',
             suspended:item.__draft === true && item.__activeDraft !== true,
             confirmable:false,
             mode:'month',
             day:dateKey(weekDays[dayIndex]),
             chipClass:`prs-month-day-peek-chip ${timedMonth ? 'timed-month' : ''} ${continuesBefore ? 'continues-from-previous-day' : ''} ${continuesAfter ? 'continues-into-next-day' : ''}`,
-            showDetails:beginsHere,
+            showDetails:true,
+            continuation:!beginsHere,
+            tabbable:false,
             showTime:false,
             showSecondary:false,
             showAssignee:true,
@@ -2090,13 +2532,13 @@
         return { html, laneCount:lanes.length, overflowByDay, trackHeight };
       };
       return `<div class="prs-surface"><div class="prs-month">
-        <div class="prs-month-head-row">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day) => `<div class="prs-month-head">${day}</div>`).join('')}</div>
+        <div class="prs-month-head-row">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day, index) => `<div class="prs-month-head ${index === 0 || index === 6 ? 'weekend' : ''}">${day}</div>`).join('')}</div>
         ${weeks.map((weekDays) => {
           const layout = weekBars(weekDays);
           const expandedDayIndex = layout.overflowByDay.findIndex((overflow, dayIndex) => overflow.count > 0 && expandedMonthDates.has(dateKey(weekDays[dayIndex])));
           const expandedOverflow = expandedDayIndex >= 0 ? layout.overflowByDay[expandedDayIndex] : null;
           return `<div class="prs-month-week ${expandedDayIndex >= 0 ? 'expanded' : ''}" style="--prs-month-expanded-height:${expandedOverflow ? expandedOverflow.expandedHeight : 124}px">
-            ${weekDays.map((day, index) => `<div class="prs-day ${day.getMonth() === month.getMonth() ? '' : 'muted'} ${dayTemporalClass(day)}" style="grid-column:${index + 1}" data-prs-date="${esc(dateKey(day))}">
+            ${weekDays.map((day, index) => `<div class="prs-day ${day.getMonth() === month.getMonth() ? '' : 'muted'} ${[0,6].includes(day.getDay()) ? 'weekend' : ''} ${dayTemporalClass(day)}" style="grid-column:${index + 1}" data-prs-date="${esc(dateKey(day))}">
               <div class="prs-day-num">${day.getDate()}</div>
             </div>`).join('')}
             <div class="prs-month-item-viewport"><div class="prs-month-item-track" style="--prs-month-track-height:${layout.trackHeight}px">${layout.html}</div></div>
@@ -2119,39 +2561,55 @@
       };
       const viewStart = days[0];
       const viewEnd = addDays(viewStart, days.length);
-      const compactWeekAllDay = mode === 'week';
+      const compactWeekAllDay = mode === 'week' || compactAllDayBand;
       const allDayLanes = [];
+      // Timed items lasting a day or more join the all-day band as labelled
+      // spanning bars instead of full-height grid columns.
       const allDayEntries = visibleItems.map(normalizeRangeItem)
-        .filter(({ item, range }) => !rangeItemIsTimed(item) && range.start < viewEnd && range.end > viewStart)
-        .sort((a, b) => a.range.start - b.range.start || a.range.end - b.range.end)
-        .map(({ item, range }) => {
+        .map((entry) => (rangeItemIsTimed(entry.item) ? { ...entry, timedRange: entry.range, range: dayBandRange(entry.range) } : entry))
+        .filter(({ item, range, timedRange }) => (!rangeItemIsTimed(item) || timedRangeSpansDays(timedRange)) && range.start < viewEnd && range.end > viewStart)
+        // Staged drafts claim the first lanes so "+N more" never hides them;
+        // equipment down/maintenance windows come next (they decide what can
+        // be booked); section/group rollups, which only summarise items shown
+        // anyway, go last; then day order with the longest span first.
+        .sort((a, b) => Number(b.item.__draft === true) - Number(a.item.__draft === true)
+          || Number(ganttIsDowntime(b.item)) - Number(ganttIsDowntime(a.item))
+          || Number(allDayItemIsGroup(a.item)) - Number(allDayItemIsGroup(b.item))
+          || a.range.start - b.range.start
+          || (b.range.end - b.range.start) - (a.range.end - a.range.start))
+        .map(({ item, range, timedRange }) => {
           const segmentStart = range.start > viewStart ? range.start : viewStart;
           const segmentEnd = range.end < viewEnd ? range.end : viewEnd;
           const startCol = Math.max(2, Math.min(days.length + 1, dayDiff(viewStart, segmentStart) + 2));
           const endCol = Math.max(startCol + 1, Math.min(days.length + 2, dayDiff(viewStart, segmentEnd) + 2));
-          let laneIndex = allDayLanes.findIndex((laneEndCol) => laneEndCol <= startCol);
+          // Each lane lists the [startCol, endCol) spans it holds, so a bar
+          // placed first (a staged draft late in the week) only claims its
+          // own days and earlier bars still share its lane.
+          let laneIndex = allDayLanes.findIndex((spans) => spans.every(([spanStart, spanEnd]) => spanEnd <= startCol || spanStart >= endCol));
           if (laneIndex < 0) {
             laneIndex = allDayLanes.length;
-            allDayLanes.push(endCol);
-          } else {
-            allDayLanes[laneIndex] = endCol;
+            allDayLanes.push([]);
           }
+          allDayLanes[laneIndex].push([startCol, endCol]);
           const beginsHere = range.start >= viewStart && range.start < viewEnd;
           const continuesBefore = range.start < viewStart;
           const continuesAfter = range.end > viewEnd;
-          return { item, range, segmentStart, segmentEnd, startCol, endCol, laneIndex, beginsHere, continuesBefore, continuesAfter };
+          return { item, range, timedRange, segmentStart, segmentEnd, startCol, endCol, laneIndex, beginsHere, continuesBefore, continuesAfter };
         });
       const allDayTop = compactWeekAllDay ? WEEK_ALL_DAY_ITEM_TOP_PX : 6;
       const allDayStep = compactWeekAllDay ? WEEK_ALL_DAY_ITEM_STEP_PX : 48;
-      const allDayBars = allDayEntries.map(({ item, segmentStart, segmentEnd, startCol, endCol, laneIndex, beginsHere, continuesBefore, continuesAfter }) => (
-          `<div class="prs-all-day-bar-top ${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''}" style="grid-column:${startCol}/${endCol};grid-row:1;margin-top:${allDayTop + laneIndex * allDayStep}px" data-prs-date="${esc(dateKey(segmentStart))}">
-            ${workChipHtml(item, { start: segmentStart, end: segmentEnd }, {
+      const allDayBars = allDayEntries.map(({ item, timedRange, segmentStart, segmentEnd, startCol, endCol, laneIndex, beginsHere, continuesBefore, continuesAfter }) => (
+          `<div class="prs-all-day-bar-top ${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''} ${compactWeekAllDay && laneIndex >= WEEK_ALL_DAY_VISIBLE_ITEM_COUNT ? 'lane-overflow' : ''}" style="grid-column:${startCol}/${endCol};grid-row:1;margin-top:${allDayTop + laneIndex * allDayStep}px" data-prs-date="${esc(dateKey(segmentStart))}" data-prs-week-lane="${laneIndex}">
+            ${chipHtml(item, timedRange || { start: segmentStart, end: segmentEnd }, {
               draft: item.__draft === true || item.id === '__draft',
               suspended: item.__draft === true && item.__activeDraft !== true,
               confirmable: item.__activeDraft === true && typeof options.onDraftConfirm === 'function' && !continuesAfter,
               mode: 'month',
               day: dateKey(segmentStart),
-              showDetails: beginsHere,
+              chipClass: timedRange ? 'timed-month timed-span' : '',
+              showDetails: true,
+              continuation: !beginsHere,
+              tabbable: !compactWeekAllDay || laneIndex < WEEK_ALL_DAY_VISIBLE_ITEM_COUNT,
               showTime: false,
               showSecondary: !compactWeekAllDay,
               showStartHandle: !continuesBefore,
@@ -2181,67 +2639,166 @@
         ? (allDayExpanded ? WEEK_ALL_DAY_ITEM_TOP_PX + allDayRows * WEEK_ALL_DAY_ITEM_STEP_PX + 22 : WEEK_ALL_DAY_COLLAPSED_HEIGHT_PX)
         : Math.max(54, 12 + allDayRows * WEEK_ALL_DAY_ITEM_STEP_PX);
       const allDayGridHeight = compactWeekAllDay ? compactAllDayHeight : Math.max(54, 12 + allDayRows * 48);
-      const timedGridMinWidth = 62 + days.length * 120;
+      // Day columns shrink to fit the space available (a full week at
+      // desktop/tablet widths shows Saturday); the grid only scrolls sideways
+      // once columns would get narrower than this.
+      const timedDayMinWidth = days.length >= 7 ? 92 : 120;
+      const timedGridMinWidth = 62 + days.length * timedDayMinWidth;
+      // Grid slots are written day by day (each placed explicitly in its
+      // row/column), so Tab walks one day's items in time order before the
+      // next day's.
+      const timedEntries = visibleItems.map(normalizeRangeItem);
       const allDayOverflowButtons = hiddenAllDayByDay.map((dayOverflow) => dayOverflow.count > 0 ? `<button type="button" class="prs-week-all-day-overflow ${String(allDayExpanded && dayOverflow.dayIndex === initialAllDayController ? 'is-controller' : '')}" style="grid-column:${String(dayOverflow.gridColumn)}" data-prs-week-all-day-overflow data-prs-week-all-day-count="${String(dayOverflow.count)}" data-prs-week-all-day-scroll="${String(dayOverflow.scroll)}" data-prs-week-all-day-scroll-steps="${String(dayOverflow.scrollSteps)}" aria-expanded="${String(allDayExpanded && dayOverflow.dayIndex === initialAllDayController ? 'true' : 'false')}" aria-label="${String(allDayExpanded && dayOverflow.dayIndex === initialAllDayController ? 'Show fewer all-day items' : `Show ${dayOverflow.count} more all-day ${dayOverflow.count === 1 ? 'item' : 'items'} on ${dayOverflow.day.toLocaleDateString([], { weekday:'long', month:'short', day:'numeric' })}`)}"><span class="prs-week-all-day-overflow-more">${((v7) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_ffbd4fa895be2c",`+ ${v7} more`,{v7}) ?? `+ ${v7} more`)(dayOverflow.count)}</span><span class="prs-week-all-day-overflow-less">${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_b55d24ab7e316b","Show less") ?? "Show less")}</span></button>` : '').join('');
-      return `<div class="prs-surface"><div class="prs-time-grid prs-time-header-grid" style="--prs-days:${String(days.length)};min-width:${String(timedGridMinWidth)}px">
+      return `<div class="prs-surface"><div class="prs-time-grid prs-time-header-grid" style="--prs-days:${String(days.length)};--prs-day-min:${String(timedDayMinWidth)}px;min-width:${String(timedGridMinWidth)}px">
         <div class="prs-time-head"></div>
         ${String(days.map((day) => `<div class="prs-day-head ${dayTemporalClass(day)}"><span class="prs-day-head-desktop">${esc(day.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' }))}</span><span class="prs-day-head-mobile"><span>${esc(day.toLocaleDateString([], { weekday:'short' }))}</span><strong>${esc(day.toLocaleDateString([], { day:'numeric' }))}</strong></span></div>`).join(''))}
-      </div><div class="prs-all-day-grid ${String(compactWeekAllDay ? 'week-overflow' : '')} ${String(hiddenAllDayCount > 0 ? 'has-overflow' : '')} ${String(allDayExpanded ? 'expanded' : '')}" style="--prs-days:${String(days.length)};min-width:${String(timedGridMinWidth)}px;height:${String(allDayGridHeight)}px;min-height:${String(allDayGridHeight)}px;grid-template-rows:${String(allDayGridHeight)}px" data-prs-week-all-day-key="${String(esc(allDayExpansionKey))}" data-prs-week-all-day-collapsed-height="${String(WEEK_ALL_DAY_COLLAPSED_HEIGHT_PX)}" data-prs-week-all-day-expanded-height="${String(WEEK_ALL_DAY_ITEM_TOP_PX + allDayRows * WEEK_ALL_DAY_ITEM_STEP_PX + 22)}">
+      </div><div class="prs-all-day-grid ${String(compactWeekAllDay ? 'week-overflow' : '')} ${String(hiddenAllDayCount > 0 ? 'has-overflow' : '')} ${String(allDayExpanded ? 'expanded' : '')}" style="--prs-days:${String(days.length)};--prs-day-min:${String(timedDayMinWidth)}px;min-width:${String(timedGridMinWidth)}px;height:${String(allDayGridHeight)}px;min-height:${String(allDayGridHeight)}px;grid-template-rows:${String(allDayGridHeight)}px" data-prs-week-all-day-key="${String(esc(allDayExpansionKey))}" data-prs-week-all-day-collapsed-height="${String(WEEK_ALL_DAY_COLLAPSED_HEIGHT_PX)}" data-prs-week-all-day-expanded-height="${String(WEEK_ALL_DAY_ITEM_TOP_PX + allDayRows * WEEK_ALL_DAY_ITEM_STEP_PX + 22)}">
         <div class="prs-all-day-label-cell"><span class="prs-all-day-label-desktop">${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_42b02bf1587e27","All day") ?? "All day")}</span><span class="prs-all-day-label-mobile">${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_61df468d92e238","All") ?? "All")}<br>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_0cd216c9c0268f","day") ?? "day")}</span></div>
         ${String(days.map((day, index) => `<div class="prs-all-day-cell ${dayTemporalClass(day)}" style="grid-column:${index + 2};grid-row:1" data-prs-date="${esc(dateKey(day))}" data-prs-allday="1"></div>`).join(''))}
         ${String(allDayBars)}
         ${String(allDayOverflowButtons)}
-      </div><div class="prs-time-grid" style="--prs-days:${String(days.length)};min-width:${String(timedGridMinWidth)}px">
-        ${String(slots.map((minute) => `
-          <div class="prs-time-label">${esc(timeLabel(minute))}</div>
-          ${days.map((day) => {
+      </div><div class="prs-time-grid prs-time-body" style="--prs-days:${String(days.length)};--prs-day-min:${String(timedDayMinWidth)}px;min-width:${String(timedGridMinWidth)}px">
+        ${String(slots.map((minute, rowIndex) => `<div class="prs-time-label" style="grid-row:${rowIndex + 1};grid-column:1">${esc(timeLabel(minute))}</div>`).join(''))}
+        ${String(days.map((day, dayIndex) => slots.map((minute, rowIndex) => {
             const key = dateKey(day);
             const time = `${String(Math.floor(minute / 60)).padStart(2,'0')}:${String(minute % 60).padStart(2,'0')}`;
             const slotStart = dateAt(key, time);
             const slotEnd = new Date(slotStart.getTime() + renderSlotMinutes * 60000);
-            const chips = visibleItems.map(normalizeRangeItem).flatMap(({ item, range }) => {
-              if (!rangeItemIsTimed(item)) return [];
+            const chips = timedEntries.flatMap(({ item, range }) => {
+              if (!rangeItemIsTimed(item) || timedRangeSpansDays(range)) return [];
               return timedSegments(item, range, viewStart, viewEnd).filter(({ segmentRange }) => (
                 segmentRange.start < slotEnd && segmentRange.end > slotStart && dateKey(segmentRange.start) === key && rowStartMinute(segmentRange.start) === minute
               ));
             });
-            return `<div class="prs-slot ${dayTemporalClass(day)} ${chips.length ? 'has-chip' : ''}" data-prs-date="${esc(key)}" data-prs-time="${esc(time)}">${chips.map(({ item, range, segmentRange, continuesBefore, continuesAfter, beginsHere }) => {
-              const chipHeight = chipHeightForRange(segmentRange.start, segmentRange.end);
-              return workChipHtml({ ...item, all_day:false, schedule_granularity:'time' }, range, {
+            return `<div class="prs-slot ${dayTemporalClass(day)} ${chips.length ? 'has-chip' : ''}" style="grid-row:${rowIndex + 1};grid-column:${dayIndex + 2}" data-prs-date="${esc(key)}" data-prs-time="${esc(time)}">${chips.map(({ item, range, segmentRange, continuesBefore, continuesAfter, beginsHere }) => {
+              const geometry = timedChipGeometry(segmentRange.start, segmentRange.end);
+              return chipHtml({ ...item, all_day:false, schedule_granularity:'time' }, range, {
                 draft: item.__draft === true || item.id === '__draft',
                 suspended: item.__draft === true && item.__activeDraft !== true,
                 confirmable: item.__activeDraft === true && typeof options.onDraftConfirm === 'function',
                 mode,
                 day: key,
-                chipClass: `${chipHeight <= 64 ? 'compact-confirm' : ''} ${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''}`,
-                chipStyle: `top:${chipOffsetTop(segmentRange.start)}px;height:${chipHeight}px;min-height:${chipHeight}px`,
-                showDetails: beginsHere,
+                chipClass: `${geometry.classes} ${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''}`,
+                chipStyle: geometry.style,
+                showDetails: true,
+                continuation: !beginsHere,
                 showStartHandle: !continuesBefore,
                 showEndHandle: !continuesAfter
               });
             }).join('')}</div>`;
-          }).join('')}
-        `).join(''))}
+          }).join('')).join(''))}
       </div></div>`;
     };
+    // Scroll position survives re-renders: from the surface being replaced in
+    // this mount, or — when the host recreates the mount — from memory keyed
+    // by options.stateKey (or the mount id). Month rows only reuse their own
+    // month's position; timed views keep the time of day across dates/modes.
+    const viewportSignature = mode === 'month' ? `month:${anchor.getFullYear()}-${anchor.getMonth()}` : 'timed';
+    const viewportStateBase = clean(options.stateKey) || (container.id ? `#${container.id}` : '');
+    const viewportMemoryKey = mode !== 'list' && viewportStateBase ? `${viewportStateBase}|${viewportSignature}` : '';
     const previousSurface = container.querySelector('.prs-surface');
-    const previousScrollTop = previousSurface ? Number(previousSurface.scrollTop || 0) : 0;
-    const previousScrollLeft = previousSurface ? Number(previousSurface.scrollLeft || 0) : 0;
-    container.innerHTML = `<div class="prs-wrap ${readOnly ? 'readonly' : ''} ${allowEventDrag ? '' : 'events-click-only'} ${showToolbar ? '' : 'no-toolbar'} ${options.mobileLayout === true ? 'mobile-layout' : ''} ${mode === 'list' ? 'list-mode' : ''}">${showToolbar ? toolbar : ''}${mode === 'list' ? renderList() : mode === 'month' ? renderMonth() : renderTimed()}</div>`;
-    if (!['list','month'].includes(mode) && (previousScrollTop > 0 || previousScrollLeft > 0)) {
-      const scroll = container.querySelector('.prs-surface');
+    const previousViewport = previousSurface && previousSurface.dataset.prsViewport === viewportSignature
+      ? { top:Number(previousSurface.scrollTop || 0), left:Number(previousSurface.scrollLeft || 0) }
+      : (viewportMemoryKey ? scheduleViewports.get(viewportMemoryKey) : null);
+    const previousScrollTop = Number(previousViewport?.top || 0);
+    const previousScrollLeft = Number(previousViewport?.left || 0);
+    // Opt-in (placementHint: true or a string): hosts that show their own
+    // placement banner leave it off so the hint is not duplicated.
+    const placementHintText = clickPlacement && (options.placementHint === true || typeof options.placementHint === 'string')
+      ? clean(options.placementHint === true ? '' : options.placementHint) || (mode === 'month'
+        ? (globalThis.PlatformLanguage?.text("platform-schedule-view","m_place_hint_month","Click an empty spot on a day to place it") ?? "Click an empty spot on a day to place it")
+        : (globalThis.PlatformLanguage?.text("platform-schedule-view","m_place_hint_timed","Click an empty time or day to place it") ?? "Click an empty time or day to place it"))
+      : '';
+    const placementHintHtml = placementHintText && mode !== 'list'
+      ? `<div class="prs-placement-hint" role="status"><i class="fas fa-hand-pointer" aria-hidden="true"></i><span>${esc(placementHintText)}</span><kbd>Esc</kbd><span>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_place_hint_cancel","cancels") ?? "cancels")}</span></div>`
+      : '';
+    container.innerHTML = `<div class="prs-wrap ${readOnly ? 'readonly' : ''} ${allowCreate ? '' : 'no-create'} ${allowEventDrag ? '' : 'events-click-only'} ${clickPlacement ? 'placement-active' : ''} ${showToolbar ? '' : 'no-toolbar'} ${options.mobileLayout === true ? 'mobile-layout' : ''} ${mode === 'list' ? 'list-mode' : ''}">${showToolbar ? toolbar : ''}${mode === 'list' ? renderList() : mode === 'month' ? renderMonth() : renderTimed()}${placementHintHtml}</div>`;
+    const surfaceNode = container.querySelector('.prs-surface');
+    if (surfaceNode) surfaceNode.dataset.prsViewport = viewportSignature;
+    // Use the row height the host's CSS actually produced (phones: 48px), so
+    // chips line up with their hours and the initial scroll lands on the
+    // requested hour.
+    if (!['list','month'].includes(mode)) {
+      const firstRow = container.querySelector('.prs-time-body .prs-slot');
+      const measuredRow = Number(firstRow?.getBoundingClientRect?.().height || firstRow?.offsetHeight || 0);
+      if (measuredRow > 0 && Math.abs(measuredRow - slotHeight) > 0.5) {
+        slotHeight = measuredRow;
+        container.querySelectorAll('.prs-time-body .prs-work-chip.timed').forEach((chip) => {
+          const rangeStart = new Date(chip.dataset.prsRangeStart || '');
+          const rangeEnd = new Date(chip.dataset.prsRangeEnd || '');
+          const day = clean(chip.dataset.prsDay);
+          if (!day || !Number.isFinite(rangeStart.getTime()) || !Number.isFinite(rangeEnd.getTime())) return;
+          const dayStart = dateAt(day, '00:00');
+          const dayEnd = addDays(dayStart, 1);
+          const segmentStart = rangeStart > dayStart ? rangeStart : dayStart;
+          const segmentEnd = rangeEnd < dayEnd ? rangeEnd : dayEnd;
+          if (segmentEnd <= segmentStart) return;
+          const geometry = timedChipGeometry(segmentStart, segmentEnd);
+          chip.style.top = `${geometry.top}px`;
+          chip.style.height = `${geometry.height}px`;
+          chip.style.minHeight = `${geometry.height}px`;
+          chip.classList.toggle('compact-confirm', geometry.classes.includes('compact-confirm'));
+          chip.classList.toggle('prs-short', geometry.classes.includes('prs-short'));
+        });
+      }
+    }
+    if (mode !== 'list' && (previousScrollTop > 0 || previousScrollLeft > 0)) {
+      const scroll = surfaceNode;
       if (scroll) {
         scroll.scrollTop = previousScrollTop;
         scroll.scrollLeft = previousScrollLeft;
       }
     } else if (!['list','month'].includes(mode) && Number.isFinite(Number(options.initialScrollMinute))) {
-      const scroll = container.querySelector('.prs-surface');
+      const scroll = surfaceNode;
       const timeGrid = container.querySelector('.prs-time-grid:not(.prs-time-header-grid)');
       if (scroll && timeGrid) {
-        const initialMinute = Math.max(workStart, Math.min(workEnd - renderSlotMinutes, Number(options.initialScrollMinute)));
+        // Land on the top of the row holding the requested minute, so that
+        // hour (label and items starting in it) is fully visible.
+        const requestedMinute = Math.max(workStart, Math.min(workEnd - renderSlotMinutes, Number(options.initialScrollMinute)));
+        const initialMinute = workStart + Math.floor((requestedMinute - workStart) / renderSlotMinutes) * renderSlotMinutes;
         const rowOffset = ((initialMinute - workStart) / renderSlotMinutes) * slotHeight;
-        scroll.scrollTop = Math.max(0, timeGrid.offsetTop + rowOffset - 42);
+        // The day header and all-day band are sticky over the grid; land the
+        // requested hour below them and clear of the drag auto-scroll zone
+        // under them (a little of the hour before shows above it), so the
+        // first items in view can be dragged without scrolling the grid.
+        const stickyHeight = Number(container.querySelector('.prs-time-header-grid')?.offsetHeight || 0) + Number(container.querySelector('.prs-all-day-grid')?.offsetHeight || 0);
+        const clearance = Math.min(DRAG_AUTO_SCROLL_EDGE_PX - 4, Math.max(6, Math.round(slotHeight * 0.75)));
+        scroll.scrollTop = Math.max(0, timeGrid.offsetTop + rowOffset - stickyHeight - clearance);
       }
+    }
+    if (surfaceNode && viewportMemoryKey) {
+      scheduleViewports.set(viewportMemoryKey, { top:surfaceNode.scrollTop, left:surfaceNode.scrollLeft });
+      surfaceNode.addEventListener('scroll', () => {
+        scheduleViewports.set(viewportMemoryKey, { top:surfaceNode.scrollTop, left:surfaceNode.scrollLeft });
+      }, { passive:true, signal:listenerSignal });
+    }
+    // Current-time line across today's column in Day / 4 Day / Week.
+    const paintNowLine = () => {
+      const grid = container.querySelector('.prs-time-body');
+      if (!grid || !grid.isConnected) return false;
+      grid.querySelectorAll('.prs-now-line').forEach((node) => node.remove());
+      const now = new Date();
+      const nowMinute = now.getHours() * 60 + now.getMinutes();
+      if (nowMinute < workStart || nowMinute >= workEnd) return true;
+      const rowMinute = workStart + Math.floor((nowMinute - workStart) / renderSlotMinutes) * renderSlotMinutes;
+      const slot = grid.querySelector(`.prs-slot[data-prs-date="${dateKey(now)}"][data-prs-time="${timeString(rowMinute)}"]`);
+      if (!slot) return true;
+      const line = document.createElement('div');
+      line.className = 'prs-now-line';
+      line.setAttribute('aria-hidden', 'true');
+      line.style.left = `${slot.offsetLeft}px`;
+      line.style.width = `${slot.offsetWidth}px`;
+      line.style.top = `${slot.offsetTop + ((nowMinute - rowMinute) / renderSlotMinutes) * slot.offsetHeight - 1}px`;
+      grid.appendChild(line);
+      return true;
+    };
+    if (!['list','month'].includes(mode) && paintNowLine()) {
+      container.__prsNowTimer = setInterval(() => {
+        if (!paintNowLine()) {
+          clearInterval(container.__prsNowTimer);
+          container.__prsNowTimer = null;
+        }
+      }, 60000);
     }
     container.querySelectorAll('[data-prs-nav]').forEach((btn) => btn.addEventListener('click', () => {
       const delta = Number(btn.dataset.prsNav || 0);
@@ -2257,6 +2814,23 @@
       if (item) options.onEventClick?.(item, { element:button, action:'view' });
     }));
     const monthWeekRows = () => [...container.querySelectorAll('.prs-month-week')];
+    // Items hidden below the third lane are not tab stops until their row
+    // is expanded.
+    function syncMonthLaneFocus(){
+      monthWeekRows().forEach((week) => {
+        const open = week.classList.contains('expanded');
+        week.querySelectorAll('.prs-month-bar[data-prs-month-lane]').forEach((bar) => {
+          const hidden = !open && Number(bar.dataset.prsMonthLane || 0) >= MONTH_VISIBLE_ITEM_COUNT;
+          bar.querySelectorAll('.prs-work-chip').forEach((node) => node.setAttribute('tabindex', hidden ? '-1' : '0'));
+        });
+      });
+    }
+    const collapseExpandedMonthRows = () => {
+      const controller = container.querySelector('.prs-month-week.expanded [data-prs-month-overflow].is-controller');
+      if (!controller) return false;
+      controller.click();
+      return true;
+    };
     const setMonthWeekTrayHeight = (row, height) => {
       const pixels = `${Math.max(124, Number(height || 124))}px`;
       row.style.height = pixels;
@@ -2275,14 +2849,22 @@
         .map((row) => row.getBoundingClientRect().height)
         .filter((height) => Number.isFinite(height) && height >= 124);
       const collapsedReference = siblingHeights.length ? Math.min(...siblingHeights) : 124;
-      rows.forEach((row) => {
-        const measuredHeight = row.getBoundingClientRect().height;
+      // Measure every row before pinning any: pinning one row (with its
+      // height transition running) would hand its space to the rows measured
+      // after it, leaving the month with uneven rows. The pin itself is
+      // instant; only the expanding/collapsing row animates afterwards.
+      const measured = rows.map((row) => row.getBoundingClientRect().height);
+      rows.forEach((row, index) => {
+        const measuredHeight = measured[index];
         if (!row.dataset.prsMonthTrayBaseHeight) {
           const baseHeight = row === activeWeek && row.classList.contains('expanded') ? collapsedReference : measuredHeight;
           row.dataset.prsMonthTrayBaseHeight = String(Math.max(124, baseHeight));
         }
+        row.style.transition = 'none';
         setMonthWeekTrayHeight(row, measuredHeight);
       });
+      void rows[0]?.offsetHeight;
+      rows.forEach((row) => row.style.removeProperty('transition'));
     };
     const releaseMonthWeekTrayRows = () => {
       if (container.querySelector('.prs-month-week.expanded')) return;
@@ -2358,10 +2940,32 @@
         event.stopPropagation();
         btn.setPointerCapture?.(event.pointerId);
       });
-      btn.addEventListener('pointerenter', peekAtOverflow);
-      btn.addEventListener('pointerleave', resetOverflowPeek);
+      // The peek stays open while the pointer moves from "+N" onto it, so
+      // its items can be clicked (they open like any chip).
+      let peekCloseTimer = 0;
+      const cancelPeekClose = () => {
+        if (peekCloseTimer) clearTimeout(peekCloseTimer);
+        peekCloseTimer = 0;
+      };
+      const schedulePeekClose = () => {
+        cancelPeekClose();
+        peekCloseTimer = setTimeout(() => {
+          peekCloseTimer = 0;
+          resetOverflowPeek();
+        }, 160);
+      };
+      btn.addEventListener('pointerenter', () => {
+        cancelPeekClose();
+        if (!peek?.classList.contains('active')) peekAtOverflow();
+      });
+      btn.addEventListener('pointerleave', schedulePeekClose);
       btn.addEventListener('focus', peekAtOverflow);
       btn.addEventListener('blur', resetOverflowPeek);
+      peek?.addEventListener('pointerenter', () => { if (peek.classList.contains('active')) cancelPeekClose(); });
+      peek?.addEventListener('pointerleave', (event) => {
+        if (event.relatedTarget && btn.contains(event.relatedTarget)) return;
+        schedulePeekClose();
+      });
       btn.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -2387,7 +2991,21 @@
           btn.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("platform-schedule-view","m_4c1e003542095e","Show fewer items") ?? "Show fewer items"));
           void week.offsetHeight;
           requestAnimationFrame(() => setMonthWeekTrayHeight(week, expandedHeight));
+          // Once the row has grown (and the anchor hold ended), bring its
+          // bottom into view, e.g. when the last row of the month expands.
+          week.__prsMonthTrayRevealTimer = setTimeout(() => {
+            week.__prsMonthTrayRevealTimer = null;
+            const surface = week.closest('.prs-surface');
+            if (!surface || !week.isConnected || !week.classList.contains('expanded')) return;
+            const rowRect = week.getBoundingClientRect();
+            const surfaceRect = surface.getBoundingClientRect();
+            const headBottom = container.querySelector('.prs-month-head-row')?.getBoundingClientRect().bottom ?? surfaceRect.top;
+            const hiddenBelow = rowRect.bottom - surfaceRect.bottom;
+            if (hiddenBelow > 1) surface.scrollBy({ top:Math.max(0, Math.min(hiddenBelow + 4, rowRect.top - headBottom)), behavior:'smooth' });
+          }, 380);
         } else {
+          if (week.__prsMonthTrayRevealTimer) clearTimeout(week.__prsMonthTrayRevealTimer);
+          week.__prsMonthTrayRevealTimer = null;
           const collapsedHeight = Math.max(124, Number(week.dataset.prsMonthTrayBaseHeight || 124));
           week.style.setProperty('--prs-month-expanded-height', '124px');
           week.classList.add('collapsing');
@@ -2400,13 +3018,16 @@
             releaseMonthWeekTrayRows();
           }, 320);
         }
+        syncMonthLaneFocus();
         options.onMonthExpansionChange?.([...container.querySelectorAll('[data-prs-month-overflow].is-controller')].map((control) => control.dataset.prsMonthDate).filter(Boolean));
       });
     });
+    syncMonthLaneFocus();
     container.querySelectorAll('[data-prs-week-all-day-overflow]').forEach((btn) => {
       const band = btn.closest('.prs-all-day-grid.week-overflow');
       if (!band) return;
       const resetPeek = () => {
+        band.classList.remove('peeking');
         band.style.setProperty('--prs-week-all-day-scroll-y', '0px');
       };
       const previewOverflow = () => {
@@ -2416,9 +3037,10 @@
         const duration = steps <= 4 ? 180 : Math.min(1800, 280 + (steps - 4) * 180);
         band.style.setProperty('--prs-week-all-day-scroll-duration', `${duration}ms`);
         resetPeek();
+        band.classList.add('peeking');
         void band.offsetHeight;
         requestAnimationFrame(() => requestAnimationFrame(() => {
-          if (!band.classList.contains('expanded')) band.style.setProperty('--prs-week-all-day-scroll-y', `${-scroll}px`);
+          if (!band.classList.contains('expanded') && band.classList.contains('peeking')) band.style.setProperty('--prs-week-all-day-scroll-y', `${-scroll}px`);
         }));
       };
       btn.addEventListener('pointerdown', (event) => {
@@ -2470,6 +3092,7 @@
     const cancelTouchHold = () => {
       if (!pendingTouchHold) return;
       window.clearTimeout(pendingTouchHold.timer);
+      pendingTouchHold.release?.();
       pendingTouchHold = null;
     };
     const armTouchHold = (event, activate) => {
@@ -2480,11 +3103,25 @@
         pointerId:event.pointerId,
         startX:event.clientX,
         startY:event.clientY,
-        timer:null
+        timer:null,
+        release:null
+      };
+      // The finger can lift anywhere (or the browser can cancel the touch);
+      // watch the whole document so the hold never fires after release.
+      const onRelease = (releaseEvent) => {
+        if (releaseEvent.pointerId === pending.pointerId && pendingTouchHold === pending) cancelTouchHold();
+      };
+      document.addEventListener('pointerup', onRelease, true);
+      document.addEventListener('pointercancel', onRelease, true);
+      pending.release = () => {
+        document.removeEventListener('pointerup', onRelease, true);
+        document.removeEventListener('pointercancel', onRelease, true);
       };
       pending.timer = window.setTimeout(() => {
         if (pendingTouchHold !== pending) return;
         pendingTouchHold = null;
+        pending.release();
+        if (!container.isConnected) return;
         activate();
       }, touchHoldDelayMs);
       pendingTouchHold = pending;
@@ -2580,10 +3217,26 @@
       const start = dateAt(cell.dataset.prsDate, timeString(minute));
       return { start, end: new Date(start.getTime() + 60 * 60000), allDay: false, granularity: 'time' };
     };
+    // Rows/slots scrolled out of view keep their geometry; only the visible
+    // surface counts as "on the calendar".
+    const pointOnSurface = (x, y) => {
+      const surface = container.querySelector('.prs-surface');
+      if (!surface) return false;
+      const rect = surface.getBoundingClientRect();
+      return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    };
+    // Bottom edge of the sticky header (+ all-day band): grid rows scrolled
+    // beneath it are hidden and must not be hit.
+    const stickyHeaderBottom = () => {
+      const sticky = mode === 'month'
+        ? container.querySelector('.prs-month-head-row')
+        : (container.querySelector('.prs-all-day-grid') || container.querySelector('.prs-time-header-grid'));
+      return sticky ? sticky.getBoundingClientRect().bottom : -Infinity;
+    };
     const rangeFromMonthPointer = (event) => {
       const x = Number(event.clientX);
       const y = Number(event.clientY);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !pointOnSurface(x, y) || y < stickyHeaderBottom()) return null;
       const week = Array.from(container.querySelectorAll('.prs-month-week')).find((weekEl) => {
         const rect = weekEl.getBoundingClientRect();
         return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
@@ -2599,12 +3252,13 @@
     const rangeFromTimedPointer = (event) => {
       const x = Number(event.clientX);
       const y = Number(event.clientY);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !pointOnSurface(x, y)) return null;
       const allDayCell = Array.from(container.querySelectorAll('.prs-all-day-cell[data-prs-date]')).find((node) => {
         const rect = node.getBoundingClientRect();
         return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
       });
       if (allDayCell) return pointRange(allDayCell, event);
+      if (y < stickyHeaderBottom()) return null;
       const slot = Array.from(container.querySelectorAll('.prs-slot[data-prs-date][data-prs-time]')).find((node) => {
         const rect = node.getBoundingClientRect();
         return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
@@ -2617,22 +3271,45 @@
       const node = document.elementFromPoint?.(event.clientX, event.clientY);
       return node ? pointRange(node, event) : null;
     };
-    const eventForDragTarget = (event, activeDrag = drag) => {
-      if (mode === 'month' || activeDrag?.kind !== 'move' || !rangeItemIsTimed(activeDrag?.item)) return event;
-      const x = Number(event.clientX);
-      const y = Number(event.clientY);
-      const slot = Array.from(container.querySelectorAll('.prs-slot[data-prs-date][data-prs-time]')).find((node) => {
-        const rect = node.getBoundingClientRect();
-        return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-      });
-      if (!slot) return event;
-      const rect = slot.getBoundingClientRect();
-      const pixelsPerMinute = rect.height / Math.max(1, renderSlotMinutes);
-      return { clientX:x, clientY:y - TIMED_MOVE_CURSOR_OFFSET_MINUTES * pixelsPerMinute, target:event.target };
+    /* Where the pointer is, in calendar terms: the day under it, which zone
+     * (month cell, all-day band, or time grid) and — in the grid — the exact
+     * (unsnapped) minute of day. Drags compare this against the same reading
+     * taken at pointerdown, so an item keeps its offset under the cursor. */
+    const pointInRect = (node, x, y) => {
+      const rect = node.getBoundingClientRect();
+      return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
     };
+    const calendarPointAt = (event, { gridOnly = false } = {}) => {
+      const x = Number(event?.clientX);
+      const y = Number(event?.clientY);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !pointOnSurface(x, y)) return null;
+      if (mode === 'month') {
+        const range = rangeFromMonthPointer(event);
+        return range ? { zone:'month', day:dateKey(range.start) } : null;
+      }
+      if (!gridOnly) {
+        const allDayCell = Array.from(container.querySelectorAll('.prs-all-day-cell[data-prs-date]')).find((node) => pointInRect(node, x, y));
+        if (allDayCell) return { zone:'band', day:allDayCell.dataset.prsDate };
+      }
+      if (y < stickyHeaderBottom()) return null;
+      const slot = Array.from(container.querySelectorAll('.prs-slot[data-prs-date][data-prs-time]')).find((node) => pointInRect(node, x, y));
+      if (!slot) return null;
+      const rect = slot.getBoundingClientRect();
+      const fraction = Math.max(0, Math.min(1, (y - rect.top) / Math.max(1, rect.height)));
+      return { zone:'grid', day:slot.dataset.prsDate, minute:minutes(slot.dataset.prsTime) + fraction * renderSlotMinutes };
+    };
+    // Resizing a grid item only ever reads the grid (the sticky band above it
+    // must not turn an edge drag into an all-day conversion).
+    // Resizing a timed item by its top/bottom edge only reads the pointer's
+    // height: sideways motion never changes its day (or collapses it).
     const rangeForDragTarget = (event, activeDrag = drag) => {
-      const adjustedEvent = eventForDragTarget(event, activeDrag);
-      return rangeFromPointer(adjustedEvent) || pointRange(event.target, adjustedEvent);
+      const edgeResize = activeDrag?.zone === 'grid' && activeDrag?.kind !== 'move';
+      if (!edgeResize) return calendarPointAt(event);
+      const column = activeDrag.node?.closest?.('.prs-slot')?.getBoundingClientRect?.();
+      const point = column && column.width > 0
+        ? { clientX:column.left + column.width / 2, clientY:Number(event?.clientY) }
+        : event;
+      return calendarPointAt(point, { gridOnly:true });
     };
     let localActiveDraft = activeDraft;
     const composeDraft = (range, extra = {}) => {
@@ -2678,6 +3355,8 @@
       const placedRightGutter = compactMobileWeek ? 1 : TIMED_PLACED_RIGHT_GUTTER_PX;
       const chips = Array.from(container.querySelectorAll('.prs-time-grid:not(.prs-time-header-grid) .prs-work-chip.timed'));
       chips.forEach((chip) => {
+        // The item being dragged stays a ghost at its original geometry.
+        if (chip.classList.contains('dragging')) return;
         const preview = chip.classList.contains('live-preview');
         chip.style.left = preview ? '0px' : `${placedLeftInset}px`;
         chip.style.right = preview ? '0px' : `${placedRightGutter}px`;
@@ -2726,7 +3405,9 @@
           const insetLeft = Number(layout.insetLeft || 0);
           const insetRight = Number(layout.insetRight || 0);
           const leftInset = layout.preview ? 0 : placedLeftInset;
-          const rightGutter = layout.preview ? 0 : placedRightGutter;
+          // Side-by-side items share the whole column (a lone item keeps the
+          // click-to-create strip on its right).
+          const rightGutter = layout.preview ? 0 : (Number(layout.columnCount || 1) > 1 ? Math.min(placedRightGutter, 3) : placedRightGutter);
           const geometry = timedOverlapColumnGeometry(layout, rightGutter);
           layout.chip.style.left = edgePosition(geometry.leftFraction, geometry.leftPixels + leftInset);
           layout.chip.style.right = edgePosition(geometry.rightFraction, geometry.rightPixels);
@@ -2741,6 +3422,10 @@
       });
     };
     const restorePreviewLaneLayout = () => {
+      container.querySelectorAll('[data-prs-preview-original-overflow]').forEach((node) => {
+        node.classList.toggle('lane-overflow', node.getAttribute('data-prs-preview-original-overflow') === '1');
+        node.removeAttribute('data-prs-preview-original-overflow');
+      });
       container.querySelectorAll('[data-prs-preview-original-margin]').forEach((node) => {
         node.style.marginTop = node.getAttribute('data-prs-preview-original-margin') || '';
         node.removeAttribute('data-prs-preview-original-margin');
@@ -2769,12 +3454,41 @@
       clearLivePreview();
     };
     const previewTitle = (activeDrag = drag) => activeDrag?.item?.title || activeDraft?.title || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_2ac9ecd66d638b","New Event") ?? "New Event");
-    const renderMonthPreview = (start, end, activeDrag = drag, clear = true) => {
+    // Placement previews (rail items) keep the dashed PREVIEW look; moving,
+    // resizing or drawing an item previews it in its own colours.
+    const isPlacementPreview = (activeDrag) => Object.prototype.hasOwnProperty.call(objectValue(activeDrag?.item), '__previewPrimary');
+    /* Lanes a band row (the all-day band, or a Month week) shows without
+     * "+N more". */
+    const bandLaneCapacity = (rowNode, { base, step, chipHeight, monthRow = false }) => {
+      if (monthRow) return rowNode.classList.contains('expanded') ? Infinity : MONTH_VISIBLE_ITEM_COUNT;
+      if (rowNode.classList.contains('has-overflow') && !rowNode.classList.contains('expanded')) return WEEK_ALL_DAY_VISIBLE_ITEM_COUNT;
+      const height = Number.parseFloat(rowNode.style.height || '') || rowNode.offsetHeight || 0;
+      return Math.max(1, Math.floor((height - base - chipHeight) / step) + 1);
+    };
+    /* First lane of a band row free across [startCol, endCol) within what the
+     * row shows, ignoring the bars of excludeId (the item being dragged);
+     * -1 when every shown lane is taken there. */
+    const freeBandLane = (rowNode, wrapperSelector, startCol, endCol, { base, step, capacity, excludeId = '' }) => {
+      const taken = Array.from(rowNode.querySelectorAll(wrapperSelector)).map((node) => {
+        const chip = node.querySelector('.prs-work-chip');
+        if (excludeId && String(chip?.dataset?.prsEventId || '') === excludeId) return null;
+        const columns = String(node.style.gridColumn || '').split('/').map((value) => Number.parseInt(value, 10));
+        if (!Number.isFinite(columns[0]) || !Number.isFinite(columns[1])) return null;
+        return { lane:Math.max(0, Math.round(((Number.parseFloat(node.style.marginTop || '') || base) - base) / step)), startCol:columns[0], endCol:columns[1] };
+      }).filter(Boolean);
+      for (let lane = 0; lane < Math.min(capacity, 64); lane += 1) {
+        if (!taken.some((entry) => entry.lane === lane && entry.startCol < endCol && startCol < entry.endCol)) return lane;
+      }
+      return -1;
+    };
+    const renderMonthPreview = (start, end, activeDrag = drag, clear = true, shape = null) => {
       if (clear) clearLivePreview();
       if (mode !== 'month' || !start || !end || end <= start) return;
-      const timedMonth = activeDrag?.item && rangeItemIsTimed(activeDrag.item);
-      const displayStart = timedMonth ? dateAt(dateKey(start), '00:00') : start;
-      const displayEnd = timedMonth ? addDays(displayStart, 1) : end;
+      const timedMonth = shape ? shape.all_day === false : !!(activeDrag?.item && rangeItemIsTimed(activeDrag.item));
+      const bandRange = timedMonth ? dayBandRange({ start, end }) : { start, end };
+      const displayStart = bandRange.start;
+      const displayEnd = bandRange.end;
+      const placementPreview = isPlacementPreview(activeDrag);
       const previewItem = {
         ...objectValue(activeDrag?.item),
         id: '__preview',
@@ -2801,15 +3515,22 @@
         node.style.gridColumn = `${startCol}/${endCol}`;
         const rowKey = dateKey(weekStart);
         const previewLane = Number(activeDrag?.item?.__previewLaneByRow?.[rowKey]);
-        node.style.marginTop = Number.isFinite(previewLane) ? `${MONTH_ITEM_TOP_PX + previewLane * MONTH_ITEM_STEP_PX}px` : (activeDrag?.wrapper?.style?.marginTop || activeDrag?.node?.closest?.('.prs-month-bar')?.style?.marginTop || `${MONTH_ITEM_TOP_PX}px`);
+        // A dragged bar previews in a lane that is free on its new days, not
+        // on top of another bar.
+        const freeLane = Number.isFinite(previewLane) ? -1 : freeBandLane(weekEl, '.prs-month-bar', startCol, endCol, { base:MONTH_ITEM_TOP_PX, step:MONTH_ITEM_STEP_PX, capacity:bandLaneCapacity(weekEl, { monthRow:true }), excludeId:String(activeDrag?.item?.id || '') });
+        node.style.marginTop = Number.isFinite(previewLane)
+          ? `${MONTH_ITEM_TOP_PX + previewLane * MONTH_ITEM_STEP_PX}px`
+          : (freeLane >= 0 ? `${MONTH_ITEM_TOP_PX + freeLane * MONTH_ITEM_STEP_PX}px` : (activeDrag?.wrapper?.style?.marginTop || activeDrag?.node?.closest?.('.prs-month-bar')?.style?.marginTop || `${MONTH_ITEM_TOP_PX}px`));
         node.dataset.prsDate = dateKey(segmentStart);
-        node.innerHTML = workChipHtml(previewItem, timedMonth ? { start, end } : { start: segmentStart, end: segmentEnd }, {
+        node.innerHTML = chipHtml(previewItem, timedMonth ? { start, end } : { start: segmentStart, end: segmentEnd }, {
           draft: false,
-          preview: true,
+          preview: placementPreview,
+          dragPreview: !placementPreview,
           mode,
           day: dateKey(segmentStart),
           chipClass: timedMonth ? 'timed-month' : '',
-          showDetails: beginsHere,
+          showDetails: true,
+          continuation: !beginsHere,
           showTime: false,
           showSecondary: false,
           showStartHandle: false,
@@ -2821,6 +3542,7 @@
     const renderTimedPreview = (start, end, activeDrag = drag, clear = true) => {
       if (clear) clearLivePreview();
       if (mode === 'month' || !start || !end || end <= start) return;
+      const placementPreview = isPlacementPreview(activeDrag);
       const previewItem = {
         ...objectValue(activeDrag?.item),
         id: '__preview',
@@ -2828,23 +3550,27 @@
         all_day: false,
         schedule_granularity: 'time',
       };
+      // A drag preview reads out the time it will land on.
+      if (!placementPreview) previewItem.secondary_label = formatRange(start, end, false, { timeOnly:true });
       timedSegments(previewItem, { start, end }).forEach(({ segmentRange, continuesBefore, continuesAfter, beginsHere }) => {
         const day = dateKey(segmentRange.start);
         const time = timeString(rowStartMinute(segmentRange.start));
         const target = Array.from(container.querySelectorAll('.prs-slot[data-prs-date][data-prs-time]')).find((slot) => slot.dataset.prsDate === day && slot.dataset.prsTime === time);
         if (!target) return;
         const holder = document.createElement('div');
-        holder.innerHTML = workChipHtml(previewItem, { start, end }, {
+        holder.innerHTML = chipHtml(previewItem, { start, end }, {
           draft: false,
-          preview: true,
+          preview: placementPreview,
+          dragPreview: !placementPreview,
           mode,
           day,
-          showDetails: beginsHere,
+          showDetails: true,
+          continuation: !beginsHere,
           showTime: true,
           showStartHandle: false,
           showEndHandle: false,
-          chipClass: `${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''}`,
-          chipStyle: `top:${chipOffsetTop(segmentRange.start)}px;height:${chipHeightForRange(segmentRange.start, segmentRange.end)}px;min-height:${chipHeightForRange(segmentRange.start, segmentRange.end)}px`
+          chipClass: `${timedChipGeometry(segmentRange.start, segmentRange.end).classes} ${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''}`,
+          chipStyle: timedChipGeometry(segmentRange.start, segmentRange.end).style
         });
         const chip = holder.firstElementChild;
         if (!chip) return;
@@ -2853,30 +3579,34 @@
       });
       reflowTimedOverlaps();
     };
-    const renderAllDayBandPreview = (start, end, activeDrag = drag, clear = true) => {
+    const renderAllDayBandPreview = (start, end, activeDrag = drag, clear = true, shape = null) => {
       if (clear) clearLivePreview();
       if (mode === 'month' || !start || !end || end <= start) return;
       const band = container.querySelector('.prs-all-day-grid');
       const firstDay = band?.querySelector?.('.prs-all-day-cell[data-prs-date]');
       if (!band || !firstDay) return;
+      // A timed item that spans days previews as a day-rounded bar.
+      const timedSpan = shape ? shape.all_day === false : false;
+      const bandRange = timedSpan ? dayBandRange({ start, end }) : { start, end };
       const dayCells = Array.from(band.querySelectorAll('.prs-all-day-cell[data-prs-date]'));
       const bandStart = dateAt(firstDay.dataset.prsDate, '00:00');
       const bandEnd = addDays(bandStart, dayCells.length || 1);
-      const displayStart = start > bandStart ? start : bandStart;
-      const displayEnd = end < bandEnd ? end : bandEnd;
+      const displayStart = bandRange.start > bandStart ? bandRange.start : bandStart;
+      const displayEnd = bandRange.end < bandEnd ? bandRange.end : bandEnd;
       if (displayStart >= bandEnd || displayEnd <= bandStart) return;
       const startCol = Math.max(1, Math.min(dayCells.length || 1, dayDiff(bandStart, displayStart) + 1));
       const gridStartCol = startCol + 1;
       const endCol = Math.max(gridStartCol + 1, Math.min((dayCells.length || 1) + 2, dayDiff(bandStart, displayEnd) + 2));
-      const continuesBefore = start < bandStart;
-      const continuesAfter = end > bandEnd;
-      const beginsHere = start >= bandStart && start < bandEnd;
+      const continuesBefore = bandRange.start < bandStart;
+      const continuesAfter = bandRange.end > bandEnd;
+      const beginsHere = bandRange.start >= bandStart && bandRange.start < bandEnd;
+      const placementPreview = isPlacementPreview(activeDrag);
       const previewItem = {
         ...objectValue(activeDrag?.item),
         id: '__preview',
         title: previewTitle(activeDrag),
-        all_day: true,
-        schedule_granularity: 'date',
+        all_day: !timedSpan,
+        schedule_granularity: timedSpan ? 'time' : 'date',
       };
       const node = document.createElement('div');
       node.className = `prs-all-day-bar-top live-preview ${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''}`;
@@ -2885,25 +3615,54 @@
       node.style.gridRow = '1';
       const rowKey = dateKey(bandStart);
       const previewLane = Number(activeDrag?.item?.__previewLaneByRow?.[rowKey]);
-      const previewTop = mode === 'week' ? WEEK_ALL_DAY_ITEM_TOP_PX : 6;
-      const previewStep = mode === 'week' ? WEEK_ALL_DAY_ITEM_STEP_PX : 48;
-      node.style.marginTop = Number.isFinite(previewLane) ? `${previewTop + previewLane * previewStep}px` : (activeDrag?.wrapper?.style?.marginTop || activeDrag?.node?.closest?.('.prs-all-day-bar-top')?.style?.marginTop || `${previewTop}px`);
+      const previewTop = allDayBandTop;
+      const previewStep = allDayBandStep;
+      // A dragged bar previews in a lane that is free on its new days, not
+      // on top of another bar.
+      const bandCapacity = bandLaneCapacity(band, { base:previewTop, step:previewStep, chipHeight:compactAllDayBand ? WEEK_ALL_DAY_ITEM_HEIGHT_PX : 42 });
+      let freeLane = Number.isFinite(previewLane) ? -1 : freeBandLane(band, '.prs-all-day-bar-top', gridStartCol, endCol, { base:previewTop, step:previewStep, capacity:bandCapacity, excludeId:String(activeDrag?.item?.id || '') });
+      // Every lane the band shows is taken on those days: while dragging (not
+      // a hover preview), open one more lane under them for the preview; the
+      // band returns to its height when the preview clears.
+      if (!Number.isFinite(previewLane) && freeLane < 0 && !placementPreview && Number.isFinite(bandCapacity)) {
+        freeLane = bandCapacity;
+        if (!band.hasAttribute('data-prs-preview-original-rows')) {
+          band.setAttribute('data-prs-preview-original-rows', band.style.gridTemplateRows || '');
+          band.setAttribute('data-prs-preview-original-height', band.style.height || '');
+          band.setAttribute('data-prs-preview-original-min-height-band', band.style.minHeight || '');
+        }
+        const grownHeight = Math.max(band.offsetHeight || 0, previewTop + (freeLane + 1) * previewStep + (band.classList.contains('has-overflow') ? 22 : 6));
+        band.style.gridTemplateRows = `${grownHeight}px`;
+        band.style.height = `${grownHeight}px`;
+        band.style.minHeight = `${grownHeight}px`;
+      }
+      node.style.marginTop = Number.isFinite(previewLane)
+        ? `${previewTop + previewLane * previewStep}px`
+        : (freeLane >= 0 ? `${previewTop + freeLane * previewStep}px` : (activeDrag?.wrapper?.style?.marginTop || activeDrag?.node?.closest?.('.prs-all-day-bar-top')?.style?.marginTop || `${previewTop}px`));
       node.dataset.prsDate = dateKey(displayStart);
-      node.innerHTML = workChipHtml(previewItem, { start: displayStart, end: displayEnd }, {
+      node.innerHTML = chipHtml(previewItem, timedSpan ? { start, end } : { start: displayStart, end: displayEnd }, {
         draft: false,
-        preview: true,
+        preview: placementPreview,
+        dragPreview: !placementPreview,
         mode: 'month',
         day: dateKey(displayStart),
-        showDetails: beginsHere,
+        chipClass: timedSpan ? 'timed-month timed-span' : '',
+        showDetails: true,
+        continuation: !beginsHere,
         showTime: false,
         showStartHandle: false,
         showEndHandle: false
       });
       band.appendChild(node);
     };
-    const renderRangePreview = (start, end, activeDrag = drag, clear = true) => {
-      if (mode === 'month') renderMonthPreview(start, end, activeDrag, clear);
-      else if (activeDrag?.anchor?.allDay === true || (activeDrag?.item && !rangeItemIsTimed(activeDrag.item))) renderAllDayBandPreview(start, end, activeDrag, clear);
+    /* shape (optional) is the {all_day} of the range being previewed, so a
+     * drag that converts an item between the band and the grid previews
+     * where it will actually land. */
+    const renderRangePreview = (start, end, activeDrag = drag, clear = true, shape = null) => {
+      const allDay = shape ? shape.all_day !== false : (activeDrag?.anchor?.allDay === true || (activeDrag?.item && !rangeItemIsTimed(activeDrag.item)));
+      if (mode === 'month') renderMonthPreview(start, end, activeDrag, clear, shape);
+      else if (allDay) renderAllDayBandPreview(start, end, activeDrag, clear, { all_day:true });
+      else if (timedRangeSpansDays({ start, end })) renderAllDayBandPreview(start, end, activeDrag, clear, { all_day:false });
       else renderTimedPreview(start, end, activeDrag, clear);
     };
     const placementDraftsForRange = (range) => {
@@ -2923,13 +3682,16 @@
             const node = container.querySelector('.prs-all-day-grid');
             const cells = Array.from(node?.querySelectorAll?.('.prs-all-day-cell[data-prs-date]') || []);
             const start = cells[0] ? dateAt(cells[0].dataset.prsDate, '00:00') : null;
-            const compactAllDay = mode === 'week';
+            const compactAllDay = compactAllDayBand;
             return node && start ? [{ key:dateKey(start), node, start, end:addDays(start, cells.length || 1), firstColumn:2, base:compactAllDay ? WEEK_ALL_DAY_ITEM_TOP_PX : 6, step:compactAllDay ? WEEK_ALL_DAY_ITEM_STEP_PX : 48, chipHeight:compactAllDay ? WEEK_ALL_DAY_ITEM_HEIGHT_PX : 42, wrapperSelector:'.prs-all-day-bar-top:not(.live-preview)' }] : [];
           })();
       const previewSegments = [];
       drafts.forEach((draft, draftIndex) => {
         const start = new Date(draft.start);
         const end = new Date(draft.end);
+        // Outside Month only all-day items and multi-day spans land in the
+        // band; a timed preview in the grid must not grow or reshuffle it.
+        if (mode !== 'month' && draft.all_day === false && !timedRangeSpansDays({ start, end })) return;
         rows.forEach((row) => {
           if (start >= row.end || end <= row.start) return;
           const segmentStart = start > row.start ? start : row.start;
@@ -2959,6 +3721,32 @@
           });
         });
       });
+      if (mode !== 'month') {
+        // The all-day band never grows, shrinks or reshuffles under a hover
+        // preview: bars already there keep their lanes and each preview takes
+        // the first lane free on its days (drawn over a bar only when every
+        // lane the band shows is taken there).
+        const bandLanes = drafts.map(() => ({}));
+        const placed = [];
+        const takenBy = (list, lane, entry) => list.some((other) => other.lane === lane && other.startCol < entry.endCol && entry.startCol < other.endCol);
+        const existingLanes = existingSegments.map((entry) => ({ ...entry, lane:entry.originalLane }));
+        previewSegments.forEach((entry) => {
+          const row = rows.find((item) => item.key === entry.rowKey);
+          if (!row) return;
+          const capacity = bandLaneCapacity(row.node, row);
+          let lane = -1;
+          for (let candidate = 0; lane < 0 && candidate < capacity; candidate += 1) {
+            if (!takenBy(existingLanes, candidate, entry) && !takenBy(placed, candidate, entry)) lane = candidate;
+          }
+          for (let candidate = 0; lane < 0 && candidate < capacity; candidate += 1) {
+            if (!takenBy(placed, candidate, entry)) lane = candidate;
+          }
+          if (lane < 0) lane = 0;
+          placed.push({ ...entry, lane });
+          bandLanes[entry.draftIndex][entry.rowKey] = lane;
+        });
+        return bandLanes;
+      }
       const packed = packPreviewLaneSegments(previewSegments, existingSegments);
       const laneByDraft = drafts.map(() => ({}));
       packed.previews.forEach((entry) => { laneByDraft[entry.draftIndex][entry.rowKey] = entry.lane; });
@@ -2966,21 +3754,34 @@
         if (!entry.node.hasAttribute('data-prs-preview-original-margin')) entry.node.setAttribute('data-prs-preview-original-margin', entry.node.style.marginTop || '');
         const row = rows.find((item) => item.key === entry.rowKey);
         if (row) entry.node.style.marginTop = `${row.base + entry.lane * row.step}px`;
+        if (mode !== 'month' && entry.node.hasAttribute('data-prs-week-lane')) {
+          if (!entry.node.hasAttribute('data-prs-preview-original-overflow')) entry.node.setAttribute('data-prs-preview-original-overflow', entry.node.classList.contains('lane-overflow') ? '1' : '0');
+          entry.node.classList.toggle('lane-overflow', compactAllDayBand && entry.lane >= WEEK_ALL_DAY_VISIBLE_ITEM_COUNT);
+        }
       });
       rows.forEach((row) => {
+        if (!packed.previews.some((entry) => entry.rowKey === row.key)) return;
         const rowLanes = [...packed.previews, ...packed.existing].filter((entry) => entry.rowKey === row.key).map((entry) => entry.lane);
-        const maxLane = rowLanes.length ? Math.max(...rowLanes) : 0;
+        const previewLanes = packed.previews.filter((entry) => entry.rowKey === row.key).map((entry) => entry.lane);
+        // A collapsed "+N more" band only needs room for the previews; the
+        // existing bars it pushes down stay behind "+N more".
+        const collapsedBand = row.node.classList.contains('has-overflow') && !row.node.classList.contains('expanded');
+        const lanesForHeight = collapsedBand ? previewLanes : rowLanes;
+        const maxLane = lanesForHeight.length ? Math.max(...lanesForHeight) : 0;
         if (mode === 'month') {
-          if (!row.node.hasAttribute('data-prs-preview-original-min-height')) row.node.setAttribute('data-prs-preview-original-min-height', row.node.style.minHeight || '');
-          row.node.style.minHeight = `${Math.max(124, row.base + maxLane * row.step + row.chipHeight + 8)}px`;
-          row.node.classList.add('preview-expanded');
+          // Month rows keep their height while hovering: the previews take the
+          // top lanes (existing bars are pushed down under "+N"), so the row
+          // under the pointer never grows or shifts the rows around it.
         } else {
           if (!row.node.hasAttribute('data-prs-preview-original-rows')) {
             row.node.setAttribute('data-prs-preview-original-rows', row.node.style.gridTemplateRows || '');
             row.node.setAttribute('data-prs-preview-original-height', row.node.style.height || '');
             row.node.setAttribute('data-prs-preview-original-min-height-band', row.node.style.minHeight || '');
           }
-          const previewHeight = Math.max(54, 12 + (maxLane + 1) * row.step);
+          const originalHeight = Number.parseFloat(row.node.getAttribute('data-prs-preview-original-height') || '') || row.node.offsetHeight || 0;
+          // Grow only when the previews need more room: never shrink or
+          // shift the grid under the pointer.
+          const previewHeight = Math.max(54, originalHeight, 12 + (maxLane + 1) * row.step);
           row.node.style.gridTemplateRows = `${previewHeight}px`;
           row.node.style.height = `${previewHeight}px`;
           row.node.style.minHeight = `${previewHeight}px`;
@@ -2989,8 +3790,12 @@
       return laneByDraft;
     };
     const placementChromeTarget = (target) => target?.closest?.('.prs-toolbar,.prs-view-switch,[data-prs-month-overflow],[data-prs-week-all-day-overflow]');
+    // Items already on the calendar are not placement targets: clicking one
+    // opens it, so hovering one shows no placement preview either.
+    const placedChipUnderPointer = (target) => target?.closest?.('.prs-work-chip:not(.live-preview):not(.preview):not(.drag-preview)');
     const renderClickPlacementPreview = (event) => {
       if (!clickPlacement || drag || placementChromeTarget(event.target)) return;
+      if (placedChipUnderPointer(event.target)) { clearLivePreview(); return; }
       const range = rangeFromPointer(event) || pointRange(event.target, event);
       const drafts = placementDraftsForRange(range);
       if (!drafts.length) { clearLivePreview(); return; }
@@ -3030,19 +3835,20 @@
         const time = timeString(rowStartMinute(segmentRange.start));
         const target = Array.from(container.querySelectorAll('.prs-slot[data-prs-date][data-prs-time]')).find((slot) => slot.dataset.prsDate === day && slot.dataset.prsTime === time);
         if (!target) return;
-        const chipHeight = chipHeightForRange(segmentRange.start, segmentRange.end);
+        const geometry = timedChipGeometry(segmentRange.start, segmentRange.end);
         const holder = document.createElement('div');
-        holder.innerHTML = workChipHtml({ ...item, all_day:false, schedule_granularity:'time' }, { start, end }, {
+        holder.innerHTML = chipHtml({ ...item, all_day:false, schedule_granularity:'time' }, { start, end }, {
           draft,
           confirmable,
           mode,
           day,
-          showDetails: beginsHere,
+          showDetails: true,
+          continuation: !beginsHere,
           showTime: true,
           showStartHandle: !continuesBefore,
           showEndHandle: !continuesAfter,
-          chipClass: `${chipHeight <= 64 ? 'compact-confirm' : ''} ${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''}`,
-          chipStyle: `top:${chipOffsetTop(segmentRange.start)}px;height:${chipHeight}px;min-height:${chipHeight}px`
+          chipClass: `${geometry.classes} ${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''}`,
+          chipStyle: geometry.style
         });
         const chip = holder.firstElementChild;
         if (!chip) return;
@@ -3055,6 +3861,56 @@
       reflowTimedOverlaps();
       return appended;
     };
+    /* Draws an item as month bars / all-day band bars: all-day items, every
+     * item in Month, and timed items spanning a day or more. */
+    const appendBandItemNodes = (next, start, end, allDay, { draft = false, marginTop = '' } = {}) => {
+      const weekSelector = mode === 'month' ? '.prs-month-week' : '.prs-all-day-grid';
+      const bandRange = allDay ? { start, end } : dayBandRange({ start, end });
+      const timedSpan = !allDay && timedRangeSpansDays({ start, end });
+      const displayStart = bandRange.start;
+      const displayEnd = bandRange.end;
+      container.querySelectorAll(weekSelector).forEach((weekEl) => {
+        const firstDay = weekEl.querySelector(mode === 'month' ? '.prs-day[data-prs-date]' : '.prs-all-day-cell[data-prs-date]');
+        if (!firstDay) return;
+        const dayCountForBand = mode === 'month' ? 7 : (container.querySelectorAll('.prs-all-day-cell[data-prs-date]').length || 1);
+        const weekStart = dateAt(firstDay.dataset.prsDate, '00:00');
+        const weekEnd = addDays(weekStart, dayCountForBand);
+        if (displayStart >= weekEnd || displayEnd <= weekStart) return;
+        const segmentStart = displayStart > weekStart ? displayStart : weekStart;
+        const segmentEnd = displayEnd < weekEnd ? displayEnd : weekEnd;
+        const startCol = Math.max(1, Math.min(dayCountForBand, dayDiff(weekStart, segmentStart) + 1));
+        const offset = mode === 'month' ? 0 : 1;
+        const maxCol = dayCountForBand + 1 + offset;
+        const gridStartCol = startCol + offset;
+        const endCol = Math.max(gridStartCol + 1, Math.min(maxCol, dayDiff(weekStart, segmentEnd) + 1 + offset));
+        const beginsHere = displayStart >= weekStart && displayStart < weekEnd;
+        const continuesBefore = displayStart < weekStart;
+        const continuesAfter = displayEnd > weekEnd;
+        const node = document.createElement('div');
+        node.className = `${mode === 'month' ? 'prs-month-bar' : 'prs-all-day-bar-top'} ${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''}`;
+        node.style.gridColumn = `${gridStartCol}/${endCol}`;
+        node.style.gridRow = '1';
+        node.style.marginTop = marginTop || (mode === 'month' ? `${MONTH_ITEM_TOP_PX}px` : `${allDayBandTop}px`);
+        node.dataset.prsDate = dateKey(segmentStart);
+        if (draft) node.dataset.prsLocalDraft = '1';
+        node.innerHTML = chipHtml(next, allDay ? { start: segmentStart, end: segmentEnd } : { start, end }, {
+          draft,
+          confirmable: draft && typeof options.onDraftConfirm === 'function' && !continuesAfter,
+          mode: 'month',
+          day: dateKey(segmentStart),
+          chipClass: allDay ? '' : `timed-month ${timedSpan ? 'timed-span' : ''}`,
+          showDetails: true,
+          continuation: !beginsHere,
+          showTime: mode === 'month' ? false : !allDay,
+          showSecondary: mode !== 'month' && !compactAllDayBand,
+          showStartHandle: (allDay || timedSpan) && !continuesBefore,
+          showEndHandle: (allDay || timedSpan) && !continuesAfter
+        });
+        (mode === 'month' ? (weekEl.querySelector('.prs-month-item-track') || weekEl) : weekEl).appendChild(node);
+        if (draft) attachLocalDraftConfirm(node);
+        bindProjectChip(node.querySelector('.prs-work-chip'));
+      });
+    };
     const upsertDraft = (draft) => {
       if (!draft?.start || !draft?.end) return null;
       const id = String(draft.id || localActiveDraft?.id || activeDraftId || '__draft');
@@ -3065,50 +3921,8 @@
       localActiveDraft = next;
       removeRenderedDraft(id);
       const allDay = next.all_day !== false && next.schedule_granularity !== 'time';
-      if (mode === 'month' || allDay) {
-        const weekSelector = mode === 'month' ? '.prs-month-week' : '.prs-all-day-grid';
-        const displayStart = allDay ? start : dateAt(dateKey(start), '00:00');
-        const displayEnd = allDay ? end : addDays(displayStart, 1);
-        container.querySelectorAll(weekSelector).forEach((weekEl) => {
-          const firstDay = weekEl.querySelector(mode === 'month' ? '.prs-day[data-prs-date]' : '.prs-all-day-cell[data-prs-date]');
-          if (!firstDay) return;
-          const weekStart = dateAt(firstDay.dataset.prsDate, '00:00');
-          const weekEnd = addDays(weekStart, mode === 'month' ? 7 : (container.querySelectorAll('.prs-all-day-cell[data-prs-date]').length || 1));
-          if (displayStart >= weekEnd || displayEnd <= weekStart) return;
-          const segmentStart = displayStart > weekStart ? displayStart : weekStart;
-          const segmentEnd = displayEnd < weekEnd ? displayEnd : weekEnd;
-          const dayCountForBand = mode === 'month' ? 7 : (container.querySelectorAll('.prs-all-day-cell[data-prs-date]').length || 1);
-          const startCol = Math.max(1, Math.min(dayCountForBand, dayDiff(weekStart, segmentStart) + 1));
-          const offset = mode === 'month' ? 0 : 1;
-          const maxCol = dayCountForBand + 1 + offset;
-          const gridStartCol = startCol + offset;
-          const endCol = Math.max(gridStartCol + 1, Math.min(maxCol, dayDiff(weekStart, segmentEnd) + 1 + offset));
-          const beginsHere = displayStart >= weekStart && displayStart < weekEnd;
-          const continuesBefore = displayStart < weekStart;
-          const continuesAfter = displayEnd > weekEnd;
-          const node = document.createElement('div');
-          node.className = `${mode === 'month' ? 'prs-month-bar' : 'prs-all-day-bar-top'} ${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''}`;
-          node.style.gridColumn = `${gridStartCol}/${endCol}`;
-          node.style.gridRow = '1';
-          node.style.marginTop = draft.__monthMarginTop || (mode === 'month' ? `${MONTH_ITEM_TOP_PX}px` : `${mode === 'week' ? WEEK_ALL_DAY_ITEM_TOP_PX : 6}px`);
-          node.dataset.prsDate = dateKey(segmentStart);
-          node.dataset.prsLocalDraft = '1';
-          node.innerHTML = workChipHtml(next, allDay ? { start: segmentStart, end: segmentEnd } : { start, end }, {
-            draft: true,
-            confirmable: typeof options.onDraftConfirm === 'function' && !continuesAfter,
-            mode: allDay ? 'month' : mode,
-            day: dateKey(segmentStart),
-            chipClass: allDay ? '' : 'timed-month',
-            showDetails: beginsHere,
-            showTime: mode === 'month' ? false : !allDay,
-            showSecondary: mode !== 'month' && mode !== 'week',
-            showStartHandle: allDay && !continuesBefore,
-            showEndHandle: allDay && !continuesAfter
-          });
-          (mode === 'month' ? (weekEl.querySelector('.prs-month-item-track') || weekEl) : weekEl).appendChild(node);
-          attachLocalDraftConfirm(node);
-          bindProjectChip(node.querySelector('.prs-work-chip'));
-        });
+      if (mode === 'month' || allDay || timedRangeSpansDays({ start, end })) {
+        appendBandItemNodes(next, start, end, allDay, { draft: true, marginTop: draft.__monthMarginTop || '' });
         return next;
       }
       appendTimedItemSegments(next, start, end, { draft: true, confirmable: typeof options.onDraftConfirm === 'function' });
@@ -3138,47 +3952,8 @@
       localItemOverrides.set(id, next);
       removeRenderedItem(id);
       const allDay = next.all_day !== false && next.schedule_granularity !== 'time';
-      if (mode === 'month' || allDay) {
-        const weekSelector = mode === 'month' ? '.prs-month-week' : '.prs-all-day-grid';
-        const displayStart = allDay ? start : dateAt(dateKey(start), '00:00');
-        const displayEnd = allDay ? end : addDays(displayStart, 1);
-        container.querySelectorAll(weekSelector).forEach((weekEl) => {
-          const firstDay = weekEl.querySelector(mode === 'month' ? '.prs-day[data-prs-date]' : '.prs-all-day-cell[data-prs-date]');
-          if (!firstDay) return;
-          const weekStart = dateAt(firstDay.dataset.prsDate, '00:00');
-          const weekEnd = addDays(weekStart, mode === 'month' ? 7 : (container.querySelectorAll('.prs-all-day-cell[data-prs-date]').length || 1));
-          if (displayStart >= weekEnd || displayEnd <= weekStart) return;
-          const segmentStart = displayStart > weekStart ? displayStart : weekStart;
-          const segmentEnd = displayEnd < weekEnd ? displayEnd : weekEnd;
-          const dayCountForBand = mode === 'month' ? 7 : (container.querySelectorAll('.prs-all-day-cell[data-prs-date]').length || 1);
-          const startCol = Math.max(1, Math.min(dayCountForBand, dayDiff(weekStart, segmentStart) + 1));
-          const offset = mode === 'month' ? 0 : 1;
-          const maxCol = dayCountForBand + 1 + offset;
-          const gridStartCol = startCol + offset;
-          const endCol = Math.max(gridStartCol + 1, Math.min(maxCol, dayDiff(weekStart, segmentEnd) + 1 + offset));
-          const beginsHere = displayStart >= weekStart && displayStart < weekEnd;
-          const continuesBefore = displayStart < weekStart;
-          const continuesAfter = displayEnd > weekEnd;
-          const node = document.createElement('div');
-          node.className = `${mode === 'month' ? 'prs-month-bar' : 'prs-all-day-bar-top'} ${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''}`;
-          node.style.gridColumn = `${gridStartCol}/${endCol}`;
-          node.style.gridRow = '1';
-          node.style.marginTop = optionsForItem.monthMarginTop || (mode === 'month' ? `${MONTH_ITEM_TOP_PX}px` : `${mode === 'week' ? WEEK_ALL_DAY_ITEM_TOP_PX : 6}px`);
-          node.dataset.prsDate = dateKey(segmentStart);
-          node.innerHTML = workChipHtml(next, allDay ? { start: segmentStart, end: segmentEnd } : { start, end }, {
-            draft: false,
-            mode: allDay ? 'month' : mode,
-            day: dateKey(segmentStart),
-            chipClass: allDay ? '' : 'timed-month',
-            showDetails: beginsHere,
-            showTime: mode === 'month' ? false : !allDay,
-            showSecondary: mode !== 'month' && mode !== 'week',
-            showStartHandle: allDay && !continuesBefore,
-            showEndHandle: allDay && !continuesAfter
-          });
-          (mode === 'month' ? (weekEl.querySelector('.prs-month-item-track') || weekEl) : weekEl).appendChild(node);
-          bindProjectChip(node.querySelector('.prs-work-chip'));
-        });
+      if (mode === 'month' || allDay || timedRangeSpansDays({ start, end })) {
+        appendBandItemNodes(next, start, end, allDay, { draft: false, marginTop: optionsForItem.monthMarginTop || '' });
         return next;
       }
       appendTimedItemSegments(next, start, end, { draft: false });
@@ -3196,28 +3971,144 @@
       });
     };
     const minimumSpan = () => mode === 'month' ? 86400000 : snapMinutes * 60000;
-    const dragRange = (activeDrag, targetRange) => {
-      if (!activeDrag || !targetRange) return null;
-      const { base, kind } = activeDrag;
-      let nextStart = base.start;
-      let nextEnd = base.end;
-      if (kind === 'start') {
-        nextStart = targetRange.start < base.end ? targetRange.start : new Date(base.end.getTime() - minimumSpan());
-        nextEnd = base.end;
-      } else if (kind === 'end') {
-        nextStart = base.start;
-        nextEnd = targetRange.end > base.start ? targetRange.end : new Date(base.start.getTime() + minimumSpan());
-      } else {
-        const duration = base.end.getTime() - base.start.getTime();
-        if (mode === 'month' && rangeItemIsTimed(activeDrag.item)) {
-          nextStart = new Date(targetRange.start);
-          nextStart.setHours(base.start.getHours(), base.start.getMinutes(), base.start.getSeconds(), base.start.getMilliseconds());
-        } else {
-          nextStart = targetRange.start;
+    const addMinutesTo = (date, count) => new Date(new Date(date).getTime() + count * 60000);
+    // Moves snap by whole steps of the pointer's travel since pointerdown;
+    // three quarters of a step is needed before the item jumps, so a small
+    // wobble while clicking never moves it.
+    const snapMinuteDelta = (rawMinutes) => {
+      const sign = rawMinutes < 0 ? -1 : 1;
+      return sign * Math.floor((Math.abs(rawMinutes) + snapMinutes * 0.25) / snapMinutes) * snapMinutes;
+    };
+    const rangeResult = (start, end, allDay) => ({ start, end, all_day: allDay, schedule_granularity: allDay ? 'date' : 'time' });
+    /* The range an item drag would produce with the pointer at `target`
+     * (from calendarPointAt). Moves keep the grab offset: the item shifts by
+     * the pointer's travel, not to where the pointer is. Crossing between the
+     * all-day band and the time grid converts the item explicitly. */
+    const dragRange = (activeDrag, target) => {
+      if (!activeDrag || !target?.day) return null;
+      const { base, kind, item, grab } = activeDrag;
+      const timed = rangeItemIsTimed(item);
+      const duration = base.end.getTime() - base.start.getTime();
+      const dayDelta = grab?.day ? dayDiff(dateAt(grab.day), dateAt(target.day)) : 0;
+      if (activeDrag.zone === 'grid' && target.zone === 'grid') {
+        if (kind === 'start' || kind === 'end') {
+          // The grabbed edge travels with the pointer (keeping the few pixels
+          // between pointer and edge), lands on the nearest snap line and
+          // stops one snap short of the opposite edge.
+          const moved = addMinutesTo(addDays(kind === 'start' ? base.start : base.end, dayDelta), target.minute - Number(grab?.minute ?? target.minute));
+          const movedMinute = moved.getHours() * 60 + moved.getMinutes() + moved.getSeconds() / 60;
+          const edge = addMinutesTo(startOfDay(moved), Math.round(movedMinute / snapMinutes) * snapMinutes);
+          if (kind === 'start') {
+            const latest = new Date(base.end.getTime() - minimumSpan());
+            return rangeResult(edge < latest ? edge : latest, base.end, false);
+          }
+          const earliest = new Date(base.start.getTime() + minimumSpan());
+          return rangeResult(base.start, edge > earliest ? edge : earliest, false);
         }
-        nextEnd = new Date(nextStart.getTime() + duration);
+        const nextStart = addMinutesTo(addDays(base.start, dayDelta), snapMinuteDelta(target.minute - Number(grab?.minute || 0)));
+        return rangeResult(nextStart, new Date(nextStart.getTime() + duration), false);
       }
-      return { start: nextStart, end: nextEnd };
+      if (activeDrag.zone === 'grid' && target.zone === 'band') {
+        // A timed item dropped on the all-day band becomes all-day on that
+        // day (covering as many days as it touched).
+        if (kind !== 'move') return null;
+        const start = dateAt(target.day);
+        const span = Math.max(1, dayDiff(base.start, new Date(base.end.getTime() - 1)) + 1);
+        return rangeResult(start, addDays(start, span), true);
+      }
+      if (activeDrag.zone === 'band' && target.zone === 'grid' && kind === 'move' && !timed && dayDiff(base.start, base.end) <= 1) {
+        // A one-day all-day item dropped into the grid becomes a timed item
+        // starting at the pointer.
+        const startMinute = Math.max(0, Math.min(24 * 60 - snapMinutes, Math.floor(target.minute / snapMinutes) * snapMinutes));
+        const start = addMinutesTo(dateAt(target.day), startMinute);
+        return rangeResult(start, addMinutesTo(start, defaultTimedDurationMinutes), false);
+      }
+      // Day-granular: Month, the all-day band, and multi-day bars dragged
+      // over the grid (they stay spans and move by whole days).
+      if (kind === 'start') {
+        const nextStart = addDays(base.start, dayDelta);
+        const latest = timed ? new Date(base.end.getTime() - snapMinutes * 60000) : addDays(base.end, -1);
+        return rangeResult(nextStart < latest ? nextStart : latest, base.end, !timed);
+      }
+      if (kind === 'end') {
+        const nextEnd = addDays(base.end, dayDelta);
+        const earliest = timed ? new Date(base.start.getTime() + snapMinutes * 60000) : addDays(base.start, 1);
+        return rangeResult(base.start, nextEnd > earliest ? nextEnd : earliest, !timed);
+      }
+      return rangeResult(addDays(base.start, dayDelta), addDays(base.end, dayDelta), !timed);
+    };
+    const sameDragRange = (activeDrag, next) => !!next
+      && Math.abs(next.start.getTime() - activeDrag.base.start.getTime()) < 1000
+      && Math.abs(next.end.getTime() - activeDrag.base.end.getTime()) < 1000
+      && next.all_day === !rangeItemIsTimed(activeDrag.item);
+    const pointerOutsideSurface = (event) => {
+      const surface = container.querySelector('.prs-surface');
+      if (!surface) return true;
+      return !pointInRect(surface, Number(event.clientX), Number(event.clientY));
+    };
+    const dragAutoScroller = createDragAutoScroller(container.querySelector('.prs-surface'), {
+      topInset: () => (mode === 'month'
+        ? Number(container.querySelector('.prs-month-head-row')?.offsetHeight || 0)
+        : Number(container.querySelector('.prs-time-header-grid')?.offsetHeight || 0) + Number(container.querySelector('.prs-all-day-grid')?.offsetHeight || 0)),
+      onScroll: (pointer) => {
+        if (!drag) return;
+        if (drag.kind === 'create') updateCreateDrag(pointer);
+        else updateItemDrag(pointer);
+      },
+    });
+    const pendingSuppressedClicks = new Set();
+    // Swallow the click that follows a drag/cancel, released on the next
+    // pointerup (the click always fires in the same task as that pointerup).
+    const suppressClickUntilRelease = (node) => {
+      if (!node) return;
+      node.setAttribute('data-prs-suppress-click', '1');
+      pendingSuppressedClicks.add(node);
+    };
+    const releaseSuppressedClicks = () => {
+      if (!pendingSuppressedClicks.size) return;
+      const nodes = Array.from(pendingSuppressedClicks);
+      pendingSuppressedClicks.clear();
+      setTimeout(() => nodes.forEach((node) => node.removeAttribute('data-prs-suppress-click')), 120);
+    };
+    const wrapNode = () => container.querySelector('.prs-wrap');
+    const setDragCursorClass = (className = '') => {
+      const wrap = wrapNode();
+      if (!wrap) return;
+      wrap.classList.remove('prs-drag-move', 'prs-drag-resize-x', 'prs-drag-resize-y', 'prs-drag-refused');
+      if (className) wrap.classList.add(className);
+    };
+    const endDragVisuals = (activeDrag) => {
+      dragAutoScroller.stop();
+      setDragCursorClass('');
+      container.querySelectorAll('.prs-work-chip.dragging,.prs-work-chip.lock-refused').forEach((node) => node.classList.remove('dragging', 'lock-refused'));
+      if (activeDrag?.node) activeDrag.node.style.cursor = '';
+    };
+    // Escape (or leaving the grid) abandons the gesture: nothing is saved and
+    // no editor opens.
+    const cancelDrag = () => {
+      const activeDrag = drag;
+      if (!activeDrag) return;
+      drag = null;
+      endDragVisuals(activeDrag);
+      clearDragMarkers();
+      if (activeDrag.node) suppressClickUntilRelease(activeDrag.node);
+      releasePointer(activeDrag.captureNode, activeDrag.pointerId);
+    };
+    const notifyRefusedDrag = (activeDrag) => {
+      activeDrag.node?.classList.add('lock-refused');
+      setDragCursorClass('prs-drag-refused');
+      const viewOnly = activeDrag.reason === 'view-only';
+      const detail = { element: activeDrag.node, reason: activeDrag.reason, locked: activeDrag.reason === 'locked', viewOnly };
+      // A view-only calendar tells its host (e.g. to toast "View only").
+      if (viewOnly && typeof options.onReadOnlyDragAttempt === 'function') {
+        try { options.onReadOnlyDragAttempt(activeDrag.item || null, detail); } catch (error) { console.warn('Schedule read-only drag callback failed.', error); }
+      } else if (viewOnly && !activeDrag.item) {
+        showRefusedDragHint(activeDrag.node, 'readonly');
+      } else if (typeof options.onLockedDragAttempt === 'function') {
+        try { options.onLockedDragAttempt(activeDrag.item, detail); } catch (error) { console.warn('Schedule locked-drag callback failed.', error); }
+      } else {
+        showRefusedDragHint(activeDrag.node, activeDrag.reason);
+      }
     };
     const updateCreateDrag = (event, preferredRange = null) => {
       if (!drag || drag.kind !== 'create') return;
@@ -3235,6 +4126,12 @@
     };
     const finishCreateDrag = (event) => {
       if (!drag || drag.kind !== 'create') return;
+      // Releasing a drawn range outside the calendar abandons it.
+      if (drag.moved && pointerOutsideSurface(event)) {
+        cancelDrag();
+        return;
+      }
+      dragAutoScroller.stop();
       let range = rangeFromPointer(event) || pointRange(event.target, event) || drag.current || drag.anchor;
       const hasDraggedRange = drag.current && (
         Math.abs(drag.anchor.start.getTime() - drag.current.start.getTime()) > 1000
@@ -3269,20 +4166,21 @@
     container.addEventListener('pointerdown', (event) => {
       if (!event.target.closest?.('.prs-surface')) return;
       beginTouchGesture(event);
-    }, true);
+    }, { capture:true, signal:listenerSignal });
     container.addEventListener('click', (event) => {
       if (Date.now() >= suppressTouchGestureClickUntil) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-    }, true);
+    }, { capture:true, signal:listenerSignal });
     if (allowCreate && !clickPlacement) container.querySelectorAll('.prs-day,.prs-all-day-cell,.prs-slot').forEach((cell) => {
       cell.addEventListener('pointerdown', (event) => {
         if (event.target.closest('.prs-work-chip,[data-prs-month-overflow]')) return;
+        if (event.button > 0) return;
         const range = rangeFromPointer(event) || pointRange(event.target, event);
         if (!range) return;
         const startCreateDrag = () => {
-          drag = { kind: 'create', anchor: range, current: range, startX: event.clientX, startY: event.clientY, moved: false, touchHeld:event.pointerType === 'touch' };
-          cell.setPointerCapture?.(event.pointerId);
+          drag = { kind: 'create', anchor: range, current: range, startX: event.clientX, startY: event.clientY, moved: false, touchHeld:event.pointerType === 'touch', pointerId:event.pointerId, captureNode:cell };
+          capturePointer(cell, event.pointerId);
           markRange(range.start, range.end);
         };
         if (armTouchHold(event, startCreateDrag)) return;
@@ -3302,21 +4200,51 @@
       });
     });
     if (allowCreate && !clickPlacement) container.addEventListener('pointerdown', (event) => {
-      if (drag || event.target.closest('.prs-work-chip,.prs-toolbar,.prs-view-switch,[data-prs-month-overflow]')) return;
+      if (drag || event.target.closest('.prs-work-chip,.prs-toolbar,.prs-view-switch,[data-prs-month-overflow],.prs-month-day-peek')) return;
+      if (event.button > 0) return;
       const range = rangeFromPointer(event) || pointRange(event.target, event);
       if (!range) return;
       const startCreateDrag = () => {
-        drag = { kind: 'create', anchor: range, current: range, startX: event.clientX, startY: event.clientY, moved: false, touchHeld:event.pointerType === 'touch' };
-        container.setPointerCapture?.(event.pointerId);
+        drag = { kind: 'create', anchor: range, current: range, startX: event.clientX, startY: event.clientY, moved: false, touchHeld:event.pointerType === 'touch', pointerId:event.pointerId, captureNode:container };
+        capturePointer(container, event.pointerId);
         markRange(range.start, range.end);
       };
       if (armTouchHold(event, startCreateDrag)) return;
       event.preventDefault();
       startCreateDrag();
-    });
+    }, { signal:listenerSignal });
+    // View-only: drawing on the grid creates nothing; hosts that pass
+    // onReadOnlyDragAttempt can say why (a plain click does nothing).
+    if (!allowCreate && !allowEdit && !clickPlacement && typeof options.onReadOnlyDragAttempt === 'function') container.addEventListener('pointerdown', (event) => {
+      if (drag || event.button > 0) return;
+      if (event.target.closest('.prs-work-chip,.prs-toolbar,.prs-view-switch,[data-prs-month-overflow],[data-prs-week-all-day-overflow],.prs-month-day-peek')) return;
+      if (!event.target.closest('.prs-day,.prs-slot,.prs-all-day-cell')) return;
+      // Touch: a swipe scrolls; a touch-and-hold (the touch "create"
+      // gesture) explains that this calendar is view only.
+      if (event.pointerType === 'touch') {
+        armTouchHoldFeedback(event, () => {
+          notifyRefusedDrag({ kind:'refused', item:null, node:event.target.closest('.prs-day,.prs-slot,.prs-all-day-cell'), reason:'view-only' });
+          setDragCursorClass('');
+        }, touchHoldDelayMs + 120);
+        return;
+      }
+      drag = { kind:'refused', item:null, node:null, startX:event.clientX, startY:event.clientY, moved:false, reason:'view-only', pointerId:event.pointerId };
+    }, { signal:listenerSignal });
     if (clickPlacement) {
+      // A press that turns into a drag, or that lands on an item already on
+      // the calendar, never places the selected item (a plain click on an
+      // item opens it as usual).
+      let placementPress = null;
       const commitClickPlacement = (event, preferredRange = null) => {
         if (placementChromeTarget(event.target)) return;
+        const press = placementPress;
+        placementPress = null;
+        if (press?.moved) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        if (placedChipUnderPointer(event.target) || press?.onChip) return;
         const range = preferredRange || rangeFromPointer(event) || pointRange(event.target, event);
         if (!range) return;
         event.preventDefault();
@@ -3328,29 +4256,58 @@
         options.onDraftCreateComplete?.(draft, { element:null, sourceEvent:event, drafts });
         options.onDraftConfirm?.(draft, { sourceEvent:event, drafts });
       };
+      container.addEventListener('pointerdown', (event) => {
+        placementPress = { x:Number(event.clientX), y:Number(event.clientY), moved:false, onChip:!!placedChipUnderPointer(event.target) };
+      }, { capture:true, signal:listenerSignal });
+      container.addEventListener('pointermove', (event) => {
+        if (placementPress && Math.hypot(Number(event.clientX) - placementPress.x, Number(event.clientY) - placementPress.y) > POINTER_DRAG_THRESHOLD) placementPress.moved = true;
+      }, { signal:listenerSignal });
       if (touchHoldToPlace) container.addEventListener('pointerdown', (event) => {
-        if (event.pointerType !== 'touch' || placementChromeTarget(event.target)) return;
+        if (event.pointerType !== 'touch' || placementChromeTarget(event.target) || placedChipUnderPointer(event.target)) return;
         const range = rangeFromPointer(event) || pointRange(event.target, event);
         if (!range) return;
         armTouchHold(event, () => commitClickPlacement(event, range));
-      }, true);
+      }, { capture:true, signal:listenerSignal });
       container.addEventListener('click', (event) => {
+        // Listeners from an earlier render of this mount go inert.
+        if (listenerSignal?.aborted) return;
         if (touchHoldToPlace && Date.now() < suppressTouchClickUntil) return;
         commitClickPlacement(event);
       }, true);
-      container.__prsPlacementKeyHandler = (event) => {
-        if (event.key !== 'Escape') return;
+      container.addEventListener('pointerleave', () => clearLivePreview(), { signal:listenerSignal });
+    }
+    // Escape cancels an in-progress drag / drawn range / resize, else the
+    // click-placement selection, else collapses an expanded month row.
+    setContainerKeyHandler(container, (event) => {
+      if (event.key !== 'Escape') return;
+      if (drag) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        cancelDrag();
+        return;
+      }
+      if (clickPlacement) {
         clearLivePreview();
         options.onPlacementCancel?.();
-      };
-      document.addEventListener('keydown', container.__prsPlacementKeyHandler);
-      container.addEventListener('pointerleave', () => clearLivePreview());
-    }
+        return;
+      }
+      if (mode === 'month' && !event.defaultPrevented) {
+        const active = document.activeElement;
+        if ((!active || active === document.body || container.contains(active)) && collapseExpandedMonthRows()) event.preventDefault();
+      }
+    });
     function bindProjectChip(chip){
       if (!chip || chip.dataset.prsBound === '1') return;
       chip.dataset.prsBound = '1';
       bindEdgeResizeCursor(chip, () => allowEventDrag);
       bindEventLockControl(chip, options, () => eventByRenderedId(chip.dataset.prsEventId || ''));
+      const boundItem = eventByRenderedId(chip.dataset.prsEventId || '');
+      if (allowEventDrag && boundItem && !itemCanAdjustRange(boundItem)) chip.dataset.prsDragRefused = '1';
+      chip.addEventListener('keydown', (event) => {
+        if (event.target !== chip || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        chip.click();
+      });
       chip.addEventListener('click', (event) => {
         if (chip.dataset.prsSuppressClick === '1') return;
         if (event.target.closest('[data-prs-confirm],[data-prs-lock-toggle]')) return;
@@ -3375,23 +4332,98 @@
         if (item.__draft === true || id === '__draft') options.onDraftSelect?.(item, { element: chip });
         else options.onEventClick?.(item, { element: chip });
       });
+      // View-only calendar: a drag attempt is tracked only to explain why
+      // nothing moves; a plain click still opens the item.
+      if (!allowEdit && !clickPlacement) chip.addEventListener('pointerdown', (event) => {
+        if (event.button > 0 || drag || chipPressIgnoredForDrag(chip, event)) return;
+        const item = eventByRenderedId(chip.dataset.prsEventId || '');
+        if (!item || item.__draft === true) return;
+        // Touch: a swipe scrolls and a tap opens; holding still (how a touch
+        // drag starts) explains why nothing moves.
+        if (event.pointerType === 'touch') {
+          armTouchHoldFeedback(event, () => {
+            chip.setAttribute('data-prs-suppress-click', '1');
+            setTimeout(() => chip.removeAttribute('data-prs-suppress-click'), 700);
+            notifyRefusedDrag({ kind:'refused', item, node:chip, reason:'view-only' });
+            setTimeout(() => chip.classList.remove('lock-refused'), 600);
+            setDragCursorClass('');
+          }, touchHoldDelayMs + 120);
+          return;
+        }
+        drag = { kind:'refused', item, node:chip, startX:event.clientX, startY:event.clientY, moved:false, reason:'view-only', pointerId:event.pointerId };
+      });
       if (allowEventDrag) chip.addEventListener('pointerdown', (event) => {
         if (clickPlacement) return;
-        if (event.target.closest('[data-prs-confirm],[data-prs-assignee],[data-prs-view],[data-prs-lock-toggle]')) return;
+        if (chipPressIgnoredForDrag(chip, event)) return;
+        if (event.button > 0 || drag) return;
         const id = chip.dataset.prsEventId || '';
         const item = eventByRenderedId(id);
-        if (!item || !itemCanAdjustRange(item)) return;
+        if (!item) return;
+        if (!itemCanAdjustRange(item)) {
+          // Track the refused gesture so a drag attempt gets feedback; a
+          // plain click still opens the item.
+          if (event.pointerType !== 'touch') drag = { kind:'refused', item, node:chip, startX:event.clientX, startY:event.clientY, moved:false, reason:eventIsLocked(item) ? 'locked' : 'readonly', pointerId:event.pointerId };
+          return;
+        }
         const startItemDrag = () => {
           const base = normalizeRangeItem(item).range;
           const handle = resizeEdgeAtPointer(chip, event);
-          drag = { kind: handle, item, node: chip, base, anchor: pointRange(chip.closest('[data-prs-date]'), event), startX: event.clientX, startY: event.clientY, moved: false, touchHeld:event.pointerType === 'touch' };
-          chip.setPointerCapture?.(event.pointerId);
+          const zone = mode === 'month' ? 'month' : (chip.closest('.prs-all-day-grid') ? 'band' : 'grid');
+          // Where on the item it was grabbed: moves keep this offset.
+          const grab = calendarPointAt(event, { gridOnly: zone === 'grid' });
+          drag = { kind: handle, zone, grab, item, node: chip, base, anchor: pointRange(chip.closest('[data-prs-date]'), event), startX: event.clientX, startY: event.clientY, moved: false, maxDistance:0, touchHeld:event.pointerType === 'touch', pointerId:event.pointerId, captureNode:chip };
+          if (drag.touchHeld) capturePointer(chip, event.pointerId);
+          else captureChipPress(chip, event, drag);
         };
         if (armTouchHold(event, startItemDrag)) return;
         startItemDrag();
       });
     }
+    const updateItemDrag = (event) => {
+      if (!drag || drag.kind === 'create') return;
+      const distance = pointerDistance(event);
+      drag.maxDistance = Math.max(Number(drag.maxDistance || 0), distance);
+      if (drag.kind === 'refused') {
+        if (!drag.moved && distance > POINTER_DRAG_THRESHOLD) {
+          drag.moved = true;
+          notifyRefusedDrag(drag);
+        }
+        return;
+      }
+      // A mouse press only becomes a drag past the click wobble, so what the
+      // preview shows is exactly what a release commits (a press that moved
+      // less is a click, whatever time it would have snapped to). A touch
+      // drag was already confirmed by its long press.
+      if (distance <= (drag.touchHeld ? POINTER_DRAG_THRESHOLD : CLICK_WOBBLE_PX) && !drag.moved) return;
+      captureDeferredDrag(drag);
+      if (!drag.moved) setDragCursorClass(drag.kind === 'move' ? 'prs-drag-move' : (drag.node?.classList.contains('timed') ? 'prs-drag-resize-y' : 'prs-drag-resize-x'));
+      drag.moved = true;
+      drag.node?.classList.add('dragging');
+      if (drag.node) drag.node.style.cursor = 'grabbing';
+      event.preventDefault();
+      if (!event.synthetic) dragAutoScroller.update({ clientX:event.clientX, clientY:event.clientY, target:event.target, pointerId:event.pointerId, dragStartX:drag.startX, dragStartY:drag.startY });
+      const targetRange = rangeForDragTarget(event, drag);
+      const next = dragRange(drag, targetRange);
+      // Off the calendar: no preview, and releasing there cancels.
+      if (!next) {
+        clearLivePreview();
+        return;
+      }
+      renderRangePreview(next.start, next.end, drag, true, next);
+    };
     container.querySelectorAll('.prs-work-chip:not(.prs-month-day-peek-chip)').forEach(bindProjectChip);
+    container.querySelectorAll('.prs-month-day-peek-chip').forEach((chip) => {
+      chip.addEventListener('pointerdown', (event) => event.stopPropagation());
+      chip.addEventListener('click', (event) => {
+        if (event.target.closest('[data-prs-assignee],[data-prs-lock-toggle]')) return;
+        const item = eventByRenderedId(chip.dataset.prsEventId || '');
+        if (!item) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (item.__draft === true || item.id === '__draft') options.onDraftSelect?.(item, { element: chip });
+        else options.onEventClick?.(item, { element: chip });
+      });
+    });
     container.querySelectorAll('.prs-month-day-peek-chip [data-prs-assignee]').forEach((assignee) => {
       assignee.addEventListener('pointerdown', (event) => event.stopPropagation());
       assignee.addEventListener('click', (event) => {
@@ -3411,19 +4443,14 @@
         return;
       }
       if (drag.kind === 'create') {
+        dragAutoScroller.update(event);
         updateCreateDrag(event);
         return;
       }
-      if (pointerDistance(event) <= POINTER_DRAG_THRESHOLD && !drag.moved) return;
-      drag.moved = true;
-      drag.node?.classList.add('dragging');
-      if (drag.node) drag.node.style.cursor = 'grabbing';
-      event.preventDefault();
-      const targetRange = rangeForDragTarget(event, drag);
-      const next = dragRange(drag, targetRange);
-      if (next) renderRangePreview(next.start, next.end, drag);
-    });
+      updateItemDrag(event);
+    }, { signal:listenerSignal });
     container.addEventListener('pointerup', (event) => {
+      releaseSuppressedClicks();
       if (pendingTouchHold?.pointerId === event.pointerId) cancelTouchHold();
       if (finishTouchGesture(event)) return;
       if (!drag) return;
@@ -3434,24 +4461,39 @@
       const activeDrag = drag;
       const targetRange = rangeForDragTarget(event, activeDrag);
       const { item } = activeDrag;
-      container.querySelectorAll('.prs-work-chip.dragging').forEach((node) => node.classList.remove('dragging'));
-      if (activeDrag.node) activeDrag.node.style.cursor = '';
       drag = null;
+      endDragVisuals(activeDrag);
       clearLivePreview();
-      if (!activeDrag.moved && pointerDistance(event, activeDrag) <= POINTER_DRAG_THRESHOLD) {
+      if (activeDrag.kind === 'refused') {
+        if (activeDrag.moved) {
+          suppressClickUntilRelease(activeDrag.node);
+          releaseSuppressedClicks();
+        }
+        return;
+      }
+      const travelled = Math.max(Number(activeDrag.maxDistance || 0), pointerDistance(event, activeDrag));
+      // Never became a drag (less travel than the click wobble): a click.
+      if (!activeDrag.moved) {
         if (activeDrag.touchHeld) {
           activeDrag.node?.setAttribute('data-prs-suppress-click', '1');
           setTimeout(() => activeDrag.node?.removeAttribute('data-prs-suppress-click'), 160);
         }
         return;
       }
-      if (!itemCanAdjustRange(item)) return;
-      const next = dragRange(activeDrag, targetRange);
-      if (!next) return;
-      activeDrag.node?.setAttribute('data-prs-suppress-click', '1');
-      setTimeout(() => activeDrag.node?.removeAttribute('data-prs-suppress-click'), 80);
+      const next = itemCanAdjustRange(item) ? dragRange(activeDrag, targetRange) : null;
+      if (!next || sameDragRange(activeDrag, next)) {
+        // Released off the calendar, or where it started: nothing changes.
+        // A small wobble is still a click and opens the item.
+        if (!next || travelled > CLICK_WOBBLE_PX) {
+          suppressClickUntilRelease(activeDrag.node);
+          releaseSuppressedClicks();
+        }
+        return;
+      }
+      suppressClickUntilRelease(activeDrag.node);
+      releaseSuppressedClicks();
       const { start: nextStart, end: nextEnd } = next;
-      const allDay = !rangeItemIsTimed(item);
+      const allDay = next.all_day === true;
       const payload = { start: nextStart, end: nextEnd, all_day: allDay, schedule_granularity: allDay ? 'date' : 'time' };
       if (item.__draft === true || item.id === '__draft') {
         const nextDraft = { ...item, ...payload };
@@ -3470,20 +4512,16 @@
           __end: nextEnd
         };
         Object.assign(item, updatedItem);
-        const monthMarginTop = mode === 'month' ? '' : (activeDrag.node?.closest?.('.prs-month-bar,.prs-all-day-bar-top')?.style?.marginTop || '6px');
+        const monthMarginTop = mode === 'month' ? '' : (activeDrag.node?.closest?.('.prs-month-bar,.prs-all-day-bar-top')?.style?.marginTop || `${allDayBandTop}px`);
         upsertCalendarItem(updatedItem, monthMarginTop ? { monthMarginTop } : {});
         options.onEventRangeChange?.(updatedItem, payload);
       }
-    });
+    }, { signal:listenerSignal });
     container.addEventListener('pointercancel', (event) => {
       if (pendingTouchHold?.pointerId === event.pointerId) cancelTouchHold();
       if (touchGesture?.pointerId === event.pointerId) touchGesture = null;
-      if (drag?.touchHeld) {
-        drag = null;
-        clearDragMarkers();
-        clearLivePreview();
-      }
-    });
+      if (drag && (drag.touchHeld || drag.pointerId === event.pointerId)) cancelDrag();
+    }, { signal:listenerSignal });
     container.querySelectorAll('[data-prs-confirm]').forEach((btn) => btn.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -3508,8 +4546,60 @@
     return clean(item.assigned_resource_id);
   }
 
+  /* Refused lane drags (Routing): locked / not editable items tell the host
+   * via onLockedDragAttempt, a view-only calendar via onReadOnlyDragAttempt;
+   * otherwise a hint explains. */
+  function refuseResourceDrag(container, options, activeDrag){
+    activeDrag.node?.classList.add('lock-refused');
+    container.querySelector('.prs-wrap')?.classList.add('prs-drag-refused');
+    const viewOnly = activeDrag.reason === 'view-only';
+    const detail = { element: activeDrag.node, reason: activeDrag.reason, locked: activeDrag.reason === 'locked', viewOnly };
+    if (viewOnly && typeof options.onReadOnlyDragAttempt === 'function') {
+      try { options.onReadOnlyDragAttempt(activeDrag.item || null, detail); } catch (error) { console.warn('Schedule read-only drag callback failed.', error); }
+    } else if (!viewOnly && typeof options.onLockedDragAttempt === 'function') {
+      try { options.onLockedDragAttempt(activeDrag.item, detail); } catch (error) { console.warn('Schedule locked-drag callback failed.', error); }
+    } else {
+      showRefusedDragHint(activeDrag.node, activeDrag.reason);
+    }
+  }
+  /* A drop on a row the item can't go in (canPlaceItemInResource). Hosts
+   * may explain it (onRefusedDrop) or give the words
+   * (placementRefusalReason(item, resource) -> text); otherwise a hint says
+   * the item can't go in that row. */
+  function refuseResourceDrop(options, activeDrag, resource){
+    let reason = '';
+    try { reason = clean(typeof options.placementRefusalReason === 'function' ? options.placementRefusalReason(activeDrag.item || {}, resource || null) : ''); } catch { reason = ''; }
+    if (typeof options.onRefusedDrop === 'function') {
+      try { options.onRefusedDrop(activeDrag.item || null, { resource:resource || null, element:activeDrag.node || null, reason }); } catch (error) { console.warn('Schedule refused-drop callback failed.', error); }
+      return;
+    }
+    showRefusedDragHint(activeDrag.node, 'lane', reason);
+  }
+  /* View-only lanes: a drag attempt on a chip is tracked only to explain
+   * (onReadOnlyDragAttempt) why nothing moves; a click still opens it. On
+   * touch, a swipe scrolls and a touch-and-hold explains. */
+  function bindReadOnlyResourceChip(chip, options, getDrag, setDrag, eventByRenderedId){
+    if (options.allowEdit !== false || typeof options.onReadOnlyDragAttempt !== 'function') return;
+    chip.addEventListener('pointerdown', (event) => {
+      if (event.button > 0 || getDrag() || chipPressIgnoredForDrag(chip, event)) return;
+      const item = eventByRenderedId(chip.dataset.prsEventId || '');
+      if (!item || item.__draft === true) return;
+      if (event.pointerType === 'touch') {
+        armTouchHoldFeedback(event, () => {
+          chip.setAttribute('data-prs-suppress-click', '1');
+          setTimeout(() => chip.removeAttribute('data-prs-suppress-click'), 700);
+          try { options.onReadOnlyDragAttempt(item, { element:chip, reason:'view-only', locked:false, viewOnly:true }); } catch (error) { console.warn('Schedule read-only drag callback failed.', error); }
+        });
+        return;
+      }
+      setDrag({ kind:'refused', item, node:chip, startX:event.clientX, startY:event.clientY, moved:false, reason:'view-only', pointerId:event.pointerId });
+    });
+  }
+
   function renderResourceDayScheduler(container, options = {}){
     if (!container) return;
+    const listenerSignal = resetContainerListeners(container);
+    setContainerKeyHandler(container, null);
     injectCss();
     if (container.__prsSmartCleanup) {
       container.__prsSmartCleanup();
@@ -3625,7 +4715,8 @@
           mode: 'month',
           day: dateKey(segmentStart),
           chipClass: [timed ? 'timed-month' : '', resourceIsCompact(renderedResourceIdForItem(item)) ? 'compact-resource-item' : '', renderedResourceIdForItem(item) ? '' : 'unassigned-item'].filter(Boolean).join(' '),
-          showDetails: beginsHere,
+          showDetails: true,
+          continuation: !beginsHere,
           showTime: timed,
           showAssignee: false,
           showStartHandle: timed ? false : !continuesBefore,
@@ -3653,7 +4744,7 @@
     </div>
     `;
     container.innerHTML = resourceGridHtml({
-      wrapClass: `prs-wrap ${options.readOnly ? 'readonly' : ''} ${showToolbar ? '' : 'no-toolbar'}`,
+      wrapClass: `prs-wrap ${options.readOnly ? 'readonly' : ''} ${options.allowCreate === false ? 'no-create' : ''} ${options.allowEdit === false ? 'events-click-only' : ''} ${showToolbar ? '' : 'no-toolbar'}`,
       showToolbar,
       toolbarHtml: toolbar,
       scrollClass: 'prs-resource-scroll',
@@ -3718,6 +4809,13 @@
     const pointRange = (event) => {
       const x = Number(event.clientX);
       const y = Number(event.clientY);
+      // Cells scrolled out of view keep their geometry: only the visible grid counts.
+      const scrollRect = scroll?.getBoundingClientRect?.();
+      if (scrollRect && !(x >= scrollRect.left && x <= scrollRect.right && y >= scrollRect.top && y <= scrollRect.bottom)) return null;
+      // …nor do cells hidden under the sticky day header / row labels.
+      const headRect = container.querySelector('.prs-resource-day-head')?.getBoundingClientRect?.();
+      const labelRect = mobileResourceRows ? null : container.querySelector('.prs-resource-label')?.getBoundingClientRect?.();
+      if ((headRect && y <= headRect.bottom) || (labelRect?.width && x <= labelRect.right)) return null;
       const cell = Array.from(container.querySelectorAll('.prs-resource-cell[data-prs-date]')).find((node) => {
         const rect = node.getBoundingClientRect();
         return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
@@ -3737,9 +4835,13 @@
       const endCol = Math.max(startCol + 1, Math.min(gridEndColumn, dayDiff(start, segmentEnd) + gridStartColumn));
       const node = document.createElement('div');
       node.className = 'prs-resource-bar live-preview';
-      node.style.zIndex = primary ? '12' : '11';
+      // Below the sticky row labels and day header when scrolled.
+      node.style.zIndex = primary ? '9' : '8';
       node.style.gridRow = String(gridRowForResource(rowIndex));
       node.style.gridColumn = `${startCol}/${endCol}`;
+      // While dragging, the preview looks like the item; hover placement
+      // previews keep the PREVIEW treatment.
+      const dragging = !!drag;
       node.innerHTML = workChipHtml({
         ...previewItem,
         id: '__preview',
@@ -3747,7 +4849,8 @@
         all_day: true,
         schedule_granularity: 'date'
       }, { start: segmentStart, end: segmentEnd }, {
-        preview: true,
+        preview: !dragging,
+        dragPreview: dragging,
         mode: 'month',
         showTime: false,
         showAssignee: false,
@@ -3861,35 +4964,101 @@
       });
     };
     const pointerDistance = (event, activeDrag = drag) => activeDrag ? Math.hypot(Number(event.clientX || 0) - Number(activeDrag.startX || 0), Number(event.clientY || 0) - Number(activeDrag.startY || 0)) : 0;
-    const nudgeScrollForPointer = (event) => {
-      if (!scroll || mode === 'day') return;
-      const rect = scroll.getBoundingClientRect();
-      const edge = 84;
-      if (event.clientX > rect.right - edge) scroll.scrollLeft += Math.max(4, Math.round((edge - (rect.right - event.clientX)) * 0.18));
-      else if (event.clientX < rect.left + edge) scroll.scrollLeft -= Math.max(4, Math.round((edge - (event.clientX - rect.left)) * 0.18));
-    };
+    // Edge auto-scroll in both directions while dragging (the day header and
+    // the resource label column are sticky, so the zones start past them).
+    const dragAutoScroller = createDragAutoScroller(scroll, {
+      topInset: () => Number(container.querySelector('.prs-resource-day-head')?.offsetHeight || 0),
+      leftInset: () => (mobileResourceRows ? 0 : Number(container.querySelector('.prs-resource-label')?.offsetWidth || 150)),
+      onScroll: (pointer) => updateResourceDrag(pointer),
+    });
+    /* Moves shift by the number of days the pointer travelled since it
+     * grabbed the item (keeping the grab offset); edges shift the same way.
+     * Only a move changes the row/resource. */
     const dragRange = (activeDrag, target) => {
       if (!activeDrag || !target) return null;
       const base = activeDrag.base;
       const timed = rangeItemIsTimed(activeDrag.item);
+      const dayDelta = activeDrag.grab ? dayDiff(activeDrag.grab.start, target.start) : dayDiff(base.start, target.start);
+      const ownResource = findResource(itemResourceId(activeDrag.item));
       let nextStart = base.start;
       let nextEnd = base.end;
-      if (timed) {
-        const duration = base.end.getTime() - base.start.getTime();
-        nextStart = new Date(target.start);
-        nextStart.setHours(base.start.getHours(), base.start.getMinutes(), base.start.getSeconds(), base.start.getMilliseconds());
-        nextEnd = new Date(nextStart.getTime() + duration);
-      } else if (activeDrag.kind === 'start') {
-        nextStart = target.start < base.end ? target.start : addDays(base.end, -1);
+      let resource = target.resource;
+      if (activeDrag.kind === 'start') {
+        nextStart = addDays(base.start, dayDelta);
+        const latest = timed ? new Date(base.end.getTime() - 15 * 60000) : addDays(base.end, -1);
+        if (nextStart > latest) nextStart = latest;
+        resource = ownResource;
       } else if (activeDrag.kind === 'end') {
-        nextEnd = target.end > base.start ? target.end : addDays(base.start, 1);
+        nextEnd = addDays(base.end, dayDelta);
+        const earliest = timed ? new Date(base.start.getTime() + 15 * 60000) : addDays(base.start, 1);
+        if (nextEnd < earliest) nextEnd = earliest;
+        resource = ownResource;
       } else {
-        const span = Math.max(1, dayDiff(base.start, base.end));
-        nextStart = target.start;
-        nextEnd = addDays(nextStart, span);
+        nextStart = addDays(base.start, dayDelta);
+        nextEnd = addDays(base.end, dayDelta);
       }
-      return { start: nextStart, end: nextEnd, resource: target.resource, all_day: !timed, schedule_granularity: timed ? 'time' : 'date' };
+      return { start: nextStart, end: nextEnd, resource, all_day: !timed, schedule_granularity: timed ? 'time' : 'date' };
     };
+    const cancelDrag = () => {
+      const activeDrag = drag;
+      if (!activeDrag) return;
+      drag = null;
+      dragAutoScroller.stop();
+      container.querySelectorAll('.prs-work-chip.dragging,.prs-work-chip.lock-refused').forEach((node) => node.classList.remove('dragging', 'lock-refused'));
+      container.querySelector('.prs-wrap')?.classList.remove('prs-drag-refused');
+      clearMarkers();
+      if (activeDrag.node) {
+        activeDrag.node.setAttribute('data-prs-suppress-click', '1');
+        activeDrag.node.__prsSuppressPending = true;
+      }
+      releasePointer(activeDrag.captureNode, activeDrag.pointerId);
+    };
+    setContainerKeyHandler(container, (event) => {
+      if (event.key !== 'Escape' || !drag) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      cancelDrag();
+    });
+    const refuseDrag = (activeDrag) => refuseResourceDrag(container, options, activeDrag);
+    function updateResourceDrag(event){
+      if (!drag) return;
+      if (drag.kind === 'refused') {
+        if (!drag.moved && pointerDistance(event) > POINTER_DRAG_THRESHOLD) {
+          drag.moved = true;
+          refuseDrag(drag);
+        }
+        return;
+      }
+      if (!event.synthetic) dragAutoScroller.update(event);
+      if (pointerDistance(event) > POINTER_DRAG_THRESHOLD) {
+        drag.moved = true;
+        captureDeferredDrag(drag);
+        if (drag.kind !== 'create') drag.node?.classList.add('dragging');
+        event.preventDefault();
+      }
+      const target = pointRange(event);
+      if (!target) {
+        if (drag.kind !== 'create' && drag.moved) clearMarkers();
+        return;
+      }
+      // A row this item can't go in: no preview there (the drop is refused).
+      const placeable = canPlaceItemInResource(drag.item || localActiveDraft || activeDraft || {}, target.resource);
+      container.querySelector('.prs-wrap')?.classList.toggle('prs-drag-refused', !placeable && drag.moved && drag.kind !== 'create');
+      if (!placeable) {
+        if (drag.kind !== 'create' && drag.moved) clearMarkers();
+        return;
+      }
+      if (drag.kind === 'create') {
+        drag.current = target;
+        const startDate = drag.anchor.start < target.start ? drag.anchor.start : target.start;
+        const endDate = drag.anchor.end > target.end ? drag.anchor.end : target.end;
+        markRange(startDate, endDate, target.resource);
+        return;
+      }
+      if (!drag.moved) return;
+      const next = dragRange(drag, target);
+      if (next) renderPreview(next.start, next.end, next.resource, drag);
+    }
     const applyCommittedRange = (activeDrag, next) => {
       if (!activeDrag?.wrapper || !next?.start || !next?.end) return;
       if (activeDrag.item) {
@@ -3913,12 +5082,13 @@
     if (options.allowCreate !== false) container.querySelectorAll('.prs-resource-cell').forEach((cell) => {
       cell.addEventListener('pointerdown', (event) => {
         if (event.target.closest('.prs-work-chip')) return;
+        if (event.button > 0) return;
         const range = pointRange(event);
         if (!range) return;
         if (!canPlaceItemInResource(localActiveDraft || activeDraft || {}, range.resource)) return;
         event.preventDefault();
-        drag = { kind:'create', anchor: range, current: range, startX:event.clientX, startY:event.clientY, moved:false };
-        cell.setPointerCapture?.(event.pointerId);
+        drag = { kind:'create', anchor: range, current: range, startX:event.clientX, startY:event.clientY, moved:false, pointerId:event.pointerId, captureNode:cell };
+        capturePointer(cell, event.pointerId);
         markRange(range.start, range.end, range.resource);
       });
     });
@@ -3927,34 +5097,49 @@
         if (options.allowCreate !== false) renderHoverPlacementPreview(pointRange(event));
         return;
       }
-      nudgeScrollForPointer(event);
-      const target = pointRange(event);
-      if (!target) return;
-      if (!canPlaceItemInResource(drag.item || localActiveDraft || activeDraft || {}, target.resource)) return;
-      if (pointerDistance(event) > POINTER_DRAG_THRESHOLD) {
-        drag.moved = true;
-        if (drag.kind !== 'create') drag.node?.classList.add('dragging');
-        event.preventDefault();
-      }
-      if (drag.kind === 'create') {
-        drag.current = target;
-        const startDate = drag.anchor.start < target.start ? drag.anchor.start : target.start;
-        const endDate = drag.anchor.end > target.end ? drag.anchor.end : target.end;
-        markRange(startDate, endDate, target.resource);
+      updateResourceDrag(event);
+    }, { signal:listenerSignal });
+    container.addEventListener('pointerleave', () => { if (!drag) clearMarkers(); }, { signal:listenerSignal });
+    container.addEventListener('pointercancel', (event) => {
+      if (drag && drag.pointerId === event.pointerId) cancelDrag();
+    }, { signal:listenerSignal });
+    container.addEventListener('pointerup', (event) => {
+      container.querySelectorAll('.prs-work-chip').forEach((node) => {
+        if (!node.__prsSuppressPending) return;
+        node.__prsSuppressPending = false;
+        setTimeout(() => node.removeAttribute('data-prs-suppress-click'), 120);
+      });
+      if (!drag) return;
+      const activeDrag = drag;
+      const pointerTarget = pointRange(event);
+      drag = null;
+      dragAutoScroller.stop();
+      container.querySelectorAll('.prs-work-chip.dragging,.prs-work-chip.lock-refused').forEach((node) => node.classList.remove('dragging', 'lock-refused'));
+      container.querySelector('.prs-wrap')?.classList.remove('prs-drag-refused');
+      clearMarkers();
+      const suppressFollowingClick = () => {
+        activeDrag.node?.setAttribute('data-prs-suppress-click', '1');
+        setTimeout(() => activeDrag.node?.removeAttribute('data-prs-suppress-click'), 120);
+      };
+      if (activeDrag.kind === 'refused') {
+        if (activeDrag.moved) suppressFollowingClick();
         return;
       }
-      const next = dragRange(drag, target);
-      if (next) renderPreview(next.start, next.end, next.resource, drag);
-    });
-    container.addEventListener('pointerleave', () => { if (!drag) clearMarkers(); });
-    container.addEventListener('pointerup', (event) => {
-      if (!drag) return;
-      const target = pointRange(event) || drag.current || drag.anchor;
-      const activeDrag = drag;
-      container.querySelectorAll('.prs-work-chip.dragging').forEach((node) => node.classList.remove('dragging'));
-      drag = null;
-      clearMarkers();
-      if (!canPlaceItemInResource(activeDrag.item || localActiveDraft || activeDraft || {}, target.resource)) return;
+      // An item released outside the grid goes back where it was.
+      if (activeDrag.kind !== 'create' && activeDrag.moved && !pointerTarget) {
+        suppressFollowingClick();
+        return;
+      }
+      const target = pointerTarget || activeDrag.current || activeDrag.anchor;
+      if (!canPlaceItemInResource(activeDrag.item || localActiveDraft || activeDraft || {}, target.resource)) {
+        // A refused drop leaves the item where it was, never opens it, and
+        // says why.
+        if (activeDrag.kind !== 'create' && (activeDrag.moved || pointerDistance(event, activeDrag) > POINTER_DRAG_THRESHOLD)) {
+          suppressFollowingClick();
+          refuseResourceDrop(options, activeDrag, target.resource);
+        }
+        return;
+      }
       if (activeDrag.kind === 'create') {
         const startDate = activeDrag.anchor.start < target.start ? activeDrag.anchor.start : target.start;
         const endDate = activeDrag.anchor.end > target.end ? activeDrag.anchor.end : target.end;
@@ -3976,8 +5161,10 @@
       if (!itemCanAdjustRange(activeDrag.item)) return;
       const next = dragRange(activeDrag, target);
       if (!next) return;
-      activeDrag.node?.setAttribute('data-prs-suppress-click', '1');
-      setTimeout(() => activeDrag.node?.removeAttribute('data-prs-suppress-click'), 80);
+      suppressFollowingClick();
+      const unchanged = Math.abs(next.start - activeDrag.base.start) < 1000 && Math.abs(next.end - activeDrag.base.end) < 1000
+        && String(next.resource?.id || '') === String(findResource(itemResourceId(activeDrag.item))?.id || '');
+      if (unchanged) return;
       const payload = { ...resourcePayload(next.resource), start: next.start, end: next.end, all_day: next.all_day !== false, schedule_granularity: next.schedule_granularity || (next.all_day === false ? 'time' : 'date') };
       if (activeDrag.item.__draft === true || activeDrag.item.id === '__draft') {
         applyCommittedRange(activeDrag, next);
@@ -3989,12 +5176,20 @@
         reflowResourceLanes();
         options.onEventRangeChange?.(activeDrag.item, payload);
       }
-    });
+    }, { signal:listenerSignal });
     function bindResourceChip(chip){
       if (!chip || chip.dataset.prsBound === '1') return;
       chip.dataset.prsBound = '1';
       bindEdgeResizeCursor(chip, () => options.allowEdit !== false);
+      bindReadOnlyResourceChip(chip, options, () => drag, (next) => { drag = next; }, eventByRenderedId);
       bindEventLockControl(chip, options, () => eventByRenderedId(chip.dataset.prsEventId || ''));
+      const boundItem = eventByRenderedId(chip.dataset.prsEventId || '');
+      if (options.allowEdit !== false && boundItem && !itemCanAdjustRange(boundItem)) chip.dataset.prsDragRefused = '1';
+      chip.addEventListener('keydown', (event) => {
+        if (event.target !== chip || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        chip.click();
+      });
       chip.addEventListener('click', (event) => {
         if (chip.dataset.prsSuppressClick === '1') return;
         if (event.target.closest('[data-prs-confirm],[data-prs-lock-toggle]')) return;
@@ -4017,12 +5212,18 @@
         else if (itemIsEditable(item)) options.onEventClick?.(item, { element: chip });
       });
       if (options.allowEdit !== false) chip.addEventListener('pointerdown', (event) => {
-        if (event.target.closest('[data-prs-confirm],[data-prs-assignee],[data-prs-view],[data-prs-lock-toggle]')) return;
+        if (chipPressIgnoredForDrag(chip, event)) return;
+        if (event.button > 0 || drag) return;
         const item = eventByRenderedId(chip.dataset.prsEventId || '');
-        if (!item || !itemCanAdjustRange(item)) return;
+        if (!item) return;
+        if (!itemCanAdjustRange(item)) {
+          drag = { kind:'refused', item, node:chip, startX:event.clientX, startY:event.clientY, moved:false, reason:eventIsLocked(item) ? 'locked' : 'readonly', pointerId:event.pointerId };
+          return;
+        }
         const handle = resizeEdgeAtPointer(chip, event);
-        drag = { kind: handle, item, node: chip, wrapper: chip.closest('.prs-resource-bar'), base: normalizeRangeItem(item).range, startX:event.clientX, startY:event.clientY, moved:false };
-        chip.setPointerCapture?.(event.pointerId);
+        // The day under the pointer when grabbed: moves keep this offset.
+        drag = { kind: handle, item, node: chip, wrapper: chip.closest('.prs-resource-bar'), base: normalizeRangeItem(item).range, grab: pointRange(event), startX:event.clientX, startY:event.clientY, moved:false, pointerId:event.pointerId, captureNode:chip };
+        captureChipPress(chip, event, drag);
       });
     }
     container.querySelectorAll('.prs-work-chip').forEach(bindResourceChip);
@@ -4035,6 +5236,8 @@
 
   function renderResourceTimeScheduler(container, options = {}){
     if (!container) return;
+    const listenerSignal = resetContainerListeners(container);
+    setContainerKeyHandler(container, null);
     injectCss();
     seedTravelCache(options.travelTimeCache);
     const Scheduling = options.Scheduling || root.PlatformScheduling;
@@ -4118,14 +5321,32 @@
     const dayStart = dateAt(dateValue, '00:00');
     const dayEnd = addDays(dayStart, 1);
     const normalizedVisibleItems = visibleItems.map(normalizeRangeItem);
-    const allDayBars = normalizedVisibleItems
-      .filter(({ item, range }) => !rangeItemIsTimed(item) && range.start < dayEnd && range.end > dayStart)
+    // All-day items get their own strip at the top of their row (one lane
+    // each), above the timed chips instead of underneath them.
+    const allDayEntries = normalizedVisibleItems.filter(({ item, range }) => !rangeItemIsTimed(item) && range.start < dayEnd && range.end > dayStart);
+    const allDayLaneByItem = new Map();
+    const allDayCountByRow = new Map();
+    allDayEntries.forEach(({ item }) => {
+      const rowIndex = rowForResource(itemResourceId(item));
+      const lane = allDayCountByRow.get(rowIndex) || 0;
+      allDayLaneByItem.set(item, lane);
+      allDayCountByRow.set(rowIndex, lane + 1);
+    });
+    const ALL_DAY_STRIP_STEP_PX = 27;
+    const allDayStripHeight = (rowIndex) => {
+      const count = allDayCountByRow.get(rowIndex) || 0;
+      return count ? 4 + count * ALL_DAY_STRIP_STEP_PX : 0;
+    };
+    const allDayBars = allDayEntries
       .map(({ item }) => {
         const rowIndex = rowForResource(itemResourceId(item));
+        const allDayTop = 4 + (allDayLaneByItem.get(item) || 0) * ALL_DAY_STRIP_STEP_PX;
         const materialDelivery = isMaterialDeliveryEvent(item);
-        const title = materialDelivery ? materialDeliveryTitle(item) : (item.project_title || item.project_name || item.customer_name || item.title || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_2ac9ecd66d638b","New Event") ?? "New Event"));
+        // The item's own title leads; its project/customer and address follow.
+        const projectLabel = clean(item.project_title || item.project_name || item.customer_name);
+        const title = materialDelivery ? materialDeliveryTitle(item) : (clean(item.title || item.event_title) || projectLabel || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_2ac9ecd66d638b","New Event") ?? "New Event"));
         const address = clean(item.project_address || item.address || '');
-        const label = address ? `${title} - ${address}` : title;
+        const label = [title, projectLabel && projectLabel.toLowerCase() !== clean(title).toLowerCase() ? projectLabel : '', address].filter(Boolean).join(' - ');
         const ordered = materialDelivery && materialDeliveryIsOrdered(item);
         const locked = eventIsLocked(item);
         const presentation = materialDeliveryPresentation(item);
@@ -4144,9 +5365,10 @@
         const lockControl = showLock
           ? `<button type="button" class="prs-event-lock" data-prs-lock-toggle aria-label="${esc(locked ? 'Unlock schedule item' : 'Lock schedule item')}" title="${esc(locked ? 'Unlock schedule item' : 'Lock schedule item')}"><i class="fas ${locked ? 'fa-lock' : 'fa-lock-open'}"></i></button>`
           : '';
-        return `<div class="prs-resource-all-day-bar ${String(stateClasses)}" style="grid-row:${String(rowIndex + 2)};grid-column:2/${String(slots.length + 2)};${String(esc(presentationStyle))}" aria-label="${String(esc(`All day ${label}`))}"></div>
-          <div class="prs-resource-all-day-label" style="grid-row:${String(rowIndex + 2)};grid-column:2/${String(slots.length + 2)}">
-            <div class="prs-all-day-chip ${String(stateClasses)} ${String(showLock ? 'has-lock-control' : '')}" data-prs-event-id="${String(esc(item.id || item.event_id || ''))}" style="${String(esc(presentationStyle))}"><strong>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_6566b47a5b176f","All Day") ?? "All Day")}</strong>${String(marker)}<span class="prs-all-day-title">${String(esc(label))}</span>${String(lockControl)}</div>
+        const itemId = String(esc(item.id || item.event_id || ''));
+        return `<div class="prs-resource-all-day-bar ${String(stateClasses)}" style="grid-row:${String(rowIndex + 2)};grid-column:2/${String(slots.length + 2)};margin-top:${allDayTop}px;${String(esc(presentationStyle))}" data-prs-all-day-open="${itemId}" aria-hidden="true"></div>
+          <div class="prs-resource-all-day-label" style="grid-row:${String(rowIndex + 2)};grid-column:2/${String(slots.length + 2)};margin-top:${allDayTop + 1}px">
+            <div class="prs-all-day-chip ${String(stateClasses)} ${String(showLock ? 'has-lock-control' : '')}" data-prs-event-id="${itemId}" data-prs-all-day-open="${itemId}" role="button" tabindex="0" aria-label="${String(esc(`All day ${label}`))}" title="${String(esc(`All day: ${label}`))}" style="${String(esc(presentationStyle))}"><strong>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_6566b47a5b176f","All Day") ?? "All Day")}</strong>${String(marker)}<span class="prs-all-day-title">${String(esc(label))}</span>${String(lockControl)}</div>
           </div>`;
       }).join('');
     const visibleForDay = normalizedVisibleItems.filter(({ item, range }) => rangeItemIsTimed(item) && dateKey(range.start) === dateValue);
@@ -4158,8 +5380,8 @@
     });
     // Row = stacked chips (2 lane-units each) plus symmetric 6px top/bottom
     // padding — no phantom extra lane, so single-appointment rows stay short.
-    const rowHeightForResource = (resource) => `${(laneCountByResource.get(String(resource.id || '')) || 1) * 2 * laneUnitForResource(resource) + 12}px`;
-    const barTopForItem = (item) => `${(resourceIsCompact(renderedResourceIdForItem(item)) ? 3 : 6) + (Number(laneByItem.get(item) || 0) * laneUnitForResource(renderedResourceIdForItem(item)) * 2)}px`;
+    const rowHeightForResource = (resource, rowIndex = rowForResource(resource.id)) => `${(laneCountByResource.get(String(resource.id || '')) || 1) * 2 * laneUnitForResource(resource) + 12 + allDayStripHeight(rowIndex)}px`;
+    const barTopForItem = (item) => `${allDayStripHeight(rowForResource(itemResourceId(item))) + (resourceIsCompact(renderedResourceIdForItem(item)) ? 3 : 6) + (Number(laneByItem.get(item) || 0) * laneUnitForResource(renderedResourceIdForItem(item)) * 2)}px`;
     const travelConnections = options.liveTravel !== true ? [] : rows.flatMap((resource, rowIndex) => {
       if (!clean(resource.id)) return [];
       const rowEvents = visibleForDay
@@ -4264,12 +5486,12 @@
         </div>
       </div>`;
     container.innerHTML = resourceGridHtml({
-      wrapClass: `prs-wrap ${showToolbar ? '' : 'no-toolbar'}`,
+      wrapClass: `prs-wrap ${options.readOnly ? 'readonly' : ''} ${options.allowCreate === false ? 'no-create' : ''} ${options.allowEdit === false ? 'events-click-only' : ''} ${showToolbar ? '' : 'no-toolbar'}`,
       showToolbar,
       toolbarHtml: toolbar,
       scrollClass: 'prs-resource-scroll',
       gridClass: `prs-resource-time-grid ${dayTemporalClass(anchor)}`,
-      gridStyle: `--prs-slots:${slots.length};--prs-resources:${rows.length};grid-template-rows:40px ${rows.map(rowHeightForResource).join(' ')}`,
+      gridStyle: `--prs-slots:${slots.length};--prs-resources:${rows.length};grid-template-rows:40px ${rows.map((resource, rowIndex) => rowHeightForResource(resource, rowIndex)).join(' ')}`,
       cornerClass: 'prs-resource-corner',
       cornerLabel: options.resourceHeader || options.resourceLabel || 'Resource',
       headersHtml: slots.map((minute, index) => `<div class="prs-resource-time-head" style="grid-row:1;grid-column:${index + 2}">${esc(timeLabel(minute))}</div>`).join(''),
@@ -4282,7 +5504,11 @@
           actionAttr: (!resource.unassigned && resource.settings_disabled !== true && typeof options.onResourceSettings === 'function') ? `data-prs-resource-settings="${esc(resource.id || '')}"` : '',
           actionLabel: resourceActionPresentation(resource).label,
           actionIcon: resourceActionPresentation(resource).icon,
-          actionsHtml: (!resource.unassigned && typeof options.onResourceAvailabilityToggle === 'function')
+          // Availability belongs to people/crews, not the Materials lane,
+          // vehicle lanes or other settings-less rows.
+          actionsHtml: (!resource.unassigned && resource.settings_disabled !== true && resource.availability_disabled !== true
+            && !['materials', 'vehicle_lane', 'vehicle', 'equipment'].includes(clean(resource.resource_kind || resource.kind).toLowerCase())
+            && typeof options.onResourceAvailabilityToggle === 'function')
             ? `<button type="button" class="psv-resource-settings-btn psv-availability-toggle ${resource.unavailable ? 'active' : ''}" data-prs-availability="${esc(resource.id || '')}" aria-pressed="${resource.unavailable ? 'true' : 'false'}" aria-label="${resource.unavailable ? 'Mark available for this day' : 'Mark unavailable for this day'}" title="${resource.unavailable ? 'Mark available for this day' : 'Mark unavailable for this day'}"><i class="fas ${resource.unavailable ? 'fa-user-slash' : 'fa-user-check'}"></i></button>`
             : ''
         })}
@@ -4330,31 +5556,86 @@
     };
     const rangeFromPointer = (event) => {
       const x = Number(event.clientX), y = Number(event.clientY);
+      // Cells scrolled out of view keep their geometry: only the visible grid counts.
+      const scrollRect = scroll?.getBoundingClientRect?.();
+      if (scrollRect && !(x >= scrollRect.left && x <= scrollRect.right && y >= scrollRect.top && y <= scrollRect.bottom)) return null;
+      // …nor do cells hidden under the sticky time header / row labels.
+      const headRect = container.querySelector('.prs-resource-time-head')?.getBoundingClientRect?.();
+      const labelRect = container.querySelector('.prs-resource-label')?.getBoundingClientRect?.();
+      if ((headRect && y <= headRect.bottom) || (labelRect?.width && x <= labelRect.right)) return null;
       const cell = Array.from(container.querySelectorAll('.prs-resource-time-cell')).find((node) => {
         const rect = node.getBoundingClientRect();
         return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
       });
       if (!cell) return null;
       const minute = Number(cell.dataset.prsMinute || workStart);
-      return { ...slotRange(minute), resource: findResource(cell.dataset.prsResource || '') };
+      const rect = cell.getBoundingClientRect();
+      // Exact (unsnapped) minute under the pointer, for grab-offset moves.
+      const exactMinute = minute + Math.max(0, Math.min(1, (x - rect.left) / Math.max(1, rect.width))) * slotMinutes;
+      return { ...slotRange(minute), minute:exactMinute, resource: findResource(cell.dataset.prsResource || '') };
     };
     const pointerDistance = (event, activeDrag = drag) => activeDrag ? Math.hypot(Number(event.clientX || 0) - Number(activeDrag.startX || 0), Number(event.clientY || 0) - Number(activeDrag.startY || 0)) : 0;
+    /* Moves shift by the pointer's travel since the grab (whole slots, three
+     * quarters of a slot before it jumps); edges snap to the nearest slot
+     * line. Only moves change the row. */
     const dragRange = (activeDrag, target) => {
       if (!activeDrag || !target) return null;
       const base = activeDrag.base;
+      const ownResource = findResource(itemResourceId(activeDrag.item));
       let nextStart = base.start;
       let nextEnd = base.end;
+      // A grabbed edge travels with the pointer and lands on the nearest slot line.
+      const pointerTravel = Number(target.minute ?? minuteForDate(target.start)) - Number(activeDrag.grab?.minute ?? target.minute ?? minuteForDate(target.start));
+      const edgeAt = () => {
+        const moved = (activeDrag.kind === 'start' ? base.start : base.end).getTime() + pointerTravel * 60000;
+        return new Date(dayStart.getTime() + Math.round((moved - dayStart.getTime()) / 60000 / slotMinutes) * slotMinutes * 60000);
+      };
       if (activeDrag.kind === 'start') {
-        nextStart = target.start < base.end ? target.start : new Date(base.end.getTime() - slotMinutes * 60000);
-      } else if (activeDrag.kind === 'end') {
-        nextEnd = target.end > base.start ? target.end : new Date(base.start.getTime() + slotMinutes * 60000);
-      } else {
-        const duration = base.end.getTime() - base.start.getTime();
-        nextStart = target.start;
-        nextEnd = new Date(nextStart.getTime() + duration);
+        const edge = edgeAt();
+        nextStart = edge < new Date(base.end.getTime() - slotMinutes * 60000) ? edge : new Date(base.end.getTime() - slotMinutes * 60000);
+        return { start: nextStart, end: nextEnd, resource: ownResource };
       }
+      if (activeDrag.kind === 'end') {
+        const edge = edgeAt();
+        nextEnd = edge > new Date(base.start.getTime() + slotMinutes * 60000) ? edge : new Date(base.start.getTime() + slotMinutes * 60000);
+        return { start: nextStart, end: nextEnd, resource: ownResource };
+      }
+      const duration = base.end.getTime() - base.start.getTime();
+      const raw = Number(target.minute ?? minuteForDate(target.start)) - Number(activeDrag.grab?.minute ?? minuteForDate(base.start));
+      const delta = (raw < 0 ? -1 : 1) * Math.floor((Math.abs(raw) + slotMinutes * 0.25) / slotMinutes) * slotMinutes;
+      nextStart = new Date(base.start.getTime() + delta * 60000);
+      nextEnd = new Date(nextStart.getTime() + duration);
       return { start: nextStart, end: nextEnd, resource: target.resource };
     };
+    const dragAutoScroller = createDragAutoScroller(scroll, {
+      topInset: () => Number(container.querySelector('.prs-resource-time-head')?.offsetHeight || 0),
+      leftInset: () => Number(container.querySelector('.prs-resource-label')?.offsetWidth || 150),
+      onScroll: (pointer) => updateTimeDrag(pointer),
+    });
+    const refuseDrag = (activeDrag) => refuseResourceDrag(container, options, activeDrag);
+    const endTimeDragVisuals = () => {
+      dragAutoScroller.stop();
+      container.querySelectorAll('.prs-work-chip.dragging,.prs-work-chip.lock-refused').forEach((node) => node.classList.remove('dragging', 'lock-refused'));
+      container.querySelector('.prs-wrap')?.classList.remove('prs-drag-refused');
+    };
+    const cancelDrag = () => {
+      const activeDrag = drag;
+      if (!activeDrag) return;
+      drag = null;
+      endTimeDragVisuals();
+      clearPreview();
+      if (activeDrag.node) {
+        activeDrag.node.setAttribute('data-prs-suppress-click', '1');
+        activeDrag.node.__prsSuppressPending = true;
+      }
+      releasePointer(activeDrag.captureNode, activeDrag.pointerId);
+    };
+    setContainerKeyHandler(container, (event) => {
+      if (event.key !== 'Escape' || !drag) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      cancelDrag();
+    });
     const applyCommittedRange = (activeDrag, next) => {
       if (!activeDrag?.wrapper || !next?.start || !next?.end) return;
       const rowIndex = rowForResource(next.resource?.id || '');
@@ -4389,8 +5670,11 @@
       node.className = 'prs-resource-time-bar live-preview';
       node.style.gridRow = String(rowIndex + 2);
       node.style.gridColumn = `${startCol}/${Math.min(slots.length + 2, startCol + span)}`;
-      node.innerHTML = workChipHtml({ id:'__preview', title: activeDrag?.item?.title || activeDraft?.title || (globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_2ac9ecd66d638b","New Event") ?? "New Event"), all_day:false, schedule_granularity:'time' }, { start:startDate, end:endDate }, {
-        preview:true,
+      // While dragging, the preview looks like the item being moved.
+      const dragging = !!drag;
+      node.innerHTML = workChipHtml({ ...(dragging ? objectValue(activeDrag?.item) : {}), id:'__preview', title: activeDrag?.item?.title || activeDraft?.title || (globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_2ac9ecd66d638b","New Event") ?? "New Event"), all_day:false, schedule_granularity:'time' }, { start:startDate, end:endDate }, {
+        preview:!dragging,
+        dragPreview:dragging,
         mode:'month',
         chipClass:'timed-month',
         showTime:true,
@@ -4448,15 +5732,56 @@
     if (options.allowCreate !== false) container.querySelectorAll('.prs-resource-time-cell').forEach((cell) => {
       cell.addEventListener('pointerdown', (event) => {
         if (event.target.closest('.prs-work-chip')) return;
+        if (event.button > 0) return;
         const range = rangeFromPointer(event);
         if (!range) return;
         if (!canPlaceItemInResource(localActiveDraft || activeDraft || {}, range.resource)) return;
         event.preventDefault();
-        drag = { kind:'create', anchor:range, current:range, startX:event.clientX, startY:event.clientY, moved:false };
-        cell.setPointerCapture?.(event.pointerId);
+        drag = { kind:'create', anchor:range, current:range, startX:event.clientX, startY:event.clientY, moved:false, pointerId:event.pointerId, captureNode:cell };
+        capturePointer(cell, event.pointerId);
         renderPreview(range.start, range.end, range.resource);
       });
     });
+    function updateTimeDrag(event){
+      if (!drag) return;
+      if (drag.kind === 'refused') {
+        if (!drag.moved && pointerDistance(event) > POINTER_DRAG_THRESHOLD) {
+          drag.moved = true;
+          refuseDrag(drag);
+        }
+        return;
+      }
+      if (!event.synthetic) dragAutoScroller.update(event);
+      if (pointerDistance(event) > POINTER_DRAG_THRESHOLD) {
+        drag.moved = true;
+        captureDeferredDrag(drag);
+        if (drag.kind !== 'create') drag.node?.classList.add('dragging');
+        event.preventDefault();
+      }
+      const target = rangeFromPointer(event);
+      if (!target) {
+        if (drag.kind !== 'create' && drag.moved) clearPreview();
+        return;
+      }
+      // A row this item can't go in: no preview there (the drop is refused).
+      const placeable = canPlaceItemInResource(drag.item || localActiveDraft || activeDraft || {}, target.resource);
+      container.querySelector('.prs-wrap')?.classList.toggle('prs-drag-refused', !placeable && drag.moved && drag.kind !== 'create');
+      if (!placeable) {
+        if (drag.kind !== 'create' && drag.moved) clearPreview();
+        return;
+      }
+      if (drag.kind === 'create') {
+        drag.current = target;
+        const startDate = drag.anchor.start < target.start ? drag.anchor.start : target.start;
+        const draggedEnd = drag.anchor.end > target.end ? drag.anchor.end : target.end;
+        const endDate = fixedEndFor(startDate, draggedEnd);
+        renderPreview(startDate, endDate, target.resource);
+        return;
+      }
+      if (!drag.moved) return;
+      const next = dragRange(drag, target);
+      if (next) renderPreview(next.start, next.end, next.resource, drag);
+    }
     container.addEventListener('pointermove', (event) => {
       if (!drag) {
         const target = rangeFromPointer(event);
@@ -4469,34 +5794,47 @@
         }
         return;
       }
-      const target = rangeFromPointer(event);
-      if (!target) return;
-      if (!canPlaceItemInResource(drag.item || localActiveDraft || activeDraft || {}, target.resource)) return;
-      if (pointerDistance(event) > POINTER_DRAG_THRESHOLD) {
-        drag.moved = true;
-        if (drag.kind !== 'create') drag.node?.classList.add('dragging');
-        event.preventDefault();
-      }
-      if (drag.kind === 'create') {
-        drag.current = target;
-        const startDate = drag.anchor.start < target.start ? drag.anchor.start : target.start;
-        const draggedEnd = drag.anchor.end > target.end ? drag.anchor.end : target.end;
-        const endDate = fixedEndFor(startDate, draggedEnd);
-        renderPreview(startDate, endDate, target.resource);
-        return;
-      }
-      const next = dragRange(drag, target);
-      if (next) renderPreview(next.start, next.end, next.resource, drag);
-    });
-    container.addEventListener('pointerleave', () => { if (!drag) clearPreview(); });
+      updateTimeDrag(event);
+    }, { signal:listenerSignal });
+    container.addEventListener('pointerleave', () => { if (!drag) clearPreview(); }, { signal:listenerSignal });
+    container.addEventListener('pointercancel', (event) => {
+      if (drag && drag.pointerId === event.pointerId) cancelDrag();
+    }, { signal:listenerSignal });
     container.addEventListener('pointerup', (event) => {
+      container.querySelectorAll('.prs-work-chip').forEach((node) => {
+        if (!node.__prsSuppressPending) return;
+        node.__prsSuppressPending = false;
+        setTimeout(() => node.removeAttribute('data-prs-suppress-click'), 120);
+      });
       if (!drag) return;
-      const target = rangeFromPointer(event) || drag.current || drag.anchor;
       const activeDrag = drag;
+      const pointerTarget = rangeFromPointer(event);
       drag = null;
       clearPreview();
-      container.querySelectorAll('.prs-work-chip.dragging').forEach((node) => node.classList.remove('dragging'));
-      if (!canPlaceItemInResource(activeDrag.item || localActiveDraft || activeDraft || {}, target.resource)) return;
+      endTimeDragVisuals();
+      const suppressFollowingClick = () => {
+        activeDrag.node?.setAttribute('data-prs-suppress-click', '1');
+        setTimeout(() => activeDrag.node?.removeAttribute('data-prs-suppress-click'), 120);
+      };
+      if (activeDrag.kind === 'refused') {
+        if (activeDrag.moved) suppressFollowingClick();
+        return;
+      }
+      // An item released outside the grid goes back where it was.
+      if (activeDrag.kind !== 'create' && activeDrag.moved && !pointerTarget) {
+        suppressFollowingClick();
+        return;
+      }
+      const target = pointerTarget || activeDrag.current || activeDrag.anchor;
+      if (!canPlaceItemInResource(activeDrag.item || localActiveDraft || activeDraft || {}, target.resource)) {
+        // A refused drop leaves the item where it was, never opens it, and
+        // says why.
+        if (activeDrag.kind !== 'create' && (activeDrag.moved || pointerDistance(event, activeDrag) > POINTER_DRAG_THRESHOLD)) {
+          suppressFollowingClick();
+          refuseResourceDrop(options, activeDrag, target.resource);
+        }
+        return;
+      }
       const payloadBase = { ...resourcePayload(target.resource), all_day:false, schedule_granularity:'time' };
       if (activeDrag.kind === 'create') {
         const startDate = activeDrag.anchor.start < target.start ? activeDrag.anchor.start : target.start;
@@ -4511,8 +5849,10 @@
       if (!itemCanAdjustRange(activeDrag.item)) return;
       const next = dragRange(activeDrag, target);
       if (!next) return;
-      activeDrag.node?.setAttribute('data-prs-suppress-click', '1');
-      setTimeout(() => activeDrag.node?.removeAttribute('data-prs-suppress-click'), 80);
+      suppressFollowingClick();
+      const unchanged = Math.abs(next.start - activeDrag.base.start) < 1000 && Math.abs(next.end - activeDrag.base.end) < 1000
+        && String(next.resource?.id || '') === String(findResource(itemResourceId(activeDrag.item))?.id || '');
+      if (unchanged) return;
       const payload = { ...payloadBase, ...resourcePayload(next.resource), start: next.start, end: next.end };
       if (activeDrag.item.__draft === true || activeDrag.item.id === '__draft') {
         applyCommittedRange(activeDrag, next);
@@ -4522,12 +5862,20 @@
         applyCommittedRange(activeDrag, next);
         options.onEventRangeChange?.(activeDrag.item, payload);
       }
-    });
+    }, { signal:listenerSignal });
     function bindResourceTimeChip(chip){
       if (!chip || chip.dataset.prsBound === '1') return;
       chip.dataset.prsBound = '1';
       bindEdgeResizeCursor(chip, () => options.allowEdit !== false);
+      bindReadOnlyResourceChip(chip, options, () => drag, (next) => { drag = next; }, eventByRenderedId);
       bindEventLockControl(chip, options, () => eventByRenderedId(chip.dataset.prsEventId || ''));
+      const boundItem = eventByRenderedId(chip.dataset.prsEventId || '');
+      if (options.allowEdit !== false && boundItem && !itemCanAdjustRange(boundItem)) chip.dataset.prsDragRefused = '1';
+      chip.addEventListener('keydown', (event) => {
+        if (event.target !== chip || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        chip.click();
+      });
       chip.addEventListener('click', (event) => {
         if (chip.dataset.prsSuppressClick === '1') return;
         if (event.target.closest('[data-prs-confirm],[data-prs-lock-toggle]')) return;
@@ -4550,17 +5898,40 @@
         else if (itemIsEditable(item)) options.onEventClick?.(item, { element: chip });
       });
       if (options.allowEdit !== false) chip.addEventListener('pointerdown', (event) => {
-        if (event.target.closest('[data-prs-confirm],[data-prs-assignee],[data-prs-view],[data-prs-lock-toggle]')) return;
+        if (chipPressIgnoredForDrag(chip, event)) return;
+        if (event.button > 0 || drag) return;
         const item = eventByRenderedId(chip.dataset.prsEventId || '');
-        if (!item || !itemCanAdjustRange(item)) return;
+        if (!item) return;
+        if (!itemCanAdjustRange(item)) {
+          drag = { kind:'refused', item, node:chip, startX:event.clientX, startY:event.clientY, moved:false, reason:eventIsLocked(item) ? 'locked' : 'readonly', pointerId:event.pointerId };
+          return;
+        }
         const handle = resizeEdgeAtPointer(chip, event);
-        drag = { kind: handle, item, node: chip, wrapper: chip.closest('.prs-resource-time-bar'), base: normalizeRangeItem(item).range, startX:event.clientX, startY:event.clientY, moved:false };
-        chip.setPointerCapture?.(event.pointerId);
+        // Where in time the item was grabbed: moves keep this offset.
+        drag = { kind: handle, item, node: chip, wrapper: chip.closest('.prs-resource-time-bar'), base: normalizeRangeItem(item).range, grab: rangeFromPointer(event), startX:event.clientX, startY:event.clientY, moved:false, pointerId:event.pointerId, captureNode:chip };
+        captureChipPress(chip, event, drag);
       });
     }
     container.querySelectorAll('.prs-work-chip').forEach(bindResourceTimeChip);
     container.querySelectorAll('.prs-all-day-chip[data-prs-event-id]').forEach((chip) => {
       bindEventLockControl(chip, options, () => eventByRenderedId(chip.dataset.prsEventId || ''));
+    });
+    // All-day strips open their item like any chip (Routing lists them for
+    // context; moving them happens in the editor or the Daily view).
+    container.querySelectorAll('[data-prs-all-day-open]').forEach((node) => {
+      const open = (event) => {
+        if (event.target.closest?.('[data-prs-lock-toggle]')) return;
+        const item = eventByRenderedId(node.dataset.prsAllDayOpen || '');
+        if (!item) return;
+        event.preventDefault();
+        event.stopPropagation();
+        options.onEventClick?.(item, { element: node.closest('.prs-all-day-chip') || node, readOnly: !itemIsEditable(item) });
+      };
+      node.addEventListener('pointerdown', (event) => event.stopPropagation());
+      node.addEventListener('click', open);
+      node.addEventListener('keydown', (event) => {
+        if (event.target === node && (event.key === 'Enter' || event.key === ' ')) open(event);
+      });
     });
     container.querySelectorAll('[data-prs-confirm]').forEach((btn) => btn.addEventListener('click', (event) => {
       event.preventDefault();
@@ -4570,7 +5941,7 @@
   }
 
   const GANTT_ZOOM_PRESETS = { hour:1440, day:240, week:60, month:16 };
-  const GANTT_ZOOM_MIN = 8;
+  const GANTT_ZOOM_MIN = 4;
   const GANTT_ZOOM_MAX = 2400;
   const GANTT_ROW_H = 32;
   const GANTT_SECTION_H = 28;
@@ -4626,6 +5997,31 @@
     return '';
   }
 
+  function ganttEventIsCancelled(event = {}){
+    return ['cancelled', 'canceled'].includes(clean(event.status).toLowerCase());
+  }
+
+  function ganttSeriesId(event = {}){
+    return clean(event.recurrence_series_id);
+  }
+
+  function ganttIsDowntime(event = {}){
+    const kind = eventKind(event);
+    return kind === 'equipment_downtime' || kind === 'equipment_maintenance' || eventTypeId(event) === 'equipment_maintenance';
+  }
+
+  function allDayItemIsGroup(event = {}){
+    const Scheduling = root.PlatformScheduling;
+    return typeof Scheduling?.eventIsGroup === 'function' ? Scheduling.eventIsGroup(event) === true : event.is_schedule_group === true;
+  }
+
+  function ganttLagLabel(minutes){
+    const lag = Number(minutes) || 0;
+    if (!lag) return '';
+    if (lag % 1440 === 0) return ` (+${lag / 1440} day${Math.abs(lag) === 1440 ? '' : 's'} lag)`;
+    return ` (+${Math.round(lag / 60)}h lag)`;
+  }
+
   // Full-project Gantt: grouped rows with rollup parents, dependency links,
   // continuous hour→month zoom, drag move/resize, drag-to-link.  Separate
   // surface from the routing schedulers; same option/callback conventions.
@@ -4646,8 +6042,10 @@
       : new Set((options.collapsedGroupIds || []).map((id) => String(id || '')));
     container.__psvGanttCollapsed = collapsed;
 
+    // Legacy items without an all_day flag get the calendar views' inference:
+    // an off-midnight start lasting under a day is a timed appointment.
     const rawEvents = (options.events || [])
-      .map((event) => Scheduling?.normalizeEvent ? Scheduling.normalizeEvent(event, options.config || null, options.project || null) : event);
+      .map((event) => inferLegacyTimeGranularity(Scheduling?.normalizeEvent ? Scheduling.normalizeEvent(event, options.config || null, options.project || null) : event));
     const events = Scheduling?.applyGroupRollups ? Scheduling.applyGroupRollups(rawEvents) : rawEvents;
     const eventById = new Map(events.map((event) => [String(event.id || ''), event]));
     const evStart = (event) => eventStart(Scheduling, event);
@@ -4656,12 +6054,30 @@
     const parentIdOf = (event) => Scheduling?.eventParentId ? Scheduling.eventParentId(event) : clean(event.parent_event_id);
     const isGroup = (event) => Scheduling?.eventIsGroup ? Scheduling.eventIsGroup(event) : event.is_schedule_group === true;
     const dependenciesOf = (event) => Scheduling?.eventDependencies ? Scheduling.eventDependencies(event) : [];
+    const isTimed = (event) => rangeItemIsTimed(event || {});
+    const isCancelled = (event) => ganttEventIsCancelled(event);
+    // Cancelled items keep a muted bar where they were; they are never
+    // offered for scheduling.
+    const hasPlacement = (event) => isScheduled(event) || (isCancelled(event) && !!clean(event.start_at || event.start));
+    const canEditItem = (event) => !readOnly && !isCancelled(event) && (typeof options.canEditEvent !== 'function' || options.canEditEvent(event) !== false);
+    const canLinkItem = (event) => event.__project_rollup === true || (!!clean(event.project_id) && event.floating_event !== true);
     // Narrow hosts (phones) get a slimmer label column; an inline width would
     // otherwise override the stylesheet's mobile rule.
     const leftWidth = Math.max(120, Number(options.leftWidth) || ((container.clientWidth || 1024) < 640 ? 150 : 248));
     // "Fit" sizes the scale so every scheduled item fits the visible width.
+    // A recurring series counts once (its first occurrence) so far-future
+    // repeats do not squeeze everything else.
     const workSpan = () => {
-      const spans = events.filter((event) => !isGroup(event) && isScheduled(event) && evStart(event))
+      const scheduled = events.filter((event) => !isGroup(event) && isScheduled(event));
+      const firstBySeries = new Map();
+      scheduled.forEach((event) => {
+        const seriesId = ganttSeriesId(event);
+        if (!seriesId) return;
+        const current = firstBySeries.get(seriesId);
+        if (!current || evStart(event) < evStart(current)) firstBySeries.set(seriesId, event);
+      });
+      const spans = scheduled
+        .filter((event) => !ganttSeriesId(event) || firstBySeries.get(ganttSeriesId(event)) === event)
         .map((event) => [evStart(event).getTime(), (evEnd(event) || evStart(event)).getTime()]);
       if (!spans.length) return null;
       return { start:Math.min(...spans.map((span) => span[0])), end:Math.max(...spans.map((span) => span[1])) };
@@ -4678,14 +6094,41 @@
       const span = workSpan();
       if (span) container.__psvGanttViewport = { centerTime:(span.start + span.end) / 2, top:0 };
     }
+    if (initialFit) container.__psvGanttFitActive = true;
     const pxPerDay = Math.max(GANTT_ZOOM_MIN, Math.min(GANTT_ZOOM_MAX, Number(container.__psvGanttPxPerDay || options.pxPerDay || initialFit || GANTT_ZOOM_PRESETS[clean(options.zoom).toLowerCase()] || GANTT_ZOOM_PRESETS.week)));
     container.__psvGanttPxPerDay = pxPerDay;
     // Report the fitted scale so host re-renders keep it (and the viewport).
     if (initialFit) options.onZoomChange?.(pxPerDay);
 
     // Build display rows: optional per-project sections, then groups with
-    // children, then ungrouped items.
+    // children, then ungrouped items. Occurrences of one recurring series
+    // share a single row with one bar per occurrence.
+    const now = Date.now();
+    const foldSeries = (list) => {
+      const entries = [];
+      const bySeries = new Map();
+      list.forEach((event) => {
+        const seriesId = ganttSeriesId(event);
+        if (!seriesId) { entries.push({ event }); return; }
+        let entry = bySeries.get(seriesId);
+        if (!entry) {
+          entry = { event, series:[] };
+          bySeries.set(seriesId, entry);
+          entries.push(entry);
+        }
+        entry.series.push(event);
+      });
+      entries.forEach((entry) => {
+        if (!entry.series) return;
+        if (entry.series.length < 2) { delete entry.series; return; }
+        entry.series.sort((a, b) => evStart(a).getTime() - evStart(b).getTime());
+        // The row opens the next upcoming occurrence.
+        entry.event = entry.series.find((event) => isScheduled(event) && evEnd(event).getTime() >= now) || entry.series[entry.series.length - 1];
+      });
+      return entries;
+    };
     const projects = Array.isArray(options.projects) && options.projects.length ? options.projects : null;
+    const otherEventsLabel = clean(options.otherEventsLabel);
     const rows = [];
     const pushEventRows = (list, projectChildren = false) => {
       const groups = list.filter((event) => isGroup(event));
@@ -4696,11 +6139,16 @@
         children.forEach((child) => grouped.add(String(child.id || '')));
         const isCollapsed = collapsed.has(String(group.id || ''));
         rows.push({ type:'event', event:group, group:true, child:projectChildren, hasChildren:children.length > 0, collapsed:isCollapsed });
-        if (!isCollapsed) children.forEach((child) => rows.push({ type:'event', event:child, child:true, grandchild:projectChildren }));
+        if (!isCollapsed) foldSeries(children).forEach((entry) => rows.push({ type:'event', ...entry, child:true, grandchild:projectChildren }));
       });
-      list.filter((event) => !isGroup(event) && !grouped.has(String(event.id || ''))).forEach((event) => {
-        rows.push({ type:'event', event, child:projectChildren });
+      foldSeries(list.filter((event) => !isGroup(event) && !grouped.has(String(event.id || '')))).forEach((entry) => {
+        rows.push({ type:'event', ...entry, child:projectChildren });
       });
+    };
+    const pushCollapsibleSection = (collapseId, label, list, arrange, extra = {}) => {
+      const isCollapsed = collapsed.has(collapseId);
+      rows.push({ type:'section', label, collapseId, collapsed:isCollapsed, count:list.length, ...extra });
+      if (!isCollapsed) arrange(list);
     };
     // groupBy:'resource' — one section per resource (crew, person, or
     // equipment unit); child rows are that resource's events, an Unassigned
@@ -4763,22 +6211,33 @@
         }
         return overlapping;
       };
+      // Lanes read left to right: earliest work first, unscheduled last, with
+      // title/id tie-breaks so re-renders never shuffle rows.
+      const byStart = (a, b) => {
+        const aTime = hasPlacement(a) ? evStart(a).getTime() : Number.MAX_SAFE_INTEGER;
+        const bTime = hasPlacement(b) ? evStart(b).getTime() : Number.MAX_SAFE_INTEGER;
+        return (aTime - bTime) || String(a.title || '').localeCompare(String(b.title || '')) || String(a.id || '').localeCompare(String(b.id || ''));
+      };
+      const arrangeLane = (list) => {
+        const overlapping = flagOverlaps(list);
+        foldSeries([...list].sort(byStart)).forEach((entry) => rows.push({ type:'event', ...entry, child:true, overlapIds:overlapping }));
+      };
       const laneAssigned = new Set();
       laneResources.forEach((resource) => {
         const resourceEvents = laneEvents.filter((event) => eventResourceKeys(event).includes(resource.key));
         if (!resourceEvents.length && options.showEmptyResources !== true) return;
         resourceEvents.forEach((event) => laneAssigned.add(String(event.id || '')));
-        const overlapping = flagOverlaps(resourceEvents);
-        rows.push({ type:'section', label:resource.name, resource });
-        resourceEvents.forEach((event) => rows.push({ type:'event', event, child:true, overlap:overlapping.has(String(event.id || '')) }));
+        pushCollapsibleSection(`__resource__${resource.key}`, resource.name, resourceEvents, arrangeLane, { resource });
       });
       const unassigned = laneEvents.filter((event) => !laneAssigned.has(String(event.id || '')));
-      if (unassigned.length) {
-        rows.push({ type:'section', label:clean(options.unassignedLabel) || 'Unassigned' });
-        unassigned.forEach((event) => rows.push({ type:'event', event, child:true }));
-      }
+      const otherUnassigned = otherEventsLabel ? unassigned.filter((event) => event.floating_event === true) : [];
+      const unassignedWork = unassigned.filter((event) => !otherUnassigned.includes(event));
+      if (unassignedWork.length) pushCollapsibleSection('__resource__unassigned', clean(options.unassignedLabel) || 'Unassigned', unassignedWork, arrangeLane);
+      if (otherUnassigned.length) pushCollapsibleSection('__other__', otherEventsLabel, otherUnassigned, arrangeLane);
     } else if (projects) {
+      const projectIds = new Set();
       projects.forEach((project) => {
+        projectIds.add(String(project.id || ''));
         const projectEvents = events.filter((event) => String(event.project_id || '') === String(project.id || ''));
         if (!projectEvents.length) return;
         const scheduledChildren = projectEvents.filter((event) => !isGroup(event) && isScheduled(event) && evStart(event));
@@ -4802,26 +6261,24 @@
         eventById.set(rollupId, rollup);
         rows.push({ type:'event', event:rollup, group:true, projectRollup:true, hasChildren:projectEvents.length > 0, collapsed:projectCollapsed, project });
         if (!projectCollapsed) pushEventRows(projectEvents, true);
-        if (!projectCollapsed && (typeof options.onProjectAddItem === 'function' || typeof options.onProjectAddGroup === 'function')) rows.push({ type:'add', project, rollup });
+        if (!projectCollapsed && !readOnly && (typeof options.onProjectAddItem === 'function' || typeof options.onProjectAddGroup === 'function')) rows.push({ type:'add', project, rollup });
+      });
+      // Items outside every listed project (company events, equipment
+      // downtime) close the board in their own section when the host names it.
+      const others = otherEventsLabel ? events.filter((event) => !isGroup(event) && !projectIds.has(String(event.project_id || ''))) : [];
+      if (others.length) pushCollapsibleSection('__other__', otherEventsLabel, others, (list) => {
+        foldSeries(list).forEach((entry) => rows.push({ type:'event', ...entry, child:true }));
       });
     } else {
       pushEventRows(events);
     }
 
     const showTodayButton = options.showTodayButton !== false;
-    if (!rows.length) {
-      container.__psvGanttApi = null;
-      container.__psvGanttToolbarKey = '';
-      container.innerHTML = `<div class="psv-gantt-wrap">
-        ${options.showToolbar === false || !String(options.toolbarLeadingHtml || '') ? '' : `<div class="psv-gantt-toolbar">${String(options.toolbarLeadingHtml || '')}</div>`}
-        <div class="psv-gantt-empty">${esc(options.emptyLabel || 'Nothing to schedule yet. Scheduled items from the scope will appear here.')}</div>
-      </div>`;
-      return;
-    }
+    const emptyLabel = options.emptyLabel || 'Nothing to schedule yet. Scheduled items from the scope will appear here.';
 
-    // Time range: min start → max end across scheduled events, padded, and
+    // Time range: min start → max end across placed events, padded, and
     // always wide enough to page around today.
-    const scheduledEvents = events.filter((event) => isScheduled(event));
+    const scheduledEvents = events.filter((event) => hasPlacement(event));
     const starts = scheduledEvents.map(evStart).filter(Boolean).map((d) => d.getTime());
     const ends = scheduledEvents.map(evEnd).filter(Boolean).map((d) => d.getTime());
     const anchor = new Date(options.date || Date.now());
@@ -4876,18 +6333,20 @@
         }
       }
     } else {
+      // Week ticks label the week's first day at its left edge.
       let monthStart = 0;
       const weekAnchor = startOfWeek(rangeStart);
-      for (let time = weekAnchor.getTime(); time < rangeEnd.getTime(); time += 7 * 86400000) {
+      for (let time = weekAnchor.getTime(); time < rangeEnd.getTime(); time = addDays(new Date(time), 7).getTime()) {
         const weekDate = new Date(time);
-        const x = Math.max(0, xForTime(time));
-        minorTicks.push({ x, width:7 * pxPerDay, label:weekDate.toLocaleDateString([], { month:'numeric', day:'numeric' }), weekend:false });
+        const x = xForTime(time);
+        const clippedX = Math.max(0, x);
+        minorTicks.push({ x:clippedX, width:7 * pxPerDay - (clippedX - x), label:x < 0 ? '' : weekDate.toLocaleDateString([], { month:'short', day:'numeric' }), weekend:false, week:true });
       }
       for (let day = 0; day < totalDays; day += 1) {
         const dayDate = addDays(rangeStart, day);
         const next = addDays(dayDate, 1);
         if (next.getMonth() !== dayDate.getMonth() || day === totalDays - 1) {
-          majorTicks.push({ x:monthStart * pxPerDay, width:(day + 1 - monthStart) * pxPerDay, label:dayDate.toLocaleDateString([], { month:'short', year:'2-digit' }) });
+          majorTicks.push({ x:monthStart * pxPerDay, width:(day + 1 - monthStart) * pxPerDay, label:dayDate.toLocaleDateString([], { month:'short', year:'numeric' }) });
           monthStart = day + 1;
         }
       }
@@ -4901,7 +6360,7 @@
     });
     const rowIndexByEventId = new Map();
     rows.forEach((row, index) => {
-      if (row.type === 'event') rowIndexByEventId.set(String(row.event.id || ''), index);
+      if (row.type === 'event') (row.series || [row.event]).forEach((event) => rowIndexByEventId.set(String(event.id || ''), index));
     });
 
     const laneBackground = (() => {
@@ -4915,31 +6374,63 @@
       return `background-image:repeating-linear-gradient(90deg,rgba(15,23,42,.05) 0 1px,transparent 1px ${7 * pxPerDay}px);background-position:${weekOffset}px 0;`;
     })();
 
-    const barHtml = (row) => {
-      const event = row.event;
+    const linkHandleHtml = "<span class=\"psv-gantt-link-handle\" data-psv-gantt-link title=\"" + (globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_02f3d713657baf","Drag to another item to make it follow this one") ?? "Drag to another item to make it follow this one") + "\"></span>";
+    const barFor = (row, event, showOutsideLabel = true) => {
+      if (!hasPlacement(event)) return '';
+      const cancelled = isCancelled(event);
       const start = evStart(event);
-      if (!isScheduled(event) || !start) return '';
-      const end = evEnd(event) || new Date(start.getTime() + 86400000);
+      if (!start) return '';
+      const end = evEnd(event) || new Date(start.getTime() + GANTT_DAY_MS);
+      const timed = isTimed(event);
       const left = xForTime(start.getTime());
-      const width = Math.max(6, xForTime(end.getTime()) - left);
+      const width = Math.max(row.group ? 6 : 10, xForTime(end.getTime()) - left);
       const presentation = ganttPresentation(Scheduling, event);
       const kind = presentation.kind || eventKind(event);
       const color = safeCssColor(presentation.color) || ganttDefaultColor(kind);
       const icon = safeIconClass(presentation.icon || ganttDefaultIcon(kind), '');
       const locked = presentation.locked === true;
-      const derived = event.__rollup_derived === true && !row.projectRollup;
-      const showLabel = width >= 56;
-      const downtime = clean(event.kind).toLowerCase() === 'equipment_downtime';
-      const canLink = !readOnly && (!row.group || row.projectRollup) && !groupByResource && typeof options.onDependencyCreate === 'function';
-      return `<div class="psv-gantt-bar ${row.group ? `group-bar ${derived ? 'derived' : ''}` : ''} ${locked ? 'locked' : ''} ${row.overlap ? 'overlap' : ''} ${downtime ? 'downtime' : ''}" style="left:${left}px;width:${width}px;--psv-gantt-color:${color}" data-psv-gantt-bar="${esc(event.id || '')}" title="${esc(`${event.title || ''} · ${formatRange(start, end, event.all_day !== false)}`)}">
-        ${!readOnly && !locked && !(row.group && derived) ? '<span class="psv-gantt-handle start" data-psv-gantt-handle="start"></span><span class="psv-gantt-handle end" data-psv-gantt-handle="end"></span>' : ''}
-        ${row.group ? '' : `<span class="psv-gantt-bar-inner">${icon ? `<i class="fas ${icon}"></i>` : ''}${showLabel ? `<span>${esc(event.title || '')}</span>` : ''}</span>`}
-        ${canLink ? ("<span class=\"psv-gantt-link-handle\" data-psv-gantt-link title=\"" + (globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_02f3d713657baf","Drag to another item to make it follow this one") ?? "Drag to another item to make it follow this one") + "\"></span>") : ''}
+      // Auto-rollup sections and project rollups span their items: dragging
+      // moves everything inside, but they cannot be resized.
+      const autoGroup = row.group && !row.projectRollup && event.__rollup_derived === true;
+      // Hosts opt in to moving auto sections (their save must move the items).
+      const editable = canEditItem(event) && !locked && (!autoGroup || options.allowGroupMove === true);
+      // Bars too small for two edge handles plus a grab area only move
+      // (zoom in to resize them).
+      const resizable = editable && !row.projectRollup && !autoGroup && width >= 24;
+      const linkable = !readOnly && !cancelled && (!row.group || row.projectRollup) && !groupByResource && typeof options.onDependencyCreate === 'function' && canLinkItem(event);
+      const title = clean(event.title) || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_05017f54f07448","Untitled") ?? "Untitled");
+      // A title that would be cut to a letter or two reads beside the bar.
+      const showLabel = !row.group && width >= Math.max(56, Math.min(150, title.length * 5.8 + (icon ? 30 : 18)));
+      const outsideLabel = !row.group && !showLabel && showOutsideLabel;
+      const status = cancelled ? ' · Cancelled' : locked ? ' · Locked' : '';
+      const tooltip = `${title} · ${formatRange(start, end, !timed)}${status}`;
+      const classes = [
+        'psv-gantt-bar',
+        row.group ? 'group-bar' : '',
+        row.group && width < 24 ? 'narrow' : '',
+        locked ? 'locked' : '',
+        cancelled ? 'cancelled' : '',
+        row.overlapIds?.has(String(event.id || '')) ? 'overlap' : '',
+        ganttIsDowntime(event) ? 'downtime' : '',
+        !row.group && width < 28 ? 'compact' : '',
+        editable ? '' : 'read-only'
+      ].filter(Boolean).join(' ');
+      return `<div class="${classes}" style="left:${left}px;width:${width}px;--psv-gantt-color:${color}" data-psv-gantt-bar="${esc(event.id || '')}"${editable ? ' data-psv-gantt-editable="1"' : ''} tabindex="0" role="button" aria-label="${esc(tooltip)}" title="${esc(tooltip)}">
+        ${resizable ? '<span class="psv-gantt-handle start" data-psv-gantt-handle="start"></span><span class="psv-gantt-handle end" data-psv-gantt-handle="end"></span>' : ''}
+        ${row.group ? '' : `<span class="psv-gantt-bar-inner">${icon && (showLabel || width >= 22) ? `<i class="fas ${icon}"></i>` : ''}${showLabel ? `<span>${esc(title)}</span>` : ''}</span>`}
+        ${outsideLabel ? `<span class="psv-gantt-bar-outside" aria-hidden="true">${esc(title)}</span>` : ''}
+        ${linkable ? linkHandleHtml : ''}
       </div>`;
     };
+    const barHtml = (row) => (row.series || [row.event]).map((event, index) => barFor(row, event, index === 0)).join('');
 
     const labelHtml = (row) => {
-      if (row.type === 'section') return `<div class="psv-gantt-label">${esc(row.label)}</div>`;
+      if (row.type === 'section') {
+        const caret = row.collapseId
+          ? `<button type="button" class="psv-gantt-caret" data-psv-gantt-toggle="${esc(row.collapseId)}" aria-expanded="${row.collapsed ? 'false' : 'true'}" aria-label="${esc(`${row.collapsed ? 'Expand' : 'Collapse'} ${row.label}`)}"><i class="fas fa-chevron-${row.collapsed ? 'right' : 'down'}"></i></button>`
+          : '';
+        return `<div class="psv-gantt-label">${caret}<span class="psv-gantt-section-title" title="${esc(row.label)}">${esc(row.label)}</span>${row.collapseId ? `<span class="psv-gantt-label-count">${esc(row.count)}</span>` : ''}</div>`;
+      }
       if (row.type === 'add') return `<div class="psv-gantt-label">${typeof options.onProjectAddItem === 'function' ? `<button type="button" class="psv-gantt-add" data-psv-gantt-add="${String(esc(row.project?.id || ''))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_1371f530e8450b",`Add work item to ${v1}`,{v1}) ?? `Add work item to ${v1}`)(esc(row.rollup?.title || 'project'))}"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_5615a483a3982f","Add work item") ?? "Add work item")}</span></button>` : ''}${typeof options.onProjectAddGroup === 'function' ? `<button type="button" class="psv-gantt-add" data-psv-gantt-add-group="${String(esc(row.project?.id || ''))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_cb322b4f3abe82",`Add section to ${v1}`,{v1}) ?? `Add section to ${v1}`)(esc(row.rollup?.title || 'project'))}"><i class="fas fa-layer-group"></i><span>${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_29c41c89d5fb81","Add section") ?? "Add section")}</span></button>` : ''}</div>`;
       const event = row.event;
       const presentation = ganttPresentation(Scheduling, event);
@@ -4948,47 +6439,77 @@
       const icon = safeIconClass(presentation.icon || ganttDefaultIcon(kind), '');
       const assignee = clean(event.assigned_crew_name || event.assigned_user_name || (event.assigned_users || [])[0]?.name);
       const caret = row.group && row.hasChildren
-        ? ("<button type=\"button\" class=\"psv-gantt-caret\" data-psv-gantt-toggle=\"" + String(esc(event.id || '')) + "\" aria-label=\"" + ((v1) => globalThis.PlatformLanguage?.text("platform-schedule-view","m_bc0ff2f99b0574",`${v1} group`,{v1}) ?? `${v1} group`)(row.collapsed ? 'Expand' : 'Collapse') + "\"><i class=\"fas fa-chevron-" + String(row.collapsed ? 'right' : 'down') + "\"></i></button>")
+        ? ("<button type=\"button\" class=\"psv-gantt-caret\" data-psv-gantt-toggle=\"" + String(esc(event.id || '')) + "\" aria-expanded=\"" + (row.collapsed ? 'false' : 'true') + "\" aria-label=\"" + ((v1) => globalThis.PlatformLanguage?.text("platform-schedule-view","m_bc0ff2f99b0574",`${v1} group`,{v1}) ?? `${v1} group`)(row.collapsed ? 'Expand' : 'Collapse') + "\"><i class=\"fas fa-chevron-" + String(row.collapsed ? 'right' : 'down') + "\"></i></button>")
         : (row.child ? '' : '<span style="width:0"></span>');
+      let metaClass = '';
+      let metaHtml = '';
+      let metaTitle = '';
+      if (isCancelled(event)) {
+        metaClass = 'cancelled';
+        metaHtml = esc('Cancelled');
+      } else if (!isScheduled(event)) {
+        if (!row.projectRollup) {
+          metaClass = 'unscheduled';
+          metaHtml = esc('Unscheduled');
+        }
+      } else if (row.series) {
+        metaHtml = `<i class="fas fa-repeat" aria-hidden="true"></i>${esc(row.series.length)}${assignee ? ` · ${esc(assignee)}` : ''}`;
+        metaTitle = `Repeats · ${row.series.length} occurrences${assignee ? ` · ${assignee}` : ''}`;
+      } else {
+        metaHtml = esc(assignee);
+        metaTitle = assignee;
+      }
+      const titleText = event.title || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_05017f54f07448","Untitled") ?? "Untitled");
       return `<div class="psv-gantt-label ${row.child ? 'child' : ''} ${row.grandchild ? 'grandchild' : ''}">
         ${caret}
         <span class="psv-gantt-dot" style="--psv-gantt-color:${color}">${icon && !row.group ? `<i class="fas ${icon}"></i>` : ''}</span>
-        <span class="psv-gantt-label-title" data-psv-gantt-open="${esc(event.id || '')}" title="${esc(event.title || '')}">${esc(event.title || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_05017f54f07448","Untitled") ?? "Untitled"))}</span>
-        <span class="psv-gantt-label-meta ${!isScheduled(event) && !row.projectRollup ? 'unscheduled' : ''}" title="${esc(!isScheduled(event) ? '' : assignee)}">${esc(!isScheduled(event) ? (row.projectRollup ? '' : 'Unscheduled') : assignee)}</span>
+        <span class="psv-gantt-label-title" data-psv-gantt-open="${esc(event.id || '')}" tabindex="0" role="button" title="${esc(event.title || '')}">${esc(titleText)}</span>
+        <span class="psv-gantt-label-meta ${metaClass}" title="${esc(metaTitle)}">${metaHtml}</span>
       </div>`;
     };
 
-    const rowsHtml = rows.map((row) => {
+    const rowsHtml = rows.length ? rows.map((row) => {
       if (row.type === 'section') return `<div class="psv-gantt-row section">${labelHtml(row)}<div class="psv-gantt-lane" style="width:${totalWidth}px;${laneBackground}"></div></div>`;
       if (row.type === 'add') return `<div class="psv-gantt-row add-row">${labelHtml(row)}<div class="psv-gantt-lane" style="width:${totalWidth}px"></div></div>`;
-      const unscheduled = !isScheduled(row.event);
-      const laneClasses = ['psv-gantt-lane', unscheduled && !readOnly && !row.projectRollup ? 'unscheduled-lane' : ''].filter(Boolean).join(' ');
-      return `<div class="psv-gantt-row ${row.group ? 'group-row' : ''} ${row.projectRollup ? 'project-row' : ''}">${labelHtml(row)}<div class="${laneClasses}" style="width:${totalWidth}px;${laneBackground}" data-psv-gantt-lane="${esc(row.event.id || '')}">${barHtml(row)}</div></div>`;
-    }).join('');
+      const event = row.event;
+      // Only real, unplaced, editable items offer click/drag-to-schedule.
+      const schedulable = !row.group && !row.projectRollup && !row.series && !isScheduled(event) && canEditItem(event);
+      const laneClasses = ['psv-gantt-lane', schedulable ? 'unscheduled-lane' : ''].filter(Boolean).join(' ');
+      return `<div class="psv-gantt-row ${row.group ? 'group-row' : ''} ${row.projectRollup ? 'project-row' : ''}">${labelHtml(row)}<div class="${laneClasses}" style="width:${totalWidth}px;${laneBackground}" data-psv-gantt-lane="${esc(event.id || '')}">${barHtml(row)}</div></div>`;
+    }).join('') : `<div class="psv-gantt-empty-row" style="width:${Math.max(280, (container.clientWidth || 640) - 2)}px">${esc(emptyLabel)}</div>`;
 
-    // Dependency connectors (drawn only between visible scheduled rows).
+    // Dependency connectors (drawn only between visible scheduled rows). A
+    // link whose successor starts before the predecessor allows is flagged.
+    const linksRemovable = !readOnly && typeof options.onDependencyRemove === 'function';
     const linkPaths = [];
     rows.forEach((row) => {
       // Resource lanes may repeat one event on several rows; connectors would mislead.
       if (groupByResource) return;
       if (row.type !== 'event') return;
-      dependenciesOf(row.event).forEach((dep) => {
-        const from = eventById.get(dep.event_id);
-        const toIndex = rowIndexByEventId.get(String(row.event.id || ''));
-        const fromIndex = rowIndexByEventId.get(dep.event_id);
-        if (!from || fromIndex === undefined || toIndex === undefined) return;
-        if (!isScheduled(from) || !isScheduled(row.event)) return;
-        const fromAnchor = dep.type === 'start_to_start' ? evStart(from) : evEnd(from);
-        const toStart = evStart(row.event);
-        if (!fromAnchor || !toStart) return;
-        const x1 = xForTime(fromAnchor.getTime());
-        const x2 = xForTime(toStart.getTime());
-        const y1 = rowOffsets[fromIndex] + (rows[fromIndex].projectRollup ? GANTT_PROJECT_H / 2 : GANTT_ROW_H / 2);
-        const y2 = rowOffsets[toIndex] + (rows[toIndex].projectRollup ? GANTT_PROJECT_H / 2 : GANTT_ROW_H / 2);
-        const d = x2 >= x1 + 18
-          ? `M${x1},${y1} L${x1 + 8},${y1} L${x1 + 8},${y2} L${x2 - 4},${y2}`
-          : `M${x1},${y1} L${x1 + 8},${y1} L${x1 + 8},${y1 + (y2 > y1 ? GANTT_ROW_H / 2 : -GANTT_ROW_H / 2)} L${x2 - 12},${y1 + (y2 > y1 ? GANTT_ROW_H / 2 : -GANTT_ROW_H / 2)} L${x2 - 12},${y2} L${x2 - 4},${y2}`;
-        linkPaths.push(`<path class="psv-gantt-link" d="${d}" marker-end="url(#psvGanttArrow)" data-psv-gantt-dep="${esc(`${row.event.id}::${dep.id}`)}"><title>${esc(`${from.title || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_5be12a31e41de3","Item") ?? "Item")} drives ${row.event.title || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_2960d6240e6f28","item") ?? "item")}${dep.lag_minutes ? ` (+${Math.round(dep.lag_minutes / 60)}h lag)` : ''} — click to unlink`)}</title></path>`);
+      (row.series || [row.event]).forEach((target) => {
+        dependenciesOf(target).forEach((dep) => {
+          const from = eventById.get(dep.event_id);
+          const toIndex = rowIndexByEventId.get(String(target.id || ''));
+          const fromIndex = rowIndexByEventId.get(dep.event_id);
+          if (!from || fromIndex === undefined || toIndex === undefined) return;
+          if (!isScheduled(from) || !isScheduled(target)) return;
+          const fromAnchor = dep.type === 'start_to_start' ? evStart(from) : evEnd(from);
+          const toStart = evStart(target);
+          const toAnchor = dep.type === 'finish_to_finish' ? evEnd(target) : toStart;
+          if (!fromAnchor || !toStart || !toAnchor) return;
+          let required = fromAnchor.getTime() + (Number(dep.lag_minutes) || 0) * 60000;
+          if (!isTimed(target)) required = ganttLocalDay(required, 'floor');
+          const violated = toAnchor.getTime() < required - 60000;
+          const x1 = xForTime(fromAnchor.getTime());
+          const x2 = xForTime(toStart.getTime());
+          const y1 = rowOffsets[fromIndex] + (rows[fromIndex].projectRollup ? GANTT_PROJECT_H / 2 : GANTT_ROW_H / 2);
+          const y2 = rowOffsets[toIndex] + (rows[toIndex].projectRollup ? GANTT_PROJECT_H / 2 : GANTT_ROW_H / 2);
+          const d = x2 >= x1 + 18
+            ? `M${x1},${y1} L${x1 + 8},${y1} L${x1 + 8},${y2} L${x2 - 4},${y2}`
+            : `M${x1},${y1} L${x1 + 8},${y1} L${x1 + 8},${y1 + (y2 > y1 ? GANTT_ROW_H / 2 : -GANTT_ROW_H / 2)} L${x2 - 12},${y1 + (y2 > y1 ? GANTT_ROW_H / 2 : -GANTT_ROW_H / 2)} L${x2 - 12},${y2} L${x2 - 4},${y2}`;
+          const linkTitle = `${from.title || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_5be12a31e41de3","Item") ?? "Item")} drives ${target.title || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_2960d6240e6f28","item") ?? "item")}${ganttLagLabel(dep.lag_minutes)}${violated ? ' — conflict: starts before its predecessor allows' : ''}${linksRemovable ? ' — click to unlink' : ''}`;
+          linkPaths.push(`<path class="psv-gantt-link${violated ? ' violated' : ''}" d="${d}" marker-end="url(#psvGanttArrow)" data-psv-gantt-dep="${esc(`${target.id}::${dep.id}`)}"><title>${esc(linkTitle)}</title></path>`);
+        });
       });
     });
 
@@ -5010,17 +6531,17 @@
             <div class="psv-gantt-corner">${esc(options.resourceHeader || 'Work Item')}</div>
             <div class="psv-gantt-ticks" style="width:${totalWidth}px">
               ${majorTicks.map((tick) => `<div class="psv-gantt-tick-major" style="left:${tick.x}px;width:${tick.width}px"><span>${esc(tick.label)}</span></div>`).join('')}
-              ${minorTicks.map((tick) => `<div class="psv-gantt-tick-minor ${tick.weekend ? 'weekend' : ''} ${tick.today ? 'today' : ''}" style="left:${tick.x}px;width:${tick.width}px">${esc(tick.label)}</div>`).join('')}
+              ${minorTicks.map((tick) => `<div class="psv-gantt-tick-minor ${tick.weekend ? 'weekend' : ''} ${tick.today ? 'today' : ''} ${tick.week ? 'week' : ''}" style="left:${tick.x}px;width:${tick.width}px">${esc(tick.label)}</div>`).join('')}
               ${todayX >= 0 && todayX <= totalWidth ? `<div class="psv-gantt-today-flag" style="left:${todayX}px"></div>` : ''}
             </div>
           </div>
           <div class="psv-gantt-body">
             ${rowsHtml}
-            <svg class="psv-gantt-links" style="left:var(--psv-gantt-left);top:0;width:${totalWidth}px;height:${bodyHeight}px" viewBox="0 0 ${totalWidth} ${bodyHeight}" preserveAspectRatio="none">
+            <svg class="psv-gantt-links${linksRemovable ? '' : ' read-only'}" style="left:var(--psv-gantt-left);top:0;width:${totalWidth}px;height:${bodyHeight}px" viewBox="0 0 ${totalWidth} ${Math.max(1, bodyHeight)}" preserveAspectRatio="none">
               <defs><marker id="psvGanttArrow" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#94a3b8"></path></marker></defs>
               ${linkPaths.join('')}
             </svg>
-            ${todayX >= 0 && todayX <= totalWidth ? `<div class="psv-gantt-today" style="left:calc(var(--psv-gantt-left) + ${todayX}px)"></div>` : ''}
+            ${rows.length && todayX >= 0 && todayX <= totalWidth ? `<div class="psv-gantt-today" style="left:calc(var(--psv-gantt-left) + ${todayX}px)"></div>` : ''}
           </div>
         </div>
       </div>`;
@@ -5063,6 +6584,7 @@
         container.__psvGanttViewport = { centerTime:(span.start + span.end) / 2, top:scroll?.scrollTop || 0 };
         if (stateKey) ganttViewports.set(stateKey, container.__psvGanttViewport);
         container.__psvGanttPxPerDay = next;
+        container.__psvGanttFitActive = true;
         (container.__psvGanttOptions || options).onZoomChange?.(next);
         container.__psvGanttFitting = true;
         try { renderGanttScheduler(container, container.__psvGanttOptions || options); }
@@ -5070,6 +6592,7 @@
       },
       setZoom(next){
         container.__psvGanttPxPerDay = Math.max(GANTT_ZOOM_MIN, Math.min(GANTT_ZOOM_MAX, Number(next) || GANTT_ZOOM_PRESETS.week));
+        container.__psvGanttFitActive = false;
         (container.__psvGanttOptions || options).onZoomChange?.(container.__psvGanttPxPerDay);
         rerender();
       },
@@ -5088,11 +6611,10 @@
       } else {
         // Open around today, unless nothing scheduled is in view there; then
         // open on the nearest work so the first screen is never empty.
-        const now = Date.now();
         const spanMs = (viewportWidth() / pxPerDay) * GANTT_DAY_MS;
         const windowStart = now - spanMs * 0.25;
         const windowEnd = now + spanMs * 0.75;
-        const spans = scheduledEvents.filter((event) => !isGroup(event)).map((event) => {
+        const spans = scheduledEvents.filter((event) => !isGroup(event) && isScheduled(event)).map((event) => {
           const start = evStart(event)?.getTime();
           return start ? [start, evEnd(event)?.getTime() || start] : null;
         }).filter(Boolean);
@@ -5107,11 +6629,27 @@
       container.__psvGanttViewport = api.viewport();
       if (stateKey) ganttViewports.set(stateKey, container.__psvGanttViewport);
     }
+    // A bar scrolled under the sticky label column would leave a cut-off
+    // fragment of its outside label beside the column; hide such labels.
+    const syncOutsideLabels = () => {
+      if (!scroll) return;
+      const visibleFrom = scroll.scrollLeft;
+      scroll.querySelectorAll('.psv-gantt-bar-outside').forEach((label) => {
+        const bar = label.parentElement;
+        const barEnd = (parseFloat(bar.style.left) || 0) + (parseFloat(bar.style.width) || bar.offsetWidth || 0);
+        const labelStart = barEnd + 18;
+        // Hidden when its bar is under the column (a label with no bar
+        // beside it reads as belonging to nothing) or it would be cut off.
+        bar.classList.toggle('outside-clipped', barEnd < visibleFrom + 6 || labelStart < visibleFrom + 2);
+      });
+    };
+    syncOutsideLabels();
     let viewportFrame = 0;
     scroll?.addEventListener('scroll', () => {
       if (viewportFrame) return;
       viewportFrame = requestAnimationFrame(() => {
         viewportFrame = 0;
+        syncOutsideLabels();
         const viewport = api.viewport();
         if (!viewport) return;
         container.__psvGanttViewport = viewport;
@@ -5123,9 +6661,15 @@
 
     const toolbar = container.querySelector(':scope > .psv-gantt-wrap > .psv-gantt-toolbar');
     const slider = toolbar?.querySelector('[data-psv-gantt-slider]');
+    const fitActive = container.__psvGanttFitActive === true;
     toolbar?.querySelectorAll('[data-psv-gantt-zoom]').forEach((btn) => {
-      btn.classList.toggle('active', Math.abs(ganttSliderFromZoom(Number(btn.dataset.psvGanttZoom)) - ganttSliderFromZoom(pxPerDay)) <= 4);
+      const active = !fitActive && Math.abs(ganttSliderFromZoom(Number(btn.dataset.psvGanttZoom)) - ganttSliderFromZoom(pxPerDay)) <= 4;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
+    const fitButton = toolbar?.querySelector('[data-psv-gantt-fit]');
+    fitButton?.classList.toggle('active', fitActive);
+    fitButton?.setAttribute('aria-pressed', fitActive ? 'true' : 'false');
     if (slider && document.activeElement !== slider) slider.value = String(ganttSliderFromZoom(pxPerDay));
     if (toolbar && !reuseToolbar) {
       toolbar.querySelector('[data-psv-gantt-today]')?.addEventListener('click', () => container.__psvGanttApi?.today());
@@ -5142,18 +6686,30 @@
         });
       });
     }
+    const activateOnKey = (node, action) => node.addEventListener('keydown', (keyEvent) => {
+      if (keyEvent.target !== node || (keyEvent.key !== 'Enter' && keyEvent.key !== ' ')) return;
+      keyEvent.preventDefault();
+      action();
+    });
     scroll?.querySelectorAll('[data-psv-gantt-toggle]').forEach((btn) => btn.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
       const id = String(btn.dataset.psvGanttToggle || '');
+      // Keyboard toggles keep focus on the (re-rendered) caret.
+      const keepFocus = document.activeElement === btn;
       if (collapsed.has(id)) collapsed.delete(id); else collapsed.add(id);
       options.onGroupToggle?.(id, collapsed.has(id));
       rerender();
+      if (keepFocus) container.querySelector(`[data-psv-gantt-toggle="${cssEscape(id)}"]`)?.focus({ preventScroll:true });
     }));
-    scroll?.querySelectorAll('[data-psv-gantt-open]').forEach((node) => node.addEventListener('click', () => {
-      const item = eventById.get(String(node.dataset.psvGanttOpen || ''));
-      if (item) options.onEventClick?.(item, { element:node, action:'open' });
-    }));
+    scroll?.querySelectorAll('[data-psv-gantt-open]').forEach((node) => {
+      const open = () => {
+        const item = eventById.get(String(node.dataset.psvGanttOpen || ''));
+        if (item) options.onEventClick?.(item, { element:node, action:'open' });
+      };
+      node.addEventListener('click', open);
+      activateOnKey(node, open);
+    });
     scroll?.querySelectorAll('[data-psv-gantt-add]').forEach((node) => node.addEventListener('click', () => {
       const project = projects?.find((item) => String(item.id || '') === String(node.dataset.psvGanttAdd || ''));
       if (project) options.onProjectAddItem?.(project, { element:node });
@@ -5162,7 +6718,7 @@
       const project = projects?.find((item) => String(item.id || '') === String(node.dataset.psvGanttAddGroup || ''));
       if (project) options.onProjectAddGroup?.(project, { element:node });
     }));
-    if (typeof options.onDependencyRemove === 'function' && !readOnly) {
+    if (linksRemovable) {
       scroll?.querySelectorAll('[data-psv-gantt-dep]').forEach((path) => path.addEventListener('click', () => {
         const [eventId, depId] = String(path.dataset.psvGanttDep || '').split('::');
         const item = eventById.get(eventId);
@@ -5170,6 +6726,32 @@
         if (item && dep) options.onDependencyRemove(item, dep);
       }));
     }
+    // Bars open their item on click or Enter/Space, for every viewer. A
+    // press that travelled (drag, vertical wiggle) is not a click.
+    container.querySelectorAll('[data-psv-gantt-bar]').forEach((bar) => {
+      const open = () => {
+        const item = eventById.get(String(bar.dataset.psvGanttBar || ''));
+        if (item) options.onEventClick?.(item, { element:bar, action:'open' });
+      };
+      bar.addEventListener('pointerdown', (pointerEvent) => {
+        bar.__psvGanttDownAt = { x:pointerEvent.clientX, y:pointerEvent.clientY };
+        bar.__psvGanttLinkPress = !!pointerEvent.target.closest?.('[data-psv-gantt-link]');
+      });
+      bar.addEventListener('click', (clickEvent) => {
+        const down = bar.__psvGanttDownAt;
+        bar.__psvGanttDownAt = null;
+        const travelled = down ? Math.hypot(clickEvent.clientX - down.x, clickEvent.clientY - down.y) : 0;
+        const linkPress = bar.__psvGanttLinkPress === true;
+        bar.__psvGanttLinkPress = false;
+        const heldForDrag = Number(bar.__psvGanttSuppressClickUntil || 0) > Date.now();
+        if (linkPress || heldForDrag || bar.__psvGanttDragged || travelled > 4 || clickEvent.target.closest('[data-psv-gantt-handle],[data-psv-gantt-link]')) {
+          bar.__psvGanttDragged = false;
+          return;
+        }
+        open();
+      });
+      activateOnKey(bar, open);
+    });
 
     // Container-level pointer listeners are replaced, not stacked, on each
     // render; stale closures would otherwise pin old rows and DOM in memory.
@@ -5178,27 +6760,69 @@
       container.__psvGanttPointerHandlers = null;
     }
 
-    if (readOnly) return;
+    // View-only timeline: bars open on click; a drag attempt (or a touch-and-
+    // hold) only explains why nothing moves (onReadOnlyDragAttempt).
+    if (readOnly) {
+      if (typeof options.onReadOnlyDragAttempt !== 'function') return;
+      let refused = null;
+      const notifyReadOnly = (bar, item) => {
+        try { options.onReadOnlyDragAttempt(item || null, { element:bar, reason:'view-only', locked:false, viewOnly:true }); } catch (error) { console.warn('Schedule read-only drag callback failed.', error); }
+      };
+      container.querySelectorAll('[data-psv-gantt-bar]').forEach((bar) => {
+        bar.addEventListener('pointerdown', (pointerEvent) => {
+          if (pointerEvent.button !== 0) return;
+          const item = eventById.get(String(bar.dataset.psvGanttBar || ''));
+          if (!item) return;
+          if (pointerEvent.pointerType === 'touch') {
+            armTouchHoldFeedback(pointerEvent, () => {
+              bar.__psvGanttSuppressClickUntil = Date.now() + 700;
+              notifyReadOnly(bar, item);
+            });
+            return;
+          }
+          refused = { bar, item, startX:pointerEvent.clientX, startY:pointerEvent.clientY, notified:false };
+        });
+      });
+      const onReadOnlyMove = (pointerEvent) => {
+        if (!refused || refused.notified) return;
+        if (Math.hypot(pointerEvent.clientX - refused.startX, pointerEvent.clientY - refused.startY) <= POINTER_DRAG_THRESHOLD) return;
+        refused.notified = true;
+        refused.bar.__psvGanttDragged = true;
+        notifyReadOnly(refused.bar, refused.item);
+      };
+      const onReadOnlyEnd = () => { refused = null; };
+      container.__psvGanttPointerHandlers = { pointermove:onReadOnlyMove, pointerup:onReadOnlyEnd, pointercancel:onReadOnlyEnd };
+      Object.entries(container.__psvGanttPointerHandlers).forEach(([type, handler]) => container.addEventListener(type, handler));
+      return;
+    }
 
+    // Timed items snap to 15 min / 1 h when zoomed in; at coarser zooms every
+    // item moves in whole days, and timed items keep their time of day.
     const snapMsFor = (event) => {
-      if (event.all_day !== false || clean(event.schedule_granularity) === 'date') return 86400000;
+      if (!isTimed(event)) return GANTT_DAY_MS;
       if (pxPerDay >= 960) return 15 * 60000;
       if (pxPerDay >= 240) return 60 * 60000;
-      return 86400000;
+      return GANTT_DAY_MS;
     };
-    // Whole-day snaps land on local midnight (not UTC); finer snaps round
-    // within the local day so half-hour-offset zones stay on the grid.
+    // Sub-day snaps round within the local day so half-hour-offset zones stay
+    // on the grid; whole-day steps use calendar days (DST-safe).
     const snapTime = (time, snapMs) => {
-      if (snapMs >= GANTT_DAY_MS) return ganttLocalDay(time, 'round');
       const dayStart = ganttLocalDay(time, 'floor');
       return dayStart + Math.round((time - dayStart) / snapMs) * snapMs;
     };
-    const rangePayload = (event, startMs, endMs) => ({
-      start:new Date(startMs),
-      end:new Date(endMs),
-      all_day:event.all_day !== false,
-      schedule_granularity:clean(event.schedule_granularity) || (event.all_day !== false ? 'date' : 'time'),
-    });
+    const shiftBy = (activeDrag, base, deltaMs) => {
+      if (activeDrag.snapMs < GANTT_DAY_MS) return snapTime(base + deltaMs, activeDrag.snapMs);
+      const shifted = addDays(new Date(base), Math.round(deltaMs / GANTT_DAY_MS)).getTime();
+      return activeDrag.timed || activeDrag.mode === 'project' ? shifted : ganttLocalDay(shifted, 'round');
+    };
+    const ceilDay = (time) => {
+      const floor = ganttLocalDay(time, 'floor');
+      return floor === time ? time : addDays(new Date(floor), 1).getTime();
+    };
+    const rangePayload = (event, startMs, endMs) => {
+      const timed = isTimed(event);
+      return { start:new Date(startMs), end:new Date(endMs), all_day:!timed, schedule_granularity:timed ? 'time' : 'date' };
+    };
     let drag = null;
     const laneX = (clientX) => {
       const rect = body.getBoundingClientRect();
@@ -5210,7 +6834,7 @@
       drafts.forEach((draft) => {
         const index = rowIndexByEventId.get(String(draft.id || ''));
         if (index === undefined) return;
-        const lane = container.querySelector(`[data-psv-gantt-lane="${cssEscape(String(draft.id || ''))}"]`);
+        const lane = container.querySelector(`[data-psv-gantt-lane="${cssEscape(String(rows[index]?.event?.id || draft.id || ''))}"]`);
         const start = new Date(draft.start_at || draft.start);
         const end = new Date(draft.end_at || draft.end);
         if (!lane || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
@@ -5223,64 +6847,90 @@
     };
 
     container.querySelectorAll('[data-psv-gantt-bar]').forEach((bar) => {
-      bar.addEventListener('click', (clickEvent) => {
-        if (bar.__psvGanttDragged || clickEvent.target.closest('[data-psv-gantt-handle],[data-psv-gantt-link]')) {
-          bar.__psvGanttDragged = false;
-          return;
-        }
-        const item = eventById.get(String(bar.dataset.psvGanttBar || ''));
-        if (item) options.onEventClick?.(item, { element:bar, action:'open' });
-      });
       bar.addEventListener('pointerdown', (pointerEvent) => {
+        if (pointerEvent.button !== 0) return;
         const item = eventById.get(String(bar.dataset.psvGanttBar || ''));
-        if (!item || eventIsLocked(item)) return;
-        if (pointerEvent.target.closest('[data-psv-gantt-link]')) {
+        if (!item) return;
+        // Linking only needs the predecessor to exist, so locked items can
+        // still drive others.
+        const linkHandle = pointerEvent.target.closest('[data-psv-gantt-link]');
+        if (linkHandle) {
           pointerEvent.preventDefault();
           drag = { kind:'link', from:item, fromBar:bar, startX:pointerEvent.clientX, startY:pointerEvent.clientY };
           bar.__psvGanttDragged = false;
-          bar.setPointerCapture?.(pointerEvent.pointerId);
+          // Capture on the dot itself (capturing on the bar retargets the
+          // click to the bar, which opened the editor) and remember the
+          // press so the click that follows is never an "open".
+          bar.__psvGanttLinkPress = true;
+          try { linkHandle.setPointerCapture?.(pointerEvent.pointerId); } catch {}
           return;
         }
-        const groupDerived = isGroup(item) && item.__rollup_derived === true;
-        if (groupDerived) return;
+        if (bar.dataset.psvGanttEditable !== '1') return;
         const handle = pointerEvent.target.closest('[data-psv-gantt-handle]')?.dataset.psvGanttHandle || 'move';
         const start = evStart(item); const end = evEnd(item);
         if (!start || !end) return;
+        // Touch: a swipe over a bar pans the timeline and a tap opens it; a
+        // bar only drags after a touch-and-hold.
+        if (pointerEvent.pointerType === 'touch' && !drag) {
+          armTouchHoldFeedback(pointerEvent, () => {
+            if (drag || !bar.isConnected) return;
+            bar.__psvGanttSuppressClickUntil = Date.now() + 700;
+            beginBarDrag(bar, item, handle, start, end, pointerEvent, true);
+            bar.classList.add('dragging');
+            try { navigator.vibrate?.(8); } catch {}
+          }, 420);
+          return;
+        }
         pointerEvent.preventDefault();
-        bar.__psvGanttDragged = false;
-        drag = {
-          kind:handle, item, bar, barStyle:bar.style.cssText,
-          startX:pointerEvent.clientX, startY:pointerEvent.clientY,
-          baseStart:start.getTime(), baseEnd:end.getTime(),
-          snapMs:snapMsFor(item), moved:false,
-        };
-        bar.setPointerCapture?.(pointerEvent.pointerId);
+        try { window.getSelection?.()?.removeAllRanges?.(); } catch {}
+        beginBarDrag(bar, item, handle, start, end, pointerEvent, false);
       });
     });
+    function beginBarDrag(bar, item, handle, start, end, pointerEvent, touch){
+      bar.__psvGanttDragged = false;
+      const rollup = item.__project_rollup === true;
+      const timed = isTimed(item);
+      // Move modes: project rollups shift by whole days exactly; section
+      // bars step whole local days (floor start / ceil end, the span their
+      // items cover); timed items keep their time of day; all-day items
+      // stay on local midnight.
+      const mode = rollup ? 'project' : isGroup(item) && !timed ? 'group' : timed ? 'timed' : 'day';
+      drag = {
+        kind:rollup || (isGroup(item) && item.__rollup_derived === true) ? 'move' : handle, item, bar, barStyle:bar.style.cssText,
+        startX:pointerEvent.clientX, startY:pointerEvent.clientY,
+        baseStart:start.getTime(), baseEnd:end.getTime(),
+        timed, mode,
+        snapMs:mode === 'timed' ? snapMsFor(item) : GANTT_DAY_MS, moved:false,
+        touch,
+      };
+      try { bar.setPointerCapture?.(pointerEvent.pointerId); } catch {}
+    }
 
     container.querySelectorAll('.psv-gantt-lane.unscheduled-lane').forEach((lane) => {
       lane.addEventListener('pointerdown', (pointerEvent) => {
-        if (pointerEvent.target.closest('.psv-gantt-bar')) return;
+        if (pointerEvent.button !== 0 || pointerEvent.target.closest('.psv-gantt-bar')) return;
         const item = eventById.get(String(lane.dataset.psvGanttLane || ''));
         if (!item) return;
         pointerEvent.preventDefault();
-        const startMs = ganttLocalDay(timeForX(laneX(pointerEvent.clientX)), 'floor');
-        drag = { kind:'create', item, lane, startMs, endMs:addDays(new Date(startMs), 1).getTime(), snapMs:GANTT_DAY_MS, moved:false, startX:pointerEvent.clientX, pointerId:pointerEvent.pointerId };
+        const anchorDay = ganttLocalDay(timeForX(laneX(pointerEvent.clientX)), 'floor');
+        drag = { kind:'create', item, lane, anchorDay, startMs:anchorDay, endMs:addDays(new Date(anchorDay), 1).getTime(), snapMs:GANTT_DAY_MS, moved:false, startX:pointerEvent.clientX, startY:pointerEvent.clientY, pointerId:pointerEvent.pointerId };
         lane.setPointerCapture?.(pointerEvent.pointerId);
         const ghost = document.createElement('div');
         ghost.className = 'psv-gantt-bar ghost';
         ghost.dataset.psvGanttCreateGhost = '1';
         lane.appendChild(ghost);
         drag.ghost = ghost;
-        ghost.style.left = `${xForTime(startMs)}px`;
-        ghost.style.width = `${pxPerDay}px`;
+        ghost.style.left = `${xForTime(anchorDay)}px`;
+        ghost.style.width = `${Math.max(6, xForTime(drag.endMs) - xForTime(anchorDay))}px`;
       });
     });
 
     const onPointerMove = (pointerEvent) => {
       if (!drag) return;
       pointerEvent.preventDefault();
-      if (Math.abs(pointerEvent.clientX - drag.startX) > 2 || (drag.kind === 'link' && Math.abs(pointerEvent.clientY - drag.startY) > 2)) drag.moved = true;
+      const dx = pointerEvent.clientX - drag.startX;
+      const dy = pointerEvent.clientY - (drag.startY ?? pointerEvent.clientY);
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
       if (drag.moved && drag.bar) drag.bar.__psvGanttDragged = true;
       // A link drag ends over another bar; its click must not open the source.
       if (drag.moved && drag.fromBar) drag.fromBar.__psvGanttDragged = true;
@@ -5302,29 +6952,41 @@
       }
       if (drag.kind === 'create') {
         const currentDay = ganttLocalDay(timeForX(laneX(pointerEvent.clientX)), 'floor');
-        drag.endMs = addDays(new Date(Math.max(drag.startMs, currentDay)), 1).getTime();
+        drag.startMs = Math.min(drag.anchorDay, currentDay);
+        drag.endMs = addDays(new Date(Math.max(drag.anchorDay, currentDay)), 1).getTime();
+        drag.ghost.style.left = `${xForTime(drag.startMs)}px`;
         drag.ghost.style.width = `${Math.max(6, xForTime(drag.endMs) - xForTime(drag.startMs))}px`;
         return;
       }
-      const deltaMs = ((pointerEvent.clientX - drag.startX) / pxPerDay) * 86400000;
+      if (!drag.moved) return;
+      const deltaMs = (dx / pxPerDay) * GANTT_DAY_MS;
+      const minSpan = drag.timed ? (drag.snapMs < GANTT_DAY_MS ? drag.snapMs : 30 * 60000) : GANTT_DAY_MS;
       let nextStart = drag.baseStart;
       let nextEnd = drag.baseEnd;
       if (drag.kind === 'move') {
-        nextStart = snapTime(drag.baseStart + deltaMs, drag.snapMs);
-        nextEnd = drag.snapMs >= GANTT_DAY_MS
-          ? addDays(new Date(nextStart), Math.max(1, Math.round((drag.baseEnd - drag.baseStart) / GANTT_DAY_MS))).getTime()
-          : nextStart + (drag.baseEnd - drag.baseStart);
+        const days = Math.round(deltaMs / GANTT_DAY_MS);
+        if (drag.mode === 'group') {
+          nextStart = addDays(new Date(ganttLocalDay(drag.baseStart, 'floor')), days).getTime();
+          nextEnd = addDays(new Date(ceilDay(drag.baseEnd)), days).getTime();
+        } else if (drag.mode === 'day') {
+          nextStart = shiftBy(drag, drag.baseStart, deltaMs);
+          nextEnd = addDays(new Date(nextStart), Math.max(1, Math.round((drag.baseEnd - drag.baseStart) / GANTT_DAY_MS))).getTime();
+        } else {
+          nextStart = shiftBy(drag, drag.baseStart, deltaMs);
+          nextEnd = drag.snapMs < GANTT_DAY_MS ? nextStart + (drag.baseEnd - drag.baseStart) : shiftBy(drag, drag.baseEnd, deltaMs);
+        }
       } else if (drag.kind === 'start') {
-        nextStart = Math.min(snapTime(drag.baseStart + deltaMs, drag.snapMs), drag.baseEnd - drag.snapMs);
+        nextStart = Math.min(shiftBy(drag, drag.baseStart, deltaMs), drag.baseEnd - minSpan);
       } else {
-        nextEnd = Math.max(snapTime(drag.baseEnd + deltaMs, drag.snapMs), drag.baseStart + drag.snapMs);
+        nextEnd = Math.max(shiftBy(drag, drag.baseEnd, deltaMs), drag.baseStart + minSpan);
       }
+      drag.dayDelta = Math.round(deltaMs / GANTT_DAY_MS);
       drag.nextStart = nextStart;
       drag.nextEnd = nextEnd;
       drag.bar.classList.add('dragging');
       drag.bar.style.left = `${xForTime(nextStart)}px`;
       drag.bar.style.width = `${Math.max(6, xForTime(nextEnd) - xForTime(nextStart))}px`;
-      if (drag.kind === 'move' && Scheduling?.cascadeDependentDrafts) {
+      if (drag.kind === 'move' && drag.mode !== 'project' && drag.mode !== 'group' && Scheduling?.cascadeDependentDrafts) {
         ghostForCascade(Scheduling.cascadeDependentDrafts(events, drag.item.id, rangePayload(drag.item, nextStart, nextEnd)));
       }
     };
@@ -5339,23 +7001,56 @@
         const target = document.elementsFromPoint(pointerEvent.clientX, pointerEvent.clientY)
           .map((node) => node.closest?.('[data-psv-gantt-bar]')).find(Boolean);
         const toItem = target ? eventById.get(String(target.dataset.psvGanttBar || '')) : null;
-        if (toItem && String(toItem.id) !== String(activeDrag.from.id)) options.onDependencyCreate?.(activeDrag.from, toItem);
+        if (toItem && String(toItem.id) !== String(activeDrag.from.id) && canLinkItem(toItem)) options.onDependencyCreate?.(activeDrag.from, toItem);
         return;
       }
       if (activeDrag.kind === 'create') {
         activeDrag.ghost?.remove();
-        // A plain click (no drag) schedules a one-day block on that day.
-        const payload = { ...rangePayload(activeDrag.item, activeDrag.startMs, activeDrag.endMs), status:'scheduled' };
-        (options.onEventSchedule || options.onEventRangeChange)?.(activeDrag.item, payload, { action:'schedule' });
+        // A plain click schedules one day; a drag in either direction spans
+        // the days covered. A timed item placed on one day starts at the
+        // start of the work day and keeps its duration.
+        const item = activeDrag.item;
+        const days = Math.round((activeDrag.endMs - activeDrag.startMs) / GANTT_DAY_MS);
+        let payload;
+        if (isTimed(item) && days <= 1) {
+          const startHour = Number.isFinite(Number(options.workdayStartHour)) ? Number(options.workdayStartHour) : 8;
+          const start = new Date(activeDrag.startMs);
+          start.setHours(startHour, 0, 0, 0);
+          const minutes = Math.max(15, Number(item.duration_minutes) || 60);
+          payload = { start, end:new Date(start.getTime() + minutes * 60000), all_day:false, schedule_granularity:'time' };
+        } else {
+          payload = { start:new Date(activeDrag.startMs), end:new Date(activeDrag.endMs), all_day:true, schedule_granularity:'date' };
+        }
+        const scheduleMeta = {
+          action:'schedule',
+          source:activeDrag.moved ? 'lane-drag' : 'lane-click',
+          element:activeDrag.lane,
+          clientX:pointerEvent.clientX,
+          clientY:pointerEvent.clientY,
+          past:payload.start.getTime() < ganttLocalDay(Date.now(), 'floor'),
+        };
+        // Hosts may stage a draft or confirm first (e.g. a past day) instead
+        // of the immediate save.
+        if (typeof options.onUnscheduledLaneSchedule === 'function') {
+          options.onUnscheduledLaneSchedule(item, { ...payload, status:'scheduled' }, scheduleMeta);
+          return;
+        }
+        (options.onEventSchedule || options.onEventRangeChange)?.(item, { ...payload, status:'scheduled' }, scheduleMeta);
         return;
       }
       if (!activeDrag.moved || activeDrag.nextStart === undefined) return;
-      if (activeDrag.nextStart === activeDrag.baseStart && activeDrag.nextEnd === activeDrag.baseEnd) return;
+      const unchanged = activeDrag.kind === 'move' && activeDrag.mode !== 'timed'
+        ? !activeDrag.dayDelta
+        : activeDrag.nextStart === activeDrag.baseStart && activeDrag.nextEnd === activeDrag.baseEnd;
+      if (unchanged) {
+        if (activeDrag.bar) activeDrag.bar.style.cssText = activeDrag.barStyle;
+        return;
+      }
       const payload = rangePayload(activeDrag.item, activeDrag.nextStart, activeDrag.nextEnd);
-      const cascade = Scheduling?.cascadeDependentDrafts
+      const cascade = activeDrag.mode !== 'project' && activeDrag.mode !== 'group' && Scheduling?.cascadeDependentDrafts
         ? Scheduling.cascadeDependentDrafts(events, activeDrag.item.id, payload).filter((draft) => String(draft.id) !== String(activeDrag.item.id))
         : [];
-      options.onEventRangeChange?.(activeDrag.item, payload, { cascade });
+      options.onEventRangeChange?.(activeDrag.item, payload, { cascade, action:activeDrag.kind, dayDelta:activeDrag.dayDelta || 0 });
     };
     // A cancelled gesture (touch scroll, lost capture) abandons the drag
     // instead of committing it on some later pointerup.
@@ -5367,7 +7062,11 @@
       drag = null;
       clearGhosts();
     };
-    container.__psvGanttPointerHandlers = { pointermove:onPointerMove, pointerup:onPointerUp, pointercancel:onPointerCancel, lostpointercapture:onPointerCancel };
+    // Once a touch-and-hold has started a bar drag, the finger moves the bar
+    // instead of panning the timeline.
+    const onTouchMove = (touchEvent) => { if (drag?.touch && touchEvent.cancelable) touchEvent.preventDefault(); };
+    const onContextMenu = (menuEvent) => { if (drag?.touch || menuEvent.target?.closest?.('[data-psv-gantt-bar]')?.__psvGanttSuppressClickUntil > Date.now()) menuEvent.preventDefault(); };
+    container.__psvGanttPointerHandlers = { pointermove:onPointerMove, pointerup:onPointerUp, pointercancel:onPointerCancel, lostpointercapture:onPointerCancel, touchmove:onTouchMove, contextmenu:onContextMenu };
     Object.entries(container.__psvGanttPointerHandlers).forEach(([type, handler]) => container.addEventListener(type, handler));
   }
 
@@ -5400,8 +7099,38 @@
     </div>`;
   }
 
+  /* Month view: bring the week row holding `date` into view. The scroll
+   * always lands on a row boundary just under the sticky weekday header
+   * (never mid-row with the header over a row's date numbers), and nothing
+   * moves when that row's dates and first items already show.
+   * -> true when it scrolled. */
+  function revealMonthDate(container, date = new Date()){
+    const surface = container?.querySelector?.('.prs-surface');
+    if (!surface) return false;
+    const key = typeof date === 'string' ? date.slice(0, 10) : dateKey(date);
+    const cell = surface.querySelector(`.prs-day[data-prs-date="${cssEscape(key)}"]`);
+    const week = cell?.closest?.('.prs-month-week');
+    if (!week) return false;
+    const surfaceRect = surface.getBoundingClientRect();
+    const headBottom = surface.querySelector('.prs-month-head-row')?.getBoundingClientRect().bottom ?? surfaceRect.top;
+    const visibleBottom = surfaceRect.top + surface.clientHeight;
+    const rowRect = week.getBoundingClientRect();
+    const shownEnough = Math.min(rowRect.height, 60);
+    if (rowRect.top >= headBottom - 1 && rowRect.top + shownEnough <= visibleBottom + 1) return false;
+    const before = surface.scrollTop;
+    const maxScroll = Math.max(0, surface.scrollHeight - surface.clientHeight);
+    // scrollTop that puts each row's top right under the header.
+    const boundaries = [0, ...Array.from(surface.querySelectorAll('.prs-month-week')).map((row) => Math.round(before + row.getBoundingClientRect().top - headBottom))]
+      .filter((value) => value >= 0 && value <= maxScroll + 1);
+    const wanted = Math.round(before + rowRect.top - headBottom);
+    const target = wanted <= maxScroll + 1 ? Math.max(0, wanted) : Math.max(...boundaries);
+    surface.scrollTop = Math.min(maxScroll, target);
+    return surface.scrollTop !== before;
+  }
+
   root.PlatformScheduleView = {
     mobileCalendarToolbarHtml,
+    revealMonthDate,
     travelSegmentLayout,
     renderDailyTeam,
     renderProjectRangeScheduler,

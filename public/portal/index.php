@@ -1873,7 +1873,9 @@ session_write_close();
         if (!document.body.contains(cover)) return;
         var overlay = document.getElementById('rOverlay');
         // The real modal owns the screen now, or nothing ever claimed it.
-        if (overlay && overlay.classList.contains('active')) dismiss();
+        // Project windows render inside their own layer (an iframe), so the
+        // host page never gets an active #rOverlay.
+        if ((overlay && overlay.classList.contains('active')) || document.querySelector('.fm-project-window-layer')) dismiss();
         else if (Date.now() - started > 15000) dismiss();
         else setTimeout(settle, 500);
       };

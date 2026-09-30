@@ -15,6 +15,7 @@ import {
 import type { PlatformAuthContext } from "../platform/auth.js";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { badRequest, forbidden, notFound } from "../platform/errors.js";
+import { updateProjectData } from "../platform/project_document_mutation.js";
 import { listDocuments, readDocument, storeMediaUpload, upsertDocument, type JsonObject } from "../platform/storage.js";
 import { sendProjectSms } from "../comms/service.js";
 import { projectExpenseSummary, readReceipt } from "../payments/expenses.js";
@@ -1883,11 +1884,19 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
       updated_by_user_id: actor.ctx.userId
     };
     events[eventIndex] = { ...events[eventIndex], visit_state: nextState, status: transition === "completed" ? "completed" : events[eventIndex]!.status };
-    await upsertDocument(orgId, "projects", {
-      id: projectId,
-      data: { ...updatedProjectData, events, updated_at: now },
-      metadata: rawDocument.metadata
-    }, { replace: true });
+    // Apply only this visit's changes to the latest project copy, written
+    // conditionally (platform/project_document_mutation.ts): the copy read
+    // above predates the document delivery / follow-up work done since.
+    await updateProjectData(orgId, projectId, (latest) => {
+      const latestEvents = asArray(latest.events).map(asObject);
+      const latestIndex = latestEvents.findIndex((entry) => cleanText(entry.id) === cleanText(event.id));
+      if (latestIndex >= 0) {
+        latestEvents[latestIndex] = { ...latestEvents[latestIndex], visit_state: nextState, status: transition === "completed" ? "completed" : latestEvents[latestIndex]!.status };
+      }
+      const latestNotes = cleanText(latest.notes);
+      const notes = visitNotes && !latestNotes.includes(visitNotes) ? { notes: [latestNotes, visitNotes].filter(Boolean).join("\n") } : {};
+      return { ...latest, ...notes, events: latestEvents, updated_at: now };
+    });
     if (["arrived", "completed"].includes(transition)) {
       const type = transition === "completed" ? "project.event.completed" : "project.event.started";
       await emitWorkEvent({

@@ -9,6 +9,7 @@
  */
 
 import { PlatformError } from "../platform/errors.js";
+import { mutateProjectDocument, writeProjectDocument } from "../platform/project_document_mutation.js";
 import {
   listDocuments,
   readBranchModule,
@@ -99,6 +100,49 @@ function eventAssignedSubjectId(event: JsonObject) {
   return cleanText(ref.id || event.assigned_resource_id || event.resource_id || event.assigned_crew_id) || eventAssignedUserId(event);
 }
 
+/* Section/group rows only roll up their children; they are never stops. */
+function eventIsScheduleGroup(event: JsonObject) {
+  return event.is_schedule_group === true
+    || cleanText(event.schedule_item_kind).toLowerCase() === "group"
+    || cleanText(event.kind).toLowerCase() === "schedule_group";
+}
+
+/* Production work is assigned to crews (often several per item) and spans
+ * days; auto-routing it may only sequence items within their existing
+ * assignments, never swap a crew for a person or assign groups. */
+function isProductionEventType(eventTypeId: string, eventType: JsonObject) {
+  const kind = cleanText(eventType.kind || eventType.category || eventType.base_type).toLowerCase();
+  return eventTypeId === "project_work" || kind === "project_work" || kind === "production";
+}
+
+function eventCrewRoleRefIds(event: JsonObject) {
+  return (Array.isArray(event.resource_refs) ? event.resource_refs : [])
+    .map(asObject)
+    .filter((ref) => !["equipment_unit", "equipment_type"].includes(cleanText(ref.kind)))
+    .map((ref) => cleanText(ref.id))
+    .filter(Boolean);
+}
+
+/* Keep resource_refs coherent with a routing (re)assignment: the crew-role
+ * set becomes exactly the new crew (or nothing for a person / cleared stop);
+ * equipment refs are untouched. */
+function resourceRefsForRoutedSubject(event: JsonObject, subject: { id: string; name: string; subject_type: string } | null) {
+  const equipment = (Array.isArray(event.resource_refs) ? event.resource_refs : [])
+    .map(asObject)
+    .filter((ref) => ["equipment_unit", "equipment_type"].includes(cleanText(ref.kind)));
+  const crew = subject && subject.subject_type !== "organization_user"
+    ? [{ kind: subject.subject_type, id: subject.id, name: subject.name, role: "crew" }]
+    : [];
+  return [...crew, ...equipment];
+}
+
+/* Assignment changes made here count as edits for optimistic concurrency. */
+function bumpEventRevision(event: JsonObject, at: string) {
+  const revision = Number(event.event_revision);
+  event.event_revision = (Number.isFinite(revision) && revision > 0 ? Math.floor(revision) : 0) + 1;
+  event.updated_at = at;
+}
+
 export type OptimizeDayInput = {
   event_type_id: string;
   date?: string;
@@ -141,6 +185,7 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
   const availabilitySettings = normalizeSchedulingAvailabilitySettings(schedulingData);
   const eventType = asObject(asObject(schedulingData.event_types)[eventTypeId]);
   const policy = assignmentPolicyForEventType(eventType, eventTypeId);
+  const productionMode = isProductionEventType(eventTypeId, eventType);
   const routingConfig = asObject(schedulingData.routing);
   const sharedTravel = availabilitySettings.travel;
   const travelConfig: TravelConfig = {
@@ -187,6 +232,7 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
   const skippedMissingAddress: Array<{ event_id: string; project_id: string; project_title: string; reason: "missing_address" }> = [];
   const cachedTravel = new Map<string, number>();
   const subjectIds = new Set(subjects.map((subject) => subject.id));
+  const skippedProduction: Array<{ event_id: string; project_id: string; reason: string }> = [];
 
   for (const document of projects) {
     const data = asObject(asObject(document).data);
@@ -225,8 +271,26 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
         continue;
       }
       if (start < windowStart || start >= windowEnd) continue;
+      if (eventIsScheduleGroup(event)) continue;
       const stopId = cleanText(event.id);
       if (!stopId || stopContexts.has(stopId)) continue;
+      if (productionMode) {
+        /* Sequence-only: route an item only on its (single) existing crew;
+         * unassigned, multi-crew, all-day and person-assigned work is left
+         * exactly as it is. */
+        const assignee = eventAssignedSubjectId(event);
+        const crewIds = new Set([assignee, ...eventCrewRoleRefIds(event)].filter(Boolean));
+        const granularity = cleanText(event.schedule_granularity).toLowerCase();
+        const reason = !assignee ? "unassigned"
+          : crewIds.size > 1 ? "multiple_crews"
+            : !subjectIds.has(assignee) ? "assignee_not_routable"
+              : (event.all_day === true || granularity === "date") ? "all_day"
+                : "";
+        if (reason) {
+          skippedProduction.push({ event_id: stopId, project_id: cleanText(asObject(document).id), reason });
+          continue;
+        }
+      }
       const projectId = cleanText(asObject(document).id);
       const projectTitle = cleanText(data.title || asObject(document).id);
       const address = routableAddress(event, data);
@@ -240,7 +304,7 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
         continue;
       }
       const assignedSubject = eventAssignedSubjectId(event);
-      const pinned = (event.locked === true || input.keep_existing === true)
+      const pinned = (event.locked === true || input.keep_existing === true || productionMode)
         && assignedSubject && subjectIds.has(assignedSubject)
         ? assignedSubject
         : "";
@@ -274,6 +338,8 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
         unavailable_subjects: unavailableSubjects,
         routes: [],
         unassigned: [],
+        mode: productionMode ? "sequence_only" : "assign",
+        skipped_production: skippedProduction,
         skipped_missing_address: skippedMissingAddress,
         skipped_missing_address_count: skippedMissingAddressCount,
         total_travel_minutes: 0,
@@ -284,7 +350,9 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
         cleared_count: 0
       };
     }
-    throw new PlatformError("routing_no_events", 404, "No scheduled events of this type fall inside the routing window.");
+    throw new PlatformError("routing_no_events", 404, productionMode
+      ? "No timed, single-crew work items fall inside the routing window."
+      : "No scheduled events of this type fall inside the routing window.");
   }
 
   const travelSources = { cached: 0, estimated: 0, fallback: 0 };
@@ -395,7 +463,7 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
     }
     for (const entry of unassigned) {
       const context = stopContexts.get(entry.event_id);
-      if (!context || context.event.locked === true) continue;
+      if (productionMode || !context || context.event.locked === true) continue;
       if (!eventAssignedSubjectId(context.event)) continue;
       const list = byProject.get(context.projectId) || [];
       list.push({ eventId: entry.event_id, subjectId: "", sequence: 0, travel: 0, reason: entry.reason });
@@ -403,13 +471,18 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
     }
     const routedAt = new Date().toISOString();
     for (const [projectId, assignments] of byProject) {
-      const document = await readDocument(orgId, "projects", projectId);
+      // Conditional, per-project serialized write (platform/project_document_mutation.ts):
+      // re-applied to the latest copy if the project changed meanwhile.
+      const counted = await mutateProjectDocument(orgId, projectId, async (document) => {
+      let appliedHere = 0;
+      let clearedHere = 0;
       const data = asObject(asObject(document).data);
       const events = Array.isArray(data.events) ? data.events.map((item) => asObject(item)) : [];
       for (const assignment of assignments) {
         const event = events.find((item) => cleanText(item.id) === assignment.eventId);
         if (!event) continue;
         if (!assignment.subjectId) {
+          bumpEventRevision(event, routedAt);
           Object.assign(event, {
             assigned_user_ids: [],
             assigned_users: [],
@@ -426,16 +499,24 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
             assigned_crew_id: "",
             assigned_crew_name: "",
             assigned_crew: null,
+            resource_refs: resourceRefsForRoutedSubject(event, null),
             routing: { routed_at: routedAt, routed_by: cleanText(input.actor?.userId), unassigned_reason: cleanText(assignment.reason) || "no_feasible_subject" }
           });
-          clearedCount += 1;
+          clearedHere += 1;
           continue;
         }
         const subject = subjectById.get(assignment.subjectId);
         if (!subject) continue;
+        const unchanged = eventAssignedSubjectId(event) === subject.id;
+        if (productionMode && !unchanged) continue;
         /* Same alias set the scheduling UI writes (assignmentPayloadForSubject)
-         * so every reader — routing view, gantt, popups — agrees. */
-        if (subject.subject_type === "organization_user") {
+         * so every reader — routing view, gantt, popups — agrees. A stop kept
+         * on its assignee only gets its routing sequence (multi-crew and
+         * person+crew assignments stay intact). */
+        if (unchanged) {
+          // routing metadata only (below)
+        } else if (subject.subject_type === "organization_user") {
+          bumpEventRevision(event, routedAt);
           Object.assign(event, {
             assigned_user_ids: [subject.id],
             assigned_users: [{ id: subject.id, name: subject.name }],
@@ -451,9 +532,11 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
             assigned_resource_name: "",
             assigned_crew_id: "",
             assigned_crew_name: "",
-            assigned_crew: null
+            assigned_crew: null,
+            resource_refs: resourceRefsForRoutedSubject(event, null)
           });
         } else {
+          bumpEventRevision(event, routedAt);
           Object.assign(event, {
             assigned_user_ids: [],
             assigned_users: [],
@@ -469,7 +552,8 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
             assigned_resource_name: subject.name,
             assigned_crew_id: subject.id,
             assigned_crew_name: subject.name,
-            assigned_crew: { id: subject.id, name: subject.name }
+            assigned_crew: { id: subject.id, name: subject.name },
+            resource_refs: resourceRefsForRoutedSubject(event, subject)
           });
         }
         Object.assign(event, {
@@ -480,13 +564,13 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
             travel_from_previous_minutes: assignment.travel
           }
         });
-        appliedCount += 1;
+        appliedHere += 1;
       }
-      await upsertDocument(orgId, "projects", {
-        id: projectId,
-        data: { ...data, events },
-        metadata: { routing_applied_at: routedAt }
-      }, { replace: true });
+      await writeProjectDocument(orgId, document, { ...data, events }, { ...asObject(asObject(document).metadata), routing_applied_at: routedAt });
+      return { appliedHere, clearedHere };
+      });
+      appliedCount += counted.appliedHere;
+      clearedCount += counted.clearedHere;
     }
   }
 
@@ -500,6 +584,8 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
     unavailable_subjects: unavailableSubjects,
     routes,
     unassigned,
+    mode: productionMode ? "sequence_only" : "assign",
+    skipped_production: skippedProduction,
     skipped_missing_address: skippedMissingAddress,
     skipped_missing_address_count: skippedMissingAddressCount,
     total_travel_minutes: result.total_travel_minutes,

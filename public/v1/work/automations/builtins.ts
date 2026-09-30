@@ -4,6 +4,7 @@ import { sendCommunication } from "../../messaging/communications_service.js";
 import { sendCommunicationSchema, type CommunicationChannel } from "../../messaging/schemas.js";
 import { removeCallListEntry, upsertCallListEntry } from "../../internal/crm/call_lists.js";
 import { readDocument, upsertDocument, type JsonObject } from "../../platform/storage.js";
+import { updateProjectData } from "../../platform/project_document_mutation.js";
 import { registerWorkAutomation, type WorkAutomationContext } from "../registry.js";
 import { registerScopeCodeAutomation } from "./code.js";
 import { listNodeRecords } from "../storage.js";
@@ -881,20 +882,13 @@ export function registerBuiltinWorkAutomations() {
 }
 
 export async function patchProjectDocument(orgId: string, projectId: string, patch: JsonObject) {
-  const document = await readDocument(orgId, "projects", projectId);
-  const current = asObject(document.data);
-  const next = await upsertDocument(orgId, "projects", {
-    id: projectId,
-    data: { ...current, ...patch, updated_at: new Date().toISOString() },
-    metadata: document.metadata
-  }, { replace: true });
-  return { id: projectId, ...asObject(next.data) };
+  // Conditional write so an automation patch never drops concurrently saved
+  // schedule items (see platform/project_document_mutation.ts).
+  const next = await updateProjectData(orgId, projectId, (current) => ({ ...current, ...patch, updated_at: new Date().toISOString() }));
+  return { id: projectId, ...asObject(next?.data) };
 }
 
 export async function createProjectScheduleRequirement(orgId: string, projectId: string, input: JsonObject) {
-  const document = await readDocument(orgId, "projects", projectId);
-  const project = asObject(document.data);
-  const requirements = asArray(project.events).map(asObject);
   const id = cleanText(input.id) || stableId("event", `${projectId}:${JSON.stringify(input)}`);
   const now = new Date().toISOString();
   const event = {
@@ -907,14 +901,13 @@ export async function createProjectScheduleRequirement(orgId: string, projectId:
     created_at: cleanText(input.created_at || now),
     updated_at: now
   };
-  const index = requirements.findIndex((entry) => cleanText(entry.id) === id);
-  if (index >= 0) requirements[index] = { ...requirements[index], ...event };
-  else requirements.push(event);
-  await upsertDocument(orgId, "projects", {
-    id: projectId,
-    data: { ...project, events: requirements, updated_at: now },
-    metadata: document.metadata
-  }, { replace: true });
+  await updateProjectData(orgId, projectId, (project) => {
+    const requirements = asArray(project.events).map(asObject);
+    const index = requirements.findIndex((entry) => cleanText(entry.id) === id);
+    if (index >= 0) requirements[index] = { ...requirements[index], ...event };
+    else requirements.push(event);
+    return { ...project, events: requirements, updated_at: now };
+  });
   return event;
 }
 

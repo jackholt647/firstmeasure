@@ -22,6 +22,7 @@ import {
 import { env } from "../src/config/env.js";
 import { isCapabilityEnabled } from "../platform/capabilities.js";
 import { emitWorkEvent } from "../work/engine.js";
+import { updateProjectData } from "../platform/project_document_mutation.js";
 import {
   asArray,
   asObject,
@@ -546,22 +547,20 @@ export function interpretResponse(text: string) {
 
 async function writeEventConfirmation(orgId: string, projectId: string, eventId: string, patch: JsonObject) {
   try {
-    const document = await readDocument(orgId, "projects", projectId);
-    const data = asObject(document.data);
-    const events = asArray(data.events).map(asObject);
-    const index = events.findIndex((event) => cleanText(event.id) === cleanText(eventId));
-    if (index < 0) return false;
-    const current = asObject(events[index]!.confirmation);
-    events[index] = {
-      ...events[index]!,
-      confirmation: { ...current, ...patch }
-    };
-    await upsertDocument(orgId, "projects", {
-      id: projectId,
-      data: { ...data, events, updated_at: new Date().toISOString() },
-      metadata: document.metadata
-    }, { replace: true });
-    return true;
+    // Conditional, per-project serialized write: a confirmation stamp must
+    // never drop a schedule item saved concurrently (R3-RAIL-2).
+    const saved = await updateProjectData(orgId, projectId, (data) => {
+      const events = asArray(data.events).map(asObject);
+      const index = events.findIndex((event) => cleanText(event.id) === cleanText(eventId));
+      if (index < 0) return null;
+      const current = asObject(events[index]!.confirmation);
+      events[index] = {
+        ...events[index]!,
+        confirmation: { ...current, ...patch }
+      };
+      return { ...data, events, updated_at: new Date().toISOString() };
+    });
+    return !!saved;
   } catch {
     return false;
   }
@@ -584,13 +583,12 @@ async function applyNoResponsePolicy(row: ConfirmationRow) {
     return action;
   }
   try {
-    const document = await readDocument(cleanText(row.organization_id), "projects", cleanText(row.project_id));
-    const data = asObject(document.data);
+    const now = new Date().toISOString();
+    const saved = await updateProjectData(cleanText(row.organization_id), cleanText(row.project_id), (data) => {
     const events = asArray(data.events).map(asObject);
     const index = events.findIndex((event) => cleanText(event.id) === cleanText(row.event_id));
-    if (index < 0) return "missing_event";
+    if (index < 0) return null;
     const event = events[index]!;
-    const now = new Date().toISOString();
     events[index] = {
       ...event,
       status: action === "cancel" ? "cancelled" : "unscheduled",
@@ -609,12 +607,9 @@ async function applyNoResponsePolicy(row: ConfirmationRow) {
       }],
       confirmation: { ...asObject(event.confirmation), status: "canceled", no_response: true, no_response_action: action }
     };
-    await upsertDocument(cleanText(row.organization_id), "projects", {
-      id: cleanText(document.id),
-      expected_revision: Number(document.revision || 0),
-      data: { ...data, events, updated_at: now },
-      metadata: document.metadata
-    }, { replace: true });
+    return { ...data, events, updated_at: now };
+    });
+    if (!saved) return "missing_event";
     await emitWorkEvent({
       organization_id: cleanText(row.organization_id),
       branch_id: cleanText(row.branch_id) || "default",

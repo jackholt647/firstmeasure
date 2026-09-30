@@ -461,14 +461,36 @@ export async function writeJsonAtomic(filePath: string, value: unknown) {
   await writeFileAtomic(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-async function readJsonFile<T>(filePath: string): Promise<T> {
+async function atomicWriteInFlight(filePath: string) {
+  const prefix = `.${path.basename(filePath)}.`;
   try {
-    return JSON.parse(await readFile(filePath, "utf8")) as T;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw notFound("not_found", "The requested platform record was not found.");
+    return (await readdir(path.dirname(filePath))).some((name) => name.startsWith(prefix) && name.endsWith(".tmp"));
+  } catch {
+    return false;
+  }
+}
+
+async function readJsonFile<T>(filePath: string): Promise<T> {
+  // Windows only: writeFileAtomic may briefly remove a record while a
+  // rename-over-existing is retried, so a concurrent read sees a transient
+  // ENOENT/EPERM. While that write is in flight (its temp file exists),
+  // re-read a few times before reporting the record missing.
+  const attempts = process.platform === "win32" ? 6 : 1;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return JSON.parse(await readFile(filePath, "utf8")) as T;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (attempt < attempts - 1 && (["EPERM", "EBUSY", "EACCES"].includes(String(code))
+        || (code === "ENOENT" && await atomicWriteInFlight(filePath)))) {
+        await new Promise((resolve) => setTimeout(resolve, 10 * (attempt + 1)));
+        continue;
+      }
+      if (code === "ENOENT") {
+        throw notFound("not_found", "The requested platform record was not found.");
+      }
+      throw error;
     }
-    throw error;
   }
 }
 

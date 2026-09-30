@@ -10,15 +10,75 @@
   function styles(){
     if (document.getElementById('fm-project-window-host-style')) return;
     const style = document.createElement('style'); style.id = 'fm-project-window-host-style';
-    style.textContent = `.fm-project-window-layer{position:fixed;inset:0;pointer-events:none;z-index:2147483100}.fm-project-window-layer[data-mode=modal],.fm-project-window-layer[data-mode=fullscreen]{background:rgba(11,16,24,.78);pointer-events:auto}.fm-project-frame{position:fixed;left:2vw;top:4vh;width:96vw;height:92vh;pointer-events:auto;overflow:hidden!important;border-radius:14px;background:#fff}.fm-project-frame iframe{display:block;width:100%;height:100%;border:0}.fm-project-window-loading{position:absolute;inset:4%;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:14px;pointer-events:auto}.fm-project-window-loading button{position:absolute;top:8px;right:8px}.fm-project-frame[hidden]{display:none!important}`;
+    style.textContent = `.fm-project-window-layer{position:fixed;inset:0;pointer-events:none;z-index:2147483100}.fm-project-window-layer[data-mode=modal],.fm-project-window-layer[data-mode=fullscreen]{background:rgba(11,16,24,.78);pointer-events:auto}.fm-project-frame{position:fixed;left:2vw;top:4vh;width:96vw;height:92vh;pointer-events:auto;overflow:hidden!important;border-radius:14px;background:#fff}.fm-project-frame iframe{display:block;width:100%;height:100%;border:0}.fm-project-window-loading{position:absolute;inset:4%;display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;border-radius:14px;pointer-events:auto;color:#475467;font:800 13px Inter,Arial,sans-serif}.fm-project-window-loading:before{content:"";width:16px;height:16px;border:2px solid #d0d5dd;border-top-color:var(--primary,#d93025);border-radius:50%;animation:fm-project-window-spin .8s linear infinite}.fm-project-window-loading.failed:before{display:none}@keyframes fm-project-window-spin{to{transform:rotate(360deg)}}.fm-project-window-loading button{position:absolute;top:10px;right:10px;height:32px;padding:0 12px;border:1px solid rgba(15,23,42,.14);border-radius:9px;background:#fff;color:#344054;font:900 12px Inter,Arial,sans-serif;display:inline-flex;align-items:center;gap:6px;cursor:pointer}.fm-project-window-loading button:hover{background:#f2f4f7;color:#101828}.fm-project-window-loading button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}.fm-project-frame[hidden]{display:none!important}`;
     document.head.append(style);
     style.textContent += `.fm-project-minimized-bar{position:absolute;inset:0;display:flex;align-items:center;gap:3px;padding:0 4px;background:#fff;font:12px Arial,sans-serif}.fm-project-minimized-bar[hidden]{display:none}.fm-project-minimized-bar button{height:28px;border:0;background:none;color:#344054;cursor:pointer}.fm-project-minimized-bar .fm-project-minimized-title{display:flex;align-items:center;gap:6px;min-width:0;flex:1;text-align:left}.fm-project-minimized-title span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.fm-project-minimized-title i{color:var(--primary,#d93025)}.fm-project-minimized-bar button:last-child:hover{background:#d92d20;color:white}`;
+  }
+  // The portal paints a project-shaped skeleton (#fmProjectRoutePrecover) on a
+  // direct ?project= load. Once a project window layer exists it owns the
+  // screen (and its own loading state); a leftover skeleton would sit over the
+  // page, blocking clicks, as soon as the window closes or stops being modal.
+  function clearRoutePrecover(){ document.getElementById('fmProjectRoutePrecover')?.remove(); }
+  const PROJECT_SCOPED_ROUTE_KEYS=['projectScheduleView','projectScheduleTarget','projectScheduleDate'];
+  // Route keys a window's own navigation mirrors to the browser address while
+  // it is the routed project (the portal already mirrors project/projectTab
+  // on focus; the Schedule tab's view, target and date live in the window).
+  function mirrorRouteFromWindow(record, detail = {}){
+    const route = detail?.route || {};
+    const changed = Array.isArray(detail?.changedKeys) ? detail.changedKeys : [];
+    const keys = ['projectTab', ...PROJECT_SCOPED_ROUTE_KEYS].filter((key)=>changed.includes(key));
+    // Only once the window has opened its project and applied the deep link
+    // (its first renders use defaults that must not replace the address).
+    if (!keys.length || !record.routeMirrorReady || active !== record || !record.projectId || String(route.project || '') !== record.projectId) return;
+    const current = root.Portal?.routeState?.get?.() || {};
+    if (String(current.project || '') !== record.projectId) return;
+    const patch = {};
+    for (const key of keys) patch[key] = String(route[key] || '').trim() || null;
+    if (patch.projectTab) record.options.tab = patch.projectTab;
+    try { root.Portal?.routeState?.set?.(patch, {history:'replace',source:'project-window-route'}); } catch(_) {}
+  }
+  function projectRouteParams(projectId, options = {}){
+    const params={};
+    const current=root.Portal?.routeState?.get?.() || {};
+    const routed=!!projectId && String(current.project || '') === projectId;
+    for(const key of PROJECT_SCOPED_ROUTE_KEYS){
+      const value=String(options[key] || (routed ? current[key] || '' : '')).trim();
+      if(value)params[key]=value;
+    }
+    return params;
+  }
+  function applyRouteParams(record, params = {}){
+    const child=record?.frame?.contentWindow;
+    const navigation=child?.Portal?.navigation;
+    if(!navigation || !Object.keys(params || {}).length)return;
+    try{ navigation.replace?.(params,{source:'project-window-deep-link'}); navigation.applyCurrent?.({source:'project-window-deep-link',only:'project-schedule-route'}); }catch(_){}
+  }
+  // Schedule changes in one surface refresh the others: a window's changes are
+  // relayed to the portal as its usual refresh events, and portal refreshes
+  // reach every other window as fm:project-schedule:external, which only the
+  // project apps consume (so nothing is relayed back).
+  function relayToWindows(exceptToken = ''){
+    for(const record of records.values()){
+      if(record.token === exceptToken || !record.api)continue;
+      try{ const child=record.frame.contentWindow; child?.dispatchEvent(new child.CustomEvent('fm:project-schedule:external',{detail:{fromPortal:true}})); }catch(_){}
+    }
+  }
+  for(const type of ['fm:calendar:refresh','fm:projects:refresh']){
+    root.addEventListener(type,event=>relayToWindows(event.detail?.fromProjectWindow || ''));
   }
   function publishRoute(record){
     if (!record.projectId) return;
     const current = root.Portal?.routeState?.get?.() || {};
     if (current.project === record.projectId) return;
-    root.Portal?.routeState?.set?.({project:record.projectId, projectTab:record.options.tab || null}, {history:'replace',source:'project-window-focus'});
+    // The focused window's own schedule view/date replace the previous
+    // project's (never carried over to a different project).
+    const patch={project:record.projectId, projectTab:record.options.tab || null};
+    let childRoute={};
+    try{ childRoute=record.frame?.contentWindow?.Portal?.navigation?.read?.() || {}; }catch(_){}
+    const own=String(childRoute.project || '') === record.projectId;
+    for(const key of PROJECT_SCOPED_ROUTE_KEYS) patch[key]=own ? (String(childRoute[key] || '').trim() || null) : null;
+    if(own && childRoute.projectTab) patch.projectTab=childRoute.projectTab;
+    root.Portal?.routeState?.set?.(patch, {history:'replace',source:'project-window-focus'});
   }
   function sync(record){
     if (!record.controller) return;
@@ -35,10 +95,10 @@
   function closed(token){
     const record = records.get(token); if (!record) return;
     records.delete(token); record.resolveReady?.(null); clearTimeout(record.timer); record.modal?.unregister?.();
-    record.controller?.destroy(); record.layer.remove();
+    record.controller?.destroy(); record.layer.remove(); clearRoutePrecover();
     if (active === record) {
       active = null;
-      if ((root.Portal?.routeState?.get?.() || {}).project === record.projectId) root.Portal?.routeState?.set?.({project:null,projectTab:null,projectFullscreen:null},{history:'replace',source:'project-window-close'});
+      if ((root.Portal?.routeState?.get?.() || {}).project === record.projectId) root.Portal?.routeState?.set?.({project:null,projectTab:null,projectFullscreen:null,projectScheduleView:null,projectScheduleTarget:null,projectScheduleDate:null},{history:'replace',source:'project-window-close'});
     }
     root.dispatchEvent(new CustomEvent('fm:projects:refresh', {detail:{redraw:true}}));
   }
@@ -53,9 +113,12 @@
     const projectId = identity(project);
     const existing = projectId && [...records.values()].find(record=>record.projectId === projectId);
     if (existing) {
+      clearRoutePrecover();
       const shouldFocus = !options.fromRoute || active !== existing;
       if (shouldFocus) { existing.controller?.restore(); existing.controller?.focus(); active=existing; publishRoute(existing); }
-      if (options.tab || options.photo) existing.api?.openProject(project,{...options,fromRoute:false});
+      const routeParams=projectRouteParams(projectId,options);
+      if (options.tab || options.photo) Promise.resolve(existing.api?.openProject(project,{...options,fromRoute:false})).then(()=>applyRouteParams(existing,routeParams)).catch(()=>{});
+      else applyRouteParams(existing,routeParams);
       return existing;
     }
     const token = root.crypto.randomUUID();
@@ -64,13 +127,19 @@
     const frame = document.createElement('iframe');frame.name='fm-project-window:'+token;frame.style.visibility='hidden';frame.setAttribute('aria-label',String(project?.title || project?.address || 'Project workspace'));frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');
     const loading = document.createElement('div');loading.className='fm-project-window-loading';
     const status=document.createElement('span');status.textContent='Opening project…';status.setAttribute('role','status');
-    const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='Close';dismiss.onclick=()=>close(token);loading.append(status,dismiss);
+    const dismiss=document.createElement('button');dismiss.type='button';dismiss.innerHTML='<i class="fas fa-xmark" aria-hidden="true"></i><span>Close</span>';dismiss.setAttribute('aria-label','Close project');dismiss.onclick=()=>close(token);loading.append(status,dismiss);
     const record={token,projectId,project,options,layer,element,frame,loading,controller:null,api:null,modal:null};
     record.ready = new Promise((resolve,reject)=>{record.resolveReady=resolve;record.rejectReady=reject;});
     record.ready.catch(()=>{});
     records.set(token,record);active=record;
-    element.append(frame);layer.append(element,loading);host().append(layer);
+    element.append(frame);layer.append(element,loading);host().append(layer);clearRoutePrecover();
+    // While it loads the window is already the topmost layer: Escape closes it
+    // (not an editor left open underneath). sync() re-registers it by mode.
+    record.modal = root.Portal?.modals?.register?.(layer, {id:`project-${token}`,closeOnEscape:true,closeOnBackdrop:false,onClose:()=>close(token)}) || null;
     const url=new URL(root.location.href);url.search='';url.hash='';url.searchParams.set('projectWindow',token);
+    // Project-scoped deep-link state (e.g. the Schedule tab's view, target and
+    // date) is applied inside the window once its project has opened.
+    record.routeParams=projectRouteParams(projectId,options);
     frame.src=url.href;
     record.timer=setTimeout(()=>{if(!record.api)status.textContent='Project is still loading. You can close this window and try again.';},30000);
     publishRoute(record);
@@ -80,14 +149,25 @@
   function ready(token, child, api){
     const record=records.get(token);if(!record || !accepts(token,child) || record.api)return;
     record.api=api;clearTimeout(record.timer);
-    child.addEventListener('fm:projects:refresh',()=>root.dispatchEvent(new CustomEvent('fm:projects:refresh',{detail:{redraw:true}})));
+    const relayUp=type=>()=>root.dispatchEvent(new CustomEvent(type,{detail:{redraw:true,fromProjectWindow:token}}));
+    child.addEventListener('fm:projects:refresh',relayUp('fm:projects:refresh'));
+    child.addEventListener('fm:calendar:refresh',relayUp('fm:calendar:refresh'));
+    child.addEventListener('fm:project-schedule:changed',relayUp('fm:calendar:refresh'));
     child.document.addEventListener('pointerdown',()=>{active=record;record.controller?.focus();publishRoute(record);},true);
-    Promise.resolve(record.project ? api.openProject(record.project,{...record.options,fromRoute:false}) : api.open(null,record.options)).then(record.resolveReady).catch(error=>{
+    child.addEventListener('fm:route-state:updated',event=>mirrorRouteFromWindow(record,event.detail));
+    Promise.resolve(record.project ? api.openProject(record.project,{...record.options,fromRoute:false}) : api.open(null,record.options)).then(result=>{
+      applyRouteParams(record,record.routeParams);record.routeMirrorReady=true;
+      try{ mirrorRouteFromWindow(record,{route:child.Portal?.navigation?.read?.() || {},changedKeys:PROJECT_SCOPED_ROUTE_KEYS}); }catch(_){}
+      record.resolveReady(result);
+      // Keyboard focus follows the window that just opened, so Escape and
+      // keyboard navigation reach it without a click inside first.
+      if(active===record && records.has(token) && record.controller?.state?.mode!=='minimized'){try{record.frame.focus({preventScroll:true});child.focus();}catch(_){}}
+    }).catch(error=>{
       record.rejectReady(error);
       console.warn('Project workspace could not finish loading',error);
       if(!records.has(token))return;
       record.layer.append(record.loading);
-      record.loading.hidden=false;record.loading.querySelector('[role=status]').textContent='Unable to load this project. Close this window and try again.';
+      record.loading.hidden=false;record.loading.classList.add('failed');record.loading.querySelector('[role=status]').textContent='Unable to load this project. Close this window and try again.';
     });
   }
   function attach(token, child, options){
@@ -104,6 +184,7 @@
       bar.querySelector('span').textContent=options.title?.textContent || record.frame.getAttribute('aria-label') || '';
       title.title=bar.querySelector('span').textContent;
       if(!minimized){record.frame.style.width='100%';record.frame.style.height='100%';}
+      clearRoutePrecover();
       record.frame.style.visibility=minimized?'hidden':'visible';
       sync(record);if(notify)options.onChange?.(state);
     }

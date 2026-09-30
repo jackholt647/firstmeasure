@@ -964,9 +964,65 @@ test("manual stage movement is feature-gated, updates board placement, and yield
   assert.equal(restored.projection.active_instances[0].manual_override, undefined);
   await client.request("PUT", `/v1/work/organizations/${orgId}/plans/${plan.id}/manual-stage`, { stage_id: "proposal_stage" });
 
-  const contactLead = plan.root_nodes[0].children[0].children.find((item: any) => item.template_node_id === "contact_lead");
-  await client.request("POST", `/v1/work/organizations/${orgId}/nodes/${contactLead.id}/transition`, { status: "completed" });
+  // Workflow progress that is still behind the manual stage never drags the
+  // card back (R3-EQ-6: finishing "Contact lead" used to reset the stage).
+  const stageNodes = plan.root_nodes[0].children;
+  const task = (id: string) => stageNodes.flatMap((stage: any) => stage.children || []).find((item: any) => item.template_node_id === id);
+  await client.request("POST", `/v1/work/organizations/${orgId}/nodes/${task("contact_lead").id}/transition`, { status: "completed" });
+  const behind = await client.request("GET", `/v1/work/organizations/${orgId}/projects/${projectId}/projection`);
+  assert.equal(behind.projection.active_instances[0].stage_id, "proposal_stage");
+  assert.equal(behind.projection.active_instances[0].manual_override, true);
+
+  // Once the workflow reaches the manually chosen stage the override yields.
+  await client.request("POST", `/v1/work/organizations/${orgId}/nodes/${task("complete_sales_appointment").id}/transition`, { status: "completed" });
+  await client.request("POST", `/v1/work/organizations/${orgId}/nodes/${task("sales_appointment_completed").id}/transition`, { status: "completed" });
   const projection = await client.request("GET", `/v1/work/organizations/${orgId}/projects/${projectId}/projection`);
-  assert.equal(projection.projection.active_instances[0].stage_id, "appointment_stage");
+  assert.equal(projection.projection.active_instances[0].stage_id, "proposal_stage");
   assert.equal(projection.projection.active_instances[0].manual_override, undefined);
+});
+
+test("saving a sales appointment never regresses a manually set later stage (R3-EQ-6)", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const { saveGlobal } = await import("../platform/storage.js");
+  await saveGlobal(orgId, { data: { app_flags: { platform: { expanded_access: true, manual_project_stage_movement: true } } } }, { replace: false });
+  const projectId = "sold_project_with_appointment";
+  await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
+    data: { id: projectId, title: "Sold project", branch_id: "default", address: "7 Pipeline Rd" },
+    metadata: { kind: "platform_project" }
+  });
+  const plans = await client.request("GET", `/v1/work/organizations/${orgId}/projects/${projectId}/plans?include_tree=1`);
+  const plan = plans.plans.find((item: any) => item.template_id === "sales_pipeline");
+  assert.ok(plan?.id);
+  const moved = await client.request("PUT", `/v1/work/organizations/${orgId}/plans/${plan.id}/manual-stage`, { stage_id: "closing_stage" });
+  assert.equal(moved.stage.manual_override, true);
+
+  const start = new Date(Date.now() + 2 * 86400000);
+  const appointment = {
+    id: "event_sales_regression",
+    event_type_default_id: "sales_appointment",
+    title: "Sales appointment",
+    status: "scheduled",
+    start_at: start.toISOString(),
+    end_at: new Date(start.getTime() + 3600000).toISOString()
+  };
+  await client.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, { event: appointment });
+  // Reschedule it (another project.event_scheduled) and edit an unrelated field.
+  const later = new Date(start.getTime() + 86400000);
+  await client.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, { event: { ...appointment, start_at: later.toISOString(), end_at: new Date(later.getTime() + 3600000).toISOString() } });
+  await client.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, { event: { id: appointment.id, description: "Bring samples" } });
+
+  // The booking really did drive the workflow (Contact lead checked off)…
+  const after = await client.request("GET", `/v1/work/organizations/${orgId}/projects/${projectId}/plans?include_tree=1`);
+  const afterPlan = after.plans.find((item: any) => item.id === plan.id);
+  const contactLead = afterPlan.root_nodes[0].children.flatMap((stage: any) => stage.children || []).find((item: any) => item.template_node_id === "contact_lead");
+  assert.equal(contactLead.status, "completed");
+  // …yet the manually chosen later stage stays.
+  const projection = await client.request("GET", `/v1/work/organizations/${orgId}/projects/${projectId}/projection`);
+  const pipeline = projection.projection.active_instances.find((item: any) => item.template_id === "sales_pipeline");
+  assert.equal(pipeline.stage_id, "closing_stage");
+  assert.equal(pipeline.manual_override, true);
+  const stored = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
+  const storedPipeline = stored.document.data.work_projection.active_instances.find((item: any) => item.template_id === "sales_pipeline");
+  assert.equal(storedPipeline.stage_id, "closing_stage");
 });

@@ -82,6 +82,7 @@ import {
   switchRememberedPlatformAccount
 } from "./auth.js";
 import { PlatformError } from "./errors.js";
+import { isRevisionConflict, mutateProjectDocument, withProjectDocumentLock, writeProjectDocument } from "./project_document_mutation.js";
 import { notificationCatalog, catalogDefinitions, definitionPreferences } from "./notification_catalog.js";
 import { notificationPresentation, isMessageInboxNotification, notificationPreferenceEnabled, categoryForNotification, preferenceKeyForNotification, registerNotificationDevice, saveNotificationPreferences, unregisterNotificationDevice } from "./notification_delivery.js";
 import { projectAudienceFacts } from "./portal_audience.js";
@@ -183,6 +184,7 @@ import {
   listRecurrenceOccurrences,
   listRecurrenceSeries,
   patchRecurrenceSeries,
+  recordRecurrenceEventRemoved,
   setRecurrenceOccurrenceStatus
 } from "./recurrence.js";
 
@@ -1853,18 +1855,31 @@ app.get("/auth/google/config", async () => ({
     const actor = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission("projects") });
     const body = objectBodySchema.parse(request.body ?? {});
     const branchId = String(body.branch_id || body.branchId || "default");
-    const current = await readDocument(orgId, "projects", projectId);
-    const currentData = asObject(current.data);
-    const events = Array.isArray(currentData.events) ? [...currentData.events] : [];
     const incoming = asObject(body.event || body.data || body);
     const unlockConfirmed = incoming.unlock_confirmed === true || incoming.unlockConfirmed === true || body.unlock_confirmed === true || body.unlockConfirmed === true;
     const eventInput = { ...incoming };
     delete eventInput.unlock_confirmed;
     delete eventInput.unlockConfirmed;
+    const expectedRevision = expectedEventRevision(body, incoming);
+    stripEventRevisionTokens(eventInput);
+    // R3-TG-9: start_at/end_at are authoritative; view-only shadow copies
+    // (start/end/__start/__draft…) are never persisted.
+    stripClientOnlyEventFields(eventInput);
     const requestedEventId = cleanText(eventInput.id);
+    // R3-RAIL-2: the whole read-check-write runs serialized per project and
+    // writes conditionally on the revision it read (retrying on conflict), so
+    // concurrent saves to one project never drop each other's items.
+    const saved = await mutateProjectDocument(orgId, projectId, async (current) => {
+    const currentData = asObject(current.data);
+    const events = Array.isArray(currentData.events) ? [...currentData.events] : [];
     const existingIndex = requestedEventId ? events.findIndex((item) => cleanText(asObject(item).id) === requestedEventId) : -1;
-    const existingEvent = existingIndex >= 0 ? asObject(events[existingIndex]) : {};
-    const event: JsonObject = normalizeProjectEvent({ ...existingEvent, ...eventInput }, currentData);
+    const existingEvent = existingIndex >= 0 ? stripClientOnlyEventFields(asObject(events[existingIndex])) : {};
+    assertEventRevisionCurrent(expectedRevision, existingIndex >= 0 ? existingEvent : null, { event_id: requestedEventId, project_id: projectId });
+    const event: JsonObject = normalizeProjectEvent({ ...existingEvent, ...eventInput }, currentData, {
+      existing: existingIndex >= 0 ? existingEvent : null,
+      patch: eventInput
+    });
+    event.event_revision = storedEventRevision(existingEvent) + 1;
     const assignmentChanged = existingIndex < 0
       || JSON.stringify(eventAssignmentKeys(existingEvent)) !== JSON.stringify(eventAssignmentKeys(event));
     if (assignmentChanged) {
@@ -1872,40 +1887,7 @@ app.get("/auth/google/config", async () => ({
     }
     // Equipment double-booking guard: conflict_mode 'block' rejects, 'warn'
     // returns the conflicts for the UI to render, 'off' skips the check.
-    let equipmentConflicts: JsonObject[] = [];
-    let operatorWarnings: JsonObject[] = [];
-    const equipmentRefs = eventEquipmentResourceRefs(event);
-    const equipmentAppOn = await isCapabilityEnabled(orgId, "apps.equipment").catch(() => false);
-    if (equipmentRefs.length && cleanText(event.start_at) && cleanText(event.status).toLowerCase() !== "unscheduled"
-      && equipmentAppOn && await isCapabilityEnabled(orgId, "equipment.scheduling").catch(() => false)) {
-      const { assessEquipmentBooking, assessOperatorRequirements, readModuleSettings } = await import("../equipment/service.js");
-      const equipmentSettings = asObject((await readModuleSettings(orgId)).settings);
-      const conflictMode = cleanText(equipmentSettings.conflict_mode) || "warn";
-      if (conflictMode !== "off") {
-        const assessed = await Promise.all(equipmentRefs.map((ref) => assessEquipmentBooking(orgId, {
-          refs:[ref],
-          start:cleanText(ref.start_at || event.start_at),
-          end:cleanText(ref.end_at || event.end_at),
-          excludeEventId:cleanText(event.id)
-        })));
-        equipmentConflicts = assessed.flat() as unknown as JsonObject[];
-        if (conflictMode === "block" && equipmentConflicts.length) {
-          throw conflict("equipment_conflict", "One or more equipment assignments conflict with existing bookings.", {
-            conflicts: equipmentConflicts
-          });
-        }
-      }
-      // Operator certification check: advisory warning by default, hard block
-      // when the org's operator enforcement is set to block.
-      if (await isCapabilityEnabled(orgId, "equipment.operators").catch(() => false)) {
-        operatorWarnings = await assessOperatorRequirements(orgId, event) as unknown as JsonObject[];
-        if (operatorWarnings.length && cleanText(equipmentSettings.operator_enforcement) === "block") {
-          throw badRequest("equipment_operator_required", "One or more equipment assignments are missing a qualified operator.", {
-            issues: operatorWarnings
-          });
-        }
-      }
-    }
+    const { equipmentConflicts, operatorWarnings } = await assessScheduleItemEquipment(orgId, event);
     if (existingIndex < 0) {
       const identity = asObject(actor.identity);
       event.scheduled_by_user_id = cleanText(eventInput.scheduled_by_user_id || actor.userId);
@@ -1976,19 +1958,13 @@ app.get("/auth/google/config", async () => ({
       updated_at: new Date().toISOString()
     });
     await validateProjectCustomFieldValues(orgId, branchId, projectWithDefaults, currentData);
-    const document = await upsertDocument(
-      orgId,
-      "projects",
-      {
-        id: projectId,
-        data: projectWithDefaults,
-        metadata: {
-          ...asObject(current.metadata),
-          last_project_event_id: event.id
-        }
-      },
-      { replace: true }
-    );
+    const document = await writeProjectDocument(orgId, current, projectWithDefaults, {
+      ...asObject(current.metadata),
+      last_project_event_id: event.id
+    });
+    return { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings };
+    });
+    const { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings } = saved;
     const materialList = cleanText(event.material_list_id)
       ? await syncMaterialListFromScheduleEvent(orgId, event)
       : null;
@@ -2039,20 +2015,25 @@ app.get("/auth/google/config", async () => ({
     const projectId = getParam(request.params, "projectId");
     const eventId = getParam(request.params, "eventId");
     await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission("projects") });
-    const current = await readDocument(orgId, "projects", projectId);
-    const currentData = asObject(current.data);
-    const events = Array.isArray(currentData.events) ? currentData.events.map(asObject) : [];
-    const deletedEvent = events.find((event) => cleanText(event.id) === eventId) || null;
-    const remainingEvents = events.filter((event) => cleanText(event.id) !== eventId);
+    // Same per-project serialization + conditional write as saves (R3-RAIL-2).
+    const removal = await mutateProjectDocument(orgId, projectId, async (current) => {
+      const currentData = asObject(current.data);
+      const events = Array.isArray(currentData.events) ? currentData.events.map(asObject) : [];
+      const deletedEvent = events.find((event) => cleanText(event.id) === eventId) || null;
+      if (!deletedEvent) return { deletedEvent: null, document: current, currentData };
+      const remainingEvents = events.filter((event) => cleanText(event.id) !== eventId);
+      const document = await writeProjectDocument(orgId, current,
+        { ...currentData, events: remainingEvents, updated_at: new Date().toISOString() },
+        { ...asObject(current.metadata), last_deleted_project_event_id: eventId });
+      return { deletedEvent, document, currentData };
+    });
+    const { deletedEvent, document } = removal;
     if (!deletedEvent) {
-      return { ok: true, deleted: false, event_id: eventId, document: current, project: { id: projectId, ...currentData } };
+      return { ok: true, deleted: false, event_id: eventId, document, project: { id: projectId, ...removal.currentData } };
     }
-    const document = await upsertDocument(orgId, "projects", {
-      id: projectId,
-      data: { ...currentData, events: remainingEvents, updated_at: new Date().toISOString() },
-      metadata: { ...asObject(current.metadata), last_deleted_project_event_id: eventId }
-    }, { replace: true });
     await clearMaterialListScheduleEvent(orgId, deletedEvent);
+    // A deleted occurrence stays deleted when its series is edited later.
+    await recordRecurrenceEventRemoved(orgId, deletedEvent).catch(() => null);
     try {
       const { withdrawAppointmentConfirmation } = await import("../appointments/service.js");
       (await withdrawAppointmentConfirmation(orgId, projectId, eventId));
@@ -2127,8 +2108,9 @@ app.get("/auth/google/config", async () => ({
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_schedule" });
     const action = getParam(request.params, "action");
-    if (!(["completed", "skipped", "cancelled"] as string[]).includes(action)) throw badRequest("invalid_recurrence_occurrence_action", "Use completed, skipped, or cancelled.");
-    return { ok: true, occurrence: await setRecurrenceOccurrenceStatus(orgId, getParam(request.params, "seriesId"), getParam(request.params, "occurrenceId"), action as "completed" | "skipped" | "cancelled", ctx.userId) };
+    // "scheduled" restores a skipped or cancelled occurrence. The occurrence may be named by its id, its event id or its key.
+    if (!(["completed", "skipped", "cancelled", "scheduled"] as string[]).includes(action)) throw badRequest("invalid_recurrence_occurrence_action", "Use completed, skipped, cancelled, or scheduled.");
+    return { ok: true, occurrence: await setRecurrenceOccurrenceStatus(orgId, getParam(request.params, "seriesId"), getParam(request.params, "occurrenceId"), action as "completed" | "skipped" | "cancelled" | "scheduled", ctx.userId) };
   });
 
   app.get("/organizations/:orgId/projects/:projectId/customer-portal", async (request) => {
@@ -2967,7 +2949,10 @@ app.get("/auth/google/config", async () => ({
     const collection = getParam(request.params, "collection");
     assertCanonicalPlatformCollection(collection);
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "create") });
-    const body = objectBodySchema.parse(request.body ?? {});
+    const parsedBody = objectBodySchema.parse(request.body ?? {});
+    const body = collection === "calendar_events"
+      ? await prepareCalendarEventWrite(orgId, cleanText(parsedBody.id || asObject(parsedBody.data).id), parsedBody, true)
+      : parsedBody;
     if (collection === "branch") await assertBranchReportPreferences(orgId, String(asObject(request.params).documentId || body.id || "default"), body);
     await (await import("../custom_fields/records.js")).authorizeRecordFieldMutation(
       (await import("./publication/context.js")).userPublicationContext(ctx), collection, cleanText(getParam(request.params, "documentId") || body.id || asObject(body.data).id), body
@@ -2976,6 +2961,8 @@ app.get("/auth/google/config", async () => ({
       ? await createPlatformOrgUser(orgId, body)
       : collection === "projects"
         ? await upsertProjectDocumentPreservingEvents(orgId, cleanText(body.id || asObject(body.data).id), body, true)
+      : collection === "calendar_events"
+        ? await saveCalendarEventDocument(orgId, cleanText(parsedBody.id || asObject(parsedBody.data).id), parsedBody, true)
       : await upsertDocument(
         orgId,
         collection,
@@ -3036,7 +3023,10 @@ app.get("/auth/google/config", async () => ({
     const collection = getParam(request.params, "collection");
     assertCanonicalPlatformCollection(collection);
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "replace") });
-    const body = objectBodySchema.parse(request.body ?? {});
+    const parsedBody = objectBodySchema.parse(request.body ?? {});
+    const body = collection === "calendar_events"
+      ? await prepareCalendarEventWrite(orgId, getParam(request.params, "documentId"), parsedBody, true)
+      : parsedBody;
     if (collection === "branch") await assertBranchReportPreferences(orgId, String(asObject(request.params).documentId || body.id || "default"), body);
     const documentId = getParam(request.params, "documentId");
     if (collection === "users") {
@@ -3052,6 +3042,8 @@ app.get("/auth/google/config", async () => ({
       ? await upsertPlatformOrgUserDocument(orgId, documentId, body, true)
       : collection === "projects"
         ? await upsertProjectDocumentPreservingEvents(orgId, documentId, body, true)
+      : collection === "calendar_events"
+        ? await saveCalendarEventDocument(orgId, documentId, parsedBody, true)
       : await upsertDocument(
         orgId,
         collection,
@@ -3097,10 +3089,21 @@ app.get("/auth/google/config", async () => ({
     const orgId = getParam(request.params, "orgId");
     const collection = getParam(request.params, "collection");
     assertCanonicalPlatformCollection(collection);
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "update") });
-    const body = objectBodySchema.parse(request.body ?? {});
-    if (collection === "branch") await assertBranchReportPreferences(orgId, String(asObject(request.params).documentId || body.id || "default"), body);
+    const parsedBody = objectBodySchema.parse(request.body ?? {});
     const documentId = getParam(request.params, "documentId");
+    // Every member may save their own personal preferences (scheduling view
+    // settings etc.) on their organization user record; nothing else on it.
+    const ownPreferencePatch = collection === "users" && platformOrgUserPreferencesOnlyPatch(parsedBody);
+    let ctx = await requirePlatformAuth(request, { orgId, csrf: true, ...(ownPreferencePatch ? {} : { permission: collectionWritePermission(collection, "update") }) });
+    if (ownPreferencePatch && documentId !== ctx.userId) {
+      ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "update") });
+    }
+    const body = collection === "calendar_events"
+      ? await prepareCalendarEventWrite(orgId, documentId, parsedBody, false)
+      : ownPreferencePatch && documentId === ctx.userId
+        ? await ownOrgUserPreferencesBody(orgId, documentId, parsedBody)
+        : parsedBody;
+    if (collection === "branch") await assertBranchReportPreferences(orgId, String(asObject(request.params).documentId || body.id || "default"), body);
     if (collection === "users" && platformOrgUserPermissionMutation(body)) {
       await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_user_permissions" });
     }
@@ -3114,6 +3117,8 @@ app.get("/auth/google/config", async () => ({
       ? await upsertPlatformOrgUserDocument(orgId, documentId, body, false)
       : collection === "projects"
         ? await upsertProjectDocumentPreservingEvents(orgId, documentId, body, false)
+      : collection === "calendar_events"
+        ? await saveCalendarEventDocument(orgId, documentId, parsedBody, false)
       : await upsertDocument(
         orgId,
         collection,
@@ -3150,6 +3155,9 @@ app.get("/auth/google/config", async () => ({
     const existingProject = collection === "projects"
       ? await readDocument(orgId, "projects", documentId).catch(() => null)
       : null;
+    const existingCalendarEvent = collection === "calendar_events"
+      ? await readDocument(orgId, "calendar_events", documentId).catch(() => null)
+      : null;
     if (collection === "users" && documentId === ctx.userId) {
       throw forbidden("self_user_delete_forbidden", "You cannot delete your own organization user record.");
     }
@@ -3158,6 +3166,9 @@ app.get("/auth/google/config", async () => ({
       collection,
       documentId
     );
+    if (existingCalendarEvent && deleted) {
+      await recordRecurrenceEventRemoved(orgId, { ...asObject(existingCalendarEvent.data), id: documentId }).catch(() => null);
+    }
     if (collection === "projects" && deleted) {
       const projectData = asObject(existingProject?.data);
       await emitWorkEvent({
@@ -4674,6 +4685,20 @@ const EVENT_RESOURCE_REF_KINDS = new Set([
 
 const EQUIPMENT_REF_KINDS = new Set(["equipment_unit", "equipment_type"]);
 
+/* Friendly aliases writers may use for work-assignee refs. */
+const EVENT_RESOURCE_REF_KIND_ALIASES: Record<string, string> = {
+  crew: "resource_group",
+  team: "resource_group",
+  person: "organization_user",
+  user: "organization_user",
+  subcontractor: "organization_connection"
+};
+
+function normalizeEventResourceRefKind(value: unknown) {
+  const kind = cleanText(value).toLowerCase();
+  return EVENT_RESOURCE_REF_KIND_ALIASES[kind] || kind;
+}
+
 /**
  * The plural assignment list on events. Each entry is
  * { kind, id, name, role, quantity? } where role distinguishes the crew
@@ -4686,7 +4711,7 @@ function normalizeEventResourceRefs(eventValue: unknown) {
   const refs = (Array.isArray(event.resource_refs) ? event.resource_refs : [])
     .map(asObject)
     .map((ref) => {
-      const kind = cleanText(ref.kind).toLowerCase();
+      const kind = normalizeEventResourceRefKind(ref.kind);
       const quantity = Math.max(1, Math.round(Number(ref.quantity || 1)) || 1);
       const startAt = cleanText(ref.start_at || ref.start);
       const endAt = cleanText(ref.end_at || ref.end);
@@ -4712,6 +4737,368 @@ function normalizeEventResourceRefs(eventValue: unknown) {
 
 function eventEquipmentResourceRefs(eventValue: unknown) {
   return normalizeEventResourceRefs(eventValue).filter((ref) => EQUIPMENT_REF_KINDS.has(ref.kind));
+}
+
+type EventWorkRef = { kind: string; id: string; name: string; role: string };
+
+const LEGACY_WORK_ASSIGNMENT_KEYS = ["work_resource_ref", "assigned_resource_id", "assigned_crew_id", "crew_id"];
+
+function eventWorkRefKey(ref: { kind: string; id: string } | null | undefined) {
+  return ref ? `${ref.kind}:${ref.id.toLowerCase()}` : "";
+}
+
+/* The primary work assignee a writer expressed through the singular fields:
+ * work_resource_ref, falling back to the legacy crew/resource mirrors (a
+ * multi-crew writer may null work_resource_ref but keep the mirrors). People
+ * named only through the legacy mirrors live on assigned_user_ids instead. */
+function eventPrimaryWorkRef(eventValue: unknown, eventId = ""): EventWorkRef | null {
+  const event = asObject(eventValue);
+  const ref = asObject(event.work_resource_ref);
+  const selfId = cleanText(eventId || event.id);
+  const refId = cleanText(ref.id);
+  if (refId && refId !== selfId) {
+    return { kind: normalizeEventResourceRefKind(ref.kind) || "resource_group", id: refId, name: cleanText(ref.name || ref.label), role: "crew" };
+  }
+  const legacyId = cleanText(event.assigned_resource_id || event.assigned_crew_id || event.crew_id);
+  const legacyKind = normalizeEventResourceRefKind(event.assigned_resource_kind) || "resource_group";
+  if (!legacyId || legacyId === selfId || legacyKind === "organization_user" || EQUIPMENT_REF_KINDS.has(legacyKind)) return null;
+  return {
+    kind: legacyKind,
+    id: legacyId,
+    name: cleanText(event.assigned_resource_name || event.assigned_crew_name || event.crew_name || asObject(event.assigned_crew).name),
+    role: "crew"
+  };
+}
+
+function eventCrewRoleRefs(eventValue: unknown): EventWorkRef[] {
+  return normalizeEventResourceRefs(eventValue)
+    .filter((ref) => !EQUIPMENT_REF_KINDS.has(ref.kind))
+    .map((ref) => ({ kind: ref.kind, id: ref.id, name: ref.name, role: "crew" }));
+}
+
+/**
+ * Work-assignee (crew/team/person) set for a project event save.
+ *
+ * resource_refs holds every crew-role assignee; work_resource_ref (and its
+ * legacy mirrors) is only the primary — the first entry. Writers express
+ * intent in one of two ways and both are honoured without back-filling from
+ * the stored copy:
+ * - a changed crew-role list in resource_refs is authoritative (a changed
+ *   primary is moved to the front of it);
+ * - with the list unchanged, a changed primary replaces the old primary, and
+ *   an explicitly cleared primary (every singular field empty) unassigns all
+ *   crews — the "drop on Unassigned" / "replace crew with a person" writers.
+ * Otherwise the stored set (with its primary) is kept, so moves and edits made
+ * from a single-crew view never drop the other crews.
+ */
+function resolveEventWorkAssignees(existingValue: unknown, patchValue: unknown, eventId: string): EventWorkRef[] {
+  const existing = asObject(existingValue);
+  const patch = asObject(patchValue);
+  const storedCrew = eventCrewRoleRefs(existing);
+  const existingPrimary = eventPrimaryWorkRef(existing, eventId) || storedCrew[0] || null;
+  const existingSet = existingPrimary && !storedCrew.some((ref) => eventWorkRefKey(ref) === eventWorkRefKey(existingPrimary))
+    ? [existingPrimary, ...storedCrew]
+    : storedCrew;
+  const hasRefs = Array.isArray(patch.resource_refs);
+  const hasPrimary = LEGACY_WORK_ASSIGNMENT_KEYS.some((key) => Object.prototype.hasOwnProperty.call(patch, key));
+  const inputCrew = hasRefs ? eventCrewRoleRefs(patch).filter((ref) => ref.id !== eventId) : null;
+  const inputPrimary = hasPrimary ? eventPrimaryWorkRef(patch, eventId) : null;
+  const listKey = (list: EventWorkRef[]) => list.map(eventWorkRefKey).join(",");
+  const refsChanged = !!inputCrew && listKey(inputCrew) !== listKey(storedCrew);
+  const primaryChanged = hasPrimary && eventWorkRefKey(inputPrimary) !== eventWorkRefKey(existingPrimary);
+  const withoutKey = (list: EventWorkRef[], ...keys: string[]) => list.filter((ref) => !keys.includes(eventWorkRefKey(ref)));
+  if (refsChanged && inputCrew) {
+    return primaryChanged && inputPrimary
+      ? [{ ...inputPrimary, name: inputPrimary.name || inputCrew.find((ref) => eventWorkRefKey(ref) === eventWorkRefKey(inputPrimary))?.name || "" }, ...withoutKey(inputCrew, eventWorkRefKey(inputPrimary))]
+      : inputCrew;
+  }
+  if (primaryChanged) {
+    if (!inputPrimary) return [];
+    return [inputPrimary, ...withoutKey(existingSet, eventWorkRefKey(inputPrimary), eventWorkRefKey(existingPrimary))];
+  }
+  if (inputCrew && inputCrew.length) {
+    // Unchanged list: keep the writer's copy (it may carry fresher names).
+    return existingPrimary && !inputCrew.some((ref) => eventWorkRefKey(ref) === eventWorkRefKey(existingPrimary))
+      ? [existingPrimary, ...inputCrew]
+      : inputCrew;
+  }
+  return existingSet;
+}
+
+/* Legacy singular mirrors of the primary work assignee. */
+function eventWorkAssignmentMirror(primary: EventWorkRef | null) {
+  const crewLike = !!primary && primary.kind !== "organization_user";
+  return {
+    work_resource_ref: primary ? { kind: primary.kind, id: primary.id, name: primary.name } : null,
+    assigned_resource_kind: primary?.kind || "",
+    assigned_resource_id: primary?.id || "",
+    assigned_resource_name: primary?.name || "",
+    resource_id: primary?.id || "",
+    resource_name: primary?.name || "",
+    assigned_crew_id: crewLike ? primary!.id : "",
+    assigned_crew_name: crewLike ? primary!.name : "",
+    assigned_crew: crewLike ? { id: primary!.id, name: primary!.name } : null,
+    crew_id: crewLike ? primary!.id : "",
+    crew_name: crewLike ? primary!.name : ""
+  };
+}
+
+/**
+ * Equipment windows follow their event. When a saved event's start/end move
+ * and a writer sent an equipment ref window unchanged from the stored copy
+ * (it did not edit the window itself), a window equal to the old event window
+ * becomes the new event window and any other window shifts by the start delta
+ * (clamped into the new window when it lay inside the old one), so e.g. a
+ * drop-off the day before keeps its offset.
+ * Returns the refs unchanged when nothing moved.
+ */
+function shiftEquipmentRefWindows(
+  refs: JsonObject[],
+  storedRefs: JsonObject[],
+  oldWindow: { start: number; end: number } | null,
+  newWindow: { start: number; end: number } | null
+) {
+  if (!oldWindow || !newWindow) return refs;
+  if (oldWindow.start === newWindow.start && oldWindow.end === newWindow.end) return refs;
+  const delta = newWindow.start - oldWindow.start;
+  return refs.map((refValue) => {
+    const ref = asObject(refValue);
+    const kind = cleanText(ref.kind);
+    if (!EQUIPMENT_REF_KINDS.has(kind)) return ref;
+    const start = Date.parse(cleanText(ref.start_at));
+    const end = Date.parse(cleanText(ref.end_at));
+    if (!Number.isFinite(start) && !Number.isFinite(end)) return ref;
+    const stored = storedRefs.map(asObject).find((candidate) => cleanText(candidate.kind) === kind && cleanText(candidate.id) === cleanText(ref.id));
+    if (!stored) return ref;
+    const storedStart = Date.parse(cleanText(stored.start_at || stored.start));
+    const storedEnd = Date.parse(cleanText(stored.end_at || stored.end));
+    const sameAsStored = (Number.isFinite(start) ? start === storedStart : !Number.isFinite(storedStart))
+      && (Number.isFinite(end) ? end === storedEnd : !Number.isFinite(storedEnd));
+    if (!sameAsStored) return ref;
+    const refStart = Number.isFinite(start) ? start : oldWindow.start;
+    const refEnd = Number.isFinite(end) ? end : oldWindow.end;
+    if (refStart === oldWindow.start && refEnd === oldWindow.end) {
+      return {
+        ...ref,
+        ...(Number.isFinite(start) ? { start_at: new Date(newWindow.start).toISOString() } : {}),
+        ...(Number.isFinite(end) ? { end_at: new Date(newWindow.end).toISOString() } : {})
+      };
+    }
+    const inside = refStart >= oldWindow.start && refEnd <= oldWindow.end;
+    let nextStart = refStart + delta;
+    let nextEnd = refEnd + delta;
+    if (inside) {
+      nextStart = Math.min(Math.max(nextStart, newWindow.start), newWindow.end);
+      nextEnd = Math.min(Math.max(nextEnd, newWindow.start), newWindow.end);
+      if (nextEnd <= nextStart) {
+        nextStart = newWindow.start;
+        nextEnd = newWindow.end;
+      }
+    }
+    return {
+      ...ref,
+      ...(Number.isFinite(start) ? { start_at: new Date(nextStart).toISOString() } : {}),
+      ...(Number.isFinite(end) ? { end_at: new Date(nextEnd).toISOString() } : {})
+    };
+  });
+}
+
+function projectEventWindow(eventValue: unknown) {
+  const event = asObject(eventValue);
+  if (cleanText(event.status).toLowerCase() === "unscheduled") return null;
+  const start = Date.parse(cleanText(event.start_at || event.start));
+  if (!Number.isFinite(start)) return null;
+  const explicitEnd = Date.parse(cleanText(event.end_at || event.end));
+  const end = Number.isFinite(explicitEnd) && explicitEnd > start
+    ? explicitEnd
+    : start + Math.max(1, Number(event.duration_minutes || event.duration || 60)) * 60000;
+  return { start, end };
+}
+
+/* Optimistic concurrency for schedule items. Each save stamps a per-item
+ * event_revision; a writer that sends the revision it edited
+ * (expected_event_revision) is refused with 409 stale_event when the stored
+ * item has moved on. Writers that send no token keep the old last-write-wins
+ * behaviour. */
+function expectedEventRevision(...sources: unknown[]) {
+  for (const source of sources) {
+    const value = asObject(source);
+    for (const key of ["expected_event_revision", "expectedEventRevision", "if_event_revision"]) {
+      if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+      const raw = value[key];
+      if (raw === null || raw === undefined || raw === "") continue;
+      const revision = Number(raw);
+      if (Number.isFinite(revision) && revision >= 0) return Math.floor(revision);
+    }
+  }
+  return null;
+}
+
+function stripEventRevisionTokens(value: JsonObject) {
+  delete value.expected_event_revision;
+  delete value.expectedEventRevision;
+  delete value.if_event_revision;
+  return value;
+}
+
+/* R3-TG-9: schedule views keep view-only shadow copies of an item's window
+ * (start/end, __start/__end) and draft markers (__draft, __activeDraft, other
+ * __* keys). start_at/end_at are the only stored window; a stale shadow copy
+ * must never be persisted, or a later edit could write an old time back. A
+ * legacy writer that sends only start/end (no start_at/end_at key at all)
+ * still has its window honoured. */
+export function stripClientOnlyEventFields(value: JsonObject) {
+  if (!Object.prototype.hasOwnProperty.call(value, "start_at") && cleanText(value.start)) value.start_at = value.start;
+  if (!Object.prototype.hasOwnProperty.call(value, "end_at") && cleanText(value.end)) value.end_at = value.end;
+  delete value.start;
+  delete value.end;
+  for (const key of Object.keys(value)) {
+    if (key.startsWith("__")) delete value[key];
+  }
+  return value;
+}
+
+/* Equipment double-booking and operator checks shared by project items and
+ * floating calendar events (R3-RES-4). conflict_mode 'block' rejects with 409
+ * equipment_conflict, 'warn' returns the conflicts, 'off' skips the check. */
+async function assessScheduleItemEquipment(orgId: string, event: JsonObject) {
+  let equipmentConflicts: JsonObject[] = [];
+  let operatorWarnings: JsonObject[] = [];
+  const equipmentRefs = eventEquipmentResourceRefs(event);
+  const status = cleanText(event.status).toLowerCase();
+  if (!equipmentRefs.length || !cleanText(event.start_at) || ["unscheduled", "cancelled", "canceled", "completed"].includes(status)) {
+    return { equipmentConflicts, operatorWarnings };
+  }
+  if (!(await isCapabilityEnabled(orgId, "apps.equipment").catch(() => false))) return { equipmentConflicts, operatorWarnings };
+  if (!(await isCapabilityEnabled(orgId, "equipment.scheduling").catch(() => false))) return { equipmentConflicts, operatorWarnings };
+  const { assessEquipmentBooking, assessOperatorRequirements, readModuleSettings } = await import("../equipment/service.js");
+  const equipmentSettings = asObject((await readModuleSettings(orgId)).settings);
+  const conflictMode = cleanText(equipmentSettings.conflict_mode) || "warn";
+  if (conflictMode !== "off") {
+    const assessed = await Promise.all(equipmentRefs.map((ref) => assessEquipmentBooking(orgId, {
+      refs:[ref],
+      start:cleanText(ref.start_at || event.start_at),
+      end:cleanText(ref.end_at || event.end_at),
+      excludeEventId:cleanText(event.id)
+    })));
+    equipmentConflicts = assessed.flat() as unknown as JsonObject[];
+    if (conflictMode === "block" && equipmentConflicts.length) {
+      throw conflict("equipment_conflict", "One or more equipment assignments conflict with existing bookings.", {
+        conflicts: equipmentConflicts
+      });
+    }
+  }
+  // Operator certification check: advisory warning by default, hard block
+  // when the org's operator enforcement is set to block.
+  if (await isCapabilityEnabled(orgId, "equipment.operators").catch(() => false)) {
+    operatorWarnings = await assessOperatorRequirements(orgId, event) as unknown as JsonObject[];
+    if (operatorWarnings.length && cleanText(equipmentSettings.operator_enforcement) === "block") {
+      throw badRequest("equipment_operator_required", "One or more equipment assignments are missing a qualified operator.", {
+        issues: operatorWarnings
+      });
+    }
+  }
+  return { equipmentConflicts, operatorWarnings };
+}
+
+/* Floating calendar events that ARE an equipment unit's own maintenance,
+ * downtime or reservation window are not bookings of that unit. */
+function isEquipmentOwnCalendarEvent(data: JsonObject) {
+  const typeId = cleanText(data.event_type_default_id || data.type_id || data.kind).toLowerCase();
+  return ["equipment_maintenance", "equipment_downtime", "equipment_reservation", "equipment_work_order"].includes(typeId);
+}
+
+/* Floating calendar events share the schedule-item write rules: the optional
+ * expected_event_revision token (top level or inside data), a per-item
+ * event_revision stamp, and equipment windows that follow moved times. */
+async function prepareCalendarEventWrite(orgId: string, documentId: string, body: JsonObject, replace: boolean, preloaded?: { document: JsonObject | null }): Promise<JsonObject> {
+  const hasData = !!body.data && typeof body.data === "object" && !Array.isArray(body.data);
+  const data = hasData ? stripClientOnlyEventFields(asObject(body.data)) : null;
+  const expected = expectedEventRevision(body, data);
+  const next: JsonObject = { ...body };
+  stripEventRevisionTokens(next);
+  if (!documentId) return data ? { ...next, data: stripEventRevisionTokens(data) } : next;
+  const existing = preloaded ? preloaded.document : await readDocument(orgId, "calendar_events", documentId).catch(() => null);
+  const existingData = existing ? asObject(existing.data) : null;
+  assertEventRevisionCurrent(expected, existingData, { event_id: documentId });
+  if (!data) return next;
+  stripEventRevisionTokens(data);
+  data.event_revision = storedEventRevision(existingData) + 1;
+  if (existingData) {
+    const merged = replace ? data : { ...existingData, ...data };
+    const storedRefs = Array.isArray(existingData.resource_refs) ? existingData.resource_refs.map(asObject) : [];
+    const refs = Array.isArray(data.resource_refs) ? data.resource_refs.map(asObject) : (replace ? [] : storedRefs);
+    if (refs.length) {
+      const shifted = shiftEquipmentRefWindows(refs, storedRefs, projectEventWindow(existingData), projectEventWindow(merged));
+      if (JSON.stringify(shifted) !== JSON.stringify(refs)) data.resource_refs = shifted;
+    }
+  }
+  return { ...next, data };
+}
+
+/* Floating calendar event write: revision check, shadow-field stripping and
+ * the equipment conflict check run against the stored copy that the write is
+ * conditional on (retried on a concurrent write). PATCH merges into the
+ * stored data here so stale shadow fields already stored are dropped too. */
+async function saveCalendarEventDocument(orgId: string, documentId: string, parsedBody: JsonObject, replace: boolean) {
+  const id = cleanText(documentId);
+  const attempt = async (existing: JsonObject | null) => {
+    const body = await prepareCalendarEventWrite(orgId, id, parsedBody, replace, { document: existing });
+    const existingData = existing ? asObject(existing.data) : null;
+    const hasData = !!body.data && typeof body.data === "object" && !Array.isArray(body.data);
+    const data = hasData
+      ? stripClientOnlyEventFields(replace || !existingData ? { ...asObject(body.data) } : { ...existingData, ...asObject(body.data) })
+      : (replace || !existingData ? {} : existingData);
+    if (hasData && !isEquipmentOwnCalendarEvent(data)) {
+      await assessScheduleItemEquipment(orgId, { ...data, id: id || cleanText(data.id) });
+    }
+    const metadata = replace || !existing ? asObject(body.metadata) : { ...asObject(existing.metadata), ...asObject(body.metadata) };
+    return await upsertDocument(orgId, "calendar_events", {
+      ...body,
+      ...(id ? { id } : {}),
+      data,
+      metadata,
+      ...(existing ? { expected_revision: Number(existing.revision || 0) } : {})
+    }, { replace: true });
+  };
+  if (!id) return await attempt(null);
+  return await withProjectDocumentLock(orgId, `calendar_events:${id}`, async () => {
+    for (let index = 0; ; index += 1) {
+      const existing = await readDocument(orgId, "calendar_events", id).catch(() => null);
+      try {
+        return await attempt(existing as JsonObject | null);
+      } catch (error) {
+        if (!isRevisionConflict(error) || index >= 5) throw error;
+      }
+    }
+  });
+}
+
+function storedEventRevision(eventValue: unknown) {
+  const revision = Number(asObject(eventValue).event_revision);
+  return Number.isFinite(revision) && revision > 0 ? Math.floor(revision) : 0;
+}
+
+function assertEventRevisionCurrent(expected: number | null, storedValue: unknown, details: JsonObject = {}) {
+  if (expected === null) return;
+  if (!storedValue) {
+    // The writer edited a stored copy that no longer exists (deleted elsewhere).
+    if (expected > 0) {
+      throw conflict("stale_event", "This item was deleted by someone else.", { ...details, deleted: true, expected_event_revision: expected, current_event_revision: 0, current_event: null });
+    }
+    return;
+  }
+  const current = storedEventRevision(storedValue);
+  // A lower stored revision means a revision-unaware writer rewrote the item;
+  // only a newer stored revision proves this writer's copy is stale.
+  if (expected < current) {
+    throw conflict("stale_event", "This item was changed by someone else. Reload it and apply your change again.", {
+      ...details,
+      expected_event_revision: expected,
+      current_event_revision: current,
+      current_event: asObject(storedValue)
+    });
+  }
 }
 
 function normalizeEventResourceRequirements(value: unknown) {
@@ -4799,7 +5186,11 @@ async function assertRecurrenceAssignmentAllowed(orgId: string, inputValue: Json
   );
 }
 
-function normalizeProjectEvent(input: Record<string, unknown>, project: Record<string, unknown>) {
+function normalizeProjectEvent(
+  input: Record<string, unknown>,
+  project: Record<string, unknown>,
+  options: { existing?: JsonObject | null; patch?: JsonObject } = {}
+) {
   const now = new Date().toISOString();
   const eventId = String(input.id || `event_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`);
   const eventTypeDefaultId = String(input.event_type_default_id || input.type_id || input.event_type_id || input.type || "custom");
@@ -4838,36 +5229,34 @@ function normalizeProjectEvent(input: Record<string, unknown>, project: Record<s
     assignee_label: "",
     resource_refs: [] as JsonObject[]
   } : {};
-  // Mirror rule: the singular work_resource_ref stays authoritative for the
-  // crew-role entry (legacy writers update only it); equipment-role refs live
-  // exclusively on resource_refs.
-  const parsedRefs = selfAssigned ? [] : normalizeEventResourceRefs(input);
-  const equipmentRefs = parsedRefs.filter((ref) => EQUIPMENT_REF_KINDS.has(ref.kind));
-  const inputWorkRef = asObject(input.work_resource_ref);
-  const inputWorkId = selfAssigned ? "" : cleanText(inputWorkRef.id);
-  const crewRefs = inputWorkId
-    ? [{
-        kind: cleanText(inputWorkRef.kind).toLowerCase() || "resource_group",
-        id: inputWorkId,
-        name: cleanText(inputWorkRef.name),
-        role: "crew"
-      }]
-    : parsedRefs.filter((ref) => !EQUIPMENT_REF_KINDS.has(ref.kind));
-  const resourceRefs = [...crewRefs, ...equipmentRefs];
-  const primaryCrewRef = resourceRefs.find((ref) => ref.role === "crew");
-  // Mirror rule: the first crew-role ref back-fills the singular assignment
-  // fields so every legacy reader keeps working when a writer only sends
+  // Assignment rule (see resolveEventWorkAssignees): resource_refs carries the
+  // whole crew/team/person set, work_resource_ref and its legacy mirrors only
+  // the primary (first) entry; equipment-role refs live exclusively on
   // resource_refs.
-  const crewMirrorBackfill = !selfAssigned && primaryCrewRef && !cleanText(asObject(input.work_resource_ref).id) ? {
-    work_resource_ref: { kind: primaryCrewRef.kind, id: primaryCrewRef.id, name: primaryCrewRef.name },
-    assigned_resource_kind: primaryCrewRef.kind,
-    assigned_resource_id: primaryCrewRef.id,
-    ...(primaryCrewRef.kind === "resource_group" ? {
-      assigned_crew_id: primaryCrewRef.id,
-      assigned_crew_name: primaryCrewRef.name,
-      crew_id: primaryCrewRef.id
-    } : {})
-  } : {};
+  const existing = options.existing ? asObject(options.existing) : null;
+  const patch = asObject(options.patch ?? input);
+  const parsedRefs = selfAssigned ? [] : normalizeEventResourceRefs(input);
+  const newWindow = unscheduled ? null : {
+    start: safeStartAt.getTime(),
+    end: (safeEndAt || new Date(safeStartAt.getTime() + durationMinutes * 60000)).getTime()
+  };
+  const equipmentRefs = shiftEquipmentRefWindows(
+    parsedRefs.filter((ref) => EQUIPMENT_REF_KINDS.has(ref.kind)),
+    existing ? normalizeEventResourceRefs(existing) : [],
+    existing ? projectEventWindow(existing) : null,
+    newWindow
+  );
+  const crewRefs = selfAssigned ? [] : resolveEventWorkAssignees(existing || {}, patch, eventId).map((ref) => {
+    if (ref.name) return ref;
+    // Keep a known display name when the writer sent only an id.
+    const known = [...parsedRefs, ...(existing ? normalizeEventResourceRefs(existing) : [])]
+      .find((candidate) => eventWorkRefKey(candidate) === eventWorkRefKey(ref) && candidate.name);
+    const primaryName = [eventPrimaryWorkRef(patch, eventId), existing ? eventPrimaryWorkRef(existing, eventId) : null]
+      .find((candidate) => candidate && eventWorkRefKey(candidate) === eventWorkRefKey(ref) && candidate.name)?.name;
+    return { ...ref, name: known?.name || primaryName || "" };
+  });
+  const resourceRefs = [...crewRefs, ...equipmentRefs];
+  const crewMirrorBackfill = selfAssigned ? {} : eventWorkAssignmentMirror(crewRefs[0] || null);
   return {
     ...input,
     id: eventId,
@@ -4994,17 +5383,28 @@ export async function processProjectEventLifecycleForOrg(orgId: string, candidat
       }
     }
     if (changed) {
-      const latest = await readDocument(orgId, "projects", String(document.id));
-      const latestData = asObject(latest.data);
-      await upsertDocument(orgId, "projects", {
-        id: String(document.id),
-        data: {
-          ...latestData,
-          events,
-          updated_at: new Date().toISOString()
-        },
-        metadata: latest.metadata
-      }, { replace: true });
+      // Apply only the lifecycle stamps to the latest stored items (matched by
+      // id and unchanged window), conditionally on the revision read: the
+      // snapshot above may predate concurrent schedule saves.
+      const stamps = new Map(events
+        .filter((event) => event.started_emitted_at || event.completed_emitted_at)
+        .map((event) => [cleanText(event.id), event]));
+      await mutateProjectDocument(orgId, String(document.id), async (latest) => {
+        const latestData = asObject(latest.data);
+        let applied = false;
+        const latestEvents = (Array.isArray(latestData.events) ? latestData.events : []).map((value) => {
+          const stored = asObject(value);
+          const stamped = stamps.get(cleanText(stored.id));
+          if (!stamped || cleanText(stored.start_at || stored.start) !== cleanText(stamped.start_at || stamped.start)) return value;
+          const next: JsonObject = { ...stored };
+          for (const key of ["started_emitted_at", "completed_emitted_at", "status"]) {
+            if (stamped[key] !== undefined && stamped[key] !== stored[key]) { next[key] = stamped[key]; applied = true; }
+          }
+          return next;
+        });
+        if (!applied) return null;
+        return await writeProjectDocument(orgId, latest, { ...latestData, events: latestEvents, updated_at: new Date().toISOString() });
+      }).catch((error) => { console.warn("Project event lifecycle stamp failed", String(document.id), error); });
     }
   }
 }
@@ -5447,6 +5847,26 @@ function platformOrgUserPermissionState(data: JsonObject) {
     items: explicitItems,
     permissions: effectivePortalPermissions(level, explicitItems)
   };
+}
+
+/* A PATCH whose only change is data.preferences (an object). */
+function platformOrgUserPreferencesOnlyPatch(body: JsonObject) {
+  if (Object.keys(body).some((key) => !["data", "metadata"].includes(key))) return false;
+  const data = body.data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  const keys = Object.keys(data as JsonObject);
+  const preferences = (data as JsonObject).preferences;
+  return keys.length === 1 && keys[0] === "preferences" && !!preferences && typeof preferences === "object" && !Array.isArray(preferences);
+}
+
+/* Merge a member's own preference patch into their stored preferences (per
+ * top-level preference key) so a stale client never wipes other keys; client
+ * metadata is ignored for this self-service write. */
+async function ownOrgUserPreferencesBody(orgId: string, documentId: string, body: JsonObject): Promise<JsonObject> {
+  const current = await readDocument(orgId, "users", documentId).catch(() => null);
+  const stored = asObject(asObject(current?.data).preferences);
+  const incoming = asObject(asObject(body.data).preferences);
+  return { data: { preferences: { ...stored, ...incoming } }, metadata: {} };
 }
 
 function platformOrgUserPermissionMutation(body: JsonObject) {
@@ -8412,6 +8832,10 @@ function collectionWritePermission(collection: string, operation: "create" | "re
 
 function branchModuleWritePermission(moduleId: string) {
   if (moduleId === "pricebook" || moduleId === "presentation_style" || moduleId === 'variable_mappings' || moduleId === 'contact_settings' || moduleId === 'custom_fields') return "manage_company_settings";
+  // Scheduling configuration (event types, availability/unavailability,
+  // routing, confirmations) changes who can be booked when: schedule editors
+  // and company-settings admins only.
+  if (moduleId === "scheduling") return "manage_schedule|manage_company_settings";
   return undefined;
 }
 

@@ -15,7 +15,7 @@
   document.head.append(style);
   const css = `
     :host{all:initial;position:fixed!important;inset:auto;margin:0!important;padding:0!important;border:0!important;background:transparent!important;overflow:visible!important;z-index:2147483647!important;color-scheme:light}
-    *{box-sizing:border-box}.picker{--accent:var(--primary,#d93025);--on-accent:var(--on-primary,#fff);--ink:var(--primary-readable,var(--accent));--tint:color-mix(in srgb,var(--accent) 8%,white);--line:#e5e8f0;font:13px/1.4 var(--fm-picker-font,system-ui,sans-serif);color:#202638;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 65px #18244826,0 3px 12px #18244812;width:280px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;padding:12px}.picker.combined{width:540px}.picker.time-only{width:232px}.combined .quick{display:none}.combined .days button{height:32px}
+    *{box-sizing:border-box}.picker{--accent:var(--primary,#d93025);--on-accent:var(--on-primary,#fff);--ink:var(--primary-readable,var(--accent));--tint:color-mix(in srgb,var(--accent) 8%,white);--line:#e5e8f0;font:13px/1.4 var(--fm-picker-font,system-ui,sans-serif);color:#202638;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 65px #18244826,0 3px 12px #18244812;width:280px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;padding:12px}.picker.combined{width:540px}.picker.time-only{width:232px}.combined .days button{height:32px}
     button,input,select{font:inherit}button{cursor:pointer;border:0;background:transparent;color:inherit;border-radius:9px;padding:8px 10px}button:hover{background:var(--tint)}button:disabled{opacity:.3;cursor:default}:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 40%,transparent);outline-offset:2px}
     .heading,.navigation,.footer,.quick,.time{display:flex;align-items:center;gap:8px}.heading{justify-content:space-between;margin-bottom:8px}.heading strong{font-size:14px;letter-spacing:-.3px}.muted{color:#788196;font-size:12px}.layout{display:grid;grid-template-columns:minmax(0,1fr)}.combined .layout{grid-template-columns:minmax(0,1fr) 150px;gap:12px}.calendar{min-width:0}.navigation{margin:12px 0;justify-content:space-between}.month{font-weight:650;flex:1}.year{width:68px;border:1px solid var(--line);border-radius:7px;padding:5px;color:inherit;background:transparent}.week,.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}.week span{text-align:center;font-size:11px;font-weight:600;color:#788196;padding:5px 0}.days button{padding:0;height:36px;font-size:13px}.days .other{color:#9ca4b4}.days .today{box-shadow:inset 0 0 0 1px var(--accent)}.days [aria-pressed=true]{background:var(--accent);color:var(--on-accent)}.quick{margin-bottom:10px;gap:5px}.quick button{background:#f3f5fa;font-size:12px;padding:7px 9px;white-space:nowrap}
     .time-section{min-width:0}.combined .time-section{border-left:1px solid var(--line);padding-left:10px}.time-title{display:block;font-weight:650;margin-bottom:4px}.time-date{display:block;color:#788196;font-size:12px;min-height:16px;margin-bottom:6px}.slots{display:flex;flex-direction:column;gap:4px;height:194px;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:none;scrollbar-color:color-mix(in srgb,var(--accent) 35%,#ddd) transparent;padding:3px 5px 3px 3px;scroll-padding:4px}.slots button{flex:none;height:34px;min-height:34px;padding:4px 6px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}.slots button:hover{border-color:var(--accent);background:var(--tint)}.slots button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}.slots button:disabled{border-color:var(--line);background:transparent;color:#788196}
@@ -49,7 +49,12 @@
     const width = viewport?.width || innerWidth, height = viewport?.height || innerHeight;
     const gap=8,edge=12,minX=left+edge,maxX=left+width-size.width-edge,minY=top+edge,maxY=top+height-size.height-edge;
     const clamp=(n,min,max)=>Math.max(min,Math.min(n,Math.max(min,max)));
-    const candidates=[{x:box.right+gap,y:box.top},{x:box.left-size.width-gap,y:box.top},{x:box.left,y:box.bottom+gap},{x:box.left,y:box.top-size.height-gap}];
+    // Inside a dialog/editor, sit beside that surface first so the picker never
+    // covers its other fields or its Save button; otherwise beside the input.
+    const surface=input.closest('[role="dialog"],dialog');
+    const around=surface&&surface.getBoundingClientRect().width<width*.7?surface.getBoundingClientRect():null;
+    const beside=around?[{x:around.right+gap,y:clamp(box.top,minY,maxY)},{x:around.left-size.width-gap,y:clamp(box.top,minY,maxY)}]:[];
+    const candidates=[...beside,{x:box.right+gap,y:box.top},{x:box.left-size.width-gap,y:box.top},{x:box.left,y:box.bottom+gap},{x:box.left,y:box.top-size.height-gap}];
     const fitting=candidates.find(p=>p.x>=minX&&p.x<=maxX&&p.y>=minY&&p.y<=maxY);
     const overlap=p=>Math.max(0,Math.min(p.x+size.width,box.right)-Math.max(p.x,box.left))*Math.max(0,Math.min(p.y+size.height,box.bottom)-Math.max(p.y,box.top));
     const placed=fitting||candidates.map(p=>({x:clamp(p.x,minX,maxX),y:clamp(p.y,minY,maxY)})).sort((a,b)=>overlap(a)-overlap(b))[0];
@@ -91,6 +96,7 @@
     if (!options.mount && host.showPopover) host.showPopover();
     input.setAttribute('aria-expanded','true');
     const candidate = () => kind === 'date' ? chosenDate : kind === 'time' ? chosenTime : `${chosenDate}T${chosenTime}`;
+    let lastDayClick = { key:'', at:0 };
     function validateCandidate(value) {
       const allowed = valid(input, value);
       const past = input.hasAttribute('data-future-only') && kind === 'datetime-local' && new Date(value).getTime() <= Date.now();
@@ -183,7 +189,23 @@
       if (b.dataset.slot) { chosenTime=b.dataset.slot; commit(candidate()); return; }
       if (!readTime()) return;
       if (b.hasAttribute('data-apply')) { commit(candidate()); return; }
-      if (b.dataset.date) { chosenDate = b.dataset.date; month = localDate(chosenDate); month.setDate(1); render(chosenDate); if(options.mount) commit(candidate(), false); return; }
+      if (b.dataset.date) {
+        const key = b.dataset.date, clickedAt = Date.now();
+        // Date-only popup: a second click on the same day (a double-click)
+        // applies it, like Enter.
+        if (kind === 'date' && !options.mount && lastDayClick.key === key && clickedAt - lastDayClick.at < 450) { lastDayClick = { key:'', at:0 }; chosenDate = key; commit(candidate()); return; }
+        lastDayClick = { key, at:clickedAt };
+        const sameMonth = localDate(key).getMonth() === month.getMonth() && localDate(key).getFullYear() === month.getFullYear();
+        chosenDate = key; month = localDate(chosenDate); month.setDate(1);
+        // Picking a day in the shown month only moves the selection: the day
+        // buttons stay in place, so a double-click reaches the same button.
+        if (kind === 'date' && sameMonth) {
+          for (const day of shadow.querySelectorAll('[data-date]')) { day.setAttribute('aria-pressed', String(day.dataset.date === key)); day.tabIndex = day.dataset.date === key ? 0 : -1; }
+          b.focus();
+        } else render(chosenDate);
+        if(options.mount) commit(candidate(), false);
+        return;
+      }
       if (b.dataset.month) { month.setMonth(month.getMonth()+Number(b.dataset.month)); render(); shadow.querySelector(`[data-month="${b.dataset.month}"]`).focus(); return; }
       if (b.dataset.offset) { const d = new Date(now); d.setDate(d.getDate()+Number(b.dataset.offset)); chosenDate = dateKey(d); month = localDate(chosenDate); month.setDate(1); render(chosenDate); return; }
       if (b.hasAttribute('data-period')) { const [h,...rest] = chosenTime.split(':'); chosenTime = [pad((Number(h)+12)%24),...rest].join(':'); }
@@ -222,6 +244,14 @@
         else d.setDate(d.getDate()+({ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7,Home:-d.getDay(),End:6-d.getDay()}[event.key]));
         if (readTime()) { month = new Date(d); month.setDate(1); render(dateKey(d)); }
       } else if (event.key === 'Enter' && event.target.matches('[data-time]')) { event.preventDefault(); if (readTime()) commit(candidate()); }
+      // A date-only popup: Enter on a day picks it and applies (Apply still works).
+      else if (event.key === 'Enter' && kind === 'date' && event.target.dataset?.date && !event.target.disabled) { event.preventDefault(); chosenDate = event.target.dataset.date; commit(candidate()); }
+    });
+    // Double-clicking a day in a date-only popup applies it too.
+    shadow.addEventListener('dblclick', event => {
+      const b = event.target.closest?.('[data-date]');
+      if (!b || b.disabled || kind !== 'date' || options.mount) return;
+      chosenDate = b.dataset.date; commit(candidate());
     });
     render();
     (shadow.querySelector('[data-date][tabindex="0"]:not(:disabled)') || shadow.querySelector('[data-slot][tabindex="0"]') || shadow.querySelector('button')).focus();

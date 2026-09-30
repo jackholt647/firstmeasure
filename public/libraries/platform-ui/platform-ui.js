@@ -36,7 +36,7 @@
     style.id = 'platformUiStyle';
     style.textContent = `
       .fm-toast{
-        position:fixed;right:18px;bottom:18px;z-index:9102;
+        position:fixed;right:18px;bottom:18px;z-index:2147483600;
         background:rgba(255,255,255,.96);border:1px solid rgba(0,0,0,.08);
         box-shadow:0 18px 50px rgba(0,0,0,.16);border-radius:16px;
         padding:12px;display:none;min-width:280px;max-width:min(520px,calc(100vw - 36px));
@@ -56,8 +56,9 @@
         font-size:11px;font-weight:650;line-height:1.38;letter-spacing:.005em;box-shadow:0 12px 30px rgba(15,23,42,.26);
         backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
         pointer-events:none;opacity:0;transform:translateY(-4px) scale(.985);transform-origin:var(--fm-tooltip-origin,50% 0);
-        transition:opacity .16s ease,transform .18s cubic-bezier(.2,.8,.2,1);white-space:normal
+        transition:opacity .16s ease,transform .18s cubic-bezier(.2,.8,.2,1);white-space:normal;overflow-wrap:anywhere
       }
+      .fm-tooltip.fm-tooltip-plain{white-space:pre-line}
       .fm-tooltip.fm-tooltip-instant{transition:none;transform:none}
       .fm-tooltip[data-side="right"]::after{left:-12px;top:50%;transform:translateY(-50%);border-right-color:rgba(15,23,42,.96)}
       .fm-tooltip[data-side="above"]{transform:translateY(4px) scale(.985);--fm-tooltip-origin:50% 100%}
@@ -87,6 +88,7 @@
       .fm-dialog-btn{border:1px solid rgba(15,23,42,.12);background:#fff;color:#344054;border-radius:12px;padding:10px 13px;font-size:12px;font-weight:1000;cursor:pointer}
       .fm-dialog-btn.primary{background:var(--primary-readable,var(--primary,#d93025));border-color:var(--primary-readable,var(--primary,#d93025));color:#fff}
       .fm-dialog-btn.danger{background:#b42318;border-color:#b42318;color:#fff}
+      .fm-dialog-btn:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:2px}
       @keyframes fmUiFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
       @media (prefers-reduced-motion:reduce){.fm-tooltip{transition:none}}
     `;
@@ -113,22 +115,41 @@
     return el;
   }
 
+  /* Toast tones: true / 'success' (green check), false / 'error' (red
+   * warning), 'info' (neutral, e.g. "View only") and 'warning' (amber). The
+   * third argument may also be { tone, duration } (duration in ms). */
+  const TOAST_TONES = {
+    success: { background:'#e6f4ea', border:'#b7e1c1', color:'#137333', icon:'fa-check' },
+    error: { background:'#fce8e6', border:'#f4b4ae', color:'#c5221f', icon:'fa-triangle-exclamation' },
+    info: { background:'#eef2f6', border:'#d0d5dd', color:'#475467', icon:'fa-circle-info' },
+    warning: { background:'#fffaeb', border:'#fedf89', color:'#b54708', icon:'fa-circle-exclamation' },
+  };
+  function toastTone(ok){
+    const value = ok && typeof ok === 'object' ? ok.tone : ok;
+    if (value === false || value === 'error') return 'error';
+    if (value === 'info' || value === 'warning') return value;
+    return 'success';
+  }
   function showToast(t1, t2, ok = true){
     if (window.FirstMateSettingsPages?.consumeAutosaveToast?.(t1, t2, ok)) return;
     ensureToast();
     document.getElementById('fmToastT1').textContent = t1 || 'Done';
     document.getElementById('fmToastT2').textContent = t2 || '';
+    const tone = toastTone(ok);
+    const look = TOAST_TONES[tone];
     const ic = document.getElementById('fmToastIc');
     if (ic) {
-      ic.style.background = ok ? '#e6f4ea' : '#fce8e6';
-      ic.style.borderColor = ok ? '#b7e1c1' : '#f4b4ae';
-      ic.style.color = ok ? '#137333' : '#c5221f';
-      ic.innerHTML = ok ? '<i class="fas fa-check"></i>' : '<i class="fas fa-triangle-exclamation"></i>';
+      ic.style.background = look.background;
+      ic.style.borderColor = look.border;
+      ic.style.color = look.color;
+      ic.innerHTML = `<i class="fas ${look.icon}"></i>`;
     }
     const el = document.getElementById('fmToast');
+    if (el) el.dataset.tone = tone;
     el?.classList.add('show');
     if (state.toastTimer) clearTimeout(state.toastTimer);
-    state.toastTimer = setTimeout(hideToast, 4200);
+    const duration = Number(ok && typeof ok === 'object' ? ok.duration : 0);
+    state.toastTimer = setTimeout(hideToast, Number.isFinite(duration) && duration > 0 ? duration : 4200);
   }
 
   function hideToast(){
@@ -194,6 +215,12 @@
   }
 
   function positionTooltip(target){
+    // A re-render can remove the hovered element without a mouseout; its rect
+    // is then all zeros and the tooltip would pin to the viewport's corner.
+    if (!target?.isConnected) {
+      if (state.tooltipTarget === target) hideTooltip();
+      return;
+    }
     const tip = ensureTooltip();
     const rect = target.getBoundingClientRect();
     const tipRect = tip.getBoundingClientRect();
@@ -232,6 +259,8 @@
     state.tooltipHideTimer = null;
     if (content.html) tip.innerHTML = content.html;
     else tip.textContent = content.text || '';
+    // Plain-text tooltips keep their author's line breaks; HTML ones use markup.
+    tip.classList.toggle('fm-tooltip-plain', !content.html);
     tip.classList.toggle('fm-tooltip-instant', instantSidebarTooltip(target));
     state.tooltipTarget = target;
     tip.classList.remove('visible');
@@ -282,6 +311,7 @@
           if (record.type === 'attributes') adoptNativeTooltip(record.target);
           else for (const node of record.addedNodes || []) adoptNativeTooltipsWithin(node);
         }
+        if (state.tooltipTarget && !state.tooltipTarget.isConnected) hideTooltip();
       });
       if (document.documentElement) state.tooltipObserver.observe(document.documentElement, { subtree:true, childList:true, attributes:true, attributeFilter:['title'] });
     }
@@ -335,6 +365,39 @@
     window.addEventListener('fm:sidebar-mode:changed', () => hideTooltip());
   }
 
+  /* Which control a dialog focuses first (what Enter will do):
+   *   options.defaultFocus: 'ok' | 'cancel' | a choice value, or a choice
+   *   with default:true. Otherwise the primary action, except a destructive
+   *   one (danger) never takes focus by default: Cancel / the first safe
+   *   choice does, so Enter can't destroy anything by accident. */
+  function defaultFocusTarget(backdrop, options = {}, choices = []){
+    const input = backdrop.querySelector('[data-dialog-input]');
+    if (input) return input;
+    const choiceButton = (index) => (index >= 0 ? backdrop.querySelector(`[data-dialog-choice="${index}"]`) : null);
+    const requested = options.defaultFocus;
+    if (choices.length) {
+      const byValue = (value) => choices.findIndex((choice) => choice.value === value);
+      let index = choices.findIndex((choice) => choice.default === true);
+      if (index < 0 && requested !== undefined && requested !== null && requested !== '') {
+        index = requested === 'ok' ? choices.findIndex((choice) => choice.primary) : byValue(requested);
+      }
+      if (index < 0) {
+        const primary = choices.findIndex((choice) => choice.primary);
+        const cancelIndex = byValue('cancel');
+        const safeIndex = choices.findIndex((choice) => !choice.danger && !choice.primary);
+        index = primary >= 0 && !choices[primary].danger
+          ? primary
+          : (cancelIndex >= 0 ? cancelIndex : (safeIndex >= 0 ? safeIndex : 0));
+      }
+      return choiceButton(index) || backdrop.querySelector('[data-dialog-choice]');
+    }
+    const ok = backdrop.querySelector('[data-dialog-ok]');
+    const cancel = backdrop.querySelector('[data-dialog-cancel]');
+    if (requested === 'cancel') return cancel || ok;
+    if (requested === 'ok') return ok;
+    return options.danger && cancel ? cancel : ok;
+  }
+
   function dialog(options = {}){
     injectCSS();
     const isPrompt = options.prompt === true;
@@ -361,16 +424,25 @@
         </div>
       `;
       let modalHandle = null;
+      let finished = false;
+      // Focus returns to whatever had it before the dialog opened (unless the
+      // caller moves it on afterwards).
+      const previousFocus = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
       const finish = (value) => {
+        if (finished) return;
+        finished = true;
+        const focusWasInside = backdrop.contains(document.activeElement);
         modalHandle?.unregister?.();
         modalHandle = null;
         backdrop.remove();
         document.removeEventListener('keydown', onKeydown);
+        if (previousFocus?.isConnected && (focusWasInside || !document.activeElement || document.activeElement === document.body)) {
+          try { previousFocus.focus({ preventScroll:true }); } catch {}
+        }
         resolve(value);
       };
       const onKeydown = (event) => {
         if (event.key === 'Escape') finish(false);
-        if (isPrompt && event.key === 'Enter') finish(backdrop.querySelector('[data-dialog-input]')?.value ?? '');
       };
       const modalManager = root.Portal?.modals || null;
       backdrop.addEventListener('mousedown', (event) => {
@@ -383,6 +455,14 @@
       backdrop.querySelectorAll('[data-dialog-choice]').forEach((button) => button.addEventListener('click', () => {
         finish(choices[Number(button.dataset.dialogChoice)]?.value ?? null);
       }));
+      // Enter submits a prompt whether or not a modal manager owns the
+      // dialog's keyboard handling.
+      backdrop.querySelector('[data-dialog-input]')?.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' || event.isComposing) return;
+        event.preventDefault();
+        event.stopPropagation();
+        finish(event.currentTarget.value ?? '');
+      });
       document.body.appendChild(backdrop);
       if (modalManager) {
         modalHandle = modalManager.register(backdrop, {
@@ -394,7 +474,7 @@
       } else {
         document.addEventListener('keydown', onKeydown);
       }
-      setTimeout(() => (backdrop.querySelector('[data-dialog-input]') || backdrop.querySelector('[data-dialog-choice].primary') || backdrop.querySelector('[data-dialog-choice]') || backdrop.querySelector('[data-dialog-ok]'))?.focus(), 0);
+      setTimeout(() => defaultFocusTarget(backdrop, options, choices)?.focus(), 0);
     });
   }
 
