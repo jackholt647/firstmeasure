@@ -5551,8 +5551,14 @@
     }
 
     async function openMembersModal(){
-      const channel = state.activeChannel;
+      const channelId = state.activeChannelId;
+      if (!channelId) return;
+      const data = await api.channels.get(orgId, channelId);
+      if (state.destroyed || state.activeChannelId !== channelId) return;
+      const channel = data.channel;
+      state.activeChannel = channel;
       const everyone = await orgUsers();
+      if (state.destroyed || state.activeChannelId !== channelId) return;
       const selected = new Set();
       const memberIds = new Set((channel.members || []).map((member) => member.id));
       showModal(`Members — ${channel.display_name || channel.name}`, (body, close) => {
@@ -5570,8 +5576,10 @@
             rowNode.append(role);
           }
           if (channel.can_manage && member.id !== currentUser.id) {
-            const remove = el('button', 'fm-ch-icon-btn', '<i class="fas fa-xmark"></i>');
+            const remove = el('button', 'fm-ch-btn', 'Remove');
+            remove.type = 'button';
             remove.title = (globalThis.PlatformLanguage?.text("channels-ui","m_47839980185da7","Remove from channel") ?? "Remove from channel");
+            remove.setAttribute('aria-label', `Remove ${member.name} from channel`);
             remove.addEventListener('click', async () => {
               remove.disabled = true;
               try {
