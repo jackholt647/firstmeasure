@@ -103,7 +103,7 @@
 
   function sidebarBehavior(){
     const value = sidebarPreference('left_column_behavior', 'adaptive');
-    return ['adaptive', 'locked', 'forced_collapsed', 'forced_expanded'].includes(value) ? value : 'adaptive';
+    return ['adaptive', 'tooltip', 'locked', 'forced_collapsed', 'forced_expanded'].includes(value) ? value : 'adaptive';
   }
 
   function sidebarTemporaryExpansionMode(){
@@ -165,6 +165,7 @@
     if (behavior !== 'adaptive') sidebar.classList.remove('sidebar-hover-expanded', 'sidebar-advanced-apps-open');
     sidebar.classList.toggle('sidebar-forced', behavior.startsWith('forced_'));
     sidebar.classList.toggle('sidebar-manual', behavior !== 'adaptive');
+    sidebar.classList.toggle('sidebar-instant-tooltips', behavior === 'tooltip');
     sidebar.classList.toggle('sidebar-compact', compact);
     sidebar.classList.toggle('sidebar-compact-expanded', compact && expanded);
     sidebar.classList.toggle('sidebar-compact-overlap', compact && sidebarTemporaryExpansionMode() === 'overlap');

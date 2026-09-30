@@ -299,7 +299,7 @@ test("left-column choices are saved as personal preferences without operator acc
   assert.equal(reloaded.preferences.left_column_agents, true);
   assert.equal(reloaded.preferences.left_column_channels, true);
   assert.equal(initial.preferences.left_column_behavior, "adaptive");
-  for (const behavior of ["adaptive", "locked", "forced_collapsed", "forced_expanded"]) {
+  for (const behavior of ["adaptive", "tooltip", "locked", "forced_collapsed", "forced_expanded"]) {
     await client.request("PATCH", "/v1/platform/me/preferences", { left_column_behavior: behavior, left_column_locked_expanded: true });
     const settings = await client.request("GET", "/v1/platform/me/preferences");
     assert.equal(settings.preferences.left_column_behavior, behavior);

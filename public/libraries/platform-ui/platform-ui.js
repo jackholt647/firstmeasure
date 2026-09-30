@@ -58,6 +58,8 @@
         pointer-events:none;opacity:0;transform:translateY(-4px) scale(.985);transform-origin:var(--fm-tooltip-origin,50% 0);
         transition:opacity .16s ease,transform .18s cubic-bezier(.2,.8,.2,1);white-space:normal
       }
+      .fm-tooltip.fm-tooltip-instant{transition:none;transform:none}
+      .fm-tooltip[data-side="right"]::after{left:-12px;top:50%;transform:translateY(-50%);border-right-color:rgba(15,23,42,.96)}
       .fm-tooltip[data-side="above"]{transform:translateY(4px) scale(.985);--fm-tooltip-origin:50% 100%}
       .fm-tooltip.visible{opacity:1;transform:translateY(0) scale(1)}
       .fm-tooltip::after{content:"";position:absolute;left:var(--fm-tooltip-arrow-x,50%);width:0;height:0;transform:translateX(-50%);border:6px solid transparent;filter:drop-shadow(0 1px 0 rgba(255,255,255,.08))}
@@ -148,6 +150,11 @@
 
   function tooltipContentFromTarget(target){
     if (!target) return null;
+    if (instantSidebarTooltip(target)) {
+      const text = target.getAttribute('aria-label') || target.getAttribute('data-fm-tooltip') ||
+        target.getAttribute('data-fm-native-title') || target.getAttribute('title') || target.textContent;
+      return text?.trim() ? { text: text.trim() } : null;
+    }
     const html = String(target.getAttribute('data-fm-tooltip-html') || '').trim();
     if (html) return { html };
     const text = String(target.getAttribute('data-fm-tooltip') || '').trim();
@@ -172,7 +179,16 @@
     node.querySelectorAll?.('[title]').forEach(adoptNativeTooltip);
   }
 
+  function instantSidebarTooltip(target){
+    return !!target?.closest?.('#mainSidebar.sidebar-instant-tooltips.sidebar-compact:not(.sidebar-compact-expanded)') &&
+      !window.matchMedia('(max-width:820px)').matches;
+  }
+
   function tooltipTargetFrom(start){
+    if (instantSidebarTooltip(start)) {
+      const item = start?.closest?.('button,a,[role="button"],.fm-link');
+      if (item) return adoptNativeTooltip(item);
+    }
     const target = start?.closest?.('[data-fm-tooltip],[data-fm-tooltip-html],[title]') || null;
     return target ? adoptNativeTooltip(target) : null;
   }
@@ -182,6 +198,13 @@
     const rect = target.getBoundingClientRect();
     const tipRect = tip.getBoundingClientRect();
     const pad = 10;
+    if (instantSidebarTooltip(target)) {
+      const sidebarRect = target.closest('#mainSidebar').getBoundingClientRect();
+      tip.dataset.side = 'right';
+      tip.style.left = `${Math.round(Math.max(pad, Math.min(sidebarRect.right + 10, window.innerWidth - tipRect.width - pad)))}px`;
+      tip.style.top = `${Math.round(Math.max(pad, Math.min(rect.top + (rect.height - tipRect.height) / 2, window.innerHeight - tipRect.height - pad)))}px`;
+      return;
+    }
     let left = rect.left + rect.width / 2 - tipRect.width / 2;
     let side = 'below';
     let top = rect.bottom + 10;
@@ -209,6 +232,7 @@
     state.tooltipHideTimer = null;
     if (content.html) tip.innerHTML = content.html;
     else tip.textContent = content.text || '';
+    tip.classList.toggle('fm-tooltip-instant', instantSidebarTooltip(target));
     state.tooltipTarget = target;
     tip.classList.remove('visible');
     tip.style.left = '0px';
@@ -217,11 +241,15 @@
     const reveal = () => {
       if (state.tooltipTarget !== target || !target.isConnected) return;
       positionTooltip(target);
+      if (instantSidebarTooltip(target)) {
+        tip.classList.add('visible');
+        return;
+      }
       requestAnimationFrame(() => {
         if (state.tooltipTarget === target) tip.classList.add('visible');
       });
     };
-    const delay = Math.max(0, Number(options.delay) || 0);
+    const delay = instantSidebarTooltip(target) ? 0 : Math.max(0, Number(options.delay) || 0);
     if (delay) state.tooltipShowTimer = setTimeout(reveal, delay);
     else reveal();
   }
@@ -304,6 +332,7 @@
     window.addEventListener('resize', () => {
       if (state.tooltipTarget) positionTooltip(state.tooltipTarget);
     });
+    window.addEventListener('fm:sidebar-mode:changed', () => hideTooltip());
   }
 
   function dialog(options = {}){

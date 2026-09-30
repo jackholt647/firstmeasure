@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
 const core = await readFile(new URL('../../portal/scripts/core.js', import.meta.url), 'utf8');
 const index = await readFile(new URL('../../portal/index.php', import.meta.url), 'utf8');
+const platformUI = await readFile(new URL('../../libraries/platform-ui/platform-ui.js', import.meta.url), 'utf8');
 const code = core.slice(core.indexOf('  const SIDEBAR_WIDTH_DEFAULT'), core.indexOf('  function syncVisualViewportVars'));
 const styles = [...index.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(m => m[1]).join('\n') + (core.match(/@media\(min-width:821px\)\{\.sidebar\.sidebar-compact:not\(\.sidebar-manual\)[^\n]+/)?.[0] || '');
 test('hover collapse, locked positions, and forced sidebar modes', async () => {
@@ -14,6 +15,7 @@ test('hover collapse, locked positions, and forced sidebar modes', async () => {
   await page.addScriptTag({content:`const APP={userId:'user',orgId:'org'};window.Portal={currentUser:{identity:{preferences:{left_column_auto_collapse:{apps:true},resizable_left_column:true}}}};window.savedPatches=[];window.PlatformAPI={preferences:{patch:async patch=>{savedPatches.push(patch);return {preferences:{...Portal.currentUser.identity.preferences,...patch}};}}};function setSidebarPanel(){}function applySidebarFeatureFlags(){applySidebarLayoutFeatureFlags();}${code}\napplySidebarLayoutFeatureFlags();`});
   const width=()=>page.locator('#mainSidebar').evaluate(n=>Math.round(n.getBoundingClientRect().width));
   const prefs=patch=>page.evaluate(patch=>window.dispatchEvent(new CustomEvent('fm:user-preferences:updated',{detail:{preferences:{...Portal.currentUser.identity.preferences,...patch}}})),patch);
+  await page.addScriptTag({content:platformUI});
   assert.equal(await width(),48);
   assert.equal(await page.locator('#sidebarAppsPanel').isVisible(),true);
   assert.equal(await page.locator('#sidebarChannelsPanel').isVisible(),false);
@@ -21,6 +23,32 @@ test('hover collapse, locked positions, and forced sidebar modes', async () => {
   await page.evaluate(()=>Portal.sidebarMode.setExpanded(true));
   await page.locator('#sidebarCompactToggle').click();assert.equal(await width(),48,'collapse overrides hover');
   await page.mouse.move(700,100);await page.mouse.move(20,100);assert.equal(await width(),250);
+  await prefs({left_column_behavior:'tooltip'});
+  await page.evaluate(()=>Portal.sidebarMode.setExpanded(false));
+  await page.mouse.move(700,100);await page.mouse.move(20,100);assert.equal(await width(),48,'tooltip mode never expands on hover');
+  const instant = await page.evaluate(()=>{
+   const button=document.querySelector('#sidebarAppsPanel button');
+   button.innerHTML='<i></i><span>Projects</span>';
+   button.querySelector('i').dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));
+   const tip=document.getElementById('fmTooltip');
+   return {visible:tip.classList.contains('visible'),text:tip.textContent,side:tip.dataset.side,transition:getComputedStyle(tip).transitionDuration,left:parseFloat(tip.style.left)};
+  });
+  assert.deepEqual(instant,{visible:true,text:'Projects',side:'right',transition:'0s',left:58});
+  await page.evaluate(()=>document.querySelector('#sidebarAppsPanel button').dispatchEvent(new MouseEvent('mouseout',{bubbles:true})));
+  assert.equal(await page.locator('#fmTooltip').evaluate(n=>n.classList.contains('visible')),false);
+  await page.locator('#sidebarAppsPanel button').focus();
+  assert.equal(await page.locator('#fmTooltip').evaluate(n=>n.classList.contains('visible')),true,'keyboard focus is instant too');
+  await page.locator('#sidebarCompactToggle').click();assert.equal(await width(),250,'edge click still expands tooltip mode');
+  assert.equal(await page.locator('#fmTooltip').evaluate(n=>n.classList.contains('visible')),false);
+  await page.locator('#sidebarCompactToggle').click();assert.equal(await width(),48);
+  assert.deepEqual(await page.evaluate(()=>{
+   const item=document.createElement('div');item.className='fm-link';
+   item.innerHTML='<div class="ic"><i></i></div><div class="tx">Contacts</div>';
+   document.getElementById('sidebarAppsPanel').appendChild(item);
+   item.querySelector('i').dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));
+   const tip=document.getElementById('fmTooltip');
+   return {visible:tip.classList.contains('visible'),text:tip.textContent};
+  }),{visible:true,text:'Contacts'},'dynamically rendered app icons inherit instant tooltips');
   await prefs({left_column_behavior:'locked',left_column_locked_expanded:false});assert.equal(await width(),48);
   await page.mouse.move(700,100);await page.mouse.move(20,100);assert.equal(await width(),48);
   await page.locator('#sidebarCompactToggle').click();assert.equal(await width(),250);
