@@ -11,6 +11,18 @@
   const $ = (sel, root=document) => root.querySelector(sel);
 
   window.Portal = window.Portal || {};
+  // Embedded project documents need shared services, but not a second portal
+  // app mount (and its list polling). Validate ownership, not just a URL flag.
+  window.Portal.projectContentOnly = false;
+  try {
+    const name = window.name || '';
+    if (window.parent !== window) {
+      window.Portal.projectContentOnly = !!(
+        (name.startsWith('fm-project-window:') && window.parent.FirstMateProjectWindows?.accepts(name.slice(18), window)) ||
+        (name.startsWith('fm-project-pane:') && window.parent.FirstMateProjectLayout?.accepts(name.slice(16), window))
+      );
+    }
+  } catch (_) { /* Foreign frames use normal portal initialization. */ }
   window.Portal.currentUser = {
     permissions: {}, // populated by refreshCredits
     user: {},
@@ -3865,6 +3877,7 @@
   }
 
   function activateTab(id, isInitial=false, options = {}){
+    if (window.Portal.projectContentOnly) return;
     if (!TabRegistry.tabs.has(id)) return;
     if (TabRegistry.tabs.get(id)?.placement === 'hidden') return;
     if (TabRegistry.tabs.get(id)?.placement === 'settings' && id !== 'company_settings') return;

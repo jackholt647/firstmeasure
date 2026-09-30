@@ -4932,6 +4932,7 @@
   }
 
   async function loadWorkBoards(options = {}){
+    if (window.Portal.projectContentOnly) return;
     const orgId = String(window.__APP?.userOrgId || '').trim();
     if (!orgId || !window.PlatformAPI?.work?.boards) return [];
     if (workBoardsLoaded && !options.refresh) return workBoards;
@@ -7065,6 +7066,7 @@
   }
 
   async function fetchProjects(redraw){
+    if (window.Portal.projectContentOnly || !panelEl) return;
     const results = $('#vResults', panelEl); if (!results) return;
     const requestSeq = ++fetchProjectsSeq;
     try{
@@ -7311,6 +7313,7 @@
    * user sees the new project appear and its status update quickly. */
   let _burstTimers = [];
   function scheduleBurstPolls(){
+    if (window.Portal.projectContentOnly) return;
     _burstTimers.forEach(t => clearTimeout(t));
     _burstTimers = [];
     const delays = [4000, 8000, 15000, 25000, 40000];
