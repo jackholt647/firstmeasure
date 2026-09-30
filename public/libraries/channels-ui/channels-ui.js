@@ -2962,23 +2962,24 @@
               if (!track || !track.enabled) { note.textContent = 'Unmute your microphone to test it.'; return; }
               let context, timer;
               let active = true;
-              stopDiagnostic = () => { active = false; clearInterval(timer); context?.close().catch(() => {}); microphoneTest.disabled = false; };
+              stopDiagnostic = () => { active = false; clearInterval(timer); context?.close().catch(() => {}); microphoneTest.disabled = false; meter.value = 0; };
               try {
                 context = new (root.AudioContext || root.webkitAudioContext)(); await context.resume();
                 if (!active || !panel.isConnected) { stopDiagnostic(); return; }
                 const analyser = context.createAnalyser(); context.createMediaStreamSource(new MediaStream([track])).connect(analyser);
-                const values = new Uint8Array(analyser.fftSize); let count = 0, detected = false;
+                const values = new Float32Array(analyser.fftSize); let count = 0, detected = false;
                 meterBox.hidden = false; microphoneTest.disabled = true; note.textContent = 'Speak for five seconds…';
                 timer = setInterval(() => {
                   if (!meter.isConnected || !state.huddle || ++count > 50) {
                     note.textContent = detected ? 'Your microphone is working.' : 'No sound detected. Check the selected microphone and browser permissions.';
                     stopDiagnostic(); return;
                   }
-                  analyser.getByteTimeDomainData(values);
-                  const rms = Math.sqrt(values.reduce((sum, value) => sum + ((value - 128) / 128) ** 2, 0) / values.length);
-                  meter.value = Math.min(100, Math.round(Math.sqrt(rms) * 160));
-                  if (rms > .01) detected = true;
-                  hint.textContent = rms > .01 ? 'Voice detected' : 'Speak into the selected microphone';
+                  analyser.getFloatTimeDomainData(values);
+                  const rms = Math.sqrt(values.reduce((sum, value) => sum + value ** 2, 0) / values.length);
+                  const hasSound = rms > .01;
+                  meter.value = hasSound ? Math.min(100, Math.round(Math.sqrt(rms) * 160)) : 0;
+                  if (hasSound) detected = true;
+                  hint.textContent = hasSound ? 'Voice detected' : 'Speak into the selected microphone';
                 }, 100);
               } catch (error) { stopDiagnostic(); note.textContent = 'Could not test the microphone. ' + error.message; }
             };
