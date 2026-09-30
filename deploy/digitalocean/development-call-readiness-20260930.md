@@ -64,3 +64,7 @@ The public communications scripts matched the desired committed content and
 public readiness remained healthy with development isolation enforced.
 An SSH banner timeout on the pool was retried after a fresh audit; it did not
 bypass any baseline checks. Production was unchanged.
+
+The pool subsequently moved to the same compatible Contact editor successor
+release as web. A fresh audit and source/compiled hash verification confirmed
+that it also retained the diagnostic and UI fixes with healthy, isolated runtime.
