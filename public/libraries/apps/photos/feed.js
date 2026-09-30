@@ -2042,7 +2042,6 @@
               ${String(shownMenuHtml())}
             </div>
             ${String(state.uploadLabel ? `<button type="button" class="pf-upload" data-photo-feed-upload><i class="fas fa-plus"></i> ${escapeHtml(state.uploadLabel)}</button>` : '')}
-            ${String(state.onUpload ? '' : '<button type="button" class="pf-refresh" data-refresh><i class="fas fa-rotate"></i></button>')}
           </div>
         </div>
         <div data-photo-feed-dynamic>${String(dynamicHtml())}</div>
@@ -2056,7 +2055,6 @@
       state.visible = PAGE_SIZE;
       renderDynamic();
     });
-    rootEl.querySelector('[data-refresh]')?.addEventListener('click', () => load({ toast: true }));
     rootEl.querySelector('[data-photo-feed-upload]')?.addEventListener('click', () => {
       if (typeof state.onUpload === 'function') state.onUpload();
     });

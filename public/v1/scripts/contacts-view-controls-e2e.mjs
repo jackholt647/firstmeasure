@@ -1,0 +1,63 @@
+import {createRequire} from 'node:module';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const require=createRequire(new URL('../package.json',import.meta.url));
+const {chromium}=require('playwright-core');
+const source=process.env.CONTACTS_APP_URL ? await (await fetch(process.env.CONTACTS_APP_URL)).text() : await readFile(new URL('../../libraries/apps/contacts/app.js',import.meta.url),'utf8');
+const feed=await readFile(new URL('../../libraries/apps/photos/feed.js',import.meta.url),'utf8');
+assert.ok(!feed.includes('data-refresh'),'Feed has no manual refresh button or handler');
+const feedCss=feed.split("injectCSS('photos_feed', `")[1].split('`);')[0];
+const portal=await readFile(new URL('../../portal/index.php',import.meta.url),'utf8');
+const panelCss=portal.match(/\.main-panels\{[\s\S]*?\}/g);
+const screenshotDir=process.env.UI_SCREENSHOT_DIR;
+const browser=await chromium.launch({channel:'chrome',headless:true});
+try {
+ const page=await browser.newPage({viewport:{width:1400,height:900}});
+ await page.route('http://fixture.local/**',route=>route.fulfill({contentType:'text/html',body:'<div id="mainPanels" class="main-panels"><div id="app" class="fm-tabpanel active" style="height:820px"></div></div><style>*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f0f2f7}.main-panels:has(>.fm-tabpanel.active.full-bleed){padding:0;overflow:hidden}</style>'}));
+ await page.goto('http://fixture.local/');
+ await page.addStyleTag({content:panelCss[0]+'@media(max-width:760px){'+panelCss[1]+'}'});
+ await page.addStyleTag({content:feedCss});
+ await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.evaluate(()=>{
+  window.__APP={userOrgId:'fixture'};
+  window.PlatformAPI={projects:{list:async()=>({documents:[{id:'p1',data:{address:'10 Main Street',title:'Roof replacement',contacts:[{id:'c1',name:'Ada Smith',email:'ada@example.com',phone:'555-0100'}]}},{id:'p2',data:{address:'20 Oak Street',title:'Maintenance',contacts:[{id:'c2',name:'Zoe Jones',email:'zoe@example.com'}]}}]})}};
+  const flags={current:()=>({}),has:()=>true};
+  window.Portal={cfg:{userOrgId:'fixture'},appFlags:flags,tabs:{renderTabs(){}},apps:{registerPortalApp:app=>window.fixtureApp=app},navigation:{read:()=>({}),registerSchema(){},registerHandler(){},replace(){}},modules:{contacts:{open:contact=>window.openedContact=contact},request:{openProject:project=>window.openedProject=project}},util:{injectCSS:(id,css)=>{let s=document.createElement('style');s.textContent=css;document.head.append(s)}}};
+ });
+ await page.addScriptTag({content:source});
+ await page.waitForFunction(()=>!!window.fixtureApp);
+ await page.evaluate(()=>(document.querySelector('#app').classList.toggle('full-bleed',!!window.fixtureApp.fullBleed),window.fixtureApp.mount(document.querySelector('#app'))));
+ await page.waitForSelector('.ct-table-row');
+ assert.equal(await page.locator('#ctRefresh').count(),0);
+ const parity=await page.evaluate(()=>{
+   const compare=document.createElement('div');compare.style.cssText='position:absolute;top:-1000px';
+   compare.innerHTML='<div class="pf-title"><i></i><div><strong>Feed</strong><span>Activity</span></div></div><button class="pf-toolbar-action">Shown</button>';
+   document.body.append(compare);
+   const css=selector=>getComputedStyle(document.querySelector(selector));
+   const result={padding:css('#mainPanels').paddingLeft,title:css('.ct-title h2').fontSize,feedTitle:css('.pf-title strong').fontSize,action:css('.ct-action').height,feedAction:css('.pf-toolbar-action').height,actionFont:css('.ct-action').fontSize,feedActionFont:css('.pf-toolbar-action').fontSize,rowName:css('.ct-list-contact strong').fontSize,rowPadding:css('.ct-table-row').paddingLeft};
+   compare.remove();return result;
+ });
+ assert.equal(parity.padding,'22px','Contacts uses the same portal inset as Feed and Projects');
+ assert.equal(parity.title,parity.feedTitle,'two-line Contacts title matches Feed');
+ assert.equal(parity.action,parity.feedAction);assert.equal(parity.actionFont,parity.feedActionFont);
+ assert.equal(parity.rowName,'16px');assert.equal(parity.rowPadding,'14px');
+
+ if(screenshotDir) await page.screenshot({path:screenshotDir+'/contacts-list.png'});
+ await page.locator('#ctViewTiles').click();await page.waitForSelector('.ct-card');
+ if(screenshotDir) await page.screenshot({path:screenshotDir+'/contacts-tiles.png'});
+ await page.locator('#ctSearch').fill('Ada');assert.equal(await page.locator('.ct-card').count(),1);
+ await page.locator('[data-ct-open-contact]').first().click();assert.equal(await page.evaluate(()=>window.openedContact.name),'Ada Smith');
+ await page.locator('[data-ct-project]').first().click();assert.equal(await page.evaluate(()=>window.openedProject.id),'p1');
+ await page.locator('#ctClearSearch').click();await page.locator('#ctSort').selectOption('recent');
+ await page.setViewportSize({width:390,height:780});
+ if(screenshotDir) await page.screenshot({path:screenshotDir+'/contacts-mobile.png'});
+ assert.ok(await page.locator('.ct-top').evaluate(el=>el.getBoundingClientRect().right<=window.innerWidth));
+ assert.equal(await page.locator('#mainPanels').evaluate(el=>getComputedStyle(el).paddingLeft),'12px');
+ await page.locator('#ctViewList').click();
+ assert.ok(await page.locator('.ct-table').evaluate(el=>el.getBoundingClientRect().right<=window.innerWidth-12));
+ if(screenshotDir) await page.screenshot({path:screenshotDir+'/contacts-list-mobile.png'});
+ await page.setViewportSize({width:320,height:780});
+ assert.ok(await page.locator('.ct-top').evaluate(el=>el.getBoundingClientRect().right<=window.innerWidth-12));
+ assert.deepEqual(errors,[]);console.log('PASS: Contacts views, search, sort, contact/project links and mobile toolbar');
+} finally {await browser.close()}

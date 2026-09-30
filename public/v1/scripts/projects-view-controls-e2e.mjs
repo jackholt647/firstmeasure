@@ -52,6 +52,7 @@ try {
     await page.addStyleTag({content:'body{font-family:Arial,sans-serif;background:#f8fafc}'});
     await page.screenshot({path:process.env.UI_SCREENSHOT_DIR+'/projects-stages.png'});
   }
+  assert.equal(await page.locator('.v-title>i').getAttribute('class'),'fas fa-folder-open','title uses the registered sidebar Projects icon');
   assert.equal(await page.locator('.v-title .sub,#vTip,#vStatus,#vSort,#vListGrouping').count(),0);
   const title=await page.locator('.v-title').boundingBox(), actions=await page.locator('.v-actions').boundingBox();
   assert.ok(actions.x > title.x+title.width,'view actions sit to the right of My Projects');

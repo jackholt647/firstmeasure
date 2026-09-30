@@ -7213,7 +7213,7 @@
     panelEl.innerHTML = `
       <div class="v-wrap">
         <div class="v-head">
-          <div class="v-title"><i class="fas fa-diagram-project" aria-hidden="true"></i><h1>${(globalThis.PlatformLanguage?.htmlText("projects","m_1a8d3340c06415","My Projects") ?? "My Projects")}</h1></div>
+          <div class="v-title"><i class="fas fa-folder-open" aria-hidden="true"></i><h1>${(globalThis.PlatformLanguage?.htmlText("projects","m_1a8d3340c06415","My Projects") ?? "My Projects")}</h1></div>
           <div class="v-actions">
             <div class="v-view-switch" role="group" aria-label="Project view">
             <button class="v-btn v-pill" id="vViewStages" hidden><i class="fas fa-table-columns"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_1fae2f2aa8a59c"," Stages") ?? " Stages")}</span></button>
