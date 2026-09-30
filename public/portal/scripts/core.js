@@ -314,8 +314,10 @@
       sidebarPositionSave = sidebarPositionSave.catch(() => {}).then(() => window.PlatformAPI.preferences.patch({ sidebar_width: width }));
       const saved = await sidebarPositionSave;
       if (gesture.revision !== sidebarResizeRevision) return;
-      if (window.Portal?.currentUser?.identity) window.Portal.currentUser.identity.preferences = saved.preferences;
-      window.dispatchEvent(new CustomEvent('fm:user-preferences:updated', { detail:{ preferences:saved.preferences } }));
+      // A width response must preserve sidebar choices made while it was saving.
+      const preferences = { ...window.Portal?.currentUser?.identity?.preferences, sidebar_width: saved.preferences.sidebar_width };
+      if (window.Portal?.currentUser?.identity) window.Portal.currentUser.identity.preferences = preferences;
+      window.dispatchEvent(new CustomEvent('fm:user-preferences:updated', { detail:{ preferences } }));
     } catch (error) {
       if (gesture.revision !== sidebarResizeRevision) return;
       applySidebarWidth(gesture.startWidth);

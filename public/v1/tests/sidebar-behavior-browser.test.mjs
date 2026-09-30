@@ -26,7 +26,22 @@ test('hover collapse, locked positions, and forced sidebar modes', async () => {
   await page.locator('#sidebarCompactToggle').click();assert.equal(await width(),48);
   await page.waitForFunction(()=>savedPatches.length===2);
   assert.deepEqual(await page.evaluate(()=>savedPatches),[{left_column_locked_expanded:true},{left_column_locked_expanded:false}]);
-  for(const [behavior,expected] of [['forced_collapsed',48],['forced_expanded',250]]){
+  await prefs({left_column_behavior:'locked',left_column_locked_expanded:true});
+  await page.evaluate(()=>{
+   const patch=PlatformAPI.preferences.patch;
+   PlatformAPI.preferences.patch=async value=>{
+    if(value.sidebar_width){window.widthSaveStarted=true;return new Promise(resolve=>{window.finishWidthSave=()=>resolve({preferences:{...Portal.currentUser.identity.preferences,left_column_locked_expanded:true,sidebar_width:value.sidebar_width}});});}
+    return patch(value);
+   };
+  });
+  await page.mouse.move(250,100);await page.mouse.down();await page.mouse.move(300,100);await page.mouse.up();
+  await page.waitForFunction(()=>window.widthSaveStarted);
+  await page.locator('#sidebarCompactToggle').focus();await page.keyboard.press('Enter');assert.equal(await width(),48);
+  await page.evaluate(()=>window.finishWidthSave());
+  await page.waitForFunction(()=>savedPatches.length>=3 && savedPatches.at(-1).left_column_locked_expanded===false);
+  await page.waitForFunction(()=>Portal.currentUser.identity.preferences.sidebar_width===300);
+  assert.equal(await width(),48,'late resize response must preserve the newer locked-closed choice');
+  for(const [behavior,expected] of [['forced_collapsed',48],['forced_expanded',300]]){
    await prefs({left_column_behavior:behavior});await page.mouse.move(700,100);await page.mouse.move(20,100);
    await page.evaluate(()=>{Portal.sidebarMode.setExpanded(true);Portal.sidebarMode.requestCompact('editor');document.getElementById('mainSidebar').classList.add('sidebar-advanced-apps-open');});
    assert.equal(await width(),expected);
