@@ -469,11 +469,90 @@
       const end = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', end); document.removeEventListener('pointercancel', end); editor.dispatchEvent(new Event('input', {bubbles:true})); };
       document.addEventListener('pointermove', move); document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
     });
+    let listAutoCorrection = null;
+    function convertTypedList(selection, anchor) {
+      // A soft line break may be a newline text node rather than a new paragraph.
+      // Convert only the caret's marker line, preserving the surrounding rich text.
+      if (selection.isCollapsed && !anchor.closest('pre,blockquote,td,th,code,a')) {
+        const block = anchor.closest('p,div');
+        const paragraph = block && editor.contains(block) ? block : editor;
+        const beforeCaret = selection.getRangeAt(0).cloneRange(); beforeCaret.setStart(paragraph, 0);
+        const preceding = beforeCaret.toString(), text = paragraph.textContent;
+        const lineStart = preceding.lastIndexOf('\n') + 1;
+        const lineEnd = text.indexOf('\n', lineStart) < 0 ? text.length : text.indexOf('\n', lineStart);
+        const marker = preceding.slice(lineStart).match(/^(\d{1,6}[.)]|[-*])(?:[ \t]+|$)/);
+        if (marker && /^(?:\d{1,6}[.)]|[-*])(?:[ \t]+|$)/.test(text.slice(lineStart, lineEnd)) && !paragraph.querySelector('br,ul,ol,table')) {
+          const position = offset => {
+            const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT); let node;
+            while ((node = walker.nextNode())) {
+              if (offset <= node.textContent.length) return [node, offset];
+              offset -= node.textContent.length;
+            }
+            return [paragraph, paragraph.childNodes.length];
+          };
+          const contents = document.createRange(); contents.setStart(...position(lineStart + marker[0].length)); contents.setEnd(...position(lineEnd));
+          const before = document.createRange(); before.selectNodeContents(paragraph); before.setEnd(...position(Math.max(0, lineStart - 1)));
+          const after = document.createRange(); after.selectNodeContents(paragraph); after.setStart(...position(Math.min(text.length, lineEnd + 1)));
+          const beforeFragment = lineStart > 0 ? before.cloneContents() : document.createDocumentFragment();
+          const afterFragment = lineEnd < text.length ? after.cloneContents() : document.createDocumentFragment();
+          // A boundary newline still represents an empty visual line beside the list.
+          for (const [fragment, exists] of [[beforeFragment, lineStart > 0], [afterFragment, lineEnd < text.length]]) {
+            if (exists && !fragment.textContent && !fragment.querySelector('br')) { const blank = el('div'); blank.append(el('br')); fragment.replaceChildren(blank); }
+          }
+          const original = paragraph.cloneNode(true), replacements = [];
+          const numbered = /^\d/.test(marker[1]);
+          const list = el(numbered ? 'ol' : 'ul'); if (numbered) list.setAttribute('start', String(parseInt(marker[1], 10)));
+          const item = el('li'); item.append(contents.cloneContents()); if (!item.hasChildNodes()) item.append(el('br')); list.append(item);
+          if (paragraph === editor) paragraph.replaceChildren(beforeFragment, list, afterFragment);
+          else {
+            const nodes = [];
+            if (beforeFragment.hasChildNodes()) { const previous = paragraph.cloneNode(false); previous.append(beforeFragment); nodes.push(previous); }
+            nodes.push(list);
+            if (afterFragment.hasChildNodes()) { const next = paragraph.cloneNode(false); next.append(afterFragment); nodes.push(next); }
+            replacements.push(...nodes); paragraph.replaceWith(...nodes);
+          }
+          const caret = document.createRange(), walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+          let offset = preceding.length - lineStart - marker[0].length, node;
+          while ((node = walker.nextNode())) { if (offset <= node.textContent.length) { caret.setStart(node, offset); break; } offset -= node.textContent.length; }
+          if (!node) caret.setStart(item, item.childNodes.length);
+          caret.collapse(true); selection.removeAllRanges(); selection.addRange(caret);
+          return {item, undo: () => {
+            const restored = paragraph === editor ? editor : original;
+            if (paragraph === editor) editor.replaceChildren(...original.childNodes);
+            else { replacements[0].replaceWith(original); for (const node of replacements.slice(1)) node.remove(); }
+            const range = document.createRange(), walker = document.createTreeWalker(restored, NodeFilter.SHOW_TEXT);
+            let offset = preceding.length, node;
+            while ((node = walker.nextNode())) { if (offset <= node.textContent.length) { range.setStart(node, offset); break; } offset -= node.textContent.length; }
+            if (!node) range.setStart(restored, restored.childNodes.length);
+            range.collapse(true); selection.removeAllRanges(); selection.addRange(range);
+            document.execCommand('insertText', false, ' ');
+          }};
+        }
+      }
+      return null;
+    }
     editor.addEventListener('keydown', event => {
       const selection = root.getSelection();
       if (event.defaultPrevented || event.isComposing) return;
       const anchor = selection?.anchorNode?.nodeType === 1 ? selection.anchorNode : selection?.anchorNode?.parentElement;
-      if (event.key === 'Enter' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && editor.contains(anchor)) {
+      if (listAutoCorrection && !['Control','Meta','Shift','Alt'].includes(event.key)) {
+        const correction = listAutoCorrection; listAutoCorrection = null;
+        const reverse = (event.key === 'Backspace' && !event.ctrlKey && !event.metaKey && !event.altKey) || (event.key.toLowerCase() === 'z' && (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey);
+        if (reverse && selection.isCollapsed && !correction.item.textContent.trim() && (correction.item === anchor || correction.item.contains(selection.anchorNode))) {
+          event.preventDefault(); event.stopPropagation(); correction.undo(); editor.dispatchEvent(new Event('input', {bubbles:true})); return;
+        }
+      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey && editor.contains(anchor) && ['Digit7','Digit8'].includes(event.code)) {
+        event.preventDefault(); event.stopPropagation(); document.execCommand(event.code === 'Digit7' ? 'insertOrderedList' : 'insertUnorderedList'); editor.dispatchEvent(new Event('input', {bubbles:true})); return;
+      }
+      if (event.key === ' ' && !event.ctrlKey && !event.metaKey && !event.altKey && selection.isCollapsed && editor.contains(anchor) && !anchor.closest('li,pre,blockquote,td,th,code,a')) {
+        const before = selection.getRangeAt(0).cloneRange(); before.setStart(anchor.closest('p,div') || editor, 0);
+        if (/^(?:\d{1,6}[.)]|[-*])$/.test(before.toString().split('\n').at(-1))) {
+          const conversion = convertTypedList(selection, anchor);
+          if (conversion) { event.preventDefault(); event.stopPropagation(); listAutoCorrection = conversion; editor.dispatchEvent(new Event('input', {bubbles:true})); return; }
+        }
+      }
+      if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.altKey && editor.contains(anchor)) {
         let item = anchor?.closest('li');
         // An empty toolbar list can leave the native caret at the editor boundary.
         if (!item && selection.isCollapsed && selection.anchorNode.nodeType === 1) {
@@ -484,54 +563,11 @@
             item = container === list && next?.matches?.('li') ? next : list.querySelector('li:last-child');
           }
         }
-        // A soft line break may be a newline text node rather than a new paragraph.
-        // Convert only the caret's numbered line, preserving the surrounding rich text.
-        if (!item && selection.isCollapsed && !anchor.closest('pre,blockquote,td,th')) {
-          const block = anchor.closest('p,div');
-          const paragraph = block && editor.contains(block) ? block : editor;
-          const beforeCaret = selection.getRangeAt(0).cloneRange(); beforeCaret.setStart(paragraph, 0);
-          const preceding = beforeCaret.toString(), text = paragraph.textContent;
-          const lineStart = preceding.lastIndexOf('\n') + 1;
-          const lineEnd = text.indexOf('\n', lineStart) < 0 ? text.length : text.indexOf('\n', lineStart);
-          const marker = preceding.slice(lineStart).match(/^(\d{1,6})\.(?:[ \t]+|$)/);
-          if (marker && /^\d{1,6}\.(?:[ \t]+|$)/.test(text.slice(lineStart, lineEnd)) && !paragraph.querySelector('br,ul,ol,table')) {
-            const position = offset => {
-              const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT); let node;
-              while ((node = walker.nextNode())) {
-                if (offset <= node.textContent.length) return [node, offset];
-                offset -= node.textContent.length;
-              }
-              return [paragraph, paragraph.childNodes.length];
-            };
-            const contents = document.createRange(); contents.setStart(...position(lineStart + marker[0].length)); contents.setEnd(...position(lineEnd));
-            const before = document.createRange(); before.selectNodeContents(paragraph); before.setEnd(...position(Math.max(0, lineStart - 1)));
-            const after = document.createRange(); after.selectNodeContents(paragraph); after.setStart(...position(Math.min(text.length, lineEnd + 1)));
-            const beforeFragment = lineStart > 0 ? before.cloneContents() : document.createDocumentFragment();
-            const afterFragment = lineEnd < text.length ? after.cloneContents() : document.createDocumentFragment();
-            // A boundary newline still represents an empty visual line beside the list.
-            for (const [fragment, exists] of [[beforeFragment, lineStart > 0], [afterFragment, lineEnd < text.length]]) {
-              if (exists && !fragment.textContent && !fragment.querySelector('br')) { const blank = el('div'); blank.append(el('br')); fragment.replaceChildren(blank); }
-            }
-            const list = el('ol'); list.setAttribute('start', String(Number(marker[1])));
-            item = el('li'); item.append(contents.cloneContents()); if (!item.hasChildNodes()) item.append(el('br')); list.append(item);
-            if (paragraph === editor) paragraph.replaceChildren(beforeFragment, list, afterFragment);
-            else {
-              const nodes = [];
-              if (beforeFragment.hasChildNodes()) { const previous = paragraph.cloneNode(false); previous.append(beforeFragment); nodes.push(previous); }
-              nodes.push(list);
-              if (afterFragment.hasChildNodes()) { const next = paragraph.cloneNode(false); next.append(afterFragment); nodes.push(next); }
-              paragraph.replaceWith(...nodes);
-            }
-            const caret = document.createRange(), walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
-            let offset = preceding.length - lineStart - marker[0].length, node;
-            while ((node = walker.nextNode())) { if (offset <= node.textContent.length) { caret.setStart(node, offset); break; } offset -= node.textContent.length; }
-            if (!node) caret.setStart(item, item.childNodes.length);
-            caret.collapse(true); selection.removeAllRanges(); selection.addRange(caret);
-          }
-        }
+        const conversion = !item ? convertTypedList(selection, anchor) : null;
+        item ||= conversion?.item;
         if (item) {
           event.preventDefault(); event.stopPropagation();
-          if (!item.textContent.trim()) {
+          if ((event.shiftKey || conversion) && !item.textContent.trim()) {
             // Shift+Enter always continues a list, even when the current item is empty.
             const next = el('li'); next.append(document.createElement('br')); item.after(next);
             const range = document.createRange(); range.setStart(next, 0); range.collapse(true);

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 
 const publicRoot = path.resolve(process.env.CHANNELS_PUBLIC_ROOT || new URL('../../../public/', import.meta.url).pathname.replace(/^\/(?:([A-Za-z]:))/, '$1'));
 const evidenceLabel=(process.env.EVIDENCE_LABEL || (process.env.DEV_ASSETS?'dev':'fixed')).replace(/[^a-z0-9-]/gi,'');
-const output = path.resolve(new URL('../../../output/channels-linear-20260930/pla21/', import.meta.url).pathname.replace(/^\/(?:([A-Za-z]:))/, '$1'));
+const output = path.resolve(process.env.OUTPUT_DIR || new URL('../../../output/channels-linear-20260930/pla21-round3/', import.meta.url).pathname.replace(/^\/(?:([A-Za-z]:))/, '$1'));
 await mkdir(output, {recursive:true});
 const server = createServer(async (request, response) => {
   const name = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
@@ -116,6 +116,62 @@ try {
     const replyId=await page.evaluate(()=> 'sent'+sent.length);const replyRow=page.locator('.fm-ch-panel [data-message-id="'+replyId+'"]');await replyRow.hover();await replyRow.getByRole('button',{name:'More message actions'}).click();await page.getByRole('menuitem',{name:'Edit message',exact:true}).click();await reply.press('Control+A');await reply.press('Control+A');await reply.press('Backspace');await page.locator('.fm-ch-panel').getByRole('button',{name:'Numbered list',exact:true}).click();await page.keyboard.type('1.');await page.keyboard.press('Shift+Enter');await page.keyboard.type('Thread edit');assert.equal(await reply.evaluate(n=>n.value),'1. \n2. Thread edit');await page.locator('.fm-ch-panel').getByRole('button',{name:'Reply',exact:true}).click();await page.waitForFunction(()=>edits.at(-1)?.text==='1. \n2. Thread edit');
     console.log('PASS actual native click/keys: immediate empty markers, soft-line prefixes, repeated empty items, rich/midline/decimal boundaries, main edit and thread send/edit');
   }
+
+
+  const docsResults=[];
+  async function docsCheck(name,fn){
+    await page.evaluate(()=>sidebarPreferences.send_mode='enter');await fresh();
+    try{await fn();docsResults.push({name,pass:true});console.log('DOCS PASS',name);}catch(error){docsResults.push({name,pass:false,error:error.message});console.log('DOCS FAIL',name,error.message);}
+    await page.screenshot({path:path.join(output,'docs-'+name+'-'+evidenceLabel+'.png')});
+  }
+  for(const [marker,list,start]of [['1.','ol',1],['7.','ol',7],['1)','ol',1],['-','ul',null],['*','ul',null]])await docsCheck('auto-'+marker.replace(/[^a-z0-9]/gi,c=>c.charCodeAt(0)),async()=>{
+    await page.keyboard.type(marker);await page.keyboard.press('Space');assert.equal(await editor.locator(list+' > li').count(),1,'Space starts list');
+    if(start)assert.equal(await editor.locator(list).getAttribute('start'),String(start));
+    await page.keyboard.type('First');const count=await page.evaluate(()=>sent.length);await page.keyboard.press('Enter');assert.equal(await editor.locator('li').count(),2,'Enter continues');assert.equal(await page.evaluate(()=>sent.length),count,'Enter must not send list draft');await page.keyboard.type('Second');assert.deepEqual(await editor.locator('li').allTextContents(),['First','Second']);
+  });
+  await docsCheck('toolbar-enter-exit',async()=>{
+    await page.locator('.fm-ch-composer').getByRole('button',{name:'Numbered list',exact:true}).click();await page.keyboard.type('First');const count=await page.evaluate(()=>sent.length);await page.keyboard.press('Enter');assert.equal(await editor.locator('li').count(),2);await page.keyboard.press('Enter');assert.equal(await editor.locator('li').count(),1,'empty Enter exits list');await page.keyboard.type('Plain');assert.equal(await editor.evaluate(n=>n.value),'1. First\nPlain');assert.equal(await page.evaluate(()=>sent.length),count);
+  });
+  await docsCheck('autocorrect-backspace',async()=>{
+    await page.keyboard.type('1.');await page.keyboard.press('Space');assert.equal(await editor.locator('li').count(),1);await page.keyboard.press('Backspace');assert.equal(await editor.locator('li').count(),0);assert.equal(await editor.evaluate(n=>n.textContent),'1. ','Backspace immediately restores literal typed prefix');await page.keyboard.type('literal');assert.equal(await editor.evaluate(n=>n.value),'1. literal');
+  });
+  await docsCheck('autocorrect-undo',async()=>{
+    await page.keyboard.type('1.');await page.keyboard.press('Space');await page.keyboard.press('Control+z');assert.equal(await editor.locator('li').count(),0,'Undo reverses automatic list');assert.equal(await editor.evaluate(n=>n.textContent),'1. ','Undo retains literal prefix');await page.keyboard.press('Control+y');await page.keyboard.type('After');assert.equal(await editor.evaluate(n=>n.textContent),'1. After','Redo cannot resurrect detached selection or lose text');
+  });
+  await docsCheck('native-content-undo',async()=>{
+    await page.keyboard.type('1.');await page.keyboard.press('Space');await page.keyboard.type('First');await page.keyboard.press('Control+z');assert.equal(await editor.locator('li').count(),1,'ordinary typing undo retains list');assert.equal(await editor.locator('li').textContent(),'');await page.keyboard.press('Control+y');assert.equal(await editor.locator('li').innerText(),'First','ordinary typing redo remains native');
+  });
+  await docsCheck('mid-item-enter',async()=>{
+    await page.keyboard.type('7.');await page.keyboard.press('Space');await page.keyboard.type('FirstSecond');for(let i=0;i<6;i++)await page.keyboard.press('ArrowLeft');await page.keyboard.press('Enter');assert.equal(await editor.evaluate(n=>n.value),'7. First\n8. Second');
+  });
+  await docsCheck('nest-outdent',async()=>{
+    await page.keyboard.type('-');await page.keyboard.press('Space');await page.keyboard.type('First');await page.keyboard.press('Enter');await page.keyboard.press('Tab');await page.keyboard.type('Child');assert.equal(await editor.locator('ul ul li').count(),1);await page.keyboard.press('Shift+Tab');assert.equal(await editor.locator('ul ul li').count(),0);assert.deepEqual(await editor.locator('li').allTextContents(),['First','Child']);
+  });
+  await docsCheck('shortcuts-toggle',async()=>{
+    await page.keyboard.type('Rich');await page.keyboard.press('Control+Shift+7');assert.equal(await editor.locator('ol li').count(),1);await page.keyboard.press('Control+Shift+7');assert.equal(await editor.locator('li').count(),0);await page.keyboard.press('Control+Shift+8');assert.equal(await editor.locator('ul li').count(),1);assert.equal(await editor.evaluate(n=>n.value),'- Rich');
+  });
+  await docsCheck('selected-paragraphs',async()=>{
+    await page.evaluate(()=>sidebarPreferences.send_mode='modified_enter');await fresh();await page.waitForTimeout(50);await page.locator('.fm-ch-composer').getByRole('button',{name:'Bold',exact:true}).click();await page.keyboard.type('First');await page.locator('.fm-ch-composer').getByRole('button',{name:'Bold',exact:true}).click();await page.keyboard.press('Enter');await page.keyboard.type('Second');await page.keyboard.press('Shift+Home');await page.locator('.fm-ch-composer').getByRole('button',{name:'Link',exact:true}).click();await page.getByLabel('Web address').fill('https://example.test/selected');await page.getByRole('button',{name:'Insert link',exact:true}).click();await page.getByRole('dialog').waitFor({state:'hidden'});await editor.click();await page.keyboard.press('Control+A');await page.locator('.fm-ch-composer').getByRole('button',{name:'Bulleted list',exact:true}).click();assert.deepEqual(await editor.locator('li').allTextContents(),['First','Second']);assert.equal(await editor.locator('b').innerText(),'First');assert.equal(await editor.locator('a').getAttribute('href'),'https://example.test/selected');assert.equal(await editor.locator('a').innerText(),'Second');await page.locator('.fm-ch-composer').getByRole('button',{name:'Bulleted list',exact:true}).click();assert.equal(await editor.locator('li').count(),0);assert.equal(await editor.locator('b').innerText(),'First');assert.equal(await editor.locator('a').getAttribute('href'),'https://example.test/selected');assert.equal(await editor.locator('a').innerText(),'Second');
+  });
+  await docsCheck('boundary-tokens',async()=>{
+    for(const value of ['1.5','Version 1.','-5','https://example.test/1.']){await fresh();await page.keyboard.type(value);await page.keyboard.press('Space');assert.equal(await editor.locator('li').count(),0,value+' not a list prefix');}
+    for(const kind of ['Code block','Quote']){await fresh();await page.locator('.fm-ch-composer').getByRole('button',{name:kind,exact:true}).click();await page.keyboard.type('1.');await page.keyboard.press('Space');assert.equal(await editor.locator('li').count(),0,kind+' preserved');}
+  });
+  await docsCheck('thread-enter-send',async()=>{
+    await page.evaluate(async()=>{ChannelsAPI.threads={markRead:async()=>({})};await instance.openThread('message1');});const reply=page.locator('.fm-ch-panel .fm-ch-rich-editor');await reply.click();await page.keyboard.type('-');await page.keyboard.press('Space');await page.keyboard.type('First');const count=await page.evaluate(()=>sent.length);await page.keyboard.press('Enter');await page.keyboard.type('Second');assert.deepEqual(await reply.locator('li').allTextContents(),['First','Second']);assert.equal(await page.evaluate(()=>sent.length),count);await page.locator('.fm-ch-panel').getByRole('button',{name:'Reply',exact:true}).click();await page.waitForFunction(count=>sent.length>count,count);assert.equal(await page.evaluate(()=>sent.at(-1).text),'- First\n- Second');
+  });
+
+  await docsCheck('nested-empty-enter',async()=>{
+    await page.keyboard.type('1.');await page.keyboard.press('Space');await page.keyboard.type('First');await page.keyboard.press('Enter');await page.keyboard.press('Tab');await page.keyboard.type('Child');await page.keyboard.press('Enter');await page.keyboard.press('Enter');await page.keyboard.type('Parent');assert.match(await editor.evaluate(n=>n.value),/1\. First\n  1\. Child\n2\. Parent/);
+  });
+  await docsCheck('main-edit-enter',async()=>{
+    await page.evaluate(()=>{window.edits=[];ChannelsAPI.messages.edit=async(_org,id,input)=>{edits.push(input);return{message:{...testMessages[0],...input,id}}};});const row=page.locator('[data-message-id="message1"]');await row.hover();await row.getByRole('button',{name:'More message actions'}).click();await page.getByRole('menuitem',{name:'Edit message',exact:true}).click();await editor.press('Control+A');await editor.press('Backspace');const list=await editor.evaluate(n=>n.querySelector('ol,ul')?.tagName);if(list)await page.locator('.fm-ch-composer').getByRole('button',{name:list==='OL'?'Numbered list':'Bulleted list',exact:true}).click();await page.keyboard.type('1.');await page.keyboard.press('Space');await page.keyboard.type('First');await page.keyboard.press('Enter');await page.keyboard.type('Edited');assert.equal(await editor.evaluate(n=>n.value),'1. First\n2. Edited');await page.getByRole('button',{name:'Save changes',exact:true}).click();assert.equal(await page.evaluate(()=>edits.at(-1).text),'1. First\n2. Edited');
+  });
+  await docsCheck('modified-send-mode',async()=>{
+    await page.evaluate(()=>sidebarPreferences.send_mode='modified_enter');await fresh();await page.waitForTimeout(50);await page.keyboard.type('-');await page.keyboard.press('Space');await page.keyboard.type('First');const count=await page.evaluate(()=>sent.length);await page.keyboard.press('Enter');await page.keyboard.type('Second');assert.equal(await page.evaluate(()=>sent.length),count);await page.keyboard.press('Control+Enter');await page.waitForFunction(count=>sent.length>count,count);assert.equal(await page.evaluate(()=>sent.at(-1).text),'- First\n- Second');
+  });
+  await writeFile(path.join(output,'docs-results-'+evidenceLabel+'.json'),JSON.stringify({docsResults,errors},null,2));
+  if(!process.env.REPRO_ONLY&&docsResults.some(item=>!item.pass))process.exitCode=1;
 
   assert.deepEqual(errors,[]);
 } finally {await browser.close();await new Promise(resolve=>server.close(resolve));}
