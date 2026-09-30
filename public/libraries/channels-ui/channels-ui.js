@@ -1689,11 +1689,11 @@
       const hidden = state.channels.filter(channel => hiddenChannelIds().has(channel.id));
       if (hidden.length) {
         const manage = el('button', 'fm-ch-side-item', `Hidden conversations (${hidden.length})`);
-        manage.onclick = () => showModal('Hidden conversations', body => {
+        manage.onclick = () => showModal('Hidden conversations', (body, close) => {
           body.append(el('p', '', 'Hidden only from your sidebar. You remain a member and can restore them here.'));
           for (const channel of hidden) {
             const restore = el('button', 'fm-ch-btn', `Show ${esc(channel.display_name || channel.name || 'conversation')}`);
-            restore.onclick = async () => { restore.disabled = true; try { await setChannelHidden(channel, false); restore.remove(); } catch (error) { restore.disabled = false; showError(error); } };
+            restore.onclick = async () => { restore.disabled = true; try { await setChannelHidden(channel, false); close(); } catch (error) { restore.disabled = false; showError(error); } };
             body.append(restore);
           }
         });
