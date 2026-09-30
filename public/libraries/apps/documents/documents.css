@@ -483,3 +483,7 @@
 .fmdx-wfrun-agent.collapsed{display:none}
 .fmdx-wfrun-agent>.fmda-panel{flex:1;min-height:0}
 @media(max-width:1200px){.fmdx-wfrun-agent{position:absolute;right:0;top:0;bottom:0;z-index:9;box-shadow:-16px 0 34px rgba(15,23,42,.14);width:min(340px,92vw)}}
+
+.fmdx-brand-kit{padding:12px 16px;box-sizing:border-box;max-width:1100px}.fmdx-brand-head{margin-bottom:8px}.fmdx-brand-head h2{font-size:18px}
+
+.fmdx-brand-head .company-settings-card-help{border:0;background:transparent;color:#667085;font:inherit;cursor:help;padding:0}.fmdx-brand-head{flex-direction:row;align-items:center}

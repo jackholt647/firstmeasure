@@ -46,13 +46,13 @@
     const prefix = /^[a-z][a-z0-9]*$/i.test(options.prefix || '') ? options.prefix : 'brand';
     const id = (name) => `${prefix}${name}`;
     const extendedPalette = options.extendedPalette !== false;
-    const advancedLogos = options.advancedLogos === true;
+    const advancedLogos = options.advancedLogos !== false;
     const fonts = Array.from(new Set([...(options.fonts || []), ...DEFAULT_FONTS])).filter(Boolean);
     return `<div class="fm-brand-kit" data-brandkit-root="${prefix}">
       <div class="company-brand-row">
         <div class="company-brand-stack">
         <section class="company-settings-card">
-          <div class="company-settings-card-head"><strong>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_6bb25348173069","Color palette") ?? "Color palette")}</strong><i class="fas fa-circle-info company-settings-card-help" title="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_6cac172119f732","Primary and secondary style the interface. Supporting colors are available in visual editors.") ?? "Primary and secondary style the interface. Supporting colors are available in visual editors.")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_490cbf5945b3f8","About the company color palette") ?? "About the company color palette")}"></i></div>
+          <div class="company-settings-card-head"><strong>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_6bb25348173069","Color palette") ?? "Color palette")}</strong><button type="button" class="company-settings-card-help" title="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_6cac172119f732","Primary and secondary style the interface. Supporting colors are available in visual editors.") ?? "Primary and secondary style the interface. Supporting colors are available in visual editors.")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_490cbf5945b3f8","About the company color palette") ?? "About the company color palette")}">ⓘ</button></div>
           <div class="company-settings-card-body">
             <div class="brand-color-main">
               <div class="brand-color-control"><input type="color" class="cs-color" id="${id('Primary')}"><div class="brand-color-copy"><label for="${id('PrimaryHex')}">${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_0c92722f162cbd","Primary · UI") ?? "Primary · UI")}</label><span class="cs-chip" id="${id('PrimaryChip')}"><span class="hash">#</span><input id="${id('PrimaryHex')}" maxlength="6" autocomplete="off" spellcheck="false"></span></div></div>
@@ -61,14 +61,14 @@
             ${extendedPalette ? `<div class="brand-palette-strip" id="${id('PaletteStrip')}" aria-label="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_629cca6181934e","Six-color company palette") ?? "Six-color company palette")}"></div><div class="palette-inline-footer"><button type="button" class="palette-regenerate" id="${id('GeneratePalette')}"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_695aa2f7da3152"," Regenerate palette from logo") ?? " Regenerate palette from logo")}</button></div>` : ''}
           </div>
         </section>
-        <section class="company-settings-card company-font-card"><div class="company-settings-card-head"><strong>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_dba346dfc1916b","Company font") ?? "Company font")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_4d9e1ae19fc002","Default for new documents and templates") ?? "Default for new documents and templates")}</span></div><div class="company-settings-card-body"><label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_5c6ac1b0faeaa0","Font family") ?? "Font family")}</span><select id="${id('BrandFont')}">${fonts.map((font) => `<option value="${escape(font)}">${escape(font)}</option>`).join('')}</select></label></div></section>
+        <section class="company-settings-card company-font-card"><div class="company-settings-card-head"><strong>Company font</strong><button type="button" class="company-settings-card-help" title="The default family is used for document body text and titles. Optionally choose a separate title family for headings." aria-label="About company fonts">ⓘ</button></div><div class="company-settings-card-body"><label class="cs-field"><span>Default font family</span><select id="${id('BrandFont')}">${fonts.map((font) => `<option value="${escape(font)}">${escape(font)}</option>`).join('')}</select></label><label class="brand-title-toggle"><input type="checkbox" id="${id('SeparateTitleFont')}"> Use a separate title font</label><label class="cs-field" id="${id('TitleFontField')}" hidden><span>Title font family</span><select id="${id('TitleFont')}">${fonts.map((font) => `<option value="${escape(font)}">${escape(font)}</option>`).join('')}</select></label></div></section>
         </div>
         <section class="company-settings-card">
-          <div class="company-settings-card-head"><strong>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_a63c5a4c25569b","Logo") ?? "Logo")}</strong><i class="fas fa-circle-info company-settings-card-help" title="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_b8391ad75bc163","Manage the company logo and its appearance on branded surfaces.") ?? "Manage the company logo and its appearance on branded surfaces.")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_85de3f0cdfc46a","About company logos") ?? "About company logos")}"></i></div>
+          <div class="company-settings-card-head"><strong>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_a63c5a4c25569b","Logo") ?? "Logo")}</strong><button type="button" class="company-settings-card-help" title="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_b8391ad75bc163","Manage primary and alternate logos and their appearance. Transparent PNG or SVG works best.") ?? "Manage primary and alternate logos and their appearance. Transparent PNG or SVG works best.")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_85de3f0cdfc46a","About company logos") ?? "About company logos")}">ⓘ</button></div>
           <div class="company-settings-card-body">
-            <div class="logo-editor"><div class="logo-stage" id="${id('LogoStage')}"><img id="${id('LogoPreviewImg')}" data-company-logo-preview alt="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_fc3b468d1ec4eb","Current company logo") ?? "Current company logo")}"></div><div class="logo-main-controls"><strong>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_2c8fc5e11eaf62","Current logo") ?? "Current logo")}</strong><div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_eb55056b53954c","Transparent PNG or SVG works best.") ?? "Transparent PNG or SVG works best.")}</div><div class="cs-file"><label class="cs-btn ghost" for="${id('LogoFile')}"><i class="fas fa-upload"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_ac8bf335945352"," Replace logo") ?? " Replace logo")}</label><input type="file" id="${id('LogoFile')}" accept="image/*"></div></div></div>
-            ${advancedLogos ? `<div class="alternate-logos"><div class="alternate-logos-head"><span class="alternate-logos-title">${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_c0838c60ccd34f","Alternate logos ") ?? "Alternate logos ")}<i class="fas fa-circle-info company-settings-card-help" title="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_57f5beffb19542","Reusable logo variations for proposals, web pages, and other branded media.") ?? "Reusable logo variations for proposals, web pages, and other branded media.")}"></i></span><label class="alternate-logo-add" for="${id('AlternateLogoFiles')}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_8803dece55359d"," Add") ?? " Add")}<input type="file" id="${id('AlternateLogoFiles')}" accept="image/*" multiple></label></div><div class="alternate-logo-list" id="${id('AlternateLogoList')}"><span class="alternate-logo-empty">${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_036dda0aa72306","No alternate logos yet.") ?? "No alternate logos yet.")}</span></div></div>
-              <details class="company-advanced" id="${id('LogoAdvanced')}"><summary>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_e3681835cc6b25","Advanced logo appearance") ?? "Advanced logo appearance")}</summary><div class="company-advanced-body"><div class="logo-advanced-grid"><label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_986685f23ed459","Background") ?? "Background")}</span><div class="logo-background"><input type="color" id="${id('LogoBackground')}"><input type="text" id="${id('LogoBackgroundHex')}" maxlength="7" spellcheck="false" autocomplete="off"></div></label><div class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_76e5c668843400","Container shape") ?? "Container shape")}</span><div class="logo-options"><label class="logo-choice"><input type="radio" name="${id('LogoShape')}" value="square"><span><i class="far fa-square"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_eb37afb3b23761"," Square") ?? " Square")}</span></label><label class="logo-choice"><input type="radio" name="${id('LogoShape')}" value="circle"><span><i class="far fa-circle"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_3562c63d47eca1"," Circle") ?? " Circle")}</span></label><button type="button" class="logo-corners" id="${id('LogoCorners')}" aria-pressed="true"><i class="fas fa-border-all"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_895bf3964e7990"," Rounded corners") ?? " Rounded corners")}</button></div></div></div></div></details>` : ''}
+            <div class="logo-editor"><div class="logo-stage" id="${id('LogoStage')}"><img id="${id('LogoPreviewImg')}" data-company-logo-preview alt="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_fc3b468d1ec4eb","Current company logo") ?? "Current company logo")}"></div><div class="logo-main-controls"><strong>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_2c8fc5e11eaf62","Current logo") ?? "Current logo")}</strong><div class="cs-file"><label class="cs-btn ghost" for="${id('LogoFile')}"><i class="fas fa-upload"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_ac8bf335945352"," Replace logo") ?? " Replace logo")}</label><input type="file" id="${id('LogoFile')}" accept="image/*"></div></div></div>
+            ${advancedLogos ? `<div class="alternate-logos"><div class="alternate-logos-head"><span class="alternate-logos-title">${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_c0838c60ccd34f","Alternate logos ") ?? "Alternate logos ")}<button type="button" class="company-settings-card-help" title="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_57f5beffb19542","Reusable logo variations for proposals, web pages, and other branded media.") ?? "Reusable logo variations for proposals, web pages, and other branded media.")}">ⓘ</button></span><label class="alternate-logo-add" for="${id('AlternateLogoFiles')}"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_8803dece55359d"," Add") ?? " Add")}<input type="file" id="${id('AlternateLogoFiles')}" accept="image/*" multiple></label></div><div class="alternate-logo-list" id="${id('AlternateLogoList')}"><span class="alternate-logo-empty">${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_036dda0aa72306","No alternate logos yet.") ?? "No alternate logos yet.")}</span></div></div>
+              <details open class="company-advanced" id="${id('LogoAdvanced')}"><summary>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_e3681835cc6b25","Advanced logo appearance") ?? "Advanced logo appearance")}</summary><div class="company-advanced-body"><div class="logo-advanced-grid"><label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_986685f23ed459","Background") ?? "Background")}</span><div class="logo-background"><input type="color" id="${id('LogoBackground')}"><input type="text" id="${id('LogoBackgroundHex')}" maxlength="7" spellcheck="false" autocomplete="off"></div></label><div class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_76e5c668843400","Container shape") ?? "Container shape")}</span><div class="logo-options"><label class="logo-choice"><input type="radio" name="${id('LogoShape')}" value="square"><span><i class="far fa-square"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_eb37afb3b23761"," Square") ?? " Square")}</span></label><label class="logo-choice"><input type="radio" name="${id('LogoShape')}" value="circle"><span><i class="far fa-circle"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_3562c63d47eca1"," Circle") ?? " Circle")}</span></label><button type="button" class="logo-corners" id="${id('LogoCorners')}" aria-pressed="true"><i class="fas fa-border-all"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_895bf3964e7990"," Rounded corners") ?? " Rounded corners")}</button></div></div></div></div></details>` : ''}
           </div>
         </section>
       </div>
@@ -96,7 +96,7 @@
     const corners = container.querySelector(`#${prefix}LogoCorners`);
     if (corners) { corners.disabled = display.shape === 'circle'; corners.classList.toggle('active',display.rounded_corners && display.shape !== 'circle'); corners.setAttribute('aria-pressed',String(display.rounded_corners)); corners.innerHTML = `<i class="fas fa-border-all"></i> ${display.rounded_corners ? 'Rounded corners' : 'Square corners'}`; }
   }
-  function fill(container, prefix, value){
+  function fill(container, prefix, value, options = {}){
     const root = container.querySelector(`[data-brandkit-root="${prefix}"]`) || container;
     const palette = Array.isArray(value.palette) ? value.palette : [];
     for (const [name,index] of [['Primary',0],['Secondary',1]]) {
@@ -105,9 +105,16 @@
       if (picker) picker.value = color;
       if (text) text.value = color.slice(1);
     }
-    renderPalette(root,prefix,palette);
+    if (!options.keepPalette) renderPalette(root,prefix,palette);
+    else root.querySelectorAll('[data-palette-direct]').forEach((input)=>{const color=hex(palette[Number(input.dataset.paletteDirect)]);input.value=color;const swatch=input.closest('.brand-palette-swatch');swatch?.style.setProperty('--swatch',color);swatch?.style.setProperty('--swatch-text',paletteTextColor(color));const text=swatch?.querySelector('span');if(text)text.textContent=color;});
     const font = root.querySelector(`#${prefix}BrandFont`);
     if (font) { if (value.font && !Array.from(font.options).some((option) => option.value === value.font)) font.add(new Option(value.font,value.font)); font.value = value.font || 'Montserrat'; }
+    const titleFont = root.querySelector(`#${prefix}TitleFont`);
+    if (titleFont) { if (value.title_font && !Array.from(titleFont.options).some((option) => option.value === value.title_font)) titleFont.add(new Option(value.title_font,value.title_font)); titleFont.value=value.title_font || value.font || 'Montserrat'; }
+    const toggle = root.querySelector(`#${prefix}SeparateTitleFont`);
+    if (toggle) toggle.checked=!!value.title_font;
+    const field = root.querySelector(`#${prefix}TitleFontField`);
+    if (field) field.hidden=!value.title_font;
     const img = root.querySelector(`#${prefix}LogoPreviewImg`);
     if (img) { if (value.logo) { img.src = value.logo; img.style.display = ''; } else { img.removeAttribute('src'); img.style.display = 'none'; } }
     renderLogoAppearance(root,prefix,value.logo_display);
@@ -116,17 +123,19 @@
     const prefix = options.prefix;
     const root = container.querySelector(`[data-brandkit-root="${prefix}"]`) || container;
     const model = options.value;
-    const emit = () => options.onChange?.({ palette:[...model.palette], font:model.font, logo_display:{...displayValue(model.logo_display)} });
-    const update = (index,color) => { model.palette[index] = hex(color,model.palette[index]); model.primary=model.palette[0]; model.secondary=model.palette[1]; fill(root,prefix,model); emit(); };
+    const emit = () => options.onChange?.({ palette:[...model.palette], font:model.font, title_font:model.title_font || '', logo_display:{...displayValue(model.logo_display)} });
+    const update = (index,color) => { model.palette[index] = hex(color,model.palette[index]); model.primary=model.palette[0]; model.secondary=model.palette[1]; fill(root,prefix,model,{keepPalette:true}); emit(); };
     fill(root,prefix,model);
     for (const [name,index] of [['Primary',0],['Secondary',1]]) {
       root.querySelector(`#${prefix}${name}`)?.addEventListener('input',(event)=>update(index,event.target.value));
       root.querySelector(`#${prefix}${name}Hex`)?.addEventListener('change',(event)=>update(index,`#${event.target.value.replace(/[^0-9a-f]/gi,'').slice(0,6)}`));
     }
-    root.querySelector(`#${prefix}PaletteStrip`)?.addEventListener('change',(event)=>{ const input=event.target.closest('[data-palette-direct]'); if(input) update(Number(input.dataset.paletteDirect),input.value); });
+    root.querySelector(`#${prefix}PaletteStrip`)?.addEventListener('input',(event)=>{ const input=event.target.closest('[data-palette-direct]'); if(input) update(Number(input.dataset.paletteDirect),input.value); });
     root.querySelector(`#${prefix}BrandFont`)?.addEventListener('change',(event)=>{ model.font=event.target.value; emit(); });
     const background = root.querySelector(`#${prefix}LogoBackground`);
     const backgroundHex = root.querySelector(`#${prefix}LogoBackgroundHex`);
+    root.querySelector(`#${prefix}SeparateTitleFont`)?.addEventListener('change',(event)=>{model.title_font=event.target.checked ? model.font : ''; fill(root,prefix,model); emit();});
+    root.querySelector(`#${prefix}TitleFont`)?.addEventListener('change',(event)=>{model.title_font=event.target.value; emit();});
     background?.addEventListener('input',()=>{ model.logo_display={...displayValue(model.logo_display),background_color:background.value}; renderLogoAppearance(root,prefix,model.logo_display); emit(); });
     backgroundHex?.addEventListener('change',()=>{ model.logo_display={...displayValue(model.logo_display),background_color:hex(backgroundHex.value, '#FFFFFF')}; renderLogoAppearance(root,prefix,model.logo_display); emit(); });
     root.querySelectorAll(`input[name="${prefix}LogoShape"]`).forEach((input)=>input.addEventListener('change',()=>{ if(!input.checked)return; model.logo_display={...displayValue(model.logo_display),shape:input.value}; renderLogoAppearance(root,prefix,model.logo_display); emit(); }));
@@ -145,17 +154,34 @@
     root.querySelector(`#${prefix}AlternateLogoFiles`)?.addEventListener('change',async(event)=>{ const files=Array.from(event.target.files || []); if(files.length) await options.onAlternateUpload?.(files); event.target.value=''; });
     return { refresh:() => fill(root,prefix,model) };
   }
-  function renderAlternates(container, prefix, items){
+  function renderAlternates(container, prefix, items, options = {}){
     const list = container.querySelector(`#${prefix}AlternateLogoList`);
     if (!list) return;
     const logos = (items || []).filter((item) => {
       const purpose = String(item?.metadata?.purpose || item?.metadata?.branding_purpose || '').toLowerCase();
       const slot = String(item?.owner?.slot || item?.slot || '').toLowerCase();
-      return purpose === 'alternate_logo' || slot === 'alternate_logo';
-    }).map((item,index) => root.PlatformAPI?.brandingMedia?.imageRef?.(root.Portal?.cfg?.userOrgId || root.__APP?.orgId, item, { label:item?.metadata?.label || item?.file_name || `Alternate logo ${index+1}` }) || {
+      return purpose.includes('logo') || slot.includes('logo');
+    }).map((item,index) => root.PlatformAPI?.brandingMedia?.imageRef?.(options.orgId || root.Portal?.cfg?.userOrgId || root.__APP?.orgId, item, { label:item?.metadata?.label || item?.file_name || `Alternate logo ${index+1}` }) || {
       src:item?.src || item?.url || '', thumb:item?.thumb || item?.src || item?.url || '', label:item?.metadata?.label || item?.file_name || `Alternate logo ${index+1}`
     });
-    list.innerHTML = logos.length ? logos.map((logo) => `<div class="alternate-logo-item" title="${escape(logo.label || 'Alternate logo')}"><img src="${escape(logo.thumb || logo.src)}" alt="${escape(logo.label || 'Alternate logo')}"></div>`).join('') : `<span class="alternate-logo-empty">${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_036dda0aa72306","No alternate logos yet.") ?? "No alternate logos yet.")}</span>`;
+    list.innerHTML = logos.length ? logos.map((logo,index) => `<button type="button" class="alternate-logo-item ${logo.src === options.primary ? 'selected' : ''}" data-brand-primary="${index}" title="Use ${escape(logo.label || 'logo')} as primary" aria-label="Use ${escape(logo.label || 'logo')} as primary"><img src="${escape(logo.thumb || logo.src)}" alt="${escape(logo.label || 'Logo')}"><span>${logo.src === options.primary ? 'Primary' : 'Use primary'}</span></button>`).join('') : '<span class="alternate-logo-empty">No alternate logos yet.</span>';
+    list.querySelectorAll('[data-brand-primary]').forEach((button)=>button.addEventListener('click', async()=>{
+      button.disabled=true;
+      try { await options.onSelect?.(logos[Number(button.dataset.brandPrimary)]); } catch(error) { options.onError?.(error); } finally { button.disabled=false; }
+    }));
+  }
+  async function saveLogo(orgId, branchId, logo, mediaId){
+    const api=root.PlatformAPI;
+    const global=await api.orgs.portalState(orgId);
+    const globalData=global?.global?.data || {};
+    const fields={logo,logo_node_url:logo,...(mediaId ? {logo_media_id:mediaId} : {})};
+    await api.orgs.patchGlobal(orgId,{branding:{...globalData.branding,...fields}});
+    const branchResult=await api.branches.get(orgId,branchId);
+    const branch=branchResult?.document?.data || branchResult?.data || {};
+    await api.branches.save(orgId,branchId,{...branch,branding:{...branch.branding,...fields}},{source:'brand_kit'});
+    const styleResult=await api.branchModules.get(orgId,branchId,'presentation_style');
+    const style=styleResult?.data || {};
+    await api.branchModules.save(orgId,branchId,'presentation_style',{...style,branding:{...style.branding,...fields}},{kind:'branch_presentation_style',source:'brand_kit'});
   }
   async function extractPalette(source){
     if (!source) throw new Error('Upload a logo first.');
@@ -181,5 +207,5 @@
     for(const entry of ranked){ if(distinct.length>=6)break; if(distinct.every((chosen)=>Math.sqrt((entry.r-chosen.r)**2+(entry.g-chosen.g)**2+(entry.b-chosen.b)**2)>=42))distinct.push(entry); }
     return distinct.map(({r,g,b})=>`#${[r,g,b].map((value)=>value.toString(16).padStart(2,'0')).join('')}`.toUpperCase());
   }
-  root.PlatformBrandKit = { markup, fill, bind, renderPalette, renderLogoAppearance, renderAlternates, extractPalette, displayValue, resolveLogo, fonts:DEFAULT_FONTS };
+  root.PlatformBrandKit = { markup, fill, bind, renderPalette, renderLogoAppearance, renderAlternates, extractPalette, displayValue, resolveLogo, saveLogo, fonts:DEFAULT_FONTS };
 })(window);

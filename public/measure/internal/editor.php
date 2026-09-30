@@ -1401,6 +1401,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
       window.FIRSTMEASURE_BROWSER_GOOGLE_API_KEY = <?=json_encode($GOOGLE_BROWSER_API_KEY, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)?>;
       window.FIRSTMEASURE_AZURE_MAPS_KEY = <?=json_encode($AZURE_MAPS_SUBSCRIPTION_KEY, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)?>;
     </script>
+    <script data-fm-color-picker src="../../libraries/color-picker/firstmate-color-picker.js?v=<?=fm_editor_asset_version('../../libraries/color-picker/firstmate-color-picker.js')?>"></script>
     <script src="editor_scripts/editor_history.js?v=<?=fm_editor_asset_version('editor_scripts/editor_history.js')?>"></script>
     <script src="editor_scripts/geometry_core.js?v=<?=fm_editor_asset_version('editor_scripts/geometry_core.js')?>"></script>
     <script src="editor_scripts/structure_mode.js?v=<?=fm_editor_asset_version('editor_scripts/structure_mode.js')?>"></script>

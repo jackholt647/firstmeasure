@@ -800,7 +800,7 @@
       const palette = arrayValue(colors.palette).slice(0, 6).map((color, index) => brandHex(color, index ? secondary : primary));
       while (palette.length < 6) palette.push([primary, secondary, '#E8E8E8', '#A0A0A0', '#666666', '#202124'][palette.length]);
       palette[0] = primary; palette[1] = secondary;
-      state.brandKit = { primary, secondary, palette, font: firstText(typography.document_font_family, objectValue(style.proposal_defaults).font_family, style.proposal_font_family, 'Montserrat'), logo: firstText(brand.logo, brand.logo_node_url), branch, style, global: objectValue(objectValue(portal.global).data) };
+      state.brandKit = { primary, secondary, palette, font: firstText(typography.document_font_family, objectValue(style.proposal_defaults).font_family, style.proposal_font_family, 'Montserrat'), title_font:firstText(typography.display_font_family, typography.heading_font_family), logo_display:window.PlatformBrandKit.displayValue(brand.logo_display), logo:window.PlatformBrandKit.resolveLogo(orgId(), globalBrand, orgBrand, branch.branding, style.branding), branch, style, global: objectValue(objectValue(portal.global).data) };
       if (!state.destroyed && state.tab === 'brand-kit') render();
     }
     function renderBrandKit(body){
@@ -810,65 +810,63 @@
         loadBrandKit().catch((error) => { body.innerHTML = `<div class="fmdx-state"><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_8de98bdc13084c","Could not load Brand Kit") ?? "Could not load Brand Kit")}</strong><span>${esc(errorMessage(error))}</span><button class="fmdx-btn" data-brand-retry>${(globalThis.PlatformLanguage?.htmlText("documents","m_48a9cdd2af44f4","Retry") ?? "Retry")}</button></div>`; body.querySelector('[data-brand-retry]')?.addEventListener('click', () => renderBrandKit(body)); });
         return;
       }
-      body.innerHTML = `<div class="fmdx-brand-kit">
-        <header class="fmdx-brand-head"><div><h2>${(globalThis.PlatformLanguage?.htmlText("documents","m_38e15f7a2dd540","Brand Kit") ?? "Brand Kit")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("documents","m_f8aaf6aa60f388","Shared with Company Information. These styles are the starting point for new documents and themes.") ?? "Shared with Company Information. These styles are the starting point for new documents and themes.")}</p></div><button type="button" class="fmdx-btn primary" data-brand-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_13fcb6ceae139c"," Save") ?? " Save")}</button></header>
-        <div class="fmdx-brand-status" role="status"></div>
-        <div class="fmdx-brand-grid">
-          <section class="fmdx-brand-card"><h3>${(globalThis.PlatformLanguage?.htmlText("documents","m_6bb25348173069","Color palette") ?? "Color palette")}</h3><div class="fmdx-brand-card-body"><div class="fmdx-brand-swatches">${kit.palette.map((color, index) => `<label><span>${['Primary · UI','Secondary · UI','Supporting 1','Supporting 2','Supporting 3','Supporting 4'][index]}</span><input type="color" data-brand-color="${index}" value="${esc(color)}"><input class="fmdx-brand-hex" data-brand-hex="${index}" value="${esc(color)}" maxlength="7" spellcheck="false"></label>`).join('')}</div></div></section>
-          <section class="fmdx-brand-card"><h3>${(globalThis.PlatformLanguage?.htmlText("documents","m_a63c5a4c25569b","Logo") ?? "Logo")}</h3><div class="fmdx-brand-card-body"><div class="fmdx-brand-logo">${kit.logo ? `<img src="${esc(kit.logo)}" alt="${(globalThis.PlatformLanguage?.htmlText("documents","m_177f1dc4fdc914","Company logo") ?? "Company logo")}">` : `<span>${(globalThis.PlatformLanguage?.htmlText("documents","m_8dcdc13c007234","No logo uploaded") ?? "No logo uploaded")}</span>`}</div><label class="fmdx-btn" for="fmdxBrandLogo"><i class="fas fa-upload"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_ac8bf335945352"," Replace logo") ?? " Replace logo")}</label><input id="fmdxBrandLogo" type="file" accept="image/*" hidden><p>${(globalThis.PlatformLanguage?.htmlText("documents","m_eb55056b53954c","Transparent PNG or SVG works best.") ?? "Transparent PNG or SVG works best.")}</p></div></section>
-          <section class="fmdx-brand-card"><h3>${(globalThis.PlatformLanguage?.htmlText("documents","m_dba346dfc1916b","Company font") ?? "Company font")}</h3><div class="fmdx-brand-card-body"><label class="fmdx-field"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_5c6ac1b0faeaa0","Font family") ?? "Font family")}</span><select data-brand-font>${BRAND_FONTS.map((font) => `<option value="${esc(font)}" ${kit.font === font ? 'selected' : ''}>${esc(font)}</option>`).join('')}</select></label><p>${(globalThis.PlatformLanguage?.htmlText("documents","m_65c934edab2f63","Default font for new documents and templates.") ?? "Default font for new documents and templates.")}</p></div></section>
-        </div></div>`;
-      const status = body.querySelector('.fmdx-brand-status');
-      body.querySelectorAll('[data-brand-color]').forEach((input) => input.addEventListener('input', () => { body.querySelector(`[data-brand-hex="${input.dataset.brandColor}"]`).value = input.value.toUpperCase(); }));
-      body.querySelectorAll('[data-brand-hex]').forEach((input) => input.addEventListener('change', () => { const index = Number(input.dataset.brandHex); const color = brandHex(input.value, kit.palette[index]); input.value = color; body.querySelector(`[data-brand-color="${index}"]`).value = color; }));
-      body.querySelector('[data-brand-save]').addEventListener('click', async (event) => {
-        const button = event.currentTarget;
-        const palette = Array.from(body.querySelectorAll('[data-brand-color]')).map((input) => input.value.toUpperCase());
-        const font = body.querySelector('[data-brand-font]').value;
-        button.disabled = true; status.textContent = (globalThis.PlatformLanguage?.text("documents","m_ea600c018fb36c","Saving…") ?? "Saving…");
-        try {
-          const colors = { primary:palette[0], secondary:palette[1], accent:palette[0], palette };
-          const typography = { document_font_family:font };
-          const branch = kit.branch;
-          const style = kit.style;
-          await window.PlatformAPI.branches.save(orgId(), brandBranchId(), { ...branch, branding:{ ...objectValue(branch.branding), colors:{ ...objectValue(objectValue(branch.branding).colors), ...colors }, typography:{ ...objectValue(objectValue(branch.branding).typography), ...typography } } }, { source:'doc_studio_brand_kit' });
-          await window.PlatformAPI.branchModules.save(orgId(), brandBranchId(), 'presentation_style', { ...style, branding:{ ...objectValue(style.branding), colors:{ ...objectValue(objectValue(style.branding).colors), ...colors }, typography:{ ...objectValue(objectValue(style.branding).typography), ...typography } } }, { kind:'branch_presentation_style', source:'doc_studio_brand_kit' });
-          kit.primary = palette[0]; kit.secondary = palette[1]; kit.palette = palette; kit.font = font;
-          kit.branch = { ...branch, branding:{ ...objectValue(branch.branding), colors, typography } };
-          kit.style = { ...style, branding:{ ...objectValue(style.branding), colors, typography } };
-          document.documentElement.style.setProperty('--primary', palette[0]);
-          document.documentElement.style.setProperty('--fm-primary', palette[0]);
-          syncOnPrimaryVar(root);
-          status.textContent = (globalThis.PlatformLanguage?.text("documents","m_4bb4688766e904","Saved") ?? "Saved");
-          showToast((globalThis.PlatformLanguage?.text("documents","m_38e15f7a2dd540","Brand Kit") ?? "Brand Kit"), (globalThis.PlatformLanguage?.text("documents","m_7edde6c0c876d3","Company brand settings saved.") ?? "Company brand settings saved."));
-        } catch (error) { status.textContent = errorMessage(error, 'Could not save Brand Kit.'); showToast((globalThis.PlatformLanguage?.text("documents","m_38e15f7a2dd540","Brand Kit") ?? "Brand Kit"), status.textContent, false); }
-        finally { button.disabled = false; }
+      const shared=window.PlatformBrandKit;
+      body.innerHTML = `<div class="fmdx-brand-kit"><header class="fmdx-brand-head"><h2>Brand Kit</h2><button type="button" class="company-settings-card-help" title="Shared company styles used as the starting point for new documents and themes. Changes save automatically." aria-label="About Brand Kit">ⓘ</button></header>${shared.markup({prefix:'ds',advancedLogos:true,extendedPalette:true})}</div>`;
+      const fail=(error)=>showToast('Brand Kit',errorMessage(error,'Could not save Brand Kit.'),false);
+      const scheduleSave=()=>{
+        clearTimeout(kit.saveTimer);
+        kit.saveTimer=window.setTimeout(()=>{
+          const snapshot={palette:[...kit.palette],font:kit.font,title_font:kit.title_font || '',logo_display:{...kit.logo_display}};
+          kit.saveQueue=(kit.saveQueue || Promise.resolve()).catch(()=>{}).then(async()=>{
+            // Read at save time to preserve unrelated company edits and logo changes.
+            const branchResult=await window.PlatformAPI.branches.get(orgId(),brandBranchId());
+            const branch=objectValue(branchResult?.document?.data || branchResult?.data);
+            const styleResult=await window.PlatformAPI.branchModules.get(orgId(),brandBranchId(),'presentation_style');
+            const style=objectValue(styleResult?.data);
+            const colors={primary:snapshot.palette[0],secondary:snapshot.palette[1],accent:snapshot.palette[0],palette:snapshot.palette};
+            const typography={document_font_family:snapshot.font,body_font_family:snapshot.font,display_font_family:snapshot.title_font,heading_font_family:snapshot.title_font};
+            const merge=(data)=>({...data,branding:{...objectValue(data.branding),colors:{...objectValue(data.branding?.colors),...colors},typography:{...objectValue(data.branding?.typography),...typography},logo_display:snapshot.logo_display}});
+            kit.branch=merge(branch);kit.style=merge(style);
+            await window.PlatformAPI.branches.save(orgId(),brandBranchId(),kit.branch,{source:'doc_studio_brand_kit'});
+            await window.PlatformAPI.branchModules.save(orgId(),brandBranchId(),'presentation_style',kit.style,{kind:'branch_presentation_style',source:'doc_studio_brand_kit'});
+            showToast('Brand Kit','Changes saved automatically.');
+          }).catch(fail);
+        },400);
+      };
+      let editor;
+      let logos=[];
+      const renderLogos=()=>shared.renderAlternates(body,'ds',logos,{orgId:orgId(),primary:kit.logo,onSelect:selectLogo,onError:fail});
+      async function selectLogo(logo){
+        kit.saveQueue=(kit.saveQueue || Promise.resolve()).catch(()=>{}).then(()=>shared.saveLogo(orgId(),brandBranchId(),logo.src,logo.media_id));
+        await kit.saveQueue;
+        kit.logo=logo.src;editor.refresh();renderLogos();
+        showToast('Brand Kit','Primary logo saved automatically.');
+      }
+      async function loadLogos(){
+        try { const result=await window.PlatformAPI.brandingMedia.list(orgId(),{imageOnly:true});logos=arrayValue(result?.media);renderLogos(); }
+        catch(error){const list=body.querySelector('#dsAlternateLogoList');if(list)list.textContent='Could not load logos.';fail(error);}
+      }
+      editor=shared.bind(body,{prefix:'ds',value:kit,onChange:scheduleSave,onError:fail,
+        onGeneratePalette:async()=>shared.extractPalette(kit.logo),
+        onLogoUpload:async(file)=>{
+          try {const result=await window.PlatformAPI.brandingMedia.upload(orgId(),file,{slot:'logo',purpose:'logo'});const logo=window.PlatformAPI.brandingMedia.imageRef(orgId(),result.media);if(!logo.media_id)throw new Error('Logo upload returned no media ID.');await selectLogo(logo);await loadLogos();}catch(error){fail(error);}
+        },
+        onAlternateUpload:async(files)=>{
+          try {for(const file of files)await window.PlatformAPI.brandingMedia.upload(orgId(),file,{slot:'alternate_logo',purpose:'alternate_logo',metadata:{label:file.name}});await loadLogos();showToast('Brand Kit','Logos saved automatically.');}catch(error){fail(error);}
+        }
       });
-      body.querySelector('#fmdxBrandLogo').addEventListener('change', async (event) => {
-        const file = event.target.files?.[0]; if (!file) return;
-        status.textContent = (globalThis.PlatformLanguage?.text("documents","m_5519dbb7b1272f","Uploading logo…") ?? "Uploading logo…");
-        try {
-          const uploaded = await window.PlatformAPI.media.upload(orgId(), file, { ownerType:'organization', ownerId:orgId(), slot:'logo', collection:'branding' });
-          const mediaId = firstText(objectValue(uploaded.media).id, objectValue(uploaded.media).media_id);
-          if (!mediaId) throw new Error('Logo upload returned no media ID.');
-          const logo = `/v1/platform/organizations/${encodeURIComponent(orgId())}/media/${encodeURIComponent(mediaId)}/logo`;
-          await window.PlatformAPI.orgs.patchGlobal(orgId(), { branding:{ ...kit.global.branding, logo, logo_node_url:logo } });
-          await window.PlatformAPI.branches.save(orgId(), brandBranchId(), { ...kit.branch, branding:{ ...objectValue(kit.branch.branding), logo } }, { source:'doc_studio_brand_kit' });
-          if (kit.style.branding?.logo) await window.PlatformAPI.branchModules.save(orgId(), brandBranchId(), 'presentation_style', { ...kit.style, branding:{ ...objectValue(kit.style.branding), logo } }, { kind:'branch_presentation_style', source:'doc_studio_brand_kit' });
-          kit.logo = logo; kit.branch.branding = { ...objectValue(kit.branch.branding), logo }; kit.global.branding = { ...objectValue(kit.global.branding), logo, logo_node_url:logo };
-          renderBrandKit(body);
-          showToast((globalThis.PlatformLanguage?.text("documents","m_38e15f7a2dd540","Brand Kit") ?? "Brand Kit"), (globalThis.PlatformLanguage?.text("documents","m_4542876203ee48","Company logo saved.") ?? "Company logo saved."));
-        } catch (error) { status.textContent = errorMessage(error, 'Could not upload logo.'); showToast((globalThis.PlatformLanguage?.text("documents","m_38e15f7a2dd540","Brand Kit") ?? "Brand Kit"), status.textContent, false); }
-      });
+      loadLogos();
     }
+
     async function applyFontToBlankDocument(definition){
       const styleResult = state.brandKit?.style ? null : await window.PlatformAPI.branchModules.get(orgId(), brandBranchId(), 'presentation_style').catch(() => null);
       const style = state.brandKit?.style || objectValue(objectValue(styleResult).data);
       const font = firstText(objectValue(objectValue(style.branding).typography).document_font_family, objectValue(style.proposal_defaults).font_family, style.proposal_font_family, 'Montserrat');
+      const titleFont=firstText(style.branding?.typography?.display_font_family,style.branding?.typography?.heading_font_family,font);
       const styles = objectValue(definition.styles);
       const names = Object.keys(styles).length ? Object.keys(styles) : ['Normal text', 'Title', 'Subtitle', 'Heading 1', 'Heading 2', 'Heading 3'];
       definition.styles = { ...styles };
-      names.forEach((name) => { const current = objectValue(styles[name]); definition.styles[name] = { ...current, font:{ ...objectValue(current.font), family:font } }; });
+      names.forEach((name) => { const current = objectValue(styles[name]); definition.styles[name] = { ...current, font:{ ...objectValue(current.font), family:/^(title|subtitle|heading)/i.test(name) ? titleFont : font } }; });
       return definition;
     }
 
@@ -885,7 +883,6 @@
           <header class="fmdx-top">
             <div class="fmdx-top-title">
               <strong><i class="fas fa-pen-ruler" style="color:var(--fmdx-primary)"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_817205ba789887"," Doc Studio") ?? " Doc Studio")}</strong>
-              <span>${(globalThis.PlatformLanguage?.htmlText("documents","m_267b761027be3d","Design the templates and themes behind every document your team sends") ?? "Design the templates and themes behind every document your team sends")}</span>
             </div>
             <div class="fmdx-top-actions">
               ${String(capabilityEnabled('documents.advanced_definition_editing') ? `<button type="button" class="fmdx-btn" data-document-modules>${(globalThis.PlatformLanguage?.htmlText("documents","m_68b21459ee2100","Document modules") ?? "Document modules")}</button>` : '')}

@@ -1119,7 +1119,7 @@ test('Brand Kit loads with an absent presentation style module', async () => {
   const source = documentStudio.slice(start, end);
   const state = { brandKit: null, destroyed: true, tab: 'brand-kit' };
   const kit = await runInNewContext(`(async () => { ${source}; await loadBrandKit(); return state.brandKit; })()`, {
-    window: { PlatformAPI: {
+    window: { PlatformBrandKit:{displayValue:()=>({}),resolveLogo:()=>''}, PlatformAPI: {
       orgs: { portalState: async () => ({ global: null, organization: null }) },
       branches: { get: async () => null },
       branchModules: { get: async () => null }

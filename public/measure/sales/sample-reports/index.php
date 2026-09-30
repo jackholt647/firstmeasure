@@ -97,6 +97,7 @@ $assetVersion = (string)time();
   <script src="../../../libraries/report-units.js?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
   <script src="../../internal/editor_scripts/pdf.js?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
   <script src="../../internal/editor_scripts/pdf_standalone.js?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+  <script data-fm-color-picker src="../../../libraries/color-picker/firstmate-color-picker.js?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
   <script src="scripts/sample_reports.js?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {

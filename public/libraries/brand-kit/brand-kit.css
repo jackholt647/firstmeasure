@@ -126,3 +126,20 @@ text-transform: uppercase;
 .alternate-logo-empty{color:#98a2b3;font-size:9px;font-weight:800}
 @media(max-width:700px){.fm-brand-kit .company-font-card{max-width:none}.fm-brand-kit .company-brand-row{grid-template-columns:1fr}}
 @media(max-width:620px){.fm-brand-kit .brand-color-main{grid-template-columns:1fr}.fm-brand-kit .logo-editor{grid-template-columns:108px minmax(0,1fr)}.fm-brand-kit .logo-stage{width:108px}.fm-brand-kit .logo-advanced-grid{grid-template-columns:1fr}.fm-brand-kit .brand-palette-swatch span{display:none}}
+
+.fm-brand-kit .company-settings-card-help{border:0;background:transparent;font:inherit;color:#667085;padding:0;cursor:help}
+.fm-brand-kit .company-font-card .company-settings-card-body{display:grid;gap:9px}
+.fm-brand-kit [hidden]{display:none!important}
+.brand-title-toggle{display:flex;gap:7px;align-items:center;font-size:12px;color:#475467}
+.fm-brand-kit .company-brand-stack{grid-template-rows:auto 1fr}
+.fm-brand-kit .logo-editor{grid-template-columns:96px minmax(0,1fr)}
+.fm-brand-kit .logo-stage{width:96px;height:96px;padding:9px;flex:none}
+.fm-brand-kit .logo-stage img{width:100%;height:100%;object-fit:contain}
+.fm-brand-kit .alternate-logo-list{flex-wrap:wrap;overflow:visible;gap:8px}
+.fm-brand-kit .alternate-logo-item{height:72px;width:76px;flex:0 0 76px;grid-template-rows:minmax(0,1fr) auto;gap:4px;cursor:pointer;font:inherit;color:#475467}
+.fm-brand-kit .alternate-logo-item img{width:100%;height:100%}
+.fm-brand-kit .alternate-logo-item span{font-size:9px}
+.fm-brand-kit .alternate-logo-item.selected{border-color:var(--primary,#d93025)}
+.fm-brand-kit .brand-palette-swatch{height:56px}
+
+.fm-brand-kit .company-advanced summary::after{content:"▾";font-family:inherit}

@@ -2111,6 +2111,7 @@ session_write_close();
   <script src="https://cdn.jsdelivr.net/npm/geotiff"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script data-fm-color-picker src="../libraries/color-picker/firstmate-color-picker.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-api/platform-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-ui/platform-ui.js?v=<?= $ver ?>"></script>
   <script src="../libraries/platform-undo/platform-undo.js?v=<?= $ver ?>"></script>

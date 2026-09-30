@@ -1321,6 +1321,7 @@
       secondary: brandingColors.secondary ?? liveTheme?.secondary ?? DEFAULT_SECONDARY,
       palette: brandingColors.palette,
       font_family: o?.branding?.typography?.document_font_family || 'Montserrat',
+      title_font: o?.branding?.typography?.display_font_family || '',
       logo_display: normalizeLogoDisplay(o?.branding?.logo_display),
       company_email: contact.email || '',
       company_phone: contact.phone || '',
@@ -1370,6 +1371,7 @@
         if (branchColors.secondary) result.secondary = branchColors.secondary;
         if (Array.isArray(branchColors.palette)) result.palette = branchColors.palette;
         if (branchBrand.typography?.document_font_family) result.font_family = branchBrand.typography.document_font_family;
+        if (branchBrand.typography && 'display_font_family' in branchBrand.typography) result.title_font = branchBrand.typography.display_font_family || '';
         if (branchBrand.logo_display) result.logo_display = normalizeLogoDisplay(branchBrand.logo_display);
       }
       if (orgId && window.PlatformAPI?.branchModules?.get) {
@@ -1381,6 +1383,7 @@
         if (styleColors.secondary) result.secondary = styleColors.secondary;
         if (Array.isArray(styleColors.palette)) result.palette = styleColors.palette;
         if (styleBrand.typography?.document_font_family) result.font_family = styleBrand.typography.document_font_family;
+        if (styleBrand.typography && 'display_font_family' in styleBrand.typography) result.title_font = styleBrand.typography.display_font_family || '';
         if (styleBrand.logo_display) result.logo_display = normalizeLogoDisplay(styleBrand.logo_display);
         const styleLogo = logoFromBranding(styleBrand, orgId);
         if (shouldReplaceLogo(result.logo, styleLogo)) result.logo = styleLogo;
@@ -1391,7 +1394,7 @@
     result.logo_display = normalizeLogoDisplay(result.logo_display);
     return result;
   }
-  async function saveOrg({ name, primary, secondary, palette, font_family, logo_display, company_email, company_phone, company_address, company_business_address, report_preferences }){
+  async function saveOrg({ name, primary, secondary, palette, font_family, title_font, logo_display, company_email, company_phone, company_address, company_business_address, report_preferences }){
     const orgId = currentOrgId();
     if (!orgId) return { ok:false, error:'Missing organization.' };
     if (window.PlatformAPI?.branches?.get && window.PlatformAPI?.branches?.save) {
@@ -1412,7 +1415,7 @@
         },
         branding: {
           ...(branch.branding || {}),
-          typography: { ...(branch.branding?.typography || {}), document_font_family: font_family || 'Montserrat' },
+          typography: { ...(branch.branding?.typography || {}), document_font_family: font_family || 'Montserrat', body_font_family:font_family || 'Montserrat', ...(title_font !== undefined ? {display_font_family:title_font,heading_font_family:title_font} : {}) },
           logo: existingBranchLogo && existingBranchLogo !== DEFAULT_LOGO ? existingBranchLogo : companyLogoForSave(),
           logo_display: normalizeLogoDisplay(logo_display),
           colors: {
@@ -1445,7 +1448,7 @@
           companyName: name ?? styleData.companyName ?? '',
           branding: {
             ...(styleData.branding || {}),
-            typography: { ...(styleData.branding?.typography || {}), document_font_family: font_family || 'Montserrat' },
+            typography: { ...(styleData.branding?.typography || {}), document_font_family: font_family || 'Montserrat', body_font_family:font_family || 'Montserrat', ...(title_font !== undefined ? {display_font_family:title_font,heading_font_family:title_font} : {}) },
             logo_display: normalizeLogoDisplay(logo_display),
             colors: {
               ...(styleData.branding?.colors || {}),
@@ -16031,6 +16034,10 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         if(csPrimary) csPrimary.value = clampHex(state.primary, DEFAULT_PRIMARY);
         if(csSecondary) csSecondary.value = clampHex(state.secondary, DEFAULT_SECONDARY);
         if(csBrandFont) csBrandFont.value = state.font_family || 'Montserrat';
+        const title= $('#csTitleFont',paneCompany), toggle=$('#csSeparateTitleFont',paneCompany), field=$('#csTitleFontField',paneCompany);
+        if(title) title.value=state.title_font || state.font_family || 'Montserrat';
+        if(toggle) toggle.checked=!!state.title_font;
+        if(field) field.hidden=!state.title_font;
         if(csPrimaryHex) csPrimaryHex.value = clampHex(csPrimary.value, DEFAULT_PRIMARY).slice(1);
         if(csSecondaryHex) csSecondaryHex.value = clampHex(csSecondary.value, DEFAULT_SECONDARY).slice(1);
         if (csCompanyEmail) csCompanyEmail.value = state.company_email || '';
@@ -17348,7 +17355,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         brandSaveTimer = window.setTimeout(() => {
           const snapshot = {
             name:state.name, primary:state.primary, secondary:state.secondary,
-            palette:[...state.palette], font_family:state.font_family || 'Montserrat',
+            palette:[...state.palette], font_family:state.font_family || 'Montserrat', title_font:state.title_font || '',
             logo_display:{ ...state.logo_display },
             company_email:state.company_email, company_phone:state.company_phone,
             company_address:state.company_address, company_business_address:state.company_business_address,
@@ -17356,8 +17363,9 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           };
           brandSaveQueue = brandSaveQueue.catch(() => {}).then(() => saveOrg(snapshot)).then((result) => {
             if (!result.ok) throw new Error(result.error || 'Could not save Brand Kit.');
-            csStatus.textContent = (globalThis.PlatformLanguage?.text("settings","m_600e1e15c4efd9","Brand Kit saved") ?? "Brand Kit saved");
-          }, (error) => {
+            csStatus.textContent = '';
+            showToast('Brand Kit','Changes saved automatically.',true);
+          }).catch((error) => {
             csStatus.textContent = error?.message || 'Could not save Brand Kit.';
             showToast((globalThis.PlatformLanguage?.text("settings","m_569b229b85507e","Brand Kit save failed") ?? "Brand Kit save failed"), csStatus.textContent, false);
           });
@@ -17372,6 +17380,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       });
       brandRoot?.addEventListener('change', (event) => {
         if (event.target?.id === 'csBrandFont') { state.font_family = event.target.value; scheduleBrandSave(); }
+        if (event.target?.id === 'csTitleFont') {state.title_font=event.target.value;scheduleBrandSave();}
+        if (event.target?.id === 'csSeparateTitleFont') {state.title_font=event.target.checked ? state.font_family : '';const field=$('#csTitleFontField',paneCompany);if(field)field.hidden=!event.target.checked;const title=$('#csTitleFont',paneCompany);if(title)title.value=state.title_font || state.font_family;scheduleBrandSave();}
         if (event.target?.matches?.('[data-palette-direct], input[name="csLogoShape"]')) scheduleBrandSave();
       });
       brandRoot?.addEventListener('click', (event) => {
@@ -17508,7 +17518,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           state.palette = [state.primary, state.secondary, ...fallbacks.map((fallback,index)=>supporting[index] || fallback)];
           renderBrandPalette();
           scheduleBrandSave();
-          showToast((globalThis.PlatformLanguage?.text("settings","m_94d1237ff8a635","Palette generated") ?? "Palette generated"), (globalThis.PlatformLanguage?.text("settings","m_eb048f8fda1f67","Four supporting colors were pulled from your logo and saved.") ?? "Four supporting colors were pulled from your logo and saved."), true);
         } catch(e) {
           showToast((globalThis.PlatformLanguage?.text("settings","m_3e81c0909c4003","Could not generate palette") ?? "Could not generate palette"), e?.message || 'The logo colors could not be read.', false);
         } finally {
@@ -17517,7 +17526,14 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         }
       });
       const renderAlternateLogos = (items=[])=>{
-        window.PlatformBrandKit.renderAlternates(paneCompany, 'cs', items);
+        window.PlatformBrandKit.renderAlternates(paneCompany, 'cs', items, {orgId:currentOrgId(),primary:state.logo,
+          onSelect:async(logo)=>{
+            brandSaveQueue=brandSaveQueue.catch(()=>{}).then(()=>window.PlatformBrandKit.saveLogo(currentOrgId(),currentBranchId(),logo.src,logo.media_id));
+            await brandSaveQueue;state.logo=logo.src;lastSidebarLogoKey=null;lastPreviewLogoKey=null;
+            renderCompany({writeInputs:false,forceLogo:true});renderAlternateLogos(items);
+            showToast('Brand Kit','Primary logo saved automatically.',true);
+          },onError:(error)=>showToast('Brand Kit',error?.message || 'Could not change primary logo.',false)
+        });
       };
       const loadAlternateLogos = async ()=>{
         if (!csAlternateLogoList || !window.PlatformAPI?.brandingMedia?.list || !currentOrgId()) return;
@@ -17575,7 +17591,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           name: toSaveName,
           primary: state.primary,
           secondary: state.secondary,
-          font_family: state.font_family,
+          font_family: state.font_family, title_font:state.title_font || '',
           ...(extendedPalette ? { palette: state.palette } : {}),
           ...(advancedLogos ? { logo_display: state.logo_display } : {}),
           company_email: state.company_email,
