@@ -93,6 +93,15 @@ test('mounted Channels mention menus agree and red tokens survive channel, threa
       assert.ok((await page.evaluate(()=>[...CSS.highlights.get('fm-channel-mentions')].map(range=>range.toString()))).every(value=>!value.includes('ordinary')));
     };
     await parity(editor);
+    for (const token of ['@','@Liv']) {
+      await editor.fill(token+' ordinary text name@example.com @john@example.com');
+      await redHighlight(editor,token);
+      const pending=await editor.evaluate(node=>({
+        recipients:node._mentionApi.confirmedMentions(),
+        tokens:[...(CSS.highlights.get('fm-channel-mentions')||[])].filter(range=>node.contains(range.startContainer)).map(range=>range.toString())
+      }));
+      assert.deepEqual(pending.recipients,[]);assert.deepEqual(pending.tokens,[token]);
+    }
     await editor.fill('@J');await editor.press('ArrowLeft');await editor.press('ArrowRight');
     await page.locator('#fmMentionMenu.visible [data-mention-user="member"]').click();
     await editor.press('End');await page.keyboard.type('ordinary text');

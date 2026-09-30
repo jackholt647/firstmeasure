@@ -169,17 +169,29 @@
         }
         const labels = [...new Set(getMentionLabels().map(cleanText).filter(Boolean))].sort((a,b)=>b.length-a.length);
         const escaped = labels.map(label=>label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
-        const ranges = [];
+        const ranges = [], spans = [];
+        const addRange = (start,end) => {
+          if (spans.some(span=>start<span.end && end>span.start)) return;
+          const first = nodes.find(item=>item.start<=start && item.end>start);
+          const last = nodes.find(item=>item.start<end && item.end>=end);
+          if (!first || !last) return;
+          const range = document.createRange();
+          range.setStart(first.node,start-first.start); range.setEnd(last.node,end-last.start);
+          ranges.push(range); spans.push({start,end});
+        };
         if (escaped.length) {
           const expression = new RegExp(`(^|[\\s([{])(@(?:${escaped.join('|')}))(?=$|[\\s.,!?;:)\\]}])`, 'gi');
           for (const match of text.matchAll(expression)) {
             const start = match.index + match[1].length, end = start + match[2].length;
-            const first = nodes.find(item=>item.start<=start && item.end>start);
-            const last = nodes.find(item=>item.start<end && item.end>=end);
-            if (!first || !last) continue;
-            const range = document.createRange();
-            range.setStart(first.node,start-first.start); range.setEnd(last.node,end-last.start); ranges.push(range);
+            addRange(start,end);
           }
+        }
+        // Pending mention queries are visual only; matching never selects recipients.
+        // Boundaries exclude email addresses, and known multiword names keep their full range.
+        const pending = /(^|[\s([{])(@[\p{L}\p{N}_-]*)(?=$|[\s.,!?;:)\]}])/gu;
+        for (const match of text.matchAll(pending)) {
+          const start = match.index + match[1].length;
+          addRange(start,start+match[2].length);
         }
         channelMentionRanges.set(textarea,ranges); publish();
       };
