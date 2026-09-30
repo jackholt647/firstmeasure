@@ -781,7 +781,7 @@ export async function setMemberNotifyLevel(channelId: string, userId: string, no
 
 export async function removeChannelMember(channelId: string, userId: string) {
   return (await getChannelsDatabase().transaction(async () => {
-  (await getChannelsDatabase()
+  return (await getChannelsDatabase()
     .prepare("DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?")
     .run(channelId, userId));
 

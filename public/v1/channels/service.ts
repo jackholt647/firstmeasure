@@ -923,7 +923,18 @@ export async function removeMember(ctx: PlatformAuthContext, channelId: string, 
   }
   const member = await readChannelMember(channelId,userId);
   if (["public","private"].includes(channel.type) && member && member.role !== "member" && (await listChannelMembers(channelId)).filter(item => item.role !== "member").length <= 1) throw badRequest("last_channel_manager","Assign another channel manager first.");
-  (await removeChannelMember(channelId, userId));
+  const removed = await removeChannelMember(channelId, userId);
+  if (removed.changes > 0) {
+    const directory = await userDirectory(ctx.orgId);
+    const name = directory.get(userId)?.name || "Someone";
+    await createMessageRecord({
+      organization_id: ctx.orgId,
+      channel_id: channelId,
+      author_id: ctx.userId,
+      kind: "system",
+      text: userId === ctx.userId ? `${name} left the channel.` : `${name} was removed from the channel.`
+    });
+  }
   (await publishRealtimeEvent({
     organization_id: ctx.orgId,
     topic: "channels.channel.updated",

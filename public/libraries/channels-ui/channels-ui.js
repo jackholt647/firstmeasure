@@ -1404,6 +1404,7 @@
         }
         if (topic === 'channels.channel.updated' || topic === 'channels.unreads.changed' || topic === 'channels.read.updated') {
           debouncedLoadChannels();
+          if (topic === 'channels.channel.updated' && payload.action === 'members_changed' && payload.channel_id === state.activeChannelId) refreshActiveMessages();
           return;
         }
         if (topic.startsWith('channels.huddle.') && state.huddle?.id === payload.huddle_id) {
@@ -5511,10 +5512,17 @@
             const remove = el('button', 'fm-ch-icon-btn', '<i class="fas fa-xmark"></i>');
             remove.title = (globalThis.PlatformLanguage?.text("channels-ui","m_47839980185da7","Remove from channel") ?? "Remove from channel");
             remove.addEventListener('click', async () => {
+              remove.disabled = true;
               try {
                 await api.channels.removeMember(orgId, channel.id, member.id);
-                rowNode.remove();
-              } catch (error) { showError(error); }
+                await loadChannels();
+                if (state.activeChannelId === channel.id) {
+                  await refreshActiveMessages();
+                  renderHeader();
+                  close();
+                  await openMembersModal();
+                } else close();
+              } catch (error) { remove.disabled = false; showError(error); }
             });
             rowNode.appendChild(remove);
           }
@@ -5538,7 +5546,7 @@
         try {
           await api.channels.addMembers(orgId, channel.id, [...selected]);
           close(); await loadChannels();
-          if (state.activeChannelId === channel.id) { const data = await api.channels.get(orgId, channel.id); state.activeChannel = data.channel; renderHeader(); }
+          if (state.activeChannelId === channel.id) { await refreshActiveMessages(); renderHeader(); }
         } catch (error) { showError(error); }
       } }] : [])]);
     }
