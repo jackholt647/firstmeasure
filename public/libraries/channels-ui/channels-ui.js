@@ -216,12 +216,26 @@
       else blocks.push(`<div>${inline(line) || '<br>'}</div>`);
     }
     let html = blocks.join('');
-    for (const user of (message.mention_users || [])) {
-      const name = cleanText(user.name);
-      if (!name) continue;
-      html = html.split(`@${esc(name)}`).join(`<span class="fm-ch-mention">@${esc(name)}</span>`);
+    const labels = [...new Set(['channel','here',...(message.mention_users || []).map(user=>cleanText(user.name)).filter(Boolean)])].sort((a,b)=>b.length-a.length);
+    const escaped = labels.map(label=>label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+    const expression = new RegExp(`(^|[\\s([{])(@(?:${escaped.join('|')}))(?=$|[\\s.,!?;:)\\]}])`, 'gi');
+    const container = document.createElement('div'); container.innerHTML = html;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    const nodes = []; let node;
+    while ((node = walker.nextNode())) nodes.push(node);
+    for (const textNode of nodes) {
+      const value = textNode.textContent, fragment = document.createDocumentFragment();
+      let cursor = 0;
+      for (const match of value.matchAll(expression)) {
+        const start = match.index + match[1].length;
+        fragment.append(document.createTextNode(value.slice(cursor,start)));
+        const token = document.createElement('span'); token.className = 'fm-ch-mention'; token.textContent = match[2]; fragment.append(token);
+        cursor = start + match[2].length;
+      }
+      if (!cursor) continue;
+      fragment.append(document.createTextNode(value.slice(cursor))); textNode.replaceWith(fragment);
     }
-    return html;
+    return container.innerHTML;
   }
 
   // The wire format remains Markdown, so drafts, search, edits, scheduled sends,
@@ -787,7 +801,8 @@
 @keyframes fm-ch-spin{to{transform:rotate(360deg)}}
 .fm-ch-translation-note{display:inline-flex;align-items:center;gap:5px;margin-top:2px;color:var(--ch-muted);font-size:9.5px;font-weight:700}
 .fm-ch-translation-note i{font-size:9px}
-.fm-ch-mention{background:var(--ch-accent-soft);color:var(--ch-accent);border-radius:4px;padding:0 3px;font-weight:600}
+.fm-ch-mention{background:rgba(217,48,37,.08);color:#d93025;border-radius:4px;padding:0 3px;font-weight:600}
+.fm-ch-formatbar button[data-mention-button]{color:#d93025}
 .fm-ch-msg-deleted{color:var(--ch-muted);font-style:italic;display:flex;align-items:center;gap:8px}
 .fm-ch-restore-link{color:var(--ch-muted);font-size:12px;font-style:normal;text-decoration:underline;opacity:.7}
 .fm-ch-restore-link:hover{color:var(--ch-accent);opacity:1}
@@ -4155,7 +4170,7 @@
     }
 
     function collectMentions(text){
-      const confirmed = [...(mentionApi?.confirmedMentions?.() || []), ...(textarea?.mentionUsers?.filter(user => text.includes(`@${user.name}`)) || [])];
+      const confirmed = [...new Map([...(mentionApi?.confirmedMentions?.() || []), ...(textarea?.mentionUsers?.filter(user => text.includes(`@${user.name}`)) || [])].map(user=>[user.id || user.user_id || user.email,user])).values()];
       if (Array.isArray(confirmed) && confirmed.length) {
         return confirmed.map((user) => ({
           id: cleanText(user.id || user.user_id),
@@ -4173,23 +4188,34 @@
 
     function bindRichMentions(editor, box){
       const button = el('button', '', '@'); button.type = 'button'; button.title = (globalThis.PlatformLanguage?.text("channels-ui","m_c5226e930e6ce6","Mention a teammate") ?? "Mention a teammate"); button.setAttribute('aria-label', button.title);
+      button.dataset.mentionButton = 'true';
       button.onmousedown = event => event.preventDefault();
       button.onclick = async () => {
+        const channelId = state.activeChannel?.id;
         const range = root.getSelection()?.rangeCount && editor.contains(root.getSelection().anchorNode) ? root.getSelection().getRangeAt(0).cloneRange() : null;
         try {
-          const members = new Set(conversationMemberIds());
-          const users = (await orgUsers()).filter(user => user.id === 'agent_assistant' || members.has(user.id));
+          await editor._mentionApi?.ready;
+          if (!editor.isConnected || state.activeChannel?.id !== channelId) return;
+          const users = editor._mentionApi?.mentionCandidates?.() || [
+            {id:'broadcast:channel',name:'channel',email:'Everyone in this conversation'},
+            {id:'broadcast:here',name:'here',email:'Online members of this conversation'},
+            ...(await orgUsers()).filter(user => user.id === 'agent_assistant' || conversationMemberIds().includes(user.id))
+          ];
+          if (!editor.isConnected || state.activeChannel?.id !== channelId) return;
           if (!users.some(user => user.id === 'agent_assistant')) users.push({id:'agent_assistant',name:'FirstMate Assistant'});
           showPopover(button, pop => {
             const search = el('input', 'fm-ch-emoji-search'); search.placeholder = (globalThis.PlatformLanguage?.text("channels-ui","m_2263d8ccee3221","Find a teammate…") ?? "Find a teammate…"); search.setAttribute('aria-label', search.placeholder);
             const results = el('div', 'fm-ch-message-menu'); pop.append(search, results);
             const render = () => {
               results.innerHTML = '';
-              for (const user of users.filter(user => user.id !== currentUser.id && String(user.name).toLowerCase().includes(search.value.toLowerCase())).slice(0, 30)) {
-                const item = el('button', '', esc(user.name)); item.onclick = () => {
+              for (const user of users.filter(user => `${user.name} ${user.email || ''}`.toLowerCase().includes(search.value.toLowerCase()))) {
+                const label = user.id === 'broadcast:channel' ? 'Everyone in this conversation · @channel' : user.id === 'broadcast:here' ? 'Online members · @here' : user.name;
+                const item = el('button', '', esc(label)); item.dataset.mentionUser = user.id; item.onclick = () => {
+                  if (!editor.isConnected || state.activeChannel?.id !== channelId) { closePopover(); return; }
                   editor.focus(); if (range) { root.getSelection().removeAllRanges(); root.getSelection().addRange(range); }
                   editor.insertText(`@${user.name} `);
                   if (!editor.mentionUsers.some(person => person.id === user.id)) editor.mentionUsers.push(user);
+                  editor._mentionApi?.setSelectedMentions?.([...(editor._mentionApi.confirmedMentions?.() || []),user]);
                   closePopover();
                 }; results.append(item);
               }
@@ -4503,6 +4529,7 @@
       try {
         if (root.FirstMateTags?.attachMentionTextarea) {
           mentionApi = root.FirstMateTags.attachMentionTextarea(textarea, { orgId, source: 'channels', memberIds: conversationMemberIds, onSelect:user=>{if (!textarea.mentionUsers.some(item=>item.id===user.id)) textarea.mentionUsers.push(user);} }) || null;
+          textarea._mentionApi = mentionApi;
         }
       } catch (error) {}
 
@@ -4631,6 +4658,8 @@
         editNote.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6a6c0d2dcfcb47","Editing message") ?? "Editing message")}</span><button>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
         editNote.querySelector('button').addEventListener('click', cancelEdit);
         textarea.value = message.text;
+        textarea.mentionUsers = [...(message.mention_users || [])];
+        mentionApi?.setSelectedMentions?.(textarea.mentionUsers);
         send.textContent='Save changes';if(schedule)schedule.hidden=true;
         composerState.audience = [...(message.audience || [])];
         autosize();
@@ -4776,6 +4805,7 @@
       try {
         if (root.FirstMateTags?.attachMentionTextarea) {
           threadMentionApi = root.FirstMateTags.attachMentionTextarea(threadInput, { orgId, source: 'channels', memberIds: conversationMemberIds }) || null;
+          threadInput._mentionApi = threadMentionApi;
         }
       } catch (error) {}
       const editNote = el('div', 'fm-ch-edit-note');
@@ -4789,7 +4819,7 @@
         if (!text && !threadFiles.length) return;
         send.disabled = true;
         try {
-          const mentions = [...(threadMentionApi?.confirmedMentions?.() || []), ...threadInput.mentionUsers.filter(user => text.includes(`@${user.name}`))];
+          const mentions = [...new Map([...(threadMentionApi?.confirmedMentions?.() || []), ...threadInput.mentionUsers.filter(user => text.includes(`@${user.name}`))].map(user=>[user.id || user.user_id || user.email,user])).values()];
           if (editingId) {
             const data = await api.messages.edit(orgId, editingId, { text, mention_users: mentions });
             replaceMessage(data.message);
@@ -4842,6 +4872,8 @@
           threadInput.value = '';
         });
         threadInput.value = message.text;
+        threadInput.mentionUsers = [...(message.mention_users || [])];
+        threadMentionApi?.setSelectedMentions?.(threadInput.mentionUsers);
         threadInput.focus();
       };
     }

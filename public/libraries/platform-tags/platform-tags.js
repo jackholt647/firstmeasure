@@ -4,6 +4,7 @@
 (function(){
   const root = window;
   const cache = new Map();
+  const channelMentionRanges = new Map();
 
   function cleanText(value){ return String(value ?? '').trim(); }
   function escapeHtml(value){
@@ -139,6 +140,7 @@
       .fm-mention-mirror{position:absolute;pointer-events:none;overflow:hidden;color:transparent;white-space:pre-wrap;overflow-wrap:break-word}
       .fm-mention-avatar--agent{background:var(--primary-readable,var(--primary,#d93025));-webkit-mask:url('/images/logo_square.png') center / 82% no-repeat;mask:url('/images/logo_square.png') center / 82% no-repeat;border-radius:0;color:transparent}
       .fm-mention-hl{background:rgba(var(--primary-rgb,217,48,37),.14);border-radius:5px;box-shadow:0 0 0 1px rgba(var(--primary-rgb,217,48,37),.16)}
+      .fm-ch-rich-editor::highlight(fm-channel-mentions){color:#d93025;background-color:rgba(217,48,37,.08)}
     `);
   }
 
@@ -147,8 +149,45 @@
   // (transparent-backgrounded) textarea and paints a tinted pill under every
   // token the controller will actually send as a tag. The textarea's own
   // text renders on top, so typing behavior is untouched.
-  function attachMentionHighlight(textarea, getMentionLabels){
-    if (textarea.isContentEditable) return {refresh(){},destroy(){}};
+  function attachMentionHighlight(textarea, getMentionLabels, channelMentions = false){
+    if (textarea.isContentEditable) {
+      if (!channelMentions || !root.CSS?.highlights || !root.Highlight) return {refresh(){},destroy(){}};
+      const publish = () => {
+        for (const editor of channelMentionRanges.keys()) if (!editor.isConnected) channelMentionRanges.delete(editor);
+        const ranges = [...channelMentionRanges.values()].flat();
+        if (ranges.length) root.CSS.highlights.set('fm-channel-mentions', new root.Highlight(...ranges));
+        else root.CSS.highlights.delete('fm-channel-mentions');
+      };
+      const refresh = () => {
+        if (!textarea.isConnected) { channelMentionRanges.delete(textarea); publish(); return; }
+        const walker = document.createTreeWalker(textarea, NodeFilter.SHOW_TEXT);
+        const nodes = []; let text = '', node;
+        while ((node = walker.nextNode())) {
+          if (node.parentElement.closest('[contenteditable=false],[data-table-ui]')) continue;
+          nodes.push({node,start:text.length,end:text.length+node.textContent.length});
+          text += node.textContent;
+        }
+        const labels = [...new Set(getMentionLabels().map(cleanText).filter(Boolean))].sort((a,b)=>b.length-a.length);
+        const escaped = labels.map(label=>label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+        const ranges = [];
+        if (escaped.length) {
+          const expression = new RegExp(`(^|[\\s([{])(@(?:${escaped.join('|')}))(?=$|[\\s.,!?;:)\\]}])`, 'gi');
+          for (const match of text.matchAll(expression)) {
+            const start = match.index + match[1].length, end = start + match[2].length;
+            const first = nodes.find(item=>item.start<=start && item.end>start);
+            const last = nodes.find(item=>item.start<end && item.end>=end);
+            if (!first || !last) continue;
+            const range = document.createRange();
+            range.setStart(first.node,start-first.start); range.setEnd(last.node,end-last.start); ranges.push(range);
+          }
+        }
+        channelMentionRanges.set(textarea,ranges); publish();
+      };
+      const observer = new MutationObserver(refresh);
+      observer.observe(textarea,{subtree:true,childList:true,characterData:true});
+      refresh();
+      return {refresh,destroy(){observer.disconnect();channelMentionRanges.delete(textarea);publish();}};
+    }
     const parent = textarea.parentElement;
     if (!parent) return { refresh(){}, destroy(){} };
     if (getComputedStyle(parent).position === 'static') parent.style.position = 'relative';
@@ -276,7 +315,7 @@
     const candidates = () => users.filter(allowed);
     // Team-messaging surfaces also offer the AI agent(s) as mention targets.
     const includeAgents = options.includeAgents === true || options.source === 'channels';
-    Promise.all([
+    const ready = Promise.all([
       listUsers(oid).catch(() => []),
       includeAgents ? listAgentParticipants(oid) : Promise.resolve([]),
       options.source === 'channels' ? Promise.resolve({}) : (root.ChannelsAPI?.channels?.list ? root.ChannelsAPI.channels.list(oid) : fetch(`/v1/channels/organizations/${encodeURIComponent(oid)}/channels`,{credentials:'include'}).then(res=>res.ok?res.json():{})).catch(()=>({}))
@@ -287,6 +326,7 @@
       if (options.source === 'channels' && !users.some(user => user.id === 'agent_assistant')) {
         users.push({...normalizeUser({id:'agent_assistant',name:'FirstMate Assistant'}),agent:true});
       }
+      highlighter.refresh();
       if (document.activeElement === textarea) update();
     }).catch(() => {});
 
@@ -298,7 +338,7 @@
       extractMentions(value, candidates()).forEach((user) => labels.add(user.name || user.email || user.id));
       selected.forEach((user) => allowed(user) && labels.add(user.name || user.email || user.id));
       return [...labels];
-    });
+    }, options.source === 'channels');
 
     function hide(){
       if (menu._mentionOwner && menu._mentionOwner !== textarea) return;
@@ -385,7 +425,8 @@
       }
     }
     textarea.addEventListener('input', update);
-    textarea.addEventListener('keyup', update);
+    const onKeyup = event => { if (event.key !== 'Escape') update(); };
+    textarea.addEventListener('keyup', onKeyup);
     textarea.addEventListener('click', update);
     textarea.addEventListener('keydown', onKeydown, true);
     const onOutsideClick = (event) => {
@@ -393,6 +434,8 @@
     };
     document.addEventListener('mousedown', onOutsideClick);
     return {
+      ready,
+      mentionCandidates(){ return candidates(); },
       selectedMentions(){
         const found = extractMentions(textarea.value || '', candidates());
         found.forEach((user) => selected.set(user.id, user));
@@ -411,7 +454,7 @@
       destroy(){
         document.removeEventListener('mousedown', onOutsideClick);
         textarea.removeEventListener('input', update);
-        textarea.removeEventListener('keyup', update);
+        textarea.removeEventListener('keyup', onKeyup);
         textarea.removeEventListener('click', update);
         textarea.removeEventListener('keydown', onKeydown, true);
         highlighter.destroy();
