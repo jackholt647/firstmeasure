@@ -21,13 +21,15 @@
     .time-section{min-width:0}.combined .time-section{border-left:1px solid var(--line);padding-left:18px}.time-title{display:block;font-weight:650;margin-bottom:4px}.time-date{display:block;color:#788196;font-size:12px;min-height:18px;margin-bottom:12px}.slots{display:flex;flex-direction:column;gap:7px;height:234px;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--accent) 35%,#ddd) transparent;padding:3px 5px 3px 3px;scroll-padding:4px}.slots button{flex:none;min-height:40px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}.slots button:hover{border-color:var(--accent);background:var(--tint)}.slots button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}.slots button:disabled{border-color:var(--line);background:transparent;color:#788196}
     details{margin-top:12px}summary{cursor:pointer;font-size:12px;color:var(--ink);width:fit-content}.time{margin:8px 0}.time label{flex:0 1 76px;color:#788196;font-size:12px}.time input{display:block;width:100%;margin-top:4px;padding:8px 6px;text-align:center;border:1px solid var(--line);border-radius:10px;font-size:20px;font-variant-numeric:tabular-nums;color:#202638;background:#f8f9fc}.period{align-self:flex-end;border:1px solid var(--line);height:46px;font-weight:600}.footer{border-top:1px solid var(--line);padding-top:12px;margin-top:14px}.footer .spacer{flex:1}.primary{background:var(--accent);color:var(--on-accent);font-weight:600}.primary:hover{background:var(--accent);filter:brightness(.93)}.error{font-size:12px;color:#b42318;margin-top:10px}.error:empty{display:none}
     .combined .time{flex-wrap:wrap;gap:4px}.combined .time label{flex:1 1 0;min-width:0}.combined .time input{height:32px;font-size:16px;padding:4px 3px;border-radius:7px}.combined .time>span{align-self:center;margin-top:16px}.combined .period{flex-basis:100%;height:30px;padding:4px}.combined summary{font-size:11px}
+    .time input{padding-inline:0;text-align:center;appearance:textfield;-moz-appearance:textfield}.time input::-webkit-inner-spin-button,.time input::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;display:none;margin:0}
     @media(max-width:520px){.picker{padding:12px}.combined .layout{grid-template-columns:minmax(0,1fr) 100px;gap:10px}.combined .time-section{padding-left:9px}.quick{flex-wrap:wrap;gap:3px}.quick button{font-size:10px;padding:6px}.navigation{gap:2px}.navigation button{padding:6px}.month{font-size:12px}.year{width:53px;font-size:12px;padding:4px}.days{gap:1px}.days button{font-size:11px;height:32px}.slots{height:234px;padding-right:3px}.slots button{font-size:12px;padding:8px 2px}.time-date{font-size:10px}}
   `;
   function valid(input, value) {
     const probe = input.cloneNode();
     probe.value = value;
     // Use the browser's date/step rules without changing the live form or its custom errors.
-    return (!value || probe.value === value) && probe.validity.valid;
+    const future = !input.hasAttribute('data-future-only') || input.type !== 'datetime-local' || new Date(value).getTime() > Date.now();
+    return (!value || probe.value === value) && probe.validity.valid && future;
   }
   function close(restore = true) {
     if (!active) return;
@@ -79,13 +81,21 @@
     if (!options.mount && host.showPopover) host.showPopover();
     input.setAttribute('aria-expanded','true');
     const candidate = () => kind === 'date' ? chosenDate : kind === 'time' ? chosenTime : `${chosenDate}T${chosenTime}`;
+    function validateCandidate(value) {
+      const allowed = valid(input, value);
+      const past = input.hasAttribute('data-future-only') && kind === 'datetime-local' && new Date(value).getTime() <= Date.now();
+      shadow.querySelector('.error').textContent = allowed ? '' : text(past ? 'Choose a future date and time.' : 'Choose a value within the allowed range and time interval.');
+      for (const field of shadow.querySelectorAll('[data-time]')) field.setAttribute('aria-invalid', String(!allowed));
+      return allowed;
+    }
     function commit(value, refresh = true) {
-      if (!valid(input, value)) { shadow.querySelector('.error').textContent = text('Choose a value within the allowed range and time interval.'); return; }
+      if (!validateCandidate(value)) return false;
       const changed = input.value !== value;
       input.value = value;
       if (!options.mount) close();
       else if (refresh) render();
       if (changed) { input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); }
+      return true;
     }
     function render(focusDate) {
       let calendar = '';
@@ -152,7 +162,7 @@
     function readTime() {
       if (!hasTime || !shadow.querySelector('details')?.open) return true;
       const fields = [...shadow.querySelectorAll('[data-time]')];
-      if (fields.some(f => !f.value || !f.validity.valid)) { shadow.querySelector('.error').textContent = text('Enter a valid time.'); return false; }
+      if (fields.some(f => !f.value || !f.validity.valid)) { shadow.querySelector('.error').textContent = text('Enter a valid time.'); for (const field of fields) field.setAttribute('aria-invalid', String(!field.value || !field.validity.valid)); return false; }
       let h = Number(fields[0].value);
       if (hour12) h = h % 12 + (shadow.querySelector('[data-period]').textContent === 'PM' ? 12 : 0);
       chosenTime = `${pad(h)}:${pad(Number(fields[1].value))}${seconds?`:${Number(fields[2].value).toFixed(fractional ? 3 : 0).padStart(fractional ? 6 : 2, '0')}`:''}`;
@@ -165,11 +175,12 @@
       if (b.dataset.slot) { chosenTime=b.dataset.slot; commit(candidate()); return; }
       if (!readTime()) return;
       if (b.hasAttribute('data-apply')) { commit(candidate()); return; }
-      if (b.dataset.date) { chosenDate = b.dataset.date; month = localDate(chosenDate); month.setDate(1); if(options.mount) commit(candidate()); render(chosenDate); return; }
+      if (b.dataset.date) { chosenDate = b.dataset.date; month = localDate(chosenDate); month.setDate(1); render(chosenDate); if(options.mount) commit(candidate(), false); return; }
       if (b.dataset.month) { month.setMonth(month.getMonth()+Number(b.dataset.month)); render(); shadow.querySelector(`[data-month="${b.dataset.month}"]`).focus(); return; }
       if (b.dataset.offset) { const d = new Date(now); d.setDate(d.getDate()+Number(b.dataset.offset)); chosenDate = dateKey(d); month = localDate(chosenDate); month.setDate(1); render(chosenDate); return; }
       if (b.hasAttribute('data-period')) { const [h,...rest] = chosenTime.split(':'); chosenTime = [pad((Number(h)+12)%24),...rest].join(':'); }
       render();
+      if (b.hasAttribute('data-period') && options.mount) commit(candidate(), false);
       shadow.querySelector(b.hasAttribute('data-period')?'[data-period]':`[data-slot="${b.dataset.slot}"]`)?.focus();
     });
     shadow.addEventListener('change', event => {
@@ -207,7 +218,7 @@
     render();
     (shadow.querySelector('[data-date][tabindex="0"]:not(:disabled)') || shadow.querySelector('[data-slot][tabindex="0"]') || shadow.querySelector('button')).focus();
     observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled','readonly','type','open']});
-    return { readValue: () => readTime() ? candidate() : '', destroy: () => { if(active?.host===host)close(false); } };
+    return { readValue: () => readTime() && validateCandidate(candidate()) ? candidate() : '', destroy: () => { if(active?.host===host)close(false); } };
   }
   // Observe only insertions and type changes; no per-field handlers or polling.
   function enhance(node) {
