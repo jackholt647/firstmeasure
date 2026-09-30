@@ -47,6 +47,23 @@ export async function withProjectDocumentLock<T>(orgId: string, projectId: strin
   }
 }
 
+/* R4-EQ-5: equipment double-booking. The conflict check reads every booking
+ * of the unit (other projects, floating calendar events) and the write then
+ * stores this one; two writers for different projects hold different project
+ * locks, so both could pass the check before either writes. Writes that carry
+ * or release equipment therefore also hold one per-organization booking lock
+ * from the check through the write, and re-run the check inside it.
+ *
+ * Lock order: always taken INSIDE a project / calendar item lock and never
+ * the other way round (nothing inside it takes a project lock), so it cannot
+ * deadlock. Like the project lock it is in-process only: several web
+ * processes serving one organization can still interleave (the storage layer
+ * has no cross-document transaction to make the check-and-write atomic). */
+export async function withEquipmentBookingLock<T>(orgId: string, enabled: boolean, work: () => Promise<T>): Promise<T> {
+  if (!enabled) return await work();
+  return await withProjectDocumentLock(orgId, "\u0000equipment_bookings", work);
+}
+
 export function isRevisionConflict(error: unknown) {
   return error instanceof PlatformError && (error.code === "revision_conflict" || error.code === "document_revision_conflict");
 }

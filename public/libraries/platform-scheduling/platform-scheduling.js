@@ -859,11 +859,15 @@
     return 'auto';
   }
 
-  function groupRollupRange(events = [], groupEvent = {}){
-    const children = eventChildren(events, groupEvent.id).filter((child) => eventIsScheduled(child));
+  // `resolve` maps each member first (nested groups use their own rollup).
+  function groupRollupRange(events = [], groupEvent = {}, resolve = null){
+    const members = eventChildren(events, groupEvent.id).map((child) => typeof resolve === 'function' ? resolve(child) : child);
+    const children = members.filter((child) => eventIsScheduled(child));
     if (!children.length) {
       const start = eventStart(groupEvent);
-      return { start, end:start ? eventEnd(groupEvent) : null, derived:false, child_count:0 };
+      // Every member waits off the calendar (cancelled items keep a place).
+      const waiting = members.length > 0 && members.every((child) => !eventStart(child) || cleanText(child.status).toLowerCase() === 'unscheduled');
+      return { start, end:start ? eventEnd(groupEvent) : null, derived:false, child_count:0, member_count:members.length, members_waiting:waiting };
     }
     const starts = children.map((child) => eventStart(child)).filter(Boolean);
     const ends = children.map((child) => eventEnd(child)).filter(Boolean);
@@ -872,6 +876,8 @@
       end:ends.length ? new Date(Math.max(...ends.map((d) => d.getTime()))) : null,
       derived:true,
       child_count:children.length,
+      member_count:members.length,
+      members_waiting:false,
     };
   }
 
@@ -883,9 +889,36 @@
 
   function applyGroupRollups(events = []){
     const list = arrayValue(events);
-    return list.map((event) => {
+    const rolled = new Map();
+    const pending = new Set();
+    const rollup = (event) => {
       if (!eventIsGroup(event) || groupRollupMode(event) === 'manual') return event;
-      const range = groupRollupRange(list, event);
+      const id = cleanText(event.id);
+      if (id && rolled.has(id)) return rolled.get(id);
+      if (id && pending.has(id)) return event;
+      if (id) pending.add(id);
+      const result = rollupGroup(event);
+      if (id) rolled.set(id, result);
+      return result;
+    };
+    const rollupGroup = (event) => {
+      const range = groupRollupRange(list, event, rollup);
+      if (!range.derived && range.members_waiting && eventStart(event) && !['cancelled', 'canceled'].includes(cleanText(event.status).toLowerCase())) {
+        // Every item was taken off the calendar: the group has no dates to
+        // follow, so it waits unscheduled too (an empty group keeps its own).
+        return {
+          ...event,
+          status:'unscheduled',
+          start_at:'',
+          start:'',
+          end_at:'',
+          end:'',
+          start_date:'',
+          end_date:'',
+          __rollup_derived:true,
+          __rollup_cleared:true,
+        };
+      }
       if (!range.derived || !range.start || !range.end) return event;
       // An all-day group covers whole days: a timed last item (a 2 PM
       // walkthrough) still ends the group's bar at the end of that day.
@@ -903,7 +936,8 @@
         status:cleanText(event.status).toLowerCase() === 'unscheduled' ? 'scheduled' : (event.status || 'scheduled'),
         __rollup_derived:true,
       };
-    });
+    };
+    return list.map(rollup);
   }
 
   function scheduleGraph(events = []){
@@ -1082,6 +1116,9 @@
         const sameEnd = eventEnd(stored)?.getTime() === eventEnd(rolled)?.getTime();
         const sameStatus = cleanText(stored.status).toLowerCase() === cleanText(rolled.status).toLowerCase();
         if (sameStart && sameEnd && sameStatus) return null;
+        if (rolled.__rollup_cleared === true) {
+          return { ...stored, status:'unscheduled', start_at:'', start:'', end_at:'', end:'', start_date:'', end_date:'', updated_at:nowIso() };
+        }
         const allDay = groupIsAllDay(rolled);
         return {
           ...updateProjectEventRange(stored, {
@@ -2406,6 +2443,29 @@
     return value;
   }
 
+  /* R4-RAIL-2: a schedule save that has not answered after SAVE_TIMEOUT_MS
+   * rejects with a typed timeout error (isSaveTimeoutError) so the UI can say
+   * so and keep the draft, instead of showing "Saving…" forever. The request
+   * itself is not cancelled: the server may still store the change, so the
+   * message asks the user to check before trying again. */
+  const SAVE_TIMEOUT_MS = 30000;
+  function saveTimeoutError(){
+    const error = new Error((globalThis.PlatformLanguage?.text("platform-scheduling","m_save_timeout","The server is taking too long to answer. Your change may still be saved — refresh to check before trying again.") ?? "The server is taking too long to answer. Your change may still be saved — refresh to check before trying again."));
+    error.name = 'ScheduleSaveTimeoutError';
+    error.code = 'save_timeout';
+    error.timeout = true;
+    error.status = 0;
+    return error;
+  }
+  function isSaveTimeoutError(error){
+    return !!error && (error.code === 'save_timeout' || error.name === 'ScheduleSaveTimeoutError');
+  }
+  function withSaveTimeout(promise, ms = SAVE_TIMEOUT_MS){
+    let timer = null;
+    const timeout = new Promise((resolve, reject) => { timer = setTimeout(() => reject(saveTimeoutError()), ms); });
+    return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
+  }
+
   async function saveProjectEvent(orgId, project, event, config = null){
     const normalizedProject = normalizeProject(project, config);
     const nextEvent = persistableEvent(normalizeEvent(event, config, normalizedProject));
@@ -2422,9 +2482,9 @@
       const payload = expected === null ? nextEvent : { ...nextEvent, expected_event_revision: expected };
       let result;
       try {
-        result = await PlatformAPI.projects.scheduleEvent(orgId, normalizedProject.id, payload, {
+        result = await withSaveTimeout(PlatformAPI.projects.scheduleEvent(orgId, normalizedProject.id, payload, {
           branchId: config?.branch_id || config?.branchId || 'default'
-        });
+        }));
       } catch (error) {
         if (isStaleSaveError(error)) throw staleSaveError(error, nextEvent);
         throw error;
@@ -2435,6 +2495,8 @@
         const missing = new Error((globalThis.PlatformLanguage?.text("platform-scheduling","m_project_missing","The project could not be found, so the change was not saved.") ?? "The project could not be found, so the change was not saved."));
         missing.code = 'project_missing';
         missing.status = 404;
+        // The project window shows its lasting "deleted" notice for this too.
+        try { window.dispatchEvent(new CustomEvent('fm:project:deleted', { detail:{ projectId:normalizedProject.id } })); } catch (_) {}
         throw missing;
       }
       if (result?.event) recordOwnEventRevision(revisionKey, expected, eventRevisionOf(result.event));
@@ -2473,7 +2535,7 @@
     const data = { ...persistableEvent(value), ...(expected === null ? {} : { expected_event_revision: expected }) };
     let result;
     try {
-      result = await api.save(orgId, id, data, { kind:'calendar_event', ...(options.branchId || options.branch_id ? { branch_id:options.branchId || options.branch_id } : {}), ...objectValue(options.metadata) });
+      result = await withSaveTimeout(api.save(orgId, id, data, { kind:'calendar_event', ...(options.branchId || options.branch_id ? { branch_id:options.branchId || options.branch_id } : {}), ...objectValue(options.metadata) }));
     } catch (error) {
       if (isStaleSaveError(error)) throw staleSaveError(error, value);
       throw error;
@@ -2493,7 +2555,7 @@
     const id = cleanText(eventId);
     if (!normalizedProject.id || !id) throw new Error('A project and event are required.');
     if (PlatformAPI?.projects?.removeEvent) {
-      const result = await PlatformAPI.projects.removeEvent(orgId, normalizedProject.id, id);
+      const result = await withSaveTimeout(PlatformAPI.projects.removeEvent(orgId, normalizedProject.id, id));
       const savedProject = result?.document?.data
         ? { ...result.document.data, id: result.document.id }
         : result?.project || { ...normalizedProject, events: arrayValue(normalizedProject.events).filter((event) => event.id !== id) };
@@ -2612,6 +2674,9 @@
     setEventWorkAssignees,
     shiftEquipmentWindows,
     isStaleSaveError,
+    isSaveTimeoutError,
+    withSaveTimeout,
+    SAVE_TIMEOUT_MS,
     ensureProjectSchedulingDefaults,
     localDateInput,
   };

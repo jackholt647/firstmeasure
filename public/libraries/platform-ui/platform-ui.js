@@ -40,8 +40,9 @@
         background:rgba(255,255,255,.96);border:1px solid rgba(0,0,0,.08);
         box-shadow:0 18px 50px rgba(0,0,0,.16);border-radius:16px;
         padding:12px;display:none;min-width:280px;max-width:min(520px,calc(100vw - 36px));
-        backdrop-filter:blur(10px)
+        backdrop-filter:blur(10px);cursor:pointer
       }
+      .fm-toast :is(button,a,[role=button],input,select,textarea){cursor:pointer}
       .fm-toast.show{display:flex;gap:10px;align-items:center;animation:fmUiFade .16s ease-out}
       .fm-toast .ic{width:36px;height:36px;border-radius:14px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(0,0,0,.06);flex-shrink:0}
       .fm-toast .tx{display:flex;flex:1;flex-direction:column;min-width:0}
@@ -49,6 +50,10 @@
       .fm-toast .t2{font-weight:800;font-size:12px;color:#666;margin-top:2px;line-height:1.35;overflow:hidden;overflow-wrap:anywhere;white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3}
       .fm-toast .x{flex-shrink:0;margin-left:auto;width:36px;height:36px;border-radius:14px;border:1px solid rgba(0,0,0,.08);background:#fff;cursor:pointer;transition:.16s ease}
       .fm-toast .x:hover{transform:translateY(-1px)}
+      .fm-toast.compact{min-width:0;max-width:min(var(--fm-toast-compact-width,300px),calc(100vw - 36px));padding:9px;gap:8px;border-radius:14px}
+      .fm-toast.compact .ic,.fm-toast.compact .x{width:28px;height:28px;border-radius:10px}
+      .fm-toast.compact .t1{font-size:12px}
+      .fm-toast.compact .t2{font-size:11px;-webkit-line-clamp:4}
       .fm-tooltip{
         position:fixed;z-index:2147483600;max-width:min(360px,calc(100vw - 24px));
         background:rgba(15,23,42,.96);color:#fff;border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:8px 10px;
@@ -102,6 +107,9 @@
     el = document.createElement('div');
     el.id = 'fmToast';
     el.className = 'fm-toast';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.setAttribute('aria-atomic', 'true');
     el.innerHTML = `
       <div class="ic" id="fmToastIc"><i class="fas fa-check"></i></div>
       <div class="tx">
@@ -112,6 +120,16 @@
     `;
     document.body.appendChild(el);
     document.getElementById('fmToastX')?.addEventListener('click', hideToast);
+    /* A click on the toast itself (not its Dismiss / Undo / Retry controls)
+     * dismisses it, so whatever it covers (a Save button, a new calendar
+     * item) is one click away. The click never reaches the hidden control
+     * underneath, which the user could not see. */
+    el.addEventListener('click', (event) => {
+      if (event.target?.closest?.('button,a,[role=button],input,select,textarea')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      hideToast();
+    });
     return el;
   }
 
@@ -146,6 +164,9 @@
     }
     const el = document.getElementById('fmToast');
     if (el) el.dataset.tone = tone;
+    // { compact:true }: a narrower toast for dense surfaces (a calendar
+    // grid under it stays usable while it waits to be dismissed).
+    el?.classList.toggle('compact', !!(ok && typeof ok === 'object' && ok.compact === true));
     el?.classList.add('show');
     if (state.toastTimer) clearTimeout(state.toastTimer);
     const duration = Number(ok && typeof ok === 'object' ? ok.duration : 0);
@@ -315,7 +336,22 @@
       });
       if (document.documentElement) state.tooltipObserver.observe(document.documentElement, { subtree:true, childList:true, attributes:true, attributeFilter:['title'] });
     }
+    // Touch has no hover: the compatibility mouse events and the focus a tap
+    // produces must not pin a tooltip over whatever the tap opened. And
+    // after a click, the element re-rendered under a still pointer (an
+    // editor/popover just opened) doesn't pop its tooltip over it.
+    const recentTouch = () => Date.now() - Number(state.lastTouchAt || 0) < 900;
+    const pressedHere = (event) => {
+      const press = state.lastPress;
+      return !!press && Date.now() - press.at < 2500
+        && Math.hypot(Number(event.clientX) - press.x, Number(event.clientY) - press.y) < 12;
+    };
+    document.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'touch') state.lastTouchAt = Date.now();
+      state.lastPress = { x:Number(event.clientX), y:Number(event.clientY), at:Date.now() };
+    }, true);
     document.addEventListener('mouseover', (event) => {
+      if (recentTouch() || pressedHere(event)) return;
       const target = tooltipTargetFrom(event.target);
       if (target && !target.contains(event.relatedTarget)) showTooltip(target, { delay: 280 });
     });
@@ -330,7 +366,11 @@
         hideTooltip(target);
       }
     });
+    // Focus shows a tooltip only when it is keyboard focus (focus a script
+    // moved after a click or a dialog must not pop one over the next row).
+    const keyboardFocus = (node) => { try { return !!node?.matches?.(':focus-visible'); } catch { return true; } };
     document.addEventListener('focusin', (event) => {
+      if (recentTouch() || !keyboardFocus(event.target)) return;
       const target = tooltipTargetFrom(event.target);
       if (target) showTooltip(target, { delay: 120 });
     });
@@ -439,6 +479,9 @@
         if (previousFocus?.isConnected && (focusWasInside || !document.activeElement || document.activeElement === document.body)) {
           try { previousFocus.focus({ preventScroll:true }); } catch {}
         }
+        // Callers that opened the dialog from a gesture with nothing focused
+        // (a drag) can hand focus back to the item they acted on.
+        try { root.dispatchEvent(new CustomEvent('fm:dialog:closed', { detail:{ value, focusWasInside } })); } catch {}
         resolve(value);
       };
       const onKeydown = (event) => {

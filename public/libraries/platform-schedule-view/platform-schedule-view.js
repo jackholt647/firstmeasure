@@ -222,6 +222,23 @@
     return cleanup;
   }
 
+  /* Swallow the one click the browser synthesizes after a touch gesture
+   * that already did its job (it would open whatever ended up under the
+   * finger). */
+  function suppressFollowUpClick(ms = 700){
+    const until = Date.now() + ms;
+    const stop = () => document.removeEventListener('click', onClick, true);
+    const onClick = (event) => {
+      stop();
+      if (Date.now() > until) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    };
+    document.addEventListener('click', onClick, true);
+    setTimeout(stop, ms);
+  }
+
   function monthWeekRowCount(value = new Date()){
     const anchor = new Date(value);
     if (!Number.isFinite(anchor.getTime())) return 5;
@@ -484,7 +501,9 @@
     if (!control || control.dataset.prsLockBound === '1') return;
     control.dataset.prsLockBound = '1';
     const currentEvent = () => (typeof resolveEvent === 'function' ? resolveEvent() : null);
-    const callback = typeof options.onEventLockToggle === 'function' ? options.onEventLockToggle : null;
+    // A view-only surface shows the lock state but offers no lock/unlock.
+    const viewOnly = options.readOnly === true || options.allowEdit === false;
+    const callback = !viewOnly && typeof options.onEventLockToggle === 'function' ? options.onEventLockToggle : null;
     const initial = currentEvent();
     if (!callback) {
       if (!eventIsLocked(initial || {})) {
@@ -494,6 +513,11 @@
         control.disabled = true;
         control.classList.add('passive');
         control.setAttribute('aria-disabled', 'true');
+        control.setAttribute('tabindex', '-1');
+        control.setAttribute('aria-label', 'Locked');
+        control.removeAttribute('title');
+        control.removeAttribute('data-fm-tooltip');
+        control.removeAttribute('data-fm-native-title');
       }
       return;
     }
@@ -779,6 +803,9 @@
       .prs-month-bar.continues-after .prs-work-chip{border-top-right-radius:3px;border-bottom-right-radius:3px}
       .prs-month-bar.live-preview{z-index:8;pointer-events:none}
       .prs-month-day-peek{grid-row:1;align-self:start;z-index:6;height:82px;margin-top:23px;padding:0 4px;box-sizing:border-box;overflow:hidden;opacity:0;background:#fff;pointer-events:none;transition:height .28s cubic-bezier(.2,.75,.25,1),opacity .14s ease}
+      .prs-month-day-peek{visibility:hidden;transition:height .28s cubic-bezier(.2,.75,.25,1),opacity .14s ease,visibility 0s linear .14s}
+      .prs-month-day-peek.active{visibility:visible;transition-delay:0s}
+      .prs-month-week.expanded .prs-month-day-peek,.prs-month-week.collapsing .prs-month-day-peek{visibility:hidden}
       .prs-month-day-peek.muted,.prs-month-day-peek.past{background:#f8fafc}
       .prs-month-day-peek.today{background:#fff8f7}
       .prs-month-day-peek.active{opacity:1;pointer-events:auto}
@@ -891,7 +918,7 @@
       .prs-week-all-day-overflow .prs-week-all-day-overflow-more,.prs-week-all-day-overflow .prs-week-all-day-overflow-less{display:block;overflow:hidden;text-overflow:ellipsis}
       .prs-week-all-day-overflow:hover,.prs-week-all-day-overflow:focus-visible{background:#f8fafc;color:var(--primary-readable,var(--primary,#d93025));outline:none}
       .prs-week-all-day-overflow .prs-week-all-day-overflow-less{display:none}
-      .prs-all-day-grid.week-overflow.expanded .prs-week-all-day-overflow:not(.is-controller){opacity:0;pointer-events:none}
+      .prs-all-day-grid.week-overflow.expanded .prs-week-all-day-overflow:not(.is-controller){opacity:0;pointer-events:none;visibility:hidden}
       .prs-all-day-grid.week-overflow.expanded .prs-week-all-day-overflow.is-controller .prs-week-all-day-overflow-more{display:none}
       .prs-all-day-grid.week-overflow.expanded .prs-week-all-day-overflow.is-controller .prs-week-all-day-overflow-less{display:block}
       .prs-all-day-grid.week-overflow.expanded .prs-week-all-day-overflow.is-controller{color:var(--primary-readable,var(--primary,#d93025))}
@@ -1059,7 +1086,7 @@
       .psv-gantt-row{display:flex;height:32px;border-bottom:1px solid rgba(15,23,42,.05);box-sizing:border-box}
       .psv-gantt-row.section{height:28px;background:#f8fafc}
       .psv-gantt-row.project-row{height:36px;background:#f8fafc;border-top:1px solid rgba(15,23,42,.10)}
-      .psv-gantt-row.project-row .psv-gantt-label{background:#f8fafc}
+      .psv-gantt-row.project-row .psv-gantt-label{background:#f8fafc;box-shadow:0 1px 0 #f3f4f6,0 -1px 0 #e7e9ed}
       .psv-gantt-row.add-row{height:30px;border:0;background:#fff}
       .psv-gantt-row.add-row .psv-gantt-label{justify-content:flex-start;gap:6px;padding-left:22px;background:#fff;border-right-color:rgba(15,23,42,.06)}
       .psv-gantt-add{height:22px;border:1px dashed rgba(15,23,42,.16);border-radius:999px;background:#fff;color:#667085;display:inline-flex;align-items:center;gap:5px;padding:0 9px;font:inherit;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap}
@@ -1081,6 +1108,8 @@
       .psv-gantt-label-meta:empty{display:none}
       .psv-gantt-label-meta.unscheduled{border:1px dashed rgba(15,23,42,.18);border-radius:999px;padding:1px 6px;color:#667085}
       .psv-gantt-label-meta.cancelled{color:#b42318;text-decoration:line-through}
+      .psv-gantt-label-meta.empty-section{font-style:italic;font-weight:800}
+      .psv-gantt-label .psv-gantt-caret-spacer{flex:0 0 20px;width:20px;height:20px}
       .psv-gantt-label-meta i{font-size:8px;margin-right:3px}
       .psv-gantt-label.child{padding-left:22px}
       .psv-gantt-label.grandchild{padding-left:38px}
@@ -2157,11 +2186,11 @@
     const size = timed ? rect.height : rect.width;
     // Vertical (timed) chips keep their title row grabbable: a thin top band
     // and a slightly larger bottom band are the only resize zones.
-    // The assignee pill (at the bottom of short timed chips) always grabs to
-    // move; the resize strip stays usable beside it.
-    if (event.target?.closest?.(CHIP_INNER_CONTROL_SELECTOR)) return 'move';
     const startEdge = timed ? Math.min(6, Math.max(3, size / 6)) : Math.min(10, Math.max(5, size / 3));
     const endEdge = timed ? Math.min(8, Math.max(4, size / 5)) : Math.min(10, Math.max(5, size / 3));
+    // The resize strips win over the assignee pill that overlaps them on a
+    // short chip (a press that doesn't travel still clicks the pill); away
+    // from the edges the pill grabs to move.
     if (position <= startEdge && !chip.classList.contains('no-start-handle')) return 'start';
     if (position >= size - endEdge && !chip.classList.contains('no-end-handle')) return 'end';
     return 'move';
@@ -2213,14 +2242,21 @@
       }
       const edge = resizeEdgeAtPointer(chip, event);
       // The resize strips win over an assignee pill that overlaps them on a
-      // short chip; elsewhere the pill keeps its own cursor.
-      if (edge === 'move' && event.target.closest(CHIP_INNER_CONTROL_SELECTOR)) {
+      // short chip (the pill shows the resize cursor there); elsewhere the
+      // pill keeps its own cursor.
+      const control = event.target.closest(CHIP_INNER_CONTROL_SELECTOR);
+      const cursor = edge === 'move' ? 'grab' : (chip.classList.contains('timed') ? 'ns-resize' : 'ew-resize');
+      chip.querySelectorAll(CHIP_INNER_CONTROL_SELECTOR).forEach((node) => { node.style.cursor = node === control && edge !== 'move' ? cursor : ''; });
+      if (edge === 'move' && control) {
         chip.style.cursor = '';
         return;
       }
-      chip.style.cursor = edge === 'move' ? 'grab' : (chip.classList.contains('timed') ? 'ns-resize' : 'ew-resize');
+      chip.style.cursor = cursor;
     });
-    chip.addEventListener('pointerleave', () => { chip.style.cursor = ''; });
+    chip.addEventListener('pointerleave', () => {
+      chip.style.cursor = '';
+      chip.querySelectorAll(CHIP_INNER_CONTROL_SELECTOR).forEach((node) => { node.style.cursor = ''; });
+    });
   }
 
   // Month bars cover every day a timed item touches (one day for most).
@@ -2598,7 +2634,12 @@
         });
       const allDayTop = compactWeekAllDay ? WEEK_ALL_DAY_ITEM_TOP_PX : 6;
       const allDayStep = compactWeekAllDay ? WEEK_ALL_DAY_ITEM_STEP_PX : 48;
-      const allDayBars = allDayEntries.map(({ item, timedRange, segmentStart, segmentEnd, startCol, endCol, laneIndex, beginsHere, continuesBefore, continuesAfter }) => (
+      // Bars are positioned explicitly, so their markup can follow the days:
+      // Tab walks the band day by day (top to bottom within a day), not in
+      // lane-packing order. Items behind "+N more" are Tab stops only while
+      // the band is expanded.
+      const allDayBandExpanded = expandedMonthDates.has(`week-all-day:${dateKey(viewStart)}`);
+      const allDayBars = allDayEntries.slice().sort((a, b) => a.startCol - b.startCol || a.laneIndex - b.laneIndex).map(({ item, timedRange, segmentStart, segmentEnd, startCol, endCol, laneIndex, beginsHere, continuesBefore, continuesAfter }) => (
           `<div class="prs-all-day-bar-top ${continuesBefore ? 'continues-before' : ''} ${continuesAfter ? 'continues-after' : ''} ${compactWeekAllDay && laneIndex >= WEEK_ALL_DAY_VISIBLE_ITEM_COUNT ? 'lane-overflow' : ''}" style="grid-column:${startCol}/${endCol};grid-row:1;margin-top:${allDayTop + laneIndex * allDayStep}px" data-prs-date="${esc(dateKey(segmentStart))}" data-prs-week-lane="${laneIndex}">
             ${chipHtml(item, timedRange || { start: segmentStart, end: segmentEnd }, {
               draft: item.__draft === true || item.id === '__draft',
@@ -2609,7 +2650,7 @@
               chipClass: timedRange ? 'timed-month timed-span' : '',
               showDetails: true,
               continuation: !beginsHere,
-              tabbable: !compactWeekAllDay || laneIndex < WEEK_ALL_DAY_VISIBLE_ITEM_COUNT,
+              tabbable: !compactWeekAllDay || laneIndex < WEEK_ALL_DAY_VISIBLE_ITEM_COUNT || allDayBandExpanded,
               showTime: false,
               showSecondary: !compactWeekAllDay,
               showStartHandle: !continuesBefore,
@@ -2698,7 +2739,7 @@
     const viewportMemoryKey = mode !== 'list' && viewportStateBase ? `${viewportStateBase}|${viewportSignature}` : '';
     const previousSurface = container.querySelector('.prs-surface');
     const previousViewport = previousSurface && previousSurface.dataset.prsViewport === viewportSignature
-      ? { top:Number(previousSurface.scrollTop || 0), left:Number(previousSurface.scrollLeft || 0) }
+      ? { top:Number(previousSurface.scrollTop || 0), left:Number(previousSurface.scrollLeft || 0), spacer:monthRevealSpacer(previousSurface) }
       : (viewportMemoryKey ? scheduleViewports.get(viewportMemoryKey) : null);
     const previousScrollTop = Number(previousViewport?.top || 0);
     const previousScrollLeft = Number(previousViewport?.left || 0);
@@ -2745,6 +2786,9 @@
     if (mode !== 'list' && (previousScrollTop > 0 || previousScrollLeft > 0)) {
       const scroll = surfaceNode;
       if (scroll) {
+        // The month's reveal spacer comes back first, so a position that
+        // needed it isn't clamped into a cut-off row.
+        if (mode === 'month') setMonthRevealSpacer(scroll, previousViewport?.spacer);
         scroll.scrollTop = previousScrollTop;
         scroll.scrollLeft = previousScrollLeft;
       }
@@ -2767,9 +2811,9 @@
       }
     }
     if (surfaceNode && viewportMemoryKey) {
-      scheduleViewports.set(viewportMemoryKey, { top:surfaceNode.scrollTop, left:surfaceNode.scrollLeft });
+      scheduleViewports.set(viewportMemoryKey, { top:surfaceNode.scrollTop, left:surfaceNode.scrollLeft, spacer:monthRevealSpacer(surfaceNode) });
       surfaceNode.addEventListener('scroll', () => {
-        scheduleViewports.set(viewportMemoryKey, { top:surfaceNode.scrollTop, left:surfaceNode.scrollLeft });
+        scheduleViewports.set(viewportMemoryKey, { top:surfaceNode.scrollTop, left:surfaceNode.scrollLeft, spacer:monthRevealSpacer(surfaceNode) });
       }, { passive:true, signal:listenerSignal });
     }
     // Current-time line across today's column in Day / 4 Day / Week.
@@ -2822,6 +2866,18 @@
         week.querySelectorAll('.prs-month-bar[data-prs-month-lane]').forEach((bar) => {
           const hidden = !open && Number(bar.dataset.prsMonthLane || 0) >= MONTH_VISIBLE_ITEM_COUNT;
           bar.querySelectorAll('.prs-work-chip').forEach((node) => node.setAttribute('tabindex', hidden ? '-1' : '0'));
+          // Controls inside a chip hidden behind "+N" (lock, assignee) are
+          // not invisible Tab stops either.
+          bar.querySelectorAll('.prs-work-chip :is(button,a)').forEach((node) => {
+            if (hidden && !node.hasAttribute('data-prs-lane-hidden')) {
+              node.setAttribute('data-prs-lane-hidden', node.getAttribute('tabindex') ?? '');
+              node.setAttribute('tabindex', '-1');
+            } else if (!hidden && node.hasAttribute('data-prs-lane-hidden')) {
+              const previous = node.getAttribute('data-prs-lane-hidden');
+              node.removeAttribute('data-prs-lane-hidden');
+              if (previous) node.setAttribute('tabindex', previous); else node.removeAttribute('tabindex');
+            }
+          });
         });
       });
     }
@@ -3068,6 +3124,9 @@
           btn.setAttribute('aria-expanded', 'true');
           btn.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("platform-schedule-view","m_3935fe13124b65","Show fewer all-day items") ?? "Show fewer all-day items"));
         }
+        // Items revealed by "+N more" become Tab stops (and stop being ones
+        // when it collapses).
+        band.querySelectorAll('.prs-all-day-bar-top.lane-overflow .prs-work-chip').forEach((node) => node.setAttribute('tabindex', expanded ? '0' : '-1'));
         const height = Math.max(54, Number(expanded ? band.dataset.prsWeekAllDayExpandedHeight : band.dataset.prsWeekAllDayCollapsedHeight));
         band.style.height = `${height}px`;
         band.style.minHeight = `${height}px`;
@@ -3122,6 +3181,18 @@
         pendingTouchHold = null;
         pending.release();
         if (!container.isConnected) return;
+        // The release that ends a hold (placing, drawing or dragging) is not
+        // a tap: the calendar re-renders under the finger, so the browser's
+        // follow-up click would open whatever item now sits there (chips
+        // included), not the new draft.
+        const onHeldRelease = (releaseEvent) => {
+          if (releaseEvent.pointerId !== pending.pointerId) return;
+          document.removeEventListener('pointerup', onHeldRelease, true);
+          document.removeEventListener('pointercancel', onHeldRelease, true);
+          if (releaseEvent.type === 'pointerup') suppressFollowUpClick(700);
+        };
+        document.addEventListener('pointerup', onHeldRelease, true);
+        document.addEventListener('pointercancel', onHeldRelease, true);
         activate();
       }, touchHoldDelayMs);
       pendingTouchHold = pending;
@@ -4218,12 +4289,15 @@
     if (!allowCreate && !allowEdit && !clickPlacement && typeof options.onReadOnlyDragAttempt === 'function') container.addEventListener('pointerdown', (event) => {
       if (drag || event.button > 0) return;
       if (event.target.closest('.prs-work-chip,.prs-toolbar,.prs-view-switch,[data-prs-month-overflow],[data-prs-week-all-day-overflow],.prs-month-day-peek')) return;
-      if (!event.target.closest('.prs-day,.prs-slot,.prs-all-day-cell')) return;
+      // Month days sit under the week's item track, so an empty-day press
+      // lands on the track: the pointer's day decides.
+      const cell = event.target.closest('.prs-day,.prs-slot,.prs-all-day-cell');
+      if (!cell && !(mode === 'month' && event.target.closest('.prs-month-week') && rangeFromMonthPointer(event))) return;
       // Touch: a swipe scrolls; a touch-and-hold (the touch "create"
       // gesture) explains that this calendar is view only.
       if (event.pointerType === 'touch') {
         armTouchHoldFeedback(event, () => {
-          notifyRefusedDrag({ kind:'refused', item:null, node:event.target.closest('.prs-day,.prs-slot,.prs-all-day-cell'), reason:'view-only' });
+          notifyRefusedDrag({ kind:'refused', item:null, node:cell, reason:'view-only' });
           setDragCursorClass('');
         }, touchHoldDelayMs + 120);
         return;
@@ -4397,6 +4471,8 @@
       if (distance <= (drag.touchHeld ? POINTER_DRAG_THRESHOLD : CLICK_WOBBLE_PX) && !drag.moved) return;
       captureDeferredDrag(drag);
       if (!drag.moved) setDragCursorClass(drag.kind === 'move' ? 'prs-drag-move' : (drag.node?.classList.contains('timed') ? 'prs-drag-resize-y' : 'prs-drag-resize-x'));
+      // Dragged out of a "+N" peek: close it so the drop preview shows.
+      if (!drag.moved && drag.fromPeek) drag.fromPeek.classList.remove('active');
       drag.moved = true;
       drag.node?.classList.add('dragging');
       if (drag.node) drag.node.style.cursor = 'grabbing';
@@ -4412,9 +4488,26 @@
       renderRangePreview(next.start, next.end, drag, true, next);
     };
     container.querySelectorAll('.prs-work-chip:not(.prs-month-day-peek-chip)').forEach(bindProjectChip);
+    // A peek only previews items that have their own Tab stops elsewhere
+    // (the expanded row): nothing inside it is a Tab stop.
+    container.querySelectorAll('.prs-month-day-peek :is(button,a,[tabindex])').forEach((node) => node.setAttribute('tabindex', '-1'));
     container.querySelectorAll('.prs-month-day-peek-chip').forEach((chip) => {
-      chip.addEventListener('pointerdown', (event) => event.stopPropagation());
+      bindEventLockControl(chip, options, () => eventByRenderedId(chip.dataset.prsEventId || ''));
+      chip.addEventListener('pointerdown', (event) => {
+        event.stopPropagation();
+        // An item in the "+N" peek drags like the chip it stands for (the
+        // peek gets out of the way once the drag starts); a press that
+        // doesn't travel is still a click that opens it.
+        if (!allowEventDrag || clickPlacement || drag || event.button > 0 || event.pointerType === 'touch' || chipPressIgnoredForDrag(chip, event)) return;
+        const item = eventByRenderedId(chip.dataset.prsEventId || '');
+        if (!item || !itemCanAdjustRange(item)) return;
+        const peek = chip.closest('[data-prs-month-day-peek]');
+        const dayCell = peek?.closest('.prs-month-week')?.querySelectorAll('.prs-day[data-prs-date]')[Number(peek.dataset.prsMonthDayPeek || 0)] || null;
+        drag = { kind:'move', zone:'month', grab:calendarPointAt(event), item, node:chip, base:normalizeRangeItem(item).range, anchor:dayCell ? pointRange(dayCell, event) : null, startX:event.clientX, startY:event.clientY, moved:false, maxDistance:0, touchHeld:false, pointerId:event.pointerId, captureNode:chip, fromPeek:peek };
+        captureChipPress(chip, event, drag);
+      });
       chip.addEventListener('click', (event) => {
+        if (chip.dataset.prsSuppressClick === '1') return;
         if (event.target.closest('[data-prs-assignee],[data-prs-lock-toggle]')) return;
         const item = eventByRenderedId(chip.dataset.prsEventId || '');
         if (!item) return;
@@ -5030,7 +5123,9 @@
         return;
       }
       if (!event.synthetic) dragAutoScroller.update(event);
-      if (pointerDistance(event) > POINTER_DRAG_THRESHOLD) {
+      // Moving an item only starts past the click wobble (same as the
+      // calendar): a press that moved less is a click and opens it.
+      if (pointerDistance(event) > (drag.kind === 'create' ? POINTER_DRAG_THRESHOLD : CLICK_WOBBLE_PX)) {
         drag.moved = true;
         captureDeferredDrag(drag);
         if (drag.kind !== 'create') drag.node?.classList.add('dragging');
@@ -5134,7 +5229,7 @@
       if (!canPlaceItemInResource(activeDrag.item || localActiveDraft || activeDraft || {}, target.resource)) {
         // A refused drop leaves the item where it was, never opens it, and
         // says why.
-        if (activeDrag.kind !== 'create' && (activeDrag.moved || pointerDistance(event, activeDrag) > POINTER_DRAG_THRESHOLD)) {
+        if (activeDrag.kind !== 'create' && (activeDrag.moved || pointerDistance(event, activeDrag) > CLICK_WOBBLE_PX)) {
           suppressFollowingClick();
           refuseResourceDrop(options, activeDrag, target.resource);
         }
@@ -5157,7 +5252,7 @@
         options.onDraftChange?.(nextDraft);
         return;
       }
-      if (!activeDrag.moved && pointerDistance(event, activeDrag) <= POINTER_DRAG_THRESHOLD) return;
+      if (!activeDrag.moved && pointerDistance(event, activeDrag) <= CLICK_WOBBLE_PX) return;
       if (!itemCanAdjustRange(activeDrag.item)) return;
       const next = dragRange(activeDrag, target);
       if (!next) return;
@@ -5752,7 +5847,9 @@
         return;
       }
       if (!event.synthetic) dragAutoScroller.update(event);
-      if (pointerDistance(event) > POINTER_DRAG_THRESHOLD) {
+      // Moving an item only starts past the click wobble (same as the
+      // calendar): a press that moved less is a click and opens it.
+      if (pointerDistance(event) > (drag.kind === 'create' ? POINTER_DRAG_THRESHOLD : CLICK_WOBBLE_PX)) {
         drag.moved = true;
         captureDeferredDrag(drag);
         if (drag.kind !== 'create') drag.node?.classList.add('dragging');
@@ -5829,7 +5926,7 @@
       if (!canPlaceItemInResource(activeDrag.item || localActiveDraft || activeDraft || {}, target.resource)) {
         // A refused drop leaves the item where it was, never opens it, and
         // says why.
-        if (activeDrag.kind !== 'create' && (activeDrag.moved || pointerDistance(event, activeDrag) > POINTER_DRAG_THRESHOLD)) {
+        if (activeDrag.kind !== 'create' && (activeDrag.moved || pointerDistance(event, activeDrag) > CLICK_WOBBLE_PX)) {
           suppressFollowingClick();
           refuseResourceDrop(options, activeDrag, target.resource);
         }
@@ -5845,7 +5942,7 @@
         options.onDraftChange?.(nextDraft);
         return;
       }
-      if (!activeDrag.moved && pointerDistance(event, activeDrag) <= POINTER_DRAG_THRESHOLD) return;
+      if (!activeDrag.moved && pointerDistance(event, activeDrag) <= CLICK_WOBBLE_PX) return;
       if (!itemCanAdjustRange(activeDrag.item)) return;
       const next = dragRange(activeDrag, target);
       if (!next) return;
@@ -5988,6 +6085,14 @@
     if (kind === 'sales_appointment') return '#2563eb';
     if (kind === 'project_work') return '#16a34a';
     return '#64748b';
+  }
+
+  /* A section (group row) is always drawn in the section colour, whether it
+   * holds items or not and whatever work type it was created with; only an
+   * explicit colour on the section overrides it. */
+  function ganttRowColor(row = {}, event = {}, presentation = {}, kind = ''){
+    if (row.group && !row.projectRollup) return safeCssColor(event.color) || ganttDefaultColor('schedule_group');
+    return safeCssColor(presentation.color) || ganttDefaultColor(kind);
   }
 
   function ganttDefaultIcon(kind){
@@ -6286,8 +6391,12 @@
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const padDays = pxPerDay >= 960 ? 1 : pxPerDay >= 90 ? 7 : 28;
-    const minTime = starts.reduce((min, time) => Math.min(min, time), Math.min(anchor.getTime(), today.getTime()));
-    const maxTime = ends.reduce((max, time) => Math.max(max, time), Math.max(anchor.getTime(), today.getTime()));
+    // A scale change (or re-render) keeps the dates being viewed within
+    // reach, even out in another scale's padding.
+    const viewedTimes = [container.__psvGanttZoomFocus?.time, container.__psvGanttViewport?.centerTime]
+      .map(Number).filter((time) => Number.isFinite(time) && time > 0);
+    const minTime = starts.reduce((min, time) => Math.min(min, time), Math.min(anchor.getTime(), today.getTime(), ...viewedTimes));
+    const maxTime = ends.reduce((max, time) => Math.max(max, time), Math.max(anchor.getTime(), today.getTime(), ...viewedTimes));
     let rangeStart = new Date(minTime);
     rangeStart.setHours(0, 0, 0, 0);
     rangeStart = addDays(rangeStart, -padDays);
@@ -6386,7 +6495,7 @@
       const width = Math.max(row.group ? 6 : 10, xForTime(end.getTime()) - left);
       const presentation = ganttPresentation(Scheduling, event);
       const kind = presentation.kind || eventKind(event);
-      const color = safeCssColor(presentation.color) || ganttDefaultColor(kind);
+      const color = ganttRowColor(row, event, presentation, kind);
       const icon = safeIconClass(presentation.icon || ganttDefaultIcon(kind), '');
       const locked = presentation.locked === true;
       // Auto-rollup sections and project rollups span their items: dragging
@@ -6435,18 +6544,24 @@
       const event = row.event;
       const presentation = ganttPresentation(Scheduling, event);
       const kind = presentation.kind || eventKind(event);
-      const color = safeCssColor(presentation.color) || ganttDefaultColor(kind);
+      const color = ganttRowColor(row, event, presentation, kind);
       const icon = safeIconClass(presentation.icon || ganttDefaultIcon(kind), '');
       const assignee = clean(event.assigned_crew_name || event.assigned_user_name || (event.assigned_users || [])[0]?.name);
       const caret = row.group && row.hasChildren
         ? ("<button type=\"button\" class=\"psv-gantt-caret\" data-psv-gantt-toggle=\"" + String(esc(event.id || '')) + "\" aria-expanded=\"" + (row.collapsed ? 'false' : 'true') + "\" aria-label=\"" + ((v1) => globalThis.PlatformLanguage?.text("platform-schedule-view","m_bc0ff2f99b0574",`${v1} group`,{v1}) ?? `${v1} group`)(row.collapsed ? 'Expand' : 'Collapse') + "\"><i class=\"fas fa-chevron-" + String(row.collapsed ? 'right' : 'down') + "\"></i></button>")
-        : (row.child ? '' : '<span style="width:0"></span>');
+        // An empty section keeps the caret's place so it lines up (and reads)
+        // as a section, not as a work item.
+        : (row.group && !row.projectRollup ? '<span class="psv-gantt-caret-spacer" aria-hidden="true"></span>' : (row.child ? '' : '<span style="width:0"></span>'));
       let metaClass = '';
       let metaHtml = '';
       let metaTitle = '';
       if (isCancelled(event)) {
         metaClass = 'cancelled';
         metaHtml = esc('Cancelled');
+      } else if (row.group && !row.projectRollup && !row.hasChildren) {
+        metaClass = 'empty-section';
+        metaHtml = esc(globalThis.PlatformLanguage?.text("platform-schedule-view","m_empty_section","No items") ?? "No items");
+        metaTitle = globalThis.PlatformLanguage?.text("platform-schedule-view","m_empty_section_hint","This section has no work items yet.") ?? "This section has no work items yet.";
       } else if (!isScheduled(event)) {
         if (!row.projectRollup) {
           metaClass = 'unscheduled';
@@ -6572,7 +6687,16 @@
       },
       visibleRange,
       scrollToTime,
-      today(){ scrollToTime(Date.now(), 0.25, 'smooth'); },
+      today(){
+        // Where the today line lands: the focus a later zoom keeps in place
+        // (until the view is moved).
+        const width = viewportWidth();
+        if (scroll && width) {
+          const left = Math.max(0, Math.min(scroll.scrollWidth - scroll.clientWidth, xForTime(Date.now()) - width * 0.25));
+          container.__psvGanttTodayOffset = xForTime(Date.now()) - left;
+        }
+        scrollToTime(Date.now(), 0.25, 'smooth');
+      },
       page(direction = 1){
         if (!scroll) return;
         scroll.scrollBy({ left:(Number(direction) < 0 ? -1 : 1) * viewportWidth() * 0.8, behavior:'smooth' });
@@ -6585,12 +6709,27 @@
         if (stateKey) ganttViewports.set(stateKey, container.__psvGanttViewport);
         container.__psvGanttPxPerDay = next;
         container.__psvGanttFitActive = true;
+        container.__psvGanttTodayOffset = null;
         (container.__psvGanttOptions || options).onZoomChange?.(next);
         container.__psvGanttFitting = true;
         try { renderGanttScheduler(container, container.__psvGanttOptions || options); }
         finally { container.__psvGanttFitting = false; }
       },
       setZoom(next){
+        // Zoom around the today line when it is the focus (Today or the
+        // first screen put it where it still is, or it sits in the middle
+        // half of the view), otherwise around the middle of the view, so the
+        // dates being looked at stay on screen at the new scale.
+        const width = viewportWidth();
+        if (scroll && width) {
+          const todayOffset = xForTime(Date.now()) - scroll.scrollLeft;
+          const focusOffset = container.__psvGanttTodayOffset;
+          const todayFocused = todayOffset >= 0 && todayOffset <= width && (
+            (Number.isFinite(focusOffset) && Math.abs(todayOffset - focusOffset) <= 4)
+            || (todayOffset >= width / 4 && todayOffset <= width * 3 / 4));
+          const offset = todayFocused ? todayOffset : width / 2;
+          container.__psvGanttZoomFocus = { time:timeForX(scroll.scrollLeft + offset), offset, top:scroll.scrollTop, today:todayFocused };
+        }
         container.__psvGanttPxPerDay = Math.max(GANTT_ZOOM_MIN, Math.min(GANTT_ZOOM_MAX, Number(next) || GANTT_ZOOM_PRESETS.week));
         container.__psvGanttFitActive = false;
         (container.__psvGanttOptions || options).onZoomChange?.(container.__psvGanttPxPerDay);
@@ -6604,8 +6743,15 @@
     // Place the viewport: keep the user's spot across re-renders, otherwise
     // open with today a quarter of the way in so upcoming work is visible.
     const savedViewport = container.__psvGanttViewport || (stateKey ? ganttViewports.get(stateKey) : null);
+    const zoomFocus = container.__psvGanttZoomFocus;
     if (scroll && viewportWidth()) {
-      if (savedViewport?.centerTime) {
+      if (zoomFocus?.time) {
+        // A scale change keeps its focus date at the same place on screen.
+        container.__psvGanttZoomFocus = null;
+        scroll.scrollLeft = Math.max(0, xForTime(zoomFocus.time) - zoomFocus.offset);
+        scroll.scrollTop = zoomFocus.top || 0;
+        container.__psvGanttTodayOffset = zoomFocus.today ? xForTime(Date.now()) - scroll.scrollLeft : null;
+      } else if (savedViewport?.centerTime) {
         scroll.scrollLeft = Math.max(0, xForTime(savedViewport.centerTime) - viewportWidth() / 2);
         scroll.scrollTop = savedViewport.top || 0;
       } else {
@@ -6619,8 +6765,11 @@
           return start ? [start, evEnd(event)?.getTime() || start] : null;
         }).filter(Boolean);
         const visibleNearToday = !spans.length || spans.some(([start, end]) => start < windowEnd && end > windowStart);
-        if (visibleNearToday) scrollToTime(now, 0.25);
-        else {
+        container.__psvGanttTodayOffset = null;
+        if (visibleNearToday) {
+          scrollToTime(now, 0.25);
+          container.__psvGanttTodayOffset = xForTime(now) - scroll.scrollLeft;
+        } else {
           const upcoming = spans.filter(([start]) => start >= now).sort((a, b) => a[0] - b[0])[0];
           const recent = spans.sort((a, b) => b[1] - a[1])[0];
           scrollToTime(upcoming ? upcoming[0] : recent[1], upcoming ? 0.1 : 0.9);
@@ -6744,7 +6893,8 @@
         const linkPress = bar.__psvGanttLinkPress === true;
         bar.__psvGanttLinkPress = false;
         const heldForDrag = Number(bar.__psvGanttSuppressClickUntil || 0) > Date.now();
-        if (linkPress || heldForDrag || bar.__psvGanttDragged || travelled > 4 || clickEvent.target.closest('[data-psv-gantt-handle],[data-psv-gantt-link]')) {
+        // Less than the click wobble is a click (as on the calendar).
+        if (linkPress || heldForDrag || bar.__psvGanttDragged || travelled > Math.min(CLICK_WOBBLE_PX, Math.max(4, pxPerDay / 2)) || clickEvent.target.closest('[data-psv-gantt-handle],[data-psv-gantt-link]')) {
           bar.__psvGanttDragged = false;
           return;
         }
@@ -6911,17 +7061,31 @@
         if (pointerEvent.button !== 0 || pointerEvent.target.closest('.psv-gantt-bar')) return;
         const item = eventById.get(String(lane.dataset.psvGanttLane || ''));
         if (!item) return;
+        const touch = pointerEvent.pointerType === 'touch';
+        const beginLaneCreate = () => {
+          const anchorDay = ganttLocalDay(timeForX(laneX(pointerEvent.clientX)), 'floor');
+          drag = { kind:'create', item, lane, anchorDay, startMs:anchorDay, endMs:addDays(new Date(anchorDay), 1).getTime(), snapMs:GANTT_DAY_MS, moved:false, startX:pointerEvent.clientX, startY:pointerEvent.clientY, pointerId:pointerEvent.pointerId, touch };
+          try { lane.setPointerCapture?.(pointerEvent.pointerId); } catch {}
+          const ghost = document.createElement('div');
+          ghost.className = 'psv-gantt-bar ghost';
+          ghost.dataset.psvGanttCreateGhost = '1';
+          lane.appendChild(ghost);
+          drag.ghost = ghost;
+          ghost.style.left = `${xForTime(anchorDay)}px`;
+          ghost.style.width = `${Math.max(6, xForTime(drag.endMs) - xForTime(anchorDay))}px`;
+        };
+        // Touch: a tap or swipe on an unscheduled lane only pans; scheduling
+        // it takes a touch-and-hold, like moving a bar.
+        if (touch) {
+          armTouchHoldFeedback(pointerEvent, () => {
+            if (drag || !lane.isConnected) return;
+            beginLaneCreate();
+            try { navigator.vibrate?.(8); } catch {}
+          }, 420);
+          return;
+        }
         pointerEvent.preventDefault();
-        const anchorDay = ganttLocalDay(timeForX(laneX(pointerEvent.clientX)), 'floor');
-        drag = { kind:'create', item, lane, anchorDay, startMs:anchorDay, endMs:addDays(new Date(anchorDay), 1).getTime(), snapMs:GANTT_DAY_MS, moved:false, startX:pointerEvent.clientX, startY:pointerEvent.clientY, pointerId:pointerEvent.pointerId };
-        lane.setPointerCapture?.(pointerEvent.pointerId);
-        const ghost = document.createElement('div');
-        ghost.className = 'psv-gantt-bar ghost';
-        ghost.dataset.psvGanttCreateGhost = '1';
-        lane.appendChild(ghost);
-        drag.ghost = ghost;
-        ghost.style.left = `${xForTime(anchorDay)}px`;
-        ghost.style.width = `${Math.max(6, xForTime(drag.endMs) - xForTime(anchorDay))}px`;
+        beginLaneCreate();
       });
     });
 
@@ -6930,7 +7094,11 @@
       pointerEvent.preventDefault();
       const dx = pointerEvent.clientX - drag.startX;
       const dy = pointerEvent.clientY - (drag.startY ?? pointerEvent.clientY);
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
+      // A mouse press moves a bar (or spans lane days) only past the click
+      // wobble, so a small wiggle still opens / schedules like a click. Link
+      // drags and held touch drags follow the finger at once.
+      const moveThreshold = drag.kind === 'link' || drag.touch ? 3 : Math.min(CLICK_WOBBLE_PX, Math.max(4, pxPerDay / 2));
+      if (Math.hypot(dx, dy) > moveThreshold) drag.moved = true;
       if (drag.moved && drag.bar) drag.bar.__psvGanttDragged = true;
       // A link drag ends over another bar; its click must not open the source.
       if (drag.moved && drag.fromBar) drag.fromBar.__psvGanttDragged = true;
@@ -6951,6 +7119,7 @@
         return;
       }
       if (drag.kind === 'create') {
+        if (!drag.moved) return;
         const currentDay = ganttLocalDay(timeForX(laneX(pointerEvent.clientX)), 'floor');
         drag.startMs = Math.min(drag.anchorDay, currentDay);
         drag.endMs = addDays(new Date(Math.max(drag.anchorDay, currentDay)), 1).getTime();
@@ -7006,6 +7175,9 @@
       }
       if (activeDrag.kind === 'create') {
         activeDrag.ghost?.remove();
+        // The click that follows a touch release would land on the new bar
+        // (or the Undo toast) and open the full-screen editor.
+        if (activeDrag.touch) suppressFollowUpClick(700);
         // A plain click schedules one day; a drag in either direction spans
         // the days covered. A timed item placed on one day starts at the
         // start of the work day and keeps its duration.
@@ -7099,12 +7271,40 @@
     </div>`;
   }
 
-  /* Month view: bring the week row holding `date` into view. The scroll
-   * always lands on a row boundary just under the sticky weekday header
-   * (never mid-row with the header over a row's date numbers), and nothing
-   * moves when that row's dates and first items already show.
+  /* Month view: space left below the last week row so a row boundary exists
+   * that shows a late row whole (see revealMonthDate). It is kept when the
+   * same month re-renders and dropped once a reveal no longer needs it. */
+  function monthRevealSpacer(surface){
+    return Math.max(0, Number(surface?.querySelector?.('.prs-month')?.dataset.prsRevealSpacer || 0) || 0);
+  }
+  function setMonthRevealSpacer(surface, px){
+    const month = surface?.querySelector?.('.prs-month');
+    if (!month) return;
+    const value = Math.max(0, Math.ceil(Number(px) || 0));
+    if (value === monthRevealSpacer(surface)) return;
+    month.style.paddingBottom = value ? `${value}px` : '';
+    if (value) month.dataset.prsRevealSpacer = String(value);
+    else delete month.dataset.prsRevealSpacer;
+  }
+
+  /* Month view: bring the whole week row holding `date` into view. The
+   * scroll always lands on a row boundary just under the sticky weekday
+   * header (never mid-row with the header over a row's date numbers): the
+   * nearest boundary that shows the entire row (its dates, items and "+N
+   * more"), or that row at the top when it is taller than the view. Near the
+   * end of the month in a short view (no such boundary within the scroll
+   * room) a spacer below the last row makes the nearest one reachable, so
+   * the row is never cut off at the bottom. Nothing moves when the row
+   * already shows entirely. Hosts often reveal before the pane has its
+   * final size, so it settles again as the pane resizes, until the user
+   * scrolls.
    * -> true when it scrolled. */
   function revealMonthDate(container, date = new Date()){
+    const moved = revealMonthDateNow(container, date);
+    settleMonthReveal(container, date);
+    return moved;
+  }
+  function revealMonthDateNow(container, date){
     const surface = container?.querySelector?.('.prs-surface');
     if (!surface) return false;
     const key = typeof date === 'string' ? date.slice(0, 10) : dateKey(date);
@@ -7115,17 +7315,67 @@
     const headBottom = surface.querySelector('.prs-month-head-row')?.getBoundingClientRect().bottom ?? surfaceRect.top;
     const visibleBottom = surfaceRect.top + surface.clientHeight;
     const rowRect = week.getBoundingClientRect();
-    const shownEnough = Math.min(rowRect.height, 60);
-    if (rowRect.top >= headBottom - 1 && rowRect.top + shownEnough <= visibleBottom + 1) return false;
+    const fits = rowRect.height <= visibleBottom - headBottom + 1;
+    const fullyShown = rowRect.top >= headBottom - 1 && (fits ? rowRect.bottom <= visibleBottom + 1 : rowRect.top <= headBottom + 1);
     const before = surface.scrollTop;
     const maxScroll = Math.max(0, surface.scrollHeight - surface.clientHeight);
+    // The scroll room the rows alone give (without the spacer).
+    const rowsMaxScroll = Math.max(0, maxScroll - monthRevealSpacer(surface));
     // scrollTop that puts each row's top right under the header.
-    const boundaries = [0, ...Array.from(surface.querySelectorAll('.prs-month-week')).map((row) => Math.round(before + row.getBoundingClientRect().top - headBottom))]
-      .filter((value) => value >= 0 && value <= maxScroll + 1);
-    const wanted = Math.round(before + rowRect.top - headBottom);
-    const target = wanted <= maxScroll + 1 ? Math.max(0, wanted) : Math.max(...boundaries);
-    surface.scrollTop = Math.min(maxScroll, target);
-    return surface.scrollTop !== before;
+    const rowTops = [0, ...Array.from(surface.querySelectorAll('.prs-month-week')).map((row) => Math.round(before + row.getBoundingClientRect().top - headBottom))]
+      .filter((value) => value >= 0);
+    // A pane that grew after an earlier reveal can leave the view mid-row
+    // (the scroll clamps): that is settled again below.
+    if (fullyShown && rowTops.some((value) => value <= maxScroll + 1 && Math.abs(value - before) <= 1)) return false;
+    // The row's top right under the header.
+    const wanted = Math.max(0, Math.round(before + rowRect.top - headBottom));
+    let target = wanted;
+    if (fits) {
+      // The boundary nearest to where the view is that shows the row from
+      // top to bottom; when none is within the rows' scroll room, the
+      // lowest one (the least spacer).
+      const needed = Math.ceil(before + rowRect.bottom - visibleBottom);
+      const showing = rowTops.filter((value) => value >= needed - 1 && value <= wanted + 1);
+      const reachable = showing.filter((value) => value <= rowsMaxScroll + 1)
+        .sort((a, b) => Math.abs(a - before) - Math.abs(b - before));
+      target = reachable.length ? reachable[0] : Math.min(wanted, ...showing);
+    }
+    setMonthRevealSpacer(surface, target - rowsMaxScroll);
+    surface.scrollTop = target;
+    return Math.abs(surface.scrollTop - before) > 0.5;
+  }
+  // Re-run the reveal on the next frames and whenever the pane resizes
+  // shortly after (a docked/floating window or toolbar settling), until the
+  // user touches the calendar.
+  function settleMonthReveal(container, date){
+    const surface = container?.querySelector?.('.prs-surface');
+    if (!surface) return;
+    surface.__prsMonthRevealSettle?.();
+    let frame = 0;
+    let timer = 0;
+    let observer = null;
+    const userInput = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
+    const stop = () => {
+      if (surface.__prsMonthRevealSettle !== stop) return;
+      surface.__prsMonthRevealSettle = null;
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+      observer?.disconnect();
+      userInput.forEach((type) => surface.removeEventListener(type, stop, true));
+    };
+    const again = () => {
+      if (surface.__prsMonthRevealSettle !== stop) return;
+      if (!surface.isConnected) { stop(); return; }
+      revealMonthDateNow(container, date);
+    };
+    surface.__prsMonthRevealSettle = stop;
+    userInput.forEach((type) => surface.addEventListener(type, stop, { capture:true, passive:true }));
+    frame = requestAnimationFrame(() => { frame = requestAnimationFrame(again); });
+    if (typeof ResizeObserver === 'function') {
+      observer = new ResizeObserver(again);
+      observer.observe(surface);
+    }
+    timer = setTimeout(stop, 1500);
   }
 
   root.PlatformScheduleView = {

@@ -115,6 +115,18 @@ function isProductionEventType(eventTypeId: string, eventType: JsonObject) {
   return eventTypeId === "project_work" || kind === "project_work" || kind === "production";
 }
 
+/* R3-RES-11: production auto-route sequences crews only. Work assigned to a
+ * person (an organization user, by its work ref, a person subject, or only
+ * through assigned_user_id(s)) keeps its routing untouched. */
+function eventAssignedToPerson(event: JsonObject, subjectType = "") {
+  const refKind = cleanText(asObject(event.work_resource_ref).kind).toLowerCase();
+  if (["organization_user", "person", "user"].includes(refKind)) return true;
+  const type = cleanText(subjectType).toLowerCase();
+  if (type === "organization_user" || type === "user" || type === "person") return true;
+  const ref = asObject(event.work_resource_ref);
+  return !cleanText(ref.id || event.assigned_resource_id || event.resource_id || event.assigned_crew_id) && !!eventAssignedUserId(event);
+}
+
 function eventCrewRoleRefIds(event: JsonObject) {
   return (Array.isArray(event.resource_refs) ? event.resource_refs : [])
     .map(asObject)
@@ -232,6 +244,7 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
   const skippedMissingAddress: Array<{ event_id: string; project_id: string; project_title: string; reason: "missing_address" }> = [];
   const cachedTravel = new Map<string, number>();
   const subjectIds = new Set(subjects.map((subject) => subject.id));
+  const subjectTypeById = new Map(subjects.map((subject) => [subject.id, subject.subject_type]));
   const skippedProduction: Array<{ event_id: string; project_id: string; reason: string }> = [];
 
   for (const document of projects) {
@@ -284,8 +297,9 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
         const reason = !assignee ? "unassigned"
           : crewIds.size > 1 ? "multiple_crews"
             : !subjectIds.has(assignee) ? "assignee_not_routable"
-              : (event.all_day === true || granularity === "date") ? "all_day"
-                : "";
+              : eventAssignedToPerson(event, subjectTypeById.get(assignee)) ? "person_assigned"
+                : (event.all_day === true || granularity === "date") ? "all_day"
+                  : "";
         if (reason) {
           skippedProduction.push({ event_id: stopId, project_id: cleanText(asObject(document).id), reason });
           continue;

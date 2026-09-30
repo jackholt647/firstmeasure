@@ -156,7 +156,7 @@ test('calendar category toggles filter sales, production, and other items indepe
   assert.match(schedulingSource, /let showSalesSchedule = true;[\s\S]*?let showProductionSchedule = true;[\s\S]*?let showOtherSchedule = true;/);
   assert.match(schedulingSource, /function calendarEventCategory\(event = \{\}\)\{[\s\S]*?isSalesEvent\(event\) \|\| isSalesFollowUpEvent\(event\)[\s\S]*?return 'production';[\s\S]*?return 'other';/);
   assert.match(schedulingSource, /return scheduleTypeActive\(calendarEventCategory\(event\)\);/);
-  assert.match(schedulingSource, /floatingEvents\.filter\(\(event\) => !isVehicleBooking\(event\)\)\.filter\(eventMatchesMode\)\.filter\(eventMatchesBreakdown\)\.map\(decorateFloatingEvent\)/);
+  assert.match(schedulingSource, /floatingEvents\.filter\(\(event\) => !isVehicleBooking\(event\) && !\['cancelled', 'canceled'\]\.includes\(clean\(event\.status\)\.toLowerCase\(\)\)\)\.filter\(eventMatchesMode\)\.filter\(eventMatchesBreakdown\)\.map\(decorateFloatingEvent\)/);
   assert.match(schedulingSource, /data-schedule-type-toggle="sales"[\s\S]*?data-schedule-type-toggle="production"[\s\S]*?data-schedule-type-toggle="other"/);
   assert.match(schedulingSource, /if \(next === 'production'\) showProductionSchedule = !showProductionSchedule;[\s\S]*?else if \(next === 'other'\) showOtherSchedule = !showOtherSchedule;[\s\S]*?else showSalesSchedule = !showSalesSchedule;/);
   const activeTypes = schedulingSource.match(/function activeScheduleTypes\(\)\{([\s\S]*?)\n  \}/);
@@ -250,7 +250,7 @@ test('Routing placement supports keyboard history and full hover previews', () =
   assert.match(schedulingSource, /event\.ctrlKey \|\| event\.metaKey/);
   assert.match(schedulingSource, /const redo = key === 'y' \|\| \(key === 'z' && event\.shiftKey\)/);
   assert.match(schedulingSource, /onDraftChange\(next\)\{ recordPlacementHistory\(\); applyDailyDraft\(next\); \}/);
-  assert.match(schedulingSource, /onDraftChange\(next\)\{\s*recordPlacementHistory\(\);\s*applyDraft\(next\);/);
+  assert.match(schedulingSource, /onDraftChange\(next\)\{\s*recordPlacementHistory\(\);[\s\S]*?incoming = placementNaturalRange\(next\);[\s\S]*?applyDraft\(incoming\);/);
   assert.match(scheduleViewSource, /function renderResourceDayScheduler[\s\S]*?const renderHoverPlacementPreview = \(target\) =>/);
   assert.match(scheduleViewSource, /const previews = typeof options\.derivePlacementDrafts === 'function' \? options\.derivePlacementDrafts\(primary\) : \[primary\]/);
   assert.match(scheduleViewSource, /if \(!drag\) \{\s*if \(options\.allowCreate !== false\) renderHoverPlacementPreview\(pointRange\(event\)\);/);
@@ -263,7 +263,9 @@ test('Routing queues scroll independently and distinguish waiting work', () => {
   // half the rail) and shrink together when the rail overflows.
   assert.match(schedulingSource, /\.dash-body\.schedule-mode \.dash-right>\.dash-groups>\.dash-group\{display:flex;flex:0 1 auto;min-height:min\(118px,100%\);flex-direction:column\}/);
   assert.match(schedulingSource, /\.dash-group\.empty\{flex:0 0 auto\}/);
-  assert.match(schedulingSource, /\.dash-group\.empty>\.dash-group-body\{display:none\}/);
+  // An empty group keeps a compact "No unscheduled …" line (R4-RAIL-14), not a bare head.
+  assert.match(schedulingSource, /\.dash-group\.empty>\.dash-group-body\{flex:0 0 auto;overflow:visible\}/);
+  assert.match(schedulingSource, /\.dash-group\.empty>\.dash-group-body>\.dash-empty\{padding:2px 0 10px!important;font-size:12px\}/);
   assert.ok([...schedulingSource.matchAll(/<div class="dash-group \$\{(?:rows|items)\.length \? '' : 'empty'\}">/g)].length >= 2, 'sales and production queues should both mark empty groups');
   assert.match(schedulingSource, /\.dash-group>\.dash-group-body\{flex:1;min-height:0;overflow-y:auto/);
   assert.match(schedulingSource, /\.dash-appt-tile\.unscheduled\{border-top-style:dashed/);
@@ -484,24 +486,24 @@ test('placed scheduling items distinguish clicks from drags and open assignment 
   assert.match(scheduleViewSource, /pointerDistance\(event\) > POINTER_DRAG_THRESHOLD/);
 });
 
-test('regular Day Week and Month appointments stay click-first while Routing owns dragging', () => {
+test('regular Day Week and Month appointments drag and resize in place unless view-only or placing', () => {
   const rendererStart = schedulingSource.indexOf('function renderEventCalendarView(){');
   const rendererEnd = schedulingSource.indexOf('  function openDraftAssignmentMenu', rendererStart);
   const eventCalendarRenderer = rendererStart >= 0 && rendererEnd > rendererStart ? schedulingSource.slice(rendererStart, rendererEnd) : '';
-  assert.match(eventCalendarRenderer, /allowEdit: true,\s*allowEventDrag: false,/);
-  assert.match(eventCalendarRenderer, /onEventClick\(event, meta = \{\}\)\{ openPlacedCalendarEvent\(event, meta\); \}/);
+  assert.match(eventCalendarRenderer, /allowEdit: scheduleEditable,[\s\S]*?allowEventDrag: scheduleEditable && !clickPlacement,/);
+  assert.match(eventCalendarRenderer, /onEventClick\(event, meta = \{\}\)\{[\s\S]*?openPlacedCalendarEvent\(event, meta\);/);
   assert.match(scheduleViewSource, /const allowEventDrag = allowEdit && options\.allowEventDrag !== false;/);
   assert.match(scheduleViewSource, /events-click-only/);
   assert.match(scheduleViewSource, /bindEdgeResizeCursor\(chip, \(\) => allowEventDrag\)/);
   assert.match(scheduleViewSource, /if \(allowEventDrag\) chip\.addEventListener\('pointerdown'/);
-  assert.match(schedulingSource, /renderResourceTimeScheduler\(mount, \{[\s\S]*?allowEdit:true,/);
+  assert.match(schedulingSource, /renderResourceTimeScheduler\(mount, \{[\s\S]*?allowEdit:scheduleEditable,/);
 });
 
 test('scheduling popovers dismiss only when the full pointer gesture is outside', () => {
   [schedulingSource, projectScheduleSource].forEach((source) => {
     assert.match(source, /function bindOutsidePointerDismiss\(surface, onDismiss, insideNodes = \[\]\)/);
     assert.match(source, /pointerStartedOutside = !isInside\(pointerTarget\(event\)\)/);
-    assert.match(source, /if \(pointerStartedOutside && pointerEndedOutside\) onDismiss\(\);/);
+    assert.match(source, /if \(pointerStartedOutside && pointerEndedOutside\) onDismiss\((?:pointerTarget\(event\))?\);/);
     assert.match(source, /document\.addEventListener\('pointerdown', onPointerDown, true\);[\s\S]*?document\.addEventListener\('pointerup', onPointerUp, true\);/);
   });
 });
@@ -695,7 +697,7 @@ test('project labels honor the branch title mode instead of stale event snapshot
   assert.match(schedulingSource, /const customerName = clean\(contact\.name \|\| event\.customer_name\);[\s\S]*?if \(mode === 'address'\) return address \|\| customerName \|\| savedTitle \|\| 'Project';[\s\S]*?return customerName \|\| address \|\| savedTitle \|\| 'Project';/);
   assert.match(schedulingSource, /name:clean\(contact\.name[\s\S]*?project\.customer_name[\s\S]*?project\.resident_name[\s\S]*?customer\.name[\s\S]*?resident\.name/);
   assert.match(schedulingSource, /function decorateWorkEvent\(event = \{\}\)\{[\s\S]*?project_title: projectTitle\(eventProject\(event\), event\)/);
-  assert.match(schedulingSource, /function decorateSalesEvent\(event = \{\}\)\{[\s\S]*?project_title: projectTitle\(eventProject\(event\), event\)/);
+  assert.match(schedulingSource, /function decorateSalesEvent\(event = \{\}\)\{\s*const project = eventProject\(event\);[\s\S]*?project_title: projectTitle\(project, event\)/);
   assert.doesNotMatch(schedulingSource, /project_title: event\.project_title \|\| projectTitle\(eventProject\(event\), event\)/);
 });
 

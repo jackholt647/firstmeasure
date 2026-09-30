@@ -51,6 +51,7 @@
   let scheduleCachedWorkResources = [];
   let scheduleCachedEquipmentUnits = [];
   let scheduleCachedEquipmentTypes = [];
+  let scheduleEquipmentConflictMode = null;
   let scheduleCachedUsers = [];
   let scheduleCachedProjects = [];
   let scheduleWorkResourceDataLoaded = false;
@@ -59,6 +60,8 @@
   let scheduleCrewMenuEventId = '';
   let scheduleCrewMenuDocHandler = null;
   let scheduleEventPopoverId = '';
+  // The calendar item / row the details popover was opened from.
+  let scheduleEventPopoverAnchor = null;
   let scheduleEventPopoverDocHandler = null;
   let scheduleRecurringSeries = [];
   let scheduleRecurrenceLoading = false;
@@ -234,6 +237,8 @@
       .r-schedule-calendar.work-calendar{flex:1;min-height:0}
       .r-project-mobile-toolbar{display:none}
       .r-schedule-left-status{border:1px solid rgba(var(--primary-rgb,217,48,37),.18);background:rgba(var(--primary-rgb,217,48,37),.06);border-radius:12px;padding:10px;color:#344054;font-size:12px;font-weight:850;line-height:1.4}
+      .r-schedule-left-status.r-schedule-view-only{border-color:rgba(15,23,42,.1);background:#f8fafc;color:#475467}
+      #rSchedulePanel .prs-mobile-control.month{width:auto;max-width:none;min-width:0;flex:0 1 auto}
       .r-schedule-left-status strong{display:block;color:#101828;font-size:12px;font-weight:1000;margin-bottom:2px}
       .r-schedule-placement-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px 8px 12px;border:1px solid rgba(37,99,235,.24);border-radius:12px;background:#eff6ff;color:#1e3a8a;font-size:12px;font-weight:850;line-height:1.35}.r-schedule-placement-banner>i{color:#2563eb}.r-schedule-placement-banner>span{flex:1 1 200px;min-width:0}.r-schedule-placement-banner strong{font-weight:1000;color:#172554}.r-schedule-placement-banner .warn{display:block;color:#b45309;font-weight:900}.r-schedule-placement-cancel{flex:0 0 auto;height:30px;border:1px solid rgba(37,99,235,.28);border-radius:9px;background:#fff;color:#1d4ed8;padding:0 10px;font:inherit;font-size:11px;font-weight:1000;cursor:pointer}.r-schedule-placement-cancel:hover{background:#dbeafe}.r-schedule-placement-cancel kbd{font:inherit;font-size:10px;opacity:.7}
       .r-schedule-panel.work-mode.scheduling-mode .r-schedule-placement-banner{margin:8px 12px 0}.r-schedule-panel:not(.work-mode) .r-schedule-placement-banner{margin:0 0 10px}
@@ -606,16 +611,32 @@
     cacheActiveBaseProject();
     rememberScheduleProject(activeBaseProject);
   }
-  // Someone else saved the item first: say so and show the stored schedule.
-  function handleStaleScheduleSave(error = null){
-    const deleted = error?.data?.details?.deleted === true || error?.data?.deleted === true;
+  // Stays up until dismissed (or replaced), as in the global Scheduling tab:
+  // it asks the user to redo work.
+  const SCHEDULE_STALE_TOAST = { tone:'warning', duration:600000 };
+  function scheduleStaleErrorDeleted(error = null){
+    return error?.deleted === true || error?.data?.details?.deleted === true || error?.data?.deleted === true;
+  }
+  // deletedBody replaces the "changes were not saved" wording when the
+  // user's own action was a delete.
+  function showStaleScheduleToast(error = null, body = '', deletedBody = ''){
+    if (scheduleStaleErrorDeleted(error)) {
+      showToast(
+        (globalThis.PlatformLanguage?.text("scheduling","m_deleted_elsewhere","Deleted by someone else") ?? "Deleted by someone else"),
+        deletedBody || (globalThis.PlatformLanguage?.text("scheduling","m_deleted_elsewhere_body","This item was deleted in another window, so your changes were not saved.") ?? "This item was deleted in another window, so your changes were not saved."),
+        SCHEDULE_STALE_TOAST
+      );
+      return;
+    }
     showToast(
-      (globalThis.PlatformLanguage?.text("scheduling","m_changed_elsewhere_title","Changed by someone else") ?? "Changed by someone else"),
-      deleted
-        ? 'This item was deleted by someone else. The latest schedule is shown.'
-        : (globalThis.PlatformLanguage?.text("scheduling","m_changed_elsewhere_body","Someone else changed this item. The latest schedule is shown — apply your change again if it is still needed.") ?? "Someone else changed this item. The latest schedule is shown — apply your change again if it is still needed."),
-      false
+      (globalThis.PlatformLanguage?.text("scheduling","m_changed_elsewhere","Changed by someone else") ?? "Changed by someone else"),
+      body || (globalThis.PlatformLanguage?.text("scheduling","m_changed_elsewhere_body","Someone else changed this item. The latest schedule is shown — apply your change again if it is still needed.") ?? "Someone else changed this item. The latest schedule is shown — apply your change again if it is still needed."),
+      SCHEDULE_STALE_TOAST
     );
+  }
+  // Someone else saved the item first: say so and show the stored schedule.
+  function handleStaleScheduleSave(error = null, deletedBody = ''){
+    showStaleScheduleToast(error, '', deletedBody);
     adoptStaleScheduleCopy(error);
     if (state.active) renderSchedulePanelPreservingScroll();
     let attempts = 0;
@@ -652,6 +673,20 @@
       }
       scheduleMutationSerial += 1;
       break;
+    }
+    // A project this window read from the server that is gone now was
+    // deleted elsewhere: say so (and show the window's lasting notice) rather
+    // than trying to create it again or blaming the connection.
+    if (!saved?.document && window.PlatformAPI?.projects?.baseline?.(project?.id)) {
+      const stored = await window.PlatformAPI.projects.get?.(orgId, project.id).catch(() => null);
+      if (stored && (stored.missing || !stored.document)) {
+        try { window.dispatchEvent(new CustomEvent('fm:project:deleted', { detail:{ projectId:project.id } })); } catch (_) {}
+        const error = new Error(globalThis.PlatformLanguage?.text("project-schedule","m_project_deleted_not_saved","This project was deleted by someone else, so this item was not saved.") ?? "This project was deleted by someone else, so this item was not saved.");
+        error.code = 'project_deleted';
+        error.deleted = true;
+        error.status = 404;
+        throw error;
+      }
     }
     if (!saved?.document) {
       const created = window.Portal?.ProjectStore?.saveRemote ? await window.Portal.ProjectStore.saveRemote(project) : null;
@@ -693,7 +728,7 @@
     for (const update of Scheduling.groupRollupUpdates(events, groupIds)) {
       const mutationVersion = beginScheduleEventSave(update.id);
       upsertLocalProjectEvent(update);
-      await saveProjectEventQuiet(update, { successTitle:'', failureTitle:'Group dates not updated', broadcast:false, preserveLocalEvents:true, mutationVersion });
+      await saveProjectEventQuiet(update, { successTitle:'', failureTitle:'Section dates not updated', broadcast:false, preserveLocalEvents:true, mutationVersion });
     }
   }
 
@@ -886,8 +921,11 @@
     return id === 'sales_appointment' || id.includes('sales_appointment');
   }
 
+  // The Overview pill: the earliest appointment still on the calendar (a
+  // cancelled or unscheduled one is never shown as the appointment).
   function currentProjectSalesAppointment(){
     return projectSalesAppointmentEvents()
+      .filter(materialEventIsScheduled)
       .sort((a, b) => (window.PlatformScheduling?.eventStart?.(a) || new Date(a.start_at || 0)) - (window.PlatformScheduling?.eventStart?.(b) || new Date(b.start_at || 0)))[0] || null;
   }
 
@@ -918,6 +956,77 @@
 
   function equipmentEventHidden(event){
     return !equipmentSchedulingEnabled() && productionResourceType(event) === 'equipment';
+  }
+  // The company's equipment conflict mode ('block' | 'warn' | 'off'), read
+  // once per window; the server treats a missing setting as 'warn'.
+  async function loadEquipmentConflictMode(){
+    if (scheduleEquipmentConflictMode !== null) return scheduleEquipmentConflictMode;
+    try {
+      const result = window.EquipmentAPI?.settings ? await window.EquipmentAPI.settings(scheduleOrgId()) : null;
+      scheduleEquipmentConflictMode = String(result?.settings?.conflict_mode || result?.conflict_mode || '').trim() || 'warn';
+    } catch (_) {
+      scheduleEquipmentConflictMode = 'warn';
+    }
+    return scheduleEquipmentConflictMode;
+  }
+  /* Why a unit can't simply be booked in a window, from the server's
+   * availability report — worded as in the global editor's equipment picker
+   * ("Down until Oct 3", "Reserved until …", "Booked: … (until …)"). In
+   * 'block' mode the server refuses these bookings, so they are marked
+   * Unavailable. */
+  function equipmentAvailabilityNote(report = {}, conflictMode = 'warn'){
+    const name = String(report.name || report.id || 'This unit').trim();
+    const unit = scheduleCachedEquipmentUnits.find((item) => String(item.id || '') === String(report.id || '')) || {};
+    const type = scheduleCachedEquipmentTypes.find((item) => String(item.id || '') === String(report.type_id || unit.type_id || ''));
+    const bookings = Array.isArray(report.bookings) ? report.bookings : [];
+    const status = String(report.status || '').trim().toLowerCase();
+    const endOf = (booking) => { const date = new Date(booking?.end_at || ''); return Number.isFinite(date.getTime()) ? date : null; };
+    const maintenance = bookings.find((booking) => String(booking?.kind || '') === 'equipment_maintenance');
+    if (status === 'retired') return { label:'Retired', reason:`${name} is retired and can't be booked.`, blocked:true, down:true };
+    if (maintenance || (status === 'down' && report.available === false && !bookings.length)) {
+      const until = maintenance && endOf(maintenance) ? endOf(maintenance).toLocaleDateString([], { month:'short', day:'numeric' }) : '';
+      return {
+        label:until ? `Down until ${until}` : 'Down for service',
+        reason:until ? `${name} is down for service until ${until}, during this item.` : `${name} is down for service.`,
+        blocked:conflictMode === 'block',
+        down:true
+      };
+    }
+    if (!bookings.length || type?.allow_double_booking === true) return null;
+    const booking = bookings.find((item) => ['equipment_reservation', 'equipment_booking'].includes(String(item?.kind || ''))) || bookings[0];
+    const end = endOf(booking);
+    // A booking ending at midnight is a whole-day one: name its last day.
+    const endsAtMidnight = !!end && end.getHours() === 0 && end.getMinutes() === 0;
+    const until = end
+      ? (endsAtMidnight ? new Date(end.getTime() - 1).toLocaleDateString([], { month:'short', day:'numeric' }) : end.toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }))
+      : '';
+    const title = String(booking?.title || booking?.project_title || '').trim();
+    const reserved = ['equipment_reservation', 'equipment_booking'].includes(String(booking?.kind || ''));
+    const label = reserved
+      ? (until ? `Reserved until ${until}` : 'Reserved')
+      : (title ? `Booked: ${title}${until ? ` (until ${until})` : ''}` : 'Booked elsewhere in this window');
+    const reason = reserved
+      ? `${name} is reserved${until ? ` until ${until}` : ''}, during this item.`
+      : (title ? `${name} is already booked on “${title}”${until ? ` until ${until}` : ''}.` : `${name} is already booked during this window.`);
+    return { label, reason, blocked:conflictMode === 'block', down:false };
+  }
+  // A refused save's equipment conflicts, named unit by unit (as the global
+  // editor words them).
+  function equipmentConflictSaveText(conflicts = []){
+    // Whole-day bookings read as dates, not "12:00 AM".
+    const when = (item = {}) => {
+      const date = new Date(item?.start_at || '');
+      if (!Number.isFinite(date.getTime())) return '';
+      return date.getHours() === 0 && date.getMinutes() === 0
+        ? date.toLocaleDateString([], { month:'short', day:'numeric' })
+        : date.toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+    };
+    return conflicts.map((conflict) => {
+      const booked = (Array.isArray(conflict?.events) ? conflict.events : []).slice(0, 2)
+        .map((item) => [String(item?.title || item?.project_title || '').trim(), when(item)].filter(Boolean).join(' · '))
+        .filter(Boolean);
+      return [String(conflict?.message || '').trim() || `${String(conflict?.ref_name || 'Equipment').trim()} is not available.`, booked.length ? `Booked: ${booked.join('; ')}.` : ''].filter(Boolean).join(' ');
+    }).join(' ');
   }
 
   function projectWorkEvents(){
@@ -1069,8 +1178,67 @@
     return !!event;
   }
 
+  function scheduleDayStart(value){
+    const date = new Date(value);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }
+  /* Where a waiting item lands when it is placed by one click (a day in
+   * Month or the all-day band, a time slot, a Timeline lane day), as in the
+   * global Scheduling tab: the item keeps its own planned length and nature.
+   * All-day work gets its planned number of days; timed work keeps the
+   * clicked time (a day click starts it at its usual time or the start of
+   * the working day) with its own duration. Its duration_minutes is never
+   * rewritten from the clicked cell. */
+  function schedulePlacementNaturalRange(source = {}, next = {}){
+    const Scheduling = window.PlatformScheduling;
+    const start = new Date(next?.start);
+    if (!source?.id || !Number.isFinite(start.getTime())) return next;
+    const clickedAllDay = next.all_day !== false && String(next.schedule_granularity || '').toLowerCase() !== 'time';
+    let interpreted = null;
+    if (typeof Scheduling?.interpretScheduleBundle === 'function') {
+      try { interpreted = Scheduling.interpretScheduleBundle(source, [source], scheduleDayStart(start), activeBaseProject || {}, [], { config:scheduleCachedConfig || null })?.[0] || null; } catch (_) { interpreted = null; }
+    }
+    const interpretedStart = interpreted?.start ? new Date(interpreted.start) : null;
+    const interpretedEnd = interpreted?.end ? new Date(interpreted.end) : null;
+    const validInterpreted = interpretedStart && interpretedEnd && Number.isFinite(interpretedStart.getTime()) && Number.isFinite(interpretedEnd.getTime()) && interpretedEnd > interpretedStart;
+    const sourceTimed = source.all_day === false || String(source.schedule_granularity || '').toLowerCase() === 'time';
+    const naturalAllDay = validInterpreted ? interpreted.all_day !== false : !sourceTimed;
+    const sourceMinutes = Number(source.duration_minutes || 0);
+    const durationMs = validInterpreted
+      ? interpretedEnd.getTime() - interpretedStart.getTime()
+      : (sourceMinutes > 0 ? sourceMinutes * 60000 : (naturalAllDay ? 86400000 : 60 * 60000));
+    if (naturalAllDay) {
+      const day = scheduleDayStart(start);
+      return { ...next, start:day, end:scheduleAddDays(day, Math.max(1, Math.round(durationMs / 86400000))), all_day:true, schedule_granularity:'date' };
+    }
+    let timedStart = start;
+    if (clickedAllDay) {
+      // A timed item that already has a time of day keeps it on the new day.
+      const ownStart = sourceTimed && materialEventIsScheduled(source) ? Scheduling?.eventStart?.(source) : null;
+      timedStart = scheduleDayStart(start);
+      if (ownStart) timedStart.setHours(ownStart.getHours(), ownStart.getMinutes(), 0, 0);
+      else if (validInterpreted && scheduleLocalDate(interpretedStart) === scheduleLocalDate(start)) timedStart = new Date(interpretedStart);
+      else {
+        const workWindow = Scheduling?.availabilityWindow?.(scheduleCachedConfig || {}, scheduleLocalDate(start), 'project_work') || null;
+        const [hour, minute] = String(workWindow?.start || '08:00').split(':').map((part) => Number(part) || 0);
+        timedStart.setHours(hour, minute, 0, 0);
+      }
+    }
+    return { ...next, start:timedStart, end:new Date(timedStart.getTime() + durationMs), all_day:false, schedule_granularity:'time' };
+  }
+
   function setMaterialScheduleDraft(next = null){
     const event = selectedMaterialEvent();
+    // A fresh click on the calendar (not a drag of the placed draft) lands
+    // the item with its own planned length.
+    const clicked = next;
+    if (next?.__schedule_natural_range && event && next.start) next = schedulePlacementNaturalRange(event, next);
+    if (next) delete next.__schedule_natural_range;
+    if (clicked) delete clicked.__schedule_natural_range;
+    // The calendar drew the clicked cell; show the item's real span instead.
+    const reshaped = next !== clicked && !!next?.start
+      && (new Date(next.start).getTime() !== new Date(clicked.start).getTime() || new Date(next.end).getTime() !== new Date(clicked.end || 0).getTime() || (next.all_day !== false) !== (clicked.all_day !== false));
     if (!next?.start || !event) {
       materialScheduleDraft = null;
     } else {
@@ -1087,7 +1255,9 @@
         schedule_granularity: next.schedule_granularity || (next.all_day === false ? 'time' : 'date')
       };
     }
-    renderScheduleLeft();
+    // Redrawn once the calendar's own pointer handler has finished.
+    if (reshaped) queueMicrotask(() => { if (state.active && materialScheduleDraft?.start) renderSchedulePanelPreservingScroll(); });
+    else renderScheduleLeft();
   }
 
   async function persistMaterialScheduleEvent(event){
@@ -1186,10 +1356,25 @@
   // Placing an item on a day that has already passed is allowed (catching
   // up records) but never silent.
   // Same wording as the global Scheduling tab.
-  async function confirmPastPlacement(event = {}, start){
+  // Enter keeps the safe answer (another date / Cancel); going ahead takes a
+  // deliberate click.
+  async function confirmPastPlacement(event = {}, start, { move = false } = {}){
     if (!scheduleIsPastDay(start)) return true;
     const day = new Date(start).toLocaleDateString([], { weekday:'long', month:'short', day:'numeric' });
-    return !!(await scheduleConfirmUi(`“${scheduleEventDisplayTitle(event) || 'This item'}” would be placed on ${day}, which is in the past. Place it anyway?`, { title:'Place in the past?', okLabel:'Place anyway', cancelLabel:'Choose another date' }));
+    const label = `“${scheduleEventDisplayTitle(event) || 'This item'}”`;
+    return !!(await scheduleConfirmUi(move
+      ? `${label} would move to ${day}, which is in the past. Move it anyway?`
+      : `${label} would be placed on ${day}, which is in the past. Place it anyway?`, move
+      ? { title:'Move into the past?', okLabel:'Move anyway', cancelLabel:(globalThis.PlatformLanguage?.text("scheduling","m_cbef679b21abb4","Cancel") ?? "Cancel"), defaultFocus:'cancel' }
+      : { title:'Place in the past?', okLabel:'Place anyway', cancelLabel:'Choose another date', defaultFocus:'cancel' }));
+  }
+  // A move of a placed item onto a day that has passed asks first (a move
+  // within the same day, e.g. a resize, never does).
+  async function confirmPastMove(source = {}, start){
+    if (!materialEventIsScheduled(source) || !scheduleIsPastDay(start)) return true;
+    const before = window.PlatformScheduling?.eventStart?.(source);
+    if (before && scheduleLocalDate(before) === scheduleLocalDate(new Date(start))) return true;
+    return confirmPastPlacement(source, start, { move:true });
   }
   // Touch screens tap; a mouse clicks. Phones have no Escape key to mention.
   // By the pointer, not the width: a narrow floating or docked window on a
@@ -1197,8 +1382,11 @@
   function scheduleTouchLayout(){
     return window.matchMedia?.('(pointer:coarse)').matches === true;
   }
+  // Phone calendars place on touch-and-hold (a plain tap scrolls and
+  // swipes), so the banner says so.
   function schedulePointerVerb(){
-    return scheduleTouchLayout() ? 'Tap' : 'Click';
+    if (!scheduleTouchLayout()) return 'Click';
+    return window.matchMedia?.('(max-width:720px)').matches === true ? 'Touch and hold' : 'Tap';
   }
   function schedulePlacementState(){
     if (scheduleModeActive) {
@@ -1323,6 +1511,10 @@
       status: 'scheduled',
       updated_at: new Date().toISOString()
     };
+    if (!options.skipRelated && !options.pastConfirmed && !(await confirmPastMove(source, next.start_at))) {
+      renderSchedulePanelPreservingScroll();
+      return null;
+    }
     // Linked items are settled before anything is saved.
     const related = options.skipRelated ? null : await resolveProjectRelatedReschedule(source, { start:next.start_at, end:next.end_at });
     if (related?.cancelled) {
@@ -1347,6 +1539,8 @@
       }
       return null;
     }
+    saved.related = related;
+    options.afterSave?.(saved, related);
     await saveRelatedRescheduleChanges(related);
     await persistGroupRollups([next, ...(related?.changes || [])]);
     if (!options.skipRelated) renderSchedulePanelPreservingScroll();
@@ -1760,6 +1954,35 @@
     });
   }
 
+  /* Keyboard focus back on an item of this schedule (looked up again: a
+   * re-render replaces its element), unless something else (a dialog, a
+   * field) has it. Falls back to the given element, then to Today. */
+  function focusScheduleItem(eventId = '', fallback = null){
+    const id = String(eventId || '');
+    const find = () => {
+      const panel = $('#rSchedulePanel');
+      if (!panel) return null;
+      const key = cssEscape(id);
+      const item = id ? panel.querySelector(`[data-psv-gantt-open="${key}"],[data-psv-gantt-bar="${key}"],.prs-work-chip[data-prs-event-id="${key}"],[data-prs-event-id="${key}"],[data-production-resource-event="${key}"]`) : null;
+      return item || (fallback?.isConnected ? fallback : null) || panel.querySelector('[data-schedule-anchor-nav="0"],[data-project-mobile-today]');
+    };
+    const focus = () => {
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected) return;
+      try { find()?.focus?.({ preventScroll:true }); } catch (_) {}
+    };
+    focus();
+    requestAnimationFrame(focus);
+  }
+  // The item that takes a deleted one's place in the Timeline (the next
+  // row, else the one before it).
+  function scheduleNeighborFocusId(eventId = ''){
+    const ids = [...($('#rSchedulePanel')?.querySelectorAll('[data-psv-gantt-open]') || [])].map((node) => String(node.dataset.psvGanttOpen || ''));
+    const index = ids.indexOf(String(eventId || ''));
+    if (index < 0) return '';
+    return ids.slice(index + 1).find((id) => id && id !== String(eventId)) || ids.slice(0, index).reverse().find(Boolean) || '';
+  }
+
   function schedulePopoverHost(anchor = null){
     const modalRoot = anchor?.closest?.('[data-fm-modal-id], #rOverlay, .r-overlay');
     if (modalRoot) return modalRoot;
@@ -1771,7 +1994,7 @@
   function scheduleEventKind(event = {}){
     if (isMaterialDeliveryEvent(event)) return { label:(globalThis.PlatformLanguage?.text("project-schedule","m_b73185deef6d79","Delivery") ?? "Delivery"), icon:'fa-truck-ramp-box' };
     if (isSalesAppointmentEvent(event)) return { label:(globalThis.PlatformLanguage?.text("project-schedule","m_f7eaf8f28f8161","Sales appointment") ?? "Sales appointment"), icon:'fa-calendar-check' };
-    if (scheduleEventIsGroup(event)) return { label:'Schedule group', icon:'fa-layer-group' };
+    if (scheduleEventIsGroup(event)) return { label:'Section', icon:'fa-layer-group' };
     if (productionResourceType(event) === 'labor' || isProjectWorkEvent(event)) return { label:(globalThis.PlatformLanguage?.text("project-schedule","m_7acfa5ed3b7739","Labor") ?? "Labor"), icon:'fa-hammer' };
     const typeId = String(event.event_type_default_id || event.type_id || event.event_type_id || '').trim();
     const typeLabel = String(scheduleCachedConfig?.event_types?.[typeId]?.label || '').trim();
@@ -1895,6 +2118,7 @@
     closeWorkAssignmentMenu();
     closeScheduleEventPopover();
     scheduleEventPopoverId = String(event.id || '');
+    if (anchor instanceof Element) scheduleEventPopoverAnchor = anchor;
     const kind = scheduleEventKind(event);
     const address = String(event.project_address || activeBaseProject?.address || '').trim();
     const deliveryStatus = isMaterialDeliveryEvent(event)
@@ -2012,11 +2236,14 @@
       popover.__resizeObserver = new ResizeObserver(() => placePopover());
       popover.__resizeObserver.observe(popover);
     }
+    // After an action (and any question it asks) keyboard focus goes back to
+    // the item it was opened from, or to a neighbour when the item is gone.
+    const returnAnchor = anchor instanceof Element ? anchor : null;
+    const focusBack = () => focusScheduleItem(storedEvent.id, returnAnchor);
     popover.querySelector('[data-schedule-event-lock]')?.addEventListener('click', (clickEvent) => {
       clickEvent.stopPropagation();
       closeScheduleEventPopover();
-      if (isMaterialDeliveryEvent(storedEvent)) toggleMaterialScheduleLock(storedEvent, !locked);
-      else toggleWorkScheduleLock(storedEvent, !locked);
+      Promise.resolve(isMaterialDeliveryEvent(storedEvent) ? toggleMaterialScheduleLock(storedEvent, !locked) : toggleWorkScheduleLock(storedEvent, !locked)).finally(focusBack);
     });
     popover.querySelector('[data-schedule-event-close]')?.addEventListener('click', (clickEvent) => {
       clickEvent.preventDefault();
@@ -2034,38 +2261,74 @@
       const removeId = String(button.dataset.scheduleAssigneeRemove || '');
       saveWorkAssignees(storedEvent, eventWorkAssignees(storedEvent).filter((ref) => ref.id !== removeId), { reopenAt:reopenRect() });
     }));
-    popover.querySelector('[data-schedule-assignee-add]')?.addEventListener('change', (changeEvent) => {
+    popover.querySelector('[data-schedule-assignee-add]')?.addEventListener('change', async (changeEvent) => {
       changeEvent.stopPropagation();
-      const addId = String(changeEvent.currentTarget.value || '');
+      const select = changeEvent.currentTarget;
+      const addId = String(select.value || '');
       if (!addId) return;
       const resource = workAssignmentResources(storedEvent).find((item) => String(item.id || '') === addId) || {};
-      saveWorkAssignees(storedEvent, [...eventWorkAssignees(storedEvent), { kind:workRefKind(resource.subject_type || resource.resource_kind) || 'resource_group', id:addId, name:resource.name || addId }], { reopenAt:reopenRect() });
+      const name = resource.name || addId;
+      // A crew or person already booked then is never double-booked
+      // silently (the Edit dialog blocks it; here it asks).
+      const start = materialEventIsScheduled(storedEvent) ? window.PlatformScheduling?.eventStart?.(storedEvent) : null;
+      const end = start ? window.PlatformScheduling?.eventEnd?.(storedEvent) : null;
+      const busy = start && end ? scheduleCrewConflicts([addId], start, end, { excludeId:storedEvent.id, excludeSeriesId:storedEvent.recurrence_series_id || '', includePeople:true }) : [];
+      if (busy.length) {
+        const first = busy[0].event;
+        const more = busy.length > 1 ? ` and ${busy.length - 1} other item${busy.length === 2 ? '' : 's'}` : '';
+        const placement = reopenRect();
+        const approved = await scheduleConfirmUi(`${name} is already booked on “${scheduleEventDisplayTitle(first)}” (${workRangeLabel(first)})${more}. Assign ${name} here anyway?`, { title:'Already booked', okLabel:'Assign anyway', cancelLabel:(globalThis.PlatformLanguage?.text("scheduling","m_cbef679b21abb4","Cancel") ?? "Cancel"), defaultFocus:'cancel' });
+        if (!approved) {
+          if (select.isConnected) {
+            select.value = '';
+            try { select.focus({ preventScroll:true }); } catch (_) {}
+          }
+          return;
+        }
+        const current = scheduleProjectEvents().find((item) => String(item.id || '') === String(storedEvent.id || '')) || storedEvent;
+        await saveWorkAssignees(current, [...eventWorkAssignees(current), { kind:workRefKind(resource.subject_type || resource.resource_kind) || 'resource_group', id:addId, name }], { reopenAt:placement, busyNote:`${name} is also booked on another item then.` });
+        return;
+      }
+      saveWorkAssignees(storedEvent, [...eventWorkAssignees(storedEvent), { kind:workRefKind(resource.subject_type || resource.resource_kind) || 'resource_group', id:addId, name }], { reopenAt:reopenRect() });
     });
     if (popover.querySelector('[data-schedule-assignee-add][disabled]')) {
       // Opened before crews loaded: fill the Add menu once they arrive.
       ensureScheduleResources().then(() => {
         if (!popover.isConnected || scheduleEventPopoverId !== String(storedEvent.id || '')) return;
+        // Keyboard focus stays on the same control of the redrawn popover.
+        const focused = popover.contains(document.activeElement) ? document.activeElement : null;
+        const focusKey = focused ? ['data-schedule-assignee-add', 'data-schedule-assignee-remove', 'data-schedule-event-close', 'data-schedule-event-edit', 'data-schedule-event-lock', 'data-schedule-event-unschedule', 'data-schedule-event-delete'].find((name) => focused.hasAttribute(name)) : '';
+        const focusValue = focusKey ? focused.getAttribute(focusKey) : '';
+        const hadFocus = !!focused;
         reopenScheduleEventPopover(storedEvent, reopenRect());
+        if (!hadFocus) return;
+        const next = document.querySelector('.r-schedule-event-popover');
+        const target = (focusKey && next?.querySelector(focusValue ? `[${focusKey}="${cssEscape(focusValue)}"]` : `[${focusKey}]`)) || next?.querySelector('[data-schedule-assignee-add]') || next?.querySelector('[data-schedule-event-close]');
+        try { target?.focus?.({ preventScroll:true }); } catch (_) {}
       });
     }
     popover.querySelector('[data-schedule-event-edit]')?.addEventListener('click', (clickEvent) => {
       clickEvent.stopPropagation();
       closeScheduleEventPopover();
+      // The dialog hands focus back to the item (not the removed button).
+      focusBack();
       openScheduleDialog(scheduleEventTypeId(storedEvent), null, { event:storedEvent });
     });
-    popover.querySelector('[data-schedule-section-rename]')?.addEventListener('click', (clickEvent) => {
+    popover.querySelector('[data-schedule-section-edit]')?.addEventListener('click', (clickEvent) => {
       clickEvent.stopPropagation();
       closeScheduleEventPopover();
-      renameProjectScheduleSection(storedEvent);
+      openCreateGanttGroupDialog(storedEvent, { onClose:focusBack });
     });
     popover.querySelector('[data-schedule-section-delete]')?.addEventListener('click', (clickEvent) => {
       clickEvent.stopPropagation();
       closeScheduleEventPopover();
-      deleteProjectScheduleSection(storedEvent);
+      const neighbor = scheduleNeighborFocusId(storedEvent.id);
+      deleteProjectScheduleSection(storedEvent).then((deleted) => focusScheduleItem(deleted ? neighbor : storedEvent.id, deleted ? null : returnAnchor));
     });
     popover.querySelector('[data-schedule-event-edit-series]')?.addEventListener('click', (clickEvent) => {
       clickEvent.stopPropagation();
       closeScheduleEventPopover();
+      focusBack();
       if (series) openScheduleDialog(String(series.event_template?.event_type_default_id || 'project_work'), series);
     });
     popover.querySelector('[data-schedule-event-reschedule]')?.addEventListener('click', (clickEvent) => {
@@ -2078,17 +2341,18 @@
     popover.querySelector('[data-schedule-event-unschedule]')?.addEventListener('click', (clickEvent) => {
       clickEvent.stopPropagation();
       closeScheduleEventPopover();
-      unscheduleProjectItem(storedEvent);
+      unscheduleProjectItem(storedEvent).finally(focusBack);
     });
     popover.querySelector('[data-schedule-event-delete]')?.addEventListener('click', (clickEvent) => {
       clickEvent.stopPropagation();
       closeScheduleEventPopover();
-      deleteProjectItem(storedEvent);
+      const neighbor = scheduleNeighborFocusId(storedEvent.id);
+      deleteProjectItem(storedEvent).then((deleted) => focusScheduleItem(deleted ? neighbor : storedEvent.id, deleted ? null : returnAnchor));
     });
     popover.querySelector('[data-schedule-event-skip]')?.addEventListener('click', (clickEvent) => {
       clickEvent.stopPropagation();
       closeScheduleEventPopover();
-      skipRecurringOccurrence(storedEvent);
+      skipRecurringOccurrence(storedEvent).finally(focusBack);
     });
     popover.querySelectorAll('[data-schedule-confirm-set]').forEach((button) => {
       button.addEventListener('click', (clickEvent) => {
@@ -2191,6 +2455,26 @@
     return saved;
   }
 
+  /* The stored copy of an item, compared with the copy shown here.
+   * -> { current, changed, deleted } (nothing known when the read fails). */
+  async function scheduleStoredEventCheck(source = {}){
+    const projectId = String(activeBaseProject?.id || '');
+    const orgId = scheduleOrgId();
+    if (!source?.id || !projectId || !orgId || typeof window.PlatformAPI?.projects?.get !== 'function') return { current:null, changed:false, deleted:false };
+    try {
+      const result = await window.PlatformAPI.projects.get(orgId, projectId);
+      const events = result?.document?.data?.events;
+      if (!Array.isArray(events) || result?.missing) return { current:null, changed:false, deleted:false };
+      const current = events.find((item) => String(item?.id || '') === String(source.id)) || null;
+      if (!current) return { current:null, changed:false, deleted:true };
+      // A newer stored revision = saved elsewhere since this copy was read.
+      const changed = scheduleEventRevision(source) > 0 && scheduleEventRevision(current) > scheduleEventRevision(source);
+      return { current, changed, deleted:false };
+    } catch (_) {
+      return { current:null, changed:false, deleted:false };
+    }
+  }
+
   async function deleteProjectItem(event = {}){
     if (!requireScheduleEdit()) return null;
     const Scheduling = window.PlatformScheduling;
@@ -2202,8 +2486,24 @@
       return null;
     }
     const title = scheduleEventDisplayTitle(source);
-    const approved = await scheduleConfirmUi(`Delete “${title}”? This cannot be undone.`, { title:(globalThis.PlatformLanguage?.text("scheduling","m_7f5580dbb3d648","Delete event") ?? "Delete event"), okLabel:'Delete', cancelLabel:'Keep it', danger:true });
+    const approved = await scheduleConfirmUi(`Delete “${title}”? This cannot be undone.`, { title:(globalThis.PlatformLanguage?.text("scheduling","m_7f5580dbb3d648","Delete event") ?? "Delete event"), okLabel:'Delete', cancelLabel:'Keep event', danger:true });
     if (!approved) return null;
+    // Like any other change, a delete never silently discards what someone
+    // else changed meanwhile: it says so and asks again.
+    const remote = await scheduleStoredEventCheck(source);
+    if (remote.deleted) {
+      adoptStaleScheduleCopy({ stale:true, deleted:true, event:source });
+      renderSchedulePanelPreservingScroll();
+      showStaleScheduleToast({ deleted:true }, '', `“${title}” was already deleted by someone else.`);
+      return null;
+    }
+    if (remote.changed) {
+      rememberServerEvents([remote.current]);
+      upsertLocalProjectEvent(remote.current);
+      renderSchedulePanelPreservingScroll();
+      const again = await scheduleConfirmUi(`“${title}” was changed by someone else since it was shown here. Delete it anyway?`, { title:(globalThis.PlatformLanguage?.text("scheduling","m_changed_elsewhere_delete","Changed by someone else — delete anyway?") ?? "Changed by someone else — delete anyway?"), okLabel:'Delete anyway', cancelLabel:'Keep event', danger:true, defaultFocus:'cancel' });
+      if (!again) return null;
+    }
     try {
       scheduleMutationSerial += 1;
       const result = await Scheduling.removeProjectEvent(scheduleOrgId(), project, source.id, scheduleCachedConfig || null);
@@ -2227,7 +2527,7 @@
       showToast((globalThis.PlatformLanguage?.text("scheduling","m_2183488d5ed71c","Event deleted") ?? "Event deleted"), `${title} was removed from the schedule.`, true);
       return result;
     } catch (error) {
-      if (isStaleSaveError(error)) { handleStaleScheduleSave(error); return null; }
+      if (isStaleSaveError(error)) { handleStaleScheduleSave(error, `“${title}” was already deleted by someone else.`); return null; }
       showToast((globalThis.PlatformLanguage?.text("scheduling","m_ad38658fe6f432","Event not deleted") ?? "Event not deleted"), error?.message || 'Could not delete the item.', false);
       return null;
     }
@@ -2310,11 +2610,18 @@
     renderSchedulePanel();
     restoreScheduleScroll(scrollPosition);
     // Editing assignees from the details popover keeps it open on the item.
-    if (options.reopenAt) reopenScheduleEventPopover(next, options.reopenAt);
+    if (options.reopenAt) {
+      reopenScheduleEventPopover(next, options.reopenAt);
+      // Keyboard focus stays in the redrawn popover (on its Add menu).
+      const active = document.activeElement;
+      if (!active || active === document.body || !active.isConnected) {
+        try { document.querySelector('.r-schedule-event-popover [data-schedule-assignee-add]')?.focus({ preventScroll:true }); } catch (_) {}
+      }
+    }
     const names = eventWorkAssignees(next).map((ref) => ref.name).filter(Boolean);
     const saved = await saveProjectEventQuiet(next, {
       successTitle: 'Crew updated',
-      successMessage: names.length ? `${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} assigned.` : 'The work item is unassigned.',
+      successMessage: `${names.length ? `${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} assigned.` : 'The work item is unassigned.'}${options.busyNote ? ` ${options.busyNote}` : ''}`,
       failureTitle: 'Crew update failed'
     });
     if (!saved) {
@@ -2634,6 +2941,8 @@
       setPickerDate();
     }));
     rootEl.querySelector('[data-project-mobile-today]')?.addEventListener('click', () => {
+      // Today brings today's week into view again.
+      forgetScheduleMonthScroll();
       setScheduleAnchorDate(new Date());
     });
     rootEl.querySelectorAll('[data-project-mobile-nav]').forEach((button) => button.addEventListener('click', () => {
@@ -2672,7 +2981,7 @@
       <span class="r-schedule-view-group surface">${String(surfaceButton('calendar', escapeHtml(terminology('scheduling.calendar_view', 'Calendar'))))}${String(projectRoutingViewEnabled() ? surfaceButton('scheduling', escapeHtml(routingLabel)) : '')}${String(projectGanttViewEnabled() ? surfaceButton('gantt', escapeHtml(ganttLabel)) : '')}</span>
       <span class="r-schedule-view-group navigation"><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="-1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button><button type="button" class="r-schedule-anchor-nav today" data-schedule-anchor-nav="0">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_23929ba4ba84dd","Today") ?? "Today")}</button><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button></span>
       ${String(isScheduling && !isGantt ? `<span class="r-schedule-view-group target"><span class="r-schedule-view-label">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</span>${targetButton('production', escapeHtml(terminology('scheduling.production_view', 'Production')))}${targetButton('sales', escapeHtml(terminology('scheduling.sales_view', 'Sales')))}</span>` : '')}
-      ${String(isGantt ? (!canEditSchedule() ? '' : `<span class="r-schedule-view-group"><button type="button" class="r-schedule-view-btn" data-gantt-add-group><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_4657bb8aa4b1c4"," New Group") ?? " New Group")}</button></span>`) : `<span class="r-schedule-view-group ${isScheduling ? 'scheduling' : ''}"><span class="r-schedule-view-label">${isScheduling ? escapeHtml(routingLabel) : 'Calendar'}</span>${modes.map(button).join('')}</span>`)}
+      ${String(isGantt ? (!canEditSchedule() ? '' : `<span class="r-schedule-view-group"><button type="button" class="r-schedule-view-btn" data-gantt-add-group><i class="fas fa-layer-group"></i> Add section</button></span>`) : `<span class="r-schedule-view-group ${isScheduling ? 'scheduling' : ''}"><span class="r-schedule-view-label">${isScheduling ? escapeHtml(routingLabel) : 'Calendar'}</span>${modes.map(button).join('')}</span>`)}
     </div>`;
   }
 
@@ -2688,6 +2997,7 @@
           else timeline.page(delta);
           return;
         }
+        if (delta === 0) forgetScheduleMonthScroll();
         const next = delta === 0
           ? new Date()
           : (scheduleViewMode === 'month'
@@ -3858,7 +4168,7 @@
       return await choose(`${verb} ${subject} breaks a dependency.${fixedNote}`, [
         { value:'cancel', label:cancelLabel },
         { value:'no', label:'Move anyway', primary:true }
-      ], { title:'Dependency conflict' }) || 'cancel';
+      ], { title:'Dependency conflict', defaultFocus:'cancel' }) || 'cancel';
     }
     return await choose(`${verb} ${subject} affects ${count} linked item${count === 1 ? '' : 's'}: ${scheduleItemNames(drafts, { dates:true })}. Move ${count === 1 ? 'it' : 'them'} too so dependencies and scheduling rules stay in order?${fixedNote}`, [
       { value:'cancel', label:cancelLabel },
@@ -3908,11 +4218,11 @@
       { value:'anyway', label:'Place anyway', primary:!movable.size },
       ...(movable.size ? [{ value:'move', label:`Move ${movable.size === 1 ? 'it' : 'them'} too`, primary:true }] : [])
     ];
-    const message = `Placing “${scheduleEventDisplayTitle(event) || 'this item'}” puts linked work out of order: ${describe.join('; ')}${more}.${movable.size ? ` Move the ${movable.size === 1 ? 'later item' : `${movable.size} later items`} (${scheduleItemNames([...movable.values()], { dates:true })}) so the order holds?` : ''}`;
+    const message = `Placing “${scheduleEventDisplayTitle(event) || 'this item'}” puts linked work out of order: ${describe.join('; ')}${more}.${movable.size ? ` Move the ${movable.size === 1 ? 'later item' : `${movable.size} later items`}, ${scheduleItemNames([...movable.values()], { dates:true })}, so the order holds?` : ''}`;
     const choose = window.Portal?.ui?.choose || window.PlatformUI?.choose;
     const choice = typeof choose === 'function'
-      ? await choose(message, choices, { title:'Dependency conflict' })
-      : ((await scheduleConfirmUi(message, { title:'Dependency conflict', okLabel:'Place anyway', cancelLabel:'Cancel' })) ? 'anyway' : 'cancel');
+      ? await choose(message, choices, { title:'Dependency conflict', defaultFocus:'cancel' })
+      : ((await scheduleConfirmUi(message, { title:'Dependency conflict', okLabel:'Place anyway', cancelLabel:'Cancel', defaultFocus:'cancel' })) ? 'anyway' : 'cancel');
     if (!choice || choice === 'cancel') return { ...none, cancelled:true, choice:'cancel' };
     if (choice === 'move') return { cancelled:false, choice:'yes', changes:[...movable.values()], leftOutOfOrder:Math.max(0, violations.length - movable.size) };
     return { cancelled:false, choice:'no', changes:[], leftOutOfOrder:violations.length };
@@ -3922,7 +4232,7 @@
   async function confirmPastRelatedChanges(changes = []){
     const past = (Array.isArray(changes) ? changes : []).filter((item) => scheduleIsPastDay(item.start_at || item.start));
     if (!past.length) return true;
-    return !!(await scheduleConfirmUi(`Moving the linked items puts ${scheduleItemNames(past, { dates:true })} in the past. Place ${past.length === 1 ? 'it' : 'them'} there anyway?`, { title:'Place in the past?', okLabel:'Place anyway', cancelLabel:'Choose another date' }));
+    return !!(await scheduleConfirmUi(`Moving the linked items puts ${scheduleItemNames(past, { dates:true })} in the past. Place ${past.length === 1 ? 'it' : 'them'} there anyway?`, { title:'Place in the past?', okLabel:'Place anyway', cancelLabel:'Choose another date', defaultFocus:'cancel' }));
   }
   // -> { cancelled, choice, changes, leftOutOfOrder }
   async function resolveProjectRelatedReschedule(event = {}, range = {}, { verb = 'Moving' } = {}){
@@ -3956,7 +4266,7 @@
     if (!related) return '';
     const moved = related.changes?.length || 0;
     const left = related.leftOutOfOrder || 0;
-    return `${moved ? ` ${moved} linked item${moved === 1 ? '' : 's'} moved too.` : ''}${left ? ` ${left} linked item${left === 1 ? ' is' : 's are'} now out of dependency order.` : ''}`;
+    return `${moved ? ` ${moved} linked item${moved === 1 ? ' was' : 's were'} moved too.` : ''}${left ? ` ${left} linked item${left === 1 ? ' is' : 's are'} now out of dependency order.` : ''}`;
   }
   // Shows the linked items at their new dates at once (before their saves),
   // remembering the stored copies so a failed save puts one back.
@@ -3981,16 +4291,20 @@
 
   /* A recurring occurrence moved on a calendar: only this one (kept as an
    * exception), this and the following ones, or the whole series. */
-  async function chooseRecurringMoveScope(event = {}){
+  // Same question as the global tab: "Move to <time> — which events?", with
+  // "This event" the safe default and short labels that fit one row.
+  async function chooseRecurringMoveScope(event = {}, next = {}){
     const choose = window.Portal?.ui?.choose || window.PlatformUI?.choose;
     if (typeof choose !== 'function') return 'this';
     const text = (key, fallback) => globalThis.PlatformLanguage?.text("scheduling", key, fallback) ?? fallback;
-    const choice = await choose(`“${scheduleEventDisplayTitle(event)}” repeats. Apply this move to:`, [
+    const nextStart = new Date(next.start_at || next.start || 0);
+    const when = nextStart.getTime() && Number.isFinite(nextStart.getTime()) ? `Move to ${workRangeLabel(next)} — which events?` : 'Which events should move?';
+    const choice = await choose(`“${scheduleEventDisplayTitle(event)}” repeats. ${when}`, [
       { value:'cancel', label:text('m_cbef679b21abb4', 'Cancel') },
-      { value:'this', label:text('m_scope_this', 'This event'), primary:true, default:true },
-      { value:'following', label:text('m_scope_following', 'This and following') },
-      { value:'all', label:text('m_scope_all', 'All events') }
-    ], { title:'Move recurring event', defaultFocus:'this' });
+      { value:'all', label:text('m_scope_all', 'All events') },
+      { value:'following', label:text('m_scope_following_short', 'This & following') },
+      { value:'this', label:text('m_scope_this', 'This event'), primary:true, default:true }
+    ], { title:text('m_scope_move_title', 'Move recurring event'), defaultFocus:'this' });
     return ['this', 'following', 'all'].includes(choice) ? choice : 'cancel';
   }
   async function saveRecurringSeriesMove(source = {}, next = {}, scope = 'all'){
@@ -4073,9 +4387,14 @@
       updated_at:new Date().toISOString()
     };
     const moved_ = scheduleRangeMoved(source, next);
+    // Moving a placed item onto a day that has passed asks first.
+    if (moved_ && !options.skipRelated && !options.pastConfirmed && !(await confirmPastMove(source, next.start_at))) {
+      renderSchedulePanelPreservingScroll();
+      return null;
+    }
     // A recurring occurrence asks which part of its series moves.
     if (moved_ && !options.skipRelated && String(source.recurrence_series_id || '').trim() && materialEventIsScheduled(source)) {
-      const scope = await chooseRecurringMoveScope(source);
+      const scope = await chooseRecurringMoveScope(source, next);
       if (scope === 'cancel') {
         renderSchedulePanelPreservingScroll();
         return null;
@@ -4096,13 +4415,16 @@
     if (options.skipRelated) renderScheduleLeft();
     else renderSchedulePanelPreservingScroll();
     const title = scheduleEventDisplayTitle(next);
+    // One edge kept in place (the other dragged) is a resize, not a move.
+    const edgeTime = (value) => { const date = value ? new Date(value) : null; return date && Number.isFinite(date.getTime()) ? date.getTime() : NaN; };
+    const sameEdge = (before, after) => (edgeTime(before.start_at || before.start) === edgeTime(after.start_at || after.start)) !== (edgeTime(before.end_at || before.end) === edgeTime(after.end_at || after.end));
     const assignedNames = eventWorkAssignees(next).map((ref) => ref.name).filter(Boolean);
     const saved = await saveProjectEventQuiet(next, {
-      successTitle: options.quiet ? '' : (isSalesAppointmentEvent(next) ? 'Appointment updated' : (isProjectWorkEvent(next) ? 'Production updated' : 'Schedule updated')),
+      successTitle: options.quiet ? '' : (isSalesAppointmentEvent(next) ? 'Appointment updated' : 'Schedule updated'),
       successMessage: (rangeAssigns || Array.isArray(options.assignees)) && !moved_
         ? (assignedNames.length ? `${assignedNames.join(', ')} ${assignedNames.length === 1 ? 'is' : 'are'} assigned.` : 'The production item is unassigned.')
-        : `${title} ${materialEventIsScheduled(source) ? 'moved to' : 'is scheduled for'} ${workRangeLabel(next)}.${relatedMoveNote(related)}`,
-      failureTitle: 'Production update failed',
+        : `“${title}” ${!materialEventIsScheduled(source) ? 'is scheduled for' : (sameEdge(source, next) ? 'was resized to' : 'moved to')} ${workRangeLabel(next)}.${relatedMoveNote(related)}`,
+      failureTitle: 'Schedule not updated',
       broadcast: false,
       preserveLocalEvents: true,
       mutationVersion
@@ -4114,6 +4436,10 @@
       renderSchedulePanelPreservingScroll();
     }
     if (saved) {
+      // The caller's follow-up (e.g. Undo on the toast just shown) comes
+      // with the item's own save, not after the linked items' saves.
+      saved.related = related;
+      options.afterSave?.(saved, related);
       await saveRelatedRescheduleChanges(related);
       await persistGroupRollups([next, ...(related?.changes || [])]);
       if (related?.changes?.length || scheduleEventIsGroup(scheduleProjectEvents().find((item) => String(item.id || '') === String(next.parent_event_id || '')) || {})) renderSchedulePanelPreservingScroll();
@@ -4145,16 +4471,39 @@
     // A section bar moves the items inside it together.
     if (scheduleEventIsGroup(source) && await moveProjectScheduleGroup(source, range)) return;
     const placing = !materialEventIsScheduled(source);
+    // A day on a waiting item's lane places it with its own planned length
+    // and nature (a timed job keeps its hours, a 2-day job gets 2 days); a
+    // drag across days keeps the days it covered.
+    if (placing && options.placing && !isMaterialDeliveryEvent(source)) {
+      const natural = schedulePlacementNaturalRange(source, range);
+      const draggedDays = options.meta?.source === 'lane-drag' && range.all_day !== false
+        && Math.round((new Date(range.end) - new Date(range.start)) / 86400000) > 1;
+      if (!draggedDays || natural.all_day === false) range = { ...range, start:natural.start, end:natural.end, all_day:natural.all_day, schedule_granularity:natural.schedule_granularity };
+    }
     if (options.placing && placing && !(await confirmPastPlacement(source, range.start))) {
       renderSchedulePanelPreservingScroll();
       return;
     }
+    // Moving a placed item onto a day that has passed asks first.
+    if (!placing && !(await confirmPastMove(source, range.start))) {
+      renderSchedulePanelPreservingScroll();
+      return;
+    }
+    // What the linked items looked like before, so Undo can put them back.
+    const before = new Map(scheduleProjectEvents().map((item) => [String(item.id || ''), item]));
+    // One click on a waiting item's lane placed it: the toast that says so
+    // offers a one-click Undo (added with that toast, not after the linked
+    // items' saves).
+    const afterSave = placing && options.undo
+      ? (saved, related) => appendScheduleToastAction('Undo', () => undoProjectPlacement(source, (related?.changes || []).map((change) => ({ change, original:before.get(String(change.id || '')) })).filter((entry) => entry.original)))
+      : undefined;
     const saved = isMaterialDeliveryEvent(source)
-      ? await saveMaterialScheduleRange(source, { ...range, all_day:true, schedule_granularity:'date' })
-      : await commitWorkScheduleRange(source, range);
+      ? await saveMaterialScheduleRange(source, { ...range, all_day:true, schedule_granularity:'date' }, { pastConfirmed:true, afterSave })
+      : await commitWorkScheduleRange(source, range, { pastConfirmed:true, afterSave });
     renderSchedulePanelPreservingScroll();
-    // One click on a waiting item's lane placed it: offer a one-click Undo.
-    if (saved && placing && options.undo) appendScheduleToastAction('Undo', () => undoProjectPlacement(source));
+    // The Undo is on the toast still showing (re-add it if a later toast,
+    // e.g. about the linked items, replaced it).
+    if (saved && afterSave && document.querySelector('#fmToast.show') && !document.querySelector('#fmToast.show .r-schedule-toast-action')) afterSave(saved, saved.related);
   }
   /* Adds one action button (e.g. Undo) to the toast just shown; the next
    * toast replaces the text and the button with it. */
@@ -4177,33 +4526,56 @@
     holder.appendChild(button);
   }
   // Back to exactly how it was before the lane click: no date again.
-  async function undoProjectPlacement(previous = {}){
+  // Linked items that "Move it too" pushed later go back too (only those
+  // still where the placement put them).
+  async function undoProjectPlacement(previous = {}, linked = []){
     const stored = scheduleProjectEvents().find((item) => String(item.id || '') === String(previous.id || ''));
     if (!stored || !materialEventIsScheduled(stored)) return;
-    const restored = {
-      ...stored,
-      all_day:previous.all_day,
-      schedule_granularity:previous.schedule_granularity || '',
-      start:previous.start || '', end:previous.end || '',
-      start_at:previous.start_at || '', end_at:previous.end_at || '',
-      start_date:previous.start_date || '', end_date:previous.end_date || '',
-      status:String(previous.status || '').trim() || 'unscheduled',
+    const restoreSchedule = (current, original) => ({
+      ...current,
+      all_day:original.all_day,
+      schedule_granularity:original.schedule_granularity || '',
+      start:original.start || '', end:original.end || '',
+      start_at:original.start_at || '', end_at:original.end_at || '',
+      start_date:original.start_date || '', end_date:original.end_date || '',
+      ...(original.duration_minutes !== undefined ? { duration_minutes:original.duration_minutes } : {}),
+      status:String(original.status || '').trim() || (materialEventIsScheduled(original) ? 'scheduled' : 'unscheduled'),
       updated_at:new Date().toISOString()
-    };
+    });
+    const restored = restoreSchedule(stored, previous);
+    const startOf = (item) => window.PlatformScheduling?.eventStart?.(item)?.getTime?.() || 0;
+    const linkedRestores = (Array.isArray(linked) ? linked : []).map(({ change, original }) => {
+      const current = scheduleProjectEvents().find((item) => String(item.id || '') === String(change?.id || ''));
+      if (!current || !original || startOf(current) !== startOf(change)) return null;
+      return { current, next:restoreSchedule(current, original) };
+    }).filter(Boolean);
     const mutationVersion = beginScheduleEventSave(restored.id);
     upsertLocalProjectEvent(restored);
+    linkedRestores.forEach(({ next }) => upsertLocalProjectEvent(next));
     renderSchedulePanelPreservingScroll();
     const saved = await saveProjectEventQuiet(restored, {
-      successTitle:'Scheduling undone',
-      successMessage:`“${scheduleEventDisplayTitle(restored)}” is waiting to be scheduled again.`,
+      successTitle:'',
       failureTitle:'Undo failed',
       broadcast:false,
       preserveLocalEvents:true,
       mutationVersion
     });
-    if (saved) await persistGroupRollups([restored]);
-    else upsertLocalProjectEvent(stored);
+    if (!saved) {
+      upsertLocalProjectEvent(stored);
+      linkedRestores.forEach(({ current }) => upsertLocalProjectEvent(current));
+      renderSchedulePanelPreservingScroll();
+      return;
+    }
+    let movedBack = 0;
+    for (const { current, next } of linkedRestores) {
+      const version = beginScheduleEventSave(next.id);
+      const linkedSaved = await saveProjectEventQuiet(next, { successTitle:'', failureTitle:'Linked item not moved back', broadcast:false, preserveLocalEvents:true, mutationVersion:version });
+      if (linkedSaved) movedBack += 1;
+      else if (scheduleEventSaveVersions.get(String(next.id || '')) === version) upsertLocalProjectEvent(current);
+    }
+    await persistGroupRollups([restored, ...linkedRestores.map(({ next }) => next)]);
     renderSchedulePanelPreservingScroll();
+    showToast('Scheduling undone', `“${scheduleEventDisplayTitle(restored)}” is waiting to be scheduled again.${movedBack ? ` ${movedBack} linked item${movedBack === 1 ? ' was' : 's were'} moved back.` : ''}`, true);
   }
   /* Dragging a section (auto-rollup group) bar moves the items in it by the
    * same offset. False when the caller should save the section record itself
@@ -4254,7 +4626,7 @@
     popover.setAttribute('role', 'dialog');
     popover.setAttribute('aria-label', `${scheduleEventDisplayTitle(stored)} section`);
     const datesNote = children.length
-      ? `Its dates follow its ${children.length} item${children.length === 1 ? '' : 's'}.${canEdit ? ' Drag the section bar to move them together.' : ''}`
+      ? `Its dates follow its ${children.length} item${children.length === 1 ? '' : 's'}.${canEdit && scheduled ? ' Drag the section bar to move them together.' : (scheduled ? '' : ' None of them is on the calendar yet.')}`
       : 'It has no items yet; its dates will follow the items put in it.';
     popover.innerHTML = `
       <div class="r-schedule-event-popover-head">
@@ -4267,56 +4639,48 @@
         ${canEdit ? '' : `<div class="r-schedule-event-popover-row"><i class="fas fa-eye"></i><span>${escapeHtml(scheduleReadOnlyMessage())}</span></div>`}
       </div>
       ${canEdit ? `<div class="r-schedule-event-popover-actions">
-        <button type="button" class="r-schedule-event-popover-action" data-schedule-section-rename><i class="fas fa-pen"></i>Rename</button>
+        <button type="button" class="r-schedule-event-popover-action" data-schedule-section-edit><i class="fas fa-pen"></i>Edit section</button>
         <button type="button" class="r-schedule-event-popover-action danger" data-schedule-section-delete><i class="fas fa-trash"></i>Delete section</button>
       </div>` : ''}
     `;
     return popover;
   }
-  async function renameProjectScheduleSection(group = {}){
-    if (!requireScheduleEdit()) return;
-    const stored = scheduleProjectEvents().find((item) => String(item.id || '') === String(group.id || '')) || group;
-    const prompt = window.PlatformUI?.prompt || window.Portal?.ui?.prompt;
-    if (typeof prompt !== 'function') return;
-    const name = await prompt('Section name. Its dates follow the work items in it.', String(stored.title || ''), { title:'Rename section', okLabel:'Save', cancelLabel:'Cancel' });
-    if (name == null) return;
-    const title = String(name).trim();
-    if (!title) { showToast('Section not renamed', 'A section needs a name.', false); return; }
-    if (title === String(stored.title || '').trim()) return;
-    const next = { ...stored, title, title_is_custom:true, updated_at:new Date().toISOString() };
-    const mutationVersion = beginScheduleEventSave(next.id);
-    upsertLocalProjectEvent(next);
-    renderSchedulePanelPreservingScroll();
-    const saved = await saveProjectEventQuiet(next, { successTitle:'Section renamed', successMessage:`The section is now “${title}”.`, failureTitle:'Section not renamed', broadcast:false, preserveLocalEvents:true, mutationVersion });
-    if (!saved) {
-      upsertLocalProjectEvent(stored);
-      renderSchedulePanelPreservingScroll();
-    }
+  // A section's items leave it for good: every alias of the parent link
+  // (parent_event_id, parentEventId, metadata.parent_event_id) is cleared,
+  // as in the global Scheduling tab, so nothing still points at it.
+  function scheduleUngroupedItem(item = {}){
+    return {
+      ...item,
+      parent_event_id:'',
+      parentEventId:'',
+      ...(item.metadata && typeof item.metadata === 'object' ? { metadata:{ ...item.metadata, parent_event_id:'' } } : {}),
+      updated_at:new Date().toISOString()
+    };
   }
-  // Deleting a section keeps its items: they move out of it (to its parent
-  // section, if any) and the empty section is removed.
+  // Deleting a section keeps its items: they stay on the schedule, no longer
+  // grouped, and the empty section is removed.
   async function deleteProjectScheduleSection(group = {}){
-    if (!requireScheduleEdit()) return;
+    if (!requireScheduleEdit()) return false;
     const Scheduling = window.PlatformScheduling;
     const stored = scheduleProjectEvents().find((item) => String(item.id || '') === String(group.id || '')) || group;
     const project = currentSchedulingProject();
-    if (!stored?.id || !project?.id || typeof Scheduling?.removeProjectEvent !== 'function') return;
+    if (!stored?.id || !project?.id || typeof Scheduling?.removeProjectEvent !== 'function') return false;
     const children = scheduleSectionChildren(stored);
     const title = scheduleEventDisplayTitle(stored);
     const approved = await scheduleConfirmUi(children.length
-      ? `Delete the section “${title}”? Its ${children.length} item${children.length === 1 ? ' stays' : 's stay'} on the schedule, outside the section.`
-      : `Delete the empty section “${title}”?`, { title:'Delete section', okLabel:'Delete section', cancelLabel:'Keep it', danger:true });
-    if (!approved) return;
+      ? `Delete section “${title}”? Its ${children.length} item${children.length === 1 ? ' stays' : 's stay'} on the schedule and ${children.length === 1 ? 'is' : 'are'} no longer grouped.`
+      : `Delete section “${title}”? It has no items.`, { title:'Delete section', okLabel:'Delete section', cancelLabel:'Keep section', danger:true, defaultFocus:'cancel' });
+    if (!approved) return false;
     const parentId = String(stored.parent_event_id || '');
     for (const child of children) {
-      const next = { ...child, parent_event_id:parentId, updated_at:new Date().toISOString() };
+      const next = scheduleUngroupedItem(child);
       const mutationVersion = beginScheduleEventSave(next.id);
       upsertLocalProjectEvent(next);
       const saved = await saveProjectEventQuiet(next, { successTitle:'', failureTitle:'Section not deleted', broadcast:false, preserveLocalEvents:true, mutationVersion });
       if (!saved) {
         upsertLocalProjectEvent(child);
         renderSchedulePanelPreservingScroll();
-        return;
+        return false;
       }
     }
     try {
@@ -4329,15 +4693,18 @@
         : { ...activeBaseProject, events:scheduleProjectEvents().filter((item) => String(item.id || '') !== String(stored.id)) };
       cacheActiveBaseProject();
       rememberScheduleProject(activeBaseProject);
-      if (parentId) await persistGroupRollups(children);
+      // A section inside another one: that one's dates follow what is left.
+      if (parentId) await persistGroupRollups([stored]);
       renderSchedulePanelPreservingScroll();
       notifyScheduleChanged();
       window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
-      showToast('Section deleted', children.length ? `${children.length} item${children.length === 1 ? ' is' : 's are'} no longer in a section.` : `“${title}” was removed.`, true);
+      showToast('Section deleted', children.length ? `${children.length} item${children.length === 1 ? ' is' : 's are'} no longer grouped.` : `“${title}” was removed.`, true);
+      return true;
     } catch (error) {
-      if (isStaleSaveError(error)) { handleStaleScheduleSave(error); return; }
+      if (isStaleSaveError(error)) { handleStaleScheduleSave(error, `“${title}” was already deleted by someone else.`); return false; }
       showToast('Section not deleted', error?.message || 'Could not delete the section.', false);
       renderSchedulePanelPreservingScroll();
+      return false;
     }
   }
   async function saveProjectGanttDependencies(event, dependsOn, label, outOfOrder = false){
@@ -4453,43 +4820,55 @@
     }
     await saveProjectGanttDependencies(target, existing.filter((dep) => dep.id !== dependency?.id), 'Items unlinked');
   }
-  function openCreateGanttGroupDialog(){
+  /* Add section / Edit section (same words as the global Timeline): the
+   * section's name and which of the project's work items are in it. A
+   * section's dates follow its items; one left with no items becomes
+   * unscheduled until items are put back in it. */
+  function openCreateGanttGroupDialog(section = null, { onClose = null } = {}){
     if (!requireScheduleEdit()) return null;
     const Scheduling = window.PlatformScheduling;
-    if (!Scheduling?.createScheduleGroupEvent || !activeBaseProject) return;
+    if (!activeBaseProject || (!section && !Scheduling?.createScheduleGroupEvent)) return;
     document.querySelector('.r-gantt-group-backdrop')?.remove();
+    const stored = section?.id ? (scheduleProjectEvents().find((item) => String(item.id || '') === String(section.id)) || section) : null;
+    const sectionId = String(stored?.id || '');
+    const parentOf = (event) => String(Scheduling?.eventParentId?.(event) || event.parent_event_id || '').trim();
     // Production items only, once each: recurring occurrences belong to their
-    // series (not a group), and cancelled items and appointments stay out.
+    // series (not a section), and cancelled items and appointments stay out.
+    // Items already in another section are moved from there in its own dialog.
     const candidates = scheduleProjectEvents()
-      .filter((event) => !Scheduling.eventIsGroup?.(event) && !String(event.parent_event_id || '').trim())
+      .filter((event) => !Scheduling?.eventIsGroup?.(event) && String(event.id || '') !== sectionId && (!parentOf(event) || (sectionId && parentOf(event) === sectionId)))
       .filter((event) => !String(event.recurrence_series_id || '').trim() && !isSalesAppointmentEvent(event))
       .filter((event) => !['cancelled', 'canceled'].includes(String(event.status || '').toLowerCase()))
-      .sort((a, b) => (Scheduling.eventStart?.(a)?.getTime?.() ?? Number.MAX_SAFE_INTEGER) - (Scheduling.eventStart?.(b)?.getTime?.() ?? Number.MAX_SAFE_INTEGER));
+      .sort((a, b) => (Scheduling?.eventStart?.(a)?.getTime?.() ?? Number.MAX_SAFE_INTEGER) - (Scheduling?.eventStart?.(b)?.getTime?.() ?? Number.MAX_SAFE_INTEGER));
+    const heading = stored ? 'Edit section' : 'Add section';
     const backdrop = document.createElement('div');
     backdrop.className = 'fm-dialog-backdrop r-gantt-group-backdrop';
     backdrop.innerHTML = `
-      <div class="fm-dialog r-gantt-group-dialog" role="dialog" aria-modal="true" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_0bb2928b65051a","New schedule group") ?? "New schedule group")}" style="max-width:420px">
-        <div class="fm-dialog-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px 0"><h3 style="margin:0;font-size:15px;font-weight:1000">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_1f78bb8e6f5d66","New Schedule Group") ?? "New Schedule Group")}</h3><button type="button" class="r-gantt-group-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_3742924668fb10","Close") ?? "Close")}" style="border:0;background:transparent;cursor:pointer;font-size:14px"><i class="fas fa-xmark"></i></button></div>
+      <div class="fm-dialog r-gantt-group-dialog" role="dialog" aria-modal="true" aria-label="${escapeHtml(heading)}" style="width:min(480px,calc(100vw - 32px));max-width:480px">
+        <div class="fm-dialog-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px 0"><h3 style="margin:0;font-size:15px;font-weight:1000">${escapeHtml(heading)}</h3><button type="button" class="r-gantt-group-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_3742924668fb10","Close") ?? "Close")}" style="border:0;background:transparent;cursor:pointer;font-size:14px"><i class="fas fa-xmark"></i></button></div>
         <div style="display:grid;gap:10px;padding:12px 16px 16px">
-          <label style="display:grid;gap:5px;font-size:11px;font-weight:900;color:#475467">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_ddd01aa61b6e8e","Group name\n            ") ?? "Group name\n            ")}<input type="text" class="r-gantt-group-title" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5f3f0233d1109b","e.g. Rough In") ?? "e.g. Rough In")}" style="height:36px;border:1px solid rgba(15,23,42,.14);border-radius:9px;padding:0 10px;font:inherit">
+          <label style="display:grid;gap:5px;font-size:11px;font-weight:900;color:#475467">Section name<input type="text" class="r-gantt-group-title" aria-describedby="r-gantt-group-title-error" value="${escapeHtml(stored ? String(stored.title || '') : '')}" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5f3f0233d1109b","e.g. Rough In") ?? "e.g. Rough In")}" style="height:36px;border:1px solid rgba(15,23,42,.14);border-radius:9px;padding:0 10px;font:inherit">
           </label>
-          ${String(candidates.length ? `<div style="display:grid;gap:4px;max-height:220px;overflow:auto;border:1px solid rgba(15,23,42,.08);border-radius:10px;padding:8px">
-            <span style="font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#98a2b3">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_c83325bf2fc045","Include items") ?? "Include items")}</span>
-            ${candidates.map((event) => `<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:850;color:#101828"><input type="checkbox" value="${escapeHtml(event.id || '')}" class="r-gantt-group-item"><span style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(scheduleEventDisplayTitle(event) || (globalThis.PlatformLanguage?.text("project-schedule","m_05017f54f07448","Untitled") ?? "Untitled"))}</span><small style="color:#667085;font-weight:800;white-space:nowrap">${escapeHtml(materialEventIsScheduled(event) ? workRangeLabel(event) : 'Not scheduled')}</small></label>`).join('')}
-          </div>` : '')}
+          <p id="r-gantt-group-title-error" class="r-gantt-group-title-error" role="alert" hidden style="margin:-4px 0 0;font-size:11px;font-weight:850;color:#b42318">Enter a section name.</p>
+          ${String(candidates.length ? `<div style="display:grid;gap:4px;max-height:220px;overflow:auto;border:1px solid rgba(15,23,42,.08);border-radius:10px;padding:8px" role="group" aria-label="Items in this section">
+            <span style="font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#98a2b3">Items in this section</span>
+            ${candidates.map((event) => `<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:850;color:#101828"><input type="checkbox" value="${escapeHtml(event.id || '')}" class="r-gantt-group-item" ${sectionId && parentOf(event) === sectionId ? 'checked' : ''}><span style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(scheduleEventDisplayTitle(event) || (globalThis.PlatformLanguage?.text("project-schedule","m_05017f54f07448","Untitled") ?? "Untitled"))}</span><small style="flex:0 1 auto;max-width:55%;min-width:0;overflow:hidden;text-overflow:ellipsis;color:#667085;font-weight:800;white-space:nowrap" title="${escapeHtml(materialEventIsScheduled(event) ? workRangeLabel(event) : 'Not scheduled')}">${escapeHtml(materialEventIsScheduled(event) ? workRangeLabel(event) : 'Not scheduled')}</small></label>`).join('')}
+          </div>` : `<p style="margin:0;font-size:12px;font-weight:750;color:#667085">No work items can be put in a section yet.</p>`)}
           <div style="display:flex;justify-content:flex-end;gap:8px">
             <button type="button" class="r-schedule-view-btn r-gantt-group-close">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-            <button type="button" class="r-schedule-view-btn active r-gantt-group-save"><i class="fas fa-layer-group"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_96122e368ef466"," Create Group") ?? " Create Group")}</button>
+            <button type="button" class="r-schedule-view-btn active r-gantt-group-save"><i class="fas ${stored ? 'fa-check' : 'fa-layer-group'}"></i> ${stored ? 'Save' : 'Add section'}</button>
           </div>
         </div>
       </div>`;
     document.body.appendChild(backdrop);
     let groupDialogHandle = null;
     const closeGroupDialog = () => {
+      if (!backdrop.isConnected) return;
       backdrop.remove();
       const handle = groupDialogHandle;
       groupDialogHandle = null;
       handle?.unregister?.();
+      onClose?.();
     };
     groupDialogHandle = registerScheduleLayer(backdrop, 'project-schedule-group-dialog', closeGroupDialog);
     backdrop.addEventListener('mousedown', (event) => { backdrop.__downBackdrop = event.target === backdrop; });
@@ -4497,35 +4876,113 @@
       if (backdrop.__downBackdrop && event.target === backdrop) closeGroupDialog();
       backdrop.__downBackdrop = false;
     });
-    backdrop.querySelector('.r-gantt-group-title')?.focus();
-    backdrop.querySelector('.r-gantt-group-title')?.addEventListener('keydown', (event) => {
+    const titleInput = backdrop.querySelector('.r-gantt-group-title');
+    const titleError = backdrop.querySelector('.r-gantt-group-title-error');
+    // A save with no name says why instead of doing nothing; typing clears it.
+    const setTitleInvalid = (invalid) => {
+      if (!titleInput) return;
+      if (invalid) titleInput.setAttribute('aria-invalid', 'true');
+      else titleInput.removeAttribute('aria-invalid');
+      titleInput.style.borderColor = invalid ? '#d92d20' : '';
+      titleInput.style.boxShadow = invalid ? '0 0 0 3px rgba(217,45,32,.14)' : '';
+      if (titleError) titleError.hidden = !invalid;
+    };
+    titleInput?.focus();
+    titleInput?.addEventListener('input', () => { if (String(titleInput.value || '').trim()) setTitleInvalid(false); });
+    titleInput?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') backdrop.querySelector('.r-gantt-group-save')?.click();
     });
     backdrop.querySelectorAll('.r-gantt-group-close').forEach((btn) => btn.addEventListener('click', closeGroupDialog));
     backdrop.querySelector('.r-gantt-group-save')?.addEventListener('click', async () => {
-      const title = String(backdrop.querySelector('.r-gantt-group-title')?.value || '').trim();
-      if (!title) { backdrop.querySelector('.r-gantt-group-title')?.focus(); return; }
-      const memberIds = [...backdrop.querySelectorAll('.r-gantt-group-item:checked')].map((input) => String(input.value || '')).filter(Boolean);
+      const title = String(titleInput?.value || '').trim();
+      if (!title) { setTitleInvalid(true); titleInput?.focus(); return; }
+      const memberIds = new Set([...backdrop.querySelectorAll('.r-gantt-group-item:checked')].map((input) => String(input.value || '')).filter(Boolean));
+      // Saved below; focus then goes to the section's row, not the opener.
+      onClose = null;
       closeGroupDialog();
-      const group = Scheduling.createScheduleGroupEvent(activeBaseProject, { title }, scheduleCachedConfig);
-      const groupVersion = beginScheduleEventSave(group.id);
-      upsertLocalProjectEvent(group);
-      await saveProjectEventQuiet(group, { successTitle:'Group created', successMessage:`${title} was added to the schedule.`, failureTitle:'Group not saved', broadcast:false, preserveLocalEvents:true, mutationVersion:groupVersion });
-      for (const memberId of memberIds) {
-        const member = scheduleProjectEvents().find((item) => String(item.id || '') === memberId);
-        if (!member) continue;
-        const nextMember = { ...member, parent_event_id:group.id, updated_at:new Date().toISOString() };
-        const memberVersion = beginScheduleEventSave(nextMember.id);
-        upsertLocalProjectEvent(nextMember);
-        await saveProjectEventQuiet(nextMember, { successTitle:'', failureTitle:'Group not saved', broadcast:false, preserveLocalEvents:true, mutationVersion:memberVersion });
-      }
-      // Save the group's range rolled up from its new members, then show the
-      // stored result.
-      await persistGroupRollups(scheduleProjectEvents().filter((item) => String(item.parent_event_id || '') === String(group.id || '')));
-      await refreshProjectFromServer({ render:false });
-      renderSchedulePanelPreservingScroll();
-      window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+      if (stored) await saveProjectScheduleSection(stored, title, memberIds);
+      else await createProjectScheduleSection(title, memberIds);
     });
+  }
+  // Puts an item into a section (every alias of the parent link agrees).
+  function scheduleSectionMember(item = {}, sectionId = ''){
+    return {
+      ...scheduleUngroupedItem(item),
+      parent_event_id:String(sectionId),
+      parentEventId:String(sectionId),
+      ...(item.metadata && typeof item.metadata === 'object' ? { metadata:{ ...item.metadata, parent_event_id:String(sectionId) } } : {})
+    };
+  }
+  async function createProjectScheduleSection(title = '', memberIds = new Set()){
+    const Scheduling = window.PlatformScheduling;
+    const group = Scheduling.createScheduleGroupEvent(activeBaseProject, { title }, scheduleCachedConfig);
+    const groupVersion = beginScheduleEventSave(group.id);
+    upsertLocalProjectEvent(group);
+    const created = await saveProjectEventQuiet(group, { successTitle:'Section added', successMessage:`“${title}” was added to the schedule.`, failureTitle:'Section not saved', broadcast:false, preserveLocalEvents:true, mutationVersion:groupVersion });
+    if (!created) { renderSchedulePanelPreservingScroll(); return; }
+    for (const memberId of memberIds) {
+      const member = scheduleProjectEvents().find((item) => String(item.id || '') === memberId);
+      if (!member) continue;
+      const nextMember = scheduleSectionMember(member, group.id);
+      const memberVersion = beginScheduleEventSave(nextMember.id);
+      upsertLocalProjectEvent(nextMember);
+      await saveProjectEventQuiet(nextMember, { successTitle:'', failureTitle:'Section not saved', broadcast:false, preserveLocalEvents:true, mutationVersion:memberVersion });
+    }
+    // Save the section's range rolled up from its new members, then show the
+    // stored result.
+    await persistGroupRollups(scheduleSectionChildren(group));
+    await refreshProjectFromServer({ render:false });
+    renderSchedulePanelPreservingScroll();
+    focusScheduleItem(group.id);
+    window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+  }
+  async function saveProjectScheduleSection(section = {}, title = '', memberIds = new Set()){
+    const Scheduling = window.PlatformScheduling;
+    const stored = scheduleProjectEvents().find((item) => String(item.id || '') === String(section.id || '')) || section;
+    const sectionId = String(stored.id || '');
+    const renamed = !!title && title !== String(stored.title || '').trim();
+    const current = scheduleSectionChildren(stored);
+    const currentIds = new Set(current.map((item) => String(item.id || '')));
+    const added = [...memberIds].filter((id) => !currentIds.has(id)).map((id) => scheduleProjectEvents().find((item) => String(item.id || '') === id)).filter(Boolean);
+    const removed = current.filter((item) => !memberIds.has(String(item.id || '')));
+    if (!renamed && !added.length && !removed.length) { focusScheduleItem(sectionId); return; }
+    const changes = [...added.map((item) => scheduleSectionMember(item, sectionId)), ...removed.map((item) => scheduleUngroupedItem(item))];
+    if (renamed) {
+      const next = { ...stored, title, title_is_custom:true, updated_at:new Date().toISOString() };
+      const version = beginScheduleEventSave(next.id);
+      upsertLocalProjectEvent(next);
+      renderSchedulePanelPreservingScroll();
+      const saved = await saveProjectEventQuiet(next, { successTitle:'', failureTitle:'Section not saved', broadcast:false, preserveLocalEvents:true, mutationVersion:version });
+      if (!saved) { upsertLocalProjectEvent(stored); renderSchedulePanelPreservingScroll(); focusScheduleItem(sectionId); return; }
+    }
+    let failed = 0;
+    for (const change of changes) {
+      const before = scheduleProjectEvents().find((item) => String(item.id || '') === String(change.id || ''));
+      const version = beginScheduleEventSave(change.id);
+      upsertLocalProjectEvent(change);
+      const saved = await saveProjectEventQuiet(change, { successTitle:'', failureTitle:'Section not saved', broadcast:false, preserveLocalEvents:true, mutationVersion:version });
+      if (!saved) { failed += 1; if (before && scheduleEventSaveVersions.get(String(change.id || '')) === version) upsertLocalProjectEvent(before); }
+    }
+    // Its dates (and its parent sections' dates) follow what is in it now.
+    await persistGroupRollups([...changes, { id:'', parent_event_id:sectionId }]);
+    const latest = scheduleProjectEvents().find((item) => String(item.id || '') === sectionId) || stored;
+    if (!scheduleSectionChildren(latest).length && materialEventIsScheduled(latest) && Scheduling?.groupRollupMode?.(latest) !== 'manual') {
+      // Emptied: no dates to follow, so no bar until items are put back.
+      const cleared = { ...latest, status:'unscheduled', start:'', end:'', start_at:'', end_at:'', start_date:'', end_date:'', updated_at:new Date().toISOString() };
+      const version = beginScheduleEventSave(cleared.id);
+      upsertLocalProjectEvent(cleared);
+      await saveProjectEventQuiet(cleared, { successTitle:'', failureTitle:'Section not saved', broadcast:false, preserveLocalEvents:true, mutationVersion:version });
+    }
+    renderSchedulePanelPreservingScroll();
+    focusScheduleItem(sectionId);
+    window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
+    const parts = [
+      renamed ? `The section is now “${title}”.` : '',
+      added.length ? `${added.length} item${added.length === 1 ? '' : 's'} moved into it.` : '',
+      removed.length ? `${removed.length} item${removed.length === 1 ? '' : 's'} taken out of it.` : '',
+      failed ? `${failed} item${failed === 1 ? ' was' : 's were'} not saved.` : ''
+    ].filter(Boolean);
+    showToast(renamed && !changes.length ? 'Section renamed' : 'Section updated', parts.join(' '), !failed);
   }
   function renderScheduleLeft(){
     if (!state.sidebarRoot || !state.active) return;
@@ -4674,10 +5131,10 @@
         allowGroupMove: canEditSchedule(),
         onReadOnlyDragAttempt: canEditSchedule() ? undefined : () => showToast((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"), scheduleReadOnlyMessage(), 'info'),
         onEventRangeChange(event, range){ saveProjectGanttRange(event, range); },
-        onEventSchedule(event, range){ saveProjectGanttRange(event, range, { placing:true }); },
+        onEventSchedule(event, range, meta = {}){ saveProjectGanttRange(event, range, { placing:true, meta }); },
         // A click on a waiting item's lane: past days ask first, linked work
         // is checked, and the toast offers Undo.
-        onUnscheduledLaneSchedule(event, range){ saveProjectGanttRange(event, range, { placing:true, undo:true }); },
+        onUnscheduledLaneSchedule(event, range, meta = {}){ saveProjectGanttRange(event, range, { placing:true, undo:true, meta }); },
         onDependencyCreate(fromEvent, toEvent){ createProjectGanttDependency(fromEvent, toEvent); },
         onDependencyRemove(event, dependency){ removeProjectGanttDependency(event, dependency); }
       });
@@ -4870,7 +5327,10 @@
           project_address: activeBaseProject?.address || materialEvent.project_address || '',
           title: materialDeliveryTitle(materialEvent),
           all_day: true,
-          schedule_granularity: 'date'
+          schedule_granularity: 'date',
+          // A click places it with its own planned length (never the
+          // clicked cell's one day or one slot).
+          __schedule_natural_range: true
         };
       },
       onNavigate(nextDate, delta, meta = {}){
@@ -4959,35 +5419,63 @@
   // The first time a month is shown, bring today's (or the anchor's) week
   // into view instead of leaving it below the fold at smaller heights; after
   // that the month keeps the position it was left at across re-renders.
+  // Only a position the user scrolled to is kept; until then (and after
+  // Today) the month keeps today's week in view, also when the pane gets
+  // shorter (a floating or docked window, the placement banner).
   const scheduleMonthScroll = new Map();
+  function forgetScheduleMonthScroll(){
+    scheduleMonthScroll.clear();
+  }
   function revealMonthAnchor(target){
     const surface = target?.querySelector?.('.prs-surface');
     if (!surface) return;
     const anchor = new Date(scheduleAnchorDate);
     const key = `${activeBaseProject?.id || ''}|${anchor.getFullYear()}-${anchor.getMonth()}`;
-    surface.addEventListener('scroll', () => { if (surface.isConnected) scheduleMonthScroll.set(key, surface.scrollTop); }, { passive:true });
+    const today = new Date();
+    const day = today.getFullYear() === anchor.getFullYear() && today.getMonth() === anchor.getMonth() ? today : anchor;
+    let revealedTop = null;
+    const reveal = () => {
+      if (!surface.isConnected || scheduleMonthScroll.has(key)) return;
+      if (surface.scrollHeight <= surface.clientHeight + 2) return;
+      // The shared month helper scrolls to a row boundary (never leaving a
+      // row's date numbers under the sticky weekday header) and does
+      // nothing when the whole row already shows.
+      if (typeof window.PlatformScheduleView?.revealMonthDate === 'function') window.PlatformScheduleView.revealMonthDate(target, day);
+      else {
+        const cell = surface.querySelector(`[data-prs-date="${scheduleLocalDate(day)}"]`);
+        if (!cell) return;
+        const cellBox = cell.getBoundingClientRect();
+        const surfaceBox = surface.getBoundingClientRect();
+        if (cellBox.bottom > surfaceBox.bottom - 2) surface.scrollTop += cellBox.bottom - surfaceBox.bottom + 8;
+      }
+      revealedTop = surface.scrollTop;
+    };
+    // Only a scroll the user made (wheel, touch, keys, the scrollbar) is
+    // their choice of position; our own reveal, or the browser keeping the
+    // content in place while the pane resizes, is not.
+    let userScrollAt = 0;
+    const markUserScroll = () => { userScrollAt = Date.now(); };
+    ['wheel', 'touchmove', 'keydown', 'pointerdown'].forEach((type) => surface.addEventListener(type, markUserScroll, { passive:true }));
+    surface.addEventListener('scroll', () => {
+      if (!surface.isConnected) return;
+      if (revealedTop !== null && Math.abs(surface.scrollTop - revealedTop) <= 1) return;
+      if (Date.now() - userScrollAt > 1500) return;
+      revealedTop = null;
+      scheduleMonthScroll.set(key, surface.scrollTop);
+    }, { passive:true });
     if (scheduleMonthScroll.has(key)) {
       const top = scheduleMonthScroll.get(key);
       if (Math.abs(surface.scrollTop - top) > 1) surface.scrollTop = top;
       return;
     }
-    if (surface.scrollHeight <= surface.clientHeight + 2) return;
-    const today = new Date();
-    const day = today.getFullYear() === anchor.getFullYear() && today.getMonth() === anchor.getMonth() ? today : anchor;
-    // The shared month helper scrolls to a row boundary (never leaving a
-    // row's date numbers under the sticky weekday header) and does nothing
-    // when the row already shows.
-    if (typeof window.PlatformScheduleView?.revealMonthDate === 'function') {
-      window.PlatformScheduleView.revealMonthDate(target, day);
-      scheduleMonthScroll.set(key, surface.scrollTop);
-      return;
+    reveal();
+    if (typeof ResizeObserver === 'function') {
+      const observer = new ResizeObserver(() => {
+        if (!surface.isConnected) { observer.disconnect(); return; }
+        reveal();
+      });
+      observer.observe(surface);
     }
-    const cell = surface.querySelector(`[data-prs-date="${scheduleLocalDate(day)}"]`);
-    if (!cell) return;
-    const cellBox = cell.getBoundingClientRect();
-    const surfaceBox = surface.getBoundingClientRect();
-    if (cellBox.bottom > surfaceBox.bottom - 2) surface.scrollTop += cellBox.bottom - surfaceBox.bottom + 8;
-    scheduleMonthScroll.set(key, surface.scrollTop);
   }
 
   // Routing (daily) starts its columns at the week the heading names, just
@@ -5079,7 +5567,10 @@
     `;
     bindScheduleViewSwitch(panel);
     bindSchedulePlacementBanner(panel);
-    panel.querySelector('[data-gantt-add-group]')?.addEventListener('click', () => openCreateGanttGroupDialog());
+    // Closing without adding hands focus back to the (possibly redrawn) button.
+    panel.querySelector('[data-gantt-add-group]')?.addEventListener('click', () => openCreateGanttGroupDialog(null, { onClose:() => {
+      try { panel.querySelector('[data-gantt-add-group]')?.focus?.({ preventScroll:true }); } catch (_) {}
+    } }));
     if (isScheduling) clearProjectMobileControls();
     else bindProjectMobileToolbar(panel);
     renderWorkScheduler(panel.querySelector('.work-calendar'));
@@ -5845,7 +6336,7 @@
       scheduleDialogReturnFocus = active && active !== document.body && !dialog.contains(active) ? active : null;
       // The sidebar may re-render while the dialog is open; remember how to
       // find the same control again.
-      const attr = scheduleDialogReturnFocus ? ['data-new-production', 'data-new-recurrence', 'data-new-appointment', 'data-edit-recurrence', 'data-production-resource-event', 'data-other-event'].find((name) => scheduleDialogReturnFocus.hasAttribute?.(name)) : '';
+      const attr = scheduleDialogReturnFocus ? ['data-new-production', 'data-new-recurrence', 'data-new-appointment', 'data-edit-recurrence', 'data-production-resource-event', 'data-other-event', 'data-prs-event-id', 'data-psv-gantt-open', 'data-psv-gantt-bar'].find((name) => scheduleDialogReturnFocus.hasAttribute?.(name)) : '';
       scheduleDialogReturnSelector = attr ? `[${attr}="${cssEscape(scheduleDialogReturnFocus.getAttribute(attr) || '')}"]` : '';
     }
     dialog.classList.add('active');
@@ -5890,8 +6381,9 @@
     return recurring ? `New recurring ${label.toLowerCase()}` : `Schedule ${label}`;
   }
 
-  // Defaults land on the next working-hour slot instead of late evening.
-  function defaultScheduleStart(windowStart = '08:00', windowEnd = '17:00'){
+  // Defaults land on the next working-hour slot that fits the item's length
+  // (a full-day job starts the next morning, not at 3 PM).
+  function defaultScheduleStart(windowStart = '08:00', windowEnd = '17:00', durationMinutes = 60){
     const [startHour, startMinute] = String(windowStart || '08:00').split(':').map((part) => Number(part) || 0);
     const [endHour, endMinute] = String(windowEnd || '17:00').split(':').map((part) => Number(part) || 0);
     const next = new Date(Date.now() + 60 * 60000);
@@ -5899,8 +6391,9 @@
     const minutes = next.getHours() * 60 + next.getMinutes();
     const open = startHour * 60 + startMinute;
     const close = endHour * 60 + endMinute;
+    const length = Math.max(15, Math.min(Math.max(60, close - open), Number(durationMinutes) || 60));
     if (minutes < open) next.setHours(startHour, startMinute, 0, 0);
-    else if (minutes >= close - 60) {
+    else if (minutes + length > close) {
       next.setDate(next.getDate() + 1);
       next.setHours(startHour, startMinute, 0, 0);
     }
@@ -5945,7 +6438,9 @@
       return;
     }
     // Editing a placed item (the details popover's Edit).
-    const editEvent = !recurringSeries && options.event?.id
+    // The copy being edited (replaced by the stored copy when someone else
+    // saved the item meanwhile, so a second Save builds on it).
+    let editEvent = !recurringSeries && options.event?.id
       ? (scheduleProjectEvents().find((item) => String(item.id || '') === String(options.event.id)) || options.event)
       : null;
     const dialog = ensureScheduleDialog();
@@ -6087,7 +6582,11 @@
       ? new Date(recurringSeries.start_at)
       : (editEvent ? (Scheduling.eventStart?.(editEvent) || null) : (options.start ? new Date(options.start) : null));
     const workWindow = Scheduling.availabilityWindow ? Scheduling.availabilityWindow(config, Scheduling.localDateInput(seriesStart && Number.isFinite(seriesStart.getTime()) ? seriesStart : new Date()), eventTypeId) : null;
-    const defaultStart = defaultScheduleStart(workWindow?.start || '08:00', workWindow?.end || '17:00');
+    const defaultStart = defaultScheduleStart(workWindow?.start || '08:00', workWindow?.end || '17:00', Number(options.durationMinutes || seriesEvent.duration_minutes || duration));
+    // A new item with no chosen time opens on the first time that is
+    // actually open (checked with the availability service below), not on a
+    // default that is immediately "not available".
+    let autoPickDays = !editEvent && !recurringSeries && !options.start ? 14 : 0;
     const editAllDay = editEvent ? (typeof Scheduling.eventIsAllDay === 'function' ? Scheduling.eventIsAllDay(editEvent) : editEvent.all_day !== false && editEvent.schedule_granularity !== 'time') : false;
     const startsAllDay = editEvent ? editAllDay : (!recurringSeries && options.allDay === true);
     dateInput.value = seriesStart && Number.isFinite(seriesStart.getTime()) ? Scheduling.localDateInput(seriesStart) : Scheduling.localDateInput(defaultStart);
@@ -6125,7 +6624,10 @@
     expenseAmountInput.value = seriesExpenses.amount_cents ? (Number(seriesExpenses.amount_cents) / 100).toFixed(2) : '';
     const selectedEquipmentIds = new Set((Array.isArray(seriesEvent.resource_refs) ? seriesEvent.resource_refs : [])
       .filter((ref) => String(ref?.kind || '') === 'equipment_unit').map((ref) => String(ref.id || '')));
-    if (equipmentInput) equipmentInput.innerHTML = scheduleCachedEquipmentUnits.map((unit) => `<option value="${escapeHtml(unit.id || '')}" ${selectedEquipmentIds.has(String(unit.id || '')) ? 'selected' : ''}>${escapeHtml(unit.name || unit.id)}${unit.type_name ? ` — ${escapeHtml(unit.type_name)}` : ''}</option>`).join('');
+    if (equipmentInput) equipmentInput.innerHTML = scheduleCachedEquipmentUnits.map((unit) => {
+      const label = `${unit.name || unit.id}${unit.type_name ? ` — ${unit.type_name}` : ''}`;
+      return `<option value="${escapeHtml(unit.id || '')}" data-equipment-label="${escapeHtml(label)}" data-equipment-name="${escapeHtml(unit.name || unit.id || '')}" ${selectedEquipmentIds.has(String(unit.id || '')) ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+    }).join('');
     const firstEquipmentRef = (Array.isArray(seriesEvent.resource_refs) ? seriesEvent.resource_refs : []).find((ref) => String(ref?.kind || '') === 'equipment_unit') || {};
     const localDateTime = (value) => {
       const date = value instanceof Date ? value : new Date(value);
@@ -6154,8 +6656,73 @@
     if (equipmentStartInput) equipmentStartInput.value = localDateTime(firstEquipmentRef.start_at || selectedRange().start);
     if (equipmentEndInput) equipmentEndInput.value = localDateTime(firstEquipmentRef.end_at || selectedRange().end);
     [equipmentStartInput, equipmentEndInput].forEach((input) => {
-      if (input) input.onchange = () => { equipmentWindowEdited = true; };
+      if (input) input.onchange = () => { equipmentWindowEdited = true; void renderEquipmentAvailability(); };
     });
+    // Units that are down or booked during the equipment window say so (as
+    // in the global editor's picker) and, when the company blocks equipment
+    // conflicts, can't be picked. A unit already selected stays selectable
+    // so it can be removed; Save names it instead.
+    let equipmentAvailabilityGeneration = 0;
+    let equipmentAvailability = { key:'', notes:new Map() };
+    const equipmentAvailabilityWindow = () => {
+      const { start, end } = selectedRange();
+      const from = new Date(equipmentStartInput?.value || start);
+      const until = new Date(equipmentEndInput?.value || end);
+      return Number.isFinite(from.getTime()) && Number.isFinite(until.getTime()) && until > from ? { start:from, end:until } : null;
+    };
+    const equipmentAvailabilityKey = () => {
+      const range = equipmentAvailabilityWindow();
+      return range ? `${range.start.toISOString()}|${range.end.toISOString()}` : '';
+    };
+    const applyEquipmentNotes = () => {
+      Array.from(equipmentInput?.options || []).forEach((option) => {
+        const note = equipmentAvailability.notes.get(String(option.value || '')) || null;
+        const base = option.dataset.equipmentLabel || option.textContent;
+        // The list is narrow: with a note the unit name and its status fit
+        // (the type is dropped); a greyed, disabled row reads as unavailable
+        // and the full reason is on hover.
+        option.textContent = note ? `${option.dataset.equipmentName || base} · ${note.label}` : base;
+        option.disabled = !!note?.blocked && !option.selected;
+        if (note) option.title = `${note.reason}${note.blocked ? ' Unavailable for this time.' : ''}`;
+        else option.removeAttribute('title');
+      });
+    };
+    async function renderEquipmentAvailability(){
+      if (!equipmentInput || !equipmentSchedulingEnabled() || !scheduleCachedEquipmentUnits.length || typeof window.EquipmentAPI?.request !== 'function') return;
+      const generation = ++equipmentAvailabilityGeneration;
+      const range = equipmentAvailabilityWindow();
+      const key = equipmentAvailabilityKey();
+      if (!range) {
+        equipmentAvailability = { key:'', notes:new Map() };
+        applyEquipmentNotes();
+        return;
+      }
+      if (key === equipmentAvailability.key) return;
+      try {
+        const query = new URLSearchParams({ start:range.start.toISOString(), end:range.end.toISOString() });
+        if (editEvent?.id) query.set('exclude_event_id', String(editEvent.id));
+        const [mode, result] = await Promise.all([
+          loadEquipmentConflictMode(),
+          window.EquipmentAPI.request(`/organizations/${encodeURIComponent(orgId)}/availability?${query.toString()}`)
+        ]);
+        if (generation !== equipmentAvailabilityGeneration || !scheduleDialogOpen() || !isCurrentSession()) return;
+        const notes = new Map();
+        (Array.isArray(result?.units) ? result.units : []).forEach((report) => {
+          const note = mode === 'off' ? null : equipmentAvailabilityNote(report, mode);
+          if (note) notes.set(String(report.id || ''), note);
+        });
+        equipmentAvailability = { key, notes };
+      } catch (_) {
+        if (generation !== equipmentAvailabilityGeneration) return;
+        equipmentAvailability = { key:'', notes:new Map() };
+      }
+      applyEquipmentNotes();
+    }
+    if (equipmentInput) equipmentInput.onchange = () => {
+      applyEquipmentNotes();
+      // A refusal about the equipment no longer applies once the pick changes.
+      if (statusEl?.classList.contains('bad')) { statusEl.textContent = ''; statusEl.classList.remove('bad'); }
+    };
     const existingRequirements = Array.isArray(seriesEvent.resource_requirements) ? seriesEvent.resource_requirements : [];
     if (equipmentRequirements) equipmentRequirements.innerHTML = scheduleCachedEquipmentTypes.length
       ? scheduleCachedEquipmentTypes.map((type) => {
@@ -6206,8 +6773,13 @@
       return { start, end:new Date(start.getTime() + Math.max(1, Number(durationInput.value || duration)) * 60000) };
     }
 
+    // The first crew is the primary: whoever is already assigned keeps their
+    // order (primary first), then newly added ones in list order — so an
+    // edit that doesn't touch the crew never swaps the primary.
     function selectedUserIds(){
-      return Array.from(usersInput.selectedOptions || []).map((option) => option.value).filter(Boolean);
+      const ids = Array.from(usersInput.selectedOptions || []).map((option) => option.value).filter(Boolean);
+      const rank = (id) => { const index = initialAssignees.findIndex((ref) => ref.id === id); return index < 0 ? initialAssignees.length : index; };
+      return ids.map((id, index) => ({ id, index })).sort((a, b) => (rank(a.id) - rank(b.id)) || (a.index - b.index)).map((entry) => entry.id);
     }
 
     function assignedUsersForIds(ids){
@@ -6222,6 +6794,11 @@
     // availability pass keeps them.
     usersInput.innerHTML = initialAssignees.map((ref) => `<option value="${escapeHtml(ref.id)}" selected>${escapeHtml(ref.name || ref.id)}</option>`).join('');
 
+    // What decides availability (date, time, length, crew): an edit that
+    // keeps all of it isn't re-checked.
+    const schedulingKey = () => JSON.stringify([dateInput.value, allDaySelected() ? '' : timeInput.value, allDaySelected() ? '' : String(durationInput.value), allDaySelected() ? String(daysInput.value) : '', allDaySelected(), recurringInput.checked, selectedUserIds().slice().sort()]);
+    let originalSchedulingKey = null;
+    const schedulingUnchanged = () => !!editEvent && materialEventIsScheduled(editEvent) && originalSchedulingKey !== null && schedulingKey() === originalSchedulingKey;
     let availabilityGeneration = 0;
     let authoritativeSlots = [];
     const authoritativeAvailability = () => window.PlatformAPI?.appointments?.availability?.(orgId, {
@@ -6253,12 +6830,16 @@
       const conflicts = scheduleCrewConflicts(crewIds, start, end, { excludeId:editEvent?.id || '', excludeSeriesId:recurringSeries?.id || '' });
       if (!conflicts.length) return '';
       const first = conflicts[0];
-      const more = conflicts.length > 1 ? ` (+${conflicts.length - 1} more)` : '';
+      const more = conflicts.length > 1 ? ` and ${conflicts.length - 1} other item${conflicts.length === 2 ? '' : 's'}` : '';
       return `${first.resource.name || 'That crew'} is already booked on “${scheduleEventDisplayTitle(first.event)}” (${workRangeLabel(first.event)})${more}.`;
     };
     const applyOutcome = (available, message) => {
-      const conflict = crewConflictText();
-      const ok = available && !conflict;
+      // Editing only the title, description or equipment of a placed item
+      // keeps its time and crew: nothing to check, Save stays available.
+      const unchanged = schedulingUnchanged();
+      const conflict = unchanged ? '' : crewConflictText();
+      const ok = unchanged || (available && !conflict);
+      if (unchanged && !available) message = 'The time and crew stay as they are.';
       statusEl.classList.toggle('bad', !ok);
       statusEl.textContent = conflict ? `${conflict} Pick another time or check “Schedule anyway”.` : message;
       if (overrideWrap) overrideWrap.classList.toggle('visible', !ok || !!overrideInput?.checked);
@@ -6266,7 +6847,13 @@
       saveBtn.textContent = saveLabel === 'Save' ? (ok || !overrideInput?.checked ? 'Save' : 'Save anyway') : (ok ? 'Schedule' : (overrideInput?.checked ? 'Schedule Anyway' : 'Schedule'));
     };
 
+    // The inputs the last availability pass used: a change event that only
+    // repeats an input event (e.g. the field losing focus to a click on
+    // Schedule anyway) doesn't redraw the status under the pointer.
+    let renderedInputsKey = '';
+    const inputsKey = () => `${schedulingKey()}|${overrideInput?.checked === true}`;
     function renderAvailability(){
+      renderedInputsKey = inputsKey();
       renderAllDay();
       const start = selectedStart();
       const durationMinutes = Number(durationInput.value || duration);
@@ -6309,6 +6896,7 @@
             ? `${assignedBusy.join(', ')} is already booked at that time.`
             : 'Required roles are not fully available at that time.');
       syncEquipmentWindow();
+      void renderEquipmentAvailability();
       void renderSlots();
     }
 
@@ -6337,6 +6925,10 @@
         slotsEl.removeAttribute('aria-busy');
         authoritativeSlots = [];
         slotsEl.innerHTML = `<span class="r-schedule-slots-note">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_f40ba07aaa433a","Availability unavailable") ?? "Availability unavailable")}</span>`;
+        if (schedulingUnchanged()) {
+          applyOutcome(true, 'The time and crew stay as they are.');
+          return;
+        }
         statusEl.textContent = error?.message || 'Could not check authoritative availability.';
         statusEl.classList.add('bad');
         overrideWrap?.classList.add('visible');
@@ -6359,12 +6951,38 @@
         };
       });
       const slots = authoritativeSlots;
+      if (autoPickDays > 0) {
+        const selectedIso = selectedStart().toISOString();
+        const chosen = slots.find((slot) => slot.start_at === selectedIso || slot.start === selectedIso);
+        if (chosen?.hasAvailability) autoPickDays = 0;
+        else {
+          const now = Date.now();
+          const firstOpen = slots.find((slot) => slot.hasAvailability && slot.time && new Date(slot.start_at || slot.start).getTime() > now);
+          if (firstOpen) {
+            autoPickDays = 0;
+            timeInput.value = firstOpen.time;
+            renderAvailability();
+            return;
+          }
+          // Nothing open that day: try the next one.
+          autoPickDays -= 1;
+          if (autoPickDays > 0) {
+            const nextDay = scheduleAddDays(new Date(`${dateInput.value}T00:00:00`), 1);
+            if (Number.isFinite(nextDay.getTime())) {
+              dateInput.value = Scheduling.localDateInput(nextDay);
+              renderAvailability();
+              return;
+            }
+          }
+        }
+      }
       const current = timeInput.value;
       slotsEl.innerHTML = slots.map((slot) => `
         <button type="button" class="r-schedule-slot ${slot.hasAvailability ? 'available' : 'unavailable'} ${slot.time === current ? 'active' : ''}" data-time="${escapeHtml(slot.time)}" ${slot.hasAvailability ? '' : 'disabled'}>${escapeHtml(slot.label)}</button>
       `).join('');
       slotsEl.querySelectorAll('.r-schedule-slot.available').forEach((btn) => {
         btn.addEventListener('click', () => {
+          autoPickDays = 0;
           timeInput.value = btn.dataset.time || timeInput.value;
           renderAvailability();
         });
@@ -6377,9 +6995,15 @@
         : 'This time is not available under the routed scheduling rules. Choose another time or check “Schedule anyway”.');
     }
 
+    // Anything the user chooses stops the first-open-time search.
+    const userChange = (event) => {
+      autoPickDays = 0;
+      if (event?.type === 'change' && inputsKey() === renderedInputsKey) return;
+      renderAvailability();
+    };
     [dateInput, timeInput, durationInput, daysInput, usersInput, overrideInput, allDayInput].forEach((input) => {
-      if (input) input.oninput = renderAvailability;
-      if (input) input.onchange = renderAvailability;
+      if (input) input.oninput = userChange;
+      if (input) input.onchange = userChange;
     });
     recurringInput.onchange = () => {
       recurringFields.hidden = !recurringInput.checked;
@@ -6427,7 +7051,7 @@
         return;
       }
       const selectedIds = selectedUserIds();
-      const selectedSubjects = assignableSubjects.filter((subject) => selectedIds.includes(subject.id));
+      const selectedSubjects = selectedIds.map((id) => assignableSubjects.find((subject) => subject.id === id)).filter(Boolean);
       // Every selected crew and person is assigned (not only the first).
       const assignment = workAssigneesPayload({}, selectedSubjects.map((subject) => ({ id:subject.id, kind:subject.subject_type || subject.resource_kind || 'organization_user', name:subject.name || subject.email || subject.id })));
       const selectedUnitIds = Array.from(equipmentInput?.selectedOptions || []).map((option) => String(option.value || '')).filter(Boolean);
@@ -6437,6 +7061,25 @@
         statusEl.textContent = (globalThis.PlatformLanguage?.text("project-schedule","m_a7c91be49bc6e0","Equipment must be released after it is assigned.") ?? "Equipment must be released after it is assigned.");
         statusEl.classList.add('bad');
         return;
+      }
+      // A unit the company won't let be booked then is named before saving
+      // (the server would refuse it); one down for service otherwise asks
+      // first, as in the global editor.
+      if (selectedUnitIds.length && equipmentAvailability.key && equipmentAvailability.key === equipmentAvailabilityKey()) {
+        const unitNotes = selectedUnitIds.map((id) => equipmentAvailability.notes.get(id)).filter(Boolean);
+        const blockedNotes = unitNotes.filter((note) => note.blocked);
+        if (blockedNotes.length) {
+          statusEl.textContent = `${blockedNotes.map((note) => note.reason).join(' ')} ${blockedNotes.length === 1 ? 'Remove it' : 'Remove them'} or choose another time.`;
+          statusEl.classList.add('bad');
+          return;
+        }
+        const downNotes = unitNotes.filter((note) => note.down);
+        if (downNotes.length) {
+          saveBtn.dataset.saving = 'true';
+          const assignAnyway = await scheduleConfirmUi(`${downNotes.map((note) => note.reason).join(' ')} Are you sure you want to assign this equipment to the event?`, { title:'Equipment down for service', okLabel:'Assign anyway', cancelLabel:'Keep editing' });
+          delete saveBtn.dataset.saving;
+          if (!assignAnyway || !scheduleDialogOpen() || !isCurrentSession()) return;
+        }
       }
       const equipmentRefs = selectedUnitIds.map((id) => {
         const unit = scheduleCachedEquipmentUnits.find((item) => String(item.id || '') === id);
@@ -6496,8 +7139,10 @@
       const idleLabel = saveBtn.textContent;
       saveBtn.textContent = 'Saving…';
       let related = null;
+      let mergedSave = false;
+      let createdOccurrenceCount = null;
       try {
-        if (!recurringInput.checked && !recurringSeries && !overrideInput?.checked && !allDay) {
+        if (!recurringInput.checked && !recurringSeries && !overrideInput?.checked && !allDay && !schedulingUnchanged()) {
           const latest = await authoritativeAvailability();
           const selectedIso = selectedStart().toISOString();
           const slot = (Array.isArray(latest?.slots) ? latest.slots : []).find((entry) => entry.start_at === selectedIso && slotSupportsSelection(entry));
@@ -6526,12 +7171,16 @@
           if (!window.PlatformAPI?.projects?.createRecurrenceSeries) throw new Error('Recurring scheduling is not available.');
           scheduleMutationSerial += 1;
           if (recurringSeries?.id) await window.PlatformAPI.projects.updateRecurrenceSeries(orgId, recurringSeries.id, payload);
-          else await window.PlatformAPI.projects.createRecurrenceSeries(orgId, { ...payload, project_id: project.id });
+          else {
+            const created = await window.PlatformAPI.projects.createRecurrenceSeries(orgId, { ...payload, project_id: project.id });
+            createdOccurrenceCount = Array.isArray(created?.occurrences) ? created.occurrences.length : null;
+          }
           scheduleMutationSerial += 1;
           scheduleRecurringSeries = [];
           await loadRecurringSeries({ refresh: true });
         } else {
           const saved = await saveScheduleEventRemote(orgId, project, event, config);
+          mergedSave = !!saved.merged;
           activeBaseProject = { ...activeBaseProject, ...saved.project, events: saved.project?.events || [] };
           if (editEvent) {
             await saveRelatedRescheduleChanges(related);
@@ -6548,15 +7197,47 @@
         renderSchedulePanelPreservingScroll();
         window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
         window.dispatchEvent(new CustomEvent('fm:projects:refresh'));
+        // A new series says what it scheduled; an edited one that its
+        // future occurrences follow.
+        const newSeries = wasRecurring && !recurringSeries;
+        const newSeriesBody = createdOccurrenceCount > 0
+          ? `${createdOccurrenceCount} occurrence${createdOccurrenceCount === 1 ? '' : 's'} scheduled.`
+          : `${title || 'The recurring item'} was added to the project.`;
         showToast(
-          wasRecurring ? 'Recurring item saved' : (editEvent ? `${typeLabel} updated` : (eventTypeId === 'project_work' ? 'Production scheduled' : 'Appointment scheduled')),
-          wasRecurring ? 'Its future occurrences were updated.' : `${event.title} ${editEvent ? 'was saved' : 'was added to the project'}.${relatedMoveNote(related)}`,
+          wasRecurring ? (newSeries ? 'Recurring item added' : 'Recurring item saved') : (editEvent ? `${typeLabel} updated` : (eventTypeId === 'project_work' ? 'Production scheduled' : 'Appointment scheduled')),
+          wasRecurring ? (newSeries ? newSeriesBody : 'Its future occurrences were updated.') : `${event.title} ${editEvent ? 'was saved' : 'was added to the project'}.${relatedMoveNote(related)}${mergedSave ? ' Changes someone else made to this item meanwhile were kept.' : ''}`,
           true
         );
       } catch (error) {
         if (isStaleSaveError(error)) {
-          closeScheduleDialog();
-          handleStaleScheduleSave(error);
+          // Someone else changed the same thing meanwhile. The dialog stays
+          // open with this user's edits; the next Save builds on the stored
+          // copy (deleted items close it).
+          const latest = editEvent && !scheduleStaleErrorDeleted(error)
+            ? (scheduleProjectEvents().find((item) => String(item.id || '') === String(editEvent.id || '')) || error?.currentEvent || error?.data?.details?.current_event || null)
+            : null;
+          if (!latest || !scheduleDialogOpen() || !isCurrentSession()) {
+            closeScheduleDialog();
+            handleStaleScheduleSave(error);
+            return;
+          }
+          editEvent = latest;
+          showStaleScheduleToast(error, 'Your edits are still in the dialog. Review them and save again.');
+          statusEl.textContent = `Someone else changed this item meanwhile (it is now “${scheduleEventDisplayTitle(latest)}”, ${materialEventIsScheduled(latest) ? workRangeLabel(latest) : 'not scheduled'}). Your edits are kept here — review them and save again.`;
+          statusEl.classList.add('bad');
+          if (state.active) renderSchedulePanelPreservingScroll();
+          return;
+        }
+        // Refused equipment: name each unit and what holds it, and show the
+        // picker's current availability.
+        const equipmentConflicts = Array.isArray(error?.data?.details?.conflicts) ? error.data.details.conflicts : [];
+        if (equipmentConflicts.length) {
+          const conflictText = equipmentConflictSaveText(equipmentConflicts);
+          statusEl.textContent = `${conflictText} Remove the equipment or choose another time.`;
+          statusEl.classList.add('bad');
+          showToast('Equipment conflict', conflictText, false);
+          equipmentAvailability = { key:'', notes:new Map() };
+          void renderEquipmentAvailability();
           return;
         }
         statusEl.textContent = error?.message || 'Could not save the appointment.';
@@ -6569,6 +7250,7 @@
       }
     };
 
+    originalSchedulingKey = schedulingKey();
     renderAvailability();
     // Keyboard users start in the first field.
     setTimeout(() => { if (scheduleDialogOpen() && !dialog.contains(document.activeElement)) itemTitleInput.focus({ preventScroll:true }); }, 0);
@@ -6723,7 +7405,10 @@
       closeWorkAssignmentMenu();
       handled = true;
     } else if (document.querySelector('.r-schedule-event-popover')) {
+      const popoverItemId = scheduleEventPopoverId;
       closeScheduleEventPopover();
+      // Keyboard focus goes back to the item the popover belongs to.
+      focusScheduleItem(popoverItemId, scheduleEventPopoverAnchor);
       handled = true;
     } else if (state.active && (projectMobileViewMenuOpen || projectMobileMonthMenuOpen)) {
       projectMobileViewMenuOpen = false;

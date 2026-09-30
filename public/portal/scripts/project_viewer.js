@@ -609,28 +609,217 @@
   ));
   // Representation-only differences (missing vs empty, 47.6 vs "47.6") are
   // not edits and must not be written over another session's value.
+  // R4-EQ-14: values the window derives on every save (the generated
+  // satellite thumbnail, a pin that is just the address point, the default
+  // workflow intent, empty measurement defaults) are not edits either.
+  const compactValue = (value) => {
+    if (Array.isArray(value)) {
+      const items = value.map(compactValue).filter((item) => item !== undefined);
+      return items.length ? items : undefined;
+    }
+    if (value && typeof value === 'object') {
+      const entries = Object.keys(value).map((key) => [key, compactValue(value[key])]).filter(([, entry]) => entry !== undefined);
+      return entries.length ? Object.fromEntries(entries) : undefined;
+    }
+    if (value === undefined || value === null || value === '' || value === false || value === 0) return undefined;
+    return typeof value === 'number' || typeof value === 'boolean' ? String(value) : value;
+  };
+  const generatedPhoto = (photo) => !!photo && typeof photo === 'object' && (
+    photo.is_top_down_thumbnail === true || photo.id === 'top_down_thumbnail' || photo.designator === 'top_down_thumbnail' || photo.source === 'google_static_map'
+  );
+  const coordinate = (value) => {
+    const number = Number(value);
+    return value === '' || value === null || value === undefined || !Number.isFinite(number) ? '' : number.toFixed(6);
+  };
+  const comparableProjectField = (key, value, project = {}) => {
+    if (key === 'lat' || key === 'lng') return coordinate(value);
+    if (key === 'workflow_intent') return value === 'project' ? '' : comparableField(value);
+    if (key === 'project_type') return value === 'residential' ? '' : comparableField(value);
+    // Stored photos and the window's serialized copies differ only in empty
+    // or duplicated keys (mime_type "", markup {}, photo_id = id).
+    const photoShape = (photo) => compactValue({ ...(photo || {}), photo_id: photo?.photo_id === photo?.id ? '' : photo?.photo_id });
+    if (key === 'photos') {
+      const compact = compactValue((Array.isArray(value) ? value : []).filter((photo) => !generatedPhoto(photo)).map(photoShape));
+      return compact ? stableJson(compact) : '';
+    }
+    if (key === 'thumbnail_photo_id') return value === 'top_down_thumbnail' ? '' : comparableField(value);
+    if (key === 'thumbnail_photo') {
+      const compact = generatedPhoto(value) ? undefined : photoShape(value);
+      return compact ? stableJson(compact) : '';
+    }
+    if (key === 'pins') {
+      const pins = (Array.isArray(value) ? value : []).map((pin) => `${coordinate(pin?.lat)},${coordinate(pin?.lng)}`);
+      const addressPoint = `${coordinate(project.lat)},${coordinate(project.lng)}`;
+      return pins.length === 1 && pins[0] === addressPoint ? '' : pins.join(';');
+    }
+    if (key === 'measurement' || key === 'measurement_project') {
+      const compact = compactValue({ ...(value && typeof value === 'object' ? value : {}), weather_report_tier: value?.weather_report_tier === 'history' ? '' : value?.weather_report_tier });
+      return compact ? stableJson(compact) : '';
+    }
+    if (key === 'contacts') {
+      const compact = compactValue((Array.isArray(value) ? value : []).map((contact) => ({ ...(contact || {}), contact_id: contact?.contact_id === contact?.id ? '' : contact?.contact_id })));
+      return compact ? stableJson(compact) : '';
+    }
+    return comparableField(value);
+  };
   const comparableField = (value) => {
     if (value === undefined || value === null || value === '') return '';
     if (Array.isArray(value) && !value.length) return '';
     if (typeof value === 'object' && !Array.isArray(value) && !Object.keys(value).length) return '';
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    // Primitives compare by their text: 47.6 and "47.6", true and "true".
+    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'string') return String(value);
     return stableJson(value);
+  };
+  /* R4-EQ-2: the contacts list is one top-level field, but two people may
+   * edit different contacts (or different fields of one contact). Apply only
+   * this window's per-contact, per-field changes (against its baseline) to
+   * the server's current list instead of replacing the list wholesale. */
+  const contactKey = (contact, index) => String(contact?.id || contact?.contact_id || `index:${index}`);
+  const mergeContactChanges = (baseList, mineList, theirsList) => {
+    const base = new Map((Array.isArray(baseList) ? baseList : []).map((contact, index) => [contactKey(contact, index), contact || {}]));
+    const mine = new Map((Array.isArray(mineList) ? mineList : []).map((contact, index) => [contactKey(contact, index), contact || {}]));
+    const theirs = Array.isArray(theirsList) ? theirsList : [];
+    const same = (a, b) => comparableField(a) === comparableField(b);
+    const merged = [];
+    const seen = new Set();
+    theirs.forEach((contact, index) => {
+      const key = contactKey(contact, index);
+      seen.add(key);
+      const before = base.get(key);
+      const after = mine.get(key);
+      if (!before) { merged.push(contact); return; }
+      // Removed here: keep it removed.
+      if (!after) return;
+      const next = { ...(contact || {}) };
+      new Set([...Object.keys(before), ...Object.keys(after)]).forEach((field) => {
+        if (!same(after[field], before[field])) next[field] = after[field];
+      });
+      merged.push(next);
+    });
+    (Array.isArray(mineList) ? mineList : []).forEach((contact, index) => {
+      const key = contactKey(contact, index);
+      if (seen.has(key)) return;
+      const before = base.get(key);
+      // Added here, or deleted elsewhere after this window changed it.
+      if (!before || stableJson(compactValue(before) || {}) !== stableJson(compactValue(contact) || {})) merged.push(contact);
+    });
+    return merged;
+  };
+  const projectDeletedError = (id, cause) => {
+    const error = new Error(globalThis.PlatformLanguage?.text?.('project-viewer', 'project_deleted', 'This project was deleted, so your change was not saved.') ?? 'This project was deleted, so your change was not saved.');
+    error.code = 'project_deleted';
+    error.deleted = true;
+    error.projectId = id;
+    if (cause) error.cause = cause;
+    return error;
+  };
+  const deletedProjectIds = new Set();
+  // Last "This project was deleted" toast per project: every rejected save
+  // says so again, at most once every few seconds while someone types.
+  const deletedProjectToasts = new Map();
+  const DELETED_PROJECT_TOAST_GAP_MS = 3000;
+  // The project the window shows; opening another one drops the notice.
+  let shownProjectId = '';
+  window.addEventListener('fm:project-modal:hydrated', (event) => {
+    shownProjectId = String(event?.detail?.projectId || '').trim();
+    document.querySelectorAll('.r-project-deleted-notice').forEach((notice) => {
+      if (notice.dataset.projectId !== shownProjectId) notice.remove();
+    });
+  });
+  // A lasting notice in the project window showing the deleted project, so
+  // edits there are not mistaken for saved ones. Display only: nothing is
+  // written or recreated.
+  const showDeletedProjectNotice = (id) => {
+    const overlay = document.getElementById('rOverlay');
+    const pane = overlay?.querySelector('.r-right');
+    if (!pane || !overlay.getClientRects().length) return;
+    const shown = shownProjectId || String(window.Portal?.routeState?.get?.()?.project || '').trim();
+    if (shown && id && shown !== id) return;
+    if (pane.querySelector('.r-project-deleted-notice')) return;
+    const notice = document.createElement('div');
+    notice.className = 'r-project-deleted-notice';
+    notice.setAttribute('role', 'alert');
+    notice.dataset.projectId = String(id || '');
+    notice.style.cssText = 'display:flex;align-items:center;gap:8px;margin:8px 12px 0;padding:9px 12px;border:1px solid #fecdca;border-radius:10px;background:#fef3f2;color:#b42318;font-size:12px;font-weight:800;line-height:1.35';
+    notice.innerHTML = `<i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span>${escapeHtml(globalThis.PlatformLanguage?.text?.('project-viewer', 'project_deleted_notice', 'This project was deleted by someone else. Changes made here are not saved.') ?? 'This project was deleted by someone else. Changes made here are not saved.')}</span>`;
+    const header = pane.querySelector('.r-modal-header');
+    if (header?.parentNode === pane) header.after(notice);
+    else pane.prepend(notice);
+  };
+  // A schedule write (project Schedule tab, calendars) found the project gone.
+  window.addEventListener('fm:project:deleted', (event) => {
+    const id = String(event?.detail?.projectId || '').trim();
+    if (!id) return;
+    deletedProjectIds.add(id);
+    showDeletedProjectNotice(id);
+  });
+  const retryableSaveError = (error) => {
+    const status = Number(error?.status || 0);
+    if (error?.code === 'project_deleted') return false;
+    return status === 0 || status === 409 || status >= 500;
+  };
+  const sendProjectPatch = async (orgId, next, metadata, baseline) => {
+    const id = next.id;
+    const projects = window.PlatformAPI.projects;
+    const changed = {};
+    Object.keys(next).forEach((key) => {
+      if (SERVER_OWNED_PROJECT_KEYS.has(key)) return;
+      if (comparableProjectField(key, next[key], next) !== comparableProjectField(key, baseline.data[key], baseline.data)) changed[key] = next[key];
+    });
+    // A moved address point moves its pin too.
+    if ((changed.lat !== undefined || changed.lng !== undefined) && Array.isArray(next.pins) && next.pins.length) changed.pins = next.pins;
+    // Nothing but the save stamp differs: no write (it would only bump the
+    // revision other windows' saves are checked against).
+    if (!Object.keys(changed).some((key) => key !== 'updated_at')) return { ok: true, document: null, unchanged: true };
+    const sent = { ...changed };
+    if (Object.prototype.hasOwnProperty.call(changed, 'contacts') && typeof projects.get === 'function') {
+      const latest = await projects.get(orgId, id);
+      if (latest?.missing || !latest?.document) throw projectDeletedError(id);
+      changed.contacts = mergeContactChanges(baseline.data.contacts, next.contacts, latest.document.data?.contacts);
+    }
+    const result = await projects.patch(orgId, id, changed, metadata);
+    // A project this window read from the server is gone: never recreate it.
+    if (result?.missing) throw projectDeletedError(id);
+    projects.advanceBaseline?.(id, sent);
+    return result;
   };
   const sendProjectChanges = async (orgId, next, metadata) => {
     const id = next.id;
     const projects = window.PlatformAPI.projects;
+    if (deletedProjectIds.has(id)) throw projectDeletedError(id);
     const baseline = typeof projects.baseline === 'function' ? projects.baseline(id) : null;
     if (!baseline || typeof projects.patch !== 'function') return projects.save(orgId, id, next, metadata);
-    const changed = {};
-    Object.keys(next).forEach((key) => {
-      if (SERVER_OWNED_PROJECT_KEYS.has(key)) return;
-      if (comparableField(next[key]) !== comparableField(baseline.data[key])) changed[key] = next[key];
-    });
-    const result = await projects.patch(orgId, id, changed, metadata);
-    // The record is gone from the server: only a full save can recreate it.
-    if (result?.missing) return projects.save(orgId, id, next, metadata);
-    projects.advanceBaseline?.(id, changed);
-    return result;
+    try {
+      try {
+        return await sendProjectPatch(orgId, next, metadata, baseline);
+      } catch (error) {
+        // R4-EQ-4: one retry for a busy project (409) or a dropped request.
+        if (!retryableSaveError(error)) throw error;
+        return await sendProjectPatch(orgId, next, metadata, projects.baseline(id) || baseline);
+      }
+    } catch (error) {
+      if (error?.code === 'project_deleted' || error?.deleted) {
+        deletedProjectIds.add(id);
+        throw error.code === 'project_deleted' && error.projectId ? error : projectDeletedError(id, error);
+      }
+      throw error;
+    }
+  };
+  const notifyProjectSaveFailed = (error) => {
+    const toast = window.Portal?.ui?.showToast || window.PlatformUI?.showToast;
+    if (typeof toast !== 'function') return;
+    if (error?.code === 'project_deleted') {
+      try { showDeletedProjectNotice(error.projectId); } catch (_) {}
+      const now = Date.now();
+      if (now - (deletedProjectToasts.get(error.projectId) || 0) < DELETED_PROJECT_TOAST_GAP_MS) return;
+      deletedProjectToasts.set(error.projectId, now);
+      toast(globalThis.PlatformLanguage?.text?.('project-viewer', 'project_deleted_title', 'This project was deleted') ?? 'This project was deleted', globalThis.PlatformLanguage?.text?.('project-viewer', 'project_deleted_body', 'Someone else deleted it, so your change was not saved.') ?? 'Someone else deleted it, so your change was not saved.', false);
+      return;
+    }
+    const offline = !Number(error?.status || 0) && /fetch|network/i.test(String(error?.message || ''));
+    toast(globalThis.PlatformLanguage?.text?.('project-viewer', 'project_save_failed', 'Project changes not saved') ?? 'Project changes not saved', offline || !error?.message
+      ? (globalThis.PlatformLanguage?.text?.('project-viewer', 'project_save_retry', 'Check your connection and try again.') ?? 'Check your connection and try again.')
+      : error.message, false);
   };
   const projectSaveQueues = new Map();
   const pumpProjectSaves = (id, state) => {
@@ -661,8 +850,17 @@
     save(project){
       if (!isProjectLike(project)) return project || null;
       const next = cacheProject(project);
-      void this.saveRemote(next).catch((error) => console.warn('Platform project save failed', error));
+      void this.saveRemote(next).catch((error) => {
+        console.warn('Platform project save failed', error);
+        notifyProjectSaveFailed(error);
+      });
       return next;
+    },
+    // True while this page still has an edit of the project queued or in
+    // flight (its cached copy is then ahead of the server's).
+    hasPendingSave(projectOrId){
+      const id = typeof projectOrId === 'string' ? projectOrId : canonicalProjectId(projectOrId || {});
+      return !!id && projectSaveQueues.has(id);
     },
     async saveRemote(project){
       if (!isProjectLike(project)) return null;

@@ -1079,6 +1079,13 @@
           method: 'PATCH',
           body: { data: data || {}, metadata: metadata || {} }
         }).catch((error) => {
+          // R4-EQ-3: the server refuses to recreate a project deleted since it
+          // was read; that is not a local-only record to fall back from.
+          if (cleanText(error?.data?.error || error?.data?.code) === 'project_deleted') {
+            error.code = 'project_deleted';
+            error.deleted = true;
+            throw error;
+          }
           if (isMissingRecord(error)) return { ok: true, document: localDocument(id, data || {}, metadata || {}), missing: true };
           throw error;
         });
@@ -2623,8 +2630,12 @@
           raw = module?.data || module || null;
         } catch (error) {}
       }
+      // Reads never write: a missing dashboard module simply reads as the
+      // defaults (normalizeConfig). Only an explicit persistDefaults caller
+      // (a settings surface) stores them, and only when the module list
+      // confirmed it is missing.
       const config = normalizeConfig(raw || {});
-      if (!raw && options.ensureDefaults !== false) {
+      if (!raw && listedModules && options.persistDefaults === true) {
         api.branchModules.save(orgId, branchId, MODULE_ID, config, { kind: 'branch_dashboard' }).catch(() => null);
       }
       return config;
@@ -3152,6 +3163,14 @@
     try { Object.assign(entry.data, JSON.parse(JSON.stringify(fields))); } catch {}
   };
   api.projects.forgetBaseline = (id) => { projectBaselines.delete(cleanText(id)); };
+  // R4-EQ-1: the project window hydrates its form from a fresh server read;
+  // that copy becomes the diff base, so values the form shows unchanged are
+  // never sent as edits (even when an older read was remembered first).
+  api.projects.rebaseline = (id, data, revision = 0) => {
+    const key = cleanText(id);
+    if (!key || !data || typeof data !== 'object' || Array.isArray(data)) return;
+    try { projectBaselines.set(key, { data: JSON.parse(JSON.stringify(data)), revision: Number(revision || 0) }); } catch {}
+  };
 
   configure({ baseUrl: APP.platformApiBase || '' });
   root.PlatformAPI = api;

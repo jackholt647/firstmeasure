@@ -475,9 +475,9 @@ test("concurrent writes to one project never drop each other's items (R3-RAIL-2)
     saveEvent(owner, orgId, projectId, { id: "event_conc_2", title: "Renamed by B" }),
     owner.raw("DELETE", `${base}/event_conc_3`)
   ]);
-  assert.equal(first.statusCode, 200);
-  assert.equal(second.statusCode, 200);
-  assert.equal(removal.statusCode, 200);
+  assert.equal(first.statusCode, 200, first.body);
+  assert.equal(second.statusCode, 200, second.body);
+  assert.equal(removal.statusCode, 200, removal.body);
   const afterUpdate = await owner.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
   const byId = new Map<string, any>(afterUpdate.document.data.events.map((event: any) => [event.id, event]));
   assert.equal(byId.get("event_conc_1").description, "edited by A");
@@ -582,4 +582,112 @@ test("floating calendar bookings are equipment conflict-checked like project ite
   // A cancelled booking is not checked.
   const cancelled = await owner.raw("PUT", calendarUrl("booking_e"), { data: booking("booking_e", { status: "cancelled" }) });
   assert.equal(cancelled.statusCode, 200, cancelled.body);
+});
+
+/* Runs writes concurrently. The JSON storage on Windows can transiently fail
+ * a concurrent read of the session / organization file (delete-pending
+ * rename) as 401 authentication_required or 404 not_found; such a request
+ * never reached the write under test and is re-sent once afterwards. */
+async function concurrently(writes: Array<() => Promise<{ statusCode: number; body: string; data: any }>>) {
+  const results = await Promise.all(writes.map((write) => write()));
+  for (let index = 0; index < results.length; index += 1) {
+    if (["authentication_required", "not_found"].includes(results[index]!.data?.error)) results[index] = await writes[index]!();
+  }
+  return results;
+}
+
+test("a save of a project deleted meanwhile answers 404 and never recreates it (R4-EQ-3)", async () => {
+  const owner = createSessionClient();
+  const { orgId } = await registerOwner(owner);
+  const projectId = "proj_deleted_elsewhere";
+  await createProject(owner, orgId, projectId);
+  const url = `/v1/platform/organizations/${orgId}/projects/${projectId}`;
+  assert.equal((await owner.raw("DELETE", url)).statusCode, 200);
+
+  // The Overview autosave (PATCH) of the window that still shows it.
+  const patched = await owner.raw("PATCH", url, { data: { tech_notes: "late edit" }, metadata: {} });
+  assert.equal(patched.statusCode, 404, patched.body);
+  assert.equal(patched.data.error, "project_deleted");
+  // A full save that names an existing copy is refused the same way.
+  const replaced = await owner.raw("PUT", url, { data: { id: projectId, title: "Late" }, metadata: {}, require_existing: true });
+  assert.equal(replaced.statusCode, 404, replaced.body);
+  const stale = await owner.raw("PUT", url, { data: { id: projectId, title: "Late" }, metadata: {}, expected_revision: 3 });
+  assert.equal(stale.statusCode, 404, stale.body);
+  assert.equal((await owner.raw("GET", url)).statusCode, 404, "nothing was recreated");
+
+  // Genuine creates keep working.
+  const created = await owner.raw("PUT", url, { data: { id: projectId, title: "Recreated on purpose", events: [] }, metadata: {} });
+  assert.equal(created.statusCode, 200, created.body);
+  const posted = await owner.raw("POST", `/v1/platform/organizations/${orgId}/projects`, { id: "proj_posted_new", data: { id: "proj_posted_new", title: "Posted" }, metadata: {} });
+  assert.ok([200, 201].includes(posted.statusCode), posted.body);
+});
+
+test("project document saves share the per-project queue with item writes (R4-EQ-4)", async () => {
+  const owner = createSessionClient();
+  const { orgId } = await registerOwner(owner);
+  const projectId = "proj_patch_vs_items";
+  await createProject(owner, orgId, projectId);
+  const url = `/v1/platform/organizations/${orgId}/projects/${projectId}`;
+  for (let round = 0; round < 3; round += 1) {
+    const note = `notes round ${round}`;
+    const results = await concurrently([
+      ...[0, 1, 2, 3].map((index) => () => saveEvent(owner, orgId, projectId, {
+        id: `event_q_${round}_${index}`, type_id: "project_work", title: `Q ${round}.${index}`,
+        start_at: `2026-11-0${index + 2}T16:00:00.000Z`, end_at: `2026-11-0${index + 2}T17:00:00.000Z`
+      })),
+      () => owner.raw("PATCH", url, { data: { tech_notes: note, updated_at: new Date().toISOString() }, metadata: {} }),
+      () => owner.raw("PUT", url, { data: { id: projectId, title: `Title ${round}`, tech_notes: note }, metadata: {} })
+    ]);
+    assert.deepEqual(results.map((response) => response.statusCode), results.map(() => 200), results.map((response) => response.body.slice(0, 200)).join(" | "));
+    const stored = (await owner.request("GET", url)).document.data;
+    assert.equal(stored.tech_notes, note, "the project save is not lost to concurrent item saves");
+    assert.equal(stored.title, `Title ${round}`);
+    const ids = stored.events.map((event: any) => event.id);
+    for (let index = 0; index < 4; index += 1) assert.ok(ids.includes(`event_q_${round}_${index}`), "and no item is dropped by the project save");
+  }
+});
+
+test("simultaneous bookings of one unit across projects and calendar events: only one wins (R4-EQ-5)", async () => {
+  const owner = createSessionClient();
+  const { orgId } = await registerOwner(owner);
+  await enableEquipment(orgId);
+  const type = await owner.request("POST", `/v1/equipment/organizations/${orgId}/types`, { name: "Dump Trailer" });
+  const unit = (await owner.request("POST", `/v1/equipment/organizations/${orgId}/units`, { type_id: type.type.id, name: "DT-1", ownership: "owned" })).unit;
+  const projects = ["proj_race_a", "proj_race_b", "proj_race_c"];
+  for (const projectId of projects) await createProject(owner, orgId, projectId);
+  const unitRef = { kind: "equipment_unit", id: unit.id, name: unit.name, role: "equipment" };
+  for (let round = 0; round < 3; round += 1) {
+    const day = `2026-12-0${round + 1}`;
+    const window = { start_at: `${day}T16:00:00.000Z`, end_at: `${day}T20:00:00.000Z` };
+    const results = await concurrently([
+      ...projects.map((projectId) => () => saveEvent(owner, orgId, projectId, {
+        id: `event_race_${round}_${projectId}`, type_id: "project_work", title: `Race ${projectId}`, ...window, resource_refs: [unitRef]
+      })),
+      () => owner.raw("PUT", `/v1/platform/organizations/${orgId}/calendar_events/booking_race_${round}`, {
+        data: { id: `booking_race_${round}`, title: "DT-1 booked", vehicle_booking: true, status: "scheduled", ...window, resource_refs: [{ ...unitRef, role: "vehicle" }] }
+      })
+    ]);
+    const statuses = results.map((response) => response.statusCode);
+    assert.equal(statuses.filter((status) => status === 200).length, 1, `exactly one booking of DT-1 is stored: ${statuses.join(",")}`);
+    assert.ok(results.filter((response) => response.statusCode !== 200).every((response) => response.statusCode === 409 && response.data?.error === "equipment_conflict"), results.map((response) => response.body.slice(0, 160)).join(" | "));
+  }
+});
+
+test("emitting a work event does not wait for the queue to drain (R4-RAIL-2)", async () => {
+  const owner = createSessionClient();
+  const { orgId } = await registerOwner(owner);
+  const { emitWorkEvent } = await import("../work/engine.js");
+  const { readEventRecord } = await import("../work/storage.js");
+  const emitted = await emitWorkEvent({
+    organization_id: orgId, branch_id: "default", project_id: "proj_background_drain",
+    type: "project.updated", idempotency_key: `background-drain-${Date.now()}`, payload: {}
+  }, { process: "background" });
+  // Durable before the caller continues, but not yet processed by it.
+  assert.equal((await readEventRecord(orgId, String(emitted?.id)))?.status, "pending");
+  let status = "";
+  for (let index = 0; index < 100 && status !== "completed"; index += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    status = String((await readEventRecord(orgId, String(emitted?.id)))?.status || "");
+  }
+  assert.equal(status, "completed", "the scheduled drain processes it right after");
 });

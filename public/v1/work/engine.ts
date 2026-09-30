@@ -263,8 +263,11 @@ async function executeEvent(event: JsonObject) {
 }
 
 let draining = false;
+// A drain requested while one runs (an event emitted after that pass last
+// looked at the queue) runs again right after it instead of waiting a tick.
+let drainRequested = false;
 export async function drainWorkEvents(limit = 100) {
-  if (draining) return 0;
+  if (draining) { drainRequested = true; return 0; }
   draining = true;
   let processed = 0;
   try {
@@ -286,10 +289,35 @@ export async function drainWorkEvents(limit = 100) {
       processed++;
     }
     return processed;
-  } finally { draining = false; }
+  } finally {
+    draining = false;
+    if (drainRequested) { drainRequested = false; scheduleWorkEventDrain(); }
+  }
 }
 
-export async function emitWorkEvent(input: JsonObject, options: { process?: boolean } = {}) {
+/* R4-RAIL-2: the event record is durable once createEventRecord returns, so
+ * the HTTP request that emitted it must not wait while this process drains
+ * the whole queue (every organization's pending events, up to 100 per pass —
+ * 16–90 s under load). The drain is scheduled right after the response
+ * instead; an event it cannot reach is claimed by the next scheduler tick
+ * (single topology) or the platform worker (cluster), exactly as before. */
+let drainScheduled = false;
+export function scheduleWorkEventDrain() {
+  if (drainScheduled) return;
+  drainScheduled = true;
+  setImmediate(() => {
+    drainScheduled = false;
+    void drainWorkEvents().then((processed) => {
+      // A full pass may have left more work: keep going in the background.
+      if (processed >= 100) scheduleWorkEventDrain();
+    }).catch((error) => console.warn("Background work event drain failed", error));
+  });
+}
+
+/* process: false only records the event; "inline" drains before returning
+ * (deterministic test suites and callers that need the effects applied);
+ * "background" (the runtime default) schedules the drain. */
+export async function emitWorkEvent(input: JsonObject, options: { process?: boolean | "inline" | "background" } = {}) {
   if (!(await isCapabilityEnabled(cleanText(input.organization_id), "platform.expanded_access"))) {
     return { ...input, status: "disabled" };
   }
@@ -299,6 +327,13 @@ export async function emitWorkEvent(input: JsonObject, options: { process?: bool
     ...(cleanText(input.type || input.event) === "proposal.signed" ? { payload: { ...asObject(input.payload), document_type: "proposal", document_tags: ["proposal"], document_source: "proposals", document_id: asObject(input.payload).proposal_id } } : {}),
     idempotency_key: cleanText(input.idempotency_key) || `${cleanText(input.type || input.event)}:${randomUUID()}`
   }));
-  if (options.process !== false && (env.deploymentTopology === "single" || process.env.PLATFORM_PROCESS_ROLE === "worker")) await drainWorkEvents();
+  if (options.process !== false && (env.deploymentTopology === "single" || process.env.PLATFORM_PROCESS_ROLE === "worker")) {
+    // Test runs drain inline so assertions see automation effects; NODE_ENV is
+    // read at call time because suites set it after importing the config.
+    const testRuntime = env.isTest || process.env.NODE_ENV === "test";
+    const inline = options.process === "inline" || (options.process !== "background" && testRuntime);
+    if (inline) await drainWorkEvents();
+    else scheduleWorkEventDrain();
+  }
   return result.event;
 }

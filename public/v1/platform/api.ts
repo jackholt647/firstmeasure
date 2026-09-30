@@ -82,7 +82,7 @@ import {
   switchRememberedPlatformAccount
 } from "./auth.js";
 import { PlatformError } from "./errors.js";
-import { isRevisionConflict, mutateProjectDocument, withProjectDocumentLock, writeProjectDocument } from "./project_document_mutation.js";
+import { isRevisionConflict, mutateProjectDocument, withEquipmentBookingLock, withProjectDocumentLock, writeProjectDocument } from "./project_document_mutation.js";
 import { notificationCatalog, catalogDefinitions, definitionPreferences } from "./notification_catalog.js";
 import { notificationPresentation, isMessageInboxNotification, notificationPreferenceEnabled, categoryForNotification, preferenceKeyForNotification, registerNotificationDevice, saveNotificationPreferences, unregisterNotificationDevice } from "./notification_delivery.js";
 import { projectAudienceFacts } from "./portal_audience.js";
@@ -1893,7 +1893,10 @@ app.get("/auth/google/config", async () => ({
     // R3-RAIL-2: the whole read-check-write runs serialized per project and
     // writes conditionally on the revision it read (retrying on conflict), so
     // concurrent saves to one project never drop each other's items.
-    const saved = await mutateProjectDocument(orgId, projectId, async (current) => {
+    // R4-EQ-5: an item that books (or held) equipment also holds the
+    // organization's booking lock, so its conflict check and write cannot
+    // interleave with another project's booking of the same unit.
+    const saved = await mutateProjectDocument(orgId, projectId, async (current) => await withEquipmentBookingLock(orgId, projectEventWriteTouchesEquipment(asObject(current.data), requestedEventId, eventInput), async () => {
     const currentData = asObject(current.data);
     const events = Array.isArray(currentData.events) ? [...currentData.events] : [];
     const existingIndex = requestedEventId ? events.findIndex((item) => cleanText(asObject(item).id) === requestedEventId) : -1;
@@ -1987,7 +1990,7 @@ app.get("/auth/google/config", async () => ({
       last_project_event_id: event.id
     });
     return { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings };
-    });
+    }));
     const { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings } = saved;
     const materialList = cleanText(event.material_list_id)
       ? await syncMaterialListFromScheduleEvent(orgId, event)
@@ -3140,7 +3143,7 @@ app.get("/auth/google/config", async () => ({
     const document = collection === "users"
       ? await upsertPlatformOrgUserDocument(orgId, documentId, body, false)
       : collection === "projects"
-        ? await upsertProjectDocumentPreservingEvents(orgId, documentId, body, false)
+        ? await upsertProjectDocumentPreservingEvents(orgId, documentId, body, false, { requireExisting: true })
       : collection === "calendar_events"
         ? await saveCalendarEventDocument(orgId, documentId, parsedBody, false)
       : await upsertDocument(
@@ -4660,18 +4663,38 @@ function mergeProjectEmbeddedEvents(currentValue: unknown, incomingValue: unknow
   return merged;
 }
 
+/* Project document saves (Overview autosave PATCH, full PUT) keep the stored
+ * schedule items and run through the same per-project mutation lock and
+ * conditional write as schedule-item writes (R4-EQ-4), so a burst of item
+ * saves cannot starve them into a revision_conflict. A write that names an
+ * existing project — PATCH, an explicit expected_revision or
+ * require_existing — never recreates a project deleted meanwhile (R4-EQ-3);
+ * it answers 404 project_deleted instead. */
 async function upsertProjectDocumentPreservingEvents(
   orgId: string,
   documentId: string,
   input: JsonObject,
-  replace: boolean
+  replace: boolean,
+  options: { requireExisting?: boolean } = {}
 ) {
   const id = cleanText(documentId || input.id);
+  const requireExisting = options.requireExisting === true || input.require_existing === true || Number(input.expected_revision || 0) > 0;
+  if (Object.prototype.hasOwnProperty.call(input, "require_existing")) {
+    input = { ...input };
+    delete input.require_existing;
+  }
   if (!id) return await upsertDocument(orgId, "projects", input, { replace });
   const explicitExpectedRevision = Number(input.expected_revision || 0);
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const current = await readDocument(orgId, "projects", id).catch(() => null);
-    if (!current) return await upsertDocument(orgId, "projects", { ...input, id }, { replace });
+  return await withProjectDocumentLock(orgId, id, async () => {
+  for (let attempt = 0; ; attempt += 1) {
+    const current = await readDocument(orgId, "projects", id).catch((error) => {
+      if (!requireExisting || (error instanceof PlatformError && error.statusCode === 404)) return null;
+      throw error;
+    });
+    if (!current) {
+      if (requireExisting) throw notFound("project_deleted", "This project was deleted.", { project_id: id, deleted: true });
+      return await upsertDocument(orgId, "projects", { ...input, id }, { replace });
+    }
     const currentData = asObject(current.data);
     const incomingData = asObject(input.data);
     const mergedProjectData = mergeProjectCustomFieldsForSave(currentData, {
@@ -4693,10 +4716,14 @@ async function upsertProjectDocumentPreservingEvents(
     try {
       return await upsertDocument(orgId, "projects", nextInput, { replace });
     } catch (error) {
-      if (explicitExpectedRevision || !(error instanceof PlatformError) || error.code !== "revision_conflict" || attempt === 2) throw error;
+      // Writers in this process are serialized by the lock above; a conflict
+      // here is another process's write, so re-read and re-apply.
+      if (explicitExpectedRevision || !isRevisionConflict(error)) throw error;
+      if (attempt >= 7) throw conflict("revision_conflict", "The project changed repeatedly while it was being saved. Try again.");
+      await new Promise((resolve) => setTimeout(resolve, Math.min(250, 10 * 2 ** attempt) * (0.5 + Math.random())));
     }
   }
-  throw conflict("revision_conflict", "Project changed while it was being saved.");
+  });
 }
 
 const EVENT_RESOURCE_REF_KINDS = new Set([
@@ -4761,6 +4788,15 @@ function normalizeEventResourceRefs(eventValue: unknown) {
 
 function eventEquipmentResourceRefs(eventValue: unknown) {
   return normalizeEventResourceRefs(eventValue).filter((ref) => EQUIPMENT_REF_KINDS.has(ref.kind));
+}
+
+/* Whether a project item write books equipment or changes an item that
+ * already does (a move or release of a booked unit). */
+function projectEventWriteTouchesEquipment(projectData: JsonObject, eventId: string, patch: JsonObject) {
+  if (eventEquipmentResourceRefs(patch).length) return true;
+  if (!eventId) return false;
+  const stored = (Array.isArray(projectData.events) ? projectData.events : []).map(asObject).find((item) => cleanText(item.id) === eventId);
+  return !!stored && eventEquipmentResourceRefs(stored).length > 0;
 }
 
 type EventWorkRef = { kind: string; id: string; name: string; role: string };
@@ -5073,17 +5109,21 @@ async function saveCalendarEventDocument(orgId: string, documentId: string, pars
     const data = hasData
       ? stripClientOnlyEventFields(replace || !existingData ? { ...asObject(body.data) } : { ...existingData, ...asObject(body.data) })
       : (replace || !existingData ? {} : existingData);
-    if (hasData && !isEquipmentOwnCalendarEvent(data)) {
-      await assessScheduleItemEquipment(orgId, { ...data, id: id || cleanText(data.id) });
-    }
+    const checkEquipment = hasData && !isEquipmentOwnCalendarEvent(data);
     const metadata = replace || !existing ? asObject(body.metadata) : { ...asObject(existing.metadata), ...asObject(body.metadata) };
-    return await upsertDocument(orgId, "calendar_events", {
-      ...body,
-      ...(id ? { id } : {}),
-      data,
-      metadata,
-      ...(existing ? { expected_revision: Number(existing.revision || 0) } : {})
-    }, { replace: true });
+    // R4-EQ-5: check and write under the organization's booking lock when
+    // this booking holds (or held) equipment.
+    const touchesEquipment = checkEquipment && (eventEquipmentResourceRefs(data).length > 0 || (existingData ? eventEquipmentResourceRefs(existingData).length > 0 : false));
+    return await withEquipmentBookingLock(orgId, touchesEquipment, async () => {
+      if (checkEquipment) await assessScheduleItemEquipment(orgId, { ...data, id: id || cleanText(data.id) });
+      return await upsertDocument(orgId, "calendar_events", {
+        ...body,
+        ...(id ? { id } : {}),
+        data,
+        metadata,
+        ...(existing ? { expected_revision: Number(existing.revision || 0) } : {})
+      }, { replace: true });
+    });
   };
   if (!id) return await attempt(null);
   return await withProjectDocumentLock(orgId, `calendar_events:${id}`, async () => {

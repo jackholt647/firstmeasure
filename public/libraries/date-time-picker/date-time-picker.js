@@ -100,6 +100,7 @@
     input.setAttribute('aria-expanded','true');
     const candidate = () => kind === 'date' ? chosenDate : kind === 'time' ? chosenTime : `${chosenDate}T${chosenTime}`;
     let lastDayClick = { key:'', at:0 };
+    let lastDayApplyAt = 0;
     function validateCandidate(value) {
       const allowed = valid(input, value);
       const past = input.hasAttribute('data-future-only') && kind === 'datetime-local' && new Date(value).getTime() <= Date.now();
@@ -200,11 +201,18 @@
       if (b.hasAttribute('data-apply')) { commit(candidate()); return; }
       if (b.dataset.date) {
         const key = b.dataset.date, clickedAt = Date.now();
-        // Date-only popup: a second click on the same day (a double-click)
-        // applies it, like Enter.
-        if (kind === 'date' && !options.mount && lastDayClick.key === key && clickedAt - lastDayClick.at < 450) { lastDayClick = { key:'', at:0 }; chosenDate = key; commit(candidate()); return; }
-        lastDayClick = { key, at:clickedAt };
         const sameMonth = localDate(key).getMonth() === month.getMonth() && localDate(key).getFullYear() === month.getFullYear();
+        // Date-only popup: a second click on the same day (a double-click)
+        // applies it, like Enter. A greyed day of another month switches the
+        // month (the buttons are rebuilt), so a second click at the same spot
+        // still means the day picked first.
+        const samePoint = Math.hypot(Number(event.clientX) - Number(lastDayClick.x), Number(event.clientY) - Number(lastDayClick.y)) < 8;
+        const repeat = clickedAt - lastDayClick.at < 450 && (lastDayClick.key === key || (lastDayClick.rebuilt === true && samePoint));
+        if (kind === 'date' && !options.mount && repeat) { const picked = lastDayClick.key; lastDayClick = { key:'', at:0 }; lastDayApplyAt = Date.now(); chosenDate = picked; commit(candidate()); return; }
+        // Otherwise the second click of that double-click keeps the day
+        // picked first instead of selecting whatever took its place.
+        if (repeat && lastDayClick.key !== key) { lastDayClick = { key:'', at:0 }; return; }
+        lastDayClick = { key, at:clickedAt, x:Number(event.clientX), y:Number(event.clientY), rebuilt:!(kind === 'date' && sameMonth) };
         chosenDate = key; month = localDate(chosenDate); month.setDate(1);
         // Picking a day in the shown month only moves the selection: the day
         // buttons stay in place, so a double-click reaches the same button.
@@ -259,7 +267,9 @@
     // Double-clicking a day in a date-only popup applies it too.
     shadow.addEventListener('dblclick', event => {
       const b = event.target.closest?.('[data-date]');
-      if (!b || b.disabled || kind !== 'date' || options.mount) return;
+      // The click pair already applied the day (and closed the popup); a
+      // rebuilt month may have put another day under the pointer.
+      if (!b || b.disabled || kind !== 'date' || options.mount || !host.isConnected || Date.now() - lastDayApplyAt < 700) return;
       chosenDate = b.dataset.date; commit(candidate());
     });
     render();

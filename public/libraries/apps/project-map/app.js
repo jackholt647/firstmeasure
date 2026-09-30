@@ -564,9 +564,19 @@
     return ids.length ? ids.join(', ') : 'Unassigned';
   }
 
+  // Cancelled and unscheduled items are left out: the cards count what is
+  // scheduled.
+  function eventIsScheduled(event = {}){
+    if (typeof window.PlatformScheduling?.eventIsScheduled === 'function') return window.PlatformScheduling.eventIsScheduled(event);
+    const start = eventStart(event);
+    return !['unscheduled', 'cancelled', 'canceled'].includes(cleanText(event.status).toLowerCase())
+      && start instanceof Date && Number.isFinite(start.getTime());
+  }
+
   function scheduleRows(kind, inputProject = project()){
     const events = projectEvents(inputProject)
       .filter((event) => kind === 'work' ? isWorkEvent(event) : isAppointmentEvent(event))
+      .filter(eventIsScheduled)
       .sort((a, b) => eventStart(a) - eventStart(b));
     return events.map((event) => ({
       title: firstText(event.title, kind === 'work' ? 'Scheduled work' : 'Appointment'),
