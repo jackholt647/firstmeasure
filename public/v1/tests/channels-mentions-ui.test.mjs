@@ -102,6 +102,15 @@ test('mounted Channels mention menus agree and red tokens survive channel, threa
       }));
       assert.deepEqual(pending.recipients,[]);assert.deepEqual(pending.tokens,[token]);
     }
+    for (const html of ['<div>@Liv</div><div>ordinary text</div>','<ul><li>@Liv</li><li>ordinary text</li></ul>','<table><tbody><tr><td>@Liv</td><td>ordinary text</td></tr></tbody></table>']) {
+      await editor.evaluate((node,html)=>{node.innerHTML=html;node.dispatchEvent(new Event('input',{bubbles:true}));},html);
+      await page.waitForFunction(()=>[...(CSS.highlights.get('fm-channel-mentions')||[])].some(range=>range.toString().startsWith('@Liv')));
+      const paragraphQuery=await editor.evaluate(node=>({recipients:node._mentionApi.confirmedMentions(),tokens:[...(CSS.highlights.get('fm-channel-mentions')||[])].filter(range=>node.contains(range.startContainer)).map(range=>range.toString())}));
+      assert.deepEqual(paragraphQuery.tokens,['@Liv']);assert.deepEqual(paragraphQuery.recipients,[]);
+    }
+    await editor.evaluate(node=>{node._mentionApi.setSelectedMentions([{id:'member',name:'J. Lee'}]);node.innerHTML='<p>@J.<strong> Lee</strong> ordinary text</p>';node.dispatchEvent(new Event('input',{bubbles:true}));});
+    await page.waitForFunction(()=>[...(CSS.highlights.get('fm-channel-mentions')||[])].some(range=>range.toString()==='@J. Lee'));
+    await editor.evaluate(node=>node._mentionApi.setSelectedMentions([]));
     await editor.fill('@J');await editor.press('ArrowLeft');await editor.press('ArrowRight');
     await page.locator('#fmMentionMenu.visible [data-mention-user="member"]').click();
     await editor.press('End');await page.keyboard.type('ordinary text');

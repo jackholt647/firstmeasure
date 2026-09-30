@@ -161,9 +161,12 @@
       const refresh = () => {
         if (!textarea.isConnected) { channelMentionRanges.delete(textarea); publish(); return; }
         const walker = document.createTreeWalker(textarea, NodeFilter.SHOW_TEXT);
-        const nodes = []; let text = '', node;
+        const nodes = []; let text = '', node, previousBlock;
         while ((node = walker.nextNode())) {
           if (node.parentElement.closest('[contenteditable=false],[data-table-ui]')) continue;
+          const block = node.parentElement.closest('div,p,li,td,th,blockquote,pre,h1,h2,h3,h4,h5,h6');
+          if (nodes.length && block !== previousBlock) text += '\n';
+          previousBlock = block;
           nodes.push({node,start:text.length,end:text.length+node.textContent.length});
           text += node.textContent;
         }
