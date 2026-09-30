@@ -5208,15 +5208,25 @@
       });
     }
 
-    function openReminderModal(message){
+    async function openReminderModal(message){
+      if (!root.FirstMateDateTimePicker?.mount) {
+        try { await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/date-time-picker/date-time-picker.js?v=20260929-linear-pla20';script.onload=resolve;script.onerror=reject;document.head.append(script);}); }
+        catch (_) { showError(new Error('The reminder calendar could not load. Please try again.')); return; }
+      }
+      let inlinePicker;
       showModal('Remind me', (body) => {
         const date = new Date(Date.now() + 60 * 60_000);
-        date.setSeconds(0, 0);
+        date.setMinutes(Math.ceil(date.getMinutes() / 15) * 15, 0, 0);
         const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-        body.innerHTML = `<label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_5d0ffda53615be","Reminder time") ?? "Reminder time")}</label><input type="datetime-local" data-reminder-at value="${String(local)}">`;
+        body.closest('.fm-ch-modal').style.width='min(680px, calc(100vw - 32px))';
+        body.innerHTML = `<input hidden required aria-label="Reminder time" type="datetime-local" data-reminder-at value="${String(local)}"><div data-reminder-calendar></div>`;
+        const earliest = new Date(Date.now() + 60_000);
+        body.querySelector('input').min = new Date(earliest.getTime() - earliest.getTimezoneOffset() * 60_000).toISOString().slice(0,16);
+        inlinePicker = root.FirstMateDateTimePicker.mount(body.querySelector('[data-reminder-calendar]'), body.querySelector('input'));
+        return () => inlinePicker?.destroy();
       }, [{ label:(globalThis.PlatformLanguage?.text("channels-ui","m_9b6a0832346dfa","Save reminder") ?? "Save reminder"), primary:true, onClick:async (close, body) => {
         try {
-          const value = body.querySelector('[data-reminder-at]')?.value;
+          const value = inlinePicker?.readValue();
           const date = new Date(value);
           if (!value || !Number.isFinite(date.getTime()) || date.getTime() <= Date.now()) throw new Error('Choose a future reminder time.');
           await api.reminders.create(orgId, message.id, date.toISOString());

@@ -19,7 +19,8 @@
     button,input{font:inherit}button{cursor:pointer;border:0;background:transparent;color:inherit;border-radius:9px;padding:8px 10px}button:hover{background:var(--tint)}button:disabled{opacity:.3;cursor:default}:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 40%,transparent);outline-offset:2px}
     .heading,.navigation,.footer,.quick,.time{display:flex;align-items:center;gap:8px}.heading{justify-content:space-between;margin-bottom:14px}.heading strong{font-size:16px;letter-spacing:-.3px}.muted{color:#788196;font-size:12px}.layout{display:grid;grid-template-columns:minmax(0,1fr)}.combined .layout{grid-template-columns:minmax(0,1fr) 170px;gap:20px}.calendar{min-width:0}.navigation{margin:12px 0;justify-content:space-between}.month{font-weight:650;flex:1}.year{width:68px;border:1px solid var(--line);border-radius:7px;padding:5px;color:inherit;background:transparent}.week,.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}.week span{text-align:center;font-size:11px;font-weight:600;color:#788196;padding:5px 0}.days button{padding:0;height:36px;font-size:13px}.days .other{color:#9ca4b4}.days .today{box-shadow:inset 0 0 0 1px var(--accent)}.days [aria-pressed=true]{background:var(--accent);color:var(--on-accent)}.quick{margin-bottom:10px;gap:5px}.quick button{background:#f3f5fa;font-size:12px;padding:7px 9px;white-space:nowrap}
     .time-section{min-width:0}.combined .time-section{border-left:1px solid var(--line);padding-left:18px}.time-title{display:block;font-weight:650;margin-bottom:4px}.time-date{display:block;color:#788196;font-size:12px;min-height:18px;margin-bottom:12px}.slots{display:flex;flex-direction:column;gap:7px;height:234px;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--accent) 35%,#ddd) transparent;padding:3px 5px 3px 3px;scroll-padding:4px}.slots button{flex:none;min-height:40px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}.slots button:hover{border-color:var(--accent);background:var(--tint)}.slots button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}.slots button:disabled{border-color:var(--line);background:transparent;color:#788196}
-    details{margin-top:12px}summary{cursor:pointer;font-size:12px;color:var(--ink);width:fit-content}.time{margin:8px 0}.time label{flex:1;color:#788196;font-size:11px}.time input{display:block;width:100%;margin-top:4px;padding:8px 6px;text-align:center;border:1px solid var(--line);border-radius:10px;font-size:20px;font-variant-numeric:tabular-nums;color:#202638;background:#f8f9fc}.period{align-self:flex-end;border:1px solid var(--line);height:46px;font-weight:600}.footer{border-top:1px solid var(--line);padding-top:12px;margin-top:14px}.footer .spacer{flex:1}.primary{background:var(--accent);color:var(--on-accent);font-weight:600}.primary:hover{background:var(--accent);filter:brightness(.93)}.error{font-size:12px;color:#b42318;margin-top:10px}.error:empty{display:none}
+    details{margin-top:12px}summary{cursor:pointer;font-size:12px;color:var(--ink);width:fit-content}.time{margin:8px 0}.time label{flex:0 1 76px;color:#788196;font-size:12px}.time input{display:block;width:100%;margin-top:4px;padding:8px 6px;text-align:center;border:1px solid var(--line);border-radius:10px;font-size:20px;font-variant-numeric:tabular-nums;color:#202638;background:#f8f9fc}.period{align-self:flex-end;border:1px solid var(--line);height:46px;font-weight:600}.footer{border-top:1px solid var(--line);padding-top:12px;margin-top:14px}.footer .spacer{flex:1}.primary{background:var(--accent);color:var(--on-accent);font-weight:600}.primary:hover{background:var(--accent);filter:brightness(.93)}.error{font-size:12px;color:#b42318;margin-top:10px}.error:empty{display:none}
+    .combined .time{flex-wrap:wrap;gap:4px}.combined .time label{flex:1 1 0;min-width:0}.combined .time input{height:32px;font-size:16px;padding:4px 3px;border-radius:7px}.combined .time>span{align-self:center;margin-top:16px}.combined .period{flex-basis:100%;height:30px;padding:4px}.combined summary{font-size:11px}
     @media(max-width:520px){.picker{padding:12px}.combined .layout{grid-template-columns:minmax(0,1fr) 100px;gap:10px}.combined .time-section{padding-left:9px}.quick{flex-wrap:wrap;gap:3px}.quick button{font-size:10px;padding:6px}.navigation{gap:2px}.navigation button{padding:6px}.month{font-size:12px}.year{width:53px;font-size:12px;padding:4px}.days{gap:1px}.days button{font-size:11px;height:32px}.slots{height:234px;padding-right:3px}.slots button{font-size:12px;padding:8px 2px}.time-date{font-size:10px}}
   `;
   function valid(input, value) {
@@ -78,12 +79,12 @@
     if (!options.mount && host.showPopover) host.showPopover();
     input.setAttribute('aria-expanded','true');
     const candidate = () => kind === 'date' ? chosenDate : kind === 'time' ? chosenTime : `${chosenDate}T${chosenTime}`;
-    function commit(value) {
+    function commit(value, refresh = true) {
       if (!valid(input, value)) { shadow.querySelector('.error').textContent = text('Choose a value within the allowed range and time interval.'); return; }
       const changed = input.value !== value;
       input.value = value;
       if (!options.mount) close();
-      else render();
+      else if (refresh) render();
       if (changed) { input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); }
     }
     function render(focusDate) {
@@ -114,20 +115,22 @@
         const base = Number.isFinite(probe.valueAsNumber) ? probe.valueAsNumber : 0;
         probe.value = kind === 'time' ? '00:00' : `${chosenDate}T00:00`;
         const dayStart = probe.valueAsNumber;
-        const first = ((base-dayStart)%interval+interval)%interval;
-        const options = new Set();
-        for (let ms=first;ms<86400000;ms+=interval) options.add(timeString(Math.round(ms)));
-        if (valid(input,valueFor(chosenTime))) options.add(chosenTime);
-        slotMarkup = [...options].sort().map(time => {
+        // Normal minute inputs suggest quarter-hours regardless of a min such
+        // as 08:07. Non-default step constraints retain their declared offset.
+        const first = step === 60 ? 0 : ((base-dayStart)%interval+interval)%interval;
+        const slotTimes = new Set();
+        for (let ms=first;ms<86400000;ms+=interval) slotTimes.add(timeString(Math.round(ms)));
+        if (step !== 60 && valid(input,valueFor(chosenTime))) slotTimes.add(chosenTime);
+        slotMarkup = [...slotTimes].sort().filter(time => !(options.mount && step === 60 && kind === 'datetime-local' && input.min) || valid(input,valueFor(time))).map(time => {
           const [hour,minute,second=0]=time.split(':').map(Number);
           const label = new Intl.DateTimeFormat(locale(),{hour:'numeric',minute:'2-digit',...(seconds?{second:'2-digit'}:{})}).format(new Date(2000,0,1,hour,minute,second));
           return `<button type="button" data-slot="${time}" tabindex="-1" aria-pressed="${time===chosenTime}" ${valid(input,valueFor(time))?'':'disabled'}>${esc(label)}</button>`;
         }).join('');
       }
-      const times = hasTime ? `<section class="time-section"><span class="time-title">${text('Select a time')}</span><span class="time-date">${hasDate?esc(new Intl.DateTimeFormat(locale(),{month:'short',day:'numeric'}).format(localDate(chosenDate))):text('Scroll to choose')}</span><div class="slots" role="group" aria-label="${text('Available times')}">${slotMarkup}</div></section>` : '';
-      const custom = hasTime ? `<details><summary>${text('Custom time')}</summary><div class="time"><label>${text('Hour')}<input data-time="hour" type="number" min="${hour12?1:0}" max="${hour12?12:23}" value="${hour12?Number(h)%12||12:Number(h)}"></label><span>:</span><label>${text('Minute')}<input data-time="minute" type="number" min="0" max="59" value="${m}"></label>${seconds?`<span>:</span><label>${text('Second')}<input data-time="second" type="number" min="0" max="59.999" step="${fractional?'0.001':'1'}" value="${s}"></label>`:''}${hour12?`<button type="button" class="period" data-period aria-label="${text('Toggle AM/PM')}">${Number(h)>=12?'PM':'AM'}</button>`:''}</div></details>` : '';
+      const custom = hasTime ? `<details><summary>${text('Custom time')}</summary><div class="time"><label>${text('Hour')}<input data-time="hour" type="number" inputmode="numeric" min="${hour12?1:0}" max="${hour12?12:23}" value="${pad(hour12?Number(h)%12||12:Number(h))}"></label><span>:</span><label>${text('Minute')}<input data-time="minute" type="number" inputmode="numeric" min="0" max="59" value="${m}"></label>${seconds?`<span>:</span><label>${text('Second')}<input data-time="second" type="number" inputmode="decimal" min="0" max="59.999" step="${fractional?'0.001':'1'}" value="${s}"></label>`:''}${hour12?`<button type="button" class="period" data-period aria-label="${text('Toggle AM/PM')}">${Number(h)>=12?'PM':'AM'}</button>`:''}</div></details>` : '';
+      const times = hasTime ? `<section class="time-section"><span class="time-title">${text('Select a time')}</span><span class="time-date">${hasDate?esc(new Intl.DateTimeFormat(locale(),{month:'short',day:'numeric'}).format(localDate(chosenDate))):text('Scroll to choose')}</span><div class="slots" role="group" aria-label="${text('Available times')}">${slotMarkup}</div>${hasDate?custom:''}</section>` : '';
       const customOpen = shadow.querySelector('details')?.open;
-      shadow.innerHTML = `<style>${css}</style><div class="picker ${hasDate&&hasTime?'combined':''}" role="dialog" aria-label="${esc(name)}"><div class="heading"><strong>${text(hasDate?hasTime?'Select date & time':'Choose date':'Choose time')}</strong><button type="button" data-close aria-label="${text('Close picker')}">×</button></div><div class="layout">${hasDate?`<section class="calendar">${calendar}</section>`:''}${times}</div>${custom}<div class="error" role="alert"></div><div class="footer"><button type="button" data-clear ${input.required?'disabled':''}>${text('Clear')}</button><span class="spacer"></span><button type="button" data-close>${text('Cancel')}</button><button type="button" class="primary" data-apply>${text('Apply')}</button></div></div>`;
+      shadow.innerHTML = `<style>${css}</style><div class="picker ${hasDate&&hasTime?'combined':''}" role="dialog" aria-label="${esc(name)}"><div class="heading"><strong>${text(hasDate?hasTime?'Select date & time':'Choose date':'Choose time')}</strong><button type="button" data-close aria-label="${text('Close picker')}">×</button></div><div class="layout">${hasDate?`<section class="calendar">${calendar}</section>`:''}${times}</div>${hasDate?'':custom}<div class="error" role="alert"></div><div class="footer"><button type="button" data-clear ${input.required?'disabled':''}>${text('Clear')}</button><span class="spacer"></span><button type="button" data-close>${text('Cancel')}</button><button type="button" class="primary" data-apply>${text('Apply')}</button></div></div>`;
       if (options.mount) {
         shadow.querySelector('style').textContent += ':host{position:static!important;display:block;z-index:auto!important}.picker{width:100%!important;max-width:none;max-height:none;box-shadow:none;border:0;padding:0}.heading,.footer{display:none}';
         shadow.querySelector('.picker').setAttribute('role','group');
@@ -170,8 +173,13 @@
       shadow.querySelector(b.hasAttribute('data-period')?'[data-period]':`[data-slot="${b.dataset.slot}"]`)?.focus();
     });
     shadow.addEventListener('change', event => {
-      if(options.mount && event.target.matches('[data-time]') && readTime()) commit(candidate());
+      // Preserve the custom fields while tabbing between them; rebuilding on
+      // blur detaches the next field before the user can finish their time.
+      if(options.mount && event.target.matches('[data-time]') && readTime()) commit(candidate(), false);
       if (event.target.matches('.year') && event.target.validity.valid && event.target.value && readTime()) { month.setFullYear(Number(event.target.value)); render(); shadow.querySelector('.year').focus(); }
+    });
+    shadow.addEventListener('focusin', event => {
+      if (event.target.matches('[data-time]')) event.target.select();
     });
     shadow.addEventListener('keydown', event => {
       if (event.key === 'Escape') { if(options.mount)return; event.preventDefault(); event.stopPropagation(); close(); return; }
