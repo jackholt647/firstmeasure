@@ -5606,7 +5606,7 @@
       if (state.destroyed || state.activeChannelId !== channelId) return;
       const selected = new Set();
       const memberIds = new Set((channel.members || []).map((member) => member.id));
-      showModal(`Members — ${channel.display_name || channel.name}`, (body, close) => {
+      showModal('Members', (body, close) => {
         const members = el('div', 'fm-ch-current-members');
         const search = el('input');search.type='search';search.placeholder='Search channel members';search.setAttribute('aria-label',search.placeholder);
         search.oninput=()=>{for(const row of members.children)row.hidden=!row.dataset.search.includes(search.value.toLowerCase());};
