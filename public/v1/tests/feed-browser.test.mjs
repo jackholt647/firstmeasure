@@ -27,9 +27,9 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await page.evaluate(()=>window.feedApp.mount(document.querySelector('#feed')));
   await page.waitForFunction(()=>document.querySelectorAll('.pf-feed-card').length>=10);
   const cols=()=>page.locator('.pf-feed-grid').first().evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length);
-  await page.waitForFunction(()=>getComputedStyle(document.querySelector('.pf-feed-grid')).gridTemplateColumns.split(' ').length===4);
-  assert.equal(await cols(),4);
-  await page.getByRole('button',{name:'Large tiles',exact:true}).click();assert.equal(await cols(),2);
+  await page.waitForFunction(()=>getComputedStyle(document.querySelector('.pf-feed-grid')).gridTemplateColumns.split(' ').length===8);
+  assert.equal(await cols(),8);
+  await page.getByRole('button',{name:'Large tiles',exact:true}).click();assert.equal(await cols(),4);
   await page.getByRole('button',{name:'List',exact:true}).click();assert.equal(await cols(),1);
   await page.getByRole('button',{name:'Mosaic',exact:true}).click();assert.equal(await cols(),4);await page.waitForTimeout(100);assert.notEqual(await page.locator('.pf-feed-card').nth(0).evaluate(e=>e.offsetHeight),await page.locator('.pf-feed-card').nth(1).evaluate(e=>e.offsetHeight));
   await mkdir(new URL('../../../output/feed/screenshots/',import.meta.url),{recursive:true});
