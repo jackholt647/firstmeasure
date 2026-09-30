@@ -32,7 +32,7 @@
     versionedBundle('../channels-api/channels-api.js', '20260929-members-paste-gifs-v1'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
-    versionedBundle('../window-manager/window-manager.js', '20260929-project-windows-v2'),
+    versionedBundle('../window-manager/window-manager.js', '20260929-project-windows-v3'),
     versionedBundle('../assistant-api/assistant-api.js', '20260929-channel-assistant-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20260929-recap-refresh-v1'),
     versionedBundle('photos/feed.js', '20260930-contact-gallery-v1'),
@@ -92,7 +92,7 @@
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
       access: managementAccess,
-      bundles: [versionedBundle('contacts/modal.js', '20260930-contact-autosave-v2'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20260930-contact-photos-v1')]
+      bundles: [versionedBundle('contacts/modal.js', '20260930-contact-autosave-v2'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20260930-contact-global-search-v1')]
     },
     {
       id: 'portal.photos_feed',
@@ -118,7 +118,7 @@
       bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-receipt-browser'), versionedBundle('photos/feed.js', '20260930-contact-gallery-v1'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
     },
     {
-      // DEPRECATED (2026-08): legacy proposals surface — hidden by its bundle
+      // DEPRECATED (2026-08): legacy proposals surface â€” hidden by its bundle
       // (visible:false). Kept so historical proposals stay debuggable; the
       // document engine + unified Docs tab replace it.
       id: 'portal.proposals',
@@ -143,7 +143,7 @@
       bundles: [bundle('photos/project.js')]
     },
     {
-      // DEPRECATED (2026-08): legacy Proposals project tab — hidden by its
+      // DEPRECATED (2026-08): legacy Proposals project tab â€” hidden by its
       // bundle (visible:false). The bundle must keep loading: the document
       // engine still bridges into its scope-generation exports (see the
       // project.documents dependency note below).
@@ -180,7 +180,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       // project.proposal: the legacy module still owns scope generation
-      // (proposalBuilderScopeForTemplate — customer choice groups, optional
+      // (proposalBuilderScopeForTemplate â€” customer choice groups, optional
       // items); without it loaded, workflow generation degrades to raw
       // pricebook rows with no customer-selectable options. Remove when the
       // generator moves into the workflow runtime at legacy teardown.
@@ -286,7 +286,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20260929-project-windows-v2'), versionedBundle('project-request/app.js', '20260929-overview-content-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20260929-project-windows-v3'), versionedBundle('project-request/app.js', '20260929-window-docking-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -538,7 +538,7 @@
         versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
         versionedBundle('../channels-api/channels-api.js', '20260929-members-paste-gifs-v1'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
-        versionedBundle('../window-manager/window-manager.js', '20260929-project-windows-v2'),
+        versionedBundle('../window-manager/window-manager.js', '20260929-project-windows-v3'),
         versionedBundle('../assistant-api/assistant-api.js', '20260929-channel-assistant-v1'),
         versionedBundle('../platform-assistant/platform-assistant.js', '20260929-recap-refresh-v1'),
         versionedBundle('photos/feed.js', '20260930-contact-gallery-v1'),

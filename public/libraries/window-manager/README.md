@@ -7,7 +7,7 @@ calls, and the global assistant use the same controller.
 
 The manager owns geometry, pointer and keyboard resizing on all eight handles,
 dragging, focus stacking, four title-bar controls, a title menu, pin state,
-minimization/restoration, maximization, and coordinated right docks. Apps own
+minimization/restoration, maximization, and coordinated side, corner, top and bottom docks. Apps own
 their content, routing, and what Close means. Maximization fills the host's
 available workspace; it does not invoke the browser's native fullscreen API.
 
@@ -48,7 +48,7 @@ The right-side controls are:
 | Current mode | Controls, left to right |
 | --- | --- |
 | Floating | Dock, Minimize, Maximize, Close |
-| Docked | Float, Minimize, Maximize, Close |
+| Docked | Dock opposite side, Minimize, Maximize, Close |
 | Maximized | Dock, Float, Minimize, Close |
 | Minimized | Float, Restore, Maximize, Close |
 
@@ -85,3 +85,19 @@ handles, restore from all three modes, shared dock bounds, independent call
 dragging, and conversation-close versus call-close API behavior. Running without
 that flag also tests media, effects, clips and two real WebRTC peers using test
 devices and isolated API fixtures.
+
+## Dock placement and motion
+
+Click Dock to start on the right; subsequent clicks alternate left and right.
+Right-click Dock for Left, Right, a separator, and the four corner placements.
+`dock(side)` also accepts `top` and `bottom`; `state.dockSide` reports placement.
+Dragging a floating header to a workspace edge previews the coordinated layout;
+release commits it, moving away or pointer cancellation discards the preview.
+Top/bottom edge centers produce horizontal docks; corners produce quarter docks.
+Double-click the inward divider to swap adjacent docks, or exchange the dock with
+the main workspace's remaining space and width. Divider arrows resize the dock.
+
+Geometry and main content reservations transition together over 320 ms. Direct
+pointer dragging/resizing follows the pointer without interpolation. Reduced
+motion preferences disable animation. Project windows set `allowFullscreen:false`
+to remove and reject the entire-screen mode while retaining workspace maximize.

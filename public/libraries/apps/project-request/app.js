@@ -2,7 +2,7 @@
  * Staged request workflow with optional roof-report ordering.
  */
 (function(){
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20260929-project-windows-v2', document.currentScript.src);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20260929-project-windows-v3', document.currentScript.src);
   const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260929-overview-v1', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
 window.PlatformCommerce.onReady(async function(){
@@ -2773,7 +2773,7 @@ window.PlatformCommerce.onReady(async function(){
       title:element.querySelector('#rWindowProjectTitle'),
       controlsHost:element.querySelector('.r-window-bar-actions'),
       contentTarget:document.getElementById('mainPanels'),
-      customChrome:true, presentationModes:true, viewportCoordinates:true, nativeModalLayout:true,
+      customChrome:true, presentationModes:true, allowFullscreen:false, viewportCoordinates:true, nativeModalLayout:true,
       name:'project', label:'Project', mode:'modal', width:1200, height:800,
       dockWidth:900, minWidth:360, minimizedHeight:32,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
@@ -2789,7 +2789,8 @@ window.PlatformCommerce.onReady(async function(){
       }
     });
     injectCSS('project-window', `
-      .r-overlay.window-managed .r-win{flex-direction:row;transition:none;animation:none}
+      .r-overlay.window-managed .r-win{flex-direction:row;animation:none}
+      .r-overlay.window-managed #rFullscreenToggle{display:none!important}
       @media(min-width:1081px){.r-overlay.window-managed .r-right{margin-top:0}}
       @media(min-width:761px){.r-overlay.window-managed[data-window-mode="modal"] .r-win{border:0;border-radius:14px;box-shadow:0 36px 120px rgba(15,23,42,.28)}}
       .r-overlay.window-managed .r-window-bar{position:relative;min-height:48px;height:48px;display:flex;align-items:stretch;background:#fff;z-index:75;touch-action:none;user-select:none;cursor:default}
@@ -2841,6 +2842,7 @@ window.PlatformCommerce.onReady(async function(){
     if (!projectWindowBridge) projectModalWindow.setVisible(false);
   }
   function setProjectModalFullscreen(enabled, options = {}){
+    enabled = false; // Entire-screen presentation is disabled for project windows.
     projectModalFullscreen = !!enabled;
     projectModalWindow?.setMode(enabled ? 'fullscreen' : 'modal', {silent:true});
     const managedOverlay = $('#rOverlay');
