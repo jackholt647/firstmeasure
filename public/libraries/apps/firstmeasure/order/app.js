@@ -1,5 +1,5 @@
 /* public/libraries/apps/firstmeasure/order/app.js
- * FirstMeasure order workflow for the project-modal left region.
+ * Overview-owned project details and FirstMeasure order form.
  */
 (function(){
   const runtime = window.FirstMateEmbeddableApps;
@@ -42,13 +42,7 @@
     const fmtMoney = (value) => call(context, 'fmtMoney', String(value ?? '0'), value);
     const GUTTER_REPORT_ADDON = call(context, 'gutterReportAddon', 0);
     const WEATHER_REPORT_ADDON = call(context, 'weatherReportAddon', 0);
-    return `<div class="r-left">
-  <div class="r-top">
-    <div>
-      <div class="r-title-wrap"><div class="r-title">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0747045bf3d919","New Project") ?? "New Project")}</div></div>
-      <div class="r-sub"></div>
-    </div>
-  </div>
+    return `<div class="r-overview-details">
   <div class="r-stagebar" id="rProjectStageBar" hidden></div>
   <form id="rForm" class="r-form">
   <div class="r-scroll">
@@ -149,12 +143,7 @@ ${String(expanded ? `    <section class="r-step is-open" id="rStepCustomer" data
         <div id="rRoofSkipSummary" class="r-photo-note" style="display:none"></div>
       </div></div></div></div>
     </section>
-    <section class="r-step is-open r-proposal-section" id="rProposalSection">
-      <div class="r-step-shell" style="grid-template-rows:1fr"><div class="r-step-inner"><div class="r-step-body">
-        <label id="rProposalLabel">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1d8655e967c464","Proposal") ?? "Proposal")}</label>
-        <div class="r-proposal-listing" id="rProposalList"></div>
-      </div></div></div>
-    </section>
+
   </div>
   <div class="r-left-bottom">
     ${String(proposalAgentEnabled() ? `
@@ -216,7 +205,7 @@ ${String(expanded ? `    <div class="r-group r-bottom-notes">
   }
 
   function mount(context = {}){
-    const root = context.roots?.main || context.leftRoot || context.root || null;
+    const root = context.roots?.main || context.root || context.root || null;
     root?.setAttribute?.('data-firstmeasure-order-mounted', 'true');
     return {
       setActive(active){ root?.classList?.toggle('is-active-region-app', active !== false); },
@@ -228,14 +217,14 @@ ${String(expanded ? `    <div class="r-group r-bottom-notes">
   const definition = {
     id: 'firstmeasure.order',
     package: 'firstmeasure/order',
-    kind: 'project_modal_region_app',
+    kind: 'overview_details',
     title: (globalThis.PlatformLanguage?.text("firstmeasure","m_83a10fdb954ac4","FirstMeasure Order Workflow") ?? "FirstMeasure Order Workflow"),
     label: (globalThis.PlatformLanguage?.text("firstmeasure","m_ff3aa02a7ffc8f","Order Workflow") ?? "Order Workflow"),
     icon: 'fa-file-lines',
     order: 5,
     visible: true,
     surfaces: ['project_modal'],
-    regions: ['left'],
+    regions: ['main'],
     panelHtml,
     mount
   };

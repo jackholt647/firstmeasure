@@ -22,8 +22,6 @@
   const crewAccess = { applicationsAny: ['field'], devices: ['mobile', 'desktop'], requireEntitlement: true };
   const crewProjectPresentation = {
     projectModal: {
-      desktopLeft: 'none',
-      mobileLeft: 'none',
       mobileInfo: 'none',
       mobileTabs: 'icons',
       mobileFullscreenControl: false
@@ -53,7 +51,7 @@
     versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260803-field-flows-v10'),
     versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260803-field-flows-v10'),
     versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20260803-field-flows-v10'),
-    versionedBundle('signatures/project.js', '20260814-field-tokenized-payments-v1')
+    versionedBundle('signatures/project.js', '20260929-overview-content-v1')
   ];
   const crewBundles = [
     ...channelsLibBundles,
@@ -62,7 +60,7 @@
     versionedBundle('../payroll-api/payroll-api.js', '20260713-self-service-earnings'),
     versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'),
     versionedBundle('../proposals-api/proposals-api.js', '20260711-crew-change-orders'),
-    versionedBundle('crew/app.js', '20260803-single-project-headers-v1')
+    versionedBundle('crew/app.js', '20260929-overview-content-v1')
   ];
   const crewSignatureBundles = [...fieldApprovalBundles];
   const salesBundles = [
@@ -158,7 +156,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['project.photos'],
-      bundles: [versionedBundle('proposals/project.js', '20260715-project-notes')]
+      bundles: [versionedBundle('proposals/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.docs',
@@ -264,7 +262,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['pricebook.bridge'],
-      bundles: [...channelsLibBundles, bundle('../materials-api/materials-api.js'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('materials/project.js', '20260929-scope-sets-v1')]
+      bundles: [...channelsLibBundles, bundle('../materials-api/materials-api.js'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('materials/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.money',
@@ -277,7 +275,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20260714-scope-commission-rules'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20260714-media-gallery-adapters'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260730-reports-reconciliation')]
+      bundles: [versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20260714-scope-commission-rules'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20260714-media-gallery-adapters'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.request',
@@ -287,17 +285,17 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20260929-project-windows-v2'), versionedBundle('project-request/app.js', '20260929-project-windows-v2')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20260929-project-windows-v2'), versionedBundle('project-request/app.js', '20260929-overview-content-v1')]
     },
     {
       id: 'firstmeasure.order',
       package: 'firstmeasure/order',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_83a10fdb954ac4","FirstMeasure Order Workflow") ?? "FirstMeasure Order Workflow"),
-      kind: 'project_modal_region_app',
+      kind: 'overview_details',
       surfaces: ['project_modal'],
-      regions: ['left'],
+      regions: ['main'],
       access: managementShellAccess,
-      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20260723-channels-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.map',
@@ -330,7 +328,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-schedule/panel.js', '20260929-scheduling-polish-v1')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.comms',
@@ -342,7 +340,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [bundle('../comms-api/comms-api.js'), bundle('../agent-chat/agent-chat.js'), bundle('comms/communications-ui.js'), bundle('comms/calling-runtime.js'), bundle('comms/workspace.js'), bundle('comms/project.js')]
+      bundles: [bundle('../comms-api/comms-api.js'), bundle('../agent-chat/agent-chat.js'), bundle('comms/communications-ui.js'), bundle('comms/calling-runtime.js'), bundle('comms/workspace.js'), versionedBundle('comms/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.measurements',

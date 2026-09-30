@@ -4,7 +4,7 @@
   'use strict';
   if(root.FirstMateProjectLayout)return;
   // Development rollback flags: no user-facing configuration or persisted preference.
-  const config=Object.freeze({enabled:true,showProjectSidebar:false,splitTabs:true});
+  const config=Object.freeze({enabled:true,splitTabs:true});
   const children=new Map();
   function styles(){
     if(document.getElementById('fm-project-layout-style'))return;
@@ -23,9 +23,14 @@
 .r-project-body{display:flex;flex:1 1 auto;min-height:0;min-width:0;overflow:auto;position:relative;background:#e4e7ec}
 .r-project-main-pane{display:flex;flex:1 1 0;min-width:320px;min-height:0;position:relative;overflow:hidden;background:#fff}
 .r-overlay.project-layout-prototype .r-project-main-pane > .r-right{flex:1 1 0!important;min-height:0!important;min-width:0;margin:0!important;width:auto!important;overflow:hidden}
-html .r-overlay.project-layout-prototype .r-project-main-pane > .r-left{display:none!important;position:relative!important;inset:auto!important;transform:none!important;margin:0!important;max-height:none!important;box-shadow:none!important;z-index:auto!important;transition:none!important}
-html .r-overlay.project-layout-prototype[data-pane-left=app] .r-project-main-pane > .r-left,html .r-overlay.project-layout-prototype[data-pane-left=info] .r-project-main-pane > .r-left{display:flex!important;flex:0 0 30%!important;width:30%!important;max-width:320px!important;min-width:150px;padding:12px;border-right:1px solid #e4e7ec}
-.r-overlay.project-layout-prototype[data-pane-left=app] .r-project-main-pane > .r-left > .r-top,.r-overlay.project-layout-prototype[data-pane-left=app] .r-project-main-pane > .r-left > .r-left-bottom{display:none!important}
+.r-tab-content{display:flex;height:100%;min-height:0;min-width:0;overflow:hidden;background:#fff}
+.r-tab-main{flex:1 1 0;min-width:0;min-height:0;position:relative;overflow:hidden}
+.r-overlay.project-layout-prototype .r-tab-sidebar{flex:0 0 30%!important;min-width:150px;max-width:320px;height:100%;overflow:auto;padding:12px;border-right:1px solid #e4e7ec}
+html .r-overlay.project-layout-prototype .r-overview-details{display:flex!important;flex-direction:column;position:relative!important;inset:auto!important;transform:none!important;flex:0 0 30%!important;width:30%!important;min-width:200px!important;max-width:360px!important;height:100%!important;max-height:none!important;margin:0!important;padding:12px!important;overflow:hidden!important;border-right:1px solid #e4e7ec;box-shadow:none!important;z-index:auto!important}
+.r-overlay.project-layout-prototype:not(.mobile-order) .r-overview-details .r-left-bottom{display:flex!important}
+.r-overview-details .r-form{display:flex;flex:1;flex-direction:column;min-height:0}.r-overview-details .r-scroll{flex:1;min-height:0;overflow:auto}
+@media(max-width:720px){.r-overlay.mobile-order .r-tab-content{flex-direction:column;overflow:auto}.r-overlay.project-layout-prototype.mobile-order .r-overview-details{width:100%!important;max-width:none!important;height:auto!important;flex:none!important}.r-overlay.mobile-order .r-tab-main{flex:1 0 300px}.r-overlay.mobile-order:not(.mobile-order-location) .r-tab-main{display:none!important}}
+@media(max-width:600px){.r-tab-content:has(> .r-overview-details){flex-direction:column;overflow:auto}.r-tab-content:has(> .r-overview-details)>.r-tab-main{flex:none;min-height:420px}html .r-overlay.project-layout-prototype .r-overview-details{width:100%!important;max-width:none!important;min-height:300px!important;height:auto!important;flex:none!important;border-right:0;border-bottom:1px solid #e4e7ec}.r-overview-details .r-scroll{overflow:visible}}
 .r-overlay.project-layout-prototype .r-mobile-project-title,.r-overlay.project-layout-prototype .r-mobile-left-tray-scrim,.r-overlay.project-layout-prototype .r-mobile-default-info-tray-scrim{display:none!important}
 .r-project-docked-pane{display:flex;flex:1 1 0;min-width:320px;min-height:0;position:relative;overflow:hidden;background:#fff}
 .r-project-docked-pane iframe{display:block;border:0;width:100%;height:100%;min-width:0}
@@ -49,12 +54,12 @@ html.project-content-pane .r-project-main-pane{min-width:0}
 html.project-content-pane .r-overlay.project-layout-prototype .r-contact-contextbar{display:none!important}
 `;document.head.append(s);
   }
-  function mount({overlay,getProject,getTab,getLeftMode,needsInfo,pane=false}){
+  function mount({overlay,getProject,getTab,pane=false}){
     if(!config.enabled||overlay.__projectLayout)return overlay.__projectLayout;
-    styles();const win=overlay.querySelector('.r-win'),header=win.querySelector('.r-window-bar'),right=win.querySelector('.r-right'),left=win.querySelector('.r-left'),tabs=header.querySelector('.r-tabbar');
+    styles();const win=overlay.querySelector('.r-win'),header=win.querySelector('.r-window-bar'),right=win.querySelector('.r-right'),tabs=header.querySelector('.r-tabbar');
     const body=document.createElement('div');body.className='r-project-body';
     const main=document.createElement('div');main.className='r-project-main-pane';main.dataset.projectPane='main';
-    win.insertBefore(header,win.firstChild);win.append(body);body.append(main);if(left)main.append(left);main.append(right);
+    win.insertBefore(header,win.firstChild);win.append(body);body.append(main);main.append(right);
     overlay.classList.add('project-layout-prototype');if(pane)document.documentElement.classList.add('project-content-pane');
     let order=[{element:main,main:true,weight:1}],dividers=[],menu=null,disposed=false;let focused=order[0];
     const current=()=>String(getTab()||'');
@@ -109,7 +114,7 @@ html.project-content-pane .r-overlay.project-layout-prototype .r-contact-context
     const outside=e=>{if(menu&&!menu.contains(e.target))closeMenu();};const key=e=>{if(e.key==='Escape'&&menu){e.stopImmediatePropagation();closeMenu();}};
     tabs.addEventListener('contextmenu',onContext,true);tabs.addEventListener('click',click,true);document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',key,true);
     const observer=new MutationObserver(()=>{if(!disposed)updateSelection();});observer.observe(tabs,{childList:true,subtree:true});
-    function refresh(){if(disposed)return;if(pane)root.parent.FirstMateProjectLayout?.tabChanged(root.name.slice(16),root,current());overlay.dataset.paneLeft=(getLeftMode()==='app'?'app':config.showProjectSidebar||needsInfo()?'info':'none');updateSelection();}
+    function refresh(){if(disposed)return;if(pane)root.parent.FirstMateProjectLayout?.tabChanged(root.name.slice(16),root,current());updateSelection();}
     const api={refresh,dock,clear(){for(const item of [...order])if(!item.main)remove(item);focused=order[0];},destroy(){api.clear();disposed=true;observer.disconnect();tabs.removeEventListener('contextmenu',onContext,true);tabs.removeEventListener('click',click,true);document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',key,true);closeMenu();},get panes(){return order.map(p=>p.main?current():p.tab)}};
     overlay.__projectLayout=api;refresh();return api;
   }

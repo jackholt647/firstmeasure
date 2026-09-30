@@ -48,7 +48,7 @@
 
   const state = {
     context:null, host:null, project:null,
-    panelRoot:null, leftRoot:null,
+    panelRoot:null, sidebarRoot:null,
     mounted:false, active:false,
     view:'overview',
     callsHandle:null,
@@ -1207,20 +1207,20 @@
   }
   function legacyLeftContentRoot(){
     // The left region app can render after our mount; resolve lazily.
-    if (!state.leftRoot || !state.leftRoot.isConnected) {
-      state.leftRoot = state.context?.leftRoot || state.context?.roots?.left
-        || document.querySelector('#rOverlay #rProposalSection') || state.leftRoot;
+    if (!state.sidebarRoot || !state.sidebarRoot.isConnected) {
+      state.sidebarRoot = state.context?.sidebarRoot || state.context?.roots?.sidebar
+        || document.querySelector('#rOverlay #coSidebarSection') || state.sidebarRoot;
     }
-    if (!state.leftRoot) return null;
-    let list = state.leftRoot.querySelector('#rProposalList');
+    if (!state.sidebarRoot) return null;
+    let list = state.sidebarRoot.querySelector('#coSidebarList');
     if (!list) {
-      state.leftRoot.innerHTML = `
+      state.sidebarRoot.innerHTML = `
         <div class="r-step-shell" style="grid-template-rows:1fr"><div class="r-step-inner"><div class="r-step-body">
-          <label id="rProposalLabel">${(globalThis.PlatformLanguage?.htmlText("comms","m_da0c54815d9259","Comms") ?? "Comms")}</label>
-          <div class="r-proposal-listing" id="rProposalList"></div>
+          <label id="coSidebarLabel">${(globalThis.PlatformLanguage?.htmlText("comms","m_da0c54815d9259","Comms") ?? "Comms")}</label>
+          <div class="r-proposal-listing" id="coSidebarList"></div>
         </div></div></div>
       `;
-      list = state.leftRoot.querySelector('#rProposalList');
+      list = state.sidebarRoot.querySelector('#coSidebarList');
     }
     return list;
   }
@@ -1269,7 +1269,7 @@
       });
       return;
     }
-    // The left region is a SHARED container (#rProposalList) that other main
+    // The left region is a SHARED container (#coSidebarList) that other main
     // apps (proposals, materials) render into and never clear when their tab
     // deactivates. Take full ownership: drop everything that isn't ours —
     // the owner app rebuilds its content when its own tab activates again.
@@ -1430,7 +1430,7 @@
     state.host = context.host || context.projectWorkspace || state.host;
     state.project = projectFromContext(context);
     state.panelRoot = context.panelRoot || context.roots?.main || context.root || state.panelRoot;
-    state.leftRoot = context.leftRoot || context.roots?.left || state.leftRoot;
+    state.sidebarRoot = context.sidebarRoot || context.roots?.sidebar || state.sidebarRoot;
     state.active = context.active !== false;
     document.getElementById('rOverlay')?.classList.toggle('communications-wide',state.active);
     state.mounted = !!state.panelRoot;
@@ -1448,8 +1448,8 @@
       state.settingsDrawer=ui.dialog('Project communication settings','<div data-project-comms-settings></div>',null);
       renderLeft({force:true});
     };}
-    state.leftRoot?.querySelector?.('#rProposalList .fmco-left')?.remove();
-    state.leftRoot?.classList?.remove('visible','mode-edit','mode-list','mode-send');
+    state.sidebarRoot?.querySelector?.('#coSidebarList .fmco-left')?.remove();
+    state.sidebarRoot?.classList?.remove('visible','mode-edit','mode-list','mode-send');
     const route = Portal.navigation?.read?.() || {};
     if (clean(route.commsView)) state.view = clean(route.commsView);
     renderTabs();
@@ -1471,10 +1471,10 @@
     } else {
       stopPoll();
       if (leftRetryTimer) { clearTimeout(leftRetryTimer); leftRetryTimer = 0; }
-      state.leftRoot?.querySelector?.('#rProposalList .fmco-left')?.remove();
+      state.sidebarRoot?.querySelector?.('#coSidebarList .fmco-left')?.remove();
       const activeTab = state.host?.getActivePreviewTab?.() || '';
       if (!['proposal', 'materials', 'schedule', 'money', 'comms'].includes(activeTab)) {
-        state.leftRoot?.classList?.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
+        state.sidebarRoot?.classList?.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
       }
     }
   }
@@ -1509,12 +1509,12 @@
     document.getElementById('rOverlay')?.classList.remove('communications-wide');
     stopPoll();
     if (leftRetryTimer) { clearTimeout(leftRetryTimer); leftRetryTimer = 0; }
-    state.leftRoot?.querySelector?.('#rProposalList .fmco-left')?.remove();
-    state.leftRoot?.classList?.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
+    state.sidebarRoot?.querySelector?.('#coSidebarList .fmco-left')?.remove();
+    state.sidebarRoot?.classList?.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
     reset();
     state.mounted = false;
     state.panelRoot = null;
-    state.leftRoot = null;
+    state.sidebarRoot = null;
   }
 
   const api = {
@@ -1563,7 +1563,7 @@
     order: 45,
     visible: true,
     surfaces: ['project_modal'],
-    regions: ['main', 'left'],
+    regions: ['main'],
     requiresContext: ['project'],
     dependencies: [],
     panelHtml,

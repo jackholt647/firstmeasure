@@ -722,7 +722,7 @@
     apply(route){ activeCrewScheduleHandle?.applyRoute?.(route); }
   });
 
-  const projectPresentation = { projectModal:{ desktopLeft:'none', mobileLeft:'none', mobileInfo:'none', mobileTabs:'icons', mobileFullscreenControl:false } };
+  const projectPresentation = { projectModal:{ mobileInfo:'none', mobileTabs:'icons', mobileFullscreenControl:false } };
   function projectPanel(kind){ return `<div class="crew-project-app" data-crew-project-app="${esc(kind)}"></div>`; }
   function projectMountRoot(context, kind){
     const outer = context.roots?.main || context.mainRoot || context.root;

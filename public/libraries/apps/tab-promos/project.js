@@ -43,7 +43,7 @@
       id:`project.${def.id}`,kind:'project_modal_app',projectModalTabId:def.tabId,
       title:def.title,label:def.title,icon:def.icon || 'fa-boxes-stacked',promoBadge:'Coming soon',order:def.order || 55,
       surfaces:['project_modal'],regions:['main'],requiresContext:['project'],access:{capability:def.flag},
-      presentation:{projectModal:{left:'default'}},enabled:context=>eligible(def,context),
+      enabled:context=>eligible(def,context),
       panelHtml:()=>render(def),
       mount(context){const root=context.roots?.main || context.panelRoot;const update=()=>{if(root)root.innerHTML=eligible(def,context)?render(def):'';};update();return {activate:update,setActive:active=>{if(active)update();},destroy:()=>{if(root)root.innerHTML='';}};}
     });

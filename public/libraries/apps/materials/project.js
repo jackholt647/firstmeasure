@@ -62,7 +62,7 @@
     context: null,
     project: null,
     panelRoot: null,
-    leftRoot: null,
+    sidebarRoot: null,
     lists: [],
     activeListId: '',
     activeList: null,
@@ -615,8 +615,8 @@
   function css(){
     return `
       .mt-app{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f8fb;color:#111827;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;container-type:inline-size;container-name:materials-workspace}
-      .r-overlay.materials-workspace #rProposalSection.visible{min-height:0}
-      .r-overlay.materials-workspace #rProposalList{min-height:0;gap:0}
+      .r-overlay.materials-workspace #mtSidebarSection.visible{min-height:0}
+      .r-overlay.materials-workspace #mtSidebarList{min-height:0;gap:0}
       .mt-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(15,23,42,.08);background:#fff}
       .mt-title{display:flex;align-items:center;gap:10px;min-width:0}
       .mt-title i{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:rgba(var(--primary-rgb,217,48,37),.10);color:var(--primary-readable,var(--primary,#d93025))}
@@ -3809,7 +3809,7 @@
 
   function syncScopeListCard(listId){
     const list = materialListById(listId);
-    const existing = findByData(state.leftRoot, '[data-mt-list-wrap]', 'mtListWrap', listId);
+    const existing = findByData(state.sidebarRoot, '[data-mt-list-wrap]', 'mtListWrap', listId);
     if (!list || !existing) return false;
     const holder = document.createElement('div');
     holder.innerHTML = renderScopeListCard(list, state.lists.indexOf(list));
@@ -4420,14 +4420,14 @@
 
   function renderLeft(){
     const timingStart = performance.now();
-    if (!state.leftRoot || !state.active) return;
+    if (!state.sidebarRoot || !state.active) return;
     const target = leftContentRoot();
     if (!target) return;
     target.querySelector?.('.mn-left')?.remove();
     target.querySelector?.('.r-schedule-left-shell')?.remove();
-    state.leftRoot.classList.add('visible', 'mode-edit');
-    state.leftRoot.classList.remove('mode-list', 'mode-send');
-    const label = state.leftRoot.querySelector('#rProposalLabel');
+    state.sidebarRoot.classList.add('visible', 'mode-edit');
+    state.sidebarRoot.classList.remove('mode-list', 'mode-send');
+    const label = state.sidebarRoot.querySelector('#mtSidebarLabel');
     if (label) {
       label.textContent = (globalThis.PlatformLanguage?.text("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope");
       label.hidden = true;
@@ -4438,44 +4438,23 @@
   }
 
   function leftContentRoot(){
-    if (!state.leftRoot) return null;
-    let list = state.leftRoot.querySelector('#rProposalList');
+    if (!state.sidebarRoot) return null;
+    let list = state.sidebarRoot.querySelector('#mtSidebarList');
     if (!list) {
-      state.leftRoot.innerHTML = `
+      state.sidebarRoot.innerHTML = `
         <div class="r-step-shell" style="grid-template-rows:1fr"><div class="r-step-inner"><div class="r-step-body">
-          <label id="rProposalLabel">${(globalThis.PlatformLanguage?.htmlText("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope")}</label>
-          <div class="r-proposal-listing" id="rProposalList"></div>
+          <label id="mtSidebarLabel">${(globalThis.PlatformLanguage?.htmlText("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope")}</label>
+          <div class="r-proposal-listing" id="mtSidebarList"></div>
         </div></div></div>
       `;
-      list = state.leftRoot.querySelector('#rProposalList');
+      list = state.sidebarRoot.querySelector('#mtSidebarList');
     }
     return list;
   }
 
   function setWorkspaceChrome(active){
-    const overlay = state.context?.overlayRoot || state.context?.roots?.overlay || $('#rOverlay');
-    if (!overlay) return;
-    const activeTab = state.host?.getActivePreviewTab?.() || state.context?.activeTab || '';
-    const setLeftOverride = typeof state.host?.setLeftColumnOverride === 'function'
-      ? state.host.setLeftColumnOverride
-      : null;
-    if (active) {
-      overlay.classList.add('materials-workspace');
-      if (setLeftOverride) setLeftOverride(true, 'materials');
-      else {
-        overlay.classList.add('left-override');
-        overlay.dataset.leftOverrideTab = 'materials';
-      }
-      overlay.classList.toggle('proposal-workspace', activeTab === 'proposal');
-      return;
-    }
-    overlay.classList.remove('materials-workspace');
-    if (setLeftOverride && activeTab !== 'materials') setLeftOverride(false, 'materials');
-    else if (!setLeftOverride && activeTab !== 'materials') {
-      overlay.classList.remove('left-override');
-      delete overlay.dataset.leftOverrideTab;
-    }
-    if (activeTab !== 'proposal') overlay.classList.remove('proposal-workspace');
+    const overlay=state.context?.overlayRoot || state.context?.roots?.overlay || document.getElementById('rOverlay');
+    overlay?.classList.toggle('materials-workspace',active);
   }
 
   function scopeMeasurementRows(){
@@ -5000,7 +4979,7 @@
       state.saving = false;
     }
     state.panelRoot = context.panelRoot || context.roots?.main || context.root || state.panelRoot;
-    state.leftRoot = context.leftRoot || context.roots?.left || state.leftRoot;
+    state.sidebarRoot = context.sidebarRoot || context.roots?.sidebar || state.sidebarRoot;
     state.active = context.active !== false;
     state.mounted = !!state.panelRoot;
     state.selectedSection = cleanText(rootWindow.Portal?.navigation?.read?.().materialSection) || 'all';
@@ -5035,10 +5014,10 @@
       if (!state.lists.length && !state.loading) loadData();
       else render();
     } else {
-      state.leftRoot?.querySelector?.('#rProposalList .mt-left')?.remove();
+      state.sidebarRoot?.querySelector?.('#mtSidebarList .mt-left')?.remove();
       const activeTab = state.host?.getActivePreviewTab?.() || state.context?.activeTab || '';
       if (!['proposal', 'materials', 'schedule', 'money'].includes(activeTab)) {
-        state.leftRoot?.classList?.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
+        state.sidebarRoot?.classList?.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
       }
     }
     timingMark('setActive:end', { active: state.active, lists: state.lists.length, items: listItems().length }, timingStart);
@@ -5100,12 +5079,12 @@
     arrangeFrame = 0;
     if (noteVisibilityOutsideBound) document.removeEventListener('click', closeScopeNoteVisibilityOnOutsideClick);
     noteVisibilityOutsideBound = false;
-    state.leftRoot?.querySelector?.('#rProposalList .mt-left')?.remove();
-    state.leftRoot?.classList?.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
+    state.sidebarRoot?.querySelector?.('#mtSidebarList .mt-left')?.remove();
+    state.sidebarRoot?.classList?.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
     reset();
     state.mounted = false;
     state.panelRoot = null;
-    state.leftRoot = null;
+    state.sidebarRoot = null;
   }
 
   function invoke(name, args = []){
@@ -5159,7 +5138,7 @@
     order: 55,
     visible: true,
     surfaces: ['project_modal'],
-    regions: ['main', 'left'],
+    regions: ['main'],
     requiresContext: ['project'],
     dependencies: ['pricebook.bridge'],
     enabled: (context = {}) => context.materialsEnabled !== false,

@@ -3,7 +3,7 @@
  */
 (function(){
   const registryUrl = new URL('../../window-manager/project-windows.js?v=20260929-project-windows-v2', document.currentScript.src);
-  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260929-split-v2', document.currentScript.src);
+  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260929-overview-v1', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
 window.PlatformCommerce.onReady(async function(){
   await registryReady;
@@ -126,9 +126,6 @@ window.PlatformCommerce.onReady(async function(){
   let mobileTypeTransitionTimer = null;
   let reportSelection = null;
   let mobileOrderPage = 'location';
-  let mobileLeftTrayOpen = false;
-  let mobileDefaultInfoTrayOpen = false;
-  let mobileDefaultInfoTrayLeaveTimer = 0;
   let mobileProjectNotesOpen = false;
   let mobileOrderAnimTimer = null;
   let mobileSwipeStart = null;
@@ -292,34 +289,20 @@ window.PlatformCommerce.onReady(async function(){
     .r-contact-context-tab.active{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:var(--on-primary,#fff)}
     .r-contact-context-empty{color:#98a2b3;font-size:12px;font-weight:900;white-space:nowrap}
     @keyframes rUp{from{transform:translateY(20px) scale(.985);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
-    .r-left{width:min(460px,46%);max-width:none;box-sizing:border-box;border-right:1px solid rgba(15,23,42,.08);padding:18px;overflow:hidden;display:flex;flex-direction:column;gap:10px;background:#ffffff;flex:0 0 min(460px,46%);transition:transform .5s cubic-bezier(.22,1,.36,1),margin-left .5s cubic-bezier(.22,1,.36,1),box-shadow .5s ease}
+    .r-overview-details{width:min(460px,46%);max-width:none;box-sizing:border-box;border-right:1px solid rgba(15,23,42,.08);padding:18px;overflow:hidden;display:flex;flex-direction:column;gap:10px;background:#ffffff;flex:0 0 min(460px,46%);transition:transform .5s cubic-bezier(.22,1,.36,1),margin-left .5s cubic-bezier(.22,1,.36,1),box-shadow .5s ease}
     .r-right{flex:1;position:relative;background:#eef2f6;display:flex;flex-direction:column;min-width:0;transition:flex-basis .5s cubic-bezier(.22,1,.36,1)}
     .r-project-shell-status{display:none;position:absolute;inset:58px 0 0;z-index:64;align-items:center;justify-content:center;padding:24px;background:rgba(238,242,246,.72);backdrop-filter:blur(3px);pointer-events:none}
     .r-project-shell-status-card{display:flex;align-items:center;gap:11px;padding:13px 16px;border:1px solid rgba(15,23,42,.09);border-radius:14px;background:rgba(255,255,255,.94);box-shadow:0 16px 44px rgba(15,23,42,.10);color:#475467;font-size:13px;font-weight:900}
     .r-project-shell-status-card i{color:var(--primary-readable,var(--primary,#d93025))}
     .r-overlay.project-shell-loading .r-project-shell-status{display:flex}
-    .r-overlay.project-shell-loading .r-left{pointer-events:none}
-    .r-overlay.project-shell-loading .r-left>*{opacity:.42;transition:opacity .16s ease}
-    .r-overlay.entitlement-left-none .r-left{display:none!important}
-    .r-overlay.entitlement-left-none .r-right{flex:1 1 100%;min-width:0;min-height:0}
-    .r-win.photo-focus .r-left{margin-left:max(-460px,-46%);transform:translateX(0);box-shadow:28px 0 60px rgba(15,23,42,.08)}
+    .r-overlay.project-shell-loading .r-overview-details{pointer-events:none}
+    .r-overlay.project-shell-loading .r-overview-details>*{opacity:.42;transition:opacity .16s ease}
+    .r-win.photo-focus .r-overview-details{margin-left:max(-460px,-46%);transform:translateX(0);box-shadow:28px 0 60px rgba(15,23,42,.08)}
     .r-win.photo-focus .r-right{flex-basis:100%}
     .r-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-shrink:0;padding:0 0 4px;background:#ffffff}
     .r-scroll{flex:1;overflow:auto;padding-right:var(--fm-scrollbar-content-gap,10px);scrollbar-gutter:stable;min-height:0}
     .r-left-bottom{flex-shrink:0;border-top:1px solid rgba(15,23,42,.08);padding-top:12px;background:#fff;display:flex;flex-direction:column;gap:10px}
     .r-left-bottom:empty{display:none}
-    .r-overlay.left-override #rProjectStageBar,
-    .r-overlay.left-override #rAfterHours,
-    .r-overlay.left-override #rProjectionCard,
-    .r-overlay.left-override #rViewerSummary,
-    .r-overlay.left-override #rStepCustomer,
-    .r-overlay.left-override #rInlineNotesMount,
-    .r-overlay.left-override #rCustomerPortalLinkMount,
-    .r-overlay.left-override #rStepAddress,
-    .r-overlay.left-override #rStepType,
-    .r-overlay.left-override #rWorkflowDock,
-    .r-overlay.left-override #rStepReport,
-    .r-overlay.left-override #rStepRoof{display:none!important}
     .r-mobile-pager{display:none}
     .r-mobile-close{display:none}
     @media(max-width:420px){.r-overlay #rStepType.is-condensed .r-type-icon{display:none}.r-overlay #rStepType.is-condensed .r-type-btn{padding:8px 4px;min-width:0;gap:0}.r-overlay #rStepType.is-condensed .r-type-label{font-size:10px;white-space:normal;overflow-wrap:normal}}
@@ -575,10 +558,6 @@ window.PlatformCommerce.onReady(async function(){
     .r-workflow-todos{min-height:92px;max-height:clamp(180px,calc(var(--fm-visual-vh,100vh) - 430px),420px)}
     .r-workflow-todos .pai-today-list{max-height:inherit;overflow-y:auto;overscroll-behavior:contain;padding-right:4px}
     .r-workflow-todos .pai-composer{position:sticky;top:0;z-index:1;background:#fff;box-shadow:0 5px 8px -8px rgba(15,23,42,.45)}
-    .r-overlay.project-todos-visible:not(.left-override) .r-scroll{overflow:hidden;display:flex;flex-direction:column}
-    .r-overlay.project-todos-visible:not(.left-override) .r-workflow-dock.visible,.r-overlay.project-todos-visible:not(.left-override) .r-workflow-empty{display:flex;flex:1 1 auto;flex-direction:column;min-height:0}
-    .r-overlay.project-todos-visible:not(.left-override) .r-workflow-todos{flex:1 1 auto;min-height:0;max-height:none}
-    .r-overlay.project-todos-visible:not(.left-override) .r-workflow-todos .pai-today-list{height:100%;max-height:none}
     .r-workflow-todos .pai-today-list{gap:6px}
     .r-workflow-todos .pai-composer{margin-bottom:4px}
     .r-workflow-todos .pai-state{font-size:12px;padding:12px}
@@ -658,7 +637,7 @@ window.PlatformCommerce.onReady(async function(){
     .r-bottom-notes-head{min-height:18px;display:flex;align-items:center;justify-content:space-between;gap:8px}.r-bottom-notes-head label{min-width:0;font-size:10px;line-height:1.15}.r-note-visibility-control{display:flex;align-items:center;justify-content:flex-end;gap:9px;min-width:0;white-space:nowrap}.r-note-visibility-disclaimer{font-size:8px;font-weight:800;color:#98a2b3}.r-note-visibility-choice{min-width:0;display:inline-flex;align-items:center;justify-content:flex-end;gap:2px;color:#667085;cursor:pointer;transition:color .16s ease,transform .16s ease}.r-note-visibility-choice strong{max-width:112px;overflow:hidden;text-overflow:ellipsis;font-size:9px;font-weight:950;color:currentColor}.r-note-visibility-choice i{width:14px;height:18px;display:grid;place-items:center;font-size:10px;flex:0 0 auto}.r-note-visibility-choice:hover,.r-note-visibility-choice[aria-expanded="true"]{color:var(--primary-readable,var(--primary,#d93025));transform:translateY(-1px)}
     .r-note-input-wrap{position:relative;min-height:56px}.r-note-input-wrap textarea{display:block;width:100%}.r-bottom-notes textarea{position:relative;z-index:2;box-sizing:border-box;min-height:56px;max-height:180px;resize:none!important;overflow-y:hidden;font-family:inherit;font-size:12px;line-height:1.42;transition:height .16s ease,border-color .16s ease,box-shadow .16s ease}.r-note-input-wrap.has-mentions textarea{background:transparent;color:transparent;caret-color:#101828}.r-note-input-wrap.has-mentions textarea::selection{color:transparent;background:rgba(59,130,246,.3)}.r-note-input-highlights{position:absolute;z-index:1;inset:0;box-sizing:border-box;overflow:hidden;pointer-events:none;white-space:pre-wrap;overflow-wrap:break-word;padding:10px 12px;border:1px solid transparent;border-radius:inherit;background:#fff;font-family:inherit;font-size:12px;line-height:1.42;color:#101828}.r-note-input-highlights .r-note-compose-mention{display:inline;border-radius:4px;background:rgba(var(--primary-rgb,217,48,37),.1);box-shadow:0 0 0 1px rgba(var(--primary-rgb,217,48,37),.22);color:var(--primary-readable,var(--primary,#d93025));box-decoration-break:clone;-webkit-box-decoration-break:clone}
     /* FirstMeasure's saved note stays independent of the Channels history layout. */
-    .r-left.notes-panel-ready:has(.r-firstmeasure-notes){padding-bottom:18px}
+    .r-overview-details.notes-panel-ready:has(.r-firstmeasure-notes){padding-bottom:18px}
     .r-firstmeasure-notes{display:flex;flex-direction:column;gap:6px}
     .r-firstmeasure-notes .r-bottom-notes-head{min-height:26px}
     .r-firstmeasure-notes .r-bottom-notes-head label{margin:0;color:#667085;font-size:10px;letter-spacing:.04em}
@@ -676,7 +655,7 @@ window.PlatformCommerce.onReady(async function(){
     .r-note-compose-right{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0}.r-note-compose-right>span{font-size:9px;font-weight:900;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.r-note-compose-actions button{box-sizing:border-box;height:29px;border:0;border-radius:8px;background:#111827;color:#fff;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:950;cursor:pointer;transition:transform .16s ease,box-shadow .16s ease}.r-note-compose-actions button:hover{transform:translateY(-1px);box-shadow:0 7px 16px rgba(15,23,42,.16)}.r-note-compose-actions button:disabled{opacity:.45;cursor:default}
     .r-note-history-deck{position:relative;isolation:isolate;box-sizing:border-box;min-height:0;height:0;margin-bottom:-6px;padding:0 0 0;border-bottom:1px solid transparent;visibility:hidden;overflow:visible;display:flex;flex-direction:column;gap:7px;transition:visibility 0s linear .5s}.r-bottom-notes.expanded .r-note-history-deck{height:auto;margin-bottom:0;padding:10px 0 9px;border-bottom-color:rgba(15,23,42,.14);visibility:visible;transition:visibility 0s}.r-note-history-deck::before{content:'';position:absolute;z-index:-1;inset:0 -18px -9px;background:#fff;border-top:1px solid rgba(15,23,42,.18);box-shadow:none;clip-path:inset(-40px 0 0);transform:scaleY(0);transform-origin:center bottom;transition:transform .5s cubic-bezier(.45,0,.55,1);will-change:transform}.r-bottom-notes.expanded .r-note-history-deck::before{transform:scaleY(1)}.r-bottom-notes.opening .r-note-history-deck::before,.r-bottom-notes.closing .r-note-history-deck::before{transform:scaleY(0)}.r-note-history-tools,.r-note-history{position:relative;z-index:1;opacity:0;transition:opacity .14s ease}.r-bottom-notes.expanded:not(.opening):not(.closing) .r-note-history-tools,.r-bottom-notes.expanded:not(.opening):not(.closing) .r-note-history{opacity:1;transition:opacity .2s ease .28s}
     .r-note-history-tools{flex:0 0 auto;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}.r-note-history-tools input,.r-note-history-tools select{min-width:0;height:28px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;padding:0 7px;font:inherit;font-size:10px;color:#344054}.r-note-history{flex:1 1 auto;min-height:52px;overflow:auto;display:flex;flex-direction:column;gap:7px;padding-right:2px}.r-note-card{border:1px solid rgba(15,23,42,.08);border-radius:9px;background:#f8fafc;padding:8px;display:flex;flex-direction:column;gap:5px}.r-note-card p{margin:0;white-space:pre-wrap;font-size:11px;line-height:1.55;color:#344054}.r-note-mention{position:relative;display:inline-flex;align-items:center;vertical-align:baseline;margin:0 1px;padding:1px 5px;border:1px solid rgba(var(--primary-rgb,217,48,37),.2);border-radius:999px;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025));font-weight:750;line-height:1.25;white-space:nowrap;cursor:pointer}.r-note-mention::before{content:'@';font-weight:800;opacity:.82}.r-note-mention-card{position:fixed;left:0;top:0;z-index:2147483646;width:max-content;min-width:220px;max-width:280px;padding:10px;border:1px solid rgba(15,23,42,.1);border-radius:14px;background:#fff;color:#101828;box-shadow:0 18px 38px rgba(15,23,42,.18);display:none;grid-template-columns:34px minmax(0,1fr);gap:9px;white-space:normal;pointer-events:none}.r-note-mention-card.visible{display:grid}.r-note-mention-avatar{width:34px;height:34px;border-radius:999px;background:var(--primary,#d93025);color:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:13px;font-weight:1000}.r-note-mention-avatar img{width:100%;height:100%;object-fit:cover}.r-note-mention-name{display:block;font-size:13px;font-weight:1000;line-height:1.15;color:#101828}.r-note-mention-email{display:block;margin-top:3px;font-size:11px;font-weight:700;color:#667085}.r-note-card-meta{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:9px;font-weight:850;color:#667085}.r-note-card-meta span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.r-note-card-actions{display:flex;gap:2px}.r-note-card-actions button{border:0;background:transparent;color:#98a2b3;width:22px;height:22px;padding:0;cursor:pointer}.r-note-card-actions button:hover{color:#344054}.r-note-empty{flex:1 1 auto;width:100%;min-height:180px;box-sizing:border-box;border:1px dashed rgba(15,23,42,.1);border-radius:9px;background:#fafbfc;padding:24px 14px;display:grid;place-items:center;text-align:center;color:#98a2b3;font-size:12px;font-weight:900}
-    .r-left.notes-panel-ready{position:relative;padding-bottom:5px}.r-overlay.proposal-workspace .r-bottom-notes{gap:6px}.r-left.notes-history-expanded .r-left-bottom,.r-left:has(.r-bottom-notes.expanded) .r-left-bottom{position:absolute;z-index:45;left:0;right:0;bottom:0;box-sizing:border-box;height:80%;min-height:0;margin:0;padding:12px 18px 5px;border-top-color:transparent;background:transparent;box-shadow:none}.r-left.notes-history-expanded .r-left-bottom::before,.r-left:has(.r-bottom-notes.expanded) .r-left-bottom::before{display:none}.r-left.notes-history-expanded .r-left-bottom>:not(.r-bottom-notes),.r-left:has(.r-bottom-notes.expanded) .r-left-bottom>:not(.r-bottom-notes){display:none!important}.r-bottom-notes.expanded{height:100%;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:6px}
+    .r-overview-details.notes-panel-ready{position:relative;padding-bottom:5px}.r-overlay.proposal-workspace .r-bottom-notes{gap:6px}.r-overview-details.notes-history-expanded .r-left-bottom,.r-overview-details:has(.r-bottom-notes.expanded) .r-left-bottom{position:absolute;z-index:45;left:0;right:0;bottom:0;box-sizing:border-box;height:80%;min-height:0;margin:0;padding:12px 18px 5px;border-top-color:transparent;background:transparent;box-shadow:none}.r-overview-details.notes-history-expanded .r-left-bottom::before,.r-overview-details:has(.r-bottom-notes.expanded) .r-left-bottom::before{display:none}.r-overview-details.notes-history-expanded .r-left-bottom>:not(.r-bottom-notes),.r-overview-details:has(.r-bottom-notes.expanded) .r-left-bottom>:not(.r-bottom-notes){display:none!important}.r-bottom-notes.expanded{height:100%;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:6px}
     .r-note-card{scroll-margin:14px;transition:border-color .22s ease,box-shadow .22s ease,background .22s ease}.r-note-card.notification-target{border-color:rgba(var(--primary-rgb,217,48,37),.55);background:rgba(var(--primary-rgb,217,48,37),.07);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12)}
     .r-overlay.proposal-workspace.proposal-edit-mode .r-proposal-agent{border-bottom:1px solid rgba(15,23,42,.1);border-radius:0;background:transparent;padding:0 0 14px;box-shadow:none}
     .r-overlay.proposal-workspace.proposal-edit-mode .r-bottom-notes:not(.expanded){display:flex;flex-direction:column}
@@ -791,7 +770,7 @@ window.PlatformCommerce.onReady(async function(){
     .r-window-identity{display:flex;align-items:center;gap:8px;min-width:0;max-width:240px;padding:0 12px;border-right:1px solid rgba(15,23,42,.10);color:#344054;font-size:12px;font-weight:900;white-space:nowrap}
     .r-window-identity i{color:var(--primary-readable,var(--primary,#d93025));flex:none}
     .r-window-identity span{overflow:hidden;text-overflow:ellipsis}
-    .r-mobile-project-title,.r-mobile-left-tray-toggle,.r-mobile-left-tray-scrim,.r-mobile-default-info-tray-scrim,.r-mobile-project-notes-launcher,.r-mobile-project-notes-scrim,.r-mobile-project-notes-workspace{display:none}
+    .r-mobile-project-title,.r-mobile-project-notes-launcher,.r-mobile-project-notes-scrim,.r-mobile-project-notes-workspace{display:none}
     .r-tabbar{display:flex;align-items:stretch;gap:0;padding:0;min-width:0;flex:1 1 auto;overflow-x:auto;scrollbar-width:none}
     .r-tabbar::-webkit-scrollbar{display:none}
     .r-tabbar.single-tab{display:none}
@@ -1327,8 +1306,6 @@ window.PlatformCommerce.onReady(async function(){
     .r-overlay.proposal-workspace #rStepType,
     .r-overlay.proposal-workspace #rStepReport,
     .r-overlay.proposal-workspace #rStepRoof{display:none!important}
-    .r-overlay.left-override[data-left-override-tab="proposal"].proposal-list-mode #rStepCustomer,
-    .r-overlay.left-override[data-left-override-tab="proposal"].proposal-list-mode #rStepAddress{display:block!important}
     .r-overlay.proposal-list-mode #rStepAddress{border-bottom:1px solid rgba(15,23,42,.10);padding-bottom:12px;margin-bottom:4px}
     .r-overlay.proposal-list-mode #rProposalSection.visible{min-height:0;flex:1 1 auto}
     .r-overlay.proposal-list-mode .r-proposal-listing{min-height:0;flex:1 1 auto}
@@ -1344,8 +1321,6 @@ window.PlatformCommerce.onReady(async function(){
     .r-overlay.proposal-edit-mode #rProposalSection .r-step-inner{overflow:hidden}
     .r-overlay.proposal-edit-mode #rProposalSection .r-step-body{padding-bottom:0}
     .r-overlay.proposal-edit-mode .r-proposal-listing{min-height:0;flex:1 1 auto;overflow:hidden}
-    .r-overlay.left-override[data-left-override-tab="scope"] .r-scroll{overflow:hidden;display:flex;flex-direction:column}
-    .r-overlay.left-override[data-left-override-tab="scope"] #rProposalSection.visible{display:flex;flex-direction:column;min-height:0;flex:1 1 auto}
     .r-proposal-listing{display:flex;flex-direction:column;gap:10px;min-height:calc(100vh - 320px)}
     .r-proposal-workspace-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px}
     .r-proposal-workspace-head > div{min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -1957,7 +1932,7 @@ window.PlatformCommerce.onReady(async function(){
     .storage-checkout-close{width:38px;height:38px;border-radius:13px;border:1px solid #d0d5dd;background:#fff;color:#475467;cursor:pointer}
     .storage-checkout-body{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;color:#98a2b3;font-size:13px;font-weight:900;text-align:center}
     .storage-limit-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap}
-    @media (max-width:1080px){.r-win{flex-direction:column;height:min(calc(var(--fm-visual-vh,100vh) * .96),1320px)}.r-left{width:100%;max-width:none;max-height:58%;border-right:none;border-bottom:1px solid rgba(15,23,42,.08)}.r-right{min-height:320px}.r-photo-grid{grid-template-columns:1fr}}
+    @media (max-width:1080px){.r-win{flex-direction:column;height:min(calc(var(--fm-visual-vh,100vh) * .96),1320px)}.r-overview-details{width:100%;max-width:none;max-height:58%;border-right:none;border-bottom:1px solid rgba(15,23,42,.08)}.r-right{min-height:320px}.r-photo-grid{grid-template-columns:1fr}}
     @media (max-width:820px){
       .r-overlay.entitlement-mobile-fullscreen{align-items:stretch;background:#fff;backdrop-filter:none}
       .r-overlay.entitlement-mobile-fullscreen .r-win{width:var(--fm-visual-vw,100vw);height:var(--fm-visual-vh,100dvh);max-height:none;border-radius:0;box-shadow:none;animation:none}
@@ -1976,9 +1951,9 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-info-navigation:not(.mobile-order){align-items:flex-end;justify-content:center;padding-top:20px;box-sizing:border-box;background:rgba(11,16,24,.34);backdrop-filter:blur(2px)}
       .r-overlay.mobile-info-navigation:not(.mobile-order) .r-win{width:var(--fm-visual-vw,100vw);height:calc(var(--fm-visual-vh,100dvh) - 20px);max-height:calc(var(--fm-visual-vh,100dvh) - 20px);border-radius:18px 18px 0 0;box-shadow:0 -9px 28px rgba(15,23,42,.30);animation:rMobileProjectTrayIn .36s cubic-bezier(.22,1,.36,1)}
       .r-overlay.mobile-info-navigation.route-initial-open:not(.mobile-order) .r-win{animation:none}
-      .r-left{padding:12px;gap:8px;max-height:48%;flex-basis:auto}
-      .r-left.notes-panel-ready:has(.r-firstmeasure-notes){padding-bottom:12px}
-      .r-left.notes-history-expanded .r-left-bottom,.r-left:has(.r-bottom-notes.expanded) .r-left-bottom{margin:0;padding-left:12px;padding-right:12px;padding-bottom:5px}
+      .r-overview-details{padding:12px;gap:8px;max-height:48%;flex-basis:auto}
+      .r-overview-details.notes-panel-ready:has(.r-firstmeasure-notes){padding-bottom:12px}
+      .r-overview-details.notes-history-expanded .r-left-bottom,.r-overview-details:has(.r-bottom-notes.expanded) .r-left-bottom{margin:0;padding-left:12px;padding-right:12px;padding-bottom:5px}
       .r-top{padding-bottom:4px}
       .r-title{font-size:18px}
       .r-stagebar{margin:-1px 0 1px}
@@ -2028,9 +2003,9 @@ window.PlatformCommerce.onReady(async function(){
       .r-proposal-markupdock{top:121px;right:16px}
       .r-overlay.report-ordered:not(.mobile-order),
       .r-overlay.report-ordered:not(.mobile-order) .r-win,
-      .r-overlay.report-ordered:not(.mobile-order) .r-left,
+      .r-overlay.report-ordered:not(.mobile-order) .r-overview-details,
       .r-overlay.report-ordered:not(.mobile-order) .r-right{overflow-x:hidden}
-      .r-overlay.report-ordered:not(.mobile-order) .r-left{max-height:43%;flex:0 0 auto}
+      .r-overlay.report-ordered:not(.mobile-order) .r-overview-details{max-height:43%;flex:0 0 auto}
       .r-overlay.report-ordered:not(.mobile-order) .r-right{flex:1 1 auto;min-height:0;background:#e5e7eb}
       .r-overlay.report-ordered:not(.mobile-order) .r-top{display:block;overflow:hidden;padding-right:42px}
       .r-overlay.report-ordered:not(.mobile-order) .r-title-wrap{overflow:hidden}
@@ -2089,7 +2064,7 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order .r-modal-header{display:none}
       .r-overlay.mobile-order,
       .r-overlay.mobile-order .r-win,
-      .r-overlay.mobile-order .r-left,
+      .r-overlay.mobile-order .r-overview-details,
       .r-overlay.mobile-order .r-scroll{overflow-x:hidden}
       .r-overlay.mobile-order .r-top{display:block;overflow:hidden;padding-right:46px}
       .r-overlay.mobile-order .r-title-wrap{overflow:hidden}
@@ -2124,8 +2099,8 @@ window.PlatformCommerce.onReady(async function(){
       .r-mobile-page-btn{height:34px;border-radius:11px;border:1px solid rgba(15,23,42,.12);background:#fff;color:#344054;padding:0 12px;font-size:12px;font-weight:1000;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
       .r-mobile-page-btn.primary{flex:0 0 auto;min-width:96px;border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff);box-shadow:0 8px 18px rgba(var(--primary-rgb,217,48,37),.18)}
       .r-mobile-page-btn:disabled,.r-mobile-page-btn[aria-disabled="true"]{background:#e5e7eb;border-color:#d1d5db;color:#667085;box-shadow:none;cursor:not-allowed}
-      .r-overlay.mobile-order.mobile-order-location .r-left{flex:0 1 auto;gap:8px;max-height:calc(var(--fm-visual-vh,100dvh) - 180px);border-bottom:0;padding-bottom:8px}
-      .r-overlay.mobile-order.mobile-order-location .r-right{display:flex;flex:1 1 auto;min-height:160px}
+      .r-overlay.mobile-order.mobile-order-location .r-overview-details{flex:0 1 auto;gap:8px;max-height:calc(var(--fm-visual-vh,100dvh) - 180px);border-bottom:0;padding-bottom:8px}
+      .r-overlay.mobile-order.mobile-order-location .r-tab-main{display:flex;flex:1 1 auto;min-height:160px}
       .r-overlay.mobile-order.mobile-order-location .r-form{gap:8px}
       .r-overlay.mobile-order.mobile-order-location .r-scroll{flex:0 1 auto;scrollbar-gutter:auto}
       .r-overlay.mobile-order.mobile-order-location #rStepAddress .r-step-body{padding:0 0 6px}
@@ -2197,12 +2172,12 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order.mobile-order-location #rRoofSkipSummary,
       .r-overlay.mobile-order.mobile-order-location .r-mobile-internal-notes-mount,
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pin-count{display:none!important}
-      .r-overlay.mobile-order.mobile-order-details .r-left,
-      .r-overlay.mobile-order.mobile-order-photos .r-left,
-      .r-overlay.mobile-order.mobile-order-final .r-left{flex:1 1 auto;height:100%;max-height:none;border-bottom:0}
-      .r-overlay.mobile-order.mobile-order-details .r-right,
-      .r-overlay.mobile-order.mobile-order-photos .r-right,
-      .r-overlay.mobile-order.mobile-order-final .r-right{display:none}
+      .r-overlay.mobile-order.mobile-order-details .r-overview-details,
+      .r-overlay.mobile-order.mobile-order-photos .r-overview-details,
+      .r-overlay.mobile-order.mobile-order-final .r-overview-details{flex:1 1 auto;height:100%;max-height:none;border-bottom:0}
+      .r-overlay.mobile-order.mobile-order-details .r-tab-main,
+      .r-overlay.mobile-order.mobile-order-photos .r-tab-main,
+      .r-overlay.mobile-order.mobile-order-final .r-tab-main{display:none}
       .r-overlay.mobile-order.mobile-order-details .r-scroll,
       .r-overlay.mobile-order.mobile-order-photos .r-scroll,
       .r-overlay.mobile-order.mobile-order-final .r-scroll{height:100%;overflow:auto}
@@ -2257,10 +2232,10 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order .r-addon-info-trigger{width:22px;height:22px;font-size:10px;background:rgba(15,23,42,.10);color:#475467}
       @keyframes rMobilePageInForward{from{opacity:.2;transform:translateX(26px)}to{opacity:1;transform:translateX(0)}}
       @keyframes rMobilePageInBack{from{opacity:.2;transform:translateX(-26px)}to{opacity:1;transform:translateX(0)}}
-      .r-overlay.mobile-order.mobile-page-anim-forward .r-left,
-      .r-overlay.mobile-order.mobile-page-anim-forward .r-right{animation:rMobilePageInForward .24s cubic-bezier(.22,1,.36,1)}
-      .r-overlay.mobile-order.mobile-page-anim-back .r-left,
-      .r-overlay.mobile-order.mobile-page-anim-back .r-right{animation:rMobilePageInBack .24s cubic-bezier(.22,1,.36,1)}
+      .r-overlay.mobile-order.mobile-page-anim-forward .r-overview-details,
+      .r-overlay.mobile-order.mobile-page-anim-forward .r-tab-main{animation:rMobilePageInForward .24s cubic-bezier(.22,1,.36,1)}
+      .r-overlay.mobile-order.mobile-page-anim-back .r-overview-details,
+      .r-overlay.mobile-order.mobile-page-anim-back .r-tab-main{animation:rMobilePageInBack .24s cubic-bezier(.22,1,.36,1)}
       /* Existing-project details are available from the title drawer, so tabs
          can use the complete workspace instead of stacking the default column. */
       .r-overlay.mobile-info-navigation:not(.mobile-order) .r-modal-header{height:48px}
@@ -2270,8 +2245,6 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-info-navigation:not(.mobile-order) .r-tab .pv-tab-label{display:none}
       .r-overlay.mobile-info-navigation:not(.mobile-order) #rProjectHeaderAction{display:none!important}
       .r-overlay.mobile-info-navigation:not(.mobile-order) #rFullscreenToggle{display:none!important}
-      .r-overlay.mobile-info-navigation:not(.mobile-order):not(.mobile-info-active):not(.left-override):not(.mobile-default-info-tray-mode) .r-left{display:none!important}
-      .r-overlay.mobile-info-navigation:not(.mobile-order):not(.mobile-info-active):not(.left-override) .r-right{flex:1 1 auto;min-height:0}
       .r-overlay.mobile-info-navigation:not(.mobile-order):not(.mobile-info-active) .r-mobile-project-title{height:48px;min-height:48px;box-sizing:border-box;display:flex;align-items:center;gap:8px;flex:0 0 auto;padding:0 16px;border-bottom:1px solid rgba(15,23,42,.10);background:#fff;color:#101828;font-size:18px;font-weight:1000;letter-spacing:-.02em;line-height:1.2}
       .r-mobile-project-tab-title{display:inline-flex;align-items:center;gap:9px;min-width:0;overflow:hidden;white-space:nowrap;flex:0 1 auto;font-size:16px;font-weight:1000;color:#475467;letter-spacing:-.01em}
       .r-mobile-project-tab-title span{min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -2292,62 +2265,13 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.entitlement-info-none #rMobileProjectInfoChevron{display:none}
       .r-overlay.mobile-info-navigation.mobile-info-active:not(.mobile-order) .r-right{order:1;flex:0 0 48px;min-height:48px;background:#fff}
       .r-overlay.mobile-info-navigation.mobile-info-active:not(.mobile-order) .r-right .r-preview{display:none!important}
-      .r-overlay.mobile-info-navigation.mobile-info-active:not(.mobile-order) .r-left{order:2;display:flex!important;flex:1 1 auto;min-height:0;max-height:none;border-bottom:0}
-      .r-overlay.mobile-left-tray-mode .r-modal-header,
-      .r-overlay.mobile-left-tray-mode .r-mobile-project-title{position:relative;z-index:101}
+      .r-overlay.mobile-info-navigation.mobile-info-active:not(.mobile-order) .r-overview-details{order:2;display:flex!important;flex:1 1 auto;min-height:0;max-height:none;border-bottom:0}
       /* The modal chrome owns the project identity on mobile.  The left region
-         can contain project details, but must not repeat the same title. */
-      .r-overlay.mobile-left-tray-mode .r-left .r-top,.r-overlay.mobile-default-info-tray-mode .r-left .r-top{display:none!important}
-      .r-overlay.mobile-left-tray-mode .r-mobile-project-tab-title{display:none}
-      .r-overlay.mobile-left-tray-mode .r-mobile-left-tray-toggle{min-width:0;max-width:58%;padding:0;border:0;background:transparent;color:#475467;display:inline-flex;align-items:center;gap:9px;cursor:pointer;font:inherit;font-size:16px;font-weight:1000;letter-spacing:-.01em}
-      .r-overlay.mobile-left-tray-mode .r-mobile-left-tray-toggle:hover{color:var(--primary-readable,var(--primary,#d93025))}
-      .r-overlay.mobile-left-tray-mode .r-mobile-left-tray-toggle span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .r-overlay.mobile-left-tray-mode .r-mobile-left-tray-toggle i{font-size:14px;flex:0 0 auto;color:#667085}
-      .r-overlay.mobile-left-tray-mode .r-mobile-project-info-toggle{max-width:58%}
-      .r-overlay.mobile-left-tray-mode .r-left{position:absolute;z-index:90;top:96px;bottom:0;left:0;width:95%;max-width:none;min-height:0;max-height:none;padding:20px 12px 12px;display:flex!important;transform:translateX(-103%);pointer-events:none;border:0;box-shadow:18px 0 38px rgba(15,23,42,.24);transition:transform .30s cubic-bezier(.22,1,.36,1),box-shadow .30s ease}
-      /* These are custom-left-tray rules only.  Do not let them restyle the
-         shared project-info surface when that same node is the right drawer. */
-      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-left,
-      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-left .r-scroll,
-      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-left .r-scroll > *{min-width:0;max-width:100%;box-sizing:border-box}
-      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-contact-card .r-inline{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open:not(.mobile-default-info-tray-open) .r-left{height:calc(100% - 96px);max-height:calc(100% - 96px);flex:0 0 auto}
-      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-left .r-scroll{flex:1 1 auto;min-height:0}
-      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-left{transform:translateX(0);pointer-events:auto}
-      .r-overlay.mobile-left-tray-mode .r-mobile-left-tray-scrim{display:none;position:absolute;z-index:89;top:96px;right:0;bottom:0;width:5%;border:0;padding:0;background:linear-gradient(90deg,rgba(15,23,42,.30),rgba(15,23,42,.06));cursor:pointer}
-      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open .r-mobile-left-tray-scrim{display:block}
-      /* Custom tab panels always originate on the left. The project-details
-         drawer is independent and only takes the right edge while it is open. */
-      .r-overlay.mobile-default-info-tray-mode:not(.mobile-left-tray-mode) .r-left{position:absolute;z-index:90;top:96px;right:0;bottom:0;left:auto;width:95%;max-width:none;min-height:0;max-height:none;padding:20px 12px 12px;display:flex!important;transform:translateX(103%);pointer-events:none;border:0;box-shadow:-18px 0 38px rgba(15,23,42,.24);transition:transform .30s cubic-bezier(.22,1,.36,1),box-shadow .30s ease}
-      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-open .r-left{position:absolute;z-index:90;top:96px;right:0;bottom:0;left:auto;width:95%;max-width:none;min-height:0;max-height:none;padding:20px 12px 12px;display:flex!important;transform:translateX(0);pointer-events:auto;border:0;box-shadow:-18px 0 38px rgba(15,23,42,.24);transition:transform .30s cubic-bezier(.22,1,.36,1),box-shadow .30s ease}
-      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-open.mobile-default-info-tray-entering .r-left{transform:translateX(103%);transition:none}
-      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-leaving .r-left{position:absolute;z-index:90;top:96px;right:0;bottom:0;left:auto;width:95%;max-width:none;min-height:0;max-height:none;padding:20px 12px 12px;display:flex!important;transform:translateX(0);pointer-events:none;border:0;box-shadow:-18px 0 38px rgba(15,23,42,.24);transition:none}
-      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-leaving.mobile-default-info-tray-leaving-active .r-left{transform:translateX(103%);transition:transform .30s cubic-bezier(.22,1,.36,1),box-shadow .30s ease}
-      /* When a tab also owns a left tray, the shared region must still become
-         a right-originating standard-info drawer while that drawer is open. */
-      .r-overlay.mobile-left-tray-mode.mobile-default-info-tray-open .r-left{position:absolute;z-index:90;top:96px;right:0;bottom:0;left:auto;width:95%;max-width:none;min-height:0;max-height:none;padding:20px 12px 12px;display:flex!important;transform:translateX(0);pointer-events:auto;border:0;box-shadow:-18px 0 38px rgba(15,23,42,.24);transition:transform .30s cubic-bezier(.22,1,.36,1),box-shadow .30s ease}
-      .r-overlay.mobile-left-tray-mode.mobile-default-info-tray-open.mobile-default-info-tray-entering .r-left{transform:translateX(103%);transition:none}
-      .r-overlay.mobile-left-tray-mode.mobile-default-info-tray-leaving .r-left{position:absolute;z-index:90;top:96px;right:0;bottom:0;left:auto;width:95%;max-width:none;min-height:0;max-height:none;padding:20px 12px 12px;display:flex!important;transform:translateX(0);pointer-events:none;border:0;box-shadow:-18px 0 38px rgba(15,23,42,.24);transition:none}
-      .r-overlay.mobile-left-tray-mode.mobile-default-info-tray-leaving.mobile-default-info-tray-leaving-active .r-left{transform:translateX(103%);transition:transform .30s cubic-bezier(.22,1,.36,1),box-shadow .30s ease}
-      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-resetting .r-left{transition:none!important}
-      .r-overlay.mobile-default-info-tray-mode .r-mobile-default-info-tray-scrim{display:none;position:absolute;z-index:89;top:96px;left:0;bottom:0;width:5%;border:0;padding:0;background:linear-gradient(270deg,rgba(15,23,42,.30),rgba(15,23,42,.06));cursor:pointer}
-      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-open .r-mobile-default-info-tray-scrim{display:block}
+         can contain project details{display:none!important}
+      /* When a tab also owns a left tray{position:absolute;z-index:90;top:96px;right:0;bottom:0;left:auto;width:95%;max-width:none;min-height:0;max-height:none;padding:20px 12px 12px;display:flex!important;transform:translateX(0);pointer-events:auto;border:0;box-shadow:-18px 0 38px rgba(15,23,42,.24);transition:transform .30s cubic-bezier(.22,1,.36,1),box-shadow .30s ease}
       /* A custom desktop left region and the mobile project-info drawer share
-         the source markup, but the mobile drawer must always be the complete
-         standard project-info surface.  Restore that surface explicitly rather
-         than leaking the active region app's layout into it. */
-      .r-overlay.mobile-default-info-tray-open #rProjectStageBar{display:block!important}
-      .r-overlay.mobile-default-info-tray-open #rAfterHours.visible{display:flex!important}
-      .r-overlay.mobile-default-info-tray-open #rProjectionCard,.r-overlay.mobile-default-info-tray-open #rViewerSummary,.r-overlay.mobile-default-info-tray-open #rStepCustomer,.r-overlay.mobile-default-info-tray-open #rInlineNotesMount,.r-overlay.mobile-default-info-tray-open #rCustomerPortalLinkMount,.r-overlay.mobile-default-info-tray-open #rStepAddress,.r-overlay.mobile-default-info-tray-open #rStepType,.r-overlay.mobile-default-info-tray-open #rStepReport,.r-overlay.mobile-default-info-tray-open #rStepRoof{display:block!important}
-      .r-overlay.mobile-default-info-tray-open #rWorkflowDock.visible{display:block!important}
-      .r-overlay.mobile-default-info-tray-open #rProposalSection{display:none!important}
-      .r-overlay.mobile-default-info-tray-mode.mobile-default-info-tray-open .r-scroll{overflow:auto!important;display:block!important;min-height:0!important;box-sizing:border-box;padding-bottom:74px!important}
-      .r-overlay.mobile-default-info-tray-open .r-workflow-dock.visible,.r-overlay.mobile-default-info-tray-open .r-workflow-empty{display:flex!important;flex-direction:column;min-height:0}
+         the source markup{display:block!important}
       .r-mobile-project-notes-launcher,.r-mobile-project-notes-workspace,.r-mobile-project-notes-scrim{display:none}
-      .r-overlay.mobile-default-info-tray-open .r-mobile-project-notes-launcher{position:absolute;z-index:92;right:0;bottom:0;left:5%;width:auto;height:58px;padding:0 18px;border:0;border-top:1px solid rgba(15,23,42,.10);border-radius:0;background:#fff;color:#344054;box-shadow:0 -8px 20px rgba(15,23,42,.10);display:flex;align-items:center;justify-content:flex-start;gap:10px;font-size:14px;font-weight:900;cursor:pointer}
-      .r-overlay.mobile-default-info-tray-open .r-mobile-project-notes-launcher > i:first-child{font-size:16px;color:var(--primary-readable,var(--primary,#d93025))}
-      .r-overlay.mobile-default-info-tray-open .r-mobile-project-notes-launcher span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .r-overlay.mobile-default-info-tray-open .r-mobile-project-notes-launcher > i:last-child{margin-left:auto;font-size:12px;color:#98a2b3}
       .r-overlay.mobile-info-navigation:not(.mobile-order) .r-mobile-project-notes-launcher:hover{color:var(--primary-readable,var(--primary,#d93025));background:#f8fafc}
       .r-overlay.mobile-project-notes-open .r-mobile-project-notes-launcher{display:none!important}
       .r-overlay.mobile-project-notes-open .r-mobile-project-notes-scrim{position:absolute;z-index:120;inset:0;display:block;border:0;background:rgba(15,23,42,.48);backdrop-filter:blur(2px);cursor:pointer}
@@ -2378,9 +2302,6 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-info-navigation:not(.mobile-order) .r-preview-panel .mt-top .mt-title{display:none!important}
       .r-overlay.mobile-info-navigation:not(.mobile-order) .r-preview-panel .mn-top,
       .r-overlay.mobile-info-navigation:not(.mobile-order) .r-preview-panel .mt-top{padding:10px 12px;min-height:0}
-      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open #rProposalSection .r-proposal-workspace-head>div:first-child,
-      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open #rProposalSection .mt-left-head>strong{display:none!important}
-      .r-overlay.mobile-left-tray-mode.mobile-left-tray-open #rProposalSection .r-proposal-workspace-head{justify-content:flex-end}
       #rProposalPreview .r-proposal-mobile-main{height:100%;min-height:0;overflow:auto;box-sizing:border-box;padding:14px 12px 24px;background:#f8fafc}
       #rProposalPreview .r-proposal-mobile-main .r-proposal-listing{min-height:0;gap:12px}
       #rProposalPreview .r-proposal-mobile-main .r-proposal-workspace-head{padding:2px 0 4px;margin:0}
@@ -2390,12 +2311,10 @@ window.PlatformCommerce.onReady(async function(){
       .r-proposal-preview-empty .r-proposal-preview-create{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:0 14px;border:1px solid var(--primary,#d93025);border-radius:10px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:inherit;font-size:12px;font-weight:1000;cursor:pointer}
       .r-proposal-preview-empty .r-proposal-preview-create i,.r-proposal-preview-empty .r-proposal-preview-create span{font:inherit;color:inherit;line-height:1}
       @media (prefers-reduced-motion:reduce){
-        .r-overlay.mobile-order.mobile-page-anim-forward .r-left,
-        .r-overlay.mobile-order.mobile-page-anim-forward .r-right,
-        .r-overlay.mobile-order.mobile-page-anim-back .r-left,
-        .r-overlay.mobile-order.mobile-page-anim-back .r-right{animation:none}
-        .r-overlay.mobile-left-tray-mode .r-left{transition:none}
-        .r-overlay.mobile-default-info-tray-mode .r-left{transition:none}
+        .r-overlay.mobile-order.mobile-page-anim-forward .r-overview-details,
+        .r-overlay.mobile-order.mobile-page-anim-forward .r-tab-main,
+        .r-overlay.mobile-order.mobile-page-anim-back .r-overview-details,
+        .r-overlay.mobile-order.mobile-page-anim-back .r-tab-main{animation:none}
         .r-overlay.mobile-project-notes-open .r-mobile-project-notes-workspace{animation:none}
       }
     }
@@ -2425,97 +2344,7 @@ window.PlatformCommerce.onReady(async function(){
     return !window.Portal.ExteriorOrder?.active() && isMobileProjectOrder() && viewingExistingProject && !shouldUseMobileOrderPagination();
   }
 
-  function syncMobileProjectInfoNavigation(){
-    if (projectLayout) return;
-    const overlay = $('#rOverlay');
-    if (!overlay) return;
-    const enabled = mobileProjectNavigationEnabled();
-    overlay.classList.toggle('mobile-info-navigation', enabled);
-    overlay.classList.remove('mobile-info-active');
-  }
-
-  function mobileLeftTrayEnabled(){
-    return isMobileProjectOrder() && !shouldUseMobileOrderPagination() && projectLeftColumnOverridden();
-  }
-
-  function mobileDefaultInfoTrayEnabled(){
-    // Field-style project modals (crew/supervisor) opt out of the right-side
-    // project-info pop-out entirely via presentation mobileInfo:'none'.
-    return mobileProjectNavigationEnabled()
-      && projectModalResolvedPresentation().infoTrayHidden !== true;
-  }
-
-  function mobileDefaultProjectInfoVisible(){
-    return mobileDefaultInfoTrayOpen
-      && mobileDefaultInfoTrayEnabled();
-  }
-
-  function shouldRenderDefaultProjectInfo(){
-    return !projectLeftColumnOverridden() || mobileDefaultProjectInfoVisible();
-  }
-
-  function refreshMobileDefaultProjectInfo(){
-    if (!mobileDefaultProjectInfoVisible()) return;
-    renderProjectStageBar();
-    renderProjectViewerSummary();
-    renderProjectTodoDock();
-    renderCustomerPortalLink();
-    renderAfterHoursNotice();
-  }
-
-  function syncMobileDefaultInfoTray(){
-    if (projectLayout) return;
-    const overlay = $('#rOverlay');
-    const toggle = $('#rMobileProjectInfoToggle');
-    if (!overlay) return;
-    const enabled = mobileDefaultInfoTrayEnabled();
-    if (!enabled) mobileDefaultInfoTrayOpen = false;
-    overlay.classList.toggle('mobile-default-info-tray-mode', enabled);
-    overlay.classList.toggle('mobile-default-info-tray-open', enabled && mobileDefaultInfoTrayOpen);
-    const win = overlay.querySelector('.r-win');
-    if (win) window.requestAnimationFrame(() => { win.scrollLeft = 0; });
-    if (!toggle) return;
-    const open = enabled && mobileDefaultInfoTrayOpen;
-    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    toggle.setAttribute('aria-label', open ? 'Close project details' : 'Open project details');
-    toggle.title = open ? 'Close project details' : 'Open project details';
-    const icon = $('#rMobileProjectInfoChevron');
-    if (icon) icon.className = `fas ${open ? 'fa-chevron-right' : 'fa-chevron-left'}`;
-  }
-
-  function setMobileDefaultInfoTrayOpen(open){
-    const wantsOpen = !!open;
-    const overlay = $('#rOverlay');
-    window.clearTimeout(mobileDefaultInfoTrayLeaveTimer);
-    mobileDefaultInfoTrayLeaveTimer = 0;
-    if (wantsOpen) overlay?.classList.remove('mobile-default-info-tray-leaving', 'mobile-default-info-tray-leaving-active', 'mobile-default-info-tray-resetting');
-    const shouldStageCloseToRight = !wantsOpen && mobileDefaultInfoTrayOpen;
-    const shouldStageFromRight = wantsOpen && !mobileDefaultInfoTrayOpen;
-    if (shouldStageFromRight) overlay?.classList.add('mobile-default-info-tray-entering');
-    if (!wantsOpen) overlay?.classList.remove('mobile-default-info-tray-entering');
-    mobileDefaultInfoTrayOpen = wantsOpen;
-    if (mobileDefaultInfoTrayOpen) mobileLeftTrayOpen = false;
-    if (shouldStageCloseToRight) overlay?.classList.add('mobile-default-info-tray-leaving');
-    syncMobileLeftTray();
-    syncMobileDefaultInfoTray();
-    if (wantsOpen) refreshMobileDefaultProjectInfo();
-    if (shouldStageFromRight) {
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (mobileDefaultInfoTrayOpen) overlay?.classList.remove('mobile-default-info-tray-entering');
-      }));
-    }
-    if (shouldStageCloseToRight) {
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (!mobileDefaultInfoTrayOpen) overlay?.classList.add('mobile-default-info-tray-leaving-active');
-      }));
-      mobileDefaultInfoTrayLeaveTimer = window.setTimeout(() => {
-        overlay?.classList.add('mobile-default-info-tray-resetting');
-        overlay?.classList.remove('mobile-default-info-tray-leaving', 'mobile-default-info-tray-leaving-active');
-        requestAnimationFrame(() => requestAnimationFrame(() => overlay?.classList.remove('mobile-default-info-tray-resetting')));
-        mobileDefaultInfoTrayLeaveTimer = 0;
-      }, 330);
-    }
-  }
+  function shouldRenderDefaultProjectInfo(){ return true; }
 
   function mobileProjectNotesEnabled(){
     return isMobileProjectOrder() && viewingExistingProject && !!activeBaseProject && !shouldUseMobileOrderPagination();
@@ -2542,7 +2371,7 @@ window.PlatformCommerce.onReady(async function(){
     const workspace = $('#rMobileProjectNotesBody');
     if (!overlay || !notes || !workspace) return;
     if (wantsOpen) {
-      setMobileDefaultInfoTrayOpen(true);
+      if(activePreviewTab!=='map')setActivePreviewTab('map');
       closeProjectNoteVisibilityMenu();
       mobileProjectNotesOpen = true;
       workspace.appendChild(notes);
@@ -2566,36 +2395,6 @@ window.PlatformCommerce.onReady(async function(){
     if (!options.fromRoute && !window.Portal?.navigation?.applying) {
       window.Portal?.navigation?.backOrClose?.(['projectNotes'], { projectNotes:null }, { source:'project-mobile-notes-close' });
     }
-  }
-
-  function syncMobileLeftTray(){
-    if (projectLayout) return;
-    const overlay = $('#rOverlay');
-    if (!overlay) return;
-    const enabled = mobileLeftTrayEnabled();
-    if (!enabled) mobileLeftTrayOpen = false;
-    overlay.classList.toggle('mobile-left-tray-mode', enabled);
-    overlay.classList.toggle('mobile-left-tray-open', enabled && mobileLeftTrayOpen);
-    const toggle = $('#rMobileLeftTrayToggle');
-    if (!toggle) return;
-    const open = enabled && mobileLeftTrayOpen;
-    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    toggle.setAttribute('aria-label', open ? 'Return to project content' : 'Open project panel');
-    toggle.title = open ? 'Return to project content' : 'Open project panel';
-    const icon = $('#rMobileLeftTrayChevron');
-    if (icon) icon.className = `fas ${open ? 'fa-chevron-left' : 'fa-chevron-right'}`;
-  }
-
-  function setMobileLeftTrayOpen(open){
-    mobileLeftTrayOpen = !!open;
-    if (mobileLeftTrayOpen) {
-      mobileDefaultInfoTrayOpen = false;
-      window.clearTimeout(mobileDefaultInfoTrayLeaveTimer);
-      mobileDefaultInfoTrayLeaveTimer = 0;
-      $('#rOverlay')?.classList.remove('mobile-default-info-tray-entering', 'mobile-default-info-tray-leaving', 'mobile-default-info-tray-leaving-active', 'mobile-default-info-tray-resetting');
-    }
-    syncMobileLeftTray();
-    syncMobileDefaultInfoTray();
   }
 
   function mobileOrderReadyForDetails(){
@@ -2759,9 +2558,6 @@ window.PlatformCommerce.onReady(async function(){
     overlay.classList.toggle('mobile-order-photos', mobile && mobileOrderPage === 'photos');
     overlay.classList.toggle('mobile-order-final', mobile && mobileOrderPage === 'final');
     if (mobile && window.Portal.ExteriorOrder?.active()) window.Portal.ExteriorOrder.setMobilePage(mobileOrderPage);
-    syncMobileProjectInfoNavigation();
-    syncMobileLeftTray();
-    syncMobileDefaultInfoTray();
     syncMobileProjectNotes();
     const contacts=$('#rContactList');
     if(contacts&&!contacts.parentElement.querySelector('.r-mobile-customer-heading')){
@@ -3041,7 +2837,7 @@ window.PlatformCommerce.onReady(async function(){
     overlay.classList.add('window-managed');
     observeProjectHeaderFit(overlay);
     overlay.dataset.windowMode = 'modal';
-    projectLayout = window.FirstMateProjectLayout?.mount({ overlay, pane:projectContentPane, getProject:() => activeBaseProject, getTab:() => activePreviewTab, getLeftMode:() => projectLeftColumnOverridden() ? 'app' : 'none', needsInfo:() => !viewingExistingProject || newProjectCreationSession });
+    projectLayout = window.FirstMateProjectLayout?.mount({ overlay, pane:projectContentPane, getProject:() => activeBaseProject, getTab:() => activePreviewTab });
     if (!projectWindowBridge) projectModalWindow.setVisible(false);
   }
   function setProjectModalFullscreen(enabled, options = {}){
@@ -3180,24 +2976,13 @@ window.PlatformCommerce.onReady(async function(){
       setTimeout(() => startAppointmentScheduling(), 0);
     }
   }
-  function projectLeftColumnOverridden(tab = activePreviewTab){
-    // On phones, the proposal list and setup flow use the full preview pane.
-    // Keep the drawer for the actual editor rail only; desktop keeps its
-    // existing two-column presentation for every proposal state.
-    if (tab === 'proposal' && isMobileProjectOrder() && proposalWorkspaceMode !== 'edit') return false;
-    return ['app', 'override', 'replace', 'drawer', 'popout'].includes(projectModalResolvedPresentation(tab).leftMode);
+  function projectTabHasSidebar(tab = activePreviewTab){
+    return ['proposal','materials','money','schedule'].includes(tab);
   }
-  function syncLeftColumnOverride(){
-    const overlay = $('#rOverlay');
-    if (!overlay) return false;
+  function syncProjectTabContent(){
     applyProjectModalPresentation();
-    const overridden = projectLeftColumnOverridden();
-    overlay.classList.toggle('left-override', overridden);
-    if (overridden) overlay.dataset.leftOverrideTab = activePreviewTab;
-    else delete overlay.dataset.leftOverrideTab;
-    syncMobileLeftTray();
-    syncMobileDefaultInfoTray();
-    return overridden;
+    ensureOverviewDetails();
+    return projectTabHasSidebar();
   }
   function syncContactsFeatureState(){
     const overlay = $('#rOverlay');
@@ -3210,23 +2995,7 @@ window.PlatformCommerce.onReady(async function(){
     }
     return enabled;
   }
-  function restoreDefaultLeftColumnState(){
-    if (projectLeftColumnOverridden()) return false;
-    const overlay = $('#rOverlay');
-    if (overlay) {
-      overlay.classList.remove('left-override', 'materials-workspace', 'money-workspace', 'schedule-workspace');
-      if (!proposalWorkspaceOpen) overlay.classList.remove('proposal-workspace');
-      delete overlay.dataset.leftOverrideTab;
-    }
-    const section = $('#rProposalSection');
-    const label = $('#rProposalLabel');
-    const list = $('#rProposalList');
-    section?.classList.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
-    if (label) {
-      label.hidden = false;
-      label.textContent = (globalThis.PlatformLanguage?.text("project-request","m_1d8655e967c464","Proposal") ?? "Proposal");
-    }
-    if (list) list.innerHTML = '';
+  function refreshOverviewDetails(){
     renderProjectStageBar();
     renderProjectViewerSummary();
     renderProjectTodoDock();
@@ -4789,7 +4558,7 @@ window.PlatformCommerce.onReady(async function(){
 
   // The dedicated project tab owns Customer Portal access for now. Keep the
   // left-column card implementation intact so it can be restored easily.
-  const CUSTOMER_PORTAL_LEFT_COLUMN_ENABLED = false;
+  const OVERVIEW_CUSTOMER_PORTAL_LINK_ENABLED = false;
 
   function mountCustomerPortalProjectApp(context = {}){
     const app = customerPortalProjectModule();
@@ -4841,7 +4610,7 @@ window.PlatformCommerce.onReady(async function(){
     const mount = document.getElementById('rCustomerPortalLinkMount');
     if (!mount) return;
     const pid = customerPortalProjectId();
-    if (!CUSTOMER_PORTAL_LEFT_COLUMN_ENABLED || !shouldRenderDefaultProjectInfo() || !customerPortalEnabled() || !pid) {
+    if (!OVERVIEW_CUSTOMER_PORTAL_LINK_ENABLED || !shouldRenderDefaultProjectInfo() || !customerPortalEnabled() || !pid) {
       mount.classList.remove('visible');
       mount.innerHTML = '';
       return;
@@ -5268,15 +5037,15 @@ window.PlatformCommerce.onReady(async function(){
       ...projectWorkspaceHost(),
       onActivate: () => {
         $('#rOverlay')?.classList.toggle('proposal-workspace', !!proposalWorkspaceOpen);
-        syncLeftColumnOverride();
+        syncProjectTabContent();
       },
       onDeactivate: () => {
         $('#rOverlay')?.classList.remove('proposal-workspace', 'proposal-list-mode', 'proposal-edit-mode', 'proposal-send-mode', 'proposal-builder-mode');
-        syncLeftColumnOverride();
+        syncProjectTabContent();
       },
       onReset: () => {
         $('#rOverlay')?.classList.remove('proposal-workspace', 'proposal-list-mode', 'proposal-edit-mode', 'proposal-send-mode', 'proposal-builder-mode');
-        syncLeftColumnOverride();
+        syncProjectTabContent();
       }
     };
   }
@@ -5287,7 +5056,7 @@ window.PlatformCommerce.onReady(async function(){
     if (!tab?.mount) return null;
     tab.mount({
       force,
-      leftRoot: $('#rProposalSection'),
+      sidebarRoot: $('#rProposalSection'),
       previewRoot: $('#rProposalPreview'),
       overlayRoot: $('#rOverlay'),
       host: proposalTabHost()
@@ -5410,8 +5179,8 @@ window.PlatformCommerce.onReady(async function(){
     const mobileProposalMain = activePreviewTab === 'proposal'
       && isMobileProjectOrder()
       && proposalWorkspaceMode !== 'edit';
-    if (!projectLeftColumnOverridden() && !mobileProposalMain) {
-      restoreDefaultLeftColumnState();
+    if (!projectTabHasSidebar() && !mobileProposalMain) {
+      refreshOverviewDetails();
       return;
     }
     if (activePreviewTab === 'schedule' && schedulePreviewAvailable()) return;
@@ -6709,10 +6478,9 @@ window.PlatformCommerce.onReady(async function(){
     }
     $('#rOverlay')?.classList.toggle('proposal-workspace', !!proposalWorkspaceOpen);
     if (!proposalWorkspaceOpen) $('#rOverlay')?.classList.remove('proposal-list-mode', 'proposal-edit-mode', 'proposal-send-mode', 'proposal-builder-mode');
-    syncLeftColumnOverride();
-    syncMobileProjectInfoNavigation();
+    syncProjectTabContent();
     ensureProjectModalAppPanels();
-    if (!projectShellLoading) mountProjectModalRegionApps('left');
+    if (!projectShellLoading) mountOverviewDetails();
     if (projectViewer && projectViewer.activeTab !== activePreviewTab) {
       projectViewer.activeTab = activePreviewTab;
       projectViewer.render?.();
@@ -6724,7 +6492,7 @@ window.PlatformCommerce.onReady(async function(){
     // viewer chrome whenever a tab changes instead of only during a full render.
     syncProjectViewerTabs();
     if (!projectShellLoading) syncProjectModalAppActivation(previousTab);
-    restoreDefaultLeftColumnState();
+    refreshOverviewDetails();
     const hint = $('#rMapHint');
     const topMode = $('#rProposalTopMode');
     const markupDock = $('#rProposalMarkupDock');
@@ -6736,7 +6504,7 @@ window.PlatformCommerce.onReady(async function(){
     bindProposalMarkupToggle();
     if (activePreviewTab === 'map' && previousTab !== 'map') scheduleProjectMapInitialize(activeBaseProject, 60);
     renderProposalSection();
-    restoreDefaultLeftColumnState();
+    refreshOverviewDetails();
     syncProjectNotesPlacement();
     renderActionRow();
     if (options.syncRoute !== false) {
@@ -6824,22 +6592,6 @@ window.PlatformCommerce.onReady(async function(){
       renderCustomerPortalLink: () => renderCustomerPortalLink(),
       setActivePreviewTab: (tab) => setActivePreviewTab(tab),
       getActivePreviewTab: () => activePreviewTab,
-      isLeftColumnOverridden: (tab) => projectLeftColumnOverridden(tab),
-      syncLeftColumnOverride: () => syncLeftColumnOverride(),
-      setLeftColumnOverride: (active, tab = activePreviewTab) => {
-        const overlay = $('#rOverlay');
-        if (!overlay) return false;
-        const owner = String(tab || activePreviewTab || '');
-        const enabled = active !== false;
-        if (enabled) {
-          overlay.classList.add('left-override');
-          overlay.dataset.leftOverrideTab = owner;
-        } else if (!owner || overlay.dataset.leftOverrideTab === owner) {
-          delete overlay.dataset.leftOverrideTab;
-          overlay.classList.remove('left-override');
-        }
-        return enabled;
-      },
       getSelectedType: () => selectedType,
       setSelectedType: (value) => {
         selectedType = value || null;
@@ -6994,9 +6746,7 @@ window.PlatformCommerce.onReady(async function(){
 
   const PROJECT_MODAL_APP_PREFIX = 'project.';
   const projectModalAppHandles = new Map();
-  const projectModalRegionAppHandles = new Map();
   const projectModalAppMounts = new Map();
-  const projectModalRegionAppMounts = new Map();
   let projectModalHeaderIdentity = null;
 
   function setProjectModalHeaderAction(action = null){
@@ -7061,7 +6811,6 @@ window.PlatformCommerce.onReady(async function(){
   function projectModalRuntimeContext(extra = {}){
     const host = extra.host || projectWorkspaceHost();
     const project = activeBaseProject || null;
-    const leftRoot = Object.prototype.hasOwnProperty.call(extra, 'leftRoot') ? extra.leftRoot : $('#rProposalSection');
     const services = {
       ...(extra.services || {}),
       firstMeasureOrder: {
@@ -7087,152 +6836,40 @@ window.PlatformCommerce.onReady(async function(){
       projectIdentity: {
         mobileOwner: 'modal_chrome',
         mobileTitleElementId: 'rMobileProjectTitleText',
-        hideLeftRegionTitleInTray: true
+        titleOwner: 'modal_header'
       },
       setHeaderAction: setProjectModalHeaderAction,
       setHeaderIdentity: setProjectModalHeaderIdentity,
       host,
       projectWorkspace: host,
       overlayRoot: $('#rOverlay'),
-      leftRoot,
-      leftRegionRoot: $('#rOverlay .r-left'),
       services
     };
   }
 
-  function projectModalRegionApps(region){
-    const runtime = window.FirstMateEmbeddableApps;
-    if (!runtime?.listApps) return [];
-    const wanted = String(region || '').trim();
-    if (!wanted) return [];
-    const context = projectModalRuntimeContext({ region: wanted });
-    return runtime.listApps(context)
-      .filter((meta) => meta?.id && meta.id !== 'project.request')
-      .filter((meta) => meta.app?.kind === 'project_modal_region_app')
-      .filter((meta) => Array.isArray(meta.regions) && meta.regions.includes(wanted))
-      .map((meta) => ({
-        ...meta,
-        appId: meta.id,
-        panelHtml: meta.app?.panelHtml,
-        app: meta.app
-      }));
+  function overviewDetailsHtml(){
+    return window.Portal.modules.firstMeasureOrder?.panelHtml(projectModalRuntimeContext()) || '<div class="r-overview-details"></div>';
   }
-
-  function projectModalRegionHtml(region){
-    const apps = projectModalRegionApps(region);
-    const app = apps[0] || null;
-    if (!app) return `<div class="r-${escapeHtml(region)}" data-region="${escapeHtml(region)}"></div>`;
-    const context = projectModalRuntimeContext({ region });
-    try {
-      if (typeof app.panelHtml === 'function') return app.panelHtml(context);
-      if (typeof app.panelHtml === 'string') return app.panelHtml;
-    } catch (error) {
-      console.warn(`Project modal ${region} region render failed for ${app.appId}`, error);
+  function ensureOverviewDetails(){
+    let restored=false;
+    const store=document.getElementById('rOverviewDetailsStore');
+    let details=document.querySelector('#rOverlay .r-overview-details');
+    if(!details?.children.length && store){
+      store.innerHTML=overviewDetailsHtml();details=store.firstElementChild;
+      restored=!!details?.children.length;
+      if(restored)bindProjectModalFormControls();
     }
-    return `<div class="r-${escapeHtml(region)}" data-region="${escapeHtml(region)}"></div>`;
+    const overview=document.querySelector('#rOverlay [data-panel="map"] > .r-tab-content');
+    if(details && overview && details.parentElement!==overview)overview.prepend(details);
+    return restored;
   }
-
-  function disposeProjectModalRegionApps(region){
-    projectModalRegionAppHandles.forEach((handle, key) => {
-      const [handleRegion] = String(key).split(':');
-      if (handleRegion !== region) return;
-      try { handle?.destroy?.(); } catch (error) { console.warn(`Project modal region app destroy failed for ${key}`, error); }
-      projectModalRegionAppHandles.delete(key);
-    });
-  }
-
-  function ensureProjectModalLeftRegion(){
-    const root = $('#rOverlay .r-left');
-    if (!root || root.children.length || projectModalResolvedPresentation().leftMode === 'none') return false;
-    const template = document.createElement('template');
-    template.innerHTML = projectModalRegionHtml('left').trim();
-    const replacement = template.content.firstElementChild;
-    if (!replacement?.classList.contains('r-left') || !replacement.children.length) return false;
-    root.replaceWith(replacement);
-    bindProjectModalFormControls();
-    return true;
-  }
-
-  function mountProjectModalRegionApps(region){
-    const runtime = window.FirstMateEmbeddableApps;
-    if (!runtime?.mount) return;
-    if (region === 'left' && projectModalResolvedPresentation().leftMode === 'none') {
-      disposeProjectModalRegionApps(region);
-      return;
+  function mountOverviewDetails(){
+    ensureOverviewDetails();
+    const root=document.querySelector('#rOverlay .r-overview-details');
+    if(root && !root.hasAttribute('data-firstmeasure-order-mounted')){
+      window.Portal.modules.firstMeasureOrder?.mount({root,roots:{main:root}});
+      bindProjectStageBarWheel();
     }
-    const apps = projectModalRegionApps(region);
-    const appIds = new Set(apps.map((app) => app.appId));
-    projectModalRegionAppHandles.forEach((handle, key) => {
-      const [handleRegion, appId] = String(key).split(':');
-      if (handleRegion !== region || appIds.has(appId)) return;
-      try { handle?.destroy?.(); } catch (error) { console.warn(`Project modal region app destroy failed for ${key}`, error); }
-      projectModalRegionAppHandles.delete(key);
-    });
-    apps.forEach((app) => {
-      let root = region === 'left'
-        ? document.querySelector('#rOverlay .r-left')
-        : document.querySelector(`#rOverlay [data-region="${cssEscape(region)}"]`);
-      if (!root) return;
-      if (!root.children.length && app.panelHtml) {
-        try {
-          const html = typeof app.panelHtml === 'function'
-            ? app.panelHtml(projectModalRuntimeContext({ region }))
-            : String(app.panelHtml || '');
-          const template = document.createElement('template');
-          template.innerHTML = html.trim();
-          const replacement = template.content.firstElementChild;
-          if (replacement && region === 'left' && replacement.classList?.contains('r-left')) {
-            root.replaceWith(replacement);
-            root = replacement;
-            bindProjectModalFormControls();
-          } else if (html) {
-            root.innerHTML = html;
-          }
-        } catch (error) {
-          console.warn(`Project modal ${region} region recovery failed for ${app.appId}`, error);
-        }
-      }
-      const key = `${region}:${app.appId}`;
-      const context = projectModalRuntimeContext({
-        region,
-        root,
-        panelRoot: root,
-        leftRoot: region === 'left' ? root : $('#rProposalSection'),
-        roots: { main: root, left: region === 'left' ? root : $('#rProposalSection'), overlay: $('#rOverlay') },
-        active: true
-      });
-      const existing = projectModalRegionAppHandles.get(key);
-      if (existing) {
-        try {
-          if (typeof existing.activate === 'function') existing.activate(context);
-          else existing.setActive?.(true, context);
-        } catch (error) {
-          console.warn(`Project modal region app activation failed for ${app.appId}`, error);
-        }
-        return;
-      }
-      // Rendering the order workflow can re-enter this path several times before
-      // an async app mount resolves. Reuse that in-flight mount; otherwise every
-      // render starts another full app instance and the renderer can run out of
-      // memory before the first instance becomes available.
-      if (projectModalRegionAppMounts.has(key)) return;
-      const mountPromise = runtime.mount({ main: root, left: context.leftRoot, overlay: $('#rOverlay') }, app.appId, context)
-        .then((handle) => {
-          projectModalRegionAppHandles.set(key, handle);
-          handle?.setActive?.(true);
-          if (region === 'left') bindProjectStageBarWheel();
-          return handle;
-        })
-        .catch((error) => {
-          projectModalRegionAppHandles.delete(key);
-          console.warn(`Project modal region app mount failed for ${app.appId}`, error);
-          return null;
-        })
-        .finally(() => {
-          if (projectModalRegionAppMounts.get(key) === mountPromise) projectModalRegionAppMounts.delete(key);
-        });
-      projectModalRegionAppMounts.set(key, mountPromise);
-    });
   }
 
   function projectModalApps(options = {}){
@@ -7289,25 +6926,6 @@ window.PlatformCommerce.onReady(async function(){
     const devicePolicy = mobile
       ? { ...(modal.mobile && typeof modal.mobile === 'object' ? modal.mobile : {}) }
       : { ...(modal.desktop && typeof modal.desktop === 'object' ? modal.desktop : {}) };
-    const generalLeft = typeof modal.left === 'object'
-      ? (mobile ? modal.left.mobile : modal.left.desktop) || modal.left.default
-      : modal.left;
-    let leftMode = String(
-      (mobile
-        ? (modal.mobileLeft ?? modal.mobile_left ?? devicePolicy.left)
-        : (modal.desktopLeft ?? modal.desktop_left ?? devicePolicy.left))
-      ?? generalLeft
-      ?? modal.left_column
-      ?? ''
-    ).trim().toLowerCase();
-    if (modal.uses_left_column === false || modal.usesLeftColumn === false) leftMode = 'none';
-    if (['hidden', 'hide', 'off'].includes(leftMode)) leftMode = 'none';
-    if (['standard', 'host'].includes(leftMode)) leftMode = 'default';
-    if (!leftMode) {
-      leftMode = app?.regions?.includes?.('left') || ['proposal', 'scope', 'schedule', 'materials', 'money'].includes(id)
-        ? 'app'
-        : 'default';
-    }
     const mobileTabs = String(modal.mobileTabs ?? modal.mobile_tabs ?? modal.mobile_navigation ?? devicePolicy.tabs ?? modal.tabs ?? '').trim().toLowerCase();
     const infoTray = String(modal.mobileInfo ?? modal.mobile_info ?? modal.mobileInfoTray ?? modal.mobile_info_tray ?? devicePolicy.infoTray ?? '').trim().toLowerCase();
     const fullscreenControl = mobile
@@ -7318,7 +6936,6 @@ window.PlatformCommerce.onReady(async function(){
       app,
       modal,
       mobile,
-      leftMode,
       iconOnly: mobile && ['icons', 'icon', 'icon-only'].includes(mobileTabs),
       infoTrayHidden: mobile && ['none', 'hidden', 'hide', 'off'].includes(infoTray),
       mobileFullscreen,
@@ -7330,39 +6947,25 @@ window.PlatformCommerce.onReady(async function(){
     const policy = projectModalResolvedPresentation();
     const overlay = $('#rOverlay');
     if (!overlay) return policy;
-    overlay.classList.toggle('entitlement-left-none', policy.leftMode === 'none');
     overlay.classList.toggle('entitlement-mobile-fullscreen', policy.mobileFullscreen);
     overlay.classList.toggle('entitlement-tab-icons', policy.iconOnly);
     overlay.classList.toggle('entitlement-hide-fullscreen', !policy.showFullscreenControl);
     overlay.classList.toggle('entitlement-info-none', policy.infoTrayHidden === true);
-    overlay.dataset.projectLeftMode = policy.leftMode;
     overlay.dataset.projectTabMode = policy.iconOnly ? 'icons' : 'labels';
     projectViewer?.setPresentation?.({ iconOnly: policy.iconOnly });
-    syncMobileDefaultInfoTray();
     projectLayout?.refresh();
     return policy;
   }
 
-  function projectModalAppsShouldInlineMap(apps = projectModalApps({ includeInlineMap: true })){
-    const ids = (apps || []).filter((app) => !app?.app?.promoBadge).map((app) => app?.id).filter(Boolean);
-    return ids.length === 2 && ids.includes('map') && ids.includes('measurements');
-  }
-
-  function projectModalAppPanelsHtml(){
-    const context = projectModalRuntimeContext();
-    return projectModalApps().map((app) => {
-      const body = typeof app.panelHtml === 'function'
-        ? app.panelHtml(context)
-        : (typeof app.panelHtml === 'string' ? app.panelHtml : `<div id="${escapeHtml(app.id)}Panel" style="height:100%"></div>`);
-      const activeClass = app.id === activePreviewTab ? ' active' : '';
-      return `<div class="r-preview-panel${activeClass}" data-panel="${escapeHtml(app.id)}">${body}</div>`;
-    }).join('');
-  }
+  function projectModalAppsShouldInlineMap(){ return false; }
 
   function projectModalPanelHtml(app, context = projectModalRuntimeContext()){
-    return typeof app.panelHtml === 'function'
-      ? app.panelHtml(context)
-      : (typeof app.panelHtml === 'string' ? app.panelHtml : `<div id="${escapeHtml(app.id)}Panel" style="height:100%"></div>`);
+    const body=typeof app.panelHtml==='function' ? app.panelHtml(context) : (typeof app.panelHtml==='string' ? app.panelHtml : `<div id="${escapeHtml(app.id)}Panel" style="height:100%"></div>`);
+    const rail=projectTabHasSidebar(app.id) && !app.app?.promoBadge ? `<aside class="r-tab-sidebar r-proposal-section visible"${app.id==='proposal'?' id="rProposalSection"':''}>${app.id==='proposal'?'<div class="r-step-shell"><div class="r-step-inner"><div class="r-step-body"><label id="rProposalLabel">Proposal</label><div class="r-proposal-listing" id="rProposalList"></div></div></div></div>':''}</aside>` : '';
+    return `<div class="r-tab-content">${rail}<div class="r-tab-main">${body}</div></div>`;
+  }
+  function projectModalAppPanelsHtml(){
+    return projectModalApps().map(app=>`<div class="r-preview-panel${app.id===activePreviewTab?' active':''}" data-panel="${escapeHtml(app.id)}">${projectModalPanelHtml(app)}</div>`).join('');
   }
 
   function ensureProjectModalAppPanels(){
@@ -7397,7 +7000,10 @@ window.PlatformCommerce.onReady(async function(){
     projectModalAppHandles.clear();
     const stage = document.querySelector('#rOverlay .r-preview-stage');
     if (!stage) return;
+    const details=document.querySelector('#rOverlay .r-overview-details');
+    if(details)document.getElementById('rOverviewDetailsStore')?.append(details);
     stage.innerHTML = projectModalAppPanelsHtml();
+    ensureOverviewDetails();
   }
 
   function renderProjectModalTabError(tab, phase, error){
@@ -7426,7 +7032,7 @@ window.PlatformCommerce.onReady(async function(){
   function mountProjectModalApp(app, { force = false } = {}){
     const runtime = window.FirstMateEmbeddableApps;
     if (!runtime?.mount || !app?.appId) return Promise.resolve(null);
-    const panelRoot = document.querySelector(`#rOverlay .r-preview-panel[data-panel="${cssEscape(app.id)}"]`);
+    const panelRoot = document.querySelector(`#rOverlay .r-preview-panel[data-panel="${cssEscape(app.id)}"] .r-tab-main`);
     if (!panelRoot) return Promise.resolve(null);
     const existing = projectModalAppHandles.get(app.appId);
     if (existing && !force) return Promise.resolve(existing);
@@ -7434,14 +7040,14 @@ window.PlatformCommerce.onReady(async function(){
     if (pending && !force) return pending;
     const host = projectWorkspaceHost();
     const active = app.id === activePreviewTab;
-    const leftRoot = projectModalResolvedPresentation(app.id).leftMode === 'none' ? null : $('#rProposalSection');
+    const sidebarRoot = panelRoot.parentElement.querySelector(':scope > .r-tab-sidebar');
     const overlayRoot = $('#rOverlay');
-    const mountPromise = runtime.mount({ main: panelRoot, left: leftRoot, overlay: overlayRoot }, app.appId, projectModalRuntimeContext({
+    const mountPromise = runtime.mount({ main: panelRoot, overlay: overlayRoot }, app.appId, projectModalRuntimeContext({
       active,
-      roots: { main: panelRoot, left: leftRoot, overlay: overlayRoot },
+      roots: { main: panelRoot, overlay: overlayRoot },
       panelRoot,
       previewRoot: panelRoot,
-      leftRoot,
+      sidebarRoot,
       overlayRoot,
       host,
       projectWorkspace: host,
@@ -7469,16 +7075,16 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function projectModalAppRuntimeContext(app, active){
-    const panelRoot = document.querySelector(`#rOverlay .r-preview-panel[data-panel="${cssEscape(app?.id || '')}"]`);
-    const leftRoot = projectModalResolvedPresentation(app?.id).leftMode === 'none' ? null : $('#rProposalSection');
+    const panelRoot = document.querySelector(`#rOverlay .r-preview-panel[data-panel="${cssEscape(app?.id || '')}"] .r-tab-main`);
+    const sidebarRoot = panelRoot?.parentElement.querySelector(':scope > .r-tab-sidebar') || null;
     const overlayRoot = $('#rOverlay');
     const host = projectWorkspaceHost();
     return projectModalRuntimeContext({
       active,
-      roots: { main: panelRoot, left: leftRoot, overlay: overlayRoot },
+      roots: { main: panelRoot, overlay: overlayRoot },
       panelRoot,
       previewRoot: panelRoot,
-      leftRoot,
+      sidebarRoot,
       overlayRoot,
       host,
       projectWorkspace: host,
@@ -8312,7 +7918,7 @@ window.PlatformCommerce.onReady(async function(){
     const notesRoot = history.closest('.r-bottom-notes');
     notesRoot?.classList.toggle('expanded', expanded);
     notesRoot?.classList.toggle('closing', projectNoteHistoryClosing);
-    notesRoot?.closest('.r-left')?.classList.toggle('notes-history-expanded', expanded);
+    notesRoot?.closest('.r-overview-details')?.classList.toggle('notes-history-expanded', expanded);
     const search = ($('#rProjectNoteSearch')?.value || '').trim().toLowerCase();
     const oldest = $('#rProjectNoteSort')?.value === 'oldest';
     const notes = (activeBaseProject ? (search ? api.visible(activeBaseProject) : (api.timeline?.(activeBaseProject) || api.visible(activeBaseProject))) : []).filter((note) => !search || `${note.text} ${note.created_by?.name || ''} ${note.created_by?.email || ''} ${(api.typeTags(note) || []).map((tag) => tag.label).join(' ')}`.toLowerCase().includes(search)).sort((a,b) => (oldest ? 1 : -1) * String(a.created_at).localeCompare(String(b.created_at)));
@@ -8481,13 +8087,13 @@ window.PlatformCommerce.onReady(async function(){
     const agentRailSection = $('#rProposalAgentRailSection');
     if (!notes || !inlineMount || !bottomMount) return;
     const proposalTabActive = proposalsEnabled() && proposalWorkspaceOpen && activePreviewTab === 'proposal';
-    const mobileInline = proposalTabActive && !projectLeftColumnOverridden() && window.matchMedia?.('(max-width: 720px)')?.matches;
+    const mobileInline = proposalTabActive && !projectTabHasSidebar() && window.matchMedia?.('(max-width: 720px)')?.matches;
     const proposalEditMode = proposalTabActive && proposalWorkspaceMode === 'edit';
     const mobileOrderDetails = shouldUseMobileOrderPagination() && mobileOrderPage === 'details';
     const mobileNotesMount = mobileProjectNotesOpen && mobileProjectNotesEnabled() ? $('#rMobileProjectNotesBody') : null;
     const target = mobileNotesMount || (mobileOrderDetails ? (mobileDetailMount || bottomMount) : mobileInline ? (mobileDetailMount || inlineMount) : bottomMount);
     if (notes.parentElement !== target) target.appendChild(notes);
-    notes.closest('.r-left')?.classList.add('notes-panel-ready');
+    notes.closest('.r-overview-details')?.classList.add('notes-panel-ready');
     if (agent) {
       const agentTarget = proposalEditMode && agentRailMount ? agentRailMount : bottomMount;
       if (agent.parentElement !== agentTarget) agentTarget.prepend(agent);
@@ -8508,19 +8114,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function updateModalTitle(){
-    const titleWrap = document.querySelector('#rOverlay .r-title-wrap');
-    const sub = document.querySelector('#rOverlay .r-sub');
     const mobileTitle = document.getElementById('rMobileProjectTitleText');
-    if (!titleWrap || !sub) {
-      const title=projectTitleAlias(activeBaseProject || {}) || activeBaseProject?.address || 'Project';
-      const label=document.getElementById('rWindowProjectTitle'); if(label)label.textContent=title;
-      projectWindowBridge?.update(projectWindowToken,{title,projectId:projectOpenId()});
-      return;
-    }
-    titleWrap.parentElement.classList.add('r-title-line');
-    if (!titleWrap.parentElement.querySelector('.r-project-folder')) {
-      const icon=document.createElement('i');icon.className='fas fa-folder-open r-project-folder';icon.setAttribute('aria-hidden','true');titleWrap.before(icon);
-    }
     const mode = branchProjectConfig?.title_mode || 'customer_name';
     const address = projectText($('#rAddress')?.value, reportOrderState?.address, activeBaseProject?.address);
     const primary = primaryContact();
@@ -8552,33 +8146,6 @@ window.PlatformCommerce.onReady(async function(){
     const windowTitle = document.getElementById('rWindowProjectTitle');
     if (windowTitle) windowTitle.textContent = mobileDisplayTitle;
     projectWindowBridge?.update(projectWindowToken,{title:mobileDisplayTitle,projectId:projectOpenId()});
-    titleWrap.classList.toggle('manual-title', mode === 'manual' && !hasReportOrdered());
-    if (hasReportOrdered()) {
-      const orderedTitle = mode === 'manual'
-        ? (savedTitle || computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project')
-        : (computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project');
-      titleWrap.innerHTML = `<div class="r-title">${escapeHtml(orderedTitle)}</div>`;
-      sub.textContent = '';
-      renderProjectStageBar();
-      return;
-    }
-    if (mode === 'manual') {
-      const current = projectText(document.getElementById('rProjectTitleInput')?.value, savedTitle);
-      const placeholder = savedTitle ? (window.PlatformLanguage?.text('project-request','terminology_project_title','Project title') || 'Project title') : (computed || (window.PlatformLanguage?.text('project-request','terminology_new_project','New Project') || 'New Project'));
-      titleWrap.innerHTML = `<input id="rProjectTitleInput" class="r-title-input" value="${escapeHtml(current)}" placeholder="${escapeHtml(placeholder)}">`;
-      const input = document.getElementById('rProjectTitleInput');
-      input?.addEventListener('input', () => {
-        if (activeBaseProject) {
-          activeBaseProject.title = input.value.trim();
-          activeBaseProject.project_title = activeBaseProject.title;
-        }
-        queueAutosaveNotice();
-        persistActiveBaseProject();
-      });
-    } else {
-      titleWrap.innerHTML = `<div class="r-title">${escapeHtml(computed)}</div>`;
-    }
-    sub.textContent = '';
     renderProjectStageBar();
   }
 
@@ -8959,7 +8526,7 @@ window.PlatformCommerce.onReady(async function(){
       picker.style.opacity = '0';
       setTimeout(() => picker.remove(), 300);
     };
-    const left = document.querySelector('#rOverlay .r-left');
+    const left = document.querySelector('#rOverlay .r-overview-details');
     const winRect = picker.parentElement?.getBoundingClientRect?.();
     const leftRect = left?.getBoundingClientRect?.();
     if (picker.dataset.docPickerMode !== 'full' || !winRect || !leftRect?.width) {
@@ -9000,7 +8567,7 @@ window.PlatformCommerce.onReady(async function(){
     const mode = docPickerChoiceMade ? 'left' : 'full';
     const container = mode === 'full'
       ? document.querySelector('#rOverlay .r-win')
-      : document.querySelector('#rOverlay .r-left');
+      : document.querySelector('#rOverlay .r-overview-details');
     if (!container) return;
     if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
     const typeLabel = requestedDocumentType
@@ -9270,9 +8837,8 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function renderWorkflowState(options = {}){
-    // The field/Crew project shell intentionally has no FirstMeasure left-region
-    // workflow. Keep shell presentation current without running renderers that
-    // target controls supplied exclusively by that optional region app.
+    // Keep shell presentation current when Overview details have not loaded.
+    // Form renderers require the Overview-owned controls.
     if (!$('#rForm')) {
       applyProjectModalPresentation();
       return;
@@ -9389,8 +8955,8 @@ window.PlatformCommerce.onReady(async function(){
       tip.classList.toggle('is-hidden', !hasSelectedAddons());
     });
 
-    syncLeftColumnOverride();
-    restoreDefaultLeftColumnState();
+    syncProjectTabContent();
+    refreshOverviewDetails();
     renderTypeSelection();
     renderRoofChoice();
     renderProjectTodoDock();
@@ -9522,26 +9088,6 @@ window.PlatformCommerce.onReady(async function(){
       mobileClose.__fmCloseBound = true;
       mobileClose.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); close(); });
     }
-    const leftTrayToggle = $('#rMobileLeftTrayToggle');
-    if (leftTrayToggle && !leftTrayToggle.__fmLeftTrayBound) {
-      leftTrayToggle.__fmLeftTrayBound = true;
-      leftTrayToggle.addEventListener('click', () => setMobileLeftTrayOpen(!mobileLeftTrayOpen));
-    }
-    const leftTrayScrim = $('#rMobileLeftTrayScrim');
-    if (leftTrayScrim && !leftTrayScrim.__fmLeftTrayBound) {
-      leftTrayScrim.__fmLeftTrayBound = true;
-      leftTrayScrim.addEventListener('click', () => setMobileLeftTrayOpen(false));
-    }
-    const defaultInfoToggle = $('#rMobileProjectInfoToggle');
-    if (defaultInfoToggle && !defaultInfoToggle.__fmDefaultInfoBound) {
-      defaultInfoToggle.__fmDefaultInfoBound = true;
-      defaultInfoToggle.addEventListener('click', () => setMobileDefaultInfoTrayOpen(!mobileDefaultInfoTrayOpen));
-    }
-    const defaultInfoScrim = $('#rMobileDefaultInfoTrayScrim');
-    if (defaultInfoScrim && !defaultInfoScrim.__fmDefaultInfoBound) {
-      defaultInfoScrim.__fmDefaultInfoBound = true;
-      defaultInfoScrim.addEventListener('click', () => setMobileDefaultInfoTrayOpen(false));
-    }
     const mobileNotesLauncher = $('#rMobileProjectNotesLauncher');
     if (mobileNotesLauncher && !mobileNotesLauncher.__fmMobileNotesBound) {
       mobileNotesLauncher.__fmMobileNotesBound = true;
@@ -9579,7 +9125,7 @@ window.PlatformCommerce.onReady(async function(){
     el.innerHTML = `
       <div class="r-win">
         <div class="r-contact-contextbar" id="rContactContextBar"></div>
-        ${String(projectModalRegionHtml('left'))}
+        <div id="rOverviewDetailsStore" hidden>${String(overviewDetailsHtml())}</div>
 
         <div class="r-right" id="rMapWrap">
           <div class="r-modal-header r-window-bar">
@@ -9593,10 +9139,9 @@ window.PlatformCommerce.onReady(async function(){
             <div class="r-window-bar-actions"></div>
           </div>
           <div class="r-mobile-project-title" data-project-identity-owner="modal-chrome">
-            <button type="button" class="r-mobile-left-tray-toggle" id="rMobileLeftTrayToggle" aria-expanded="false"><i class="fas fa-chevron-right" id="rMobileLeftTrayChevron" aria-hidden="true"></i><span id="rMobileLeftTrayTitle"></span></button>
             <span class="r-mobile-project-tab-title"><i class="fas" id="rMobileProjectTabIcon" aria-hidden="true" hidden></i><span id="rMobileProjectTabTitle"></span></span>
             <button type="button" class="r-mobile-project-header-action" id="rMobileProjectHeaderAction" hidden></button>
-            <button type="button" class="r-mobile-project-info-toggle" id="rMobileProjectInfoToggle" aria-expanded="false"><span class="r-mobile-project-title-text" id="rMobileProjectTitleText"></span><i class="fas fa-chevron-left" id="rMobileProjectInfoChevron" aria-hidden="true"></i></button>
+            <span id="rMobileProjectTitleText"></span>
           </div>
           <div class="r-project-shell-status" id="rProjectShellStatus" role="status" aria-live="polite"><div class="r-project-shell-status-card"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_4de8a87782a9e4","Loading project…") ?? "Loading project…")}</span></div></div>
           <div class="r-preview"><div class="r-preview-stage">
@@ -9606,8 +9151,6 @@ window.PlatformCommerce.onReady(async function(){
           ${String(proposalMarkupDockHtml())}
           <div class="r-addon-info-popout" id="rAddonInfoPopout"></div>
         </div>
-        <button type="button" class="r-mobile-left-tray-scrim" id="rMobileLeftTrayScrim" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_b9a40030066f65","Close project panel") ?? "Close project panel")}"></button>
-        <button type="button" class="r-mobile-default-info-tray-scrim" id="rMobileDefaultInfoTrayScrim" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_ba681b9f330860","Close project details") ?? "Close project details")}"></button>
         <button type="button" class="r-mobile-project-notes-launcher" id="rMobileProjectNotesLauncher" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_e200ae071e12c3","Open project notes") ?? "Open project notes")}" hidden><i class="fas fa-comment-dots"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_d1e91b9e7610fa","Project Notes") ?? "Project Notes")}</span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
         <button type="button" class="r-mobile-project-notes-scrim" id="rMobileProjectNotesScrim" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_10cef3d4a0821f","Close project notes") ?? "Close project notes")}"></button>
         <section class="r-mobile-project-notes-workspace" id="rMobileProjectNotesWorkspace" role="dialog" aria-modal="true" aria-labelledby="rMobileProjectNotesTitle">
@@ -9637,7 +9180,7 @@ window.PlatformCommerce.onReady(async function(){
     syncContactsFeatureState();
     bindProjectModalCloseControls();
     bindProjectStageBarWheel();
-    if (!projectShellLoading) mountProjectModalRegionApps('left');
+    if (!projectShellLoading) mountOverviewDetails();
     projectViewer = new window.Portal.ProjectViewer({
       root: el,
       tabsEl: $('#rProjectViewerTabs'),
@@ -9658,7 +9201,7 @@ window.PlatformCommerce.onReady(async function(){
     });
     if (!projectShellLoading) mountProjectModalApps();
     syncProjectViewerTabs();
-    if (!projectShellLoading) mountProjectModalRegionApps('left');
+    if (!projectShellLoading) mountOverviewDetails();
     bindProjectModalCloseControls();
 
     bindProjectModalFormControls();
@@ -9958,9 +9501,8 @@ window.PlatformCommerce.onReady(async function(){
     }, { signal: projectFormListeners.signal });
     window.addEventListener('resize', syncMobileOrderPagination, { signal: projectFormListeners.signal });
 
-    // The configurable left-region app can replace its inner markup while the
-    // modal stays open. Delegate from the stable overlay so the newly rendered
-    // property-type buttons never lose their click handler.
+    // Overview can rebuild its form after capabilities arrive. Delegate from
+    // the stable overlay so property-type buttons retain their click handler.
     el.addEventListener('click', (e) => {
       const btn = e.target.closest('.r-type-btn');
       if (!btn || !btn.closest('#rTypeGroup')) return;
@@ -10962,7 +10504,7 @@ window.PlatformCommerce.onReady(async function(){
     if (isUnfinishedReportDraft(project)) requestedWorkflow = 'report';
     // Capabilities may have become ready after the routed shell was painted.
     // Create its controls before hydrating values into them.
-    ensureProjectModalLeftRegion();
+    ensureOverviewDetails();
     hydrateFromBaseProject(project, { preferredTab:desiredTab });
     viewingExistingProject = true;
     setProjectShellLoading(false);
@@ -10978,7 +10520,7 @@ window.PlatformCommerce.onReady(async function(){
     renderContactContextBar();
     syncProjectViewerTabs();
     renderWorkflowState({ preserveRouteTab:options.fromRoute === true });
-    mountProjectModalRegionApps('left');
+    mountOverviewDetails();
     mountProjectModalApps();
     syncProjectModalAppActivation();
     const routePatch = options.routePatch && typeof options.routePatch === 'object' ? options.routePatch : {};
@@ -11028,7 +10570,7 @@ window.PlatformCommerce.onReady(async function(){
     newProjectCreationSession = !baseProject || continuingCreationSession || unfinishedReportDraft;
     activeContactContext = baseProject ? normalizeContactContext(options.contactContext, baseProject) : null;
     modalInitialProjectIds = new Set((window.Portal.ProjectStore?.cachedIds?.() || []).map(String));
-    ensureProjectModalLeftRegion();
+    ensureOverviewDetails();
     if (baseProject) hydrateFromBaseProject(baseProject, { deferRemoteContent: projectShellLoading, preferredTab:options.tab });
     else preloadFirstReportCheckoutEligibility();
     if (options.fromReorder) applyReorderPrefillState(baseProject || {});
@@ -11054,12 +10596,9 @@ window.PlatformCommerce.onReady(async function(){
     syncProjectViewerTabs();
     renderWorkflowState({ preserveRouteTab:options.fromRoute === true });
     syncContactsFeatureState();
-    syncMobileProjectInfoNavigation();
-    syncMobileLeftTray();
-    syncMobileDefaultInfoTray();
     applyProjectModalPresentation();
     if (!projectShellLoading) {
-      mountProjectModalRegionApps('left');
+      mountOverviewDetails();
       syncProjectModalAppActivation();
     }
     renderProjectCustomFields();
@@ -11143,8 +10682,6 @@ window.PlatformCommerce.onReady(async function(){
     projectTodoLoadedFor = '';
     const discarded = discardEmptyNewProjectDraft();
     disposeInstantMeasurement();
-    mobileLeftTrayOpen = false;
-    mobileDefaultInfoTrayOpen = false;
     setMobileProjectNotesOpen(false, { fromRoute:true });
     const ov = $('#rOverlay');
     if (ov) {
@@ -11498,10 +11035,10 @@ window.PlatformCommerce.onReady(async function(){
 
   function refreshProjectModalForAppFlags(){
     if (!document.querySelector('#rOverlay')) return;
-    const restoredLeftRegion = ensureProjectModalLeftRegion();
+    const restoredOverviewDetails = ensureOverviewDetails();
     // Only hydrate newly created controls. Repeated settings updates must not
     // overwrite edits in an already populated project form.
-    if (restoredLeftRegion && activeBaseProject) {
+    if (restoredOverviewDetails && activeBaseProject) {
       hydrateFromBaseProject(activeBaseProject, { deferRemoteContent:true });
     }
     syncContactsFeatureState();
@@ -11528,7 +11065,7 @@ window.PlatformCommerce.onReady(async function(){
     window.Portal?.modules?.projectMap?.renderOverview?.();
     syncProjectViewerTabs();
     applyProjectModalPresentation();
-    mountProjectModalRegionApps('left');
+    mountOverviewDetails();
     mountProjectModalApps();
     syncProjectModalAppActivation();
   }

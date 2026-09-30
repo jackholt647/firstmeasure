@@ -10,7 +10,7 @@ function functionSource(name) {
   return source.slice(start, source.indexOf('\n  }', start) + 4);
 }
 
-function harness({ loading = false, enabled = true, leftMode = 'workflow' } = {}) {
+function harness({ loading = false, enabled = true } = {}) {
   let root = { children: [], replaceWith(next) { root = next; } };
   let value;
   let hydrations = 0;
@@ -20,19 +20,14 @@ function harness({ loading = false, enabled = true, leftMode = 'workflow' } = {}
   const noop = () => {};
   const context = {
     document: {
-      querySelector: () => ({}),
-      createElement: () => ({
-        set innerHTML(html) {
-          this.content = { firstElementChild: {
-            classList: { contains: name => name === 'r-left' },
-            children: html === 'enabled' ? [{}] : [],
-          } };
-        },
+      querySelector: selector => selector.includes('[data-panel') ? {prepend(){}} : root,
+      getElementById: () => ({
+        set innerHTML(html){ root={children:html==='enabled'?[{}]:[]}; },
+        get firstElementChild(){return root;}
       }),
     },
     $: () => root,
-    projectModalResolvedPresentation: () => ({ leftMode }),
-    projectModalRegionHtml: () => enabled ? 'enabled' : 'disabled',
+    overviewDetailsHtml: () => enabled ? 'enabled' : 'disabled',
     activeBaseProject: { id: 'project-1', address: '418 Juniper Lane' },
     projectShellLoading: loading,
     activePreviewTab: 'docs',
@@ -56,9 +51,9 @@ function harness({ loading = false, enabled = true, leftMode = 'workflow' } = {}
   };
   for (const name of ['syncContactsFeatureState', 'ensureProjectModalAppPanels', 'syncProjectViewerTabs',
     'applyProjectModalPresentation', 'renderProjectStageBar', 'renderWorkflowState',
-    'mountProjectModalRegionApps', 'mountProjectModalApps', 'syncProjectModalAppActivation']) context[name] = noop;
+    'mountOverviewDetails', 'mountProjectModalApps', 'syncProjectModalAppActivation']) context[name] = noop;
   vm.createContext(context);
-  vm.runInContext(functionSource('ensureProjectModalLeftRegion') + functionSource('refreshProjectModalForAppFlags'), context);
+  vm.runInContext(functionSource('ensureOverviewDetails') + functionSource('refreshProjectModalForAppFlags'), context);
   const subscription = source.match(/  window.addEventListener\('fm:capabilities:updated',[^\n]+/);
   assert.ok(subscription, 'Project modal must respond to capability completion');
   vm.runInContext(subscription[0], context);
@@ -96,13 +91,8 @@ test('capabilities arriving while the project is loading prepare controls withou
   assert.equal(h.selectedTab, 'checklists');
 });
 
-test('disabled region apps and field shells stay excluded', () => {
-  for (const options of [{ enabled: false }, { leftMode: 'none' }]) {
-    const h = harness(options);
-    h.update();
-    assert.equal(h.populated, false);
-    assert.equal(h.hydrations, 0);
-  }
+test('an unavailable Overview component does not hydrate missing controls', () => {
+  const h=harness({enabled:false});h.update();assert.equal(h.populated,false);assert.equal(h.hydrations,0);
 });
 
 test('a late Docs mount cannot reactivate after the requested tab has recovered', async () => {
@@ -110,13 +100,12 @@ test('a late Docs mount cannot reactivate after the requested tab has recovered'
   let active;
   const context = {
     window: { FirstMateEmbeddableApps: { mount: () => new Promise(resolve => { finishMount = resolve; }) } },
-    document: { querySelector: () => ({}) },
+    document: { querySelector: () => ({parentElement:{querySelector:()=>null}}) },
     $: () => ({}),
     cssEscape: value => value,
     projectModalAppHandles: new Map(),
     projectModalAppMounts: new Map(),
     projectWorkspaceHost: () => ({}),
-    projectModalResolvedPresentation: () => ({ leftMode: 'workflow' }),
     projectModalRuntimeContext: value => value,
     activePreviewTab: 'docs',
     console,

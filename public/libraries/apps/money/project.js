@@ -26,7 +26,7 @@
     context: null,
     host: null,
     panelRoot: null,
-    leftRoot: null,
+    sidebarRoot: null,
     project: null,
     active: false,
     loading: false,
@@ -212,10 +212,10 @@
   function css(){
     return `
       .mn-app{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f8fb;color:#101828;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;position:relative}
-      .r-overlay.money-workspace #rProposalSection.visible{min-height:0}
-      .r-overlay.money-workspace #rProposalList{min-height:0;gap:0;flex:1 1 auto;height:100%;overflow:hidden}
-      .r-overlay.money-workspace #rProposalSection .r-step-shell,.r-overlay.money-workspace #rProposalSection .r-step-inner,.r-overlay.money-workspace #rProposalSection .r-step-body{min-height:0;height:100%}
-      .r-overlay.money-workspace #rProposalSection .r-step-body{display:flex;flex-direction:column;flex:1 1 auto}
+      .r-overlay.money-workspace #mnSidebarSection.visible{min-height:0}
+      .r-overlay.money-workspace #mnSidebarList{min-height:0;gap:0;flex:1 1 auto;height:100%;overflow:hidden}
+      .r-overlay.money-workspace #mnSidebarSection .r-step-shell,.r-overlay.money-workspace #mnSidebarSection .r-step-inner,.r-overlay.money-workspace #mnSidebarSection .r-step-body{min-height:0;height:100%}
+      .r-overlay.money-workspace #mnSidebarSection .r-step-body{display:flex;flex-direction:column;flex:1 1 auto}
       .mn-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(15,23,42,.08);background:#fff}
       .mn-title{display:flex;align-items:center;gap:10px;min-width:0}.mn-title i{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:rgba(6,118,71,.10);color:#067647}.mn-title strong{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mn-title span{display:block;font-size:11px;font-weight:800;color:#667085;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .mn-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
@@ -361,7 +361,7 @@
   }
 
   function renderLeft(){
-    if (!state.leftRoot) return;
+    if (!state.sidebarRoot) return;
     const target = leftContentRoot();
     if (!target) return;
     target.querySelector?.('.mt-left')?.remove();
@@ -417,22 +417,22 @@
   }
 
   function leftContentRoot(){
-    if (!state.leftRoot) return null;
-    state.leftRoot.classList.add('visible', 'mode-edit');
-    const label = state.leftRoot.querySelector('#rProposalLabel');
+    if (!state.sidebarRoot) return null;
+    state.sidebarRoot.classList.add('visible', 'mode-edit');
+    const label = state.sidebarRoot.querySelector('#mnSidebarLabel');
     if (label) {
       label.textContent = (globalThis.PlatformLanguage?.text("money","m_05cb9dd7e5a780","Money") ?? "Money");
       label.hidden = true;
     }
-    let list = state.leftRoot.querySelector('#rProposalList');
+    let list = state.sidebarRoot.querySelector('#mnSidebarList');
     if (!list) {
-      state.leftRoot.innerHTML = `
+      state.sidebarRoot.innerHTML = `
         <div class="r-step-shell" style="grid-template-rows:1fr"><div class="r-step-inner"><div class="r-step-body">
-          <label id="rProposalLabel" hidden>${(globalThis.PlatformLanguage?.htmlText("money","m_05cb9dd7e5a780","Money") ?? "Money")}</label>
-          <div class="r-proposal-listing" id="rProposalList"></div>
+          <label id="mnSidebarLabel" hidden>${(globalThis.PlatformLanguage?.htmlText("money","m_05cb9dd7e5a780","Money") ?? "Money")}</label>
+          <div class="r-proposal-listing" id="mnSidebarList"></div>
         </div></div></div>
       `;
-      list = state.leftRoot.querySelector('#rProposalList');
+      list = state.sidebarRoot.querySelector('#mnSidebarList');
     }
     return list;
   }
@@ -1605,30 +1605,30 @@
   }
 
   function bindLeft(){
-    state.leftRoot?.querySelectorAll?.('[data-money-schedule]').forEach((button) => {
+    state.sidebarRoot?.querySelectorAll?.('[data-money-schedule]').forEach((button) => {
       button.addEventListener('click', () => {
         state.activeScheduleId = button.dataset.moneySchedule || 'all';
         renderLeft();
       });
     });
-    state.leftRoot?.querySelector?.('[data-money-take-payment]')?.addEventListener('click', () => {
+    state.sidebarRoot?.querySelector?.('[data-money-take-payment]')?.addEventListener('click', () => {
       if (!canManageMoney() || moneyMutationBusy()) return;
       setMoneyView('take_payment');
     });
-    const leftRoot = state.leftRoot;
-    leftRoot?.querySelector?.('[data-money-autopay-open]')?.addEventListener('click', () => {
+    const sidebarRoot = state.sidebarRoot;
+    sidebarRoot?.querySelector?.('[data-money-autopay-open]')?.addEventListener('click', () => {
       state.autopayEnrollOpen = true;
       state.autopayError = '';
       renderLeft();
     });
-    leftRoot?.querySelector?.('[data-money-autopay-cancel]')?.addEventListener('click', () => {
+    sidebarRoot?.querySelector?.('[data-money-autopay-cancel]')?.addEventListener('click', () => {
       state.autopayEnrollOpen = false;
       state.autopayError = '';
       renderLeft();
     });
-    leftRoot?.querySelector?.('[data-money-autopay-enroll]')?.addEventListener('click', () => {
-      const methodId = cleanText(leftRoot.querySelector('[data-money-autopay-method]')?.value);
-      const maxRaw = cleanText(leftRoot.querySelector('[data-money-autopay-max]')?.value);
+    sidebarRoot?.querySelector?.('[data-money-autopay-enroll]')?.addEventListener('click', () => {
+      const methodId = cleanText(sidebarRoot.querySelector('[data-money-autopay-method]')?.value);
+      const maxRaw = cleanText(sidebarRoot.querySelector('[data-money-autopay-max]')?.value);
       const maxCents = maxRaw ? centsFromDollars(maxRaw) : 0;
       if (!methodId) return;
       void autopayMutate(() => {
@@ -1641,13 +1641,13 @@
         });
       });
     });
-    leftRoot?.querySelector?.('[data-money-autopay-pause]')?.addEventListener('click', () => {
+    sidebarRoot?.querySelector?.('[data-money-autopay-pause]')?.addEventListener('click', () => {
       void autopayMutate(() => rootWindow.PaymentsAPI.autopay.update(orgId(), projectId(), { status: 'paused' }));
     });
-    leftRoot?.querySelector?.('[data-money-autopay-resume]')?.addEventListener('click', () => {
+    sidebarRoot?.querySelector?.('[data-money-autopay-resume]')?.addEventListener('click', () => {
       void autopayMutate(() => rootWindow.PaymentsAPI.autopay.update(orgId(), projectId(), { status: 'active' }));
     });
-    leftRoot?.querySelector?.('[data-money-autopay-remove]')?.addEventListener('click', () => {
+    sidebarRoot?.querySelector?.('[data-money-autopay-remove]')?.addEventListener('click', () => {
       void autopayMutate(async () => {
         await rootWindow.PaymentsAPI.autopay.remove(orgId(), projectId());
         return { autopay: null };
@@ -2461,25 +2461,8 @@
   }
 
   function setWorkspaceChrome(active){
-    const overlay = state.context?.overlayRoot || state.context?.roots?.overlay || document.getElementById('rOverlay');
-    if (!overlay) return;
-    const activeTab = state.host?.getActivePreviewTab?.() || state.context?.activeTab || '';
-    const setLeftOverride = typeof state.host?.setLeftColumnOverride === 'function' ? state.host.setLeftColumnOverride : null;
-    if (active) {
-      overlay.classList.add('money-workspace');
-      if (setLeftOverride) setLeftOverride(true, 'money');
-      else {
-        overlay.classList.add('left-override');
-        overlay.dataset.leftOverrideTab = 'money';
-      }
-      return;
-    }
-    overlay.classList.remove('money-workspace');
-    if (setLeftOverride && activeTab !== 'money') setLeftOverride(false, 'money');
-    else if (!setLeftOverride && activeTab !== 'money') {
-      overlay.classList.remove('left-override');
-      delete overlay.dataset.leftOverrideTab;
-    }
+    const overlay=state.context?.overlayRoot || state.context?.roots?.overlay || document.getElementById('rOverlay');
+    overlay?.classList.toggle('money-workspace',active);
   }
 
   function renderAll(){
@@ -2498,7 +2481,7 @@
     state.host = context.host || context.projectWorkspace || state.host;
     state.project = nextProject;
     state.panelRoot = context.panelRoot || context.roots?.main || context.root || state.panelRoot;
-    state.leftRoot = context.leftRoot || context.roots?.left || state.leftRoot;
+    state.sidebarRoot = context.sidebarRoot || context.roots?.sidebar || state.sidebarRoot;
     state.active = context.active !== false;
     const routedView = rootWindow.Portal?.navigation?.read?.().moneyView;
     state.activeView = normalizeMoneyView(routedView || state.activeView);
@@ -2518,10 +2501,10 @@
       state.commissionHandle = null;
       state.receiptBrowserHandle?.destroy?.();
       state.receiptBrowserHandle = null;
-      state.leftRoot?.querySelector?.('#rProposalList .mn-left')?.remove();
+      state.sidebarRoot?.querySelector?.('#mnSidebarList .mn-left')?.remove();
       const activeTab = state.host?.getActivePreviewTab?.() || state.context?.activeTab || '';
       if (!['proposal', 'materials', 'schedule', 'money'].includes(activeTab)) {
-        state.leftRoot?.classList?.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
+        state.sidebarRoot?.classList?.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
       }
     }
   }
@@ -2563,7 +2546,7 @@
 
   function unmount(){
     setWorkspaceChrome(false);
-    state.leftRoot?.querySelector?.('#rProposalList .mn-left')?.remove();
+    state.sidebarRoot?.querySelector?.('#mnSidebarList .mn-left')?.remove();
     state.active = false;
     reset();
   }
@@ -2631,7 +2614,7 @@
     order: 60,
     visible: true,
     surfaces: ['project_modal'],
-    regions: ['main', 'left'],
+    regions: ['main'],
     requiresContext: ['project'],
     enabled: moneyEnabled,
     panelHtml,

@@ -74,7 +74,7 @@
     host: null,
     model: null,
     panelRoot: null,
-    leftRoot: null,
+    sidebarRoot: null,
     context: null
   };
 
@@ -2484,50 +2484,32 @@
   }
 
   function leftContentRoot(){
-    if (!state.leftRoot) return null;
-    let list = state.leftRoot.querySelector('#rProposalList');
+    if (!state.sidebarRoot) return null;
+    let list = state.sidebarRoot.querySelector('#psSidebarList');
     if (!list) {
-      state.leftRoot.innerHTML = `
+      state.sidebarRoot.innerHTML = `
         <div class="r-step-shell" style="grid-template-rows:1fr"><div class="r-step-inner"><div class="r-step-body">
-          <label id="rProposalLabel">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</label>
-          <div class="r-proposal-listing" id="rProposalList"></div>
+          <label id="psSidebarLabel">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</label>
+          <div class="r-proposal-listing" id="psSidebarList"></div>
         </div></div></div>
       `;
-      list = state.leftRoot.querySelector('#rProposalList');
+      list = state.sidebarRoot.querySelector('#psSidebarList');
     }
     return list;
   }
 
   function setScheduleWorkspaceChrome(active){
-    const overlay = state.context?.overlayRoot || state.context?.roots?.overlay || $('#rOverlay');
-    if (!overlay) return;
-    const hasHostOverride = typeof state.host?.setLeftColumnOverride === 'function';
-    if (active) {
-      overlay.classList.add('schedule-workspace');
-      if (hasHostOverride) callHost('setLeftColumnOverride', true, 'schedule');
-      else {
-        overlay.classList.add('left-override');
-        overlay.dataset.leftOverrideTab = 'schedule';
-      }
-      if (state.context?.activeTab !== 'proposal' && !state.context?.proposalWorkspaceOpen) overlay.classList.remove('proposal-workspace');
-    } else {
-      overlay.classList.remove('schedule-workspace');
-      if (hasHostOverride) callHost('setLeftColumnOverride', false, 'schedule');
-      else if (overlay.dataset.leftOverrideTab === 'schedule') {
-        overlay.classList.remove('left-override');
-        delete overlay.dataset.leftOverrideTab;
-      }
-      if (state.context?.activeTab !== 'proposal' && !state.context?.proposalWorkspaceOpen) overlay.classList.remove('proposal-workspace');
-    }
+    const overlay=state.context?.overlayRoot || state.context?.roots?.overlay || document.getElementById('rOverlay');
+    overlay?.classList.toggle('schedule-workspace',active);
   }
 
   function clearScheduleLeft(){
-    const list = state.leftRoot?.querySelector?.('#rProposalList');
+    const list = state.sidebarRoot?.querySelector?.('#psSidebarList');
     list?.querySelector?.('.r-schedule-left-shell')?.remove();
     const tab = String(state.host?.getActivePreviewTab?.() || state.context?.activeTab || '');
     const keepSharedRail = tab === 'proposal' || tab === 'materials' || tab === 'money';
     if (!keepSharedRail && list && !list.innerHTML.trim()) {
-      state.leftRoot.classList.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
+      state.sidebarRoot.classList.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
     }
   }
 
@@ -2868,14 +2850,14 @@
     });
   }
   function renderScheduleLeft(){
-    if (!state.leftRoot || !state.active) return;
+    if (!state.sidebarRoot || !state.active) return;
     const target = leftContentRoot();
     if (!target) return;
     target.querySelector?.('.mt-left')?.remove();
     target.querySelector?.('.mn-left')?.remove();
-    state.leftRoot.classList.add('visible', 'mode-edit');
-    state.leftRoot.classList.remove('mode-list', 'mode-send');
-    const label = state.leftRoot.querySelector('#rProposalLabel');
+    state.sidebarRoot.classList.add('visible', 'mode-edit');
+    state.sidebarRoot.classList.remove('mode-list', 'mode-send');
+    const label = state.sidebarRoot.querySelector('#psSidebarLabel');
     if (label) {
       label.textContent = (globalThis.PlatformLanguage?.text("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule");
       label.hidden = true;
@@ -4323,7 +4305,7 @@
     state.host = hostFor(context);
     state.model = modelFromContext(context);
     state.panelRoot = resolveRoot(context);
-    state.leftRoot = context.leftRoot || context.roots?.left || state.leftRoot;
+    state.sidebarRoot = context.sidebarRoot || context.roots?.sidebar || state.sidebarRoot;
     state.mounted = !!state.panelRoot;
     state.active = contextScheduleActive(context);
     const route = window.Portal?.navigation?.read?.() || {};
@@ -4357,7 +4339,7 @@
     if (context && Object.keys(context).length) {
       state.context = { ...(state.context || {}), ...context };
       state.host = hostFor(state.context);
-      state.leftRoot = context.leftRoot || context.roots?.left || state.leftRoot;
+      state.sidebarRoot = context.sidebarRoot || context.roots?.sidebar || state.sidebarRoot;
     }
     setActive(false);
   }

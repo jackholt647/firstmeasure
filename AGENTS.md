@@ -82,3 +82,7 @@ registration coverage alone does not prove every legacy endpoint is migrated.
 The concurrently maintained FirstMeasure editor under `public/measure/internal`
 is outside this architecture change. Preserve its work and stage only the files
 owned by the current task when preparing commits or release artifacts.
+
+## Project window content ownership
+
+Read [project content layout](docs/architecture/project-content-layout.md) before changing project modal tabs or sidebars. Overview owns the project-details column inside its tab content. Other apps own their own content rails. There is no configurable shared modal left region or left-column override API; do not recreate one.

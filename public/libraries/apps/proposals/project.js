@@ -54,7 +54,7 @@
     host: null,
     model: null,
     context: null,
-    leftRoot: null,
+    sidebarRoot: null,
     previewRoot: null,
     overlayRoot: null,
     renderDepth: 0,
@@ -10444,14 +10444,14 @@
 
   function renderProjectScopeBuilder(roots = {}, options = {}){
     ensureProposalBuilderAnimationStyles();
-    const leftRoot = roots.left || roots.sidebar || state.leftRoot;
+    const sidebarRoot = roots.left || roots.sidebar || state.sidebarRoot;
     const previewRoot = roots.main || roots.preview || state.previewRoot || $('#rProposalPreview');
     const previousQuietRender = proposalBuilderQuietRender;
     proposalBuilderQuietRender = !!options.quiet;
     try {
-      if (leftRoot) {
-        leftRoot.innerHTML = proposalBuilderSidebarHtml(proposalBuilderState || { mode: 'select', query: '' });
-        bindProposalBuilderControls(leftRoot);
+      if (sidebarRoot) {
+        sidebarRoot.innerHTML = proposalBuilderSidebarHtml(proposalBuilderState || { mode: 'select', query: '' });
+        bindProposalBuilderControls(sidebarRoot);
       }
       if (previewRoot) renderProposalBuilderPreview(previewRoot);
     } finally {
@@ -12305,9 +12305,6 @@
 
   function syncProposalWorkspaceChrome(){
     const editingProposal = proposalsEnabled() && proposalWorkspaceOpen && activePreviewTab === 'proposal' && proposalWorkspaceMode === 'edit' && !!proposals.length;
-    // The host owns the responsive left-region presentation. Re-evaluate it
-    // whenever the proposal workspace moves between its list/setup/editor modes.
-    callHost('syncLeftColumnOverride');
     const overlay = $('#rOverlay');
     if (overlay) {
       const activeProposalWorkspace = proposalsEnabled() && proposalWorkspaceOpen && activePreviewTab === 'proposal';
@@ -12866,12 +12863,12 @@
       window.FirstMateAppContext.installProjectContextAccessors(state.model, { overwrite: false });
     }
     state.host = options.host || (state.model && window.FirstMateAppContext?.createProjectHost?.(state.model)) || state.host;
-    state.leftRoot = options.leftRoot || $('#rProposalSection');
+    state.sidebarRoot = options.sidebarRoot || $('#rProposalSection');
     state.previewRoot = options.previewRoot || $('#rProposalPreview');
     state.overlayRoot = options.overlayRoot || $('#rOverlay');
-    state.mounted = !!(state.leftRoot || state.previewRoot);
+    state.mounted = !!(state.sidebarRoot || state.previewRoot);
     if (state.mounted) {
-      state.leftRoot?.setAttribute('data-proposals-tab-mounted', 'true');
+      state.sidebarRoot?.setAttribute('data-proposals-tab-mounted', 'true');
       state.previewRoot?.setAttribute('data-proposals-tab-mounted', 'true');
     }
     loadProposalScopeTemplates().catch(() => null);
@@ -12957,7 +12954,7 @@
     callHost('onUnmount');
     state.mounted = false;
     state.active = false;
-    state.leftRoot = null;
+    state.sidebarRoot = null;
     state.previewRoot = null;
     state.overlayRoot = null;
     state.host = null;
@@ -12968,7 +12965,7 @@
     return {
       mounted: state.mounted,
       active: state.active,
-      leftRoot: state.leftRoot,
+      sidebarRoot: state.sidebarRoot,
       previewRoot: state.previewRoot,
       overlayRoot: state.overlayRoot
     };
@@ -13040,7 +13037,7 @@
     // the unified Docs tab. The module stays registered for its exports.
     visible: false,
     surfaces: ['project_modal'],
-    regions: ['main', 'left'],
+    regions: ['main'],
     requiresContext: ['project'],
     dependencies: ['project.photos'],
     enabled: (context = {}) => context.proposalsEnabled !== false,

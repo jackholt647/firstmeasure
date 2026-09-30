@@ -8,7 +8,7 @@
   const projectId = (context) => clean(context.project?.id || context.projectId || context.entityId);
   const orgId = (context) => clean(context.organizationId || context.orgId || window.__APP?.organizationId);
   const access = { applicationsAny:['field'], devices:['mobile','desktop'], permissionsAny:['crew.signatures.present'], requireEntitlement:true };
-  const presentation = { projectModal:{ desktopLeft:'none', mobileLeft:'none', mobileInfo:'none', mobileTabs:'icons', mobileFullscreenControl:false } };
+  const presentation = { projectModal:{ mobileInfo:'none', mobileTabs:'icons', mobileFullscreenControl:false } };
   const evidence = () => ({ path:location.pathname, href:location.href, timezone:Intl.DateTimeFormat(globalThis.PlatformLanguage?.formatLocale?.()).resolvedOptions().timeZone });
 
   function setPath(target, path, value){

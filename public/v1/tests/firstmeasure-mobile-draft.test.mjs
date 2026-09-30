@@ -59,7 +59,7 @@ test('URL-opened report drafts recover their ordering workflow before controls a
     $: () => ({classList:{contains:()=>true}}), activeModalMatchesProject:()=>true,
     projectHasReportOrder: p => p.ordered === true,
     firstMeasureReportOrdersEnabled:()=>true, proposalsEnabled:()=>false, schedulingEnabled:()=>false,
-    ensureProjectModalLeftRegion:()=>{throw stop;}
+    ensureOverviewDetails:()=>{throw stop;}
   };
   vm.createContext(context);
   vm.runInContext(fn(request,'normalizeWorkflow')+'\n'+fn(request,'isUnfinishedReportDraft')+'\n'+fn(request,'hydrateOpenProjectContent'), context);
