@@ -80,7 +80,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
       access: managementAccess,
-      bundles: [versionedBundle('projects/viewer.js', '20260929-projects-feed-parity-v1')]
+      bundles: [versionedBundle('projects/viewer.js', '20260929-projects-sticky-stage-v1')]
     },
     {
       id: 'portal.contacts',

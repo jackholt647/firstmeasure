@@ -455,7 +455,7 @@
     .v-lrow:hover{background:#fafbfc}
     .v-lrow .v-lcell{font-weight:900; color:#333; font-size:12px}
     .v-list-group+.v-list-group{margin-top:4px}
-    .v-list-group-header{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;border:0;border-left:5px solid var(--stage-color,#667085);border-radius:10px;background:color-mix(in srgb,var(--stage-color,#667085) 18%,#fff);color:#1d2939;text-align:left;font-family:inherit;font-size:14px;font-weight:1000;line-height:1.2;cursor:pointer}
+    .v-list-group-header{position:sticky;top:0;z-index:2;width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;border:0;border-left:5px solid var(--stage-color,#667085);border-radius:10px;background:color-mix(in srgb,var(--stage-color,#667085) 18%,#fff);color:#1d2939;text-align:left;font-family:inherit;font-size:14px;font-weight:1000;line-height:1.2;cursor:pointer}
     .v-list-group-header>span:first-of-type{font-weight:1000;letter-spacing:-.1px}
     .v-list-group-header:hover,.v-list-group-header:focus-visible{background:color-mix(in srgb,var(--stage-color,#667085) 23%,#fff)}
     .v-list-group-header .v-list-group-count{margin-left:auto;padding:3px 8px;border-radius:999px;background:#fff;font-size:11px}
@@ -5662,14 +5662,14 @@
 
     return div;
   }
-  function createListRow(p, allowDrag = false){
+  function createListRow(p, allowDrag = false, groupedByStage = false){
     p = normalizeProjectRecord(p);
     const resident = resolveResidentFields(p);
     const id = String(p.id);
     const row = document.createElement('div'); row.className = 'v-lrow'; row.dataset.id = id;
     const a1 = displayAddressLine1(p); const a2 = displayAddressLine2(p);
     const expediteTag = projectIsExpedited(p) ? `<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_54ba2332f79022"," Expedited") ?? " Expedited")}</span>` : '';
-    const rowTags = `${stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>` : ''}`;
+    const rowTags = `${groupedByStage ? '' : stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>` : ''}`;
     const cells={
       address:`<div class="v-lcell" data-col="address" style="min-width:0;"><div class="v-laddr"><div class="v-laddr1">${escapeHtml(a1)}</div><div class="v-laddr2">${escapeHtml(a2)}</div>${rowTags ? `<div class="v-meta-tags">${rowTags}</div>` : ''}</div></div>`,
       resident:`<div class="v-lcell" data-col="resident" style="min-width:0;"><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.name || '\u2014')}</div></div>`
@@ -5726,7 +5726,7 @@
       if (nextExpanded) collapsed.delete(key);
       else collapsed.add(key);
     });
-    for (const project of visibleItems) rows.appendChild(createListRow(project, !!dropStageId));
+    for (const project of visibleItems) rows.appendChild(createListRow(project, !!dropStageId, kind === 'stage'));
     if (dropStageId) bindStageColumnDrop(group, dropStageId);
     scroll.appendChild(group);
   }

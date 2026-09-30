@@ -17,6 +17,7 @@ try {
       { id:'p2', address:'Alpha Avenue', created_at:'2026-09-28T12:00:00Z', status:'ready', customer_name:'Ada', workflow_state:'newly_sold' },
       { id:'p3', address:'Maple Street', created_at:'2026-09-27T12:00:00Z', status:'ready', customer_name:'Mae', workflow_state:'newly_sold' }
     ];
+    projects.forEach((project,index) => { project.work_projection={active_instances:[{stage_id:index===2?'working':'new',stage_title:index===2?'Working':'New'}]}; });
     const boards = [{ id:'sales', title:'Sales', color:'#aa3344', fields:[
       {key:'custom:assignments.salesperson',label:'Salesperson',type:'organization_user',width:'minmax(0,1fr)'},
       {key:'custom:estimate',label:'Estimate',type:'number',width:'minmax(0,1fr)'}
@@ -74,9 +75,28 @@ try {
   assert.equal(await page.locator('#vListHead [data-k="status"],.v-lrow [data-col="status"]').count(),0);
   await page.locator('#vListHead [data-k="address"]').click();
   assert.deepEqual(await page.locator('.v-list-group[data-stage="new"] .v-lrow').evaluateAll((rows)=>rows.map((row)=>row.dataset.id)),['p2','p1']);
+  assert.equal(await page.locator('.v-list-group[data-stage] .v-meta-tag-stage').count(),0,'stage-grouped rows do not repeat their section label');
+  await page.evaluate(() => {
+    document.querySelectorAll('.v-list-group-rows').forEach(rows => {
+      const row=rows.firstElementChild;
+      for(let index=0;index<18;index++) rows.append(row.cloneNode(true));
+    });
+  });
+  const stickyState=await page.evaluate(() => {
+    const scroll=document.querySelector('#vListScroll'), groups=[...scroll.querySelectorAll('.v-list-group')];
+    const headers=groups.map(group => group.querySelector('.v-list-group-header'));
+    scroll.scrollTop=120;
+    const first={top:headers[0].getBoundingClientRect().top,scrollTop:scroll.getBoundingClientRect().top};
+    scroll.scrollTop=groups[1].offsetTop-groups[0].offsetTop+120;
+    return {first,next:headers[1].getBoundingClientRect().top,oldBottom:headers[0].getBoundingClientRect().bottom,top:scroll.getBoundingClientRect().top};
+  });
+  assert.ok(Math.abs(stickyState.first.top-stickyState.first.scrollTop)<2,'current section stays at scroll top');
+  assert.ok(Math.abs(stickyState.next-stickyState.top)<2,'next section replaces the sticky header');
+  assert.ok(stickyState.oldBottom<=stickyState.top+1,'previous header leaves instead of stacking');
   await page.locator('#vWorkBoardTrigger').click();
   await page.locator('.v-board-option[data-board-id="all"]').click();
   assert.deepEqual(await page.locator('.v-list-group-header span:first-of-type').allTextContents(),['Sales','Roof reports']);
+  assert.ok(await page.locator('.v-list-group[data-board] .v-meta-tag-stage').count()>0,'board groups retain stage information');
   await page.locator('#vManageView').click();
   await page.locator('[data-list-column="measurement_status"]').check();
   assert.equal(await page.locator('.v-lrow[data-id="p1"] [data-col="measurement_status"]').textContent(),'\u2014','legacy project status is not a measurement report status');
