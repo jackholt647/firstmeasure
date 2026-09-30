@@ -597,6 +597,7 @@
       const choices=def.reference_choices || [],selected=new Set((Array.isArray(value)?value:[value]).filter(Boolean).map(item=>JSON.stringify(item)));
       const optionsHtml=choices.map(item=>`<option value="${escapeHtml(JSON.stringify(item.reference))}"${selected.has(JSON.stringify(item.reference))?' selected':''}>${escapeHtml(item.label)}</option>`).join('');
       const stale=[...selected].filter(saved=>!choices.some(item=>JSON.stringify(item.reference)===saved)).map(saved=>`<option value="${escapeHtml(saved)}" selected>Saved reference (unavailable)</option>`).join('');
+      if(CONTACT_TYPES.includes(def.type))return `<div data-contact-picker style="position:relative"><select ${attrs}${def.cardinality==='many'?' multiple':''} hidden style="display:none"><option value=""></option>${optionsHtml}${stale}</select><div data-contact-selected style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"></div><input class="${escapeHtml(inputClass)}" data-contact-search type="search" placeholder="Search contacts…" aria-label="Search ${escapeHtml(def.label)}" autocomplete="off"${def.read_only?' disabled':''}><div data-contact-results hidden style="max-height:200px;overflow:auto;border:1px solid #e4e7ec;border-radius:8px;background:#fff;margin-top:6px"></div></div>`;
       return `<span class="fm-cf-select-wrap"><select ${attrs}${def.cardinality==='many'?' multiple':''}><option value="">${CONTACT_TYPES.includes(def.type)?'Choose a contact…':'Choose library media…'}</option>${optionsHtml}${stale}</select><i class="fas fa-chevron-down fm-cf-select-chevron" aria-hidden="true"></i></span>${def.reference_error?`<span class="fm-cf-error">${escapeHtml(def.reference_error)}</span>`:''}`;
     }
     if (def.data_type === 'reference') {
@@ -774,6 +775,23 @@
     return definitions;
   }
 
+  function wireContactPickers(container){
+    container.querySelectorAll('[data-contact-picker]').forEach(picker=>{
+      const select=picker.querySelector('select'),search=picker.querySelector('[data-contact-search]'),results=picker.querySelector('[data-contact-results]'),chosen=picker.querySelector('[data-contact-selected]');
+      const update=()=>{
+        chosen.innerHTML=[...select.selectedOptions].filter(option=>option.value).map(option=>`<button type="button" style="display:inline-flex;align-items:center;gap:8px;padding:6px 9px;border:1px solid #e4e7ec;border-radius:8px;background:#f8fafc;color:#344054;font:inherit;cursor:pointer" data-remove-reference="${escapeHtml(option.value)}"${select.disabled?' disabled':''}>${escapeHtml(option.textContent)} <span aria-hidden="true">×</span></button>`).join('');
+        chosen.querySelectorAll('button').forEach(button=>button.onclick=()=>{for(const option of select.options)if(option.value===button.dataset.removeReference)option.selected=false;select.dispatchEvent(new Event('change',{bubbles:true}));update();});
+      };
+      const show=()=>{
+        const query=search.value.trim().toLowerCase();results.hidden=false;
+        const matches=[...select.options].filter(option=>option.value && !option.selected && option.textContent.toLowerCase().includes(query)).slice(0,20);
+        results.innerHTML=matches.length?matches.map(option=>`<button type="button" data-reference="${escapeHtml(option.value)}" style="display:block;width:100%;padding:10px 12px;border:0;background:transparent;text-align:left;font:inherit;cursor:pointer">${escapeHtml(option.textContent)}</button>`).join(''):'<div style="padding:10px;color:#667085">No matching contacts</div>';
+        results.querySelectorAll('button').forEach(button=>button.onclick=()=>{if(!select.multiple)select.value=button.dataset.reference;else for(const option of select.options)if(option.value===button.dataset.reference)option.selected=true;search.value='';results.hidden=true;select.dispatchEvent(new Event('change',{bubbles:true}));update();});
+      };
+      search.addEventListener('input',event=>{event.stopPropagation();show();});search.addEventListener('focus',show);search.addEventListener('keydown',event=>{if(event.key==='Escape')results.hidden=true;if(event.key==='Enter'){event.preventDefault();results.querySelector('button')?.click();}});
+      picker.addEventListener('focusout',()=>setTimeout(()=>{if(!picker.contains(document.activeElement))results.hidden=true;},0));update();
+    });
+  }
   async function renderEditor(container, entity = {}, entityType = 'project', options = {}){
     if (!container) return null;
     injectEditorCss();
@@ -784,7 +802,7 @@
         container.innerHTML = options.flat === true ? '' : `<div class="fm-cf-panel"><div class="fm-cf-empty">${escapeHtml(error?.message || 'Custom fields are unavailable.')}</div></div>`;
       });
     }
-    const definitions = fieldsFor(entityType, entity, { ...options, location });
+    const definitions = fieldsFor(entityType, entity, { ...options, location }).filter(def=>!(options.excludePaths || []).includes(def.path));
     await hydrateAssignableDefinitions(definitions, {...options,entity,entityType});
     if (!definitions.length) {
       container.innerHTML = options.hideWhenEmpty === false ? `<div class="fm-cf-panel"><div class="fm-cf-empty">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_a1bfa740917210","No custom fields apply here.") ?? "No custom fields apply here.")}</div></div>` : '';
@@ -840,6 +858,7 @@
         if (wrapper && event.target !== wrapper) wrapper.dispatchEvent(new Event('change', { bubbles:true }));
       });
     }
+    wireContactPickers(container);
     wireStructured(container);
     const saveButton = container.querySelector('[data-fm-cf-save]');
     saveButton?.addEventListener('click', async () => {
