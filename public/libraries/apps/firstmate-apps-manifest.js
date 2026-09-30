@@ -38,7 +38,7 @@
     versionedBundle('../platform-assistant/platform-assistant.js', '20260930-project-trays-v1'),
     versionedBundle('photos/feed.js', '20260930-feed-size-v2'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20260930-linear-pla21-round3'),
+    versionedBundle('../channels-ui/channels-ui.js', '20260930-linear-pla20-round3'),
     versionedBundle('../project-notes/project-notes.js', '20260930-project-chrome-v2'),
     versionedBundle('../project-trays/project-trays.js', '20260930-project-chrome-v2')
   ];
@@ -545,7 +545,7 @@
         versionedBundle('../platform-assistant/platform-assistant.js', '20260930-project-trays-v1'),
         versionedBundle('photos/feed.js', '20260930-feed-size-v2'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20260930-linear-pla21-round3'),
+    versionedBundle('../channels-ui/channels-ui.js', '20260930-linear-pla20-round3'),
         versionedBundle('channels/app.js', '20260929-assistant-logo-settings-v1')
       ]
     },
@@ -1046,7 +1046,7 @@
   };
 
   apps.forEach((app) => {
-    app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260930-linear-pla20'), ...(app.bundles || [])];
+    app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260930-linear-pla20-round3'), ...(app.bundles || [])];
     const capability = appCapabilities[app.id];
     if (capability) app.access = { ...(app.access || {}), capability };
     app.route = app.route || routeDefinition(app);

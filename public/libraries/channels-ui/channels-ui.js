@@ -5419,7 +5419,7 @@
 
     async function openReminderModal(message){
       if (!root.FirstMateDateTimePicker?.mount) {
-        try { await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/date-time-picker/date-time-picker.js?v=20260930-linear-pla20-custom-time';script.onload=resolve;script.onerror=reject;document.head.append(script);}); }
+        try { await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/date-time-picker/date-time-picker.js?v=20260930-linear-pla20-compact-layout';script.onload=resolve;script.onerror=reject;document.head.append(script);}); }
         catch (_) { showError(new Error('The reminder calendar could not load. Please try again.')); return; }
       }
       let inlinePicker;
@@ -5431,7 +5431,7 @@
         body.innerHTML = `<input hidden required aria-label="Reminder time" type="datetime-local" data-future-only data-reminder-at value="${String(local)}"><div data-reminder-calendar></div>`;
         const earliest = new Date(Date.now() + 60_000);
         body.querySelector('input').min = new Date(earliest.getTime() - earliest.getTimezoneOffset() * 60_000).toISOString().slice(0,16);
-        inlinePicker = root.FirstMateDateTimePicker.mount(body.querySelector('[data-reminder-calendar]'), body.querySelector('input'), {customTimeDropdown:true});
+        inlinePicker = root.FirstMateDateTimePicker.mount(body.querySelector('[data-reminder-calendar]'), body.querySelector('input'), {customTimeDropdown:true,reminderLayout:true});
         return () => inlinePicker?.destroy();
       }, [{ label:(globalThis.PlatformLanguage?.text("channels-ui","m_9b6a0832346dfa","Save reminder") ?? "Save reminder"), primary:true, onClick:async (close, body) => {
         try {

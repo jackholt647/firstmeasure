@@ -84,6 +84,15 @@ try {
     const hour=picker.getByLabel('Hour',{exact:true}),minute=picker.getByLabel('Minute',{exact:true});
     const summary=picker.locator('.custom-time summary');
     const save=()=>dialog.getByRole('button',{name:'Save reminder',exact:true}).click();
+    const geometry=[];
+    const checkLayout=async(viewport,state)=>{
+      const measured=await picker.locator('.time-section').evaluate(n=>{const details=n.querySelector('.custom-time'),year=n.getRootNode().querySelector('.year');return{gap:n.getBoundingClientRect().bottom-details.getBoundingClientRect().bottom,yearWeight:getComputedStyle(year).fontWeight,slotsHeight:n.querySelector('.slots').getBoundingClientRect().height};});
+      geometry.push({width:viewport.width,state,...measured});
+      assert.ok(measured.slotsHeight>=150&&measured.slotsHeight<=320,'time list remains a compact scroll area');
+      const bounds=await dialog.boundingBox();assert.ok(bounds.y>=0&&bounds.y+bounds.height<=viewport.height+1,'complete reminder fits viewport');
+      if(!process.env.VISUAL_BASELINE){assert.ok(measured.gap<=1,`no empty space below Custom time (${state} gap=${measured.gap})`);assert.equal(measured.yearWeight,'700','reminder year is bold');}
+      await page.screenshot({path:path.join(output,`layout-${state}-${viewport.width}.png`),animations:'disabled'});
+    };
     for(const [index,viewport] of [{width:1366,height:768},{width:390,height:844}].entries()){
       if(index)await open();await page.setViewportSize(viewport);
       assert.equal(await picker.locator('.days').isVisible(),true,'calendar visible immediately');
@@ -91,9 +100,11 @@ try {
       assert.ok(slots.length>0 && slots.length<=96);assert.ok(slots.every(t=>['00','15','30','45'].includes(t.split(':')[1])));
       assert.equal(await hour.isVisible(),false,'custom fields initially collapsed');
       assert.equal(await summary.innerText(),'Custom time');
+      await checkLayout(viewport,'closed');
       await summary.focus();await summary.press('Enter');await hour.waitFor();
       await page.waitForFunction(()=>document.querySelector('fm-date-time-picker')?.shadowRoot.activeElement?.matches('[data-time=hour]'),null,{polling:10});
       assert.equal(await hour.evaluate(n=>n.getRootNode().activeElement===n),true,'opening dropdown focuses Hour');
+      await checkLayout(viewport,'open');
       await picker.locator('[data-date="2026-10-01"]').click();
       assert.equal(await picker.locator('[data-slot]').count(),96);
       assert.equal(await picker.locator('.custom-time').getAttribute('open'),'','expansion persists after date selection');
@@ -117,9 +128,13 @@ try {
       await page.clock.runFor(200);
       console.log(`PASS ${viewport.width}: immediate calendar/15m slots; dropdown keyboard reveal/focus; centered custom numbers/font; bounds/past blocked; exact time saved`);
     }
+    await writeFile(path.join(output,'layout-geometry.json'),JSON.stringify(geometry,null,2));
     // Default shared picker contract remains always-visible custom inputs.
     await page.evaluate(()=>{const input=document.createElement('input');input.type='time';input.value='10:23';document.body.append(input);FirstMateDateTimePicker.open(input);});
     assert.equal(await picker.locator('summary').count(),0);assert.equal(await picker.getByLabel('Hour',{exact:true}).isVisible(),true);
+    await page.evaluate(()=>FirstMateDateTimePicker.close());
+    await page.evaluate(()=>{const input=document.createElement('input');input.type='date';input.value='2026-10-01';document.body.append(input);FirstMateDateTimePicker.open(input);});
+    assert.equal(await picker.locator('.year').evaluate(n=>getComputedStyle(n).fontWeight),'400','other apps retain the shared picker year style');
     await page.evaluate(()=>FirstMateDateTimePicker.close());
   }
   assert.deepEqual(errors,[]);
