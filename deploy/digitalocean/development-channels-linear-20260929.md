@@ -11,9 +11,11 @@ is marked **Done in Dev** only after its development rollout and hosted
 verification pass.
 
 All thirteen issues are now deployed to development. The final serving source
-is `e5c26c451797e6a2dab28256ad70173c9d7a1701` on both web nodes and
-compatibility; Channels UI and Tags hashes match the exact verified commit.
-The worker retains `ef95bf16` with verified original Channels backend changes.
+for the final Channels fix is `52bf9bb15a44a0ae63acc5e3319f326f96289544`.
+Compatibility and the pool web node run that release; the primary web node
+subsequently advanced to project-tray release `4f146f20`. All three preserve
+the exact verified Channels UI and its cache versions. The worker was verified
+on `c999122561ad9f6980e05fe102bd3b5905d9cbe9` with the original Channels backend changes preserved.
 Hosted behavior checks, owned-file verification, public readiness and enforced
 development outbound isolation pass. Refresh an existing development tab to
 load the new browser assets.
@@ -91,6 +93,7 @@ was rebuilt against their new live baselines. Assistant changes are preserved.
 | Issue | Follow-up | Source | Current development status |
 | --- | --- | --- | --- |
 | PLA-15 | Restore a clearly visible Remove action, fresh membership/permission hydration, and removal across refresh and reopen. | `bf98e11841bc93dbd086caa788ef600415b99320` | Deployed and marked Done in Dev after hosted real API/browser checks. |
+| PLA-15 (second reopen) | Update member changes in the existing dialog without closing/reopening it; retain filters, focus, selections and scroll. | `52bf9bb15a44a0ae63acc5e3319f326f96289544` | Deployed and marked Done in Dev after hosted real API/browser checks, including zero backdrop/dialog replacement cycles and late completion after close. |
 | PLA-20 | Reject past custom reminder times, retain inline validation, and center custom numbers. | `3ee5be6a65647653c6c2a782ce31511b7b09ff44` | Deployed and marked Done in Dev after hosted desktop/mobile, future-time and elapsed-clock checks. |
 | PLA-21 | Continue toolbar lists and typed numbered prefixes on Shift+Enter in messages, replies and edits. | `2a94fa105ba1a356ca23ff415a53cac19c227eda` | Deployed and marked Done in Dev after full hosted composer and nine expanded audit checks. |
 | PLA-29 | Members modal title becomes exactly “Members.” | `63cee883b3600d78fc1f28aa9478b3e3d3ba0b08` | Deployed and marked Done in Dev after hosted title/accessible-name checks. |
@@ -105,6 +108,37 @@ remove another member through the API. The last channel manager remains
 protected. The fixture cleanup commit `428db274` disables unrelated job workers
 before importing the application and closes the application before its stores;
 the test passes and exits normally without an inherited worker setting.
+
+Livia reopened PLA-15 again at 23:18 on September 29 because removal briefly
+closed and reopened the Members window. The second follow-up refreshes the
+roster in the same dialog after removal, addition and role changes. Fresh
+membership/permission reads and immediate activity remain; duplicate mutations
+are blocked while pending. Search, selection, scroll and focus survive repaint,
+and a closed or obsolete dialog cannot be reopened by a late response.
+
+The actual Fastify/Chromium fixture asserts original dialog identity and zero
+dialog/backdrop add/remove cycles for owner/admin removal and add-back. It also
+covers delayed DELETE, error/retry focus, retained search, consumed selection,
+close during a held request, ordinary-member denial and the last-manager guard.
+The independent review and five focused clean-archive checks pass against
+`52bf9bb`: Channels/Tags syntax, real API removal, mounted mention/Docs behavior
+and full paste/list behavior. Evidence is in
+`final-checks/exact-52bf9bb15a44-995c2ec1/` and `pla15-r3/`.
+
+The concurrent notification/time-picker rollout `c9991225` changed the live
+baseline during staging. Guards stopped activation; all serving roles were
+re-inventoried after that rollout, and the Channels-only overlay was rebuilt
+against it. Its unrelated changes are preserved. The inactive pool staging
+clone from the earlier baseline was retained under its staged predecessor name.
+The pool readiness attempt rolled back safely to `c9991225`; after confirming
+the predecessor had recovered, the guarded retry passed. Startup diagnostics
+are retained; this frontend change did not alter the service or drain settings.
+The subsequent primary-web project-tray release `4f146f20` also preserves the
+owned Channels hashes and cache versions and passes local readiness/isolation.
+All three final serving roles pass owned hashes, development readiness and
+outbound isolation; hosted real API/browser verification passes before Linear
+is updated. The final project refresh shows seven Completed and six Done in Dev
+issues, with no outstanding issue in this thirteen-issue scope.
 
 The concurrent project-trays rollout at `ef95bf16` advanced the serving
 baselines during this work. Source and runtime were re-audited per role, and
