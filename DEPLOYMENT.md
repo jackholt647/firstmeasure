@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 30 Contacts: [Profile photos, managed tags and typed relationships](deploy/digitalocean/development-contacts-library-20260930.md) records the development rollout, server validation, shared media library and browser checks.
+
 September 29 huddle effects: [GPU quality model and soft background edges](deploy/digitalocean/development-channels-effects-quality-20260929.md) records the verified development rollout, model comparison, adaptive fallback and hosted call checks.
 
 September 29 Brand Kit: [Shared editor, autosave and custom color picker](deploy/digitalocean/development-brand-kit-20260929.md) records the development rollout, logo/font controls, audited picker coverage, hosted browser checks and rollback.
