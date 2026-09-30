@@ -30,8 +30,21 @@ try{
  },notificationAssistant:{context:async()=>({settings:{enabled:false}})}};
  });
  await page.evaluate('(async()=>{'+render+'\nawait renderNotificationSettings();})()');
- assert.equal(await page.locator('[data-nc-tab]').count(),7);
+ assert.equal(await page.locator('[data-nc-tab]').count(),6);
  assert.equal(await page.locator('[data-nc-tab=settings]').count(),0,'Settings is separate from categories');
+ assert.equal(await page.locator('[data-nc-chat]').count(),0);
+ assert.equal((await page.locator('[data-nc-settings]').innerText()).trim(),'');
+ await page.locator('[data-nc-tab=workflows]').click();assert.equal(await page.locator('.nc-card').count(),2,'Flows and scopes share Workflows');await page.locator('[data-nc-tab=all]').click();
+ const toolbar=await page.locator('.nc-toolbar').evaluate(el=>[...el.children].map(child=>child.getBoundingClientRect().top));assert.ok(Math.max(...toolbar)-Math.min(...toolbar)<8,'desktop toolbar stays on one row');
+ await page.locator('[data-nc-add]').click();await page.locator('dialog').waitFor();
+ const modal=await page.locator('dialog').boundingBox();assert.ok(modal.width>=780);assert.ok(modal.y>=0&&modal.y+modal.height<=850);
+ assert.equal(await page.locator('[data-event-description]').getAttribute('title'),'A document was signed.');
+ assert.equal(await page.locator('dialog [data-scope-selector]').isVisible(),false);
+ await page.screenshot({path:path.join(root,'output/notification-registration-20260929/add-refined.png')});
+ await page.locator('[data-close]').click();await page.waitForFunction(()=>!document.querySelector('dialog'));
+ await page.locator('[data-nc-add]').click();await page.locator('dialog').waitFor();await page.mouse.click(5,5);await page.waitForFunction(()=>!document.querySelector('dialog'));
+ await page.locator('[data-nc-add]').click();await page.locator('dialog').waitFor();await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('dialog'));
+
  await page.locator('[data-nc-settings]').click();assert.equal(await page.locator('.nc-body').isVisible(),false);
  assert.equal(await page.locator('[data-notification-org-settings]').count(),1);
  await page.locator('[data-quiet-form] input[name=enabled]').check();
@@ -53,10 +66,12 @@ try{
  assert.equal(await page.evaluate(()=>patches.at(-1).email['workflow.custom_1']),true);
  await page.locator('[data-nr-rule] select[name=group_alert]').selectOption('digest');await page.locator('[name=quiet_exempt][value=sms]').check();await page.locator('[data-nr-rule] button').click();await page.waitForFunction(()=>window.savedRule);
  assert.equal(await page.evaluate(()=>savedRule.source),'return {outputs:{}};');assert.equal(await page.evaluate(()=>savedRule.group.alert),'digest');assert.deepEqual(await page.evaluate(()=>savedRule.quiet_exempt_methods),['sms']);
+ const centered=await page.locator('.nc-mode svg').first().evaluate(svg=>{const a=svg.getBoundingClientRect(),b=svg.parentElement.getBoundingClientRect();return Math.abs(a.y+a.height/2-b.y-b.height/2);});assert.ok(centered<.5,'mode icon vertically centered');
  const size=await page.locator('.nc-mode').evaluate(el=>el.getBoundingClientRect().height);assert.equal(size,18);
 
+ await page.screenshot({path:path.join(root,'output/notification-registration-20260929/toolbar-refined.png')});
  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile overflow');
- await page.locator('[data-nc-chat]').click();assert.equal(await page.locator('.nc-assistant').isVisible(),true);await page.locator('[data-nc-chat]').click();await page.locator('[data-nr-delete]').click();await page.waitForFunction(()=>window.deleted);await page.waitForFunction(()=>!document.querySelector('[data-nr-delete]'));
+ assert.equal(await page.locator('.nc-assistant').isVisible(),true);await page.locator('[data-nr-delete]').click();await page.waitForFunction(()=>window.deleted);await page.waitForFunction(()=>!document.querySelector('[data-nr-delete]'));
  assert.equal(await page.evaluate(()=>deleted.revision),2);assert.deepEqual(errors,[]);
  await page.evaluate(()=>{ const prior=PlatformAPI.notifications.preferences; PlatformAPI.notifications.preferences=async()=>({...await prior(),permissions:{personal:false,organization:false}}); const rules=PlatformAPI.notifications.rules; PlatformAPI.notifications.rules=async()=>({...await rules(),permissions:{personal:false},rule_locks:{locked:'full'},rules:[{id:'locked',intent:'Organization delivery rule',enabled:true}]}); });
  await page.evaluate('(async()=>{'+render+'\nawait renderNotificationSettings();})()');
