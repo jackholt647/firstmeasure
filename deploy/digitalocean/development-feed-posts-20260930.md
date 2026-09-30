@@ -81,3 +81,30 @@ Each role stores its prior release and deployed file hashes in
 `channels-release.json`. Rollback restores the recorded prior symlink, restarts
 the role service and (for web/compatibility roles) PHP FPM, then checks development
 readiness and outbound isolation. Do not overwrite an intervening release.
+
+
+## Tile sizing follow-up
+
+Source `3507c3b447ed60a1df625a3ae924e88861cf5488` halves the Small and Large
+preview sizes. Desktop Small uses eight columns, Large four; their photo and
+document preview caps are 95/130 pixels. Gaps and document/activity icons are
+also halved, while labels stay readable. Narrow/mobile grids use four Small and
+two Large columns. List, Mosaic and Posts retain their layouts.
+
+The existing browser test passed the updated columns, all five mobile controls,
+collages, comments and likes; JavaScript syntax checks passed. Only the Feed
+bundle and its manifest version are deployed. The worker backend remains at
+`d9e08684`; no backend or permission changes are included.
+
+All three web/compatibility roles activated and independently verified at
+`3507c3b447ed60a1df625a3ae924e88861cf5488`, with prior release `d9e08684`.
+Public readiness and development isolation pass. Served Feed/manifest hashes
+match the release, and the hosted-component browser test passes the new tile
+sizes and all five mobile views. Production was not changed.
+
+Staging uses hard links for unchanged immutable files to avoid another full
+copy on the constrained development disks. Changed assets and `release.env`
+are replaced atomically with new files, and the prior release's asset hashes
+are checked again afterward. Each web/compatibility role records its prior
+release and asset hashes in `feed-size-release.json`; rollback restores its
+recorded prior symlink and restarts the role service and PHP FPM.
