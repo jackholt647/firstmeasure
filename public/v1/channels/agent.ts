@@ -62,7 +62,7 @@ import {
   type ChannelRow,
   type MessageRow
 } from "./storage.js";
-import { ensureAgentDmChannel, postAgentMessage, userDirectory } from "./service.js";
+import { ensureAgentDmChannel, noteChannelAgentTyping, postAgentMessage, requireChannelAccess, userDirectory } from "./service.js";
 
 const TRANSCRIPT_MESSAGES = 12;
 const MIN_AWAIT_HOURS = 1;
@@ -150,6 +150,8 @@ export async function maybeTriggerChannelAgent(ctx: PlatformAuthContext, channel
       origin_channel_id: channel.id, message_id: message.id, session_id: ctx.sessionId,
       created_by_user_id: ctx.userId
     });
+    // Show the accepted turn immediately; expiry bounds abandoned queue signals.
+    await noteChannelAgentTyping(ctx, channel.id, agentId).catch(() => null);
     // Interactive turns must also run on web-only deployments. The durable
     // queue claim prevents a replica and the background worker running twice.
     if (process.env.NODE_ENV !== "test") void drainChannelAgentJobs("channel").catch(() => null);
@@ -648,7 +650,23 @@ export async function drainChannelAgentJobs(kind = "") {
       if (!session) throw new Error("The requesting user's session ended before this task started.");
       const ctx = await buildAuthContext(sessionId, session);
       if (ctx.orgId !== orgId || !await can(ctx, "apps.channels")) throw new Error("The requesting user no longer has access to Channels.");
-      await runChannelAgentTurn(orgId, cleanText(entry.branch_id) || "default", cleanText(entry.agent_id), cleanText(entry.origin_channel_id), cleanText(entry.message_id), ctx);
+      const channelId = cleanText(entry.origin_channel_id), agentId = cleanText(entry.agent_id);
+      await requireChannelAccess(ctx, channelId);
+      // Serialize signals so an in-flight renewal cannot arrive after the stop.
+      let signals = Promise.resolve();
+      const signal = (typing: boolean) => {
+        signals = signals.then(() => noteChannelAgentTyping(ctx, channelId, agentId, typing)).catch(() => undefined);
+        return signals;
+      };
+      await signal(true);
+      const typingTimer = setInterval(() => { void signal(true); }, 3000);
+      typingTimer.unref();
+      try {
+        await runChannelAgentTurn(orgId, cleanText(entry.branch_id) || "default", agentId, channelId, cleanText(entry.message_id), ctx);
+      } finally {
+        clearInterval(typingTimer);
+        await signal(false);
+      }
     }
   }, 5, kind);
   const db = getAgentsDatabase();

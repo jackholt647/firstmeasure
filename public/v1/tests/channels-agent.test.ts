@@ -136,6 +136,68 @@ async function createProject(client: ReturnType<typeof createSessionClient>, org
 
 const AGENT_MENTION = [{ id: "agent_assistant", name: "FirstMate Assistant" }];
 
+test("agent typing starts when queued, renews during a slow turn, stops after reply, and stays private", async () => {
+  const client = createSessionClient();
+  const { orgId, userId } = await register(client);
+  const { channel } = await client.request("POST", `/v1/channels/organizations/${orgId}/channels`, { type: "dm", member_user_ids: ["agent_assistant"] });
+  const { pollRealtimeEvents } = await import("../platform/realtime.js");
+  const { drainChannelAgentJobs } = await import("../channels/agent.js");
+  const cursor = (await pollRealtimeEvents(orgId, userId, 0)).next;
+  const original = globalThis.fetch;
+  let release!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  let started!: () => void;
+  const providerStarted = new Promise<void>(resolve => { started = resolve; });
+  globalThis.fetch = (async () => {
+    started();
+    await waiting;
+    return new Response(JSON.stringify({ output: [messageOutput("Here's your answer.")] }), { status: 200 });
+  }) as typeof fetch;
+  let draining: Promise<number> | undefined;
+  try {
+    await client.request("POST", `/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`, { text: "Can you help?" });
+    const queued = (await pollRealtimeEvents(orgId, userId, cursor)).events.filter(event => event.topic === "channels.typing");
+    assert.equal(queued.length, 1);
+    assert.equal(queued[0]!.payload.user_id, "agent_assistant");
+    assert.equal(queued[0]!.payload.typing, true);
+    assert.ok(Number(queued[0]!.payload.expires_in_ms) <= 6000);
+    draining = drainChannelAgentJobs("channel");
+    await providerStarted;
+    await new Promise(resolve => setTimeout(resolve, 3200));
+    const active = (await pollRealtimeEvents(orgId, userId, cursor)).events.filter(event => event.topic === "channels.typing");
+    assert.ok(active.filter(event => event.payload.typing === true).length >= 3, "queued, running and heartbeat signals are emitted");
+    release();
+    await draining;
+    const events = (await pollRealtimeEvents(orgId, userId, cursor)).events;
+    const typing = events.filter(event => event.topic === "channels.typing");
+    assert.equal(typing.at(-1)?.payload.typing, false);
+    const reply = events.find(event => event.topic === "channels.message.created" && event.payload.stub);
+    assert.ok(reply && reply.seq < typing.at(-1)!.seq, "stop follows the agent reply");
+    assert.equal((await pollRealtimeEvents(orgId, "not-a-channel-member", cursor)).events.filter(event => event.topic === "channels.typing").length, 0);
+  } finally {
+    release();
+    await draining;
+    globalThis.fetch = original;
+  }
+});
+
+test("agent typing stops when the provider fails", async () => {
+  const client = createSessionClient();
+  const { orgId, userId } = await register(client);
+  const { channel } = await client.request("POST", `/v1/channels/organizations/${orgId}/channels`, { type: "dm", member_user_ids: ["agent_assistant"] });
+  const { pollRealtimeEvents } = await import("../platform/realtime.js");
+  const cursor = (await pollRealtimeEvents(orgId, userId, 0)).next;
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => { throw new Error("Provider unavailable"); }) as typeof fetch;
+  try {
+    await client.request("POST", `/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`, { text: "Can you help?" });
+    await (await import("../channels/agent.js")).drainChannelAgentJobs("channel");
+    const typing = (await pollRealtimeEvents(orgId, userId, cursor)).events.filter(event => event.topic === "channels.typing");
+    assert.ok(typing.some(event => event.payload.typing === true));
+    assert.equal(typing.at(-1)?.payload.typing, false);
+  } finally { globalThis.fetch = original; }
+});
+
 test("interactive DM turns execute without a scheduler or worker", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);

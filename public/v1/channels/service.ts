@@ -2175,6 +2175,25 @@ export async function listHuddleSignals(ctx: PlatformAuthContext, huddleId: stri
 
 // --- typing -------------------------------------------------------------------
 
+/** Internal lifecycle signal; callers cannot impersonate an agent through the API. */
+export async function noteChannelAgentTyping(ctx: PlatformAuthContext, channelId: string, agentId: string, typing = true) {
+  const { channel } = await requireChannelAccess(ctx, channelId);
+  const { agentChannelParticipants } = await import("../agents/participants.js");
+  const participant = (await agentChannelParticipants(ctx.orgId, ctx.branchId, { includeDisabled: !typing }))
+    .find(person => person.agent_id === agentId);
+  if (!participant || channel.archived_at) return;
+  const expires = Date.now() + (typing ? TYPING_TTL_MS : 0);
+  await publishRealtimeEvent({
+    organization_id: ctx.orgId,
+    topic: "channels.typing",
+    user_ids: await realtimeTargets(channel),
+    payload: {
+      channel_id: channelId, user_id: participant.id, user_name: participant.name,
+      typing, expires_at: new Date(expires).toISOString(), expires_in_ms: typing ? TYPING_TTL_MS : 0
+    }
+  });
+}
+
 export async function noteTyping(ctx: PlatformAuthContext, channelId: string, typing = true) {
   const { channel } = await requireChannelAccess(ctx, channelId, { write: true });
   const expires = Date.now() + (typing ? TYPING_TTL_MS : 0);
