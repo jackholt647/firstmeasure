@@ -32,15 +32,15 @@
     versionedBundle('../channels-api/channels-api.js', '20260930-project-trays-v1'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
-    versionedBundle('../window-manager/window-manager.js', '20260929-project-windows-v4'),
+    versionedBundle('../window-manager/window-manager.js', '20260930-project-chrome-v2'),
     bundle('../agent-chat/agent-chat.js'),
     versionedBundle('../assistant-api/assistant-api.js', '20260930-project-trays-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20260930-project-trays-v1'),
     versionedBundle('photos/feed.js', '20260930-contact-gallery-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20260929-linear-pla15-r3'),
-    versionedBundle('../project-notes/project-notes.js', '20260930-project-trays-v1'),
-    versionedBundle('../project-trays/project-trays.js', '20260930-project-trays-v1')
+    versionedBundle('../project-notes/project-notes.js', '20260930-project-chrome-v2'),
+    versionedBundle('../project-trays/project-trays.js', '20260930-project-chrome-v2')
   ];
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20260803-field-flows-v10'),
@@ -288,7 +288,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20260929-project-windows-v3'), versionedBundle('project-request/app.js', '20260930-project-trays-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20260930-project-chrome-v2'), versionedBundle('project-request/app.js', '20260930-project-chrome-v2')]
     },
     {
       id: 'firstmeasure.order',
@@ -540,7 +540,7 @@
         versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
         versionedBundle('../channels-api/channels-api.js', '20260930-project-trays-v1'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
-        versionedBundle('../window-manager/window-manager.js', '20260929-project-windows-v4'),
+        versionedBundle('../window-manager/window-manager.js', '20260930-project-chrome-v2'),
         versionedBundle('../assistant-api/assistant-api.js', '20260930-project-trays-v1'),
         versionedBundle('../platform-assistant/platform-assistant.js', '20260930-project-trays-v1'),
         versionedBundle('photos/feed.js', '20260930-contact-gallery-v1'),

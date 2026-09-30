@@ -11,7 +11,7 @@ test('window docking, swaps, edge previews and project fullscreen restriction',a
  await page.setContent('<style>body{margin:0}main{position:relative;width:1400px;height:900px}#panels{height:100%}</style><main><div id="panels"></div></main>');
  await page.addScriptTag({content:await readFile(new URL('../../libraries/window-manager/window-manager.js',import.meta.url),'utf8')});
  await page.evaluate(()=>{window.make=(id)=>{const el=document.createElement('section');el.id=id;const header=document.createElement('header');header.textContent=id;header.style.height='48px';el.append(header);document.querySelector('main').append(el);return FirstMateWindows.attach({element:el,header,host:document.querySelector('main'),contentTarget:document.querySelector('#panels'),presentationModes:true,allowFullscreen:false,width:500,height:400,dockWidth:440,topInset:()=>50});};window.a=make('a');});
- const settled=()=>page.waitForTimeout(500);
+ const settled=async()=>{await page.waitForTimeout(32);await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState!=='running'));};
  const rect=async(id)=>page.locator('#'+id).boundingBox();
  assert.equal(await page.locator('[data-window-action=fullscreen]').count(),0);
  await page.evaluate(()=>a.setMode('fullscreen'));assert.equal(await page.evaluate(()=>a.state.mode),'floating');
@@ -48,7 +48,7 @@ test('docked header detaches under the pointer and expanded windows return to a 
   await page.setContent('<style>body{margin:0}main{position:absolute;left:100px;width:1000px;height:800px}header{height:48px}</style><main><div id="panels"></div><section id="project"><header>Project</header></section></main>');
   await page.addScriptTag({content:await readFile(new URL('../../libraries/window-manager/window-manager.js',import.meta.url),'utf8')});
   await page.evaluate(()=>window.project=FirstMateWindows.attach({element:document.querySelector('#project'),header:document.querySelector('header'),host:document.querySelector('main'),contentTarget:document.querySelector('#panels'),mode:'full',presentationModes:true,width:1200,height:800,topInset:()=>40}));
-  const settled=()=>page.waitForTimeout(500),rect=()=>page.locator('#project').boundingBox();
+  const settled=async()=>{await page.waitForTimeout(32);await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState!=='running'));},rect=()=>page.locator('#project').boundingBox();
   await page.click('[data-window-action=floating]');await settled();let r=await rect();assert.equal(r.width,720);assert.equal(r.height,456);assert.ok(r.x>100 && r.y>40);
   await page.evaluate(()=>project.setMode('fullscreen'));await settled();await page.click('[data-window-action=floating]');await settled();assert.equal((await rect()).height,456);
   for(const side of ['right','left','top-right','bottom-left','top','bottom']){

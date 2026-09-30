@@ -7957,10 +7957,16 @@ window.PlatformCommerce.onReady(async function(){
     }
     const button = $('#rProjectNoteAdd');
     if (button) {
-      button.innerHTML = editingProjectNoteId ? '<i class="fas fa-check"></i> Save note' : 'Plus Note';
-      let pin = button.parentElement.querySelector('[data-project-note-pin-send]');
-      if (!pin) {pin = document.createElement('button');pin.type = 'button';pin.dataset.projectNotePinSend = '';pin.setAttribute('aria-label','Add pinned note');pin.title = 'Add pinned note';pin.innerHTML = '<i class="fas fa-thumbtack"></i>';pin.style.cssText = 'margin-left:-5px;border-left:1px solid #ffffff55;border-radius:0 6px 6px 0;padding:8px;background:var(--primary,#175cd3);color:white';button.after(pin);pin.onclick = () => commitProjectNote({pin:true});}
+      button.innerHTML = editingProjectNoteId ? '<i class="fas fa-check"></i> Save note' : '<span aria-hidden="true">+</span> Note';
+      button.setAttribute('aria-label', editingProjectNoteId ? 'Save note' : 'Add note');
+      let group = button.closest('.r-note-send-group');
+      if (!group) {group = document.createElement('span');group.className = 'r-note-send-group';button.before(group);group.append(button);}
+      group.style.cssText = 'display:inline-flex;align-items:stretch;gap:0;margin-left:0';
+      button.style.cssText = 'margin:0;border-radius:6px 0 0 6px;background:var(--primary,#175cd3);color:white';
+      let pin = group.querySelector('[data-project-note-pin-send]');
+      if (!pin) {pin = document.createElement('button');pin.type = 'button';pin.dataset.projectNotePinSend = '';pin.setAttribute('aria-label','Add pinned note');pin.title = 'Add pinned note';pin.innerHTML = '<i class="fas fa-thumbtack"></i>';pin.style.cssText = 'margin:0;border:0;border-left:1px solid #ffffff88;border-radius:0 6px 6px 0;padding:8px;background:var(--primary,#175cd3);color:white';button.after(pin);pin.onclick = () => commitProjectNote({pin:true});}
       pin.hidden = !!editingProjectNoteId;
+      if (editingProjectNoteId) button.style.borderRadius = '6px';
     }
     $('#rProjectNotesToggle')?.setAttribute('aria-expanded', proposalInternalNotesCollapsed ? 'false' : 'true');
     autoSizeProjectNoteInput();
@@ -8046,7 +8052,7 @@ window.PlatformCommerce.onReady(async function(){
   let projectPresenceUsers = [];
   function syncProjectPresence(){
     const trayShell = document.getElementById("rMapWrap");
-    if (!projectTrays && trayShell && window.FirstMateProjectTrays) projectTrays = window.FirstMateProjectTrays.mount(trayShell, {getProject:() => activeBaseProject, orgId:projectOrgId()});
+    if (!projectContentPane && !projectTrays && trayShell && window.FirstMateProjectTrays) projectTrays = window.FirstMateProjectTrays.mount(trayShell, {getProject:() => activeBaseProject, orgId:projectOrgId()});
     projectTrays?.update();
     const projectId = activeProjectRouteId();
     const orgId = projectOrgId();

@@ -8,7 +8,7 @@ test('project trays reuse Notes, Channels and the global agent and preserve draf
   try {
     const page = await browser.newPage({viewport:{width:1200,height:800}}), errors = [];
     page.on('pageerror',error => errors.push(error.message));
-    await page.setContent('<style>body{margin:0;font:14px Arial}#shell{height:700px;display:flex;flex-direction:column}.r-preview{background:#eef2f6}.r-modal-header{height:48px}#channel{height:650px}</style><section id="shell"><header class="r-modal-header">Project controls</header><div class="r-preview">Overview content</div></section><div id="channel"></div>');
+    await page.setContent('<style>body{margin:0;font:14px Arial}.r-win{height:700px;display:flex;flex-direction:column}#shell{display:flex;flex:1;min-height:0;flex-direction:column}.r-preview{background:#eef2f6;flex:1}.r-modal-header{height:48px}#channel{height:650px}</style><div id="rOverlay" class="r-overlay"><section class="r-win"><div id="shell" class="r-right"><header class="r-modal-header r-window-bar"><div class="r-window-identity">Project controls</div><div class="r-tabbar"><button data-tab="map">Overview</button></div><div class="modal-shell-actions"></div><div class="r-window-bar-actions"></div></header><div class="r-preview">Overview content</div></div></section></div><div id="channel"></div>');
     await page.evaluate(() => {
       window.__APP={userOrgId:'org',userId:'user',userName:'Alex'};
       window.split=false; window.project={id:'project',title:'Roofing'};window.sent=[];window.notePosts=[];
@@ -24,10 +24,15 @@ test('project trays reuse Notes, Channels and the global agent and preserve draf
       window.histories=new Map();
       window.AssistantAPI={projectConversation:async (_org,pid)=>{const id='thread-'+pid;if(!window.histories.has(id))window.histories.set(id,[]);return {thread:{id}};},thread:async (_org,id)=>({messages:window.histories.get(id)}),send:async (_org,id,body)=>{window.sent.push({id,...body});window.histories.get(id).push({id:'u',role:'user',content:body.message},{id:'a',role:'assistant',content:'**Project scope** reviewed.'});return {};}};
     });
-    for (const file of ['agent-chat/agent-chat.js','platform-assistant/platform-assistant.js','channels-ui/channels-ui.js','project-notes/project-notes.js','project-trays/project-trays.js'])
+    for (const file of ['window-manager/project-layout.js','agent-chat/agent-chat.js','platform-assistant/platform-assistant.js','channels-ui/channels-ui.js','project-notes/project-notes.js','project-trays/project-trays.js'])
       await page.addScriptTag({content:await readFile(new URL(`../../libraries/${file}`,import.meta.url),'utf8')});
-    await page.evaluate(() => {window.trays=window.FirstMateProjectTrays.mount(document.querySelector('#shell'),{orgId:'org',getProject:()=>window.project});});
+    const portal = await readFile(new URL('../../portal/index.php',import.meta.url),'utf8');
+    assert.ok(portal.indexOf('project-trays/project-trays.js') > 0 && portal.indexOf('project-trays/project-trays.js') < portal.indexOf('apps/project-request/app.js'),'the static portal loader includes trays before the project app');
+    await page.evaluate(() => {window.layout=window.FirstMateProjectLayout.mount({overlay:document.querySelector('#rOverlay'),getProject:()=>window.project,getTab:()=> 'map'});window.trays=window.FirstMateProjectTrays.mount(document.querySelector('#shell'),{orgId:'org',getProject:()=>window.project});});
     assert.equal(await page.locator('.fm-project-tray-tabs button').count(),3);
+    assert.equal(await page.locator('#shell .r-modal-header').count(),0,'layout moved the header out of the content rail');
+    assert.equal(await page.locator('.r-window-bar .fm-project-tray-tabs').count(),1);
+    assert.equal(await page.getByRole('tab',{name:'Notes',exact:true}).isVisible(),true);
     await page.getByRole('tab',{name:'Notes',exact:true}).click();
     await page.waitForSelector('.pn-pinned .pn-card');
     assert.equal(await page.locator('.pn-pinned .pn-card').count(),1);
@@ -65,7 +70,7 @@ test('project trays reuse Notes, Channels and the global agent and preserve draf
     await page.locator('#channel .fm-ch-tab').filter({hasText:'Notes'}).click();
     await page.waitForSelector('#channel .pn-workspace');
     assert.equal(await page.locator('#channel .pn-pinned .pn-card').count(),2);
-    await page.evaluate(()=>{window.channelView.destroy();window.trays.destroy();});
+    await page.evaluate(()=>{window.channelView.destroy();window.trays.destroy();window.layout.destroy();});
     assert.deepEqual(errors,[]);
   } finally {await browser.close();}
 });

@@ -41,8 +41,8 @@
 .fm-window[data-window=docked] .fm-window-resize[data-resize=w]:hover::before,.fm-window[data-window=docked] .fm-window-resize[data-resize=w]:focus-visible::before,.fm-window[data-window=docked] .fm-window-resize[data-resize=w].is-resizing::before{left:-3px;width:4px;background:#667085}
 @media (prefers-reduced-motion:reduce){.fm-window[data-window=docked] .fm-window-resize[data-resize=w]::before{transition:none}}
 .fm-window-resize:focus-visible{background:#66708555;outline:2px solid #175cd3;outline-offset:-2px}
-.fm-window-menu{position:fixed;z-index:1700;background:#fff;color:#101828;border:1px solid #d0d5dd;border-radius:10px;box-shadow:0 12px 36px #10182830;padding:6px;width:230px;font:13px Arial,sans-serif}
-.fm-window-menu button{display:block;width:100%;padding:9px 10px;text-align:left;border:0;border-radius:6px;background:none;color:inherit;cursor:pointer}.fm-window-menu button:hover,.fm-window-menu button:focus{background:#f2f4f7}
+.fm-window-menu{position:fixed;z-index:2147483647;background:#fff;color:#101828;border:1px solid #d0d5dd;border-radius:10px;box-shadow:0 12px 36px #10182830;padding:6px;width:230px;font:13px Arial,sans-serif}
+.fm-window-dock-options{display:flex;gap:4px;align-items:center}.fm-window-dock-options button{display:grid!important;place-items:center;width:34px!important;height:32px;padding:5px!important}.fm-window-dock-options svg{width:22px;height:18px}.fm-window-dock-options hr{align-self:stretch;border:0!important;border-left:1px solid #e4e7ec!important;margin:3px 2px!important}.fm-window-menu button{display:block;width:100%;padding:9px 10px;text-align:left;border:0;border-radius:6px;background:none;color:inherit;cursor:pointer}.fm-window-menu button:hover,.fm-window-menu button:focus{background:#f2f4f7}
 .fm-window[data-theme=dark]{background:#111827;color:#fff;border-color:#344054}.fm-window[data-theme=dark] .fm-window-header{border-color:#344054}
 `;
     document.head.append(style);
@@ -240,11 +240,25 @@
     buttons.close.onclick=requestClose;
     function showMenu(event,dockOnly=false){
       event.preventDefault(); closeMenu(); menu=document.createElement('div'); menu.className='fm-window-menu'; menu.setAttribute('role','menu');
-      const dockItems=placements.slice(0,6).map(side=>['Dock '+side.replace('-',' '),()=>dock(side)]);dockItems.splice(2,0,[null]);
-      const items=dockOnly ? dockItems : [['Float',()=>setMode('floating')],...dockItems,['Close',requestClose]];
+      const dockOptions=document.createElement('div');dockOptions.className='fm-window-dock-options';dockOptions.setAttribute('role','group');dockOptions.setAttribute('aria-label','Dock placement');
+      for(const [index,side] of placements.slice(0,6).entries()) {
+        if(index===2)dockOptions.append(document.createElement('hr'));
+        const button=document.createElement('button');button.type='button';button.setAttribute('role','menuitem');button.setAttribute('aria-label','Dock '+side.replace('-',' '));button.title='Dock '+side.replace('-',' ');button.dataset.dockPlacement=side;
+        const corner=side.includes('-'),left=side.includes('left'),top=side.startsWith('top');
+        button.innerHTML=`<svg viewBox="0 0 24 20" aria-hidden="true"><rect x="2" y="2" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 2v16${corner?'M2 10h20':''}" fill="none" stroke="currentColor" stroke-width="1"/><rect x="${left?4:14}" y="${corner&&!top?12:4}" width="6" height="${corner?4:12}" rx="1" fill="currentColor"/></svg>`;
+        button.onclick=()=>{closeMenu();dock(side);};dockOptions.append(button);
+      }
+      const items=dockOnly ? [] : [['Float',()=>setMode('floating')],['Close',requestClose]];
       if(options.presentationModes && !dockOnly){items.unshift(['Modal',()=>setMode('modal')],['Fill workspace',()=>setMode('full')]);if(options.allowFullscreen!==false)items.unshift(['Fill entire screen',()=>setMode('fullscreen')]);}
-      for(const [label,action] of items) { if(!label){menu.append(document.createElement('hr'));continue;}const button=document.createElement('button');button.textContent=label;button.setAttribute('role','menuitem');button.onclick=()=>{closeMenu();action();};menu.append(button); }
-      menu.style.pointerEvents='auto'; (options.menuHost || document.body).append(menu);const r=(dockOnly ? buttons.place : header).getBoundingClientRect(),view=menu.ownerDocument.defaultView;menu.style.left=`${Math.max(8,Math.min(r.left,view.innerWidth-246))}px`;menu.style.top=`${Math.max(8,Math.min(r.bottom,view.innerHeight-menu.offsetHeight-8))}px`;menu.firstChild.focus();
+      for(const [label,action] of items) {const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('role','menuitem');button.onclick=()=>{closeMenu();action();};if(label==='Close')menu.append(dockOptions);menu.append(button);}
+      if(dockOnly)menu.append(dockOptions);
+      menu.style.width='max-content';menu.style.pointerEvents='auto';(options.menuHost || document.body).append(menu);
+      const anchor=dockOnly?buttons.place:header,r=anchor.getBoundingClientRect(),view=menu.ownerDocument.defaultView;
+      const frameOffset=menu.ownerDocument!==headerDocument?headerDocument.defaultView.frameElement?.getBoundingClientRect():null;
+      const pointer=event.type==='contextmenu'&&!dockOnly&&Number.isFinite(event.clientX);
+      const point=menu.ownerDocument===headerDocument?{x:event.clientX,y:event.clientY}:outerPoint(event);
+      const x=pointer?point.x:r.left+(frameOffset?.left||0),y=pointer?point.y+6:r.bottom+(frameOffset?.top||0)+4;
+      menu.style.left=`${Math.max(8,Math.min(x,view.innerWidth-menu.offsetWidth-8))}px`;menu.style.top=`${Math.max(8,Math.min(y,view.innerHeight-menu.offsetHeight-8))}px`;menu.querySelector('button')?.focus();
     }
     header.addEventListener('contextmenu',showMenu);
     if (title && options.titleMenu !== false) { title.tabIndex=0; title.setAttribute('role','button'); title.setAttribute('aria-label',((v0) => globalThis.PlatformLanguage?.text("window-manager","m_d2465937dae930",`${v0} window menu`,{v0}) ?? `${v0} window menu`)(name)); title.title=(globalThis.PlatformLanguage?.text("window-manager","m_e271e8dbdf1d3d","Window menu (right-click or Alt+Space)") ?? "Window menu (right-click or Alt+Space)"); }

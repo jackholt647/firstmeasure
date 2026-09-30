@@ -2157,6 +2157,7 @@ session_write_close();
   <script src="../libraries/audio-structure/audio-structure.js?v=<?= $ver ?>"></script>
   <script src="../libraries/channels-ui/channels-ui.js?v=<?= $ver ?>"></script>
   <script src="../libraries/project-notes/project-notes.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/project-trays/project-trays.js?v=<?= $ver ?>"></script>
   <?php endif; ?>
   <script src="../libraries/lead-intake-api/lead-intake-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/canvassing-api/canvassing-api.js?v=<?= $ver ?>"></script>

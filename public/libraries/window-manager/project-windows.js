@@ -61,7 +61,7 @@
     const token = root.crypto.randomUUID();
     const layer = document.createElement('div'); layer.className='fm-project-window-layer';layer.dataset.mode='modal';layer.dataset.projectWindow=token;
     const element = document.createElement('section');element.className='fm-project-frame';element.hidden=false;
-    const frame = document.createElement('iframe');frame.name='fm-project-window:'+token;frame.style.visibility='hidden';frame.title=String(project?.title || project?.address || 'Project workspace');frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');
+    const frame = document.createElement('iframe');frame.name='fm-project-window:'+token;frame.style.visibility='hidden';frame.setAttribute('aria-label',String(project?.title || project?.address || 'Project workspace'));frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');
     const loading = document.createElement('div');loading.className='fm-project-window-loading';
     const status=document.createElement('span');status.textContent='Opening project…';status.setAttribute('role','status');
     const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='Close';dismiss.onclick=()=>close(token);loading.append(status,dismiss);
@@ -101,7 +101,7 @@
     title.onclick=restore.onclick=()=>{active=record;record.controller.restore();publishRoute(record);};dismiss.onclick=()=>close(token);bar.append(title,restore,dismiss);record.element.append(bar);record.minimizedBar=bar;
     function placement(state,notify=true){
       const minimized=state.mode==='minimized';bar.hidden=!minimized;
-      bar.querySelector('span').textContent=options.title?.textContent || record.frame.title;
+      bar.querySelector('span').textContent=options.title?.textContent || record.frame.getAttribute('aria-label') || '';
       title.title=bar.querySelector('span').textContent;
       if(!minimized){record.frame.style.width='100%';record.frame.style.height='100%';}
       record.frame.style.visibility=minimized?'hidden':'visible';
@@ -120,6 +120,6 @@
       refresh(){record.controller.refresh();},focus(){active=record;record.controller.focus();},restore(){record.controller.restore();}
     };
   }
-  function update(token, data){const record=records.get(token);if(!record)return;if(data.projectId)record.projectId=data.projectId;if(data.title){record.frame.title=data.title;record.element.setAttribute('aria-label',data.title);const label=record.minimizedBar?.querySelector('span');if(label)label.textContent=data.title;}}
+  function update(token, data){const record=records.get(token);if(!record)return;if(data.projectId)record.projectId=data.projectId;if(data.title){record.frame.setAttribute('aria-label',data.title);record.element.setAttribute('aria-label',data.title);const label=record.minimizedBar?.querySelector('span');if(label)label.textContent=data.title;}}
   root.FirstMateProjectWindows={open,close,closed,ready,attach,accepts,update,get active(){return active;},get size(){return records.size;}};
 })(window);
