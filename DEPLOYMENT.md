@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 huddle effects: [GPU quality model and soft background edges](deploy/digitalocean/development-channels-effects-quality-20260929.md) records the verified development rollout, model comparison, adaptive fallback and hosted call checks.
+
 September 29 Brand Kit: [Shared editor, autosave and custom color picker](deploy/digitalocean/development-brand-kit-20260929.md) records the development rollout, logo/font controls, audited picker coverage, hosted browser checks and rollback.
 
 September 29 Projects and Contacts: [Feed style parity and scope-derived columns](deploy/digitalocean/development-portal-style-parity-20260929.md) records the development-only styling, preserved controls, field choices, verification and rollback.
