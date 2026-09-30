@@ -184,3 +184,15 @@ test('custom rule locks apply to existing members and preserve editable delivery
  await alice.request('DELETE',root+'/notification-rules/'+id,{revision:edited.rule.revision});
  const history=await alice.request('GET',root+'/notification-rules');assert.ok(history.history.some((item:any)=>item.reason==='Organization protection updated'));
 });
+
+test('organization defaults reset requires organization permission and retains personal settings',async()=>{
+ const owner=createSessionClient(),{orgId}=await register(owner),root=`/v1/platform/organizations/${orgId}`;
+ await owner.request('POST',root+'/notification-configuration',{});
+ await owner.request('PUT',root+'/notification-defaults',{revision:0});
+ const viewer=await member(orgId,'reset-viewer');
+ assert.equal((await viewer.raw('POST',root+'/notification-defaults/reset',{revision:1})).statusCode,403);
+ const before=await owner.request('GET',root+'/notification-preferences');
+ assert.equal((await owner.request('POST',root+'/notification-defaults/reset',{revision:1})).revision,2);
+ assert.deepEqual((await owner.request('GET',root+'/notification-preferences')).preferences,before.preferences);
+ assert.equal((await owner.raw('POST',root+'/notification-defaults/reset',{revision:1})).statusCode,409);
+});

@@ -15,7 +15,7 @@ const render=source.slice(start,source.indexOf("    window.Portal?.navigation?.r
 const server=http.createServer(async(req,res)=>{res.setHeader('Content-Type',req.url.endsWith('.js')?'text/javascript':'text/html');try{res.end(req.url.endsWith('.js')?await fs.readFile(path.join(root,'public',req.url)):'<style>body{font-family:Arial;margin:16px}.cs-btn{padding:7px 12px;border:1px solid #ddd;border-radius:8px;background:white;cursor:pointer}</style><div id="csPaneNotifications" style="height:800px"></div>');}catch{res.statusCode=404;res.end();}}).listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
 const browser=await chromium.launch({executablePath:executable,headless:true});
 try{
- const page=await browser.newPage({viewport:{width:1200,height:850}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const page=await browser.newPage({viewport:{width:1200,height:850}});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',dialog=>dialog.accept());
  await page.goto('http://127.0.0.1:'+server.address().port);
  await page.evaluate(()=>{
  window.paneNotifications=document.querySelector('#csPaneNotifications');window.currentOrgId=()=> 'org';window.currentBranchId=()=> 'default';window.escapeHtml=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');window.FirstMateAgentChat={injectBaseCss(){}};
@@ -26,7 +26,7 @@ try{
  savePreferences:async(org,patch)=>patches.push(patch),
  addRegistration:async(org,input)=>{window.created=input;if(!window.attempts){window.attempts=1;throw Error('Temporary save failure');}records.push({...input,id:'custom_1',intent:'Signed proposals',enabled:true,filters:[],source:'return {outputs:{}};',revision:1});return {ok:true};},
  saveRule:async(org,rule)=>{window.savedRule=rule;records[0]={...rule,revision:rule.revision+1};return {rule:records[0]};},
- deleteRule:async(org,id,revision)=>{window.deleted={id,revision};records=[];return {ok:true};},saveQuietHours:async()=>({ok:true})
+ deleteRule:async(org,id,revision)=>{window.deleted={id,revision};records=[];return {ok:true};},saveQuietHours:async(org,value)=>{window.quietSaved=value;return {ok:true};}
  },notificationAssistant:{context:async()=>({settings:{enabled:false}})}};
  });
  await page.evaluate('(async()=>{'+render+'\nawait renderNotificationSettings();})()');
@@ -45,9 +45,9 @@ try{
  await page.locator('[data-nc-add]').click();await page.locator('dialog').waitFor();await page.mouse.click(5,5);await page.waitForFunction(()=>!document.querySelector('dialog'));
  await page.locator('[data-nc-add]').click();await page.locator('dialog').waitFor();await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('dialog'));
 
- await page.locator('[data-nc-settings]').click();assert.equal(await page.locator('.nc-body').isVisible(),false);
+ await page.locator('[data-nc-settings]').click();assert.equal(await page.locator('.nc-body').isVisible(),false);assert.equal(await page.locator('[data-nc-add]').isVisible(),false);assert.equal(await page.locator('[data-delivery-rules]').count(),0);
  assert.equal(await page.locator('[data-notification-org-settings]').count(),1);
- await page.locator('[data-quiet-form] input[name=enabled]').check();
+ await page.locator('[data-quiet-form] input[name=enabled]').check();await page.waitForFunction(()=>quietSaved?.enabled);await page.locator('[data-quiet-form] select[name=timezone]').selectOption('America/New_York');await page.waitForFunction(()=>quietSaved.timezone==='America/New_York');assert.equal(await page.locator('[data-quiet-form] button[type=submit]').count(),0);
  assert.equal(await page.locator('[data-quiet-form] input[name=enabled]').evaluate(el=>getComputedStyle(el).opacity),'0','native checkbox is visually hidden behind switch');
  await fs.mkdir(path.join(root,'output/notification-registration-20260929'),{recursive:true});
  await page.screenshot({path:path.join(root,'output/notification-registration-20260929/settings-panel.png')});
@@ -64,20 +64,24 @@ try{
  await page.locator('[data-nc-advanced="workflow.custom_1"]').click();
  await page.locator('input[data-notification-surface=email]').check();await page.waitForFunction(()=>patches.length>0);
  assert.equal(await page.evaluate(()=>patches.at(-1).email['workflow.custom_1']),true);
- await page.locator('[data-nr-rule] select[name=group_alert]').selectOption('digest');await page.locator('[name=quiet_exempt][value=sms]').check();await page.locator('[data-nr-rule] button').click();await page.waitForFunction(()=>window.savedRule);
- assert.equal(await page.evaluate(()=>savedRule.source),'return {outputs:{}};');assert.equal(await page.evaluate(()=>savedRule.group.alert),'digest');assert.deepEqual(await page.evaluate(()=>savedRule.quiet_exempt_methods),['sms']);
+ assert.equal(await page.locator('[data-nr-rule],[data-nr-definition]').count(),0);
+ assert.equal(await page.locator('.nc-rule-summary').innerText(),'Signed proposals');
+ await page.locator('[data-nc-advanced="workflow.custom_1"]').click();assert.equal(await page.locator('.nc-rule-summary').isVisible(),true);await page.locator('[data-nc-advanced="workflow.custom_1"]').hover();
+ await page.waitForTimeout(60);
+ const tip=await page.locator('[id="nc-advanced-tip-workflow.custom_1"]').boundingBox(),trigger=await page.locator('[data-nc-advanced="workflow.custom_1"] svg').boundingBox();assert.ok(Math.abs(trigger.y-(tip.y+tip.height)-7)<1,'tooltip is close to its trigger '+JSON.stringify({tip,trigger}));
+ await page.locator('[data-nc-advanced="workflow.custom_1"]').click();
  const centered=await page.locator('.nc-mode svg').first().evaluate(svg=>{const a=svg.getBoundingClientRect(),b=svg.parentElement.getBoundingClientRect();return Math.abs(a.y+a.height/2-b.y-b.height/2);});assert.ok(centered<.5,'mode icon vertically centered');
  const size=await page.locator('.nc-mode').evaluate(el=>el.getBoundingClientRect().height);assert.equal(size,18);
 
  await page.screenshot({path:path.join(root,'output/notification-registration-20260929/toolbar-refined.png')});
  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile overflow');
  assert.equal(await page.locator('.nc-assistant').isVisible(),true);await page.locator('[data-nr-delete]').click();await page.waitForFunction(()=>window.deleted);await page.waitForFunction(()=>!document.querySelector('[data-nr-delete]'));
- assert.equal(await page.evaluate(()=>deleted.revision),2);assert.deepEqual(errors,[]);
+ assert.equal(await page.evaluate(()=>deleted.revision),1);assert.deepEqual(errors,[]);
  await page.evaluate(()=>{ const prior=PlatformAPI.notifications.preferences; PlatformAPI.notifications.preferences=async()=>({...await prior(),permissions:{personal:false,organization:false}}); const rules=PlatformAPI.notifications.rules; PlatformAPI.notifications.rules=async()=>({...await rules(),permissions:{personal:false},rule_locks:{locked:'full'},rules:[{id:'locked',intent:'Organization delivery rule',enabled:true}]}); });
  await page.evaluate('(async()=>{'+render+'\nawait renderNotificationSettings();})()');
  await page.locator('[data-nc-settings]').click();
  assert.equal(await page.locator('[data-quiet-form] input[name=enabled]').isDisabled(),true);
- assert.equal(await page.locator('[data-rule-id=locked]').isDisabled(),true);
+ assert.equal(await page.locator('[data-rule-id=locked]').count(),0);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile settings overflow');
  await page.screenshot({path:path.join(root,'output/notification-registration-20260929/settings-mobile-locked.png')});
 
@@ -88,22 +92,23 @@ try{
   PlatformAPI.notifications.preferences=async()=>({...await prior(),permissions:{personal:true,organization:notificationAdmin},configuration_revision:1,catalog:[{id:'legacy.messages',kind:'app',label:'Messages',definitions:[{key:'messages',label:'Messages',description:'Incoming messages',personal:true,lock_mode:lockMode,editable:notificationAdmin||lockMode!=='full',removable:notificationAdmin||lockMode==='unlocked'}]}]});
   PlatformAPI.notifications.rules=async()=>({permissions:{personal:true,organization:notificationAdmin},locks_revision:0,rules:[],events:[],history:[]});
   PlatformAPI.notifications.defaults=async()=>({revision:0});
+  PlatformAPI.notifications.resetDefaults=async(org,revision)=>{window.defaultReset=revision;return {revision:2};};
   PlatformAPI.notifications.saveDefaults=async(org,revision)=>{window.defaultSaved=revision;return {revision:1};};
   PlatformAPI.notifications.saveLock=async(org,patch)=>{window.savedLock=patch;window.lockMode=patch.mode;return {revision:1};};
  });
  await page.evaluate('(async()=>{'+render+'\nawait renderNotificationSettings();})()');
  await page.locator('[data-nc-settings]').click();await page.locator('[data-nr-publish]').click();
- assert.equal(await page.evaluate(()=>defaultSaved),0);
+ assert.equal(await page.evaluate(()=>defaultSaved),0);await page.locator('[data-nr-reset]').click();await page.waitForFunction(()=>window.defaultReset===1);
  await page.locator('[data-nc-tab=all]').click();await page.locator('[data-nc-advanced=messages]').click();
- await page.locator('[data-nr-lock] select').selectOption('full');await page.locator('[data-nr-lock] button').click();
+ await page.locator('[data-nr-mode=full]').click();
  await page.waitForFunction(()=>window.savedLock);assert.equal(await page.evaluate(()=>savedLock.key),'messages');
- await page.waitForFunction(()=>document.querySelector('.nr-lock-note')?.textContent.includes('Locked'));
+ await page.waitForFunction(()=>document.querySelector('[data-nr-mode=full]')?.getAttribute('aria-pressed')==='true');
  await page.screenshot({path:path.join(root,'output/notification-registration-20260929/admin-locks.png')});
  await page.evaluate(()=>notificationAdmin=false);
  await page.evaluate('(async()=>{'+render+'\nawait renderNotificationSettings();})()');
  await page.locator('[data-nc-advanced=messages]').click();
  assert.equal(await page.locator('[data-notification-surface=push]').isDisabled(),true);
- assert.equal(await page.locator('[data-nr-definition] button').isDisabled(),true);
+ assert.equal(await page.locator('[data-nr-definition]').count(),0);
  assert.equal(await page.locator('[data-nr-delete]').count(),0);
  assert.equal(await page.locator('[data-nr-lock]').count(),0);
  assert.deepEqual(errors,[]);

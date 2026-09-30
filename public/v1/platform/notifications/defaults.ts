@@ -11,7 +11,7 @@ const obj=(v:unknown):Json=>v&&typeof v==='object'&&!Array.isArray(v)?v as Json:
 const copy=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 const surfaces=[...methods,'in_app_sound','in_app_badge','in_app_bell'];
 export type PersonalNotificationConfiguration={revision:number;defaults_revision:number;catalog:NotificationGroup[];preferences:Json;removed_keys:string[]};
-export type OrganizationNotificationDefaults={revision:number;catalog:NotificationGroup[];preferences:Json;rules:NotificationRule[];source_user_id:string;source_branch_id:string;removed_keys:string[]};
+export type OrganizationNotificationDefaults={system?:boolean;revision:number;catalog:NotificationGroup[];preferences:Json;rules:NotificationRule[];source_user_id:string;source_branch_id:string;removed_keys:string[]};
 
 const definitionSchema=z.object({key:z.string().min(1).max(200),label:z.string().max(140),description:z.string().max(8000),category:z.string().max(100),defaults:z.object({in_app:z.boolean(),push:z.boolean()})}).passthrough();
 const catalogSchema=z.array(z.object({id:z.string().max(200),label:z.string().max(140),kind:z.enum(['app','workflow','custom']),definitions:z.array(definitionSchema).max(5000),disabled:z.boolean().optional()})).max(500);
@@ -70,7 +70,7 @@ export async function ensurePersonalConfiguration(org:string,user:string,branch:
  const db=notificationStore();
  return db.transaction(async()=>{
   const existing=await readPersonalConfiguration(org,user,branch);if(existing)return existing;
-  const defaults=await readOrganizationDefaults(org);
+  const storedDefaults=await readOrganizationDefaults(org),defaults=storedDefaults?.system?null:storedDefaults;
   const seed=defaults?copyRulePreferences(defaults.preferences,defaults.rules,defaults.source_user_id,user,defaults.source_branch_id,branch):{};
   const merged=mergePreferences(seed,existingPreferences);
   const allowed=new Set(systemCatalog.flatMap(group=>group.definitions.map(definition=>definition.key)));
@@ -85,7 +85,7 @@ export async function ensurePersonalConfiguration(org:string,user:string,branch:
   }
   const preferences=materializePreferences(catalog,merged);
   for(const key of removed_keys)for(const method of methods)preferences[method]={...obj(preferences[method]),[key]:false};
-  const next:PersonalNotificationConfiguration={revision:1,defaults_revision:defaults?.revision||0,catalog,preferences,removed_keys};
+  const next:PersonalNotificationConfiguration={revision:1,defaults_revision:storedDefaults?.revision||0,catalog,preferences,removed_keys};
   for(const raw of defaults?.rules||[]){
    if(!systemCatalog.some(group=>group.definitions.some(definition=>definition.key.startsWith('event.')&&definition.event===raw.event))||!eventIsSubscribable(raw.event)||raw.methods.includes('customer_portal'))continue;
    // Same IDs are isolated by user. Existing personal choices and deletion tombstones win.
@@ -172,6 +172,20 @@ export async function saveOrganizationDefaults(org:string,actor:string,input:{re
   const next:OrganizationNotificationDefaults={revision:revision+1,catalog,preferences:materializePreferences(catalog,input.preferences),rules:copy(rules),source_user_id:actor,source_branch_id:input.source_branch_id||'default',removed_keys};
   await db.prepare('INSERT INTO notification_organization_defaults(organization_id,revision,data_json) VALUES(?,?,?) ON CONFLICT(organization_id) DO UPDATE SET revision=excluded.revision,data_json=excluded.data_json').run(org,next.revision,JSON.stringify(next));
   await db.prepare('INSERT INTO notification_configuration_history(id,organization_id,user_id,branch_id,kind,revision,data_json,created_at) VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(),org,actor,next.source_branch_id,'organization_defaults',next.revision,JSON.stringify(next),new Date().toISOString());
+  return next;
+ },identity('organization-notification-defaults',org));
+}
+
+/** Restore dynamic factory defaults for future users without rewriting personal choices or locks. */
+export async function resetOrganizationDefaults(org:string,actor:string,revision:number){
+ z.number().int().nonnegative().parse(revision);
+ const db=notificationStore();
+ return db.transaction(async()=>{
+  const current=await readOrganizationDefaults(org);
+  if((current?.revision||0)!==revision)throw conflict('notification_defaults_revision','Organization notification defaults revision conflict.');
+  const next:OrganizationNotificationDefaults={system:true,revision:revision+1,catalog:[],preferences:{},rules:[],source_user_id:actor,source_branch_id:'default',removed_keys:[]};
+  await db.prepare('INSERT INTO notification_organization_defaults(organization_id,revision,data_json) VALUES(?,?,?) ON CONFLICT(organization_id) DO UPDATE SET revision=excluded.revision,data_json=excluded.data_json').run(org,next.revision,JSON.stringify(next));
+  await db.prepare('INSERT INTO notification_configuration_history(id,organization_id,user_id,branch_id,kind,revision,data_json,created_at) VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(),org,actor,'','organization_defaults_reset',next.revision,JSON.stringify(next),new Date().toISOString());
   return next;
  },identity('organization-notification-defaults',org));
 }

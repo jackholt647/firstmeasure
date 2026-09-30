@@ -97,3 +97,18 @@ test('removed organization defaults stay removed on observation while explicit e
  const restricted=await defaults.ensurePersonalConfiguration('filtered-defaults','user','default',[{...catalog[0]!,definitions:[definition('tasks')]}],{});
  assert.deepEqual(restricted.catalog.flatMap(group=>group.definitions.map(d=>d.key)),['tasks']);
 });
+
+test('reset restores dynamic factory defaults for new users, preserves existing choices and locks, and rejects stale revisions',async()=>{
+ const org='reset-defaults';
+ await defaults.saveOrganizationDefaults(org,'admin',{revision:0,catalog,preferences:{push:{tasks:true}},rules:[]});
+ const existing=await defaults.ensurePersonalConfiguration(org,'existing','default',catalog);
+ await defaults.saveNotificationLocks(org,'admin',{revision:0,locks:{tasks:{mode:'full',preferences:{in_app:true},definition:definition('tasks')}}});
+ const locks=await defaults.readNotificationLocks(org);
+ const reset=await defaults.resetOrganizationDefaults(org,'admin',1);assert.equal(reset.revision,2);assert.equal(reset.system,true);
+ assert.deepEqual(await defaults.ensurePersonalConfiguration(org,'existing','default',catalog),existing);
+ assert.deepEqual(await defaults.readNotificationLocks(org),locks);
+ const future=await defaults.ensurePersonalConfiguration(org,'future','default',[...catalog,{id:'new',kind:'app',label:'New app',definitions:[definition('new-default')]}]);
+ assert.equal(future.defaults_revision,2);assert.equal((future.preferences.push as any).tasks,false);assert.ok(future.catalog.some(g=>g.id==='new'));
+ await assert.rejects(defaults.resetOrganizationDefaults(org,'admin',1),/revision conflict/);
+ assert.ok((await store.notificationStore().prepare('SELECT kind FROM notification_configuration_history WHERE organization_id=?').all(org)).some(row=>row.kind==='organization_defaults_reset'));
+});

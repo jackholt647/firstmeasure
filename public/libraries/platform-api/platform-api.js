@@ -466,6 +466,7 @@
     initialize(orgId){ return request(orgPath(orgId, '/notification-configuration'), {method:'POST',body:{}}); },
     saveConfiguration(orgId, patch){ return request(orgPath(orgId, '/notification-configuration'), {method:'PATCH',body:patch}); },
     defaults(orgId){ return request(orgPath(orgId, '/notification-defaults')); },
+    resetDefaults(orgId, revision){ return request(orgPath(orgId, '/notification-defaults/reset'), {method:'POST',body:{revision}}); },
     saveDefaults(orgId, revision){ return request(orgPath(orgId, '/notification-defaults'), {method:'PUT',body:{revision}}); },
     saveLock(orgId, patch){ return request(orgPath(orgId, '/notification-locks'), {method:'PATCH',body:patch}); },
     addRegistration(orgId, registration){ return request(orgPath(orgId, '/notification-registrations'), {method:'POST',body:registration}); },

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requirePlatformAuth } from '../auth.js';
 import { readDocument } from '../storage.js';
 import { notificationCatalog, catalogDefinitions } from '../notification_catalog.js';
-import { readPersonalConfiguration, patchPersonalConfiguration, readOrganizationDefaults, saveOrganizationDefaults, readNotificationLocks, saveNotificationLocks, type NotificationLock } from './defaults.js';
+import { readPersonalConfiguration, patchPersonalConfiguration, readOrganizationDefaults, saveOrganizationDefaults, resetOrganizationDefaults, readNotificationLocks, saveNotificationLocks, type NotificationLock } from './defaults.js';
 import { initializeUserNotifications, effectivePreferences, assertNotificationChange, lockKey, applicableLocks } from './configuration.js';
 import { notificationPermissions } from './permissions.js';
 import { listRules } from './store.js';
@@ -42,6 +42,13 @@ export async function registerNotificationConfigurationApi(app:FastifyInstance){
   const preferences=await effectivePreferences(org,auth.userId,auth.branchId||'default',user.data.notification_preferences);
   const personal=await readPersonalConfiguration(org,auth.userId,auth.branchId||'default');
   const defaults=await saveOrganizationDefaults(org,auth.userId,{revision,catalog,preferences,removed_keys:personal?.removed_keys||[],rules:await listRules(org,auth.userId),source_branch_id:auth.branchId||'default'});
+  return {ok:true,revision:defaults.revision};
+ });
+ app.post(root+'/notification-defaults/reset',async request=>{
+  const org=String((request.params as Json).orgId),auth=await requirePlatformAuth(request,{orgId:org,capability:'apps.notifications',csrf:true});
+  if(!notificationPermissions(auth).organization)throw forbidden('notification_defaults_forbidden','You cannot manage organization notification defaults.');
+  const {revision}=z.object({revision:z.number().int().nonnegative()}).strict().parse(request.body);
+  const defaults=await resetOrganizationDefaults(org,auth.userId,revision);
   return {ok:true,revision:defaults.revision};
  });
  app.patch(root+'/notification-locks',async request=>{

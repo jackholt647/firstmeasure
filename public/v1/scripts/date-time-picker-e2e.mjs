@@ -7,7 +7,6 @@ const page = await browser.newPage({locale:'en-US'});
 const errors=[]; page.on('pageerror',e=>errors.push(e.message));
 const picker=()=>page.locator('fm-date-time-picker');
 async function editTime(name,value){
- await picker().locator('details').evaluate(el=>el.open=true);
  await picker().getByLabel(name,{exact:true}).fill(value);
 }
 async function setup(html){
@@ -132,6 +131,10 @@ try {
  await setup('<label>Schedule message <input type="datetime-local" value="2026-09-28T14:30"></label>');
  await page.setViewportSize({width:390,height:844});
  await page.locator('input').first().click();
+ assert.equal(await picker().locator('details').count(),0);
+ const custom=await picker().locator('.time').boundingBox(),slot=await picker().locator('[data-slot]').first().boundingBox(),period=await picker().locator('[data-period]').boundingBox();
+ assert.equal(custom.height,slot.height);assert.ok(Math.abs(custom.width-slot.width)<1);assert.ok(period.y>=custom.y&&period.y+period.height<=custom.y+custom.height);
+ assert.equal(await picker().locator('.picker').evaluate(el=>getComputedStyle(el).fontFamily),'system-ui');
  const bounds=await picker().locator('.picker').boundingBox();
  assert.ok(bounds.x>=0&&bounds.x+bounds.width<=390&&bounds.y>=0&&bounds.y+bounds.height<=844);
  const mobileCalendar=await picker().locator('.calendar').boundingBox(), mobileTimes=await picker().locator('.time-section').boundingBox();
@@ -141,7 +144,7 @@ try {
  assert.equal(await picker().getByRole('button',{name:'Close picker',exact:true}).evaluate(e=>e===e.getRootNode().activeElement),true);
  await mkdir(new URL('../../../output/date-time-picker/',import.meta.url),{recursive:true});
  await page.screenshot({animations:'disabled',path:new URL('../../../output/date-time-picker/mobile.png',import.meta.url).pathname.replace(/^\/([A-Za-z]:)/,'$1')});
- await page.setViewportSize({width:1100,height:800});
+ await page.setViewportSize({width:1100,height:800});await page.waitForTimeout(50);{const inputBox=await page.locator('input').first().boundingBox(),popupBox=await picker().locator('.picker').boundingBox();assert.ok(popupBox.x>=inputBox.x+inputBox.width||popupBox.y>=inputBox.y+inputBox.height||popupBox.y+popupBox.height<=inputBox.y,'picker does not cover its trigger');}
  await page.screenshot({animations:'disabled',path:new URL('../../../output/date-time-picker/desktop.png',import.meta.url).pathname.replace(/^\/([A-Za-z]:)/,'$1')});
  assert.deepEqual(errors,[]);
  console.log('PASS mobile layout, focus loop, no browser errors');
