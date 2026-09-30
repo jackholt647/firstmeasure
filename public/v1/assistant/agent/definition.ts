@@ -1,4 +1,5 @@
 import { terminologyAssistantTools } from './terminology.js';
+import { projectConversationContext } from '../project-context.js';
 import { channelConversationContext } from '../channel-context.js';
 import { notificationAssistantInstructions, notificationAssistantTools } from './notifications.js';
 // The global FirstMate assistant, declared as a framework agent. The tool
@@ -573,7 +574,7 @@ const TOOLS: AgentTool[] = [
       const { message } = await postAgentMessage(run.orgId, cleanText(channel.id), {
         author_id: channelUserIdForAgent("assistant"),
         text,
-        metadata: { source: "assistant", requested_by: run.userId }
+        metadata: { source: "assistant", requested_by: run.userId, project_note:true }
       });
       run.changeLog.push("Posted a note on the project.");
       return { ok: true, message_id: cleanText(asObject(message).id) };
@@ -670,6 +671,7 @@ registerAgent({
     }
   },
   async prepare(run) {
+    run.scratch.projectContext = await projectConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.channelContext = await channelConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     const capabilities = await effectiveCapabilities(run.orgId).catch(() => null);
     const effective = asObject(asObject(capabilities).effectiveByKey);
@@ -703,6 +705,7 @@ ${buildAssistantManifest()}
 ${notificationAssistantInstructions}
 ${run.subjectId === "notifications" ? "The user is in Notification settings. Help them configure notifications through this conversation." : ""}
 ${run.scratch.channelContext || ""}
+${run.scratch.projectContext || ""}
 ${run.agentId === ASSISTANT_AGENT_ID ? assistantAgentInstructions : ""}
 
 ## Payment setup

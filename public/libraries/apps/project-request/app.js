@@ -218,6 +218,7 @@ window.PlatformCommerce.onReady(async function(){
   const proposalPdfDownloadInFlight = new Set();
   let projectViewer = null;
   let activeBaseProject = null;
+  let projectTrays = null;
   let pendingRoutePhotoId = '';
   let routeRestoreInFlight = false;
   let routeRestorePromise = null;
@@ -7955,7 +7956,12 @@ window.PlatformCommerce.onReady(async function(){
       }
     }
     const button = $('#rProjectNoteAdd');
-    if (button) button.innerHTML = editingProjectNoteId ? '<i class="fas fa-check"></i> Save note' : '<i class="fas fa-plus"></i> Add note';
+    if (button) {
+      button.innerHTML = editingProjectNoteId ? '<i class="fas fa-check"></i> Save note' : 'Plus Note';
+      let pin = button.parentElement.querySelector('[data-project-note-pin-send]');
+      if (!pin) {pin = document.createElement('button');pin.type = 'button';pin.dataset.projectNotePinSend = '';pin.setAttribute('aria-label','Add pinned note');pin.title = 'Add pinned note';pin.innerHTML = '<i class="fas fa-thumbtack"></i>';pin.style.cssText = 'margin-left:-5px;border-left:1px solid #ffffff55;border-radius:0 6px 6px 0;padding:8px;background:var(--primary,#175cd3);color:white';button.after(pin);pin.onclick = () => commitProjectNote({pin:true});}
+      pin.hidden = !!editingProjectNoteId;
+    }
     $('#rProjectNotesToggle')?.setAttribute('aria-expanded', proposalInternalNotesCollapsed ? 'false' : 'true');
     autoSizeProjectNoteInput();
     renderProjectNoteComposerMentions();
@@ -8000,7 +8006,7 @@ window.PlatformCommerce.onReady(async function(){
     await projectNotesApi()?.flush?.(activeBaseProject)?.catch?.(() => null);
     window.dispatchEvent(new CustomEvent('fm:project-notes:changed', { detail:{ projectId:activeBaseProject?.id || '' } }));
   }
-  async function commitProjectNote(){
+  async function commitProjectNote(options = {}){
     const api = projectNotesApi();
     const input = $('#rProjectNotes');
     const text = (input?.value || '').trim();
@@ -8011,11 +8017,12 @@ window.PlatformCommerce.onReady(async function(){
     const note = editingProjectNoteId
       ? api.update(activeBaseProject, editingProjectNoteId, { text, visibility:projectNoteVisibility, mention_users:mentionUsers })
       : api.add(activeBaseProject, text, projectNoteVisibility, mentionUsers, [], pendingProjectAudio ? {
+        pin:options.pin === true,
         attachments:[pendingProjectAudio.attachment],
         metadata:pendingProjectAudio.kind === 'audio' || String(pendingProjectAudio.attachment?.content_type || '').startsWith('audio/')
           ? { audio_note:pendingProjectAudio.metadata }
           : pendingProjectAudio.metadata
-      } : {});
+      } : {pin:options.pin === true});
     editingProjectNoteId = '';
     pendingProjectAudio = null;
     const audioButton = $('#rProjectAudioNote');
@@ -8038,6 +8045,9 @@ window.PlatformCommerce.onReady(async function(){
   let projectPresenceKey = '';
   let projectPresenceUsers = [];
   function syncProjectPresence(){
+    const trayShell = document.getElementById("rMapWrap");
+    if (!projectTrays && trayShell && window.FirstMateProjectTrays) projectTrays = window.FirstMateProjectTrays.mount(trayShell, {getProject:() => activeBaseProject, orgId:projectOrgId()});
+    projectTrays?.update();
     const projectId = activeProjectRouteId();
     const orgId = projectOrgId();
     const key = orgId && projectId && document.querySelector('#rOverlay.active') ? `${orgId}:${projectId}` : '';
@@ -10555,6 +10565,7 @@ window.PlatformCommerce.onReady(async function(){
     projectRouteBatching = true;
     ensureUI();
     ensureProjectWindow();
+    projectTrays?.close();
     projectLayout?.clear();
     setMobileProjectNotesOpen(false, { fromRoute:true });
     const overlay = $('#rOverlay');
@@ -10647,6 +10658,7 @@ window.PlatformCommerce.onReady(async function(){
   function close(options = {}){
     if (!projectWindowBridge && window.FirstMateProjectWindows?.active) return window.FirstMateProjectWindows.close();
     projectLayout?.clear();
+    projectTrays?.close();
     projectModalWindow?.setVisible(false);
     projectPresenceStop?.(); projectPresenceStop = null;
     projectPresenceKey = ''; projectPresenceUsers = []; renderProjectPresence();

@@ -299,6 +299,12 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, message };
   });
 
+  app.post("/organizations/:orgId/messages/:messageId/share-note", async request => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await auth(request, orgId, {csrf:true});
+    return {ok:true, ...await service.shareProjectNote(ctx, getParam(request.params, "messageId"))};
+  });
+
   app.post("/organizations/:orgId/messages/:messageId/pin", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await auth(request, orgId, { csrf: true });
@@ -316,7 +322,8 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
   app.get("/organizations/:orgId/channels/:channelId/pins", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await auth(request, orgId);
-    const messages = await service.pinnedMessages(ctx, getParam(request.params, "channelId"));
+    const query = listMessagesQuerySchema.parse(request.query ?? {});
+    const messages = await service.pinnedMessages(ctx, getParam(request.params, "channelId"), query.view);
     return { ok: true, messages };
   });
 

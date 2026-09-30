@@ -29,7 +29,7 @@ export const applicationPublication = {
   stats: { providers: ["stats"], domains: ["stats"], note: "Saved views, schema and queries are read-only; warehouse refresh is an explicit action." },
   payroll: { providers: ["payroll"], domains: ["payroll"] },
   chat: { providers: ["chat"], domains: ["chat"] },
-  channels: { providers: ["channels"], domains: ["channels"] },
+  channels: { providers: ["channels"], domains: ["channels"], note:"Project trays reuse Channels records and its subject authorization; note creation, sharing, pinning, editing, deletion and restoration are published operations. The feature flag changes rendering, not storage." },
   canvassing: { providers: ["canvassing"], domains: ["canvassing"] },
   feedback: { providers: ["feedback"], domains: ["feedback"] },
   settings: { providers: ["notification-rules", "organization", "scopes", "custom-fields-organization"], domains: ["custom-fields"], note: "Settings are selectively published; credentials and platform administration are never generic data exports. Platform Billing owns dedicated authenticated catalog, subscription and invoice flows under /v1/platform-billing; commercial changes are not exposed to tenant modules or agent tools." },

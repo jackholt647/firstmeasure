@@ -111,6 +111,7 @@
       list(orgId){ return request(orgPath(orgId, '/dashboard')); },
       remove(orgId, itemId){ return request(orgPath(orgId, `/dashboard/${enc(itemId)}`), { method:'DELETE' }); }
     },
+    projectConversation(orgId, projectId){ return request(orgPath(orgId, `/projects/${enc(projectId)}/conversation`), {method:"POST", body:{}}); },
     threads(orgId){ return request(orgPath(orgId, '/threads')); },
     search(orgId, query){ return request(orgPath(orgId, `/search?q=${enc(query)}`)); },
     createThread(orgId, body){ return request(orgPath(orgId, '/threads'), { method:'POST', body:object(body) }); },

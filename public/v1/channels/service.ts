@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { messageTranslationPreferences } from "../platform/localization/message-preferences.js";
 import { sameMessageLanguage } from "../platform/localization/languages.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
-import { hasPermission } from "../platform/auth.js";
+import { hasPermission, can } from "../platform/auth.js";
 import { badRequest, forbidden, notFound } from "../platform/errors.js";
 import { publishRealtimeEvent } from "../platform/realtime.js";
 // Circular with ./agent.js by design (it posts back through this service);
@@ -82,6 +82,19 @@ registerWorkEvents([
   { name: "channels.message.restored", notification: { group: "messages", source: "channels", tab: "messaging" }, description: "A removed team channel message was restored.", visibility: "system" }
 ]);
 
+registerWorkEvents(["created", "edited", "deleted", "restored", "pinned", "unpinned", "shared"].map(action => ({
+  name:`project.note.${action}`, description:`A project note was ${action}.`, visibility:"activity" as const,
+  notification:{group:"projects", source:"channels", tab:"messaging"}
+})));
+
+async function separateProjectNotes(ctx: PlatformAuthContext) { return can(ctx, "channels.separate_project_notes"); }
+async function messageWorkEvent(ctx: PlatformAuthContext, channel: ChannelRow, message: MessageRow, action: string, at = nowIso()) {
+  const note = message.metadata.project_note === true && await separateProjectNotes(ctx);
+  if (note && message.parent_id) return;
+  await emitChannelsEvent(note ? `project.note.${action === "posted" ? "created" : action}` : `channels.message.${action}`, ctx,
+    {channel_id:channel.id, message_id:message.id, actor_name:cleanText(ctx.identity.name) || "A teammate", at}, channel.project_id);
+}
+
 const AUDIENCE_GROUPS = ["office", "crew", "sales"] as const;
 const GENERAL_CHANNEL_NAME = "general";
 const TYPING_TTL_MS = 6_000;
@@ -107,7 +120,7 @@ async function viewerTranslationPreferences(ctx: PlatformAuthContext) {
   return { language: resolved.translation_language, auto_translate_messages: resolved.auto_translate_messages };
 }
 
-async function emitChannelsEvent(type: string, ctx: PlatformAuthContext, payload: JsonObject, projectId?: string | null) {
+async function emitChannelsEvent(type: string, ctx: Pick<PlatformAuthContext, "orgId" | "branchId" | "userId">, payload: JsonObject, projectId?: string | null) {
   try {
     const { emitWorkEvent } = await import("../work/engine.js");
     await emitWorkEvent({
@@ -382,7 +395,7 @@ export async function personalInbox(ctx: PlatformAuthContext, options: { limit?:
     if (cleanText(membership?.notify_level || preferences.default_notify_level) !== "all") continue;
     const unread = asObject(view.unread as JsonObject);
     if (Number(unread.unread_count || 0) <= 0) continue;
-    const last = (await listMessageRecords(ctx.orgId, String(view.id), { limit: 1 })).pop();
+    const last = (await listMessageRecords(ctx.orgId, String(view.id), { limit: 1, parentId:null, projectNotes:view.type === "project" && await separateProjectNotes(ctx) ? false : undefined })).pop();
     pushEntry({
       kind: "channel",
       unread: true,
@@ -399,7 +412,13 @@ export async function personalInbox(ctx: PlatformAuthContext, options: { limit?:
   // Newest first; dedupe mention/DM overlap (a mention inside a DM would
   // otherwise appear twice — keep the mention).
   const dmMentionChannels = new Set(entries.filter((entry) => entry.kind === "mention").map((entry) => cleanText(entry.channel_id)));
-  const deduped = entries.filter((entry) => !(entry.kind === "dm" && dmMentionChannels.has(cleanText(entry.channel_id))));
+  const hiddenNotes = new Set<string>();
+  if (await separateProjectNotes(ctx)) {
+    for (const id of new Set(entries.map(entry => cleanText(entry.message_id)).filter(Boolean))) {
+      if ((await readMessageRecord(ctx.orgId,id))?.metadata.project_note === true) hiddenNotes.add(id);
+    }
+  }
+  const deduped = entries.filter(entry => !hiddenNotes.has(cleanText(entry.message_id))).filter((entry) => !(entry.kind === "dm" && dmMentionChannels.has(cleanText(entry.channel_id))));
   deduped.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
   const sliced = deduped.slice(0, limit);
   const unreadTotal = deduped.reduce((sum, entry) => sum + (entry.unread ? Math.max(1, Number(entry.count || 1)) : 0), 0);
@@ -602,6 +621,7 @@ async function channelView(ctx: PlatformAuthContext, channel: ChannelRow, extras
     display_name: displayName || channel.name,
     topic: channel.topic,
     project_id: channel.project_id,
+    separate_notes: channel.type === "project" && await separateProjectNotes(ctx),
     archived_at: channel.archived_at,
     message_seq: channel.message_seq,
     last_message_at: channel.last_message_at,
@@ -633,7 +653,7 @@ export async function listChannelsForUser(ctx: PlatformAuthContext, options: { i
     if (channel.type === "project") return membershipIds.has(channel.id) && canSeeProjects && channel.last_message_at;
     return true;
   });
-  const unreads = (await unreadSummary(ctx.orgId, ctx.userId, visible.map((channel) => channel.id)));
+  const unreads = (await unreadSummary(ctx.orgId, ctx.userId, visible.map((channel) => channel.id), await separateProjectNotes(ctx)));
   const views = [];
   for (const channel of visible) {
     views.push(await channelView(ctx, channel, { unread: unreads.get(channel.id) ?? { unread_count: 0, mention_count: 0, last_read_seq: 0 } }));
@@ -948,10 +968,10 @@ export async function removeMember(ctx: PlatformAuthContext, channelId: string, 
 
 // --- messages -----------------------------------------------------------------
 
-export async function listMessages(ctx: PlatformAuthContext, channelId: string, options: { before?: number; after?: number; limit?: number }) {
+export async function listMessages(ctx: PlatformAuthContext, channelId: string, options: { before?: number; after?: number; limit?: number; view?: "messages" | "notes" | "all" }) {
   const { channel } = await requireChannelAccess(ctx, channelId);
   const groups = viewerAudienceGroups(ctx);
-  const raw = (await listMessageRecords(ctx.orgId, channelId, { ...options, parentId: null }))
+  const raw = (await listMessageRecords(ctx.orgId, channelId, { ...options, parentId: null, projectNotes: options.view === "notes" ? true : options.view === "all" || channel.type !== "project" || !await separateProjectNotes(ctx) ? undefined : false }))
     .filter((message) => messageVisibleTo(message, ctx, groups));
   const messages = await hydrateMessages(ctx, channel, raw);
   return { channel: await channelView(ctx, channel), messages };
@@ -982,6 +1002,8 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   attachment_ids?: string[];
   forwarded_message_id?: string;
   forward_include_attachments?: boolean;
+  project_note?: boolean;
+  pin?: boolean;
   metadata?: JsonObject;
 }) {
   const { channel, membership } = await requireChannelAccess(ctx, channelId, { post: true });
@@ -997,17 +1019,26 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   }
 
   let parentId: string | null = null;
+  let parentNote = false;
   if (input.parent_id) {
     const parent = (await readMessageRecord(ctx.orgId, input.parent_id));
     if (!parent || parent.channel_id !== channelId || parent.deleted_at || !messageVisibleTo(parent, ctx, viewerAudienceGroups(ctx))) throw badRequest("invalid_parent", "The thread parent does not exist in this channel.");
     // Replies attach to the thread root, never nest.
     parentId = parent.parent_id ?? parent.id;
+    const root = parent.parent_id ? await readMessageRecord(ctx.orgId, parent.parent_id) : parent;
+    parentNote = root?.metadata.project_note === true;
   }
 
   // Forward attribution is a server-authored snapshot of a message the sender
   // can read. Clients cannot inject a forged original author or hidden body.
   const metadata = { ...input.metadata };
   if (metadata.giphy) metadata.giphy = giphyMessageSchema.parse(metadata.giphy);
+  delete metadata.project_note;
+  delete metadata.note_shared;
+  if (input.project_note && (channel.type !== "project" || parentId)) throw badRequest("invalid_project_note", "Notes must be added directly to a project channel.");
+  if (input.project_note || parentNote) metadata.project_note = true;
+  const hiddenNote = metadata.project_note === true && await separateProjectNotes(ctx);
+  if (parentNote && input.reply_broadcast && hiddenNote) throw badRequest("note_reply_broadcast", "Share the note explicitly instead.");
   delete metadata.forwarded;
   delete metadata.reply_broadcast;
   if (input.reply_broadcast) {
@@ -1075,6 +1106,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
       }
     }
 
+    if (input.pin) await setMessagePinned(ctx.orgId, message.id, ctx.userId);
     return message;
   });
 
@@ -1082,11 +1114,13 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   if (parentId) {
     (await collaboration.ensureThreadSubscriptionRecord(ctx.orgId, channelId, parentId, ctx.userId));
   }
-  const attentionTargets = (await collaboration.recordAttentionForMessage(channel, message));
+  const attentionTargets = hiddenNote ? new Map<string, unknown>() : (await collaboration.recordAttentionForMessage(channel, message));
   (await publishMessageEvent("channels.message.created", channel, message, hydrated));
-  await emitChannelsEvent("channels.message.posted", ctx, { channel_id: channelId, message_id: message.id, at: message.created_at }, channel.project_id);
-  await notifyMentions(ctx, channel, message);
-  await notifyMessageSubscribers(ctx, channel, message);
+  await messageWorkEvent(ctx, channel, message, "posted", message.created_at);
+  if (!hiddenNote) {
+    await notifyMentions(ctx, channel, message);
+    await notifyMessageSubscribers(ctx, channel, message);
+  }
   if (attentionTargets.size) {
     (await publishRealtimeEvent({
       organization_id: ctx.orgId,
@@ -1096,7 +1130,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
     }));
   }
 
-  if (channel.type === "project" && channelTags.length) {
+  if (!hiddenNote && channel.type === "project" && channelTags.length) {
     await postChannelTagNotices(ctx, channelTags, "project_note", { project_id:channel.project_id, note_id:message.id }, {id:message.id});
   }
 
@@ -1105,7 +1139,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   // fails the post). Static import — a lazy import() of a newly created
   // module fails silently under tsx watch until the process restarts.
   try {
-    (await maybeTriggerChannelAgent(ctx, channel, message));
+    if (!hiddenNote) (await maybeTriggerChannelAgent(ctx, channel, message));
   } catch {
     /* agent participation is best-effort */
   }
@@ -1151,8 +1185,14 @@ export async function postAgentMessage(orgId: string, channelId: string, input: 
     metadata: { source: "agent", ...asObject(input.metadata) }
   }));
   if (parentId) (await collaboration.ensureThreadSubscriptionRecord(orgId, channelId, parentId, cleanText(input.author_id)));
-  (await collaboration.recordAttentionForMessage(channel, message));
+  const split = (await import("../platform/capabilities.js")).effectiveCapabilities;
+  const hiddenAgentNote = channel.type === "project" && message.metadata.project_note === true && (await split(orgId)).effectiveByKey["channels.separate_project_notes"] === true;
+  if (!hiddenAgentNote) (await collaboration.recordAttentionForMessage(channel, message));
   (await publishMessageEvent("channels.message.created", channel, message, null));
+  if (hiddenAgentNote) {
+    await emitChannelsEvent("project.note.created", {orgId, branchId:"default", userId:cleanText(input.metadata?.requested_by || input.author_id)}, {channel_id:channelId, message_id:message.id, actor_name:"FirstMate Assistant", at:message.created_at}, channel.project_id);
+    return {channel, message};
+  }
 
   // Mention notifications (best effort), mirroring notifyMentions but with
   // the agent as the excluded author.
@@ -1252,9 +1292,9 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
 
   const [hydrated] = await hydrateMessages(ctx, channel, [updated]);
   (await publishMessageEvent("channels.message.updated", channel, updated, hydrated));
-  await emitChannelsEvent("channels.message.edited", ctx, { channel_id: channel.id, message_id: messageId, at: updated.edited_at ?? nowIso() }, channel.project_id);
-  await notifyMentions(ctx, channel, updated, previousMentions);
-  if (channel.type === "project" && channelTags.length) await postChannelTagNotices(ctx, channelTags, "project_note", {project_id:channel.project_id,note_id:message.id}, {id:message.id});
+  await messageWorkEvent(ctx, channel, updated, "edited", updated.edited_at ?? nowIso());
+  if (!(updated.metadata.project_note === true && await separateProjectNotes(ctx))) await notifyMentions(ctx, channel, updated, previousMentions);
+  if (!(updated.metadata.project_note === true && await separateProjectNotes(ctx)) && channel.type === "project" && channelTags.length) await postChannelTagNotices(ctx, channelTags, "project_note", {project_id:channel.project_id,note_id:message.id}, {id:message.id});
   return hydrated;
 }
 
@@ -1342,7 +1382,7 @@ export async function deleteMessage(ctx: PlatformAuthContext, messageId: string)
   const deleted = (await softDeleteMessageRecord(ctx.orgId, messageId, ctx.userId))!;
   const [hydrated] = await hydrateMessages(ctx, channel, [deleted]);
   (await publishMessageEvent("channels.message.deleted", channel, deleted, hydrated));
-  await emitChannelsEvent("channels.message.deleted", ctx, { channel_id: channel.id, message_id: messageId, at: deleted.deleted_at ?? nowIso() }, channel.project_id);
+  await messageWorkEvent(ctx, channel, deleted, "deleted", deleted.deleted_at ?? nowIso());
   return hydrated;
 }
 
@@ -1357,7 +1397,7 @@ export async function restoreMessage(ctx: PlatformAuthContext, messageId: string
   const restored = (await restoreMessageRecord(ctx.orgId, messageId))!;
   const [hydrated] = await hydrateMessages(ctx, channel, [restored]);
   (await publishMessageEvent("channels.message.restored", channel, restored, hydrated));
-  await emitChannelsEvent("channels.message.restored", ctx, { channel_id: channel.id, message_id: messageId, at: nowIso() }, channel.project_id);
+  await messageWorkEvent(ctx, channel, restored, "restored");
   return hydrated;
 }
 
@@ -1401,21 +1441,58 @@ export async function setPinned(ctx: PlatformAuthContext, messageId: string, pin
   const message = (await readMessageRecord(ctx.orgId, messageId));
   if (!message) throw notFound("message_not_found", "This message does not exist.");
   const { channel } = await requireChannelAccess(ctx, message.channel_id, { write: true });
+  if (!messageVisibleTo(message, ctx, viewerAudienceGroups(ctx))) throw notFound("message_not_found", "This message is not available.");
   if (message.deleted_at) throw badRequest("message_deleted", "Removed messages cannot be pinned.");
+  if (!!message.pinned_at === pinned) return (await hydrateMessages(ctx, channel, [message]))[0];
   if (!pinned && message.pinned_by && message.pinned_by !== ctx.userId && !(await channelAdminAllowed(ctx, channel))) {
     throw forbidden("permission_denied", "Only channel admins can unpin messages pinned by others.");
   }
   (await setMessagePinned(ctx.orgId, messageId, pinned ? ctx.userId : null));
   const [hydrated] = await hydrateMessages(ctx, channel, [(await readMessageRecord(ctx.orgId, messageId))!]);
   (await publishMessageEvent("channels.message.updated", channel, (await readMessageRecord(ctx.orgId, messageId))!, hydrated));
+  if (message.metadata.project_note === true && await separateProjectNotes(ctx)) await messageWorkEvent(ctx, channel, message, pinned ? "pinned" : "unpinned");
   return hydrated;
 }
 
-export async function pinnedMessages(ctx: PlatformAuthContext, channelId: string) {
+/** Sharing is explicit, permission checked, audience preserving, and retry safe. */
+export async function shareProjectNote(ctx: PlatformAuthContext, messageId: string) {
+  const initial = await readMessageRecord(ctx.orgId, messageId);
+  if (!initial) throw notFound("message_not_found", "This note is not available.");
+  const {channel} = await requireChannelAccess(ctx, initial.channel_id, {post:true});
+  if (channel.type !== "project" || initial.parent_id || initial.metadata.project_note !== true || initial.deleted_at || !messageVisibleTo(initial, ctx, viewerAudienceGroups(ctx)))
+    throw notFound("message_not_found", "This note is not available.");
+  return getChannelsDatabase().transaction(async db => {
+    // Serialize two simultaneous shares on the source row before checking its marker.
+    await db.prepare("UPDATE messages SET metadata_json=metadata_json WHERE organization_id=? AND id=?").run(ctx.orgId, messageId);
+    const note = await readMessageRecord(ctx.orgId, messageId);
+    if (!note || note.deleted_at || !messageVisibleTo(note, ctx, viewerAudienceGroups(ctx)))
+      throw notFound("message_not_found", "This note is not available.");
+    const prior = asObject(note.metadata.note_shared);
+    if (prior.message_id) {
+      const result = await listThread(ctx, cleanText(prior.message_id), {limit:1});
+      return {message:result.root, note:(await hydrateMessages(ctx, channel, [note]))[0], already_shared:true};
+    }
+    const actor = cleanText(ctx.identity.name) || "A teammate";
+    const posted = await postMessage(ctx, channel.id, {
+      text:`${actor} shared a note`, client_msg_id:`note-share:${messageId}`, audience:note.audience,
+      forwarded_message_id:messageId, forward_include_attachments:true
+    });
+    const shared = {message_id:posted.message!.id, user_id:ctx.userId, at:nowIso()};
+    await db.prepare("UPDATE messages SET metadata_json=? WHERE organization_id=? AND id=?").run(JSON.stringify({...note.metadata, note_shared:shared}), ctx.orgId, messageId);
+    const updated = (await readMessageRecord(ctx.orgId, messageId))!;
+    const [hydrated] = await hydrateMessages(ctx, channel, [updated]);
+    await publishMessageEvent("channels.message.updated", channel, updated, hydrated);
+    if (await separateProjectNotes(ctx)) await messageWorkEvent(ctx, channel, updated, "shared", shared.at);
+    return {...posted, note:hydrated, already_shared:false};
+  });
+}
+
+export async function pinnedMessages(ctx: PlatformAuthContext, channelId: string, view: "messages" | "notes" | "all" = "messages") {
   const { channel } = await requireChannelAccess(ctx, channelId);
   const groups = viewerAudienceGroups(ctx);
   const pinned = (await listPinnedMessages(ctx.orgId, channelId)).filter((message) => messageVisibleTo(message, ctx, groups));
-  return hydrateMessages(ctx, channel, pinned);
+  const separate = channel.type === "project" && await separateProjectNotes(ctx);
+  return hydrateMessages(ctx, channel, pinned.filter(message => view === "all" || !separate || (message.metadata.project_note === true) === (view === "notes")));
 }
 
 export async function savedMessages(ctx: PlatformAuthContext) {
@@ -1524,7 +1601,7 @@ export async function allUnreadMessages(ctx: PlatformAuthContext, options: { lim
         .filter((row) => String(row.channel_id) === channel.id)
         .map((row) => String(row.root_message_id))
     );
-    const raw = (await listMessageRecords(ctx.orgId, channel.id, { after: state.effective_read_seq, limit: perChannel }))
+    const raw = (await listMessageRecords(ctx.orgId, channel.id, { after: state.effective_read_seq, limit: perChannel, projectNotes:channel.type === "project" && await separateProjectNotes(ctx) ? false : undefined }))
       .filter((message) => !message.parent_id || message.metadata.reply_broadcast === true || subscriptions.has(message.parent_id))
       .filter((message) => message.author_id !== ctx.userId && messageVisibleTo(message, ctx, groups));
     if (!raw.length) continue;
@@ -2272,7 +2349,9 @@ export async function searchMessages(ctx: PlatformAuthContext, query: string, op
     : null;
   const before = operators.before?.[0] ? Date.parse(operators.before[0]) : Number.NaN;
   const after = operators.after?.[0] ? Date.parse(operators.after[0]) : Number.NaN;
+  const separateNotes = await separateProjectNotes(ctx);
   const matches = candidates.filter((message) => {
+    if (separateNotes && message.metadata.project_note === true) return false;
     if (!channelsById.has(message.channel_id) || !messageVisibleTo(message, ctx, groups)) return false;
     if (authorIds && !authorIds.has(message.author_id)) return false;
     const created = Date.parse(message.created_at);

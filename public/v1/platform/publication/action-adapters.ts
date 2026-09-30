@@ -34,6 +34,17 @@ async function authorizeDomainTarget(action: string, ctx: PublicationContext, ta
     }
   }
   if (action === "channels.messages.list") await (await import("../../channels/service.js")).requireChannelAccess(principal,id(target));
+  if (action === "channels.note.create") {
+    const {channel} = await (await import("../../channels/service.js")).requireChannelAccess(principal,id(target),{post:true});
+    if (channel.type !== "project" || (ctx.projectId && channel.project_id !== ctx.projectId)) throw forbidden("publication_project_denied", "This channel is outside the project context.");
+  }
+  if (action.startsWith("channels.note.") && action !== "channels.note.create") {
+    const service = await import("../../channels/service.js");
+    const {root} = await service.listThread(principal,id(target),{limit:1});
+    if (!root) throw badRequest("message_not_found", "This note is not available.");
+    const {channel} = await service.requireChannelAccess(principal,String(root.channel_id),{post:true});
+    if (channel.type !== "project" || (root.metadata as Input)?.project_note !== true || root.parent_id || (ctx.projectId && channel.project_id !== ctx.projectId)) throw forbidden("publication_project_denied", "This note is outside the project context.");
+  }
   if (action === "channels.message.react") {
     const message = await (await import("../../channels/storage.js")).readMessageRecord(ctx.organizationId,id(target));
     if (!message) throw badRequest("message_not_found", "This message does not exist.");
@@ -128,7 +139,13 @@ export function registerDomainActions() {
   publish({ id: "training.course.progress", description: "Read a course's progress report as a training manager.", permission: "manage_training|manage_company_settings", capabilities: ["training.studio"], effect: "read", execute: async (c,t) => (await import("../../training/service.js")).courseProgressReport(c.organizationId,id(t)) });
 
   publish({ id: "channels.list", description: "List channels the authenticated user can access.", permission: "", capabilities: ["apps.channels"], effect: "read", execute: async c => (await import("../../channels/service.js")).listChannelsForUser(auth(c),{initialize:false}) });
-  publish({ id: "channels.messages.list", description: "Read messages with channel membership authorization.", permission: "", capabilities: ["apps.channels"], effect: "read", properties: { limit: {type:"integer",minimum:1,maximum:100} }, execute: async (c,t,i) => (await import("../../channels/service.js")).listMessages(auth(c),id(t),{limit:Number(i.limit || 50)}) });
+  publish({ id: "channels.messages.list", description: "Read messages with channel membership authorization.", permission: "", capabilities: ["apps.channels"], effect: "read", properties: { limit: {type:"integer",minimum:1,maximum:100}, view:{type:"string",enum:["messages","notes","all"]} }, execute: async (c,t,i) => (await import("../../channels/service.js")).listMessages(auth(c),id(t),{limit:Number(i.limit || 50),view:i.view as "messages"|"notes"|"all"|undefined}) });
+  publish({id:"channels.note.create",description:"Add a project note using Channels; optionally pin it in the same transaction.",permission:"",capabilities:["channels.project_notes"],properties:{text:{type:"string",minLength:1,maxLength:250000},pin:{type:"boolean"}},required:["text"],execute:async(c,t,i)=>(await import("../../channels/service.js")).postMessage(auth(c),id(t),{text:String(i.text),project_note:true,pin:i.pin===true})});
+  publish({id:"channels.note.share",description:"Explicitly share a project note to its channel without widening its audience.",permission:"",capabilities:["channels.project_notes"],execute:async(c,t)=>(await import("../../channels/service.js")).shareProjectNote(auth(c),id(t))});
+  publish({id:"channels.note.pin",description:"Pin or unpin a visible project note using Channels permissions.",permission:"",capabilities:["channels.project_notes"],properties:{pinned:{type:"boolean"}},required:["pinned"],execute:async(c,t,i)=>(await import("../../channels/service.js")).setPinned(auth(c),id(t),i.pinned===true)});
+  publish({id:"channels.note.edit",description:"Edit your project note with Channels revision history.",permission:"",capabilities:["channels.project_notes"],properties:{text:{type:"string",minLength:1,maxLength:250000}},required:["text"],execute:async(c,t,i)=>(await import("../../channels/service.js")).editMessage(auth(c),id(t),{text:String(i.text)})});
+  publish({id:"channels.note.delete",description:"Remove a project note with Channels authorship checks and recovery.",permission:"",capabilities:["channels.project_notes"],execute:async(c,t)=>(await import("../../channels/service.js")).deleteMessage(auth(c),id(t))});
+  publish({id:"channels.note.restore",description:"Restore a project note removed by the current person.",permission:"",capabilities:["channels.project_notes"],execute:async(c,t)=>(await import("../../channels/service.js")).restoreMessage(auth(c),id(t))});
   publish({ id: "channels.message.react", description: "Set a reaction on a visible channel message.", permission: "", capabilities: ["apps.channels"], properties: { emoji: string, on: {type:"boolean"} }, required: ["emoji","on"], execute: async (c,t,i) => (await import("../../channels/service.js")).toggleReaction(auth(c),id(t),String(i.emoji),Boolean(i.on)) });
 
   publish({ id: "websites.sites.list", description: "Read websites for the organization.", permission: "view_projects|manage_company_settings", capabilities: ["apps.web_editor"], effect: "read", execute: async c => (await import("../../websites/service.js")).siteListing(c.organizationId) });

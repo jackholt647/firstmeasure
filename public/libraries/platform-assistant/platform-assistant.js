@@ -1941,7 +1941,108 @@
     syncLayout();
   }
 
+  // Embedded project conversations use the same API, definition, markdown,
+  // actions, uploads, dictation and artifact renderer as the global assistant.
+  function mountProject(container, options = {}) {
+    injectCss();
+    const renderer = window.FirstMateAgentChat;
+    if (!renderer) throw Error('The shared agent chat library is unavailable.');
+    renderer.injectBaseCss('fmpa');
+    if (!document.getElementById('fm-project-agent-css')) {
+      const style = document.createElement('style'); style.id = 'fm-project-agent-css';
+      style.textContent = `.fmpa-panel{display:flex;flex-direction:column;flex:1;min-height:0;height:100%;font-size:13px;color:#101828}.fmpa-messages{overflow:auto;flex:1;min-height:0;padding:12px}.fmpa-msg{padding:10px 12px;margin:8px 0;border-radius:10px;overflow-wrap:anywhere}.fmpa-msg.user{margin-left:25px;background:var(--primary-light,#eff4ff);white-space:pre-wrap}.fmpa-msg.assistant{background:#f9fafb;margin-right:12px}.fmpa-msg.failed{background:#fef3f2}.fmpa-composer{padding:10px;border-top:1px solid #e4e7ec}.fmpa-composer textarea{font:inherit;box-sizing:border-box;width:100%;min-height:56px;max-height:180px;resize:vertical;border:1px solid #d0d5dd;border-radius:8px;padding:9px}.fmpa-composer>div{display:flex;gap:6px;align-items:center;margin-top:6px}.fmpa-composer [type=submit]{margin-left:auto;background:var(--primary,#175cd3);color:white}.fmpa-status{padding:0 12px;color:#667085;margin:5px 0;font-size:12px}.fmpa-status:empty{display:none}.fmpa-files{padding:0 12px}.fmpa-files button,.fmpa-welcome button{background:white;border:1px solid #e4e7ec;border-radius:8px;padding:8px;color:#344054;font-size:12px}.fmpa-welcome{text-align:center;padding:20px 0;color:#667085}.fmpa-welcome button{display:block;margin:8px auto}.fmpa-composer .recording{color:#d92d20}.fmpa-messages .fma-artifact{width:100%;box-sizing:border-box}`;
+      document.head.append(style);
+    }
+    const oid = clean(options.orgId || orgId()), pid = clean(options.projectId);
+    let disposed = false, pending = false, threadId = '', messages = [], files = [], recording = null, stream = null;
+    const abort = new AbortController();
+    container.innerHTML = `<section class="fmpa-panel"><div class="fmpa-messages" role="log" aria-label="Private project conversation"></div><p class="fmpa-status" role="status"></p><div class="fmpa-files"></div><form class="fmpa-composer"><textarea aria-label="Ask the project agent" placeholder="Ask about this project…" rows="2"></textarea><div><label class="fma-icon-btn" title="Attach files"><i class="fas fa-paperclip"></i><input type="file" multiple hidden></label><button type="button" data-dictate class="fma-icon-btn" aria-label="Dictate"><i class="fas fa-microphone"></i></button><button type="button" data-refresh class="fma-icon-btn" aria-label="Refresh conversation"><i class="fas fa-rotate"></i></button><button type="submit" class="fma-icon-btn" aria-label="Send"><i class="fas fa-arrow-up"></i></button></div></form></section>`;
+    const log = container.querySelector('.fmpa-messages'), status = container.querySelector('.fmpa-status');
+    const form = container.querySelector('form'), input = form.querySelector('textarea'), fileInput = form.querySelector('input');
+    const fileBox = container.querySelector('.fmpa-files'), send = form.querySelector('[type=submit]'), mic = form.querySelector('[data-dictate]');
+    const say = text => { if (!disposed) status.textContent = text; };
+    function render() {
+      if (disposed) return;
+      log.innerHTML = messages.length ? messages.map(message => renderer.messageHtml(message, {prefix:'fmpa'}) + artifactsOf(message).map(artifact => artifactCardHtml(artifact, {inline:true, width:Math.max(240, container.clientWidth - 44)})).join('')).join('')
+        : `<div class="fmpa-welcome"><span class="fma-logo"></span><p>Your private agent for this project.</p><button type="button" data-suggestion="What needs attention in this project?">What needs attention?</button><button type="button" data-suggestion="Review this project's scope, progress and blockers.">Review scope and blockers</button><button type="button" data-suggestion="Summarize recent project activity and suggest next steps.">Suggest next steps</button></div>`;
+      renderer.bindActions(log, messages);
+      log.querySelectorAll('[data-suggestion]').forEach(button => button.onclick = () => { input.value = button.dataset.suggestion; input.focus(); });
+      log.scrollTop = log.scrollHeight;
+    }
+    function renderFiles() {
+      fileBox.innerHTML = files.map((file, index) => `<button type="button" data-file="${index}" title="Remove attachment">${esc(file.name)} ×</button>`).join('');
+      fileBox.querySelectorAll('[data-file]').forEach(button => button.onclick = () => { files.splice(Number(button.dataset.file), 1); renderFiles(); });
+    }
+    async function refresh() {
+      if (!threadId) return;
+      const data = await window.AssistantAPI.thread(oid, threadId);
+      if (disposed) return;
+      messages = array(data.messages); render();
+    }
+    const ready = (async () => {
+      say('Loading project conversation…');
+      const result = await window.AssistantAPI.projectConversation(oid, pid);
+      if (disposed) return;
+      threadId = clean(result.thread?.id);
+      await refresh(); say('');
+    })().catch(error => { say(error.message || 'Could not load this project conversation.'); });
+    form.onsubmit = async event => {
+      event.preventDefault();
+      if (pending || disposed) return;
+      await ready;
+      if (!threadId) { say('Refresh to reconnect this project conversation.'); return; }
+      const text = clean(input.value), attached = [...files];
+      if (!text && !attached.length) return;
+      pending = true; send.disabled = true; input.disabled = true; fileInput.disabled = true; say('Working on this project…');
+      messages.push({id:'pending-user', role:'user', content:[text,...attached.map(file => `📎 ${file.name}`)].filter(Boolean).join('\n')}, {id:'pending-assistant', role:'assistant', content:'Working…', pending:true});render();
+      try {
+        const uploads = [];
+        for (const file of attached) uploads.push((await window.AssistantAPI.upload(oid, threadId, file)).attachment.media_id);
+        await window.AssistantAPI.send(oid, threadId, {message:text || 'Review these files for this project.', attachments:uploads, branch_id:branchId()}, {signal:AbortSignal.any([abort.signal, AbortSignal.timeout(AGENT_TIMEOUT_MS)])});
+        if (disposed) return;
+        input.value = ''; files = []; renderFiles(); await refresh(); say('');
+      } catch (error) {
+        // A lost response may still have persisted a turn. Reload its durable
+        // history and leave the draft available for the person to review.
+        if (!disposed) { await refresh().catch(() => {}); say(error.message || 'Could not complete the turn. Refresh the conversation before retrying.'); }
+      } finally {
+        pending = false;
+        if (!disposed) { send.disabled = false; input.disabled = false; fileInput.disabled = false; input.focus(); }
+      }
+    };
+    input.onkeydown = event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); form.requestSubmit(); } };
+    fileInput.onchange = () => { files = [...files, ...fileInput.files].slice(0, 5); fileInput.value = ''; renderFiles(); };
+    form.querySelector('[data-refresh]').onclick = async () => {
+      if (pending) return;
+      try {
+        if (!threadId) { threadId = clean((await window.AssistantAPI.projectConversation(oid, pid)).thread?.id); }
+        await refresh(); say('');
+      } catch (error) { say(error.message); }
+    };
+    mic.onclick = async () => {
+      if (recording) { recording.stop(); return; }
+      if (pending) return;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({audio:true});
+        if (disposed) { stream.getTracks().forEach(track => track.stop()); return; }
+        const chunks = [];
+        const current = recording = new MediaRecorder(stream);
+        current.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+        current.onstop = async () => {
+          stream?.getTracks().forEach(track => track.stop()); stream = null; recording = null; mic.classList.remove('recording');
+          if (disposed) return;
+          say('Transcribing…');
+          try { const result = await window.AssistantAPI.transcribe(oid, new File(chunks, 'dictation.webm', {type:current.mimeType})); if (!disposed) { input.value = [input.value, result.text].filter(Boolean).join('\n'); say(''); input.focus(); } }
+          catch (error) { say(error.message); }
+        };
+        current.start(); mic.classList.add('recording'); say('Recording. Click the microphone to finish.');
+      } catch (error) { say(error.message); }
+    };
+    return {ready, refresh, destroy() { disposed = true; abort.abort(); if (recording?.state === 'recording') recording.stop(); stream?.getTracks().forEach(track => track.stop()); container.replaceChildren(); }};
+  }
+
   window.PlatformAssistant = {
+    mountProject,
     openPaymentSetup,
     open,
     openFull,

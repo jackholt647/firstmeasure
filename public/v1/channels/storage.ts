@@ -1102,6 +1102,8 @@ export async function restoreMessageRecord(orgId: string, messageId: string) {
   }));
 }
 
+const projectNoteSql = "COALESCE(json_extract(metadata_json, '$.project_note'), 0) = 1";
+const projectNotePostgresSql = "COALESCE(metadata_json::jsonb ->> 'project_note', 'false') = 'true'";
 const broadcastReplySql = "json_extract(metadata_json, '$.reply_broadcast') = 1";
 const broadcastReplyPostgresSql = "metadata_json::jsonb ->> 'reply_broadcast' = 'true'";
 
@@ -1110,9 +1112,11 @@ export async function listMessageRecords(orgId: string, channelId: string, optio
   after?: number;
   limit?: number;
   parentId?: string | null;
+  projectNotes?: boolean;
 } = {}) {
   const clauses = ["organization_id = ?", "channel_id = ?"];
   const params: unknown[] = [orgId, channelId];
+  if (options.projectNotes !== undefined) clauses.push(options.projectNotes ? projectNoteSql : `NOT (${projectNoteSql})`);
   if (options.parentId !== undefined) {
     if (options.parentId === null) clauses.push(`(parent_id IS NULL OR ${broadcastReplySql})`);
     else {
@@ -1132,7 +1136,7 @@ export async function listMessageRecords(orgId: string, channelId: string, optio
   const descending = !options.after;
   const sql = `SELECT * FROM messages WHERE ${clauses.join(" AND ")} ORDER BY seq ${descending ? "DESC" : "ASC"} LIMIT ?`;
   const rows = (await getChannelsDatabase()
-    .prepare(sql, sql.replace(broadcastReplySql, broadcastReplyPostgresSql))
+    .prepare(sql, sql.replace(broadcastReplySql, broadcastReplyPostgresSql).replace(projectNoteSql, projectNotePostgresSql))
     .all(...(params as string[]), limit)) as JsonObject[];
   const messages = rows.map(messageFromRow);
   return descending ? messages.reverse() : messages;
@@ -1437,7 +1441,7 @@ export async function listReactionsToUser(orgId: string, userId: string, sinceIs
   `).all(orgId, userId, userId, cleanText(sinceIso), Math.max(1, Math.floor(limit)))) as JsonObject[]);
 }
 
-export async function unreadSummary(orgId: string, userId: string, channelIds: string[]) {
+export async function unreadSummary(orgId: string, userId: string, channelIds: string[], separateNotes = false) {
   const summary = new Map<string, { unread_count: number; mention_count: number; last_read_seq: number; manual_unread_seq: number | null }>();
   if (!channelIds.length) return summary;
   const db = getChannelsDatabase();
@@ -1445,7 +1449,7 @@ export async function unreadSummary(orgId: string, userId: string, channelIds: s
     const state = (await readStateFor(channelId, userId));
     const unreadSql = `
       SELECT COUNT(*) AS n FROM messages
-      WHERE organization_id = ? AND channel_id = ? AND seq > ? AND deleted_at IS NULL AND author_id <> ?
+      WHERE ${separateNotes ? `NOT (${projectNoteSql}) AND` : ""} organization_id = ? AND channel_id = ? AND seq > ? AND deleted_at IS NULL AND author_id <> ?
         AND (
           parent_id IS NULL OR ${broadcastReplySql} OR EXISTS (
             SELECT 1 FROM channel_thread_subscriptions s
@@ -1453,11 +1457,12 @@ export async function unreadSummary(orgId: string, userId: string, channelIds: s
           )
         )
     `;
-    const unreadRow = (await db.prepare(unreadSql, unreadSql.replace(broadcastReplySql, broadcastReplyPostgresSql)).get(orgId, channelId, state.effective_read_seq, userId, userId)) as JsonObject;
-    const mentionRow = (await db.prepare(`
+    const unreadRow = (await db.prepare(unreadSql, unreadSql.replace(broadcastReplySql, broadcastReplyPostgresSql).replace(projectNoteSql, projectNotePostgresSql)).get(orgId, channelId, state.effective_read_seq, userId, userId)) as JsonObject;
+    const mentionSql = `
       SELECT COUNT(*) AS n FROM message_mentions
-      WHERE organization_id = ? AND channel_id = ? AND user_id = ? AND seq > ?
-    `).get(orgId, channelId, userId, state.effective_read_seq)) as JsonObject;
+      WHERE ${separateNotes ? "message_id IN (SELECT id FROM messages WHERE " + `NOT (${projectNoteSql})` + ") AND" : ""} organization_id = ? AND channel_id = ? AND user_id = ? AND seq > ?
+    `;
+    const mentionRow = (await db.prepare(mentionSql, mentionSql.replace(projectNoteSql, projectNotePostgresSql)).get(orgId, channelId, userId, state.effective_read_seq)) as JsonObject;
     summary.set(channelId, {
       unread_count: Number(unreadRow?.n ?? 0),
       mention_count: Number(mentionRow?.n ?? 0),

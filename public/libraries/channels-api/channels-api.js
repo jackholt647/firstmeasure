@@ -131,6 +131,7 @@
       translate: (orgId, messageId) => request(orgPath(orgId, `/messages/${enc(messageId)}/translation`), { method: 'POST' }),
       thread: (orgId, messageId, params = {}) => request(orgPath(orgId, `/messages/${enc(messageId)}/thread${queryString(params)}`)),
       react: (orgId, messageId, emoji, on = true) => request(orgPath(orgId, `/messages/${enc(messageId)}/reactions`), { method: 'PUT', body: { emoji, on } }),
+      shareNote: (orgId, messageId) => request(orgPath(orgId, `/messages/${enc(messageId)}/share-note`), {method:"POST", body:{}}),
       pin: (orgId, messageId) => request(orgPath(orgId, `/messages/${enc(messageId)}/pin`), { method: 'POST' }),
       unpin: (orgId, messageId) => request(orgPath(orgId, `/messages/${enc(messageId)}/unpin`), { method: 'POST' })
     },
@@ -142,7 +143,7 @@
     },
 
     pins: {
-      list: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}/pins`))
+      list: (orgId, channelId, params = {}) => request(orgPath(orgId, `/channels/${enc(channelId)}/pins${queryString(params)}`))
     },
 
     saved: {

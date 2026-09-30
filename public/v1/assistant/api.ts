@@ -28,6 +28,7 @@ import {
   runAgentTurn
 } from "../agents/runtime.js";
 import { ASSISTANT_AGENT_ID } from "./agent/definition.js";
+import { ensureProjectConversation } from "./project-context.js";
 import { ensureChannelConversation, channelConversationRevision } from "./channel-context.js";
 import { readInternalUser } from "../internal/storage.js";
 import { forbidden, notFound } from "../platform/errors.js";
@@ -306,6 +307,12 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
       return thread?.created_by_user_id === ctx.userId ? thread : null;
     }));
     return { ok: true, matches, threads: threads.filter(Boolean) };
+  });
+
+  app.post("/organizations/:orgId/projects/:projectId/conversation", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf:true, permission:USE_PERMISSION, capability:"apps.assistant" });
+    return {ok:true, thread:await ensureProjectConversation(ctx, getParam(request.params, "projectId"))};
   });
 
   app.post("/organizations/:orgId/channels/:channelId/conversation", async (request) => {

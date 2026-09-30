@@ -144,6 +144,8 @@
       can_delete: message.can_delete === true,
       can_restore: message.can_restore === true,
       reply_count: Number(message.reply_count) || 0,
+      pinned_at: message.pinned_at || null,
+      pinned_by: message.pinned_by || null,
       attachments: message.attachments || [],
       metadata: message.metadata || {},
       language_code: message.language_code,
@@ -198,8 +200,13 @@
     const oid = orgId();
     if (!api || !oid) return entry;
     await ensureChannel(entry);
-    const data = await api.messages.list(oid, entry.channelId, { limit: 200 });
-    entry.notes = (data.messages || [])
+    let data = await api.messages.list(oid, entry.channelId, {limit:200, view:entry.separate ? "notes" : "all"});
+    if ((data.channel?.separate_notes === true) !== !!entry.separate) data = await api.messages.list(oid, entry.channelId, {limit:200, view:data.channel?.separate_notes ? "notes" : "all"});
+    entry.separate = data.channel?.separate_notes === true;
+    entry.historyBefore = data.messages?.length === 200 ? data.messages[0].seq : 0;
+    const pins = await (api.pins?.list?.(oid, entry.channelId, {view:"all"}) || Promise.resolve({messages:[]}));
+    const rows = [...new Map([...(data.messages || []), ...(pins.messages || [])].map(row => [row.id,row])).values()];
+    entry.notes = rows
       .filter((message) => message.kind !== 'system')
       .map(noteFromMessage);
     entry.loaded = true;
@@ -283,6 +290,7 @@
       await ensureChannel(entry);
       const posted = await api.messages.post(oid, entry.channelId, {
         text: note.text,
+        project_note:true, pin:options.pin === true,
         client_msg_id: note.id,
         audience: audienceFromVisibility(visibility),
         tags: note.type_tags,
@@ -731,7 +739,152 @@
   }
 
   ensureTypeTagStyles();
+  /** Shared note workspace, also mounted by the project's Channels Notes tab. */
+  function mount(container, options = {}) {
+    if (!document.getElementById('fm-notes-workspace-css')) {
+      const style = document.createElement('style'); style.id = 'fm-notes-workspace-css';
+      style.textContent = `.pn-workspace{display:flex;flex-direction:column;flex:1;min-height:0;height:100%;font-size:13px;color:#101828;background:white}.pn-tools{display:flex;gap:8px;align-items:center;padding:10px;flex:none}.pn-tools input[type=search]{min-width:0;flex:1;border:1px solid #d0d5dd;border-radius:6px;padding:7px}.pn-tools label{white-space:nowrap;font-size:11px}.pn-pinned{flex:none;padding:0 10px;max-height:50%;overflow:auto;border-bottom:1px solid #e4e7ec}.pn-pinned[hidden]{display:none}.pn-pinned h4{margin:5px 0 8px;font-size:12px;color:#667085}.pn-history{flex:1;min-height:60px;overflow:auto;padding:10px}.pn-card{background:#fff;border:1px solid #e4e7ec;border-radius:9px;margin-bottom:9px;padding:9px}.pn-pinned .pn-card{background:#fffcf5;border-color:#f3e6be}.pn-card header{display:flex;align-items:center;gap:6px;font-size:11px}.pn-card header span{font-weight:600}.pn-card time{color:#667085;margin-left:auto}.pn-card-content{max-height:180px;overflow:hidden;overflow-wrap:anywhere}.pn-card-content.expanded{max-height:none}.pn-card-content p{white-space:pre-wrap}.pn-card footer{display:flex;align-items:center;gap:4px;color:#667085;font-size:11px;margin-top:8px}.pn-card footer button{margin-left:auto}.pn-workspace button{border:1px solid #e4e7ec;background:#fff;border-radius:5px;padding:5px 8px;color:#344054}.pn-menu{position:relative}.pn-menu summary{cursor:pointer;padding:5px;list-style:none}.pn-menu>div{position:absolute;top:100%;right:0;z-index:80;width:160px;padding:5px;background:white;border:1px solid #e4e7ec;border-radius:8px;box-shadow:0 8px 20px #10182820}.pn-menu button{display:block;width:100%;border:0;text-align:left}.pn-menu button:hover{background:#f2f4f7}.pn-composer{padding:10px;border-top:1px solid #e4e7ec;flex:none}.pn-composer textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:58px;max-height:180px;border:1px solid #d0d5dd;border-radius:8px;padding:8px;font:inherit}.pn-compose-actions{display:flex;align-items:center;gap:6px;margin-top:7px}.pn-compose-actions select{min-width:0;max-width:95px;font-size:11px;border:1px solid #e4e7ec;border-radius:5px;padding:4px}.pn-icon{padding:5px;cursor:pointer}.pn-add{margin-left:auto;display:flex;white-space:nowrap}.pn-add button{background:var(--primary,#175cd3);color:white;border:0;border-radius:6px 0 0 6px}.pn-add button+button{border-left:1px solid #ffffff55;border-radius:0 6px 6px 0}.pn-status{font-size:12px;color:#667085;padding:0 10px}.pn-status:empty{display:none}.pn-empty{color:#667085}.pn-uploads{max-height:180px;overflow:auto}.pn-more{font-size:11px;margin-top:5px}.pn-removed{color:#667085}`;
+      document.head.append(style);
+    }
+    const project = options.project || options.getProject?.();
+    const entry = storeFor(project);
+    if (!entry) throw Error('Save the project before adding notes.');
+    if (options.channelId) {entry.channelId = options.channelId; subscribeRealtime(entry);}
+    let disposed = false, busy = false, prepared = [], editId = '', query = '', showRemoved = false;
+    const expanded = new Set();
+    container.innerHTML = `<section class="pn-workspace"><div class="pn-tools"><input type="search" aria-label="Search project notes" placeholder="Search notes"><label><input type="checkbox" data-removed> Removed</label></div><div class="pn-pinned" aria-label="Pinned notes"></div><div class="pn-history" role="log" aria-label="Project notes history"></div><div class="pn-status" role="status"></div><form class="pn-composer"><textarea aria-label="New project note" placeholder="Add a note…" rows="3"></textarea><div class="pn-uploads"></div><div class="pn-compose-actions"><label class="pn-icon" title="Attach a file"><i class="fas fa-paperclip"></i><input type="file" hidden multiple></label><button type="button" class="pn-icon" data-audio aria-label="Record audio note"><i class="fas fa-microphone"></i></button><select aria-label="Note visibility"><option value="all">Everyone</option><option value="office">Office</option><option value="crew">Crew</option><option value="sales">Sales</option></select><div class="pn-add"><button type="submit">Plus Note</button><button type="button" data-pin-send title="Add pinned note" aria-label="Add pinned note"><i class="fas fa-thumbtack"></i></button></div></div></form></section>`;
+    const history = container.querySelector('.pn-history'), pinned = container.querySelector('.pn-pinned');
+    const status = container.querySelector('.pn-status'), form = container.querySelector('form'), text = form.querySelector('textarea'), uploadBox = container.querySelector('.pn-uploads');
+    const esc = escapeHtml;
+    const say = value => { if (!disposed) status.textContent = value; };
+    function card(note) {
+      const deleted = !!note.deleted_at;
+      const shared = note.metadata?.note_shared;
+      const actions = deleted ? (note.can_restore ? '<button data-act="restore">Restore</button>' : '') :
+        `<button data-act="pin">${note.pinned_at ? 'Unpin' : 'Pin'}</button>${entry.separate && note.metadata?.project_note && !shared ? '<button data-act="share">Share to channel</button>' : ''}${note.can_edit ? '<button data-act="edit">Edit</button>' : ''}<button data-act="history">Edit history</button><button data-act="copy">Copy text</button><button data-act="save">Save message</button>${note.can_delete ? '<button data-act="delete">Delete</button>' : ''}`;
+      return `<article class="pn-card${deleted ? ' pn-removed' : ''}" data-project-note-id="${esc(note.id)}"><header><span>${esc(note.created_by?.name || 'Teammate')}</span><time>${esc(fmtWhen(note.created_at))}</time>${note.pinned_at ? '<i class="fas fa-thumbtack" title="Pinned"></i>' : ''}<details class="pn-menu"><summary aria-label="Note options"><i class="fas fa-ellipsis"></i></summary><div>${actions}</div></details></header>${deleted ? '<p>Note removed</p>' : `<div class="pn-card-content${expanded.has(note.id) ? ' expanded' : ''}" data-pn-content="${esc(note.id)}"><p>${esc(note.text)}</p>${mediaAttachmentsHtml(note)}</div>${note.text.length > 400 || note.attachments?.length ? `<button class="pn-more" data-act="expand">${expanded.has(note.id) ? 'Show Less' : 'Show More'}</button>` : ''}<footer>${esc(visibilityLabel(note.visibility))}${note.edited_at ? ' · Edited' : ''}${shared ? ' · Shared to channel' : ''}<button data-act="replies">${Number(note.reply_count) || 0} replies</button></footer>`}</article>`;
+    }
+    function render() {
+      if (disposed) return;
+      const scroll = history.scrollTop;
+      const rows = entry.notes.filter(note => (!entry.separate || note.metadata?.project_note === true) && (showRemoved || !note.deleted_at) && (!query || `${note.text} ${note.created_by?.name}`.toLowerCase().includes(query)));
+      const pins = rows.filter(note => note.pinned_at && !note.deleted_at);
+      const rest = rows.filter(note => !note.pinned_at || note.deleted_at).sort((a,b) => Number(b.seq) - Number(a.seq));
+      pinned.hidden = !pins.length;
+      pinned.innerHTML = pins.length ? `<h4>Pinned notes</h4>${pins.map(card).join('')}` : '';
+      history.innerHTML = rest.map(card).join('') || '<p class="pn-empty">No notes yet.</p>';
+      if (entry.historyBefore) history.insertAdjacentHTML('beforeend', '<button type="button" data-load-more>Load older notes</button>');
+      for (const note of rows) {
+        const target = container.querySelector(`[data-pn-content="${CSS.escape(note.id)}"]`);
+        if (!target) continue;
+        if (window.FirstMateChannels?.renderMessageContent) target.replaceChildren(window.FirstMateChannels.renderMessageContent(note,{orgId:orgId()}));
+        else target.innerHTML = (window.FirstMateChannels?.renderBody?.(note.text) || `<p>${escapeHtml(note.text)}</p>`) + audioPlayerHtml(note) + mediaAttachmentsHtml(note);
+      }
+      window.FirstMateAudioNotes?.hydrate?.(container);
+      history.scrollTop = scroll;
+    }
+    async function refresh() { await refreshEntry(entry); render(); }
+    const ready = refresh().catch(error => say(error.message));
+    const notified = event => { if (event.detail?.projectId === entry.projectId && !disposed) render(); };
+    window.addEventListener('fm:project-notes:refreshed', notified);
+    container.querySelector('[type=search]').oninput = event => {query = event.target.value.toLowerCase(); render();};
+    container.querySelector('[data-removed]').onchange = event => {showRemoved = event.target.checked; render();};
+    async function submit(pin = false) {
+      if (busy || disposed) return;
+      const body = clean(text.value);
+      if (!body && !prepared.length) return;
+      busy = true; form.querySelectorAll('button,input,textarea,select').forEach(node => node.disabled = true); say('Saving note…');
+      try {
+        await ensureChannel(entry);
+        const group = form.querySelector('select').value;
+        const visibility = group === 'all' ? [] : [group];
+        if (editId) {
+          await channels().messages.edit(orgId(), editId, {text:body, audience:visibility});
+        } else {
+          const metadata = Object.assign({}, ...prepared.map(item => item.kind === "audio" ? {audio_note:item.metadata} : item.metadata || {}));
+          await channels().messages.post(orgId(), entry.channelId, {text:body || prepared.map(item => item.text || '').filter(Boolean).join('\n'), project_note:true, pin,
+            client_msg_id:form.dataset.operationId || (form.dataset.operationId = id()), audience:visibility,
+            attachment_ids:prepared.map(item => item.attachment?.id).filter(Boolean), metadata});
+        }
+        if (disposed) return;
+        text.value = ''; prepared = []; editId = ''; delete form.dataset.operationId; uploadBox.replaceChildren();
+        form.querySelector('[type=submit]').textContent = 'Plus Note'; form.querySelector('[data-pin-send]').hidden = false;
+        await refresh(); announce(entry.projectId); say('');
+      } catch (error) { say(error.message || 'Could not save the note. Your draft has been kept.'); }
+      finally { busy = false; if (!disposed) form.querySelectorAll('button,input,textarea,select').forEach(node => node.disabled = false); }
+    }
+    form.onsubmit = event => {event.preventDefault(); void submit();};
+    form.querySelector('[data-pin-send]').onclick = () => submit(true);
+    text.oninput = () => { delete form.dataset.operationId; };
+    form.querySelector('[type=file]').onchange = async event => {
+      say('Preparing files…');
+      try {
+        for (const file of event.target.files) {
+          const result = await prepareUpload(project, file);
+          if (disposed) return;
+          prepared.push(result); const node = document.createElement('div'); uploadBox.append(node);
+          mountPreparedUpload(node, result, () => {prepared = prepared.filter(item => item !== result); node.remove(); delete form.dataset.operationId;});
+        }
+        delete form.dataset.operationId; say('');
+      } catch (error) {say(error.message);}
+      event.target.value = '';
+    };
+    let audio = null;
+    form.querySelector('[data-audio]').onclick = async () => {
+      if (audio) return;
+      const node = document.createElement('div'); uploadBox.append(node);
+      audio = true;
+      let result;
+      try { result = await prepareAudioInline(project, node, {onRemove() {prepared = prepared.filter(item => item !== result); node.remove();}}); if (!disposed) prepared.push(result); }
+      catch (error) {node.remove(); say(error.message);}
+      finally {audio = null;}
+    };
+    container.onclick = async event => {
+      const older = event.target.closest('[data-load-more]');
+      const button = event.target.closest('[data-act]');
+      if (!button && !older) return;
+      if (button) event.preventDefault();
+      try {
+        if (older) {
+          older.disabled = true;
+          const data = await channels().messages.list(orgId(), entry.channelId, {view:entry.separate ? 'notes' : 'all', before:entry.historyBefore, limit:100});
+          entry.notes = [...new Map([...entry.notes,...data.messages.map(noteFromMessage)].map(note => [note.id,note])).values()];
+          entry.historyBefore = data.messages.length === 100 ? data.messages[0].seq : 0; render(); return;
+        }
+        const cardNode = button.closest('[data-project-note-id]');
+        const note = entry.notes.find(item => item.id === cardNode.dataset.projectNoteId);
+        if (!note) return;
+        const action = button.dataset.act;
+        if (action === 'expand') {expanded.has(note.id) ? expanded.delete(note.id) : expanded.add(note.id); render(); return;}
+        if (action === 'edit') {
+          editId = note.id; text.value = note.text; form.querySelector('select').value = note.visibility.length === GROUPS.length ? 'all' : note.visibility[0];
+          form.querySelector('[type=submit]').textContent = 'Save Note'; form.querySelector('[data-pin-send]').hidden = true; text.focus();
+          say('Editing note. Escape cancels.'); return;
+        }
+        if (action === 'copy') {await navigator.clipboard.writeText(note.text); say('Copied.'); return;}
+        if (action === 'history') {await showHistoryPopover(button, note.id); return;}
+        if (action === 'replies') {if (cardNode.querySelector('.pn-replies-wrap')) cardNode.querySelector('.pn-replies-wrap').remove(); else await renderRepliesInto(cardNode, project, note.id, {focus:true}); return;}
+        button.disabled = true;
+        if (action === 'pin') await channels().messages[note.pinned_at ? 'unpin' : 'pin'](orgId(),note.id);
+        if (action === 'share') await channels().messages.shareNote(orgId(),note.id);
+        if (action === 'delete') await channels().messages.remove(orgId(),note.id);
+        if (action === 'restore') await channels().messages.restore(orgId(),note.id);
+        if (action === 'save') {await channels().saved.add(orgId(),note.id); say('Saved to your messages.'); return;}
+        await refresh(); announce(entry.projectId); say('');
+      } catch (error) {say(error.message); if (button?.isConnected) button.disabled = false;}
+    };
+    container.addEventListener('click', event => {
+      const button = event.target.closest('[data-pn-reply-send]');
+      if (button) void sendReply(button.closest('.pn-replies-wrap').querySelector('input'), project, button.dataset.pnReplySend);
+    });
+    text.onkeydown = event => {
+      if (event.key === 'Escape' && editId) {event.stopPropagation(); editId = ''; text.value = ''; form.querySelector('[type=submit]').textContent = 'Plus Note'; form.querySelector('[data-pin-send]').hidden = false; say('');}
+    };
+    return {ready, refresh, destroy() {disposed = true; window.removeEventListener('fm:project-notes:refreshed',notified); container.querySelector('.fm-an-inline-remove')?.click(); container.replaceChildren();}};
+  }
+
   window.Portal.ProjectNotes = {
+    mount,
     GROUPS, TYPE_TAGS, actor, currentGroups, normalizeVisibility, normalizeTypeTags, normalizeMentionUser, mentionsFromText,
     typeTag, typeTags, renderTypeTags, all, visible, owns, isTagged, canSee, add, update, remove, visibilityLabel,
     recordAudio, prepareAudioInline, prepareUpload, mountAudioAttachment, mountPreparedUpload, audioPlayerHtml, mediaAttachmentsHtml,

@@ -1271,6 +1271,7 @@
     }
 
     async function setChannel(channelId, { reveal } = {}){
+      projectNotesWorkspace?.destroy(); projectNotesWorkspace = null;
       if (state.destroyed) return;
       if (mode === 'list') {
         // The rail never loads messages — the host decides where the
@@ -1331,6 +1332,8 @@
         if (state.destroyed || state.activeChannelId !== channelId) return;
         state.activeChannel = data.channel;
         state.messages = data.messages || [];
+        renderTabs();
+        if (state.activeTab === "notes" && !state.activeChannel.separate_notes) {await openChannelTab("messages");}
         renderMessages();
         scheduleMarkRead();
         void refreshScheduledMessages();
@@ -1451,6 +1454,9 @@
     }
 
     function applyIncomingMessage(topic, message, payload){
+      if (state.activeChannel?.separate_notes && message.metadata?.project_note === true) {
+        projectNotesWorkspace?.refresh?.(); return;
+      }
       const inThread = Boolean(message.parent_id);
       const inChannel = !inThread || message.metadata?.reply_broadcast === true;
       if (topic === 'channels.message.created' && inChannel) {
@@ -2016,19 +2022,22 @@
       });
     }
 
+    let projectNotesWorkspace = null;
     function renderTabs(){
       tabsBar.innerHTML = '';
-      if (!features.resources || mode === 'embedded' || state.view !== 'channel' || !state.activeChannel) {
+      if ((!features.resources && !state.activeChannel?.separate_notes) || mode === 'embedded' || state.view !== 'channel' || !state.activeChannel) {
         tabsBar.hidden = true;
         return;
       }
       tabsBar.hidden = false;
-      const tabs = state.tabs.length ? state.tabs : [
+      const tabs = [...(state.tabs.length ? state.tabs : [
         { id:'messages', kind:'messages', label:(globalThis.PlatformLanguage?.text("channels-ui","m_820b9cb136d6ed","Messages") ?? "Messages") },
         { id:'files', kind:'files', label:(globalThis.PlatformLanguage?.text("channels-ui","m_357a58f2b3675d","Files") ?? "Files") },
         { id:'todos', kind:'todos', label:(globalThis.PlatformLanguage?.text("channels-ui","m_4bec39f8fa90dd","To Dos") ?? "To Dos") },
         { id:'pins', kind:'pins', label:(globalThis.PlatformLanguage?.text("channels-ui","m_576cd53c8d929f","Pins") ?? "Pins") }
+      ])
       ];
+      if (state.activeChannel.separate_notes && !tabs.some(tab => tab.kind === 'notes')) tabs.splice(1, 0, {id:'notes',kind:'notes',label:'Notes'});
       const seen = new Set();
       for (const tab of tabs) {
         const originalKind = cleanText(tab.kind || tab.id);
@@ -2043,6 +2052,7 @@
     }
 
     async function openChannelTab(kind){
+      projectNotesWorkspace?.destroy(); projectNotesWorkspace = null;
       state.activeTab = kind === 'documents' ? 'files' : cleanText(kind) || 'messages';
       const channelId = state.activeChannelId, activeTab = state.activeTab;
       renderTabs();
@@ -2053,6 +2063,12 @@
       }
       composer.innerHTML = '';
       typingBar.textContent = '';
+      if (state.activeTab === 'notes' && state.activeChannel?.separate_notes) {
+        list.replaceChildren();
+        const project = {id:state.activeChannel.project_id, title:state.activeChannel.display_name};
+        projectNotesWorkspace = root.Portal.ProjectNotes.mount(list,{project,channelId});
+        return;
+      }
       if (state.activeTab === 'pins') {
         const data = await api.pins.list(orgId, state.activeChannelId).catch((error) => ({ error }));
         if (state.destroyed || state.activeChannelId !== channelId || state.activeTab !== activeTab) return;
@@ -5804,6 +5820,7 @@
 
     const instance = {
       destroy(){
+        projectNotesWorkspace?.destroy();
         state.clipCleanup?.();
         if (state.huddle?.id) api.huddles.leave(orgId, state.huddle.id).catch(() => {});
         removeHuddleRouteHandler?.();

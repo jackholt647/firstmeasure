@@ -651,6 +651,7 @@
       if (options.limit) params.set('limit', String(options.limit));
       if (options.before) params.set('before', options.before);
       if (options.type) params.set('type', options.type);
+      if (options.projectId || options.project_id) params.set('project_id', options.projectId || options.project_id);
       if (options.typePrefix || options.type_prefix) params.set('type_prefix', options.typePrefix || options.type_prefix);
       const qs = params.toString();
       return request(siblingPath('work', `/organizations/${enc(orgId)}/activity${qs ? `?${qs}` : ''}`));

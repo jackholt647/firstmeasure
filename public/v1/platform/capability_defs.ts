@@ -535,6 +535,14 @@ const definitions: CapabilityDefinition[] = [
   },
 
   {
+    key: "channels.separate_project_notes",
+    kind: "feature",
+    parent: "channels.project_notes",
+    label: "Separate project notes and messages",
+    description: "Keep project notes in a Notes tab until explicitly shared to the channel. Turning this off shows the same records as messages.",
+    default: false
+  },
+  {
     key: "apps.billing",
     kind: "app",
     category: "Billing & Credits",

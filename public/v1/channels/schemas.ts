@@ -51,6 +51,8 @@ export const postMessageSchema = z.object({
   client_msg_id: z.string().trim().max(120).optional(),
   parent_id: z.string().trim().optional(),
   reply_broadcast: z.boolean().default(false),
+  project_note: z.boolean().optional(),
+  pin: z.boolean().optional(),
   audience: z.array(audienceGroup).default([]),
   tags: z.array(z.string().trim().min(1).max(60)).default([]),
   mention_users: z.array(mentionUserSchema).default([]),
@@ -204,6 +206,7 @@ export const createActionItemFromMessageSchema = z.object({
 });
 
 export const listMessagesQuerySchema = z.object({
+  view: z.enum(["messages", "notes", "all"]).optional(),
   before: z.coerce.number().int().positive().optional(),
   after: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().max(200).optional()
