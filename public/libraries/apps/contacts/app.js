@@ -28,6 +28,7 @@
     sort: localStorage.getItem(LS_SORT_KEY) || 'name',
     loading: false,
     loadedAt: 0,
+    tagCatalog:[],
     error: ''
   };
 
@@ -127,6 +128,10 @@
         email: cleanText(contact.email, contact.email_address),
         phone: cleanText(contact.phone, contact.phone_number, contact.mobile),
         address: cleanText(contact.address, contact.default_address),
+        contact_kind:contact.contact_kind || 'human',
+        profile_media_id:contact.profile_media_id || '',
+        custom_field_values:contact.custom_field_values || {},
+        record_project_id:projectId(project),
         tags: Array.isArray(contact.tags) ? contact.tags.map((tag) => cleanText(tag)).filter(Boolean) : [],
         imported_at: cleanText(contact.imported_at),
         import_source: cleanText(contact.import_source)
@@ -236,6 +241,10 @@
     if (!target.phone) target.phone = source.phone || '';
     if (!target.address) target.address = source.address || '';
     if (!target.id) target.id = cleanText(source.id, source.contact_id);
+    if(!target.custom_field_values)target.custom_field_values=source.custom_field_values || {};
+    if(source.profile_media_id && !target.profile_media_id)target.profile_media_id=source.profile_media_id;
+    if(source.contact_kind==='org')target.contact_kind='org';
+    if(!target.record_project_id)target.record_project_id=source.record_project_id;
     (Array.isArray(source.tags) ? source.tags : []).forEach((tag) => {
       if (!target.tags.some((existing) => existing.toLowerCase() === tag.toLowerCase())) target.tags.push(tag);
     });
@@ -245,7 +254,7 @@
 
   function buildContacts(projects = []){
     const byKey = new Map();
-    projects.forEach((project) => {
+    [...projects].sort((a,b)=>Number(b.workflow_state==='contact_only')-Number(a.workflow_state==='contact_only')).forEach((project) => {
       const projectRef = projectSummary(project);
       const perProjectKeys = new Set();
       contactCandidates(project).forEach((candidate) => {
@@ -270,7 +279,7 @@
         }
         const record = byKey.get(key);
         mergeContact(record, candidate);
-        if (!record.projectIds.has(projectRef.id)) {
+        if (project.workflow_state!=='contact_only' && !record.projectIds.has(projectRef.id)) {
           record.projectIds.add(projectRef.id);
           record.projects.push(projectRef);
           record.latestDateMs = Math.max(record.latestDateMs, projectRef.dateMs || 0);
@@ -286,7 +295,7 @@
         contact.email,
         contact.phone,
         contact.address,
-        ...contact.tags,
+        ...contact.tags.map(tagLabel),
         ...contact.projects.flatMap((project) => [project.title, project.address, project.stage])
       ].join(' ').toLowerCase();
       return contact;
@@ -308,6 +317,7 @@
 
   function contactAvatar(contact = {}){
     const letter = cleanText(contact.name, contact.email, contact.phone).charAt(0).toUpperCase() || '?';
+    if(contact.profile_media_id)return `<img class="ct-avatar ct-avatar-photo" alt="Contact profile photo" src="${escapeHtml(window.PlatformAPI.media.fileUrl(orgId(),contact.profile_media_id))}">`;
     return `<span class="ct-avatar">${escapeHtml(letter)}</span>`;
   }
 
@@ -348,6 +358,7 @@
     `;
   }
 
+  function tagLabel(tag){return tag==='org'?(window.PlatformTerminology?.get?.('contacts.org','Org') || 'Org'):state.tagCatalog.find(row=>row.id===tag)?.label || tag;}
   function tagChips(contact = {}, limit = 4){
     const tags = Array.isArray(contact.tags) ? contact.tags : [];
     if (!tags.length) return '';
@@ -355,7 +366,7 @@
     const more = tags.length - visible.length;
     return `
       <div class="ct-tags">
-        ${visible.map((tag) => `<span class="ct-tag">${escapeHtml(tag)}</span>`).join('')}
+        ${visible.map((tag) => `<span class="ct-tag">${escapeHtml(tagLabel(tag))}</span>`).join('')}
         ${more > 0 ? `<span class="ct-tag ct-tag-more">+${escapeHtml(String(more))}</span>` : ''}
       </div>
     `;
@@ -372,7 +383,7 @@
   function renderTile(contact){
     return `
       <article class="ct-card" data-ct-contact="${String(escapeHtml(contact.key))}">
-        <div class="ct-card-head">
+        ${contact.profile_media_id?`<img class="ct-profile-photo" alt="${escapeHtml(contact.name)} profile photo" src="${escapeHtml(window.PlatformAPI.media.fileUrl(orgId(),contact.profile_media_id))}">`:""}<div class="ct-card-head">
           ${String(contactAvatar(contact))}
           <div class="ct-contact-title">
             <h3>${String(escapeHtml(contact.name))}</h3>
@@ -611,6 +622,10 @@
       phone: contact.phone,
       address: contact.address,
       tags: Array.isArray(contact.tags) ? [...contact.tags] : [],
+      contact_kind:contact.contact_kind || "human",
+      profile_media_id:contact.profile_media_id || "",
+      custom_field_values:contact.custom_field_values || {},
+      record_project_id:contact.record_project_id,
       imported_at: contact.imported_at || '',
       import_source: contact.import_source || ''
     };
@@ -656,6 +671,7 @@
     render();
     try {
       const result = await window.PlatformAPI.projects.list(oid);
+      if(window.PlatformAPI.contacts?.settings)state.tagCatalog=(await window.PlatformAPI.contacts.settings(oid)).settings?.tags || [];
       const docs = Array.isArray(result?.documents) ? result.documents : [];
       state.projects = docs.map(projectFromDocument).filter(Boolean);
       state.contacts = buildContacts(state.projects);
@@ -715,6 +731,7 @@
       .ct-body{flex:1 1 auto;min-height:0;overflow:auto;padding:0 2px 16px}
       .ct-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:12px;align-items:start}
       .ct-card{border:1px solid #eaecf0;border-radius:13px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.04);padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+      .ct-profile-photo{width:100%;height:180px;object-fit:cover;border-radius:9px}.ct-avatar-photo{object-fit:cover}
       .ct-card:hover{border-color:#d0d5dd;box-shadow:0 12px 28px rgba(15,23,42,.07)}
       .ct-card-head{display:flex;align-items:flex-start;gap:10px;min-width:0}
       .ct-avatar{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;flex:0 0 auto;background:#eef2f7;color:#182230;font-size:14px;font-weight:1000}

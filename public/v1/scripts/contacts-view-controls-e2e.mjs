@@ -22,10 +22,12 @@ try {
  await page.addStyleTag({content:"body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}"});
  await page.evaluate(()=>document.fonts.ready);
  await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});
+ const sharp=require('sharp'),photo=await sharp({create:{width:300,height:220,channels:3,background:'#4d82aa'}}).png().toBuffer();
+ await page.evaluate(data=>{window.fixturePhoto=data},'data:image/png;base64,'+photo.toString('base64'));
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.evaluate(()=>{
   window.__APP={userOrgId:'fixture'};
-  window.PlatformAPI={projects:{list:async()=>({documents:[{id:'p1',data:{address:'10 Main Street',title:'Roof replacement',contacts:[{id:'c1',name:'Ada Smith',email:'ada@example.com',phone:'555-0100'}]}},{id:'p2',data:{address:'20 Oak Street',title:'Maintenance',contacts:[{id:'c2',name:'Zoe Jones',email:'zoe@example.com'}]}}]})}};
+  window.PlatformAPI={media:{fileUrl:()=>window.fixturePhoto},projects:{list:async()=>({documents:[{id:'p1',data:{address:'10 Main Street',title:'Roof replacement',contacts:[{id:'c1',name:'Ada Smith',email:'ada@example.com',phone:'555-0100',profile_media_id:'portrait_1'}]}},{id:'p2',data:{address:'20 Oak Street',title:'Maintenance',contacts:[{id:'c2',name:'Zoe Jones',email:'zoe@example.com'}]}}]})}};
   const flags={current:()=>({}),has:()=>true};
   window.Portal={cfg:{userOrgId:'fixture'},appFlags:flags,tabs:{renderTabs(){}},apps:{registerPortalApp:app=>window.fixtureApp=app},navigation:{read:()=>({}),registerSchema(){},registerHandler(){},replace(){}},modules:{contacts:{open:contact=>window.openedContact=contact},request:{openProject:project=>window.openedProject=project}},util:{injectCSS:(id,css)=>{let s=document.createElement('style');s.textContent=css;document.head.append(s)}}};
  });
@@ -51,6 +53,7 @@ try {
 
  if(screenshotDir) await page.screenshot({path:screenshotDir+'/contacts-list.png'});
  await page.locator('#ctViewTiles').click();await page.waitForSelector('.ct-card');
+ assert.equal(await page.locator('.ct-profile-photo').count(),1);assert.ok(await page.locator('.ct-profile-photo').evaluate(el=>el.getBoundingClientRect().width>200));
  if(screenshotDir) await page.screenshot({path:screenshotDir+'/contacts-tiles.png'});
  await page.locator('#ctSearch').fill('Ada');assert.equal(await page.locator('.ct-card').count(),1);
  await page.locator('[data-ct-open-contact]').first().click();assert.equal(await page.evaluate(()=>window.openedContact.name),'Ada Smith');

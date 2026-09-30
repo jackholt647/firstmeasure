@@ -2839,7 +2839,7 @@
           renderLocal();
           return result;
         },
-        onDeletePhoto: async (photo) => {
+        onDeletePhoto: options.deleteEnabled===false ? undefined : async (photo) => {
           const currentItems = filtered();
           const currentItem = currentItems.find((entry) => photoIdentity(entry.photo) === photoIdentity(photo)) || items[safeIndex];
           if (!currentItem) return { count: 0, bytes: 0 };

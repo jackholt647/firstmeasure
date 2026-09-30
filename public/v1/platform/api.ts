@@ -1,3 +1,5 @@
+import { registerContactRoutes } from "../contacts/api.js";
+import { resolveContact } from "../contacts/service.js";
 import { effectivePreferences } from './notifications/configuration.js';
 import { readPersonalConfiguration } from './notifications/defaults.js';
 import { notificationPermissions } from './notifications/permissions.js';
@@ -674,6 +676,7 @@ app.get("/auth/google/config", async () => ({
     return reply.send({ ok: false, error: "internal_error", message: "An unexpected error occurred." });
   });
 
+  registerContactRoutes(app);
   await registerContactImportRoutes(app, { invalidateSearchCache: invalidatePlatformSearchCache });
   await registerAttentionRoutes(app);
 
@@ -1515,10 +1518,13 @@ app.get("/auth/google/config", async () => ({
     const ctx = await requirePlatformAuth(request, { orgId });
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
     const projectId = cleanText(query.project_id || query.projectId);
+    const contactId=cleanText(query.contact_id),contactProjectId=cleanText(query.contact_project_id);
+    if(contactId){await requirePlatformAuth(request,{orgId,permission:"view_contacts"});await resolveContact(orgId,{contact_id:contactId,project_id:contactProjectId});}
     const tags = normalizeMediaTags(query.tags || query.tag);
     const tagMode = cleanText(query.tag_mode || query.tagMode).toLowerCase() === "all" ? "all" : "any";
     const media = (await listMedia(orgId))
       .filter((item) => canReadReceiptMedia(item, ctx))
+      .filter(item=>!contactId || cleanText(asObject(item.owner).type)==="contact" && cleanText(asObject(item.owner).id)===contactId && cleanText(asObject(item.metadata).contact_record_project_id)===contactProjectId)
       .filter((item) => {
         if (!projectId) return true;
         const owner = asObject(item.owner);
@@ -1543,6 +1549,22 @@ app.get("/auth/google/config", async () => ({
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     const upload = await parseMediaUploadRequest(request);
+    if(upload.ownerType==="contact"){
+      await requirePlatformAuth(request,{orgId,csrf:true,permission:"manage_projects"});
+      const metadata=asObject(upload.metadata),anchor=cleanText(metadata.contact_record_project_id);
+      if(!anchor || !upload.ownerId)throw badRequest("contact_media_owner","Contact media needs a contact and record identity.");
+      try {await resolveContact(orgId,{contact_id:upload.ownerId,project_id:anchor});}
+      catch(error){
+        if(!(error instanceof PlatformError && error.statusCode===404) || metadata.contact_draft!==true || !/^project_[a-z0-9_]{8,100}$/i.test(anchor) || !/^contact_[a-z0-9_]{8,100}$/i.test(upload.ownerId))throw error;
+        // Draft media permits required photos before the first contact save. It
+        // never bypasses an existing record's contact membership check.
+        try {await readDocument(orgId,"projects",anchor);throw forbidden("contact_media_owner","Contact does not belong to this record.");}
+        catch(parentError){if(!(parentError instanceof PlatformError && parentError.statusCode===404))throw parentError;}
+      }
+      if(upload.slot==="logo" || upload.scope==="branding" || upload.collection==="branding")throw badRequest("contact_media_slot","Contact media cannot use public branding slots.");
+      if(upload.slot==="profile")await (await import("../contacts/photo-import.js")).validateContactPhoto(upload);
+      upload.metadata={...metadata,uploaded_by_user_id:ctx.userId};
+    }
     const media = await storeMediaUpload(orgId, upload);
     const mediaOwner = asObject(media.owner);
     const mediaProjectId = cleanText(mediaOwner.type) === "project" ? cleanText(mediaOwner.id) : "";
@@ -1662,7 +1684,7 @@ app.get("/auth/google/config", async () => ({
     const isOrganizationBrandingMedia = String(owner.type || "").toLowerCase() === "organization"
       && (slot === "logo" || scope === "branding" || collection === "branding" || slot.includes("brand") || slot.includes("logo"));
     const ctx = !isOrganizationBrandingMedia ? await requirePlatformAuth(request, { orgId }) : null;
-    if (isReceiptMedia(metadata) && !canReadReceiptMedia(metadata, ctx)) {
+    if (!canReadReceiptMedia(metadata, ctx)) {
       throw forbidden("receipt_media_forbidden", "This receipt media is not available to this user.");
     }
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
@@ -8383,7 +8405,7 @@ function collectionWritePermission(collection: string, operation: "create" | "re
 }
 
 function branchModuleWritePermission(moduleId: string) {
-  if (moduleId === "pricebook" || moduleId === "presentation_style" || moduleId === 'variable_mappings') return "manage_company_settings";
+  if (moduleId === "pricebook" || moduleId === "presentation_style" || moduleId === 'variable_mappings' || moduleId === 'contact_settings' || moduleId === 'custom_fields') return "manage_company_settings";
   return undefined;
 }
 

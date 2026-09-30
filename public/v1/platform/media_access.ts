@@ -12,6 +12,10 @@ export function isReceiptMedia(mediaValue: unknown) {
 }
 
 export function canReadReceiptMedia(mediaValue: unknown, contextValue: unknown) {
+  if (cleanText(asObject(asObject(mediaValue).owner).type)==="contact") {
+    const permissions=asObject(asObject(contextValue).permissions);
+    return permissions["*"]===true || permissions.view_contacts===true;
+  }
   if (!isReceiptMedia(mediaValue)) return true;
   const media = asObject(mediaValue);
   const owner = asObject(media.owner);
@@ -26,6 +30,10 @@ export function canReadReceiptMedia(mediaValue: unknown, contextValue: unknown) 
 }
 
 export function canWriteReceiptMedia(mediaValue: unknown, contextValue: unknown) {
+  if (cleanText(asObject(asObject(mediaValue).owner).type)==="contact") {
+    const permissions=asObject(asObject(contextValue).permissions);
+    return permissions["*"]===true || permissions.manage_projects===true;
+  }
   if (!isReceiptMedia(mediaValue)) return true;
   const media = asObject(mediaValue);
   const metadata = asObject(media.metadata);

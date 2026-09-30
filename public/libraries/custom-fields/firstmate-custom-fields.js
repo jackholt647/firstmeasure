@@ -59,6 +59,21 @@
     { value:'assignable_subject', label:(globalThis.PlatformLanguage?.text("custom-fields","m_3487c754d297d0","Person or group") ?? "Person or group"), dataType:'reference', icon:'fa-user-group', hint:'Choose an eligible person, crew, or connected organization' },
     { value:'formula', label:(globalThis.PlatformLanguage?.text("custom-fields","m_e3bf3ce1400b44","Calculated number") ?? "Calculated number"), dataType:'number', icon:'fa-calculator', hint:'Calculate a value from other numeric fields' }
   ];
+  const CONTACT_TYPES=['contact','human_contact','org_contact'];
+  const MEDIA_TYPES=['media','photo','video'];
+  TYPE_CATALOG.push(...[
+    ['contact','Contact (human or org)','Choose any saved contact','fa-address-book'],
+    ['human_contact','Human contact','Choose a saved human contact','fa-user'],
+    ['org_contact','Org contact','Choose a saved non-human contact','fa-building'],
+    ['media','Media','Choose media from the associated library','fa-photo-film'],
+    ['photo','Photo','Choose an image from the associated library','fa-image'],
+    ['video','Video','Choose a video from the associated library','fa-video']
+  ].map(([value,label,hint,icon])=>({value,label,hint,icon,dataType:'reference'})));
+  const CONTACT_DEFAULT_FIELDS=[
+    {entity:'contact',key:'relationships.employer',type:'org_contact',label:'Employer',order:0,builtin:true},
+    {entity:'contact',key:'relationships.spouse',type:'human_contact',label:'Spouse',order:1,builtin:true},
+    {entity:'contact',key:'profile_photo',type:'photo',label:'Profile photo',order:2,builtin:true}
+  ];
   const TYPE_BY_VALUE = new Map(TYPE_CATALOG.map((item) => [item.value, item]));
   const optionValue = (item) => cleanText(typeof item === 'object' ? item.value ?? item.label : item);
   const optionalNumber = (value, positive = false) => {
@@ -96,9 +111,9 @@
     if (dataType === 'object') return objectValue(value);
     if (dataType === 'json') return clone(value);
     if (dataType === 'reference') {
-      if (Array.isArray(value)) return value.map(objectValue).filter((item) => cleanText(item.subject_id || item.id));
+      if (Array.isArray(value)) return value.map(objectValue).filter((item) => cleanText(item.contact_id || item.media_id || item.subject_id || item.id));
       const reference = objectValue(value);
-      return cleanText(reference.subject_id || reference.id) ? reference : null;
+      return cleanText(reference.contact_id || reference.media_id || reference.subject_id || reference.id) ? reference : null;
     }
     return cleanText(value);
   };
@@ -272,6 +287,9 @@
       entity,
       type,
       data_type: typeInfo.dataType,
+      builtin:source.builtin===true,
+      reference_choices:Array.isArray(source.reference_choices)?source.reference_choices:[],
+      reference_error:cleanText(source.reference_error),
       schema:clone(objectValue(source.schema)),
       private:source.private === true,
       read_permission:cleanText(source.read_permission),
@@ -310,7 +328,8 @@
 
   function normalizeModule(input = {}){
     const source = objectValue(input);
-    const fields = (Array.isArray(source.fields) ? source.fields : [])
+    const declared=Array.isArray(source.fields)?source.fields:[];
+    const fields = [...CONTACT_DEFAULT_FIELDS.filter(builtin=>!declared.some(f=>f.entity==='contact' && (f.path || f.key)===builtin.key)),...declared]
       .map(normalizeDefinition)
       .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
     return { version: 3, fields };
@@ -501,6 +520,7 @@
   function formatValue(definition, value){
     if (value == null || value === '') return 'Not set';
     const def = normalizeDefinition(definition);
+    if(CONTACT_TYPES.includes(def.type) || MEDIA_TYPES.includes(def.type))return (Array.isArray(value)?value:[value]).filter(Boolean).map(ref=>(def.reference_choices || []).find(item=>JSON.stringify(item.reference)===JSON.stringify(ref))?.label || ref.contact_id || ref.media_id).join(', ') || 'Not set';
     if (def.data_type === 'reference') {
       const references = (Array.isArray(value) ? value : [value]).map(objectValue);
       const knownSubjects = [...assignableCaches.values()].flat();
@@ -573,6 +593,12 @@
     const attrs = `class="${escapeHtml(inputClass)}" data-fm-cf-input="${escapeHtml(def.key)}" data-fm-cf-type="${escapeHtml(def.type)}"${placeholder}${def.read_only ? ' disabled' : ''}`;
     if (['object', 'array'].includes(def.type)) return `<div ${attrs} data-cf-schema="${escapeHtml(JSON.stringify({ ...def.schema, type:def.type }))}">${structuredHtml({ ...def.schema, type:def.type }, value, def.read_only)}</div>`;
     if (def.type === 'formula') return `<div class="fm-cf-formula" data-fm-cf-calculated="${escapeHtml(def.key)}">${escapeHtml(formatValue(def, value))}</div>`;
+    if(CONTACT_TYPES.includes(def.type) || MEDIA_TYPES.includes(def.type)){
+      const choices=def.reference_choices || [],selected=new Set((Array.isArray(value)?value:[value]).filter(Boolean).map(item=>JSON.stringify(item)));
+      const optionsHtml=choices.map(item=>`<option value="${escapeHtml(JSON.stringify(item.reference))}"${selected.has(JSON.stringify(item.reference))?' selected':''}>${escapeHtml(item.label)}</option>`).join('');
+      const stale=[...selected].filter(saved=>!choices.some(item=>JSON.stringify(item.reference)===saved)).map(saved=>`<option value="${escapeHtml(saved)}" selected>Saved reference (unavailable)</option>`).join('');
+      return `<span class="fm-cf-select-wrap"><select ${attrs}${def.cardinality==='many'?' multiple':''}><option value="">${CONTACT_TYPES.includes(def.type)?'Choose a contact…':'Choose library media…'}</option>${optionsHtml}${stale}</select><i class="fas fa-chevron-down fm-cf-select-chevron" aria-hidden="true"></i></span>${def.reference_error?`<span class="fm-cf-error">${escapeHtml(def.reference_error)}</span>`:''}`;
+    }
     if (def.data_type === 'reference') {
       const selected = new Set((Array.isArray(value) ? value : [value]).map(objectValue)
         .map((reference) => `${cleanText(reference.subject_type)}:${cleanText(reference.subject_id || reference.id)}`));
@@ -630,6 +656,9 @@
       else if (type === 'key_value') nextValue = Object.fromEntries([...input.querySelectorAll('.fm-cf-kv-row')].map((row) => [cleanText(row.querySelector('[data-fm-cf-kv-key]')?.value), cleanText(row.querySelector('[data-fm-cf-kv-value]')?.value)]).filter(([name]) => name));
       else if (type === 'json') {
         try { nextValue = input.value.trim() ? JSON.parse(input.value) : null; input.dataset.jsonInvalid = 'false'; } catch (_) { nextValue = input.value; input.dataset.jsonInvalid = 'true'; }
+      } else if (CONTACT_TYPES.includes(type) || MEDIA_TYPES.includes(type)) {
+        const picked=(input.multiple?[...input.selectedOptions].map(option=>option.value):[input.value]).filter(Boolean).map(value=>JSON.parse(value));
+        nextValue=input.multiple?picked:(picked[0] || null);
       } else if (['organization_user', 'resource_group', 'organization_connection', 'assignable_subject'].includes(type)) {
         const selectedOptions = input.multiple ? [...input.selectedOptions].map((option) => option.value).filter(Boolean) : [input.value].filter(Boolean);
         const references = selectedOptions.map((identity) => {
@@ -671,7 +700,7 @@
       const structuredError = container.querySelector(`[data-fm-cf-input="${CSS.escape(definition.key)}"] [data-node-invalid]`);
       if (structuredError) message = structuredError.dataset.nodeInvalid;
       if (!message && ['object', 'array', 'json'].includes(definition.type)) message = schemaError({ ...definition.schema, ...(definition.type !== 'json' ? {type:definition.type} : {}) }, value);
-      if (!message && definition.required && (value == null || value === '')) message = `${definition.label} is required.`;
+      if (!message && definition.required && (value == null || value === '' || Array.isArray(value) && !value.length)) message = `${definition.label} is required.`;
       else if (definition.type === 'json' && container.querySelector(`[data-fm-cf-input="${CSS.escape(definition.key)}"]`)?.dataset.jsonInvalid === 'true') message = `${definition.label} must be valid JSON.`;
       else if (definition.data_type === 'number' && value !== '') {
         if (definition.type === 'integer' && !Number.isInteger(value)) message = `${definition.label} must be a whole number.`;
@@ -713,6 +742,23 @@
     const orgId = cleanText(options.orgId || currentOrgId());
     const branchId = cleanText(options.branchId || currentBranchId()) || 'default';
     await Promise.all(references.map(async (definition) => {
+      if(CONTACT_TYPES.includes(definition.type) || MEDIA_TYPES.includes(definition.type)){
+        try{
+          if(CONTACT_TYPES.includes(definition.type)){
+            const kind=definition.type==='human_contact'?'human':definition.type==='org_contact'?'org':'either';
+            const result=await root.PlatformAPI.contacts.options(orgId,kind);
+            definition.reference_choices=(result.contacts || []).map(contact=>({label:contact.name,reference:{contact_id:contact.contact_id,project_id:contact.project_id}}));
+          }else{
+            const entity=options.entity || {},id=cleanText(entity.id || entity.contact_id),projectId=cleanText(entity.record_project_id || entity.project_id);
+            let result;
+            if(options.entityType==='contact' && id && projectId)result=await root.PlatformAPI.contacts.media(orgId,{contact_id:id,project_id:projectId});
+            else if(options.entityType==='project' && id)result=await root.PlatformAPI.media.list(orgId,{project_id:id});
+            else result={media:[]};
+            definition.reference_choices=(result.media || []).filter(media=>definition.type==='media' || cleanText(media.content_type).startsWith(definition.type==='photo'?'image/':'video/')).map(media=>({label:media.file_name,reference:{media_id:media.id}}));
+          }
+        }catch(error){definition.reference_error=error.message || 'References are unavailable.';definition.reference_choices=[];}
+        return;
+      }
       const policy = assignmentPolicyForDefinition(definition);
       const key = `${orgId}:${branchId}:${JSON.stringify(policy)}`;
       let subjects = assignableCaches.get(key);
@@ -739,7 +785,7 @@
       });
     }
     const definitions = fieldsFor(entityType, entity, { ...options, location });
-    await hydrateAssignableDefinitions(definitions, options);
+    await hydrateAssignableDefinitions(definitions, {...options,entity,entityType});
     if (!definitions.length) {
       container.innerHTML = options.hideWhenEmpty === false ? `<div class="fm-cf-panel"><div class="fm-cf-empty">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_a1bfa740917210","No custom fields apply here.") ?? "No custom fields apply here.")}</div></div>` : '';
       return { entity, definitions:[] };
@@ -756,7 +802,7 @@
     const groupedPaths = new Set(definitions.map((definition) => definition.group_path).filter(Boolean));
     const groups = schema.groups.filter((group) => groupedPaths.has(group.path));
     groupedPaths.forEach((path) => {
-      if (!groups.some((group) => group.path === path)) groups.push({ path, label:path.split('.').pop().replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), collapsed_by_default:true, order:0 });
+      if (!groups.some((group) => group.path === path)) groups.push({ path, label:path.split('.').pop().replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), collapsed_by_default:!(entityType==='contact' && path==='relationships'), order:0 });
     });
     const groupedFields = new Set();
     const groupHtml = groups.sort((a, b) => Number(a.order || 0) - Number(b.order || 0)).map((group) => {
@@ -1014,7 +1060,7 @@
       form?.addEventListener('submit', async (event) => {
         event.preventDefault();
         const data = new FormData(form);
-        const key = normalizePath(data.get('key') || data.get('label'));
+        const key = selected?.builtin ? selected.key : normalizePath(data.get('key') || data.get('label'));
         if (fields.some((field) => field.id !== selectedId && field.key === key && field.entity === data.get('entity'))) {
           form.querySelector('[data-cf-status]').textContent = (globalThis.PlatformLanguage?.text("custom-fields","m_b6dffbcdc9e835","That key is already used for this record type.") ?? "That key is already used for this record type."); return;
         }
@@ -1022,7 +1068,7 @@
         let schema; try { schema = JSON.parse(String(data.get('schema') || '{}')); if (!schema || typeof schema !== 'object' || Array.isArray(schema)) throw Error(); } catch { form.querySelector('[data-cf-status]').textContent = (globalThis.PlatformLanguage?.text("custom-fields","m_f128466a8caddb","The schema must be valid JSON.") ?? "The schema must be valid JSON."); return; }
         const next = normalizeDefinition({
           ...current, schema, private:form.elements.private.checked, read_permission:data.get('read_permission'), write_permission:data.get('write_permission'), min_length:data.get('min_length'), max_length:data.get('max_length'), pattern:data.get('pattern'),
-          label:data.get('label'), key, path:key, entity:data.get('entity'), type:data.get('type'), description:data.get('description'), placeholder:data.get('placeholder'),
+          label:data.get('label'), key, path:key, entity:data.get('entity') || current?.entity, type:data.get('type') || current?.type, description:data.get('description'), placeholder:data.get('placeholder'),
           options:readOptionRows(), formula:data.get('formula'), scope_mode:data.get('scope_mode'), scopes:cleanText(data.get('scopes')).split(','),
           layout:data.get('layout'), currency:data.get('currency'), min:data.get('min'), max:data.get('max'), step:data.get('step'),
           show_in_overview:form.elements.show_in_overview.checked, show_in_scope:form.elements.show_in_scope.checked,
@@ -1035,6 +1081,9 @@
         try { fields = (await saveDefinitions(fields, options)).fields; drafts.delete(selectedId); scope = next.entity; render(); root.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("custom-fields","m_4bb4688766e904","Saved") ?? "Saved"), (globalThis.PlatformLanguage?.text("custom-fields","m_d66c043b6a8789","Custom field updated.") ?? "Custom field updated."), true); }
         catch (error) { button.disabled = false; form.querySelector('[data-cf-status]').textContent = error?.message || 'Could not save.'; }
       });
+      if(selected?.entity==='contact' && CONTACT_DEFAULT_FIELDS.some(row=>row.key===selected.key)){
+        form.querySelector('[data-cf-delete]')?.remove();['type','entity','enabled'].forEach(name=>{if(form.elements[name]){form.elements[name].disabled=true;}});if(form.elements.key)form.elements.key.readOnly=true;
+      }
       form?.querySelector('[data-cf-delete]')?.addEventListener('click', async () => {
         const okay = root.Portal?.ui?.confirm ? await root.Portal.ui.confirm(((v0) => globalThis.PlatformLanguage?.text("custom-fields","m_e95c0ed36ba264",`Delete “${v0}”? Existing stored values will be retained but hidden.`,{v0}) ?? `Delete “${v0}”? Existing stored values will be retained but hidden.`)(selected?.label)) : root.confirm(((v0) => globalThis.PlatformLanguage?.text("custom-fields","m_d0987286fd2869",`Delete “${v0}”?`,{v0}) ?? `Delete “${v0}”?`)(selected?.label));
         if (!okay) return;

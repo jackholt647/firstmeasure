@@ -574,6 +574,8 @@ function normalizedProjectContact(value: unknown) {
     notes: projectContactText(contact.notes),
     birthday: projectContactText(contact.birthday),
     tags: normalizedContactTags(contact.tags),
+    contact_kind: projectContactText(contact.contact_kind),
+    profile_media_id: projectContactText(contact.profile_media_id || asObject(asObject(contact.custom_field_values).profile_photo).media_id),
     custom_field_values: asObject(contact.custom_field_values || contact.contact_custom_field_values),
     imported_at: projectContactText(contact.imported_at),
     import_id: projectContactText(contact.import_id),
@@ -612,6 +614,8 @@ function mergeProjectContacts(
     notes: incoming.notes || current.notes,
     birthday: incoming.birthday || current.birthday,
     tags: normalizedContactTags([...current.tags, ...incoming.tags]),
+    contact_kind: incoming.contact_kind || current.contact_kind,
+    profile_media_id: incoming.profile_media_id || current.profile_media_id,
     custom_field_values: { ...current.custom_field_values, ...incoming.custom_field_values },
     imported_at: current.imported_at || incoming.imported_at,
     import_id: current.import_id || incoming.import_id,
@@ -1431,15 +1435,23 @@ export async function readBranchModule(orgId: string, branchId: string, moduleId
 }
 
 export async function saveBranchModule(orgId: string, branchId: string, moduleId: string, input: JsonObject = {}, options: { replace?: boolean } = {}) {
+  if(moduleId==='contact_settings' && input.data!==undefined){
+    if(branchId && branchId!=='default')throw badRequest('contact_settings_branch','Contact settings belong to the organization default branch.');
+    input={...input,data:(await import('../contacts/contracts.js')).normalizeContactSettings(input.data)};
+  }
   if(moduleId==='variable_mappings' && input.data!==undefined){
     const {terminologyMappingsSchema}=await import('./localization/terminology-schema.js');
     input={...input,data:terminologyMappingsSchema.parse(input.data)};
   }
   if (moduleId === "custom_fields" && Array.isArray(asObject(input.data).fields)) {
-    const fields = (await import("../custom_fields/contracts.js")).normalizeDefinitions(asObject(input.data).fields);
-    if (branchId !== "default" && fields.some(f => f.entity === "organization")) throw badRequest("custom_field_organization_branch", "Organization definitions belong to the default branch.");
+    const defaults=(await import("../contacts/contracts.js")).CONTACT_DEFAULT_FIELDS;
+    const submitted=asObject(input.data).fields as JsonObject[];
     const previous = await (await import("../custom_fields/records.js")).optional(() => readBranchModule(orgId, branchId || "default", moduleId));
     const prior = asObject(previous?.data);
+    const priorFields=Array.isArray(prior.fields)?prior.fields.map(asObject):[];
+    const missing=defaults.filter(d=>!submitted.some(f=>f.entity==="contact" && (f.path || f.key)===d.path)).map(d=>priorFields.find(f=>f.entity==="contact" && (f.path || f.key)===d.path) || d);
+    const fields = (await import("../custom_fields/contracts.js")).normalizeDefinitions([...missing,...submitted]);
+    if (branchId !== "default" && fields.some(f => f.entity === "organization")) throw badRequest("custom_field_organization_branch", "Organization definitions belong to the default branch.");
     const identity = (f:JsonObject) => `${String(f.entity || "project")}:${String(f.path || f.key)}`;
     const active = new Set(fields.map(identity));
     const retired = new Map<string,JsonObject>();

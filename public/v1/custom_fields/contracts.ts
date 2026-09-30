@@ -1,3 +1,4 @@
+import { CONTACT_REFERENCE_TYPES, MEDIA_REFERENCE_TYPES, CONTACT_DEFAULT_FIELDS } from "../contacts/contracts.js";
 import { badRequest } from "../platform/errors.js";
 import { jsonClone, validateJson } from "../platform/publication/validation.js";
 import { assertSafeTenantSchema } from "../platform/publication/tenant-schema.js";
@@ -5,7 +6,7 @@ import type { JsonObject } from "../platform/storage.js";
 import { Worker } from "node:worker_threads";
 
 export const object = (v: unknown): JsonObject => v && typeof v === "object" && !Array.isArray(v) ? v as JsonObject : {};
-export const types = ["text", "multiline", "email", "phone", "url", "number", "integer", "currency", "percentage", "slider", "date", "datetime", "boolean", "toggle", "select", "radio", "multiselect", "tags", "list", "array", "object", "key_value", "json", "formula", "organization_user", "resource_group", "organization_connection", "assignable_subject"];
+export const types = ["text", "multiline", "email", "phone", "url", "number", "integer", "currency", "percentage", "slider", "date", "datetime", "boolean", "toggle", "select", "radio", "multiselect", "tags", "list", "array", "object", "key_value", "json", "formula", "organization_user", "resource_group", "organization_connection", "assignable_subject", ...CONTACT_REFERENCE_TYPES, ...MEDIA_REFERENCE_TYPES];
 export type FieldEntity = "project" | "contact" | "organization";
 export function fieldPath(value: unknown): string {
   const path = String(value || "");
@@ -54,12 +55,18 @@ export function fieldSchema(field: JsonObject): JsonObject {
   else if (["list", "tags", "multiselect", "array"].includes(type)) schema = { type: "array", items: type === "array" ? {} : { type: "string" } };
   else if (["object", "key_value"].includes(type)) schema = { type: "object", additionalProperties: type === "key_value" ? { type: "string" } : true };
   else if (type === "json") schema = {};
+  else if (CONTACT_REFERENCE_TYPES.includes(type) || MEDIA_REFERENCE_TYPES.includes(type)) {
+    const properties = CONTACT_REFERENCE_TYPES.includes(type) ? {contact_id:{type:"string",minLength:1,maxLength:180},project_id:{type:"string",minLength:1,maxLength:180}} : {media_id:{type:"string",minLength:1,maxLength:180}};
+    const ref = {type:"object",properties,required:Object.keys(properties),additionalProperties:false};
+    schema = field.cardinality === "many" ? {type:"array",items:ref,maxItems:100} : ref;
+  }
   else if (["organization_user", "resource_group", "organization_connection", "assignable_subject"].includes(type)) schema = field.cardinality === "many" ? { type:"array", items:{type:"object"} } : { type:"object" };
   else schema = { type:"string" };
   if (["email", "phone", "url", "date", "datetime"].includes(type)) schema.format = type;
   const declared = object(field.schema);
   if (declared.type && schema.type && declared.type !== schema.type) throw badRequest("custom_field_schema","The schema root type must match the selected field type.");
   if (field.step != null && field.step !== "" && !(Number(field.step) > 0 && Number.isFinite(Number(field.step)))) throw badRequest("custom_field_step","The field step must be positive.");
+  if ((CONTACT_REFERENCE_TYPES.includes(type) || MEDIA_REFERENCE_TYPES.includes(type)) && Object.keys(declared).length) throw badRequest("custom_field_schema","Reference fields use the platform reference schema.");
   schema = { ...schema, ...declared, ...(schema.type ? { type:schema.type } : {}) };
   for (const [from,to] of [["min","minimum"],["max","maximum"],["min_length","minLength"],["max_length","maxLength"]]) if (field[from!] !== null && field[from!] !== undefined && field[from!] !== "") schema[to!] = Number(field[from!]);
   const options = Array.isArray(field.options) ? field.options.map(v => typeof v === "object" ? object(v).value : v) : [];
@@ -71,7 +78,7 @@ export function fieldSchema(field: JsonObject): JsonObject {
   return schema;
 }
 export function validateField(field: JsonObject, value: unknown) {
-  if (empty(value)) { if (field.required === true) throw badRequest("custom_field_required", `${field.label || field.path} is required.`); return; }
+  if (empty(value) || Array.isArray(value) && !value.length) { if (field.required === true) throw badRequest("custom_field_required", `${field.label || field.path} is required.`); return; }
   const schema = fieldSchema(field);
   validateJson(withoutFormats(schema), value, String(field.label || field.path));
   if (typeof value === "number" && field.step != null && field.step !== "") {
@@ -93,6 +100,8 @@ export function normalizeDefinitions(input: unknown): JsonObject[] {
     const entity = String(f.entity || "project");
     if (!["project", "contact", "organization"].includes(entity)) throw badRequest("custom_field_entity", "Unknown field owner.");
     const path = fieldPath(f.path || f.key);
+    const builtin=entity==="contact"?CONTACT_DEFAULT_FIELDS.find(row=>row.path===path):undefined;
+    if(builtin && (String(f.type || "text")!==builtin.type || f.enabled===false))throw badRequest("contact_builtin_field","Default contact fields retain their type and remain available; they can be optional and moved.");
     const key = `${entity}:${path}`;
     if ([...seen].some(p => p === key || p.startsWith(key + ".") || key.startsWith(p + "."))) throw badRequest("custom_field_conflict", "Field paths must be unique and cannot overlap. Declare subfields inside the parent schema.");
     seen.add(key);

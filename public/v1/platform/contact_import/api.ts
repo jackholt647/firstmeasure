@@ -1,3 +1,5 @@
+import { contactSettings } from "../../contacts/service.js";
+import { importContactPhoto } from "../../contacts/photo-import.js";
 // Contact import pipeline: upload/preview -> commit -> history/undo.
 //
 // Imported contacts become `contact_only` project documents (the platform's
@@ -275,6 +277,7 @@ function contactOnlyProjectRecord(row: ImportedContactRow, options: {
     imported_at: options.importedAt,
     import_id: options.importId,
     import_source: options.sourceLabel,
+    contact_kind: row.contact_kind || "human",
     primary: true
   };
   return {
@@ -329,6 +332,7 @@ async function mergeImportedContactIntoProject(orgId: string, match: ExistingCon
     company: cleanText(current.company) || cleanText(row.company),
     notes: cleanText(current.notes) || contactNotes(row),
     birthday: cleanText(current.birthday) || cleanText(row.birthday),
+    contact_kind: current.contact_kind || row.contact_kind || "human",
     tags: mergeTagLists(current.tags, row.tags, options.tags),
     imported_at: cleanText(current.imported_at) || options.importedAt,
     import_id: cleanText(current.import_id) || options.importId,
@@ -356,6 +360,19 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper:
   return results;
 }
 
+function previewRow(raw:unknown){
+ const row=asObject(raw),contact=asObject(row.contact),{photo_source,...rest}=contact;
+ return {...row,contact:{...rest,photo_available:!!photo_source}};
+}
+async function attachImportedPhoto(orgId:string,projectId:string,contactId:string,source:string,importId:string){
+ const parent=await readDocument(orgId,"projects",projectId),contacts=asArray(parent.data.contacts).map(asObject),contact=contacts.find(c=>cleanText(c.id || c.contact_id)===contactId);
+ if(!contact || cleanText(contact.profile_media_id))return false;
+ const media=await importContactPhoto(orgId,contactId,projectId,source,importId);
+ const values={...asObject(contact.custom_field_values),profile_photo:{media_id:cleanText(media.id)}};
+ const patched={...contact,custom_field_values:values,contact_custom_field_values:values};
+ await upsertDocument(orgId,"projects",{id:projectId,expected_revision:parent.revision,data:{...parent.data,contacts:contacts.map(c=>c===contact?patched:c),...(parent.data.workflow_state==="contact_only"?{contact_custom_field_values:values}: {})},metadata:parent.metadata},{replace:true});
+ return true;
+}
 function importSummaryDocument(document: JsonObject): JsonObject {
   const data = asObject(document.data);
   const { rows: _rows, ...rest } = data;
@@ -418,7 +435,7 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
       warnings: parsed.warnings,
       summary: record.summary,
       row_limit: CONTACT_IMPORT_ROW_LIMIT,
-      rows: rows.slice(0, PREVIEW_ROW_RESPONSE_LIMIT),
+      rows: rows.slice(0, PREVIEW_ROW_RESPONSE_LIMIT).map(previewRow),
       returned_rows: Math.min(rows.length, PREVIEW_ROW_RESPONSE_LIMIT)
     };
   });
@@ -435,7 +452,11 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
       throw conflict("contact_import_not_pending", "This import has already been committed or undone.");
     }
 
-    const tags = normalizedTagList(body.tags);
+    const settings=await contactSettings(orgId),available=(settings.tags as JsonObject[]).filter(tag=>tag.enabled!==false);
+    const tagIds=new Map(available.flatMap(tag=>[[cleanText(tag.id).toLowerCase(),cleanText(tag.id)],[cleanText(tag.label).toLowerCase(),cleanText(tag.id)]]));
+    const requestedTags=normalizedTagList(body.tags);
+    if(requestedTags.some(tag=>!tagIds.has(tag.toLowerCase())))throw badRequest("contact_tag_unavailable","Choose batch tags from the contact settings catalog.");
+    const tags=requestedTags.map(tag=>tagIds.get(tag.toLowerCase())!);
     const duplicateAction = ["skip", "update", "create"].includes(cleanText(body.duplicate_action))
       ? cleanText(body.duplicate_action)
       : "skip";
@@ -464,21 +485,31 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
     const createdProjectIds: string[] = [];
     const updatedProjectIds: string[] = [];
     let skipped = 0;
-    let failed = 0;
-    await mapWithConcurrency(planned, COMMIT_WRITE_CONCURRENCY, async (entry, sequence) => {
+    let failed = 0,photosImported=0,photosFailed=0;
+    const ignoredTags=new Set<string>(),photoErrors:JsonObject[]=[];
+    const photosEnabled=body.import_photos===true;
+    const importPhoto=async(projectId:string,contactId:string,source:string,index:number)=>{
+      if(!photosEnabled || !source)return;
+      try{if(await attachImportedPhoto(orgId,projectId,contactId,source,importId))photosImported++;}
+      catch(e){photosFailed++;if(photoErrors.length<100)photoErrors.push({index,code:cleanText((e as any)?.code)||"contact_photo_import_failed",message:"Contact saved, but its optional photo could not be imported."});}
+    };
+    await mapWithConcurrency(planned, photosEnabled?4:COMMIT_WRITE_CONCURRENCY, async (entry, sequence) => {
       if (entry.action === "skip") {
         skipped += 1;
         return;
       }
       try {
+        const source=entry.row.contact.photo_source || "";
+        entry.row.contact.tags=entry.row.contact.tags.flatMap(tag=>{const id=tagIds.get(tag.toLowerCase());if(!id){ignoredTags.add(tag);return [];}return [id];});
         if (entry.action === "create") {
           const projectRecord = contactOnlyProjectRecord(entry.row.contact, { importId, importedAt, sourceLabel, tags, sequence });
           await upsertDocument(orgId, "projects", projectRecord);
           createdProjectIds.push(projectRecord.id);
+          await importPhoto(projectRecord.id,cleanText(projectRecord.data.contacts[0]?.id),source,entry.row.index);
           return;
         }
         const merged = await mergeImportedContactIntoProject(orgId, entry.row.match!, entry.row.contact, { importId, importedAt, sourceLabel, tags });
-        if (merged) updatedProjectIds.push(entry.row.match!.project_id);
+        if (merged) {updatedProjectIds.push(entry.row.match!.project_id);await importPhoto(entry.row.match!.project_id,entry.row.match!.contact_id,source,entry.row.index);}
         else skipped += 1;
       } catch {
         failed += 1;
@@ -490,7 +521,7 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
       updated: updatedProjectIds.length,
       skipped,
       invalid: rows.filter((row) => row.status === "invalid").length,
-      failed
+      failed,photos_imported:photosImported,photos_failed:photosFailed
     };
     // The committed record keeps outcomes and created ids (for undo) but
     // drops the raw rows so history documents stay small.
@@ -499,7 +530,7 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
       status: "committed",
       tags,
       duplicate_action: duplicateAction,
-      counts,
+      counts,photo_errors:photoErrors,ignored_tags:[...ignoredTags],
       created_project_ids: createdProjectIds,
       updated_project_ids: [...new Set(updatedProjectIds)],
       rows: [],
@@ -513,7 +544,7 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
       expected_revision: document.revision
     }, { replace: true });
     deps.invalidateSearchCache(orgId);
-    return { ok: true, import_id: importId, counts, tags, status: "committed" };
+    return { ok: true, import_id: importId, counts, tags, photo_errors:photoErrors,ignored_tags:[...ignoredTags],status: "committed" };
   });
 
   app.get("/organizations/:orgId/contact-imports", async (request) => {
@@ -536,7 +567,7 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
       ok: true,
       import: {
         ...data,
-        rows: asArray(data.rows).slice(0, PREVIEW_ROW_RESPONSE_LIMIT)
+        rows: asArray(data.rows).slice(0, PREVIEW_ROW_RESPONSE_LIMIT).map(previewRow)
       }
     };
   });

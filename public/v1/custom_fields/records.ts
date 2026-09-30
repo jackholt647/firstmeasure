@@ -1,3 +1,5 @@
+import { CONTACT_DEFAULT_FIELDS } from "../contacts/contracts.js";
+import { normalizeContactRecord, validateReference } from "../contacts/service.js";
 import { readBranchModule, readDocument, upsertDocument, type JsonObject } from "../platform/storage.js";
 import { badRequest, forbidden, conflict, PlatformError } from "../platform/errors.js";
 import { hasPermission } from "../platform/auth.js";
@@ -13,7 +15,12 @@ export async function definitions(orgId: string, branchId: string, entity: Field
   const module = await optional(() => readBranchModule(orgId, entity === "organization" ? "default" : branchId, "custom_fields"));
   const fields = [...(Array.isArray(module?.data.fields) ? module.data.fields : []), ...(Array.isArray(module?.data.retired_fields) ? module.data.retired_fields : [])].map(object).filter(f => (f.entity || "project") === entity);
   const instance = entity === "project" ? object(record.custom_field_schema) : {};
-  const combined = new Map(fields.map(f => [String(f.path || f.key), f]));
+  const combined = new Map((entity === "contact" ? [...CONTACT_DEFAULT_FIELDS,...fields] : fields).map(f => [String(f.path || f.key), f]));
+  if(entity === "contact") for(const builtin of CONTACT_DEFAULT_FIELDS){
+    const prior=combined.get(String(builtin.path));
+    if(prior?.type !== builtin.type) throw badRequest("contact_default_field_type","Default contact fields must keep their reference type.");
+    combined.set(String(builtin.path),{...builtin,...prior,builtin:true});
+  }
   for (const raw of Array.isArray(instance.fields) ? instance.fields : []) {
     const f = object(raw), path = String(f.path || f.key), prior = combined.get(path);
     if (prior && prior.type !== f.type) throw badRequest("custom_field_conflict", `Conflicting definition for ${path}.`);
@@ -36,12 +43,12 @@ export function valuesOf(record: JsonObject, entity: FieldEntity): JsonObject {
   return object(entity === "contact" ? record.contact_custom_field_values || record.custom_field_values || record.custom_fields : record.custom_field_values || record.custom_fields);
 }
 export function applyValues(record: JsonObject, entity: FieldEntity, values: JsonObject) {
-  return { ...record, custom_field_values:values, ...(entity === "contact" ? { contact_custom_field_values:values } : { custom_fields:values }) };
+  return { ...record, custom_field_values:values, ...(entity === "contact" ? { contact_custom_field_values:values, profile_media_id:String(object(values.profile_photo).media_id || "") } : { custom_fields:values }) };
 }
 
 export async function prepareStoredFields(orgId:string, collection:string, incoming:JsonObject, previous:JsonObject = {}):Promise<JsonObject> {
   const entity:FieldEntity = collection === "projects" ? "project" : collection === "customers" ? "contact" : "organization";
-  let data = {...incoming};
+  let data = entity === "contact" ? await normalizeContactRecord(orgId,incoming,previous) : {...incoming};
   if (collection === "projects" && Array.isArray(data.contacts)) {
     const old = Array.isArray(previous.contacts) ? previous.contacts.map(object) : [];
     data.contacts = await Promise.all(data.contacts.map(async raw => {
@@ -106,7 +113,7 @@ export async function validateStoredFields(orgId: string, collection: string, in
     }
   }
   const entity: FieldEntity = collection === "projects" ? "project" : collection === "customers" ? "contact" : "organization";
-  if (!valueKeys.some(k => k in incoming) && !("custom_field_schema" in incoming)) return;
+  if (entity!=="contact" && !valueKeys.some(k => k in incoming) && !("custom_field_schema" in incoming)) return;
   const next = replace ? incoming : { ...previous, ...incoming };
   const fields = await definitions(orgId, String(next.branch_id || previous.branch_id || "default"), entity, next);
   const values = valuesOf(next, entity), before = valuesOf(previous, entity);
@@ -114,8 +121,11 @@ export async function validateStoredFields(orgId: string, collection: string, in
   for (const f of fields) {
     if (!applies(f, next)) continue;
     const v = getValue(values,String(f.path)), old = getValue(before,String(f.path));
-    if (JSON.stringify(v) === JSON.stringify(old) && Object.keys(previous).length) continue;
-    validateField(f,v); await validatePattern(f,v);
+    if (JSON.stringify(v) === JSON.stringify(old) && Object.keys(previous).length) {
+      if (f.required===true && (empty(v) || Array.isArray(v) && !v.length)) validateField(f,v);
+      continue;
+    }
+    validateField(f,v); await validatePattern(f,v); await validateReference(orgId,f,v,next,entity);
   }
 }
 export async function readFields(ctx: PublicationContext, target: TargetRef, entity: FieldEntity, path?: string, contractOnly = false) {

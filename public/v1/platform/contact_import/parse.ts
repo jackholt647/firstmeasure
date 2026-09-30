@@ -19,6 +19,8 @@ export type ImportedContactRow = {
   notes: string;
   birthday: string;
   tags: string[];
+  photo_source?: string;
+  contact_kind?: "human" | "org";
   extra_emails: string[];
   extra_phones: string[];
 };
@@ -38,7 +40,7 @@ export const CONTACT_IMPORT_ROW_LIMIT = 25_000;
 export const CONTACT_IMPORT_FIELDS = [
   "name", "first_name", "middle_name", "last_name",
   "email", "phone", "address", "street", "city", "state", "postal_code", "country",
-  "company", "notes", "birthday", "tags", "ignore"
+  "company", "notes", "birthday", "tags", "photo_source", "contact_kind", "ignore"
 ] as const;
 
 type MappedField = (typeof CONTACT_IMPORT_FIELDS)[number];
@@ -256,6 +258,14 @@ function parseVcardBlock(lines: string[]): ImportedContactRow {
     const types = propertyTypes(property);
     const preferred = isPreferred(property);
     switch (property.name) {
+      case "KIND":
+        row.contact_kind=text(property.value).toLowerCase()==="org"?"org":"human";break;
+      case "PHOTO": {
+        const encoding=(property.params.get("ENCODING") || []).join(",");
+        const type=(property.params.get("TYPE") || ["JPEG"])[0]!.toLowerCase().replace("jpg","jpeg");
+        row.photo_source=/^(B|BASE64)$/i.test(encoding) ? `data:image/${type};base64,${property.value.replace(/\s/g,"")}` : property.value;
+        break;
+      }
       case "FN":
         fallbackName = collapseSpace(unescapeVcardValue(property.value));
         break;
@@ -482,6 +492,8 @@ function googleHeaderField(normalized: string): MappedField | "" {
 function autoMapHeader(header: string): MappedField | "" {
   const normalized = normalizeHeader(header);
   if (!normalized) return "ignore";
+  if(["photo","photo_url","profile_photo","profile_photo_url","avatar","avatar_url"].includes(normalized))return "photo_source";
+  if(["contact_kind","contact_type","kind"].includes(normalized))return "contact_kind";
   if (HEADER_ALIASES[normalized]) return HEADER_ALIASES[normalized];
   const google = googleHeaderField(normalized);
   if (google) return google;
@@ -530,6 +542,8 @@ export function parseContactCsv(input: string, mappingOverride: Record<string, u
       const value = text(cellValue);
       if (!value || field === "ignore") return;
       switch (field) {
+        case "photo_source": if(!row.photo_source)row.photo_source=value;break;
+        case "contact_kind": row.contact_kind=["org","organization","company"].includes(value.toLowerCase())?"org":"human";break;
         case "name": if (!row.name) row.name = collapseSpace(value); break;
         case "first_name": case "middle_name": case "last_name": nameParts[field] = collapseSpace(value); break;
         case "email": addEmail(row, value); break;

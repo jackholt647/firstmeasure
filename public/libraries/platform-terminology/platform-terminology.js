@@ -115,7 +115,7 @@
 
   CATALOG.find(group=>group.id==='financials').terms.push(term('reconcile_view','Reconcile','view'),term('payouts_view','Payouts','view'));
   CATALOG.find(group=>group.id==='scheduling').terms.push(term('gantt_view','Timeline','view'));
-  CATALOG.find(group=>group.id==='contacts').terms.push(term('settings_tab','Contacts','navigation'));
+  CATALOG.find(group=>group.id==='contacts').terms.push(term('settings_tab','Contacts','navigation'),term('org','Org'));
   CATALOG.find(group=>group.id==='settings').terms.push(...[['feedback_tab','Feedback'],['live_chat_tab','Live Chat'],['comms_tab','Communications'],['assistant_tab','AI Agents'],['channels_tab','Channels'],['domains_tab','Domains']].map(([key,label])=>term(key,label,'navigation')));
   // Every registered surface and legacy domain noun belongs to this catalog.
   const additions = {

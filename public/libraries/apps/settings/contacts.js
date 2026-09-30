@@ -14,7 +14,7 @@
     name: 'Full name', first_name: 'First name', middle_name: 'Middle name', last_name: 'Last name',
     email: 'Email', phone: 'Phone', address: 'Address (full)', street: 'Street', city: 'City',
     state: 'State / region', postal_code: 'Postal code', country: 'Country', company: 'Company',
-    notes: 'Notes', birthday: 'Birthday', tags: 'Tags / groups', ignore: 'Do not import'
+    notes: 'Notes', birthday: 'Birthday', tags: 'Tags / groups', photo_source:'Profile photo URL', contact_kind:'Contact type (human / org)', ignore: 'Do not import'
   };
 
   function dateLabel(value){
@@ -95,16 +95,20 @@
     const orgId = options.orgId;
     const toast = options.showToast || (() => {});
     const api = root.PlatformAPI?.contactImports;
+    const canManageTags = root.Portal?.util?.hasPerm?.('manage_company_settings') === true;
     const routeScope = options.routeScope === 'contacts' ? 'contacts' : 'company_settings';
     const routeViewKey = routeScope === 'contacts' ? 'contactsSettingsView' : 'settingsView';
     const routedView = String(root.Portal?.navigation?.read?.()?.[routeViewKey] || options.initialSubtab || '').trim();
     const state = {
-      subtab: ['import','history'].includes(routedView) ? routedView : 'import',
+      subtab: ['import','history','tags'].includes(routedView) ? routedView : 'import',
       step: 'upload',
       file: null,
       preview: null,
       mappingDraft: null,
       tags: [],
+      catalog: [],
+      importPhotos: false,
+      catalogError: '',
       duplicateAction: 'skip',
       busy: false,
       status: '',
@@ -119,7 +123,7 @@
     const page = host.querySelector('.cti-page');
 
     function setSubtab(next, opts = {}){
-      const value = ['import','history'].includes(next) ? next : 'import';
+      const value = ['import','history','tags'].includes(next) ? next : 'import';
       state.subtab = value;
       if (opts.updateRoute !== false && !root.Portal?.navigation?.applying) {
         const patch = routeScope === 'contacts'
@@ -131,7 +135,7 @@
     }
 
     function subTabs(){
-      return `<div class="cti-subtabs">${[['import','Import contacts'],['history','Import history']].map(([id,label]) => `<button class="cti-subtab ${state.subtab===id?'active':''}" data-cti-subtab="${id}" type="button">${esc(label)}</button>`).join('')}</div>`;
+      return `<div class="cti-subtabs">${[['import','Import contacts'],['history','Import history'],...(canManageTags?[['tags','Contact tags']]:[])].map(([id,label]) => `<button class="cti-subtab ${state.subtab===id?'active':''}" data-cti-subtab="${id}" type="button">${esc(label)}</button>`).join('')}</div>`;
     }
     function bindSubTabs(){
       host.querySelectorAll('[data-cti-subtab]').forEach((button) => button.addEventListener('click', () => setSubtab(button.dataset.ctiSubtab)));
@@ -206,7 +210,7 @@
 
     function addTag(value){
       const tag = text(value).replace(/\s+/g, ' ').slice(0, 80);
-      if (!tag || state.tags.some((existing) => existing.toLowerCase() === tag.toLowerCase())) return;
+      if (!state.catalog.some(row=>row.id===tag && row.enabled!==false && row.id!=='org') || state.tags.some((existing) => existing.toLowerCase() === tag.toLowerCase())) return;
       state.tags = [...state.tags, tag];
       render();
       host.querySelector('[data-cti-tag-input]')?.focus();
@@ -226,7 +230,8 @@
       try {
         state.commitResult = await api.commit(orgId, state.preview.import_id, {
           tags: state.tags,
-          duplicateAction: state.duplicateAction
+          duplicateAction: state.duplicateAction,
+          import_photos: state.importPhotos
         });
         state.step = 'done';
         state.historyLoaded = false;
@@ -287,7 +292,8 @@
               </label>
             `).join(''))}
           </div>
-          <div class="cti-footer">
+
+        <div class="cti-footer">
             <span></span>
             <button class="cti-btn" type="button" data-cti-remap ${String(state.busy ? 'disabled' : '')}><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2ff538bc47e4ef"," Re-run preview with this mapping") ?? " Re-run preview with this mapping")}</button>
           </div>
@@ -339,10 +345,7 @@
           <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_8063fbcd381e1d","Tags are applied to every imported contact and are searchable from My Contacts — e.g. \"Gutter customers\" or where the list came from.") ?? "Tags are applied to every imported contact and are searchable from My Contacts — e.g. \"Gutter customers\" or where the list came from.")}</p>
           <div class="cti-tag-row">
             ${String(state.tags.map((tag) => `<span class="cti-tag" data-cti-tag="${esc(tag)}">${esc(tag)}<button type="button" aria-label="${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_69337ba9a988cf",`Remove tag ${v2}`,{v2}) ?? `Remove tag ${v2}`)(esc(tag))}"><i class="fas fa-times"></i></button></span>`).join(''))}
-            <input class="cti-tag-input" data-cti-tag-input type="text" autocomplete="off" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_cfa7743c211ea0","Add a tag...") ?? "Add a tag...")}">
-            ${String(['Imported from ' + text(preview.source_label, 'contact file'), 'Imported ' + new Date().toLocaleDateString(undefined, { month:'short', year:'numeric' })]
-              .filter((suggestion) => !state.tags.some((tag) => tag.toLowerCase() === suggestion.toLowerCase()))
-              .map((suggestion) => `<button class="cti-tag-suggest" type="button" data-cti-tag-suggest="${esc(suggestion)}"><i class="fas fa-plus"></i>${esc(suggestion)}</button>`).join(''))}
+            <select class="cti-select" data-cti-managed-tag aria-label="Add managed tag"><option value="">Add tag…</option>${state.catalog.filter(row=>row.id!=='org' && row.enabled!==false && !state.tags.includes(row.id)).map(row=>`<option value="${esc(row.id)}">${esc(row.label)}</option>`).join('')}</select>
           </div>
         </div>
         <div class="cti-block">
@@ -368,6 +371,7 @@
             </table>
           </div>
         </div>
+          <div class="cti-block"><label><input type="checkbox" data-cti-import-photos ${state.importPhotos?'checked':''}> Import available profile photos (optional)</label><p>Embedded vCard photos and mapped HTTPS photo URLs are added to each contact’s media library. Photo failures are reported separately.</p></div>
         <div class="cti-footer">
           <span class="cti-status" data-cti-status>${String(esc(state.status))}</span>
           <div class="cti-actions">
@@ -387,6 +391,8 @@
         Number(counts.updated || 0) ? `${Number(counts.updated)} updated` : '',
         Number(counts.skipped || 0) ? `${Number(counts.skipped)} skipped` : '',
         Number(counts.invalid || 0) ? `${Number(counts.invalid)} unreadable` : '',
+        Number(counts.photos_imported || 0) ? `${counts.photos_imported} photos imported` : '',
+        Number(counts.photos_failed || 0) ? `${counts.photos_failed} photos failed` : '',
         Number(counts.failed || 0) ? `${Number(counts.failed)} failed` : ''
       ].filter(Boolean).join(' · ');
       return `
@@ -395,6 +401,8 @@
             <i class="fas fa-circle-check"></i>
             <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_8a7ec9254c9426","Import complete") ?? "Import complete")}</h4>
             <p>${String(esc(parts))}${String(state.tags.length ? ` · tagged ${state.tags.map((tag) => `"${tag}"`).join(', ')}` : '')}</p>
+            ${array(state.commitResult?.photo_errors).map(error=>`<div class="cti-warning">Photo in row ${Number(error.row_index)+1}: ${esc(error.message)}</div>`).join('')}
+            ${array(state.commitResult?.ignored_tags).length?`<div class="cti-warning">Tags not in the managed catalog were skipped: ${esc(state.commitResult.ignored_tags.join(', '))}</div>`:''}
             <div class="cti-actions" style="justify-content:center">
               <button class="cti-btn" type="button" data-cti-again><i class="fas fa-file-import"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a2d721c1b88e56"," Import another file") ?? " Import another file")}</button>
               <button class="cti-btn" type="button" data-cti-history><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_bcea80956c5d70"," View import history") ?? " View import history")}</button>
@@ -439,6 +447,8 @@
     // ----------------------------------------------------------------- render
 
     function bindImport(){
+      host.querySelector('[data-cti-managed-tag]')?.addEventListener('change',event=>addTag(event.target.value));
+      host.querySelector('[data-cti-import-photos]')?.addEventListener('change',event=>{state.importPhotos=event.target.checked;});
       const drop = host.querySelector('[data-cti-drop]');
       const fileInput = host.querySelector('[data-cti-file]');
       if (drop && fileInput) {
@@ -516,7 +526,30 @@
       host.querySelector('[data-cti-refresh-history]')?.addEventListener('click', () => loadHistory(true));
     }
 
+    function tagsMarkup(){
+      return `<div class="cti-head"><div><h3>Contact tags</h3><p>Admins manage the tags available to contacts. Existing tags remain on contacts. The built-in ${esc(root.PlatformTerminology?.get?.('contacts.org','Org') || 'Org')} tag follows the contact type; its name is managed in Terminology.</p></div></div>
+        ${state.catalogError?`<div class="cti-error">${esc(state.catalogError)}</div>`:''}
+        <div class="cti-block">${state.catalog.filter(row=>row.id!=='org').map(row=>`<div class="cti-history-row" data-catalog-id="${esc(row.id)}"><label>Tag name<input class="cti-input" data-catalog-label value="${esc(row.label)}" maxlength="80"></label><label><input type="checkbox" data-catalog-enabled ${row.enabled!==false?'checked':''}> Available</label></div>`).join('')}
+        <button class="cti-btn" type="button" data-catalog-add>Add tag</button><button class="cti-btn primary" type="button" data-catalog-save>Save tags</button></div>`;
+    }
+    function bindCatalog(){
+      host.querySelector('[data-catalog-add]')?.addEventListener('click',()=>{
+        collectCatalog();state.catalog.push({id:'tag_'+crypto.randomUUID().replaceAll('-','').slice(0,16),label:'New tag',enabled:true});render();
+      });
+      host.querySelector('[data-catalog-save]')?.addEventListener('click',async event=>{
+        collectCatalog();event.target.disabled=true;
+        try{const result=await root.PlatformAPI.contacts.saveSettings(orgId,{tags:state.catalog});state.catalog=result.settings.tags;state.catalogError='';toast('Contact tags','Saved.',true);root.dispatchEvent(new CustomEvent('fm:contact-tags:updated'));}
+        catch(error){state.catalogError=error.message;}finally{render();}
+      });
+    }
+    function collectCatalog(){
+      host.querySelectorAll('[data-catalog-id]').forEach(row=>{
+        const tag=state.catalog.find(tag=>tag.id===row.dataset.catalogId);if(tag){tag.label=row.querySelector('[data-catalog-label]').value.trim();tag.enabled=row.querySelector('[data-catalog-enabled]').checked;}
+      });
+    }
     function render(){
+      if(state.subtab==='tags' && canManageTags){page.innerHTML=subTabs()+tagsMarkup();bindSubTabs();bindCatalog();return;}
+
       if (!api) {
         page.innerHTML = (String(subTabs()) + "<div class=\"cti-error\">" + (globalThis.PlatformLanguage?.htmlText("settings","m_4d69c2b47d6b55","Contact imports are unavailable — the platform API client is missing.") ?? "Contact imports are unavailable — the platform API client is missing.") + "</div>");
         bindSubTabs();
@@ -525,6 +558,7 @@
       if (state.subtab === 'history') {
         page.innerHTML = (String(subTabs()) + "\n          <div class=\"cti-head\">\n            <div>\n              <div class=\"cti-kicker\">" + (globalThis.PlatformLanguage?.htmlText("settings","m_f73fef8a7642ab","Contacts · History") ?? "Contacts · History") + "</div>\n              <h3>" + (globalThis.PlatformLanguage?.htmlText("settings","m_57107f62fe4923","Import history") ?? "Import history") + "</h3>\n              <p>" + (globalThis.PlatformLanguage?.htmlText("settings","m_4f2549d8012644","Every committed contact import, who ran it, what it created, and the tags it applied. Undo removes the contacts an import created as long as they have not been used on a project.") ?? "Every committed contact import, who ran it, what it created, and the tags it applied. Undo removes the contacts an import created as long as they have not been used on a project.") + "</p>\n            </div>\n            <div class=\"cti-actions\"><button class=\"cti-btn\" type=\"button\" data-cti-refresh-history><i class=\"fas fa-rotate\"></i>" + (globalThis.PlatformLanguage?.htmlText("settings","m_4f524800833039"," Refresh") ?? " Refresh") + "</button></div>\n          </div>\n          " + String(historyMarkup()));
         bindSubTabs();
+        page.querySelector('[data-cti-refresh-history]')?.closest('.cti-actions')?.remove();
         bindHistory();
         if (!state.historyLoaded && !state.historyLoading && !state.historyError) loadHistory();
         return;
@@ -536,6 +570,7 @@
     }
 
     render();
+    root.PlatformAPI?.contacts?.settings(orgId).then(result=>{state.catalog=result.settings?.tags || [];render();}).catch(error=>{state.catalogError=error.message;render();});
 
     const unregisterRoute = root.Portal?.navigation?.registerHandler?.(`contacts-settings-view:${routeScope}:${options.instanceId || 'default'}`, {
       priority: 450,
@@ -544,7 +579,7 @@
           ? route.tab === 'contacts' && ['import','settings'].includes(route.contactsWorkspace)
           : route.tab === 'company_settings' && route.sub === 'contacts';
         if (!matches) return;
-        const next = ['import','history'].includes(route[routeViewKey]) ? route[routeViewKey] : (options.initialSubtab || 'import');
+        const next = ['import','history','tags'].includes(route[routeViewKey]) ? route[routeViewKey] : (options.initialSubtab || 'import');
         if (next !== state.subtab) setSubtab(next, { updateRoute: false });
       }
     });

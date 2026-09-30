@@ -53,6 +53,7 @@ function createSessionClient() {
 before(async () => {
   storageRoot = await mkdtemp(path.join(os.tmpdir(), "firstmate-contact-import-test-"));
   process.env.NODE_ENV = "test";
+  process.env.FIRSTMEASURE_JOB_WORKERS = "0";
   process.env.PLATFORM_HEARTBEAT_DISABLED = "1";
   process.env.WORK_SCHEDULER_DISABLED = "1";
   process.env.PLATFORM_STORAGE_ROOT = path.join(storageRoot, "platform");
@@ -89,6 +90,7 @@ async function register(client: ReturnType<typeof createSessionClient>) {
     organization_id: `org_contacts_${suffix}`
   });
   await enableExpandedPlatformFixture(data.organization.id);
+  await client.request("PUT", `/v1/platform/organizations/${data.organization.id}/contacts/settings`,{tags:[{id:"vip",label:"VIP"},{id:"gutter",label:"Gutter Customers"},{id:"imported",label:"Imported from CSV"},{id:"updated",label:"Updated"}]});
   return { orgId: data.organization.id as string };
 }
 
@@ -224,7 +226,7 @@ test("preview -> commit creates tagged contact_only records; undo removes them",
   assert.equal(fileDuplicate.match.kind, "file");
 
   const commit = await client.request("POST", `/v1/platform/organizations/${orgId}/contact-imports/${preview.import_id}/commit`, {
-    tags: ["Gutter Customers", "Imported from CSV"],
+    tags: ["gutter", "imported"],
     duplicate_action: "skip"
   });
   assert.equal(commit.counts.created, 2);
@@ -237,7 +239,7 @@ test("preview -> commit creates tagged contact_only records; undo removes them",
   const gina = imported.map((document: any) => document.data).find((data: any) => data.customer_name === "Gina Torres");
   assert.ok(gina, "Gina should exist as a contact_only record");
   const ginaContact = gina.contacts[0];
-  assert.deepEqual(ginaContact.tags, ["VIP", "Gutter Customers", "Imported from CSV"]);
+  assert.deepEqual(ginaContact.tags, ["vip", "gutter", "imported"]);
   assert.equal(ginaContact.import_id, preview.import_id);
   assert.ok(ginaContact.imported_at);
   assert.equal(ginaContact.import_source, "CSV file");
@@ -258,7 +260,7 @@ test("preview -> commit creates tagged contact_only records; undo removes them",
     filename: "gutters-update.csv"
   });
   const update = await client.request("POST", `/v1/platform/organizations/${orgId}/contact-imports/${third.import_id}/commit`, {
-    tags: ["Updated"],
+    tags: ["updated"],
     duplicate_action: "update"
   });
   assert.equal(update.counts.created, 0);
@@ -266,8 +268,8 @@ test("preview -> commit creates tagged contact_only records; undo removes them",
   const afterUpdate = await client.request("GET", `/v1/platform/organizations/${orgId}/projects`);
   const ginaAfter = afterUpdate.documents.map((document: any) => document.data).find((data: any) => data.customer_name === "Gina Torres");
   assert.equal(ginaAfter.contacts[0].company, "Torres Consulting");
-  assert.ok(ginaAfter.contacts[0].tags.includes("Updated"));
-  assert.ok(ginaAfter.contacts[0].tags.includes("VIP"));
+  assert.ok(ginaAfter.contacts[0].tags.includes("updated"));
+  assert.ok(ginaAfter.contacts[0].tags.includes("vip"));
 
   // History lists both commits, newest first.
   const history = await client.request("GET", `/v1/platform/organizations/${orgId}/contact-imports`);
@@ -359,4 +361,81 @@ test("to-dos can be scoped to a contact and unioned with the contact's projects"
   // Email matching works when no contact id was stored.
   const byEmail = await client.request("GET", `/v1/work/organizations/${orgId}/todos?contact_email=rita@example.com&include_future=1`);
   assert.deepEqual(byEmail.todos.map((todo: any) => todo.title), ["Wish Rita a happy birthday"]);
+});
+
+
+test("typed contact references, defaults, managed tags and required media are enforced in storage",async()=>{
+ const client=createSessionClient(),{orgId}=await register(client);
+ const {upsertDocument,readDocument,saveBranchModule,storeMediaUpload}=await import("../platform/storage.js");
+ const create=async(id:string,c:Record<string,unknown>)=>upsertDocument(orgId,"projects",{id,data:{workflow_state:"contact_only",contacts:[{id:"c_"+id,name:id,...c}]}});
+ await create("company",{contact_kind:"org"});await create("person",{contact_kind:"human",tags:["vip"]});
+ const company=(await readDocument(orgId,"projects","company")).data.contacts as any[];
+ assert.equal(company[0].contact_kind,"org");assert.deepEqual(company[0].tags,["org"]);
+ await assert.rejects(create("badtag",{tags:["arbitrary"]}),/catalog/);
+ const ref={project_id:"company",contact_id:"c_company"};
+ await assert.rejects(create("badspouse",{custom_field_values:{relationships:{spouse:ref}}}),/human/);
+ await create("employee",{custom_field_values:{relationships:{employer:ref}}});
+ await assert.rejects(create("badref",{custom_field_values:{relationships:{employer:{project_id:"missing",contact_id:"c_missing"}}}}));
+ const options=await client.request("GET",`/v1/platform/organizations/${orgId}/contacts/options?kind=org`);
+ assert.equal(options.contacts.length,1);assert.equal(options.contacts[0].contact_id,"c_company");
+ const fields=(await import("../contacts/contracts.js")).CONTACT_DEFAULT_FIELDS;
+ await saveBranchModule(orgId,"default","custom_fields",{data:{fields:fields.map(f=>({...f,required:f.path==="relationships.employer"}))}});
+ await assert.rejects(create("required",{}),/Employer is required/);
+ const person=await readDocument(orgId,"projects","person");
+ await assert.rejects(upsertDocument(orgId,"projects",{id:"person",data:{...person.data,title:"Updated"}},{replace:true}),/Employer is required/);
+ const contract=(await import("../custom_fields/contracts.js"));
+ assert.throws(()=>contract.normalizeDefinitions([{entity:"contact",path:"relationships.spouse",type:"text"}]),/retain their type/);
+ const media=await storeMediaUpload(orgId,{bytes:Buffer.from("hello"),contentType:"text/plain",fileName:"note.txt",ownerType:"contact",ownerId:"c_employee",slot:"media",collection:"contacts",scope:"contact",metadata:{contact_record_project_id:"employee"}});
+ const employee=await readDocument(orgId,"projects","employee"),contact=(employee.data.contacts as any[])[0];
+ await assert.rejects(upsertDocument(orgId,"projects",{id:"employee",data:{...employee.data,contacts:[{...contact,custom_field_values:{...contact.custom_field_values,profile_photo:{media_id:media.id}}}]}},{replace:true}),/requires photo/);
+ const foreignMedia=await storeMediaUpload(orgId,{bytes:Buffer.from("hello"),contentType:"text/plain",fileName:"other.txt",ownerType:"contact",ownerId:"c_person",slot:"media",collection:"contacts",scope:"contact",metadata:{contact_record_project_id:"person"}});
+ await assert.rejects((await import("../contacts/service.js")).validateReference(orgId,{type:"media"},{media_id:foreignMedia.id},contact,"contact"),/record's library/);
+});
+
+test("optional photos import into the contact library while invalid photos report separate failures",async()=>{
+ const client=createSessionClient(),{orgId}=await register(client);
+ const sharp=(await import("sharp")).default;
+ const png=await sharp({create:{width:12,height:12,channels:3,background:"#336699"}}).png().toBuffer();
+ const content=["BEGIN:VCARD","VERSION:3.0","FN:Photo Person","PHOTO;ENCODING=b;TYPE=PNG:"+png.toString("base64"),"END:VCARD","BEGIN:VCARD","VERSION:3.0","FN:Unsafe Photo","PHOTO:https://127.0.0.1/private.png","END:VCARD"].join("\r\n");
+ const preview=await client.request("POST",`/v1/platform/organizations/${orgId}/contact-imports/preview`,{filename:"photos.vcf",content});
+ assert.equal(preview.rows[0].contact.photo_available,true);assert.equal(preview.rows[0].contact.photo_source,undefined);
+ const result=await client.request("POST",`/v1/platform/organizations/${orgId}/contact-imports/${preview.import_id}/commit`,{import_photos:true});
+ assert.equal(result.counts.created,2);assert.equal(result.counts.photos_imported,1);assert.equal(result.counts.photos_failed,1);
+ const {listDocuments,listMedia}=await import("../platform/storage.js"),projects=await listDocuments(orgId,"projects"),media=await listMedia(orgId);
+ const c=(projects.find(p=>(p.data.contacts as any[])[0].name==="Photo Person")!.data.contacts as any[])[0];
+ assert.equal(c.profile_media_id,media[0]!.id);assert.equal((media[0]!.owner as any).type,"contact");
+ assert.deepEqual(c.custom_field_values.profile_photo,{media_id:media[0]!.id});
+ const {publicPhotoAddress,photoImportUrl}=await import("../contacts/photo-import.js");
+ for(const ip of ["10.0.0.1","127.0.0.1","169.254.169.254","172.16.0.1","192.168.1.1","100.64.0.1","::1"])assert.equal(publicPhotoAddress(ip),false);
+ assert.equal(publicPhotoAddress("8.8.8.8"),true);
+ for(const url of ["http://example.com/a.png","https://127.0.0.1/a.png","https://user:pass@example.com/a.png"])assert.throws(()=>photoImportUrl(url));
+});
+
+
+test("only admins manage catalogs through dedicated, generic and published APIs; draft uploads support required photos",async()=>{
+ const owner=createSessionClient(),{orgId}=await register(owner);
+ const suffix=Date.now().toString(36),email=`contact-member-${suffix}@example.test`,password="contact member test password";
+ await owner.request("POST",`/v1/platform/organizations/${orgId}/users`,{data:{name:"Contact Member",email,password,status:"active",role:"admin",send_invite:false,permissions:{manage_company_settings:false,view_contacts:true,manage_projects:true}}});
+ const member=createSessionClient();await member.request("POST","/v1/platform/auth/login",{email,password,organization_id:orgId});
+ const settings=await member.request("GET",`/v1/platform/organizations/${orgId}/contacts/settings`);assert.equal(settings.settings.tags[0].id,"org");
+ assert.equal((await member.raw("PUT",`/v1/platform/organizations/${orgId}/contacts/settings`,{tags:[]})).statusCode,403);
+ assert.equal((await member.raw("PUT",`/v1/platform/organizations/${orgId}/branch/default/modules/contact_settings`,{data:{tags:[]}})).statusCode,403);
+ assert.equal((await member.raw("POST",`/v1/publication/organizations/${orgId}/actions/invoke`,{action:"contacts.settings.save",version:"1",target:{scope:"organization",organizationId:orgId},input:{tags:[]},idempotencyKey:"denied"})).statusCode,403);
+ const target={scope:"organization",organizationId:orgId};
+ const payload={action:"contacts.settings.save",version:"1",target,input:{tags:[{id:"vip",label:"Priority"}]},idempotencyKey:"admin-save"};
+ const action=await owner.request("POST",`/v1/publication/organizations/${orgId}/actions/invoke`,payload);
+ assert.equal(action.value.tags[1].label,"Priority");
+ const replay=await owner.request("POST",`/v1/publication/organizations/${orgId}/actions/invoke`,payload);assert.equal(replay.receipt.replayed,true);
+ const read=await member.request("POST",`/v1/publication/organizations/${orgId}/data/read`,{provider:"contacts",export:"settings",target});assert.equal(read.status,"ready");assert.equal(read.value.tags[1].label,"Priority");
+ const photo=await (await import("sharp")).default({create:{width:8,height:8,channels:3,background:"#338877"}}).png().toBuffer();
+ const metadata={contact_record_project_id:"project_pending_photo",contact_draft:true};
+ const upload=await member.request("POST",`/v1/platform/organizations/${orgId}/media`,{base64:photo.toString("base64"),content_type:"image/png",file_name:"portrait.png",owner_type:"contact",owner_id:"contact_pending_photo",slot:"profile",metadata});
+ const invalid=await member.raw("POST",`/v1/platform/organizations/${orgId}/media`,{base64:Buffer.from("not an image").toString("base64"),content_type:"image/png",file_name:"bad.png",owner_type:"contact",owner_id:"contact_pending_photo",slot:"profile",metadata});assert.equal(invalid.statusCode,400);
+ const {saveBranchModule}=await import("../platform/storage.js"),defaults=(await import("../contacts/contracts.js")).CONTACT_DEFAULT_FIELDS;
+ await saveBranchModule(orgId,"default","custom_fields",{data:{fields:defaults.map(f=>({...f,required:f.path==="profile_photo"}))}});
+ await member.request("POST",`/v1/platform/organizations/${orgId}/projects`,{id:"project_pending_photo",data:{workflow_state:"contact_only",contacts:[{id:"contact_pending_photo",name:"Photo Required",custom_field_values:{profile_photo:{media_id:upload.media.id}}}]}});
+ const library=await member.request("GET",`/v1/platform/organizations/${orgId}/media?contact_id=contact_pending_photo&contact_project_id=project_pending_photo`);assert.equal(library.media.length,1);
+ const other=createSessionClient(),{orgId:otherOrg}=await register(other);
+ assert.equal((await other.raw("GET",`/v1/platform/organizations/${orgId}/contacts/options`)).statusCode,403);
+ assert.equal((await other.raw("GET",`/v1/platform/organizations/${otherOrg}/media/${upload.media.id}`)).statusCode,404);
 });

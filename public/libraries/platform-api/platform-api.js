@@ -2917,6 +2917,13 @@
     }
   };
 
+  const contacts = {
+    settings(orgId){return request(orgPath(orgId,'/contacts/settings'));},
+    saveSettings(orgId,settings){return request(orgPath(orgId,'/contacts/settings'),{method:'PUT',body:settings});},
+    options(orgId,kind='either'){return request(orgPath(orgId,'/contacts/options')+'?kind='+enc(kind));},
+    get(orgId,reference){return request(orgPath(orgId,'/contacts/'+enc(reference.contact_id))+'?project_id='+enc(reference.project_id));},
+    media(orgId,reference){return request(orgPath(orgId,'/media')+'?contact_id='+enc(reference.contact_id)+'&contact_project_id='+enc(reference.project_id));}
+  };
   const contactImports = {
     // file: a File/Blob from an <input type=file>; options.mapping overrides
     // CSV column mapping ({ columnIndexOrHeader: field }).
@@ -2937,6 +2944,7 @@
         body:{
           tags: Array.isArray(options.tags) ? options.tags : [],
           duplicate_action: options.duplicateAction || options.duplicate_action || 'skip',
+          import_photos: options.import_photos === true || options.importPhotos === true,
           decisions: options.decisions && typeof options.decisions === 'object' ? options.decisions : {}
         }
       });
@@ -3014,6 +3022,7 @@
     projects: collectionMethods('projects', 'platform_project'),
     customers: collectionMethods('customers', 'customer'),
     contactImports,
+    contacts,
     users: {
       ...collectionMethods('users', 'organization_user'),
       ...orgUsers

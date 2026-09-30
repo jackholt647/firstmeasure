@@ -3,7 +3,7 @@
 export const applicationPublication = {
   assistant: { providers: [], domains: [], note: "Consumes the shared authorized publication catalog; assistant conversations, instructions and personal memories retain their dedicated subject-scoped APIs." },
   projects: { providers: ["projects", "custom-fields-project"], domains: ["projects", "custom-fields"] },
-  contacts: { providers: ["customers", "custom-fields-contact"], domains: ["projects", "custom-fields"] },
+  contacts: { providers: ["customers", "custom-fields-contact", "contacts"], domains: ["projects", "custom-fields", "contacts"] },
   photos: { providers: ["media"], domains: ["media"] },
   receipts: { providers: ["media"], domains: ["media"] },
   proposals: { providers: ["proposals"], domains: ["proposals"] },

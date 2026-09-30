@@ -63,7 +63,7 @@ function normalizedFieldType(value: unknown) {
     "text", "multiline", "email", "phone", "url", "number", "integer", "array", "object", "currency", "percentage", "slider",
     "date", "datetime", "boolean", "toggle", "select", "radio", "multiselect", "tags", "list",
     "key_value", "json", "formula", "organization_user", "resource_group", "organization_connection",
-    "assignable_subject"
+    "assignable_subject", "contact", "human_contact", "org_contact", "media", "photo", "video"
   ]);
   if (!supported.has(type)) throw badRequest("custom_field_type_invalid", `Unsupported custom field type '${type}'.`);
   return type;
