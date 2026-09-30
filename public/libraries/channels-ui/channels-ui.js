@@ -475,46 +475,64 @@
       const anchor = selection?.anchorNode?.nodeType === 1 ? selection.anchorNode : selection?.anchorNode?.parentElement;
       if (event.key === 'Enter' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && editor.contains(anchor)) {
         let item = anchor?.closest('li');
-        let typedMarker = false;
-        // Convert a typed numbered prefix before continuing, just like the list toolbar.
-        // Keep quotes, code and tables in their existing format.
+        // An empty toolbar list can leave the native caret at the editor boundary.
+        if (!item && selection.isCollapsed && selection.anchorNode.nodeType === 1) {
+          const container = selection.anchorNode, offset = selection.anchorOffset;
+          const next = container.childNodes[offset], previous = container.childNodes[offset - 1];
+          const list = container.matches?.('ol,ul') ? container : [next, previous].find(node => node?.matches?.('ol,ul'));
+          if (list && !list.textContent.trim() && !list.querySelector('table,img,video,audio')) {
+            item = container === list && next?.matches?.('li') ? next : list.querySelector('li:last-child');
+          }
+        }
+        // A soft line break may be a newline text node rather than a new paragraph.
+        // Convert only the caret's numbered line, preserving the surrounding rich text.
         if (!item && selection.isCollapsed && !anchor.closest('pre,blockquote,td,th')) {
           const block = anchor.closest('p,div');
           const paragraph = block && editor.contains(block) ? block : editor;
-          const beforeCaret = selection.getRangeAt(0).cloneRange();
-          beforeCaret.setStart(paragraph, 0);
-          const marker = beforeCaret.toString().match(/^(\d{1,6})\.(?:[ \t]+|$)/);
-          if (marker && /^\d{1,6}\.(?:[ \t]+|$)/.test(paragraph.textContent) && !paragraph.querySelector('br,ul,ol,table')) {
-            const caretOffset = beforeCaret.toString().length - marker[0].length;
-            const prefix = document.createRange(); prefix.setStart(paragraph, 0);
-            const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
-            let remaining = marker[0].length, node;
-            while ((node = walker.nextNode())) {
-              if (remaining <= node.textContent.length) { prefix.setEnd(node, remaining); break; }
-              remaining -= node.textContent.length;
-            }
-            prefix.deleteContents();
-            document.execCommand('insertOrderedList');
-            const current = selection.anchorNode?.nodeType === 1 ? selection.anchorNode : selection.anchorNode?.parentElement;
-            item = current?.closest('li');
-            if (item) {
-              item.parentElement.setAttribute('start', String(Number(marker[1]))); typedMarker = true;
-              const caret = document.createRange(), textNodes = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
-              let offset = caretOffset;
-              // The prefix deletion can move Chromium's selection to the paragraph start.
-              while ((node = textNodes.nextNode())) {
-                if (offset <= node.textContent.length) { caret.setStart(node, offset); break; }
+          const beforeCaret = selection.getRangeAt(0).cloneRange(); beforeCaret.setStart(paragraph, 0);
+          const preceding = beforeCaret.toString(), text = paragraph.textContent;
+          const lineStart = preceding.lastIndexOf('\n') + 1;
+          const lineEnd = text.indexOf('\n', lineStart) < 0 ? text.length : text.indexOf('\n', lineStart);
+          const marker = preceding.slice(lineStart).match(/^(\d{1,6})\.(?:[ \t]+|$)/);
+          if (marker && /^\d{1,6}\.(?:[ \t]+|$)/.test(text.slice(lineStart, lineEnd)) && !paragraph.querySelector('br,ul,ol,table')) {
+            const position = offset => {
+              const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT); let node;
+              while ((node = walker.nextNode())) {
+                if (offset <= node.textContent.length) return [node, offset];
                 offset -= node.textContent.length;
               }
-              if (!node) caret.setStart(item, item.childNodes.length);
-              caret.collapse(true); selection.removeAllRanges(); selection.addRange(caret);
+              return [paragraph, paragraph.childNodes.length];
+            };
+            const contents = document.createRange(); contents.setStart(...position(lineStart + marker[0].length)); contents.setEnd(...position(lineEnd));
+            const before = document.createRange(); before.selectNodeContents(paragraph); before.setEnd(...position(Math.max(0, lineStart - 1)));
+            const after = document.createRange(); after.selectNodeContents(paragraph); after.setStart(...position(Math.min(text.length, lineEnd + 1)));
+            const beforeFragment = lineStart > 0 ? before.cloneContents() : document.createDocumentFragment();
+            const afterFragment = lineEnd < text.length ? after.cloneContents() : document.createDocumentFragment();
+            // A boundary newline still represents an empty visual line beside the list.
+            for (const [fragment, exists] of [[beforeFragment, lineStart > 0], [afterFragment, lineEnd < text.length]]) {
+              if (exists && !fragment.textContent && !fragment.querySelector('br')) { const blank = el('div'); blank.append(el('br')); fragment.replaceChildren(blank); }
             }
+            const list = el('ol'); list.setAttribute('start', String(Number(marker[1])));
+            item = el('li'); item.append(contents.cloneContents()); if (!item.hasChildNodes()) item.append(el('br')); list.append(item);
+            if (paragraph === editor) paragraph.replaceChildren(beforeFragment, list, afterFragment);
+            else {
+              const nodes = [];
+              if (beforeFragment.hasChildNodes()) { const previous = paragraph.cloneNode(false); previous.append(beforeFragment); nodes.push(previous); }
+              nodes.push(list);
+              if (afterFragment.hasChildNodes()) { const next = paragraph.cloneNode(false); next.append(afterFragment); nodes.push(next); }
+              paragraph.replaceWith(...nodes);
+            }
+            const caret = document.createRange(), walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+            let offset = preceding.length - lineStart - marker[0].length, node;
+            while ((node = walker.nextNode())) { if (offset <= node.textContent.length) { caret.setStart(node, offset); break; } offset -= node.textContent.length; }
+            if (!node) caret.setStart(item, item.childNodes.length);
+            caret.collapse(true); selection.removeAllRanges(); selection.addRange(caret);
           }
         }
         if (item) {
           event.preventDefault(); event.stopPropagation();
-          if (typedMarker && !item.textContent.trim()) {
-            // Native Enter exits an empty list; a freshly typed `1.` should show `2.`.
+          if (!item.textContent.trim()) {
+            // Shift+Enter always continues a list, even when the current item is empty.
             const next = el('li'); next.append(document.createElement('br')); item.after(next);
             const range = document.createRange(); range.setStart(next, 0); range.collapse(true);
             selection.removeAllRanges(); selection.addRange(range);
