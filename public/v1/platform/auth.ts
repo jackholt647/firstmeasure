@@ -69,7 +69,7 @@ import {
   organizationUserProfileView,
   type ApplicationAccess
 } from "./user_profile.js";
-import { resolveAccessProfile, type ResolvedAccessProfile } from "../workforce/access.js";
+import { notificationAccessPermissions, resolveAccessProfile, type ResolvedAccessProfile } from "../workforce/access.js";
 import {
   createAuthSession,
   createAccountDevice,
@@ -652,6 +652,10 @@ export async function authContextFromRequest(request: FastifyRequest) {
 
 export function hasPermission(ctx: PlatformAuthContext, permission?: string) {
   if (!permission) return true;
+  if (permission === "manage_own_notifications" || permission === "manage_notification_defaults") {
+    const flags = notificationAccessPermissions(ctx.permissions as Record<string, boolean>, ctx.user, ctx.accessProfile?.roles || [], !ctx.accessProfile && ["owner", "admin", "super_admin"].includes(ctx.role));
+    return flags[permission];
+  }
   // FirstMeasure's original seven-permission role behavior remains intact for
   // accounts outside expanded access. Expanded access uses resolved role grants
   // and explicit user overrides, including an administrator's denials.

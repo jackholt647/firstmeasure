@@ -240,3 +240,125 @@ test('grouping keeps in-app members but only dispatches the first interrupt',asy
  assert.equal(rows.filter(r=>r.method==='toast'&&r.state==='available').length,1);
  assert.equal(rows.filter(r=>r.method==='toast'&&r.state==='suppressed').length,1);
 });
+
+test('guided registrations validate tags and grouping, preserve code on edits, and deletion fences repair and pending delivery',async()=>{
+ const client=createSessionClient(),{orgId,userId}=await register(client);await createProject(client,orgId,'guided-project');
+ const root=`/v1/platform/organizations/${orgId}`;
+ await enableExpandedPlatformFixture(orgId,{'platform.documents':true});
+ const {upsertDocument}=await import('../platform/storage.js');
+ await upsertDocument(orgId,'document_tags',{id:'proposal',data:{tag_id:'proposal',label:'Proposal',archived:false}},{createOnly:true});
+ const discovery=await client.request('GET',root+'/notification-rules');
+ assert.ok(discovery.events.some((e:any)=>e.event==='document.signed'&&e.notification.group==='signatures'&&e.tag_path==='payload.document_tags'));
+ assert.ok(!discovery.events.some((e:any)=>/^(channels|chat)\./.test(e.event)));
+ assert.ok(discovery.tags.some((tag:any)=>tag.id==='proposal'));
+ const requestId='12345678-1234-4234-8234-123456789abc';
+ const registration={request_id:requestId,event:'document.signed',tags:['proposal'],methods:['in_app','toast'],group:{path:'payload.document_id',alert:'every',window_seconds:60},title:'Guided proposal'};
+ const created=await client.request('POST',root+'/notification-registrations',registration);
+ const retried=await client.request('POST',root+'/notification-registrations',registration);assert.equal(retried.rule.id,created.rule.id);assert.equal(retried.rule.revision,1);
+ const changed=await client.raw('POST',root+'/notification-registrations',{...registration,title:'Different request'});assert.equal(changed.statusCode,409);
+ assert.equal(created.rule.source,'return {outputs:{}};');assert.deepEqual(created.rule.filters,[{path:'payload.document_tags',op:'contains',value:'proposal'}]);
+ for(const input of [{event:'document.signed',tags:['not-registered'],methods:['in_app']},{event:'document.signed',methods:['customer_portal']},{event:'document.signed',methods:['in_app'],group:{path:'payload.secret',alert:'every',window_seconds:60}},{event:'channels.message.posted',methods:['in_app']}]){
+  const bad=await client.raw('POST',root+'/notification-registrations',input);assert.ok(bad.statusCode>=400,bad.body);
+ }
+ const edited=await client.request('PUT',root+'/notification-rules',{...created.rule,title:'Edited guided proposal'});
+ assert.equal(edited.rule.source,created.rule.source);assert.equal(edited.rule.intent,created.rule.intent);
+ const {emitWorkEvent}=await import('../work/engine.js');
+ await emitWorkEvent({organization_id:orgId,project_id:'guided-project',type:'document.signed',idempotency_key:'guided',payload:{document_id:'guided-doc',document_tags:['proposal']}});
+ const {notificationStore,saveRule}=await import('../platform/notifications/store.js');
+ const before=await notificationStore().prepare('SELECT id FROM notification_recipients WHERE organization_id=? AND user_id=?').all(orgId,userId);assert.ok(before.length);
+ const stale=await client.raw('DELETE',root+'/notification-rules/'+created.rule.id,{revision:created.rule.revision});assert.equal(stale.statusCode,409);
+ await client.request('DELETE',root+'/notification-rules/'+created.rule.id,{revision:edited.rule.revision});
+ await assert.rejects(()=>saveRule(orgId,userId,{...edited.rule,revision:0}),/deleted/);
+ const remaining=await client.request('GET',root+'/notification-rules');assert.ok(!remaining.rules.some((r:any)=>r.id===created.rule.id));assert.ok(remaining.history.some((h:any)=>h.rule_id===created.rule.id&&h.reason==='Deleted by user'));
+ const deliveries=await notificationStore().prepare("SELECT d.state FROM notification_deliveries d JOIN notification_recipients r ON r.id=d.recipient_id WHERE r.organization_id=? AND r.user_id=?").all(orgId,userId);
+ assert.ok(deliveries.every(d=>!['pending','available'].includes(String(d.state))));
+ const visible=await client.request('GET',root+'/notifications');assert.ok(!visible.notifications.some((n:any)=>n.title==='Edited guided proposal'));
+});
+
+test('explicit extra method preferences enable defaults and still respect hard opt-outs',async()=>{
+ const {baselinePlan}=await import('../platform/notifications/delivery.js');
+ const note={category:'tasks',preference_key:'tasks',passive:true,push:false};
+ const plan=baselinePlan(note,{email:{tasks:true},sms:{tasks:true},toast:{tasks:true},audio:{tasks:true},celebration:{tasks:true},customer_portal:{tasks:true}});
+ for(const method of ['email','sms','toast','audio','celebration'] as const)assert.equal(plan[method]?.decision,'send');
+ assert.equal(plan.customer_portal?.decision,'suppress');
+ assert.equal(baselinePlan({...note,passive:false},{in_app:{tasks:false},in_app_sound:{tasks:false},audio:{tasks:true}}).audio?.decision,'send');
+ assert.equal(baselinePlan({...note,passive:false},{in_app:{tasks:true},push:{tasks:true}}).in_app?.decision,'send');
+ assert.equal(baselinePlan(note,{push:{tasks:true}}).push?.decision,'send');
+ assert.equal(baselinePlan({...note,delivery_methods:['email']},{email:{tasks:false}}).email?.decision,'suppress');
+});
+
+test('declarative per-method quiet exemptions deliver only permitted methods without changing program',async()=>{
+ const client=createSessionClient(),{orgId,userId}=await register(client);await createProject(client,orgId,'quiet-rule-project');
+ const root=`/v1/platform/organizations/${orgId}`;
+ const {upsertDocument,readDocument}=await import('../platform/storage.js');
+ const user=await readDocument(orgId,'users',userId);
+ const start=new Date(),end=new Date(start.getTime()+60*60000),hhmm=(d:Date)=>d.toISOString().slice(11,16);
+ await upsertDocument(orgId,'users',{id:userId,data:{...user.data,notification_preferences:{quiet_hours:{enabled:true,timezone:'UTC',start:hhmm(start),end:hhmm(end),methods:['in_app','toast','email']},email:{tasks:false}}},metadata:user.metadata,expected_revision:user.revision},{replace:true});
+ const saved=await client.request('PUT',root+'/notification-rules',{id:'quiet-exempt',event:'document.signed',title:'Quiet exemption',intent:'Always show toast',source:'return {outputs:{}};',methods:['in_app','toast','email'],quiet_exempt_methods:['toast','email'],subscribe:true});
+ assert.equal(saved.rule.source,'return {outputs:{}};');
+ const {emitWorkEvent}=await import('../work/engine.js');
+ await emitWorkEvent({organization_id:orgId,project_id:'quiet-rule-project',type:'document.signed',idempotency_key:'quiet-exempt',payload:{document_id:'quiet-doc'}});
+ const {notificationStore}=await import('../platform/notifications/store.js');
+ const rows=await notificationStore().prepare('SELECT d.method,d.state,d.decision_json FROM notification_deliveries d JOIN notification_recipients r ON r.id=d.recipient_id WHERE r.organization_id=? AND r.user_id=?').all(orgId,userId);
+ assert.equal(rows.find(r=>r.method==='toast')?.state,'available');
+ assert.equal(rows.find(r=>r.method==='in_app')?.state,'pending');
+});
+
+test('removing a legacy selected event disables delivery and removes only its custom marker',async()=>{
+ const client=createSessionClient(),{orgId,userId}=await register(client),root=`/v1/platform/organizations/${orgId}`;
+ const {upsertDocument,readDocument}=await import('../platform/storage.js'),user=await readDocument(orgId,'users',userId);
+ await upsertDocument(orgId,'users',{id:userId,data:{...user.data,notification_preferences:{in_app:{'event.document.signed':true},email:{'event.document.signed':true},custom_keys:['event.document.signed','event.document.viewed']}},metadata:user.metadata,expected_revision:user.revision},{replace:true});
+ await client.request('POST',root+'/notification-registrations/remove',{key:'event.document.signed'});
+ const changed=await readDocument(orgId,'users',userId),prefs=changed.data.notification_preferences as any;
+ assert.deepEqual(prefs.custom_keys,['event.document.viewed']);assert.equal(prefs.in_app['event.document.signed'],false);assert.equal(prefs.email['event.document.signed'],false);
+});
+
+test('subscription method toggles take effect on subsequent event materialization',async()=>{
+ const client=createSessionClient(),{orgId,userId}=await register(client);await createProject(client,orgId,'method-toggle-project');
+ const root=`/v1/platform/organizations/${orgId}`;
+ const created=await client.request('POST',root+'/notification-registrations',{event:'document.signed',title:'Method toggle',methods:['push']});
+ const {workflowPreferenceKey}=await import('../platform/notification_catalog.js');
+ const key=workflowPreferenceKey('default','personal-notification-rules',userId+':'+created.rule.id);
+ const {saveNotificationPreferences}=await import('../platform/notification_delivery.js');
+ await saveNotificationPreferences(orgId,userId,{in_app:{[key]:true},push:{[key]:false},toast:{[key]:true}});
+ const {emitWorkEvent}=await import('../work/engine.js');
+ await emitWorkEvent({organization_id:orgId,project_id:'method-toggle-project',type:'document.signed',idempotency_key:'method-toggle',payload:{document_id:'method-doc'}});
+ const {notificationStore}=await import('../platform/notifications/store.js');
+ const rows=await notificationStore().prepare('SELECT d.method,d.state FROM notification_deliveries d JOIN notification_recipients r ON r.id=d.recipient_id WHERE r.organization_id=? AND r.user_id=?').all(orgId,userId);
+ assert.equal(rows.find(r=>r.method==='in_app')?.state,'available');assert.equal(rows.find(r=>r.method==='toast')?.state,'available');assert.equal(rows.find(r=>r.method==='push')?.state,'suppressed');
+});
+
+test('guided document workflow filters match retained workflow IDs and reject document scope selectors',async()=>{
+ const client=createSessionClient(),{orgId,userId}=await register(client);await createProject(client,orgId,'workflow-filter-project');
+ await enableExpandedPlatformFixture(orgId,{'platform.documents':true});
+ const root=`/v1/platform/organizations/${orgId}`;
+ const {upsertDocument}=await import('../platform/storage.js');
+ await upsertDocument(orgId,'document_workflows',{id:'roofing-workflow',data:{name:'Roofing workflow',status:'published',current_version:1}},{createOnly:true});
+ const discovery=await client.request('GET',root+'/notification-rules');assert.ok(discovery.document_workflows.some((w:any)=>w.id==='roofing-workflow'));
+ const saved=await client.request('POST',root+'/notification-registrations',{event:'document.signed',document_workflow_id:'roofing-workflow',methods:['in_app'],title:'Workflow signature'});
+ assert.ok(saved.rule.filters.some((f:any)=>f.path==='payload.workflow_id'&&f.op==='eq'&&f.value==='roofing-workflow'));
+ const denied=await client.raw('POST',root+'/notification-registrations',{event:'document.signed',scope_template_id:'anything',methods:['in_app']});assert.ok(denied.statusCode>=400);
+ const unknown=await client.raw('POST',root+'/notification-registrations',{event:'document.signed',document_workflow_id:'unavailable',methods:['in_app']});assert.ok(unknown.statusCode>=400);
+ const {emitWorkEvent}=await import('../work/engine.js');
+ for(const [id,workflow] of [['yes','roofing-workflow'],['no','another-workflow']])await emitWorkEvent({organization_id:orgId,project_id:'workflow-filter-project',type:'document.signed',idempotency_key:'workflow-'+id,payload:{document_id:'doc-'+id,workflow_id:workflow}});
+ const {notificationStore}=await import('../platform/notifications/store.js');
+ const children=await notificationStore().prepare('SELECT event_json FROM notification_recipients WHERE organization_id=? AND user_id=?').all(orgId,userId);
+ assert.equal(children.length,1);assert.equal(JSON.parse(String(children[0]!.event_json)).payload.workflow_id,'roofing-workflow');
+});
+
+test('scope registration derives scope identity from its actual work plan within the event branch',async()=>{
+ const client=createSessionClient(),{orgId,userId}=await register(client);await createProject(client,orgId,'scope-filter-project');
+ const root=`/v1/platform/organizations/${orgId}`;
+ const {getWorkDatabase,createPlanRecord}=await import('../work/storage.js');
+ const now=new Date().toISOString();
+ await getWorkDatabase().prepare('INSERT INTO scope_templates(id,organization_id,branch_id,name,created_at,updated_at) VALUES(?,?,?,?,?,?)').run('roofing-scope',orgId,'default','Roofing scope',now,now);
+ const saved=await client.request('POST',root+'/notification-registrations',{event:'work.plan.created',scope_template_id:'roofing-scope',methods:['in_app'],title:'Scope created'});
+ assert.equal(saved.rule.scope_template_id,'roofing-scope');
+ await createPlanRecord({id:'right-plan',organization_id:orgId,branch_id:'default',project_id:'scope-filter-project',template_id:'roofing-scope'});
+ await createPlanRecord({id:'wrong-branch-plan',organization_id:orgId,branch_id:'other',project_id:'scope-filter-project',template_id:'roofing-scope'});
+ const {emitWorkEvent}=await import('../work/engine.js');
+ for(const plan of ['right-plan','wrong-branch-plan','missing-plan'])await emitWorkEvent({organization_id:orgId,branch_id:'default',project_id:'scope-filter-project',plan_id:plan,type:'work.plan.created',idempotency_key:plan,payload:{scope_template_id:'roofing-scope'}});
+ const {notificationStore}=await import('../platform/notifications/store.js');
+ const children=await notificationStore().prepare('SELECT event_json FROM notification_recipients WHERE organization_id=? AND user_id=?').all(orgId,userId);
+ assert.equal(children.length,1);assert.equal(JSON.parse(String(children[0]!.event_json)).payload.scope_template_id,'roofing-scope');assert.equal(JSON.parse(String(children[0]!.event_json)).payload.work_plan_id,'right-plan');
+});

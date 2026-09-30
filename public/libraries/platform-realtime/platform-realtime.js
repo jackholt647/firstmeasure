@@ -12,6 +12,38 @@
 (function(){
   const root = window;
   if (root.PlatformRealtime) return;
+  // Owned project documents share their host's transports. Otherwise nested
+  // panes exhaust HTTP/1 connection slots before their app assets can load.
+  try {
+    const name=root.name||'', host=root.parent;
+    const owned=host!==root && (
+      (name.startsWith('fm-project-window:') && host.FirstMateProjectWindows?.accepts(name.slice(18),root)) ||
+      (name.startsWith('fm-project-pane:') && host.FirstMateProjectLayout?.accepts(name.slice(16),root))
+    );
+    if(owned && host.PlatformRealtime){
+      const shared=host.PlatformRealtime, stops=new Set();
+      const retain=stop=>{const release=()=>{stops.delete(release);stop();};stops.add(release);return release;};
+      const forward=event=>root.dispatchEvent(new CustomEvent('fm:realtime:event',{detail:event.detail}));
+      const activity=()=>shared.recordActivity?.();
+      const activityEvents=['pointermove','pointerdown','keydown','touchstart','wheel'];
+      host.addEventListener('fm:realtime:event',forward);
+      activityEvents.forEach(event=>document.addEventListener(event,activity,{passive:true}));
+      root.addEventListener('pagehide',()=>{
+        stops.forEach(stop=>stop());host.removeEventListener('fm:realtime:event',forward);
+        activityEvents.forEach(event=>document.removeEventListener(event,activity));
+      },{once:true});
+      const adapter={
+        configure(){return adapter;},
+        subscribe(...args){return retain(shared.subscribe(...args));},
+        watchPresence(...args){return retain(shared.watchPresence(...args));},
+        diagnostics:()=>shared.diagnostics(),
+        recordActivity:activity,
+        // The owning portal maintains account presence for this surface.
+        startPresence(){}
+      };
+      root.PlatformRealtime=adapter;return;
+    }
+  } catch (_) { /* Standalone and foreign documents keep their own client. */ }
   const APP = root.__APP || {};
 
   const POLL_INTERVAL_MS = 1000;
@@ -218,15 +250,14 @@
     entry.listeners.add(onChange);onChange(entry.users);
     return () => {entry.listeners.delete(onChange);if(!entry.listeners.size){entry.stop();root.removeEventListener('pagehide',entry.stop);root.removeEventListener('pageshow',entry.connect);onlineWatches.delete(orgId);}};
   }
-  for (const event of ['pointermove','pointerdown','keydown','touchstart','wheel']) document.addEventListener(event,()=>{
-    if(document.hidden)return;lastActivity=Date.now();onlineWatches.forEach(entry=>entry.activity());
-  },{passive:true});
+  function recordActivity(){if(document.hidden)return;lastActivity=Date.now();onlineWatches.forEach(entry=>entry.activity());}
+  for (const event of ['pointermove','pointerdown','keydown','touchstart','wheel']) document.addEventListener(event,recordActivity,{passive:true});
   let globalPresenceStop=null, globalPresenceOrg='';
   function startPresence(orgId){
     orgId=cleanText(orgId);if(orgId===globalPresenceOrg)return;
     globalPresenceStop?.();globalPresenceOrg=orgId;globalPresenceStop=orgId?watchOnline(orgId,()=>{}):null;
   }
-  function watchPresence(orgId, scope, onChange){
+  function createPresenceWatch(orgId, scope, onChange){
     if(scope==='online') return watchOnline(orgId,onChange);
     let source = null;
     let disposed = false;
@@ -254,7 +285,17 @@
     };
   }
 
-  const api = { configure, subscribe, diagnostics, watchPresence, startPresence };
+  const presenceWatches=new Map();
+  function watchPresence(orgId,scope,onChange){
+    const key=JSON.stringify([orgId,scope]);let entry=presenceWatches.get(key);
+    if(!entry){
+      entry={listeners:new Set(),users:[]};presenceWatches.set(key,entry);
+      entry.stop=createPresenceWatch(orgId,scope,users=>{entry.users=users;for(const listener of [...entry.listeners]){try{listener(users);}catch(error){console.warn('[PlatformRealtime] presence subscriber error',error);}}});
+    }
+    entry.listeners.add(onChange);onChange(entry.users);
+    return ()=>{entry.listeners.delete(onChange);if(!entry.listeners.size && presenceWatches.get(key)===entry){presenceWatches.delete(key);entry.stop();}};
+  }
+  const api = { configure, subscribe, diagnostics, watchPresence, startPresence, recordActivity };
   root.PlatformRealtime = api;
   startPresence(APP.userOrgId);
   root.addEventListener('fm:platform-session:updated',event=>startPresence(event.detail?.orgId));

@@ -1,6 +1,6 @@
 import type { JsonObject } from "../platform/storage.js";
 import { compileScopeCommissionBindings } from "../payroll/commission_rules.js";
-import { listWorkEventDefinitions } from "../work/events.js";
+import { listWorkEventDefinitions, workEventNotification } from "../work/events.js";
 import { listWorkAutomationDefinitions } from "../work/registry.js";
 import { defaultInstantiationBindings } from "./service.js";
 
@@ -21,7 +21,7 @@ export function buildScopeEventMap(definition: JsonObject, organizationRules: Js
   const events = new Map(catalog.map((event) => [event.name, { ...event, label: eventWords(event.name), connections: [] as JsonObject[] }]));
   const add = (event: string, connection: JsonObject) => {
     if (!event) return;
-    if (!events.has(event)) events.set(event, { name:event, label:eventWords(event), description:"Custom event referenced by this scope.", visibility:"system", connections:[] });
+    if (!events.has(event)) events.set(event, { name:event, label:eventWords(event), description:"Custom event referenced by this scope.", visibility:"system", notification:workEventNotification(event), connections:[] });
     connection.canonical_id = connection.id;
     events.get(event)!.connections.push(connection);
     // Lifecycle aliases also match non-work events with the same suffix,

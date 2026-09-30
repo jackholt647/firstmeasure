@@ -1,3 +1,4 @@
+import { initializeUserNotifications, assertNotificationChange, preferencesForNote } from './notifications/configuration.js';
 import { createHash, createPrivateKey, sign } from "node:crypto";
 import { connect } from "node:http2";
 import { GoogleAuth } from "google-auth-library";
@@ -74,6 +75,10 @@ export function notificationPreferenceEnabled(raw:unknown, note:Json, surface:"i
 
 export async function saveNotificationPreferences(orgId: string, userId: string, patch: Json, branch="default") {
   const auth=await (await import("./auth.js")).backgroundAuthContext(orgId,userId);
+  await assertNotificationChange(auth);
+  await initializeUserNotifications(orgId,userId,branch);
+  const definitions=catalogDefinitions(await notificationCatalog(orgId,branch,auth));
+  for(const surface of ["in_app","push","email","sms","toast","audio","celebration",...notificationPresentationSurfaces])for(const key of Object.keys(object(patch[surface]))){const d=definitions.find(d=>d.key===key);await assertNotificationChange(auth,d?.rule_id?"rule:"+d.rule_id:key);}
   const allowed=new Set(catalogDefinitions(await notificationCatalog(orgId,branch,auth)).map(d=>d.key));
   const doc = await readDocument(orgId, "users", userId);
   const data = object(doc.data);
@@ -167,7 +172,8 @@ export async function deliverNotificationPush(orgId: string, note: Json) {
   const targetUsers = new Set(strings(note.target_user_ids));
   const targetRoles = new Set(strings(note.target_role_ids));
   const [users, devices] = await Promise.all([listDocuments(orgId, "users"), listDocuments(orgId, "notification_devices")]);
-  const eligible = new Set(users.filter((doc) => {
+  const effectiveUsers=await Promise.all(users.map(async doc=>({...doc,data:{...doc.data,notification_preferences:await preferencesForNote(orgId,doc.id,note,doc.data.notification_preferences)}})));
+  const eligible = new Set(effectiveUsers.filter((doc) => {
     const user = object(doc.data);
     if (user.disabled === true || user.deleted === true) return false;
     const roles = strings(user.roles);

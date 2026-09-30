@@ -1320,7 +1320,7 @@
             <button type="button" class="fmdx-icon-btn" data-doc-preview title="${(globalThis.PlatformLanguage?.htmlText("documents","m_afff48796c3165","Preview") ?? "Preview")}"><i class="fas fa-eye"></i></button>
             <button type="button" class="fmdx-icon-btn" data-doc-send title="${(globalThis.PlatformLanguage?.htmlText("documents","m_c23a056552a09f","Send") ?? "Send")}"><i class="fas fa-paper-plane"></i></button>
             <button type="button" class="fmdx-icon-btn" data-doc-pdf title="${(globalThis.PlatformLanguage?.htmlText("documents","m_4944e59816b60a","Download PDF") ?? "Download PDF")}"><i class="fas fa-file-pdf"></i></button>
-            <button type="button" class="fmdx-icon-btn" data-doc-duplicate title="${(globalThis.PlatformLanguage?.htmlText("documents","m_24fc1d3519ef6a","Duplicate") ?? "Duplicate")}"><i class="fas fa-copy"></i></button>
+            ${!readOnly && cleanText(doc.status) === 'draft' ? '<button type="button" class="fmdx-icon-btn" data-doc-tags title="Document tags"><i class="fas fa-tags"></i></button>' : ''}<button type="button" class="fmdx-icon-btn" data-doc-duplicate title="${(globalThis.PlatformLanguage?.htmlText("documents","m_24fc1d3519ef6a","Duplicate") ?? "Duplicate")}"><i class="fas fa-copy"></i></button>
             ${String(readOnly ? '' : `<button type="button" class="fmdx-icon-btn danger" data-doc-archive title="${(globalThis.PlatformLanguage?.htmlText("documents","m_ce16922c5208b8","Void") ?? "Void")}"><i class="fas fa-ban"></i></button>`)}
           </div>
         </div>`;
@@ -1336,6 +1336,7 @@
         row.querySelector('[data-doc-preview]')?.addEventListener('click', () => openPreview(doc));
         row.querySelector('[data-doc-send]')?.addEventListener('click', () => openSendModal(doc));
         row.querySelector('[data-doc-pdf]')?.addEventListener('click', (event) => downloadPdf(doc, event.currentTarget));
+        row.querySelector('[data-doc-tags]')?.addEventListener('click', async () => { try { const { openTagManager } = await import(new URL('./tag-manager.js', SCRIPT_URL).href); await openTagManager(orgId(), { tags:arrayValue(doc.tags), save:async tags => { await api().documents.patch(orgId(),doc.id,{tags,expected_revision:doc.revision}); await loadDocs({silent:true}); } }); } catch(error) { showToast('Document tags',errorMessage(error),false); } });
         row.querySelector('[data-doc-duplicate]')?.addEventListener('click', (event) => duplicateDoc(doc, event.currentTarget));
         row.querySelector('[data-doc-archive]')?.addEventListener('click', () => archiveDoc(doc));
       });
@@ -1350,6 +1351,7 @@
           template_id: firstText(objectValue(doc.template_ref).template_id) || undefined,
           workflow_id: firstText(objectValue(doc.workflow_ref).workflow_id) || undefined,
           title: ((v0) => globalThis.PlatformLanguage?.text("documents","m_69a8e411deda5e",`${v0} (copy)`,{v0}) ?? `${v0} (copy)`)(firstText(doc.title, 'Document')),
+          tags: arrayValue(doc.tags),
           params: clone(objectValue(doc.params)),
           ...(doc.theme_ref ? { theme_ref: clone(doc.theme_ref) } : {})
         });

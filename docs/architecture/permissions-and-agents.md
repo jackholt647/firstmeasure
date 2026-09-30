@@ -106,3 +106,30 @@ Publication covers the typed operations listed in the provider and action
 registries. Registration does not itself migrate every older HTTP endpoint;
 keep an endpoint's existing authorization until that route is reconciled with
 its domain service and publication contract.
+
+## Notification configuration permissions
+
+`manage_own_notifications` controls personal registrations, preferences and quiet
+hours. It defaults to allowed for existing members. `manage_notification_defaults`
+controls organization defaults and administrative locks; existing company-settings
+administrators inherit it when no explicit notification decision is present.
+Both are visible as separate permissions in the capability/role catalog.
+
+Explicit denials of either new permission on a role or user win over wildcard,
+administrator and migration grants. These checks do not change notification reads,
+delivery eligibility, or any of FirstMeasure's seven production permission flags.
+`platform/notifications/permissions.ts` provides synchronous `notificationPermissions`
+and `assertPersonalNotificationEdit` helpers for mutation endpoints.
+
+
+## Notification editing permissions
+
+Notifications separately declare `manage_own_notifications` and
+`manage_notification_defaults` under the Notifications capability. Migration grants
+personal editing to existing users and maps organization management from existing
+company-settings authority. Explicit user or role denies override those fallbacks,
+including legacy administrator and wildcard access. This narrow handling does not
+change FirstMeasure's seven production permissions. Personal editing does not grant
+organization policy access; organization access does not remove an explicit denial
+of personal editing. Live notification protection is applied independently at delivery.
+See [notification ownership and protection](notifications.md#personal-ownership-organization-defaults-and-protection).

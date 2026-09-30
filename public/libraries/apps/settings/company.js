@@ -13065,6 +13065,7 @@
       paneNotifications.innerHTML=`<div class="my-settings-status" role="status">${(globalThis.PlatformLanguage?.htmlText("settings","m_09f5582d192f36","Loading notification preferences…") ?? "Loading notification preferences…")}</div>`;
       const notificationOrgId=currentOrgId(),notificationBranchId=currentBranchId();
       try {
+        await window.PlatformAPI.notifications.initialize?.(notificationOrgId);
         const result=await window.PlatformAPI.notifications.preferences(notificationOrgId,notificationBranchId);
         // Settings describe reusable notifications; template values belong to each delivery.
         const notificationLabel=value=>String(value||'').replace(/\{\{\s*([^{}]+?)\s*\}\}/g,(_,field)=>{
@@ -13072,66 +13073,26 @@
           return name.replace(/\bname$/i,'').trim()||'item';
         }).replace(/\s+/g,' ').trim().replace(/^./,letter=>letter.toUpperCase());
         const buildGroups=result=>{
-        const customKeys=new Set(result.custom_keys||[]),selected=[];
-        // Presentation groups are independent of app ownership and delivery keys.
-        // Only regroup the authorized catalog returned by the server.
-        const activityGroups=[
-          ['measurements','Measurements',['measurement']],
-          ['projects','Projects & tasks',['project','work','recurrence','note']],
-          ['sales','Leads & sales',['lead','canvassing']],
-          ['documents','Documents & proposals',['document','proposal']],
-          ['messaging','Messaging',['communication','tagging']],
-          ['communications','Calls',['call']],
-          ['billing','Billing & payments',['payment','invoice','expense','receipt','payroll']],
-          ['field','Field work & materials',['crew','material','punch_list']],
-          ['customers','Customer activity',['customer','portal','feedback','media']],
-          ['miscellaneous','Miscellaneous',['organization','website']]
-        ];
-        const grouped=new Map(activityGroups.map(([id,label])=>[id,{id,label,kind:'app',definitions:[]}]));
-        const eventLabels={
-          'tagging.mentioned':'You were mentioned',
-          'communication.sent':'Message sent','communication.received':'Message received',
-          'communication.queued':'Message awaiting delivery','communication.scheduled':'Message scheduled',
-          'communication.delivery_updated':'Message delivery updated','communication.auto_replied':'Automatic reply sent',
-          'call.completed':'Call completed','document.ingested':'Document uploaded',
-          'document.output.recorded':'Document response received','receipt.extracted':'Receipt details read',
-          'proposal.esign.signature_adopted':'Signature style chosen','proposal.esign.slot_signed':'Individual signature added',
-          'proposal.esign.completed':'Proposal signing completed','proposal.snapshot_created':'Proposal version saved',
-          'work.node.timer':'Task reminder','work.node.status_changed':'Task status changed',
-          'work.node.due':'Task overdue','work.plan.stage_manually_set':'Project stage changed',
-          'recurrence.occurrence.completed':'Recurring visit completed','recurrence.occurrence.skipped':'Recurring visit skipped',
-          'recurrence.series.created':'Recurring schedule created','recurrence.series.canceled':'Recurring schedule canceled'
-        };
-        const eventDescriptions={
-          'work.plan.created':'A workflow was added to a project.',
-          'work.plan.started':'A project workflow started.',
-          'work.plan.completed':'All stages of a project workflow finished.',
-          'work.node.status_changed':'A task moved to another status.',
-          'work.node.timer':'A reminder set for a task became due.',
-          'proposal.snapshot_created':'A version of the proposal was saved.',
-          'feedback.rating.recorded':'A customer submitted their rating and feedback.'
-        };
-        for(const group of result.catalog||[]){
-          if(group.kind!=='app')continue;
-          for(const definition of group.definitions){
-            const event=definition.event||(definition.key.startsWith('event.')?definition.key.slice(6):'');
-            if(event==='time.cron'||event==='proposal.payment.mock_succeeded')continue;
-            if(event&&!customKeys.has(definition.key)&&!result.preferences?.in_app?.[definition.key]&&!result.preferences?.push?.[definition.key])continue;
-            const prefix=event.split('.')[0];
-            const destination=['messages','mentions'].includes(definition.key)?'messaging':group.id==='measurements'?'measurements':event?(activityGroups.find(([, ,prefixes])=>prefixes.includes(prefix))?.[0]||'miscellaneous'):'miscellaneous';
-            const label=eventLabels[event]||definition.label.replace(/^Work plan\b/i,'Workflow').replace(/^Work node\b/i,'Task').replace(/^Organization\b/i,'Company');
-            const description=eventDescriptions[event]||definition.description.replace(' Receive these events in your branch, subject to your access permissions.','');
-            if(event&&destination!=='messaging')selected.push({...definition,label,description});else grouped.get(destination).definitions.push({...definition,label,description});
+          const grouped=new Map(),customKeys=new Set(result.custom_keys||[]);
+          for(const group of result.catalog||[])for(const original of group.definitions||[]){
+            if(original.personal_removed)continue;
+            const d={...original,label:notificationLabel(original.label),description:notificationLabel(original.description)};
+            if(group.kind==='app'&&d.event&&!customKeys.has(d.key)&&!['in_app','push','email','sms','celebration','toast','audio'].some(method=>result.preferences?.[method]?.[d.key]===true))continue;
+            const custom=group.kind==='custom'||d.key.startsWith('event.');
+            const kind=custom?'custom':group.id.startsWith('scope.')?'scopes':group.kind==='workflow'?'flows':d.tab||(['messages','mentions'].includes(d.key)?'messaging':'general');
+            const id=kind+':'+(custom?(d.group_id||'miscellaneous'):group.id),label=custom?(d.group_label||'Miscellaneous'):group.label;
+            if(group.id==='custom-automations')d.legacy_custom=true;
+            if(!grouped.has(id))grouped.set(id,{id,label,kind,disabled:group.disabled,definitions:[]});
+            grouped.get(id).definitions.push(d);
           }
-        }
-        return [...grouped.values()].filter(g=>g.definitions.length).map(g=>({...g,kind:g.id==='messaging'?'messaging':'general'})).concat((result.catalog||[]).filter(g=>g.kind!=='app'&&g.definitions?.length).map(g=>({...g,kind:g.id.startsWith('scope.')?'workflow':g.kind,definitions:g.definitions.map(d=>({...d,label:notificationLabel(d.label),description:notificationLabel(d.description)}))})),selected.length?[{id:'custom-triggers',label:(globalThis.PlatformLanguage?.text("settings","m_830d26ef67ddef","Selected triggers") ?? "Selected triggers"),kind:'custom',definitions:selected}]:[]);
+          return [...grouped.values()];
         };
         let groups=buildGroups(result);
         const preferences=result.preferences||{in_app:{},push:{}};
-        const surfaces=['in_app','push','in_app_sound','in_app_badge','in_app_bell'];
+        const surfaces=['in_app','push','email','sms','celebration','toast','audio','in_app_sound','in_app_badge','in_app_bell'];
         for(const surface of surfaces)preferences[surface]??={};
         const collapsed=new Set(),advanced=new Set(),pending=Object.fromEntries(surfaces.map(surface=>[surface,{}]));
-        let section='all',query='',saving=false,columns=1,sort='default';
+        let section='all',query='',saving=false,columns=1,sort='default',registration;
         paneNotifications.innerHTML=`<style>
           .cs-wrap.notifications-wide .cs-main>.cs-card{overflow:hidden!important}
           #csPaneNotifications{height:100%;min-height:0}
@@ -13164,6 +13125,22 @@
           #csPaneNotifications .nc-toolbar{flex-shrink:0}
           @container(max-width:740px){#csPaneNotifications .nc-body{grid-template-columns:minmax(0,1fr)}#csPaneNotifications .nc-assistant{display:none}#csPaneNotifications .nc-body.chat-open .nc-results{display:none}#csPaneNotifications .nc-body.chat-open .nc-assistant{display:flex}}
 
+          #csPaneNotifications .nc-body[hidden],#csPaneNotifications .nc-settings[hidden],#csPaneNotifications .nc-search[hidden]{display:none}
+          #csPaneNotifications [data-nc-settings]{margin-left:auto;white-space:nowrap;height:38px;border-radius:9px}
+          #csPaneNotifications [data-nc-settings][aria-pressed=true]{background:var(--primary-readable,#18794e);color:white;border-color:transparent}
+          #csPaneNotifications .nc-settings{overflow:auto;min-height:0;display:grid;gap:16px;align-content:start;padding-bottom:20px;max-width:100%}
+          #csPaneNotifications .nc-settings-header h2{font-size:20px;margin:0 0 6px}#csPaneNotifications .nc-settings p{color:#667085;font-size:12px;line-height:1.6;margin:6px 0 14px}
+          #csPaneNotifications .nc-settings-card{background:white;border:1px solid #e4e7ec;border-radius:14px;padding:20px;max-width:900px;box-sizing:border-box;width:100%}
+          #csPaneNotifications .nc-settings-card h3{font-size:14px;margin:0 0 5px}#csPaneNotifications .nc-settings-card h4{font-size:12px;margin:20px 0 8px;color:#344054}
+          #csPaneNotifications .nc-setting-toggle{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:40px;font-size:12px;color:#344054}
+          #csPaneNotifications .nc-setting-toggle>span:first-child{min-width:0;overflow-wrap:anywhere}#csPaneNotifications .nc-setting-toggle small{display:block;font-size:11px;color:#667085;margin-top:4px}
+          #csPaneNotifications .nc-method-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:4px 30px}
+          #csPaneNotifications .nc-quiet-times{display:grid;grid-template-columns:1fr 1fr 2fr;gap:14px;margin-top:14px}
+          #csPaneNotifications .nc-quiet-times label{display:grid;gap:7px;font-size:12px;color:#475467;min-width:0}
+          #csPaneNotifications .nc-quiet-times input{min-width:0;width:100%;box-sizing:border-box;height:38px;border:1px solid #d0d5dd;border-radius:8px;padding:8px 10px;font:inherit;color:#344054;background:white}
+          #csPaneNotifications .nc-settings-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:20px;font-size:12px;color:#667085}
+          #csPaneNotifications .nc-rule-toggle{padding:12px 0;border-bottom:1px solid #f2f4f7}#csPaneNotifications .nc-history-entry{padding:10px 0;border-bottom:1px solid #f2f4f7;overflow-wrap:anywhere}
+          @container(max-width:500px){#csPaneNotifications .nc-settings-card{padding:15px}#csPaneNotifications .nc-quiet-times{grid-template-columns:1fr 1fr}#csPaneNotifications .nc-quiet-times label:last-child{grid-column:1/-1}}
           #csPaneNotifications .nc-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
           #csPaneNotifications .nc-tabs{max-width:100%;overflow-x:auto;flex-shrink:1;display:flex;gap:4px;padding:3px;border-radius:9px;background:#f2f4f7}
           #csPaneNotifications .nc-tabs button{border:0;background:transparent;color:#667085;border-radius:6px;padding:8px 8px;font:600 12px inherit;cursor:pointer}
@@ -13181,18 +13158,18 @@
           #csPaneNotifications .nc-grid{display:grid;grid-template-columns:repeat(var(--nc-columns,1),minmax(0,1fr));padding:0 0 8px}
           #csPaneNotifications .nc-col{min-width:0;padding:0 12px}
           #csPaneNotifications .nc-col+.nc-col{border-left:1px solid #d0d5dd}
-          #csPaneNotifications .nc-colhead,#csPaneNotifications .nc-row{display:grid;grid-template-columns:minmax(0,1fr) 154px 36px 24px;align-items:center;gap:4px}
+          #csPaneNotifications .nc-colhead,#csPaneNotifications .nc-row{display:grid;grid-template-columns:minmax(0,1fr) 76px 36px 24px;align-items:center;gap:4px}
           #csPaneNotifications .nc-colhead{height:30px;color:#667085;font-size:10px;border-bottom:1px solid #eaecf0}
           #csPaneNotifications .nc-colhead span:not(:first-child){text-align:center}
           #csPaneNotifications .nc-row{min-height:44px;border-bottom:1px solid #f2f4f7}
-          #csPaneNotifications .nc-mode{display:flex;align-items:center;gap:2px;padding:2px;border-radius:8px;background:#f2f4f7}
-          #csPaneNotifications .nc-mode button{flex:1;min-width:0;border:0;border-radius:6px;background:transparent;color:#667085;padding:7px 4px;font:500 11px inherit;font-family:inherit;font-size:11px;cursor:pointer}
+          #csPaneNotifications .nc-mode{display:flex;align-items:center;gap:1px;padding:1px;height:18px;box-sizing:border-box;border-radius:10px;background:#edf0f3}
+          #csPaneNotifications .nc-mode button{flex:1;min-width:0;border:0;border-radius:9px;background:transparent;color:#667085;padding:0 3px;height:16px;line-height:16px;font:500 11px inherit;font-family:inherit;font-size:11px;cursor:pointer}
           #csPaneNotifications .nc-mode button[aria-pressed=true]{background:#fff;color:var(--primary-readable,#18794e);box-shadow:0 1px 3px #10182820}
           #csPaneNotifications .nc-mode button:focus-visible,#csPaneNotifications .nc-expand:focus-visible{outline:2px solid var(--primary-readable,#18794e);outline-offset:2px}
           #csPaneNotifications .nc-info .nc-expand{display:grid;place-items:center;width:24px;height:32px;padding:0;cursor:pointer;color:#667085;border-radius:6px}
           #csPaneNotifications .nc-expand svg{transition:transform .15s}
           #csPaneNotifications .nc-expand[aria-expanded=true] svg{transform:rotate(180deg)}
-          #csPaneNotifications .nc-advanced{grid-column:1/-1;display:flex;align-items:center;justify-content:flex-end;gap:18px;padding:2px 4px 6px;font-size:11px;color:#667085}
+          #csPaneNotifications .nc-advanced{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:12px;padding:2px 4px 6px;font-size:11px;color:#667085}
           #csPaneNotifications .nc-option{display:flex;align-items:center;gap:5px}
           #csPaneNotifications .nc-option .nc-switch{min-height:28px;min-width:32px}
           #csPaneNotifications .nc-switch input:disabled{cursor:default}
@@ -13219,33 +13196,49 @@
           #csPaneNotifications [hidden]{display:none!important}
           @media(prefers-reduced-motion:reduce){#csPaneNotifications .nc-track,#csPaneNotifications .nc-track:after{transition:none}}
         </style><div class="nc-shell" data-settings-autosave="off">
-          <div class="nc-toolbar"><div class="nc-tabs" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_17663ddda6cb68","Notification groups") ?? "Notification groups")}">${[['all','All'],['general','General'],['messaging','Messaging'],['workflow','Workflows & scopes'],['custom','Custom']].map(([key,label])=>`<button type="button" data-nc-tab="${key}" aria-pressed="${key==='all'}">${label}</button>`).join('')}</div><label class="nc-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_6cf855fe25eb63","Search notifications…") ?? "Search notifications…")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_9a4e62cc36b0a5","Search notifications and categories") ?? "Search notifications and categories")}"></label><select data-nc-sort aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_b61a549dc0bd64","Sort notifications") ?? "Sort notifications")}"><option value="default">${(globalThis.PlatformLanguage?.htmlText("settings","m_234080acc28117","Default order") ?? "Default order")}</option><option value="name">${(globalThis.PlatformLanguage?.htmlText("settings","m_bc2e8c60e0a22b","Name A–Z") ?? "Name A–Z")}</option><option value="enabled">${(globalThis.PlatformLanguage?.htmlText("settings","m_3c1fce6ec7289b","Enabled first") ?? "Enabled first")}</option></select><button type="button" class="cs-btn" data-nc-add>${(globalThis.PlatformLanguage?.htmlText("settings","m_ab990404258fda","Add custom") ?? "Add custom")}</button></div>
+          <div class="nc-toolbar"><div class="nc-tabs" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_17663ddda6cb68","Notification groups") ?? "Notification groups")}">${[['all','All'],['general','General'],['messaging','Messaging'],['flows','Flows'],['scopes','Scopes'],['documents','Documents'],['custom','Custom']].map(([key,label])=>`<button type="button" data-nc-tab="${key}" aria-pressed="${key==='all'}">${label}</button>`).join('')}</div><label class="nc-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_6cf855fe25eb63","Search notifications…") ?? "Search notifications…")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_9a4e62cc36b0a5","Search notifications and categories") ?? "Search notifications and categories")}"></label><select data-nc-sort aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_b61a549dc0bd64","Sort notifications") ?? "Sort notifications")}"><option value="default">${(globalThis.PlatformLanguage?.htmlText("settings","m_234080acc28117","Default order") ?? "Default order")}</option><option value="name">${(globalThis.PlatformLanguage?.htmlText("settings","m_bc2e8c60e0a22b","Name A–Z") ?? "Name A–Z")}</option><option value="enabled">${(globalThis.PlatformLanguage?.htmlText("settings","m_3c1fce6ec7289b","Enabled first") ?? "Enabled first")}</option></select><button type="button" class="cs-btn" data-nc-add>Add notification</button><button type="button" class="cs-btn" data-nc-chat>Ask assistant</button><button type="button" class="cs-btn" data-nc-settings aria-pressed="false" aria-controls="nc-settings-panel"><i class="fas fa-sliders" aria-hidden="true"></i> Settings</button></div>
           <div class="nc-body"><div class="nc-results"><div class="nc-list"></div></div><aside class="nc-assistant" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_5b25a812504adc","Notification assistant") ?? "Notification assistant")}"><header><span class="nc-logo" aria-hidden="true"></span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_675cdc60e59266","FirstMate assistant") ?? "FirstMate assistant")}</strong><button type="button" data-nc-new title="${(globalThis.PlatformLanguage?.htmlText("settings","m_84e4d3109d655d","New conversation") ?? "New conversation")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_84e4d3109d655d","New conversation") ?? "New conversation")}">+</button></header><div class="nc-conversation" role="log" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_92897a3e307a52","Notification conversation") ?? "Notification conversation")}" aria-live="polite"></div><form class="nc-compose"><div class="nc-compose-shell"><textarea id="nc-prompt" rows="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_40ecd11f3f31cb","Describe your custom notification") ?? "Describe your custom notification")}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_79e509d3cc58f8","Describe your notification…") ?? "Describe your notification…")}" required maxlength="4000"></textarea><button type="submit" class="nc-send" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_c23a056552a09f","Send") ?? "Send")}" title="${(globalThis.PlatformLanguage?.htmlText("settings","m_c23a056552a09f","Send") ?? "Send")}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div><div class="nc-chat-status" role="status"></div></form></aside></div>
           <div class="nc-status" role="status" aria-live="polite"></div><button type="button" class="cs-btn" data-nc-retry hidden>${(globalThis.PlatformLanguage?.htmlText("settings","m_5ede774dc3f22a","Retry saving") ?? "Retry saving")}</button>
           ${window.PlatformPush?.available?.()?`<div class="li-actions"><button class="cs-btn" type="button" data-nc-enable>${(globalThis.PlatformLanguage?.htmlText("settings","m_c7fc7c3f3d684d","Enable push on this phone") ?? "Enable push on this phone")}</button><button class="cs-btn" type="button" data-nc-disable>${(globalThis.PlatformLanguage?.htmlText("settings","m_d93434462ad831","Disable on this phone") ?? "Disable on this phone")}</button></div>`:''}
         </div>`;
         const shell=paneNotifications.querySelector('.nc-shell'),list=shell.querySelector('.nc-list'),status=shell.querySelector('.nc-status'),retry=shell.querySelector('[data-nc-retry]');
-        const deliveryPanel=document.createElement('details');
-        deliveryPanel.innerHTML=`<summary style="cursor:pointer;padding:10px 0">Quiet hours & delivery rules</summary><form data-quiet-form style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:12px 0"><label><input name="enabled" type="checkbox"> Quiet hours</label><label>From <input name="start" type="time" required></label><label>Until <input name="end" type="time" required></label><label>Timezone <input name="timezone" required style="max-width:220px"></label>${['push','sms','email','audio','toast','celebration','in_app'].map(m=>`<label><input type="checkbox" name="method" value="${m}"> ${m.replaceAll('_',' ')}</label>`).join('')}<button class="cs-btn" type="submit">Save quiet hours</button><span data-quiet-status role="status"></span></form><div data-delivery-rules></div>`;
-        shell.querySelector('.nc-toolbar').after(deliveryPanel);
+        const deliveryPanel=document.createElement('section');
+        deliveryPanel.id='nc-settings-panel';deliveryPanel.className='nc-settings';deliveryPanel.hidden=true;
+        const toggle=(label,name,value='')=>`<label class="nc-setting-toggle"><span>${label}</span><span class="nc-switch"><input type="checkbox" role="switch" name="${name}" ${value?`value="${value}"`:''}><span class="nc-track" aria-hidden="true"></span></span></label>`;
+        deliveryPanel.innerHTML=`<header class="nc-settings-header"><h2>Notification settings</h2><p>Choose when notifications can interrupt you and review your custom delivery rules.</p></header><section class="nc-settings-card"><div class="nc-settings-title"><div><h3>Quiet hours</h3><p>Pause selected delivery methods during this time. Notifications are delivered after quiet hours end.</p></div></div><form data-quiet-form>${toggle('Use quiet hours','enabled')}<div class="nc-quiet-times"><label>From<input name="start" type="time" required></label><label>Until<input name="end" type="time" required></label><label>Time zone<input name="timezone" required></label></div><h4>Pause these delivery methods</h4><div class="nc-method-grid">${[['push','Push notifications'],['sms','Text messages'],['email','Email'],['audio','Audio'],['toast','Toasts'],['celebration','Celebrations'],['in_app','In-app notifications']].map(([key,label])=>toggle(label,'method',key)).join('')}</div><div class="nc-settings-actions"><button class="cs-btn" type="submit">Save quiet hours</button><span data-quiet-status role="status"></span></div></form></section><section class="nc-settings-card"><h3>Custom delivery rules</h3><p>Rules created with the assistant can change delivery when their conditions are met.</p><div data-delivery-rules></div></section><section class="nc-settings-card" data-rule-history></section><div data-notification-org-settings></div>`;
+        shell.querySelector('.nc-body').after(deliveryPanel);
+        const showNotificationSettings=visible=>{
+          deliveryPanel.hidden=!visible;shell.querySelector('.nc-body').hidden=visible;
+          shell.querySelector('[data-nc-settings]').setAttribute('aria-pressed',String(visible));
+          shell.querySelectorAll('[data-nc-tab]').forEach(button=>button.setAttribute('aria-pressed',String(!visible&&button.dataset.ncTab===section)));
+          shell.querySelector('.nc-search').hidden=visible;shell.querySelector('[data-nc-sort]').hidden=visible;
+        };
+        shell.querySelector('[data-nc-settings]').addEventListener('click',()=>showNotificationSettings(deliveryPanel.hidden));
+        let personalEditable=result.permissions?.personal!==false;
         const quietForm=deliveryPanel.querySelector('form'),quiet=result.quiet_hours||{enabled:false,start:'22:00',end:'08:00',timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,methods:['push','sms','audio']};
         quietForm.elements.enabled.checked=!!quiet.enabled;for(const key of ['start','end','timezone'])quietForm.elements[key].value=quiet[key];
         quietForm.querySelectorAll('[name=method]').forEach(el=>el.checked=quiet.methods.includes(el.value));
-        quietForm.addEventListener('submit',async event=>{event.preventDefault();const button=quietForm.querySelector('button'),status=quietForm.querySelector('[data-quiet-status]');button.disabled=true;try{await window.PlatformAPI.notifications.saveQuietHours(notificationOrgId,{enabled:quietForm.elements.enabled.checked,start:quietForm.elements.start.value,end:quietForm.elements.end.value,timezone:quietForm.elements.timezone.value,methods:[...quietForm.querySelectorAll('[name=method]:checked')].map(el=>el.value)});status.textContent='Saved';}catch(error){status.textContent=error.message||'Could not save. Please retry.';}finally{button.disabled=false;}});
-        window.PlatformAPI.notifications.rules(notificationOrgId).then(data=>{
-          deliveryPanel.querySelector('[data-delivery-rules]').innerHTML=(data.rules||[]).map(rule=>`<p><label><input type="checkbox" data-rule-id="${escapeHtml(rule.id)}" ${rule.enabled?'checked':''}> ${escapeHtml(rule.intent)}</label></p>`).join('')||'<p>No custom delivery rules. Describe one to the notification assistant.</p>';
-          deliveryPanel.querySelectorAll('[data-rule-id]').forEach(el=>el.addEventListener('change',async()=>{el.disabled=true;const rule=data.rules.find(r=>r.id===el.dataset.ruleId);try{const saved=await window.PlatformAPI.notifications.saveRule(notificationOrgId,{...rule,enabled:el.checked});Object.assign(rule,saved.rule);}catch(error){el.checked=rule.enabled;quietForm.querySelector('[data-quiet-status]').textContent=error.message;}finally{el.disabled=false;}}));
-          const history=document.createElement('details');const summary=document.createElement('summary');summary.textContent='Rule change history';history.append(summary);for(const item of data.history||[]){const line=document.createElement('p');line.textContent=`${item.created_at} - ${item.rule_id} v${item.revision} - ${item.reason}`;history.append(line);}deliveryPanel.append(history);
+        const applyQuietPermission=()=>{quietForm.querySelectorAll('input,button').forEach(el=>el.disabled=!personalEditable);if(!personalEditable)quietForm.querySelector('[data-quiet-status]').textContent='Your organization manages these settings.';};applyQuietPermission();
+        quietForm.addEventListener('submit',async event=>{event.preventDefault();if(!personalEditable)return;const button=quietForm.querySelector('button'),status=quietForm.querySelector('[data-quiet-status]');button.disabled=true;try{await window.PlatformAPI.notifications.saveQuietHours(notificationOrgId,{enabled:quietForm.elements.enabled.checked,start:quietForm.elements.start.value,end:quietForm.elements.end.value,timezone:quietForm.elements.timezone.value,methods:[...quietForm.querySelectorAll('[name=method]:checked')].map(el=>el.value)});status.textContent='Quiet hours saved.';}catch(error){status.textContent=error.message||'Could not save. Please retry.';}finally{button.disabled=!personalEditable;}});
+        const loadDeliverySettings=()=>window.PlatformAPI.notifications.rules(notificationOrgId).then(data=>{
+          personalEditable=personalEditable&&data.permissions?.personal!==false;applyQuietPermission();
+          const fullLock=rule=>{const lock=data.rule_locks?.[rule.id];return !data.permissions?.organization&&['full','removal'].includes(typeof lock==='string'?lock:lock?.mode);};
+          deliveryPanel.querySelector('[data-delivery-rules]').innerHTML=(data.rules||[]).map(rule=>`<label class="nc-setting-toggle nc-rule-toggle"><span>${escapeHtml(rule.intent)}${fullLock(rule)?'<small>Managed by your organization</small>':''}</span><span class="nc-switch"><input type="checkbox" role="switch" data-rule-id="${escapeHtml(rule.id)}" ${rule.enabled?'checked':''} ${!personalEditable||fullLock(rule)?'disabled':''}><span class="nc-track" aria-hidden="true"></span></span></label>`).join('')||'<p class="nc-settings-empty">No custom delivery rules yet. Ask the notification assistant to create one.</p>';
+          deliveryPanel.querySelectorAll('[data-rule-id]').forEach(el=>el.addEventListener('change',async()=>{const rule=data.rules.find(r=>r.id===el.dataset.ruleId);if(!personalEditable||fullLock(rule))return;el.disabled=true;try{const saved=await window.PlatformAPI.notifications.saveRule(notificationOrgId,{...rule,enabled:el.checked});Object.assign(rule,saved.rule);}catch(error){el.checked=rule.enabled;quietForm.querySelector('[data-quiet-status]').textContent=error.message;}finally{el.disabled=!personalEditable||fullLock(rule);}}));
+          const history=deliveryPanel.querySelector('[data-rule-history]');history.innerHTML='<h3>Rule change history</h3><p>Updates made by you and the notification assistant.</p>';
+          for(const item of data.history||[]){const line=document.createElement('p');line.className='nc-history-entry';line.textContent=`${item.created_at} · ${item.rule_id} v${item.revision} · ${item.reason}`;history.append(line);}if(!data.history?.length)history.insertAdjacentHTML('beforeend','<p class="nc-settings-empty">No changes recorded yet.</p>');
         }).catch(error=>{deliveryPanel.querySelector('[data-delivery-rules]').textContent=error.message||'Could not load delivery rules.';});
+        void loadDeliverySettings();
         const draw=()=>{
           const shown=groups.filter(g=>query||section==='all'||g.kind===section).map(g=>({...g,visible:g.definitions.filter(d=>`${g.label} ${d.label} ${d.description}`.toLowerCase().includes(query))})).filter(g=>!query||g.visible.length||g.label.toLowerCase().includes(query));
           if(sort!=='default')for(const group of shown)group.visible.sort((a,b)=>sort==='enabled'?(Number(!!(preferences.in_app[b.key]||preferences.push[b.key]))-Number(!!(preferences.in_app[a.key]||preferences.push[a.key]))||a.label.localeCompare(b.label)):a.label.localeCompare(b.label));
-          const sectionNames={general:'General',messaging:'Messaging',workflow:'Workflows & scopes',custom:'Custom'};
+          const sectionNames={general:'General',messaging:'Messaging',flows:'Flows',scopes:'Scopes',documents:'Documents',custom:'Custom'};
           shown.sort((a,b)=>Object.keys(sectionNames).indexOf(a.kind)-Object.keys(sectionNames).indexOf(b.kind));
           list.innerHTML=shown.map((g,index)=>{
             const open=query||!collapsed.has(g.id),count=g.visible.length,n=columns,size=Math.floor(count/n),extra=count%n;
-            return `${(section==='all'||query)&&(index===0||shown[index-1].kind!==g.kind)?`<h3 class="nc-section-title">${sectionNames[g.kind]}</h3>`:''}<section class="nc-card"><button class="nc-heading" type="button" data-nc-group="${escapeHtml(g.id)}" aria-expanded="${!!open}" aria-controls="nc-group-${index}"><i class="fas fa-chevron-down" aria-hidden="true"></i><strong>${escapeHtml(g.label)}</strong><small>${g.disabled?'Archived · ':''}${g.definitions.length}</small></button><div id="nc-group-${index}" ${open?'':'hidden'}>${count?`<div class="nc-grid" style="--nc-columns:${n}">${Array.from({length:n},(_,col)=>`<div class="nc-col"><div class="nc-colhead" aria-hidden="true"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_8afbfeae955a57","Notification") ?? "Notification")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ac1052388993fc","In app") ?? "In app")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_beeb4b3fee68a1","Push") ?? "Push")}</span><span></span></div>${g.visible.slice(col*size+Math.min(col,extra),(col+1)*size+Math.min(col+1,extra)).map(d=>`<div class="nc-row"><div class="nc-label"><span>${escapeHtml(d.label)}</span><span class="nc-info"><button type="button" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_ad67aa00bf8277",`About ${v1}`,{v1}) ?? `About ${v1}`)(escapeHtml(d.label))}" aria-describedby="nc-info-${escapeHtml(d.key)}"><i class="far fa-circle-info fas fa-info-circle" aria-hidden="true"></i></button><span class="nc-tip" role="tooltip" id="nc-info-${escapeHtml(d.key)}">${escapeHtml(d.description)}</span></span></div><div class="nc-mode" role="group" aria-label="${escapeHtml(d.label)} - In app">${[['off','Off'],['silent','Silent'],['alerting','Alerting']].map(([value,label])=>`<button type="button" data-nc-mode="${value}" data-notification-key="${escapeHtml(d.key)}" aria-pressed="${value===(!preferences.in_app[d.key]?'off':preferences.in_app_sound[d.key]===false?'silent':'alerting')}">${label}</button>`).join('')}</div><label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(d.label)} - Push" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="push" ${preferences.push[d.key]?'checked':''}><span class="nc-track" aria-hidden="true"></span></label><span class="nc-info"><button type="button" class="nc-expand" data-nc-advanced="${escapeHtml(d.key)}" aria-label="Advanced - ${escapeHtml(d.label)}" aria-expanded="${advanced.has(d.key)}" aria-controls="nc-advanced-${escapeHtml(d.key)}" aria-describedby="nc-advanced-tip-${escapeHtml(d.key)}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button><span class="nc-tip" role="tooltip" id="nc-advanced-tip-${escapeHtml(d.key)}">Advanced</span></span><div class="nc-advanced" id="nc-advanced-${escapeHtml(d.key)}" ${advanced.has(d.key)?'':'hidden'}>${[['in_app_bell','Bell','Show in the notification bell.'],['in_app_badge','Badge','Count unread notifications in the bell badge.']].map(([surface,label,tip])=>`<span class="nc-option nc-info"><span>${label}</span><label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(d.label)} - ${label}" aria-describedby="nc-tip-${surface}-${escapeHtml(d.key)}" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="${surface}" ${preferences[surface][d.key]!==false?'checked':''} ${preferences.in_app[d.key]?'':'disabled'}><span class="nc-track" aria-hidden="true"></span></label><span class="nc-tip" role="tooltip" id="nc-tip-${surface}-${escapeHtml(d.key)}">${tip}</span></span>`).join('')}</div></div>`).join('')}</div>`).join('')}</div>`:`<div class="nc-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_72b107c03a2294","No notifications declared in this workflow yet.") ?? "No notifications declared in this workflow yet.")}</div>`}</div></section>`;
+            return `${(section==='all'||query)&&(index===0||shown[index-1].kind!==g.kind)?`<h3 class="nc-section-title">${sectionNames[g.kind]}</h3>`:''}<section class="nc-card"><button class="nc-heading" type="button" data-nc-group="${escapeHtml(g.id)}" aria-expanded="${!!open}" aria-controls="nc-group-${index}"><i class="fas fa-chevron-down" aria-hidden="true"></i><strong>${escapeHtml(g.label)}</strong><small>${g.disabled?'Archived · ':''}${g.definitions.length}</small></button><div id="nc-group-${index}" ${open?'':'hidden'}>${count?`<div class="nc-grid" style="--nc-columns:${n}">${Array.from({length:n},(_,col)=>`<div class="nc-col"><div class="nc-colhead" aria-hidden="true"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_8afbfeae955a57","Notification") ?? "Notification")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ac1052388993fc","In app") ?? "In app")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_beeb4b3fee68a1","Push") ?? "Push")}</span><span></span></div>${g.visible.slice(col*size+Math.min(col,extra),(col+1)*size+Math.min(col+1,extra)).map(d=>`<div class="nc-row"><div class="nc-label"><span>${escapeHtml(d.label)}</span><span class="nc-info"><button type="button" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_ad67aa00bf8277",`About ${v1}`,{v1}) ?? `About ${v1}`)(escapeHtml(d.label))}" aria-describedby="nc-info-${escapeHtml(d.key)}"><i class="far fa-circle-info fas fa-info-circle" aria-hidden="true"></i></button><span class="nc-tip" role="tooltip" id="nc-info-${escapeHtml(d.key)}">${escapeHtml(d.description)}</span></span></div><div class="nc-mode" role="group" aria-label="${escapeHtml(d.label)} - In app">${[['off','−','Disabled'],['silent','○','In app'],['alerting','♪','In app with sound']].map(([value,label,title])=>`<button type="button" title="${title}" aria-label="${escapeHtml(d.label)} - ${title}" data-nc-mode="${value}" data-notification-key="${escapeHtml(d.key)}" aria-pressed="${value===(!preferences.in_app[d.key]?'off':preferences.in_app_sound[d.key]===false?'silent':'alerting')}">${value==='off'?'−':`<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" style="vertical-align:middle">${value==='silent'?'<path d="M4 6a4 4 0 0 1 8 0v4l1 2H3l1-2V6Zm2 8h4"/>':'<path d="m2 6 3 0 4-3v10l-4-3H2V6Zm9-1c2 2 2 4 0 6m2-8c3 3 3 7 0 10"/>'}</svg>`}</button>`).join('')}</div><label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(d.label)} - Push" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="push" ${preferences.push[d.key]?'checked':''}><span class="nc-track" aria-hidden="true"></span></label><span class="nc-info"><button type="button" class="nc-expand" data-nc-advanced="${escapeHtml(d.key)}" aria-label="Advanced - ${escapeHtml(d.label)}" aria-expanded="${advanced.has(d.key)}" aria-controls="nc-advanced-${escapeHtml(d.key)}" aria-describedby="nc-advanced-tip-${escapeHtml(d.key)}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button><span class="nc-tip" role="tooltip" id="nc-advanced-tip-${escapeHtml(d.key)}">Advanced</span></span><div class="nc-advanced" id="nc-advanced-${escapeHtml(d.key)}" ${advanced.has(d.key)?'':'hidden'}>${[['in_app_bell','Bell','Show in the notification bell.'],['in_app_badge','Badge','Count unread notifications in the bell badge.'],['email','Email','Email delivery.'],['sms','SMS','Text message delivery.'],['celebration','Confetti','Show a celebration in the app.'],['toast','Toast','Show a brief message in the app.'],['audio','Audio','Play a notification sound.']].map(([surface,label,tip])=>`<span class="nc-option nc-info"><span>${label}</span><label class="nc-switch"><input type="checkbox" role="switch" aria-label="${escapeHtml(d.label)} - ${label}" aria-describedby="nc-tip-${surface}-${escapeHtml(d.key)}" data-notification-key="${escapeHtml(d.key)}" data-notification-surface="${surface}" ${preferences[surface][d.key]?'checked':''} ${surface.startsWith('in_app_')&&!preferences.in_app[d.key]?'disabled':''}><span class="nc-track" aria-hidden="true"></span></label><span class="nc-tip" role="tooltip" id="nc-tip-${surface}-${escapeHtml(d.key)}">${tip}</span></span>`).join('')}${registration?.advanced(d)||''}</div></div>`).join('')}</div>`).join('')}</div>`:`<div class="nc-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_72b107c03a2294","No notifications declared in this workflow yet.") ?? "No notifications declared in this workflow yet.")}</div>`}</div></section>`;
           }).join('')||`<div class="nc-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_d88f1fd665ce8e","No notifications here yet. Describe what you need to the FirstMate assistant to add one.") ?? "No notifications here yet. Describe what you need to the FirstMate assistant to add one.")}</div>`;
+          registration?.decorate();
         };
         const save=async()=>{
           if(saving)return;saving=true;retry.hidden=true;
@@ -13273,18 +13266,20 @@
           if(!mode)return;
           const key=mode.dataset.notificationKey,value=mode.dataset.ncMode;
           preferences.in_app[key]=pending.in_app[key]=value!=='off';
-          if(value!=='off')preferences.in_app_sound[key]=pending.in_app_sound[key]=value==='alerting';
+          if(value!=='off'){preferences.in_app_sound[key]=pending.in_app_sound[key]=value==='alerting';preferences.audio[key]=pending.audio[key]=value==='alerting';}
+          if(value!=='off'){const audio=mode.closest('.nc-row').querySelector('input[data-notification-surface=audio]');if(audio)audio.checked=value==='alerting';}
           mode.parentElement.querySelectorAll('button').forEach(button=>button.setAttribute('aria-pressed',String(button===mode)));
-          mode.closest('.nc-row').querySelectorAll('.nc-advanced input').forEach(control=>control.disabled=value==='off');
+          mode.closest('.nc-row').querySelectorAll('.nc-advanced input[data-notification-surface^=in_app_]').forEach(control=>control.disabled=value==='off');
           void save();
         });
         shell.addEventListener('change',event=>{
           const input=event.target.closest('input[data-notification-key]');if(!input)return;
           const key=input.dataset.notificationKey,surface=input.dataset.notificationSurface;
           preferences[surface][key]=pending[surface][key]=input.checked;
+          if(surface==='audio'){preferences.in_app_sound[key]=pending.in_app_sound[key]=input.checked;input.closest('.nc-row').querySelectorAll('[data-nc-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.ncMode===(!preferences.in_app[key]?'off':input.checked?'alerting':'silent'))));}
           void save();
         });
-        shell.addEventListener('click',event=>{const tab=event.target.closest('[data-nc-tab]'),group=event.target.closest('[data-nc-group]');if(tab){section=tab.dataset.ncTab;shell.querySelectorAll('[data-nc-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b===tab)));draw();}if(group){const id=group.dataset.ncGroup;collapsed.has(id)?collapsed.delete(id):collapsed.add(id);draw();}});
+        shell.addEventListener('click',event=>{const tab=event.target.closest('[data-nc-tab]'),group=event.target.closest('[data-nc-group]');if(tab){section=tab.dataset.ncTab;showNotificationSettings(false);shell.querySelectorAll('[data-nc-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b===tab)));draw();}if(group){const id=group.dataset.ncGroup;collapsed.has(id)?collapsed.delete(id):collapsed.add(id);draw();}});
         shell.querySelector('input[type=search]').addEventListener('input',event=>{query=event.target.value.trim().toLowerCase();draw();});
         const positionTip=event=>{const info=event.target.closest('.nc-info');if(!info)return;const tip=info.querySelector('.nc-tip'),rect=info.getBoundingClientRect();tip.style.left=Math.max(12,Math.min(rect.left,window.innerWidth-222))+'px';tip.style.top=Math.max(12,rect.top-(tip.offsetHeight||80)-6)+'px';};
         shell.addEventListener('mouseover',positionTip);shell.addEventListener('focusin',positionTip);shell.addEventListener('click',positionTip);
@@ -13307,13 +13302,16 @@
           chatLog.scrollTop=chatLog.scrollHeight;
         };
         chat.render=renderChat;window.FirstMateAgentChat?.injectBaseCss?.('nc');renderChat();
-        shell.querySelector('[data-nc-add]').addEventListener('click',event=>{if(shell.clientWidth<=740){const opened=body.classList.toggle('chat-open');event.currentTarget.textContent=opened?'Back to notifications':'Add custom';}prompt.focus();});
+        shell.querySelector('[data-nc-add]').addEventListener('click',()=>registration?.open().catch(error=>{status.textContent=error.message;status.dataset.error='true';}));
+        shell.querySelector('[data-nc-chat]').addEventListener('click',event=>{showNotificationSettings(false);if(shell.clientWidth<=740){const opened=body.classList.toggle('chat-open');event.currentTarget.textContent=opened?'Back to notifications':'Ask assistant';}prompt.focus();});
         shell.querySelector('[data-nc-new]').addEventListener('click',()=>{if(chat.pending)return;chat.threadId='';chat.messages=[];try{sessionStorage.removeItem(chatKey);}catch{}chatStatus.textContent='';renderChat();prompt.focus();});
         const refreshNotifications=async()=>{
           const fresh=await window.PlatformAPI.notifications.preferences(notificationOrgId,notificationBranchId);
           if(!shell.isConnected)return;
-          groups=buildGroups(fresh);Object.assign(preferences.in_app,fresh.preferences.in_app);Object.assign(preferences.push,fresh.preferences.push);draw();
+          Object.assign(result,fresh);groups=buildGroups(fresh);for(const surface of surfaces)Object.assign(preferences[surface],fresh.preferences?.[surface]||{});await registration?.reload();await loadDeliverySettings();draw();
         };
+        const {notificationRegistration}=await import('/libraries/apps/settings/notification-registration.js');
+        registration=await notificationRegistration({shell,orgId:notificationOrgId,api:window.PlatformAPI.notifications,escapeHtml,refresh:refreshNotifications,getDefinitions:()=>groups.flatMap(g=>g.definitions),getSettings:()=>result});
         shell.querySelector('.nc-compose').addEventListener('submit',async event=>{
           event.preventDefault();const message=prompt.value.trim();if(!message||chat.pending||!chat.ready)return;
           if(saving){chatStatus.textContent=(globalThis.PlatformLanguage?.text("settings","m_249d1f14fb2a4d","Wait for your notification choices to finish saving, then send.") ?? "Wait for your notification choices to finish saving, then send.");return;}

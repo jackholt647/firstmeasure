@@ -1,3 +1,4 @@
+import { documentTags } from "../tags.js";
 import { z } from "zod";
 import { Ajv } from "ajv";
 import { FMDocModel } from "../schemas.js";
@@ -15,6 +16,7 @@ export const moduleBindingSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("action"), policy: z.enum(["live", "frozen"]), action: z.object({ action: z.string().min(1), version: z.string().optional(), target }).strict() }).strict()
 ]);
 export const moduleDefinitionSchema = z.object({
+  tags: z.array(z.string().max(80)).max(50).optional().transform(documentTags),
   name: z.string().min(1).max(200), kind: z.enum(["document", "workflow"]),
   engine: z.literal("quickjs-emscripten@0.32.0").default("quickjs-emscripten@0.32.0"),
   inputSchema: jsonSchema, outputSchema: jsonSchema, privateStateSchema: jsonSchema.default({ type: "object" }),

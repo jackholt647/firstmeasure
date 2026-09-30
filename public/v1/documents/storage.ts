@@ -173,7 +173,7 @@ async function createAsset(orgId: string, asset: VersionedAssetOptions, input: J
     name: cleanText(input.name) || "Untitled",
     ...(asset.kind === "document_template" ? { document_type: cleanText(input.document_type || "generic") || "generic" } : {}),
     description: cleanText(input.description),
-    tags: asArray(input.tags).map(cleanText).filter(Boolean),
+    tags: documentTags(input.tags),
     status: cleanText(input.status || "draft") || "draft",
     current_version: 0,
     preview_media_ref: asObject(input.preview_media_ref),
@@ -208,7 +208,7 @@ async function patchAsset(orgId: string, asset: VersionedAssetOptions, assetId: 
     folder_id: Object.prototype.hasOwnProperty.call(patch, "folder_id") ? cleanText(patch.folder_id) || cleanText(current.folder_id) : current.folder_id,
     name: Object.prototype.hasOwnProperty.call(patch, "name") ? cleanText(patch.name) || cleanText(current.name) : current.name,
     description: Object.prototype.hasOwnProperty.call(patch, "description") ? cleanText(patch.description) : current.description,
-    tags: Object.prototype.hasOwnProperty.call(patch, "tags") ? asArray(patch.tags).map(cleanText).filter(Boolean) : current.tags,
+    tags: Object.prototype.hasOwnProperty.call(patch, "tags") ? documentTags(patch.tags) : current.tags,
     status: Object.prototype.hasOwnProperty.call(patch, "status") ? cleanText(patch.status) || cleanText(current.status) : current.status,
     preview_media_ref: Object.prototype.hasOwnProperty.call(patch, "preview_media_ref") ? asObject(patch.preview_media_ref) : current.preview_media_ref,
     metadata: { ...asObject(current.metadata), ...asObject(patch.metadata) },
@@ -248,7 +248,7 @@ async function publishAsset(orgId: string, asset: VersionedAssetOptions, assetId
   let definition = asObject(input.definition);
   if (asset.kind === "document_template" || asset.kind === "document_workflow") {
     const { publishAssetProgram } = await import("./modules/authoring.js");
-    definition = await publishAssetProgram(orgId, assetId, cleanText(current.name), asset.kind === "document_template" ? "document" : "workflow", definition, ctx);
+    definition = await publishAssetProgram(orgId, assetId, cleanText(current.name), asset.kind === "document_template" ? "document" : "workflow", definition, ctx, current.tags);
   }
   const now = nowIso();
   const versionId = versionRowId(asset, orgId, assetId, nextVersion);
@@ -582,6 +582,7 @@ export async function createDocumentFolderItem(orgId: string, folderId: string, 
     organization_id: orgId,
     folder_id: folderId,
     item_type: itemType,
+    tags: documentTags(input.tags),
     name: cleanText(input.name) || "Untitled",
     media_ref: asObject(input.media_ref),
     definition: asObject(input.definition),
@@ -618,6 +619,7 @@ export async function patchDocumentFolderItem(orgId: string, itemId: string, pat
   const data: JsonObject = {
     ...current,
     name: Object.prototype.hasOwnProperty.call(patch, "name") ? cleanText(patch.name) || cleanText(current.name) : current.name,
+    tags: Object.prototype.hasOwnProperty.call(patch, "tags") ? documentTags(patch.tags) : current.tags,
     media_ref: Object.prototype.hasOwnProperty.call(patch, "media_ref") ? asObject(patch.media_ref) : current.media_ref,
     definition: Object.prototype.hasOwnProperty.call(patch, "definition") ? asObject(patch.definition) : current.definition,
     status: Object.prototype.hasOwnProperty.call(patch, "status") ? cleanText(patch.status) || cleanText(current.status) : current.status,
@@ -776,6 +778,7 @@ export async function recordDocumentEvent(
     document_type: cleanText(documentValue.document_type),
     document_tags: documentTags(documentValue.tags),
     template_id: cleanText(templateRef.template_id),
+    workflow_id: cleanText(asObject(documentValue.workflow_ref).workflow_id),
     project_id: cleanText(documentValue.project_id),
     ...payload
   };

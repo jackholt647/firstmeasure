@@ -34,11 +34,12 @@ after(async () => {
   await rm(root, { recursive: true, force: true });
 });
 test("inventory -> independent workflow -> independent frozen document, manual fallback and override", async () => {
-  const workflowModule = await service.publishModule(ctx, { name: "Estimate", kind: "workflow", inputSchema: obj, outputSchema: obj, privateStateSchema: obj,
+  const workflowModule = await service.publishModule(ctx, { name: "Estimate", tags:[" Proposal ","ESTIMATE"], kind: "workflow", inputSchema: obj, outputSchema: obj, privateStateSchema: obj,
     exports: { estimate: { path: "/outputs/estimate", schema: obj, access: "read" }, secret: { path: "/outputs/secret", schema: {}, access: "private" } },
     bindings: { cube: { kind: "data", policy: "live", required: false, source: { provider: "cube-test", export: "inventory", target } } },
     source: `const cube = await api.data.read('cube'); const hours = inputs.overrideHours ?? (cube ? cube.volume / 10 : inputs.manualHours); if (hours == null) throw new Error('Manual hours required'); return {outputs:{estimate:{hours,total:hours*100},secret:'hidden'},privateState:{notes:'private'}};` });
   let workflow = await service.createModuleInstance(ctx, { moduleId: String(workflowModule.id), projectId: "project" });
+  assert.deepEqual(workflow.tags,["proposal","estimate"]);
   let evaluated = await service.evaluateModuleInstance(ctx, workflow.id, { expectedRevision: workflow.revision });
   workflow = evaluated.instance as typeof workflow;
   assert.deepEqual((await service.getModuleExports(ctx, workflow.id, "estimate") as any).value, { hours: 4, total: 400 });

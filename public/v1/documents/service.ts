@@ -624,6 +624,7 @@ async function resolveWorkflowForCreate(orgId: string, input: JsonObject, templa
   const workflowVersion = await readDocumentWorkflowVersion(orgId, workflowId, version).catch(() => null);
   const steps = asArray(asObject(asObject(workflowVersion).definition).steps).map(asObject);
   return {
+    tags: documentTags(workflow.tags),
     workflow_ref: { workflow_id: workflowId, version },
     workflow_state: { current_step: cleanText(asObject(steps[0]).id), completed_steps: [] as string[] }
   };
@@ -668,7 +669,7 @@ export async function createDocumentInstance(orgId: string, projectId: string, i
     branch_id: cleanText(projectData.branch_id || ctx.branchId || "default") || "default",
     project_id: projectId,
     document_type: typeDef.id,
-    tags: documentTags([...asArray(asObject(template).tags), ...asArray(input.tags)]),
+    tags: documentTags([...asArray(asObject(template).tags), ...asArray(asObject(workflow).tags), ...asArray(input.tags)]),
     title: cleanText(input.title || asObject(template).name || projectData.title || typeDef.label) || typeDef.label,
     template_ref: template ? { template_id: cleanText(template.id), version } : null,
     theme_ref: Object.keys(asObject(input.theme_ref)).length
@@ -783,6 +784,7 @@ async function resolveRetemplatePatch(orgId: string, current: JsonObject, patch:
     const steps = asArray(asObject(asObject(workflowVersion).definition).steps).map(asObject);
     const stepIds = steps.map((step) => cleanText(step.id)).filter(Boolean);
     const previous = normalizedWorkflowState(current);
+    updates.tags = documentTags([...asArray(updates.tags || current.tags), ...asArray(workflow.tags), ...asArray(patch.tags)]);
     updates.workflow_ref = { workflow_id: workflowId, version: Number(asObject(workflowVersion).version || version) };
     updates.workflow_state = {
       current_step: stepIds[0] || "",

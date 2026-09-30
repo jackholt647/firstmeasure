@@ -1,3 +1,6 @@
+import { effectivePreferences } from './notifications/configuration.js';
+import { readPersonalConfiguration } from './notifications/defaults.js';
+import { notificationPermissions } from './notifications/permissions.js';
 import { baselinePlan, enqueueNotification, persistNotificationOccurrence, recipientDeliveries, portalNotifications } from "./notifications/delivery.js";
 import { registerNotificationRulesApi } from "./notifications/api.js";
 import { TRANSLATION_CODES, normalizeTranslationLanguage } from "./localization/languages.js";
@@ -2467,7 +2470,8 @@ app.get("/auth/google/config", async () => ({
     const query=asObject(request.query);
     const branchId=String(query.branch_id || ctx.branchId || "default");
     const catalog=await notificationCatalog(orgId,branchId,ctx);
-    return { ok:true,catalog,quiet_hours:asObject(asObject(user.data).notification_preferences).quiet_hours,custom_keys:Array.isArray(asObject(asObject(user.data).notification_preferences).custom_keys)?asObject(asObject(user.data).notification_preferences).custom_keys:[],preferences:definitionPreferences(asObject(user.data).notification_preferences,catalogDefinitions(catalog)) };
+    const raw=await effectivePreferences(orgId,ctx.userId,branchId,user.data.notification_preferences),personal=await readPersonalConfiguration(orgId,ctx.userId,branchId);
+    return {ok:true,catalog,permissions:notificationPermissions(ctx),configuration_revision:personal?.revision||0,defaults_revision:personal?.defaults_revision||0,quiet_hours:raw.quiet_hours,custom_keys:Array.isArray(raw.custom_keys)?raw.custom_keys:[],preferences:definitionPreferences(raw,catalogDefinitions(catalog))};
   });
 
   app.patch("/organizations/:orgId/notification-preferences", async (request) => {
@@ -4157,7 +4161,7 @@ async function listVisibleNotifications(orgId: string, userId: string, options: 
   const user = { id: userId, ...asObject(userDoc.data) };
   const states = asObject(asObject(userDoc.data).notification_state);
   const roles = new Set(userRoleIds(user));
-  const rawPreferences = asObject(userDoc.data).notification_preferences;
+  const rawPreferences = await effectivePreferences(orgId,userId,options.branchId||"default",asObject(userDoc.data).notification_preferences);
   const deliveryRecords = await recipientDeliveries(orgId, userId);
   const notifications = notificationDocs
     .map((doc) => ({ document: doc, data: asObject(doc.data) }))
@@ -4172,7 +4176,7 @@ async function listVisibleNotifications(orgId: string, userId: string, options: 
     .filter(({ data }) => data.delivery_version === 2 || data.passive !== false || isMessageInboxNotification(data))
     .filter(({ data }) => categoryForNotification(data) !== "measurements" || measurementsEnabled)
     .filter(({ data }) => !notificationExpired(data))
-    .filter(({ data }) => options.ignorePreferences || data.delivery_version === 2 || notificationPreferenceEnabled(asObject(userDoc.data).notification_preferences,data,"in_app"))
+    .filter(({ data }) => options.ignorePreferences || data.delivery_version === 2 || notificationPreferenceEnabled(rawPreferences,data,"in_app"))
     .filter(({ data }) => !data.branch_id || String(data.branch_id) === String(options.branchId || "default"))
     .filter(({ data }) => {
       if (data.delivery_version === 2) return true; // The durable recipient list is authoritative.

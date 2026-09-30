@@ -74,12 +74,12 @@ import {
 import * as collaboration from "./collaboration.js";
 
 registerWorkEvents([
-  { name: "channels.channel.created", description: "A team messaging channel was created.", visibility: "system" },
-  { name: "channels.channel.archived", description: "A team messaging channel was archived.", visibility: "system" },
-  { name: "channels.message.posted", description: "A message was posted in a team channel or project thread.", visibility: "system" },
-  { name: "channels.message.edited", description: "A team channel message was edited.", visibility: "system" },
-  { name: "channels.message.deleted", description: "A team channel message was removed.", visibility: "system" },
-  { name: "channels.message.restored", description: "A removed team channel message was restored.", visibility: "system" }
+  { name: "channels.channel.created", notification: { group: "messages", source: "channels", tab: "messaging" }, description: "A team messaging channel was created.", visibility: "system" },
+  { name: "channels.channel.archived", notification: { group: "messages", source: "channels", tab: "messaging" }, description: "A team messaging channel was archived.", visibility: "system" },
+  { name: "channels.message.posted", notification: { group: "messages", source: "channels", tab: "messaging" }, description: "A message was posted in a team channel or project thread.", visibility: "system" },
+  { name: "channels.message.edited", notification: { group: "messages", source: "channels", tab: "messaging" }, description: "A team channel message was edited.", visibility: "system" },
+  { name: "channels.message.deleted", notification: { group: "messages", source: "channels", tab: "messaging" }, description: "A team channel message was removed.", visibility: "system" },
+  { name: "channels.message.restored", notification: { group: "messages", source: "channels", tab: "messaging" }, description: "A removed team channel message was restored.", visibility: "system" }
 ]);
 
 const AUDIENCE_GROUPS = ["office", "crew", "sales"] as const;

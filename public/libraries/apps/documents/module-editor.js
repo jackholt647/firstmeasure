@@ -3,6 +3,7 @@ export async function openModuleEditor(organizationId) {
   const platform = window.PlatformAPI;
   const base = new URL(platform.baseUrl().replace(/\/platform\/?$/, '/document-modules'), location.href).href.replace(/\/$/, '');
   const request = (path, method = 'GET', body) => platform.request(`${base}/organizations/${encodeURIComponent(organizationId)}${path}`, { method, ...(body === undefined ? {} : { body }) });
+  let tags = [];
   const dialog = document.createElement('dialog');
   dialog.style.cssText = 'width:min(1100px,95vw);max-height:92vh;overflow:auto;border:1px solid #cbd5e1;border-radius:12px;padding:24px;color:inherit;background:var(--surface,#fff)';
   dialog.innerHTML = `<form method="dialog"><button style="float:right" aria-label="${(globalThis.PlatformLanguage?.htmlText("documents","m_b68909450f4727","Close module editor") ?? "Close module editor")}">${(globalThis.PlatformLanguage?.htmlText("documents","m_3742924668fb10","Close") ?? "Close")}</button></form>
@@ -11,6 +12,7 @@ export async function openModuleEditor(organizationId) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
       <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_006d986794e9db","Name ") ?? "Name ")}<input data-name value="Estimate workflow" style="width:100%"></label>
       <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_b2efb7e5eb919d","Kind ") ?? "Kind ")}<select data-kind><option value="workflow">${(globalThis.PlatformLanguage?.htmlText("documents","m_7dbbeae35a4717","Workflow") ?? "Workflow")}</option><option value="document">${(globalThis.PlatformLanguage?.htmlText("documents","m_9c9b98b1f4e8c9","Document") ?? "Document")}</option></select></label>
+      <button type="button" data-tags>Tags</button>
       <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_0361a1fe0fb35a","Input JSON schema") ?? "Input JSON schema")}<textarea data-input-schema rows="5" style="width:100%"></textarea></label>
       <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_51149eeec20cb6","Output JSON schema") ?? "Output JSON schema")}<textarea data-output-schema rows="5" style="width:100%"></textarea></label>
       <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_d8e85b0a530052","Published exports") ?? "Published exports")}<textarea data-exports rows="6" style="width:100%"></textarea></label>
@@ -62,13 +64,14 @@ export async function openModuleEditor(organizationId) {
     moduleId = value('modules'); instance = null; commandKey = null;
     if (!moduleId) return;
     const { module } = await request(`/modules/${encodeURIComponent(moduleId)}`);
-    const d = module.definition;
+    const d = module.definition; tags = d.tags || [];
     for (const [field, key] of [['name','name'],['kind','kind'],['input-schema','inputSchema'],['output-schema','outputSchema'],['private','privateStateSchema'],['exports','exports'],['bindings','bindings'],['source','source']]) fill(field,d[key]);
     fill('renderer',d.renderer || '');
   });
+  el('tags').onclick = perform(async () => { const { openTagManager } = await import('./tag-manager.js'); await openTagManager(organizationId, { tags, save: async selected => { tags=selected; el('tags').textContent=`Tags (${tags.length})`; } }); });
   el('blank').onclick = () => fill('renderer', window.FMDocModel.createBlankDocument());
   el('publish').onclick = perform(async () => {
-    const definition = { name: value('name'), kind: value('kind'), inputSchema: parse('input-schema'), outputSchema: parse('output-schema'), privateStateSchema: parse('private'), exports: parse('exports'), bindings: parse('bindings'), source: value('source'), ...(value('renderer').trim() ? { renderer: parse('renderer') } : {}) };
+    const definition = { tags, name: value('name'), kind: value('kind'), inputSchema: parse('input-schema'), outputSchema: parse('output-schema'), privateStateSchema: parse('private'), exports: parse('exports'), bindings: parse('bindings'), source: value('source'), ...(value('renderer').trim() ? { renderer: parse('renderer') } : {}) };
     const result = await request('/modules','POST',{ ...(moduleId ? { moduleId } : {}), definition });
     moduleId = result.module.id; await loadModules(); await show(result);
   });

@@ -291,7 +291,7 @@ async function deliverSigningOutbox() {
       await recordDocumentEvent(pkg.organization_id, document, String(entry.event_type), payload, null, { emit: false, eventId: String(entry.id) });
       const { emitWorkEvent } = await import("../../work/engine.js");
       await emitWorkEvent({ organization_id: pkg.organization_id, branch_id: text(document.branch_id) || "default", ...(document.project_id ? { project_id: text(document.project_id) } : {}), type: String(entry.event_type), idempotency_key: String(entry.id),
-        payload: { document_id: pkg.document_id, document_type: pkg.content.document_type || document.document_type, document_tags: documentTags(pkg.content.tags ?? document.tags), template_id: object(document.template_ref).template_id, project_id: document.project_id, ...payload }, context: { source: "document_signing" } });
+        payload: { document_id: pkg.document_id, document_type: pkg.content.document_type || document.document_type, document_tags: documentTags(pkg.content.tags ?? document.tags), template_id: object(document.template_ref).template_id, workflow_id: object(document.workflow_ref).workflow_id, project_id: document.project_id, ...payload }, context: { source: "document_signing" } });
       await signingStore().prepare("UPDATE document_signing_outbox SET delivered=1 WHERE id=?").run(String(entry.id));
       } catch (error) {
         const reason = error instanceof Error ? error.message.slice(0,1000) : "delivery_failed";

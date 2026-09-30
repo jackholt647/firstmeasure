@@ -1182,7 +1182,7 @@ export function factoryPersonaDefinitions(): FactoryPersonaDefinition[] {
     [CREW_PERMISSION_KEYS.signatures_present]: true,
     [CREW_PERMISSION_KEYS.workflows_add]: true
   };
-  return [
+  const personas: FactoryPersonaDefinition[] = [
     {
       id: DEFAULT_ACCESS_ROLE_IDS.management.viewer,
       application_ids: [MANAGEMENT_APPLICATION_ID],
@@ -1321,6 +1321,7 @@ export function factoryPersonaDefinitions(): FactoryPersonaDefinition[] {
       capability_requirements: ["apps.sales", "platform.scheduling"]
     }
   ];
+  return personas.map(persona => ({ ...persona, permissions: { ...persona.permissions, manage_own_notifications: true, ...(persona.permissions.manage_company_settings === true || persona.permissions["*"] === true ? { manage_notification_defaults: true } : {}) } }));
 }
 
 type SeedRole = {
@@ -1698,6 +1699,18 @@ function roleLevel(role: AccessRole) {
   return Number(asObject(role.metadata).level || 0);
 }
 
+/** Additive notification permissions: explicit denials override legacy defaults. */
+export function notificationAccessPermissions(permissions: PermissionMap, user: JsonObject = {}, roles: Pick<AccessRole, "permissions">[] = [], legacyAdministrator = false) {
+  const access = asObject(user.access ?? user.access_profile);
+  const maps = [permissions, ...roles.map(role => role.permissions), asObject(user.permissions), asObject(asObject(user.org_permissions).items), asObject(access.permission_overrides), asObject(user.permission_overrides)];
+  const allowed = (key: string, fallback: boolean) => {
+    if (maps.some(map => map[key] === false)) return false;
+    return maps.some(map => map[key] === true) || fallback;
+  };
+  const companySettings = permissions.manage_company_settings !== false && (permissions.manage_company_settings === true || permissions["*"] === true || legacyAdministrator);
+  return { manage_own_notifications: allowed("manage_own_notifications", true), manage_notification_defaults: allowed("manage_notification_defaults", companySettings) };
+}
+
 function unionRolePermissions(roles: AccessRole[]) {
   const result: PermissionMap = {};
   for (const role of roles) {
@@ -2023,6 +2036,7 @@ export async function resolveAccessProfile(
   }
   for (const [permission, allowed] of Object.entries(globalPermissionOverrides)) effectivePermissions[permission] = allowed;
 
+  Object.assign(effectivePermissions, notificationAccessPermissions(effectivePermissions, user, roles));
   const entitlements = (await effectiveEntitlements(orgId, roles, applications, applicationSources, effectivePermissions, user, options.device));
   const byId = Object.fromEntries(entitlements.map((entitlement) => [entitlement.id, entitlement]));
   return {

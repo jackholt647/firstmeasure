@@ -50,17 +50,17 @@ const DISCONNECT_RELEASE_MS = 90_000;
 const TYPING_TTL_MS = 8_000;
 
 registerWorkEvents([
-  { name: "chat.conversation.started", description: "A website or portal visitor started a live chat conversation.", visibility: "activity" },
-  { name: "chat.message.received", description: "A live chat visitor sent a message.", visibility: "system" },
-  { name: "chat.message.sent", description: "A team member or the AI agent replied in a live chat.", visibility: "system" },
-  { name: "chat.conversation.claimed", description: "A team member claimed a live chat conversation.", visibility: "system" },
-  { name: "chat.conversation.released", description: "A live chat claim was released.", visibility: "system" },
-  { name: "chat.conversation.claim_taken", description: "A live chat conversation was taken over from another team member.", visibility: "system" },
-  { name: "chat.ai.replied", description: "The live chat AI agent replied to a visitor.", visibility: "system" },
-  { name: "chat.ai.handoff", description: "The live chat AI agent handed a conversation to the team.", visibility: "activity" },
-  { name: "chat.offline.message", description: "A visitor left a message while live chat was offline.", visibility: "activity" },
-  { name: "chat.conversation.linked", description: "A live chat conversation was linked to a contact or project.", visibility: "activity" },
-  { name: "chat.conversation.closed", description: "A live chat conversation was closed.", visibility: "activity" }
+  { name: "chat.conversation.started", notification: { group: "messages", source: "chat", tab: "messaging" }, description: "A website or portal visitor started a live chat conversation.", visibility: "activity" },
+  { name: "chat.message.received", notification: { group: "messages", source: "chat", tab: "messaging" }, description: "A live chat visitor sent a message.", visibility: "system" },
+  { name: "chat.message.sent", notification: { group: "messages", source: "chat", tab: "messaging" }, description: "A team member or the AI agent replied in a live chat.", visibility: "system" },
+  { name: "chat.conversation.claimed", notification: { group: "messages", source: "chat", tab: "messaging" }, description: "A team member claimed a live chat conversation.", visibility: "system" },
+  { name: "chat.conversation.released", notification: { group: "messages", source: "chat", tab: "messaging" }, description: "A live chat claim was released.", visibility: "system" },
+  { name: "chat.conversation.claim_taken", notification: { group: "messages", source: "chat", tab: "messaging" }, description: "A live chat conversation was taken over from another team member.", visibility: "system" },
+  { name: "chat.ai.replied", notification: { group: "messages", source: "chat", tab: "messaging" }, description: "The live chat AI agent replied to a visitor.", visibility: "system" },
+  { name: "chat.ai.handoff", notification: { group: "messages", source: "chat", tab: "messaging" }, description: "The live chat AI agent handed a conversation to the team.", visibility: "activity" },
+  { name: "chat.offline.message", notification: { group: "messages", source: "chat", tab: "messaging" }, description: "A visitor left a message while live chat was offline.", visibility: "activity" },
+  { name: "chat.conversation.linked", notification: { group: "messages", source: "chat", tab: "messaging" }, description: "A live chat conversation was linked to a contact or project.", visibility: "activity" },
+  { name: "chat.conversation.closed", notification: { group: "messages", source: "chat", tab: "messaging" }, description: "A live chat conversation was closed.", visibility: "activity" }
 ]);
 
 function cleanText(value: unknown): string {

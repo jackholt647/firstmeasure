@@ -207,3 +207,91 @@ The API and platform worker drain the durable lane every two seconds using claim
 No new provider credentials or separate AI service are introduced. SQLite is used
 locally through SqlStore; PostgreSQL uses the existing shared store abstraction.
 No production rollout was performed as part of this implementation.
+
+## Registration and settings (September 29, 2026)
+
+Settings separates All, General, Messaging, Flows, Scopes, Documents and Custom.
+Existing app and scope declarations retain their default behavior; opening settings
+never installs rules or rewrites organization records. Organization setup can vary
+those defaults independently. Personal registrations appear under Custom, grouped
+by the event's declared semantic group (for example Signatures or Payments).
+
+The Add notification form discovers authorized app sources and events, accepts
+existing active document tags (all selected tags must match), an optional document
+workflow or supported scope selector, independent delivery methods, and grouping.
+It saves a personal subscription with a no-op delivery program. Complex event
+filters and conditional delivery remain assistant-authored, shown as natural-language
+intent. Template/workflow tag IDs are stable across label renames. Missing tags do
+not trigger agent repair because the initial event filter never matched.
+
+Advanced controls expose email, SMS, confetti, toast and audio alongside the compact
+in-app mode, push, bell and badge controls. Custom rules additionally expose enabled
+state, grouping field/window, alert-every/first/delayed-group behavior, unconditional
+per-method quiet-hour exceptions, and deletion. Editing these options preserves
+program source, bindings and conditions. Customer portal delivery remains workflow
+owned because it needs an explicitly authorized customer audience and customer copy.
+Membership-sensitive chat/channel events retain their existing app-owned producers;
+the generic personal-subscription picker cannot broaden their audience.
+
+POST registration accepts an owner-scoped request ID for retry safety. Rule deletion
+uses revision checks, logs retained history, cancels pending deliveries and records a
+tombstone so an in-flight repair cannot recreate the rule. Legacy selected events and
+assistant-created custom automations can also be removed for the current user without
+removing other recipients. Native app/scope declarations are reusable source templates; the current personal-copy architecture below allows a user to delete their own registration unless organization protection forbids it.
+
+Validation includes the notification runtime integration tests, declaration grouping
+tests, document tag API/module tests and the browser settings test
+(`tests/notification-settings-ui.test.mjs`; set CHROME_BIN outside the default Windows
+Chrome installation). The browser test checks creation, failed-save retry, tag/workflow
+selection, grouping, independent delivery toggles, program-preserving edits, deletion,
+mobile assistant access and compact control sizing.
+
+
+## Personal ownership, organization defaults and protection
+
+Every active notification configuration is owned by a user within an organization
+(and retains its branch binding). App/workflow declarations supply source templates,
+not shared editable personal settings. An explicit initialization POST, personal
+mutation, or authorized background delivery creates the user's snapshot. Read-only
+catalog inspection does not create domain records. Existing personal choices survive
+migration, and first-observed producer definitions are copied only once. Deletion
+tombstones prevent a producer from recreating a removed personal definition.
+
+Organization notification managers can publish their current setup as defaults.
+Newly initialized users receive independent definition/program/preference copies;
+subsequent default updates do not rewrite existing users. Stable rule IDs are scoped
+by user, personal preference keys are remapped on copying, and only authorized events
+are cloned. Defaults include removed native definitions so first delivery does not
+resurrect them. Snapshotting unknown producer methods must not turn an undeclared
+method into a false hard opt-out; explicit method selections remain authoritative.
+
+Two permissions are declared under Notifications:
+- `manage_own_notifications`: change personal definitions, delivery, quiet hours or rules.
+- `manage_notification_defaults`: publish organization defaults and manage protection.
+
+Existing users retain personal editing by default; organization management follows
+existing company-settings authority unless explicitly configured. Explicit role/user
+denials win even for administrators. FirstMeasure's seven production permission keys
+remain unchanged. Read access and normal delivery do not require editing permission.
+API, shared assistant configuration entry points, and legacy preference saves enforce
+these permissions. Direct backing preference writes cannot override a full lock at delivery.
+
+Organization protection is versioned live policy, separate from starting defaults:
+- Unlocked: ordinary personal editing/deletion permissions apply.
+- Removal-protected: registration and enabled state are required; delivery can be edited.
+- Fully locked: the organization manager's saved configuration governs delivery and
+  ordinary users cannot modify or remove it. Personal delivery programs cannot override it.
+
+Lock policy uses a stable definition key or `rule:<id>`, checks current event access,
+and preserves recipient authorization. Required custom rules can be introduced to
+existing users. Their first permitted edit creates a private copy with a newer
+revision than any prior deletion tombstone, retaining history and fencing stale repairs.
+Unlocking removes live protection; it does not overwrite personal configuration.
+
+Settings has a distinct far-right control, separate from notification category tabs.
+It contains responsive quiet-hour controls, delivery rules, configuration/rule history,
+and the organization-default publishing control. All binary controls are rendered as
+toggles. Per-notification advanced controls expose protection and readable lock state.
+The organization protection API snapshots the manager's current configuration when
+Save protection is used; editing their personal copy alone does not silently republish
+that policy. Default and protection mutations use revision checks and audit history.

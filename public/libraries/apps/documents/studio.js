@@ -909,7 +909,7 @@
                 <i class="fas ${esc(firstText(folder.icon, 'fa-folder'))}"></i> ${esc(firstText(folder.label, 'Folder'))}
                 ${folder.system === true ? '' : `<span class="fmdx-subtab-kebab" role="button" tabindex="0" data-folder-menu="${esc(folder.id)}" title="${(globalThis.PlatformLanguage?.htmlText("documents","m_a93919b739869a","Folder actions") ?? "Folder actions")}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("documents","m_4ced6981451d49",`Actions for ${v1}`,{v1}) ?? `Actions for ${v1}`)(esc(firstText(folder.label, 'folder')))}"><i class="fas fa-ellipsis"></i></span>`}
               </button>`).join(''))}
-            <button type="button" class="fmdx-subtab fmdx-brand-tab ${String(state.tab === 'brand-kit' ? 'active' : '')}" data-tab="brand-kit"><i class="fas fa-swatchbook"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_52b55753fc7a92"," Brand Kit") ?? " Brand Kit")}</button>
+            <button type="button" class="fmdx-subtab" style="margin-left:auto" data-tag-manager><i class="fas fa-tags"></i> Tags</button><button type="button" style="margin-left:0" class="fmdx-subtab fmdx-brand-tab ${String(state.tab === 'brand-kit' ? 'active' : '')}" data-tab="brand-kit"><i class="fas fa-swatchbook"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_52b55753fc7a92"," Brand Kit") ?? " Brand Kit")}</button>
             ${String(canCreateFolders() ? `<button type="button" class="fmdx-subtab fmdx-subtab-add" data-new-folder title="${(globalThis.PlatformLanguage?.htmlText("documents","m_cc38a3691907b3","New folder") ?? "New folder")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("documents","m_cc38a3691907b3","New folder") ?? "New folder")}"><i class="fas fa-plus"></i></button>` : '')}
           </div>
           <div class="fmdx-body" data-studio-body></div>
@@ -936,6 +936,7 @@
       root.querySelector('[data-new-template]')?.addEventListener('click', () => openNewTemplateModal());
       root.querySelector('[data-new-workflow]')?.addEventListener('click', () => openNewWorkflowModal());
       root.querySelector('[data-new-theme]')?.addEventListener('click', () => openNewThemeModal());
+      root.querySelector('[data-tag-manager]')?.addEventListener('click', () => editTags());
       root.querySelector('[data-document-modules]')?.addEventListener('click', async () => {
         try { const modules = await import(new URL('./module-editor.js', SCRIPT_URL).href); await modules.openModuleEditor(orgId()); }
         catch (error) { showToast((globalThis.PlatformLanguage?.text("documents","m_68b21459ee2100","Document modules") ?? "Document modules"), errorMessage(error), false); }
@@ -1036,6 +1037,7 @@
         const definition = (await templateDefinition(tpl)) || blankDefinition(tpl.document_type);
         await api().templates.create(orgId(), {
           name: `${firstText(tpl.name, 'Template')} (copy)`,
+          tags: arrayValue(tpl.tags),
           document_type: cleanText(tpl.document_type) || 'generic',
           definition
         });
@@ -1714,7 +1716,7 @@
           <div class="fmdx-studio-editor" data-studio-item-screen>
             <header class="fmdx-editor-top">
               <button type="button" class="fmdx-icon-btn" data-item-back title="${(globalThis.PlatformLanguage?.htmlText("documents","m_9a8ae4bb33e74e","Back to folder") ?? "Back to folder")}"><i class="fas fa-arrow-left"></i></button>
-              <input class="fmdx-doc-title-input" data-item-name value="${String(esc(firstText(item.name, 'Untitled')))}" spellcheck="false">
+              <input class="fmdx-doc-title-input" data-item-name value="${String(esc(firstText(item.name, 'Untitled')))}" spellcheck="false"><button type="button" class="fmdx-btn" data-item-tags><i class="fas fa-tags"></i> Tags</button>
               <span class="fmdx-chip plain"><i class="fas ${String(esc(meta.icon))}" style="font-size:9px"></i> ${String(esc(meta.label))}</span>
               <span class="fmdx-save-state" data-item-save-state>${(globalThis.PlatformLanguage?.htmlText("documents","m_8942ebbfe02463","Saves automatically") ?? "Saves automatically")}</span>
             </header>
@@ -1727,6 +1729,9 @@
         </div>`;
       state.folderItemHeader = root.querySelector('[data-studio-item-screen] > .fmdx-editor-top');
       state.folderItemHeader?.querySelector('[data-item-back]')?.addEventListener('click', () => closeFolderItemEditor());
+      state.folderItemHeader?.querySelector('[data-item-tags]')?.addEventListener('click', async () => {
+        try { const { openTagManager } = await import(new URL('./tag-manager.js', SCRIPT_URL).href); await openTagManager(orgId(), { tags:arrayValue(state.folderItem.tags), save:async tags => { const result = await api().folders.items.patch(orgId(),state.folderItem.folder_id,state.folderItem.id,{ tags, expected_revision:state.folderItem.revision }); state.folderItem.tags=tags; if(result?.item?.revision) state.folderItem.revision=result.item.revision; } }); } catch(error) { showToast('Document tags',errorMessage(error),false); }
+      });
       const titleInput = state.folderItemHeader?.querySelector('[data-item-name]');
       titleInput?.addEventListener('input', (event) => {
         sizeFolderItemTitle(event.target);
@@ -2412,6 +2417,15 @@
       }
     }
 
+    async function editTags(asset, kind){
+      try {
+        const { openTagManager } = await import(new URL('./tag-manager.js', SCRIPT_URL).href);
+        await openTagManager(orgId(), asset ? { tags:arrayValue(asset.tags), save:async tags => {
+          const result = await api()[kind].patch(orgId(), asset.id, { tags, expected_revision:asset.revision });
+          asset.tags=tags; const saved=result?.[kind === 'templates' ? 'template' : 'workflow']; if(saved?.revision) asset.revision=saved.revision;
+        } } : {});
+      } catch(error) { showToast('Document tags',errorMessage(error),false); }
+    }
     function renderTemplateEditor(){
       if (state.view !== 'template') return;
       if (root.querySelector('[data-studio-tpl-screen]')) return;
@@ -2421,7 +2435,7 @@
           <div class="fmdx-studio-editor" data-studio-tpl-screen>
             <header class="fmdx-editor-top">
               <button type="button" class="fmdx-icon-btn" data-tpl-back title="${(globalThis.PlatformLanguage?.htmlText("documents","m_9df2e6130a5af3","Back to templates") ?? "Back to templates")}"><i class="fas fa-arrow-left"></i></button>
-              <input class="fmdx-doc-title-input" data-tpl-name value="${String(esc(firstText(tpl.name, 'Untitled template')))}" spellcheck="false">
+              <input class="fmdx-doc-title-input" data-tpl-name value="${String(esc(firstText(tpl.name, 'Untitled template')))}" spellcheck="false"><button type="button" class="fmdx-btn" data-tpl-tags><i class="fas fa-tags"></i> Tags</button>
               ${String(statusChip(tpl.status))}
               <span class="fmdx-chip plain">v${String(Number(tpl.current_version || 0))}</span>
               <span class="fmdx-save-state" data-tpl-save-state></span>
@@ -2444,6 +2458,7 @@
       // right-hand surface with subtabs, never two competing trays.
       root.querySelector('[data-tpl-schema]')?.addEventListener('click', () => state.editorHandle?.openSidePanel?.('setup'));
       root.querySelector('[data-tpl-agent]')?.addEventListener('click', () => state.editorHandle?.openSidePanel?.('agent'));
+      root.querySelector('[data-tpl-tags]')?.addEventListener('click', () => editTags(state.template, 'templates'));
       root.querySelector('[data-tpl-name]')?.addEventListener('change', async (event) => {
         const name = cleanText(event.target.value) || 'Untitled template';
         try {
@@ -2807,7 +2822,7 @@
       if (button) button.disabled = true;
       try {
         const definition = (await workflowDefinition(workflow)) || blankWorkflowDefinition(workflow.name);
-        await api().workflows.create(orgId(), { name: `${firstText(workflow.name, 'Workflow')} (copy)`, definition });
+        await api().workflows.create(orgId(), { name: `${firstText(workflow.name, 'Workflow')} (copy)`, tags:arrayValue(workflow.tags), definition });
         showToast((globalThis.PlatformLanguage?.text("documents","m_d1e8bdb71c4dd5","Doc Studio") ?? "Doc Studio"), (globalThis.PlatformLanguage?.text("documents","m_93bd678bd4a810","Workflow duplicated.") ?? "Workflow duplicated."), true);
         await loadLists();
       } catch (error) {
@@ -2857,7 +2872,7 @@
             const name = firstText(body.querySelector('[data-wf-name]')?.value, source ? `${firstText(source.name, 'Workflow')} (copy)` : 'New Workflow');
             const definition = source ? ((await workflowDefinition(source)) || blankWorkflowDefinition(name)) : blankWorkflowDefinition(name);
             definition.name = name;
-            const res = await api().workflows.create(orgId(), { name, definition });
+            const res = await api().workflows.create(orgId(), { name, tags:arrayValue(source?.tags), definition });
             const workflow = objectValue(res.workflow || res);
             state.pendingAgentBrief = firstText(body.querySelector('[data-wf-brief]')?.value) || null;
             modal.close();
@@ -3104,7 +3119,7 @@
           <div class="fmdx-studio-editor" data-studio-workflow-screen>
             <header class="fmdx-editor-top">
               <button type="button" class="fmdx-icon-btn" data-wf-back title="${(globalThis.PlatformLanguage?.htmlText("documents","m_02976e3fab1e2d","Back to workflows") ?? "Back to workflows")}"><i class="fas fa-arrow-left"></i></button>
-              <input class="fmdx-doc-title-input" data-wf-name value="${String(esc(firstText(workflow.name, 'Untitled workflow')))}" spellcheck="false">
+              <input class="fmdx-doc-title-input" data-wf-name value="${String(esc(firstText(workflow.name, 'Untitled workflow')))}" spellcheck="false"><button type="button" class="fmdx-btn" data-wf-tags><i class="fas fa-tags"></i> Tags</button>
               ${String(statusChip(workflow.status))}
               <span class="fmdx-chip plain">v${String(Number(workflow.current_version || 0))}</span>
               <span class="fmdx-save-state" data-wf-save-state></span>
@@ -3122,6 +3137,7 @@
           </div>
         </div>`;
       root.querySelector('[data-wf-back]')?.addEventListener('click', closeWorkflowEditor);
+      root.querySelector('[data-wf-tags]')?.addEventListener('click', () => editTags(state.workflow, 'workflows'));
       root.querySelector('[data-wf-name]')?.addEventListener('change', async (event) => {
         const name = cleanText(event.target.value) || 'Untitled workflow';
         try {

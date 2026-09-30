@@ -455,6 +455,14 @@
   };
 
   const notifications = {
+    initialize(orgId){ return request(orgPath(orgId, '/notification-configuration'), {method:'POST',body:{}}); },
+    saveConfiguration(orgId, patch){ return request(orgPath(orgId, '/notification-configuration'), {method:'PATCH',body:patch}); },
+    defaults(orgId){ return request(orgPath(orgId, '/notification-defaults')); },
+    saveDefaults(orgId, revision){ return request(orgPath(orgId, '/notification-defaults'), {method:'PUT',body:{revision}}); },
+    saveLock(orgId, patch){ return request(orgPath(orgId, '/notification-locks'), {method:'PATCH',body:patch}); },
+    addRegistration(orgId, registration){ return request(orgPath(orgId, '/notification-registrations'), {method:'POST',body:registration}); },
+    deleteRule(orgId, id, revision){ return request(orgPath(orgId, `/notification-rules/${enc(id)}`), {method:'DELETE',body:{revision}}); },
+    removeRegistration(orgId, key){ return request(orgPath(orgId, '/notification-registrations/remove'), {method:'POST',body:{key}}); },
     rules(orgId){ return request(orgPath(orgId, '/notification-rules')); },
     saveRule(orgId, rule){ return request(orgPath(orgId, '/notification-rules'), {method:'PUT',body:rule}); },
     saveQuietHours(orgId, hours){ return request(orgPath(orgId, '/notification-quiet-hours'), {method:'PATCH',body:hours}); },

@@ -1,3 +1,4 @@
+import { observePersonalNotification, effectiveRules, preferencesForNote, fullLockForNote } from './configuration.js';
 import { randomUUID } from 'node:crypto';
 import { readDocument, listDocuments, upsertDocument } from '../storage.js';
 import { backgroundAuthContext, hasPermission } from '../auth.js';
@@ -12,6 +13,10 @@ type Json=Record<string,unknown>;
 const obj=(v:unknown):Json=>v&&typeof v==='object'&&!Array.isArray(v)?v as Json:{};
 const strings=(v:unknown)=>Array.isArray(v)?v.map(String):[];
 async function authorizedEvent(org:string,user:string,event:Json,note:Json){
+ if(note.source==='notification_rule'){
+  const id=String(obj(note.context).rule_id||'');
+  if(!(await effectiveRules(org,user)).some(rule=>rule.id===id&&rule.enabled))return false;
+ }
  const auth=await backgroundAuthContext(org,user);
  if(auth.branchId&&auth.branchId!==String(note.branch_id||'default'))return false;
  const definition=builtInEventDefinitions().find(d=>d.event===event.type);
@@ -21,8 +26,8 @@ async function authorizedEvent(org:string,user:string,event:Json,note:Json){
 }
 export function baselinePlan(note:Json,preferences:unknown):Plan {
  const prefs=obj(preferences),presentation=notificationPresentation(prefs,note),key=String(note.preference_key||note.category||'system');
- const requested=new Set(strings(note.delivery_methods));
- const enabled:Record<Method,boolean>={in_app:note.passive!==false&&notificationPreferenceEnabled(prefs,note,'in_app'),push:note.push===true&&notificationPreferenceEnabled(prefs,note,'push'),email:requested.has('email'),sms:requested.has('sms'),celebration:requested.has('celebration')||note.kind==='celebration'&&presentation.sound,toast:requested.has('toast'),audio:(requested.has('audio')||presentation.sound)&&obj(prefs.in_app_sound)[key]!==false,customer_portal:false};
+ const requested=new Set([...strings(note.delivery_methods),...methods.filter(method=>method!=='customer_portal'&&obj(prefs[method])[key]===true)]);
+ const enabled:Record<Method,boolean>={in_app:(note.passive!==false||obj(prefs.in_app)[key]===true)&&notificationPreferenceEnabled(prefs,note,'in_app'),push:(note.push===true||obj(prefs.push)[key]===true)&&notificationPreferenceEnabled(prefs,note,'push'),email:requested.has('email'),sms:requested.has('sms'),celebration:requested.has('celebration')||note.kind==='celebration'&&presentation.sound,toast:requested.has('toast'),audio:typeof obj(prefs.audio)[key]==='boolean'?obj(prefs.audio)[key]===true:(requested.has('audio')||presentation.sound)&&obj(prefs.in_app_sound)[key]!==false,customer_portal:false};
  return Object.fromEntries(methods.map(method=>[method,{decision:enabled[method]&&obj(prefs[method])[key]!==false?'send':'suppress'}])) as Plan;
 }
 export function applyQuiet(plan:Plan,preferences:unknown,now=new Date()):Plan {
@@ -32,7 +37,7 @@ export function applyQuiet(plan:Plan,preferences:unknown,now=new Date()):Plan {
 }
 /** The trusted host supplies a safe event envelope, never an arbitrary raw domain payload. */
 export function notificationEvent(event:Json):Json {
- const payload=obj(event.payload),safe:Json={};for(const key of ['document_id','document_type','document_tags','document_source','template_id','snapshot_id','project_id','channel_id','scope_template_id','work_plan_id'])if(payload[key]!==undefined)safe[key]=payload[key];
+ const payload=obj(event.payload),safe:Json={};for(const key of ['document_id','document_type','document_tags','document_source','template_id','workflow_id','snapshot_id','project_id','channel_id','scope_template_id','work_plan_id'])if(payload[key]!==undefined)safe[key]=payload[key];
  return {id:event.id,type:event.type,project_id:event.project_id,branch_id:event.branch_id,payload:safe};
 }
 export async function persistNotificationOccurrence(org:string,note:Json,event:Json={}) {
@@ -54,7 +59,8 @@ export async function enqueueNotification(org:string,note:Json,event:Json={},dra
  const audience=new Set(JSON.parse(String(occurrence.audience_json)) as string[]);
  for(const row of await listDocuments(org,'users')){
   if(!audience.has(row.id))continue;const user=obj(row.data);
-  const id=identity(org,note.id,row.id),baseline=baselinePlan(note,user.notification_preferences);
+  await observePersonalNotification(org,row.id,String(note.branch_id||'default'),note);
+  const id=identity(org,note.id,row.id),baseline=baselinePlan(note,await preferencesForNote(org,row.id,note,user.notification_preferences));
   await notificationStore().prepare(`INSERT INTO notification_recipients(id,organization_id,notification_id,user_id,note_json,event_json,baseline_json,deadline_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`)
    .run(id,org,String(note.id),row.id,JSON.stringify(note),JSON.stringify(event),JSON.stringify(baseline),new Date(Date.now()+12000).toISOString());
  }
@@ -73,13 +79,16 @@ export async function enqueueNotification(org:string,note:Json,event:Json={},dra
 async function resolveRecipient(row:Json){
  const org=String(row.organization_id),userId=String(row.user_id),note=JSON.parse(String(row.note_json)),event=JSON.parse(String(row.event_json)),audit:Json[]=[];
  if(userId.startsWith('portal:'))return defaultRecipient(row,'Customer portal default delivery');
- const user=await readDocument(org,'users',userId);const prefs=obj(user.data).notification_preferences;
+ const user=await readDocument(org,'users',userId);const prefs=await preferencesForNote(org,userId,note,obj(user.data).notification_preferences);
  const base=baselinePlan(note,prefs);let plan={...base};
  const accepted:Array<{rule:Awaited<ReturnType<typeof listRules>>[number];input:Json;reads:Json;patch:Plan}>=[];
  const now=new Date().toISOString();
  let canRepair=Date.now()<Date.parse(String(row.deadline_at));
  if(canRepair){
-  for(const rule of await listRules(org,userId)){
+  const locked=await fullLockForNote(org,userId,note);
+  for(const rule of await effectiveRules(org,userId)){
+   if(locked&&locked.rule?.id!==rule.id)continue;
+   if(rule.subscribe&&obj(note.context).rule_id!==rule.id)continue;
    if(!rule.enabled||rule.event!==event.type||!matchesFilters(rule.filters,event)||rule.notification_key&&rule.notification_key!==note.preference_key||rule.scope_template_id&&rule.scope_template_id!==obj(note.context).scope_template_id)continue;
    const input={organizationId:org,userId,event,baseline:applyQuiet(base,prefs),now};
    let patch:Plan|undefined;
@@ -90,6 +99,8 @@ async function resolveRecipient(row:Json){
    }
    // Hard opt-outs and disabled producer methods cannot be promoted by a rule.
    if(patch)for(const method of rule.methods)if(base[method]?.decision!=='suppress'&&patch[method])plan[method]=patch[method];
+   const exemptions=rule.quiet_exempt_methods.filter(method=>base[method]?.decision!=='suppress');
+   if(exemptions.length){for(const method of exemptions)if(plan[method])plan[method]={...plan[method]!,bypass_quiet:true};audit.push({rule:rule.id,quiet_exempt:exemptions});}
    if(rule.group){const value=atPath(event,rule.group.path);if(value!==undefined){const window=Math.floor(Date.parse(now)/(rule.group.window_seconds*1000));const key=identity(org,userId,rule.id,value,window);const group=await notificationStore().transaction(async db=>{const inserted=await db.prepare('INSERT INTO notification_group_members(group_id,recipient_id) VALUES(?,?) ON CONFLICT(group_id,recipient_id) DO NOTHING').run(key,String(row.id));if(inserted.changes)await db.prepare('INSERT INTO notification_groups(id,first_at,last_at,count) VALUES(?,?,?,1) ON CONFLICT(id) DO UPDATE SET count=notification_groups.count+1,last_at=excluded.last_at').run(key,now,now);return db.prepare('SELECT count FROM notification_groups WHERE id=?').get(key);},key);audit.push({group:key,count:Number(group?.count||1),alert:rule.group.alert});if(rule.group.alert==='first'&&Number(group?.count)>1)for(const m of ['push','sms','email','audio','toast','celebration'] as Method[])plan[m]={decision:'suppress'};if(rule.group.alert==='digest')for(const m of ['push','sms','email'] as Method[])if(plan[m]?.decision!=='suppress'){const until=new Date((window+1)*rule.group.window_seconds*1000).toISOString();plan[m]={...plan[m],decision:'defer',until:plan[m]?.until&&plan[m]!.until!>until?plan[m]!.until:until};};}}
   }
  }else audit.push({status:'default',reason:'Evaluation deadline elapsed or worker restarted'});
@@ -99,6 +110,7 @@ async function resolveRecipient(row:Json){
   if(!claimed.changes)return;
   // Only the winning evaluation can publish reusable outputs or regression evidence.
   for(const {rule,input,reads,patch} of accepted){
+   if(await db.prepare('SELECT id FROM notification_rule_tombstones WHERE organization_id=? AND user_id=? AND id=?').get(org,userId,rule.id))continue;
    if(reads.__published)await db.prepare('INSERT INTO notification_rule_outputs(organization_id,user_id,rule_id,revision,values_json,dependencies_json) VALUES(?,?,?,?,?,?) ON CONFLICT(organization_id,user_id,rule_id) DO UPDATE SET revision=excluded.revision,values_json=excluded.values_json,dependencies_json=excluded.dependencies_json').run(org,userId,rule.id,rule.revision,JSON.stringify(reads.__published),JSON.stringify(Object.keys(reads).filter(k=>k!=='__published').map(k=>JSON.parse(k))));
    await db.prepare('INSERT INTO notification_rule_samples(id,organization_id,user_id,rule_id,input_json,reads_json,output_json,created_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING').run(identity(row.id,rule.id,rule.revision),org,userId,rule.id,JSON.stringify(input),JSON.stringify(reads),JSON.stringify(patch),now);
   }
@@ -108,7 +120,8 @@ async function resolveRecipient(row:Json){
 async function defaultRecipient(row:Json,reason:string){
  const user=await readDocument(String(row.organization_id),'users',String(row.user_id)).catch(()=>null);
  const note=JSON.parse(String(row.note_json));
- const plan=applyQuiet(user?baselinePlan(note,obj(user.data).notification_preferences):JSON.parse(String(row.baseline_json)),obj(user?.data).notification_preferences);
+ const prefs=user?await preferencesForNote(String(row.organization_id),String(row.user_id),note,obj(user.data).notification_preferences):{};
+ const plan=applyQuiet(user?baselinePlan(note,prefs):JSON.parse(String(row.baseline_json)),prefs);
  await notificationStore().transaction(async db=>{
   const changed=await db.prepare("UPDATE notification_recipients SET state='planned',audit_json=? WHERE id=? AND token=? AND state='evaluating'").run(JSON.stringify([{status:'default',reason}]),String(row.id),String(row.token));
   if(!changed.changes)return;
@@ -136,15 +149,19 @@ async function sendDelivery(row:Json){
  if(!await authorizedEvent(org,userId,JSON.parse(String(row.event_json||'{}')),note))return {status:'cancelled',reason:'Event access revoked'};
  if(auth.branchId&&auth.branchId!==String(note.branch_id||'default'))return {status:'cancelled',reason:'Recipient branch changed'};
  if(!await isAppFlagEnabled(org,'apps','notifications'))return {status:'cancelled'};
- const user=await readDocument(org,'users',userId),prefs=obj(user.data).notification_preferences;
+ const user=await readDocument(org,'users',userId),prefs=await preferencesForNote(org,userId,note,obj(user.data).notification_preferences);
  if(baselinePlan(note,prefs)[method]?.decision==='suppress')return {status:'cancelled',reason:'Preference disabled'};
  const state=obj(obj(obj(user.data).notification_state)[String(note.id)]);
  if(note.expires_at&&String(note.expires_at)<=new Date().toISOString()||state.dismissed_at||state.completed_at)return {status:'cancelled',reason:'Expired or dismissed'};
  const decision=JSON.parse(String(row.decision_json));
+ if(decision.bypass_quiet&&audit.some(entry=>strings(entry.quiet_exempt).includes(method))){
+  const current=await effectiveRules(org,userId);
+  decision.bypass_quiet=audit.some(entry=>strings(entry.quiet_exempt).includes(method)&&current.some(rule=>rule.id===entry.rule&&rule.enabled&&rule.quiet_exempt_methods.includes(method)));
+ }
  const q=applyQuiet({[method]:decision},prefs)[method];
  if(q?.decision==='defer'&&q.until&&q.until>new Date().toISOString())return {status:'deferred',until:q.until};
  if(method==='push'){
-  const attempts=await deliverNotificationPush(org,{...note,target_user_ids:[userId],target_role_ids:[]});
+  const attempts=await deliverNotificationPush(org,{...note,push:true,target_user_ids:[userId],target_role_ids:[]});
   return {status:attempts.some(a=>a.status==='sent')?'accepted':attempts.some(a=>a.status==='error')?'uncertain':attempts.some(a=>String(a.status).startsWith('provider_')||a.status==='auth_failed')?'failed':'unavailable',attempts};
  }
  if(method==='email'||method==='sms'){

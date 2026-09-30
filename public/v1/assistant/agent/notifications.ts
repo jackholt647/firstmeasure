@@ -1,3 +1,5 @@
+import { assertPersonalNotificationEdit } from '../../platform/notifications/permissions.js';
+import { listRules } from '../../platform/notifications/store.js';
 import { platformAgentTools } from '../../agents/platform_tools.js';
 import { notificationRuleCatalog, configureRule } from '../../platform/notifications/api.js';
 import { createHash } from 'node:crypto';
@@ -22,7 +24,7 @@ async function catalog(run:AgentRun){
 export const notificationAssistantInstructions=`
 ## Notification configuration
 When asked to configure notifications, first call inspect_notifications and compare the request against existing general preferences, scope declarations, and custom rules, including disabled ones. Do not create a duplicate because an existing option is off. Explain a likely match in plain language ("You already have ...; it notifies you when ...") and ask whether to use it or how the request differs. Continue the conversation before changing a likely match.
-For a new request, clarify the event, any filters, and whether the user wants in-app, push, or both. Summarize the behavior before saving. Notifications configured here notify only the current user. Never invent event names, filter fields, scope IDs or task IDs. Use authorized scope data through platform_search/read or the existing scope tools when needed. Simple exact filters may use configure_notification. For programmable delivery use inspect_delivery_rules and save_delivery_rule. Inspect actual document tags and published data before authoring. Never infer proposal tags from names. A subscribe rule creates a notification for this user; otherwise it modifies matching existing notifications. Use document.signed and payload.document_tags contains for document categories. Code must use data.require with declared typed bindings; missing data is intentionally a repair trigger. Do not build catches, zero defaults, or guessed aliases to conceal unknown fields. Background repair has no user present and uses ordinary notification behavior if it cannot resolve the failure. Preserve hard opt-outs. Source references may use $organization, $project, $document and $snapshot target/argument tokens. Read accepted snapshot data for signed-value comparisons, not mutable pricing. Code runs only after the event filter matches. Generic event choices are available as potential triggers and appear in Custom after selection. Existing scope notifications stay in their scope. Disabling a notification does not disable the workflow.
+For a new request, clarify the event, any filters, and whether the user wants in-app, push, or both. Summarize the behavior before saving. Notifications configured here notify only the current user. Never invent event names, filter fields, scope IDs or task IDs. Use authorized scope data through platform_search/read or the existing scope tools when needed. Simple exact filters may use configure_notification. For programmable delivery use inspect_delivery_rules and save_delivery_rule. Inspect actual document templates, workflow assignments, the tag catalog labels and stable tag IDs, and published data before authoring. Renamed tags keep their IDs; archived tags retain historical meaning but must not be added to new filters. Notification group/source/tab come from the event declaration and never grant access. New UI registrations live in Custom under the declared event group. Never infer proposal tags from names. A subscribe rule creates a notification for this user; otherwise it modifies matching existing notifications. Use document.signed and payload.document_tags contains for document categories. Code must use data.require with declared typed bindings; missing data is intentionally a repair trigger. Do not build catches, zero defaults, or guessed aliases to conceal unknown fields. Background repair has no user present and uses ordinary notification behavior if it cannot resolve the failure. Preserve hard opt-outs. Preserve existing rule source, bindings, filters, grouping, quiet_exempt_methods and revision when changing only one option. quiet_exempt_methods is an explicit unconditional per-method user exception to quiet hours; use it only when requested. Conditional exceptions belong in the existing program with bypass_quiet authorization. Source references may use $organization, $project, $document and $snapshot target/argument tokens. Read accepted snapshot data for signed-value comparisons, not mutable pricing. Code runs only after the event filter matches. Generic event choices are available as potential triggers and appear in Custom after selection. Every notification definition is a user-owned copy, including initial app and scope notifications. Organization defaults seed copies; later default changes do not overwrite people. Organization removal/full locks are live policy and cannot be bypassed. Only organization notification managers can change locks or publish defaults. Existing scope notifications retain their scope grouping. Disabling a notification does not disable the workflow.
 Call configure_notification only after inspecting in this turn. Re-inspect after a conflict. A duplicate response must be discussed, never bypassed by changing the label. Never fire a live event to test a notification. Report exactly what was saved and any unavailable behavior; do not claim a phone received a push.
 `;
 export const notificationAssistantTools:AgentTool[]=[
@@ -50,10 +52,11 @@ export const notificationAssistantTools:AgentTool[]=[
   }
  },
  {
-  name:'configure_notification',description:'Enable or disable an existing personal notification preference, select a potential trigger into Custom, or create a personal conditional notification using an existing Work automation rule. Exact rule duplicates are reused. Requires inspect_notifications first. Conditional rules require company-settings permission.',
+  name:'configure_notification',description:'Enable or disable an existing personal notification preference, select a potential trigger into Custom, or create a personal conditional notification using a personal event subscription. Exact rule duplicates are reused. Requires inspect_notifications first. All notification registrations are personal and require permission to edit personal notifications.',
   gate:run=>gate(run)!==true?gate(run):run.scratch.actionsAllowed===true&&obj(run.settings).allow_actions===true?true:'Assistant actions are turned off for this company.',
   parameters:{type:'object',properties:{key:{type:'string',description:'Existing preference key, or event.<registered event> for a conditional rule.'},label:{type:'string',maxLength:120},description:{type:'string',maxLength:500},conditions_json:{type:'string',description:'JSON object of exact-equality filters, or {} to configure the existing preference. Allowed fields: declared payload fields, project.id, plan.template_id, node.template_node_id, node.title.'},in_app:{type:'boolean'},push:{type:'boolean'}},required:['key','label','description','conditions_json','in_app','push'],additionalProperties:false},
   async execute(run,args){
+   assertPersonalNotificationEdit(run.ctx!);
    if(!run.scratch.notificationsInspected)throw Error('Inspect existing notifications first.');
    const groups=await catalog(run),definitions=catalogDefinitions(groups),key=String(args.key),definition=definitions.find(d=>d.key===key);
    if(!definition||blockedEvents.has(definition.event||''))throw Error('Choose an authorized notification or event from the catalog.');
@@ -68,25 +71,19 @@ export const notificationAssistantTools:AgentTool[]=[
     run.changeLog.push(`Updated ${definition.label} notifications.`);
     return {saved:true,key,reused_existing:true};
    }
-   if(!hasPermission(run.ctx!,'manage_company_settings'))throw Error('Creating a conditional automation requires company settings permission.');
    if(!definition.event)throw Error('Filters require a registered event trigger.');
-   const event=listWorkEventDefinitions().find(e=>e.name===definition.event)!;
-   const allowed=new Set(['project.id','plan.template_id','node.template_node_id','node.title',...Object.keys(event.payload||{}).map(k=>'payload.'+k)]);
-   for(const field of fields)if(!allowed.has(field)||!['string','number','boolean'].includes(typeof conditions[field])||String(conditions[field]).length>300)throw Error('Unsupported filter: '+field);
-   if((conditions['plan.template_id']||conditions['node.template_node_id']||conditions['node.title'])&&!definition.event.startsWith('work.'))throw Error('Scope and task filters require a workflow or task event.');
-   if(conditions['plan.template_id']&&!groups.some(g=>g.id==='scope.'+conditions['plan.template_id']))throw Error('Choose an existing authorized scope.');
-   const sorted=Object.fromEntries(fields.sort().map(k=>[k,conditions[k]]));
-   const id='custom_notification_'+createHash('sha256').update(JSON.stringify([run.userId,definition.event,sorted])).digest('hex').slice(0,32);
-   const snapshot=await readAutomationRules(run.orgId,run.branchId);
-   const same=snapshot.rules.find(r=>r.automation==='notification.create.v1'&&r.event===definition.event&&JSON.stringify(Object.fromEntries(Object.entries(obj(r.conditions)).sort(([a],[b])=>a.localeCompare(b))))===JSON.stringify(sorted)&&Array.isArray(obj(r.input).target_user_ids)&&(obj(r.input).target_user_ids as unknown[]).includes(run.userId));
-   if(same)return {saved:false,duplicate:true,existing:{title:same.title,key:workflowPreferenceKey(run.branchId,'organization-automations',String(same.id))},message:'This behavior already exists. Discuss it with the user and configure its preference key instead.'};
-   if([args.label,args.description].some(v=>String(v).includes('{{')))throw Error('Use plain notification text, without template expressions.');
-   if(!String(args.label).trim())throw Error('Give this notification a clear name.');
-   const preferenceKey=workflowPreferenceKey(run.branchId,'organization-automations',id);
-   await saveAutomationRules(run.orgId,run.branchId,{expected_revision:snapshot.revision,rules:[...snapshot.rules,{id,title:args.label,explainer:args.description,enabled:true,customer_visible:true,event:definition.event,conditions:sorted,automation:'notification.create.v1',input:{title:args.label,body:args.description,target_user_ids:[run.userId],passive:true,push:args.push===true,custom_notification:true,custom_event:definition.event}}]});
-   await saveNotificationPreferences(run.orgId,run.userId,{in_app:{[preferenceKey]:args.in_app},push:{[preferenceKey]:args.push}},run.branchId);
-   run.changeLog.push(`Created ${args.label} in Custom notifications.`);
-   return {saved:true,key:preferenceKey,automation_id:id};
+   const paths:Record<string,string>={'project.id':'project_id','plan.template_id':'payload.scope_template_id'};
+   const allowed=new Set(['project_id','payload.document_id','payload.document_type','payload.document_source','payload.template_id','payload.workflow_id','payload.scope_template_id','payload.work_plan_id']);
+   const filters=fields.map(field=>{const path=paths[field]||field;if(!allowed.has(path)||!['string','number','boolean'].includes(typeof conditions[field]))throw Error('Use an inspected event filter or a personal delivery program for '+field);return {path,op:'eq' as const,value:conditions[field] as string|number|boolean};});
+   const sorted=filters.sort((a,b)=>a.path.localeCompare(b.path));
+   const id='custom_'+createHash('sha256').update(JSON.stringify([definition.event,sorted])).digest('hex').slice(0,32);
+   const existing=(await listRules(run.orgId,run.userId)).find(r=>r.id===id);
+   if(existing)return {saved:false,duplicate:true,existing:{title:existing.title},message:'This personal notification already exists.'};
+   const methods=[...(args.in_app?['in_app']:[]),...(args.push?['push']:[])];
+   if(!methods.length)throw Error('Choose at least one delivery method.');
+   const rule=await configureRule(run.orgId,run.ctx!,{id,event:definition.event,filters:sorted,intent:String(args.description||args.label),title:String(args.label),body:String(args.description||''),methods,subscribe:true,source:'return {outputs:{}};'});
+   run.changeLog.push('Created personal notification '+rule.title);
+   return {saved:true,key:workflowPreferenceKey(run.branchId,'personal-notification-rules',run.userId+':'+rule.id),rule_id:rule.id};
   }
  }
 ];

@@ -1593,6 +1593,14 @@ const definitions: CapabilityDefinition[] = [
     description: "Log meter readings and work service and maintenance workflows."
   },
   {
+    key: "permission.manage_own_notifications", kind: "permission", permission_key: "manage_own_notifications",
+    access: "write", label: "Manage Personal Notifications", description: "Change your notification registrations, delivery preferences and quiet hours."
+  },
+  {
+    key: "permission.manage_notification_defaults", kind: "permission", permission_key: "manage_notification_defaults",
+    access: "write", label: "Manage Notification Defaults", description: "Manage organization notification defaults and administrative locks."
+  },
+  {
     key: "permission.manage_company_settings",
     kind: "permission",
     permission_key: "manage_company_settings",

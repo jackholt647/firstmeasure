@@ -1,6 +1,7 @@
+import { readPersonalConfiguration } from "./notifications/defaults.js";
 import { listRules } from "./notifications/store.js";
 import { createHash } from "node:crypto";
-import { listWorkEventDefinitions } from "../work/events.js";
+import { listWorkEventDefinitions, workEventNotification, notificationEventGroups, notificationEventSources } from "../work/events.js";
 import { isAppFlagEnabled } from "./app_flags.js";
 import { readAutomationRules } from "../work/rules.js";
 import { getWorkDatabase } from "../work/storage.js";
@@ -9,12 +10,19 @@ import { hasPermission, type PlatformAuthContext } from "./auth.js";
 type Json = Record<string, unknown>;
 const obj = (v: unknown): Json => v && typeof v === "object" && !Array.isArray(v) ? v as Json : {};
 const rows = (v: unknown): Json[] => Array.isArray(v) ? v.map(obj) : [];
-export type NotificationDefinition = { key:string; label:string; description:string; category:string; defaults:{in_app:boolean;push:boolean}; event?:string; permission?:string };
+export type NotificationDefinition = { key:string; label:string; description:string; category:string; defaults:{in_app:boolean;push:boolean}; event?:string; permission?:string; tab?:string; group_id?:string; group_label?:string; source_id?:string; source_label?:string; rule_id?:string; rule_revision?:number; methods?:string[]; personal?:boolean; personal_removed?:boolean; lock_mode?:'unlocked'|'removal'|'full'; editable?:boolean; removable?:boolean };
 export type NotificationGroup = { id:string; label:string; kind:"app"|"workflow"|"custom"; definitions:NotificationDefinition[]; disabled?:boolean };
+export function notificationMetadata(event:string) {
+ const meta=workEventNotification(event);
+ return {tab:meta.tab,group_id:meta.group,group_label:notificationEventGroups[meta.group].label,source_id:meta.source,source_label:notificationEventSources[meta.source].label};
+}
 const words = (s:string) => s.replace(/[._-]+/g," ").replace(/^./,c=>c.toUpperCase());
 export const eventGroups:Record<string,{label:string;app?:string;category:string;permission:string}> = {
+ channels:{label:"Channels",app:"channels",category:"messages",permission:"view_projects"}, chat:{label:"Chat",app:"chat",category:"messages",permission:"view_projects"},
+ canvassing:{label:"Canvassing",app:"canvassing",category:"leads",permission:"view_projects"}, lead:{label:"Leads",app:"crm",category:"leads",permission:"view_projects"},
+ measurement:{label:"Measurements",app:"firstmeasure",category:"measurements",permission:"view_projects"}, media:{label:"Media",app:"projects",category:"tasks",permission:"view_projects"}, note:{label:"Notes",app:"projects",category:"tasks",permission:"view_projects"},portal:{label:"Customer portal",app:"projects",category:"messages",permission:"view_projects"},
  project:{label:"Projects",app:"projects",category:"tasks",permission:"view_projects"}, work:{label:"Tasks & scopes",app:"projects",category:"tasks",permission:"view_projects"},
- document:{label:"Documents",app:"projects",category:"tasks",permission:"view_projects"}, proposal:{label:"Proposals",app:"projects",category:"tasks",permission:"view_projects"},
+ document:{label:"Documents",app:"projects",category:"tasks",permission:"view_documents"}, proposal:{label:"Proposals",app:"projects",category:"tasks",permission:"view_projects"},
  payment:{label:"Payments",app:"billing",category:"payments",permission:"manage_billing"}, invoice:{label:"Invoices",app:"billing",category:"payments",permission:"manage_billing"},
  payroll:{label:"Payroll",app:"payroll",category:"payments",permission:"manage_payroll"}, expense:{label:"Expenses",app:"billing",category:"payments",permission:"manage_billing"}, receipt:{label:"Receipts",app:"billing",category:"payments",permission:"manage_billing"},
  material:{label:"Materials",app:"projects",category:"tasks",permission:"view_projects"}, crew:{label:"Field work",app:"crew",category:"tasks",permission:"view_projects"},
@@ -25,7 +33,7 @@ export const eventGroups:Record<string,{label:string;app?:string;category:string
  organization:{label:"Company",category:"system",permission:"manage_company_settings"}, time:{label:"Scheduled triggers",category:"system",permission:"manage_company_settings"}
 };
 export function builtInEventDefinitions():NotificationDefinition[] {
- return listWorkEventDefinitions().map(e=>({key:`event.${e.name}`,label:words(e.name),description:e.description+" Receive these events in your branch, subject to your access permissions.",category:(eventGroups[e.name.split('.')[0]!]||eventGroups.project!).category,permission:(eventGroups[e.name.split('.')[0]!]||eventGroups.project!).permission,event:e.name,defaults:{in_app:false,push:false}}));
+ return listWorkEventDefinitions().map(e=>({key:`event.${e.name}`,...notificationMetadata(e.name),label:words(e.name),description:e.description+" Receive these events in your branch, subject to your access permissions.",category:(eventGroups[e.name.split('.')[0]!]||eventGroups.project!).category,permission:(eventGroups[e.name.split('.')[0]!]||eventGroups.project!).permission,event:e.name,defaults:{in_app:false,push:false}}));
 }
 export function workflowPreferenceKey(branch:string,template:string,id:string) {
  return 'workflow.'+createHash('sha256').update(JSON.stringify([branch,template,id])).digest('hex');
@@ -50,7 +58,7 @@ export function scopeNotificationDefinitions(branch:string,template:string,defin
  rows(definition.notifications).forEach(n=>add(String(n.id),n));
  return [...result.values()];
 }
-export async function notificationCatalog(orgId:string,branch='default',auth?:PlatformAuthContext):Promise<NotificationGroup[]> {
+export async function notificationSourceCatalog(orgId:string,branch='default',auth?:PlatformAuthContext):Promise<NotificationGroup[]> {
  const groups:NotificationGroup[]=[];
  if(!await isAppFlagEnabled(orgId,'apps','notifications'))return groups;
  if(await isAppFlagEnabled(orgId,'apps','firstmeasure'))groups.push({id:'measurements',label:'Measurements',kind:'app',definitions:[
@@ -69,13 +77,13 @@ export async function notificationCatalog(orgId:string,branch='default',auth?:Pl
   if(app&&!await isAppFlagEnabled(orgId,app==='scheduling'?'platform':'apps',app))continue;
   groups.push({id:`legacy.${key}`,label,kind:'app',definitions:[{key,label,description:'Notifications created directly by this app.',category:key,defaults:{in_app:true,push:key!=='celebrations'}}]});
  }
- if(auth){const personal=await listRules(orgId,auth.userId);groups.push({id:'personal-rules',label:'Custom notification rules',kind:'custom',definitions:personal.filter(r=>r.subscribe).map(r=>({key:workflowPreferenceKey(branch,'personal-notification-rules',auth.userId+':'+r.id),label:r.title,description:r.intent,category:'tasks',defaults:{in_app:r.methods.includes('in_app'),push:r.methods.includes('push')}}))});}
+ if(auth){const personal=await listRules(orgId,auth.userId);groups.push({id:'personal-rules',label:'Custom notification rules',kind:'custom',definitions:personal.filter(r=>r.subscribe).map(r=>({key:workflowPreferenceKey(branch,'personal-notification-rules',auth.userId+':'+r.id),label:r.title,description:r.intent,event:r.event,...notificationMetadata(r.event),rule_id:r.id,rule_revision:r.revision,methods:r.methods,category:'tasks',defaults:{in_app:r.methods.includes('in_app'),push:r.methods.includes('push')}}))});}
  const {rules}=await readAutomationRules(orgId,branch);
  if(!auth||hasPermission(auth,'manage_company_settings')){
-  const definitions=rules.filter(r=>r.automation==='notification.create.v1'&&!String(r.id).startsWith('custom_notification_')).map(r=>{const input=obj(r.input);return {key:workflowPreferenceKey(branch,'organization-automations',String(r.id)),label:String(r.title||input.title||r.id),description:String(r.explainer||input.body||'Company automation notification.'),category:'tasks',defaults:{in_app:input.passive!==false,push:input.push===true}};});
+  const definitions=rules.filter(r=>r.automation==='notification.create.v1'&&!String(r.id).startsWith('custom_notification_')).map(r=>{const input=obj(r.input);return {key:workflowPreferenceKey(branch,'organization-automations',String(r.id)),label:String(r.title||input.title||r.id),...(r.event?{event:String(r.event),...notificationMetadata(String(r.event))}:{}),description:String(r.explainer||input.body||'Company automation notification.'),category:'tasks',defaults:{in_app:input.passive!==false,push:input.push===true}};});
   groups.push({id:'organization-automations',label:'Company automations',kind:'workflow',definitions});
  }
-  const custom=rules.filter(r=>r.automation==='notification.create.v1'&&String(r.id).startsWith('custom_notification_')&&(!auth||(obj(r.input).target_user_ids as unknown[]||[]).includes(auth.userId))).map(r=>({key:workflowPreferenceKey(branch,'organization-automations',String(r.id)),label:String(r.title),description:String(r.explainer||''),category:'tasks',defaults:{in_app:obj(r.input).passive!==false,push:obj(r.input).push===true}}));
+  const custom=rules.filter(r=>r.automation==='notification.create.v1'&&String(r.id).startsWith('custom_notification_')&&(!auth||(obj(r.input).target_user_ids as unknown[]||[]).includes(auth.userId))).map(r=>({key:workflowPreferenceKey(branch,'organization-automations',String(r.id)),label:String(r.title),...(r.event?{event:String(r.event),...notificationMetadata(String(r.event))}:{}),description:String(r.explainer||''),category:'tasks',defaults:{in_app:obj(r.input).passive!==false,push:obj(r.input).push===true}}));
   if(custom.length)groups.push({id:'custom-automations',label:'Custom automations',kind:'custom',definitions:custom});
  if(auth&&!hasPermission(auth,'view_projects|manage_company_settings'))return groups;
  // Pure SQL projection: opening preferences must never install templates or change flags.
@@ -88,14 +96,46 @@ export async function notificationCatalog(orgId:string,branch='default',auth?:Pl
  }
  return groups;
 }
+/** User-owned copies are authoritative; source declarations remain discovery templates. */
+export async function notificationCatalog(orgId:string,branch='default',auth?:PlatformAuthContext):Promise<NotificationGroup[]> {
+ const source=await notificationSourceCatalog(orgId,branch,auth);
+ if(!auth)return source;
+ const personal=await readPersonalConfiguration(orgId,auth.userId,branch);
+ const {applicableLocks,effectiveRules}=await import('./notifications/configuration.js');
+ const {notificationPermissions}=await import('./notifications/permissions.js');
+ const permissions=notificationPermissions(auth),policy=await applicableLocks(orgId,auth);
+ if(!personal)return source;
+ const allowed=new Set(source.flatMap(g=>g.definitions.map(d=>d.key))),removed=new Set(personal.removed_keys);
+ const groups:NotificationGroup[]=personal.catalog.map(g=>({...g,definitions:g.definitions.filter(d=>allowed.has(d.key)&&(!removed.has(d.key)||!!policy.locks[d.key])).map(d=>({...d,personal:true}))})).filter(g=>g.definitions.length);
+ const keys=new Set(groups.flatMap(g=>g.definitions.map(d=>d.key)));
+ for(const group of source){
+  const definitions=group.definitions.filter(d=>d.key.startsWith('event.')&&!keys.has(d.key)).map(d=>({...d,...(removed.has(d.key)?{personal_removed:true}:{})}));
+  if(definitions.length)groups.push({...group,definitions});
+ }
+ for(const [key,lock] of Object.entries(policy.locks))if(lock.definition&&!lock.rule){
+  const group=groups.find(g=>g.definitions.some(d=>d.key===key));
+  if(group&&lock.mode==='full'&&!permissions.organization)group.definitions=group.definitions.map(d=>d.key===key?{...lock.definition!,personal:true}:d);
+  if(!group)groups.push({id:'required.'+key,label:'Organization notifications',kind:'app',definitions:[{...lock.definition,personal:true}]});
+ }
+ const rules=await effectiveRules(orgId,auth.userId,auth);
+ groups.push({id:'personal-rules',label:'Personal notification rules',kind:'custom',definitions:rules.filter(r=>r.subscribe).map(r=>({key:workflowPreferenceKey(branch,'personal-notification-rules',auth.userId+':'+r.id),label:r.title,description:r.intent,event:r.event,...notificationMetadata(r.event),rule_id:r.id,rule_revision:r.revision,methods:r.methods,category:'tasks',personal:true,defaults:{in_app:r.methods.includes('in_app'),push:r.methods.includes('push')}}))});
+ for(const group of groups)for(const d of group.definitions){
+  const mode=policy.locks[d.rule_id?'rule:'+d.rule_id:d.key]?.mode||'unlocked';
+  d.lock_mode=mode;d.editable=permissions.personal&&(permissions.organization||mode!=='full');d.removable=permissions.personal&&(permissions.organization||mode==='unlocked');
+ }
+
+ return groups;
+}
 export const catalogDefinitions=(groups:NotificationGroup[])=>groups.flatMap(g=>g.definitions);
 export function definitionPreferences(raw: unknown, definitions: NotificationDefinition[]) {
  const source = obj(raw);
- const surfaces = ['in_app', 'push', 'in_app_sound', 'in_app_badge', 'in_app_bell'];
+ const surfaces = ['in_app', 'push', 'email', 'sms', 'celebration', 'toast', 'audio', 'in_app_sound', 'in_app_badge', 'in_app_bell'];
  return Object.fromEntries(surfaces.map(surface => [surface, Object.fromEntries(definitions.map(d => {
   const explicit = obj(source[surface])[d.key];
   if (typeof explicit === 'boolean') return [d.key, explicit];
   if (surface.startsWith('in_app_')) return [d.key, surface !== 'in_app_bell' || d.key !== 'messages'];
+  if(surface==='audio')return [d.key,(d.methods?.includes('audio')||(obj(source.in_app)[d.key]??d.defaults.in_app))&&obj(source.in_app_sound)[d.key]!==false];
+  if (!['in_app','push'].includes(surface)) return [d.key,d.methods?.includes(surface)||false];
   const categoryDisabled = d.key.startsWith('workflow.') && obj(source[surface])[d.category] === false;
   return [d.key, categoryDisabled ? false : d.defaults[surface as 'in_app' | 'push']];
  }))])) as Record<string, Record<string, boolean>>;

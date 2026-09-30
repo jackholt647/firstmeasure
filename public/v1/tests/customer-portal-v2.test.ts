@@ -534,7 +534,7 @@ test("customer event labels interpolate only allowlisted payload keys", async ()
   const { registerWorkEvents, renderCustomerEventLabel } = await import("../work/events.js");
 
   registerWorkEvents([{
-    name: "test.portal.label_guard",
+    name: "test.portal.label_guard", notification: { group: "miscellaneous", source: "general", tab: "general" },
     description: "Fixture for label interpolation.",
     visibility: "activity",
     customer: { label: "Delivered {item} on {when} {secret}", fields: ["item"] }
@@ -554,8 +554,8 @@ test("customer event labels interpolate only allowlisted payload keys", async ()
 test("a malformed customer block does not make an event customer-visible", async () => {
   const { registerWorkEvents, workEventCustomerDescriptor } = await import("../work/events.js");
   registerWorkEvents([
-    { name: "test.portal.empty_label", description: "", visibility: "activity", customer: { label: "   " } },
-    { name: "test.portal.truthy_junk", description: "", visibility: "activity", customer: true as any }
+    { name: "test.portal.empty_label", notification: { group: "miscellaneous", source: "general", tab: "general" }, description: "", visibility: "activity", customer: { label: "   " } },
+    { name: "test.portal.truthy_junk", notification: { group: "miscellaneous", source: "general", tab: "general" }, description: "", visibility: "activity", customer: true as any }
   ]);
 
   assert.equal(workEventCustomerDescriptor("test.portal.empty_label"), null);

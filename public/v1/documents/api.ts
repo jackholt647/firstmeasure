@@ -1,3 +1,4 @@
+import { registerDocumentTagRoutes } from "./tag-catalog.js";
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { ZodError } from "zod";
 
@@ -180,6 +181,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   app.addHook("onClose", async () => { clearInterval(signingWorker); await signing.drainSigningOutbox(); });
   // Collaboration (presence + serialized command log) and version-history
   // checkpoints live in their own modules; they self-manage auth per route.
+  registerDocumentTagRoutes(app);
   registerCollabRoutes(app);
   registerVersionRoutes(app);
   // Every organization-scoped document route belongs to the Documents app.

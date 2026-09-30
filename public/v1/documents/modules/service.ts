@@ -37,7 +37,7 @@ export async function publishModule(ctx: PublicationContext, raw: unknown, modul
   const selectedId = moduleId || id("module");
   const key = `${selectedId}_${version}`;
   if (!(await optionalRecord(ctx.organizationId, VERSIONS, key))) await saveRecord(ctx.organizationId, VERSIONS, key, { moduleId: selectedId, version, definition, createdAt: new Date().toISOString() }, undefined, true);
-  return saveRecord(ctx.organizationId, MODULES, selectedId, { name: definition.name, kind: definition.kind, version });
+  return saveRecord(ctx.organizationId, MODULES, selectedId, { name: definition.name, kind: definition.kind, tags: definition.tags, version });
 }
 export async function moduleDefinition(ctx: PublicationContext, moduleId: string, version?: string) {
   await allowed(ctx, ctx.projectId);
@@ -65,7 +65,7 @@ export async function createModuleInstance(ctx: PublicationContext, input: { mod
     if (!Object.hasOwn(bindings, name)) throw badRequest("module_binding_undeclared", "Instance bindings must be declared by the module.");
     bindings[name] = moduleBindingSchema.parse(binding);
   }
-  return saveRecord(ctx.organizationId, INSTANCES, instanceId, { organizationId: ctx.organizationId, projectId: input.projectId, moduleId: input.moduleId, version: asset.version, codePolicy: input.codePolicy || "frozen", kind: definition.kind, inputs, outputs: {}, privateState: {}, bindings, frozen: false, createdAt: new Date().toISOString() }, undefined, true) as Promise<ModuleInstance>;
+  return saveRecord(ctx.organizationId, INSTANCES, instanceId, { organizationId: ctx.organizationId, projectId: input.projectId, moduleId: input.moduleId, version: asset.version, codePolicy: input.codePolicy || "frozen", kind: definition.kind, tags: definition.tags, inputs, outputs: {}, privateState: {}, bindings, frozen: false, createdAt: new Date().toISOString() }, undefined, true) as Promise<ModuleInstance>;
 }
 export async function updateModuleInputs(ctx: PublicationContext, instanceId: string, inputs: JsonObject, expectedRevision: number) {
   const instance = await readModuleInstance(ctx, instanceId);
@@ -267,7 +267,7 @@ export async function materializeModuleDocument(ctx: PublicationContext, instanc
     const prior = await optionalRecord(ctx.organizationId, "documents", generatedId);
     if (prior) document = await readDocumentInstance(ctx.organizationId, generatedId);
     else {
-      try { document = (await createDocumentInstance(ctx.organizationId, instance.projectId, { id: generatedId, document_type: "generic", title: input.title || "Module document", template_id: null, workflow_id: null, metadata: { module_materialization: materializationKey } }, ctx.auth, { createOnly: true })).document; }
+      try { document = (await createDocumentInstance(ctx.organizationId, instance.projectId, { id: generatedId, document_type: "generic", title: input.title || "Module document", tags: instance.tags || [], template_id: null, workflow_id: null, metadata: { module_materialization: materializationKey } }, ctx.auth, { createOnly: true })).document; }
       catch (error) { if (!(error instanceof PlatformError) || error.statusCode !== 409) throw error; document = await readDocumentInstance(ctx.organizationId, generatedId); }
     }
     if ((document.metadata as JsonObject)?.module_materialization !== materializationKey || document.project_id !== instance.projectId) throw conflict("module_materialization_identity", "The materialized document identity conflicts.");

@@ -18,6 +18,7 @@ export const ruleSchema = z.object({
   source:z.string().min(1).max(32000), bindings:z.record(bindingSchema).default({}),
   exports:z.record(z.enum(['number','string','boolean','object','array'])).default({}),
   methods:z.array(methodSchema).min(1).max(8), bypass_quiet:z.boolean().default(false),
+  quiet_exempt_methods:z.array(methodSchema).max(8).default([]),
   subscribe:z.boolean().default(false), title:z.string().max(140).default('Notification'), body:z.string().max(1000).default(''),
   group:z.object({path:z.string().regex(/^[a-zA-Z0-9_.]+$/), alert:z.enum(['every','first','digest']), window_seconds:z.number().int().min(1).max(86400)}).strict().optional()
 }).strict();
