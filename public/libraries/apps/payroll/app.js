@@ -207,7 +207,7 @@
       from:clean(context.params?.from) || today,
       through:clean(context.params?.through) || addDaysKey(today, 90),
       includeProjected:context.params?.include_projected !== false,
-      view:['history','timesheets','contractors','exports','settings'].includes(clean(window.Portal?.navigation?.read?.().payrollView)) ? clean(window.Portal.navigation.read().payrollView) : 'upcoming',
+      view:context.params?.standalone || window.AppChrome.resolve('payroll',window.Portal?.navigation?.read?.().payrollView,context),
       data:null,
       timesheetData:null,
       contractorData:null,
@@ -586,12 +586,18 @@
       return `${diagnosticsHtml()}<div class="fmp-list">${upcoming.map(scheduleCard).join('')}</div>`;
     }
 
+    function appHeader(){
+      return window.AppChrome.header({title:context.params?.standalone ? ({upcoming:'Upcoming payroll',timesheets:'Timesheets',contractors:'Contractors',exports:'Payroll exports',history:'Batch history',settings:'Payroll settings'})[context.params.standalone] : 'Payroll',icon:'fa-money-check-dollar',
+        tabs:context.params?.standalone?'':window.AppChrome.tabs('payroll',state.view,'data-view',context).replaceAll('data-view=', 'data-action="view" data-view='),
+        actions:context.params?.standalone?'<button type="button" class="fmp-btn" data-app-layout-open="payroll" aria-label="Payroll app layout"><i class="fas fa-gear"></i></button>':''});
+    }
     function render(){
+      if(!state.view){root.innerHTML=`<div class="fmp-shell">${appHeader()}<p>No accessible apps in this group.</p></div>`;return;}
       if (state.destroyed) return;
       settingsController?.destroy?.();
       settingsController = null;
       if (state.view === 'settings') {
-        root.innerHTML = '<div class="fmp-shell"><main class="fmp-content"><div data-payroll-settings-host></div></main></div>';
+        root.innerHTML = `<div class="fmp-shell">${appHeader()}<main class="fmp-content"><details><summary>App layout</summary>${window.AppChrome.settings('payroll')}</details><div data-payroll-settings-host></div></main></div>`;
         const settingsHost = root.querySelector('[data-payroll-settings-host]');
         if (!window.FirstMatePayrollSettings?.mount) {
           settingsHost.innerHTML = `<div class="fmp-state"><span class="state-icon"><i class="fas fa-triangle-exclamation"></i></span><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_46a683ef876bd0","Payroll settings could not load") ?? "Payroll settings could not load")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("payroll","m_c5efd7b69468f5","The payroll configuration bundle is unavailable.") ?? "The payroll configuration bundle is unavailable.")}</p><button class="fmp-btn" data-action="settings-back"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_a1209799a6f896"," Back to payroll") ?? " Back to payroll")}</button></div>`;
@@ -608,25 +614,19 @@
         return;
       }
       root.innerHTML = `<div class="fmp-shell">
-        <header class="fmp-top">
-          <div class="fmp-heading"><span class="fmp-heading-icon"><i class="fas fa-money-check-dollar"></i></span><span class="fmp-heading-copy"><h1>${(globalThis.PlatformLanguage?.htmlText("payroll","m_45e0abb75231e4","Payroll") ?? "Payroll")}</h1><p>${(globalThis.PlatformLanguage?.htmlText("payroll","m_bd05cc1ca9fa01","Accrued pay, forecasts, payroll batches, and payment status by schedule.") ?? "Accrued pay, forecasts, payroll batches, and payment status by schedule.")}</p></span></div>
-          <div class="fmp-top-actions"><button class="fmp-btn" data-action="create-off-cycle"><i class="fas fa-calendar-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("payroll","m_7a7fb35aa48895","Off-cycle run") ?? "Off-cycle run")}</span></button><button class="fmp-btn" data-action="settings" title="${(globalThis.PlatformLanguage?.htmlText("payroll","m_86fa12758c2c13","Payroll settings") ?? "Payroll settings")}"><i class="fas fa-sliders"></i><span>${(globalThis.PlatformLanguage?.htmlText("payroll","m_7d461dc7d355cc","Settings") ?? "Settings")}</span></button><button class="fmp-btn" data-action="refresh" ${String(state.loading ? 'disabled' : '')}><i class="fas ${String(state.loading ? 'fa-spinner fmp-spinner' : 'fa-rotate')}"></i><span>${(globalThis.PlatformLanguage?.htmlText("payroll","m_78973ce0cf3403","Refresh") ?? "Refresh")}</span></button></div>
-        </header>
+        ${appHeader()}
         <main class="fmp-content">
-          <div class="fmp-toolbar"><div class="fmp-segment"><button data-action="view" data-view="upcoming" class="${String(state.view === 'upcoming' ? 'active' : '')}">${String(esc(window.Portal?.terminology?.get?.('payroll.upcoming_view', 'Upcoming payroll') || 'Upcoming payroll'))}</button><button data-action="view" data-view="history" class="${String(state.view === 'history' ? 'active' : '')}">${String(esc(window.Portal?.terminology?.get?.('payroll.history_view', 'Batch history') || 'Batch history'))} <span style="color:#98a2b3">${String(array(state.data?.history).length)}</span></button></div><div style="font-size:11px;color:#667085;font-weight:800">${String(esc(formatDate(state.from)))} – ${String(esc(formatDate(state.through)))}</div></div>
+          ${state.view==='upcoming'?'<div class="fmp-toolbar"><button class="fmp-btn" data-action="create-off-cycle"><i class="fas fa-calendar-plus"></i> Off-cycle run</button></div>':''}
           ${String(state.view === 'timesheets' ? timesheetRangeHtml() : ['contractors','exports'].includes(state.view) ? '' : rangeHtml())}
           ${String(state.view === 'timesheets' ? (state.timesheetData ? timesheetMetricsHtml() : '') : ['upcoming','history'].includes(state.view) && state.data ? metricsHtml() : '')}
           ${String(bodyHtml())}
         </main>
       </div>`;
-      const segment = root.querySelector('.fmp-segment');
-      const historyButton = segment?.querySelector('[data-view="history"]');
-      if (segment && historyButton) {
-        [['timesheets',`Timesheets <span style="color:#98a2b3">${number(state.timesheetData?.summary?.pending)}</span>`],['contractors','Contractors'],['exports',`Exports <span style="color:#98a2b3">${array(state.exportData?.artifacts).length}</span>`]].forEach(([view,label]) => { const control=document.createElement('button'); control.dataset.action='view'; control.dataset.view=view; control.className=state.view === view ? 'active' : ''; control.innerHTML=label; segment.insertBefore(control, historyButton); });
-      }
+
     }
 
     async function load(options = {}){
+      if(!state.view){render();return;}
       const token = ++state.loadToken;
       state.loading = true;
       state.error = null;
@@ -702,6 +702,7 @@
     }
 
     function openSettings(){
+      if(context.params?.standalone){state.view='settings';render();return;}
       if (window.Portal?.navigation?.navigate) {
         window.Portal.navigation.navigate({ tab:'payroll', payrollView:'settings', settingsView:null, settingsEntity:null }, {
           source:'payroll-settings', ownedKeys:['payrollView']
@@ -713,6 +714,7 @@
     }
 
     function closeSettings(){
+      if(context.params?.standalone){state.view=context.params.standalone;render();if(!state.data)load();return;}
       state.view = 'upcoming';
       window.Portal?.navigation?.replace?.({ tab:'payroll', payrollView:'upcoming', settingsView:null, settingsEntity:null }, {
         source:'payroll-settings-back', ownedKeys:['payrollView']
@@ -731,6 +733,7 @@
       if (action === 'settings-back') { closeSettings(); return; }
       if (action === 'view') {
         const requested = clean(button.dataset.view);
+        if(requested==='settings'){openSettings();return;}
         state.view = ['history','timesheets','contractors','exports'].includes(requested) ? requested : 'upcoming';
         if (!window.Portal?.navigation?.applying) window.Portal?.navigation?.push?.({ payrollView:state.view }, { source:'payroll-view', ownedKeys:['payrollView'] });
         render();
@@ -895,9 +898,9 @@
     const unregisterRoute = window.Portal?.navigation?.registerHandler?.(`payroll-view:${context.instanceId || 'main'}`, {
       priority:400,
       apply:(route) => {
-        if (route.tab !== 'payroll') return;
-        const routedView = clean(route.payrollView);
-        const next = ['history','timesheets','contractors','exports','settings'].includes(routedView) ? routedView : 'upcoming';
+        if (context.params?.standalone || route.tab !== 'payroll') return;
+        const routedView = window.AppChrome.resolve('payroll',clean(route.payrollView),context);
+        const next = routedView;
         if (next !== state.view) {
           state.view = next;
           render();
@@ -905,11 +908,17 @@
         }
       }
     });
+    const onLayout=()=>{if(context.params?.standalone||state.view==='settings')return;state.view=window.AppChrome.resolve('payroll',window.Portal?.navigation?.read?.().payrollView,context);render();if(state.view!=='settings')void load({silent:true});};
+    window.addEventListener('fm:app-placements:updated',onLayout);
+    let active=true;
+    const refreshTimer=setInterval(()=>{if(active && !document.hidden && !state.loading && state.view!=='settings' && !root.contains(document.activeElement))void load({silent:true});},30000);
     render();
     if (state.view !== 'settings') load();
 
     return {
       destroy(){
+        window.removeEventListener('fm:app-placements:updated',onLayout);
+        clearInterval(refreshTimer);
         state.destroyed = true;
         state.loadToken++;
         settingsController?.destroy?.();
@@ -918,8 +927,9 @@
         root.removeEventListener('keydown', onKeydown);
         root.innerHTML = '';
       },
-      setActive(active){
-        if (active && Date.now() - state.loadedAt > 30000 && !state.loading) load({ silent:!!state.data });
+      setActive(value){
+        active=!!value;
+        if (active && state.view!=='settings' && Date.now() - state.loadedAt > 30000 && !state.loading) load({ silent:!!state.data });
       },
       update(nextContext = {}){
         const nextOrgId = clean(nextContext.orgId || nextContext.currentUser?.organization_id || state.orgId);
@@ -947,4 +957,7 @@
     },
     mount:createApp
   });
+  window.AppChrome.registerGroup({id:'payroll',parent:'portal.payroll',title:'Payroll',icon:'fa-money-check-dollar',default:'upcoming',
+    members:[['upcoming','Upcoming payroll'],['timesheets','Timesheets'],['contractors','Contractors'],['exports','Payroll exports'],['history','Batch history'],['settings','Payroll settings']].map(([id,title])=>({id,title})),
+    mount:(view,context)=>createApp({...context,params:{...context.params,standalone:view}})});
 })();

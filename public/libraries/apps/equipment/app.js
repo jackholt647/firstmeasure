@@ -1633,7 +1633,7 @@
 
       root.innerHTML = `
         <div class="eq-shell ${preserveDrawer ? 'eq-preserve-drawer' : ''}">
-          <div class="eq-top">
+          <div class="eq-top" data-app-header>
             <div class="eq-title">
               <span class="eq-title-icon"><i class="fas fa-truck-pickup"></i></span>
               <div><h2>${esc(title)}</h2></div>

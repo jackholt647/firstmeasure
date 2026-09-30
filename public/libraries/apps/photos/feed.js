@@ -2177,7 +2177,7 @@
     const visibleCount = feedEntries().length;
     state.root.innerHTML = `
       <div class="pf-wrap${String(state.selectionMode ? ' selection-mode' : '')}" data-density="${String(escapeHtml(state.density))}">
-        <div class="pf-toolbar">
+        <div class="pf-toolbar" data-app-header>
           <div class="pf-title"><i class="fas ${String(escapeHtml(state.icon || 'fa-layer-group'))}"></i><div><strong>${String(escapeHtml(state.title || (globalThis.PlatformLanguage?.text("photos","m_3eea4dfd8e947d","Feed") ?? "Feed")))}</strong><span>${String(escapeHtml(state.subtitle || `${visibleCount} item${visibleCount === 1 ? '' : 's'} shown`))}</span></div></div>
           <div class="pf-tools">
             <label class="pf-search"><i class="fas fa-search"></i><input type="search" value="${String(escapeHtml(state.query))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("photos","m_3fb1d572340b7f","Search feed") ?? "Search feed")}"></label>
@@ -3206,7 +3206,7 @@
       }).join('');
       panel.innerHTML = `
         <div class="pf-wrap${String(local.selectionMode ? ' selection-mode' : '')}" data-density="${String(escapeHtml(local.density))}">
-          <div class="pf-toolbar">
+          <div class="pf-toolbar" data-app-header>
             <div class="pf-title"><i class="fas ${String(escapeHtml(icon))}"></i><div><strong>${String(escapeHtml(titleLabel))}</strong>${String(subtitleLabel ? `<span>${escapeHtml(subtitleLabel)}</span>` : '')}</div></div>
             <div class="pf-tools">
               <label class="pf-search"><i class="fas fa-search"></i><input type="search" value="${String(escapeHtml(local.query))}" placeholder="${String(escapeHtml(options.searchPlaceholder || 'Search dates, uploaders, tags'))}"></label>

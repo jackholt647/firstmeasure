@@ -199,7 +199,7 @@
     let quizDraft = null;
     let quizDirty = false;
 
-    root.innerHTML = `<div class="sty-shell"><div class="sty-top" data-studio-top></div><div data-studio-subtabs></div><div class="sty-body" data-studio-body></div></div>`;
+    root.innerHTML = `<div class="sty-shell"><div data-app-header class="sty-top" data-studio-top></div><div data-studio-subtabs></div><div class="sty-body" data-studio-body></div></div>`;
     const topEl = root.querySelector('[data-studio-top]');
     const subtabsEl = root.querySelector('[data-studio-subtabs]');
     const bodyEl = root.querySelector('[data-studio-body]');

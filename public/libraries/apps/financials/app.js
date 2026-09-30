@@ -483,7 +483,7 @@
       root,
       orgId:clean(context.orgId || context.currentUser?.organization_id || window.__APP?.userOrgId || window.__APP?.orgId),
       branchId:clean(context.branchId || window.Portal?.branchModules?.currentBranchId?.() || window.__APP?.branchId || 'default') || 'default',
-      view:normalizeView(route.financialView),
+      view:normalizeView(context.params?.standalone || window.AppChrome.resolve('financials',route.financialView,context)),
       grain:['day','week','month'].includes(clean(route.financialGrain)) ? clean(route.financialGrain) : 'month',
       anchor:/^\d{4}-\d{2}-\d{2}$/.test(clean(route.financialDate)) ? dayStart(route.financialDate) : dayStart(new Date()),
       clearingHours:48,
@@ -515,6 +515,7 @@
     }
     function merchantProcessingEnabled(){ return capabilityEnabled('money.merchant_processing'); }
     function normalizeView(value){
+      if(value==='')return '';
       const view = normalizeFinancialView(value);
       return view === 'payouts' && !merchantProcessingEnabled() ? 'projects' : view;
     }
@@ -525,7 +526,7 @@
     }
 
     function routePatch(patch, history = 'replace'){
-      if (window.Portal?.navigation?.applying) return;
+      if (context.params?.standalone || window.Portal?.navigation?.applying) return;
       const method = history === 'push' ? 'push' : 'replace';
       window.Portal?.navigation?.[method]?.({ tab:'financials', ...patch }, {
         source:'financials',
@@ -540,11 +541,10 @@
 
     function headerHtml(){
       const selectedRange = range();
-      return `<header class="fn-top">
-        <div class="fn-heading"><span class="fn-heading-icon"><i class="fas fa-chart-line"></i></span><span><h1>${(globalThis.PlatformLanguage?.htmlText("financials","m_187b087cb700ce","Financials") ?? "Financials")}</h1><p>${(globalThis.PlatformLanguage?.htmlText("financials","m_1d8b2f9b15cbc7","Project profitability, money owed, and schedule-aware cash flow.") ?? "Project profitability, money owed, and schedule-aware cash flow.")}</p></span></div>
-        <div class="fn-top-actions"><button class="fn-btn" data-fn-action="refresh" ${String(state.loading ? 'disabled' : '')}><i class="fas ${String(state.loading ? 'fa-circle-notch fn-spin' : 'fa-rotate')}"></i><span>${(globalThis.PlatformLanguage?.htmlText("financials","m_78973ce0cf3403","Refresh") ?? "Refresh")}</span></button></div>
-      </header><div class="fn-content${String(state.view === 'cashflow' ? ' fn-content-cash' : '')}">
-        <div class="fn-tabs-toolbar"><div class="fn-tabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("financials","m_761f608837c9a6","Financial views") ?? "Financial views")}"><button type="button" role="tab" data-fn-view="projects" class="${String(state.view === 'projects' ? 'active' : '')}" aria-selected="${String(state.view === 'projects')}"><i class="fas fa-briefcase"></i> ${String(esc(window.Portal?.terminology?.get?.('financials.profitability_view', 'Profitability') || 'Profitability'))}</button><button type="button" role="tab" data-fn-view="cashflow" class="${String(state.view === 'cashflow' ? 'active' : '')}" aria-selected="${String(state.view === 'cashflow')}"><i class="fas fa-wave-square"></i> ${String(esc(window.Portal?.terminology?.get?.('financials.cash_flow_view', 'Cash flow') || 'Cash flow'))}</button><button type="button" role="tab" data-fn-view="reconcile" class="${String(state.view === 'reconcile' ? 'active' : '')}" aria-selected="${String(state.view === 'reconcile')}"><i class="fas fa-check-double"></i> ${String(esc(window.Portal?.terminology?.get?.('financials.reconcile_view', 'Reconcile') || 'Reconcile'))}</button>${String(merchantProcessingEnabled() ? `<button type="button" role="tab" data-fn-view="payouts" class="${state.view === 'payouts' ? 'active' : ''}" aria-selected="${state.view === 'payouts'}"><i class="fas fa-money-bill-transfer"></i> ${esc(window.Portal?.terminology?.get?.('financials.payouts_view', 'Payouts') || 'Payouts')}</button>` : '')}</div>
+      return `${window.AppChrome.header({title:context.params?.standalone ? ({projects:'Profitability',cashflow:'Cash flow',reconcile:'Reconcile',payouts:'Payouts'})[state.view] : 'Financials',icon:'fa-chart-line',
+        tabs:context.params?.standalone?'':window.AppChrome.tabs('financials',state.view,'data-fn-view',context),
+        actions:'<button type="button" class="fn-btn" data-app-layout-open="financials" aria-label="Financials app layout"><i class="fas fa-gear"></i></button>'})}<div class="fn-content${state.view === 'cashflow' ? ' fn-content-cash' : ''}">
+        <div class="fn-tabs-toolbar">
           ${String(state.view === 'reconcile' || state.view === 'payouts' ? '' : `<div class="fn-range-tools"><button class="fn-btn" data-fn-action="today">${(globalThis.PlatformLanguage?.htmlText("financials","m_23929ba4ba84dd","Today") ?? "Today")}</button><div class="fn-date-nav"><button type="button" data-fn-action="previous" aria-label="${((v0) => globalThis.PlatformLanguage?.htmlText("financials","m_b0ae4f18f932d9",`Previous ${v0}`,{v0}) ?? `Previous ${v0}`)(esc(state.grain))}"><i class="fas fa-chevron-left"></i></button><span class="fn-date-label">${esc(rangeTitle(state.grain, selectedRange))}</span><button type="button" data-fn-action="next" aria-label="${((v2) => globalThis.PlatformLanguage?.htmlText("financials","m_b68752fb081712",`Next ${v2}`,{v2}) ?? `Next ${v2}`)(esc(state.grain))}"><i class="fas fa-chevron-right"></i></button></div><div class="fn-segment" aria-label="${(globalThis.PlatformLanguage?.htmlText("financials","m_179cb3b2ebc4a4","Financial period") ?? "Financial period")}">${['month','week','day'].map((grain) => `<button type="button" data-fn-grain="${grain}" class="${state.grain === grain ? 'active' : ''}">${grain[0].toUpperCase()}${grain.slice(1)}</button>`).join('')}</div></div>`)}
         </div>`;
     }
@@ -793,6 +793,7 @@
     }
 
     function render(){
+      if(!state.view){root.innerHTML=`<div class="fn-shell">${window.AppChrome.header({title:'Financials',icon:'fa-chart-line',actions:'<button data-app-layout-open="financials">App layout</button>'})}<p>No accessible apps in this group.</p></div>`;return;}
       if (state.destroyed) return;
       if (!state.data && (state.loading || state.error)) { renderState(); bind(); return; }
       const transactions = modelTransactions();
@@ -1011,6 +1012,7 @@
     }
 
     async function load(options = {}){
+      if(!state.view){render();return;}
       const token = ++state.loadToken;
       state.loading = true;
       state.error = null;
@@ -1090,8 +1092,8 @@
       priority:410,
       immediate:true,
       apply(nextRoute){
-        if (nextRoute.tab !== 'financials') return;
-        const nextView = normalizeView(nextRoute.financialView);
+        if (context.params?.standalone || nextRoute.tab !== 'financials') return;
+        const nextView = normalizeView(window.AppChrome.resolve('financials',nextRoute.financialView,context));
         const nextGrain = ['day','week','month'].includes(clean(nextRoute.financialGrain)) ? clean(nextRoute.financialGrain) : 'month';
         const nextAnchor = /^\d{4}-\d{2}-\d{2}$/.test(clean(nextRoute.financialDate)) ? dayStart(nextRoute.financialDate) : state.anchor;
         const changed = state.view !== nextView || state.grain !== nextGrain || dateKey(state.anchor) !== dateKey(nextAnchor);
@@ -1104,13 +1106,16 @@
 
     const refreshEvents = ['fm:projects:refresh','fm:calendar:refresh','fm:dashboard:refresh','fm:payroll:updated','fm:money:updated'];
     const scheduleRefresh = () => { if (state.active && !state.loading) load({ silent:true }); };
+    const onLayout=()=>{if(context.params?.standalone)return;const next=normalizeView(window.AppChrome.resolve('financials',window.Portal?.navigation?.read?.().financialView,context));if(next!==state.view){state.view=next;state.data=null;void load();}else render();};
+    window.addEventListener('fm:app-placements:updated',onLayout);
+    const refreshTimer=setInterval(()=>{if(!document.hidden && !root.contains(document.activeElement))scheduleRefresh();},30000);
     refreshEvents.forEach((name) => window.addEventListener(name, scheduleRefresh));
     // Capabilities can resolve after mount; re-normalize the requested view so
     // a direct link to the Payouts view survives the async capability load,
     // and re-render so the tab button appears/disappears.
     const onCapabilitiesUpdated = () => {
       if (state.destroyed) return;
-      const wanted = normalizeView((window.Portal?.navigation?.read?.() || {}).financialView);
+      const wanted = normalizeView(context.params?.standalone || window.AppChrome.resolve('financials',(window.Portal?.navigation?.read?.() || {}).financialView,context));
       if (wanted !== state.view) { state.view = wanted; state.data = null; load(); return; }
       if (state.data) render();
     };
@@ -1118,7 +1123,7 @@
     load();
 
     return {
-      destroy(){ state.destroyed = true; state.loadToken++; unregisterRoute?.(); refreshEvents.forEach((name) => window.removeEventListener(name, scheduleRefresh)); window.removeEventListener('fm:capabilities:updated', onCapabilitiesUpdated); root.innerHTML = ''; },
+      destroy(){ window.removeEventListener('fm:app-placements:updated',onLayout); clearInterval(refreshTimer); state.destroyed = true; state.loadToken++; unregisterRoute?.(); refreshEvents.forEach((name) => window.removeEventListener(name, scheduleRefresh)); window.removeEventListener('fm:capabilities:updated', onCapabilitiesUpdated); root.innerHTML = ''; },
       setActive(active){ state.active = !!active; if (active && Date.now() - state.loadedAt > 60_000 && !state.loading) load({ silent:!!state.data }); },
       update(nextContext = {}){ const nextOrg = clean(nextContext.orgId || nextContext.currentUser?.organization_id); if (nextOrg && nextOrg !== state.orgId) { state.orgId = nextOrg; state.data = null; load(); } },
       refresh(){ return load(); }
@@ -1140,4 +1145,8 @@
     access:{ applicationsAny:['management'], permissionsAny:['manage_projects','manage_payroll','manage_company_settings'] },
     mount:createApp
   });
+  window.AppChrome.registerGroup({id:'financials',parent:'portal.financials',title:'Financials',icon:'fa-chart-line',default:'projects',
+    members:[{id:'projects',title:'Profitability'},{id:'cashflow',title:'Cash flow'},{id:'reconcile',title:'Reconcile'},
+      {id:'payouts',title:'Payouts',available:context=>(context.capabilities?.current?.() || window.Portal?.capabilities?.current?.())?.effective_by_key?.['money.merchant_processing'] === true}],
+    mount:(view,context)=>createApp({...context,params:{...context.params,standalone:view}})});
 })();

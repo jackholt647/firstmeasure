@@ -7212,7 +7212,7 @@
 
     panelEl.innerHTML = `
       <div class="v-wrap">
-        <div class="v-head">
+        <div class="v-head" data-app-header>
           <div class="v-title"><i class="fas fa-folder-open" aria-hidden="true"></i><h1>${(globalThis.PlatformLanguage?.htmlText("projects","m_1a8d3340c06415","My Projects") ?? "My Projects")}</h1></div>
           <div class="v-actions">
             <div class="v-view-switch" role="group" aria-label="Project view">

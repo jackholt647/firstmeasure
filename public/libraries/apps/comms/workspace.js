@@ -7,27 +7,36 @@
   const views=[['inbox','Inbox','inbox'],['lists','Call lists','list-check'],['followups','Follow-ups','calendar-check'],['history','History','clock-rotate-left'],['center','Call center','headset']];
   const instances=new Set();
   const route=()=>Portal.navigation?.read?.()||{};
-  Portal.navigation?.registerSchema?.('communicationsView',{history:'push',values:[...views.map(v=>v[0]),'setup','scripts'],scopes:[{tab:'chat'}]});
+  Portal.navigation?.registerSchema?.('communicationsView',{history:'push',values:[...views.map(v=>v[0]),'setup','layout','scripts'],scopes:[{tab:'chat'}]});
   Portal.navigation?.registerSchema?.('communicationsFilter',{history:'replace',scopes:[{tab:'chat'}]});
   Portal.navigation?.registerSchema?.('communicationsEntry',{history:'push',scopes:[{tab:'chat'}]});
   function mount(root,options={}){
-    const state={root,options,view:options.projectId?'history':route().communicationsView||'inbox',columns:[],calls:[],tasks:[],agents:[],status:null,query:'',filter:route().communicationsFilter||'all',error:'',sequence:0,disposed:false,skipped:new Set(),cursor:'',nextCursor:'',lastEntry:'',inboxHandle:null};
+    const state={root,options,view:options.projectId?'history':options.standalone || (['setup','layout'].includes(route().communicationsView)?route().communicationsView:window.AppChrome.resolve('communications',route().communicationsView)),columns:[],calls:[],tasks:[],agents:[],status:null,query:'',filter:route().communicationsFilter||'all',error:'',sequence:0,disposed:false,skipped:new Set(),cursor:'',nextCursor:'',lastEntry:'',inboxHandle:null};
     const listScroll=new Map();
     function rememberListScroll(){root.querySelectorAll('[data-list-scroll]').forEach(el=>listScroll.set(el.dataset.listScroll,el.scrollTop));}
     instances.add(state);
-    root.innerHTML=`<div class="fmcm">${options.projectId?'':`<header class="fmcm-head"><h2>${(globalThis.PlatformLanguage?.htmlText("comms","m_643fa01aa77d59","Communications") ?? "Communications")}</h2><nav class="fmcm-nav" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_25dad90da2d872","Communications views") ?? "Communications views")}">${String(views.map(([id,title,i])=>`<button data-view="${id}">${icon(i)} ${title}</button>`).join(''))}<button data-view="scripts" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_394f81e0447c0e","Call scripts") ?? "Call scripts")}" title="${(globalThis.PlatformLanguage?.htmlText("comms","m_394f81e0447c0e","Call scripts") ?? "Call scripts")}">${String(icon('file-lines'))}<span>${(globalThis.PlatformLanguage?.htmlText("comms","m_ab7d57f55cf0a2","Scripts") ?? "Scripts")}</span></button></nav><div class="fmcm-actions"><button data-action="phone-menu" data-phone-status title="${(globalThis.PlatformLanguage?.htmlText("comms","m_b9769c8fa5fe03","External phone · Phone connection and devices") ?? "External phone · Phone connection and devices")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_b9769c8fa5fe03","External phone · Phone connection and devices") ?? "External phone · Phone connection and devices")}">${String(icon('phone'))}</button><button class="fmcm-primary" data-action="new-call" title="${(globalThis.PlatformLanguage?.htmlText("comms","m_7cf42392a179bc","New call") ?? "New call")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_7cf42392a179bc","New call") ?? "New call")}">${String(icon('plus'))}<span>${(globalThis.PlatformLanguage?.htmlText("comms","m_7cf42392a179bc","New call") ?? "New call")}</span></button><button data-view="setup" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_4b0a902bd57893","Phone setup") ?? "Phone setup")}" title="${(globalThis.PlatformLanguage?.htmlText("comms","m_4b0a902bd57893","Phone setup") ?? "Phone setup")}">${String(icon('gear'))}</button></div></header>`}<div class="fmcm-inbox" data-inbox hidden></div><main class="fmcm-view" data-content></main></div>`;
+    const chrome=window.AppChrome;
+    function header(){
+      const member=views.find(v=>v[0]===options.standalone);
+      return chrome.header({title:options.standalone?(member?.[1] || 'Call scripts'):'Communications',icon:options.standalone?'fa-'+(member?.[2] || 'file-lines'):'fa-comments',
+        tabs:options.standalone?'':chrome.tabs('communications',state.view,'data-view'),
+        actions:'<button type="button" data-view="setup" aria-label="Communications settings" title="Communications settings">'+icon('gear')+'</button>'});
+    }
+    root.innerHTML=`<div class="fmcm">${options.projectId?'':header()}<div class="fmcm-inbox" data-inbox hidden></div><main class="fmcm-view" data-content></main></div>`;
 
     state.host=root.querySelector('[data-content]');
     root.addEventListener('click',onClick);root.addEventListener('input',onInput);root.addEventListener('change',onChange);
     function nav(view,fromRoute=false){
       rememberListScroll();
+      if(!options.projectId && !['setup','layout'].includes(view))view=options.standalone || chrome.resolve('communications',view);
       state.view=view;state.cursor='';state.nextCursor='';
       root.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-current',b.dataset.view===view?'page':'false'));
       root.querySelector('[data-view][aria-current="page"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
       state.host.classList.toggle('fmcm-lists-view',view==='lists');
       const inbox=root.querySelector('[data-inbox]');inbox.hidden=view!=='inbox';state.host.hidden=view==='inbox';
-      if(view==='inbox'&&!state.inboxHandle&&options.mountInbox)state.inboxHandle=options.mountInbox(inbox)||{};
-      if(!fromRoute&&!options.projectId&&!Portal.navigation?.applying)Portal.navigation?.push?.({tab:'chat',communicationsView:view});
+      if(view==='inbox'&&!state.inboxHandle&&options.mountInbox)state.inboxHandle=options.mountInbox(inbox,{tab:options.standalone?'chat.inbox':'chat'})||{};
+      if(!fromRoute&&!options.projectId&&!options.standalone&&!Portal.navigation?.applying)Portal.navigation?.push?.({tab:'chat',communicationsView:view});
+      if(view==='inbox')state.inboxHandle?.activate?.();
       void load();
     }
     state.nav=nav;
@@ -77,6 +86,8 @@
     async function load(append=false,silent=false){
       const sequence=++state.sequence;state.error='';
       state.sessionScope=`${ui.org()}:${ui.user()}`;
+      if(!state.view){state.host.innerHTML=empty('No grouped apps','Use Communications settings to choose tabs.');return;}
+      if(state.view==='layout'){state.host.innerHTML=settingsTabs()+chrome.settings('communications');return;}
       if(state.view==='inbox'){void phone.refreshStatus().then(updatePhone).catch(()=>{});return;}
       const reuseLists=state.view==='lists'&&state.listScope===state.sessionScope;
       if(reuseLists)render();
@@ -115,7 +126,8 @@
       if(signature&&state.lastCallChange!==signature){state.lastCallChange=signature;if(['history','followups','lists','center'].includes(state.view)&&(!options.projectId||call.project_id===options.projectId)){clearTimeout(state.changeTimer);state.changeTimer=setTimeout(()=>{if(!state.disposed)void load(false,true);},250);}}
     }
     function showError(){let host=root.querySelector('[data-workspace-error]');if(!host){host=document.createElement('p');host.className='fmcm-error';host.dataset.workspaceError='';host.setAttribute('role','alert');state.host.prepend(host);}host.textContent=state.error;}
-    function toolbar(title,action='',filters=false){return `<div class="fmcm-toolbar"><h3>${String(title)}</h3>${String(['lists','followups','history'].includes(state.view)?`<input class="fmcm-search" type="search" data-search placeholder="${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_eb57b9fe518a5c",`Search ${v0}…`,{v0}) ?? `Search ${v0}…`)(state.view==='lists'?'contacts':state.view==='history'?'calls':'follow-ups')}" value="${esc(state.query)}" aria-label="${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_f45808974d5c6c",`Search ${v2}`,{v2}) ?? `Search ${v2}`)(state.view)}">`:'')}${String(filters?`<select data-filter aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_86e8933389c299","Filter communications") ?? "Filter communications")}"><option value="all" ${state.filter==='all'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</option><option value="mine" ${state.filter==='mine'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_b67cf521d59f4e","Assigned to me") ?? "Assigned to me")}</option>${state.view==='history'?`<option value="wrap_up" ${state.filter==='wrap_up'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_54e60445f18e2e","Needs wrap-up") ?? "Needs wrap-up")}</option>`:''}</select>`:'')}${String(action)}<button data-action="reload" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_78973ce0cf3403","Refresh") ?? "Refresh")}">${String(icon('rotate'))}</button></div>`;}
+    function settingsTabs(){return chrome.settingsTabs('communications',state.view,'data-view',options.standalone || chrome.resolve('communications'));}
+    function toolbar(title,action='',filters=false){return `<div class="fmcm-toolbar"><h3>${String(title)}</h3>${String(['lists','followups','history'].includes(state.view)?`<input class="fmcm-search" type="search" data-search placeholder="${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_eb57b9fe518a5c",`Search ${v0}…`,{v0}) ?? `Search ${v0}…`)(state.view==='lists'?'contacts':state.view==='history'?'calls':'follow-ups')}" value="${esc(state.query)}" aria-label="${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_f45808974d5c6c",`Search ${v2}`,{v2}) ?? `Search ${v2}`)(state.view)}">`:'')}${String(filters?`<select data-filter aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_86e8933389c299","Filter communications") ?? "Filter communications")}"><option value="all" ${state.filter==='all'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</option><option value="mine" ${state.filter==='mine'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_b67cf521d59f4e","Assigned to me") ?? "Assigned to me")}</option>${state.view==='history'?`<option value="wrap_up" ${state.filter==='wrap_up'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_54e60445f18e2e","Needs wrap-up") ?? "Needs wrap-up")}</option>`:''}</select>`:'')}${String(action)}${['center','lists','history'].includes(state.view)?'<button data-action="new-call">'+icon('plus')+' New call</button><button data-action="phone-menu" data-phone-status aria-label="Phone connection and devices">'+icon('phone')+'</button>':''}</div>`;}
     function matches(value){return !state.query||JSON.stringify(value).toLowerCase().includes(state.query.toLowerCase());}
     function render(){
       if(state.disposed)return;rememberListScroll();const active=document.activeElement,searchActive=active?.matches?.('[data-search]'),cursor=active?.selectionStart;
@@ -142,7 +154,7 @@
         state.host.innerHTML=toolbar('Call scripts','<button class="fmcm-primary" data-action="new-script">'+icon('plus')+' New script</button>')+
           `<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_58f99d4623b8fc","Published scripts are available in the call workspace. Every call keeps the version used at the time.") ?? "Published scripts are available in the call workspace. Every call keeps the version used at the time.")}</p>`+
           ((state.scripts||[]).length?`<div class="fmcm-grid">${state.scripts.map(s=>`<section class="fmcm-card"><header class="fmcm-card-head"><h3>${String(esc(s.title))}</h3><span class="fmcm-pill">v${String(s.version)} · ${String(esc(s.status))}</span></header><div style="padding:18px"><p>${String(esc(s.data?.sections?.[0]?.body?.slice(0,220)||''))}</p><button data-action="edit-script" data-id="${String(esc(s.id))}">${(globalThis.PlatformLanguage?.htmlText("comms","m_79c5dcac1f6211","Edit script") ?? "Edit script")}</button></div></section>`).join('')}</div>`:empty('Support a natural conversation','Create prompts and questions that stay beside your notes during a call.',`<button data-action="new-script">${(globalThis.PlatformLanguage?.htmlText("comms","m_933c94351d5ffc","Create a script") ?? "Create a script")}</button>`));
-      }else if(state.view==='setup')renderSetup();
+      }else if(state.view==='setup'){renderSetup();state.host.insertAdjacentHTML('afterbegin',settingsTabs());}
       root.querySelectorAll('[data-list-scroll]').forEach(el=>{el.scrollTop=listScroll.get(el.dataset.listScroll)||0;});
       if(searchActive){const input=root.querySelector('[data-search]');input?.focus();try{input?.setSelectionRange(cursor,cursor);}catch{}}
       if(state.error)showError();
@@ -210,10 +222,13 @@
     const onSession=()=>{if(!state.disposed&&(state.error||state.sessionScope!==`${ui.org()}:${ui.user()}`))void load();};
     window.addEventListener('fm:platform-session:updated',onSession);
     window.addEventListener('fm:customer-calls:next',onNext);window.addEventListener('fm:customer-calls:changed',updatePhone);
-    const timer=setInterval(()=>{if(!state.disposed&&state.view==='center'&&!document.hidden)void load();},5000);
+    const onLayout=()=>{if(options.projectId)return;root.querySelector('[data-app-header]')?.remove();root.querySelector('.fmcm').insertAdjacentHTML('afterbegin',header());if(!options.standalone&&!['setup','layout'].includes(state.view))nav(chrome.resolve('communications',route().communicationsView),true);};
+    window.addEventListener('fm:app-placements:updated',onLayout);
+    let active=true,ticks=0;
+    const timer=setInterval(()=>{ticks++;if(active&&!state.disposed&&!document.hidden&&!root.contains(document.activeElement)&&!['setup','layout','inbox'].includes(state.view)&&(state.view==='center'||ticks%6===0))void load(false,true);},5000);
     nav(state.view,true);
-    return {refresh:load,destroy(){state.disposed=true;state.sequence++;clearInterval(timer);clearTimeout(state.searchTimer);clearTimeout(state.changeTimer);state.inboxHandle?.destroy?.();instances.delete(state);root.removeEventListener('click',onClick);root.removeEventListener('input',onInput);root.removeEventListener('change',onChange);window.removeEventListener('fm:platform-session:updated',onSession);window.removeEventListener('fm:customer-calls:next',onNext);window.removeEventListener('fm:customer-calls:changed',updatePhone);}};
+    return {refresh:load,setActive(value){active=!!value;if(active&&state.view==='inbox')state.inboxHandle?.activate?.();},destroy(){window.removeEventListener('fm:app-placements:updated',onLayout);state.disposed=true;state.sequence++;clearInterval(timer);clearTimeout(state.searchTimer);clearTimeout(state.changeTimer);state.inboxHandle?.destroy?.();instances.delete(state);root.removeEventListener('click',onClick);root.removeEventListener('input',onInput);root.removeEventListener('change',onChange);window.removeEventListener('fm:platform-session:updated',onSession);window.removeEventListener('fm:customer-calls:next',onNext);window.removeEventListener('fm:customer-calls:changed',updatePhone);}};
   }
-  Portal.navigation?.registerHandler?.('communications-workspace',{priority:420,apply:route=>{for(const state of instances){if(state.options.projectId)continue;if(route.tab!=='chat')continue;const target=route.communicationsView||'inbox';if(target!==state.view)state.nav(target,true);else if(target==='lists'&&route.communicationsEntry&&route.communicationsEntry!==phone.currentEntry)void state.load();}}});
+  Portal.navigation?.registerHandler?.('communications-workspace',{priority:420,apply:route=>{for(const state of instances){if(state.options.projectId||state.options.standalone)continue;if(route.tab!=='chat')continue;const target=route.communicationsView||window.AppChrome.resolve('communications');if(target!==state.view)state.nav(target,true);else if(target==='lists'&&route.communicationsEntry&&route.communicationsEntry!==phone.currentEntry)void state.load();}}});
   Portal.CommunicationsWorkspace={mount};
 })();

@@ -493,7 +493,7 @@
     const visibleCount = sortedFilteredContacts().length;
     state.root.innerHTML = `
       <div class="ct-shell">
-        <header class="ct-top">
+        <header class="ct-top" data-app-header>
           <div class="ct-title">
             <i class="fas fa-address-book" aria-hidden="true"></i><div>
             <h2>${(globalThis.PlatformLanguage?.htmlText("contacts","m_2bf043c3cce511","My Contacts") ?? "My Contacts")}</h2>

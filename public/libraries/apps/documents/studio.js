@@ -886,7 +886,7 @@
       const folders = arrayValue(state.folders).filter((folder) => folder.system === true || canCreateFolders());
       root.innerHTML = `
         <div class="fmdx-shell">
-          <header class="fmdx-top">
+          <header class="fmdx-top" data-app-header>
             <div class="fmdx-top-title">
               <strong><i class="fas fa-pen-ruler" style="color:var(--fmdx-primary)"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_817205ba789887"," Doc Studio") ?? " Doc Studio")}</strong>
             </div>
@@ -903,7 +903,7 @@
                       : '')}
             </div>
           </header>
-          <div class="fmdx-subtabs">
+          <div class="fmdx-subtabs" data-app-tab-row>
             <button type="button" class="fmdx-subtab ${String(state.tab === 'templates' ? 'active' : '')}" data-tab="templates"><i class="fas fa-file-invoice"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_2244ba6af1dcfc"," Templates") ?? " Templates")}</button>
             ${String(canAuthorWorkflows ? `<button type="button" class="fmdx-subtab ${state.tab === 'workflows' ? 'active' : ''}" data-tab="workflows"><i class="fas fa-list-check"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_caa1a5770356df"," Workflows") ?? " Workflows")}</button>` : '')}
             ${String(canAuthorThemes ? `<button type="button" class="fmdx-subtab ${state.tab === 'themes' ? 'active' : ''}" data-tab="themes"><i class="fas fa-palette"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_8c3b47976bfe5d"," Themes") ?? " Themes")}</button>` : '')}

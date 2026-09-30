@@ -1356,6 +1356,30 @@ app.get("/auth/google/config", async () => ({
     };
   });
 
+  app.get("/organizations/:orgId/app-groups", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId });
+    return { ok: true, groups: asObject(asObject((await readGlobal(orgId)).data).app_groups) };
+  });
+
+  app.put("/organizations/:orgId/app-groups/:groupId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    const id = z.string().regex(/^[a-z][a-z0-9._-]{0,79}$/);
+    const groupId = id.parse(getParam(request.params, "groupId"));
+    const configuration = z.object({
+      default: z.union([id,z.literal("")]),
+      members: z.record(id, z.enum(["group", "standalone", "both", "hidden"]))
+    }).strict().refine(value => Object.keys(value.members).length > 0 && Object.keys(value.members).length <= 50 &&
+      (value.default ? ["group", "both"].includes(value.members[value.default] || "") :
+        !Object.values(value.members).some(placement => ["group", "both"].includes(placement))),
+      "The default app must be included in the group.").parse(request.body);
+    await mutateGlobal(orgId, global => ({ data: {
+      app_groups: { ...asObject(asObject(global.data).app_groups), [groupId]: configuration }
+    } }));
+    return { ok: true, configuration };
+  });
+
   app.get("/organizations/:orgId/app-flags", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, application: false });

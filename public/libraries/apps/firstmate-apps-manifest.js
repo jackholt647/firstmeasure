@@ -36,7 +36,7 @@
     bundle('../agent-chat/agent-chat.js'),
     versionedBundle('../assistant-api/assistant-api.js', '20260930-project-trays-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20260930-project-trays-v1'),
-    versionedBundle('photos/feed.js', '20260930-feed-size-v2'),
+    versionedBundle('photos/feed.js', '20260930-app-groups-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20260930-linear-pla20-round3'),
     versionedBundle('../project-notes/project-notes.js', '20260930-project-chrome-v2'),
@@ -82,7 +82,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
       access: managementAccess,
-      bundles: [versionedBundle('projects/viewer.js', '20260929-projects-sidebar-icon-v1')]
+      bundles: [versionedBundle('projects/viewer.js', '20260930-app-groups-v1')]
     },
     {
       id: 'portal.contacts',
@@ -94,7 +94,7 @@
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
       access: managementAccess,
-      bundles: [versionedBundle('contacts/modal.js', '20260930-contact-autosave-v2'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20260930-contact-global-search-v1')]
+      bundles: [versionedBundle('contacts/modal.js', '20260930-contact-autosave-v2'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20260930-app-groups-v1')]
     },
     {
       id: 'portal.photos_feed',
@@ -105,7 +105,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
       access: managementAccess,
-      bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('photos/feed.js', '20260930-feed-size-v2')]
+      bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('photos/feed.js', '20260930-app-groups-v1')]
     },
     {
       id: 'portal.receipts',
@@ -117,7 +117,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'receipts',
       access: managementAccess,
-      bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-receipt-browser'), versionedBundle('photos/feed.js', '20260930-feed-size-v2'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
+      bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-receipt-browser'), versionedBundle('photos/feed.js', '20260930-app-groups-v1'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
     },
     {
       // DEPRECATED (2026-08): legacy proposals surface â€” hidden by its bundle
@@ -193,7 +193,7 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
-        versionedBundle('photos/feed.js', '20260930-feed-size-v2'),
+        versionedBundle('photos/feed.js', '20260930-app-groups-v1'),
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -222,12 +222,12 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
-        versionedBundle('photos/feed.js', '20260930-feed-size-v2'),
+        versionedBundle('photos/feed.js', '20260930-app-groups-v1'),
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
         versionedBundle('../brand-kit/brand-kit.js', '20260929-brand-shape-choices'),
-        versionedBundle('documents/studio.js', '20260929-brand-shape-choices')
+        versionedBundle('documents/studio.js', '20260930-app-groups-v1')
       ]
     },
     {
@@ -251,7 +251,7 @@
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
         versionedBundle('../visual-editor/firstmate-visual-editor.js', '20260813-modes-in-toolbar'),
         versionedBundle('settings/domains.js', '20260731-domains-v11'),
-        versionedBundle('web-editor/app.js', '20260813-modes-in-toolbar')
+        versionedBundle('web-editor/app.js', '20260930-app-groups-v1')
       ]
     },
     {
@@ -278,7 +278,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20260714-scope-commission-rules'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20260930-feed-size-v2'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
+      bundles: [versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20260714-scope-commission-rules'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20260930-app-groups-v1'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.request',
@@ -343,7 +343,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [bundle('../comms-api/comms-api.js'), bundle('../agent-chat/agent-chat.js'), bundle('comms/communications-ui.js'), bundle('comms/calling-runtime.js'), bundle('comms/workspace.js'), versionedBundle('comms/project.js', '20260929-overview-content-v1')]
+      bundles: [bundle('../comms-api/comms-api.js'), bundle('../agent-chat/agent-chat.js'), bundle('comms/communications-ui.js'), bundle('comms/calling-runtime.js'), versionedBundle('comms/workspace.js', '20260930-app-groups-v1'), versionedBundle('comms/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.measurements',
@@ -413,7 +413,7 @@
       bundles: [
         versionedBundle('../training-api/training-api.js', '20260720-training-v1'),
         versionedBundle('training/app.js', '20260720-training-v1'),
-        versionedBundle('training/studio.js', '20260720-training-v1')
+        versionedBundle('training/studio.js', '20260930-app-groups-v1')
       ]
     },
     {
@@ -429,7 +429,7 @@
       access: managementAccess,
       bundles: [
         versionedBundle('../equipment-api/equipment-api.js', '20260904-equipment-unit-cards-v14'),
-        versionedBundle('equipment/app.js', '20260928-equipment-simple-v1')
+        versionedBundle('equipment/app.js', '20260930-app-groups-v1')
       ]
     },
     {
@@ -467,7 +467,7 @@
       bundles: [
         versionedBundle('../financials-api/financials-api.js', '20260715-financial-read-model'),
         versionedBundle('../payments-api/payments-api.js', '20260812-finance-read-models'),
-        versionedBundle('financials/app.js', '20260812-payouts-view')
+        versionedBundle('financials/app.js', '20260930-app-groups-v1')
       ]
     },
     {
@@ -502,7 +502,7 @@
       settingsTabId: 'payroll',
       order: 55,
       access: managementAccess,
-      bundles: [versionedBundle('../payroll-api/payroll-api.js', '20260712-payroll-v1'), versionedBundle('settings/payroll.js', '20260715-payroll-settings-workspace'), versionedBundle('payroll/app.js', '20260715-payroll-settings-workspace')]
+      bundles: [versionedBundle('../payroll-api/payroll-api.js', '20260712-payroll-v1'), versionedBundle('settings/payroll.js', '20260715-payroll-settings-workspace'), versionedBundle('payroll/app.js', '20260930-app-groups-v1')]
     },
     {
       id: 'portal.chat',
@@ -520,8 +520,8 @@
         bundle('../agent-chat/agent-chat.js'),
         bundle('comms/communications-ui.js'),
         bundle('comms/calling-runtime.js'),
-        bundle('comms/workspace.js'),
-        bundle('chat/app.js')
+        versionedBundle('comms/workspace.js', '20260930-app-groups-v1'),
+        versionedBundle('chat/app.js', '20260930-app-groups-v1')
       ]
     },
     {
@@ -543,7 +543,7 @@
         versionedBundle('../window-manager/window-manager.js', '20260930-project-chrome-v2'),
         versionedBundle('../assistant-api/assistant-api.js', '20260930-project-trays-v1'),
         versionedBundle('../platform-assistant/platform-assistant.js', '20260930-project-trays-v1'),
-        versionedBundle('photos/feed.js', '20260930-feed-size-v2'),
+        versionedBundle('photos/feed.js', '20260930-app-groups-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20260930-linear-pla20-round3'),
         versionedBundle('channels/app.js', '20260929-assistant-logo-settings-v1')
@@ -1046,6 +1046,7 @@
   };
 
   apps.forEach((app) => {
+    app.bundles = [versionedBundle('../app-runtime/app-chrome.js', '20260930-app-groups-v1'), ...(app.bundles || [])];
     app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260930-linear-pla20-round3'), ...(app.bundles || [])];
     const capability = appCapabilities[app.id];
     if (capability) app.access = { ...(app.access || {}), capability };

@@ -751,7 +751,7 @@
     function renderSiteList(){
       root.innerHTML = `
         <div class="fmwe-shell">
-          <header class="fmwe-top">
+          <header class="fmwe-top" data-app-header>
             <div class="fmwe-top-title">
               <strong><i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_5493e7e4b3647a"," Web Editor") ?? " Web Editor")}</strong>
               <span>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_ce8f08fb05b1f0","Build your websites and custom customer-portal pages") ?? "Build your websites and custom customer-portal pages")}</span>
@@ -811,7 +811,7 @@
     function renderDomains(){
       root.innerHTML = `
         <div class="fmwe-shell">
-          <header class="fmwe-top">
+          <header class="fmwe-top" data-app-header>
             <button type="button" class="fmwe-plain-back" data-we-back title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_8615f62f7a7921","Back to websites") ?? "Back to websites")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_8615f62f7a7921","Back to websites") ?? "Back to websites")}"><i class="fas fa-arrow-left"></i></button>
             <div class="fmwe-top-title">
               <strong><i class="fas fa-globe"></i>${(globalThis.PlatformLanguage?.htmlText("web-editor","m_eae8d33522f723"," Domains & Hosting") ?? " Domains & Hosting")}</strong>
@@ -900,7 +900,7 @@
       const portal = isPortalSite(site);
       root.innerHTML = `
         <div class="fmwe-shell">
-          <header class="fmwe-top">
+          <header class="fmwe-top" data-app-header>
             <button type="button" class="fmwe-icon-btn" data-we-back title="${(globalThis.PlatformLanguage?.htmlText("web-editor","m_21b1e372c7ce19","All sites") ?? "All sites")}"><i class="fas fa-chevron-left"></i></button>
             <div class="fmwe-top-title" style="min-width:0">
               <strong style="min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${String(esc(firstText(site.name, 'Site')))}</span>

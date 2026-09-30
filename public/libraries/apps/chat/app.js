@@ -1338,11 +1338,11 @@
   }
 
   function syncRoute(history = 'replace'){
-    window.Portal?.navigation?.write?.({ tab: 'chat', chatConversation: state.activeId || null }, { history, source: 'chat-inbox', ownedKeys: ['chatConversation'] });
+    window.Portal?.navigation?.write?.({ tab: state.placementTab || 'chat', chatConversation: state.activeId || null }, { history, source: 'chat-inbox', ownedKeys: ['chatConversation'] });
   }
 
   function restoreRoute(route = window.Portal?.navigation?.read?.() || {}){
-    if (route.tab !== 'chat') return;
+    if (route.tab !== (state.placementTab || 'chat')) return;
     const filter=route.chatFilter||'open',channel=route.chatChannel||'all';
     const filterChanged=filter!==state.filter,channelChanged=channel!==state.channel;
     state.filter=filter;state.channel=channel;
@@ -1365,7 +1365,18 @@
   });
   document.addEventListener('visibilitychange', () => schedulePoll());
 
-  function mountInbox(root){
+  function mountInbox(root, options={}){
+    state.placementTab=options.tab || 'chat';
+    // The inbox owns one conversation/draft session. Multiple placements attach
+    // that same session instead of creating competing pollers or losing drafts.
+    if (state.root) {
+      const inboxRoot=state.root;
+      root.appendChild(inboxRoot);
+      state.mounted=true;schedulePoll();
+      return { activate(){state.placementTab=options.tab || 'chat';state.mounted=true;root.appendChild(inboxRoot);schedulePoll();},destroy(){if(root.contains(inboxRoot)){state.mounted=false;if(state.pollTimer)clearTimeout(state.pollTimer);}} };
+    }
+    const destination=root;
+    root=document.createElement('div');root.style.cssText='height:100%;min-height:0';destination.appendChild(root);
     css();
     const route=Portal.navigation?.read?.()||{};state.filter=route.chatFilter||'open';state.channel=route.chatChannel||'all';
     state.root = root;
@@ -1379,7 +1390,7 @@
       if (shell) shell.innerHTML = `<div class="fmchat-empty">${esc(error.message)}</div>`;
     });
     schedulePoll();
-    return { destroy(){ state.mounted = false; if (state.pollTimer) clearTimeout(state.pollTimer); } };
+    return { activate(){state.placementTab=options.tab || 'chat';state.mounted=true;destination.appendChild(root);schedulePoll();},destroy(){ if(destination.contains(root)){state.mounted=false;if(state.pollTimer)clearTimeout(state.pollTimer);} } };
   }
 
   function mount(root){
@@ -1399,6 +1410,10 @@
       if (on && !registered) {
         registered = true;
         window.Portal.apps.registerPortalApp({ id: 'portal.chat', tabId: 'chat', title: (globalThis.PlatformLanguage?.text("chat","m_643fa01aa77d59","Communications") ?? "Communications"), terminologyKey: 'chat.portal_tab', icon: 'fa-inbox', order: 23, fullBleed: true, mount });
+        window.AppChrome.registerGroup({id:'communications',parent:'portal.chat',title:'Communications',icon:'fa-comments',default:'inbox',
+          settings:[{id:'setup',title:'Phone setup'},{id:'layout',title:'App layout'}],
+          members:[['inbox','Inbox','fa-inbox'],['lists','Call lists','fa-list-check'],['followups','Follow-ups','fa-calendar-check'],['history','History','fa-clock-rotate-left'],['center','Call center','fa-headset'],['scripts','Call scripts','fa-file-lines']].map(([id,title,icon])=>({id,title,icon})),
+          mount:(view,context)=>window.Portal.CommunicationsWorkspace.mount(context.root || context.roots.main,{standalone:view,mountInbox})});
         window.Portal.tabs.renderTabs?.();
       } else if (!on && registered) {
         registered = false;
