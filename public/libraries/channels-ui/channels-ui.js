@@ -1389,7 +1389,7 @@
         renderSidebar();
         const profileRoute = root.Portal?.navigation?.read?.();
         if (profileRoute?.channelProfile && profileRoute.channelProfileChannel === channelId && mode !== 'list' && profilePanel?.dataset.userId !== profileRoute.channelProfile) showFullProfile({id:profileRoute.channelProfile}, {silent:true});
-        scheduleMarkRead();
+        scheduleMarkRead(Number(data.channel?.message_seq) || 0);
         if (state.revealTarget) await revealMessage(state.revealTarget);
         options.onNavigate?.({ channel: channelId });
         return true;
@@ -1412,7 +1412,7 @@
         renderTabs();
         if (state.activeTab === "notes" && !state.activeChannel.separate_notes) {await openChannelTab("messages");}
         renderMessages();
-        scheduleMarkRead();
+        scheduleMarkRead(Number(data.channel?.message_seq) || 0);
         void refreshScheduledMessages();
       } catch (error) {}
     }
@@ -1557,6 +1557,7 @@
         const rootIndex = state.messages.findIndex((item) => item.id === message.parent_id);
         if (rootIndex >= 0) refreshActiveMessages();
       }
+      if (topic === 'channels.message.created') scheduleMarkRead(Number(message.seq) || 0);
     }
 
     function handleTypingEvent(payload){
@@ -1616,12 +1617,19 @@
 
     // --- mark read -------------------------------------------------------------------
 
-    function scheduleMarkRead(){
+    let openedReadSnapshot = null;
+    function scheduleMarkRead(openedSeq = 0){
+      const channelId = state.activeChannelId;
+      if (openedSeq > 0) openedReadSnapshot = { channelId, seq: Math.max(openedSeq, openedReadSnapshot?.channelId === channelId ? openedReadSnapshot.seq : 0) };
       clearTimeout(state.markReadTimer);
       state.markReadTimer = setTimeout(async () => {
-        if (state.destroyed || !state.activeChannelId || document.hidden || !document.hasFocus?.()) return;
+        if (state.destroyed || state.activeChannelId !== channelId || state.view !== 'channel' || state.activeTab !== 'messages' || document.hidden || !document.hasFocus?.()) return;
+        if (isMobileFull() && shell.classList.contains('fm-ch--mobile-list')) return;
         const listRect = list.getBoundingClientRect();
-        let maxSeq = 0;
+        if (!listRect.width || !listRect.height || listRect.bottom <= 0 || listRect.right <= 0 || listRect.top >= root.innerHeight || listRect.left >= root.innerWidth || getComputedStyle(list).visibility === 'hidden') return;
+        // Opening the channel acknowledges its loaded snapshot, including replies
+        // behind root rows. Later arrivals are handled by a fresh snapshot/event.
+        let maxSeq = openedReadSnapshot?.channelId === channelId ? openedReadSnapshot.seq : 0;
         list.querySelectorAll('[data-message-id]').forEach((row) => {
           const rect = row.getBoundingClientRect();
           const visiblePixels = Math.min(rect.bottom, listRect.bottom) - Math.max(rect.top, listRect.top);
@@ -1630,15 +1638,24 @@
           maxSeq = Math.max(maxSeq, Number(message?.seq) || 0);
         });
         const lastRead = Number(state.activeChannel?.unread?.last_read_seq ?? 0);
-        if (maxSeq > lastRead) {
+        if (maxSeq > lastRead || state.activeChannel?.unread?.manual_unread_seq != null) {
           try {
-            await api.readState.markRead(orgId, state.activeChannelId, maxSeq);
-            if (state.activeChannel?.unread) state.activeChannel.unread = { ...state.activeChannel.unread, last_read_seq: maxSeq, unread_count: 0, mention_count: 0 };
+            await api.readState.markRead(orgId, channelId, maxSeq);
+            if (openedReadSnapshot?.channelId === channelId && openedReadSnapshot.seq <= maxSeq) openedReadSnapshot = null;
+            const candidates = [...state.channels, state.channelsById.get(channelId), state.activeChannel].filter(channel => channel?.id === channelId);
+            for (const channel of candidates) {
+              const cleared = Number(channel.message_seq || 0) <= maxSeq;
+              channel.unread = { ...channel.unread, last_read_seq: Math.max(maxSeq, Number(channel.unread?.last_read_seq) || 0), manual_unread_seq: null, ...(cleared ? { unread_count:0, mention_count:0 } : {}) };
+            }
             renderSidebar();
+            await loadChannels();
           } catch (error) {}
         }
       }, 800);
     }
+    const resumeChannelRead = () => { if (openedReadSnapshot?.channelId === state.activeChannelId) scheduleMarkRead(); };
+    root.addEventListener('focus', resumeChannelRead);
+    document.addEventListener('visibilitychange', resumeChannelRead);
 
     // --- sidebar ---------------------------------------------------------------------
 
@@ -5973,6 +5990,8 @@
         presenceStop?.(); presenceStop = null;
         stopTyping(); clearTimeout(state.typingExpiryTimer);
         clearTimeout(state.markReadTimer);
+        root.removeEventListener('focus', resumeChannelRead);
+        document.removeEventListener('visibilitychange', resumeChannelRead);
         closePopover();
         if (externalHeaderActions) externalHeaderActions.replaceChildren();
         container.innerHTML = '';
@@ -5995,7 +6014,7 @@
         renderComposer();
         renderSidebar();
       },
-      update(){ /* portal tab activation hook */ },
+      update(){ resumeChannelRead(); },
       get state(){ return { activeChannelId: state.activeChannelId, view: state.view, threadRootId: state.threadRootId, inCall:Boolean(state.huddle) }; }
     };
     return instance;
