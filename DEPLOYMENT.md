@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 30 Project trays: [Shared Notes, Channels, Activity and global project agent](deploy/digitalocean/development-project-trays-20260930.md) records the development rollout, split-notes feature flag, validation and rollback.
+
 September 29 personal sidebar: [Adaptive, locked and forced display modes](deploy/digitalocean/development-sidebar-behavior-20260929.md) records the development rollout, immediate collapse, per-user persistence and verification.
 
 September 29 Channels settings: [Sidebar gear, autosave and implicit FirstMate](deploy/digitalocean/development-channels-settings-assistant-20260929.md) records the development rollout, hidden recap prompts, validation and rollback.
