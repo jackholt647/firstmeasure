@@ -6,12 +6,14 @@ Removes the redundant Ask Assistant button, puts an icon-only settings gear in t
 
 Only `public/libraries/apps/settings/company.js` and `public/libraries/apps/settings/notification-registration.js` are deployed. Each target starts from its verified current baseline; hard-link copies use atomic replacement of changed files and release metadata. No backend, database, worker, production or topology changes.
 
-Local syntax and browser regression checks passed, covering toolbar geometry, combined workflow categories, centered icons, dialog layout/dismissal, existing registration behavior and mobile settings. Activation and hosted verification pending.
+Local syntax and browser regression checks passed, covering toolbar geometry, combined workflow categories, centered icons, dialog layout/dismissal, existing registration behavior and mobile settings. Activation and hosted verification passed. Both public asset hashes matched, six public readiness responses passed, and each of the three affected roles passed file hashes, runtime identity, readiness and enforced development isolation. The hosted-source browser regression passed the toolbar, combined workflow categories, centered icons, wider dialog, close/backdrop/Escape dismissal, registration retry, delivery methods and responsive layout with API fixture data. No authenticated organization settings were changed for testing.
 
-## Predecessors and rollback
+## Activation and rollback
 
-- web: `aad93679ad9512672be397e6e7142cf0db3a1d98`
-- legacy: `aad93679ad9512672be397e6e7142cf0db3a1d98`
-- pool: `aad93679ad9512672be397e6e7142cf0db3a1d98`
+Final deployment release: `7ee54c8b9a34670fb64507513884f7299efd0a88` on compatibility and the second web node. Concurrent releases changed the baseline during staging; guards stopped the rollout and the source was re-audited before continuing. The first web node already contains the exact two feature files under the subsequent Contacts release, so that verified release is retained without another restart.
 
-Before rollback, check for intervening deployments. Restore the relevant previous current symlink and restart its development web/compatibility and PHP-FPM services. Verify development readiness and actual release identity. Evidence: ignored `output/notification-ui-polish-20260929/`. Existing replacement-image limitations remain.
+- web: retained active `c5d51c9298f4aedde93d489de74acf0b3a843ff9-contact-editor-1`
+- legacy: predecessor `fd4e70334953b66ea1362925b10f516b552b51c8`
+- pool: predecessor `c5d51c9298f4aedde93d489de74acf0b3a843ff9-contact-editor-1`
+
+Before rollback, check for intervening deployments. Restore the relevant previous current symlink and restart its development web/compatibility and PHP-FPM services. For the retained web release, prepare an inverse of only the notification UI delta rather than replacing the newer Contacts release. Verify development readiness and actual release identity. Evidence: ignored `output/notification-ui-polish-20260929/`. Existing replacement-image limitations remain.
