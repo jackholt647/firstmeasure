@@ -30,6 +30,8 @@ September 29 Contact window: [Shared placements and modal identity icons](deploy
 
 September 29 Projects List: [Board and stage grouping](deploy/digitalocean/development-project-list-groups-20260929.md) records the verified development-only frontend rollout, browser checks and rollback.
 
+September 29 Channels Linear: [Livia issue fixes and follow-up verification](deploy/digitalocean/development-channels-linear-20260929.md) records all thirteen issues, sequential development rollouts, scoped validation and rollback.
+
 September 29 Channels: [Managers, public discovery, rich paste and GIF sharing](deploy/digitalocean/development-channels-members-paste-20260929.md) records the verified development rollout, message controls, authorization/browser checks, GIPHY beta setup and role-aware rollback.
 
 September 29 Project Modal: [Shared window placements and custom chrome](deploy/digitalocean/development-project-window-20260929.md) records modal, dock, float, workspace/full-screen, minimize and header integration, validation and development rollout.
