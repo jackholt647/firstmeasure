@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { TelnyxClient, TelnyxError } from "../messaging/telnyx.js";
 import { env } from "../src/config/env.js";
-import { badRequest, conflict } from "../platform/errors.js";
+import { badRequest, conflict, forbidden } from "../platform/errors.js";
 import { isTelnyxWebhookPublicKeyValid } from "../messaging/telnyx_webhooks.js";
 import { id, object, text, type Json } from "../comms/calls/storage.js";
 
@@ -12,10 +12,11 @@ export class TelnyxVoiceClient {
     return this.client.request(path,{method,...(body?{body:JSON.stringify(body)}:{})});
   }
   async data(path:string,method="GET",body?:Json) { const result=object(await this.request(path,method,body));return object(result.data); }
-  async dial(payload:Json) {return this.data("/calls","POST",payload);}
+  async dial(payload:Json) {assertVoiceDestination(payload.to);return this.data("/calls","POST",payload);}
   async command(controlId:string,action:string,payload:Json={}) {
     const allowed=new Set(["answer","hangup","bridge","send_dtmf","speak","playback_start","playback_stop","record_start","record_stop","record_pause","record_resume","transcription_start","transcription_stop","transfer","enqueue","leave_queue"]);
     if(!allowed.has(action))throw badRequest("invalid_voice_command","Unsupported voice action.");
+    if(action==="transfer")assertVoiceDestination(payload.to);
     return this.data(`/calls/${encodeURIComponent(controlId)}/actions/${action}`,"POST",payload);
   }
   async readCall(controlId:string) {return this.data(`/calls/${encodeURIComponent(controlId)}`);}
@@ -65,8 +66,16 @@ export class TelnyxVoiceClient {
     return this.data("/credential_connections","POST",{connection_name:`FirstMate ${id("org",orgId)} staff`,user_name:`fm_${randomBytes(12).toString("hex")}`,
       password:randomBytes(32).toString("base64url"),active:true,sip_uri_calling_preference:"internal",encrypted_media:"SRTP",
       webhook_event_url:voiceWebhookUrl(),webhook_api_version:"2",outbound:{call_parking_enabled:true,channel_limit:1},
-      inbound:{codecs:["OPUS","G722","PCMU","PCMA"]}});
+      inbound:{codecs:["OPUS","G722","G711U","G711A"]}});
   }
+}
+/** Development uses real carrier calls only to explicitly controlled test phones. */
+export function assertVoiceDestination(destination:unknown){
+  if(env.dataEnvironment!=="development")return;
+  const phone=text(destination);
+  if(/^sip:[A-Za-z0-9_.+%-]+@sip\.telnyx\.com$/.test(phone))return;
+  const allowed=new Set(text(process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS).split(",").map(v=>v.trim()).filter(v=>/^\+[1-9]\d{7,14}$/.test(v)));
+  if(!allowed.has(phone))throw forbidden("development_voice_destination_blocked","Development calls are restricted to configured test phones.");
 }
 let factory:()=>TelnyxVoiceClient=()=>new TelnyxVoiceClient();
 export function voiceClient(){return factory();}
