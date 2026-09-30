@@ -6,14 +6,14 @@ import { badRequest } from "./errors.js";
 import { isAppFlagEnabled } from "./app_flags.js";
 import { deleteDocument, listDocuments, readDocument, upsertDocument } from "./storage.js";
 
-import { builtInEventDefinitions, notificationCatalog, catalogDefinitions } from "./notification_catalog.js";
+import { builtInEventDefinitions, notificationCatalog, catalogDefinitions, channelReplyNotification } from "./notification_catalog.js";
 
 type Json = Record<string, unknown>;
 export const notificationCategories = ["leads", "messages", "mentions", "tasks", "scheduling", "payments", "celebrations", "measurements", "system"] as const;
 export type NotificationCategory = typeof notificationCategories[number];
 const categorySet = new Set<string>(notificationCategories);
 export const measurementNotificationEvents = ["report_delivered", "report_revised", "report_canceled", "report_rejected", "report_status"] as const;
-const preferenceKeys = new Set<string>([...builtInEventDefinitions().map(d=>d.key), ...notificationCategories, ...measurementNotificationEvents.map((event) => `measurements.${event}`)]);
+const preferenceKeys = new Set<string>([channelReplyNotification.key,...builtInEventDefinitions().map(d=>d.key), ...notificationCategories, ...measurementNotificationEvents.map((event) => `measurements.${event}`)]);
 const object = (value: unknown): Json => value && typeof value === "object" && !Array.isArray(value) ? value as Json : {};
 const strings = (value: unknown): string[] => Array.isArray(value) ? value.map((item) => String(item || "").trim()).filter(Boolean) : [];
 const pushTitle = (note: Json) => String(note.title || "Notification").slice(0, 140);
@@ -69,6 +69,7 @@ export function normalizeNotificationPreferences(raw: unknown): NotificationPref
 
 export function notificationPreferenceEnabled(raw:unknown, note:Json, surface:"in_app"|"push") {
  const key=preferenceKeyForNotification(note);
+ if(key==='channel_replies'&&typeof object(object(raw)[surface])[key]!=='boolean'&&object(object(raw)[surface]).messages===false)return false;
  if(key.startsWith("workflow.")){const explicit=object(object(raw)[surface])[key];return typeof explicit === "boolean" ? explicit : object(object(raw)[surface])[categoryForNotification(note)] === false ? false : object(note.preference_defaults)[surface] === true;}
  return normalizeNotificationPreferences(raw)[surface][key] === true;
 }

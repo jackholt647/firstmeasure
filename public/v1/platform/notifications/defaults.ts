@@ -33,7 +33,7 @@ function materializePreferences(catalog:NotificationGroup[],existing:Json):Json{
  const next=copy(existing);
  for(const group of catalog)for(const definition of group.definitions){
   const key=definition.key;
-  const resolve=(surface:string,fallback:boolean)=>typeof obj(existing[surface])[key]==='boolean'?obj(existing[surface])[key]===true:key.startsWith('workflow.')&&obj(existing[surface])[definition.category]===false?false:fallback;
+  const resolve=(surface:string,fallback:boolean)=>typeof obj(existing[surface])[key]==='boolean'?obj(existing[surface])[key]===true:(key.startsWith('workflow.')||key==='channel_replies'&&['in_app','push','in_app_sound','audio'].includes(surface))&&obj(existing[surface])[definition.category]===false?false:fallback;
   const inApp=resolve('in_app',definition.defaults.in_app),sound=resolve('in_app_sound',true);
   const values:Record<string,boolean>={in_app:inApp,push:resolve('push',definition.defaults.push),in_app_sound:sound,in_app_badge:true,in_app_bell:key!=='messages',email:definition.methods?.includes('email')||false,sms:definition.methods?.includes('sms')||false,toast:definition.methods?.includes('toast')||false,celebration:definition.methods?.includes('celebration')||definition.category==='celebrations'&&inApp,audio:definition.methods?.includes('audio')||inApp&&sound,customer_portal:false};
   for(const [surface,fallback] of Object.entries(values)){
@@ -103,7 +103,7 @@ export async function ensurePersonalConfiguration(org:string,user:string,branch:
 }
 
 /** Called by an authorized producer on first observation, never by catalog reads. */
-export async function addPersonalDefinition(org:string,user:string,branch:string,groupId:string,groupLabel:string,raw:NotificationDefinition):Promise<PersonalNotificationConfiguration>{
+export async function addPersonalDefinition(org:string,user:string,branch:string,groupId:string,groupLabel:string,raw:NotificationDefinition,legacyPreferences:Json={}):Promise<PersonalNotificationConfiguration>{
  const definition=definitionSchema.parse(raw) as NotificationDefinition,db=notificationStore();
  return db.transaction(async()=>{
   const current=await readPersonalConfiguration(org,user,branch);
@@ -111,7 +111,10 @@ export async function addPersonalDefinition(org:string,user:string,branch:string
   if(current.removed_keys.includes(definition.key)||current.catalog.some(group=>group.definitions.some(d=>d.key===definition.key)))return current;
   const catalog=copy(current.catalog),group=catalog.find(group=>group.id===groupId);
   if(group)group.definitions.push(definition);else catalog.push({id:groupId,label:groupLabel,kind:'app',definitions:[definition]});
-  const preferences=materializePreferences([{id:groupId,label:groupLabel,kind:'app',definitions:[definition]}],current.preferences);
+  const observed=materializePreferences([{id:groupId,label:groupLabel,kind:'app',definitions:[definition]}],mergePreferences(current.preferences,legacyPreferences));
+  const preferences=copy(current.preferences);
+  // Apply inherited choices only to this newly observed definition. Frozen existing settings stay intact.
+  for(const surface of surfaces)if(obj(observed[surface])[definition.key]!==undefined)preferences[surface]={...obj(preferences[surface]),[definition.key]:obj(observed[surface])[definition.key]};
   const next={...current,revision:current.revision+1,catalog,preferences};
   await db.prepare('UPDATE notification_personal_configurations SET revision=?,data_json=? WHERE organization_id=? AND user_id=? AND branch_id=?').run(next.revision,JSON.stringify(next),org,user,branch);
   await db.prepare('INSERT INTO notification_configuration_history(id,organization_id,user_id,branch_id,kind,revision,data_json,created_at) VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(),org,user,branch,'personal_observed',next.revision,JSON.stringify(next),new Date().toISOString());

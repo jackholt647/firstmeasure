@@ -12,6 +12,7 @@ const obj = (v: unknown): Json => v && typeof v === "object" && !Array.isArray(v
 const rows = (v: unknown): Json[] => Array.isArray(v) ? v.map(obj) : [];
 export type NotificationDefinition = { key:string; label:string; description:string; category:string; defaults:{in_app:boolean;push:boolean}; event?:string; permission?:string; tab?:string; group_id?:string; group_label?:string; source_id?:string; source_label?:string; rule_id?:string; rule_revision?:number; methods?:string[]; personal?:boolean; personal_removed?:boolean; lock_mode?:'unlocked'|'removal'|'full'; editable?:boolean; removable?:boolean };
 export type NotificationGroup = { id:string; label:string; kind:"app"|"workflow"|"custom"; definitions:NotificationDefinition[]; disabled?:boolean };
+export const channelReplyNotification: NotificationDefinition = {key:"channel_replies",label:"Replies to your messages",description:"Replies to threads you started or participate in, subject to channel access and mute settings.",category:"messages",defaults:{in_app:true,push:true}};
 export function notificationMetadata(event:string) {
  const meta=workEventNotification(event);
  return {tab:meta.tab,group_id:meta.group,group_label:notificationEventGroups[meta.group].label,source_id:meta.source,source_label:notificationEventSources[meta.source].label};
@@ -61,6 +62,7 @@ export function scopeNotificationDefinitions(branch:string,template:string,defin
 export async function notificationSourceCatalog(orgId:string,branch='default',auth?:PlatformAuthContext):Promise<NotificationGroup[]> {
  const groups:NotificationGroup[]=[];
  if(!await isAppFlagEnabled(orgId,'apps','notifications'))return groups;
+ if(await isAppFlagEnabled(orgId,'apps','channels'))groups.push({id:'channels.replies',label:'Channels',kind:'app',definitions:[channelReplyNotification]});
  if(await isAppFlagEnabled(orgId,'apps','firstmeasure'))groups.push({id:'measurements',label:'Measurements',kind:'app',definitions:[
   ['report_delivered','Report delivered','Your report is ready to view and download.'],['report_revised','Corrected report delivered','A corrected report is ready.'],['report_canceled','Order canceled','An order was canceled.'],['report_rejected','Order rejected','An order could not be accepted.'],['report_status','Order progress','An order moved to the next stage.']
  ].map(([id,label,description])=>({key:`measurements.${id}`,label:label!,description:description!,category:'measurements',defaults:{in_app:true,push:id!=='report_status'}}))});

@@ -59,7 +59,7 @@ export async function observePersonalNotification(org:string,user:string,branch:
  if(note.source==='notification_rule')return;
  const key=String(note.preference_key||note.category||'system'),auth=await backgroundAuthContext(org,user),source=await notificationSourceCatalog(org,branch,auth);
  const group=source.find(g=>g.definitions.some(d=>d.key===key)),definition=group?.definitions.find(d=>d.key===key);
- if(definition)await addPersonalDefinition(org,user,branch,group!.id,group!.label,definition);
+ if(definition){const record=await readDocument(org,'users',user);await addPersonalDefinition(org,user,branch,group!.id,group!.label,definition,obj(record.data.notification_preferences));}
 }
 export async function fullLockForNote(org:string,user:string,note:Json):Promise<NotificationLock|undefined>{
  if(!Object.keys((await readNotificationLocks(org)).locks).length)return;

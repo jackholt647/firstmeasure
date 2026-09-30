@@ -1214,6 +1214,8 @@ export async function postAgentMessage(orgId: string, channelId: string, input: 
       .map((user) => cleanText(asObject(user).id || asObject(user).user_id))
       .filter((id) => id && id !== cleanText(input.author_id)))];
     const branchTargets = new Map<string, string[]>();
+    const threadTargets = await threadNotificationTargets(orgId, message);
+    const replyEnabled = await channelReplyNotificationsEnabled(orgId, channel);
     for (const userId of mentioned) {
       const recipient = await messageNotificationRecipient(orgId, channel, message, userId);
       if (!recipient) continue;
@@ -1222,26 +1224,31 @@ export async function postAgentMessage(orgId: string, channelId: string, input: 
       branchTargets.set(recipient.branchId, targets);
     }
     for (const [branchId, targets] of branchTargets) {
+      const replyTargets = targets.filter(userId => replyEnabled && threadTargets.has(userId));
+      for (const [reply, audience] of [[true,replyTargets],[false,targets.filter(userId => !replyEnabled || !threadTargets.has(userId))]] as const) {
+      if (!audience.length) continue;
       const directory = await userDirectory(orgId);
       const authorName = directory.get(cleanText(input.author_id))?.name || "The AI assistant";
       const { createPlatformNotification } = await import("../platform/api.js");
       await createPlatformNotification(orgId, {
-        id: branchNotificationId(`notification_mention_${message.id}_agent`, branchId, "default"),
-        passive: false,
+        id: branchNotificationId(`notification_mention_${message.id}_agent${!reply && replyTargets.length ? "_mentions" : ""}`, branchId, "default"),
+        passive: reply,
+        ...(reply ? { preference_key: "channel_replies", push: true } : {}),
         title: `${authorName} mentioned you`,
         body: input.text.length > 160 ? `${input.text.slice(0, 157)}…` : input.text,
         kind: "mention",
         channel: "passive",
         manual_dismissible: true,
         source: "channels_agent",
-        target_user_ids: targets,
+        target_user_ids: audience,
         branch_id: branchId,
         frontend_action: channel.type === "project"
           ? { kind: "open_project_message", project_id: channel.project_id, channel_id: channel.id, message_id: message.id, parent_id: parentId }
           : { kind: "open_channel_message", channel_id: channel.id, message_id: message.id, parent_id: parentId }
       });
-      (await publishRealtimeEvent({ organization_id: orgId, topic: "channels.unreads.changed", user_ids: targets, payload: { channel_id: channel.id } }));
+      (await publishRealtimeEvent({ organization_id: orgId, topic: "channels.unreads.changed", user_ids: audience, payload: { channel_id: channel.id } }));
     }
+      }
   } catch {
     /* best effort */
   }
@@ -2500,6 +2507,8 @@ async function notifyMentions(ctx: PlatformAuthContext, channel: ChannelRow, mes
       .filter((id) => id && id !== ctx.userId && !alreadyNotified.has(id))
   )];
   const branchTargets = new Map<string, string[]>();
+    const threadTargets = await threadNotificationTargets(ctx.orgId, message);
+  const replyEnabled = await channelReplyNotificationsEnabled(ctx.orgId, channel);
   for (const userId of mentioned) {
     const recipient = await messageNotificationRecipient(ctx.orgId, channel, message, userId);
     if (!recipient) continue;
@@ -2515,17 +2524,21 @@ async function notifyMentions(ctx: PlatformAuthContext, channel: ChannelRow, mes
       ? { kind: "open_project_message", project_id: channel.project_id, channel_id: channel.id, message_id: message.id, parent_id: message.parent_id }
       : { kind: "open_channel_message", channel_id: channel.id, message_id: message.id, parent_id: message.parent_id };
     for (const [branchId, targets] of branchTargets) {
+      const replyTargets = targets.filter(userId => replyEnabled && threadTargets.has(userId));
+      for (const [reply, audience] of [[true,replyTargets],[false,targets.filter(userId => !replyEnabled || !threadTargets.has(userId))]] as const) {
+      if (!audience.length) continue;
     await createPlatformNotification(ctx.orgId, {
-      id: branchNotificationId(`notification_mention_${message.id}_${message.edited_at ? "edit" : "post"}`, branchId, ctx.branchId || "default"),
+      id: branchNotificationId(`notification_mention_${message.id}_${message.edited_at ? "edit" : "post"}${!reply && replyTargets.length ? "_mentions" : ""}`, branchId, ctx.branchId || "default"),
       title: `${actorName} mentioned you`,
       body: message.text.length > 140 ? `${message.text.slice(0, 137)}...` : message.text,
       status: "active",
       channel: "passive",
       kind: "mention",
+      ...(reply ? { preference_key: "channel_replies" } : {}),
       push: true,
-      passive: false,
+      passive: reply,
       manual_dismissible: true,
-      target_user_ids: targets,
+      target_user_ids: audience,
       branch_id: branchId,
       source: channel.type === "project" ? "project_message" : "channel_message",
       frontend_action: frontendAction,
@@ -2540,54 +2553,71 @@ async function notifyMentions(ctx: PlatformAuthContext, channel: ChannelRow, mes
     (await publishRealtimeEvent({
       organization_id: ctx.orgId,
       topic: "channels.unreads.changed",
-      user_ids: targets,
+      user_ids: audience,
       payload: { channel_id: channel.id }
     }));
     }
+      }
   } catch {
     /* notifications are best-effort */
   }
 }
 
-async function notifyMessageSubscribers(ctx: { orgId: string; userId: string; branchId?: string; identity: JsonObject }, channel: ChannelRow, message: MessageRow) {
-  const mentioned = new Set(message.mention_users.map((user) => cleanText(user.id || user.user_id)).filter(Boolean));
+async function channelReplyNotificationsEnabled(orgId: string, channel: ChannelRow) {
+  if (channel.type === "feed") return false;
+  const { isAppFlagEnabled } = await import("../platform/app_flags.js");
+  return isAppFlagEnabled(orgId, "apps", "channels");
+}
+
+async function threadNotificationTargets(orgId: string, message: MessageRow) {
   const threadTargets = new Set<string>();
   if (message.parent_id) {
-    const root = await readMessageRecord(ctx.orgId, message.parent_id);
+    const root = await readMessageRecord(orgId, message.parent_id);
     if (root && !root.deleted_at) threadTargets.add(root.author_id);
     const followers = await getChannelsDatabase().prepare(`
       SELECT user_id FROM channel_thread_subscriptions
       WHERE organization_id = ? AND root_message_id = ? AND following = 1 AND notify_level = 'all'
-    `).all(ctx.orgId, message.parent_id) as JsonObject[];
+    `).all(orgId, message.parent_id) as JsonObject[];
     for (const follower of followers) threadTargets.add(cleanText(follower.user_id));
   }
+  return threadTargets;
+}
+
+async function notifyMessageSubscribers(ctx: { orgId: string; userId: string; branchId?: string; identity: JsonObject }, channel: ChannelRow, message: MessageRow) {
+  const mentioned = new Set(message.mention_users.map((user) => cleanText(user.id || user.user_id)).filter(Boolean));
+  const threadTargets = await threadNotificationTargets(ctx.orgId, message);
+  const replyEnabled = await channelReplyNotificationsEnabled(ctx.orgId, channel);
   const candidates = new Set([...threadTargets, ...(await listChannelMembers(channel.id)).map(member => member.user_id)]);
-  const branchTargets = new Map<string, string[]>();
+  const branchTargets = new Map<string, { replies: string[]; messages: string[] }>();
   for (const userId of candidates) {
     if (!userId || userId === ctx.userId || mentioned.has(userId)) continue;
     const recipient = await messageNotificationRecipient(ctx.orgId, channel, message, userId);
     if (!recipient) continue;
     if (!threadTargets.has(userId) && !["dm", "group_dm"].includes(channel.type) && recipient.notifyLevel !== "all") continue;
-    const targets = branchTargets.get(recipient.branchId) || [];
-    targets.push(userId);
+    const targets = branchTargets.get(recipient.branchId) || { replies: [], messages: [] };
+    targets[replyEnabled && threadTargets.has(userId) ? "replies" : "messages"].push(userId);
     branchTargets.set(recipient.branchId, targets);
   }
   if (!branchTargets.size) return;
   try {
     const { createPlatformNotification } = await import("../platform/api.js");
     const actorName = cleanText(ctx.identity.name || ctx.identity.display_name || ctx.identity.email) || "A teammate";
-    for (const [branchId, targets] of branchTargets) {
+    for (const [branchId, audience] of branchTargets) {
+    for (const [lane, targets] of Object.entries(audience)) {
+    if (!targets.length) continue;
+    const reply = lane === "replies";
     await createPlatformNotification(ctx.orgId, {
-      id: branchNotificationId(`notification_channel_${message.id}`, branchId, ctx.branchId || "default"),
-      title: channel.type === "dm" || channel.type === "group_dm"
+      id: branchNotificationId(`notification_channel_${message.id}${!reply && audience.replies.length ? "_members" : ""}`, branchId, ctx.branchId || "default"),
+      title: reply ? `${actorName} replied to your thread` : channel.type === "dm" || channel.type === "group_dm"
         ? `${actorName} sent a message`
         : `${actorName} posted in #${channel.name}`,
       body: message.text.length > 160 ? `${message.text.slice(0, 157)}...` : message.text,
       status: "active",
       channel: "passive",
-      kind: "channel_message",
+      kind: reply ? "channel_reply" : "channel_message",
+      ...(reply ? { preference_key: "channel_replies" } : {}),
       push: true,
-      passive: false,
+      passive: reply,
       manual_dismissible: true,
       target_user_ids: targets,
       branch_id: branchId,
@@ -2597,6 +2627,7 @@ async function notifyMessageSubscribers(ctx: { orgId: string; userId: string; br
         : { kind: "open_channel_message", channel_id: channel.id, message_id: message.id, parent_id: message.parent_id },
       context: { channel_id: channel.id, message_id: message.id, actor_user_id: ctx.userId }
     });
+    }
     }
   } catch {
     /* push delivery is best effort; Activity remains durable */
