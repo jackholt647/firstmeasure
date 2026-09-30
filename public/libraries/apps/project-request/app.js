@@ -3,15 +3,19 @@
  */
 (function(){
   const registryUrl = new URL('../../window-manager/project-windows.js?v=20260929-project-windows-v2', document.currentScript.src);
-  const registryReady = window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href);
+  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260929-split-v1', document.currentScript.src);
+  const registryReady = Promise.all([window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
 window.PlatformCommerce.onReady(async function(){
   await registryReady;
   if (!window.Portal || window.Portal.modules?.request?.retainedProjectWindows) return;
 
-  const projectWindowToken = new URLSearchParams(location.search).get('projectWindow') || (window.name.startsWith('fm-project-window:') ? window.name.slice(18) : '');
+  let projectWindowToken = new URLSearchParams(location.search).get('projectWindow') || (window.name.startsWith('fm-project-window:') ? window.name.slice(18) : '');
+  const projectPaneToken = new URLSearchParams(location.search).get('projectPane') || (window.name.startsWith('fm-project-pane:') ? window.name.slice(16) : '');
+  let projectContentPane = false;
   let projectWindowBridge = null;
   try {
     if (window.parent !== window && window.parent.FirstMateProjectWindows?.accepts(projectWindowToken, window)) projectWindowBridge = window.parent.FirstMateProjectWindows;
+    if (window.parent !== window && window.parent.FirstMateProjectLayout?.accepts(projectPaneToken, window)) { projectWindowBridge = window.parent.FirstMateProjectLayout; projectWindowToken = projectPaneToken; projectContentPane = true; }
   } catch (_) { /* A standalone portal does not connect to a foreign parent. */ }
   const cfg = window.Portal.cfg || {};
   const { $, injectCSS, postAction, hasPerm, formatDate, fmUrl, fmJson, fmPost, platformJson, currentActor } = window.Portal.util;
@@ -251,6 +255,7 @@ window.PlatformCommerce.onReady(async function(){
   let modalInitialProjectIds = new Set();
   let requestModalHandle = null;
   let projectModalWindow = null;
+  let projectLayout = null;
   let projectModalFullscreen = false;
   let projectModalFullscreenTimer = null;
   let addonInfoModalHandle = null;
@@ -2421,6 +2426,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function syncMobileProjectInfoNavigation(){
+    if (projectLayout) return;
     const overlay = $('#rOverlay');
     if (!overlay) return;
     const enabled = mobileProjectNavigationEnabled();
@@ -2458,6 +2464,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function syncMobileDefaultInfoTray(){
+    if (projectLayout) return;
     const overlay = $('#rOverlay');
     const toggle = $('#rMobileProjectInfoToggle');
     if (!overlay) return;
@@ -2562,6 +2569,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function syncMobileLeftTray(){
+    if (projectLayout) return;
     const overlay = $('#rOverlay');
     if (!overlay) return;
     const enabled = mobileLeftTrayEnabled();
@@ -3033,6 +3041,7 @@ window.PlatformCommerce.onReady(async function(){
     overlay.classList.add('window-managed');
     observeProjectHeaderFit(overlay);
     overlay.dataset.windowMode = 'modal';
+    projectLayout = window.FirstMateProjectLayout?.mount({ overlay, pane:projectContentPane, getProject:() => activeBaseProject, getTab:() => activePreviewTab, getLeftMode:() => projectLeftColumnOverridden() ? 'app' : 'none', needsInfo:() => !viewingExistingProject || newProjectCreationSession });
     if (!projectWindowBridge) projectModalWindow.setVisible(false);
   }
   function setProjectModalFullscreen(enabled, options = {}){
@@ -7330,6 +7339,7 @@ window.PlatformCommerce.onReady(async function(){
     overlay.dataset.projectTabMode = policy.iconOnly ? 'icons' : 'labels';
     projectViewer?.setPresentation?.({ iconOnly: policy.iconOnly });
     syncMobileDefaultInfoTray();
+    projectLayout?.refresh();
     return policy;
   }
 
@@ -11001,6 +11011,7 @@ window.PlatformCommerce.onReady(async function(){
     projectRouteBatching = true;
     ensureUI();
     ensureProjectWindow();
+    projectLayout?.clear();
     setMobileProjectNotesOpen(false, { fromRoute:true });
     const overlay = $('#rOverlay');
 
@@ -11094,6 +11105,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function close(options = {}){
     if (!projectWindowBridge && window.FirstMateProjectWindows?.active) return window.FirstMateProjectWindows.close();
+    projectLayout?.clear();
     projectModalWindow?.setVisible(false);
     projectPresenceStop?.(); projectPresenceStop = null;
     projectPresenceKey = ''; projectPresenceUsers = []; renderProjectPresence();
