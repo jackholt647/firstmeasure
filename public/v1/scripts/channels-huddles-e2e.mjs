@@ -106,6 +106,18 @@ try {
   assert.equal(await page.evaluate(()=>typeof effects.BackgroundProcessor),'function');
   await page.evaluate(()=>callProbe.applyHuddleBackground('blur'));
   assert.equal(await page.evaluate(()=>callProbe.state.huddleBackground),'blur');
+  assert.equal(await page.evaluate(()=>callProbe.state.huddleProcessor.maxFps),30);
+  const quality = await page.evaluate(()=>callProbe.state.huddleProcessor.transformer.effectProfile);
+  assert.equal(quality.delegate,'GPU'); assert(quality.model.endsWith('selfie_multiclass.tflite'));
+  // A sustained slow processing window must select the fast model; a subsequent
+  // GPU inference failure must keep producing camera frames and recover on CPU.
+  await page.evaluate(()=>{const t=callProbe.state.huddleProcessor.transformer;t.frameSamples=60;t.meanProcessingMs=200;});
+  await page.waitForFunction(()=>callProbe.state.huddleProcessor.transformer.effectProfile.model.endsWith('selfie_segmenter.tflite'));
+  await page.evaluate(()=>{callProbe.state.huddleProcessor.transformer.imageSegmenter.segmentForVideo=()=>{throw new Error('Simulated GPU inference failure');};});
+  await page.waitForFunction(()=>callProbe.state.huddleProcessor.transformer.effectProfile.delegate==='CPU');
+  await page.waitForFunction(()=>callProbe.state.huddleProcessor.transformer.frameSamples>=3);
+  assert.equal(await page.evaluate(()=>callProbe.state.huddleCameraTrack.mediaStreamTrack.readyState),'live');
+  console.log('PASS GPU quality model, 30 FPS target, adaptive fast model and CPU recovery');
   await page.evaluate(async()=>{const canvas=document.createElement('canvas');canvas.width=64;canvas.height=64;canvas.getContext('2d').fillRect(0,0,64,64);callProbe.state.huddleBackgroundUrl=canvas.toDataURL();await callProbe.applyHuddleBackground('image');});
   assert.equal(await page.evaluate(()=>callProbe.state.huddleBackground),'image');
   await page.screenshot({path:path.join(output,'effects-before-off.png')});

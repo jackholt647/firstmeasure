@@ -37,7 +37,7 @@
     versionedBundle('../platform-assistant/platform-assistant.js', '20260929-channel-assistant-v1'),
     versionedBundle('photos/feed.js', '20260929-feed-no-refresh-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20260929-project-link-v1'),
+    versionedBundle('../channels-ui/channels-ui.js', '20260929-effects-quality-v1'),
     versionedBundle('../project-notes/project-notes.js', '20260723-channels-notes')
   ];
   const fieldApprovalBundles = [
@@ -543,7 +543,7 @@
         versionedBundle('../platform-assistant/platform-assistant.js', '20260929-channel-assistant-v1'),
         versionedBundle('photos/feed.js', '20260929-feed-no-refresh-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20260929-project-link-v1'),
+    versionedBundle('../channels-ui/channels-ui.js', '20260929-effects-quality-v1'),
         versionedBundle('channels/app.js', '20260929-project-link-v1')
       ]
     },

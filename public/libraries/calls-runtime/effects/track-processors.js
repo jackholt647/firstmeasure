@@ -596,6 +596,7 @@ var compositeFragmentShader = glsl`#version 300 es
   uniform bool disableBackground;
   uniform sampler2D frame;
   uniform sampler2D mask;
+  uniform bool maskIsForeground;
   out vec4 fragColor;
   
   void main() {
@@ -608,16 +609,10 @@ var compositeFragmentShader = glsl`#version 300 es
 
       float maskVal = texture(mask, texCoords).r;
 
-      // Compute screen-space gradient to detect edge sharpness
-      float grad = length(vec2(dFdx(maskVal), dFdy(maskVal)));
-
-      float edgeSoftness = 2.0; // higher = softer
-
-      // Create a smooth edge around binary transition
-      float smoothAlpha = smoothstep(0.5 - grad * edgeSoftness, 0.5 + grad * edgeSoftness, maskVal);
-
-      // Optional: preserve frame alpha, or override as fully opaque
-      vec4 blended = mix(bgTex, vec4(frameTex.rgb, 1.0), 1.0 - smoothAlpha);
+      // Preserve confidence at hair/hand edges instead of thresholding to a binary outline.
+      float foreground = maskIsForeground ? maskVal : 1.0 - maskVal;
+      float alpha = smoothstep(0.15, 0.85, foreground);
+      vec4 blended = mix(bgTex, vec4(frameTex.rgb, 1.0), alpha);
       fragColor = blended;
     }
   
@@ -632,6 +627,7 @@ function createCompositeProgram(gl) {
   };
   const uniformLocations = {
     mask: gl.getUniformLocation(compositeProgram, "mask"),
+    maskIsForeground: gl.getUniformLocation(compositeProgram, "maskIsForeground"),
     frame: gl.getUniformLocation(compositeProgram, "frame"),
     background: gl.getUniformLocation(compositeProgram, "background"),
     disableBackground: gl.getUniformLocation(compositeProgram, "disableBackground"),
@@ -711,7 +707,8 @@ var setupWebGL = (canvas) => {
     premultipliedAlpha: true
   });
   let blurRadius = null;
-  let maskBlurRadius = 8;
+  let maskBlurRadius = 2;
+  let foregroundMask = true;
   const downsampleFactor = 4;
   if (!gl) {
     log2.error("Failed to create WebGL context");
@@ -724,6 +721,7 @@ var setupWebGL = (canvas) => {
   const positionLocation = composite.attribLocations.position;
   const {
     mask: maskTextureLocation,
+    maskIsForeground: maskIsForegroundLocation,
     frame: frameTextureLocation,
     background: bgTextureLocation,
     disableBackground: disableBackgroundLocation
@@ -826,6 +824,7 @@ var setupWebGL = (canvas) => {
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, finalMaskTextures[readMaskIndex]);
     gl.uniform1i(maskTextureLocation, 2);
+    gl.uniform1i(maskIsForegroundLocation, foregroundMask ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
   async function setBackgroundImage(image) {
@@ -910,7 +909,7 @@ var setupWebGL = (canvas) => {
     bgBlurFrameBuffers = [];
     finalMaskTextures = [];
   }
-  return { renderFrame, updateMask, setBackgroundImage, setBlurRadius, setBackgroundDisabled, cleanup };
+  return { renderFrame, updateMask, setBackgroundImage, setBlurRadius, setBackgroundDisabled, setMaskIsForeground:value => { foregroundMask = value; }, cleanup };
 };
 
 // src/transformers/VideoTransformer.ts
@@ -976,17 +975,16 @@ var BackgroundProcessor = class extends VideoTransformer {
     const fileSet = await vision.FilesetResolver.forVisionTasks(
       (_b = (_a = this.options.assetPaths) == null ? void 0 : _a.tasksVisionFileSet) != null ? _b : `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${dependencies["@mediapipe/tasks-vision"]}/wasm`
     );
-    this.imageSegmenter = await vision.ImageSegmenter.createFromOptions(fileSet, {
-      baseOptions: {
-        modelAssetPath: (_d = (_c = this.options.assetPaths) == null ? void 0 : _c.modelAssetPath) != null ? _d : "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite",
-        delegate: "GPU",
-        ...this.options.segmenterOptions
-      },
-      canvas: this.canvas,
-      runningMode: "VIDEO",
-      outputCategoryMask: true,
-      outputConfidenceMasks: false
-    });
+    this.fileSet = fileSet;
+    const model = this.options.assetPaths?.modelAssetPath || new URL('./selfie_segmenter.tflite', import.meta.url).href;
+    const fastModel = this.options.assetPaths?.fallbackModelAssetPath || model;
+    const delegate = this.options.segmenterOptions?.delegate || 'GPU';
+    this.modelCandidates = [
+      {model, delegate},
+      ...(fastModel !== model ? [{model:fastModel, delegate}] : []),
+      ...(delegate !== 'CPU' ? [{model:fastModel, delegate:'CPU'}] : [])
+    ];
+    await this.loadNextSegmenter();
     if ((_e = this.options) == null ? void 0 : _e.imagePath) {
       await this.loadAndSetBackground(this.options.imagePath).catch(
         (err) => this.log.error("Error while loading processor background image: ", err)
@@ -996,6 +994,27 @@ var BackgroundProcessor = class extends VideoTransformer {
       (_f = this.gl) == null ? void 0 : _f.setBlurRadius(this.options.blurRadius);
     }
     (_h = this.gl) == null ? void 0 : _h.setBackgroundDisabled((_g = this.options.backgroundDisabled) != null ? _g : false);
+  }
+  // FirstMate extension: high-quality GPU model, then fast GPU/CPU fallbacks.
+  async loadNextSegmenter() {
+    this.imageSegmenter?.close(); this.imageSegmenter = null;
+    let lastError;
+    while (this.modelCandidates.length && this.canvas) {
+      const candidate = this.modelCandidates.shift();
+      try {
+        const segmenter = await vision.ImageSegmenter.createFromOptions(this.fileSet, {
+          baseOptions:{...this.options.segmenterOptions, modelAssetPath:candidate.model, delegate:candidate.delegate},
+          canvas:this.canvas, runningMode:'VIDEO', outputCategoryMask:false, outputConfidenceMasks:true
+        });
+        if (!this.canvas || this.isDisabled) { segmenter.close(); throw new Error('Camera effects stopped'); }
+        this.imageSegmenter = segmenter;
+        this.gl?.setMaskIsForeground(segmenter.getLabels()[0] !== 'background');
+        this.effectProfile = candidate;
+        this.frameSamples = 0; this.meanProcessingMs = 0;
+        return;
+      } catch (error) { lastError = error; }
+    }
+    throw lastError || new Error('No camera effects processor available');
   }
   async destroy(options) {
     var _a;
@@ -1024,6 +1043,7 @@ var BackgroundProcessor = class extends VideoTransformer {
   async transform(frame, controller) {
     var _a, _b, _c, _d;
     let enqueuedFrame = false;
+    let outputSent = false;
     try {
       if (!(frame instanceof VideoFrame) || frame.codedWidth === 0 || frame.codedHeight === 0) {
         this.log.debug("empty frame detected, ignoring");
@@ -1042,55 +1062,57 @@ var BackgroundProcessor = class extends VideoTransformer {
       if (!this.canvas) {
         throw TypeError("Canvas needs to be initialized first");
       }
-      this.canvas.width = frame.displayWidth;
-      this.canvas.height = frame.displayHeight;
-      if (this.isFirstFrame) {
-        controller.enqueue(frame.clone());
-        if (this.inputVideo) {
-          await new Promise((resolve) => {
-            this.inputVideo.requestVideoFrameCallback((_now, e) => {
-              const durationUntilFrameRenderedInMs = e.expectedDisplayTime - e.presentationTime;
-              setTimeout(resolve, durationUntilFrameRenderedInMs);
-            });
-          });
-        }
+      if (this.canvas.width !== frame.displayWidth || this.canvas.height !== frame.displayHeight) {
+        this.canvas.width = frame.displayWidth; this.canvas.height = frame.displayHeight;
+        this.gl?.cleanup(); this.gl = setupWebGL(this.canvas);
+        this.gl?.setMaskIsForeground(this.imageSegmenter.getLabels()[0] !== 'background');
+        this.gl?.setBlurRadius(this.options.blurRadius || null);
+        if (this.backgroundImageAndPath) await this.gl?.setBackgroundImage(this.backgroundImageAndPath.imageData);
       }
-      this.isFirstFrame = false;
       const filterStartTimeMs = performance.now();
       const segmentationPromise = new Promise((resolve, reject) => {
         var _a2;
         try {
           let segmentationStartTimeMs = performance.now();
-          (_a2 = this.imageSegmenter) == null ? void 0 : _a2.segmentForVideo(frame, segmentationStartTimeMs, (result) => {
+          this.imageSegmenter.segmentForVideo(frame, segmentationStartTimeMs, (result) => {
             this.segmentationTimeMs = performance.now() - segmentationStartTimeMs;
-            this.segmentationResults = result;
-            this.updateMask(result.categoryMask);
-            result.close();
+            try { this.updateMask(result.confidenceMasks[0]); }
+            finally { result.close(); }
             resolve();
           });
         } catch (e) {
           reject(e);
         }
       });
+      await segmentationPromise;
       this.drawFrame(frame);
       if (this.canvas && this.canvas.width > 0 && this.canvas.height > 0) {
         const newFrame = new VideoFrame(this.canvas, {
           timestamp: frame.timestamp || frameTimeMs
         });
         controller.enqueue(newFrame);
+        outputSent = true;
         const filterTimeMs = performance.now() - filterStartTimeMs;
         const stats = {
-          processingTimeMs: this.segmentationTimeMs + filterTimeMs,
+          processingTimeMs: filterTimeMs,
           segmentationTimeMs: this.segmentationTimeMs,
-          filterTimeMs
+          filterTimeMs: Math.max(0, filterTimeMs - this.segmentationTimeMs)
         };
+        this.frameSamples++;
+        this.meanProcessingMs += (filterTimeMs - this.meanProcessingMs) / Math.min(this.frameSamples, 30);
+        if (this.frameSamples >= 60 && this.meanProcessingMs > 45 && this.modelCandidates.length) {
+          try { await this.loadNextSegmenter(); }
+          catch (error) { this.isDisabled = true; this.log.warn('Background effect disabled after fallback failure', error); }
+        }
         (_d = (_c = this.options).onFrameProcessed) == null ? void 0 : _d.call(_c, stats);
       } else {
-        controller.enqueue(frame);
+        controller.enqueue(frame); enqueuedFrame = true;
       }
-      await segmentationPromise;
     } catch (e) {
       this.log.error("Error while processing frame: ", e);
+      if (!outputSent) { controller.enqueue(frame); enqueuedFrame = true; }
+      try { await this.loadNextSegmenter(); }
+      catch (_) { this.isDisabled = true; }
     } finally {
       if (!enqueuedFrame) {
         frame.close();
@@ -1108,13 +1130,13 @@ var BackgroundProcessor = class extends VideoTransformer {
     }
     (_e = this.gl) == null ? void 0 : _e.setBackgroundDisabled((_d = opts.backgroundDisabled) != null ? _d : false);
   }
-  async drawFrame(frame) {
+  drawFrame(frame) {
     var _a;
     if (!this.gl)
       return;
     (_a = this.gl) == null ? void 0 : _a.renderFrame(frame);
   }
-  async updateMask(mask) {
+  updateMask(mask) {
     var _a;
     if (!mask)
       return;

@@ -2743,7 +2743,7 @@
       const LK = root.LivekitClient;
       if (!LK?.createLocalVideoTrack) throw new Error('The camera runtime is unavailable. Reload FirstMate and try again.');
       const joinedId = state.huddle?.id;
-      const camera = await LK.createLocalVideoTrack({deviceId:state.huddleCameraDevice || undefined, resolution:{width:1280, height:720, frameRate:24}});
+      const camera = await LK.createLocalVideoTrack({deviceId:state.huddleCameraDevice || undefined, resolution:{width:1280, height:720, frameRate:30}});
       if (!joinedId || state.huddle?.id !== joinedId) { camera.stop(); return; }
       state.huddleCameraTrack = camera;
       try {
@@ -2768,9 +2768,9 @@
           await camera.stopProcessor?.(); state.huddleProcessor = null;
         } else {
           if (!state.huddleProcessor) {
-            const effects = await import('../calls-runtime/effects/track-processors.js');
+            const effects = await import('../calls-runtime/effects/track-processors.js?v=20260929-quality-v1');
             if (!effects.supportsBackgroundProcessors()) throw new Error('This browser does not support background effects.');
-            const processor = effects.BackgroundProcessor({mode:'disabled', maxFps:15, segmenterOptions:{delegate:'CPU'}, assetPaths:{tasksVisionFileSet:'/libraries/calls-runtime/effects/wasm', modelAssetPath:'/libraries/calls-runtime/effects/selfie_segmenter.tflite'}});
+            const processor = effects.BackgroundProcessor({mode:'disabled', maxFps:30, segmenterOptions:{delegate:'GPU'}, assetPaths:{tasksVisionFileSet:'/libraries/calls-runtime/effects/wasm', modelAssetPath:'/libraries/calls-runtime/effects/selfie_multiclass.tflite', fallbackModelAssetPath:'/libraries/calls-runtime/effects/selfie_segmenter.tflite'}});
             await camera.setProcessor(processor);
             if (state.huddleCameraTrack !== camera) { await camera.stopProcessor(); return; }
             state.huddleProcessor = processor;
