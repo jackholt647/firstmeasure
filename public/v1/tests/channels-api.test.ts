@@ -1126,3 +1126,37 @@ test("forwarding preserves attribution and attachments, checks access, and accep
   await owner.request("DELETE",`${base}/messages/${original.id}`);
   assert.equal((await owner.raw("POST",`${base}/channels/${target.id}/messages`,{forwarded_message_id:original.id})).statusCode,404);
 });
+
+
+test("locked channels allow only managers to post while members can react", async () => {
+  const {client:owner,orgId,suffix}=await registerOwner();
+  const member=await createOrgUser(owner,orgId,suffix,"Locked Member");
+  const base=`/v1/channels/organizations/${orgId}`;
+  const channel=(await owner.request("POST",`${base}/channels`,{type:"public",name:"announcements",member_user_ids:[member.userId]})).channel;
+  const old=(await member.client.request("POST",`${base}/channels/${channel.id}/messages`,{text:"Before locking"})).message;
+  const scheduled=(await member.client.request("POST",`${base}/scheduled-messages`,{channel_id:channel.id,text:"Scheduled before lock",scheduled_at:new Date(Date.now()+3600000).toISOString()})).scheduled_message;
+  await owner.request("PATCH",`${base}/channels/${channel.id}`,{settings:{posting_locked:true}});
+  assert.equal((await member.client.request("GET",`${base}/channels/${channel.id}`)).channel.can_post,false);
+  const announcement=(await owner.request("POST",`${base}/channels/${channel.id}/messages`,{text:"Managers can post"})).message;
+  for(const payload of [{text:"No"},{text:"No reply",parent_id:announcement.id},{metadata:{giphy:{id:"x",url:"https://media.giphy.com/media/x/giphy.gif",title:"GIF",width:100,height:100}}}]) {
+    const denied=await member.client.raw("POST",`${base}/channels/${channel.id}/messages`,payload);
+    assert.equal(denied.statusCode,403);
+    assert.match(denied.body,/channel_posting_locked/);
+  }
+  assert.equal((await member.client.raw("PATCH",`${base}/messages/${old.id}`,{text:"No edit"})).statusCode,403);
+  assert.equal((await member.client.raw("PATCH",`${base}/channels/${channel.id}`,{settings:{posting_locked:false}})).statusCode,403);
+  assert.equal((await member.client.raw("POST",`${base}/scheduled-messages`,{channel_id:channel.id,text:"No schedule",scheduled_at:new Date(Date.now()+3600000).toISOString()})).statusCode,403);
+  const reacted=await member.client.request("PUT",`${base}/messages/${announcement.id}/reactions`,{emoji:"👍",on:true});
+  assert.equal(reacted.message.reactions[0].count,1);
+  await member.client.request("PUT",`${base}/messages/${announcement.id}/reactions`,{emoji:"👍",on:false});
+  const {getChannelsDatabase}=await import("../channels/storage.js");
+  await (await getChannelsDatabase()).prepare("UPDATE channel_scheduled_messages SET scheduled_at=? WHERE id=?").run(new Date(Date.now()-1000).toISOString(),scheduled.id);
+  const pending=await member.client.request("GET",`${base}/scheduled-messages`);
+  assert.equal(pending.scheduled_messages.find((item:Json)=>item.id===scheduled.id).state,"failed");
+  await owner.request("PATCH",`${base}/channels/${channel.id}/members/${member.userId}`,{role:"admin"});
+  await member.client.request("POST",`${base}/channels/${channel.id}/messages`,{text:"Promoted manager"});
+  await owner.request("PATCH",`${base}/channels/${channel.id}/members/${member.userId}`,{role:"member"});
+  await owner.request("PATCH",`${base}/channels/${channel.id}`,{settings:{posting_locked:false}});
+  assert.equal((await member.client.request("GET",`${base}/channels/${channel.id}`)).channel.can_post,true);
+  await member.client.request("POST",`${base}/channels/${channel.id}/messages`,{text:"Unlocked"});
+});

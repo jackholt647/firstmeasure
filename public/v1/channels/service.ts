@@ -248,7 +248,7 @@ export function canManageChannels(ctx: PlatformAuthContext) {
   return hasPermission(ctx, "manage_channels");
 }
 
-export async function requireChannelAccess(ctx: PlatformAuthContext, channelId: string, options: { write?: boolean } = {}) {
+export async function requireChannelAccess(ctx: PlatformAuthContext, channelId: string, options: { write?: boolean; post?: boolean } = {}) {
   const channel = (await readChannelRecord(ctx.orgId, channelId));
   if (!channel) throw notFound("channel_not_found", "This channel does not exist.");
   const membership = (await readChannelMember(channel.id, ctx.userId));
@@ -260,8 +260,11 @@ export async function requireChannelAccess(ctx: PlatformAuthContext, channelId: 
       throw forbidden("channel_forbidden", "You do not have access to project messages.");
     }
   }
-  if (options.write && channel.archived_at) {
+  if ((options.write || options.post) && channel.archived_at) {
     throw badRequest("channel_archived", "This channel is archived.");
+  }
+  if (options.post && channel.settings.posting_locked === true && !(await channelAdminAllowed(ctx, channel))) {
+    throw forbidden("channel_posting_locked", "Only channel managers can post in this channel. You can still react to messages.");
   }
   return { channel, membership };
 }
@@ -609,6 +612,7 @@ async function channelView(ctx: PlatformAuthContext, channel: ChannelRow, extras
     assistant_dm: channel.type === "dm" && members.some(member => member.user_id === "agent_assistant") && members.filter(member => !member.user_id.startsWith("agent_")).length === 1,
     is_member: members.some((member) => member.user_id === ctx.userId),
     can_manage: (await channelAdminAllowed(ctx, channel)),
+    can_post: !channel.archived_at && (channel.settings.posting_locked !== true || await channelAdminAllowed(ctx, channel)),
     can_invite: members.some(member => member.user_id === ctx.userId) && await channelAdminAllowed(ctx, channel),
     ...extras
   };
@@ -968,7 +972,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   forward_include_attachments?: boolean;
   metadata?: JsonObject;
 }) {
-  const { channel, membership } = await requireChannelAccess(ctx, channelId, { write: true });
+  const { channel, membership } = await requireChannelAccess(ctx, channelId, { post: true });
 
 
   const clientMsgId = cleanText(input.client_msg_id);
@@ -1203,7 +1207,7 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
 }) {
   const message = (await readMessageRecord(ctx.orgId, messageId));
   if (!message) throw notFound("message_not_found", "This message does not exist.");
-  const { channel } = await requireChannelAccess(ctx, message.channel_id, { write: true });
+  const { channel } = await requireChannelAccess(ctx, message.channel_id, { post: true });
   // Authorship is absolute: not even admins may edit someone else's words.
   if (message.author_id !== ctx.userId) throw forbidden("not_message_author", "Only the author can edit a message.");
   if (message.deleted_at) throw badRequest("message_deleted", "Removed messages cannot be edited. Restore it first.");
@@ -1323,7 +1327,7 @@ export async function deleteMessage(ctx: PlatformAuthContext, messageId: string)
 export async function restoreMessage(ctx: PlatformAuthContext, messageId: string) {
   const message = (await readMessageRecord(ctx.orgId, messageId));
   if (!message) throw notFound("message_not_found", "This message does not exist.");
-  const { channel } = await requireChannelAccess(ctx, message.channel_id);
+  const { channel } = await requireChannelAccess(ctx, message.channel_id, { post: true });
   if (!message.deleted_at) throw badRequest("message_not_deleted", "This message is not removed.");
   if (message.deleted_by !== ctx.userId) {
     throw forbidden("not_message_deleter", "Only the person who deleted this message can restore it.");
@@ -1634,6 +1638,7 @@ export async function deliverAllDueScheduledMessages(scope?: { orgId: string; us
       const completed = await collaboration.deliverScheduledRecord(cleanText(candidate.id), async scheduled => {
         const channel = await readChannelRecord(orgId, cleanText(scheduled.channel_id));
         if (!channel || channel.archived_at) throw new Error("The target channel is unavailable.");
+        await requireChannelAccess(sender, channel.id, {post:true});
         const senderId = cleanText(scheduled.sender_user_id);
         if (requiresChannelMembership(channel) && !(await listChannelMembers(channel.id)).some(member => member.user_id === senderId)) {
           throw new Error("The sender no longer belongs to this channel.");

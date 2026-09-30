@@ -491,7 +491,7 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await auth(request, orgId, { csrf: true, capability: "channels.rich_messages" });
     const body = scheduledMessageSchema.parse(request.body ?? {});
-    await service.requireChannelAccess(ctx, body.channel_id, { write: true });
+    await service.requireChannelAccess(ctx, body.channel_id, { post: true });
     const scheduled = (await collaboration.createScheduledRecord(orgId, ctx.userId, body));
     reply.code(201);
     return { ok: true, scheduled_message: scheduled };

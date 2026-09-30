@@ -111,6 +111,15 @@
     return `${fmtDay(iso)} at ${fmtTime(iso)}`;
   }
 
+  function dayDivider(iso){
+    const date = new Date(iso);
+    const label = fmtDay(iso);
+    const fullDate = date.toLocaleDateString([], {year:'numeric',month:'long',day:'numeric'});
+    const node = el('div', 'fm-ch-day', `<span class="fm-ch-day-label">${esc(label === 'Today' || label === 'Yesterday' ? label + ' · ' + fullDate : label)}</span>`);
+    node.setAttribute('role','separator'); node.setAttribute('aria-label',fullDate);
+    return node;
+  }
+
   function dayKey(iso){
     const date = new Date(iso);
     return Number.isNaN(date.getTime()) ? '' : `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
@@ -692,7 +701,8 @@
 .fm-ch-body{flex:1;display:flex;min-height:0}
 .fm-ch-list-wrap{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
 .fm-ch-list{flex:1;overflow-y:auto;padding:10px 0 4px}
-.fm-ch-day{display:flex;align-items:center;gap:10px;margin:12px 16px 4px;color:var(--ch-muted);font-size:12px;font-weight:600}
+.fm-ch-day{display:flex;align-items:center;gap:12px;margin:22px 16px 12px;color:var(--ch-text);font-size:12px;font-weight:600}
+.fm-ch-day-label{border:1px solid var(--ch-border);border-radius:999px;padding:5px 14px;background:var(--ch-surface,#fff)}
 .fm-ch-day::before,.fm-ch-day::after{content:'';flex:1;height:1px;background:var(--ch-border)}
 .fm-ch-new-divider{display:flex;align-items:center;gap:8px;margin:8px 16px;color:var(--ch-danger);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .fm-ch-new-divider::after{content:'';flex:1;height:1px;background:var(--ch-danger)}
@@ -1223,6 +1233,7 @@
           api.channels.list(orgId),
           features.attention ? api.sidebarSections?.list?.(orgId).catch(() => ({ sections:[] })) : Promise.resolve({ sections:[] })
         ]);
+        const wasPostingBlocked = postingBlocked();
         state.channels = data.channels || [];
         state.sidebarSections = sectionsData?.sections || [];
         state.channelsById = new Map(state.channels.map((channel) => [channel.id, channel]));
@@ -1236,6 +1247,7 @@
         if (mode === 'conversation') {
           if (state.activeChannelId) {
             state.activeChannel = state.channelsById.get(state.activeChannelId) || state.activeChannel;
+            if (wasPostingBlocked !== postingBlocked()) { renderComposer(); if(state.threadRootId) renderPanel({resetComposer:true}); }
             renderHeader();
           }
           return;
@@ -1248,6 +1260,7 @@
           await setChannel(preferred.id);
         } else if (state.activeChannelId) {
           state.activeChannel = state.channelsById.get(state.activeChannelId) || state.activeChannel;
+            if (wasPostingBlocked !== postingBlocked()) { renderComposer(); if(state.threadRootId) renderPanel({resetComposer:true}); }
           renderHeader();
         }
       } catch (error) {
@@ -3895,7 +3908,7 @@
       for (const message of state.messages) {
         const day = dayKey(message.created_at);
         if (day !== lastDay) {
-          list.appendChild(el('div', 'fm-ch-day', esc(fmtDay(message.created_at))));
+          list.appendChild(dayDivider(message.created_at));
           lastDay = day;
         }
         if (!dividerPlaced && state.unreadDividerSeq > 0 && message.seq > state.unreadDividerSeq && message.author?.id !== currentUser.id) {
@@ -4162,6 +4175,8 @@
       return button;
     }
 
+    function postingBlocked(){ return state.activeChannel?.can_post === false || (state.activeChannel?.settings?.posting_locked === true && !state.activeChannel?.can_manage); }
+
     function renderComposer(){
       composer.innerHTML = '';
       if (state.view !== 'channel' || state.activeTab !== 'messages' || !state.activeChannel) return;
@@ -4169,6 +4184,7 @@
         composer.innerHTML = `<div class="fm-ch-empty">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_14199c5517db0f","This channel is archived.") ?? "This channel is archived.")}</div>`;
         return;
       }
+      if (postingBlocked()) { composer.append(el('div','fm-ch-empty','Only channel managers can post here. You can still react to messages.')); return; }
       const editNote = el('div', 'fm-ch-edit-note');
       editNote.style.display = 'none';
       const box = el('div', 'fm-ch-composer-box');
@@ -4397,6 +4413,7 @@
       bindTyping(textarea);
 
       const doSend = async () => {
+        if (postingBlocked()) return showError(new Error('Only channel managers can post here.'));
         if (textarea.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
         const text = textarea.value.trim();
         if (!text && !state.pendingAttachments.length) return;
@@ -4601,7 +4618,12 @@
         if (state.thread.replies.length) {
           body.appendChild(el('div', 'fm-ch-day', `${state.thread.replies.length} ${state.thread.replies.length === 1 ? 'reply' : 'replies'}`));
         }
-        for (const reply of state.thread.replies) body.appendChild(messageRow(reply, { inThread: true }));
+        let replyDay = dayKey(state.thread.root.created_at);
+        for (const reply of state.thread.replies) {
+          const nextDay = dayKey(reply.created_at);
+          if(nextDay !== replyDay) { body.append(dayDivider(reply.created_at)); replyDay = nextDay; }
+          body.appendChild(messageRow(reply, {inThread:true}));
+        }
         const threadComposer = existingComposer || el('div', 'fm-ch-composer');
         if (!existingComposer) buildThreadComposer(threadComposer);
         panel.append(head, body, threadComposer);
@@ -4634,6 +4656,7 @@
     }
 
     function buildThreadComposer(node){
+      if (postingBlocked()) { node.append(el('div','fm-ch-empty','Only channel managers can reply here. You can still react to messages.')); return; }
       const box = el('div', 'fm-ch-composer-box');
       const threadInput = createMessageEditor('Reply…');
       bindTyping(threadInput);
@@ -4831,7 +4854,7 @@
           for (const item of visible) {
             const day = dayKey(item.created_at);
             if (day !== lastDay) {
-              results.appendChild(el('div', 'fm-ch-day', esc(fmtDay(item.created_at))));
+              results.appendChild(dayDivider(item.created_at));
               lastDay = day;
             }
             const kind = cleanText(item.kind);
@@ -5499,6 +5522,7 @@
           <input type="text" data-field="name" value="${String(esc(channel.name))}">
           <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_b0afebe3886365","Topic") ?? "Topic")}</label>
           <input type="text" data-field="topic" value="${String(esc(channel.topic))}">
+          <label class="fm-ch-check-row"><span><strong>Lock channel</strong><small>Only channel managers can post or reply. Other members can still react.</small></span><input type="checkbox" data-field="posting-locked" ${channel.settings?.posting_locked === true ? 'checked' : ''}></label>
           ${String(features.recording ? `<div class="fm-ch-setting-group">
             <strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_d755d71a468c5b","Huddle recording defaults") ?? "Huddle recording defaults")}</strong>
             <p>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_bf4b6a6fbea876","People can override these defaults before starting each huddle.") ?? "People can override these defaults before starting each huddle.")}</p>
@@ -5535,9 +5559,9 @@
           if (!name.trim()) { status.textContent = 'Enter a channel name.'; return Promise.reject(new Error('Enter a channel name.')); }
           const patch = {
             name, topic:body.querySelector('[data-field=topic]').value,
-            ...(features.recording ? {settings:{...(channel.settings || {}),
-              huddle_recording_enabled:Boolean(recording?.checked),
-              huddle_record_video:features.recordVideo && Boolean(video?.checked)}} : {})
+            settings:{...(channel.settings || {}), posting_locked:body.querySelector('[data-field=posting-locked]').checked,
+              ...(features.recording ? {huddle_recording_enabled:Boolean(recording?.checked),
+              huddle_record_video:features.recordVideo && Boolean(video?.checked)} : {})}
           };
           queuedVersion = revision; status.textContent = 'Saving…';
           pending = pending.catch(() => false).then(async () => {
