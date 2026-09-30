@@ -797,6 +797,9 @@ test("Kanban lists empty enabled templates, hides disabled or trashed boards, an
   assert.equal(emptyBoards.boards.length, 11);
   assert.ok(emptyBoards.boards.every((board: any) => board.columns.length > 0));
   assert.ok(emptyBoards.boards.some((board: any) => board.id === "maintenance" && board.cards.length === 0));
+  const salesFields = emptyBoards.boards.find((board: any) => board.id === "sales_pipeline").fields;
+  assert.ok(salesFields.some((field: any) => field.key === "custom:assignments.estimator"));
+  assert.ok(!salesFields.some((field: any) => field.source === "measurement"));
 
   await client.request("PATCH", `${templateUrl("maintenance")}/state`, { enabled: false });
   const withoutDisabled = await client.request("GET", boardsUrl);
@@ -848,6 +851,7 @@ test("sales pipeline scope template drives plans, board colors, and automations"
     ...current.template.definition,
     name: "Residential Sales",
     description: "Qualified residential opportunities.",
+    custom_fields: { ...current.template.definition.custom_fields, fields:[...current.template.definition.custom_fields.fields, {path:"quote_amount",label:"Quote amount",type:"number",default_value:0}] },
     color: "#245f73",
     work_plan: {
       ...current.template.definition.work_plan,
@@ -910,6 +914,8 @@ test("sales pipeline scope template drives plans, board colors, and automations"
   assert.equal(board.title, "Residential Sales");
   assert.equal(board.color, "#245f73");
   assert.equal(board.columns[0].color, "#b35c25");
+  assert.ok(board.fields.some((field: any) => field.key === "custom:quote_amount"));
+  assert.equal(board.cards.find((card: any) => card.project_id === projectId).board_field_values["custom:quote_amount"], 0);
 
   const projectDoc = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
   const projection = projectDoc.document.data.work_projection;

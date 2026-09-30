@@ -358,30 +358,40 @@
   }
 
   const ViewerCSS = `
-    .v-wrap{width:100%; max-width:none; margin:0; height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden}
+    .v-wrap{width:100%; max-width:1500px; margin:0 auto; height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden;color:#101828}
     .v-report-search{box-sizing:border-box;width:100%;min-width:0;flex-shrink:0;border:1px solid #dadce0;border-radius:12px;padding:10px 12px;font:inherit;font-size:16px;background:#fff;color:#202124}
-    .v-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; flex:0 0 auto}
-    .v-title{display:flex; flex-direction:column; gap:2px}
-    .v-title h1{margin:0; font-size:22px; font-weight:1000; letter-spacing:-.3px}
-    .v-actions{display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end; margin-left:auto}
+    .v-head{display:flex; align-items:center; justify-content:space-between; gap:14px; padding-bottom:14px; flex:0 0 auto}
+    .v-title{display:flex;align-items:center;gap:11px;min-width:0}
+    .v-title>i{width:36px;height:36px;border-radius:10px;background:var(--primary,#d93025);color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+    .v-title h1{margin:0;font-size:26px;line-height:36px;font-weight:1000;letter-spacing:-.3px}
+    .v-actions{display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-left:auto}
+    .v-view-switch{display:flex;border:1px solid #d0d5dd;border-radius:10px;overflow:hidden;background:#fff}
+    .v-actions .v-btn{box-sizing:border-box;height:38px;padding:0 12px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font:inherit;font-size:12px;font-weight:900;white-space:nowrap}
+    .v-actions .v-btn:hover{background:#f8fafc;transform:none}
+    .v-actions .v-btn.active,.v-actions .v-btn[aria-expanded="true"]{border-color:rgba(var(--primary-rgb,217,48,37),.28);background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025));box-shadow:none}
+    .v-view-switch .v-btn{height:36px;border:0;border-radius:0;color:#667085}
+    .v-view-switch .v-btn+.v-btn{border-left:1px solid #eaecf0}
     .v-btn{background:#fff; border:1px solid rgba(0,0,0,0.10); padding:10px 12px; border-radius:14px; cursor:pointer; font-weight:950; color:#333; display:inline-flex; align-items:center; gap:8px; transition:.16s ease; user-select:none}
     .v-btn[hidden]{display:none!important}
     .v-btn:hover{border-color:rgba(var(--primary-rgb,217,48,37),0.45); color:var(--primary-readable, var(--primary,#d93025)); transform:translateY(-1px)}
     .v-btn.active{border-color:rgba(var(--primary-rgb,217,48,37),0.55); box-shadow:0 10px 22px rgba(var(--primary-rgb,217,48,37),0.16)}
     .v-pill{border-radius:999px; padding:10px 14px}
-    .v-bar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin:8px 0 10px; flex:0 0 auto}
+    .v-bar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 14px; flex:0 0 auto}
     .v-leftbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; min-width:0}
     .v-chip{display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid rgba(0,0,0,0.10); border-radius:14px; padding:9px 10px; font-weight:950; color:#333}
     .v-chip select{border:none; outline:none; font-weight:950; background:transparent; color:#333; padding:2px 2px}
     .v-manage-wrap{position:relative}
-    .v-manage-panel{position:absolute;right:0;top:calc(100% + 7px);z-index:30;width:min(310px,calc(100vw - 30px));box-sizing:border-box;padding:15px;border:1px solid #dfe4ea;border-radius:14px;background:#fff;box-shadow:0 20px 48px rgba(15,23,42,.18);display:grid;gap:13px}
+    .v-manage-panel{position:absolute;right:0;top:46px;z-index:30;width:min(390px,calc(100vw - 32px));max-height:min(720px,calc(100vh - 130px));overflow-y:auto;box-sizing:border-box;padding:18px;border:1px solid #e4e7ec;border-radius:16px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.22);display:grid;gap:13px}
     .v-manage-panel[hidden]{display:none}
-    .v-manage-title{font-size:14px;font-weight:1000;color:#17212b}
+    .v-manage-title{font-size:15px;font-weight:1000;color:#101828}
     .v-manage-field{display:grid;gap:6px;font-size:12px;font-weight:900;color:#344054}
     .v-manage-field select{width:100%;min-height:38px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:7px 10px;font:inherit;color:#17212b}
-    .v-manage-columns{display:grid;gap:5px}
-    .v-manage-columns label{display:flex;align-items:center;gap:9px;padding:7px 4px;font-size:12px;font-weight:850;color:#344054;cursor:pointer}
-    .v-manage-columns input{accent-color:var(--primary,#d93025)}
+    .v-manage-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+    .v-manage-columns label{display:flex;align-items:center;gap:7px;min-height:38px;box-sizing:border-box;padding:7px 9px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;font-size:11px;font-weight:900;color:#475467;cursor:pointer}
+    .v-manage-columns label:hover{background:#f8fafc}
+    .v-manage-columns label:has(input:checked){border-color:rgba(var(--primary-rgb,217,48,37),.28);background:rgba(var(--primary-rgb,217,48,37),.06);color:#101828}
+    .v-manage-columns input{width:16px;height:16px;margin:0;flex:0 0 auto;accent-color:var(--primary,#d93025)}
+    .v-manage-panel .v-btn{height:38px;padding:0 12px;border:1px solid #d0d5dd;border-radius:10px;font-size:12px;box-shadow:none}
     .v-manage-note{font-size:11px;color:#667085;line-height:1.35}
     .v-toggle-chip{cursor:pointer; user-select:none; font-size:12px; line-height:1}
     .v-toggle-chip input{position:absolute; opacity:0; pointer-events:none}
@@ -390,10 +400,9 @@
     .v-toggle-chip input:checked + .v-toggle-track{background:var(--primary,#d93025)}
     .v-toggle-chip input:checked + .v-toggle-track::after{transform:translateX(14px)}
     .v-toggle-chip span:last-child{font-size:12px; font-weight:950; color:#333}
-    .v-count{font-weight:1000; color:#666; font-size:12px}
     #vResults{flex:1 1 auto; min-height:0; overflow:hidden}
     .v-grid{height:100%; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch; display:grid; align-content:start; grid-auto-rows:max-content; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:16px; padding:2px 2px 16px}
-    .v-tile{background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:18px; overflow:hidden; box-shadow:0 14px 34px rgba(0,0,0,0.08); cursor:pointer; display:flex; flex-direction:column; transition:.20s ease; position:relative}
+    .v-tile{background:#fff; border:1px solid #eaecf0; border-radius:13px; overflow:hidden; box-shadow:0 1px 2px rgba(16,24,40,.04); cursor:pointer; display:flex; flex-direction:column; transition:.20s ease; position:relative}
     .v-tile:hover{transform:translateY(-3px); box-shadow:0 20px 44px rgba(0,0,0,0.12)}
     .v-thumb{height:168px; background:#eef0f3; position:relative}
     .v-thumb img{width:100%; height:100%; object-fit:cover; display:block}
@@ -434,7 +443,7 @@
     .v-pin-chip{display:inline-block; padding:3px 8px; border-radius:6px; background:#e8f0fe; font-size:10px; font-weight:850; color:#1a73e8; margin:2px 4px 2px 0}
     .v-m-foot{display:flex; flex-direction:column; gap:12px}
     .v-m-foot .v-dlwrap{margin:0; gap:10px}
-    .v-list{height:100%; min-height:0; background:#fff; border:1px solid rgba(0,0,0,0.08); border-radius:18px; overflow:hidden; box-shadow:0 14px 34px rgba(0,0,0,0.08); display:flex; flex-direction:column}
+    .v-list{height:100%; min-height:0; background:#fff; border:1px solid #eaecf0; border-radius:13px; overflow:hidden; box-shadow:0 1px 2px rgba(16,24,40,.04); display:flex; flex-direction:column}
     .v-lhead,.v-lrow{display:grid;grid-template-columns:var(--v-list-columns,160px 1.7fr 1fr 190px);gap:0;align-items:center}
     .v-lhead{background:#f8f9fa; border-bottom:1px solid rgba(0,0,0,0.08); position:sticky; top:0; z-index:2}
     .v-lcell{padding:12px 14px; font-weight:950; font-size:12px; color:#444; user-select:none}
@@ -445,11 +454,10 @@
     .v-lrow{border-top:1px solid rgba(0,0,0,0.06); cursor:pointer}
     .v-lrow:hover{background:#fafbfc}
     .v-lrow .v-lcell{font-weight:900; color:#333; font-size:12px}
-    .v-list-group{border-top:1px solid #e6eaf0}
-    .v-list-group:first-child{border-top:0}
-    .v-list-group-header{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;border:0;border-left:5px solid var(--stage-color,#667085);background:color-mix(in srgb,var(--stage-color,#667085) 12%,#fff);color:#1d2939;text-align:left;font-family:inherit;font-size:14px;font-weight:1000;line-height:1.2;cursor:pointer}
+    .v-list-group+.v-list-group{margin-top:4px}
+    .v-list-group-header{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;border:0;border-left:5px solid var(--stage-color,#667085);border-radius:10px;background:color-mix(in srgb,var(--stage-color,#667085) 18%,#fff);color:#1d2939;text-align:left;font-family:inherit;font-size:14px;font-weight:1000;line-height:1.2;cursor:pointer}
     .v-list-group-header>span:first-of-type{font-weight:1000;letter-spacing:-.1px}
-    .v-list-group-header:hover,.v-list-group-header:focus-visible{background:color-mix(in srgb,var(--stage-color,#667085) 17%,#fff)}
+    .v-list-group-header:hover,.v-list-group-header:focus-visible{background:color-mix(in srgb,var(--stage-color,#667085) 23%,#fff)}
     .v-list-group-header .v-list-group-count{margin-left:auto;padding:3px 8px;border-radius:999px;background:#fff;font-size:11px}
     .v-list-group-header i{font-size:11px;transition:transform .16s ease}
     .v-list-group-header[aria-expanded="false"] i{transform:rotate(-90deg)}
@@ -465,6 +473,9 @@
     .v-stages-summary{position:relative;display:none;align-items:center;min-width:190px;height:40px;box-sizing:border-box;border:1px solid color-mix(in srgb,var(--board-color,#4f7cac) 30%,#dce2e8);border-left:5px solid var(--board-color,#4f7cac);border-radius:10px;background:color-mix(in srgb,var(--board-color,#4f7cac) 8%,#fff);white-space:nowrap}
     .v-stages-summary.visible{display:inline-flex}.v-board-trigger{appearance:none;border:0;background:transparent;color:color-mix(in srgb,var(--board-color,#4f7cac) 78%,#17212b);width:100%;height:100%;min-width:0;padding:0 7px 0 10px;border-radius:7px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:inherit;font-size:14px;font-weight:1000;line-height:1;letter-spacing:0;cursor:pointer;outline:none}.v-board-trigger:hover{background:color-mix(in srgb,var(--board-color,#4f7cac) 9%,transparent)}.v-board-trigger:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--board-color,#4f7cac) 22%,transparent)}.v-board-trigger-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:1000}.v-board-trigger-icon{width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1px solid color-mix(in srgb,var(--board-color,#4f7cac) 24%,#d4dae1);color:var(--board-color,#4f7cac);font-size:10px;box-shadow:0 1px 2px rgba(15,23,42,.05);transition:transform .16s ease;flex:0 0 auto}.v-board-trigger[aria-expanded="true"] .v-board-trigger-icon{transform:rotate(180deg)}
     .v-board-menu{position:absolute;top:calc(100% + 7px);left:-5px;z-index:80;min-width:max(220px,100%);max-height:min(70vh,520px);overflow-y:auto;padding:6px;border:1px solid rgba(15,23,42,.10);border-radius:12px;background:#fff;box-shadow:0 18px 44px rgba(15,23,42,.16);white-space:normal}.v-board-menu[hidden],.v-board-unused-list[hidden]{display:none}.v-board-option{appearance:none;width:100%;border:0;background:transparent;border-radius:8px;padding:9px 10px;display:grid;grid-template-columns:12px minmax(0,1fr) auto 16px;align-items:center;gap:9px;color:#263442;text-align:left;font:900 12px/1.25 inherit;cursor:pointer}.v-board-option:hover,.v-board-option:focus-visible{background:#f4f6f8;outline:none}.v-board-option.active{color:color-mix(in srgb,var(--option-color,#4f7cac) 76%,#17212b);background:color-mix(in srgb,var(--option-color,#4f7cac) 8%,#fff)}.v-board-option-dot{width:10px;height:10px;border-radius:999px;background:var(--option-color,#4f7cac);box-shadow:0 0 0 3px color-mix(in srgb,var(--option-color,#4f7cac) 13%,transparent)}.v-board-option-count{min-width:24px;padding:3px 6px;border-radius:999px;background:#eef1f4;color:#667085;font-size:10px;font-weight:1000;text-align:center}.v-board-option.active .v-board-option-count{background:color-mix(in srgb,var(--option-color,#4f7cac) 13%,#fff);color:inherit}.v-board-option i{font-size:10px;color:var(--option-color,#4f7cac);text-align:center}.v-board-unused{margin-top:5px;padding-top:5px;border-top:1px solid #edf0f3}.v-board-unused-toggle{appearance:none;width:100%;border:0;background:transparent;border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;color:#667085;text-align:left;font:900 11px/1.2 inherit;cursor:pointer}.v-board-unused-toggle:hover,.v-board-unused-toggle:focus-visible{background:#f4f6f8;outline:none}.v-board-unused-toggle .v-board-unused-total{margin-left:auto;min-width:24px;padding:3px 6px;border-radius:999px;background:#eef1f4;text-align:center;font-size:10px}.v-board-unused-toggle i{font-size:9px;transition:transform .16s ease}.v-board-unused-toggle[aria-expanded="true"] i{transform:rotate(180deg)}.v-board-unused-list{padding-top:3px}
+    .v-wrap .v-stages-summary{height:38px;min-width:190px;border:1px solid #d0d5dd;border-radius:10px;background:#fff}
+    .v-wrap .v-board-trigger{padding:0 12px;color:#344054;font-size:12px;font-weight:900;border-radius:9px}
+    .v-wrap .v-board-trigger-icon{width:18px;height:18px;border:0;background:transparent;color:#667085;box-shadow:none}
     .v-stages-board{flex:1 1 auto; min-height:0; display:grid; grid-auto-flow:column; grid-auto-columns:minmax(270px, 1fr); gap:12px; overflow-x:auto; overflow-y:hidden; padding:2px 2px 12px; scroll-snap-type:x proximity; scrollbar-width:thin}
     .v-stage-col{min-width:270px; min-height:0; border:1px solid color-mix(in srgb,var(--stage-color,#667085) 20%,#e3e7ec); border-top:4px solid var(--stage-color,#667085); border-radius:12px; background:linear-gradient(180deg, #fff 0%, #f8fafc 100%); box-shadow:0 10px 24px rgba(15,23,42,0.06); display:flex; flex-direction:column; scroll-snap-align:start; overflow:hidden}
     .v-stage-head{flex:0 0 auto; z-index:1; background:rgba(255,255,255,0.92); backdrop-filter:blur(10px); padding:12px 12px 10px; border-bottom:1px solid rgba(15,23,42,0.07)}
@@ -711,17 +722,17 @@
       .v-wrap{
         display:grid;
         grid-template-columns:minmax(0,1fr) auto;
-        grid-template-rows:auto auto auto minmax(0,1fr) auto;
+        grid-template-rows:auto auto auto auto minmax(0,1fr) auto;
       }
-      .v-report-search{grid-column:1 / -1;grid-row:3;margin-top:8px}
+      .v-report-search{grid-column:1 / -1;grid-row:4;margin-top:8px}
       .v-head,.v-bar{display:contents}
-      .v-title{display:none}
-      .v-title h1{font-size:18px}
+      .v-title{display:flex;grid-column:1 / -1;grid-row:1;margin-bottom:10px}
+      .v-title h1{font-size:24px}
       .v-actions{
         grid-column:1 / -1;
-        grid-row:1;
+        grid-row:2;
         width:auto;
-        justify-content:flex-end;
+        justify-content:space-between;
         gap:8px;
       }
 
@@ -734,23 +745,20 @@
       .v-pill{
         padding:9px 12px;
       }
-      /* Hide text labels on view toggles, keep icons */
-      #vViewTiles span.btn-label,
-      #vViewList span.btn-label,
-      #vViewStages span.btn-label,
-      #vManageView span.btn-label{display:none}
+      .v-actions .v-btn{padding:0 10px;gap:6px}
+      .v-actions .v-manage-wrap .v-btn{padding:0 8px;font-size:11px}
 
       .v-leftbar{
         display:contents;
       }
-      .v-stages-summary{grid-column:1 / -1;grid-row:2}
+      .v-stages-summary{grid-column:1 / -1;grid-row:3;margin-top:10px}
       .v-count{
         display:none;
       }
-      #vResults{grid-column:1 / -1;grid-row:4;min-height:0}
+      #vResults{grid-column:1 / -1;grid-row:5;min-height:0}
       #vResults:has(.v-grid),
       #vResults:has(.v-list){padding-top:8px;box-sizing:border-box}
-      .v-pagination{grid-column:1 / -1;grid-row:5}
+      .v-pagination{grid-column:1 / -1;grid-row:6}
 
       /* --- Tile grid: single column on small phones, 2 col on wider --- */
       .v-grid{
@@ -1109,18 +1117,63 @@
   let hideDrafts = true;
   let tileSortKey = 'created_at';
   let tileSortDir = 'desc';
-  let listSortKey = 'created_at';
-  let listSortDir = 'desc';
-  let stageSortKey = 'created_at';
-  let stageSortDir = 'desc';
+  let listSortKey = 'address';
+  let listSortDir = 'asc';
+  let stageSortKey = 'address';
+  let stageSortDir = 'asc';
   let tileStageFilter = 'all';
   const LIST_COLUMNS = [
-    { key:'status', label:'Status', width:'minmax(0,160px)' },
     { key:'address', label:'Address', width:'minmax(0,1.7fr)' },
-    { key:'resident', label:'Contact', width:'minmax(0,1fr)' },
-    { key:'created_at', label:'Submitted', width:'minmax(0,190px)' }
+    { key:'resident', label:'Primary contact', width:'minmax(0,1fr)' },
+    { key:'primary_contact_phone', label:'Primary contact phone', width:'minmax(0,1fr)' },
+    { key:'primary_contact_email', label:'Primary contact email', width:'minmax(0,1fr)' }
   ];
-  const listVisibleColumns = new Set(LIST_COLUMNS.map((column) => column.key));
+  const listVisibleColumns = new Set(['address', 'resident']);
+  let listColumnsBoardKey = '';
+  const listColumnPreferences = new Map();
+  function availableProjectColumns(){
+    const boards = activeWorkBoardId === 'all' ? workBoards : workBoards.filter(board => String(board.id) === activeWorkBoardId);
+    const columns = new Map(LIST_COLUMNS.map(column => [column.key, column]));
+    for (const board of boards) for (const field of board.fields || []) {
+      if (field?.key && !columns.has(field.key)) columns.set(field.key, field);
+    }
+    return [...columns.values()];
+  }
+  function listColumnsStorageKey(){ return `fm-project-board-columns:${window.__APP?.userOrgId || 'default'}:${activeWorkBoardId || 'unassigned'}`; }
+  function syncProjectColumnChoices(){
+    const storageKey = listColumnsStorageKey();
+    const available = new Set(availableProjectColumns().map(column => column.key));
+    if (listColumnsBoardKey !== storageKey) {
+      listColumnsBoardKey = storageKey;
+      listVisibleColumns.clear();
+      let saved = listColumnPreferences.get(storageKey);
+      if (!saved) try { saved = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch(error) {}
+      for (const key of Array.isArray(saved) ? saved : ['address','resident']) if (available.has(key)) listVisibleColumns.add(key);
+    }
+    if (![...listVisibleColumns].some(key => available.has(key))) listVisibleColumns.add('address');
+    if (!available.has(listSortKey)) { listSortKey = 'address'; listSortDir = 'asc'; }
+    if (!available.has(stageSortKey)) { stageSortKey = 'address'; stageSortDir = 'asc'; }
+  }
+  function projectColumnValue(project, key){
+    if (Object.prototype.hasOwnProperty.call(project.board_field_values || {}, key)) return project.board_field_values[key];
+    const card = workBoards.filter(board => activeWorkBoardId === 'all' || String(board.id) === activeWorkBoardId).flatMap(board => board.cards || (board.columns || []).flatMap(column => column.cards || []))
+      .find(card => String(card.project_id) === String(project.id) && Object.prototype.hasOwnProperty.call(card.board_field_values || {}, key));
+    if (card) return card.board_field_values[key];
+    const contact = resolveResidentFields(project);
+    if (key === 'primary_contact_phone') return contact.phone || '';
+    if (key === 'primary_contact_email') return contact.email || '';
+    const measurement = project.measurement_project || project.measurement;
+    if (key === 'measurement_status') return measurement?.status || '';
+    if (key === 'measurement_submitted_at') return measurement?.submitted_at || '';
+    return null;
+  }
+  function columnValueText(value){
+    if (value == null || value === '') return '\u2014';
+    if (Array.isArray(value)) return value.map(columnValueText).join(', ');
+    if (typeof value === 'object') return String(value.display_name || value.displayName || value.name || value.label || JSON.stringify(value));
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    return String(value);
+  }
   let fetchProjectsSeq = 0;
   let hydrateRefreshTimer = null;
   const PAGE_SIZE = 25;
@@ -4924,9 +4977,11 @@
     if (!(value === 'all' && viewMode === 'list') && !workBoards.some((board) => String(board?.id || '') === value)) return false;
     activeWorkBoardId = value;
     listGrouping = value === 'all' ? 'board' : 'stage';
+    syncProjectColumnChoices();
     rememberWorkBoardId(value);
     if (options.syncUrl !== false) syncWorkBoardToUrl(options.history || 'push');
     renderResults();
+    renderManageViewPanel();
     updateCount();
     return true;
   }
@@ -4939,6 +4994,7 @@
     if (workBoardsPromise && !options.refresh) return workBoardsPromise;
     workBoardsPromise = window.PlatformAPI.work.boards(orgId, { includeCompleted:true }).then((result) => {
       workBoards = Array.isArray(result?.boards) ? result.boards : [];
+      listColumnsBoardKey = '';
       workBoardsLoaded = true;
       const routeBoardId = requestedWorkBoardId();
       const preferredBoardId = routeBoardId || activeWorkBoardId || rememberedWorkBoardId();
@@ -4950,9 +5006,10 @@
         rememberWorkBoardId(activeWorkBoardId);
         if (routeBoardId !== activeWorkBoardId) syncWorkBoardToUrl('replace');
       }
+      syncProjectColumnChoices();
       if (viewMode === 'tiles' && tileStageFilter !== 'all') applyQueryFilterSort();
       else if (viewMode === 'stages' || viewMode === 'list') renderResults();
-      if (viewMode === 'tiles') renderManageViewPanel();
+      renderManageViewPanel();
       updateCount();
       return workBoards;
     }).catch((error) => {
@@ -5148,7 +5205,7 @@
       return (Array.isArray(selected?.columns) ? selected.columns : []).map((column) => {
         const items = (Array.isArray(column.cards) ? column.cards : []).map((card) => {
           const project = lastProjectsById.get(String(card.project_id || '')) || {};
-          return { ...card, ...project, id: card.project_id || project.id, plan_id:card.plan_id, stage_id:column.id, manual_stage_override:card.manual_stage_override === true, title: project.title || card.title, address: project.address || card.address };
+          return { ...card, ...project, board_field_values:card.board_field_values, board_field_errors:card.board_field_errors, id: card.project_id || project.id, plan_id:card.plan_id, stage_id:column.id, manual_stage_override:card.manual_stage_override === true, title: project.title || card.title, address: project.address || card.address };
         }).filter((project) => project.id);
         return { id:column.id, title:column.title || (globalThis.PlatformLanguage?.text("projects","m_43f2c4d59757a1","Stage") ?? "Stage"), color:column.color || selected?.color || '#667085', items };
       });
@@ -5199,8 +5256,16 @@
   function sortableValue(p, key){
     if (key === 'created_at'){ const v = p.created_at || ''; const t = Date.parse(v); return isNaN(t) ? String(v) : t; }
     if (key === 'address') return normalizeStr(p.address || displayAddressPlain(p));
-    if (key === 'resident') return normalizeStr(resolveResidentFields(p).sortValue || '');
+    if (key === 'resident') return normalizeStr(resolveResidentFields(p).name || '');
     if (key === 'status') return normalizeStr(statusLabel(p));
+    const column = availableProjectColumns().find(column => column.key === key);
+    if (column) {
+      const value = projectColumnValue(p, key);
+      if (value == null || value === '') return '';
+      if (typeof value === 'number') return value;
+      if (['date','datetime'].includes(column.type)) { const timestamp = Date.parse(value); if (Number.isFinite(timestamp)) return timestamp; }
+      return normalizeStr(columnValueText(value));
+    }
     return normalizeStr(p[key] || '');
   }
   function compareProjects(a,b,key,dir){
@@ -5416,12 +5481,14 @@
   function renderManageViewPanel(){
     const panel=$('#vManageViewPanel',panelEl);
     if (!panel) return;
+    syncProjectColumnChoices();
     if (viewMode === 'list') {
-      panel.innerHTML=`<div class="v-manage-title">List columns</div><div class="v-manage-columns">${LIST_COLUMNS.map((column) => `<label><input type="checkbox" data-list-column="${column.key}" ${listVisibleColumns.has(column.key) ? 'checked' : ''}><span>${column.label}</span></label>`).join('')}</div><div class="v-manage-note">Click a column heading to sort the list.</div>`;
+      panel.innerHTML=`<div class="v-manage-title">List columns</div><div class="v-manage-columns">${availableProjectColumns().map((column) => `<label><input type="checkbox" data-list-column="${escapeHtml(column.key)}" ${listVisibleColumns.has(column.key) ? 'checked' : ''}><span>${escapeHtml(column.label)}</span></label>`).join('')}</div><div class="v-manage-note">Click a column heading to sort the list.</div>`;
       return;
     }
     const sort=getActiveSort();
-    const sorting=`<label class="v-manage-field">Order by<select id="vManageSortKey"><option value="created_at" ${sort.key==='created_at'?'selected':''}>Submitted date</option><option value="address" ${sort.key==='address'?'selected':''}>Address</option><option value="resident" ${sort.key==='resident'?'selected':''}>Contact</option></select></label><button type="button" class="v-btn" id="vManageSortDirection" aria-label="Switch sort direction"><i class="fas fa-arrow-${sort.dir==='asc'?'up':'down'}"></i><span>${sort.dir==='asc'?'Ascending':'Descending'}</span></button>`;
+    const sortColumns = viewMode === 'stages' ? availableProjectColumns() : [{key:'created_at',label:'Project created date'}, ...LIST_COLUMNS];
+    const sorting=`<label class="v-manage-field">Order by<select id="vManageSortKey">${sortColumns.map(column => `<option value="${escapeHtml(column.key)}" ${sort.key===column.key?'selected':''}>${escapeHtml(column.label)}</option>`).join('')}</select></label><button type="button" class="v-btn" id="vManageSortDirection" aria-label="Switch sort direction"><i class="fas fa-arrow-${sort.dir==='asc'?'up':'down'}"></i><span>${sort.dir==='asc'?'Ascending':'Descending'}</span></button>`;
     const stages=tileStageOptions();
     const filtering=viewMode==='tiles' ? `<label class="v-manage-field">Stage<select id="vManageStageFilter"><option value="all">All stages</option>${Array.from(stages,([id,title])=>`<option value="${escapeHtml(id)}" ${tileStageFilter===id?'selected':''}>${escapeHtml(title)}</option>`).join('')}</select></label>` : '';
     panel.innerHTML=`<div class="v-manage-title">${viewMode==='stages'?'Stages':'Tiles'} view</div>${filtering}${sorting}`;
@@ -5512,9 +5579,10 @@
     return s.dir === 'asc' ? `<i class="fas fa-sort-up"></i>` : `<i class="fas fa-sort-down"></i>`;
   }
   function renderListShell(){
-    const columns=LIST_COLUMNS.filter((column)=>listVisibleColumns.has(column.key));
+    syncProjectColumnChoices();
+    const columns=availableProjectColumns().filter((column)=>listVisibleColumns.has(column.key));
     const layout=columns.map((column)=>column.width).join(' ');
-    const head=columns.map((column)=>`<div class="v-lcell sortable" data-k="${column.key}">${column.label}<span class="sicon">${sortIcon(column.key)}</span></div>`).join('');
+    const head=columns.map((column)=>`<div class="v-lcell sortable" data-k="${escapeHtml(column.key)}">${escapeHtml(column.label)}<span class="sicon">${sortIcon(column.key)}</span></div>`).join('');
     return `<div class="v-list" style="--v-list-columns:${layout}"><div class="v-lhead" id="vListHead">${head}</div><div class="v-lscroll" id="vListScroll"></div></div>`;
   }
   function wireListHeaderSort(){
@@ -5599,18 +5667,20 @@
     const resident = resolveResidentFields(p);
     const id = String(p.id);
     const row = document.createElement('div'); row.className = 'v-lrow'; row.dataset.id = id;
-    const s = statusBadgeClasses(p);
     const a1 = displayAddressLine1(p); const a2 = displayAddressLine2(p);
     const expediteTag = projectIsExpedited(p) ? `<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_54ba2332f79022"," Expedited") ?? " Expedited")}</span>` : '';
     const rowTags = `${stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>` : ''}`;
-    const statusPill = s ? `<span class="v-statuspill ${s.pill}">${statusBadgeContent(s, true)}</span>` : '';
     const cells={
-      status:`<div class="v-lcell" data-col="status">${statusPill}</div>`,
       address:`<div class="v-lcell" data-col="address" style="min-width:0;"><div class="v-laddr"><div class="v-laddr1">${escapeHtml(a1)}</div><div class="v-laddr2">${escapeHtml(a2)}</div>${rowTags ? `<div class="v-meta-tags">${rowTags}</div>` : ''}</div></div>`,
-      resident:`<div class="v-lcell" data-col="resident" style="min-width:0;"><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.displayName || resident.name || '\u2014')}</div><div style="font-weight:850; font-size:11px; color:#777; margin-top:3px;">${escapeHtml((resident.displayDetail || '').toString())}</div></div>`,
-      created_at:`<div class="v-lcell" data-col="created_at" style="color:#666; font-weight:1000;">${escapeHtml(formatDate(p.created_at))}</div>`
+      resident:`<div class="v-lcell" data-col="resident" style="min-width:0;"><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.name || '\u2014')}</div></div>`
     };
-    row.innerHTML=LIST_COLUMNS.filter((column)=>listVisibleColumns.has(column.key)).map((column)=>cells[column.key]).join('');
+    row.innerHTML=availableProjectColumns().filter((column)=>listVisibleColumns.has(column.key)).map((column)=>{
+      if (cells[column.key]) return cells[column.key];
+      if (p.board_field_errors?.[column.key]) return `<div class="v-lcell" data-col="${escapeHtml(column.key)}">Unavailable</div>`;
+      const value = projectColumnValue(p, column.key);
+      const text = value != null && ['date','datetime'].includes(column.type) ? formatStageDate(value) : columnValueText(value);
+      return `<div class="v-lcell" data-col="${escapeHtml(column.key)}">${escapeHtml(text)}</div>`;
+    }).join('');
     const movable = allowDrag && manualStageMovementEnabled() && canManageProjectStages() && !!p.plan_id && !!p.stage_id;
     row.draggable = movable;
     row.addEventListener('click', ()=>{
@@ -5641,7 +5711,7 @@
     group.dataset[kind] = String(id);
     group.style.setProperty('--stage-color', color || '#667085');
     const visibleItems = items.filter((project) => order.has(String(project.id)))
-      .sort((left, right) => order.get(String(left.id)) - order.get(String(right.id)));
+      .sort((left, right) => compareProjects(left, right, listSortKey, listSortDir));
     const collapsed = kind === 'stage' ? collapsedListStages : collapsedListBoards;
     const key = String(id);
     const expanded = !collapsed.has(key);
@@ -7130,13 +7200,7 @@
 
   function mount(panel){
     panelEl = panel;
-    try {
-      const saved=JSON.parse(localStorage.getItem(`fm-project-list-columns:${window.__APP?.userOrgId || 'default'}`) || 'null');
-      if (Array.isArray(saved) && saved.some((key)=>LIST_COLUMNS.some((column)=>column.key===key))){
-        listVisibleColumns.clear();
-        saved.filter((key)=>LIST_COLUMNS.some((column)=>column.key===key)).forEach((key)=>listVisibleColumns.add(key));
-      }
-    } catch(error) {}
+    listColumnsBoardKey = '';
     injectCSS('viewer', ViewerCSS);
     injectSidebarLogout();
     viewMode = requestedViewMode() || defaultViewMode();
@@ -7146,11 +7210,13 @@
     panelEl.innerHTML = `
       <div class="v-wrap">
         <div class="v-head">
-          <div class="v-title"><h1>${(globalThis.PlatformLanguage?.htmlText("projects","m_1a8d3340c06415","My Projects") ?? "My Projects")}</h1></div>
+          <div class="v-title"><i class="fas fa-diagram-project" aria-hidden="true"></i><h1>${(globalThis.PlatformLanguage?.htmlText("projects","m_1a8d3340c06415","My Projects") ?? "My Projects")}</h1></div>
           <div class="v-actions">
+            <div class="v-view-switch" role="group" aria-label="Project view">
             <button class="v-btn v-pill" id="vViewStages" hidden><i class="fas fa-table-columns"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_1fae2f2aa8a59c"," Stages") ?? " Stages")}</span></button>
             <button class="v-btn v-pill" id="vViewList"><i class="fas fa-list"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_d9f8d11bfbd0a9"," List") ?? " List")}</span></button>
             <button class="v-btn v-pill" id="vViewTiles"><i class="fas fa-grip"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_073de0eb54464f"," Tiles") ?? " Tiles")}</span></button>
+            </div>
             <div class="v-manage-wrap" id="vManageViewWrap"><button type="button" class="v-btn v-pill" id="vManageView" aria-label="Manage view" aria-expanded="false" aria-controls="vManageViewPanel"><i class="fas fa-sliders" aria-hidden="true"></i><span class="btn-label">Manage view</span></button><div class="v-manage-panel" id="vManageViewPanel" hidden></div></div>
           </div>
         </div>
@@ -7158,7 +7224,6 @@
         <div class="v-bar">
           <div class="v-leftbar">
             <div class="v-stages-summary" id="vWorkBoardSummary" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_b87462801059df","Active work board") ?? "Active work board")}"></div>
-            <div class="v-count" id="vCount">—</div>
           </div>
 
         </div>
@@ -7256,9 +7321,10 @@
       const column=event.target.dataset.listColumn;
       if (column){
         if (event.target.checked) listVisibleColumns.add(column);
-        else if (listVisibleColumns.size>1) listVisibleColumns.delete(column);
+        else if (availableProjectColumns().filter(item => listVisibleColumns.has(item.key)).length>1) listVisibleColumns.delete(column);
         else event.target.checked=true;
-        try { localStorage.setItem(`fm-project-list-columns:${window.__APP?.userOrgId || 'default'}`,JSON.stringify([...listVisibleColumns])); } catch(error) {}
+        listColumnPreferences.set(listColumnsStorageKey(), [...listVisibleColumns]);
+        try { localStorage.setItem(listColumnsStorageKey(),JSON.stringify([...listVisibleColumns])); } catch(error) {}
         renderResults();
         return;
       }

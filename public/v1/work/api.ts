@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { ZodError, z } from "zod";
 
 import { requirePlatformAuth } from "../platform/auth.js";
+import { userPublicationContext } from "../platform/publication/context.js";
 import { PlatformError } from "../platform/errors.js";
 import { readDocument, upsertDocument } from "../platform/storage.js";
 import "./instructions.js";
@@ -323,8 +324,8 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/boards", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
-    const boards = await listWorkBoards(orgId, objectSchema.parse(request.query ?? {}));
+    const auth = await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    const boards = await listWorkBoards(orgId, objectSchema.parse(request.query ?? {}), userPublicationContext(auth));
     return { ok: true, boards, count: boards.length };
   });
 

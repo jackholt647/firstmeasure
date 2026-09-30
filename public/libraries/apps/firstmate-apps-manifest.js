@@ -82,7 +82,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
       access: managementAccess,
-      bundles: [versionedBundle('projects/viewer.js', '20260929-project-view-controls-v1')]
+      bundles: [versionedBundle('projects/viewer.js', '20260929-projects-feed-parity-v1')]
     },
     {
       id: 'portal.contacts',
@@ -94,7 +94,7 @@
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
       access: managementAccess,
-      bundles: [versionedBundle('contacts/modal.js', '20260929-contact-window-icons-v1'), versionedBundle('settings/contacts.js', '20260725-contact-workspace-v2'), versionedBundle('contacts/app.js', '20260725-contact-workspace-v2')]
+      bundles: [versionedBundle('contacts/modal.js', '20260929-contact-window-icons-v1'), versionedBundle('settings/contacts.js', '20260725-contact-workspace-v2'), versionedBundle('contacts/app.js', '20260929-contacts-feed-parity-v1')]
     },
     {
       id: 'portal.photos_feed',

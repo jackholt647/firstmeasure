@@ -6,6 +6,10 @@ import { listScopeTemplates } from "../scopes/storage.js";
 import { normalizeAssignmentPolicy } from "../workforce/assignability.js";
 import { resolveAssignableSubjects } from "../workforce/service.js";
 import { readWorkConfiguration } from "./config.js";
+import { boardFieldCatalog } from "./board-fields.js";
+import { readFields } from "../custom_fields/records.js";
+import { getValue } from "../custom_fields/contracts.js";
+import type { PublicationContext } from "../platform/publication/contracts.js";
 import {
   createDependencyRecord,
   createNodeRecord,
@@ -786,13 +790,14 @@ export async function cancelPipelinePlansForProject(orgId: string, projectId: st
   return plans.map((plan) => cleanText(plan.id));
 }
 
-export async function listWorkBoards(orgId: string, options: JsonObject = {}) {
+export async function listWorkBoards(orgId: string, options: JsonObject = {}, ctx?: PublicationContext) {
   const plans = (await listPlanRecords(orgId, {}));
   const projectDocuments = await listDocuments(orgId, "projects");
   const projects = new Map(projectDocuments.map((document) => [cleanText(document.id), { id: document.id, ...asObject(document.data) }]));
   const boards = new Map<string, JsonObject>();
   const scopeTemplateByBranchAndId = new Map<string, JsonObject>();
   const enabledScopeTemplateKeys = new Set<string>();
+  const fieldReads = new Map<string, ReturnType<typeof readFields>>();
   const branchIds = new Set<string>([
     "default",
     ...plans.map((plan) => cleanText(plan.branch_id || "default") || "default"),
@@ -844,6 +849,7 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}) {
         kind: cleanText(definition.kind || "production"),
         color,
         terminology: asObject(blueprint.terminology),
+        fields: boardFieldCatalog(definition, ctx),
         columns,
         cards: []
       });
@@ -896,6 +902,7 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}) {
         kind: configuredBoard.kind,
         color: cleanText(configuredBoard.color || asObject(root.metadata).color || boardMetadata.board_color || "#1769aa"),
         terminology: asObject(plan.terminology),
+        fields: boardFieldCatalog(scopeDefinition, ctx),
         columns: configuredStages.map((stage, index) => ({
           id: cleanText(stage.id),
           template_node_id: cleanText(stage.id),
@@ -957,6 +964,31 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}) {
       : rawActiveStage
         ? { ...rawActiveStage, template_node_id: canonicalStageId(rawActiveStage.template_node_id) }
         : undefined;
+    const fieldValues: JsonObject = {};
+    const fieldErrors: JsonObject = {};
+    if (ctx) {
+      const catalog = boardFieldCatalog(scopeDefinition, ctx);
+      const piece = asObject(asObject(plan.context).scope_piece);
+      for (const field of catalog) {
+        if (field.source === "scope") fieldValues[String(field.key)] = getValue(piece, String(field.path)) ?? null;
+        if (field.source === "custom") {
+          // Read the declared parent through the shared field service, preserving
+          // formula evaluation and field/dependency authorization.
+          const custom = asObject(scopeDefinition.custom_fields || scopeDefinition.project_custom_fields);
+          const parent = asArray(custom.fields || custom.definitions).map(asObject).find(f => String(field.path) === String(f.path || f.key || f.id) || String(field.path).startsWith(`${String(f.path || f.key || f.id)}.`));
+          try {
+            const path = String(parent?.path || parent?.key || parent?.id);
+            const readKey = `${cleanText(plan.project_id)}:${path}`;
+            if (!fieldReads.has(readKey)) fieldReads.set(readKey, readFields(ctx, { scope:"project", organizationId:orgId, projectId:cleanText(plan.project_id) }, "project", path));
+            const result = await fieldReads.get(readKey)!;
+            fieldValues[String(field.key)] = getValue(result.values, String(field.path)) ?? null;
+          } catch (error) {
+            fieldValues[String(field.key)] = null;
+            fieldErrors[String(field.key)] = "unavailable";
+          }
+        }
+      }
+    }
     const card = {
       id: `${cleanText(plan.id)}:${cleanText(project.id || plan.project_id)}`,
       plan_id: plan.id,
@@ -964,6 +996,8 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}) {
       title: cleanText(project.title || project.customer_name || project.address || plan.title),
       address: cleanText(project.address),
       scope_piece_id: plan.scope_piece_id,
+      board_field_values: fieldValues,
+      board_field_errors: fieldErrors,
       status: plan.status,
       stage_id: activeStage ? cleanText(activeStage.template_node_id) : "unassigned",
       manual_stage_override: activeStage?.manual_override === true

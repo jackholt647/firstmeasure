@@ -484,8 +484,10 @@
       <div class="ct-shell">
         <header class="ct-top">
           <div class="ct-title">
+            <i class="fas fa-address-book" aria-hidden="true"></i><div>
             <h2>${(globalThis.PlatformLanguage?.htmlText("contacts","m_2bf043c3cce511","My Contacts") ?? "My Contacts")}</h2>
             <span>${((v0,v1,v2,v3) => globalThis.PlatformLanguage?.htmlText("contacts","m_afe03e23d17afb",`${v0} contact${v1} from ${v2} project${v3}`,{v0,v1,v2,v3}) ?? `${v0} contact${v1} from ${v2} project${v3}`)(escapeHtml(String(visibleCount)),visibleCount === 1 ? '' : 's',escapeHtml(String(state.projects.length)),state.projects.length === 1 ? '' : 's')}</span>
+            </div>
           </div>
           <div class="ct-tools">
             <label class="ct-search">
@@ -499,8 +501,8 @@
               <option value="projects" ${String(state.sort === 'projects' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_6e3f0973d60412","Project count") ?? "Project count")}</option>
             </select>
             <div class="ct-segment" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_0a1d4f60d2434b","View mode") ?? "View mode")}">
-              <button id="ctViewTiles" type="button" class="${String(state.view === 'tiles' ? 'active' : '')}" data-fm-tooltip="Tile view"><i class="fas fa-grip"></i></button>
-              <button id="ctViewList" type="button" class="${String(state.view === 'list' ? 'active' : '')}" data-fm-tooltip="List view"><i class="fas fa-list"></i></button>
+              <button id="ctViewTiles" type="button" class="${String(state.view === 'tiles' ? 'active' : '')}" data-fm-tooltip="Tile view"><i class="fas fa-grip"></i><span>Tiles</span></button>
+              <button id="ctViewList" type="button" class="${String(state.view === 'list' ? 'active' : '')}" data-fm-tooltip="List view"><i class="fas fa-list"></i><span>List</span></button>
             </div>
             <button type="button" class="ct-action" data-ct-open-import><i class="fas fa-file-import"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_f1f14ba348face","Import") ?? "Import")}</span></button>
             <button id="ctRefresh" type="button" class="ct-icon" data-fm-tooltip="Refresh"><i class="fas fa-rotate-right"></i></button>
@@ -689,29 +691,31 @@
 
   function injectCss(){
     const css = `
-      .ct-shell{height:100%;min-height:0;display:flex;flex-direction:column;background:#f6f7f9;color:#101828}
-      .ct-top{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 22px;border-bottom:1px solid #e5e7eb;background:#fbfcfd}
-      .ct-title{min-width:0;display:grid;gap:3px}
+      .ct-shell{height:100%;min-height:0;display:flex;flex-direction:column;background:transparent;color:#101828;max-width:1500px;margin:0 auto;width:100%}
+      .ct-top{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 0 14px;border:0;background:transparent}
+      .ct-title{min-width:0;display:flex;align-items:center;gap:11px}
+      .ct-title>i{width:36px;height:36px;border-radius:10px;background:var(--primary,#d93025);color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+      .ct-title>div{display:grid;gap:2px}
       .ct-title h2{margin:0;color:#101828;font-size:18px;font-weight:1000;letter-spacing:0;line-height:1.2}
-      .ct-title span{font-size:12px;font-weight:850;color:#667085;white-space:nowrap}
-      .ct-tools{display:flex;align-items:center;gap:9px;min-width:0}
-      .ct-search{height:36px;min-width:270px;max-width:420px;display:flex;align-items:center;gap:8px;padding:0 11px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#667085}
+      .ct-title span{font-size:12px;font-weight:400;color:#667085;white-space:nowrap}
+      .ct-tools{display:flex;align-items:center;gap:10px;min-width:0}
+      .ct-search{box-sizing:border-box;height:38px;width:min(360px,34vw);min-width:170px;display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#98a2b3}
       .ct-search:focus-within{border-color:var(--primary-readable,var(--primary,#d93025));box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.10)}
       .ct-search input{border:0;outline:0;background:transparent;color:#101828;font:inherit;font-size:13px;font-weight:850;width:100%;min-width:0}
       .ct-clear{appearance:none;border:0;background:transparent;color:#98a2b3;width:24px;height:24px;border-radius:7px;display:grid;place-items:center;cursor:pointer;flex:0 0 auto}
       .ct-clear:hover{background:#f2f4f7;color:#344054}
-      .ct-select{height:36px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font-size:13px;font-weight:900;padding:0 10px}
-      .ct-segment{height:36px;display:flex;border:1px solid #d0d5dd;border-radius:8px;background:#fff;overflow:hidden}
+      .ct-select{height:38px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font:inherit;font-size:12px;font-weight:900;padding:0 10px}
+      .ct-segment{height:36px;display:flex;border:1px solid #d0d5dd;border-radius:10px;background:#fff;overflow:hidden;flex:0 0 auto}
       .ct-segment button,.ct-icon,.ct-open-contact{appearance:none;border:0;background:#fff;color:#475467;display:grid;place-items:center;cursor:pointer}
-      .ct-segment button{width:37px;border-right:1px solid #eaecf0}
+      .ct-segment button{padding:0 12px;border-right:1px solid #eaecf0;display:flex;align-items:center;gap:8px;color:#667085;font:inherit;font-size:12px;font-weight:900}
       .ct-segment button:last-child{border-right:0}
-      .ct-segment button.active{background:#111827;color:#fff}
-      .ct-action{height:36px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;padding:0 11px;display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:11px;font-weight:950;cursor:pointer}.ct-action:hover{border-color:rgba(var(--primary-rgb,217,48,37),.3);color:var(--primary-readable,var(--primary,#d93025))}
-      .ct-icon{width:36px;height:36px;border:1px solid #d0d5dd;border-radius:8px}
+      .ct-segment button.active{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
+      .ct-action{height:38px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;padding:0 12px;display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:12px;font-weight:900;cursor:pointer}.ct-action:hover{background:#f8fafc;border-color:rgba(var(--primary-rgb,217,48,37),.3);color:var(--primary-readable,var(--primary,#d93025))}
+      .ct-icon{width:38px;height:38px;border:1px solid #d0d5dd;border-radius:10px;flex:0 0 auto}
       .ct-icon:hover,.ct-open-contact:hover,.ct-project-row:hover,.ct-chip:hover{border-color:rgba(var(--primary-rgb,217,48,37),.28);color:var(--primary-readable,var(--primary,#d93025))}
-      .ct-body{flex:1 1 auto;min-height:0;overflow:auto;padding:16px 22px}
+      .ct-body{flex:1 1 auto;min-height:0;overflow:auto;padding:0 2px 16px}
       .ct-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;align-items:start}
-      .ct-card{border:1px solid #e5e7eb;border-radius:8px;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.045);padding:12px;display:flex;flex-direction:column;gap:11px;min-width:0}
+      .ct-card{border:1px solid #eaecf0;border-radius:13px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.04);padding:12px;display:flex;flex-direction:column;gap:11px;min-width:0}
       .ct-card:hover{border-color:#d0d5dd;box-shadow:0 12px 28px rgba(15,23,42,.07)}
       .ct-card-head{display:flex;align-items:flex-start;gap:10px;min-width:0}
       .ct-avatar{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;flex:0 0 auto;background:#eef2f7;color:#182230;font-size:14px;font-weight:1000}
@@ -756,10 +760,10 @@
       .ct-state.error{color:#b42318}
       .ct-workspace-head{flex:0 0 auto;display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid #e5e7eb;background:#fbfcfd}.ct-workspace-head h2{margin:0;font-size:18px;font-weight:1000}.ct-workspace-head p{margin:3px 0 0;color:#667085;font-size:11px;font-weight:800}.ct-back{height:36px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;padding:0 11px;display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:11px;font-weight:950;cursor:pointer}.ct-back:hover{color:var(--primary-readable,var(--primary,#d93025));border-color:rgba(var(--primary-rgb,217,48,37),.3)}.ct-workspace-body{background:#f6f7f9}.ct-workspace-body>[data-ct-settings-host]{width:min(1120px,100%);margin:0 auto}
       @media(max-width:960px){
-        .ct-top{align-items:stretch;flex-direction:column;padding:12px 16px}
+        .ct-top{align-items:stretch;flex-direction:column;padding:0 0 14px}
         .ct-tools{flex-wrap:wrap}
         .ct-search{min-width:0;flex:1 1 240px}
-        .ct-body{padding:14px 16px}
+        .ct-body{padding:0 2px 16px}
         .ct-grid{grid-template-columns:1fr}
       }
     `;
