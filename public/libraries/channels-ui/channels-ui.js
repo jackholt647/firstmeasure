@@ -4328,13 +4328,6 @@
         row.append(dictateBtn, audioBtn);
       }
 
-      if (features.resources) {
-        const resourceBtn = el('button', 'fm-ch-icon-btn', '<i class="fas fa-folder-open"></i>');
-        resourceBtn.title = (globalThis.PlatformLanguage?.text("channels-ui","m_bfd557857ade7c","Share a project or channel resource") ?? "Share a project or channel resource");
-        resourceBtn.addEventListener('click', openResourcePickerModal);
-        row.appendChild(resourceBtn);
-      }
-
       if (features.clips && features.attachments && root.MediaRecorder && navigator.mediaDevices) {
         const addClipAttachment = (attachment) => {
           state.pendingAttachments.push(attachment);
