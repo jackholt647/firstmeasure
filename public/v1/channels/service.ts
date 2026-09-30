@@ -1,3 +1,4 @@
+import { hasFeedGrant, feedMessageGranted } from "./feed-access.js";
 import { createHash } from "node:crypto";
 import { messageTranslationPreferences } from "../platform/localization/message-preferences.js";
 import { sameMessageLanguage } from "../platform/localization/languages.js";
@@ -89,6 +90,7 @@ registerWorkEvents(["created", "edited", "deleted", "restored", "pinned", "unpin
 
 async function separateProjectNotes(ctx: PlatformAuthContext) { return can(ctx, "channels.separate_project_notes"); }
 async function messageWorkEvent(ctx: PlatformAuthContext, channel: ChannelRow, message: MessageRow, action: string, at = nowIso()) {
+  if (channel.type === "feed") return;
   const note = message.metadata.project_note === true && await separateProjectNotes(ctx);
   if (note && message.parent_id) return;
   await emitChannelsEvent(note ? `project.note.${action === "posted" ? "created" : action}` : `channels.message.${action}`, ctx,
@@ -157,6 +159,7 @@ export function viewerAudienceGroups(ctx: PlatformAuthContext): string[] {
 }
 
 function messageVisibleTo(message: MessageRow, ctx: PlatformAuthContext, groups: string[]) {
+  if (message.metadata.feed_post === true || message.metadata.feed_comment === true) return feedMessageGranted(ctx, message);
   if (!message.audience.length) return true;
   if (message.author_id === ctx.userId) return true;
   const mentioned = message.mention_users.some((user) => cleanText(user.id || user.user_id) === ctx.userId);
@@ -248,7 +251,7 @@ export async function listDirectoryUsers(ctx: PlatformAuthContext) {
 // --- channel access -----------------------------------------------------------
 
 function requiresChannelMembership(channel: ChannelRow) {
-  return channel.type !== "project";
+  return channel.type !== "project" && channel.type !== "feed";
 }
 
 // Field users see project messages through the crew app (per-message audience
@@ -265,6 +268,7 @@ export async function requireChannelAccess(ctx: PlatformAuthContext, channelId: 
   const channel = (await readChannelRecord(ctx.orgId, channelId));
   if (!channel) throw notFound("channel_not_found", "This channel does not exist.");
   const membership = (await readChannelMember(channel.id, ctx.userId));
+  if (channel.type === "feed" && !hasFeedGrant(ctx)) throw notFound("channel_not_found", "This channel does not exist.");
   if (requiresChannelMembership(channel)) {
     // Ordinary channels are member-only, including for organization admins.
     if (!membership) throw forbidden("channel_forbidden", "You are not a member of this channel.");
@@ -283,6 +287,7 @@ export async function requireChannelAccess(ctx: PlatformAuthContext, channelId: 
 }
 
 export async function channelAdminAllowed(ctx: PlatformAuthContext, channel: ChannelRow) {
+  if (channel.type === "feed") return false;
   if (channel.type === "project") return canManageChannels(ctx);
   const membership = (await readChannelMember(channel.id, ctx.userId));
   return membership?.role === "owner" || membership?.role === "admin";
@@ -473,6 +478,7 @@ function messageIsAudienceRestricted(message: MessageRow) {
 }
 
 async function publishMessageEvent(topic: string, channel: ChannelRow, message: MessageRow, hydrated: JsonObject | null | undefined) {
+  if (channel.type === "feed") return; // Feed clients poll only the authorized post; no organization-wide body broadcast.
   // Audience-restricted messages are announced as stubs so the body never
   // reaches a connection the read API would have filtered; clients refetch.
   const payload: JsonObject = messageIsAudienceRestricted(message) || message.deleted_at || !hydrated
@@ -1032,12 +1038,19 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   // Forward attribution is a server-authored snapshot of a message the sender
   // can read. Clients cannot inject a forged original author or hidden body.
   const metadata = { ...input.metadata };
+  delete metadata.feed_post;
+  delete metadata.feed_comment;
+  delete metadata.feed_source;
+  if (channel.type === "feed") {
+    if (!parentId || input.reply_broadcast || input.project_note || input.pin) throw badRequest("feed_reply_required", "Feed messages must be comments on a post.");
+    metadata.feed_comment = true;
+  }
   if (metadata.giphy) metadata.giphy = giphyMessageSchema.parse(metadata.giphy);
   delete metadata.project_note;
   delete metadata.note_shared;
   if (input.project_note && (channel.type !== "project" || parentId)) throw badRequest("invalid_project_note", "Notes must be added directly to a project channel.");
   if (input.project_note || parentNote) metadata.project_note = true;
-  const hiddenNote = metadata.project_note === true && await separateProjectNotes(ctx);
+  const hiddenNote = channel.type === "feed" || metadata.project_note === true && await separateProjectNotes(ctx);
   if (parentNote && input.reply_broadcast && hiddenNote) throw badRequest("note_reply_broadcast", "Share the note explicitly instead.");
   delete metadata.forwarded;
   delete metadata.reply_broadcast;
@@ -1111,7 +1124,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   });
 
   const [hydrated] = await hydrateMessages(ctx, channel, [(await readMessageRecord(ctx.orgId, message.id))!]);
-  if (parentId) {
+  if (parentId && channel.type !== "feed") {
     (await collaboration.ensureThreadSubscriptionRecord(ctx.orgId, channelId, parentId, ctx.userId));
   }
   const attentionTargets = hiddenNote ? new Map<string, unknown>() : (await collaboration.recordAttentionForMessage(channel, message));
@@ -1431,7 +1444,7 @@ export async function toggleReaction(ctx: PlatformAuthContext, messageId: string
     emoji,
     on
   }));
-  if (on) (await collaboration.recordReactionAttention(ctx.orgId, message, ctx.userId, emoji));
+  if (on && channel.type !== "feed") (await collaboration.recordReactionAttention(ctx.orgId, message, ctx.userId, emoji));
   const [hydrated] = await hydrateMessages(ctx, channel, [(await readMessageRecord(ctx.orgId, messageId))!]);
   (await publishMessageEvent("channels.reaction.updated", channel, message, hydrated));
   return hydrated;
@@ -2480,6 +2493,7 @@ async function messageNotificationRecipient(orgId: string, channel: ChannelRow, 
 }
 
 async function notifyMentions(ctx: PlatformAuthContext, channel: ChannelRow, message: MessageRow, alreadyNotified = new Set<string>()) {
+  if (channel.type === "feed") return;
   const mentioned = [...new Set(
     message.mention_users
       .map((user) => cleanText(user.id || user.user_id))

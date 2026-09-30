@@ -1,0 +1,56 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile,mkdir} from 'node:fs/promises';
+import {chromium} from 'playwright-core';
+
+test('feed layouts, upload collages, comments, reactions and mobile controls',async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  await page.route('http://feed.test/**',r=>r.fulfill({contentType:r.request().url().endsWith('.svg')?'image/svg+xml':'text/html',body:r.request().url().endsWith('.svg')?'<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="900" height="600" fill="#87a5b8"/><path d="M0 430L350 80L650 380L900 180V600H0" fill="#365d71"/></svg>':'<html><body></body></html>'}));
+  await page.goto('http://feed.test/');
+  await page.setContent('<main id="feed" style="height:830px;margin:25px"></main>');
+  await page.evaluate(()=>{
+   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+   window.__APP={userOrgId:'org',userId:'sam'};
+   window.Portal={cfg:window.__APP,util:{escapeHtml:esc,injectCSS:(id,css)=>{const style=document.createElement('style');style.textContent=css;document.head.append(style);}},ui:{showToast:()=>{}},apps:{registerPortalApp:app=>window.feedApp=app},tabs:{renderTabs:()=>{}},appFlags:{has:()=>true,load:async()=>{}},navigation:{read:()=>({}),replace:()=>{}},routeState:{get:()=>({})}};
+   const photos=Array.from({length:20},(_,i)=>({id:'photo'+i,src:'/photo.svg',thumb:'/photo.svg',uploaded_at:'2026-09-29T15:00:00Z',uploaded_by_user_id:'sam',uploaded_by_name:'Sam Rivera'}));
+   const projects=[{id:'project',data:{id:'project',title:'Oak Street renovation',address:'104 Oak Street',photos,documents:[{id:'contract',type:'contract',title:'Roof replacement agreement',total_cents:2450000,created_at:'2026-09-29T13:00:00Z'}]}}];
+   const events=Array.from({length:5},(_,i)=>({id:'event'+i,type:'project.created',project_id:'project',actor_user_id:'sam',created_at:'2026-09-29T12:00:00Z',payload:{title:'Site visit confirmed'}}));
+   window.PlatformAPI={projects:{list:async()=>({documents:projects})},projectDocuments:{list:async()=>({documents:projects[0].data.documents})}};
+   window.rootMessage={id:'root',reply_count:0,reactions:[],author:{id:'sam',name:'Sam Rivera'}};window.replies=[];
+   window.ChannelsAPI={feed:{catalog:async()=>({projects,media:[],events,users:[{id:'sam',name:'Sam Rivera'}],views:['list','small','large','mosaic','posts'],can_comment:true,can_react:true}),authorize:async(_org,refs)=>({sources:refs.map(ref=>({ref,key:ref.kind==='media'?'media-batch':ref.id,author:'sam',at:'2026-09-29T15:00:00Z'}))}),lookup:async()=>({root:window.rootMessage,replies:window.replies}),resolve:async()=>({root:window.rootMessage,replies:window.replies}),thread:async()=>({root:window.rootMessage,replies:window.replies}),comment:async(_o,_id,body)=>{window.replies.push({...body,id:'comment',author:{name:'Sam Rivera'},created_at:new Date().toISOString(),can_edit:true,can_delete:true});window.rootMessage.reply_count++;return{};},react:async(_o,_id,emoji,on)=>{window.rootMessage.reactions=on?[{emoji,count:1,reacted:true}]:[];}},channels:{list:async()=>({channels:[]})}};
+  });
+  for(const file of ['channels-ui/channels-ui.js','apps/photos/feed.js'])await page.addScriptTag({content:await readFile(new URL(`../../libraries/${file}`,import.meta.url),'utf8')});
+  await page.waitForFunction(()=>window.feedApp);
+  await page.evaluate(()=>window.feedApp.mount(document.querySelector('#feed')));
+  await page.waitForFunction(()=>document.querySelectorAll('.pf-feed-card').length>=10);
+  const cols=()=>page.locator('.pf-feed-grid').first().evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length);
+  await page.waitForFunction(()=>getComputedStyle(document.querySelector('.pf-feed-grid')).gridTemplateColumns.split(' ').length===4);
+  assert.equal(await cols(),4);
+  await page.getByRole('button',{name:'Large tiles',exact:true}).click();assert.equal(await cols(),2);
+  await page.getByRole('button',{name:'List',exact:true}).click();assert.equal(await cols(),1);
+  await page.getByRole('button',{name:'Mosaic',exact:true}).click();assert.equal(await cols(),4);await page.waitForTimeout(100);assert.notEqual(await page.locator('.pf-feed-card').nth(0).evaluate(e=>e.offsetHeight),await page.locator('.pf-feed-card').nth(1).evaluate(e=>e.offsetHeight));
+  await mkdir(new URL('../../../output/feed/screenshots/',import.meta.url),{recursive:true});
+  await page.screenshot({path:new URL('../../../output/feed/screenshots/mosaic.png',import.meta.url).pathname.replace(/^\/(C:)/,'$1')});
+  await page.getByRole('button',{name:'Posts',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('.pf-post-overflow'));
+  assert.equal(await page.locator('.pf-post-overflow').textContent(),'+16');
+  assert.equal(await page.locator('.pf-post-collage .pf-thumb').count(),4);
+  assert.match(await page.locator('.pf-post-value').first().textContent(),/24,500/);
+  const post=page.locator('.pf-post').first();
+  await post.getByRole('button',{name:'Comments',exact:true}).click();
+  await post.locator('textarea').fill('Looks great');await post.getByRole('button',{name:'Post',exact:true}).click();
+  await page.waitForFunction(()=>window.replies.length===1);
+  await page.waitForFunction(()=>document.querySelector('.pf-comment'));
+  assert.match(await page.locator('.pf-comment').first().textContent(),/Looks great/);
+  await post.getByRole('button',{name:'Like',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('[data-post-like][aria-pressed="true"]'));
+  assert.equal(await page.locator('.pf-comments .fm-ch-composer').count(),0);
+  await page.screenshot({path:new URL('../../../output/feed/screenshots/posts.png',import.meta.url).pathname.replace(/^\/(C:)/,'$1')});
+  await page.setViewportSize({width:390,height:844});
+  for(const name of ['Small tiles','Large tiles','List','Mosaic','Posts']){await page.getByRole('button',{name,exact:true}).click();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no mobile overflow in '+name);}
+  assert.deepEqual(errors,[]);
+ }finally{await browser.close();}
+});

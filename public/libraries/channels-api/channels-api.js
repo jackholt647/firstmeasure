@@ -269,5 +269,19 @@
     }
   };
 
+  api.feed = {
+    catalog: orgId => request(orgPath(orgId, '/feed/catalog')),
+    authorize: (orgId, refs) => request(orgPath(orgId, '/feed/authorize'), {method:'POST',body:{refs}}),
+    lookup: (orgId, refs) => request(orgPath(orgId, '/feed/posts/lookup'), {method:'POST',body:{refs}}),
+    upload: (orgId, id, file) => { const body=new FormData();body.append('file',file,file.name);return request(orgPath(orgId, `/feed/posts/${enc(id)}/uploads`),{method:'POST',body}); },
+    resolve: (orgId, refs) => request(orgPath(orgId, '/feed/posts/resolve'), {method:'POST',body:{refs}}),
+    thread: (orgId, id) => request(orgPath(orgId, `/feed/posts/${enc(id)}`)),
+    comment: (orgId, id, body) => request(orgPath(orgId, `/feed/posts/${enc(id)}/comments`), {method:'POST',body}),
+    react: (orgId, id, emoji, on) => request(orgPath(orgId, `/feed/messages/${enc(id)}/reactions`), {method:'POST',body:{emoji,on}}),
+    edit: (orgId, id, text) => request(orgPath(orgId, `/feed/messages/${enc(id)}`), {method:'PATCH',body:{text}}),
+    remove: (orgId, id) => request(orgPath(orgId, `/feed/messages/${enc(id)}`), {method:'DELETE'}),
+    restore: (orgId,id) => request(orgPath(orgId, `/feed/messages/${enc(id)}/restore`),{method:'POST'}),
+    share: (orgId, id, channel_id, text='') => request(orgPath(orgId, `/feed/messages/${enc(id)}/share`), {method:'POST',body:{channel_id,text}})
+  };
   root.ChannelsAPI = api;
 })();

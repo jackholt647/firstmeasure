@@ -7,7 +7,7 @@ import { env } from "../src/config/env.js";
 
 export type JsonObject = Record<string, unknown>;
 
-export type ChannelType = "public" | "private" | "dm" | "group_dm" | "project";
+export type ChannelType = "public" | "private" | "dm" | "group_dm" | "project" | "feed";
 
 export type ChannelRow = {
   id: string;
@@ -727,7 +727,7 @@ export async function updateChannelRecord(orgId: string, channelId: string, patc
 
 export async function listChannelRecords(orgId: string, options: { types?: ChannelType[]; includeArchived?: boolean } = {}) {
   const types = options.types?.length ? options.types : null;
-  const clauses = ["organization_id = ?"];
+  const clauses = ["organization_id = ?", "type != 'feed'"];
   const params: unknown[] = [orgId];
   if (types) {
     clauses.push(`type IN (${types.map(() => "?").join(", ")})`);

@@ -1,3 +1,4 @@
+import { registerFeedRoutes, feedPermission } from "./feed.js";
 import { platformBackgroundAllowed } from "../platform/runtime.js";
 import type { FastifyPluginAsync } from "fastify";
 import { z, ZodError } from "zod";
@@ -55,9 +56,11 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/", async () => ({ ok: true, api: "channels" }));
+  registerFeedRoutes(app);
 
   app.get("/organizations/:orgId/gifs/config", async request => {
-    await auth(request,getParam(request.params,"orgId"));
+    try { await auth(request,getParam(request.params,"orgId")); }
+    catch(error){const ctx=await auth(request,getParam(request.params,"orgId"),{capability:"platform.photos_feed"});if(!feedPermission(ctx,"view_feed") || !feedPermission(ctx,"comment_feed"))throw error;}
     // GIPHY's browser SDK requires its web application key in the client.
     // This is not an account credential; keep it out of source and logs.
     const key = String(process.env.GIPHY_WEB_SDK_KEY || "").trim();

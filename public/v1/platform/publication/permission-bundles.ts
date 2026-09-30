@@ -53,7 +53,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   manage_company_settings: { actions:["custom-fields.organization.write", "contacts.settings.save"], data: ["scopes.records"] },
   manage_training: { actions: ["training.course.progress"] },
   // Membership and per-subject checks are the permission for these exports.
-  "": { actions: ["channels.list", "channels.messages.list", "channels.message.react", "channels.note.create", "channels.note.share", "channels.note.pin", "channels.note.edit", "channels.note.delete", "channels.note.restore", "training.courses.mine"], data: ["channels.records", "training.records", "notification-rules.value"] }
+  "": { actions: ["channels.feed.thread", "channels.feed.resolve", "channels.feed.comment", "channels.feed.react", "channels.list", "channels.messages.list", "channels.message.react", "channels.note.create", "channels.note.share", "channels.note.pin", "channels.note.edit", "channels.note.delete", "channels.note.restore", "training.courses.mine"], data: ["channels.records", "training.records", "notification-rules.value"] }
 };
 
 function index(kind: "actions" | "data") {

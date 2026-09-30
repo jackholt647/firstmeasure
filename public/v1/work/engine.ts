@@ -277,6 +277,7 @@ export async function drainWorkEvents(limit = 100) {
       }, 15000);
       heartbeat.unref();
       try {
+        try { await (await import("../channels/feed.js")).recordFeedEvent(event); } catch { console.warn("Unable to materialize Feed event", cleanText(event.id)); }
         if (await isCapabilityEnabled(cleanText(event.organization_id), "platform.expanded_access")) await executeEvent(event);
         if (!leaseLost) await finishEventRecord(cleanText(event.id), cleanText(event.lease_owner));
       } catch (error) {

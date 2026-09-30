@@ -33,6 +33,11 @@ async function authorizeDomainTarget(action: string, ctx: PublicationContext, ta
       if ((metadata.project_id || (owner.type === "project" ? owner.id : "")) !== ctx.projectId) throw forbidden("publication_project_denied", "This media is outside the project context.");
     }
   }
+  if (action.startsWith("channels.feed.") && action!=="channels.feed.resolve") {
+    const {root}=await (await import("../../channels/feed.js")).readFeedThread(principal,id(target));
+    const refs=((root?.metadata as Input)?.feed_source || []) as Input[];
+    if(ctx.projectId && refs.some(ref=>ref.project_id!==ctx.projectId))throw forbidden("publication_project_denied","This Feed post is outside the project context.");
+  }
   if (action === "channels.messages.list") await (await import("../../channels/service.js")).requireChannelAccess(principal,id(target));
   if (action === "channels.note.create") {
     const {channel} = await (await import("../../channels/service.js")).requireChannelAccess(principal,id(target),{post:true});
@@ -138,6 +143,10 @@ export function registerDomainActions() {
   } });
   publish({ id: "training.course.progress", description: "Read a course's progress report as a training manager.", permission: "manage_training|manage_company_settings", capabilities: ["training.studio"], effect: "read", execute: async (c,t) => (await import("../../training/service.js")).courseProgressReport(c.organizationId,id(t)) });
 
+  publish({id:"channels.feed.thread",description:"Read a Feed post's comments, freshly authorizing its source artifacts.",permission:"",capabilities:["platform.photos_feed"],effect:"read",execute:async(c,t)=>(await import("../../channels/feed.js")).readFeedThread(auth(c),id(t))});
+  publish({id:"channels.feed.resolve",description:"Create or resolve one stable automated Feed post from authorized source references.",permission:"",capabilities:["platform.photos_feed"],properties:{refs:{type:"array",minItems:1,maxItems:200,items:{type:"object",properties:{kind:{type:"string",enum:["media","document","activity"]},id:{type:"string",minLength:1,maxLength:500},project_id:{type:"string",maxLength:200}},required:["kind","id"],additionalProperties:false}}},required:["refs"],execute:async(c,_t,i)=>(await import("../../channels/feed.js")).resolveFeedPost(auth(c),i,c.projectId)});
+  publish({id:"channels.feed.comment",description:"Comment on an authorized Feed post using Channels replies and attachment checks.",permission:"",capabilities:["platform.photos_feed"],properties:{values:object},required:["values"],execute:async(c,t,i)=>(await import("../../channels/feed.js")).createFeedComment(auth(c),id(t),values(i))});
+  publish({id:"channels.feed.react",description:"React to an authorized Feed post or comment with the shared Channels reaction store.",permission:"",capabilities:["platform.photos_feed"],properties:{emoji:{type:"string",minLength:1,maxLength:32},on:{type:"boolean"}},required:["emoji","on"],execute:async(c,t,i)=>(await import("../../channels/feed.js")).reactFeedMessage(auth(c),id(t),i)});
   publish({ id: "channels.list", description: "List channels the authenticated user can access.", permission: "", capabilities: ["apps.channels"], effect: "read", execute: async c => (await import("../../channels/service.js")).listChannelsForUser(auth(c),{initialize:false}) });
   publish({ id: "channels.messages.list", description: "Read messages with channel membership authorization.", permission: "", capabilities: ["apps.channels"], effect: "read", properties: { limit: {type:"integer",minimum:1,maximum:100}, view:{type:"string",enum:["messages","notes","all"]} }, execute: async (c,t,i) => (await import("../../channels/service.js")).listMessages(auth(c),id(t),{limit:Number(i.limit || 50),view:i.view as "messages"|"notes"|"all"|undefined}) });
   publish({id:"channels.note.create",description:"Add a project note using Channels; optionally pin it in the same transaction.",permission:"",capabilities:["channels.project_notes"],properties:{text:{type:"string",minLength:1,maxLength:250000},pin:{type:"boolean"}},required:["text"],execute:async(c,t,i)=>(await import("../../channels/service.js")).postMessage(auth(c),id(t),{text:String(i.text),project_note:true,pin:i.pin===true})});
