@@ -19,7 +19,7 @@
  *     defaults: { audience: [], tags: [] },
  *     realtime: true, density: 'comfortable'|'compact',
  *     composerPlaceholder, emptyStateText,
- *     onNavigate(route){}, onSettings(){}
+ *     onNavigate(route){}
  *   });
  *   instance -> { destroy, setChannel, revealMessage, refresh, setFeatures, update }
  *
@@ -1573,8 +1573,9 @@
       item.type = 'button';
       const isDm = channel.type === 'dm' || channel.type === 'group_dm';
       const label = channel.display_name || channel.name || 'untitled';
+      const peer = channel.assistant_dm ? {id:'agent_assistant',name:label} : (channel.members || []).find(person => person.id !== currentUser.id) || {name:label};
       item.innerHTML = `${isDm
-        ? `<span class="fm-ch-presence-avatar">${avatarHtml((channel.members || []).find((person) => person.id !== currentUser.id) || { name: label }, 'sm')}${channel.type === 'dm' ? onlineDot((channel.members || []).find(person => person.id !== currentUser.id)?.id, true) : ''}</span>`
+        ? `<span class="fm-ch-presence-avatar">${avatarHtml(peer, 'sm')}${channel.type === 'dm' && !channel.assistant_dm ? onlineDot(peer.id, true) : ''}</span>`
         : `<span class="fm-ch-hash">${channelIcon(channel)}</span>`}
         <span class="fm-ch-side-label">${esc(label)}</span>
         ${muted ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" role="img" aria-label="Muted"><path d="m3 3 18 18M9 5a6 6 0 0 1 9 5v4M6 6v8l-2 3h13M10 21h4"/></svg>' : ''}
@@ -1714,12 +1715,6 @@
         };
         head.addEventListener('click', toggleGroup);
         head.appendChild(title);
-        if (group.key === 'channels' && (typeof options.onSettings === 'function' || root.FirstMateChannelsOverlay?.canOpenSettings?.())) {
-          const settings = el('button', 'fm-ch-icon-btn', '<i class="fas fa-gear" aria-hidden="true"></i>');
-          settings.type = 'button'; settings.title = 'Channels app settings'; settings.setAttribute('aria-label', settings.title);
-          settings.onclick = event => { event.stopPropagation(); (options.onSettings || root.FirstMateChannelsOverlay.openSettings)(); };
-          head.append(settings);
-        }
         if (unreadCount) head.appendChild(el('span', 'fm-ch-group-badge', unreadCount));
         if (group.add) {
           const addBtn = el('button', 'fm-ch-side-add', '+');

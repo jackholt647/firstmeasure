@@ -143,7 +143,6 @@
       },
       realtime: true,
       features: channelFeatures(),
-      onSettings: canOpenSettings() ? () => openSettings(state) : undefined,
       onNavigate(route){
         const changed = route.channel !== state.lastRoute.channel;
         state.lastRoute = { channel: route.channel || '', thread: route.thread || '' };
@@ -340,7 +339,6 @@
       overlay.instance = window.FirstMateChannels.create(overlay.body, {
         orgId: orgId(),
         mode: 'conversation',
-        onSettings: canOpenSettings() ? () => openSettings(overlay) : undefined,
         compactHeader: true,
         onCallEnded:() => { if (!overlay.openFlag) setTimeout(() => { if (!overlay.openFlag && !overlay.instance?.state?.inCall) { overlay.instance?.destroy(); overlay.instance=null; } },0); },
         headerActionsTarget: overlay.actionsEl,
@@ -436,13 +434,7 @@
   }
 
   window.FirstMateChannelsOverlay = {
-    open: openOverlay, openView: openOverlayView, close: closeOverlay, isOpen: () => overlay.openFlag,
-    canOpenSettings,
-    openSettings(){
-      if (!canOpenSettings() || !ensureOverlayInstance()) return;
-      if (!overlay.channelId) overlay.titleEl.textContent = 'Channels';
-      showOverlay(); openSettings(overlay);
-    }
+    open: openOverlay, openView: openOverlayView, close: closeOverlay, isOpen: () => overlay.openFlag
   };
 
   // Actively choosing an app must bring that app forward — otherwise the
