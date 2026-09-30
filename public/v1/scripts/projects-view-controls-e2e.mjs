@@ -75,6 +75,16 @@ try {
   assert.equal(await page.locator('#vListHead [data-k="status"],.v-lrow [data-col="status"]').count(),0);
   await page.locator('#vListHead [data-k="address"]').click();
   assert.deepEqual(await page.locator('.v-list-group[data-stage="new"] .v-lrow').evaluateAll((rows)=>rows.map((row)=>row.dataset.id)),['p2','p1']);
+  const spacing=await page.evaluate(() => {
+    const scroll=document.querySelector('#vListScroll'),header=scroll.querySelector('.v-list-group-header'),row=scroll.querySelector('.v-lrow'),head=document.querySelector('#vListHead');
+    const style=getComputedStyle(row);
+    return {left:header.getBoundingClientRect().left-scroll.getBoundingClientRect().left,top:header.getBoundingClientRect().top-head.getBoundingClientRect().bottom,rowGap:row.getBoundingClientRect().top-header.getBoundingClientRect().bottom,border:style.borderTopWidth,radius:style.borderRadius};
+  });
+  assert.equal(spacing.left,8,'headers are inset from the list edge');
+  assert.equal(spacing.top,8,'gutter separates the toolbar from sections');
+  assert.equal(spacing.rowGap,4,'rows leave space below rounded group headers');
+  assert.equal(spacing.border,'0px','rows do not have full-width divider lines');
+  assert.equal(spacing.radius,'8px','row highlighting has rounded corners');
   assert.equal(await page.locator('.v-list-group[data-stage] .v-meta-tag-stage').count(),0,'stage-grouped rows do not repeat their section label');
   await page.evaluate(() => {
     document.querySelectorAll('.v-list-group-rows').forEach(rows => {
@@ -82,6 +92,7 @@ try {
       for(let index=0;index<18;index++) rows.append(row.cloneNode(true));
     });
   });
+  if(process.env.UI_SCREENSHOT_DIR) await page.screenshot({path:process.env.UI_SCREENSHOT_DIR+'/projects-list.png'});
   const stickyState=await page.evaluate(() => {
     const scroll=document.querySelector('#vListScroll'), groups=[...scroll.querySelectorAll('.v-list-group')];
     const headers=groups.map(group => group.querySelector('.v-list-group-header'));
@@ -90,9 +101,9 @@ try {
     scroll.scrollTop=groups[1].offsetTop-groups[0].offsetTop+120;
     return {first,next:headers[1].getBoundingClientRect().top,oldBottom:headers[0].getBoundingClientRect().bottom,top:scroll.getBoundingClientRect().top};
   });
-  assert.ok(Math.abs(stickyState.first.top-stickyState.first.scrollTop)<2,'current section stays at scroll top');
-  assert.ok(Math.abs(stickyState.next-stickyState.top)<2,'next section replaces the sticky header');
-  assert.ok(stickyState.oldBottom<=stickyState.top+1,'previous header leaves instead of stacking');
+  assert.ok(Math.abs(stickyState.first.top-stickyState.first.scrollTop-8)<2,'current section stays at scroll top');
+  assert.ok(Math.abs(stickyState.next-stickyState.top-8)<2,'next section replaces the sticky header');
+  assert.ok(stickyState.oldBottom<=stickyState.top+9,'previous header leaves instead of stacking');
   await page.locator('#vWorkBoardTrigger').click();
   await page.locator('.v-board-option[data-board-id="all"]').click();
   assert.deepEqual(await page.locator('.v-list-group-header span:first-of-type').allTextContents(),['Sales','Roof reports']);
@@ -119,6 +130,9 @@ try {
   await page.setViewportSize({ width:390, height:780 });
   await page.locator('#app').evaluate((app) => { app.style.width='100vw'; app.style.height='780px'; });
   assert.equal(await page.locator('#vManageView').isVisible(),true);
+  await page.locator('#vViewList').click();
+  assert.equal(await page.locator('.v-lrow').first().evaluate(row=>getComputedStyle(row).borderTopWidth),'0px','mobile rows have no square divider');
+  if(process.env.UI_SCREENSHOT_DIR) await page.screenshot({path:process.env.UI_SCREENSHOT_DIR+'/projects-list-mobile.png'});
   assert.deepEqual(errors,[]);
   console.log('PASS: right-side controls, list columns/sort, stage sort, tile stage filter, mobile');
 } finally {
