@@ -1400,6 +1400,10 @@ export async function listMentionRowsForUser(orgId: string, userId: string, limi
     FROM message_mentions mm
     JOIN messages m ON m.id = mm.message_id
     WHERE mm.organization_id = ? AND mm.user_id = ? AND m.deleted_at IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM channel_thread_subscriptions s
+        WHERE s.root_message_id = m.parent_id AND s.user_id = mm.user_id AND s.notify_level = 'muted'
+      )
     ORDER BY mm.created_at DESC LIMIT ?
   `).all(orgId, userId, Math.max(1, Math.floor(limit)))) as JsonObject[]);
 }
@@ -1412,6 +1416,10 @@ export async function listRepliesToUser(orgId: string, userId: string, sinceIso:
     JOIN messages p ON p.id = m.parent_id
     WHERE m.organization_id = ? AND p.author_id = ? AND m.author_id <> ?
       AND m.deleted_at IS NULL AND m.created_at > ?
+      AND NOT EXISTS (
+        SELECT 1 FROM channel_thread_subscriptions s
+        WHERE s.root_message_id = m.parent_id AND s.user_id = p.author_id AND s.notify_level = 'muted'
+      )
     ORDER BY m.created_at DESC LIMIT ?
   `).all(orgId, userId, userId, cleanText(sinceIso), Math.max(1, Math.floor(limit)))) as JsonObject[]);
 }

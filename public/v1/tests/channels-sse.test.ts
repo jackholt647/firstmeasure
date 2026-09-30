@@ -195,6 +195,28 @@ test("SSE stream delivers channel messages with ids and replays via Last-Event-I
   assert.equal(replayed!.id, second!.id);
 });
 
+test("thread mute and unmute update the owner's SSE and persisted message state", async () => {
+  const { client: owner, orgId, suffix } = await registerOwner();
+  const teammate = await createOrgUser(owner, orgId, suffix, "Mute SSE Teammate");
+  const base = `/v1/channels/organizations/${orgId}`;
+  const general = (await owner.request("GET",`${base}/channels`)).channels.find((channel:Json)=>channel.name==="general");
+  await owner.request("POST",`${base}/channels/${general.id}/members`,{user_ids:[teammate.userId]});
+  const {message:root} = await owner.request("POST",`${base}/channels/${general.id}/messages`,{text:"SSE mute contract"});
+  const topic = "channels.thread_subscription.updated";
+  const ownerStream = collectStream(owner.cookieHeader(),orgId,{until:frames=>frames.filter(frame=>frame.includes(topic)).length>=2});
+  const teammateStream = collectStream(teammate.client.cookieHeader(),orgId,{until:frames=>frames.some(frame=>frame.includes(topic)),timeoutMs:2000});
+  await new Promise(resolve=>setTimeout(resolve,300));
+  await owner.request("PUT",`${base}/threads/${root.id}/subscription`,{following:true,notify_level:"muted"});
+  assert.equal((await owner.request("GET",`${base}/messages/${root.id}/thread`)).root.thread_muted,true);
+  await owner.request("PUT",`${base}/threads/${root.id}/subscription`,{following:true,notify_level:"all"});
+  assert.equal((await owner.request("GET",`${base}/messages/${root.id}/thread`)).root.thread_muted,false);
+  const events = parseEvents(await ownerStream).filter(event=>event.data.topic===topic);
+  assert.deepEqual(events.map(event=>event.data.payload.thread_muted),[true,false]);
+  assert.deepEqual(events.map(event=>event.data.payload.notify_level),["muted","all"]);
+  assert.ok(events.every(event=>event.data.payload.root_message_id===root.id));
+  assert.ok(!(await teammateStream).some(frame=>frame.includes(topic)),"thread preference events are owner-only");
+});
+
 test("DM events are not delivered to non-members", async () => {
   const { client: owner, orgId, suffix } = await registerOwner();
   const alice = await createOrgUser(owner, orgId, suffix, "SSE Alice");

@@ -696,6 +696,120 @@ test("reusable calls API owns room lifecycle and media state outside channels", 
   assert.ok(events.events.some((event: Json) => event.kind === "call_ended"));
 });
 
+test("thread authors receive replies automatically and a mute survives participation", async () => {
+  const { client: owner, orgId, suffix, userId } = await registerOwner();
+  const teammate = await createOrgUser(owner, orgId, suffix, "Thread Teammate");
+  const outsider = await createOrgUser(owner, orgId, suffix, "Thread Outsider");
+  const base = `/v1/channels/organizations/${orgId}`;
+  const general = (await owner.request("GET", `${base}/channels`)).channels.find((channel: Json) => channel.name === "general");
+  await owner.request("POST", `${base}/channels/${general.id}/members`, {user_ids:[teammate.userId]});
+  const post = `${base}/channels/${general.id}/messages`;
+  const { message: root } = await owner.request("POST", post, {text:"Thread to watch"});
+  const { readDocument } = await import("../platform/storage.js");
+  const note = (id: string) => readDocument(orgId,"notifications",`notification_channel_${id}`).catch(()=>null);
+  const reply = async (text: string) => (await teammate.client.request("POST",post,{text,parent_id:root.id})).message;
+  const first = await reply("First automatic notification");
+  assert.deepEqual((await note(first.id))?.data.target_user_ids,[userId]);
+  assert.ok((await owner.request("GET", `${base}/inbox`)).entries.some((entry:Json)=>entry.message_id===first.id));
+  await owner.request("PUT",`${base}/threads/${root.id}/subscription`,{following:true,notify_level:"muted"});
+  assert.equal((await owner.request("GET",`${base}/messages/${root.id}/thread`)).root.thread_muted,true);
+  const muted = await reply("A muted reply");
+  assert.equal(await note(muted.id),null);
+  assert.ok(!(await owner.request("GET",`${base}/activity`)).items.some((item:Json)=>item.message_id===muted.id));
+  assert.ok(!(await owner.request("GET",`${base}/inbox`)).entries.some((entry:Json)=>entry.message_id===muted.id));
+  const ownReply = (await owner.request("POST",post,{text:"Participating while muted",parent_id:root.id})).message;
+  assert.equal(ownReply.thread_muted,true);
+  assert.deepEqual((await note(ownReply.id))?.data.target_user_ids,[teammate.userId],"participants receive replies automatically");
+  const mutedMention = (await teammate.client.request("POST",post,{text:"Mention in muted thread",parent_id:root.id,mention_users:[{id:userId,name:"Channels Owner"}]})).message;
+  assert.equal(await note(mutedMention.id),null);
+  assert.equal(await readDocument(orgId,"notifications",`notification_mention_${mutedMention.id}_post`).catch(()=>null),null);
+  assert.ok(!(await owner.request("GET",`${base}/inbox`)).entries.some((entry:Json)=>entry.message_id===mutedMention.id));
+  const later = await reply("Still muted after participating");
+  assert.equal(await note(later.id),null);
+  assert.equal((await owner.request("GET",`${base}/messages/${root.id}/thread`)).root.thread_muted,true);
+  await owner.request("PUT",`${base}/threads/${root.id}/subscription`,{following:true,notify_level:"all"});
+  const resumed = await reply("Notifications resumed");
+  assert.deepEqual((await note(resumed.id))?.data.target_user_ids,[userId]);
+  assert.equal((await owner.request("GET",`${base}/messages/${root.id}/thread`)).root.thread_muted,false);
+  assert.equal((await outsider.client.raw("PUT",`${base}/threads/${root.id}/subscription`,{following:true,notify_level:"muted"})).statusCode,403);
+  const retryInput = {text:"Reply retry",parent_id:root.id,client_msg_id:"thread-notification-retry"};
+  const initial = await teammate.client.request("POST",post,retryInput);
+  const retry = await teammate.client.request("POST",post,retryInput);
+  assert.equal(retry.message.id,initial.message.id);
+  assert.equal(retry.deduplicated,true);
+  assert.deepEqual((await note(initial.message.id))?.data.target_user_ids,[userId]);
+  const mentionedReply = (await teammate.client.request("POST",post,{text:"A mentioned reply",parent_id:root.id,mention_users:[{id:userId,name:"Channels Owner"}]})).message;
+  assert.equal(await note(mentionedReply.id),null,"mention recipient does not receive a second channel notification");
+  assert.deepEqual((await readDocument(orgId,"notifications",`notification_mention_${mentionedReply.id}_post`)).data.target_user_ids,[userId]);
+  const project = await owner.request("POST",`/v1/platform/organizations/${orgId}/projects`,{data:{title:"Restricted thread project"}});
+  const projectChannel = (await owner.request("POST",`${base}/channels/project/${project.document.id}`)).channel;
+  const restricted = (await owner.request("POST",`${base}/channels/${projectChannel.id}/messages`,{text:"Office-only root",audience:["office"]})).message;
+  const crew = await createOrgUser(owner,orgId,suffix,"Thread Crew",{field:true});
+  assert.equal((await crew.client.raw("PUT",`${base}/threads/${restricted.id}/subscription`,{following:true,notify_level:"muted"})).statusCode,404,"hidden roots cannot be subscribed to");
+});
+
+test("thread notifications route to recipient branches and agent mentions recheck root access", async () => {
+  const {client:owner,orgId,suffix,userId:ownerId}=await registerOwner();
+  const sender=await createOrgUser(owner,orgId,suffix,"Branch Sender");
+  const follower=await createOrgUser(owner,orgId,suffix,"Branch Follower");
+  const localFollower=await createOrgUser(owner,orgId,suffix,"Local Follower");
+  const {readDocument,upsertDocument,listDocuments}=await import("../platform/storage.js");
+  for(const [id,branch] of [[ownerId,"north"],[follower.userId,"east"]] as const){
+    const doc=await readDocument(orgId,"users",id);
+    await upsertDocument(orgId,"users",{id,data:{...doc.data,branch_id:branch}});
+  }
+  const base=`/v1/channels/organizations/${orgId}`;
+  const general=(await owner.request("GET",`${base}/channels`)).channels.find((channel:Json)=>channel.name==="general");
+  await owner.request("POST",`${base}/channels/${general.id}/members`,{user_ids:[sender.userId,follower.userId,localFollower.userId]});
+  const post=`${base}/channels/${general.id}/messages`;
+  const {message:root}=await owner.request("POST",post,{text:"Cross-branch thread"});
+  for(const client of [follower.client,localFollower.client])await client.request("PUT",`${base}/threads/${root.id}/subscription`,{following:true,notify_level:"all"});
+  const notesFor=async(messageId:string)=>(await listDocuments(orgId,"notifications")).filter(doc=>{
+    const action=doc.data.frontend_action as Json;
+    return action?.message_id===messageId;
+  });
+  const {recipientDeliveries}=await import("../platform/notifications/delivery.js");
+  const assertBranchDelivery=async(messageId:string)=>{
+    const notes=await notesFor(messageId);
+    assert.equal(notes.length,3);
+    assert.equal(new Set(notes.map(doc=>doc.id)).size,3,"branch occurrences have distinct deterministic IDs");
+    for(const [id,branch] of [[ownerId,"north"],[follower.userId,"east"],[localFollower.userId,"default"]] as const){
+      const note=notes.find(doc=>(doc.data.target_user_ids as string[]).includes(id));
+      assert.ok(note);
+      assert.equal(note.data.branch_id,branch);
+      const deliveries=await recipientDeliveries(orgId,id);
+      assert.equal(((deliveries.get(note.id)?.methods as Json)?.in_app as Json)?.state,"available","current recipient branch reaches in-app delivery");
+    }
+    return notes;
+  };
+  const input={text:"Cross-branch human reply",parent_id:root.id,client_msg_id:"branch-human-retry"};
+  const {message:human}=await sender.client.request("POST",post,input);
+  const humanNotes=await assertBranchDelivery(human.id);
+  assert.ok(humanNotes.some(doc=>doc.id===`notification_channel_${human.id}`&&doc.data.branch_id==="default"),"same-branch ID stays compatible");
+  await sender.client.request("POST",post,input);
+  assert.equal((await notesFor(human.id)).length,3,"retry retains one occurrence per branch");
+  const {postAgentMessage}=await import("../channels/service.js");
+  const {message:agent}=await postAgentMessage(orgId,general.id,{author_id:"agent_assistant",text:"Cross-branch agent reply",parent_id:root.id,mention_users:[{id:ownerId}]});
+  const agentNotes=await assertBranchDelivery(agent.id);
+  assert.equal(agentNotes.filter(doc=>(doc.data.target_user_ids as string[]).includes(ownerId)).length,1,"agent mention and subscriber deliveries do not overlap");
+  assert.equal(agentNotes.find(doc=>doc.data.branch_id==="north")?.data.kind,"mention");
+  const {message:humanMention}=await sender.client.request("POST",post,{text:"Cross-branch mention",parent_id:root.id,mention_users:[{id:ownerId}]});
+  const mentionNotes=await assertBranchDelivery(humanMention.id);
+  assert.equal(mentionNotes.find(doc=>doc.data.branch_id==="north")?.data.kind,"mention");
+  const project=await owner.request("POST",`/v1/platform/organizations/${orgId}/projects`,{data:{title:"Agent root access project"}});
+  const projectChannel=(await owner.request("POST",`${base}/channels/project/${project.document.id}`)).channel;
+  const {message:restricted}=await owner.request("POST",`${base}/channels/${projectChannel.id}/messages`,{text:"Private office root",audience:["office"]});
+  const crew=await createOrgUser(owner,orgId,suffix,"Restricted Crew",{field:true});
+  const revoked=await createOrgUser(owner,orgId,suffix,"Revoked Project Member",{permissions:{view_projects:true}});
+  await revoked.client.request("GET",`${base}/messages/${restricted.id}/thread`);
+  const revokedDoc=await readDocument(orgId,"users",revoked.userId);
+  await upsertDocument(orgId,"users",{id:revoked.userId,data:{...revokedDoc.data,org_permissions:{level:"custom",items:{view_projects:false,manage_company_settings:false}},application_access:{management:{enabled:true},field:{enabled:false}}}});
+  assert.equal((await revoked.client.raw("GET",`${base}/messages/${restricted.id}/thread`)).statusCode,403);
+  const {message:hiddenReply}=await postAgentMessage(orgId,projectChannel.id,{author_id:"agent_assistant",text:"Private root response",parent_id:restricted.id,mention_users:[{id:crew.userId},{id:revoked.userId}]});
+  const hiddenNotes=await notesFor(hiddenReply.id);
+  assert.ok(!hiddenNotes.some(doc=>(doc.data.target_user_ids as string[]).some(id=>[crew.userId,revoked.userId].includes(id))),"agent mentions cannot bypass hidden-root or revoked channel access");
+});
+
 test("collaboration attention, manual unread, followed threads, drafts, tabs, folders, and resources round-trip", async () => {
   const { client: owner, orgId, suffix } = await registerOwner();
   const teammate = await createOrgUser(owner, orgId, suffix, "Collaboration Teammate");

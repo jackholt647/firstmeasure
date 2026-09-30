@@ -1123,6 +1123,7 @@
       unreadDividerSeq: 0,
       threadRootId: '',
       thread: null,
+      threadMutes: new Map(),
       view: 'channel', // 'channel' | 'saved' | 'search'
       editingMessageId: '',
       editingThread: false,
@@ -1395,6 +1396,12 @@
         if (topic === 'channels.huddle.ended') { state.huddleStates.set(payload.huddle_id, 'ended'); refreshActiveMessages(); }
         if (topic === 'channels.huddle.artifact' && payload.channel_id === state.activeChannelId) refreshActiveMessages();
         if (topic === 'channels.typing') return handleTypingEvent(payload);
+        if (topic === 'channels.thread_subscription.updated') {
+          if (payload.root_message_id && (typeof payload.thread_muted === 'boolean' || payload.notify_level)) {
+            applyThreadMute(payload.root_message_id, payload.thread_muted ?? payload.notify_level === 'muted');
+          }
+          return;
+        }
         if (topic === 'channels.directory.updated') { loadChannels(); if (mode !== 'list') refreshActiveMessages(); return; }
         if (topic === 'channels.message.created' && payload.message?.author?.id) handleTypingEvent({channel_id:payload.channel_id, user_id:payload.message.author.id, typing:false});
         if (mode === 'list') {
@@ -3531,7 +3538,10 @@
     }
 
     function messageRow(message, { inThread } = {}){
+      const threadRootId = message.parent_id || message.id;
+      if (state.threadMutes.has(threadRootId)) message.thread_muted = state.threadMutes.get(threadRootId);
       const row = el('div', 'fm-ch-msg');
+      row._channelMessage = message;
       row.tabIndex = 0;
       row.dataset.messageId = message.id;
       const gutter = el('div', 'fm-ch-msg-gutter');
@@ -3734,7 +3744,7 @@
       const tools = [];
       if (features.reactions) tools.push({ act: 'react', icon: '<i class="fas fa-face-smile"></i>', title: (globalThis.PlatformLanguage?.text("channels-ui","m_b9ef31beb43d75","Add reaction") ?? "Add reaction") });
       if (features.threads && !inThread) tools.push({ act: 'thread', icon: '<i class="fas fa-comment-dots"></i>', title: (globalThis.PlatformLanguage?.text("channels-ui","m_2630a6ec2a8192","Reply in thread") ?? "Reply in thread") });
-      if (features.threads && !inThread) tools.push({ act: 'follow', icon: '<i class="fas fa-bell"></i>', title: (globalThis.PlatformLanguage?.text("channels-ui","m_3ea2ab183fad0b","Follow thread") ?? "Follow thread") });
+      if (features.threads) tools.push({ act: 'thread-mute', icon: '<i class="fas fa-bell-slash"></i>', title: message.thread_muted ? 'Unmute thread' : 'Mute thread', on: message.thread_muted });
       if (features.saved) tools.push({ act: 'save', icon: '<i class="fas fa-bookmark"></i>', title: message.is_saved ? 'Remove from saved' : 'Save for later', on: message.is_saved });
       if (features.richMessages) tools.push({ act: 'remind', icon: '<i class="fas fa-clock"></i>', title: (globalThis.PlatformLanguage?.text("channels-ui","m_a3718df1119c03","Remind me about this") ?? "Remind me about this") });
       if (features.richMessages) tools.push({ act: 'forward', icon: '<i class="fas fa-share"></i>', title: (globalThis.PlatformLanguage?.text("channels-ui","m_2ac9359a61d42d","Forward message") ?? "Forward message") });
@@ -3759,7 +3769,12 @@
             ? {getBoundingClientRect:()=>({left:event.clientX,top:event.clientY,bottom:event.clientY})} : more;
           const pop = showPopover(anchor, pop => {
             pop.classList.add('fm-ch-message-menu'); pop.setAttribute('role', 'menu');
+            pop.dataset.threadRootId = message.parent_id || message.id;
             for (const tool of overflow) {
+              if (tool.act === 'thread-mute') {
+                tool.title = message.thread_muted ? 'Unmute thread' : 'Mute thread';
+                tool.icon = message.thread_muted ? '<i class="fas fa-bell"></i>' : '<i class="fas fa-bell-slash"></i>';
+              }
               const item = el('button', tool.danger ? 'danger' : '', tool.icon + `<span>${esc(tool.title)}</span>`);
               item.setAttribute('role', 'menuitem'); item.dataset.act = tool.act;
               item.setAttribute('aria-label', tool.title);
@@ -3801,10 +3816,10 @@
           if (act === 'restore') replaceMessage((await api.messages.restore(orgId, message.id)).message);
           else if (act === 'react') openEmojiPicker(target, (emoji) => api.messages.react(orgId, message.id, emoji, true).then((data) => replaceMessage(data.message)).catch(showError));
           else if (act === 'thread') openThread(message.parent_id || message.id);
-          else if (act === 'follow') {
-            await api.threads.subscribe(orgId, message.parent_id || message.id, true);
-            target.classList.add('on');
-            target.title = (globalThis.PlatformLanguage?.text("channels-ui","m_85514549901d20","Following thread") ?? "Following thread");
+          else if (act === 'thread-mute') {
+            const rootId = message.parent_id || message.id;
+            const data = await api.threads.subscribe(orgId, rootId, true, message.thread_muted ? 'all' : 'muted');
+            applyThreadMute(rootId, data.subscription.notify_level === 'muted');
           }
           else if (act === 'save') {
             if (message.is_saved) await api.saved.remove(orgId, message.id);
@@ -3857,6 +3872,36 @@
           showError(error);
         }
       });
+    }
+
+    function applyThreadMute(rootId, muted){
+      state.threadMutes.set(rootId, Boolean(muted));
+      const messages = [...state.messages, ...(state.pinned || []), ...state.searchResults,
+        ...(state.thread ? [state.thread.root, ...state.thread.replies] : [])];
+      for (const row of shell.querySelectorAll('[data-message-id]')) {
+        if (row._channelMessage) messages.push(row._channelMessage);
+      }
+      for (const message of messages) {
+        if (message && (message.parent_id || message.id) === rootId) message.thread_muted = Boolean(muted);
+      }
+      // Keep both composers and any message editor in place while changing preferences.
+      for (const row of shell.querySelectorAll('[data-message-id]')) {
+        const message = row._channelMessage;
+        if (!message || (message.parent_id || message.id) !== rootId) continue;
+        for (const button of row.querySelectorAll('[data-act="thread-mute"]')) {
+          button.title = muted ? 'Unmute thread' : 'Mute thread';
+          button.setAttribute('aria-label', button.title);
+          button.classList.toggle('on', Boolean(muted));
+        }
+      }
+      for (const menu of document.querySelectorAll('.fm-ch-message-menu')) {
+        if (menu.dataset.threadRootId !== rootId) continue;
+        const button = menu.querySelector('[data-act="thread-mute"]');
+        if (!button) continue;
+        const label = muted ? 'Unmute thread' : 'Mute thread';
+        button.innerHTML = `<i class="fas ${muted ? 'fa-bell' : 'fa-bell-slash'}"></i><span>${label}</span>`;
+        button.setAttribute('aria-label', label);
+      }
     }
 
     function replaceMessage(message, {inPlace = false} = {}){

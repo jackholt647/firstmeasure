@@ -181,10 +181,23 @@ export async function threadSubscriptionRecord(rootMessageId: string, userId: st
   return row ? {
     ...rowObject(row),
     following: Number(row.following) === 1,
+    notify_level: cleanText(row.notify_level) || "all",
     last_read_reply_seq: Number(row.last_read_reply_seq) || 0,
     manual_unread_reply_seq: row.manual_unread_reply_seq == null ? null : Number(row.manual_unread_reply_seq),
     version: Number(row.version) || 1
   } : null;
+}
+
+/** Joining a conversation must not overwrite an explicit notification choice. */
+export async function ensureThreadSubscriptionRecord(orgId: string, channelId: string, rootMessageId: string, userId: string) {
+  const now = nowIso();
+  await getChannelsDatabase().prepare(`
+    INSERT INTO channel_thread_subscriptions
+      (organization_id, channel_id, root_message_id, user_id, following, notify_level, created_at, updated_at)
+    VALUES (?, ?, ?, ?, 1, 'all', ?, ?)
+    ON CONFLICT (root_message_id, user_id) DO NOTHING
+  `).run(orgId, channelId, rootMessageId, userId, now, now);
+  return threadSubscriptionRecord(rootMessageId, userId);
 }
 
 export async function listThreadSubscriptionRows(orgId: string, userId: string): Promise<JsonObject[]> {
@@ -269,16 +282,23 @@ export async function recordAttentionForMessage(channel: ChannelRow, message: Me
   }
   if (message.parent_id) {
     const root = (await readMessageRecord(channel.organization_id, message.parent_id));
-    if (root?.author_id && root.author_id !== message.author_id && !targets.has(root.author_id)) {
+    const authorSubscription = root?.author_id ? await threadSubscriptionRecord(message.parent_id, root.author_id) : null;
+    if (root?.author_id && root.author_id !== message.author_id && authorSubscription?.notify_level !== "muted" && !targets.has(root.author_id)) {
       targets.set(root.author_id, "thread_reply");
     }
     const followers = (await db.prepare(`
       SELECT user_id FROM channel_thread_subscriptions
-      WHERE root_message_id = ? AND following = 1 AND user_id <> ?
+      WHERE root_message_id = ? AND following = 1 AND notify_level = 'all' AND user_id <> ?
     `).all(message.parent_id, message.author_id)) as JsonObject[];
     for (const follower of followers) {
       const userId = cleanText(follower.user_id);
       if (userId && !targets.has(userId)) targets.set(userId, "thread_reply");
+    }
+  }
+  // A thread mute also suppresses mentions and direct-message attention within it.
+  if (message.parent_id) {
+    for (const recipient of targets.keys()) {
+      if ((await threadSubscriptionRecord(message.parent_id, recipient))?.notify_level === "muted") targets.delete(recipient);
     }
   }
   if (channel.type !== "project") {
