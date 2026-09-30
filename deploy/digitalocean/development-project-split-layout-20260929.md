@@ -57,3 +57,5 @@ The intermediate `a232984` release contains the layout without focused boot;
 prefer rolling back to the pre-task release when reverting this prototype.
 
 Follow-up: [Split-pane behavior, compact tabs and shared realtime fixes](development-project-split-fixes-20260929.md).
+
+Ownership migration: [Overview-owned project details and removal of the shared column](development-project-overview-details-20260929.md).
