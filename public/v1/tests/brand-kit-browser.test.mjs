@@ -43,6 +43,12 @@ test('Doc Studio shares logo editing, fonts and serialized autosaves in a respon
     assert.equal(await page.locator('#dsLogoPreviewImg').getAttribute('src'),'http://brand.test/primary.svg');
     assert.equal(await page.locator('#dsLogoAdvanced').getAttribute('open'),'');
     assert.equal(await page.locator('[data-brand-save]').count(),0);
+    assert.equal(await page.locator('.brand-color-copy label').allTextContents().then(values=>values.join(',')),'Primary,Secondary');
+    assert.equal(await page.locator('.logo-choice span').allTextContents().then(values=>values.join(',')),'Square,Rounded square,Circle');
+    for(const [choice,shape,rounded] of [['square','square',false],['rounded_square','square',true],['circle','circle',false]]){
+      await page.locator(`input[name="dsLogoShape"][value="${choice}"] + span`).click();
+      await page.waitForFunction(({shape,rounded})=>window.branch.branding.logo_display?.shape===shape && window.branch.branding.logo_display?.rounded_corners===rounded,{shape,rounded});
+    }
     await page.locator('#dsBrandFont').selectOption('Inter');
     await page.locator('#dsSeparateTitleFont').check();
     await page.locator('#dsTitleFont').selectOption('Poppins');

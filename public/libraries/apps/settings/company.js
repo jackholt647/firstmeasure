@@ -16022,7 +16022,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const csPaletteStrip = $('#csPaletteStrip', paneCompany);
       const csLogoBackground = $('#csLogoBackground', paneCompany);
       const csLogoBackgroundHex = $('#csLogoBackgroundHex', paneCompany);
-      const csLogoCorners = $('#csLogoCorners', paneCompany);
       const csGeneratePalette = $('#csGeneratePalette', paneCompany);
       const csAlternateLogoFiles = $('#csAlternateLogoFiles', paneCompany);
       const csAlternateLogoList = $('#csAlternateLogoList', paneCompany);
@@ -17334,7 +17333,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const csPaletteStrip = $('#csPaletteStrip', paneCompany);
       const csLogoBackground = $('#csLogoBackground', paneCompany);
       const csLogoBackgroundHex = $('#csLogoBackgroundHex', paneCompany);
-      const csLogoCorners = $('#csLogoCorners', paneCompany);
       const csGeneratePalette = $('#csGeneratePalette', paneCompany);
       const csAlternateLogoFiles = $('#csAlternateLogoFiles', paneCompany);
       const csAlternateLogoList = $('#csAlternateLogoList', paneCompany);
@@ -17383,9 +17381,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         if (event.target?.id === 'csTitleFont') {state.title_font=event.target.value;scheduleBrandSave();}
         if (event.target?.id === 'csSeparateTitleFont') {state.title_font=event.target.checked ? state.font_family : '';const field=$('#csTitleFontField',paneCompany);if(field)field.hidden=!event.target.checked;const title=$('#csTitleFont',paneCompany);if(title)title.value=state.title_font || state.font_family;scheduleBrandSave();}
         if (event.target?.matches?.('[data-palette-direct], input[name="csLogoShape"]')) scheduleBrandSave();
-      });
-      brandRoot?.addEventListener('click', (event) => {
-        if (event.target?.closest?.('#csLogoCorners')) scheduleBrandSave();
       });
       if(csSampleDiagram) setImgSmart(csSampleDiagram, SAMPLE_DIAGRAM, { forceBust:false });
       function wireHexChip(chip, input){
@@ -17490,17 +17485,9 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       paneCompany.querySelectorAll('input[name="csLogoShape"]').forEach((input)=>{
         input.addEventListener('change', ()=>{
           if (!input.checked) return;
-          state.logo_display = normalizeLogoDisplay({ ...state.logo_display, shape:input.value });
+          state.logo_display = window.PlatformBrandKit.selectShape(state.logo_display,input.value);
           renderLogoAppearance();
         });
-      });
-      csLogoCorners?.addEventListener('click', ()=>{
-        if (state.logo_display?.shape === 'circle') return;
-        state.logo_display = normalizeLogoDisplay({
-          ...state.logo_display,
-          rounded_corners:!state.logo_display?.rounded_corners
-        });
-        renderLogoAppearance();
       });
       csGeneratePalette?.addEventListener('click', async ()=>{
         if (!state.logo) {

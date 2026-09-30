@@ -224,8 +224,8 @@
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('../brand-kit/brand-kit.js', '20260929-shared-brand-editor'),
-        versionedBundle('documents/studio.js', '20260929-shared-brand-editor')
+        versionedBundle('../brand-kit/brand-kit.js', '20260929-brand-shape-choices'),
+        versionedBundle('documents/studio.js', '20260929-brand-shape-choices')
       ]
     },
     {
@@ -600,7 +600,7 @@
       portalTabId: 'company_settings',
       placement: 'settings',
       access: managementAccess,
-      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260930-contact-references-v1'), versionedBundle('../payroll-api/payroll-api.js', '20260712-payroll-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20260901-calls-configuration-v3'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('settings/payroll.js', '20260712-payroll-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20260929-shared-brand-editor'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20260929-shared-brand-editor')]
+      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260930-contact-references-v1'), versionedBundle('../payroll-api/payroll-api.js', '20260712-payroll-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20260901-calls-configuration-v3'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('settings/payroll.js', '20260712-payroll-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20260929-brand-shape-choices'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20260929-brand-shape-choices')]
     },
     {
       id: 'portal.crew_overview',
