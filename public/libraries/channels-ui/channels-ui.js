@@ -877,6 +877,7 @@
 .fm-ch-check-row>span{min-width:0}.fm-ch-check-row strong,.fm-ch-check-row small{display:block}.fm-ch-check-row strong{font-size:12px;color:#344054}.fm-ch-check-row small{margin-top:2px;color:var(--ch-muted);font-size:10.5px;font-weight:500;line-height:1.35}
 .fm-ch-check-row input[type=checkbox]{width:17px;height:17px;flex:0 0 auto;accent-color:var(--ch-accent)}
 .fm-ch-check-row:has(input:disabled){cursor:default;opacity:.55}
+.fm-ch-modal-body .fm-ch-visibility-row{justify-content:flex-start;align-items:flex-start;gap:12px}.fm-ch-visibility-row input[type=radio]{width:17px;height:17px;flex:0 0 17px;margin:2px 0 0;accent-color:var(--ch-accent)}
 .fm-ch-modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid var(--ch-border);flex-shrink:0;background:#fafbfc;flex-wrap:wrap}.fm-ch-modal-foot:empty{display:none}.fm-ch-modal-foot .fm-ch-btn{min-height:38px;font-weight:600}.fm-ch-btn:disabled{opacity:.5;cursor:not-allowed}
 .fm-ch-btn{border-radius:9px;padding:8px 15px;font-weight:850;font-size:12.5px;border:1px solid #d8dee8;color:#344054;background:#fff}
 .fm-ch-btn:hover{background:var(--ch-hover)}
@@ -5155,7 +5156,7 @@
           <input type="text" data-field="name" placeholder="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_764c04db3ecb32","e.g. installs") ?? "e.g. installs")}">
           <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_e23660d62b184c","Topic (optional)") ?? "Topic (optional)")}</label>
           <input type="text" data-field="topic" placeholder="${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_726dc4834a1366","What is this channel about?") ?? "What is this channel about?")}">
-          <label>Visibility</label><label class="fm-ch-check-row"><input type="radio" name="channel-visibility" value="public" checked><span><strong>Public</strong><small>Anyone in the company can find and join.</small></span></label><label class="fm-ch-check-row"><input type="radio" name="channel-visibility" value="private"><span><strong>Private</strong><small>Only invited members can see it. Channel managers add people.</small></span></label>`;
+          <label>Visibility</label><label class="fm-ch-check-row fm-ch-visibility-row"><input type="radio" name="channel-visibility" value="public" checked><span><strong>Public</strong><small>Anyone in the company can find and join.</small></span></label><label class="fm-ch-check-row fm-ch-visibility-row"><input type="radio" name="channel-visibility" value="private"><span><strong>Private</strong><small>Only invited members can see it. Channel managers add people.</small></span></label>`;
       }, [{ label: (globalThis.PlatformLanguage?.text("channels-ui","m_3c21a9590eb762","Create") ?? "Create"), primary: true, onClick: async (close, body) => {
         try {
           const name = body.querySelector('[data-field=name]').value;
