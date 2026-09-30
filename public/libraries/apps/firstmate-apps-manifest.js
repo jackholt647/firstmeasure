@@ -92,7 +92,7 @@
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
       access: managementAccess,
-      bundles: [versionedBundle('contacts/modal.js', '20260930-contact-library-v1'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20260930-contact-photos-v1')]
+      bundles: [versionedBundle('contacts/modal.js', '20260930-contact-library-v1'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20260930-contact-global-search-v1')]
     },
     {
       id: 'portal.photos_feed',
