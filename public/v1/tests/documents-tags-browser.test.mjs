@@ -28,6 +28,8 @@ for (const inline of [false, true]) test(`Doc Studio Tags opens with ${inline ? 
       };
       let tags = [{ id: 'tag_a', label: 'Quote', revision: 1, archived: false }];
       window.PlatformAPI = {
+        orgs:{portalState:async()=>({})},branches:{get:async()=>({data:{}})},branchModules:{get:async()=>({data:{}})},
+        brandingMedia:{list:async()=>({media:[]})},
         baseUrl: () => '/v1/platform',
         request: async (url, opts) => {
           assertAbsoluteUrl(url);
@@ -40,6 +42,7 @@ for (const inline of [false, true]) test(`Doc Studio Tags opens with ${inline ? 
       function assertAbsoluteUrl(url){ if(!url.startsWith('http://studio.test/v1/documents/')) throw new Error('Tag request used an incorrect API URL.'); }
     });
     if(!inline) await page.evaluate(() => { window.DocumentsAPI.request=(path,options)=>window.PlatformAPI.request(`http://studio.test/v1/documents${path}`, options); });
+    await page.addScriptTag({url:'http://studio.test/libraries/brand-kit/brand-kit.js'});
     if(inline) await page.addScriptTag({content:await readFile(new URL('../../libraries/apps/documents/studio.js',import.meta.url),'utf8')});
     else await page.addScriptTag({url:'http://studio.test/libraries/apps/documents/studio.js?v=test'});
     await page.evaluate(() => { window.handle = window.studioApp.mount({ root:document.querySelector('#studio'), orgId:'org' }); });
@@ -55,6 +58,8 @@ for (const inline of [false, true]) test(`Doc Studio Tags opens with ${inline ? 
     await page.getByRole('button', {name:'Restore',exact:true}).waitFor();
     await page.getByRole('button', {name:'Close tag manager'}).click();
     await page.locator('dialog').waitFor({state:'detached'});
+    await page.locator('[data-tab="brand-kit"]').click();
+    await page.locator('#dsLogoStage').waitFor();
     await page.evaluate(() => { window.failTags = true; });
     await page.getByRole('button', {name:'Tags',exact:true}).click();
     await page.getByText('Tags could not load. Try again.', {exact:true}).waitFor();
