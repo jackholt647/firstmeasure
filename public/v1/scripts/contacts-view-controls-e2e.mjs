@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 const require=createRequire(new URL('../package.json',import.meta.url));
 const {chromium}=require('playwright-core');
 const source=process.env.CONTACTS_APP_URL ? await (await fetch(process.env.CONTACTS_APP_URL)).text() : await readFile(new URL('../../libraries/apps/contacts/app.js',import.meta.url),'utf8');
-const feed=await readFile(new URL('../../libraries/apps/photos/feed.js',import.meta.url),'utf8');
+const feed=process.env.PHOTOS_FEED_URL ? await (await fetch(process.env.PHOTOS_FEED_URL)).text() : await readFile(new URL('../../libraries/apps/photos/feed.js',import.meta.url),'utf8');
 assert.ok(!feed.includes('data-refresh'),'Feed has no manual refresh button or handler');
 const feedCss=feed.split("injectCSS('photos_feed', `")[1].split('`);')[0];
 const portal=await readFile(new URL('../../portal/index.php',import.meta.url),'utf8');
@@ -13,10 +13,14 @@ const screenshotDir=process.env.UI_SCREENSHOT_DIR;
 const browser=await chromium.launch({channel:'chrome',headless:true});
 try {
  const page=await browser.newPage({viewport:{width:1400,height:900}});
- await page.route('http://fixture.local/**',route=>route.fulfill({contentType:'text/html',body:'<div id="mainPanels" class="main-panels"><div id="app" class="fm-tabpanel active" style="height:820px"></div></div><style>*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f0f2f7}.main-panels:has(>.fm-tabpanel.active.full-bleed){padding:0;overflow:hidden}</style>'}));
+ await page.route('http://fixture.local/fonts/**',async route=>route.fulfill({body:await readFile(new URL('../../'+new URL(route.request().url()).pathname.slice(1),import.meta.url))}));
+ await page.route('http://fixture.local/',route=>route.fulfill({contentType:'text/html',body:'<div id="mainPanels" class="main-panels"><div id="app" class="fm-tabpanel active" style="height:820px"></div></div><style>*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f0f2f7}.main-panels:has(>.fm-tabpanel.active.full-bleed){padding:0;overflow:hidden}</style>'}));
  await page.goto('http://fixture.local/');
  await page.addStyleTag({content:panelCss[0]+'@media(max-width:760px){'+panelCss[1]+'}'});
  await page.addStyleTag({content:feedCss});
+ await page.addStyleTag({content:await readFile(new URL('../../fonts.css',import.meta.url),'utf8')});
+ await page.addStyleTag({content:"body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}"});
+ await page.evaluate(()=>document.fonts.ready);
  await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.evaluate(()=>{
@@ -29,6 +33,8 @@ try {
  await page.waitForFunction(()=>!!window.fixtureApp);
  await page.evaluate(()=>(document.querySelector('#app').classList.toggle('full-bleed',!!window.fixtureApp.fullBleed),window.fixtureApp.mount(document.querySelector('#app'))));
  await page.waitForSelector('.ct-table-row');
+ await page.evaluate(()=>document.fonts.ready);
+ assert.ok(await page.evaluate(()=>document.fonts.check('16px Montserrat-Regular')),'portal font loaded');
  assert.equal(await page.locator('#ctRefresh').count(),0);
  const parity=await page.evaluate(()=>{
    const compare=document.createElement('div');compare.style.cssText='position:absolute;top:-1000px';
