@@ -496,6 +496,7 @@
     return state.addressAutocomplete;
   }
   function renderHeader(){
+    const callButton=$('#fmContactCall');if(callButton){callButton.hidden=!window.Portal?.CustomerPhone;callButton.disabled=!state.contact?.phone;}
     const label = contactTitle(state.contact);
     const title = $('#fmContactTitle');
     if (title) title.textContent = label;
@@ -667,15 +668,15 @@
   }
   async function editProfilePhoto(id){
     try {
-      const response=await fetch(window.PlatformAPI.media.fileUrl(orgId(),id));if(!response.ok)throw Error('Could not open profile photo');
-      const blob=await response.blob(),url=URL.createObjectURL(blob),image=new Image();image.src=url;await image.decode();
+      const identity=state.contact.id;const response=await fetch(window.PlatformAPI.media.fileUrl(orgId(),id));if(!response.ok)throw Error('Could not open profile photo');
+      const blob=await response.blob(),url=URL.createObjectURL(blob),image=new Image();image.src=url;await image.decode();if(state.contact.id!==identity){URL.revokeObjectURL(url);return;}
       const dialog=document.createElement('dialog');dialog.style.cssText='padding:20px;border:0;border-radius:12px;width:min(440px,90vw);z-index:2147483647';
       dialog.innerHTML='<h3 style="margin:0 0 16px">Edit profile photo</h3><canvas width="400" height="400" style="width:100%;border-radius:8px"></canvas><label style="display:flex;gap:12px;margin:16px 0">Zoom<input type="range" min="1" max="3" step=".05" value="1" style="flex:1"></label><div style="display:flex;gap:8px;justify-content:flex-end"><button class="fm-contact-btn" data-replace>Replace</button><button class="fm-contact-btn" data-cancel>Cancel</button><button class="fm-contact-btn primary" data-apply>Apply</button></div>';
       document.body.append(dialog);dialog.showModal();const canvas=dialog.querySelector('canvas'),ctx=canvas.getContext('2d');
       const draw=()=>{const size=Math.min(image.width,image.height)/Number(dialog.querySelector('input').value);ctx.clearRect(0,0,400,400);ctx.drawImage(image,(image.width-size)/2,(image.height-size)/2,size,size,0,0,400,400);};draw();dialog.querySelector('input').oninput=draw;
       const finish=()=>{URL.revokeObjectURL(url);dialog.close();dialog.remove();};dialog.addEventListener('cancel',event=>{event.preventDefault();finish();});
       dialog.querySelector('[data-cancel]').onclick=finish;dialog.querySelector('[data-replace]').onclick=()=>{finish();$('#fmContactPhotoUpload').click();};
-      dialog.querySelector('[data-apply]').onclick=()=>canvas.toBlob(async photo=>{finish();await uploadContactFiles([new File([photo],'profile-photo.png',{type:'image/png'})],true);},'image/png');
+      dialog.querySelector('[data-apply]').onclick=()=>canvas.toBlob(async photo=>{finish();if(state.contact.id!==identity)return;await uploadContactFiles([new File([photo],'profile-photo.png',{type:'image/png'})],true);},'image/png');
     }catch(error){setMeta(error.message);}
   }
   function orgLabel(){return window.PlatformTerminology?.get?.('contacts.org','Org') || 'Org';}
@@ -702,6 +703,7 @@
       setMeta('Uploading…');
       for(const file of files){
         const result=await window.PlatformAPI.media.upload(orgId(),file,{ownerType:'contact',ownerId:ref.contact_id,slot:profile?'profile':'media',collection:'contacts',scope:'contact',metadata:{contact_record_project_id:ref.project_id,contact_draft:!state.contactRecord}});
+        if(state.contact.id!==ref.contact_id)return;
         draftMedia.push(result.media);
         if(profile){state.contact.custom_field_values={...state.contact.custom_field_values,profile_photo:{media_id:result.media.id}};state.contact.profile_media_id=result.media.id;setProfileInput({media_id:result.media.id});scheduleAutosave();await flushAutosave();}
       }
