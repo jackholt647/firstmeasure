@@ -301,10 +301,10 @@ test("separate assistant conversations have independent history and preserve the
   const { client:owner, orgId } = await registerOwner();
   const base = `/v1/channels/organizations/${orgId}`;
   const listed = await owner.request("GET", `${base}/channels`);
-  const assistantDm = listed.channels.find((channel:Json) => channel.type === "dm" && channel.members.some((member:Json) => member.id.startsWith("agent_") && member.agent_id === "assistant"))
-    || listed.channels.find((channel:Json) => channel.type === "dm" && channel.members.some((member:Json) => member.id.includes("assistant")));
-  assert.ok(assistantDm, "default assistant conversation exists");
-  const agent = assistantDm.members.find((member:Json) => member.id.startsWith("agent_"));
+  const assistantDm = listed.channels.find((channel:Json) => channel.assistant_dm === true);
+  assert.ok(assistantDm, 'default assistant conversation exists');
+  assert(!assistantDm.members.some((member:Json) => member.id === 'agent_assistant'));
+  const agent = {id:'agent_assistant'};
   const create = (name:string) => owner.request("POST", `${base}/channels`, {type:"dm", member_user_ids:[agent.id], new_conversation:true, name});
   const first = await create("Planning"); const second = await create("Research");
   assert.notEqual(first.channel.id, second.channel.id);

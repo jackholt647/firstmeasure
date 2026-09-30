@@ -1694,7 +1694,7 @@
 
       for (const group of groups) {
         const channels = state.channels.filter(channel => !hiddenChannelIds().has(channel.id) && group.filter(channel));
-        if (!channels.length && !group.add) continue;
+        if (!channels.length && !group.add && group.key !== 'channels') continue;
         const collapsed = state.collapsedGroups.has(group.key);
         const unreadCount = channels.reduce((sum, channel) => sum + Number(channel.unread?.unread_count || 0), 0);
         const section = el('div', `fm-ch-side-section${collapsed ? ' collapsed' : ''}`);
@@ -1714,6 +1714,12 @@
         };
         head.addEventListener('click', toggleGroup);
         head.appendChild(title);
+        if (group.key === 'channels' && (typeof options.onSettings === 'function' || root.FirstMateChannelsOverlay?.canOpenSettings?.())) {
+          const settings = el('button', 'fm-ch-icon-btn', '<i class="fas fa-gear" aria-hidden="true"></i>');
+          settings.type = 'button'; settings.title = 'Channels app settings'; settings.setAttribute('aria-label', settings.title);
+          settings.onclick = event => { event.stopPropagation(); (options.onSettings || root.FirstMateChannelsOverlay.openSettings)(); };
+          head.append(settings);
+        }
         if (unreadCount) head.appendChild(el('span', 'fm-ch-group-badge', unreadCount));
         if (group.add) {
           const addBtn = el('button', 'fm-ch-side-add', '+');
@@ -1842,7 +1848,6 @@
       }
       if (features.attention) addAction('Conversation notifications', '<i class="fas fa-bell"></i>', openChannelNotificationModal);
       if (features.search && mode === 'full') addAction('Search messages', '<i class="fas fa-magnifying-glass"></i>', () => openSearchPrompt());
-      if (features.workflows) addAction('Workflow shortcuts', '<i class="fas fa-bolt"></i>', openWorkflowShortcuts);
       if (features.ai) addAction('Ask FirstMate for a recap', '<i class="fas fa-wand-magic-sparkles"></i>', requestChannelRecap);
       if (api.sidebarSections?.save) {
         const starred = state.sidebarSections.find((section) => section.id === 'starred')?.channel_ids?.includes(channel.id);
@@ -1870,7 +1875,6 @@
       if (features.channelSettings && channel.can_manage && !['dm', 'group_dm', 'project'].includes(channel.type)) {
         addAction('Channel settings', '<i class="fas fa-gear"></i>', () => openChannelSettingsModal());
       }
-      if (typeof options.onSettings === 'function') addAction('Channels settings', '<i class="fas fa-sliders"></i>', () => options.onSettings());
       if (features.huddles) addAction('Start or join huddle', '<i class="fas fa-headphones"></i>', () => openHuddleStartModal());
       // On phones a row of icon actions crowds the title out of the header;
       // collapse them into a single kebab menu with labeled entries.
@@ -5315,6 +5319,7 @@
     }
 
     function peoplePicker(users, selected, onChange = () => {}){
+      users = users.filter(user => user.id !== 'agent_assistant');
       const picker = el('div', 'fm-ch-people-picker');
       const search = el('input'); search.type = 'search'; search.placeholder = 'Search people by name or email'; search.setAttribute('aria-label', 'Search people by name or email');
       const summary = el('div', 'fm-ch-people-summary'); summary.setAttribute('role', 'status');
@@ -5445,7 +5450,7 @@
         const search = el('input');search.type='search';search.placeholder='Search channel members';search.setAttribute('aria-label',search.placeholder);
         search.oninput=()=>{for(const row of members.children)row.hidden=!row.dataset.search.includes(search.value.toLowerCase());};
         body.append(el('div', 'fm-ch-people-summary', `${memberIds.size} current members`), search, members);
-        for (const member of channel.members || []) {
+        for (const member of (channel.members || []).filter(member => member.id !== 'agent_assistant')) {
           const rowNode = el('div', 'fm-ch-member-row');
           rowNode.dataset.search=`${member.name} ${member.email || ''}`.toLowerCase();
           rowNode.innerHTML = `${avatarHtml(member, 'sm')}<span class="name">${esc(member.name)}${onlineDot(member.id)} <span class="fm-ch-tag">${member.role !== 'member' ? 'Channel manager' : 'Member'}</span></span>`;
@@ -5467,7 +5472,7 @@
           }
           members.appendChild(rowNode);
         }
-        const addable = everyone.filter((user) => !memberIds.has(user.id) && (channel.type !== 'dm' || user.id.startsWith('agent_')));
+        const addable = everyone.filter((user) => user.id !== 'agent_assistant' && !memberIds.has(user.id) && (channel.type !== 'dm' || user.id.startsWith('agent_')));
         if (addable.length && (channel.can_invite || channel.can_manage)) {
           body.appendChild(el('label', '', 'Add people'));
           body.append(peoplePicker(addable, selected, count => { body.parentElement.querySelector('.fm-ch-modal-foot button:last-child').disabled = !count; }));
@@ -5493,7 +5498,7 @@
     function openChannelSettingsModal(){
       const channel = state.activeChannel;
       const huddleDefaults = channelHuddleDefaults(channel);
-      showModal(`Channel settings — #${channel.name}`, (body) => {
+      showModal(`Channel settings — #${channel.name}`, (body, close) => {
         body.innerHTML = `
           <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_8cf345002184e5","Name") ?? "Name")}</label>
           <input type="text" data-field="name" value="${String(esc(channel.name))}">
@@ -5520,33 +5525,70 @@
         };
         recording?.addEventListener('change', syncRecordingDefaults);
         syncRecordingDefaults();
+        body.parentElement.querySelector('.fm-ch-modal-foot').hidden = true;
+        const status = el('p', 'fm-ch-settings-status', 'Changes save automatically');
+        status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+        body.append(status);
+        let timer, version = 0, savedVersion = 0, queuedVersion = 0, closed = false;
+        let pending = Promise.resolve(true);
+        const flush = () => {
+          clearTimeout(timer);
+          if (version === savedVersion) return Promise.resolve(true);
+          if (version === queuedVersion) return pending;
+          const revision = version;
+          const name = body.querySelector('[data-field=name]').value;
+          if (!name.trim()) { status.textContent = 'Enter a channel name.'; return Promise.reject(new Error('Enter a channel name.')); }
+          const patch = {
+            name, topic:body.querySelector('[data-field=topic]').value,
+            ...(features.recording ? {settings:{...(channel.settings || {}),
+              huddle_recording_enabled:Boolean(recording?.checked),
+              huddle_record_video:features.recordVideo && Boolean(video?.checked)}} : {})
+          };
+          queuedVersion = revision; status.textContent = 'Saving…';
+          pending = pending.catch(() => false).then(async () => {
+            try {
+              const result = await api.channels.update(orgId, channel.id, patch);
+              savedVersion = revision;
+              if (result.channel && state.activeChannelId === channel.id) { state.activeChannel = result.channel; renderHeader(); }
+              if (version === revision) {
+                status.textContent = 'Saved';
+                if (result.channel?.name) body.querySelector('[data-field=name]').value = result.channel.name;
+              }
+              await loadChannels().catch(showError);
+              return true;
+            } catch (error) {
+              if (queuedVersion === revision) queuedVersion = savedVersion;
+              status.textContent = `Could not save: ${error.message || 'Please try again.'}`;
+              throw error;
+            }
+          });
+          return pending;
+        };
+        body.addEventListener('input', event => {
+          if (!event.target.matches('[data-field]')) return;
+          syncRecordingDefaults(); version++; clearTimeout(timer); status.textContent = 'Saving…';
+          timer = setTimeout(() => { void flush().catch(error => { if (closed) showError(error); }); }, event.target.type === 'checkbox' ? 0 : 400);
+        });
         const archive = el('button', 'fm-ch-btn', channel.archived_at ? 'Unarchive channel' : 'Archive channel');
         archive.style.marginTop = '14px';
         archive.addEventListener('click', async () => {
+          archive.disabled = true;
+          const inputs = [...body.querySelectorAll('[data-field]')];
+          inputs.forEach(input => { input.disabled = true; });
           try {
+            await flush();
             if (channel.archived_at) await api.channels.unarchive(orgId, channel.id);
             else await api.channels.archive(orgId, channel.id);
+            close();
             await loadChannels();
-            await setChannel(channel.id);
-          } catch (error) { showError(error); }
+            if (state.activeChannelId === channel.id) await setChannel(channel.id);
+          } catch (error) {
+            archive.disabled = false; inputs.forEach(input => { input.disabled = false; }); syncRecordingDefaults(); showError(error);
+          }
         });
         body.appendChild(archive);
-      }, [{ label: (globalThis.PlatformLanguage?.text("channels-ui","m_5bab3e72de1ebf","Save") ?? "Save"), primary: true, onClick: async (close, body) => {
-        try {
-          await api.channels.update(orgId, channel.id, {
-            name: body.querySelector('[data-field=name]').value,
-            topic: body.querySelector('[data-field=topic]').value,
-            settings:{
-              ...(channel.settings || {}),
-              ...(features.recording ? {huddle_recording_enabled:Boolean(body.querySelector('[data-field=huddle-recording]')?.checked),
-              huddle_record_video:features.recordVideo && Boolean(body.querySelector('[data-field=huddle-record-video]')?.checked)} : {})
-            }
-          });
-          close();
-          await loadChannels();
-          await setChannel(channel.id);
-        } catch (error) { showError(error); }
-      } }]);
+        return () => { closed = true; clearTimeout(timer); void flush().catch(showError); };
+      }, []);
     }
 
     // --- errors -----------------------------------------------------------------------------

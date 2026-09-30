@@ -369,6 +369,10 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
     const hasAttachments = Array.isArray(body.attachments) && body.attachments.length > 0;
     if (!rawMessage.trim() && !hasAttachments) throw badRequest("empty_message", "Type a message first.");
     const { thread } = await readThreadForAgent(ASSISTANT_AGENT_ID, orgId, threadId, ctx.userId);
+    const automaticRecap = body.intent === "channel_recap";
+    if (automaticRecap && (!cleanText(thread.subject_id).startsWith("channel:") || rawMessage !== "Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners." || hasAttachments)) {
+      throw badRequest("invalid_channel_recap", "Automatic recaps are only available in channel assistant conversations.");
+    }
     const turnNote = agentIdFromSubject(thread.subject_id) ? await agentConfigurationTurnNote(orgId, ctx.userId, thread) : "";
     const attachmentIds = Array.isArray(body.attachments) ? body.attachments : [];
     if (attachmentIds.length > 5) throw badRequest("too_many_attachments", "Add up to five files per message.");
@@ -402,7 +406,7 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
       branchId: cleanText(body.branch_id) || ctx.branchId || "default",
       threadId,
       message: rawMessage,
-      input: { attachments },
+      input: { attachments, ...(automaticRecap ? { automatic_channel_recap:true } : {}) },
       contentParts,
       ctx,
       actorUserId: ctx.userId,

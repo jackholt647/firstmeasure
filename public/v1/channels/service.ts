@@ -604,8 +604,9 @@ async function channelView(ctx: PlatformAuthContext, channel: ChannelRow, extras
     settings: channel.settings,
     created_by: channel.created_by,
     created_at: channel.created_at,
-    member_count: members.length,
-    members: memberProfiles,
+    member_count: memberProfiles.filter(member => member.id !== "agent_assistant").length,
+    members: memberProfiles.filter(member => member.id !== "agent_assistant"),
+    assistant_dm: channel.type === "dm" && members.some(member => member.user_id === "agent_assistant") && members.filter(member => !member.user_id.startsWith("agent_")).length === 1,
     is_member: members.some((member) => member.user_id === ctx.userId),
     can_manage: (await channelAdminAllowed(ctx, channel)),
     can_invite: members.some(member => member.user_id === ctx.userId) && await channelAdminAllowed(ctx, channel),
@@ -730,7 +731,12 @@ export async function createChannel(ctx: PlatformAuthContext, input: {
     throw forbidden("permission_denied", "You do not have permission to create channels.");
   }
 
-  const memberIds = [...new Set([ctx.userId, ...input.member_user_ids.map(cleanText).filter(Boolean)])];
+  let memberIds = [...new Set([ctx.userId, ...input.member_user_ids.map(cleanText).filter(Boolean)])];
+  // FirstMate is available by mention everywhere, not an invited participant.
+  // Retain its backing membership only for a dedicated assistant DM.
+  if (!isDm || memberIds.some(id => id !== ctx.userId && !id.startsWith("agent_"))) {
+    memberIds = memberIds.filter(id => id !== "agent_assistant");
+  }
   const validMembers = await userDirectory(ctx.orgId);
   if (memberIds.some(id => !validMembers.has(id))) throw badRequest("unknown_user", "Choose people from this organization.");
   if (isDm) {
@@ -865,6 +871,8 @@ export async function setChannelArchived(ctx: PlatformAuthContext, channelId: st
 
 export async function addChannelMembers(ctx: PlatformAuthContext, channelId: string, userIds: string[]) {
   let { channel } = await requireChannelAccess(ctx, channelId, { write: true });
+  userIds = userIds.filter(id => id !== "agent_assistant");
+  if (!userIds.length) return channelView(ctx, channel);
   if (channel.type === "dm" && userIds.some(id => !id.startsWith("agent_"))) throw badRequest("dm_fixed_membership", "Start a group conversation to add people to a direct message.");
   if (channel.type === "project") throw badRequest("project_channel", "Project message threads use project access, not membership.");
   if (!(await channelAdminAllowed(ctx, channel))) {

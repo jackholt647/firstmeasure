@@ -161,7 +161,7 @@ test("interactive DM turns execute without a scheduler or worker", async () => {
   } finally { process.env.NODE_ENV = previous; mock.restore(); }
 });
 
-test("inviting FirstMate into a human DM responds once and preserves future private DMs", async () => {
+test("FirstMate needs no membership and only responds when mentioned in a human DM", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
   const teammate = await client.request("POST", `/v1/platform/organizations/${orgId}/users`, { data: {
@@ -176,7 +176,12 @@ test("inviting FirstMate into a human DM responds once and preserves future priv
   ]);
   try {
     const added = await client.request("POST", `/v1/channels/organizations/${orgId}/channels/${channel.id}/members`, { user_ids: ["agent_assistant"] });
-    assert.equal(added.channel.type, "group_dm");
+    assert.equal(added.channel.type, "dm");
+    assert(!added.channel.members.some((member:any) => member.id === 'agent_assistant'));
+    assert.equal(await (await import('../channels/agent.js')).drainChannelAgentJobs('channel'),0);
+    const before = await client.request('GET', `/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`);
+    assert.equal(before.messages.length,1,'Adding the ever-present assistant creates no activity message');
+    await client.request('POST', `/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`, {text:'@FirstMate can you help?', mention_users:AGENT_MENTION});
     await waitFor(async () => {
       const result = await client.request("GET", `/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`);
       const replies = agentMessagesIn(result.messages);
@@ -186,7 +191,7 @@ test("inviting FirstMate into a human DM responds once and preserves future priv
     await client.request("POST", `/v1/channels/organizations/${orgId}/channels/${channel.id}/members`, { user_ids: ["agent_assistant"] });
     assert.equal(await (await import("../channels/agent.js")).drainChannelAgentJobs("channel"), 0);
     const privateDm = await client.request("POST", `/v1/channels/organizations/${orgId}/channels`, { type: "dm", member_user_ids: [member] });
-    assert.notEqual(privateDm.channel.id, channel.id);
+    assert.equal(privateDm.channel.id, channel.id);
     assert.equal(privateDm.channel.members.length, 2);
   } finally { mock.restore(); }
 });
@@ -205,7 +210,7 @@ test("an enabled FirstMate Assistant always has a default direct-message convers
 
   const firstList = await client.request("GET", `/v1/channels/organizations/${orgId}/channels`);
   const assistantDm = firstList.channels.find((channel: any) =>
-    channel.type === "dm" && channel.members.some((member: any) => member.id === "agent_assistant")
+    channel.assistant_dm === true
   );
   assert.ok(assistantDm, "the enabled assistant has a seeded DM before the user sends a message");
   assert.equal(assistantDm.display_name, participants.participants[0].name);
@@ -213,7 +218,7 @@ test("an enabled FirstMate Assistant always has a default direct-message convers
   const secondList = await client.request("GET", `/v1/channels/organizations/${orgId}/channels`);
   assert.equal(
     secondList.channels.filter((channel: any) =>
-      channel.type === "dm" && channel.members.some((member: any) => member.id === "agent_assistant")
+      channel.assistant_dm === true
     ).length,
     1,
     "reloading Channels does not create duplicate assistant DMs"
@@ -230,7 +235,7 @@ test("a disabled FirstMate Assistant does not seed a direct-message conversation
   const listed = await client.request("GET", `/v1/channels/organizations/${orgId}/channels`);
   assert.equal(
     listed.channels.some((channel: any) =>
-      channel.type === "dm" && channel.members.some((member: any) => member.id === "agent_assistant")
+      channel.assistant_dm === true
     ),
     false
   );

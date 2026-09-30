@@ -435,7 +435,15 @@
     window.dispatchEvent(new CustomEvent('fm:channels-overlay:closed'));
   }
 
-  window.FirstMateChannelsOverlay = { open: openOverlay, openView: openOverlayView, close: closeOverlay, isOpen: () => overlay.openFlag };
+  window.FirstMateChannelsOverlay = {
+    open: openOverlay, openView: openOverlayView, close: closeOverlay, isOpen: () => overlay.openFlag,
+    canOpenSettings,
+    openSettings(){
+      if (!canOpenSettings() || !ensureOverlayInstance()) return;
+      if (!overlay.channelId) overlay.titleEl.textContent = 'Channels';
+      showOverlay(); openSettings(overlay);
+    }
+  };
 
   // Actively choosing an app must bring that app forward — otherwise the
   // conversation keeps covering it and the click looks like it did nothing.

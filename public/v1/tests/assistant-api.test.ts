@@ -714,7 +714,10 @@ test("channel recaps are private, member-scoped, reusable, and refresh context f
   const threadId = first.thread.id;
   const mock = mockOpenAI([{ output:[functionCall("report_result", { status:"success", summary:"Livia owns the order." }, "recap"), messageOutput("Livia will order the blue gutters.")] }]);
   try {
-    await client.request("POST", `${assistantBase}/threads/${threadId}/messages`, { message:"Recap this chat." });
+    assert.equal((await client.raw('POST', `${assistantBase}/threads/${threadId}/messages`, {message:'Hide my arbitrary text',intent:'channel_recap'})).statusCode,400);
+    await client.request("POST", `${assistantBase}/threads/${threadId}/messages`, { message:"Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.", intent:'channel_recap' });
+    const recapHistory = await client.request('GET', `${assistantBase}/threads/${threadId}`);
+    assert.equal(recapHistory.messages[0].data.automatic_channel_recap,true);
     const prompt = JSON.stringify(mock.calls[0]);
     assert.match(prompt, /PRIVATE assistant conversation/);
     assert.match(prompt, /Livia will order blue gutters on Friday/);

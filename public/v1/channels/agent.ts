@@ -127,8 +127,10 @@ function mentionedAgentId(message: MessageRow): string | null {
 
 async function dmAgentId(channel: ChannelRow): Promise<string | null> {
   if (channel.type !== "dm" && channel.type !== "group_dm") return null;
-  for (const member of (await listChannelMembers(channel.id))) {
+  const members = await listChannelMembers(channel.id);
+  for (const member of members) {
     const agentId = agentIdForChannelUser(member.user_id);
+    if (agentId === "assistant" && (channel.type !== "dm" || members.some(other => other.user_id !== member.user_id && other.user_id.startsWith("agent_")) || members.filter(other => !other.user_id.startsWith("agent_")).length !== 1)) continue;
     if (agentId) return agentId;
   }
   return null;

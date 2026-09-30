@@ -26,9 +26,9 @@ test('channel recap uses the shared docked assistant with private follow-ups and
         },
         thread:async (_org, id) => ({ thread:threads.get(id), messages:messages.get(id) }),
         send:async (_org, id, body) => {
-          window.sent.push({ id, text:body.message });
+          window.sent.push({ id, text:body.message, intent:body.intent, composer:document.querySelector('[data-fma="input"]').value });
           const reply = { id:`reply-${window.sent.length}`, role:'assistant', content:`Private reply about ${id}`, data:{} };
-          messages.get(id).push({ id:`user-${window.sent.length}`, role:'user', content:body.message }, reply);
+          messages.get(id).push({ id:`user-${window.sent.length}`, role:'user', content:body.message, data:body.intent === 'channel_recap' ? {automatic_channel_recap:true} : {} }, reply);
           return { thread:threads.get(id), assistant_message:reply };
         }
       };
@@ -43,6 +43,9 @@ test('channel recap uses the shared docked assistant with private follow-ups and
     await page.evaluate(() => window.PlatformAssistant.openChannelConversation({ channelId:'Gutters' }));
     assert.equal(await page.locator('.fma-drawer').getAttribute('data-window'), 'docked');
     assert.match(await page.locator('[data-fma="barSub"]').textContent(), /Private channel conversation/);
+    assert.equal(await page.locator('.fma-msg.user').count(),0);
+    assert.equal(await page.evaluate(()=>sent[0].intent),'channel_recap');
+    assert.equal(await page.evaluate(()=>sent[0].composer),'');
     const input = page.locator('[data-fma="input"]');
     await input.fill('Who owns the order?');
     await input.press('Enter');
@@ -52,6 +55,8 @@ test('channel recap uses the shared docked assistant with private follow-ups and
     await page.evaluate(() => window.PlatformAssistant.openChannelConversation({ channelId:'Roofing' }));
     await page.evaluate(() => window.PlatformAssistant.openChannelConversation({ channelId:'Gutters' }));
     assert.equal(await input.inputValue(), 'Keep this unsent channel draft');
+    assert.equal(await page.locator('.fma-msg.user').count(),1);
+    assert.equal(await page.locator('.fma-msg.user').innerText(),'Who owns the order?');
     assert.deepEqual(await page.evaluate(() => window.sent.map(item => item.id)), ['private-Gutters', 'private-Gutters', 'private-Roofing']);
     assert.equal(await page.locator('.fma-drawer').count(), 1);
     assert.equal(await page.locator('#tab_channels').getAttribute('class'), 'fm-tabpanel active');

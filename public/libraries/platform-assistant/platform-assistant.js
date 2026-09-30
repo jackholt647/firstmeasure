@@ -1040,6 +1040,8 @@
       parts.push(welcomeHtml());
     } else {
       state.messages.forEach((message, index) => {
+        const channelThread = state.threads.some(thread => clean(thread.id) === clean(state.threadId) && clean(thread.subject_id).startsWith('channel:'));
+        if (clean(message.role) === 'user' && (object(message.data).automatic_channel_recap === true || (channelThread && index === 0 && message.content === 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.'))) return;
         parts.push(messageHtml(message, options.animateLast && index >= state.messages.length - 2));
       });
     }
@@ -1722,17 +1724,17 @@
     return state.threadId;
   }
 
-  async function sendMessage(){
+  async function sendMessage({ channelRecap = false } = {}){
     if (!els || state.pending) return;
     if (recorder) { stopRecording(); return; }
-    const text = clean(els.input.value);
+    const text = channelRecap ? 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.' : clean(els.input.value);
     if (!text && !state.attachments.length) return;
     const files = [...state.attachments];
     const agentId = state.view === 'agent' ? state.agentId : '';
     els.input.value = '';
     state.attachments = [];
     renderAttachments();
-    state.messages.push({ id:`local_${Date.now()}`, role:'user', content:[text, ...files.map((file) => `📎 ${file.name}`)].filter(Boolean).join('\n'), data:{} });
+    state.messages.push({ id:`local_${Date.now()}`, role:'user', content:[text, ...files.map((file) => `📎 ${file.name}`)].filter(Boolean).join('\n'), data:channelRecap ? {automatic_channel_recap:true} : {} });
     state.pending = true;
     els.send.disabled = true;
     renderMessages({ animateLast:true });
@@ -1748,6 +1750,7 @@
       }
       const result = await window.AssistantAPI.send(orgId(), threadId, {
         message:text || 'Please review the attached files.',
+        ...(channelRecap ? {intent:'channel_recap'} : {}),
         attachments:attachments.map((attachment) => attachment.media_id),
         branch_id:branchId()
       }, { signal:AbortSignal.timeout(AGENT_TIMEOUT_MS) });
@@ -1779,7 +1782,7 @@
       if (busy) {
         // Nothing was sent: give the text back and wait for the earlier request to finish.
         state.messages.pop();
-        if (!clean(els.input.value)) els.input.value = text;
+        if (!channelRecap && !clean(els.input.value)) els.input.value = text;
       }
       if ((busy || lost) && threadId && knownMessages >= 0 && await waitForReply(threadId, busy ? knownMessages : knownMessages + 1)) {
         if (busy) state.attachments.unshift(...files);
@@ -1882,8 +1885,7 @@
       state.threads = [thread, ...state.threads.filter(entry => clean(entry.id) !== clean(thread.id))];
       if (!await openThread(clean(thread.id), { throwOnError:true })) return;
       if (!state.messages.length && !clean(els.input.value) && !state.attachments.length) {
-        els.input.value = 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.';
-        await sendMessage();
+        await sendMessage({channelRecap:true});
       }
       els.input.focus();
     } finally { openingChannel = false; }
