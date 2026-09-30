@@ -314,20 +314,45 @@
   async function diagnose(){
     if(state.diagnosing)throw new Error('An audio check is already running.');
     if(state.call&&!terminal.has(state.call.state))throw new Error('Run the audio check between calls.');
-    state.diagnosing=true;const wasAvailable=state.available;state.available=false;const samples=[];let microphone='unavailable',connected=false;
+    state.diagnosing=true;const wasAvailable=state.available;state.available=false;const samples=[];let microphone='unavailable',connected=false,providerFailed=false;
+    const names=['Connect browser phone','Check microphone access','Connect test audio','Measure audio quality','Save device result'];
+    const checks=names.map(()=> 'Waiting');let step=0,finished=false;
+    const el=dialog('Call readiness check',`<p>This checks your microphone and the actual phone audio connection. It does not call a customer or record your voice.</p><ol>${names.map((name,i)=>`<li>${esc(name)}: <strong data-check-step="${i}">Waiting</strong></li>`).join('')}</ol><p data-check-progress role="status" aria-live="polite"></p><p class="fmcm-help" data-check-elapsed></p><section data-check-result hidden></section>`,null);
+    el.querySelector('footer [data-close]').textContent='Hide check';
+    const began=performance.now();
+    const elapsed=setInterval(()=>{const target=el.querySelector('[data-check-elapsed]');if(target)target.textContent=`${Math.floor((performance.now()-began)/1000)} seconds elapsed. Allow any browser microphone prompt. Connecting can take up to 20 seconds; the audio test can take another 23 seconds.`;},1000);
+    function progress(index,message){step=index;checks[index]='Checking…';checks.forEach((value,i)=>{el.querySelector(`[data-check-step="${i}"]`).textContent=value;});el.querySelector('[data-check-progress]').textContent=message;}
+    function finish(result){
+      finished=true;clearInterval(elapsed);state.diagnostic=result;changed();
+      el.querySelector('footer [data-close]').textContent='Close';
+      checks[step]=['ready','degraded'].includes(result.verdict)?'Passed':label(result.verdict);
+      checks.forEach((value,i)=>{el.querySelector(`[data-check-step="${i}"]`).textContent=value==='Waiting'?'Not run':value;});
+      el.querySelector('[data-check-progress]').textContent='Check finished.';
+      const target=el.querySelector('[data-check-result]');target.hidden=false;
+      target.innerHTML=`<h3>${esc(label(result.verdict))}</h3><p>${esc(result.reason||'The check could not finish. Retry the check.')}</p>${result.metrics&&Object.keys(result.metrics).length?`<p>Latency: ${Math.round(result.metrics.rtt_ms)} ms · Jitter: ${Math.round(result.metrics.jitter_ms)} ms · Packet loss: ${Number(result.metrics.packet_loss_percent).toFixed(1)}%</p>`:''}<button type="button" data-check-retry>Run checks again</button>`;
+      target.querySelector('[data-check-retry]').disabled=true;target.querySelector('[data-check-retry]').onclick=()=>{el.close();el.remove();void diagnose().catch(()=>{});};
+    }
     try{
-      await connect();await heartbeat();
+      progress(0,'Connecting this browser to your business phone. This can take up to 20 seconds.');
+      await connect();await heartbeat();checks[0]='Passed';
+      progress(1,'Checking the selected microphone. If your browser asks for permission, click Allow.');
       // The SDK microphone check always samples the system default. Check the chosen device.
       try{const preferences=audioPreferences(),stream=await navigator.mediaDevices.getUserMedia({audio:preferences.microphone?{deviceId:{exact:preferences.microphone}}:true});microphone=stream.getAudioTracks().some(track=>track.readyState==='live')?'ready':'unavailable';stream.getTracks().forEach(track=>track.stop());}
       catch(error){microphone=error.name==='NotAllowedError'?'denied':'unavailable';}
+      checks[1]=microphone==='ready'?'Passed':microphone==='denied'?'Permission denied':'Unavailable';
       if(microphone==='ready'){
+        progress(2,'Starting a private test connection to this browser. Waiting for test audio; no customer number is dialed.');
         const check=await request('voice/diagnostics/start',{device_id:deviceId});state.diagnosticId=check.call_id;
         // A server-controlled SIP leg tests the real Telnyx media path without dialing a public test number.
-        const deadline=Date.now()+23000;let mediaStarted=0;
+        const deadline=Date.now()+23000;let mediaStarted=0,lastStatus=0;
         while(Date.now()<deadline){
+          if(Date.now()-lastStatus>=2000){lastStatus=Date.now();const detail=await request(`calls/${encodeURIComponent(state.diagnosticId)}`);
+            if(['failed','rejected','busy','no_answer','canceled'].includes(detail.call?.state)){providerFailed=true;checks[2]='Failed';break;}
+            if(detail.call?.state==='ended')break;
+          }
           const peer=state.sdkCall?.peer?.instance;
           if(peer?.connectionState==='connected'){
-            connected=true;if(!mediaStarted)mediaStarted=Date.now();const stats=await peer.getStats();
+            connected=true;if(!mediaStarted){mediaStarted=Date.now();checks[2]='Passed';progress(3,'Test audio connected. Speak normally while we measure latency, jitter and packet loss for about 8 seconds. Your voice is not recorded.');}const stats=await peer.getStats();
             let rtt,jitter,lost,received;
             stats.forEach(item=>{if(item.type==='candidate-pair'&&item.state==='succeeded'&&Number.isFinite(item.currentRoundTripTime))rtt=item.currentRoundTripTime*1000;
               if(item.type==='inbound-rtp'&&(item.kind==='audio'||item.mediaType==='audio')){if(Number.isFinite(item.jitter))jitter=item.jitter*1000;if(Number.isFinite(item.packetsReceived)){received=item.packetsReceived;lost=Math.max(0,item.packetsLost||0);}}});
@@ -338,10 +363,15 @@
         }
       }
       const metrics=samples.length?Object.fromEntries(['rtt_ms','jitter_ms','packet_loss_percent'].map(key=>[key,samples.reduce((sum,s)=>sum+s[key],0)/samples.length])):undefined;
-      const result=await request('voice/diagnostics',{device_id:deviceId,microphone,connectivity:connected?'ready':'inconclusive',provider_verdict:metrics?'ready':'inconclusive',...(metrics?{metrics}:{})});state.deviceChecked=['ready','degraded'].includes(result.result?.verdict);return result;
+      if(microphone==='ready'){checks[2]=providerFailed?'Failed':connected?'Passed':'Timed out';checks[3]=metrics?'Measured':'No measurements';}
+      const failedStep=step;progress(4,'Saving the device result and ending the test connection.');
+      const result=await request('voice/diagnostics',{device_id:deviceId,microphone,connectivity:connected?'ready':'inconclusive',provider_verdict:providerFailed?'blocked':metrics?'ready':'inconclusive',...(metrics?{metrics}:{})});checks[4]='Saved';
+      state.deviceChecked=['ready','degraded'].includes(result.result?.verdict);step=state.deviceChecked?4:failedStep;finish(result.result);return result;
+    }catch(error){state.deviceChecked=false;finish({verdict:'blocked',reason:error.message||'The check could not finish. Reconnect your phone and retry.'});throw error;
     }finally{
-      if(state.diagnosticId){await request(`calls/${encodeURIComponent(state.diagnosticId)}/actions`,{operation_id:uid(),action:'hangup'}).catch(()=>{});await state.sdkCall?.hangup();}
-      state.diagnosticId='';state.diagnosing=false;state.sdkCall=null;state.available=wasAvailable;await heartbeat();
+      clearInterval(elapsed);if(!finished)el.querySelector('[data-check-progress]').textContent='Check stopped. Retry when you are ready.';
+      if(state.diagnosticId){await request(`calls/${encodeURIComponent(state.diagnosticId)}/actions`,{operation_id:uid(),action:'hangup'}).catch(()=>{});await Promise.resolve(state.sdkCall?.hangup()).catch(()=>{});}
+      state.diagnosticId='';state.diagnosing=false;state.sdkCall=null;state.available=wasAvailable;await heartbeat();el.querySelector('[data-check-retry]')?.removeAttribute('disabled');
     }
   }
   async function devices(){
@@ -376,6 +406,7 @@
     if(ui.org()&&ui.user())void Portal.navigation?.applyCurrent?.({source:'phone-session-ready',only:'customer-call-workspace'});
   });
   Portal.CustomerPhone={open,connect,disconnect,availability,diagnose,devices,refreshStatus,saveNotes,deviceId,
+    get diagnostic(){return state.diagnostic;},
     get status(){return state.status;},get connected(){return state.registered;},get available(){return state.available;},get currentCall(){return state.call;},get currentEntry(){return state.panel&&!state.panel.hidden?state.entry?.id:null;}};
   Portal.Communications=Portal.Communications||{};Portal.Communications.open=open;
 })();

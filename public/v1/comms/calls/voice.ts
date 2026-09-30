@@ -166,7 +166,7 @@ export async function startDiagnostic(ctx:PlatformAuthContext,deviceId:string){
     if(recent>=50)throw conflict("diagnostic_daily_limit","The organization has reached today's device-check limit.");
     const number=(await s.resources(ctx.orgId,"number")).find(n=>n.status==='active');if(!number)throw conflict("voice_number_required","Connect a business number first.");
     const call=(await s.insertCall({id:s.id("check"),organization_id:ctx.orgId,branch_id:ctx.branchId||"default",owner_user_id:ctx.userId,mode:"diagnostic",direction:"outbound",state:"agent_connecting",business_number:text(number.phone_number),customer_name:"Device readiness check",metadata:{device_id:deviceId,diagnostic:true}}));
-    (await s.enqueue(ctx.orgId,call.id,"provider",{path:"dial",role:"agent",payload:{connection_id:app.provider_id,to:`sip:${text(endpoint.sip_username)}@sip.telnyx.com`,from:number.phone_number,timeout_secs:15,time_limit_secs:25,
+    (await s.enqueue(ctx.orgId,call.id,"provider",{path:"dial",role:"agent",payload:{connection_id:app.provider_id,to:`sip:${text(endpoint.sip_username)}@sip.telnyx.com`,from:number.phone_number,timeout_secs:15,time_limit_secs:30,
       client_state:Buffer.from(JSON.stringify({call_id:call.id,role:"agent"})).toString("base64"),custom_headers:[{name:"X-FirstMate-Call",value:call.id}]}},`${call.id}:diagnostic`));
     return {call_id:call.id};
   }));

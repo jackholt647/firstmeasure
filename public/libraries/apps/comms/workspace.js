@@ -108,7 +108,7 @@
       }catch(error){if(sequence!==state.sequence)return;state.host.setAttribute('aria-busy','false');state.error=error.message;state.host.innerHTML=empty('Could not load this view',error.message,`<button data-action="reload">${(globalThis.PlatformLanguage?.htmlText("comms","m_ef39ad5e614a24","Try again") ?? "Try again")}</button>`);}
     }
     state.load=load;
-    function updatePhone(){const button=root.querySelector('[data-phone-status]');if(button){const status=phone.connected?(phone.available?'Available':'Phone connected'):'External phone';button.innerHTML=icon(phone.connected?'headset':'phone');button.title=button.ariaLabel=status+' · Phone connection and devices';button.classList.toggle('connected',phone.connected);}
+    function updatePhone(){if(phone.diagnostic&&state.diagnostic!==phone.diagnostic){state.diagnostic=phone.diagnostic;render();}const button=root.querySelector('[data-phone-status]');if(button){const status=phone.connected?(phone.available?'Available':'Phone connected'):'External phone';button.innerHTML=icon(phone.connected?'headset':'phone');button.title=button.ariaLabel=status+' · Phone connection and devices';button.classList.toggle('connected',phone.connected);}
 
       if(phone.status?.permissions)root.querySelectorAll('[data-action="new-list"],[data-action="list-settings"],[data-action="new-script"],[data-action="edit-script"]').forEach(b=>b.hidden=!phone.status.permissions.manage);
       const call=phone.currentCall,signature=call?`${call.id}:${call.revision}`:'';

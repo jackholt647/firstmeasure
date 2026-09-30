@@ -22,7 +22,8 @@ test('call close opens wrap-up and first browser call offers actionable readines
           window.client.handlers['telnyx.notification']({type:'callUpdate',call:{state:'active',hangup:async()=>{},peer:{instance:{connectionState:'connected',getStats:async()=>new Map([['pair',{type:'candidate-pair',state:'succeeded',currentRoundTripTime:.02}],['audio',{type:'inbound-rtp',kind:'audio',jitter:.001,packetsReceived:100,packetsLost:0}]])}}}});
           return {call_id:'check'};
         }
-        if(path==='voice/diagnostics')return {result:{verdict:window.verdict,reason:window.verdict==='ready'?'Microphone and network checks passed.':'Allow microphone access and run checks again.'}};
+        if(path==='voice/diagnostics')return {result:{verdict:window.providerFailure?'blocked':window.verdict,reason:window.providerFailure?'The phone provider could not connect the test call. Check Phone setup.':window.verdict==='ready'?'Microphone and network checks passed.':'Allow microphone access and run checks again.',metrics:body.metrics}};
+        if(path==='calls/check')return {call:{state:window.providerFailure?'failed':'connected'}};
         if(path.startsWith('calls?'))return {calls:[]};
         if(path==='calls'){
           if(window.expireCheck){window.expireCheck=false;const error=new Error('Run the microphone and network check before your first call on this device.');error.code='device_check_required';throw error;}
@@ -41,6 +42,7 @@ test('call close opens wrap-up and first browser call offers actionable readines
         async setAudioSettings(){} disconnect(){}
       }};
       Object.defineProperty(navigator,'mediaDevices',{value:{getUserMedia:async()=>{
+        if(window.pauseMicrophone)await new Promise(resolve=>window.releaseMicrophone=resolve);
         if(window.verdict==='blocked'){const e=new Error('Denied');e.name='NotAllowedError';throw e;}
         return {getAudioTracks:()=>[{readyState:'live'}],getTracks:()=>[{stop(){}}]};
       }}});
@@ -67,13 +69,25 @@ test('call close opens wrap-up and first browser call offers actionable readines
     await page.locator('[data-phone=start]').click();
     await page.waitForSelector('[data-phone=diagnose]');
     assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path==='calls').length),0);
+    await page.evaluate(()=>window.pauseMicrophone=true);
     await page.locator('[data-phone=diagnose]').click();
+    await page.waitForFunction(()=>typeof window.releaseMicrophone==='function');
+    assert.equal(await page.locator('[data-check-step="0"]').textContent(),'Passed');
+    assert.equal(await page.locator('[data-check-step="1"]').textContent(),'Checking…');
+    assert.match(await page.locator('[data-check-progress]').textContent(),/click Allow/);
+    await page.evaluate(()=>{window.pauseMicrophone=false;window.releaseMicrophone();});
     await page.waitForFunction(()=>!document.querySelector('[data-phone=diagnose]').disabled);
     assert.match(await page.locator('.fmcp-body').textContent(),/Allow microphone access/);
+    assert.match(await page.locator('dialog[open]').textContent(),/Allow microphone access/);
+    assert.equal(await page.locator('[data-check-step="1"]').textContent(),'Blocked');
+    await page.locator('dialog[open] [data-close]').first().click();
     assert.equal(await page.locator('[name=purpose]').inputValue(),'Voice test');
     await page.evaluate(()=>{window.verdict='ready';const now=Date.now.bind(Date);let tick=0;Date.now=()=>now()+(tick+=3000);});
     await page.locator('[data-phone=diagnose]').click();
     await page.waitForFunction(()=>!document.querySelector('[data-phone=diagnose]'));
+    assert.match(await page.locator('dialog[open]').textContent(),/Microphone and network checks passed/);
+    assert.match(await page.locator('dialog[open]').textContent(),/Latency: 20 ms/);
+    await page.locator('dialog[open] [data-close]').first().click();
     assert.match(await page.locator('.fmcp-body').textContent(),/Click Start call when you are ready/);
     assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path==='calls').length),0);
     await page.evaluate(()=>window.expireCheck=true);
@@ -81,11 +95,17 @@ test('call close opens wrap-up and first browser call offers actionable readines
     await page.waitForSelector('[data-phone=diagnose]');
     await page.locator('[data-phone=diagnose]').click();
     await page.waitForFunction(()=>!document.querySelector('[data-phone=diagnose]'));
+    await page.locator('dialog[open] [data-close]').first().click();
     await page.locator('[data-phone=start]').click();
     await page.waitForFunction(()=>Portal.CustomerPhone.currentCall?.id==='browser');
     await page.locator('[data-phone=minimize]').click();await page.locator('[data-phone=close]').click();
     await page.waitForSelector('[name=disposition]');
     assert.equal(await page.evaluate(()=>Portal.CustomerPhone.currentCall.state),'ended');
+    await page.evaluate(()=>{window.providerFailure=true;window.verdict='ready';});
+    await page.evaluate(()=>{window.checkPromise=Portal.CustomerPhone.diagnose();});
+    await page.waitForFunction(()=>document.querySelector('[data-check-retry]')&&!document.querySelector('[data-check-retry]').disabled);
+    assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path==='voice/diagnostics').at(-1).body.provider_verdict),'blocked');
+    assert.equal(await page.locator('[data-check-step="2"]').textContent(),'Blocked');
     assert.deepEqual(errors,[]);
   } finally {await browser.close();}
 });

@@ -115,6 +115,10 @@ test("stale provider commands become uncertain instead of being redialed",async 
 test("readiness distinguishes missing media from a fast connection",async()=>{
   const {diagnosticVerdict}=await import("../comms/calls/settings.js");
   assert.equal(diagnosticVerdict({microphone:"denied",connectivity:"ready",metrics:{rtt_ms:10,jitter_ms:1,packet_loss_percent:0}}).verdict,"blocked");
+  assert.match(diagnosticVerdict({microphone:'denied'}).reason,/site settings/);
+  assert.match(diagnosticVerdict({microphone:'ready',connectivity:'inconclusive',provider_verdict:'blocked'}).reason,/phone provider/);
+  assert.match(diagnosticVerdict({microphone:'ready',connectivity:'inconclusive',provider_verdict:'inconclusive'}).reason,/audio connection/);
+  assert.equal(diagnosticVerdict({microphone:'ready',connectivity:'ready',provider_verdict:'inconclusive'}).verdict,'inconclusive');
   assert.equal(diagnosticVerdict({microphone:"ready",connectivity:"ready",metrics:{rtt_ms:100,jitter_ms:8,packet_loss_percent:0.2}}).verdict,"ready");
   assert.equal(diagnosticVerdict({microphone:"ready",connectivity:"ready",metrics:{rtt_ms:900,jitter_ms:80,packet_loss_percent:8}}).verdict,"blocked");
 });
@@ -353,7 +357,7 @@ test('device diagnostics use only the staff SIP leg and never dial or record a c
   try{
     const {call_id}=(await startDiagnostic(ctx,'diagnostic-device'));await assert.rejects(async ()=>(await startDiagnostic(ctx,'diagnostic-device')),/between calls/);
     const payload=JSON.parse(((await store.database().prepare('SELECT payload_json FROM customer_call_jobs WHERE call_id=?').get(call_id)) as any).payload_json);
-    assert.equal(payload.payload.to,'sip:staff-sip@sip.telnyx.com');assert.equal(payload.payload.time_limit_secs,25);
+    assert.equal(payload.payload.to,'sip:staff-sip@sip.telnyx.com');assert.equal(payload.payload.time_limit_secs,30);
     (await store.saveLeg(orgId,call_id,'agent',{call_control_id:'diagnostic-leg',state:'initiated'}));
     await worker.processVoiceEvent({data:{id:'diagnostic-answer',event_type:'call.answered',payload:{call_control_id:'diagnostic-leg'}}});
     const jobs=(await store.database().prepare('SELECT payload_json FROM customer_call_jobs WHERE call_id=?').all(call_id)).map((r:any)=>JSON.parse(r.payload_json));

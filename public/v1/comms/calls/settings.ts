@@ -68,8 +68,11 @@ export function normalizePhone(value:unknown) {
 }
 export function diagnosticVerdict(input:Json){
   const permission=text(input.microphone);const ice=text(input.connectivity);const provider=text(input.provider_verdict);
-  if(permission==="denied"||provider==="permission_denied")return {verdict:"blocked",reason:"Microphone permission is required."};
-  if(permission!=="ready"||ice!=="ready"||["blocked","inconclusive"].includes(provider))return {verdict:"blocked",reason:"Complete the microphone and network checks before calling."};
+  if(permission==="denied"||provider==="permission_denied")return {verdict:"blocked",reason:"Microphone access was denied. Allow microphone access in your browser's site settings, then run the check again."};
+  if(permission!=="ready")return {verdict:"blocked",reason:"No working microphone was found. Connect a microphone, select it in Audio devices, and run the check again."};
+  if(provider==="blocked")return {verdict:"blocked",reason:"The phone provider could not connect the test call. Check Phone setup and reconnect your browser phone before retrying."};
+  if(ice!=="ready")return {verdict:"blocked",reason:"The test could not establish an audio connection. Check your connection or VPN/firewall settings, reconnect the browser phone, and retry."};
+  if(provider==="inconclusive")return {verdict:"inconclusive",reason:"The audio connection opened, but did not return enough quality measurements. Retry the check or try another network."};
   const metrics=object(input.metrics);const rtt=Number(metrics.rtt_ms),jitter=Number(metrics.jitter_ms),loss=Number(metrics.packet_loss_percent);
   if(![rtt,jitter,loss].every(n=>Number.isFinite(n)&&n>=0))return {verdict:"inconclusive",reason:"The network test did not return enough measurements. Retry the test."};
   if(rtt>400||jitter>50||loss>3)return {verdict:"blocked",reason:"Your network may not carry a reliable call. Retry or use your external phone."};
