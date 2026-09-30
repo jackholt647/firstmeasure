@@ -16,6 +16,7 @@ export const voiceSettingsSchema=z.object({
   overflow_number:z.string().max(30).default(""),
   max_wait_seconds:z.number().int().min(10).max(600).default(60),
   ring_seconds:z.number().int().min(10).max(60).default(25),
+  require_disposition:z.boolean().default(false),
   wrap_up_seconds:z.number().int().min(0).max(300).default(30),
   max_concurrent_calls:z.number().int().min(1).max(25).default(3),
   max_call_minutes:z.number().int().min(1).max(180).default(60),

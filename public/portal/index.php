@@ -2094,6 +2094,7 @@ session_write_close();
           <i class="fas fa-wand-magic-sparkles"></i>
         </button>
       </div>
+      <div id="platformPhoneSlot" hidden><button type="button" class="ptb-bell" id="platformPhoneBtn" data-fm-tooltip="Phone" aria-label="Phone"><i class="fas fa-phone"></i></button></div>
       <div class="platform-messages" id="platformMessagesSlot" hidden>
         <button type="button" class="ptb-bell" id="platformMessagesBtn" data-fm-tooltip="Messages" aria-label="Messages">
           <i class="fas fa-comments"></i>
@@ -2239,6 +2240,7 @@ session_write_close();
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/comms-api/comms-api.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/comms/communications-ui.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/comms/phone-tray.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/comms/calling-runtime.js?v=<?= $ver ?>"></script>
   <script src="../libraries/apps/comms/workspace.js?v=<?= $ver ?>"></script>
   <script src="../libraries/communications-templates/communications-templates.js?v=<?= $ver ?>"></script>

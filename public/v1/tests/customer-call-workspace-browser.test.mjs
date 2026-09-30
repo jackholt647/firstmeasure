@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
 
-test('call close opens wrap-up and first browser call offers actionable readiness checks', async () => {
+test('required outcomes remain open and first browser call offers actionable readiness checks', async () => {
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try {
     const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -15,7 +15,7 @@ test('call close opens wrap-up and first browser call offers actionable readines
       window.fixtureCall={id:'external',owner_user_id:'user',mode:'external',state:'created',wrap_up_state:'pending',customer_name:'Test',customer_number:'+12069415049',notes:'',revision:1,metadata:{}};
       window.CommsAPI={customer:async (_org,path,body) => {
         window.requests.push({path,body});
-        if(path==='voice/status')return {settings:{enabled:true},permissions:{manage:true,recordings:true}};
+        if(path==='voice/status')return {settings:{enabled:true,require_disposition:true},permissions:{manage:true,recordings:true}};
         if(path==='voice/endpoint/token')return {token:'fixture',expires_at:new Date(Date.now()+3600000).toISOString()};
         if(path==='voice/endpoint/presence')return {availability:'unavailable'};
         if(path==='voice/diagnostics/start'){
@@ -99,6 +99,8 @@ test('call close opens wrap-up and first browser call offers actionable readines
     await page.locator('[data-phone=start]').click();
     await page.waitForFunction(()=>Portal.CustomerPhone.currentCall?.id==='browser');
     await page.locator('[data-phone=minimize]').click();await page.locator('[data-phone=close]').click();
+    assert.equal(await page.evaluate(()=>Portal.CustomerPhone.currentCall.state),'connected');
+    await page.locator('[data-phone=minimize]').click();await page.locator('[data-phone=hangup]').click();
     await page.waitForSelector('[name=disposition]');
     assert.equal(await page.evaluate(()=>Portal.CustomerPhone.currentCall.state),'ended');
     await page.evaluate(()=>{window.providerFailure=true;window.verdict='ready';});

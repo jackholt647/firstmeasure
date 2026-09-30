@@ -31,7 +31,7 @@
   function header({title, icon='fa-layer-group', subtitle='', tabs='', actions='', row=''}) {
     return `<header data-app-header><div class="app-heading"><i class="fas ${esc(icon)}" aria-hidden="true"></i><div><h1>${esc(title)}</h1>${subtitle?`<p class="app-subtitle">${esc(subtitle)}</p>`:''}</div></div><div class="app-header-tools">${tabs}${actions}</div></header>${row?`<div data-app-tab-row>${row}</div>`:''}`;
   }
-  function placement(group, id){ return layouts[group]?.members?.[id] || 'group'; }
+  function placement(group, id){ return layouts[group]?.members?.[id] || groups.get(group)?.members.find(member=>member.id===id)?.defaultPlacement || 'group'; }
   function members(group, context={}) {
     const definition=groups.get(group);
     if (!definition) return [];

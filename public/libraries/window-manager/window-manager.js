@@ -137,6 +137,7 @@
       if (win.mode === 'modal') { const w=Math.min(1720,innerWidth*.96),h=Math.min(1180,innerHeight*.92); place(win,(innerWidth-w)/2,(innerHeight-h)/2,w,h); }
       if (win.mode === 'full') place(win,leftReserved,inset+topReserved,Math.max(0,width-reserved),Math.max(0,height-inset-topReserved-bottomReserved));
       if (win.mode === 'minimized') {
+        if(win.compactCall){const others=active.filter(w=>w!==win&&w.mode==='minimized');const rows=Math.ceil(others.length/minimizedColumns);place(win,Math.max(0,width-8-Math.min(360,width-16)),Math.max(inset,height-8-win.minimizedHeight-rows*38),Math.min(360,width-16),win.minimizedHeight);continue;}
         const column = minimized % minimizedColumns, row = Math.floor(minimized++ / minimizedColumns);
         place(win,Math.max(0,width-8-minimizedWidth-column*(minimizedWidth+6)),Math.max(inset,height-8-32-row*38),minimizedWidth,32);
       }
@@ -168,7 +169,7 @@
     registerHost(host);
     const win = {
       element, header, host, stackElement:options.stackElement, contentTarget:options.contentTarget,
-      viewportCoordinates:options.viewportCoordinates === true, nativeModalLayout:options.nativeModalLayout === true, minimizedHeight:options.minimizedHeight || 44,
+      viewportCoordinates:options.viewportCoordinates === true, nativeModalLayout:options.nativeModalLayout === true, minimizedHeight:options.minimizedHeight || 32, compactCall:options.compactCall===true,
       minWidth:options.minWidth || 320, minHeight:options.minHeight || 280,
       mobileFullDock:options.mobileFullDock === true,
       mode:modes.includes(options.mode) ? options.mode : 'floating', previous:'floating',
@@ -211,6 +212,7 @@
       }
       for (const [key,button] of Object.entries(buttons)) { button.title=labels[key]; button.setAttribute('aria-label',labels[key]); }
       buttons.place.innerHTML=`<i class="fas fa-${dock ? 'table-columns' : 'window-restore'}" aria-hidden="true"></i>`;
+      buttons.maximize.hidden=options.compactCall===true;
       buttons.maximize.innerHTML=`<i class="fas fa-${!options.presentationModes && win.mode === 'full' ? 'window-restore' : 'expand'}" aria-hidden="true"></i>`;
       buttons.maximize.style.order=win.mode === 'full' ? '1' : '2'; buttons.minimize.style.order=win.mode === 'full' ? '2' : '1'; buttons.close.style.order='7';
       if(options.presentationModes) { for(const [action,mode] of Object.entries({modal:'modal',floating:'floating',place:'docked',maximize:'full',fullscreen:'fullscreen'})) buttons[action]?.setAttribute('aria-pressed',String(win.mode===mode)); buttons.modal.style.order='0';buttons.floating.style.order='1';buttons.place.style.order='2';buttons.maximize.style.order='3';if(buttons.fullscreen)buttons.fullscreen.style.order='4';buttons.minimize.style.order='5'; }
@@ -218,11 +220,12 @@
     }
     function notify(reason){ options.onChange?.({mode:win.mode,dockSide:win.dockSide,pinned:win.pinned,reason}); }
     function setMode(mode,{silent=false}={}){
-      if (!modes.includes(mode) || (mode==='fullscreen' && options.allowFullscreen===false)) return;
+      if (!modes.includes(mode) || (options.compactCall && !['floating','docked','minimized'].includes(mode)) || (mode==='fullscreen' && options.allowFullscreen===false)) return;
       if (mode !== win.mode) {
         options.onBeforeModeChange?.({mode,previous:win.mode});
         if (mode === 'minimized') win.previous = win.mode;
         if(mode==='floating' && (win.rect.width>=win.host.clientWidth*.9 || win.rect.height>=Math.max(0,win.host.clientHeight-win.topInset())*.9))fitFloatingSize();
+        if(mode==='floating' && options.compactCall && !win.floated){win.floated=true;const bars=[...windows].filter(w=>w!==win&&w.visible&&w.mode==='minimized'&&w.host===win.host);win.rect.top=Math.max(win.topInset(),win.host.clientHeight-win.rect.height-8-(bars.length?44:0));win.rect.left=Math.max(0,win.host.clientWidth-win.rect.width-8);}
         win.mode=mode;
       }
       chrome(); layout(win.host); restack(); if (!silent) notify('mode');
@@ -249,7 +252,7 @@
         button.onclick=()=>{closeMenu();dock(side);};dockOptions.append(button);
       }
       const items=dockOnly ? [] : [['Float',()=>setMode('floating')],['Close',requestClose]];
-      if(options.presentationModes && !dockOnly){items.unshift(['Modal',()=>setMode('modal')],['Fill workspace',()=>setMode('full')]);if(options.allowFullscreen!==false)items.unshift(['Fill entire screen',()=>setMode('fullscreen')]);}
+      if(options.presentationModes && !options.compactCall && !dockOnly){items.unshift(['Modal',()=>setMode('modal')],['Fill workspace',()=>setMode('full')]);if(options.allowFullscreen!==false)items.unshift(['Fill entire screen',()=>setMode('fullscreen')]);}
       for(const [label,action] of items) {const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('role','menuitem');button.onclick=()=>{closeMenu();action();};if(label==='Close')menu.append(dockOptions);menu.append(button);}
       if(dockOnly)menu.append(dockOptions);
       menu.style.width='max-content';menu.style.pointerEvents='auto';(options.menuHost || document.body).append(menu);

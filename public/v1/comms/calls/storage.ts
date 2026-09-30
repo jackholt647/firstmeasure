@@ -1,3 +1,4 @@
+import { env } from '../../src/config/env.js';
 import { createHash, randomUUID } from "node:crypto";
 import type { SQLInputValue } from "node:sqlite";
 import type { SqlStore } from "../../platform/sql_store.js";
@@ -173,7 +174,7 @@ export async function callEvents(orgId:string,callId:string) {
 }
 export async function resource(orgId:string,kind:string,key="default"): Promise<(Json & {id:string;provider_id:string;revision:number;updated_at:string}) | null> {
   const row=object((await database().prepare("SELECT * FROM customer_voice_resources WHERE organization_id=? AND kind=? AND id=?").get(orgId,kind,key)));
-  return Object.keys(row).length?{...parse(row.data_json),id:text(row.id),provider_id:text(row.provider_id),revision:Number(row.revision),updated_at:text(row.updated_at)}:null;
+  return Object.keys(row).length?{...parse(row.data_json),id:text(row.id),provider_id:text(row.provider_id)||(env.dataEnvironment==='development'?text(parse(row.data_json).development_provider_id):''),revision:Number(row.revision),updated_at:text(row.updated_at)}:null;
 }
 export async function resources(orgId:string,kind:string) {
   return (await Promise.all((await database().prepare("SELECT id FROM customer_voice_resources WHERE organization_id=? AND kind=?").all(orgId,kind)).map(async row=>(await resource(orgId,kind,text(object(row).id)))!)));
@@ -184,7 +185,7 @@ export async function saveResource(orgId:string,kind:string,key:string,data:Json
   if(revision!==undefined&&Number(current?.revision||0)!==revision)throw conflict("settings_revision_conflict","These settings changed. Refresh and try again.");
   (await database().prepare(`INSERT INTO customer_voice_resources(organization_id,kind,id,provider_id,data_json,updated_at) VALUES(?,?,?,?,?,?)
     ON CONFLICT(organization_id,kind,id) DO UPDATE SET provider_id=excluded.provider_id,data_json=excluded.data_json,updated_at=excluded.updated_at,revision=customer_voice_resources.revision+1`)
-    .run(orgId,kind,key,providerId||text(current?.provider_id),JSON.stringify(data),now()));
+    .run(orgId,kind,key,data.development_shared?'':providerId||text(current?.provider_id),JSON.stringify(data),now()));
   return (await resource(orgId,kind,key))!;
 
   }));

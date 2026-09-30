@@ -103,6 +103,10 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
     if(!diagnostic||!['ready','degraded'].includes(text(diagnostic.verdict))||text(diagnostic.updated_at)<new Date(Date.now()-24*3600_000).toISOString())throw conflict("device_check_required","Run the microphone and network check before your first call on this device.");
   }
   return (await store.transaction(async ()=>{
+    if(settings.require_disposition){
+      const pending=await store.database().prepare("SELECT id FROM customer_calls WHERE organization_id=? AND owner_user_id=? AND mode<>'diagnostic' AND (mode='external' OR state IN ('ended','canceled','failed','no_answer','busy','rejected')) AND wrap_up_state NOT IN ('saved','processing_effects') LIMIT 1").get(ctx.orgId,ctx.userId);
+      if(pending)throw conflict('call_disposition_required','Save your previous call outcome before starting another call.',{call_id:object(pending).id});
+    }
     const op=(await store.operation(ctx.orgId,"create",body.operation_id,callId,{...body,actor:ctx.userId}));
     if(op.existing)return (await store.readCall(ctx.orgId,callId));
     if(body.mode==="browser"){
@@ -268,4 +272,12 @@ export async function saveScript(ctx:PlatformAuthContext,input:unknown){
 }
 export async function people(ctx:PlatformAuthContext){
   return (await listDocuments(ctx.orgId,"users")).map(d=>({id:d.id,...object(d.data)} as Json)).filter(d=>!d.disabled).map(d=>({id:text(d.id),name:text(d.name||d.email),branch_id:text(d.branch_id||"default")}));
+}
+
+export async function phoneContacts(ctx:PlatformAuthContext,query:string){
+  const needle=query.trim().toLowerCase().slice(0,150);if(!needle)return [];
+  return (await listDocuments(ctx.orgId,'contacts')).map(doc=>({id:doc.id,...object(doc.data)} as Json))
+    .filter(c=>manageCalls(ctx)||text(c.branch_id||'default')===(ctx.branchId||'default'))
+    .map(c=>({id:text(c.id),name:text(c.name||c.display_name||[c.first_name,c.last_name].filter(Boolean).join(' ')),phone:text(c.phone||c.phone_number||c.mobile)}))
+    .filter(c=>c.phone&&`${c.name} ${c.phone}`.toLowerCase().includes(needle)).slice(0,30);
 }

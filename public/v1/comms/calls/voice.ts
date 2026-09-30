@@ -1,3 +1,4 @@
+import { developmentCallStatus } from './development.js';
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { hasPermission, type PlatformAuthContext } from "../../platform/auth.js";
@@ -13,7 +14,7 @@ import { text, object, type Json, type CustomerCall } from "./storage.js";
 export async function voiceStatus(ctx:PlatformAuthContext){
   const settings=(await voiceSettings(ctx.orgId));const endpoint=(await s.resource(ctx.orgId,"endpoint",ctx.userId));
   const environment=voiceEnvironmentStatus();
-  return {settings,environment:manageCalls(ctx)?environment:{mode:environment.mode,ready:environment.api_key_configured&&environment.webhook_key_configured&&environment.public_https},
+  return {settings,development:await developmentCallStatus(ctx.orgId),environment:manageCalls(ctx)?environment:{mode:environment.mode,ready:environment.api_key_configured&&environment.webhook_key_configured&&environment.public_https},
     permissions:{manage:manageCalls(ctx),record:hasPermission(ctx,'record_calls|manage_communications|manage_company_settings'),recordings:hasPermission(ctx,'view_call_recordings|manage_communications|manage_company_settings')},
     available_numbers:manageCalls(ctx)?(await s.database().prepare("SELECT phone_number FROM messaging_phone_number_ownership WHERE organization_id=? AND provider_phone_number_id<>''").all(ctx.orgId)).map(row=>text(object(row).phone_number)):[],
     resources:manageCalls(ctx)?[...(await s.resources(ctx.orgId,"application")),...(await s.resources(ctx.orgId,"connection")),...(await s.resources(ctx.orgId,"outbound_profile"))].map(r=>({id:r.id,kind:r.kind,status:r.status,provider_id:r.provider_id})):[],
@@ -50,18 +51,20 @@ export async function configureVoice(ctx:PlatformAuthContext,input:unknown){
   }));
   try{
     const profile=(await s.resource(ctx.orgId,'outbound_profile'));
-    if(profile?.provider_id&&voiceMode()==='live'){
+    const development=(await developmentCallStatus(ctx.orgId))?.onboarded;
+    if(profile?.provider_id&&!profile.development_shared&&!development&&voiceMode()==='live'){
       requireVoiceEnvironment();(await s.saveResource(ctx.orgId,'outbound_profile','default',{...profile,status:'sync_pending'}));
       try{await voiceClient().data(`/outbound_voice_profiles/${encodeURIComponent(profile.provider_id)}`,'PATCH',{
         enabled:settings.enabled,concurrent_call_limit:settings.max_concurrent_calls*3,daily_spend_limit:settings.daily_spend_limit,daily_spend_limit_enabled:true,whitelisted_destinations:settings.allowed_destination_countries});}
       catch(error){(await s.saveResource(ctx.orgId,'outbound_profile','default',{...profile,status:'sync_uncertain'}));throw error;}
       (await s.saveResource(ctx.orgId,'outbound_profile','default',{...profile,status:'ready'}));
-    }else if(profile?.provider_id)(await s.saveResource(ctx.orgId,'outbound_profile','default',{...profile,status:'sync_required'}));
+    }else if(profile?.provider_id&&!profile.development_shared&&!development)(await s.saveResource(ctx.orgId,'outbound_profile','default',{...profile,status:'sync_required'}));
     const saved=(await updateVoiceSettings(ctx.orgId,settings));(await s.appendEvent(ctx.orgId,'','voice.settings_changed',{actor_user_id:ctx.userId,revision:saved.revision}));return saved;
   }finally{const lock=(await s.resource(ctx.orgId,'settings_lock'));if(lock?.lease===lease)(await s.database().prepare("DELETE FROM customer_voice_resources WHERE organization_id=? AND kind='settings_lock'").run(ctx.orgId));}
 }
 export const bindNumberSchema=z.object({phone_number:z.string().regex(/^\+[1-9]\d{7,14}$/),label:z.string().max(120).default("Business line"),branch_id:z.string().max(180).default("default"),confirm_routing_change:z.boolean().default(false)});
 export async function bindNumber(ctx:PlatformAuthContext,input:unknown){
+  if((await s.resource(ctx.orgId,'development_onboarding'))?.status==='complete')throw conflict('development_line_shared','The development test line is managed by the server.');
   requireVoiceEnvironment();const body=bindNumberSchema.parse(input);const owner=(await findPhoneNumberOwner(body.phone_number));
   if(!owner||owner.organization_id!==ctx.orgId||!text(owner.provider_phone_number_id))throw forbidden("number_not_owned","Choose a Telnyx number owned by this organization in SMS setup.");
   const application=(await s.resource(ctx.orgId,"application"));if(!application?.provider_id)throw conflict("voice_provision_required","Prepare your voice resources before connecting a number.");
@@ -80,6 +83,7 @@ export async function bindNumber(ctx:PlatformAuthContext,input:unknown){
   (await s.appendEvent(ctx.orgId,"","voice.number_connected",{phone_number:body.phone_number,actor_user_id:ctx.userId}));return (await voiceStatus(ctx));
 }
 export async function disconnectNumber(ctx:PlatformAuthContext,phone:string){
+  if((await s.resource(ctx.orgId,'development_onboarding'))?.status==='complete')throw conflict('development_line_shared','The development test line is managed by the server.');
   requireVoiceEnvironment();
   const number=(await s.resource(ctx.orgId,"number",phone));if(!number)throw badRequest("number_not_found","That voice line is unavailable.");
   if((await s.listCalls(ctx.orgId,{active:true})).calls.some(c=>c.business_number===phone))throw conflict("number_in_use","Finish active calls before disconnecting this line.");

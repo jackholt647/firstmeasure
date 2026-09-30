@@ -1,3 +1,4 @@
+import { env } from '../src/config/env.js';
 import { gatedAccounts } from "./admin.js";
 import { randomBytes } from "node:crypto";
 
@@ -416,6 +417,7 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
   const defaultAppFlags = (await newOrganizationAppFlagDefaults()) as JsonObject;
   const globalData: JsonObject = {
     app_flags: deepMerge(defaultAppFlags, groupedFlagOverrides(asObject(workflowDefaults.app_flags))),
+    ...(env.dataEnvironment==='development'?{communications_development:{enabled:true,onboarding:'pending'},app_groups:{communications:{default:'inbox',members:{center:'standalone'}}}}:{}),
     credits_balance: 0,
     credits_ledger: [],
     billing: {

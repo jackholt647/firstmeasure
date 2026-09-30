@@ -22,6 +22,7 @@
   function ensurePanel(){
     if(state.panel)return state.panel;
     const el=document.createElement('aside');el.className='fmcp';el.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("comms","m_f6ab2f58b94a8e","Customer call workspace") ?? "Customer call workspace"));el.hidden=true;document.body.append(el);state.panel=el;
+    Portal.PhoneTray?.attach(el,{panel:()=>state.panel,action:handle,minimized:value=>{state.minimized=value;}});
     el.addEventListener('click',event=>{const button=event.target.closest('[data-phone]');if(button)void handle(button.dataset.phone,button);});
     el.addEventListener('input',event=>{
       if(event.target.name==='due_at'){state.policyDate='';state.usePolicy=false;}
@@ -61,7 +62,7 @@
     const suggestion=state.followupOptions?.suggestions?.[['voicemail','no_answer'].includes(disposition)?disposition:'manual_follow_up'];
     const nextSteps=[['none','Keep open — no work completed'],['complete','Complete selected work'],['follow_up','Create follow-up'],...(c?.project_id?[['scheduled','Link booked appointment']]:[]),...(state.followupOptions?.follow_up_node_ids?.length?(state.followupOptions.outcomes||[]).filter(o=>o.action==='lost').map(o=>[`outcome:${o.id}`,o.label]):[])];
     el.innerHTML=`<header class="fmcp-header"><div class="fmcm-avatar">${String(icon('phone'))}</div><div><strong>${String(esc(title))}</strong><small>${String(esc(number))}${String(number?' · ':'')}<span data-call-status>${String(esc(c?`${label(c.state)}${c.mode==='external'?' · External phone':''}`:'Ready when you are'))}</span></small></div><button data-phone="minimize" aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("comms","m_21406d49c2fdb5",`${v5} call`,{v5}) ?? `${v5} call`)(state.minimized?'Expand':'Minimize')}">${String(icon(state.minimized?'expand':'minus'))}</button><button data-phone="close" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_314202e0941af2","Close call workspace") ?? "Close call workspace")}">${String(icon('xmark'))}</button></header>
-      <div class="fmcp-body">${String(state.error?`<div class="fmcm-error" role="alert">${esc(state.error)}</div>`:'')}
+      <div class="fmcp-body">${!c&&state.status?.settings?.enabled&&!state.registered?'<button data-phone="connect">Connect browser phone</button>':''}${c&&(terminal.has(c.state)||c.mode==='external')&&(saved||!state.status?.settings?.require_disposition)?'<button data-phone="new-call">'+(saved?'New call':'Skip outcome / New call')+'</button>':''}${String(state.error?`<div class="fmcm-error" role="alert">${esc(state.error)}</div>`:'')}
       ${state.deviceCheckRequired&&!c?`<section role="status"><p class="fmcm-help">${esc(state.checkMessage||'Run the microphone and network check before calling on this device. Your call details will stay here.')}</p><button data-phone="diagnose" class="fmcm-primary">${state.busy?'Checking microphone and network…':'Run checks'}</button></section>`:''}
       ${state.deviceChecked&&state.checkMessage&&!c?`<p class="fmcm-help" role="status">${esc(state.checkMessage)} Click Start call when you are ready.</p>`:''}
       ${state.outcomeRequested&&c&&!saved?`<p class="fmcm-help" role="status">${active?'Ending the call…':'Choose the call outcome, then click Save outcome to finish.'}</p>`:''}
@@ -95,16 +96,20 @@
     el.querySelectorAll('[data-source]').forEach(e=>{e.checked=checked.has(e.dataset.source);});
     const focusTarget=focusQuestion!==undefined?el.querySelector(`[data-question="${CSS.escape(focusQuestion)}"]`):focusName?el.querySelector(`[name="${CSS.escape(focusName)}"]`):null;
     if(focusTarget){focusTarget.focus({preventScroll:true});try{focusTarget.setSelectionRange(caret,caretEnd);}catch{}}
+    Portal.PhoneTray?.update(state);
     if(state.outcomeRequested&&!active&&!saved&&!processing){const outcome=el.querySelector('[name=disposition]');outcome?.scrollIntoView({block:'nearest'});outcome?.focus({preventScroll:true});}
   }
-  async function refreshStatus(){state.status=await request('voice/status');changed();return state.status;}
+  async function refreshStatus(){const requestedScope=scope(),status=await request('voice/status');if(requestedScope!==scope())return {};state.status=status;changed();return status;}
   async function open(input={},options={}){
     state.boundScope=scope();
     if(state.diagnosing)throw new Error('Wait for the audio check to finish before opening a call.');
     if(state.call&&!terminal.has(state.call.state)&&state.call.id!==input.call_id){state.minimized=false;if(input.call_id||input.entry_id)state.error='Finish the active call before opening another contact.';render();return false;}
+    if(state.call&&state.call.wrap_up_state!=='saved'&&terminal.has(state.call.state)&&state.status?.settings?.require_disposition&&state.call.id!==input.call_id){state.minimized=false;state.error='Save this call outcome before starting another call.';render();return false;}
+    if(state.call&&(!Object.keys(input).length||input.call_id===state.call.id)){state.minimized=false;render();void Portal.PhoneTray?.selectTab('dialer');return true;}
     const ticket=++state.openSequence;
     clearTimeout(state.saveTimer);if(state.dirty&&state.call)await saveNotes();
     if(ticket!==state.openSequence)return false;
+    if(state.panel)state.panel.innerHTML='';
     state.error='';state.minimized=false;state.outcomeRequested=false;state.deviceCheckRequired=false;state.checkMessage='';state.entry=input.entry||null;state.prepared=input;state.notes='';state.answers={};state.contacts=[];state.appointments=[];state.media=null;state.followupOptions=null;state.policyDate='';state.usePolicy=false;state.wrapId='';state.wrapPayload=null;state.dirty=false;state.localId=uid();
     if(input.call_id){
       // Synchronous shell during browser-history restoration.
@@ -229,14 +234,16 @@
     window.dispatchEvent(new CustomEvent('fm:customer-calls:next',{detail:{entry_id:entryId,skip}}));
   }
   async function handle(name,button){
+    if(name==='new-call'){if(state.status?.settings?.require_disposition&&state.call?.wrap_up_state!=='saved')return;await saveNotes();state.call=null;await open();return;}
+    if(name==='connect'){try{await connect();state.panel?.querySelector('[name=mode]')?.remove();render();}catch(error){state.error=error.message;render();}return;}
     if(name==='minimize'){state.minimized=!state.minimized;render();return;}
     if(name==='close'){
       if(state.busy){state.minimized=false;render();return;}
       const c=state.call,observer=c?.owner_user_id&&c.owner_user_id!==ui.user()&&!state.status?.permissions?.manage;
-      if(c&&!observer&&c.wrap_up_state!=='saved'){
+      if(c&&!observer&&c.wrap_up_state!=='saved'&&(state.status?.settings?.require_disposition||!terminal.has(c.state)&&c.mode==='browser')){
         state.minimized=false;state.outcomeRequested=true;
         if(c.metadata?.transfer?.target_user_id===ui.user()&&c.owner_user_id!==ui.user()&&['dialing','consulting'].includes(c.metadata.transfer.state)){await handle('decline');return;}
-        if(c.mode==='browser'&&!terminal.has(c.state)){await handle('hangup');return;}
+        if(c.mode==='browser'&&!terminal.has(c.state)){state.minimized=true;state.outcomeRequested=false;render();return;}
         render();return;
       }
       try{await saveNotes();}catch(error){state.error=error.message;render();return;}
@@ -293,7 +300,7 @@
           if(state.diagnosing&&state.diagnosticId&&callTag===state.diagnosticId){void call.answer({remoteElement:audio});return;}
           // Staff-first outbound leg is auto-answered only after this tab's explicit Start action.
           if(state.call?.direction==='outbound'&&state.call.metadata?.device_id===deviceId&&callTag===state.call.id)void call.answer({remoteElement:audio});
-          else {void heartbeat();if(state.call){state.minimized=false;render();}}
+          else {void heartbeat();if(state.call)render();}
         }
         if(['hangup','destroy'].includes(call.state)){state.sdkCall=null;state.muted=false;void poll().catch(()=>{});}else if(state.call)render();
       });
@@ -391,8 +398,7 @@
     if(!ui.org()||!ui.user())return;
     if(route.customerCall&&route.customerCall!==state.call?.id)void open({call_id:route.customerCall},{fromRoute:true}).catch(error=>{if(Portal.navigation?.read?.().customerCall===route.customerCall){state.error=error.message;render();}});
     else if(route.customerCall&&route.customerCall===state.call?.id&&state.panel?.hidden){state.minimized=false;render();}
-    else if(!route.customerCall&&state.call&&terminal.has(state.call.state)){state.panel.hidden=true;}
-    else if(!route.customerCall&&!route.communicationsEntry&&!state.call&&state.panel)state.panel.hidden=true;
+    // The global phone survives app navigation, including an ended call awaiting its outcome.
   }});
   window.addEventListener('beforeunload',event=>{if((state.call?.mode==='browser'&&!terminal.has(state.call.state))||state.dirty){event.preventDefault();event.returnValue='';}});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&state.panel&&!state.panel.hidden&&!document.querySelector('dialog[open]')){state.minimized=true;render();}});
@@ -401,7 +407,7 @@
       state.openSequence++;state.loadingCall=false;
       if(state.dirty)persistLocal();state.client?.disconnect();state.client=null;state.sdkCall=null;state.registered=false;state.available=false;
       clearInterval(state.heartbeat);clearTimeout(state.poll);clearTimeout(state.tokenTimer);clearTimeout(state.saveTimer);
-      if(state.panel)state.panel.hidden=true;state.call=null;state.dirty=false;state.notes='';state.answers={};state.boundScope='';changed();
+      if(state.panel)state.panel.hidden=true;state.call=null;state.status=null;Portal.PhoneTray?.reset?.();state.dirty=false;state.notes='';state.answers={};state.boundScope='';changed();
     }
     if(ui.org()&&ui.user())void Portal.navigation?.applyCurrent?.({source:'phone-session-ready',only:'customer-call-workspace'});
   });

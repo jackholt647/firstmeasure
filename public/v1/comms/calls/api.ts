@@ -1,3 +1,4 @@
+import { completeDevelopmentOnboarding } from './development.js';
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
 import { requirePlatformAuth, hasPermission, type PlatformAuthContext } from "../../platform/auth.js";
@@ -7,7 +8,7 @@ import { readNodeRecord } from '../../work/storage.js';
 import { ensureCallList, upsertCallListEntry, removeCallListEntry } from "../../internal/crm/call_lists.js";
 import { verifyTelnyxWebhook } from "../../messaging/telnyx_webhooks.js";
 import { voiceSettings, updateVoiceSettings } from "./settings.js";
-import { createCall, saveDraft, saveWrapUp, requireCallAccess, queues, readEntry, followUps, changeFollowUp, scripts, saveScript, people, projectContext, callContext, manageCalls } from "./service.js";
+import { phoneContacts, createCall, saveDraft, saveWrapUp, requireCallAccess, queues, readEntry, followUps, changeFollowUp, scripts, saveScript, people, projectContext, callContext, manageCalls } from "./service.js";
 import { voiceStatus, provisionVoice, configureVoice, bindNumber, disconnectNumber, endpointToken, disconnectEndpoint, presence, saveDiagnostic, startDiagnostic, callAction } from "./voice.js";
 import { startCallWorker } from "./worker.js";
 import { streamRecording, deleteArtifact } from "./media.js";
@@ -132,7 +133,9 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   app.post("/organizations/:orgId/call-scripts",async req=>({ok:true,script:(await saveScript(await auth(req,true,true),body(req)))}));
   app.get("/organizations/:orgId/voice/status",async req=>({ok:true,...(await voiceStatus(await auth(req)))}));
   app.get('/organizations/:orgId/voice/health',async req=>{const ctx=await auth(req,false,true);return {ok:true,...(await voiceHealth(ctx.orgId))};});
+  app.get("/organizations/:orgId/voice/contacts",async req=>({ok:true,contacts:await phoneContacts(await auth(req),text(query(req).query))}));
   app.get("/organizations/:orgId/voice/people",async req=>({ok:true,people:await people(await auth(req))}));
+  app.post("/organizations/:orgId/voice/development/onboard",async req=>({ok:true,development:await completeDevelopmentOnboarding(await auth(req,true,true))}));
   app.put("/organizations/:orgId/voice/settings",async req=>{const ctx=await auth(req,true,true);return {ok:true,settings:await configureVoice(ctx,body(req))};});
   app.post("/organizations/:orgId/voice/provision",async req=>({ok:true,...await provisionVoice(await auth(req,true,true))}));
   app.post("/organizations/:orgId/voice/numbers",async req=>({ok:true,...await bindNumber(await auth(req,true,true),body(req))}));

@@ -61,7 +61,7 @@ test('Communications, Financials and Payroll render declared tabs and scope thei
     await page.goto('http://app-groups.test/');
     await page.evaluate(()=>{
       window.__APP={userOrgId:'test',userId:'owner'};
-      window.route={tab:'chat',communicationsView:'center'};
+      window.route={tab:'chat',communicationsView:'lists'};
       const handlers=[];
       window.Portal={currentUser:{permissions:{'*':true}},tabs:{},appFlags:{has:()=>true},capabilities:{current:()=>({effective_by_key:{'money.merchant_processing':true}})},navigation:{read:()=>window.route,registerSchema(){},registerHandler:(_id,handler)=>{handlers.push(handler);return ()=>{};},push:patch=>{window.route={...window.route,...patch};},navigate:patch=>{window.route={...window.route,...patch};handlers.forEach(h=>h.apply(window.route));}}};
       window.PlatformAPI={request:async()=>({groups:{}})};
@@ -80,7 +80,7 @@ test('Communications, Financials and Payroll render declared tabs and scope thei
     await mount('portal.chat');
     await page.waitForSelector('[data-action=new-call]');
     assert.equal(await page.locator('[data-app-header] h1').textContent(),'Communications');
-    assert.equal(await page.locator('[data-app-header] .app-tabs button').count(),6);
+    assert.equal(await page.locator('[data-app-header] .app-tabs button').count(),5);
     assert.equal(await page.locator('[data-app-header] [data-action=new-call]').count(),0);
     if(process.env.APP_GROUP_SCREENSHOT_DIR)await page.screenshot({path:process.env.APP_GROUP_SCREENSHOT_DIR+'/communications-desktop.png'});
     await page.locator('[data-view=setup]').click();

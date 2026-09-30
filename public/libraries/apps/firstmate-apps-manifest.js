@@ -343,7 +343,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [bundle('../comms-api/comms-api.js'), bundle('../agent-chat/agent-chat.js'), bundle('comms/communications-ui.js'), bundle('comms/calling-runtime.js'), versionedBundle('comms/workspace.js', '20260930-app-groups-v1'), versionedBundle('comms/project.js', '20260929-overview-content-v1')]
+      bundles: [bundle('../comms-api/comms-api.js'), bundle('../agent-chat/agent-chat.js'), bundle('comms/communications-ui.js'), versionedBundle('comms/phone-tray.js', '20260930-phone-tray-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tray-v1'), versionedBundle('comms/workspace.js', '20260930-phone-tray-v1'), versionedBundle('comms/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.measurements',
@@ -519,9 +519,9 @@
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
         bundle('comms/communications-ui.js'),
-        bundle('comms/calling-runtime.js'),
-        versionedBundle('comms/workspace.js', '20260930-app-groups-v1'),
-        versionedBundle('chat/app.js', '20260930-app-groups-v1')
+        versionedBundle('comms/phone-tray.js', '20260930-phone-tray-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tray-v1'),
+        versionedBundle('comms/workspace.js', '20260930-phone-tray-v1'),
+        versionedBundle('chat/app.js', '20260930-phone-tray-v1')
       ]
     },
     {
@@ -602,7 +602,7 @@
       portalTabId: 'company_settings',
       placement: 'settings',
       access: managementAccess,
-      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260930-contact-search-picker-v1'), versionedBundle('../payroll-api/payroll-api.js', '20260712-payroll-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20260901-calls-configuration-v3'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('settings/payroll.js', '20260712-payroll-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20260929-brand-shape-choices'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20260930-sidebar-instant-tooltips-v1')]
+      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260930-contact-search-picker-v1'), versionedBundle('../payroll-api/payroll-api.js', '20260712-payroll-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20260901-calls-configuration-v3'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('settings/payroll.js', '20260712-payroll-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20260929-brand-shape-choices'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20260930-phone-tray-v1')]
     },
     {
       id: 'portal.crew_overview',
@@ -1046,7 +1046,7 @@
   };
 
   apps.forEach((app) => {
-    app.bundles = [versionedBundle('../app-runtime/app-chrome.js', '20260930-app-groups-v1'), ...(app.bundles || [])];
+    app.bundles = [versionedBundle('../app-runtime/app-chrome.js', '20260930-phone-tray-v1'), ...(app.bundles || [])];
     app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260930-scheduling-qa-v2'), ...(app.bundles || [])];
     const capability = appCapabilities[app.id];
     if (capability) app.access = { ...(app.access || {}), capability };

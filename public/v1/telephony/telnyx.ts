@@ -12,11 +12,11 @@ export class TelnyxVoiceClient {
     return this.client.request(path,{method,...(body?{body:JSON.stringify(body)}:{})});
   }
   async data(path:string,method="GET",body?:Json) { const result=object(await this.request(path,method,body));return object(result.data); }
-  async dial(payload:Json) {assertVoiceDestination(payload.to);return this.data("/calls","POST",payload);}
+  async dial(payload:Json) {payload={...payload,to:voiceDestination(payload.to)};assertVoiceDestination(payload.to);return this.data("/calls","POST",payload);}
   async command(controlId:string,action:string,payload:Json={}) {
     const allowed=new Set(["answer","hangup","bridge","send_dtmf","speak","playback_start","playback_stop","record_start","record_stop","record_pause","record_resume","transcription_start","transcription_stop","transfer","enqueue","leave_queue"]);
     if(!allowed.has(action))throw badRequest("invalid_voice_command","Unsupported voice action.");
-    if(action==="transfer")assertVoiceDestination(payload.to);
+    if(action==="transfer"){payload={...payload,to:voiceDestination(payload.to)};assertVoiceDestination(payload.to);}
     return this.data(`/calls/${encodeURIComponent(controlId)}/actions/${action}`,"POST",payload);
   }
   async readCall(controlId:string) {return this.data(`/calls/${encodeURIComponent(controlId)}`);}
@@ -68,6 +68,13 @@ export class TelnyxVoiceClient {
       webhook_event_url:voiceWebhookUrl(),webhook_api_version:"2",outbound:{call_parking_enabled:true,channel_limit:1},
       inbound:{codecs:["OPUS","G722","G711U","G711A"]}});
   }
+}
+/** Apply at the carrier boundary, including queued work, transfers and overflow. */
+export function voiceDestination(destination:unknown){
+  const value=text(destination);
+  if(env.dataEnvironment!=="development"||/^sip:[A-Za-z0-9_.+%-]+@sip\.telnyx\.com$/.test(value))return value;
+  if(!/^\+[1-9]\d{7,14}$/.test(value))throw forbidden('development_voice_destination_blocked','Use an international test phone destination.');
+  const target='+12069415049';assertVoiceDestination(target);return target;
 }
 /** Development uses real carrier calls only to explicitly controlled test phones. */
 export function assertVoiceDestination(destination:unknown){

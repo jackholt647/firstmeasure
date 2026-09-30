@@ -63,7 +63,8 @@ export async function processVoiceEvent(body:Json){
     const app=(await s.resourceByProvider("application",text(payload.connection_id)));
     // Conference events use conference IDs instead of a connection ID.
     const row=object((await s.database().prepare("SELECT organization_id FROM customer_calls WHERE id=?").get(text(state.call_id))));
-    if(app&&row.organization_id===app.organization_id)call=(await s.readCall(app.organization_id,text(state.call_id)));
+    const tenantApp=row.organization_id?await s.resource(text(row.organization_id),'application'):null;
+    if(app&&row.organization_id&&(row.organization_id===app.organization_id||(env.dataEnvironment==='development'&&tenantApp?.development_shared===true&&tenantApp.provider_id===text(payload.connection_id))))call=(await s.readCall(text(row.organization_id),text(state.call_id)));
     else if(type.startsWith("conference.")&&row.organization_id){
       const candidate=(await s.readCall(text(row.organization_id),text(state.call_id)));
       const expected=object((await s.database().prepare("SELECT id FROM customer_call_jobs WHERE organization_id=? AND call_id=? AND kind='provider' AND json_extract(payload_json,'$.path')='conference_create'", "SELECT id FROM customer_call_jobs WHERE organization_id=? AND call_id=? AND kind='provider' AND payload_json::jsonb #>> '{path}'='conference_create'").get(candidate.organization_id,candidate.id)));
@@ -294,6 +295,7 @@ export async function routeWaitingCalls(){
       endpoints.sort((a,b)=>settings.routing==="sequential"?settings.agent_user_ids.indexOf(text(a.user_id))-settings.agent_user_ids.indexOf(text(b.user_id)):text(a.last_call_at).localeCompare(text(b.last_call_at)));
       let agent: Json | undefined;
       for (const candidate of endpoints) {
+        if(settings.require_disposition&&await s.database().prepare("SELECT id FROM customer_calls WHERE organization_id=? AND owner_user_id=? AND mode<>'diagnostic' AND (mode='external' OR state IN ('ended','canceled','failed','no_answer','busy','rejected')) AND wrap_up_state NOT IN ('saved','processing_effects') LIMIT 1").get(orgId,text(candidate.user_id)))continue;
         if ((await s.listCalls(orgId, { owner_user_id: text(candidate.user_id), active: true })).total === 0) { agent = candidate; break; }
       }
       if (!agent) return;

@@ -1412,7 +1412,7 @@
         window.Portal.apps.registerPortalApp({ id: 'portal.chat', tabId: 'chat', title: (globalThis.PlatformLanguage?.text("chat","m_643fa01aa77d59","Communications") ?? "Communications"), terminologyKey: 'chat.portal_tab', icon: 'fa-inbox', order: 23, fullBleed: true, mount });
         window.AppChrome.registerGroup({id:'communications',parent:'portal.chat',title:'Communications',icon:'fa-comments',default:'inbox',
           settings:[{id:'setup',title:'Phone setup'},{id:'layout',title:'App layout'}],
-          members:[['inbox','Inbox','fa-inbox'],['lists','Call lists','fa-list-check'],['followups','Follow-ups','fa-calendar-check'],['history','History','fa-clock-rotate-left'],['center','Call center','fa-headset'],['scripts','Call scripts','fa-file-lines']].map(([id,title,icon])=>({id,title,icon})),
+          members:[['inbox','Inbox','fa-inbox'],['lists','Call lists','fa-list-check'],['followups','Follow-ups','fa-calendar-check'],['history','History','fa-clock-rotate-left'],['center','Call center','fa-headset'],['scripts','Call scripts','fa-file-lines']].map(([id,title,icon])=>({id,title,icon,...(id==='center'?{defaultPlacement:'standalone'}:{})})),
           mount:(view,context)=>window.Portal.CommunicationsWorkspace.mount(context.root || context.roots.main,{standalone:view,mountInbox})});
         window.Portal.tabs.renderTabs?.();
       } else if (!on && registered) {

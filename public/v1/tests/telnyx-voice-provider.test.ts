@@ -63,6 +63,7 @@ test('development blocks unapproved PSTN calls and transfers before contacting T
     await assert.rejects(client.command('call','transfer',{to:'+12065550101'}),{code:'development_voice_destination_blocked'});
     await assert.rejects(client.dial({to:'sip:agent@untrusted.example'}),{code:'development_voice_destination_blocked'});
     assert.equal(requests,0);
+    process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS='+12069415049';
     await client.dial({to:'+12065550100'});
     await client.dial({to:'sip:agent@sip.telnyx.com'});
     assert.equal(requests,2);

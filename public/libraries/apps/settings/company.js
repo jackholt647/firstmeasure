@@ -6171,6 +6171,7 @@
               `).join('') : `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_95c7c3b0210dc4","No SMS registration has been created yet.") ?? "No SMS registration has been created yet.")}</div>`)}
             </div>
           </div>`;
+        void window.Portal?.PhoneTray?.developmentSetup(paneSms);
         paneSms.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsRegistrationSubmitted(profile) ? 'summary' : 'business' }));
         paneSms.querySelectorAll('[data-open-sms-profile]').forEach((button) => {
           button.addEventListener('click', () => {
@@ -6194,6 +6195,7 @@
       }
       const rawRequestedStep = String(options.initialStep || readSettingsRoute().workflowStep || '').trim();
       const requestedStep = rawRequestedStep === 'finalize' || rawRequestedStep === 'submitted' ? 'summary' : rawRequestedStep;
+      let developmentStatus = null;
       let profile = smsPrefillProfile(initialProfile || {});
       let numberSearch = { query: profile.campaign?.selectedNumberSearch || profile.campaign?.selectedNumberAreaCode || '', areaCode: profile.campaign?.selectedNumberAreaCode || '', results: [], searched: false, message: '' };
       let numberSearchTimer = null;
@@ -6204,6 +6206,7 @@
       const refresh = () => ctxRef?.refresh?.();
       const setStatus = (text) => ctxRef?.setStatus?.(text);
       const persistDraft = async () => {
+        if(developmentStatus?.onboarded)return;
         const source = rootEl();
         profile = prepareSmsProfileForSave(source ? smsCollect(source, profile) : mergeSmsProfile(profile));
         try {
@@ -6558,7 +6561,9 @@
       };
       const renderStepBody = (container, shellCtx, stepId) => {
         ctxRef = shellCtx;
+        if(developmentStatus?.onboarded){container.innerHTML=`<div class="sms-workspace"><h3>Fully onboarded for development</h3><p>Brand registration: mock approved</p><p>10DLC campaign: mock approved</p><p>Call center: test transport connected</p><p>All test calls route to ${escapeHtml(developmentStatus.destination)}. These are simulated registrations, not carrier approvals.</p></div>`;return;}
         container.innerHTML = `<div class="sms-workspace">${smsStepContent(stepId, profile, { numberSearch })}</div>`;
+        void window.Portal?.PhoneTray?.developmentSetup(container,status=>{if(!developmentStatus?.onboarded){developmentStatus=status;refresh();}});
         container.querySelectorAll('[data-sms-choose-number]').forEach((button) => {
           button.addEventListener('click', () => chooseSmsNumber(button));
         });
@@ -6579,6 +6584,7 @@
         }
       };
       const renderStepFooter = (container, shellCtx, stepId) => {
+        if(developmentStatus?.onboarded){container.textContent='Development setup complete';return;}
         ctxRef = shellCtx;
         const steps = smsVisibleSteps(profile);
         const index = Math.max(0, steps.findIndex((item) => item.id === stepId));
@@ -6643,11 +6649,11 @@
         icon: 'fa-message',
         initialStepId: requestedStep,
         statusNote: 'Draft autosaves as you move through the workflow.',
-        locked: () => smsRegistrationLocked(profile),
+        locked: () => developmentStatus?.onboarded || smsRegistrationLocked(profile),
         autosave: { debounceMs: 900, save: () => persistDraft() },
         steps: (shellCtx) => {
           ctxRef = shellCtx;
-          return smsVisibleSteps(profile).map((item, index) => ({
+          return (developmentStatus?.onboarded?[{id:'summary',label:'Development ready'}]:smsVisibleSteps(profile)).map((item, index) => ({
             id: item.id,
             label: `${index + 1}. ${item.label}`,
             render: (container, stepCtx) => renderStepBody(container, stepCtx, item.id),
