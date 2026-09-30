@@ -28,7 +28,7 @@ import {
   runAgentTurn
 } from "../agents/runtime.js";
 import { ASSISTANT_AGENT_ID } from "./agent/definition.js";
-import { ensureChannelConversation } from "./channel-context.js";
+import { ensureChannelConversation, channelConversationRevision } from "./channel-context.js";
 import { readInternalUser } from "../internal/storage.js";
 import { forbidden, notFound } from "../platform/errors.js";
 import {
@@ -311,7 +311,9 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
   app.post("/organizations/:orgId/channels/:channelId/conversation", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf:true, permission:USE_PERMISSION, capability:"apps.assistant" });
-    return { ok:true, thread:await ensureChannelConversation(ctx, getParam(request.params, "channelId")) };
+    const thread = await ensureChannelConversation(ctx, getParam(request.params, "channelId"));
+    if (!thread) throw notFound("thread_not_found", "The channel conversation could not be opened.");
+    return { ok:true, thread, source_revision:await channelConversationRevision(ctx, cleanText(thread.subject_id)) };
   });
 
   app.post("/organizations/:orgId/threads", async (request) => {
@@ -373,6 +375,7 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
     if (automaticRecap && (!cleanText(thread.subject_id).startsWith("channel:") || rawMessage !== "Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners." || hasAttachments)) {
       throw badRequest("invalid_channel_recap", "Automatic recaps are only available in channel assistant conversations.");
     }
+    const recapRevision = automaticRecap ? await channelConversationRevision(ctx, cleanText(thread.subject_id)) : "";
     const turnNote = agentIdFromSubject(thread.subject_id) ? await agentConfigurationTurnNote(orgId, ctx.userId, thread) : "";
     const attachmentIds = Array.isArray(body.attachments) ? body.attachments : [];
     if (attachmentIds.length > 5) throw badRequest("too_many_attachments", "Add up to five files per message.");
@@ -406,7 +409,7 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
       branchId: cleanText(body.branch_id) || ctx.branchId || "default",
       threadId,
       message: rawMessage,
-      input: { attachments, ...(automaticRecap ? { automatic_channel_recap:true } : {}) },
+      input: { attachments, ...(automaticRecap ? { automatic_channel_recap:true, channel_source_revision:recapRevision } : {}) },
       contentParts,
       ctx,
       actorUserId: ctx.userId,

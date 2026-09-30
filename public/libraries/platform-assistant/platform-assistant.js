@@ -1724,17 +1724,16 @@
     return state.threadId;
   }
 
-  async function sendMessage({ channelRecap = false } = {}){
+  async function sendMessage({ channelRecap = false, channelRevision = '' } = {}){
     if (!els || state.pending) return;
     if (recorder) { stopRecording(); return; }
     const text = channelRecap ? 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.' : clean(els.input.value);
     if (!text && !state.attachments.length) return;
-    const files = [...state.attachments];
+    const files = channelRecap ? [] : [...state.attachments];
     const agentId = state.view === 'agent' ? state.agentId : '';
-    els.input.value = '';
-    state.attachments = [];
+    if (!channelRecap) { els.input.value = ''; state.attachments = []; }
     renderAttachments();
-    state.messages.push({ id:`local_${Date.now()}`, role:'user', content:[text, ...files.map((file) => `📎 ${file.name}`)].filter(Boolean).join('\n'), data:channelRecap ? {automatic_channel_recap:true} : {} });
+    state.messages.push({ id:`local_${Date.now()}`, role:'user', content:[text, ...files.map((file) => `📎 ${file.name}`)].filter(Boolean).join('\n'), data:channelRecap ? {automatic_channel_recap:true,channel_source_revision:channelRevision} : {} });
     state.pending = true;
     els.send.disabled = true;
     renderMessages({ animateLast:true });
@@ -1884,8 +1883,13 @@
       if (!clean(thread.id)) throw new Error('The channel conversation could not be opened.');
       state.threads = [thread, ...state.threads.filter(entry => clean(entry.id) !== clean(thread.id))];
       if (!await openThread(clean(thread.id), { throwOnError:true })) return;
-      if (!state.messages.length && !clean(els.input.value) && !state.attachments.length) {
-        await sendMessage({channelRecap:true});
+      const revision = clean(result.source_revision);
+      const hasCurrentRecap = revision && state.messages.some((message, index) =>
+        message.role === 'user' && object(message.data).automatic_channel_recap === true &&
+        object(message.data).channel_source_revision === revision &&
+        state.messages[index + 1]?.role === 'assistant' && object(state.messages[index + 1].data).status === 'success');
+      if (!hasCurrentRecap) {
+        await sendMessage({channelRecap:true,channelRevision:revision});
       }
       els.input.focus();
     } finally { openingChannel = false; }

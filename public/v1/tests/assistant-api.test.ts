@@ -711,6 +711,8 @@ test("channel recaps are private, member-scoped, reusable, and refresh context f
   const [first, again] = await Promise.all([1, 2].map(() => client.request("POST", `${assistantBase}/channels/${channelId}/conversation`, {})));
   assert.equal(first.thread.id, again.thread.id);
   assert.equal(first.thread.subject_id, `channel:${channelId}`);
+  assert.match(first.source_revision, /^[a-f0-9]{64}$/);
+  assert.equal(first.source_revision, again.source_revision);
   const threadId = first.thread.id;
   const mock = mockOpenAI([{ output:[functionCall("report_result", { status:"success", summary:"Livia owns the order." }, "recap"), messageOutput("Livia will order the blue gutters.")] }]);
   try {
@@ -718,16 +720,31 @@ test("channel recaps are private, member-scoped, reusable, and refresh context f
     await client.request("POST", `${assistantBase}/threads/${threadId}/messages`, { message:"Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.", intent:'channel_recap' });
     const recapHistory = await client.request('GET', `${assistantBase}/threads/${threadId}`);
     assert.equal(recapHistory.messages[0].data.automatic_channel_recap,true);
+    assert.equal(recapHistory.messages[0].data.channel_source_revision,first.source_revision);
+    assert.equal((await client.request('POST', `${assistantBase}/channels/${channelId}/conversation`, {})).source_revision,first.source_revision);
     const prompt = JSON.stringify(mock.calls[0]);
     assert.match(prompt, /PRIVATE assistant conversation/);
     assert.match(prompt, /Livia will order blue gutters on Friday/);
     assert.match(prompt, /Confirmed: blue, not green/);
     assert.equal((await client.request("GET", `${channelBase}/${channelId}/messages`)).messages.length, 1);
     await client.request("POST", `${channelBase}/${channelId}/messages`, { text:"Delivery has moved to Monday." });
+    const refreshed = await client.request('POST', `${assistantBase}/channels/${channelId}/conversation`, {});
+    assert.notEqual(refreshed.source_revision, first.source_revision);
+    assert.equal(refreshed.thread.id, threadId);
     const before = mock.calls.length;
     await client.request("POST", `${assistantBase}/threads/${threadId}/messages`, { message:"What changed?" });
     assert.match(JSON.stringify(mock.calls[before]), /Delivery has moved to Monday/);
     assert.equal((await client.request("GET", `${assistantBase}/threads/${threadId}`)).messages.length, 4);
+
+    const revision = async () => (await client.request('POST', `${assistantBase}/channels/${channelId}/conversation`, {})).source_revision;
+    const reply = await client.request('POST', `${channelBase}/${channelId}/messages`, {text:'The order is now confirmed.',parent_id:source.message.id});
+    const replyRevision = await revision();
+    assert.notEqual(replyRevision,refreshed.source_revision);
+    await client.request('PATCH', `/v1/channels/organizations/${orgId}/messages/${reply.message.id}`, {text:'The order is now confirmed for Tuesday.'});
+    const editRevision = await revision();
+    assert.notEqual(editRevision,replyRevision);
+    await client.request('DELETE', `/v1/channels/organizations/${orgId}/messages/${reply.message.id}`);
+    assert.notEqual(await revision(),editRevision);
 
     assert.equal((await outsider.raw("POST", `${assistantBase}/channels/${channelId}/conversation`, {})).statusCode, 403);
     assert.equal((await outsider.raw("GET", `${assistantBase}/threads/${threadId}`)).statusCode, 404);
