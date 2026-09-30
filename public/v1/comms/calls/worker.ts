@@ -302,8 +302,11 @@ export async function routeWaitingCalls(){
     }));
   }
 }
+export function customerCallWorkerAllowed(){
+  return platformBackgroundAllowed()||(env.dataEnvironment==='development'&&process.env.CUSTOMER_CALL_WORKER_OWNER==='1');
+}
 export function startCallWorker(app:FastifyInstance){
-  if (!platformBackgroundAllowed()) return;
+  if (!customerCallWorkerAllowed()) return;
   if(process.env.CUSTOMER_CALL_WORKER_DISABLED==="1"||process.env.NODE_ENV==="test")return;
   const workerId=`voice:${process.pid}:${randomUUID()}`;let running=false,stopped=false,lastRetention=0;
   let maintenance:Promise<void>|null=null,activeTick:Promise<void>|null=null,background:Promise<void>|null=null;

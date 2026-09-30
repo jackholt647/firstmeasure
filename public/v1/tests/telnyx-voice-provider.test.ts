@@ -3,6 +3,7 @@ import test from 'node:test';
 import { TelnyxClient } from '../messaging/telnyx.js';
 import { TelnyxVoiceClient } from '../telephony/telnyx.js';
 import { env } from '../src/config/env.js';
+import { customerCallWorkerAllowed } from '../comms/calls/worker.js';
 
 test('staff connection uses Telnyx API codec names and parks browser dialing', async () => {
   let payload: Record<string, any> = {};
@@ -21,6 +22,28 @@ test('staff connection uses Telnyx API codec names and parks browser dialing', a
   assert.equal(payload.outbound.call_parking_enabled,true);
   assert.equal(payload.sip_uri_calling_preference,'internal');
   assert.match(payload.user_name,/^[A-Za-z0-9]+$/);
+});
+
+test('a development call worker owner does not enable general platform scheduling', async () => {
+  const {platformBackgroundAllowed}=await import('../platform/runtime.js');
+  const previous={dataEnvironment:env.dataEnvironment,deploymentTopology:env.deploymentTopology};
+  const keys=['CUSTOMER_CALL_WORKER_OWNER','PLATFORM_PROCESS_ROLE','PLATFORM_BACKGROUND_DISABLED'];
+  const saved=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
+  try {
+    Object.assign(env,{dataEnvironment:'development',deploymentTopology:'cluster'});
+    delete process.env.PLATFORM_PROCESS_ROLE;
+    process.env.PLATFORM_BACKGROUND_DISABLED='1';
+    process.env.CUSTOMER_CALL_WORKER_OWNER='0';
+    assert.equal(customerCallWorkerAllowed(),false);
+    process.env.CUSTOMER_CALL_WORKER_OWNER='1';
+    assert.equal(customerCallWorkerAllowed(),true);
+    assert.equal(platformBackgroundAllowed(),false);
+    Object.assign(env,{dataEnvironment:'production'});
+    assert.equal(customerCallWorkerAllowed(),false);
+  } finally {
+    Object.assign(env,previous);
+    for(const key of keys){if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];}
+  }
 });
 
 test('development blocks unapproved PSTN calls and transfers before contacting Telnyx', async () => {
