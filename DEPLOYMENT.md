@@ -8,6 +8,8 @@ September 30 Channels follow-ups: [Reopened reply, list and reminder fixes](depl
 
 September 30 Scheduling: [QA fixes across global and project schedules](deploy/digitalocean/development-scheduling-qa-20260930.md) records the concurrency-safe project writes, recurrence and multi-crew fixes, validation, development rollout and rollback.
 
+September 30 Scheduling follow-up: [QA rounds 5-7](deploy/digitalocean/development-scheduling-qa-followup-20260930.md) records the placement, drag-safety, Month, Timeline and project-window fixes, validation, development rollout and rollback.
+
 September 30 sidebar: [Instant collapsed-menu tooltips](deploy/digitalocean/development-sidebar-tooltips-20260930.md) records the development rollout, immediate labels, checks and rollback.
 
 September 30 Feed: [Distinct layouts and Channels-backed posts/comments](deploy/digitalocean/development-feed-posts-20260930.md) records the five views, per-artifact permissions, hidden Feed channel, validation and development rollout.
