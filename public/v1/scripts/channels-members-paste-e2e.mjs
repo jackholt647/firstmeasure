@@ -94,13 +94,14 @@ try {
   assert.equal(await page.locator('.fm-ch-msg-body').last().locator('table').count(),2);
   for(const tag of ['ul','ol']) {
     await paste(`<${tag}><li>First item</li></${tag}>`);
+    const ordered=await editor.locator('ol').count()>0;
     await editor.locator('li').click();await editor.press('End');await editor.press('Shift+Enter');await page.keyboard.type('Continuation');
-    assert.equal(await editor.locator('li').count(),1);
+    assert.equal(await editor.locator('li').count(),2);
     const value=await editor.evaluate(node=>node.value);
-    assert.match(value,/First item\n  Continuation/);
+    assert.match(value,ordered?/1\. First item\n2\. Continuation/:/- First item\n- Continuation/);
     await editor.evaluate(node=>node.value=node.value);
-    assert.equal(await editor.locator('li').count(),1);
-    assert.match(await editor.locator('li').innerText(),/First item\nContinuation/);
+    assert.equal(await editor.locator('li').count(),2);
+    assert.equal(await editor.locator('li').nth(1).innerText(),'Continuation');
   }
   await paste('<p>Prefix</p><table>'+Array.from({length:57},(_,i)=>`<tr><td>Row ${i}</td></tr>`).join('')+'</table><p>Suffix</p>');
   assert.equal(await editor.locator('tr:visible').count(),10);

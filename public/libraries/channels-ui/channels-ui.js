@@ -461,7 +461,7 @@
       const anchor = selection?.anchorNode?.nodeType === 1 ? selection.anchorNode : selection?.anchorNode?.parentElement;
       if (event.key === 'Enter' && event.shiftKey && anchor?.closest('li') && editor.contains(anchor)) {
         event.preventDefault(); event.stopPropagation();
-        document.execCommand('insertLineBreak');
+        document.execCommand('insertParagraph');
         editor.dispatchEvent(new Event('input', {bubbles:true}));
         return;
       }
