@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 29 personal sidebar: [Adaptive, locked and forced display modes](deploy/digitalocean/development-sidebar-behavior-20260929.md) records the development rollout, immediate collapse, per-user persistence and verification.
+
 September 29 Channels settings: [Sidebar gear, autosave and implicit FirstMate](deploy/digitalocean/development-channels-settings-assistant-20260929.md) records the development rollout, hidden recap prompts, validation and rollback.
 
 September 30 Contacts: [Profile photos, managed tags and typed relationships](deploy/digitalocean/development-contacts-library-20260930.md) records the development rollout, server validation, shared media library and browser checks.
