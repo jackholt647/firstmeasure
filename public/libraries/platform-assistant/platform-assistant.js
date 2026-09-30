@@ -332,7 +332,7 @@
       .fma-drawer[hidden]{display:none!important;}
       .fma-head{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #e4e7ec;min-width:0;}
       .fma-head .fm-window-controls{margin-left:auto;}
-      .fma-head .fm-window-controls [data-window-action=close]{display:none;}
+      .fma-head .fm-window-controls [data-window-action=minimize]{display:none;}
       .fma-head-title{flex:1;min-width:0;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       .fma-drawer[data-window=full] .fma-head{position:absolute;top:10px;right:16px;z-index:4;width:auto;min-height:0;padding:0;border:0;background:transparent;}
       .fma-drawer[data-window=full] .fma-head-title{display:none;}

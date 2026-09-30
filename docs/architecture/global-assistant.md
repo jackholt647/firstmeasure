@@ -64,8 +64,9 @@ assistant users.
 The top-bar assistant and `portal.assistant` app use the same
 `PlatformAssistant` instance, thread state, and `FirstMateWindows` controller.
 The assistant starts as a right dock. The shared maximize control opens the
-full workspace and activates the Assistant tab; Dock or Minimize returns it to
-the right. On phones, its dock occupies the workspace width and uses the same
+full workspace and activates the Assistant tab; Dock returns it to
+the right. Close hides the assistant while preserving its conversation and draft.
+The assistant has no minimize button. On phones, its dock occupies the workspace width and uses the same
 compact layout. Channels conversations and the assistant both use
 `libraries/window-manager/window-manager.js`; the assistant no longer has a
 separate fixed drawer implementation.
@@ -93,11 +94,12 @@ They do not alter organization capabilities or grant access to an app. The Agent
 conversation list and controls as the assistant window. Selecting a conversation
 opens the full assistant workspace; docked and mobile layouts retain the compact
 in-window conversation panel. The preference defaults off. In either full-screen
-layout, the assistant's Float, Dock and Minimize controls float at the upper
+layout, the assistant's Float, Dock, Maximize and Close controls float at the upper
 right while the conversation body uses the full workspace height.
 
 The assistant header keeps the conversations toggle at left and the shared
-Float, Minimize and Maximize window controls at right. Conversation history is
+Float, Maximize and Close window controls at right, with Close to the right of
+Maximize. Conversation history is
 a persistent left sidebar in desktop full view and a 68%-width overlay in
 docked, floating and mobile views. The sidebar searches titles and the user's
 own conversation messages, and owns new
