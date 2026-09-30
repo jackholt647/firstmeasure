@@ -1,9 +1,11 @@
 # Projects and Contacts Feed parity — development, September 29, 2026
 
-Source release: `a0d7590b1ad03b492987bf05fcd88648465e5767` on the canonical branch.
-The audited previous release is `490f326db6b303ab37d35dd1a7658aef4256fea3`
-on both development web nodes and compatibility. Production and the worker
-are outside this rollout.
+Code commit: `a0d7590b1ad03b492987bf05fcd88648465e5767`. Development release:
+`4dac5e2e3a06026500ece6b5851b3524fc69b890` on the canonical branch, with
+identical task source and the release preparation record.
+The audited previous release is `8eaaad2d74244479cda4b603640ebbd9a7336420`
+on both development web nodes and `490f326db6b303ab37d35dd1a7658aef4256fea3`
+on compatibility. Production and the worker are outside this rollout.
 
 My Projects and My Contacts use Feed's colored title icon, 38px controls,
 10px control corners, grouped view selector and primary-tinted selected state.
@@ -34,11 +36,17 @@ Linux import and syntax checks during staging. Deployment evidence and guarded
 rollout scripts are in ignored `output/portal-style-parity-20260929/`.
 
 The initial staging guard stopped when a concurrent notification rollout changed
-the second web node's baseline. All roles were re-audited after it converged to
-`490f326`; overlays were rebuilt against that baseline. The already staged web
-candidate was reused only after its receipt and content hashes matched.
+the second web node's baseline. A subsequent Overview/project-detail rollout
+changed the web baselines again. All roles were re-audited, and the replacement
+immutable candidate was staged against the final per-role baselines above.
+The older unactivated candidate was retained; no live release was edited.
 
-Activation and hosted verification are recorded below after rollout.
+All three roles activated successfully, with development isolation, readiness,
+source/compiled file hashes and automatic rollback guards checked on each host.
+The three public frontend assets matched their expected hashes. Six public
+readiness responses reported the new development release and enforced outbound
+safety. Both browser fixtures passed again using the scripts served by
+`dev.1m8.ai`, including desktop/mobile controls and preserved interactions.
 
 Rollback: check for newer releases, then atomically restore each role's previous
 `current` symlink and restart its development web/compatibility service and
