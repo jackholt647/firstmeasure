@@ -22,14 +22,28 @@
   `);
   // Keep the guide DOM (especially the video) alive across upload/status renders.
   let guideNode=null, guideIndex=0, photoSummary=false, cameraStream=null, cameraEpoch=0, cameraStarting=false, cameraFallback=false, cameraNeedsUpdate=false, cameraMessage='', capturing=false;
+  // Orbital video is the default capture; the eight guided photos are the fallback.
+  let captureMode='video', videoStage='intro', photoIntroSeen=false, recNode=null;
+  let recorder=null, recTake=null, recElapsed=0, recResumedAt=0, recTimer=null, wakeLock=null, videoPreview=null;
+  const VIDEO_MAX_BYTES=120*1024*1024, SEGMENT_MAX_MS=150000, VIDEO_BITRATE=5000000;
+  const VIDEO_TYPES='video/mp4,video/quicktime,video/webm', IMAGE_TYPES='image/jpeg,image/png,image/webp';
+  const VIDEO_POSTER='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" fill="#1d2925"/><path d="M38 31v34l28-17z" fill="#8af0b5"/></svg>');
+  const isVideoKey=key=>key.includes(':video-');
+  const isVideoFile=file=>/^video\//.test(file.type||'')||/\.(mp4|m4v|mov|webm)$/i.test(file.name||'');
+  const orbitVideos=index=>[...files].filter(([k])=>k.startsWith(index+':video-'));
+  const cameraStage=()=>captureMode==='video'?videoStage==='record':photoIntroSeen;
+  const cameraNode=()=>captureMode==='video'?recNode:guideNode;
+  const updateCapture=()=>captureMode==='video'?updateRecorder():updateGuide();
+  const clock=ms=>{const total=Math.max(0,Math.round(ms/1000));return Math.floor(total/60)+':'+String(total%60).padStart(2,'0');};
   const guideKey=()=>Math.floor(guideIndex/8)+':'+views[guideIndex%8];
   const anglePhotos=key=>[...files].filter(([k,f])=>k===key||f.angleKey===key);
-  function stopCamera(){cameraEpoch++;cameraStarting=false;cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;if(guideNode?.querySelector('video'))guideNode.querySelector('video').srcObject=null;}
-  function resetGuide(){photoToast?.remove();if(photoToastTimer)clearTimeout(photoToastTimer);stopCamera();guideNode?.remove();guideNode=null;guideIndex=0;photoSummary=false;cameraMessage='';cameraFallback=false;cameraNeedsUpdate=false;}
+  function stopCamera(){stopRecording();cameraEpoch++;cameraStarting=false;cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;for(const node of [guideNode,recNode])if(node?.querySelector('video'))node.querySelector('video').srcObject=null;}
+  function resetGuide(){photoToast?.remove();if(photoToastTimer)clearTimeout(photoToastTimer);closeVideoPreview();stopCamera();guideNode?.remove();guideNode=null;recNode?.remove();recNode=null;guideIndex=0;photoSummary=false;cameraMessage='';cameraFallback=false;cameraNeedsUpdate=false;captureMode='video';videoStage='intro';photoIntroSeen=false;}
   function houseModel(){return `<div class="ext-model-scene" role="img" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_e4b02dd6cf2314","House angle guide") ?? "House angle guide")}"><div class="ext-model"><div class="ext-ground"></div><div class="ext-wall front"><i></i><b></b><i></i></div><div class="ext-wall back"><i></i><i></i></div><div class="ext-wall left"><i></i><i></i></div><div class="ext-wall right"><i></i><i></i></div><div class="ext-gable front"></div><div class="ext-gable back"></div><div class="ext-roof left"></div><div class="ext-roof right"></div><div class="ext-path">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_76f61845dd2aea","STREET") ?? "STREET")}</div></div></div>`;}
   async function startCamera(){
-    if(cameraStream||cameraStarting||cameraFallback||photoSummary||page!==1||!ctx?.mobileOrder)return;
-    cameraStarting=true;cameraMessage='Opening camera…';const epoch=++cameraEpoch;updateGuide();
+    if(cameraStream||cameraStarting||cameraFallback||photoSummary||page!==1||!ctx?.mobileOrder||!cameraStage())return;
+    const video=captureMode==='video',noun=video?'videos':'photos';
+    cameraStarting=true;cameraMessage='Opening camera…';const epoch=++cameraEpoch;updateCapture();
     try{
       // Native capability discovery is asynchronous. A pending reply is not an
       // unsupported camera, and must not permanently latch the upload fallback.
@@ -37,16 +51,17 @@
       const info=native?(await phone.ready??phone.info?.()):null;
       if(epoch!==cameraEpoch||page!==1||photoSummary||workspaceSuspended)return;
       cameraNeedsUpdate=!!(native&&info?.platform==='android'&&info?.capabilities&&!info.capabilities.includes('liveCamera'));
-      if(cameraNeedsUpdate){cameraFallback=true;cameraMessage='Update FirstMate from Settings → App download for the live camera. You can still take or upload photos below.';return;}
-      if(!navigator.mediaDevices?.getUserMedia){cameraFallback=true;cameraMessage='Live camera is unavailable here. Use the camera button or Upload below.';return;}
-      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:2560},height:{ideal:1920}},audio:false});
-      if(epoch!==cameraEpoch||page!==1||photoSummary||workspaceSuspended){stream.getTracks().forEach(track=>track.stop());return;}
-      cameraStream=stream;cameraFallback=false;cameraMessage='';const video=guideNode?.querySelector('video');if(video){video.srcObject=stream;await video.play();}
-    }catch(e){if(epoch!==cameraEpoch)return;stopCamera();cameraFallback=true;cameraMessage=e.name==='NotAllowedError'?'Camera access is off. Allow it in device settings, or upload your photos.':'Camera unavailable. You can still upload photos for every angle.';}
-    finally{if(epoch===cameraEpoch)cameraStarting=false;updateGuide();}
+      if(cameraNeedsUpdate){cameraFallback=true;cameraMessage=`Update FirstMate from Settings → App download for the live camera. You can still take or upload ${noun} below.`;return;}
+      if(!navigator.mediaDevices?.getUserMedia||(video&&typeof MediaRecorder!=='function')){cameraFallback=true;cameraMessage='Live camera is unavailable here. Use the camera button or Upload below.';return;}
+      const stream=await navigator.mediaDevices.getUserMedia({video:video?{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}}:{facingMode:{ideal:'environment'},width:{ideal:2560},height:{ideal:1920}},audio:false});
+      if(epoch!==cameraEpoch||page!==1||photoSummary||workspaceSuspended||!cameraStage()||video!==(captureMode==='video')){stream.getTracks().forEach(track=>track.stop());return;}
+      cameraStream=stream;cameraFallback=false;cameraMessage='';const preview=cameraNode()?.querySelector('video');if(preview){preview.srcObject=stream;await preview.play();}
+    }catch(e){if(epoch!==cameraEpoch)return;stopCamera();cameraFallback=true;cameraMessage=e.name==='NotAllowedError'?`Camera access is off. Allow it in device settings, or upload your ${noun}.`:video?'Camera unavailable. You can still upload a video of the house.':'Camera unavailable. You can still upload photos for every angle.';}
+    finally{if(epoch===cameraEpoch)cameraStarting=false;updateCapture();}
   }
   function pickGuided(key,camera=false){
-    const epoch=generation,input=document.createElement('input');input.type='file';input.accept='image/jpeg,image/png,image/webp';input.multiple=!camera;if(camera)input.setAttribute('capture','environment');input.hidden=true;document.body.append(input);
+    // Angle slots take photos only; additional uploads take photos and videos.
+    const epoch=generation,input=document.createElement('input');input.type='file';input.accept=key?IMAGE_TYPES:IMAGE_TYPES+','+VIDEO_TYPES;input.multiple=!camera;if(camera)input.setAttribute('capture','environment');input.hidden=true;document.body.append(input);
     input.onchange=()=>{const chosen=Array.from(input.files||[]);input.remove();if(epoch!==generation||!active())return;for(const file of chosen)void upload(file,key||structure+':additional-'+crypto.randomUUID(),true);};input.oncancel=()=>input.remove();input.click();
   }
   let captureSequence=0;
@@ -82,7 +97,7 @@
     }catch(e){error='Could not take this photo. Please try again.';render();}
     finally{capturing=false;updateGuide();}
   }
-  function visitGuide(index){const previous=guideIndex;guideIndex=Math.max(0,Math.min(ctx.count*8-1,index));structure=Math.floor(guideIndex/8);photoSummary=false;render();if(previous!==guideIndex&&!reduceCaptureMotion()){const direction=guideIndex>previous?1:-1;guideNode?.querySelector('.ext-capture-heading>div')?.animate([{opacity:.2,transform:`translateX(${direction*18}px)`},{opacity:1,transform:'translateX(0)'}],{duration:300,easing:'ease-out'});guideNode?.querySelector('.ext-photo-dock')?.animate([{opacity:0,transform:`translateX(${direction*14}px)`},{opacity:1,transform:'translateX(0)'}],{duration:280,easing:'ease-out'});}void startCamera();}
+  function visitGuide(index){captureMode='photos';photoIntroSeen=true;const previous=guideIndex;guideIndex=Math.max(0,Math.min(ctx.count*8-1,index));structure=Math.floor(guideIndex/8);photoSummary=false;render();if(previous!==guideIndex&&!reduceCaptureMotion()){const direction=guideIndex>previous?1:-1;guideNode?.querySelector('.ext-capture-heading>div')?.animate([{opacity:.2,transform:`translateX(${direction*18}px)`},{opacity:1,transform:'translateX(0)'}],{duration:300,easing:'ease-out'});guideNode?.querySelector('.ext-photo-dock')?.animate([{opacity:0,transform:`translateX(${direction*14}px)`},{opacity:1,transform:'translateX(0)'}],{duration:280,easing:'ease-out'});}void startCamera();}
   function finishGuide(){photoSummary=true;stopCamera();render();root?.closest('.r-scroll')?.scrollTo?.({top:0});}
   function removeGuided(key){const f=files.get(key);if(!f)return;files.delete(key);if(f.url)URL.revokeObjectURL(f.url);const remaining=anglePhotos(key);if(remaining.length){const [other,entry]=remaining.at(-1);files.delete(other);delete entry.angleKey;files.set(key,entry);}render();}
   function mountGuide(){
@@ -92,14 +107,14 @@
       guideNode.querySelector('[data-guide-capture]').onclick=captureGuided;
       guideNode.querySelector('[data-guide-upload]').onclick=()=>pickGuided(guideKey());
       guideNode.querySelector('[data-guide-retry-camera]').onclick=()=>{cameraFallback=false;void startCamera();};
-      guideNode.querySelector('[data-guide-back]').onclick=()=>guideIndex?visitGuide(guideIndex-1):ctx.setMobileOrderPage?.('location');
+      guideNode.querySelector('[data-guide-back]').onclick=()=>{if(guideIndex)visitGuide(guideIndex-1);else{photoIntroSeen=false;stopCamera();render();}};
       guideNode.querySelector('[data-guide-forward]').onclick=()=>guideIndex+1<ctx.count*8?visitGuide(guideIndex+1):finishGuide();
     }
     guideIndex=Math.min(guideIndex,Math.max(0,ctx.count*8-1));
     root.querySelector('[data-guide-mount]')?.append(guideNode);updateGuide();void startCamera();
   }
   function updateGuide(){
-    if(!guideNode)return;const key=guideKey(),view=views[guideIndex%8],photos=anglePhotos(key),done=[...files].filter(([k,f])=>!k.startsWith('tray:')&&!k.includes(':additional')&&f.media_id).length,total=(ctx?.count||1)*8;
+    if(!guideNode)return;const key=guideKey(),view=views[guideIndex%8],photos=anglePhotos(key),total=(ctx?.count||1)*8;
     guideNode.querySelector('[data-guide-step]').textContent=((v0,v1) => globalThis.PlatformLanguage?.text("firstmeasure","m_014da584de30ed",`House ${v0} · View ${v1} of 8`,{v0,v1}) ?? `House ${v0} · View ${v1} of 8`)(Math.floor(guideIndex/8)+1,guideIndex%8+1);
     guideNode.querySelector('[data-guide-title]').textContent=((v0) => globalThis.PlatformLanguage?.text("firstmeasure","m_8ac00bef24971e",`${v0} of House`,{v0}) ?? `${v0} of House`)(label(view));
     guideNode.querySelector('.ext-model').style.transform=`rotateX(-18deg) rotateY(${45*(guideIndex%8)}deg)`;
@@ -119,30 +134,155 @@
     photos.sort((a,b)=>(a[1].sequence||0)-(b[1].sequence||0));
     for(const [position,[k,f]] of photos.entries()){
       let tile=photoTiles.get(f);
-      if(!tile){tile=document.createElement('div');tile.className='ext-photo-tile';tile.innerHTML=`<button type="button" class="ext-thumb-select" data-guide-primary><img alt=""><span class="ext-thumb-busy" role="status" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_173c36d4fce52b","Uploading photo") ?? "Uploading photo")}"><i></i></span><span class="ext-thumb-primary">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_2436076ece8629","Primary") ?? "Primary")}</span></button><button type="button" class="ext-thumb-remove" data-guide-remove aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_06170cce538389","Remove photo") ?? "Remove photo")}">×</button><button type="button" class="ext-thumb-retry" data-guide-retry>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_48a9cdd2af44f4","Retry") ?? "Retry")}</button><span class="ext-thumb-error" role="status"></span>`;
-        tile.querySelector('[data-guide-primary]').onclick=()=>{const from=tile.dataset.key;if(!tile.dataset.primaryKey){selectedPhoto=from;render();return;}if(from===tile.dataset.primaryKey)return;const chosen=files.get(from),old=files.get(tile.dataset.primaryKey);if(!chosen)return;files.delete(from);if(old){old.angleKey=tile.dataset.primaryKey;files.set(from,old);}delete chosen.angleKey;files.set(tile.dataset.primaryKey,chosen);render();};
+      if(!tile){tile=document.createElement('div');tile.className='ext-photo-tile';tile.innerHTML=`<button type="button" class="ext-thumb-select" data-guide-primary><img alt=""><span class="ext-thumb-video" hidden><i class="fas fa-play" aria-hidden="true"></i><b></b></span><span class="ext-thumb-busy" role="status" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_173c36d4fce52b","Uploading photo") ?? "Uploading photo")}"><i></i><b data-upload-progress></b></span><span class="ext-thumb-primary">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_2436076ece8629","Primary") ?? "Primary")}</span></button><button type="button" class="ext-thumb-remove" data-guide-remove aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_06170cce538389","Remove photo") ?? "Remove photo")}">×</button><button type="button" class="ext-thumb-retry" data-guide-retry>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_48a9cdd2af44f4","Retry") ?? "Retry")}</button><span class="ext-thumb-error" role="status"></span>`;
+        tile.querySelector('[data-guide-primary]').onclick=()=>{const from=tile.dataset.key;if(files.get(from)?.kind==='video'){previewVideo(files.get(from));return;}if(!tile.dataset.primaryKey){selectedPhoto=from;render();return;}if(from===tile.dataset.primaryKey)return;const chosen=files.get(from),old=files.get(tile.dataset.primaryKey);if(!chosen)return;files.delete(from);if(old){old.angleKey=tile.dataset.primaryKey;files.set(from,old);}delete chosen.angleKey;files.set(tile.dataset.primaryKey,chosen);render();};
         tile.querySelector('[data-guide-remove]').onclick=()=>removeGuided(tile.dataset.key);
         tile.querySelector('[data-guide-retry]').onclick=()=>send(files.get(tile.dataset.key));photoTiles.set(f,tile);
       }
       tile.dataset.key=k;tile.dataset.primaryKey=key||'';wanted.add(tile);tile.classList.toggle('primary',k===key);tile.classList.toggle('uploading',!!(f.encoding||f.uploading));
-      const select=tile.querySelector('[data-guide-primary]');select.dataset.guidePrimary=k;select.setAttribute('aria-pressed',String(k===key));select.setAttribute('aria-label',((v0,v1) => globalThis.PlatformLanguage?.text("firstmeasure","m_9389ebcecf7d63",`${v0} photo${v1}`,{v0,v1}) ?? `${v0} photo${v1}`)(label(view),k===key?', Primary':key?', select as primary':', view photo'));
+      const select=tile.querySelector('[data-guide-primary]');select.dataset.guidePrimary=k;select.setAttribute('aria-pressed',String(k===key));select.setAttribute('aria-label',f.kind==='video'?'Play video '+(position+1):((v0,v1) => globalThis.PlatformLanguage?.text("firstmeasure","m_9389ebcecf7d63",`${v0} photo${v1}`,{v0,v1}) ?? `${v0} photo${v1}`)(label(view),k===key?', Primary':key?', select as primary':', view photo'));
       const img=tile.querySelector('img'),src=referenceThumbnail(f);if(img.getAttribute('src')!==src)img.src=src;img.alt=label(view)+' photo';
       tile.querySelector('[data-guide-remove]').dataset.guideRemove=k;
       tile.querySelector('.ext-thumb-busy').hidden=!(f.encoding||f.uploading);tile.querySelector('.ext-thumb-primary').hidden=k!==key;
+      const badge=tile.querySelector('.ext-thumb-video');badge.hidden=f.kind!=='video';badge.querySelector('b').textContent=f.duration?clock(f.duration*1000):'';tile.classList.toggle('is-video',f.kind==='video');
+      tile.querySelector('[data-upload-progress]').textContent=f.uploading&&f.progress?Math.round(f.progress*100)+'%':'';
       tile.querySelector('[data-guide-retry]').hidden=!f.error||!f.file;tile.querySelector('.ext-thumb-error').textContent=f.error?'Upload failed':'';tile.querySelector('.ext-thumb-error').title=f.error||'';
       if(strip.children[position]!==tile)strip.insertBefore(tile,strip.children[position]||null);
     }
     for(const tile of [...strip.children])if(!wanted.has(tile))tile.remove();
   }
   window.addEventListener?.('pagehide',stopCamera);
-  document.addEventListener?.('visibilitychange',()=>{if(document.hidden)stopCamera();else if(guideNode?.isConnected&&!photoSummary&&page===1)updateGuide();});
+  document.addEventListener?.('visibilitychange',()=>{if(document.hidden)stopCamera();else if(cameraNode()?.isConnected&&!photoSummary&&page===1)updateCapture();});
+  // ---- Orbital video: explainer animation, recorder and video uploads ----
+  const HOUSE_PARTS='<div class="ext-wall front"><i></i><b></b><i></i></div><div class="ext-wall back"><i></i><i></i></div><div class="ext-wall left"><i></i><i></i></div><div class="ext-wall right"><i></i><i></i></div><div class="ext-gable front"></div><div class="ext-gable back"></div><div class="ext-roof left"></div><div class="ext-roof right"></div>';
+  const WALKER='<svg viewBox="0 0 18 32" width="18" height="32"><rect class="ext-orbit-leg" x="4" y="20" width="4" height="12" rx="2" fill="#1f3d2f"/><rect class="ext-orbit-leg" x="9" y="20" width="4" height="12" rx="2" fill="#1f3d2f"/><path d="M3 12a5.5 5.5 0 0 1 11 0v10H3z" fill="#27734b"/><circle cx="8.5" cy="4.5" r="4.2" fill="#f0c49a"/><path d="M11 13l4.5-2" stroke="#f0c49a" stroke-width="2.6" stroke-linecap="round"/><rect x="13.6" y="6" width="4" height="7" rx="1" fill="#101828"/></svg>';
+  // The walker shares the house's 3D space, so it passes behind the house on the far side.
+  function orbitScene(eight=false){
+    const moving=eight?Array.from({length:8},(_,i)=>`<i class="ext-orbit-dot" style="--a:${i*45}deg;--i:${i}"></i>`).join(''):`<div class="ext-orbit-trail"></div><div class="ext-orbit-arm"><div class="ext-orbit-cone"></div><div class="ext-orbit-walker"><div class="ext-orbit-bill"><div class="ext-orbit-bob">${WALKER}</div></div></div></div>`;
+    return `<div class="ext-orbit${eight?' ext-orbit-eight':''}" role="img" aria-label="${eight?'Eight photo positions spaced evenly around the house':'Animation: a person walks one full circle around the house while recording it'}">${eight?'':'<div class="ext-orbit-rec" aria-hidden="true"><i></i>REC</div>'}<div class="ext-model ext-orbit-world" aria-hidden="true"><div class="ext-orbit-lawn"></div><div class="ext-orbit-ring"></div>${HOUSE_PARTS}<div class="ext-path">STREET</div>${moving}</div>${eight?'':'<div class="ext-orbit-done" aria-hidden="true"><i class="fas fa-check"></i>Full circle</div>'}</div>`;
+  }
+  const recording=()=>!!recorder&&recorder.state!=='inactive';
+  const recordedMs=()=>recElapsed+(recorder?.state==='recording'?Date.now()-recResumedAt:0);
+  function recorderType(){for(const type of ['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'])if(MediaRecorder.isTypeSupported?.(type))return type;return '';}
+  function framePoster(video){try{if(!video?.videoWidth)return '';const canvas=document.createElement('canvas');canvas.width=192;canvas.height=Math.max(1,Math.round(192*video.videoHeight/video.videoWidth));canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',.8);}catch(e){return '';}}
+  async function holdWake(){try{wakeLock=await navigator.wakeLock?.request('screen');}catch(e){wakeLock=null;}}
+  function releaseWake(){wakeLock?.release?.().catch(()=>{});wakeLock=null;}
+  function startRecording(){
+    if(recording()||!cameraStream)return;
+    if(files.size>=100){error='You can upload up to 100 files per order.';render();return;}
+    const epoch=generation,index=structure,type=recorderType();let active;
+    try{active=new MediaRecorder(cameraStream,{...(type?{mimeType:type}:{}),videoBitsPerSecond:VIDEO_BITRATE});}
+    catch(e){cameraMessage='Recording is unavailable here. Upload a video instead.';updateRecorder();return;}
+    const chunks=[],take={duration:0,again:false,poster:framePoster(recNode?.querySelector('video'))};
+    recorder=active;recTake=take;recElapsed=0;recResumedAt=Date.now();
+    active.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
+    active.onstop=()=>{
+      if(recorder===active){recorder=null;clearInterval(recTimer);recTimer=null;releaseWake();}
+      if(epoch!==generation)return;
+      const blob=new Blob(chunks,{type:(active.mimeType||type||'video/webm').split(';')[0]});
+      // A tap that starts and immediately stops leaves only a container header, not a playable segment.
+      if(blob.size>=4096&&take.duration>=1000)addSegment(index,blob,take);
+      else if(!take.again&&cameraStage()&&!photoSummary)showToast('That recording was too short to save. Record for at least a few seconds.');
+      if(take.again&&cameraStream&&cameraStage()&&!photoSummary)startRecording();else updateRecorder();
+    };
+    active.onerror=()=>stopRecording();
+    active.start(1000);
+    clearInterval(recTimer);recTimer=setInterval(()=>{if(recordedMs()>=SEGMENT_MAX_MS)stopRecording(true);else updateRecorderClock();},250);
+    void holdWake();error='';updateRecorder();
+  }
+  // Long walks roll into a new segment so each upload stays within the size limit.
+  function stopRecording(again=false){if(!recording())return;recTake.duration=recordedMs();recTake.again=again;try{recorder.stop();}catch(e){}}
+  function togglePause(){if(!recording())return;if(recorder.state==='recording'){recElapsed=recordedMs();recorder.pause();}else{recorder.resume();recResumedAt=Date.now();}updateRecorder();}
+  function addSegment(index,blob,take){
+    const type=blob.type||'video/webm',name=`house-${index+1}-orbit-${orbitVideos(index).length+1}.${type.includes('mp4')?'mp4':'webm'}`;
+    const entry={name,kind:'video',type,duration:take.duration/1000,thumbnail:take.poster,sequence:++captureSequence,uploaded_at:new Date().toISOString(),file:new File([blob],name,{type}),url:URL.createObjectURL(blob)};
+    files.set(index+':video-'+crypto.randomUUID(),entry);
+    if(blob.size>VIDEO_MAX_BYTES){entry.error='This segment is too large to upload. Remove it and record a shorter one.';entry.file=null;render();return;}
+    render();void send(entry);
+  }
+  function toggleRecording(){
+    if(recording()){stopRecording();return;}
+    if(!cameraStream){if(cameraFallback)pickVideo(structure,true);else void startCamera();return;}
+    startRecording();
+  }
+  function pickVideo(index,camera=false){
+    const epoch=generation,input=document.createElement('input');input.type='file';input.accept=camera?'video/*':VIDEO_TYPES;input.multiple=!camera;if(camera)input.setAttribute('capture','environment');input.hidden=true;document.body.append(input);
+    input.onchange=()=>{const chosen=Array.from(input.files||[]);input.remove();if(epoch!==generation||!active())return;if(chosen.length&&ctx.mobileOrder&&videoStage==='intro')photoSummary=true;for(const file of chosen)void upload(file,index+':video-'+crypto.randomUUID(),true);};input.oncancel=()=>input.remove();input.click();
+  }
+  // Uploaded videos get a poster frame and duration without blocking the upload.
+  function videoThumb(entry){
+    if(typeof document.createElement!=='function'||!entry.url)return;
+    const probe=document.createElement('video');probe.muted=true;probe.playsInline=true;probe.preload='auto';
+    const done=()=>{probe.removeAttribute('src');probe.load?.();if([...files.values()].includes(entry))render();};
+    probe.onloadeddata=()=>{if(Number.isFinite(probe.duration))entry.duration=probe.duration;entry.thumbnail=framePoster(probe)||entry.thumbnail;done();};
+    probe.onerror=done;probe.src=entry.url;
+  }
+  function closeVideoPreview(){videoPreview?.remove();videoPreview=null;}
+  function previewVideo(entry){
+    const src=entry&&referenceSource(entry);if(!src)return;closeVideoPreview();
+    videoPreview=document.createElement('div');videoPreview.className='ext-video-preview';videoPreview.setAttribute('role','dialog');videoPreview.setAttribute('aria-label','Video preview');
+    videoPreview.innerHTML='<video controls autoplay playsinline></video><button type="button" aria-label="Close video">×</button>';
+    videoPreview.querySelector('video').src=src;videoPreview.onclick=e=>{if(e.target.tagName!=='VIDEO')closeVideoPreview();};document.body.append(videoPreview);
+  }
+  function switchMode(mode){if(captureMode===mode)return;stopCamera();captureMode=mode;photoSummary=false;videoStage='intro';photoIntroSeen=false;cameraFallback=false;cameraNeedsUpdate=false;cameraMessage='';selectedPhoto=null;render();root?.closest('.r-scroll')?.scrollTo?.({top:0});}
+  function recorderBack(){if(structure>0){structure--;render();return;}videoStage='intro';stopCamera();render();}
+  function recorderForward(){if(!orbitVideos(structure).length){switchMode('photos');return;}if(structure+1<ctx.count){structure++;render();}else finishGuide();}
+  function mountRecorder(){
+    if(!recNode){
+      recNode=document.createElement('section');recNode.className='ext-capture ext-rec';
+      recNode.innerHTML=`<header class="ext-capture-heading"><div><h3 data-rec-title></h3><span data-guide-step data-rec-step></span></div><div class="ext-angle-guide ext-rec-guide">${orbitScene()}</div></header><div class="ext-camera"><video autoplay muted playsinline aria-label="Live rear camera preview"></video><div class="ext-camera-idle"><i class="fas fa-video" aria-hidden="true"></i></div><div class="ext-rec-badge" data-rec-badge role="timer" hidden><i></i><b data-rec-time>0:00</b></div><div class="ext-rec-hint" data-rec-hint></div><div class="ext-photo-dock"><button type="button" class="ext-upload-tile" data-rec-upload aria-label="Upload videos"><i class="fas fa-plus" aria-hidden="true"></i><span>Upload</span></button><div class="ext-angle-photos" aria-label="Recorded segments"></div></div><span class="ext-camera-status" role="status"></span><button type="button" class="ext-tool" data-guide-retry-camera>Retry camera</button></div><footer class="ext-guide-footer"><div class="ext-guide-buttons"><button type="button" class="ext-tool" data-rec-back></button><div class="ext-shutter-control"><button type="button" class="ext-shutter ext-rec-shutter" data-rec-toggle><i aria-hidden="true"></i></button></div><button type="button" class="ext-tool" data-rec-forward></button></div></footer>`;
+      recNode.querySelector('[data-rec-toggle]').onclick=toggleRecording;
+      recNode.querySelector('[data-rec-upload]').onclick=()=>pickVideo(structure);
+      recNode.querySelector('[data-guide-retry-camera]').onclick=()=>{cameraFallback=false;void startCamera();};
+      recNode.querySelector('[data-rec-back]').onclick=()=>recording()?togglePause():recorderBack();
+      recNode.querySelector('[data-rec-forward]').onclick=recorderForward;
+    }
+    structure=Math.max(0,Math.min(structure,ctx.count-1));
+    root.querySelector('[data-guide-mount]')?.append(recNode);updateRecorder();void startCamera();
+  }
+  function updateRecorderClock(){const time=recNode?.querySelector('[data-rec-time]');if(time)time.textContent=clock(recordedMs());}
+  function updateRecorder(){
+    if(!recNode||!ctx)return;
+    const takes=orbitVideos(structure),live=recording(),paused=recorder?.state==='paused',total=takes.reduce((sum,[,f])=>sum+(f.duration||0),0);
+    recNode.classList.toggle('recording',live&&!paused);recNode.classList.toggle('paused',!!paused);
+    recNode.querySelector('[data-rec-title]').textContent=paused?'Paused':live?'Keep walking the circle':takes.length?'Segment saved':'Record your orbital video';
+    recNode.querySelector('[data-rec-step]').textContent=(ctx.count>1?`House ${structure+1} of ${ctx.count} · `:'')+(takes.length?`${takes.length} segment${takes.length===1?'':'s'} · ${clock(total*1000)}`:'One full circle around the house');
+    recNode.querySelector('[data-rec-hint]').textContent=live||!cameraStream?'':takes.length?'Record another segment to continue the circle, or review when you have gone all the way around.':'Start at the front. Walk one full circle, keeping the whole house in frame.';
+    recNode.querySelector('.ext-camera').classList.toggle('live',!!cameraStream);
+    recNode.querySelector('.ext-camera-status').textContent=cameraMessage;
+    const toggle=recNode.querySelector('[data-rec-toggle]');toggle.disabled=cameraStarting;toggle.setAttribute('aria-label',live?'Stop recording':'Start recording');
+    recNode.querySelector('[data-rec-badge]').hidden=!live;updateRecorderClock();
+    recNode.querySelector('[data-guide-retry-camera]').hidden=!!cameraStream||cameraStarting||cameraNeedsUpdate;
+    recNode.querySelector('[data-rec-upload]').disabled=live;
+    recNode.querySelector('[data-rec-back]').textContent=live?(paused?'Resume':'Pause'):'Back';
+    const forward=recNode.querySelector('[data-rec-forward]');forward.classList.toggle('is-hidden',live);forward.disabled=live;
+    forward.textContent=takes.length?(structure+1<ctx.count?'Next house':'Review'):'Can’t record?';
+    const strip=recNode.querySelector('.ext-angle-photos');mountPhotoTiles(strip,takes,'','video');
+    if(strip.dataset.count!==String(takes.length)){strip.dataset.count=String(takes.length);strip.scrollLeft=strip.scrollWidth;}
+  }
+  const PHOTO_RISK='Anything we can’t see clearly, we may not be able to measure, and we may have to reject the project. The eight photos are usually enough. Extra photos and video help.';
+  const ORBIT_STEPS='<ol class="ext-orbit-steps"><li><span><b>Start at the front.</b> Step back until the whole house fits in the frame, roofline to foundation.</span></li><li><span><b>Walk one full circle.</b> Go slowly and keep the house centered the whole way around.</span></li><li><span><b>Pause whenever you need to.</b> Record in as many segments as it takes, or upload videos you already have.</span></li></ol>';
+  function videoIntroUI(){
+    const have=Array.from({length:ctx.count},(_,i)=>orbitVideos(i).length).reduce((a,b)=>a+b,0);
+    return `<section class="ext-orbit-intro"><h3>Record an orbital video</h3><p>Walk one full circle around the house while recording. It is the quickest way to show us every side.${ctx.count>1?` You will record each of the ${ctx.count} structures separately.`:''}</p>${orbitScene()}${ORBIT_STEPS}<div class="ext-orbit-actions"><button type="button" class="ext-orbit-primary" data-video-start><i class="fas fa-video" aria-hidden="true"></i>${have?'Record another segment':'Start recording'}</button><button type="button" class="ext-orbit-secondary" data-video-upload><i class="fas fa-arrow-up-from-bracket" aria-hidden="true"></i>Upload a video</button>${have?`<button type="button" class="ext-orbit-secondary" data-video-review>Review ${have} video${have===1?'':'s'}</button>`:''}</div><button type="button" class="ext-orbit-switch" data-mode="photos">Can’t take a video? Order from photos instead</button></section>`;
+  }
+  function photoIntroUI(){
+    return `<section class="ext-orbit-intro"><h3>Order from photos</h3><p>No video? We can measure from photos instead. We need all eight angles of the house, and we will guide you through each one.</p>${orbitScene(true)}<ol class="ext-orbit-steps"><li><span><b>Take all eight angles.</b> Each side and each corner, with the whole house in the frame.</span></li><li><span><b>Add anything hard to see.</b> If the eight angles miss it or it is hidden from the street, add extra photos or a video afterwards.</span></li></ol><p class="ext-photo-warning"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span>${PHOTO_RISK}</span></p><div class="ext-orbit-actions"><button type="button" class="ext-orbit-primary" data-photos-start><i class="fas fa-camera" aria-hidden="true"></i>Start the eight photos</button></div><button type="button" class="ext-orbit-switch" data-mode="video">Back to orbital video (recommended)</button></section>`;
+  }
+  const summaryGroup=(key,title)=>`<section class="ext-summary-group"><h4>${esc(title)}${key?`<button type="button" data-view="${key}">Add photos</button>`:''}</h4><div class="ext-summary-tiles" data-summary-tiles="${key}" aria-label="${esc(title)} photos"></div></section>`;
+  const extrasUI=()=>`<div class="ext-photo-extras"><button type="button" class="ext-extra-drop" data-extra-upload><i class="fas fa-cloud-arrow-up" aria-hidden="true"></i><strong>Additional photos and videos</strong><span>${ctx.mobileOrder?'Tap to upload':'Click to choose, or drop files here'}</span></button></div>${summaryGroup('','Additional photos and videos')}`;
+  function videoSummaryUI(){
+    const groups=Array.from({length:ctx.count},(_,i)=>`<section class="ext-summary-group"><h4>${ctx.count>1?`House ${i+1} · `:''}Orbital video<button type="button" data-video-add="${i}">Upload</button>${ctx.mobileOrder?`<button type="button" data-video-record="${i}">Record</button>`:''}</h4><div class="ext-summary-tiles" data-video-tiles="${i}" aria-label="Orbital video"></div></section>`).join('');
+    const lead=ctx.mobileOrder?'':`<div class="ext-orbit-intro"><h3>Add an orbital video</h3><p>Record one full circle around the house on your phone, then upload it here. Ordering from the FirstMate app records it for you.</p>${orbitScene()}${ORBIT_STEPS}</div>`;
+    return `<section class="ext-summary-guide ext-video-summary">${lead}${groups}${extrasUI()}<p class="ext-video-hint">Add close-ups of anything the video does not show well, like dormers, additions or tight side yards.</p><button type="button" class="ext-orbit-switch" data-mode="photos">Can’t take a video? Order from photos instead</button></section>`;
+  }
   let photoWorkspace=null, referenceViewer=null, workspaceFilter='all', workspaceStep=false, closingViewer=false, workspaceSuspended=false;
   window.addEventListener?.('fm:modal:open',event=>{if(event.detail?.id==='request'){workspaceSuspended=event.detail.open===false;if(workspaceSuspended){stopCamera();removePhotoWorkspace();}}});
   const photoKey=photo=>[...files].find(([,f])=>f.media_id===photo.media_id)?.[0];
   function closeReferenceViewer(){const viewer=referenceViewer;referenceViewer=null;closingViewer=true;try{viewer?.close();}finally{closingViewer=false;}}
   function removePhotoWorkspace(){closeReferenceViewer();photoWorkspace?.remove();photoWorkspace=null;document.getElementById('rOverlay')?.classList.remove('exteriors-photos');workspaceStep=false;}
   function referenceSource(f){return f.url||window.PlatformAPI?.media?.fileUrl?.(P.cfg.userOrgId||P.cfg.orgId,f.media_id)||'';}
-  function referenceThumbnail(f){return f.thumbnail||referenceSource(f);}
+  function referenceThumbnail(f){return f.thumbnail||(f.kind==='video'?VIDEO_POSTER:referenceSource(f));}
   window.addEventListener?.('fm:media-renamed',event=>{
     const detail=event.detail||{},entry=[...files.values()].find(f=>f.media_id===detail.mediaId);
     if(entry&&detail.name){entry.name=detail.name;render();}
@@ -151,11 +291,12 @@
     const detail=event.detail||{},entry=[...files.values()].find(f=>f.media_id===detail.mediaId);
     if(entry&&window.PlatformAPI?.media?.markupThumbnailUrl){entry.thumbnail=window.PlatformAPI.media.markupThumbnailUrl(detail.orgId,detail.mediaId,640,detail.revision||Date.now());render();}
   });
-  function assignmentLabel(key){return key.startsWith('tray:')?'Unassigned':`Structure ${Number(key.split(':')[0])+1} · ${key.includes(':additional')?'Extra reference':label(key.split(':')[1])}`;}
+  function assignmentLabel(key){return key.startsWith('tray:')?'Unassigned':`Structure ${Number(key.split(':')[0])+1} · ${isVideoKey(key)?'Orbital video':key.includes(':additional')?'Extra reference':label(key.split(':')[1])}`;}
   function viewReference(key){
-    const entry=files.get(key);if(!entry?.media_id||!window.FirstMateMarkup?.openPhotoViewer)return;
+    const entry=files.get(key);if(entry?.kind==='video'){previewVideo(entry);return;}
+    if(!entry?.media_id||!window.FirstMateMarkup?.openPhotoViewer)return;
     closeReferenceViewer();selectedPhoto=key;render();
-    const photos=[...files].filter(([,f])=>f.media_id).map(([,f])=>({id:f.media_id,media_id:f.media_id,src:referenceSource(f),name:f.name,label:f.name,content_type:f.file?.type||'image/jpeg'}));
+    const photos=[...files].filter(([,f])=>f.media_id&&f.kind!=='video').map(([,f])=>({id:f.media_id,media_id:f.media_id,src:referenceSource(f),name:f.name,label:f.name,content_type:f.file?.type||'image/jpeg'}));
     referenceViewer=window.FirstMateMarkup.openPhotoViewer({photos,index:photos.findIndex(p=>p.media_id===entry.media_id),project:{title:(globalThis.PlatformLanguage?.text("firstmeasure","m_711bf09bbd2160","Exterior reference photos") ?? "Exterior reference photos")},boundsTarget:photoWorkspace?.querySelector('[data-reference-gallery]')||root?.querySelector('.ext-photo-grid'),embedded:!!photoWorkspace,projectLinkEnabled:false,
       onChange:({photo})=>{const key=photoKey(photo);if(key&&selectedPhoto!==key){selectedPhoto=key;render();}},
       onClose:()=>{referenceViewer=null;if(!closingViewer)renderPhotoWorkspace();}
@@ -176,7 +317,7 @@
     const right=document.querySelector('#rOverlay .r-preview-panel[data-panel="photos"]');if(!right)return;
     if(!photoWorkspace?.isConnected){
       photoWorkspace=document.createElement('section');photoWorkspace.className='ext-workspace';photoWorkspace.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("firstmeasure","m_1ca9bec888658a","Exterior upload photos") ?? "Exterior upload photos"));
-      photoWorkspace.innerHTML=`<div class="ext-workspace-gallery" data-reference-gallery></div><div class="ext-workspace-drop" hidden>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_acaf0eb128605e","Drop photos to upload") ?? "Drop photos to upload")}</div><input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden data-workspace-picker>`;
+      photoWorkspace.innerHTML=`<div class="ext-workspace-gallery" data-reference-gallery></div><div class="ext-workspace-drop" hidden>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_acaf0eb128605e","Drop photos to upload") ?? "Drop photos to upload")}</div><input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" multiple hidden data-workspace-picker>`;
       right.append(photoWorkspace);
       const input=photoWorkspace.querySelector('[data-workspace-picker]');
       photoWorkspace.addEventListener('click',e=>{if(e.target.closest('[data-unassigned-filter]')){workspaceFilter=workspaceFilter==='all'?'unassigned':'all';closeReferenceViewer();renderPhotoWorkspace();}});
@@ -195,7 +336,7 @@
     if(referenceViewer)return;
     const entries=[...files].filter(([key])=>workspaceFilter==='all'||key.startsWith('tray:'));
     if(!P.PhotoFeed?.mountProjectGallery){gallery.textContent=(globalThis.PlatformLanguage?.text("firstmeasure","m_42e91ae7dddc18","Loading Photos…") ?? "Loading Photos…");return;}
-    const photos=entries.map(([key,f])=>({id:f.media_id||key,media_id:f.media_id,src:referenceSource(f),thumb:referenceThumbnail(f),label:f.name,name:f.name,tags:[assignmentLabel(key)],uploaded_at:f.uploaded_at||new Date().toISOString(),uploaded_by_name:P.cfg.userName||window.__APP?.userName||'You',content_type:f.file?.type||'image/jpeg'}));
+    const photos=entries.map(([key,f])=>({id:f.media_id||key,media_id:f.media_id,src:referenceSource(f),thumb:referenceThumbnail(f),label:f.name,name:f.name,tags:[assignmentLabel(key)],uploaded_at:f.uploaded_at||new Date().toISOString(),uploaded_by_name:P.cfg.userName||window.__APP?.userName||'You',content_type:f.type||f.file?.type||(f.kind==='video'?'video/mp4':'image/jpeg')}));
     P.PhotoFeed.mountProjectGallery(gallery,{
       project:{id:'exterior-order',title:(globalThis.PlatformLanguage?.text("firstmeasure","m_8941c9a5445fb9","Exterior uploads") ?? "Exterior uploads")},photos,title:'',emptyTitle:workspaceFilter==='unassigned'?'All photos assigned':'Drag photos here',emptyMessage:files.size?'Upload project media or adjust the search.':'Drop your photos here, or use Upload to choose files.',uploadLabel:'Upload',initialDensity:'loose',selectionEnabled:false,enableProjectLinks:false,projectLinkEnabled:false,
       renderDaySummary:()=>{const uploading=[...files.values()].filter(f=>f.uploading).length;return `<span>${((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_cad1a6c79c9cf3",`${v0} photos`,{v0}) ?? `${v0} photos`)(files.size)}</span><span>${((v1) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_26bd8e451be239",`${v1} assigned`,{v1}) ?? `${v1} assigned`)(files.size-unassigned().length)}</span><span data-upload-summary role="status" ${uploading?'':'hidden'}>${((v3,v4) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_a69623abe7dd91",`Uploading ${v3} photo${v4}`,{v3,v4}) ?? `Uploading ${v3} photo${v4}`)(uploading,uploading===1?'':'s')}</span>`;},
@@ -233,6 +374,8 @@
   function assign(from,to){
     if(from===to){selectedPhoto=null;render();return;}
     const photo=files.get(from);if(!photo)return;
+    // A video can be the orbital video or supporting media, never one of the eight views.
+    if(photo.kind==='video'&&!to.includes(':additional')&&!isVideoKey(to))to=to.split(':')[0]+':video-'+crypto.randomUUID();
     const displaced=files.get(to);files.delete(from);files.set(to,photo);
     // Replacing a view never discards the previous photo: keep it in the tray.
     if(displaced)files.set('tray:'+crypto.randomUUID(),displaced);
@@ -246,7 +389,9 @@
   const active=()=>scope==='full_house' && ctx && allowed(ctx.type) && !ctx.ordered;
   const closed=()=>ctx?.closed===true||quote?.ordering_closed===true;
   const option=()=>quote?.options.find(o=>o.key===delivery);
-  const ready=()=>!!ctx?.count && Array.from({length:ctx.count},(_,i)=>views.every(v=>files.get(i+':'+v)?.media_id)).every(Boolean);
+  // A structure is covered by an orbital video, or by all eight views.
+  const structureReady=i=>orbitVideos(i).some(([,f])=>f.media_id)||views.every(v=>files.get(i+':'+v)?.media_id);
+  const ready=()=>!!ctx?.count && Array.from({length:ctx.count},(_,i)=>structureReady(i)).every(Boolean);
   // Single source of truth for whether a Full Structure order can be placed. Every order control
   // (desktop review button, mobile pager, generic submit) must agree with this, and the review
   // page shows the returned reason so a disabled order button is never unexplained.
@@ -257,12 +402,14 @@
     if(!pinsConfirmed())return 'Confirm the structure location on the map.';
     if(closed()&&delivery!=='exteriors_standard')return 'Expedited delivery is unavailable right now. Choose Standard delivery.';
     const inFlight=[...files.values()].filter(f=>f.encoding||f.uploading).length;
-    if(inFlight)return `Waiting for ${inFlight} photo${inFlight===1?'':'s'} to finish uploading.`;
-    const failed=[...files.values()].filter(f=>f.error).length;
-    if(failed)return `${failed} photo${failed===1?'':'s'} failed to upload. Retry or remove ${failed===1?'it':'them'} before ordering.`;
+    const noun=list=>list.some(f=>f.kind==='video')?(list.every(f=>f.kind==='video')?'video':'file'):'photo';
+    const flying=[...files.values()].filter(f=>f.encoding||f.uploading);
+    if(inFlight)return `Waiting for ${inFlight} ${noun(flying)}${inFlight===1?'':'s'} to finish uploading.`;
+    const broken=[...files.values()].filter(f=>f.error),failed=broken.length;
+    if(failed)return `${failed} ${noun(broken)}${failed===1?'':'s'} failed to upload. Retry or remove ${failed===1?'it':'them'} before ordering.`;
     const loose=unassigned().length;
     if(loose)return `Assign or remove ${loose} unassigned photo${loose===1?'':'s'} before ordering.`;
-    if(!ready())return 'Add all eight required views for each structure before ordering.';
+    if(!ready())return captureMode==='video'?'Add an orbital video of each structure before ordering.':'Add all eight required views for each structure before ordering.';
     return '';
   }
   const css=`
@@ -305,17 +452,87 @@
     @media(min-width:721px){.r-overlay.exteriors-photos .r-right{display:flex!important;min-height:0}}
     @media(max-width:720px){.r-overlay.exteriors-photos .r-win{overflow:auto;flex-direction:column}.r-overlay.exteriors-photos .r-overview-details{box-sizing:border-box;flex:0 0 auto!important;overflow:visible!important}.r-overlay.exteriors-photos .r-scroll{overflow:visible!important}.r-overlay.exteriors-photos .r-right{display:flex!important;flex:0 0 650px;min-height:650px;width:100%}.ext-workspace{padding:12px;gap:10px}.ext-workspace header{flex-wrap:wrap}.ext-workspace-assignment{flex-wrap:wrap}.ext-workspace-assignment>div{flex-basis:100%}.ext-workspace-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ext-workspace-card .ext-tool{width:100%}}
   `);
+  P.util.injectCSS('exterior-orbital-capture',`
+    @property --ext-sweep{syntax:'<angle>';inherits:false;initial-value:0deg}
+    .ext-orbit{position:relative;height:214px;display:grid;place-items:center;perspective:900px;overflow:hidden;border-radius:18px;background:radial-gradient(120% 90% at 50% 0,#f4f9f6 0,#e6f0ea 100%)}
+    .ext-orbit .ext-orbit-world{transform:translateY(-12px) rotateX(-27deg) rotateY(-32deg);scale:1.12;transition:none}
+    .ext-orbit-lawn{left:-90px;top:-62px;width:260px;height:260px;border-radius:50%;background:radial-gradient(closest-side,#d3e6d6 0,#d3e6d6 62%,#d3e6d600 100%);transform:translateY(1px) rotateX(90deg)}
+    .ext-orbit-ring,.ext-orbit-trail{left:-65px;top:-37px;width:210px;height:210px;border-radius:50%;box-sizing:border-box;transform:rotateX(90deg)}
+    .ext-orbit-ring{border:2px dashed #8fae9b}
+    .ext-orbit-trail{background:conic-gradient(from 180deg,#27734b00 calc(360deg - var(--ext-sweep)),#27734b 0);-webkit-mask:radial-gradient(closest-side,#0000 calc(100% - 5px),#000 calc(100% - 4px));mask:radial-gradient(closest-side,#0000 calc(100% - 5px),#000 calc(100% - 4px));animation:extOrbitSweep 10s linear infinite}
+    .ext-orbit .ext-path{width:58px;left:11px;top:140px;transform:rotateX(90deg);background:#aebdb8;font-size:8px;font-weight:700;letter-spacing:1.5px;height:16px;line-height:16px;border-radius:3px}
+    .ext-orbit-arm{left:40px;top:68px;width:0;height:0;transform-style:preserve-3d;animation:extOrbitArm 10s linear infinite}
+    .ext-orbit-arm,.ext-orbit-arm *{backface-visibility:visible}
+    .ext-orbit-cone{position:absolute;left:-34px;top:-36px;width:68px;height:72px;transform:translateY(-1px) translateZ(68px) rotateX(90deg);clip-path:polygon(50% 100%,0 0,100% 0);background:linear-gradient(to top,#27734b99,#27734b14)}
+    .ext-orbit-walker{position:absolute;left:0;top:0;width:0;height:0;transform:translateZ(105px);transform-style:preserve-3d}
+    .ext-orbit-bill{position:absolute;left:-9px;bottom:0;width:18px;height:32px;transform-origin:50% 100%;transform:rotateY(32deg) rotateX(27deg);animation:extOrbitBill 10s linear infinite}
+    .ext-orbit-bob{animation:extOrbitBob .5s ease-in-out infinite alternate}.ext-orbit-bob svg{display:block;overflow:visible;animation:extOrbitFace 10s step-end infinite}
+    .ext-orbit-leg{transform-box:fill-box;transform-origin:50% 0;animation:extOrbitStride .5s ease-in-out infinite alternate}.ext-orbit-leg+.ext-orbit-leg{animation-direction:alternate-reverse}
+    .ext-orbit-rec{position:absolute;left:12px;top:12px;z-index:2;display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#101828d9;color:#fff;font-size:11px;font-weight:800;letter-spacing:1px}
+    .ext-orbit-rec i{width:8px;height:8px;border-radius:50%;background:#f04438;animation:extOrbitBlink 1.1s steps(2,jump-none) infinite}
+    .ext-orbit-done{position:absolute;right:12px;top:12px;z-index:2;display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#27734b;color:#fff;font-size:11px;font-weight:700;opacity:0;animation:extOrbitDone 10s linear infinite}
+    .ext-orbit-dot{left:34px;top:62px;width:12px;height:12px;border-radius:50%;background:#27734b;box-shadow:0 0 0 3px #27734b33;transform:rotateY(var(--a)) translateZ(105px) rotateX(90deg);animation:extOrbitDot 4s linear infinite;animation-delay:calc(var(--i)*.5s - 4s)}
+    @keyframes extOrbitArm{0%{transform:rotateY(0deg)}88%,100%{transform:rotateY(360deg)}}
+    @keyframes extOrbitBill{0%{transform:rotateY(0deg) rotateY(32deg) rotateX(27deg)}88%,100%{transform:rotateY(-360deg) rotateY(32deg) rotateX(27deg)}}
+    @keyframes extOrbitSweep{0%{--ext-sweep:0deg}88%,100%{--ext-sweep:360deg}}
+    @keyframes extOrbitDone{0%,87%{opacity:0;translate:0 6px}90%,97%{opacity:1;translate:0 0}100%{opacity:0;translate:0 0}}
+    @keyframes extOrbitFace{0%{scale:1 1}7.8%{scale:-1 1}51.8%,100%{scale:1 1}}
+    @keyframes extOrbitBlink{50%{opacity:.2}}
+    @keyframes extOrbitBob{to{translate:0 -1.5px}}
+    @keyframes extOrbitStride{from{rotate:-20deg}to{rotate:20deg}}
+    @keyframes extOrbitDot{0%,10%{transform:rotateY(var(--a)) translateZ(105px) rotateX(90deg) scale(1.5);background:#e8b751;box-shadow:0 0 0 4px #e8b75155}22%,100%{transform:rotateY(var(--a)) translateZ(105px) rotateX(90deg) scale(1);background:#27734b;box-shadow:0 0 0 3px #27734b33}}
+    .ext-order .ext-orbit-intro{display:flex;flex-direction:column;gap:14px;font-size:14px;color:#344054}
+    .ext-order .ext-orbit-intro h3{font-size:23px;line-height:1.2;letter-spacing:-.6px;margin:0}
+    .ext-order .ext-orbit-intro>p{margin:0;font-size:14px;line-height:1.5;color:#475467}
+    .ext-order .ext-orbit-steps{margin:0;padding:0;list-style:none;display:grid;gap:10px;counter-reset:orbit}
+    .ext-order .ext-orbit-steps li{counter-increment:orbit;display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;align-items:start;font-size:13px;line-height:1.45;color:#475467}
+    .ext-order .ext-orbit-steps li::before{content:counter(orbit);width:26px;height:26px;border-radius:50%;background:#e2efe7;color:#27734b;font-weight:800;font-size:12px;display:grid;place-items:center}
+    .ext-order .ext-orbit-steps b{color:#1d2939}
+    .ext-orbit-actions{display:grid;gap:8px}
+    .ext-order .ext-orbit-primary,.ext-order .ext-orbit-secondary{min-height:50px;border-radius:14px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px}
+    .ext-order .ext-orbit-primary{border:0;background:#27734b;color:#fff}.ext-order .ext-orbit-primary:active{transform:scale(.98)}
+    .ext-order .ext-orbit-secondary{border:1px solid #c5d5cb;background:#fff;color:#245e41;font-weight:600;min-height:46px}
+    .ext-order .ext-orbit-switch{display:block;margin:4px auto 0;border:0;background:none;color:#475467;font:inherit;font-size:13px;text-decoration:underline;text-underline-offset:3px;padding:10px;cursor:pointer;min-height:44px}
+    .ext-order .ext-photo-warning{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start;margin:0;padding:12px;border:1px solid #e6c778;border-radius:12px;background:#fffaeb;color:#754b0d;font-size:13px;line-height:1.45}.ext-photo-warning>i{margin-top:2px}
+    .ext-order .ext-summary-guide>.ext-photo-warning{margin:16px 0 4px}
+    .ext-order .ext-video-hint{font-size:13px;line-height:1.45;color:#667085;margin:0 0 4px}
+    .ext-video-summary .ext-orbit-intro{margin-bottom:20px}.ext-video-summary .ext-summary-group h4 button{margin-left:14px}
+    .ext-capture-heading .ext-rec-guide{overflow:hidden}.ext-capture-heading .ext-rec-guide .ext-orbit{width:104px;height:98px;background:none;border-radius:0}
+    .ext-capture-heading .ext-rec-guide .ext-orbit-world{scale:.37;transform:translateY(-30px) rotateX(-27deg) rotateY(-32deg)}
+    .ext-rec-guide .ext-orbit-rec,.ext-rec-guide .ext-orbit-done{display:none}
+    .ext-rec:not(.recording) .ext-rec-guide *{animation-play-state:paused}
+    .ext-rec .ext-rec-shutter{background:#fff;outline-color:#d92d20;display:grid;place-items:center;padding:0}
+    .ext-rec-shutter i{display:block;width:30px;height:30px;border-radius:50%;background:#d92d20;transition:width .18s,height .18s,border-radius .18s}
+    .ext-rec.recording .ext-rec-shutter i,.ext-rec.paused .ext-rec-shutter i{width:20px;height:20px;border-radius:5px}
+    .ext-rec-badge{position:absolute;top:12px;left:12px;z-index:3;display:flex;align-items:center;gap:7px;padding:6px 11px;border-radius:999px;background:#101828d9;color:#fff;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}.ext-rec-badge[hidden]{display:none}
+    .ext-rec-badge i{width:9px;height:9px;border-radius:50%;background:#f04438;animation:extOrbitBlink 1.1s steps(2,jump-none) infinite}
+    .ext-rec.paused .ext-rec-badge i{animation:none;border-radius:2px;background:#fdb022}
+    .ext-rec-hint{position:absolute;top:12px;left:12px;right:12px;z-index:2;padding:8px 12px;border-radius:12px;background:#101828b8;color:#fff;font-size:12px;line-height:1.4;text-align:center;pointer-events:none}.ext-rec-hint:empty{display:none}
+    .ext-rec [data-rec-forward].is-hidden{visibility:hidden}
+    .ext-thumb-video{position:absolute;left:4px;bottom:4px;display:flex;align-items:center;gap:4px;padding:2px 6px;border-radius:999px;background:#101828cc;color:#fff;font-size:10px;font-weight:700;line-height:1.4;pointer-events:none}.ext-thumb-video[hidden]{display:none}.ext-thumb-video i{font-size:8px}
+    .ext-thumb-busy [data-upload-progress]{position:absolute;left:0;right:0;bottom:5px;text-align:center;color:#fff;font-size:10px;font-weight:700}
+    .ext-photo-tile.is-video.uploading .ext-thumb-video{display:none}
+    .ext-review-videos{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px}.ext-review-video{position:relative;flex:0 0 104px;height:78px;border-radius:10px;overflow:hidden;background:#1d2925}.ext-review-video img{width:100%;height:100%;object-fit:cover;display:block}.ext-review-video span{position:absolute;left:5px;bottom:5px;display:flex;align-items:center;gap:5px;padding:2px 7px;border-radius:999px;background:#101828cc;color:#fff;font-size:10px;font-weight:700}.ext-review-video span i{font-size:8px}
+    .ext-video-preview{position:fixed;inset:0;z-index:100002;display:grid;place-items:center;padding:16px;background:#0b1210f2}.ext-video-preview video{max-width:100%;max-height:calc(100dvh - 32px);border-radius:12px;background:#000}.ext-video-preview button{position:absolute;top:max(14px,env(safe-area-inset-top,0px));right:14px;width:40px;height:40px;border:0;border-radius:50%;background:#fff;color:#1d2939;font-size:22px;line-height:1;cursor:pointer}
+    @media(min-width:721px){.ext-order .ext-extra-drop{min-height:120px}.ext-order .ext-summary-tiles{grid-template-columns:repeat(auto-fill,minmax(76px,1fr))}}
+    @media(prefers-reduced-motion:reduce){.ext-orbit *,.ext-orbit-rec i,.ext-rec-badge i{animation:none!important}.ext-orbit-arm{transform:rotateY(55deg)}.ext-orbit-bill{transform:rotateY(-55deg) rotateY(32deg) rotateX(27deg)}.ext-orbit-bob svg{scale:-1 1}.ext-orbit-trail{--ext-sweep:55deg}}
+  `);
   function reset(){resetGuide();removePhotoWorkspace();workspaceSuspended=false;workspaceFilter='all';document.getElementById('rScopeSelect')?.remove();restoreShared();shared.clear();selectedPhoto=null;structure=0;confirmedPins=null;pinSignature='';mapOpen=false;document.getElementById('rOverlay')?.classList.remove('exteriors-map','exteriors-details');document.getElementById('extMapReturn')?.remove();generation++;for(const f of files.values())if(f.url)URL.revokeObjectURL(f.url);files.clear();scope=null;page=0;quote=null;delivery='exteriors_standard';busy=false;error='';notes='';lastType='';lastCount=0;root?.remove();root=null;}
   async function load(){const gen=generation;try{const {data}=await P.util.postAction('exteriors_quote',{project_type:ctx.type,structure_count:Math.max(1,ctx.count)});if(gen!==generation)return;if(!data?.success)throw Error(data?.message||data?.error||'Could not load prices.');quote=data;error='';}catch(e){if(gen!==generation)return;error=e.message;}render();}
   function reviewPhotosUI(){
     const layout=['back-left','back','back-right','left',null,'right','front-left','front','front-right'];
     const uploaded=[...files].filter(([k,f])=>!k.startsWith('tray:')&&f.media_id);
-    const primary=uploaded.filter(([k])=>!k.includes(':additional')).length;
-    return `<section class="ext-review-section ext-summary-guide" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_be4cfb58b9c4d7","Photos") ?? "Photos")}">${Array.from({length:ctx.count},(_,i)=>`${ctx.count>1?`<h4>${((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_3f912aeb9ec149",`House ${v0}`,{v0}) ?? `House ${v0}`)(i+1)}</h4>`:''}<div class="ext-photo-grid">${layout.map(v=>{if(!v)return `<div class="ext-house">${houseModel()}</div>`;const f=files.get(i+':'+v);return `<div class="ext-view ext-review-view ${f?'has-photo':''} ${f?.media_id?'done':''}">${f?`<img src="${esc(referenceThumbnail(f))}" alt="${((v1,v2) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_31a44c7d4ec28e",`House ${v1}, ${v2}`,{v1,v2}) ?? `House ${v1}, ${v2}`)(i+1,esc(label(v)))}">`:''}<span class="ext-caption">${label(v)}</span></div>`;}).join('')}</div>`).join('')}<div class="ext-summary"><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_bf0345adc5299e","Required angles") ?? "Required angles")}</span><strong>${primary} / ${ctx.count*8}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_02b18934a68584","Additional photos") ?? "Additional photos")}</span><strong>${uploaded.length-primary}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_8411c93e5b0adf","Total photos") ?? "Total photos")}</span><strong>${uploaded.length}</strong></div></div></section>`;
+    const videos=uploaded.filter(([k])=>isVideoKey(k)).length,primary=uploaded.filter(([k])=>!k.includes(':additional')&&!isVideoKey(k)).length;
+    // A structure covered by video shows its segments; the eight-view grid appears only where photos are in play.
+    const showsGrid=i=>!orbitVideos(i).some(([,f])=>f.media_id)||views.some(v=>files.has(i+':'+v));
+    const gridCount=Array.from({length:ctx.count},(_,i)=>showsGrid(i)).filter(Boolean).length;
+    const strip=i=>{const takes=orbitVideos(i).filter(([,f])=>f.media_id);return takes.length?`<div class="ext-review-videos" aria-label="Orbital video">${takes.map(([,f])=>`<div class="ext-review-video"><img src="${esc(referenceThumbnail(f))}" alt=""><span><i class="fas fa-play" aria-hidden="true"></i>${f.duration?clock(f.duration*1000):'Video'}</span></div>`).join('')}</div>`:'';};
+    return `<section class="ext-review-section ext-summary-guide" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_be4cfb58b9c4d7","Photos") ?? "Photos")}">${Array.from({length:ctx.count},(_,i)=>`${ctx.count>1?`<h4>${((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_3f912aeb9ec149",`House ${v0}`,{v0}) ?? `House ${v0}`)(i+1)}</h4>`:''}${strip(i)}${!showsGrid(i)?'':`<div class="ext-photo-grid">${layout.map(v=>{if(!v)return `<div class="ext-house">${houseModel()}</div>`;const f=files.get(i+':'+v);return `<div class="ext-view ext-review-view ${f?'has-photo':''} ${f?.media_id?'done':''}">${f?`<img src="${esc(referenceThumbnail(f))}" alt="${((v1,v2) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_31a44c7d4ec28e",`House ${v1}, ${v2}`,{v1,v2}) ?? `House ${v1}, ${v2}`)(i+1,esc(label(v)))}">`:''}<span class="ext-caption">${label(v)}</span></div>`;}).join('')}</div>`}`).join('')}<div class="ext-summary">${videos?`<div><span>Orbital video</span><strong>${videos} segment${videos===1?'':'s'}</strong></div>`:''}${gridCount?`<div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_bf0345adc5299e","Required angles") ?? "Required angles")}</span><strong>${primary} / ${gridCount*8}</strong></div>`:''}<div><span>Additional photos and videos</span><strong>${uploaded.length-primary-videos}</strong></div><div><span>Total files</span><strong>${uploaded.length}</strong></div></div></section>`;
   }
   function photoUI(){
-    if(ctx.mobileOrder&&!photoSummary)return '<div data-guide-mount></div>';
     structure=Math.max(0,Math.min(structure,ctx.count-1));
+    if(ctx.mobileOrder&&!photoSummary)return cameraStage()?'<div data-guide-mount></div>':captureMode==='video'?videoIntroUI():photoIntroUI();
+    if(captureMode==='video')return videoSummaryUI();
     const count=views.filter(v=>files.get(structure+':'+v)?.media_id).length;
     const order=['back-left','back','back-right','left',null,'right','front-left','front','front-right'];
     const selection=selectedPhoto&&files.get(selectedPhoto);
@@ -325,22 +542,30 @@
     const key=structure+':'+v,f=files.get(key);return `<div class="ext-view ${f?'has-photo':''} ${f?.media_id?'done':''} ${selectedPhoto===key?'selected':''}"><button type="button" data-view="${key}" aria-label="${((v4,v5) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_7665c7cfa6ea36",`${v4} ${v5} photo`,{v4,v5}) ?? `${v4} ${v5} photo`)(f?'Select':'Upload',label(v))}" aria-pressed="${selectedPhoto===key}">${f&&referenceThumbnail(f)?`<img src="${esc(referenceThumbnail(f))}" alt="">`:!f?'<span class="ext-plus" aria-hidden="true">＋</span>':''}<span class="ext-caption">${label(v)}${f?`<br>${f.uploading?'Uploading…':f.error?'Retry upload':f.media_id?'✓':''}`:''}</span></button>${f?`<button type="button" class="ext-remove" data-remove="${key}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_94fef39d56d52f",`Remove ${v1} photo`,{v1}) ?? `Remove ${v1} photo`)(label(v))}">×</button>`:''}</div>`;}).join(''))}</div><div class="ext-street">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0978cf3656f92e","FRONT OF HOUSE · STREET") ?? "FRONT OF HOUSE · STREET")}</div>
 
 `;
-    if(!ctx.mobileOrder)return grid;
+    const fallbackNote=`<p class="ext-photo-warning"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span>${PHOTO_RISK}</span></p><button type="button" class="ext-orbit-switch" data-mode="video">Have a video? Switch to orbital video (recommended)</button>`;
+    if(!ctx.mobileOrder)return grid+`<section class="ext-summary-guide">${extrasUI()}${fallbackNote}</section>`;
     const overview=grid.slice(grid.indexOf('<div class="ext-toolbar">')).replace(/<div class="ext-count">[\s\S]*?<\/div>/,'').replace(/<div class="ext-house">[\s\S]*?<\/div>/,`<div class="ext-house">${houseModel()}</div>`);
-    const group=(key,title)=>`<section class="ext-summary-group"><h4>${esc(title)}${key?`<button type="button" data-view="${key}">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_cb96f1b0af21d8","Add photos") ?? "Add photos")}</button>`:''}</h4><div class="ext-summary-tiles" data-summary-tiles="${key}" aria-label="${((v3) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_5802bbe967d5c6",`${v3} photos`,{v3}) ?? `${v3} photos`)(esc(title))}"></div></section>`;
-    return `<section class="ext-summary-guide"><div class="ext-photo-extras"><button type="button" class="ext-extra-drop" data-extra-upload><i class="fas fa-cloud-arrow-up" aria-hidden="true"></i><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_02b18934a68584","Additional photos") ?? "Additional photos")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_84b311b1332f3c","Tap to upload") ?? "Tap to upload")}</span></button></div>${group('','Additional photos')}${overview}${Array.from({length:ctx.count},(_,i)=>`${ctx.count>1?`<h3>${((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_3f912aeb9ec149",`House ${v0}`,{v0}) ?? `House ${v0}`)(i+1)}</h3>`:''}${views.map(v=>group(i+':'+v,label(v))).join('')}`).join('')}</section>`;
+    return `<section class="ext-summary-guide">${extrasUI()}${overview}${Array.from({length:ctx.count},(_,i)=>`${ctx.count>1?`<h3>${((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_3f912aeb9ec149",`House ${v0}`,{v0}) ?? `House ${v0}`)(i+1)}</h3>`:''}${views.map(v=>summaryGroup(i+':'+v,label(v))).join('')}`).join('')}${fallbackNote}</section>`;
   }
   function mountSummaryTiles(){
     root.querySelectorAll('[data-summary-tiles]').forEach(grid=>{
       const key=grid.dataset.summaryTiles,photos=key?anglePhotos(key):[...files].filter(([k,f])=>k.startsWith('tray:')||(k.includes(':additional')&&!f.angleKey));
       mountPhotoTiles(grid,photos,key,key?key.split(':')[1]:'additional');
-      if(!photos.length){const empty=document.createElement('p');empty.className='ext-summary-empty';empty.textContent=key?'No photos yet':'No additional photos';grid.after(empty);}
+      if(!photos.length){const empty=document.createElement('p');empty.className='ext-summary-empty';empty.textContent=key?'No photos yet':'Nothing added yet';grid.after(empty);}
+    });
+    root.querySelectorAll('[data-video-tiles]').forEach(grid=>{
+      const takes=orbitVideos(Number(grid.dataset.videoTiles));mountPhotoTiles(grid,takes,'','video');
+      if(!takes.length){const empty=document.createElement('p');empty.className='ext-summary-empty';empty.textContent='No video yet';grid.after(empty);}
     });
   }
   let photoToast=null,photoToastTimer=null;
   function explainMissingPhotos(){
-    const missing=Array.from({length:ctx.count},(_,i)=>views.filter(v=>!files.has(i+':'+v)).length).reduce((a,b)=>a+b,0);
-    const message=missing?`Missing ${missing} angle${missing===1?'':'s'}. Please add photos for the missing angles.`:[...files.values()].some(f=>f.error)?'Some photos could not upload. Retry or remove them.':unassigned().length?'Some photos need an angle. Assign them before continuing.':'Your photos are still uploading. Please wait a moment.';
+    const open=Array.from({length:ctx.count},(_,i)=>i).filter(i=>!structureReady(i)&&!orbitVideos(i).length);
+    const missing=captureMode==='video'?0:open.map(i=>views.filter(v=>!files.has(i+':'+v)).length).reduce((a,b)=>a+b,0);
+    const message=captureMode==='video'&&open.length?(ctx.count>1?`Add an orbital video for House ${open[0]+1} to continue.`:'Add an orbital video of the house to continue.'):missing?`Missing ${missing} angle${missing===1?'':'s'}. Please add photos for the missing angles.`:[...files.values()].some(f=>f.error)?'Some photos could not upload. Retry or remove them.':unassigned().length?'Some photos need an angle. Assign them before continuing.':'Your uploads are still finishing. Please wait a moment.';
+    showToast(message);
+  }
+  function showToast(message){
     photoToast?.remove();clearTimeout(photoToastTimer);photoToast=document.createElement('div');photoToast.className='ext-photo-toast';photoToast.setAttribute('role','status');photoToast.setAttribute('aria-live','polite');document.body.append(photoToast);photoToast.textContent=message;
     if(!reduceCaptureMotion())photoToast.animate([{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'translateY(0)'}],{duration:220,easing:'ease-out'});
     photoToastTimer=setTimeout(()=>{photoToast?.remove();photoToast=null;},4200);
@@ -363,20 +588,20 @@
     const q=option();
     let body='';
     if(active()){
-      body=`<div class="ext-progress">${['Order','Photos','Review'].map((s,i)=>`<button type="button" data-page="${i}" ${i===page?'aria-current="step"':''} ${!canVisit(i)?'disabled':''}>${i+1}. ${s}</button>`).join('')}</div>`;
+      body=`<div class="ext-progress">${['Order','Capture','Review'].map((s,i)=>`<button type="button" data-page="${i}" ${i===page?'aria-current="step"':''} ${!canVisit(i)?'disabled':''}>${i+1}. ${s}</button>`).join('')}</div>`;
       if(page===0)body+=`<div class="ext-shared-pins" data-pin-mount></div><button type="button" class="ext-tool ext-map-edit" data-edit-map><i class="fas fa-map-location-dot" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_cf9f938683d5b6"," Place pins on map") ?? " Place pins on map")}</button><div data-confirm-mount></div><div ${String(!pinsConfirmed()?'hidden':'')}><div data-notes-mount></div><div data-cc-mount></div><div class="ext-delivery-heading"><h3>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_b73185deef6d79","Delivery") ?? "Delivery")}</h3><button type="button" class="ext-info" data-details="full_house" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_32e960bf81552c","Full Structure report information") ?? "Full Structure report information")}"><i class="fas fa-circle-info" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_76a7f763084e05"," What’s included") ?? " What’s included")}</button></div>${String(quote?`<div class="r-expedite-panel visible ${closed()?'is-closed':''}"><div class="r-expedite-wait"><div class="r-expedite-default-head"><div class="r-expedite-status"><strong>${esc(quote.busy_label||'Current delivery estimate')}</strong><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_484b63459c1357","Estimated wait time right now") ?? "Estimated wait time right now")}</span></div><div class="r-expedite-eta">${((v2) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_7b8bab306cc5c2",`${v2} hr estimate`,{v2}) ?? `${v2} hr estimate`)(Math.round(quote.estimated_wait_minutes/60))}</div></div><div class="r-expedite-bar" style="--wait-position:${Math.max(0,Math.min(98,(quote.estimated_wait_minutes/60-18)/6*98))}%"><span class="r-expedite-marker" aria-hidden="true"></span></div><div class="r-expedite-bar-labels"><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1d63663ae56e2a","18 hrs") ?? "18 hrs")}</span><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_e731322b674a97","24 hrs") ?? "24 hrs")}</span></div></div><div class="r-expedite-options">${quote.options.map(o=>`<button type="button" class="r-expedite-btn ${o.key==='exteriors_standard'?'r-expedite-default':''} ${o.key===delivery?'selected':''}" data-delivery="${o.key}" aria-pressed="${o.key===delivery}" ${o.key!=='exteriors_standard'&&closed()?'disabled':''}><span class="r-expedite-copy"><span class="r-expedite-name">${esc(o.label)}</span>${o.key!=='exteriors_standard'?`<span class="r-expedite-pill">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_b51f2220e8185c","Expedited") ?? "Expedited")}</span>`:''}</span><span class="r-expedite-price">${o.key!=='exteriors_standard'?'+':''}${money(o.key==='exteriors_standard'?o.unit_price:o.fee)}</span></button>`).join('')}</div><p class="ext-price-unit">${((v5,v6) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_e7f79de4539e22",`${v5} per structure + selected delivery fee${v6}`,{v5,v6}) ?? `${v5} per structure + selected delivery fee${v6}`)(money(quote.base_price),closed()?' · Expediting unavailable while closed':'')}</p></div>`:`<p>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_29ee01b139b644","Loading prices…") ?? "Loading prices…")}</p>`)}</div>`;
       if(page===1)body+=photoUI();
       if(page===2){
         const customers=(ctx.getContacts?.()||[]).filter(contact=>contact.name||contact.email||contact.phone);
         const customerText=customers.map(contact=>[contact.name,contact.email,contact.phone].filter(Boolean).join(' · ')).join('; ');
         const internalNotes=ctx.getInternalNotes?.()||'';
-        body+=`<h3>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","review_full_structural_report","Review your full structural report") ?? "Review your full structural report")}</h3>${reviewPhotosUI()}<section class="ext-review-section" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_3fd6a5025f8036","Report details") ?? "Report details")}"><div class="ext-summary"><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_f27fa22720bb9a","Property") ?? "Property")}</span><strong>${esc(ctx.getAddress?.()||'')}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_dccbe8abe35b17","Property type") ?? "Property type")}</span><strong>${esc(ctx.getTypeLabel?.()||ctx.type||'')}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_ae8e4953e07d70","Customer") ?? "Customer")}</span><strong>${esc(customerText||'—')}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_4169276a19a978","Structures") ?? "Structures")}</span><strong>${String(ctx.count)}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_b73185deef6d79","Delivery") ?? "Delivery")}</span><strong>${String(esc(q?.label||''))}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_55b0bb36ef9924","Base / structure") ?? "Base / structure")}</span><strong>${String(money(quote?.base_price))}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_2dcc431639f55d","Expediting / structure") ?? "Expediting / structure")}</span><strong>${String(money(q?.fee))}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_ecc15b597e6d14","Includes") ?? "Includes")}</span><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_65d8712cd3229f","Roof, walls, windows,") ?? "Roof, walls, windows,")}<br>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_649ceb7c3b77e9","doors + gutters") ?? "doors + gutters")}</strong></div><div class="total"><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_9403c7637d4905","Total") ?? "Total")}</strong><strong>${String(money(q?.amount))}</strong></div></div>${String((ctx.getNotes?.()||notes)?`<p><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0f0032d7c26618","Notes for Technician") ?? "Notes for Technician")}</strong><br>${esc(ctx.getNotes?.()||notes)}</p>`:'')}${String(ctx.getCc?.().length?`<p><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0b730c79a5c5eb","CC for Reports") ?? "CC for Reports")}</strong><br>${esc(ctx.getCc().join(', '))}</p>`:'')}${String(internalNotes?`<p><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_bc21fa8a42be31","Internal Notes") ?? "Internal Notes")}</strong><br>${esc(internalNotes)}</p>`:'')}${String(!ready()?`<p class="ext-test-notice">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_100206f83a1d97","Test preview only. Add all eight views per structure before placing an order.") ?? "Test preview only. Add all eight views per structure before placing an order.")}</p>`:'')}</section><p>${String(closed()?'Reports placed now will be processed first thing tomorrow morning.':'Delivery timing starts when your order is submitted.')}</p>`;
+        body+=`<h3>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","review_full_structural_report","Review your full structural report") ?? "Review your full structural report")}</h3>${reviewPhotosUI()}<section class="ext-review-section" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_3fd6a5025f8036","Report details") ?? "Report details")}"><div class="ext-summary"><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_f27fa22720bb9a","Property") ?? "Property")}</span><strong>${esc(ctx.getAddress?.()||'')}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_dccbe8abe35b17","Property type") ?? "Property type")}</span><strong>${esc(ctx.getTypeLabel?.()||ctx.type||'')}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_ae8e4953e07d70","Customer") ?? "Customer")}</span><strong>${esc(customerText||'—')}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_4169276a19a978","Structures") ?? "Structures")}</span><strong>${String(ctx.count)}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_b73185deef6d79","Delivery") ?? "Delivery")}</span><strong>${String(esc(q?.label||''))}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_55b0bb36ef9924","Base / structure") ?? "Base / structure")}</span><strong>${String(money(quote?.base_price))}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_2dcc431639f55d","Expediting / structure") ?? "Expediting / structure")}</span><strong>${String(money(q?.fee))}</strong></div><div><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_ecc15b597e6d14","Includes") ?? "Includes")}</span><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_65d8712cd3229f","Roof, walls, windows,") ?? "Roof, walls, windows,")}<br>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_649ceb7c3b77e9","doors + gutters") ?? "doors + gutters")}</strong></div><div class="total"><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_9403c7637d4905","Total") ?? "Total")}</strong><strong>${String(money(q?.amount))}</strong></div></div>${String((ctx.getNotes?.()||notes)?`<p><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0f0032d7c26618","Notes for Technician") ?? "Notes for Technician")}</strong><br>${esc(ctx.getNotes?.()||notes)}</p>`:'')}${String(ctx.getCc?.().length?`<p><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0b730c79a5c5eb","CC for Reports") ?? "CC for Reports")}</strong><br>${esc(ctx.getCc().join(', '))}</p>`:'')}${String(internalNotes?`<p><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_bc21fa8a42be31","Internal Notes") ?? "Internal Notes")}</strong><br>${esc(internalNotes)}</p>`:'')}${String(!ready()?`<p class="ext-test-notice">${captureMode==='video'?'Test preview only. Add an orbital video of each structure before placing an order.':(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_100206f83a1d97","Test preview only. Add all eight views per structure before placing an order.") ?? "Test preview only. Add all eight views per structure before placing an order.")}</p>`:'')}</section><p>${String(closed()?'Reports placed now will be processed first thing tomorrow morning.':'Delivery timing starts when your order is submitted.')}</p>`;
       }
       const blocker=page===2&&ready()?orderBlocker():'';
       if(blocker)body+=`<p class="ext-order-blocker ext-test-notice" role="status" data-order-blocker>${esc(blocker)}</p>`;
-      body+=`<div class="ext-nav">${page?`<button type="button" data-back>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_121372231b5699","Back") ?? "Back")}</button>`:''}<button type="button" class="primary" data-next ${busy||!!error||!quote||!pinsConfirmed()||(page===1&&!photosReviewable())||(page===2&&!!orderBlocker())?'disabled':''}>${busy?'Please wait…':page===2?'Order Full Structure · '+money(q?.amount):page===0?'Continue to photos →':'Review order →'}</button></div>`;
+      body+=`<div class="ext-nav">${page?`<button type="button" data-back>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_121372231b5699","Back") ?? "Back")}</button>`:''}<button type="button" class="primary" data-next ${busy||!!error||!quote||!pinsConfirmed()||(page===1&&!photosReviewable())||(page===2&&!!orderBlocker())?'disabled':''}>${busy?'Please wait…':page===2?'Order Full Structure · '+money(q?.amount):page===0?'Continue to capture →':'Review order →'}</button></div>`;
     }
-    guideNode?.remove();
+    guideNode?.remove();recNode?.remove();
     root.innerHTML=`<div class="ext-choices ${scope?'compact':''}">${[['roof','Roof Only','fa-house-chimney'],['full_house','Full Structure','fa-house']].map(([key,title,icon])=>`<div class="ext-choice-wrap"><button type="button" class="ext-choice ${String(scope===key?'selected':'')}" data-scope="${String(key)}" data-addon-info="${String(key)}" aria-pressed="${String(scope===key)}"><strong>${String(scopeIcon(key))} ${String(title)}</strong></button><button type="button" class="ext-choice-info r-info-tip" data-details="${String(key)}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_79e68d505c1bac",`${v7} report information`,{v7}) ?? `${v7} report information`)(title)}"><i class="fas fa-info" aria-hidden="true"></i></button></div>`).join('')}</div><div class="ext-pages">${body}</div>${error?`<p class="ext-error" role="alert">${esc(error)} <button type="button" ${!quote?'data-reload':'data-dismiss-error'}>${!quote?'Retry':'Dismiss'}</button></p>`:''}`;
     if(active()&&page===0){mountShared('rPinInfo','[data-pin-mount]');if(!mobileOrder)mountShared('rMobilePinStage','[data-confirm-mount]');mountShared('rTechNotes','[data-notes-mount]',true);mountShared('rCcList','[data-cc-mount]',true);}
     root.querySelectorAll('[data-details]').forEach(b=>{b.onclick=e=>{e.stopPropagation();ctx.showInfo?.(b.dataset.details);};});
@@ -430,41 +655,81 @@
       button.ondragleave=()=>button.closest('.ext-view,.ext-summary-group').classList.remove('drop-target');
       button.ondrop=e=>{const from=e.dataTransfer?.getData('application/x-exterior-reference');if(!files.has(from))return;e.preventDefault();e.stopPropagation();assign(from,button.dataset.view);};
     });
-    const guiding=mobileOrder&&active()&&page===1&&!photoSummary&&!workspaceSuspended;
+    const guiding=mobileOrder&&active()&&page===1&&!photoSummary&&!workspaceSuspended&&cameraStage();
     overlay?.classList.toggle('ext-guiding',guiding);
-    if(guiding)mountGuide();else stopCamera();
-    if(mobileOrder&&page===1&&photoSummary)mountSummaryTiles();
+    if(guiding){if(captureMode==='video')mountRecorder();else mountGuide();}else stopCamera();
+    if(active()&&page===1)mountSummaryTiles();
+    root.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>switchMode(b.dataset.mode));
+    root.querySelector('[data-video-start]')?.addEventListener('click',()=>{videoStage='record';render();});
+    root.querySelector('[data-video-upload]')?.addEventListener('click',()=>pickVideo(structure));
+    root.querySelector('[data-video-review]')?.addEventListener('click',()=>finishGuide());
+    root.querySelector('[data-photos-start]')?.addEventListener('click',()=>{photoIntroSeen=true;render();});
+    root.querySelectorAll('[data-video-add]').forEach(b=>b.onclick=()=>pickVideo(Number(b.dataset.videoAdd)));
+    root.querySelectorAll('[data-video-record]').forEach(b=>b.onclick=()=>{structure=Number(b.dataset.videoRecord);photoSummary=false;videoStage='record';render();});
     root.querySelector('[data-extra-upload]')?.addEventListener('click',()=>pickGuided(null));
     const extraDrop=root.querySelector('[data-extra-upload]');
     if(extraDrop){extraDrop.ondragover=e=>{if(isFileDrag(e)){e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect='copy';}};extraDrop.ondrop=e=>{if(!isFileDrag(e))return;e.preventDefault();e.stopPropagation();clearDrag();for(const file of Array.from(e.dataTransfer.files))void upload(file,structure+':additional-'+crypto.randomUUID(),true);};}
     renderPhotoWorkspace();
     if(mobileOrder)ctx.updateMobilePager?.();
   }
-  async function upload(file,key,keepAngle=false){if(!file)return;if(file.size>8*1024*1024||!/^image\/(jpeg|png|webp)$/.test(file.type)){error='Use JPG, PNG or WebP photos up to 8 MB.';render();return;}
-    if(files.size>=100){error='You can upload up to 100 photos per order.';render();return;}
+  async function upload(file,key,keepAngle=false){if(!file)return;const video=isVideoFile(file);
+    if(video?file.size>VIDEO_MAX_BYTES:(file.size>8*1024*1024||!/^image\/(jpeg|png|webp)$/.test(file.type))){error=video?'Videos can be up to 120 MB each. Record the circle in shorter segments and upload them separately.':'Use JPG, PNG or WebP photos up to 8 MB, or MP4, MOV or WebM videos.';render();return;}
+    if(files.size>=100){error='You can upload up to 100 files per order.';render();return;}
+    // Videos never fill an angle slot; while ordering by video, loose photos are supporting media.
+    const house=/^\d+:/.test(key)?key.split(':')[0]:structure;
+    if(video){if(!isVideoKey(key)&&!key.includes(':additional'))key=house+(captureMode==='video'?':video-':':additional-')+crypto.randomUUID();}
+    else if(isVideoKey(key)){error='Choose a video file (MP4, MOV or WebM).';render();return;}
+    else if(captureMode==='video'&&key.startsWith('tray:'))key=house+':additional-'+crypto.randomUUID();
     const old=files.get(key);if(old){if(keepAngle){old.angleKey=key;files.set(key.split(':')[0]+':additional-'+crypto.randomUUID(),old);}else files.set('tray:'+crypto.randomUUID(),old);}
-    const entry={name:file.name,url:URL.createObjectURL(file),file,sequence:++captureSequence,uploaded_at:new Date().toISOString()};files.set(key,entry);if(!selectedPhoto&&key.startsWith('tray:'))selectedPhoto=key;error='';await send(entry);
+    const entry={name:file.name,url:URL.createObjectURL(file),file,...(video?{kind:'video',type:file.type||'video/mp4'}:{}),sequence:++captureSequence,uploaded_at:new Date().toISOString()};files.set(key,entry);if(!selectedPhoto&&key.startsWith('tray:'))selectedPhoto=key;error='';if(video)videoThumb(entry);await send(entry);
   }
   async function send(entry){if(!entry?.file||entry.uploading)return;entry.uploading=true;entry.error='';render();
     if(uploadsInFlight>=3)await new Promise(resolve=>uploadWaiters.push(resolve));
     uploadsInFlight++;
-    try{if(![...files.values()].includes(entry))return;const fd=new FormData();fd.append('action','exteriors_upload');fd.append('project_type',ctx.type);fd.append('reference',entry.file);const csrfName=(P.cfg.platformSessionCookieName||'fm_platform_session')+'_csrf';const csrf=document.cookie.split('; ').find(s=>s.startsWith(csrfName+'='))?.slice(csrfName.length+1);const response=await fetch(P.cfg.serverEndpoint,{method:'POST',body:fd,credentials:'include',headers:csrf?{'X-Platform-CSRF':decodeURIComponent(csrf)}:{}});const data=await response.json();if(!response.ok||!data.success)throw Error(data.message||data.error||'Upload failed. Try again.');if([...files.values()].includes(entry))entry.media_id=data.media_id;}catch(e){if([...files.values()].includes(entry))entry.error=e.message;}finally{uploadsInFlight--;uploadWaiters.shift()?.();entry.uploading=false;if([...files.values()].includes(entry))render();}}
+    try{if(![...files.values()].includes(entry))return;const fd=new FormData();fd.append('action','exteriors_upload');fd.append('project_type',ctx.type);fd.append('reference',entry.file);const csrfName=(P.cfg.platformSessionCookieName||'fm_platform_session')+'_csrf';const csrf=document.cookie.split('; ').find(s=>s.startsWith(csrfName+'='))?.slice(csrfName.length+1);const headers=csrf?{'X-Platform-CSRF':decodeURIComponent(csrf)}:{};entry.progress=0;
+      // Videos are large enough to need a visible percentage, which fetch cannot report.
+      const {ok,data}=entry.kind==='video'&&typeof XMLHttpRequest==='function'?await sendWithProgress(fd,headers,entry):await fetch(P.cfg.serverEndpoint,{method:'POST',body:fd,credentials:'include',headers}).then(async response=>({ok:response.ok,data:await response.json()}));
+      if(!ok||!data.success)throw Error(data.message||data.error||'Upload failed. Try again.');if([...files.values()].includes(entry))entry.media_id=data.media_id;}catch(e){if([...files.values()].includes(entry))entry.error=e.message;}finally{uploadsInFlight--;uploadWaiters.shift()?.();entry.uploading=false;if([...files.values()].includes(entry))render();}}
+
+  function sendWithProgress(fd,headers,entry){
+    return new Promise((resolve,reject)=>{
+      const xhr=new XMLHttpRequest();xhr.open('POST',P.cfg.serverEndpoint);xhr.withCredentials=true;for(const [name,value] of Object.entries(headers))xhr.setRequestHeader(name,value);
+      xhr.upload.onprogress=e=>{if(!e.lengthComputable)return;entry.progress=e.loaded/e.total;const shown=photoTiles.get(entry)?.querySelector('[data-upload-progress]');if(shown)shown.textContent=Math.round(entry.progress*100)+'%';};
+      xhr.onload=()=>{let data={};try{data=JSON.parse(xhr.responseText)||{};}catch(e){}resolve({ok:xhr.status>=200&&xhr.status<300,data});};
+      xhr.onerror=xhr.onabort=()=>reject(Error('Upload failed. Check your connection and try again.'));xhr.send(fd);
+    });
+  }
 
   P.ExteriorOrder={active,reset,render,renderPhotos:renderPhotoWorkspace,offersChoice:type=>allowed(type),selectedScope:type=>ctx?.type===type?scope:null,
     mobileDetailsReady:()=>active()&&pinsConfirmed()&&!!option()&&!busy&&!error,
     mobilePhotosReady:()=>active()&&photosReviewable(),
     mobilePhotoSummary:()=>photoSummary,
     explainMissingPhotos,
-    mobilePhotoBack(){if(photoSummary){visitGuide(guideIndex);return true;}if(guideIndex){visitGuide(guideIndex-1);return true;}stopCamera();return false;},
+    mobilePhotoBack(){
+      if(captureMode==='video'){
+        if(photoSummary){photoSummary=false;videoStage='record';render();return true;}
+        if(videoStage!=='record')return false;
+        if(recording())stopRecording();else recorderBack();
+        return true;
+      }
+      if(photoSummary){visitGuide(guideIndex);return true;}
+      if(!photoIntroSeen)return false;
+      if(guideIndex){visitGuide(guideIndex-1);return true;}
+      photoIntroSeen=false;stopCamera();render();return true;
+    },
     setMobilePage(step){if(!active())return;const next=step==='photos'?1:step==='final'?2:0;if(page!==next){if(next!==1)stopCamera();page=next;render();}},
     previewTabChanged(tab){if(tab!=='photos')closeReferenceViewer();},
     failed(data){error=data?.message||data?.error||'Could not submit this order.';page=0;if(data?.error==='pricing_changed'||data?.error==='exteriors_closed')void load();render();},
-    restore(fields){if(!ctx||!allowed(ctx.type)||fields.measurement_scope!=='full_house')return;scope='full_house';delivery=fields.report_expedite_option;notes=fields.tech_notes||'';ctx.setNotes?.(notes);page=0;let refs=[];try{refs=JSON.parse(fields.exterior_references||'[]');}catch{}for(const r of refs)files.set(r.structure+':'+r.view+(r.view==='additional'?'-'+r.media_id:''),{media_id:r.media_id,name:label(r.view)+' reference',...(r.angle?{angleKey:r.structure+':'+r.angle}:{})});ctx.refresh();render();},needsChoice:()=>!!ctx&&!ctx.ordered&&ctx.orderWorkflow&&allowed(ctx.type)&&!scope,ready:()=>page===2&&!orderBlocker(),orderBlocker,price:()=>option()?.amount??0,
+    restore(fields){if(!ctx||!allowed(ctx.type)||fields.measurement_scope!=='full_house')return;scope='full_house';delivery=fields.report_expedite_option;notes=fields.tech_notes||'';ctx.setNotes?.(notes);page=0;let refs=[];try{refs=JSON.parse(fields.exterior_references||'[]');}catch{}for(const r of refs){const orbit=r.view==='orbital_video';files.set(r.structure+':'+(orbit?'video-'+r.media_id:r.view+(r.view==='additional'?'-'+r.media_id:'')),{media_id:r.media_id,name:orbit?'Orbital video':label(r.view)+' reference',...(orbit||r.kind==='video'?{kind:'video'}:{}),...(r.angle?{angleKey:r.structure+':'+r.angle}:{})});}
+      // A draft resumes in the capture mode it was saved in.
+      const hasVideo=refs.some(r=>r.view==='orbital_video'),hasViews=refs.some(r=>views.includes(r.view));
+      captureMode=!hasVideo&&(hasViews||fields.exterior_capture_mode==='photos')?'photos':'video';photoIntroSeen=captureMode==='photos'&&hasViews;videoStage='intro';photoSummary=captureMode==='video'&&hasVideo;
+      ctx.refresh();render();},needsChoice:()=>!!ctx&&!ctx.ordered&&ctx.orderWorkflow&&allowed(ctx.type)&&!scope,ready:()=>page===2&&!orderBlocker(),orderBlocker,price:()=>option()?.amount??0,
     sync(context){ctx=context;const nextSignature=JSON.stringify([ctx.type,ctx.count,ctx.pins||[]]);if(nextSignature!==pinSignature){pinSignature=nextSignature;confirmedPins=null;if(active()){ctx.setPinConfirmed?.(false);if(ctx.setPinConfirmed)ctx.locationConfirmed=false;}if(page>0)page=0;}const changed=ctx.type!==lastType||ctx.count!==lastCount;
       if(ctx.type!==lastType){resetGuide();selectedPhoto=null;structure=0;scope=null;page=0;for(const f of files.values())if(f.url)URL.revokeObjectURL(f.url);files.clear();}
       if(changed){generation++;quote=null;lastType=ctx.type;lastCount=ctx.count;for(const [key,f] of files)if(!key.startsWith('tray:')&&Number(key.split(':')[0])>=ctx.count){files.delete(key);files.set('tray:'+crypto.randomUUID(),f);}}
       if(allowed(ctx.type)&&ctx.type&&(changed||(!quote&&!this.loading&&!error))){this.loading=true;void load().finally(()=>{this.loading=false;});}render();},
-    payload(){if(!active())return {};return {measurement_scope:'full_house',report_mode:'full',report_expedite_option:delivery,report_pricing_revision:quote?.pricing_revision,exteriors_quoted_amount:option()?.amount,include_gutter_measurements:'1',gutter_addon:'1',include_weather_report:'0',weather_addon:'0',tech_notes:ctx.getNotes?.()??notes,exterior_references:JSON.stringify([...files].filter(([key,f])=>!key.startsWith('tray:')&&f.media_id).map(([key,f])=>({structure:Number(key.split(':')[0]),view:key.includes(':additional')?'additional':key.split(':')[1],media_id:f.media_id,...(f.angleKey&&key.includes(':additional')?{angle:f.angleKey.split(':')[1]}:{})})))};}
+    payload(){if(!active())return {};return {measurement_scope:'full_house',report_mode:'full',report_expedite_option:delivery,report_pricing_revision:quote?.pricing_revision,exteriors_quoted_amount:option()?.amount,include_gutter_measurements:'1',gutter_addon:'1',include_weather_report:'0',weather_addon:'0',tech_notes:ctx.getNotes?.()??notes,exterior_capture_mode:captureMode,exterior_references:JSON.stringify([...files].filter(([key,f])=>!key.startsWith('tray:')&&f.media_id).map(([key,f])=>({structure:Number(key.split(':')[0]),view:isVideoKey(key)?'orbital_video':key.includes(':additional')?'additional':key.split(':')[1],...(f.kind==='video'&&!isVideoKey(key)?{kind:'video'}:{}),media_id:f.media_id,...(f.angleKey&&key.includes(':additional')?{angle:f.angleKey.split(':')[1]}:{})})))};}
   };
 })();
 

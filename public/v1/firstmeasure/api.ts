@@ -2080,9 +2080,24 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
       const elevationPhotos: Record<string,unknown>[]=[];
 
+      // Videos are kept out of elevation_photos, which the editor renders as images.
+      const referenceVideos: Record<string,unknown>[]=[];
+
       for(const [index,ref] of checked.references.entries()) {
 
         const media=await readExteriorMediaFile(orgId,ref.media_id);
+
+        if(ref.kind==="video") {
+
+          const fileName=`customer-reference-${index}.`+(media.contentType==="video/webm"?"webm":media.contentType==="video/quicktime"?"mov":"mp4");
+
+          await saveArtifact(created.manifest.id,fileName,media.bytes);
+
+          referenceVideos.push({file_name:fileName,original_name:`Structure ${ref.structure+1} · ${ref.view==="orbital_video"?"orbital video":"additional video"}`,content_type:media.contentType,view:ref.view,structure:ref.structure});
+
+          continue;
+
+        }
 
         const fileName=`customer-reference-${index}.`+(media.contentType==="image/png"?"png":media.contentType==="image/webp"?"webp":"jpg");
 
@@ -2094,7 +2109,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
       await saveArtifact(created.manifest.id,"customer-references.json",JSON.stringify(checked.references.map((ref,index)=>({...ref,file_prefix:`customer-reference-${index}.`}))));
 
-      await patchManifest(created.manifest.id,{status:"queued",elevation_photos:elevationPhotos});
+      await patchManifest(created.manifest.id,{status:"queued",elevation_photos:elevationPhotos,...(referenceVideos.length?{exterior_reference_videos:referenceVideos}:{})});
 
     } else created = reordered ? { manifest: reordered } : await createProject(projectInput);
 

@@ -11,7 +11,7 @@ import { signupCommercialProfile, profileFromGlobal, organizationProfile, curren
 import { exchangeEstimate } from "../commerce/exchange.js";
 import { isReceiptMedia, canReadReceiptMedia, canWriteReceiptMedia, publicMediaMetadata } from "./media_access.js";
 import { reportPreferencesSchema, resolveOrderReportPreferences } from "../firstmeasure/report_preferences.js";
-import { exteriorQuote, requireExteriorAccess, validateExteriorOrder } from "../firstmeasure/exteriors.js";
+import { exteriorQuote, exteriorVideoFormat, EXTERIOR_VIDEO_MAX_BYTES, requireExteriorAccess, validateExteriorOrder } from "../firstmeasure/exteriors.js";
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -9207,9 +9207,15 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
       await requireExteriorAccess(ctx.orgId, cleanText(body.project_type)||"residential");
       const file=asObject(body.__file);
       const bytes=Buffer.from(cleanText(file.bytes_base64),"base64");
-      if(!bytes.length || bytes.length>8*1024*1024) throw badRequest("invalid_reference","Each reference must be an image up to 8 MB.");
+      const video=exteriorVideoFormat(bytes);
+      if(video) {
+        if(bytes.length>EXTERIOR_VIDEO_MAX_BYTES) throw badRequest("invalid_reference","Each reference video must be 120 MB or smaller. Record it in shorter segments.");
+        const media=await storeMediaUpload(ctx.orgId,{bytes,fileName:cleanText(file.filename)||`reference.${video.ext}`,contentType:video.contentType,ownerType:"user",ownerId:authenticated.userId,scope:"projects",slot:"exterior_references",metadata:{source:"exteriors_order_reference",reference_kind:"video",uploaded_by:authenticated.userId}});
+        return {success:true,media_id:media.id,kind:"video"};
+      }
+      if(!bytes.length || bytes.length>8*1024*1024) throw badRequest("invalid_reference","Each reference photo must be 8 MB or smaller.");
       const format=bytes[0]===255&&bytes[1]===216&&bytes[2]===255 ? "jpeg" : bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ? "png" : bytes.toString("ascii",0,4)==="RIFF"&&bytes.toString("ascii",8,12)==="WEBP" ? "webp" : "";
-      if(!format) throw badRequest("invalid_reference","Use JPG, PNG or WebP reference photos.");
+      if(!format) throw badRequest("invalid_reference","Use JPG, PNG or WebP photos, or MP4, MOV or WebM videos.");
       const media=await storeMediaUpload(ctx.orgId,{bytes,fileName:cleanText(file.filename)||`reference.${format}`,contentType:`image/${format}`,ownerType:"user",ownerId:authenticated.userId,scope:"projects",slot:"exterior_references",metadata:{source:"exteriors_order_reference",uploaded_by:authenticated.userId}});
       return {success:true,media_id:media.id};
     }

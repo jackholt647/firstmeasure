@@ -4,7 +4,7 @@ import test from 'node:test';
 import {chromium} from 'playwright-core';
 
 const source=await readFile(new URL('../../libraries/apps/firstmeasure/order/exteriors.js',import.meta.url),'utf8');
-const instrumented=source.replace('  P.ExteriorOrder={','  P.test={files,upload,visitGuide,finishGuide,removeGuided,stopCamera,getStream:()=>cameraStream};\n  P.ExteriorOrder={');
+const instrumented=source.replace('  P.ExteriorOrder={','  P.test={files,upload,visitGuide,finishGuide,removeGuided,stopCamera,getStream:()=>cameraStream,usePhotos:()=>{captureMode="photos";photoIntroSeen=true;}};\n  P.ExteriorOrder={');
 async function setup(t,{denied=false,width=390,height=844,native=null}={}){
  const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
  t.after(()=>browser.close());
@@ -23,7 +23,9 @@ async function setup(t,{denied=false,width=390,height=844,native=null}={}){
  await page.evaluate(()=>{
   const order=Portal.ExteriorOrder;
   window.context={type:'residential',count:1,pins:[],ordered:false,orderWorkflow:true,mobileOrder:true,addressSelected:true,locationConfirmed:true,refresh:()=>order.sync(context),setMobileOrderPage:step=>{window.lastStep=step;order.setMobilePage(step);}};
-  order.sync(context);order.restore({measurement_scope:'full_house',report_expedite_option:'exteriors_standard'});order.setMobilePage('photos');
+  order.sync(context);order.restore({measurement_scope:'full_house',report_expedite_option:'exteriors_standard'});
+  // These cases cover the eight-photo fallback; orbital video is the default capture.
+  Portal.test.usePhotos();order.setMobilePage('photos');
  });
  return page;
 }
