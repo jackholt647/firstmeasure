@@ -124,6 +124,10 @@ test("organization connection approval, private projections, explicit deny and r
   const grant=await a.request("POST",ar+"/shares",{resource,recipient_org_id:bo.orgId,operations:["read","details.update"],fields:["title","address"]});
   const shared=await b.request("POST",br+"/resources/read",resource);
   assert.deepEqual(shared.data,{title:"Roof",address:"42 Test St"});
+  const publicationSource={provider:"collaboration",export:"resource",target:{scope:"organization",organizationId:bo.orgId},args:{resource}};
+  const published=await b.request("POST",`/v1/publication/organizations/${bo.orgId}/data/read`,publicationSource);
+  assert.equal(published.status,"ready",JSON.stringify(published));assert.deepEqual(published.value.data,shared.data);
+
   assert.equal((await c.raw("POST",cr+"/resources/read",resource)).statusCode,403);
   assert.equal((await b.raw("GET",`/v1/platform/organizations/${ao.orgId}/projects/shared_roof`)).statusCode,403);
   assert.equal((await b.raw("PATCH",br+"/resources/details",{resource,input:{expected_revision:shared.revision,fields:{private_cost:"1"}}})).statusCode,403);
@@ -139,6 +143,7 @@ test("organization connection approval, private projections, explicit deny and r
   await a.request("POST",ar+`/shares/${deny.share.id}/revoke`,{expected_revision:1});
   assert.equal((await b.raw("POST",br+"/resources/read",resource)).statusCode,403);
   assert.deepEqual((await b.request("GET",br+"/shared")).items,[]);
+  assert.equal((await b.request("POST",`/v1/publication/organizations/${bo.orgId}/data/read`,publicationSource)).status,"denied");
 });
 
 test("individual invitations bind verified identity without creating an organization partnership",async()=>{

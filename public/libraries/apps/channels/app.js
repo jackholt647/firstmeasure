@@ -128,12 +128,13 @@
     state.root = root;
     state.mounted = true;
     root.innerHTML = '';
-    root.style.height = '100%';
+    root.style.cssText = 'height:100%;display:flex;flex-direction:column;min-height:0';
     const sharedHost=document.createElement('section');
+    sharedHost.style.cssText='flex:none;max-height:40vh;overflow:auto';
     root.appendChild(sharedHost);
     window.FirstMateSharedList?.mount(sharedHost,'channel');
     const holder = document.createElement('div');
-    holder.style.cssText = 'height:100%;min-height:420px;padding:0';
+    holder.style.cssText = 'flex:1;min-height:240px;padding:0';
     root.appendChild(holder);
 
     state.instance = window.FirstMateChannels.create(holder, {
