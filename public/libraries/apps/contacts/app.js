@@ -510,16 +510,16 @@
               <input id="ctSearch" type="search" value="${String(escapeHtml(state.query))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("contacts","m_978eee3aa943f8","Search contacts or projects") ?? "Search contacts or projects")}">
               ${String(state.query ? `<button id="ctClearSearch" type="button" class="ct-clear" data-fm-tooltip="Clear search"><i class="fas fa-xmark"></i></button>` : '')}
             </label>
-            <details class="fm-sharing-menu" data-ct-manage><summary class="ct-select"><i class="fas fa-sliders" aria-hidden="true"></i> Manage view</summary><div class="fm-sharing-popover"><label>Order by<select id="ctSort" class="ct-select" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_05b258030f62ea","Sort contacts") ?? "Sort contacts")}">
-              <option value="name" ${String(state.sort === 'name' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8cf345002184e5","Name") ?? "Name")}</option>
-              <option value="recent" ${String(state.sort === 'recent' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_fec172c2f71d24","Recent") ?? "Recent")}</option>
-              <option value="projects" ${String(state.sort === 'projects' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_6e3f0973d60412","Project count") ?? "Project count")}</option>
-            </select></label>${sharingView()?.fields() || ''}</div></details>
             <div class="ct-segment" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_0a1d4f60d2434b","View mode") ?? "View mode")}">
               <button id="ctViewTiles" type="button" class="${String(state.view === 'tiles' ? 'active' : '')}" data-fm-tooltip="Tile view"><i class="fas fa-grip"></i><span>Tiles</span></button>
               <button id="ctViewList" type="button" class="${String(state.view === 'list' ? 'active' : '')}" data-fm-tooltip="List view"><i class="fas fa-list"></i><span>List</span></button>
             </div>
             <button type="button" class="ct-action" data-ct-open-import><i class="fas fa-file-import"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_f1f14ba348face","Import") ?? "Import")}</span></button>
+            <details class="fm-sharing-menu" data-ct-manage><summary class="ct-select"><i class="fas fa-sliders" aria-hidden="true"></i> Manage view</summary><div class="fm-sharing-popover"><label>Order by<select id="ctSort" class="ct-select" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_05b258030f62ea","Sort contacts") ?? "Sort contacts")}">
+              <option value="name" ${String(state.sort === 'name' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8cf345002184e5","Name") ?? "Name")}</option>
+              <option value="recent" ${String(state.sort === 'recent' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_fec172c2f71d24","Recent") ?? "Recent")}</option>
+              <option value="projects" ${String(state.sort === 'projects' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_6e3f0973d60412","Project count") ?? "Project count")}</option>
+            </select></label>${sharingView()?.fields() || ''}</div></details>
           </div>
         </header>
         <main class="ct-body" data-ct-results></main>
@@ -543,7 +543,7 @@
       try { next?.setSelectionRange(state.query.length, state.query.length); } catch (error) {}
     });
     const menu=state.root?.querySelector('[data-ct-manage]');
-    menu?.addEventListener('change',event=>{if(sharingView()?.change(event)){render();const next=state.root?.querySelector('[data-ct-manage]');if(next){next.open=true;next.querySelector(event.target.matches('[data-sharing-mode]')?'[data-sharing-mode]':'[data-sharing-org]')?.focus();}}});
+    menu?.addEventListener('change',event=>{if(sharingView()?.change(event)){render();const next=state.root?.querySelector('[data-ct-manage]');if(next){next.open=true;const selector=event.target.matches('[data-sharing-kind]')?`[data-sharing-kind="${event.target.dataset.sharingKind}"]`:'[data-sharing-owner]';next.querySelector(selector)?.focus();}}});
     menu?.addEventListener('keydown',event=>{if(event.key==='Escape'){menu.open=false;menu.querySelector('summary').focus();}});
     state.root?.querySelector('#ctSort')?.addEventListener('change', (event) => {
       state.sort = event.target.value || 'name';

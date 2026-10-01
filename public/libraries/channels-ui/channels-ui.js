@@ -1824,6 +1824,7 @@
               root.dispatchEvent(new CustomEvent('fm:channels-sidebar:changed', {detail:{orgId}})); renderSidebar();
             }]
           ];
+          if (channel.can_manage && ['public','private'].includes(channel.type) && window.FirstMateSharing) commands.unshift(['Share', () => window.FirstMateSharing.openChannel({orgId,channel})]);
           if (channel.type === 'project' && cleanText(channel.project_id)) commands.unshift(['Open project', () => openChannelProject(channel)]);
           for (const [title, run] of commands) {
             const action = el('button', '', esc(title)); action.type = 'button'; action.setAttribute('role', 'menuitem');
@@ -5862,6 +5863,7 @@
       const huddleDefaults = channelHuddleDefaults(channel);
       showModal(`Channel settings — #${channel.name}`, (body, close) => {
         body.innerHTML = `
+          ${window.FirstMateSharing ? '<button type="button" class="fm-ch-btn" data-channel-share><i class="fas fa-arrow-up-from-bracket" aria-hidden="true"></i> Share with another organization</button>' : ''}
           <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_8cf345002184e5","Name") ?? "Name")}</label>
           <input type="text" data-field="name" value="${String(esc(channel.name))}">
           <label>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_b0afebe3886365","Topic") ?? "Topic")}</label>
@@ -5879,6 +5881,7 @@
               <input type="checkbox" data-field="huddle-record-video" ${huddleDefaults.recordVideo ? 'checked' : ''}>
             </label>
           </div>` : '')}`;
+        body.querySelector('[data-channel-share]')?.addEventListener('click',()=>{close();window.FirstMateSharing.openChannel({orgId,channel});});
         const recording = body.querySelector('[data-field=huddle-recording]');
         const video = body.querySelector('[data-field=huddle-record-video]');
         const syncRecordingDefaults = () => {

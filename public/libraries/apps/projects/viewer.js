@@ -5509,7 +5509,7 @@
     const sorting=`<label class="v-manage-field">Order by<select id="vManageSortKey">${sortColumns.map(column => `<option value="${escapeHtml(column.key)}" ${sort.key===column.key?'selected':''}>${escapeHtml(column.label)}</option>`).join('')}</select></label><button type="button" class="v-btn" id="vManageSortDirection" aria-label="Switch sort direction"><i class="fas fa-arrow-${sort.dir==='asc'?'up':'down'}"></i><span>${sort.dir==='asc'?'Ascending':'Descending'}</span></button>`;
     const stages=tileStageOptions();
     const filtering=viewMode==='tiles' ? `<label class="v-manage-field">Stage<select id="vManageStageFilter"><option value="all">All stages</option>${Array.from(stages,([id,title])=>`<option value="${escapeHtml(id)}" ${tileStageFilter===id?'selected':''}>${escapeHtml(title)}</option>`).join('')}</select></label>` : '';
-    panel.innerHTML=`<div class="v-manage-title">${viewMode==='stages'?'Stages':'Tiles'} view</div>${filtering}${sorting}${sharingFields}${viewMode==='stages'?'<div class="v-manage-note">Stages show our workflow. Choose Shared with us to browse received projects in a list.</div>':''}`;
+    panel.innerHTML=`<div class="v-manage-title">${viewMode==='stages'?'Stages':'Tiles'} view</div>${filtering}${sorting}${sharingFields}${viewMode==='stages' && projectSharingView()?.incoming.length?'<div class="v-manage-note">Stages show our workflow. To browse received projects, select only Projects shared with us.</div>':''}`;
   }
   function updateViewControls(){
     const bT = $('#vViewTiles', panelEl); const bL = $('#vViewList', panelEl); const bS = $('#vViewStages', panelEl);

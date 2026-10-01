@@ -38,7 +38,7 @@
     versionedBundle('../platform-assistant/platform-assistant.js', '20260930-project-trays-v1'),
     versionedBundle('photos/feed.js', '20260930-app-groups-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20260930-native-sharing-v2'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261001-sharing-polish-v1'),
     versionedBundle('../project-notes/project-notes.js', '20260930-project-chrome-v2'),
     versionedBundle('../project-trays/project-trays.js', '20260930-window-shell-v1')
   ];
@@ -73,7 +73,7 @@
   ];
 
   const apps = [
-    {id:'portal.partners',package:'partners',title:'Partners',terminologyKey:'partners.partners',kind:'portal_tab',surfaces:['portal_tab'],portalTabId:'partners',access:managementAccess,bundles:[versionedBundle('../payment-intake/payment-intake.js','20260803-field-flows-v10'),versionedBundle('../doc-widgets/firstmate-doc-widgets.js','20260803-field-flows-v10'),versionedBundle('partners/app.js','20260930-collaboration-v2')]},
+    {id:'portal.partners',package:'partners',title:'Partners',terminologyKey:'partners.partners',kind:'portal_tab',surfaces:['portal_tab'],portalTabId:'partners',access:managementAccess,bundles:[versionedBundle('../payment-intake/payment-intake.js','20260803-field-flows-v10'),versionedBundle('../doc-widgets/firstmate-doc-widgets.js','20260803-field-flows-v10'),versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('partners/app.js','20261001-sharing-polish-v1')]},
     {
       id: 'portal.viewer',
       package: 'projects',
@@ -83,7 +83,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
       access: managementAccess,
-      bundles: [versionedBundle('partners/shared-list.js','20260930-native-sharing-v2'), versionedBundle('projects/viewer.js', '20260930-native-sharing-v2')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/viewer.js', '20261001-sharing-polish-v1')]
     },
     {
       id: 'portal.contacts',
@@ -95,7 +95,7 @@
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
       access: managementAccess,
-      bundles: [versionedBundle('partners/shared-list.js','20260930-native-sharing-v2'), versionedBundle('contacts/modal.js', '20260930-window-shell-v1'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20260930-native-sharing-v2')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20260930-window-shell-v1'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20261001-sharing-polish-v1')]
     },
     {
       id: 'portal.photos_feed',
@@ -546,9 +546,9 @@
         versionedBundle('../platform-assistant/platform-assistant.js', '20260930-project-trays-v1'),
         versionedBundle('photos/feed.js', '20260930-app-groups-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20260930-native-sharing-v2'),
-        versionedBundle('partners/shared-list.js','20260930-native-sharing-v2'),
-        versionedBundle('channels/app.js', '20260930-native-sharing-v2')
+    versionedBundle('../channels-ui/channels-ui.js', '20261001-sharing-polish-v1'),
+        versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
+        versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('channels/app.js', '20260930-native-sharing-v2')
       ]
     },
     {

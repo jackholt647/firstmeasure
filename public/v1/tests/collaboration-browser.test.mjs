@@ -30,7 +30,7 @@ test('partners workspace escapes external content, creates scoped grants and pos
     });
     await page.addScriptTag({content:await readFile(new URL('../../libraries/apps/partners/app.js',import.meta.url),'utf8')});
     await page.evaluate(()=>window.app.mount(document.querySelector('#app')));
-    await page.getByRole('button',{name:'Shared with us',exact:true}).click();
+    await page.getByRole('button',{name:'Sharing',exact:true}).click();
     await page.getByRole('button',{name:'Open',exact:true}).click();
     assert.equal(await page.locator('#app img').count(),0);
     await page.getByRole('button',{name:'Notes',exact:true}).click();
@@ -42,7 +42,8 @@ test('partners workspace escapes external content, creates scoped grants and pos
     assert.equal(posted.resource.owner_org_id,'other');
     assert.equal(posted.input.text,'Roof is ready');
     assert.ok(posted.input.client_operation_id);
-    await page.getByRole('button',{name:'Share resource',exact:true}).click();
+    await page.getByLabel('More partner options').click();
+    await page.getByRole('button',{name:'Share an item',exact:true}).click();
     await page.getByRole('button',{name:'Confirm',exact:true}).click();
     await page.locator('select[name=resource]').waitFor();
     await page.getByRole('button',{name:'Confirm',exact:true}).click();
