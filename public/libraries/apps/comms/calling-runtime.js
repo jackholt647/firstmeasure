@@ -6,7 +6,7 @@
   const {esc,request,uid,icon,label,date,field,area,select,dialog}=ui;
   const terminal=new Set(['ended','canceled','failed','no_answer','busy','rejected']);
   const state={call:null,detail:null,entry:null,scripts:[],status:null,client:null,sdkCall:null,registered:false,available:false,
-    busy:false,error:'',dirty:false,notes:'',answers:{},panel:null,minimized:false,muted:false,localId:uid(),prepared:{},poll:0,saveTimer:0,tokenTimer:0,heartbeat:0,readyPromise:null,openSequence:0};
+    busy:false,error:'',dirty:false,notes:'',answers:{},panel:null,minimized:false,muted:false,localId:uid(),prepared:{},poll:0,saveTimer:0,tokenTimer:0,heartbeat:0,readyPromise:null,connectionSequence:0,connecting:false,disconnectPromise:null,openSequence:0};
   const audioKey='fm-customer-phone-audio';
   function audioPreferences(){try{return JSON.parse(localStorage.getItem(`${audioKey}:${scope()}`)||'{}');}catch{return {};}}
   function audioElement(){const audio=document.getElementById('fm-customer-call-audio')||document.createElement('audio');audio.id='fm-customer-call-audio';audio.autoplay=true;audio.hidden=true;if(!audio.isConnected)document.body.append(audio);return audio;}
@@ -62,7 +62,7 @@
     const suggestion=state.followupOptions?.suggestions?.[['voicemail','no_answer'].includes(disposition)?disposition:'manual_follow_up'];
     const nextSteps=[['none','Keep open — no work completed'],['complete','Complete selected work'],['follow_up','Create follow-up'],...(c?.project_id?[['scheduled','Link booked appointment']]:[]),...(state.followupOptions?.follow_up_node_ids?.length?(state.followupOptions.outcomes||[]).filter(o=>o.action==='lost').map(o=>[`outcome:${o.id}`,o.label]):[])];
     el.innerHTML=`<header class="fmcp-header"><div class="fmcm-avatar">${String(icon('phone'))}</div><div><strong>${String(esc(title))}</strong><small>${String(esc(number))}${String(number?' · ':'')}<span data-call-status>${String(esc(c?`${label(c.state)}${c.mode==='external'?' · External phone':''}`:'Ready when you are'))}</span></small></div><button data-phone="minimize" aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("comms","m_21406d49c2fdb5",`${v5} call`,{v5}) ?? `${v5} call`)(state.minimized?'Expand':'Minimize')}">${String(icon(state.minimized?'expand':'minus'))}</button><button data-phone="close" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_314202e0941af2","Close call workspace") ?? "Close call workspace")}">${String(icon('xmark'))}</button></header>
-      <div class="fmcp-body">${!c&&state.status?.settings?.enabled&&!state.registered?'<button data-phone="connect">Connect browser phone</button>':''}${c&&(terminal.has(c.state)||c.mode==='external')&&(saved||!state.status?.settings?.require_disposition)?'<button data-phone="new-call">'+(saved?'New call':'Skip outcome / New call')+'</button>':''}${String(state.error?`<div class="fmcm-error" role="alert">${esc(state.error)}</div>`:'')}
+      <div class="fmcp-body">${!c&&state.connecting?'<p class="fmcm-help" role="status" aria-live="polite">Connecting…</p>':''}${c&&(terminal.has(c.state)||c.mode==='external')&&(saved||!state.status?.settings?.require_disposition)?'<button data-phone="new-call">'+(saved?'New call':'Skip outcome / New call')+'</button>':''}${String(state.error?`<div class="fmcm-error" role="alert">${esc(state.error)}</div>`:'')}
       ${state.deviceCheckRequired&&!c?`<section role="status"><p class="fmcm-help">${esc(state.checkMessage||'Run the microphone and network check before calling on this device. Your call details will stay here.')}</p><button data-phone="diagnose" class="fmcm-primary">${state.busy?'Checking microphone and network…':'Run checks'}</button></section>`:''}
       ${state.deviceChecked&&state.checkMessage&&!c?`<p class="fmcm-help" role="status">${esc(state.checkMessage)} Click Start call when you are ready.</p>`:''}
       ${state.outcomeRequested&&c&&!saved?`<p class="fmcm-help" role="status">${active?'Ending the call…':'Choose the call outcome, then click Save outcome to finish.'}</p>`:''}
@@ -74,8 +74,8 @@
       ${connected&&(state.status?.settings?.recording_enabled||['recording','paused'].includes(capture))?`<button data-phone="record">${icon('circle-dot')} ${capture==='recording'?'Pause recording':capture==='paused'?'Resume recording':'Record with consent'}</button>${['recording','paused'].includes(capture)?`<button data-phone="record_stop">${(globalThis.PlatformLanguage?.htmlText("comms","m_71ef1099bbe0fc","Stop recording") ?? "Stop recording")}</button>`:''}`:''}</div>`:
       `${state.contacts?.length?select('Project contact','contact_choice',state.contacts.map(c=>[c.id,`${c.name} · ${c.phone||'No phone'}`]),p.contact_id||state.contacts[0].id):''}<div class="fmcm-form-grid">${field('Name','customer_name',values.customer_name??(title==='New call'?'':title),'text','autocomplete="name"')}${field('Phone number','customer_number',values.customer_number??number,'tel','required autocomplete="tel"')}</div>
       ${field('Reason for calling','purpose',values.purpose??p.purpose??state.entry?.title??'')}
-      <div class="fmcm-form-grid">${select('Call using','mode',state.registered&&state.status?.settings?.enabled?[['browser','FirstMate phone'],['external','My external phone']]:[['external','My external phone']],values.mode||(state.registered?'browser':'external'))}${select('Call script','script_id',[['','No script'],...state.scripts.filter(s=>s.status==='published').map(s=>[s.id,s.title])],values.script_id||'')}</div>
-      <p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_9aa1bceb154d29","External phone keeps your lists, scripts, notes, and follow-ups together. It does not record audio or measure call duration.") ?? "External phone keeps your lists, scripts, notes, and follow-ups together. It does not record audio or measure call duration.")}</p><button data-phone="start" class="fmcm-primary">${icon('phone')} ${state.registered?'Start call':'Start call notes'}</button>`)}
+      <div class="fmcm-form-grid">${select('Call using','mode',state.status?.settings?.enabled?[['browser','FirstMate phone'],['external','My external phone']]:[['external','My external phone']],values.mode||(state.status?.settings?.enabled?'browser':'external'))}${select('Call script','script_id',[['','No script'],...state.scripts.filter(s=>s.status==='published').map(s=>[s.id,s.title])],values.script_id||'')}</div>
+      <p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_9aa1bceb154d29","External phone keeps your lists, scripts, notes, and follow-ups together. It does not record audio or measure call duration.") ?? "External phone keeps your lists, scripts, notes, and follow-ups together. It does not record audio or measure call duration.")}</p><button data-phone="start" class="fmcm-primary">${icon('phone')} ${state.waitingToCall?'Connecting…':(values.mode|| (state.status?.settings?.enabled?'browser':'external'))==='browser'?'Start call':'Start call notes'}</button>`)}
       ${String(script?.title?`<details class="fmcp-script" open><summary>${esc(script.title)} <span class="fmcm-pill">v${esc(script.version)}</span></summary>${(scriptData.sections||[]).map(s=>`<h4>${esc(s.title)}</h4><p>${esc(s.body)}</p>`).join('')}${(scriptData.questions||[]).map((q,i)=>`<label class="fmcm-field">${esc(q)}<input data-question="${i}" value="${esc(state.answers[i]||'')}"></label>`).join('')}</details>`:'')}
       ${String(c?.mode==='external'?`<p class="fmcm-help"><a href="tel:${esc(number)}">${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_4b023574d976a1",`Open ${v1} in your phone app`,{v1}) ?? `Open ${v1} in your phone app`)(esc(number))}</a></p>`:'')}
       ${String(c?`<label class="fmcm-field">${(globalThis.PlatformLanguage?.htmlText("comms","m_d885eb7f0cdaa0","Call notes ") ?? "Call notes ")}<textarea class="fmcp-notes" name="notes" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_d59c66e54984e5","What happened? Capture decisions, concerns, and next steps.") ?? "What happened? Capture decisions, concerns, and next steps.")}">${esc(state.notes)}</textarea></label><p class="fmcm-help" data-save-state>${state.dirty?'Saving notes…':'Notes saved'}</p>`:'')}
@@ -96,16 +96,18 @@
     el.querySelectorAll('[data-source]').forEach(e=>{e.checked=checked.has(e.dataset.source);});
     const focusTarget=focusQuestion!==undefined?el.querySelector(`[data-question="${CSS.escape(focusQuestion)}"]`):focusName?el.querySelector(`[name="${CSS.escape(focusName)}"]`):null;
     if(focusTarget){focusTarget.focus({preventScroll:true});try{focusTarget.setSelectionRange(caret,caretEnd);}catch{}}
+    if(state.busy)el.querySelectorAll('input,textarea,select,[data-phone]').forEach(e=>{if(!['minimize','close'].includes(e.dataset.phone))e.disabled=true;});
+    if(!state.status)el.querySelector('[data-phone=start]')?.setAttribute('disabled','');
     Portal.PhoneTray?.update(state);
     if(state.outcomeRequested&&!active&&!saved&&!processing){const outcome=el.querySelector('[name=disposition]');outcome?.scrollIntoView({block:'nearest'});outcome?.focus({preventScroll:true});}
   }
-  async function refreshStatus(){const requestedScope=scope(),status=await request('voice/status');if(requestedScope!==scope())return {};state.status=status;changed();return status;}
+  async function refreshStatus(){const requestedScope=scope(),status=await request('voice/status');if(requestedScope!==scope())return {};const first=!state.status;state.status=status;if(first&&status.settings?.enabled)state.panel?.querySelector('[name=mode]')?.remove();changed();return status;}
   async function open(input={},options={}){
     state.boundScope=scope();
     if(state.diagnosing)throw new Error('Wait for the audio check to finish before opening a call.');
     if(state.call&&!terminal.has(state.call.state)&&state.call.id!==input.call_id){state.minimized=false;if(input.call_id||input.entry_id)state.error='Finish the active call before opening another contact.';render();return false;}
     if(state.call&&state.call.wrap_up_state!=='saved'&&terminal.has(state.call.state)&&state.status?.settings?.require_disposition&&state.call.id!==input.call_id){state.minimized=false;state.error='Save this call outcome before starting another call.';render();return false;}
-    if(state.call&&(!Object.keys(input).length||input.call_id===state.call.id)){state.minimized=false;render();void Portal.PhoneTray?.selectTab('dialer');return true;}
+    if(state.call&&(!Object.keys(input).length||input.call_id===state.call.id)){state.minimized=false;render();autoConnect();void Portal.PhoneTray?.selectTab('dialer');return true;}
     const ticket=++state.openSequence;
     clearTimeout(state.saveTimer);if(state.dirty&&state.call)await saveNotes();
     if(ticket!==state.openSequence)return false;
@@ -121,6 +123,7 @@
     render();
     const results=await Promise.allSettled([refreshStatus(),request('call-scripts?published=true')]);
     if(ticket!==state.openSequence)return false;
+    autoConnect();
     if(results[1].status==='fulfilled')state.scripts=results[1].value.scripts||[];
     await refreshContext().catch(error=>{if(ticket===state.openSequence)state.error=error.message;});if(ticket!==state.openSequence)return false;
     if(state.call)state.followupOptions=await request(callPath('/follow-up-options')).catch(()=>null);if(ticket!==state.openSequence)return false;
@@ -132,6 +135,7 @@
   }
   async function start(){
     const values=readForm();if(!values.customer_number)throw new Error('Enter a phone number.');
+    if(values.mode==='browser'){const ticket=state.openSequence;state.waitingToCall=true;render();try{await connect();}finally{state.waitingToCall=false;}if(ticket!==state.openSequence||state.panel?.hidden)return;}
     if(values.mode==='browser'&&!state.deviceChecked){state.deviceCheckRequired=true;state.checkMessage='';return;}
     state.deviceCheckRequired=false;
     const body={...state.prepared,entry_id:state.entry?.id||state.prepared.entry_id||'',customer_name:values.customer_name,customer_number:values.customer_number,
@@ -238,7 +242,7 @@
     if(name==='connect'){try{await connect();state.panel?.querySelector('[name=mode]')?.remove();render();}catch(error){state.error=error.message;render();}return;}
     if(name==='minimize'){state.minimized=!state.minimized;render();return;}
     if(name==='close'){
-      if(state.busy){state.minimized=false;render();return;}
+      if(state.busy&&!state.waitingToCall){state.minimized=false;render();return;}
       const c=state.call,observer=c?.owner_user_id&&c.owner_user_id!==ui.user()&&!state.status?.permissions?.manage;
       if(c&&!observer&&c.wrap_up_state!=='saved'&&(state.status?.settings?.require_disposition||!terminal.has(c.state)&&c.mode==='browser')){
         state.minimized=false;state.outcomeRequested=true;
@@ -247,7 +251,7 @@
         render();return;
       }
       try{await saveNotes();}catch(error){state.error=error.message;render();return;}
-      state.openSequence++;state.loadingCall=false;state.panel.hidden=true;state.call=null;state.entry=null;state.prepared={};clearTimeout(state.poll);Portal.navigation?.backOrClose?.(['customerCall','communicationsEntry'],{customerCall:null,communicationsEntry:null});return;
+      state.openSequence++;state.loadingCall=false;state.panel.hidden=true;state.call=null;state.entry=null;state.prepared={};void disconnect().catch(()=>{});clearTimeout(state.poll);Portal.navigation?.backOrClose?.(['customerCall','communicationsEntry'],{customerCall:null,communicationsEntry:null});return;
     }
     if(state.busy)return;state.busy=true;state.error='';state.panel?.querySelectorAll('input,textarea,select,[data-phone]').forEach(e=>{if(!['minimize','close'].includes(e.dataset.phone))e.disabled=true;});
     try{
@@ -271,7 +275,7 @@
       else if(name==='artifacts')await artifacts();
       else if(name==='delete-artifact')removeArtifact(button.dataset.artifact);
       else await action(name);
-    }catch(error){if(error.code==='device_check_required'){state.deviceChecked=false;state.deviceCheckRequired=true;state.checkMessage='';}else state.error=error.message;}
+    }catch(error){if(error.code==='device_check_required'){state.deviceChecked=false;state.deviceCheckRequired=true;state.checkMessage='';}else if(error.name!=='AbortError')state.error=error.message;}
     finally{state.busy=false;if(state.panel&&!state.panel.hidden){render();if(name==='artifacts')state.panel.querySelector('[data-artifacts]')?.scrollIntoView({block:'nearest'});}}
   }
   async function loadSDK(){
@@ -279,19 +283,31 @@
     await new Promise((resolve,reject)=>{const el=document.createElement('script');el.src='/libraries/vendor/telnyx/webrtc-2.27.10.js';el.onload=resolve;el.onerror=()=>reject(new Error('The phone library could not load.'));document.head.append(el);});
   }
   async function heartbeat(){
-    if(!state.client||!ui.org())return;
-    try{const result=await request('voice/endpoint/presence',{device_id:deviceId,registered:state.registered,availability:state.available?'available':'unavailable'});state.available=result.availability==='available';changed();
-      if(state.registered&&(!state.call||terminal.has(state.call.state))){const calls=await request(`calls?active=true&owner_user_id=${encodeURIComponent(ui.user())}`);const incoming=calls.calls?.find(c=>c.direction==='inbound'||c.owner_user_id===ui.user());const offered=result.offered_call_id||incoming?.id;if(offered)await open({call_id:offered});}}
-    catch(error){state.available=false;state.error=error.message;changed();}
+    if(!state.client||!ui.org())return;const client=state.client,requestedScope=scope();const valid=()=>client===state.client&&requestedScope===scope();
+    try{const result=await request('voice/endpoint/presence',{device_id:deviceId,registered:state.registered,availability:state.available?'available':'unavailable'});if(!valid())return;state.available=result.availability==='available';changed();
+      if(state.registered&&(!state.call||terminal.has(state.call.state))){const calls=await request(`calls?active=true&owner_user_id=${encodeURIComponent(ui.user())}`);if(!valid())return;const incoming=calls.calls?.find(c=>c.direction==='inbound'||c.owner_user_id===ui.user());const offered=result.offered_call_id||incoming?.id;if(offered)await open({call_id:offered});}}
+    catch(error){if(valid()){state.available=false;state.error=error.message;changed();}}
+  }
+  function connectionChanged(){changed();if(state.panel&&!state.panel.hidden)render();}
+  function autoConnect(){if(state.status?.settings?.enabled&&!state.registered&&!state.readyPromise)void connect().catch(error=>{if(error.name!=='AbortError'&&state.panel&&!state.panel.hidden){state.error=error.message;render();}});}
+  function stopConnection(){
+    ++state.connectionSequence;state.cancelConnection?.();state.cancelConnection=null;state.readyPromise=null;
+    const client=state.client;state.client=null;state.registered=false;state.available=false;state.connecting=false;
+    clearInterval(state.heartbeat);clearTimeout(state.tokenTimer);try{client?.disconnect();}catch{}
   }
   async function connect(){
-    state.boundScope=scope();
-    if(state.registered)return refreshStatus();if(state.readyPromise)return state.readyPromise;
-    state.readyPromise=(async()=>{
-      await loadSDK();const token=await request('voice/endpoint/token',{device_id:deviceId});
-      const audio=audioElement();
-      const client=new window.TelnyxWebRTC.TelnyxRTC({login_token:token.token});state.client=client;client.remoteElement=audio;
-      await applyAudio(client);
+    if(state.registered)return;if(state.readyPromise)return state.readyPromise;
+    if(state.client)stopConnection();
+    state.boundScope=scope();const ticket=++state.connectionSequence,requestedScope=scope();let client;
+    const canceled=()=>Object.assign(new Error('Phone closed.'),{name:'AbortError'});
+    const valid=()=>ticket===state.connectionSequence&&requestedScope===scope();
+    const guard=()=>{if(!valid())throw canceled();};
+    state.connecting=true;state.error='';connectionChanged();
+    const operation=(async()=>{
+      await state.disconnectPromise;guard();await loadSDK();guard();
+      const token=await request('voice/endpoint/token',{device_id:deviceId});guard();
+      const audio=audioElement();client=new window.TelnyxWebRTC.TelnyxRTC({login_token:token.token});state.client=client;client.remoteElement=audio;
+      await applyAudio(client);guard();
       client.on('telnyx.notification',notification=>{
         if(client!==state.client||state.boundScope!==scope())return;
         if(notification.type!=='callUpdate'||!notification.call)return;
@@ -305,18 +321,27 @@
         }
         if(['hangup','destroy'].includes(call.state)){state.sdkCall=null;state.muted=false;void poll().catch(()=>{});}else if(state.call)render();
       });
-      client.on('telnyx.error',error=>{state.error=error?.message||'Phone connection failed.';state.registered=false;state.available=false;changed();});
-      await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error('The phone could not register. Check your network and try again.')),20000);
-        client.on('telnyx.ready',()=>{clearTimeout(timeout);state.registered=true;resolve();});client.on('telnyx.error',()=>{clearTimeout(timeout);reject(new Error('Phone registration failed.'));});client.connect();});
-      clearInterval(state.heartbeat);state.heartbeat=setInterval(()=>void heartbeat(),12000);await heartbeat();
-      clearTimeout(state.tokenTimer);const delay=Math.max(30000,Date.parse(token.expires_at)-Date.now()-120000);
-      const renew=()=>{if(state.call&&!terminal.has(state.call.state)){state.tokenTimer=setTimeout(renew,30000);return;}void disconnect().then(connect).catch(error=>{state.error=error.message;changed();});};
+      client.on('telnyx.error',error=>{if(!valid())return;state.error=error?.message||'Phone connection failed. Try your call again.';state.registered=false;state.available=false;connectionChanged();});
+      await new Promise((resolve,reject)=>{
+        const finish=error=>{clearTimeout(timeout);if(valid())state.cancelConnection=null;error?reject(error):resolve();};
+        const timeout=setTimeout(()=>finish(new Error('Could not connect. Check your network and try your call again.')),20000);
+        state.cancelConnection=()=>finish(canceled());
+        client.on('telnyx.ready',()=>{if(!valid())return;state.registered=true;finish();});
+        client.on('telnyx.error',()=>finish(new Error('Could not connect. Try your call again.')));client.connect();
+      });guard();
+      clearInterval(state.heartbeat);state.heartbeat=setInterval(()=>void heartbeat(),12000);await heartbeat();guard();
+      const delay=Math.max(30000,Date.parse(token.expires_at)-Date.now()-120000);
+      const renew=()=>{if(!valid())return;if(state.call&&!terminal.has(state.call.state)){state.tokenTimer=setTimeout(renew,30000);return;}void disconnect().then(()=>{if(state.panel&&!state.panel.hidden)autoConnect();}).catch(()=>{});};
       state.tokenTimer=setTimeout(renew,Number.isFinite(delay)?delay:45*60000);
-      return refreshStatus();
-    })().catch(error=>{state.client?.disconnect();state.client=null;state.registered=false;state.available=false;clearInterval(state.heartbeat);throw error;}).finally(()=>{state.readyPromise=null;});return state.readyPromise;
+    })().catch(error=>{if(valid()){stopConnection();connectionChanged();}throw error;}).finally(()=>{if(valid()){state.readyPromise=null;state.connecting=false;connectionChanged();}});
+    state.readyPromise=operation;return operation;
   }
   async function disconnect(){
-    await request('voice/endpoint/disconnect',{device_id:deviceId});state.client?.disconnect();state.client=null;state.registered=false;state.available=false;clearInterval(state.heartbeat);clearTimeout(state.tokenTimer);changed();
+    const requestedScope=scope(),pending=state.readyPromise,hadConnection=!!(state.client||pending);stopConnection();changed();
+    if(!hadConnection)return state.disconnectPromise;
+    // Wait for token provisioning before releasing its lease; a reopen waits for this cleanup.
+    const cleanup=Promise.resolve(pending).catch(()=>{}).then(()=>{if(requestedScope===scope())return request('voice/endpoint/disconnect',{device_id:deviceId});});
+    state.disconnectPromise=cleanup.catch(()=>{});return cleanup;
   }
   async function availability(value){state.available=value;await heartbeat();return state.available;}
   async function diagnose(){
@@ -406,7 +431,7 @@
   window.addEventListener('fm:platform-session:updated',()=>{
     if(!ui.org()||(state.boundScope&&state.boundScope!==scope())){
       state.openSequence++;state.loadingCall=false;
-      if(state.dirty)persistLocal();state.client?.disconnect();state.client=null;state.sdkCall=null;state.registered=false;state.available=false;
+      if(state.dirty)persistLocal();stopConnection();state.deviceChecked=false;state.deviceCheckRequired=false;state.client=null;state.sdkCall=null;state.registered=false;state.available=false;
       clearInterval(state.heartbeat);clearTimeout(state.poll);clearTimeout(state.tokenTimer);clearTimeout(state.saveTimer);
       if(state.panel)state.panel.hidden=true;state.call=null;state.status=null;Portal.PhoneTray?.reset?.();state.dirty=false;state.notes='';state.answers={};state.boundScope='';changed();
     }
@@ -414,6 +439,6 @@
   });
   Portal.CustomerPhone={open,connect,disconnect,availability,diagnose,devices,refreshStatus,saveNotes,deviceId,
     get diagnostic(){return state.diagnostic;},
-    get status(){return state.status;},get connected(){return state.registered;},get available(){return state.available;},get currentCall(){return state.call;},get currentEntry(){return state.panel&&!state.panel.hidden?state.entry?.id:null;}};
+    get connecting(){return state.connecting;},get status(){return state.status;},get connected(){return state.registered;},get available(){return state.available;},get currentCall(){return state.call;},get currentEntry(){return state.panel&&!state.panel.hidden?state.entry?.id:null;}};
   Portal.Communications=Portal.Communications||{};Portal.Communications.open=open;
 })();

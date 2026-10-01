@@ -63,7 +63,7 @@
     if(!shell)return;
     const c=state.call,ended=c&&['ended','failed','canceled','no_answer','busy','rejected'].includes(c.state);
     if(state.status?.development?.enabled&&!state.panel.querySelector('[data-dev-destination]')){const note=document.createElement('p');note.dataset.devDestination='';note.className='fmcm-help';note.innerHTML=icon('flask')+'<span>Test mode · Calls route to '+esc(state.status.development.destination)+'</span>';state.panel.querySelector('.fmcp-body')?.append(note);}
-    title.innerHTML=`${icon('phone')}<span><strong>${esc(c?.customer_name||c?.customer_number||state.prepared?.customer_name||'Phone')}</strong><small>${esc(ended&&c.wrap_up_state!=='saved'?'Call ended · Outcome ready':c?ui.label(c.state):state.registered?'Browser phone connected':'Ready when you are')}</small></span>`;
+    title.innerHTML=`${icon('phone')}<span><strong>${esc(c?.customer_name||c?.customer_number||state.prepared?.customer_name||'Phone')}</strong><small>${esc(ended&&c.wrap_up_state!=='saved'?'Call ended · Outcome ready':c?ui.label(c.state):state.connecting?'Connecting…':state.registered?'Ready to call':'Ready when you are')}</small></span>`;
     compact.innerHTML=`<canvas width="110" height="40" aria-label="Incoming and outgoing audio levels"></canvas>${c&&!ended?`<button data-phone="mute" ${!state.sdkCall||state.busy?'disabled':''}>${state.muted?'Unmute':'Mute'}</button><button data-phone="${c.state==='held'?'resume':'hold'}" ${!['held','connected'].includes(c.state)||state.busy?'disabled':''}>${c.state==='held'?'Resume':'Hold'}</button><button data-phone="hangup" ${state.busy?'disabled':''}>End</button>`:'<span>Click to open</span>'}`;
     if(state.minimized&&win.state.mode!=='minimized')win.setMode('minimized');else if(!state.minimized&&win.state.mode==='minimized')win.restore();
     win.setVisible(!state.panel.hidden);
@@ -85,7 +85,6 @@
         elements.forEach(el=>{if(el.matches('.fmcm-form-grid,[name=purpose],.fmcm-field')||el.classList.contains('fmcm-help')&&!el.hasAttribute('data-dev-destination'))options.append(el);});
         body.append(number,pad,start,options);const dev=body.querySelector('[data-dev-destination]');if(dev)body.append(dev);
         const plus=document.createElement('button');plus.type='button';plus.dataset.digit='+';plus.textContent='+';plus.setAttribute('aria-label','Add country code plus');plus.className='fm-phone-plus';plus.onclick=()=>digit('+');number.append(plus);
-        const connect=body.querySelector('[data-phone=connect]');if(connect){const row=document.createElement('div');row.className='fm-phone-connection';row.innerHTML='<span><strong>Browser phone is offline</strong></span>';connect.before(row);row.append(connect);connect.textContent='Connect';connect.setAttribute('aria-label','Connect browser phone');}
       }
     }
     if(c&&['connected','held'].includes(c.state)&&(!c.owner_user_id||c.owner_user_id===ui.user()||state.status?.permissions?.manage)&&!state.panel.querySelector('.fm-phone-pad')){

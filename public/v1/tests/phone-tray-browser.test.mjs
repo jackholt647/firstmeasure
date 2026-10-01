@@ -13,8 +13,11 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.evaluate(()=>{
       window.__APP={orgId:'org-test',userId:'user-test'};
       window.Portal={appFlags:{has:()=>true},navigation:{registerSchema(){},registerHandler(){},push(){}}};
+      window.TelnyxWebRTC={TelnyxRTC:class{constructor(){this.handlers={};}on(n,cb){this.handlers[n]=cb;}connect(){this.handlers['telnyx.ready']();}async setAudioSettings(){}disconnect(){}}};
       window.testCall={id:'call-test',customer_name:'Test contact',customer_number:'+12025550123',state:'connected',mode:'browser',owner_user_id:'user-test',wrap_up_state:'draft',metadata:{}};
       window.CommsAPI={customer:async(_org,path,data)=>{
+        if(path==='voice/endpoint/token')return {token:'fixture',expires_at:new Date(Date.now()+3600000).toISOString()};
+        if(path==='voice/endpoint/presence')return {availability:'unavailable'};
         if(path==='voice/status')return {settings:{enabled:true},permissions:{manage:true}};
         if(path==='call-scripts')return {scripts:[]};
         if(path==='call-context')return {contacts:[]};

@@ -38,7 +38,7 @@ test('required outcomes remain open and first browser call offers actionable rea
       window.TelnyxWebRTC={TelnyxRTC:class {
         constructor(){this.handlers={};window.client=this;}
         on(event,cb){this.handlers[event]=cb;}
-        connect(){this.handlers['telnyx.ready']();}
+        connect(){if(!window.delayReady)this.handlers['telnyx.ready']();}
         async setAudioSettings(){} disconnect(){}
       }};
       Object.defineProperty(navigator,'mediaDevices',{value:{getUserMedia:async()=>{
@@ -65,7 +65,7 @@ test('required outcomes remain open and first browser call offers actionable rea
     await page.locator('[data-phone=close]').click();
     await page.waitForFunction(()=>document.querySelector('.fmcp').hidden);
     assert.equal(await page.evaluate(()=>window.fixtureCall.notes),'Keep these call notes');
-    await page.evaluate(async()=>{await Portal.CustomerPhone.connect();await Portal.CustomerPhone.open({customer_name:'My phone',customer_number:'+12069415049',purpose:'Voice test'});});
+    await page.evaluate(async()=>{await Portal.CustomerPhone.open({customer_name:'My phone',customer_number:'+12069415049',purpose:'Voice test'});});
     await page.locator('[data-phone=start]').click();
     await page.waitForSelector('[data-phone=diagnose]');
     assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path==='calls').length),0);
@@ -96,8 +96,15 @@ test('required outcomes remain open and first browser call offers actionable rea
     await page.locator('[data-phone=diagnose]').click();
     await page.waitForFunction(()=>!document.querySelector('[data-phone=diagnose]'));
     await page.locator('dialog[open] [data-close]').first().click();
+    await page.evaluate(async()=>{await Portal.CustomerPhone.disconnect();window.delayReady=true;});
     await page.locator('[data-phone=start]').click();
+    await page.waitForFunction(()=>Portal.CustomerPhone.connecting);
+    assert.match(await page.locator('[data-phone=start]').textContent(),/Connecting/);
+    assert.equal(await page.locator('[name=mode]').inputValue(),'browser');
+    const beforeDial=await page.evaluate(()=>window.requests.filter(r=>r.path==='calls').length);
+    await page.evaluate(()=>window.client.handlers['telnyx.ready']());
     await page.waitForFunction(()=>Portal.CustomerPhone.currentCall?.id==='browser');
+    assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path==='calls').length),beforeDial+1);
     await page.locator('[data-phone=minimize]').click();await page.locator('[data-phone=close]').click();
     assert.equal(await page.evaluate(()=>Portal.CustomerPhone.currentCall.state),'connected');
     await page.locator('[data-phone=minimize]').click();await page.locator('[data-phone=hangup]').click();
