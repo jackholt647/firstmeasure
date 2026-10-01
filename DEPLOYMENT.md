@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 30 phone sizing: [Compact minimized and floating phone](deploy/digitalocean/development-phone-size-20260930.md) records project-height parity, simplified controls and the smaller dialer.
+
 September 30 phone connection: [Automatic connection and close cleanup](deploy/digitalocean/development-phone-autoconnect-20260930.md) records the browser lifecycle, queued call behavior, validation and development rollout.
 
 September 30 calling polish: [Branded phone tray, Call Center and shared headers](deploy/digitalocean/development-phone-polish-20260930.md) records the visual pass, responsive interaction fixes, bootstrap correction and development verification.

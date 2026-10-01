@@ -12,6 +12,9 @@ is at the lower right above existing minimized windows. Compact phone windows
 cannot enter full, fullscreen or modal modes. Closing an active call minimizes it;
 ending the call requires the explicit End control. An ended call stays available
 for its outcome. The minimized title restores the previous expanded placement.
+The minimized phone uses the same 32-pixel height as project windows, with call
+controls on one row and no separate Restore button. Its initial floating size is
+264 by 448 pixels; dock and free-move controls remain available.
 
 Opening an enabled phone starts browser registration automatically. Starting a
 browser call waits for that same connection and shows Connecting; disconnected
