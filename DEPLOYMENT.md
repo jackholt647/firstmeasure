@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 30 phone: [Global phone tray and mock development onboarding](deploy/digitalocean/development-phone-tray-20260930.md) records standalone Call Center, call controls, safe test transport, validation and rollout.
+
 September 30 app groups: [Configurable sub-apps and shared headers](deploy/digitalocean/development-app-groups-20260930.md) records the development rollout, settings, source preservation, verification and rollback.
 
 September 30 Channels round 3: [Clear-on-open badges, document-style lists and compact reminders](deploy/digitalocean/development-channels-linear-round3-20260930.md) records sequential development verification, repeated Linear rescans, native checks and rollback.
