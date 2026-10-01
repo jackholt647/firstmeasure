@@ -75,9 +75,9 @@
     const suggestion=state.followupOptions?.suggestions?.[['voicemail','no_answer'].includes(disposition)?disposition:'manual_follow_up'];
     const nextSteps=[['none','Keep open — no work completed'],['complete','Complete selected work'],['follow_up','Create follow-up'],...(c?.project_id?[['scheduled','Link booked appointment']]:[]),...(state.followupOptions?.follow_up_node_ids?.length?(state.followupOptions.outcomes||[]).filter(o=>o.action==='lost').map(o=>[`outcome:${o.id}`,o.label]):[])];
     el.innerHTML=`<header class="fmcp-header"><div class="fmcm-avatar">${String(icon('phone'))}</div><div><strong>${String(esc(title))}</strong><small>${String(esc(number))}${String(number?' · ':'')}<span data-call-status>${String(esc(c?`${label(c.state)}${c.mode==='external'?' · External phone':''}`:'Ready when you are'))}</span></small></div><button data-phone="minimize" aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("comms","m_21406d49c2fdb5",`${v5} call`,{v5}) ?? `${v5} call`)(state.minimized?'Expand':'Minimize')}">${String(icon(state.minimized?'expand':'minus'))}</button><button data-phone="close" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_314202e0941af2","Close call workspace") ?? "Close call workspace")}">${String(icon('xmark'))}</button></header>
-      <div class="fmcp-body">${!c&&state.connecting?'<p class="fmcm-help" role="status" aria-live="polite">Connecting…</p>':''}${c&&(terminal.has(c.state)||c.mode==='external')&&(saved||!state.status?.settings?.require_disposition)?'<button data-phone="new-call">'+(saved?'New call':'Skip outcome / New call')+'</button>':''}${String(state.error?`<div class="fmcm-error" role="alert">${esc(state.error)}</div>`:'')}
-      ${state.deviceCheckRequired&&!c?`<section role="status"><p class="fmcm-help">${esc(state.checkMessage||'Run the microphone and network check before calling on this device. Your call details will stay here.')}</p><button data-phone="diagnose" class="fmcm-primary">${state.busy?'Checking microphone and network…':'Run checks'}</button></section>`:''}
-      ${state.deviceChecked&&state.checkMessage&&!c?`<p class="fmcm-help" role="status">${esc(state.checkMessage)} Click Start call when you are ready.</p>`:''}
+      <div class="fmcp-body">${!c&&state.connecting?'<p class="fmcm-help" role="status" aria-live="polite">Connecting…</p>':''}${c&&(terminal.has(c.state)||c.mode==='external')&&(saved||!state.status?.settings?.require_disposition)?'<button data-phone="new-call">'+(saved?'New call':'Skip outcome / New call')+'</button>':''}${String(state.error?`<div data-phone-error class="fmcm-error" role="alert">${esc(state.error)}</div>`:'')}
+      ${state.deviceCheckRequired&&!c?`<section data-phone-readiness role="status"><p class="fmcm-help">${esc(state.checkMessage||'Run the microphone and network check before calling on this device. Your call details will stay here.')}</p><button data-phone="diagnose" class="fmcm-primary">${state.busy?'Checking microphone and network…':'Run checks'}</button></section>`:''}
+      ${state.deviceChecked&&state.checkMessage&&!c?`<p data-phone-check-success class="fmcm-help" role="status">${esc(state.checkMessage)} Click Start call when you are ready.</p>`:''}
       ${state.outcomeRequested&&c&&!saved?`<p class="fmcm-help" role="status">${active?'Ending the call…':'Choose the call outcome, then click Save outcome to finish.'}</p>`:''}
       ${String(c?.metadata?.provider_error?`<p class="fmcm-error">${esc(c.metadata.provider_error.message)} <button data-phone="reconcile">${(globalThis.PlatformLanguage?.htmlText("comms","m_0594685d991928","Check provider status") ?? "Check provider status")}</button></p>`:'')}
       ${String((state.detail?.operations||[]).filter(job=>job.state==='failed'&&['wrap_up','recording_ingest','missed_callback'].includes(job.kind)).map(job=>`<p class="fmcm-error">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_c27c615bb5fb5f",`${v0} could not finish. Your call record is saved. `,{v0}) ?? `${v0} could not finish. Your call record is saved. `)(esc(label(job.kind)))}<button data-phone="retry-work" data-job="${esc(job.id)}">${(globalThis.PlatformLanguage?.htmlText("comms","m_6bf817428776f2","Retry saved work") ?? "Retry saved work")}</button></p>`).join(''))}
@@ -108,10 +108,10 @@
     if(state.saveError){const message=el.querySelector('[data-save-state]');if(message){message.textContent=(globalThis.PlatformLanguage?.text("comms","m_cb41039283b180","Notes are kept in this tab. ") ?? "Notes are kept in this tab. ");const retry=document.createElement('button');retry.dataset.phone='save-notes';retry.textContent=(globalThis.PlatformLanguage?.text("comms","m_5ede774dc3f22a","Retry saving") ?? "Retry saving");message.append(retry);}}
     el.querySelectorAll('[data-source]').forEach(e=>{e.checked=checked.has(e.dataset.source);});
     const focusTarget=focusQuestion!==undefined?el.querySelector(`[data-question="${CSS.escape(focusQuestion)}"]`):focusName?el.querySelector(`[name="${CSS.escape(focusName)}"]`):null;
-    if(focusTarget){focusTarget.focus({preventScroll:true});try{focusTarget.setSelectionRange(caret,caretEnd);}catch{}}
     if(state.busy)el.querySelectorAll('input,textarea,select,[data-phone]').forEach(e=>{if(!['minimize','close'].includes(e.dataset.phone))e.disabled=true;});
     if(!state.status)el.querySelector('[data-phone=start]')?.setAttribute('disabled','');
     Portal.PhoneTray?.update(state);
+    if(focusTarget){focusTarget.focus({preventScroll:true});try{focusTarget.setSelectionRange(caret,caretEnd);}catch{}}
     if(state.outcomeRequested&&!active&&!saved&&!processing){const outcome=el.querySelector('[name=disposition]');outcome?.scrollIntoView({block:'nearest'});outcome?.focus({preventScroll:true});}
   }
   async function refreshStatus(){const requestedScope=scope(),status=await request('voice/status');if(requestedScope!==scope())return {};const first=!state.status;state.status=status;if(first&&status.settings?.enabled)state.panel?.querySelector('[name=mode]')?.remove();changed();return status;}
@@ -253,6 +253,7 @@
   async function handle(name,button){
     if(name==='new-call'){if(state.status?.settings?.require_disposition&&state.call?.wrap_up_state!=='saved')return;await saveNotes();state.call=null;await open();return;}
     if(name==='connect'){try{await connect();state.panel?.querySelector('[name=mode]')?.remove();render();}catch(error){state.error=error.message;render();}return;}
+    if(name==='dismiss-check'&&!state.busy){state.deviceCheckRequired=false;state.checkMessage='';state.error='';render();return;}
     if(name==='minimize'){state.minimized=!state.minimized;render();return;}
     if(name==='close'){
       if(state.busy&&!state.waitingToCall){state.minimized=false;render();return;}
@@ -271,7 +272,7 @@
       if(name==='start')await start();else if(name==='wrap')await wrap();else if(name==='save-notes')await saveNotes();else if(name==='skip'||name==='next')await next(name==='skip');
       else if(name==='diagnose'){
         state.checkMessage='Checking microphone and network…';render();
-        const result=await diagnose();state.deviceChecked=['ready','degraded'].includes(result.result?.verdict);
+        const result=await diagnose({inline:!!Portal.PhoneTray});state.deviceChecked=['ready','degraded'].includes(result.result?.verdict);
         state.deviceCheckRequired=!state.deviceChecked;state.checkMessage=result.result?.reason||'The check could not confirm call readiness. Run checks again.';
         if(!state.deviceChecked)state.error=state.checkMessage;
       }
@@ -357,19 +358,20 @@
     state.disconnectPromise=cleanup.catch(()=>{});return cleanup;
   }
   async function availability(value){state.available=value;await heartbeat();return state.available;}
-  async function diagnose(){
+  async function diagnose(options={}){
     if(state.diagnosing)throw new Error('An audio check is already running.');
     if(state.call&&!terminal.has(state.call.state))throw new Error('Run the audio check between calls.');
     state.diagnosing=true;const wasAvailable=state.available;state.available=false;const samples=[];let microphone='unavailable',connected=false,providerFailed=false;
     const names=['Connect browser phone','Check microphone access','Connect test audio','Measure audio quality','Save device result'];
     const checks=names.map(()=> 'Waiting');let step=0,finished=false;
-    const el=dialog('Call readiness check',`<p>This checks your microphone and the actual phone audio connection. It does not call a customer or record your voice.</p><ol>${names.map((name,i)=>`<li>${esc(name)}: <strong data-check-step="${i}">Waiting</strong></li>`).join('')}</ol><p data-check-progress role="status" aria-live="polite"></p><p class="fmcm-help" data-check-elapsed></p><section data-check-result hidden></section>`,null);
-    el.querySelector('footer [data-close]').textContent='Hide check';
+    const inline=options.inline&&state.panel&&!state.panel.hidden;
+    const el=inline?null:dialog('Call readiness check',`<p>This checks your microphone and the actual phone audio connection. It does not call a customer or record your voice.</p><ol>${names.map((name,i)=>`<li>${esc(name)}: <strong data-check-step="${i}">Waiting</strong></li>`).join('')}</ol><p data-check-progress role="status" aria-live="polite"></p><p class="fmcm-help" data-check-elapsed></p><section data-check-result hidden></section>`,null);
+    if(el)el.querySelector('footer [data-close]').textContent='Hide check';
     const began=performance.now();
-    const elapsed=setInterval(()=>{const target=el.querySelector('[data-check-elapsed]');if(target)target.textContent=`${Math.floor((performance.now()-began)/1000)} seconds elapsed. Allow any browser microphone prompt. Connecting can take up to 20 seconds; the audio test can take another 23 seconds.`;},1000);
-    function progress(index,message){step=index;checks[index]='Checking…';checks.forEach((value,i)=>{el.querySelector(`[data-check-step="${i}"]`).textContent=value;});el.querySelector('[data-check-progress]').textContent=message;}
+    const elapsed=el?setInterval(()=>{const target=el.querySelector('[data-check-elapsed]');if(target)target.textContent=`${Math.floor((performance.now()-began)/1000)} seconds elapsed. Allow any browser microphone prompt. Connecting can take up to 20 seconds; the audio test can take another 23 seconds.`;},1000):0;
+    function progress(index,message){step=index;checks[index]='Checking…';if(!el){state.checkProgress=['Connecting…','Allow microphone access if asked.','Connecting test audio…','Checking audio quality…','Finishing…'][index];render();return;}checks.forEach((value,i)=>{el.querySelector(`[data-check-step="${i}"]`).textContent=value;});el.querySelector('[data-check-progress]').textContent=message;}
     function finish(result){
-      finished=true;clearInterval(elapsed);state.diagnostic=result;changed();
+      finished=true;clearInterval(elapsed);state.diagnostic=result;state.checkProgress='';changed();if(!el)return;
       el.querySelector('footer [data-close]').textContent='Close';
       checks[step]=['ready','degraded'].includes(result.verdict)?'Passed':label(result.verdict);
       checks.forEach((value,i)=>{el.querySelector(`[data-check-step="${i}"]`).textContent=value==='Waiting'?'Not run':value;});
@@ -415,9 +417,9 @@
       state.deviceChecked=['ready','degraded'].includes(result.result?.verdict);step=state.deviceChecked?4:failedStep;finish(result.result);return result;
     }catch(error){state.deviceChecked=false;finish({verdict:'blocked',reason:error.message||'The check could not finish. Reconnect your phone and retry.'});throw error;
     }finally{
-      clearInterval(elapsed);if(!finished)el.querySelector('[data-check-progress]').textContent='Check stopped. Retry when you are ready.';
+      clearInterval(elapsed);if(!finished&&el)el.querySelector('[data-check-progress]').textContent='Check stopped. Retry when you are ready.';
       if(state.diagnosticId){await request(`calls/${encodeURIComponent(state.diagnosticId)}/actions`,{operation_id:uid(),action:'hangup'}).catch(()=>{});await Promise.resolve(state.sdkCall?.hangup()).catch(()=>{});}
-      state.diagnosticId='';state.diagnosing=false;state.sdkCall=null;state.available=wasAvailable;await heartbeat();el.querySelector('[data-check-retry]')?.removeAttribute('disabled');
+      state.diagnosticId='';state.diagnosing=false;state.sdkCall=null;state.available=wasAvailable;await heartbeat();el?.querySelector('[data-check-retry]')?.removeAttribute('disabled');
     }
   }
   async function devices(){

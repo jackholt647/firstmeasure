@@ -11,19 +11,25 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.route('https://phone.test/**',route=>route.fulfill({body:'<style>body{margin:0;font-family:Arial,sans-serif}.main{height:100vh;position:relative}</style><main class="main"><header id="platformTopbar" style="height:50px"></header><div id="platformPhoneSlot"><button id="platformPhoneBtn">Phone</button></div><div id="mainPanels"></div></main>',contentType:'text/html'}));
     await page.goto('https://phone.test');
     await page.evaluate(()=>{
+      window.sentTones=[];window.tones=[];window.AudioContext=class {
+        currentTime=0;state='running';destination={};async close(){}async resume(){}
+        createGain(){return {gain:{setValueAtTime(){},linearRampToValueAtTime(){}},connect(){},disconnect(){}};}
+        createOscillator(){return {frequency:{value:0},connect(){},disconnect(){},start(){window.tones.push(this.frequency.value);},stop(){this.onended?.();}};}
+      };
       window.__APP={orgId:'org-test',userId:'user-test'};
       window.Portal={appFlags:{has:()=>true},navigation:{registerSchema(){},registerHandler(){},push(){}}};
-      window.TelnyxWebRTC={TelnyxRTC:class{constructor(){this.handlers={};}on(n,cb){this.handlers[n]=cb;}connect(){this.handlers['telnyx.ready']();}async setAudioSettings(){}disconnect(){}}};
+      window.TelnyxWebRTC={TelnyxRTC:class{constructor(){this.handlers={};window.phoneClient=this;}on(n,cb){this.handlers[n]=cb;}connect(){if(!window.delayReady)this.handlers['telnyx.ready']();}async setAudioSettings(){}disconnect(){}}};
       window.testCall={id:'call-test',customer_name:'Test contact',customer_number:'+12025550123',state:'connected',mode:'browser',owner_user_id:'user-test',wrap_up_state:'draft',metadata:{}};
       window.CommsAPI={customer:async(_org,path,data)=>{
         if(path==='voice/endpoint/token')return {token:'fixture',expires_at:new Date(Date.now()+3600000).toISOString()};
         if(path==='voice/endpoint/presence')return {availability:'unavailable'};
+        if(path==='voice/diagnostics')return {result:{verdict:'blocked',reason:'Allow microphone access and try again.'}};
         if(path==='voice/status')return {settings:{enabled:true},permissions:{manage:true}};
         if(path==='call-scripts')return {scripts:[]};
         if(path==='call-context')return {contacts:[]};
         if(path==='call-lists/queue')return {columns:[]};
         if(path.startsWith('voice/contacts'))return {contacts:[{id:'contact-one',name:'Jane Test',phone:'+12025550124'}]};
-        if(path.includes('/actions')){if(data.action==='hangup')window.testCall={...window.testCall,state:'ended',wrap_up_state:'needs_wrap_up'};return {call:window.testCall};}
+        if(path.includes('/actions')){if(data.action==='dtmf')window.sentTones.push(data.digits);if(data.action==='hangup')window.testCall={...window.testCall,state:'ended',wrap_up_state:'needs_wrap_up'};return {call:window.testCall};}
         if(path.startsWith('calls/'))return {call:window.testCall};
         return {};
       }};
@@ -49,6 +55,33 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.getByRole('button',{name:'Delete last digit'}).click();
     await page.locator('[data-digit="2"]').click();
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'2');
+    assert.deepEqual(await page.evaluate(()=>tones),[697,1336]);
+    await page.locator('[name=customer_number]').pressSequentially('9');
+    assert.deepEqual(await page.evaluate(()=>tones.slice(-2)),[852,1477]);
+    await page.locator('[name=customer_number]').press('Backspace');
+    assert.equal(await page.evaluate(()=>tones.length),4);
+    await page.locator('.fm-phone-options summary').click();
+    assert.equal(await page.getByLabel('Keypad sounds',{exact:true}).isChecked(),true);
+    await page.getByLabel('Keypad sounds',{exact:true}).uncheck();
+    await page.locator('[data-digit="3"]').click();
+    await page.locator('[name=customer_number]').pressSequentially('4');
+    assert.equal(await page.evaluate(()=>tones.length),4);
+    await page.evaluate(()=>Portal.CustomerPhone.open());
+    await page.locator('.fm-phone-options summary').click();
+    assert.equal(await page.getByLabel('Keypad sounds',{exact:true}).isChecked(),false);
+    await page.getByLabel('Keypad sounds',{exact:true}).check();
+    await page.locator('[data-digit="#"]').click();
+    assert.deepEqual(await page.evaluate(()=>tones.slice(-2)),[941,1477]);
+
+
+    await page.evaluate(async()=>{await Portal.CustomerPhone.disconnect();window.delayReady=true;window.pendingConnection=Portal.CustomerPhone.connect();});
+    await page.waitForFunction(()=>phoneClient.handlers['telnyx.ready']);
+    await page.locator('[name=customer_number]').fill('123456789012345');
+    await page.locator('[name=customer_number]').press('End');
+    await page.evaluate(async()=>{phoneClient.handlers['telnyx.ready']();await pendingConnection;window.delayReady=false;});
+    assert.equal(await page.evaluate(()=>document.activeElement.name),'customer_number');
+    for(let i=0;i<15;i++)await page.keyboard.press('Backspace');
+    assert.equal(await page.locator('[name=customer_number]').inputValue(),'');
     await page.locator('[data-phone-tab=contacts]').click();
     await page.getByRole('searchbox',{name:'Search contacts'}).fill('Jane');
     await page.getByRole('button',{name:'Jane Test'}).click();
@@ -72,8 +105,43 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.locator('[data-phone=start]').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(101, 68, 170)');
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/floating.png'});
     await page.setViewportSize({width:1280,height:900});
+
+    await page.locator('[name=customer_number]').fill('123456789012345');
+    await page.locator('[name=customer_number]').press('Home');
+    for(let i=0;i<15;i++)await page.getByRole('button',{name:'Delete last digit'}).click();
+    assert.equal(await page.locator('[name=customer_number]').inputValue(),'');
+    await page.locator('[name=customer_number]').pressSequentially('123456789012345');
+    for(let i=0;i<15;i++)await page.locator('[name=customer_number]').press('Backspace');
+    assert.equal(await page.locator('[name=customer_number]').inputValue(),'');
+    await page.locator('[name=customer_number]').fill('+12025550124');
+    await page.locator('[data-phone=start]').click();
+    await page.waitForSelector('.fm-phone-readiness');
+    assert.equal(await page.locator('.fm-phone-dialer-content').evaluate(e=>e.inert),true);
+    const promptBox=await page.locator('.fm-phone-readiness').boundingBox(),numberBox=await page.locator('.fm-phone-number').boundingBox();
+    assert.ok(promptBox.y<numberBox.y+numberBox.height);
+    await page.waitForFunction(()=>document.querySelector('.fm-phone-readiness').getAnimations().every(a=>a.playState==='finished'));
+    if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/readiness.png'});
+    await page.evaluate(()=>Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:async()=>{throw Object.assign(Error('Denied'),{name:'NotAllowedError'});}}}));
+    await page.locator('[data-phone=diagnose]').click();
+    await page.waitForFunction(()=>document.querySelector('.fm-phone-error-bar').textContent.includes('Allow microphone'));
+    await page.waitForFunction(()=>!document.querySelector('[data-phone=diagnose]').disabled);
+    assert.equal(await page.locator('dialog[open]').count(),0);
+    await page.locator('[data-phone=diagnose]').hover();
+    assert.equal(await page.locator('[data-phone=diagnose]').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(101, 68, 170)');
+    const errorBox=await page.locator('.fm-phone-error-bar').boundingBox(),windowBox=await page.locator('.fm-phone-tray').boundingBox();
+    assert.ok(Math.abs(errorBox.y+errorBox.height-(windowBox.y+windowBox.height))<3);
+    await page.waitForFunction(()=>document.querySelector('.fm-phone-readiness').getAnimations().every(a=>a.playState==='finished'));
+    if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/readiness-error.png'});
+    await page.getByRole('button',{name:'Not now',exact:true}).click();
+    assert.equal(await page.locator('.fm-phone-error-bar').isVisible(),false);
     await page.evaluate(()=>Portal.CustomerPhone.open({call_id:'call-test'}));
     assert.equal(await page.locator('[aria-label="Call keypad"] button').count(),12);
+    await page.getByLabel('Keypad sounds',{exact:true}).uncheck();
+    const beforeInCallTone=await page.evaluate(()=>tones.length);
+    await page.locator('[data-phone=tone][data-digit="5"]').click();
+    await page.waitForFunction(()=>sentTones.includes('5'));
+    assert.equal(await page.evaluate(()=>tones.length),beforeInCallTone);
+
     await page.getByRole('button',{name:'Minimize phone',exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().height===32);
     assert.equal(await page.locator('.fm-phone-tray').evaluate(e=>e.getBoundingClientRect().height),await page.evaluate(()=>document.querySelector('aside:not(.fm-phone-tray):not(.fmcp)').getBoundingClientRect().height));
