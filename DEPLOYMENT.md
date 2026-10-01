@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 30 calling polish: [Branded phone tray, Call Center and shared headers](deploy/digitalocean/development-phone-polish-20260930.md) records the visual pass, responsive interaction fixes, bootstrap correction and development verification.
+
 September 30 Full Structure: [Orbital video ordering with the eight-photo fallback](deploy/digitalocean/development-orbital-video-20260930.md) records the capture flow, server limits, the technician-editor gap, validation, development rollout and rollback.
 
 September 30 phone: [Global phone tray and mock development onboarding](deploy/digitalocean/development-phone-tray-20260930.md) records standalone Call Center, call controls, safe test transport, validation and rollout.
