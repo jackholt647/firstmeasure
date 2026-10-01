@@ -47,7 +47,14 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.locator('[aria-label="Call keypad"] button').count(),12);
     await page.getByRole('button',{name:'Minimize phone',exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().height<=79);
+    assert.equal(await page.getByRole('button',{name:/Dock phone to/}).isVisible(),true);
+    assert.equal(await page.getByRole('button',{name:'Float phone',exact:true}).isVisible(),true);
+    assert.equal(await page.getByRole('button',{name:'Close phone',exact:true}).isVisible(),true);
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/minimized.png'});
+    await page.getByRole('button',{name:/Dock phone to/}).click();
+    assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'docked');
+    await page.getByRole('button',{name:'Float phone',exact:true}).click();
+    await page.getByRole('button',{name:'Minimize phone',exact:true}).click();
     await page.locator('.fm-phone-compact [data-phone=hangup]').click();
     await page.waitForFunction(()=>document.querySelector('.fm-phone-title').textContent.includes('Outcome ready'));
     assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'minimized');
