@@ -1049,7 +1049,7 @@
   };
 
   apps.forEach((app) => {
-    app.bundles = [versionedBundle('../app-runtime/app-chrome.js', '20260930-phone-tray-v1'), ...(app.bundles || [])];
+    app.bundles = [versionedBundle('../app-runtime/app-chrome.js', '20260930-header-isolation-v1'), ...(app.bundles || [])];
     app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260930-scheduling-qa-v2'), ...(app.bundles || [])];
     const capability = appCapabilities[app.id];
     if (capability) app.access = { ...(app.access || {}), capability };
