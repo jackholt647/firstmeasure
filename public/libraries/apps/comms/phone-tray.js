@@ -14,6 +14,7 @@
   .fm-phone-compact{display:none;align-items:center;gap:4px;width:100%}.fm-phone-compact canvas{width:55px;height:20px}.fm-phone-tray[data-window=minimized] .fm-phone-compact{display:flex}.fm-phone-tray.fm-window[data-window=minimized] .fm-window-header{height:auto;min-height:72px}.fm-phone-tray[data-window=minimized] .fm-window-controls button[data-window-action=place]{display:inline-flex!important}.fm-phone-compact button{padding:4px 7px;font-size:11px}.fm-phone-compact [data-phone=hangup]{background:#b42318;color:white}.fm-phone-tray [data-window-action=maximize]{display:none!important}
   `;document.head.append(style);
   function attach(panel,api){
+    if(!window.FirstMateWindows?.attach)return null;
     runtime=api;
     const host=document.querySelector('main.main')||document.querySelector('.main')||document.body;
     shell=document.createElement('aside');shell.className='fm-phone-tray';shell.hidden=true;
@@ -58,6 +59,9 @@
     if(state.minimized&&win.state.mode!=='minimized')win.setMode('minimized');else if(!state.minimized&&win.state.mode==='minimized')win.restore();
     win.setVisible(!state.panel.hidden);
     if(!c){const field=state.panel.querySelector('[name=customer_number]');if(field&&!state.panel.querySelector('.fm-phone-pad')){const pad=document.createElement('div');pad.className='fm-phone-pad';pad.innerHTML=[...'123456789*0#'].map(n=>`<button type="button" data-digit="${n}">${n}</button>`).join('')+'<button type="button" data-digit="+">+</button><button type="button" data-erase aria-label="Delete last digit">⌫</button>';field.closest('label').after(pad);const start=state.panel.querySelector('[data-phone=start]');if(start){pad.after(start);start.style.cssText='width:100%;background:#067647;color:white';const name=state.panel.querySelector('[name=customer_name]')?.closest('label');if(name)start.after(name);}pad.onclick=e=>{const b=e.target.closest('button');if(!b)return;field.value=b.hasAttribute('data-erase')?field.value.slice(0,-1):field.value+b.dataset.digit;field.dispatchEvent(new Event('input',{bubbles:true}));};}}
+    if(c&&['connected','held'].includes(c.state)&&(!c.owner_user_id||c.owner_user_id===ui.user()||state.status?.permissions?.manage)&&!state.panel.querySelector('.fm-phone-pad')){
+      const pad=document.createElement('div');pad.className='fm-phone-pad';pad.setAttribute('aria-label','Call keypad');pad.innerHTML=[...'123456789*0#'].map(digit=>`<button type="button" data-phone="tone" data-digit="${digit}" ${state.busy?'disabled':''}>${digit}</button>`).join('');state.panel.querySelector('.fmcp-controls')?.after(pad);
+    }
     levels(ended?null:state.sdkCall);
   }
   function levels(call){

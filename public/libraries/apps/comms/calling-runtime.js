@@ -22,7 +22,7 @@
   function ensurePanel(){
     if(state.panel)return state.panel;
     const el=document.createElement('aside');el.className='fmcp';el.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("comms","m_f6ab2f58b94a8e","Customer call workspace") ?? "Customer call workspace"));el.hidden=true;document.body.append(el);state.panel=el;
-    Portal.PhoneTray?.attach(el,{panel:()=>state.panel,action:handle,minimized:value=>{state.minimized=value;}});
+    Portal.PhoneTray?.attach(el,{panel:()=>state.panel,action:handle,minimized:value=>{state.minimized=value;state.panel?.classList.toggle('minimized',value);}});
     el.addEventListener('click',event=>{const button=event.target.closest('[data-phone]');if(button)void handle(button.dataset.phone,button);});
     el.addEventListener('input',event=>{
       if(event.target.name==='due_at'){state.policyDate='';state.usePolicy=false;}
@@ -260,6 +260,7 @@
       }
       else if(name==='reconcile'){const result=await request(callPath('/reconcile'),{});state.call=result.call;}
       else if(name==='retry-work'){await request(callPath('/retry-work'),{job_id:button.dataset.job});await poll();}
+      else if(name==='tone')await action('dtmf',{digits:button.dataset.digit});
       else if(name==='answer'){await state.sdkCall?.answer();}
       else if(name==='decline'){await action('decline');await state.sdkCall?.hangup();}
       else if(name==='mute'){if(!state.sdkCall)throw new Error('This tab does not own the phone audio.');state.muted=!state.muted;if(state.muted)state.sdkCall.muteAudio();else state.sdkCall.unmuteAudio();}

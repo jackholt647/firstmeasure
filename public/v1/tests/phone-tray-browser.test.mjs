@@ -44,6 +44,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     const box=await page.locator('.fm-phone-tray').boundingBox();assert.ok(box.width<400&&box.y+box.height<=858,JSON.stringify(box));
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/floating.png'});
     await page.evaluate(()=>Portal.CustomerPhone.open({call_id:'call-test'}));
+    assert.equal(await page.locator('[aria-label="Call keypad"] button').count(),12);
     await page.getByRole('button',{name:'Minimize phone',exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().height<=79);
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/minimized.png'});
@@ -52,6 +53,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'minimized');
     await page.locator('.fm-phone-title').click();
     assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'floating');
+    assert.equal(await page.locator('[data-phone=wrap]').isVisible(),true);
     await page.getByRole('button',{name:'Close phone',exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').hidden);
     await page.setViewportSize({width:390,height:844});await page.evaluate(()=>Portal.CustomerPhone.open());
