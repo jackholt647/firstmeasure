@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 1 collaboration: [Sharing filters, channel invitations and Partners polish](deploy/digitalocean/development-collaboration-polish-20261001.md) records the native controls, shared header styling, browser tests and verified development rollout.
+
 September 30 phone interaction: [Keypad sounds, inline readiness and number editing](deploy/digitalocean/development-phone-tones-20260930.md) records saved tone preferences, subtle checks, bottom errors and deletion/focus fixes.
 
 September 30 collaboration: [Native project, contact and channel sharing views](deploy/digitalocean/development-collaboration-native-ui-20260930.md) records the integrated filters, UI checks and verified development rollout.
