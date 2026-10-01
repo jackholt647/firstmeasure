@@ -14,7 +14,16 @@ ending the call requires the explicit End control. An ended call stays available
 for its outcome. The minimized title restores the previous expanded placement.
 The minimized phone uses the same 32-pixel height as project windows, with call
 controls on one row and no separate Restore button. Its initial floating size is
-264 by 448 pixels; dock and free-move controls remain available.
+264 by 448 pixels; dock and free-move controls remain available. The minimized
+identity and buttons use shared window chrome. Idle shows the phone icon and
+New call, with no subtitle, waveform or instructional text; a call shows its
+contact name, and live calls add audio levels and call controls.
+
+A sessionStorage endpoint ID survives page refresh. A document-lifetime Web Lock
+prevents a duplicated tab from reusing that ID while the original tab is open.
+Page exit stops the local SDK without issuing a delayed server credential revoke
+that could disconnect the replacement page. Another live device remains protected
+by the existing server endpoint lease.
 
 Opening an enabled phone starts browser registration automatically. Starting a
 browser call waits for that same connection and shows Connecting; disconnected

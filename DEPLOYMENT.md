@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 30 phone refresh: [Reload-safe phone identity and shared minimized chrome](deploy/digitalocean/development-phone-refresh-style-20260930.md) records the refresh conflict fix, standard window controls, validation and development rollout.
+
 September 30 phone sizing: [Compact minimized and floating phone](deploy/digitalocean/development-phone-size-20260930.md) records project-height parity, simplified controls and the smaller dialer.
 
 September 30 phone connection: [Automatic connection and close cleanup](deploy/digitalocean/development-phone-autoconnect-20260930.md) records the browser lifecycle, queued call behavior, validation and development rollout.
