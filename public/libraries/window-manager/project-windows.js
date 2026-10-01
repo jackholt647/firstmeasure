@@ -117,7 +117,13 @@
       const shouldFocus = !options.fromRoute || active !== existing;
       if (shouldFocus) { existing.controller?.restore(); existing.controller?.focus(); active=existing; publishRoute(existing); }
       const routeParams=projectRouteParams(projectId,options);
-      if (options.tab || options.photo) Promise.resolve(existing.api?.openProject(project,{...options,fromRoute:false})).then(()=>applyRouteParams(existing,routeParams)).catch(()=>{});
+      if (options.tab || options.photo || options.layout) {
+        if(existing.api) {
+          existing.ready=existing.ready.catch(()=>{}).then(()=>existing.api.openProject(project,{...options,fromRoute:false})).then(result=>{applyRouteParams(existing,routeParams);return result;});
+          existing.ready.catch(()=>{});
+        }
+        else {existing.options={...existing.options,...options};existing.routeParams=routeParams;}
+      }
       else applyRouteParams(existing,routeParams);
       return existing;
     }

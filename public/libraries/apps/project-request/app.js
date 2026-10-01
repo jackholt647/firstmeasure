@@ -2,9 +2,10 @@
  * Staged request workflow with optional roof-report ordering.
  */
 (function(){
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20260930-scheduling-qa-v1', document.currentScript.src);
-  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260929-overview-v1', document.currentScript.src);
-  const registryReady = Promise.all([window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20260930-shell-v1', document.currentScript.src);
+  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260930-shell-v1', document.currentScript.src);
+  const shellUrl = new URL('../../window-manager/window-shell.js?v=20260930-v1', document.currentScript.src);
+  const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
 window.PlatformCommerce.onReady(async function(){
   await registryReady;
   if (!window.Portal || window.Portal.modules?.request?.retainedProjectWindows) return;
@@ -219,6 +220,7 @@ window.PlatformCommerce.onReady(async function(){
   let projectViewer = null;
   let activeBaseProject = null;
   let projectTrays = null;
+  let projectWindowShell = null;
   let pendingRoutePhotoId = '';
   let routeRestoreInFlight = false;
   let routeRestorePromise = null;
@@ -2843,7 +2845,12 @@ window.PlatformCommerce.onReady(async function(){
     overlay.classList.add('window-managed');
     observeProjectHeaderFit(overlay);
     overlay.dataset.windowMode = 'modal';
-    projectLayout = window.FirstMateProjectLayout?.mount({ overlay, pane:projectContentPane, getProject:() => activeBaseProject, getTab:() => activePreviewTab });
+    projectLayout = window.FirstMateProjectLayout?.mount({ overlay, pane:projectContentPane, getProject:() => activeBaseProject, getTab:() => activePreviewTab, setTab:tab => setActivePreviewTab(tab) });
+    if (!projectContentPane) projectWindowShell = window.FirstMateWindowShell.mount({
+      element, header:element.querySelector('.r-window-bar'), identity:element.querySelector('.r-window-identity'),
+      tabs:element.querySelector('.r-tabbar'), sidebar:null, panes:projectLayout, headerRows:2,
+      trays:{available:()=>projectTrays?.available() || [],select:key=>projectTrays?.select(key)}
+    });
     if (!projectWindowBridge) projectModalWindow.setVisible(false);
   }
   function setProjectModalFullscreen(enabled, options = {}){
@@ -8074,7 +8081,7 @@ window.PlatformCommerce.onReady(async function(){
   let projectPresenceUsers = [];
   function syncProjectPresence(){
     const trayShell = document.getElementById("rMapWrap");
-    if (!projectContentPane && !projectTrays && trayShell && window.FirstMateProjectTrays) projectTrays = window.FirstMateProjectTrays.mount(trayShell, {getProject:() => activeBaseProject, orgId:projectOrgId()});
+    if (!projectContentPane && !projectTrays && trayShell && window.FirstMateProjectTrays) projectTrays = window.FirstMateProjectTrays.mount(trayShell, {content:$('#rOverlay .r-project-body'),getProject:() => activeBaseProject, orgId:projectOrgId()});
     projectTrays?.update();
     const projectId = activeProjectRouteId();
     const orgId = projectOrgId();
@@ -10592,6 +10599,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function open(baseProject = null, options = {}){
+    if(options.layout?.panes?.length) options={...options,tab:options.layout.panes[0].tab};
     if (!projectWindowBridge && window.FirstMateProjectWindows && document.querySelector('main.main, .main')) return window.FirstMateProjectWindows.open(baseProject, options);
     if (!baseProject && !hasPerm('order_reports')) {
       showToast((globalThis.PlatformLanguage?.text("project-request","m_60fa00527e725c","Access denied") ?? "Access denied"), (globalThis.PlatformLanguage?.text("project-request","m_3e88019828556d","You do not have permission to start this workflow.") ?? "You do not have permission to start this workflow."), false);
@@ -10611,6 +10619,7 @@ window.PlatformCommerce.onReady(async function(){
     ensureProjectWindow();
     projectTrays?.close();
     projectLayout?.clear();
+    projectWindowShell?.reset();
     setMobileProjectNotesOpen(false, { fromRoute:true });
     const overlay = $('#rOverlay');
 
@@ -10666,6 +10675,8 @@ window.PlatformCommerce.onReady(async function(){
     setProjectShellLoading(projectShellLoading);
     overlay.classList.add('active');
     syncProjectPresence();
+    try { if (options.layout) projectWindowShell?.apply(options.layout); }
+    finally { projectRouteBatching = false; }
     window.requestAnimationFrame(() => document.getElementById('fmProjectRoutePrecover')?.remove());
     projectModalWindow?.setVisible(true);
     syncProjectWindowModalRegistration();
@@ -11006,10 +11017,12 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   async function openProject(project, options = {}){
+    if(options.layout?.panes?.length) options={...options,tab:options.layout.panes[0].tab};
     if (!projectWindowBridge && window.FirstMateProjectWindows && document.querySelector('main.main, .main')) return window.FirstMateProjectWindows.open(project, options)?.ready;
     const requestedProjectId = projectOpenId(project);
     if (requestedProjectId && activeModalMatchesProject(requestedProjectId) && !options.forceRefresh) {
-      applyProjectOpenRouteOptions(options);
+      if (!options.layout?.panes) applyProjectOpenRouteOptions(options);
+      if (options.layout) await projectWindowShell?.apply(options.layout);
       return activeBaseProject;
     }
     const generation = ++projectOpenGeneration;

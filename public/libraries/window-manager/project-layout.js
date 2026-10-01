@@ -54,7 +54,7 @@ html.project-content-pane .r-project-main-pane{min-width:0}
 html.project-content-pane .r-overlay.project-layout-prototype .r-contact-contextbar{display:none!important}
 `;document.head.append(s);
   }
-  function mount({overlay,getProject,getTab,pane=false}){
+  function mount({overlay,getProject,getTab,setTab,pane=false}){
     if(!config.enabled||overlay.__projectLayout)return overlay.__projectLayout;
     styles();const win=overlay.querySelector('.r-win'),header=win.querySelector('.r-window-bar'),right=win.querySelector('.r-right'),tabs=header.querySelector('.r-tabbar');
     const body=document.createElement('div');body.className='r-project-body';
@@ -115,7 +115,18 @@ html.project-content-pane .r-overlay.project-layout-prototype .r-contact-context
     tabs.addEventListener('contextmenu',onContext,true);tabs.addEventListener('click',click,true);document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',key,true);
     const observer=new MutationObserver(()=>{if(!disposed)updateSelection();});observer.observe(tabs,{childList:true,subtree:true});
     function refresh(){if(disposed)return;if(pane)root.parent.FirstMateProjectLayout?.tabChanged(root.name.slice(16),root,current());updateSelection();}
-    const api={refresh,dock,clear(){for(const item of [...order])if(!item.main)remove(item);focused=order[0];},destroy(){api.clear();disposed=true;observer.disconnect();tabs.removeEventListener('contextmenu',onContext,true);tabs.removeEventListener('click',click,true);document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',key,true);closeMenu();},get panes(){return order.map(p=>p.main?current():p.tab)}};
+    const available=()=>[...tabs.querySelectorAll('[data-tab]')].filter(button=>!button.disabled&&!button.hidden).map(button=>button.dataset.tab);
+    function apply(panes){
+      const next=root.FirstMateWindowShell.normalizePanes(panes,available());
+      if(next.length>1&&!getProject())throw Error('Split panes require a project.');
+      const mainTab=next.some(p=>p.tab===current())?current():next[0].tab;
+      for(const item of [...order])if(!item.main&&(!next.some(p=>p.tab===item.tab)||item.tab===mainTab))remove(item);
+      if(current()!==mainTab)setTab(mainTab);
+      for(const spec of next)if(spec.tab!==mainTab&&!find(spec.tab))dock(spec.tab,'right');
+      order=next.map(spec=>{const item=find(spec.tab);item.weight=spec.weight;return item;});
+      focused=order[0];arrange();
+    }
+    const api={refresh,dock,apply,available,get state(){return order.map(p=>({tab:p.main?current():p.tab,weight:p.weight}));},clear(){for(const item of [...order])if(!item.main)remove(item);focused=order[0];},destroy(){api.clear();disposed=true;observer.disconnect();tabs.removeEventListener('contextmenu',onContext,true);tabs.removeEventListener('click',click,true);document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',key,true);closeMenu();},get panes(){return order.map(p=>p.main?current():p.tab)}};
     overlay.__projectLayout=api;refresh();return api;
   }
   function accepts(token,child){return children.get(token)?.frame.contentWindow===child;}

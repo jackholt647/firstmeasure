@@ -4,6 +4,7 @@
 (function(){
   if (!window.Portal) return;
 
+  const shellReady=window.FirstMateWindowShell?Promise.resolve():import(new URL('../../window-manager/window-shell.js?v=20260930-v1',document.currentScript.src).href);
   const cfg = window.Portal.cfg || {};
   const state = {
     open: false,
@@ -24,6 +25,7 @@
     todoController: null
   };
   let contactWindow = null;
+  let contactShell=null,contactPanes=null,contactTrays=null;
   let saveTimer=null, savePromise=null, revision=0, savedRevision=0;
   let draftMedia=[];
 
@@ -318,10 +320,11 @@
       element, host, stackElement:overlay, menuHost:overlay,
       header:element.querySelector('.fm-contact-window-header'),
       controlsHost:element.querySelector('.fm-contact-window-header'),
+      title:element.querySelector('.fm-contact-window-identity'),
       contentTarget:document.getElementById('mainPanels'),
       customChrome:true, presentationModes:true, viewportCoordinates:true, nativeModalLayout:true,
       name:'contact', label:'Contact', mode:'modal', width:1100, height:760,
-      dockWidth:760, minWidth:360, minimizedHeight:48,
+      dockWidth:760, minWidth:360, minimizedHeight:32,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
       onClose:() => close(),
       onChange:({mode}) => {
@@ -333,10 +336,29 @@
     overlay.dataset.windowMode = 'modal';
     contactWindow.setVisible(false);
   }
+  function ensureContactShell(overlay){
+    if(contactShell)return;
+    const element=overlay.querySelector('.fm-contact-win'),right=element.querySelector('.fm-contact-right');
+    const projects=document.createElement('section'),media=document.createElement('section'),container=document.createElement('div');
+    projects.dataset.contactPane='projects';media.dataset.contactPane='media';
+    projects.append($('#fmContactProjects'),$('#fmContactNewProject'));media.append($('#fmContactGallery'));right.append(container);
+    contactPanes=window.FirstMateWindowShell.localPanes({container,definitions:[{tab:'projects',element:projects},{tab:'media',element:media}],onChange:ids=>{
+      const wasMediaVisible=state.mediaTab;
+      state.mediaTab=ids.includes('media');
+      $('#fmContactGallery').hidden=!state.mediaTab;$('#fmContactProjects').hidden=!ids.includes('projects');$('#fmContactNewProject').hidden=!ids.includes('projects');
+      for(const [id,tab] of [['fmContactProjectsTab','projects'],['fmContactMediaTab','media']]){
+        const button=$('#'+id);button.setAttribute('aria-selected',String(ids.includes(tab)));button.classList.toggle('primary',ids.includes(tab));
+      }
+      if(state.mediaTab&&!wasMediaVisible)void mountContactGallery();
+    }});
+    const toolbar=document.createElement('div');toolbar.className='fm-shell-toolbar';const tabbar=element.querySelector('.fm-contact-tabs');tabbar.before(toolbar);toolbar.append(tabbar);
+    contactTrays=window.FirstMateWindowShell.trayHost({container:element.querySelector('.fm-contact-content'),header:toolbar,getContext:()=>({contact:state.contact,orgId:orgId()})});
+    contactShell=window.FirstMateWindowShell.mount({element,header:element.querySelector('.fm-contact-window-header'),identity:element.querySelector('.fm-contact-window-identity'),tabs:element.querySelector('.fm-contact-tabs'),sidebar:element.querySelector('.fm-contact-left'),panes:contactPanes,trays:contactTrays});
+  }
   function ensureUI(){
     injectCSS();
     let overlay = $('#fmContactOverlay');
-    if (overlay) { ensureContactWindow(overlay); return overlay; }
+    if (overlay) { ensureContactWindow(overlay); ensureContactShell(overlay); return overlay; }
     overlay = document.createElement('div');
     overlay.className = 'fm-contact-overlay';
     overlay.id = 'fmContactOverlay';
@@ -381,6 +403,7 @@
     `;
     document.body.appendChild(overlay);
     ensureContactWindow(overlay);
+    ensureContactShell(overlay);
     $('#fmContactClose', overlay)?.addEventListener('click', close);
     overlay.addEventListener('mousedown', (event) => { overlay.__downBackdrop = event.target === overlay; });
     overlay.addEventListener('mouseup', (event) => {
@@ -712,12 +735,7 @@
     }catch(error){setMeta(error.message || 'Could not upload media.');}
   }
   function showContactTab(media){
-    state.mediaTab=media;
-    const title=$('.fm-contact-right-title');if(title)title.textContent=media?'Photos & Media':'Projects';
-    $('#fmContactProjectsTab').setAttribute('aria-selected',String(!media));$('#fmContactMediaTab').setAttribute('aria-selected',String(media));
-    $('#fmContactGallery').hidden=!media;$('#fmContactProjects').hidden=media;$('#fmContactNewProject').hidden=media;
-    $('#fmContactProjectsTab').classList.toggle('primary',!media);$('#fmContactMediaTab').classList.toggle('primary',media);
-    if(media)void mountContactGallery();
+    contactPanes.apply([{tab:media?'media':'projects',weight:1}]);
   }
   async function mountContactGallery(){
     const mount=$('#fmContactGallery');
@@ -977,11 +995,17 @@
     openProject(project);
   }
   async function open(contact = {}, options = {}){
+    await shellReady;
     if(state.open)await flushAutosave();
-    clearTimeout(saveTimer);revision=0;savedRevision=0;draftMedia=[];
     const overlay = ensureUI();
+    const layout={panes:[{tab:options.tab || 'projects'}],...options.layout};
     const fallbackProject = contact?.project || (Array.isArray(options.projects) ? options.projects[0] : null);
-    state.contact = normalizeContact(contact || {}, fallbackProject);
+    const nextContact = normalizeContact(contact || {}, fallbackProject);
+    contactShell.validate({...layout,tray:null});
+    if(layout.tray!=null&&!contactTrays.available({contact:nextContact,orgId:orgId()}).includes(layout.tray))throw Error('Unavailable window tray: '+layout.tray);
+    clearTimeout(saveTimer);revision=0;savedRevision=0;draftMedia=[];
+    contactTrays.reset();contactShell.reset();
+    state.contact = nextContact;
     state.originalContact = { ...state.contact };
     const initialProjects = dedupeProjects(options.projects || (contact?.project ? [contact.project] : []));
     const projectsComplete = options.projectsComplete === true || options.complete === true;
@@ -1005,7 +1029,7 @@
     }
     syncContactWindowModalRegistration();
     state.mediaTab=false;
-    showContactTab(false);
+    contactShell.apply(layout);
     render();
     window.PlatformAPI?.contacts?.settings(orgId()).then(result=>{state.catalog=result.settings?.tags || [];if(state.open)renderTags();}).catch(error=>setMeta(error.message));
     mountContactTodos();
@@ -1030,6 +1054,7 @@
     state.handle?.unregister?.();
     state.handle = null;
     state.open = false;
+    contactTrays?.reset();
     destroyTodoController();
     $('#fmContactOverlay')?.classList.remove('active');
     contactWindow?.setVisible(false);
@@ -1039,5 +1064,8 @@
   }
 
   window.Portal.modules = window.Portal.modules || {};
-  window.Portal.modules.contacts = { open, close, openProject };
+  window.Portal.modules.contacts = { open, close, openProject,
+    async setLayout(layout){await shellReady;ensureUI();return contactShell.apply(layout);},
+    async registerTray(definition){await shellReady;ensureUI();return contactTrays.register(definition);}
+  };
 })();

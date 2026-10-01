@@ -40,7 +40,7 @@
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20260930-linear-pla20-round3'),
     versionedBundle('../project-notes/project-notes.js', '20260930-project-chrome-v2'),
-    versionedBundle('../project-trays/project-trays.js', '20260930-project-chrome-v2')
+    versionedBundle('../project-trays/project-trays.js', '20260930-window-shell-v1')
   ];
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20260803-field-flows-v10'),
@@ -95,7 +95,7 @@
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
       access: managementAccess,
-      bundles: [versionedBundle('partners/shared-list.js','20260930-collaboration-v1'), versionedBundle('contacts/modal.js', '20260930-contact-autosave-v2'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20260930-collaboration-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20260930-collaboration-v1'), versionedBundle('contacts/modal.js', '20260930-window-shell-v1'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20260930-collaboration-v1')]
     },
     {
       id: 'portal.photos_feed',
@@ -289,7 +289,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20260930-scheduling-qa-v1'), versionedBundle('project-request/app.js', '20260930-scheduling-qa-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20260930-window-shell-v1'), versionedBundle('project-request/app.js', '20260930-window-shell-v1')]
     },
     {
       id: 'firstmeasure.order',
