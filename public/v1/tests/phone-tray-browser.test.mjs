@@ -8,7 +8,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
   try{
     const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];
     page.on('pageerror',e=>errors.push(e.message));
-    await page.route('https://phone.test/**',route=>route.fulfill({body:'<style>body{margin:0}.main{height:100vh;position:relative}</style><main class="main"><header id="platformTopbar" style="height:50px"></header><div id="platformPhoneSlot"><button id="platformPhoneBtn">Phone</button></div><div id="mainPanels"></div></main>',contentType:'text/html'}));
+    await page.route('https://phone.test/**',route=>route.fulfill({body:'<style>body{margin:0;font-family:Arial,sans-serif}.main{height:100vh;position:relative}</style><main class="main"><header id="platformTopbar" style="height:50px"></header><div id="platformPhoneSlot"><button id="platformPhoneBtn">Phone</button></div><div id="mainPanels"></div></main>',contentType:'text/html'}));
     await page.goto('https://phone.test');
     await page.evaluate(()=>{
       window.__APP={orgId:'org-test',userId:'user-test'};
@@ -43,11 +43,11 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'+12025550124');
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/docked.png'});
     await page.evaluate(()=>{const e=document.createElement('aside'),h=document.createElement('header');h.textContent='Other minimized window';e.append(h);document.querySelector('main').append(e);window.otherWindow=FirstMateWindows.attach({element:e,header:h,host:document.querySelector('main'),mode:'minimized',name:'other'});});
-    await page.getByRole('button',{name:'Float phone',exact:true}).click();
+    await page.getByRole('button',{name:'Move phone freely',exact:true}).click();
     assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'floating');
     assert.equal(await page.getByRole('button',{name:/Maximize phone|Fill workspace|Fill entire screen/}).count(),0);
-    await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().bottom<=856);
-    const box=await page.locator('.fm-phone-tray').boundingBox();assert.ok(box.width<400&&box.y+box.height<=858,JSON.stringify(box));
+    await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().bottom<=856&&document.querySelector('.fm-phone-tray').getBoundingClientRect().width===264&&document.querySelector('.fm-phone-tray').getBoundingClientRect().height===448);
+    const box=await page.locator('.fm-phone-tray').boundingBox();assert.ok(box.width===264&&box.height===448&&box.y+box.height<=858,JSON.stringify(box));
     await page.setViewportSize({width:1280,height:720});
     await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().bottom<=720);
     const tray=await page.locator('.fm-phone-tray').boundingBox(),callButton=await page.locator('[data-phone=start]').boundingBox();
@@ -63,14 +63,17 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.evaluate(()=>Portal.CustomerPhone.open({call_id:'call-test'}));
     assert.equal(await page.locator('[aria-label="Call keypad"] button').count(),12);
     await page.getByRole('button',{name:'Minimize phone',exact:true}).click();
-    await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().height<=79);
+    await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().height===32);
+    assert.equal(await page.locator('.fm-phone-tray').evaluate(e=>e.getBoundingClientRect().height),await page.evaluate(()=>document.querySelector('aside:not(.fm-phone-tray):not(.fmcp)').getBoundingClientRect().height));
+    assert.equal(await page.getByRole('button',{name:'Restore phone',exact:true}).isVisible(),false);
+    const fits=await page.locator('.fm-phone-tray').evaluate(e=>{const r=e.getBoundingClientRect();return [...e.querySelectorAll('header button')].filter(b=>b.getClientRects().length).every(b=>{const c=b.getBoundingClientRect();return c.top>=r.top&&c.bottom<=r.bottom&&c.right<=r.right;});});assert.ok(fits,'Minimized controls fit within one project-height row');
     assert.equal(await page.getByRole('button',{name:/Dock phone to/}).isVisible(),true);
-    assert.equal(await page.getByRole('button',{name:'Float phone',exact:true}).isVisible(),true);
+    assert.equal(await page.getByRole('button',{name:'Move phone freely',exact:true}).isVisible(),true);
     assert.equal(await page.getByRole('button',{name:'Close phone',exact:true}).isVisible(),true);
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/minimized.png'});
     await page.getByRole('button',{name:/Dock phone to/}).click();
     assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'docked');
-    await page.getByRole('button',{name:'Float phone',exact:true}).click();
+    await page.getByRole('button',{name:'Move phone freely',exact:true}).click();
     await page.getByRole('button',{name:'Minimize phone',exact:true}).click();
     await page.locator('.fm-phone-compact [data-phone=hangup]').click();
     await page.waitForFunction(()=>document.querySelector('.fm-phone-title').textContent.includes('Outcome ready'));

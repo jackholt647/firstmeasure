@@ -344,7 +344,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [bundle('../comms-api/comms-api.js'), bundle('../agent-chat/agent-chat.js'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'), versionedBundle('comms/phone-tray.js', '20260930-phone-auto-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-auto-v1'), versionedBundle('comms/workspace.js', '20260930-phone-auto-v1'), versionedBundle('comms/project.js', '20260929-overview-content-v1')]
+      bundles: [bundle('../comms-api/comms-api.js'), bundle('../agent-chat/agent-chat.js'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'), versionedBundle('comms/phone-tray.js', '20260930-phone-size-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-auto-v1'), versionedBundle('comms/workspace.js', '20260930-phone-auto-v1'), versionedBundle('comms/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.measurements',
@@ -520,7 +520,7 @@
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
         versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'),
-        versionedBundle('comms/phone-tray.js', '20260930-phone-auto-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-auto-v1'),
+        versionedBundle('comms/phone-tray.js', '20260930-phone-size-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-auto-v1'),
         versionedBundle('comms/workspace.js', '20260930-phone-auto-v1'),
         versionedBundle('chat/app.js', '20260930-phone-tray-v1')
       ]
