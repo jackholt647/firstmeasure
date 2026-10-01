@@ -20,6 +20,24 @@ test('exact conversions, independent language/units, and unchanged imperial form
  assert.equal(U.create({report_language:'en-GB'}).length(10,"10'"),"10'");
  assert.equal(U.create({measurement_system:'metric'}).text('Color'),'Color');
 });
+
+test('metric report configuration skips ventilation without changing saved choices or measurement pages',async()=>{
+ const c=context();
+ const file='public/measure/internal/editor_scripts/report.js';
+ for(const name of ['isCommercialProjectReportConfig','shouldIncludeGutters','buildPagePlan','runReportVentilationAutomationInBackground'])vm.runInContext(sourceFunction(file,name),c);
+ c.areReportQuadViewsDisabled=()=>false;
+ c.FIRSTMEASURE_FULL_HOUSE=true;
+ const state={includeGutterMeasurements:true,structures:[{},{}],exteriorReport:{walls:[{}]},exteriorSettings:{},ventSettings:{include:true,manualOverride:true}};
+ const original=JSON.stringify(state);
+ const imperial=Array.from(c.buildPagePlan([1,2],state),p=>p.key);
+ assert.ok(imperial.includes('vent'));
+ c.currentProjectManifest={measurement_system:'metric'};
+ assert.deepEqual(Array.from(c.buildPagePlan([1,2],state),p=>p.key),imperial.filter(k=>k!=='vent'));
+ await c.runReportVentilationAutomationInBackground(state);
+ assert.equal(JSON.stringify(state),original);
+ c.currentProjectManifest={measurement_system:'imperial'};
+ assert.deepEqual(Array.from(c.buildPagePlan([1,2],state),p=>p.key),imperial);
+});
 test('keyboard distance entry converts metres and millimetres exactly once; angles stay degrees',()=>{
  for(const metric of [false,true]){
   const c=context({measurement_system:metric?'metric':'imperial'});vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/exterior_distance_input.js','utf8'),c);

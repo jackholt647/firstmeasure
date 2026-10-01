@@ -1264,7 +1264,7 @@ function buildPagePlan(layers, state) {
     if (!areReportQuadViewsDisabled()) {
         plan.push({ key: 'elev', advanced: true });
     }
-    if (!isCommercialProjectReportConfig(state)) {
+    if (!isCommercialProjectReportConfig(state) && !window.ReportUnits?.current().metric) {
         plan.push({ key: 'vent', advanced: true });
     }
     if (window.FIRSTMEASURE_FULL_HOUSE === true) plan.push({ key: 'imagery', advanced: window.ExteriorPDF?.photosComplete(state.exteriorSettings) === true });
@@ -3145,7 +3145,7 @@ async function rerollReportTopViewSelectionOnce(state, options = {}) {
 }
 
 async function runReportVentilationAutomationInBackground(state) {
-    if (!state || isCommercialProjectReportConfig(state)) return;
+    if (!state || isCommercialProjectReportConfig(state) || window.ReportUnits?.current().metric) return;
     if (!state.ventSettings) state.ventSettings = {};
     if (normalizeReportVentManualOverride(state)) return;
     state.ventSettings.shortRidgesAutoExcluded = false;
@@ -6728,10 +6728,12 @@ async function renderLegacyFinalizeChecklistPage(container) {
     if (!state.finalizeSources) state.finalizeSources = { images: [], notes: '' };
     if (typeof state.finalizeSourcesConfirmed !== 'boolean') state.finalizeSourcesConfirmed = false;
     const qaPdfReviewMode = isQaPortalPdfReviewMode();
+    const finalizeCategories = FINALIZE_CATEGORIES.filter(category =>
+        category.key !== 'ventilation' || !window.ReportUnits?.current().metric);
 
     // ── Category cards ──
     let gridHtml = '';
-    FINALIZE_CATEGORIES.forEach((cat, idx) => {
+    finalizeCategories.forEach((cat, idx) => {
         const checked = !!state.finalizeChecklist[cat.key];
         let itemsHtml = cat.items.map(item => {
             const txt = typeof item === 'string' ? item : item.text;
@@ -6757,7 +6759,7 @@ async function renderLegacyFinalizeChecklistPage(container) {
 
     // Progress dots
     let dotsHtml = '';
-    FINALIZE_CATEGORIES.forEach(cat => {
+    finalizeCategories.forEach(cat => {
         dotsHtml += `<div class="fin-dot ${state.finalizeChecklist[cat.key] ? 'done' : ''}" data-dot="${cat.key}"></div>`;
     });
     if (!qaPdfReviewMode) {
@@ -6777,7 +6779,7 @@ async function renderLegacyFinalizeChecklistPage(container) {
     const missingGutterStories = getMissingRequiredGutterStories(state);
     const storiesReady = !guttersRequired || missingGutterStories.length === 0;
     const srcChecked = qaPdfReviewMode ? true : state.finalizeSourcesConfirmed;
-    const allDone = FINALIZE_CATEGORIES.every(c => !!state.finalizeChecklist[c.key]) && srcChecked && storiesReady;
+    const allDone = finalizeCategories.every(c => !!state.finalizeChecklist[c.key]) && srcChecked && storiesReady;
     const storiesHint = storiesReady
         ? 'All gutter stories are filled in.'
         : `Set stories for ${missingGutterStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submission.`;
@@ -6836,7 +6838,7 @@ async function renderLegacyFinalizeChecklistPage(container) {
         const currentGuttersRequired = shouldIncludeGutters(state);
         const currentMissingStories = getMissingRequiredGutterStories(state);
         const currentStoriesReady = !currentGuttersRequired || currentMissingStories.length === 0;
-        const done = FINALIZE_CATEGORIES.every(c => !!state.finalizeChecklist[c.key]) && (qaPdfReviewMode || state.finalizeSourcesConfirmed) && currentStoriesReady;
+        const done = finalizeCategories.every(c => !!state.finalizeChecklist[c.key]) && (qaPdfReviewMode || state.finalizeSourcesConfirmed) && currentStoriesReady;
         const btn = container.querySelector('#finalSubmitBtn');
         const hint = container.querySelector('.fin-submit-hint');
         const reqBox = container.querySelector('#finGutterStoriesReq');
@@ -6864,7 +6866,7 @@ async function renderLegacyFinalizeChecklistPage(container) {
         }
 
         // Dots
-        FINALIZE_CATEGORIES.forEach(cat => {
+        finalizeCategories.forEach(cat => {
             const dot = container.querySelector(`[data-dot="${cat.key}"]`);
             if (dot) dot.classList.toggle('done', !!state.finalizeChecklist[cat.key]);
         });

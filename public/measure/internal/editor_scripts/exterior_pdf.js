@@ -185,6 +185,8 @@ function drawExteriorReportPages(doc,model,settings,begin,colors){
  begin('Exterior Quantities');text('Measured lengths',x,38,12,true);y=table(['Quantity',unit('ft','Feet')],[['Top of walls',measure(model.totals.top,"ft",number(model.totals.top),false)],['Bottom of walls',measure(model.totals.bottom,"ft",number(model.totals.bottom),false)],['Inside corners',measure(model.totals.inside,"ft",number(model.totals.inside),false)],['Outside corners',measure(model.totals.outside,"ft",number(model.totals.outside),false)],['Opening perimeter',measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)],['Material transitions',measure(model.totals.transitions,"ft",number(model.totals.transitions),false)],['Exposed vertical terminations',measure(model.totals.terminations,"ft",number(model.totals.terminations),false)]],44,[3,1]);
  const materialRows=Object.entries(byMaterial).map(([k,v])=>metric()?[k,measure(v,"sf",number(v),false)]:[k,number(v),number(v/100)]);text('Net area by material',x,y+12,12,true);y+=18;
  for(let i=0;i<materialRows.length;){const count=Math.max(1,Math.floor((bottom-y-9)/8));table(metric()?['Material','Area (m²)']:['Material','Area (sq ft)','Squares'],materialRows.slice(i,i+count),y,[2,1,1]);i+=count;if(i<materialRows.length){begin('Exterior Quantities - continued');y=38;}}
+ // Keep measured quantities above; material allowances require imperial estimates.
+ if(metric())return;
  const waste=[0,5,10,15,20];
  for(const [label,divisor]of (metric()?[['Area including waste (m²)',1]]:[['Area including waste (sq ft)',1],['Squares including waste',100]])){
   const rows=Object.entries(byMaterial).map(([k,v])=>[k,...waste.map(p=>measure(v*(1+p/100)/divisor,"sf",number(v*(1+p/100)/divisor),false))]);

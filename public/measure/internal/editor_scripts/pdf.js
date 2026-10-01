@@ -2030,6 +2030,12 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         s = { ...defaults, ...normalizedCustomerSettings, ...savedSummaryPdfConfig };
     }
     s = { ...s, ...pageConfigOverride };
+    // Material and ventilation estimates are only supported in imperial units.
+    // Enforce this after saved settings and overrides, including summary exports.
+    if (window.ReportUnits?.current().metric) {
+        s.page_materials = false;
+        s.page_ventilation = false;
+    }
     s.page_gutters = guttersEnabled && !!s.page_gutters;
     s.page_ventilation = !isCommercialReport && !!s.page_ventilation;
     if (firstMeasurePdfQuadViewsDisabled()) {
