@@ -41,6 +41,17 @@ const NEW_BUTTON_ITEM_OPTIONS: Array<[string, string]> = [
  */
 
 const definitions: CapabilityDefinition[] = [
+  {key:"platform.collaboration",kind:"app",label:"Partners",icon:"fa-handshake",category:"Sales & Customers",runtime_app_id:"partners",description:"Authenticated resource sharing and partner relationships.",default:true},
+  ...([
+    ["view_partners","View partners","read"],
+    ["use_external_shares","Use external shares","read"],
+    ["manage_external_connections","Manage organization connections","write"],
+    ["manage_external_sharing","Manage external sharing","write"],
+    ["manage_external_privacy","Manage external privacy","write"],
+    ["manage_partner_payments","Pay partner invoices and record external payments","write"],
+    ["view_channels","View shared channels","read"],
+    ["send_channel_messages","Post in shared channels","write"]
+  ] as const).map(([key,label,access])=>({key:`permission.${key}`,kind:"permission" as const,parent:"platform.collaboration",permission_key:key,access,label,description:label})),
   { key: "platform.platform_billing", kind: "feature", label: "Platform Billing", description: "Platform subscriptions, usage, storage charges and invoices.", default: true },
   { key: "permission.view_platform_billing", kind: "permission", parent: "platform.platform_billing", permission_key: "view_platform_billing", access: "read", label: "View Platform Billing", description: "View platform subscriptions, usage and invoices." },
   { key: "permission.manage_platform_billing", kind: "permission", parent: "platform.platform_billing", permission_key: "manage_platform_billing", access: "write", label: "Manage Platform Billing", description: "Accept platform pricing, cancel subscriptions and pay platform invoices." },

@@ -20,11 +20,11 @@ async function ensureTable() {
     updated_at TEXT NOT NULL
   )`));
   // Preserve application-level pause state from installations that used SES.
-  const legacy = (await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ses_tenants'").get());
-  if (legacy) (await db.exec(`INSERT OR IGNORE INTO email_tenants
+  const legacy = (await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ses_tenants'", "SELECT table_name AS name FROM information_schema.tables WHERE table_schema=current_schema() AND table_name='ses_tenants'").get());
+  if (legacy) (await db.exec(`INSERT INTO email_tenants
     (organization_id, tenant_name, status, provider, identity_domains_json, last_error, provisioned_at, paused_at, updated_at)
     SELECT organization_id, tenant_name, status, 'cloudflare_email', resources_json, last_error,
-      COALESCE(provisioned_at, updated_at), paused_at, updated_at FROM ses_tenants`));
+      COALESCE(provisioned_at, updated_at), paused_at, updated_at FROM ses_tenants WHERE 1=1 ON CONFLICT DO NOTHING`));
 }
 
 export function emailTenantName(organizationId: string) {

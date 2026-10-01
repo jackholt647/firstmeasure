@@ -7,6 +7,7 @@ import { registerModuleDataProvider } from "../../documents/modules/provider.js"
 import { registerCustomFieldPublication } from "../../custom_fields/publication.js";
 
 import { registerContactPublication } from "../../contacts/publication.js";
+import { registerCollaborationPublication } from "../../collaboration/publication.js";
 
 let initialized = false;
 /** All execution hosts use this same catalog. No browser can register server handlers. */
@@ -16,6 +17,7 @@ export function initializePublication() {
   registerNotificationProvider();
   registerCustomFieldPublication();
   registerContactPublication();
+  registerCollaborationPublication();
   registerDomainActions();
   registerDatasetActions();
   registerModuleDataProvider();

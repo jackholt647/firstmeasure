@@ -523,6 +523,9 @@
     `;
     bindChrome();
     renderResults();
+    const sharedHost=document.createElement('section');
+    state.root.querySelector('[data-ct-results]')?.before(sharedHost);
+    window.FirstMateSharedList?.mount(sharedHost,'contact');
   }
 
   function bindChrome(){

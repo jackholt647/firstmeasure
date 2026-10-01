@@ -182,7 +182,7 @@ async function stampSignaturePlacements(pkg: SigningPackage) {
   }
   return Buffer.from(await pdf.save());
 }
-export async function acceptSigning(access: SigningAccess, field: string, input: JsonObject, audit: JsonObject = {}) {
+export async function acceptSigning(access: SigningAccess, field: string, input: JsonObject, audit: JsonObject = {}, options: { deferOutbox?: boolean } = {}) {
   const value = await validateSignature(input.value);
   const requestHash = digest({ field, value, content_hash: input.content_hash, consent: input.consent });
   const result = await withSigningLock(access.pkg.organization_id, access.pkg.document_id, async () => {
@@ -220,7 +220,7 @@ export async function acceptSigning(access: SigningAccess, field: string, input:
   });
   // SQL receipts/outbox are authoritative; interrupted projection is repaired by the worker.
   await projectSigningPackage(result.pkg.id);
-  await drainSigningOutbox();
+  if (!options.deferOutbox) await drainSigningOutbox();
   return { receipt: { ...result.receipt.value, receipt_id: result.receipt.id, content_hash: result.receipt.content_hash }, duplicate: result.duplicate, document: await readDocumentInstance(result.pkg.organization_id, result.pkg.document_id) };
 }
 

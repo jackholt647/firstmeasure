@@ -7295,6 +7295,9 @@
       </div>
     `;
 
+    const sharedHost=document.createElement('section');
+    $('#vResults',panelEl)?.before(sharedHost);
+    window.FirstMateSharedList?.mount(sharedHost,'project');
     const reportSearch = $('#vReportSearch', panelEl);
     if (reportSearch) {
       reportSearch.value = reportSearchQuery;

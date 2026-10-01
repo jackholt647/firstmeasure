@@ -1,4 +1,12 @@
 {
+  "partners.partner": {
+    "label": "Partner",
+    "kind": "entity"
+  },
+  "partners.partners": {
+    "label": "Partners",
+    "kind": "navigation"
+  },
   "projects.portal_tab": {
     "label": "My Projects",
     "kind": "navigation"

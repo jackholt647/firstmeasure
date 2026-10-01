@@ -1,4 +1,5 @@
 import { installCommerceContext } from "../commerce/profile.js";
+import { registerCollaborationApi } from "../collaboration/api.js";
 import { registerWorkforceApi } from "../workforce/api.js";
 import { registerPlatformBillingApi } from "../platform-billing/api.js";
 import { registerPublicationApi } from "../platform/publication/api.js";
@@ -217,6 +218,7 @@ export async function buildApp() {
   void app.register(registerChatApi, { prefix: "/v1/chat" });
   void app.register(registerCommsApi, { prefix: "/v1/comms" });
   void app.register(registerConnectionsApi, { prefix: "/v1/connections" });
+  void app.register(registerCollaborationApi, { prefix: "/v1/collaboration" });
   void app.register(registerDocumentsApi, { prefix: "/v1/documents" });
   void app.register(registerDomainsApi, { prefix: "/v1/domains" });
   void app.register(registerEquipmentApi, { prefix: "/v1/equipment" });

@@ -73,6 +73,7 @@
   ];
 
   const apps = [
+    {id:'portal.partners',package:'partners',title:'Partners',terminologyKey:'partners.partners',kind:'portal_tab',surfaces:['portal_tab'],portalTabId:'partners',access:managementAccess,bundles:[versionedBundle('../payment-intake/payment-intake.js','20260803-field-flows-v10'),versionedBundle('../doc-widgets/firstmate-doc-widgets.js','20260803-field-flows-v10'),versionedBundle('partners/app.js','20260930-collaboration-v1')]},
     {
       id: 'portal.viewer',
       package: 'projects',
@@ -82,7 +83,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
       access: managementAccess,
-      bundles: [versionedBundle('projects/viewer.js', '20260930-app-groups-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20260930-collaboration-v1'), versionedBundle('projects/viewer.js', '20260930-app-groups-v1')]
     },
     {
       id: 'portal.contacts',
@@ -94,7 +95,7 @@
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
       access: managementAccess,
-      bundles: [versionedBundle('contacts/modal.js', '20260930-contact-autosave-v2'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20260930-app-groups-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20260930-collaboration-v1'), versionedBundle('contacts/modal.js', '20260930-contact-autosave-v2'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20260930-app-groups-v1')]
     },
     {
       id: 'portal.photos_feed',
@@ -546,7 +547,7 @@
         versionedBundle('photos/feed.js', '20260930-app-groups-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20260930-linear-pla20-round3'),
-        versionedBundle('channels/app.js', '20260929-assistant-logo-settings-v1')
+        versionedBundle('partners/shared-list.js','20260930-collaboration-v1'), versionedBundle('channels/app.js', '20260929-assistant-logo-settings-v1')
       ]
     },
     {

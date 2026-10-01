@@ -2,6 +2,7 @@ import { notifyWorkEvent, workflowNotificationInput } from "../platform/notifica
 import { isCapabilityEnabled } from "../platform/capabilities.js";
 import { env } from "../src/config/env.js";
 import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 import { readDocument, type JsonObject } from "../platform/storage.js";
 import {
@@ -18,6 +19,13 @@ import {
 import { workAutomation, type WorkAutomationContext } from "./registry.js";
 import { createWorkDataResolver, registerBuiltinContextProviders, type WorkContextScope } from "./context.js";
 import { readAutomationRules } from "./rules.js";
+const deferredEvents=new AsyncLocalStorage<boolean>();
+/** Record events during domain transactions; dispatch only after their commit. */
+export function withDeferredWorkEvents<T>(operation:()=>Promise<T>){return deferredEvents.run(true,operation);}
+export async function dispatchDeferredWorkEvents(){
+  if(deferredEvents.getStore()||!(env.deploymentTopology==="single"||process.env.PLATFORM_PROCESS_ROLE==="worker"))return;
+  if(env.isTest||process.env.NODE_ENV==="test")await drainWorkEvents();else scheduleWorkEventDrain();
+}
 import {
   createProjectScheduleRequirement,
   createWorkNotification,
@@ -327,7 +335,7 @@ export async function emitWorkEvent(input: JsonObject, options: { process?: bool
     ...(cleanText(input.type || input.event) === "proposal.signed" ? { payload: { ...asObject(input.payload), document_type: "proposal", document_tags: ["proposal"], document_source: "proposals", document_id: asObject(input.payload).proposal_id } } : {}),
     idempotency_key: cleanText(input.idempotency_key) || `${cleanText(input.type || input.event)}:${randomUUID()}`
   }));
-  if (options.process !== false && (env.deploymentTopology === "single" || process.env.PLATFORM_PROCESS_ROLE === "worker")) {
+  if (!deferredEvents.getStore() && options.process !== false && (env.deploymentTopology === "single" || process.env.PLATFORM_PROCESS_ROLE === "worker")) {
     // Test runs drain inline so assertions see automation effects; NODE_ENV is
     // read at call time because suites set it after importing the config.
     const testRuntime = env.isTest || process.env.NODE_ENV === "test";

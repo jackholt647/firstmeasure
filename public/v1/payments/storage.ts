@@ -776,7 +776,8 @@ export async function createPayment(orgId: string, input: JsonObject, ctx: Platf
     metadata: { kind: "payment_transaction", project_id: projectId, direction, payment_kind: data.kind, status }
   }, { replace: true });
   const payment = documentView(doc);
-  const allocations = input.allocate === false ? [] : await autoAllocatePayment(orgId, payment, cleanText(input.allocation_mode || "auto_next_due"), obligationId);
+  const allowedObligations=Array.isArray(input.allocation_obligation_ids)?new Set(input.allocation_obligation_ids.map(cleanText)):undefined;
+  const allocations = input.allocate === false ? [] : await autoAllocatePayment(orgId, payment, cleanText(input.allocation_mode || "auto_next_due"), obligationId,allowedObligations);
   await recordLedger(orgId, payment, direction === "inbound" ? "payment.settled" : "payment.created", direction === "inbound"
     ? [{ account: "cash", debit_cents: amount, credit_cents: 0 }, { account: "accounts_receivable", debit_cents: 0, credit_cents: amount }]
     : [{ account: "accounts_payable", debit_cents: amount, credit_cents: 0 }, { account: "cash", debit_cents: 0, credit_cents: amount }]);

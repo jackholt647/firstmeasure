@@ -30,6 +30,9 @@ calls.startCallWorker(app);
 sms.startSmsDeliveryWorker();
 
 const jobs: Array<{ name: string; interval: number; run: () => Promise<unknown> }> = [
+  { name: "collaboration-events", interval: 5000, run: async () => { const events=await import("../collaboration/events.js");events.registerCollaborationEvents();await events.drainCollaborationEvents(); } },
+  { name: "collaboration-payments", interval: 15000, run: async () => (await import("../collaboration/payments.js")).reconcilePartnerPayments() },
+  { name: "collaboration-contacts", interval: 15000, run: async () => (await import("../collaboration/service.js")).repairCollaborationContacts() },
   { name: "notification-delivery", interval: 2000, run: async () => (await import("../platform/notifications/delivery.js")).drainNotifications() },
   { name: "platform-billing", interval: 3600000, run: async () => (await import("../platform-billing/metering.js")).sweepBilling() },
   { name: "payroll-outbox", interval: 2000, run: () => payroll.drainPayrollWorkEvents() },

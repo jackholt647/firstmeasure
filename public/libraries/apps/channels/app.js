@@ -129,6 +129,9 @@
     state.mounted = true;
     root.innerHTML = '';
     root.style.height = '100%';
+    const sharedHost=document.createElement('section');
+    root.appendChild(sharedHost);
+    window.FirstMateSharedList?.mount(sharedHost,'channel');
     const holder = document.createElement('div');
     holder.style.cssText = 'height:100%;min-height:420px;padding:0';
     root.appendChild(holder);

@@ -1,0 +1,205 @@
+/* Authenticated organization collaboration. Never mount an external project in
+ * the org-only editor: its legacy save paths intentionally remain inaccessible. */
+(function(){
+  'use strict';
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const org=()=>String(window.Portal?.cfg?.userOrgId||window.Portal?.cfg?.orgId||window.__APP?.userOrgId||window.__APP?.orgId||'');
+  const title=()=>window.PlatformTerminology?.get?.('partners.partners','Partners')||'Partners';
+  const state={root:null,view:'partners',items:[],next:null,detail:null,error:'',epoch:0,pending:window.__fmPendingCollaborationResource||null};
+  const api=(path,method='GET',body)=>window.PlatformAPI.request(new URL(`/v1/collaboration/organizations/${encodeURIComponent(org())}${path}`,location.origin).href,{method,...(body!==undefined?{body}:{} )});
+  const button=(action,label,extra='')=>`<button type="button" class="btn" data-partner-action="${action}" ${extra}>${esc(label)}</button>`;
+  const field=(label,name,value='',type='text')=>`<label style="display:grid;gap:5px">${esc(label)}<input class="form-control" name="${name}" type="${type}" value="${esc(value)}"></label>`;
+  function error(e){state.error=e.message||String(e);const el=state.root?.querySelector('[role=alert]');if(el)el.textContent=state.error;}
+  function content(html){clearInterval(state.conversationTimer);state.conversationTimer=null;const el=state.root?.querySelector('[data-partner-content]');if(el)el.innerHTML=html;}
+  function shell(){
+    if(!state.root)return;
+    state.root.innerHTML=`<section style="max-width:1200px;margin:auto;padding:20px"><header style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><h2 style="margin-right:auto">${esc(title())}</h2>${button('invite','Invite organization')}${button('share','Share resource')}</header><nav aria-label="Partner workspace" style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0">${[['partners',title()],['shared','Shared with us'],['shares','Shared by us'],['engagements','Work engagements'],['partner-documents','Documents'],['payments','Payments'],['offline-payments','External payments'],['invitations','Invitations'],['privacy','Privacy']].map(([v,t])=>button('view',t,`data-view="${v}" aria-pressed="${state.view===v}"`)).join('')}</nav><p role="alert" style="color:var(--danger,#f99)">${esc(state.error)}</p><div data-partner-content></div></section>`;
+    state.root.onclick=e=>{const b=e.target.closest('[data-partner-action]');if(b)handle(b).catch(error);};
+  }
+  function form(html,submit){
+    const formOrg=org();state.epoch++;
+    content(`<form style="display:grid;gap:14px;max-width:680px">${html}<div style="display:flex;gap:10px"><button class="btn" type="submit">Confirm</button>${button('back','Cancel')}</div></form>`);
+    const f=state.root.querySelector('form');f.onsubmit=async e=>{e.preventDefault();const b=f.querySelector('[type=submit]');b.disabled=true;try{if(org()!==formOrg)throw new Error("The active organization changed. Reopen this form before submitting.");await submit(new FormData(f));}catch(err){error(err);}finally{b.disabled=false;}};
+  }
+  async function load(append=false){
+    if(!state.root||!org())return;
+    const epoch=++state.epoch;state.error='';shell();content('<p role="status">Loading…</p>');
+    if(state.view==='privacy')return privacy();
+    const page=await api(`/${state.view}${append&&state.next?'?after='+encodeURIComponent(state.next):''}`);
+    if(epoch!==state.epoch||!state.root)return;
+    state.items=append?[...state.items,...page.items]:page.items;state.next=page.next_cursor;rows();
+  }
+  function rows(){
+    content(state.items.map((item,i)=>{
+      let heading='',body='',actions='';const index=`data-index="${i}"`;
+      if(state.view==='partners'){heading=item.organization?.name||'Connected organization';body=`${esc(item.classification)} · ${esc(item.connection?.status)}<p>${esc(item.note)}</p>`;actions=button('relationship','Manage',index)+button('partner-document','Add document',index)+(item.classification==='partner'?button('engagement','Offer work',index):'')+button('disconnect','Disconnect',index);}
+      else if(state.view==='shared'){heading=item.data?.title||item.data?.name||item.data?.invoice_number||item.resource.type;body=`Shared by ${esc(item.owner?.name)} · ${esc(item.resource.type)}`;actions=button('open','Open',index)+button('audience','Manage local audience',index);}
+      else if(state.view==='shares'){heading=`${item.resource.type} · ${item.resource.id}`;body=`${esc(item.status)} · ${esc(item.operations.join(', '))}`;if(item.status==='active')actions=button('revoke-share','Revoke',index);}
+      else if(state.view==='engagements'){heading=item.title;body=`${esc(item.status)}<p>${esc(item.description)}</p><p>${esc(item.payment_terms)}</p>`;if(item.recipient_org_id===org()&&item.status==='proposed')actions=button('engagement-state','Accept',index+' data-status="accepted"')+button('engagement-state','Decline',index+' data-status="declined"');if(item.owner_org_id===org()&&item.status==='accepted')actions+=button('schedule-engagement','Schedule',index)+button('engagement-state','Complete',index+' data-status="completed"');if(['proposed','accepted'].includes(item.status))actions+=button('engagement-state','Cancel',index+' data-status="canceled"');}
+      else if(state.view==='payments'||state.view==='offline-payments'){heading=`${item.currency} ${(item.amount_cents/100).toFixed(2)}`;body=`${esc(item.status)} · Invoice ${esc(item.resource.id)}${item.note?`<p>${esc(item.note)}</p>`:''}`;if(item.receipt_media_id)actions=`<a class="btn" target="_blank" rel="noopener" href="/v1/collaboration/organizations/${encodeURIComponent(org())}/offline-payments/${encodeURIComponent(item.id)}/receipt">Receipt evidence</a>`;}
+      else if(state.view==='partner-documents'){heading=item.title;body=`${esc(item.category)}${item.expires_at?` · ${Date.parse(item.expires_at)<Date.now()?'Expired':'Expires'} ${esc(new Date(item.expires_at).toLocaleDateString())}`:''}`;actions=`<a class="btn" target="_blank" rel="noopener" href="/v1/collaboration/organizations/${encodeURIComponent(org())}/partner-documents/${encodeURIComponent(item.id)}/file">Download</a>`;}
+      else{heading=item.label||'Organization invitation';body=`${esc(item.status)} · ${esc(item.relationship)}`;if(item.owner_org_id===org()&&item.status==='claimed')actions+=button('approve','Review request',index);if(item.owner_org_id===org()&&['pending','claimed'].includes(item.status))actions+=button('revoke-invitation','Revoke',index);}
+      return `<article style="border:1px solid var(--border,#555);border-radius:10px;padding:16px;margin-bottom:12px"><h3>${esc(heading)}</h3><div>${body}</div><div style="display:flex;gap:8px;margin-top:12px">${actions}</div></article>`;
+    }).join('')||'<p>No items in this view.</p>');
+    if(state.next)state.root.querySelector('[data-partner-content]').insertAdjacentHTML('beforeend',button('more','Load more'));
+  }
+  async function invite(){
+    form(`${field('Invitation label','label')}${field('Recipient email (optional; blank requires your approval)','email','','email')}<label>Relationship<select name="relationship"><option value="partner">Partner</option><option value="contact">Contact</option><option value="client">Client</option></select></label><p>This connects organizations. Resources are shared separately.</p>`,async values=>{
+      const result=await api('/invitations','POST',{label:values.get('label'),...(values.get('email')?{email:values.get('email')}:{}),relationship:values.get('relationship')});
+      const url=new URL(result.url,location.origin).href;
+      content(`<h3>Invitation ready</h3><p>Send this link to your contact. Expires ${esc(new Date(result.invitation.expires_at).toLocaleString())}.</p><div aria-label="Invitation QR code" style="width:220px;background:white;padding:12px">${window.FMDocWidgets?.qr?.svg(url)||''}</div><input aria-label="Invitation link" readonly style="width:100%" value="${esc(url)}">${button('copy','Copy link',`data-url="${esc(url)}"`)}${button('back','Done')}`);
+    });
+  }
+  async function share(){
+    form('<label>Resource type<select name="type">'+['project','contact','channel','document','media','invoice'].map(t=>`<option value="${t}">${t}</option>`).join('')+'</select></label>',async values=>chooseResource(values.get('type')));
+  }
+  async function chooseResource(type,after=''){
+    const choices=await api(`/sharing-options?type=${encodeURIComponent(type)}&after=${encodeURIComponent(after)}`);
+    form(`<label>Resource<select name="resource">${choices.items.map((p,i)=>`<option value="${i}">${esc(p.label)}</option>`).join('')}</select></label>${choices.next_cursor?button('more-options','Next page',`data-type="${esc(type)}" data-cursor="${esc(choices.next_cursor)}"`):''}`,async values=>{
+      const choice=choices.items[Number(values.get('resource'))];if(!choice)throw new Error('Choose a resource.');
+      await sharePermissions(choice,choices);
+    });
+  }
+  async function sharePermissions(choice,options){
+    state.issueChoice={choice,options};
+    const [partners,children]=await Promise.all([api('/partners?limit=100'),api('/resources/share-children','POST',choice.resource)]);
+    form(`<h3>Share ${esc(choice.label)}</h3>${choice.resource.type==='document'?button('issue-document','Prepare a new issued revision'):''}<label>Recipient<select name="partner"><option value="individual">Invite an individual by email</option>${partners.items.filter(p=>p.connection?.status==='active').map(p=>`<option value="${esc(p.recipient_org_id)}">${esc(p.organization.name)}</option>`).join('')}</select></label>${field('Email for an individual invitation','email','','email')}<fieldset><legend>Allowed actions</legend>${options.operations.map(op=>`<label style="display:block"><input type="checkbox" name="operation" value="${esc(op)}" ${op==='read'?'checked':''}> ${esc(op.replaceAll('.',' '))}</label>`).join('')}</fieldset><fieldset><legend>Visible fields</legend>${options.fields.map(f=>`<label style="display:block"><input type="checkbox" name="field" value="${esc(f)}" ${['title','name','description','invoice_number','status'].includes(f)?'checked':''}> ${esc(f.replaceAll('_',' '))}</label>`).join('')}</fieldset>${children.items.length?`<fieldset><legend>Selected content</legend>${children.items.map(c=>`<label style="display:block"><input type="checkbox" name="child" value="${esc(c.id)}"> ${esc(c.label)}</label>`).join('')}</fieldset>`:''}${(children.response_fields||[]).length?`<fieldset><legend>Editable response fields</legend>${children.response_fields.map(f=>`<label style="display:block"><input type="checkbox" name="response_field" value="${esc(f.key)}"> ${esc(f.label)}</label>`).join('')}</fieldset>`:''}<label><input type="checkbox" name="future"> Include current and future photos, shared project notes, work items, schedule items, and new channel messages for the selected actions</label><label>Organization audience<select name="audience"><option value="managers">Connection managers</option><option value="members">All eligible members</option></select></label>${field('Expires on (optional)','expires','','date')}<p>Only checked actions and fields are granted. Document access requires a selected issued revision.</p>`,async values=>{
+      const grant={resource:choice.resource,operations:values.getAll('operation'),fields:values.getAll('field'),child_ids:values.getAll('child'),response_fields:values.getAll('response_field'),include_future:values.has('future'),audience:{mode:values.get('audience'),user_ids:[]},...(values.get('expires')?{expires_at:new Date(values.get('expires')+'T23:59:59').toISOString()}: {})};
+      if(!grant.operations.length)throw new Error('Select at least one action.');
+      if(values.get('partner')==='individual'){
+        if(!values.get('email'))throw new Error('Enter the recipient email.');
+        const result=await api('/invitations','POST',{kind:'share',recipient_kind:'individual',email:values.get('email'),label:choice.label,grant});
+        const url=new URL(result.url,location.origin).href;
+        content(`<h3>Share invitation ready</h3><div style="width:220px;background:white;padding:12px">${window.FMDocWidgets?.qr?.svg(url)||''}</div><input aria-label="Share invitation" readonly value="${esc(url)}" style="width:100%">${button('copy','Copy link',`data-url="${esc(url)}"`)}${button('back','Done')}`);
+      }else{await api('/shares','POST',{...grant,recipient_org_id:values.get('partner')});state.view='shares';await load();}
+    });
+  }
+  async function privacy(){
+    const result=await api('/privacy'),labels={enabled:'Allow external collaboration',accept_connections:'Accept connections',receive_shares:'Receive shared resources',send_shares:'Share resources externally',disclose_name:'Disclose participant names',disclose_email:'Disclose participant emails',disclose_phone:'Disclose participant phone numbers'};
+    form(`<p>These limits apply across external collaboration. Phone numbers are private by default.</p><fieldset><legend>Resource types</legend>${['project','contact','channel','document','media','invoice'].map(type=>`<label><input type="checkbox" name="allowed_type" value="${type}" ${result.policy.allowed_types.includes(type)?'checked':''}> ${type}</label>`).join('')}</fieldset>${Object.entries(labels).map(([k,v])=>`<label><input type="checkbox" name="${k}" ${result.policy[k]?'checked':''}> ${esc(v)}</label>`).join('')}`,async values=>{const policy={...result.policy,allowed_types:values.getAll('allowed_type')};for(const k of Object.keys(labels))policy[k]=values.has(k);await api('/privacy','PUT',{policy,expected_revision:result.revision});await load();});
+  }
+  async function openResource(item){
+    const epoch=++state.epoch,selectedOrg=org();const result=await api('/resources/read','POST',item.resource);if(epoch!==state.epoch||selectedOrg!==org()||!state.root)return;result.share_id=item.share_id;state.detail=result;
+    content(`<h3>${esc(result.data.title||result.data.name||result.resource.type)}</h3><p>Owned by ${esc(result.owner.name)}</p><dl>${Object.entries(result.data).map(([k,v])=>`<dt>${esc(k.replaceAll('_',' '))}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${result.operations.includes('details.update')?button('edit','Edit details'):''}${result.operations.includes('photos.read')?button('photos','Photos'):''}${result.operations.includes('photos.upload')?button('upload-photo','Upload photo'):''}${result.operations.includes('notes.read')||result.operations.includes('notes.create')?button('notes','Notes'):''}${result.operations.includes('messages.read')||result.operations.includes('messages.post')?button('messages','Messages'):''}${result.operations.includes('work.read')?button('work','Work'):''}${result.operations.includes('schedule.read')?button('schedule','Schedule'):''}${result.operations.includes('documents.read')?button('document','Review document'):''}${result.operations.includes('invoice.pay')?button('pay-invoice','Pay invoice'):''}${result.operations.includes('invoice.read')?button('offline-payment','Record external payment'):''}${button('back','Back')}`);
+  }
+  function messageMarkup(items){return items.map(m=>`<article style="padding:12px;border-bottom:1px solid var(--border,#555)"><strong>${esc(m.author.name)}</strong><small> ${esc(new Date(m.created_at).toLocaleString())}</small><p style="white-space:pre-wrap">${esc(m.text)}</p></article>`).join('')||'<p>No shared messages.</p>';}
+  async function conversation(kind){
+    const detail=state.detail,isNotes=kind==='notes',selectedOrg=org(),epoch=++state.epoch;
+    const read=isNotes?'notes.read':'messages.read',write=isNotes?'notes.create':'messages.post';
+    const fetchMessages=()=>api(`/resources/${kind}/read`,'POST',isNotes?detail.resource:{resource:detail.resource});
+    const response=detail.operations.includes(read)?await fetchMessages():{items:[]};
+    if(epoch!==state.epoch||selectedOrg!==org()||!state.root)return;
+    const messages=`<div data-conversation-messages>${messageMarkup(response.items)}</div>`;
+    if(!detail.operations.includes(write))content(`<h3>${isNotes?'Project notes':'Shared channel'}</h3>${messages}${button('detail','Back')}`);
+    else{
+      const operationId=crypto.randomUUID();
+      form(`<h3>${isNotes?'Project notes':'Shared channel'}</h3>${messages}<label>Message<textarea required name="text" maxlength="20000" rows="4"></textarea></label><p>Your message will be visible to the owner and participants with access.</p>`,async values=>{
+        await api(`/resources/${kind}`,'POST',{resource:detail.resource,input:{text:values.get('text'),client_operation_id:operationId}});await conversation(kind);
+      });
+    }
+    const host=state.root.querySelector('[data-conversation-messages]');let fetching=false;
+    if(detail.operations.includes(read))state.conversationTimer=setInterval(async()=>{
+      if(fetching||document.hidden||!host.isConnected||selectedOrg!==org())return;
+      fetching=true;
+      try{const page=await fetchMessages();if(host.isConnected&&selectedOrg===org())host.innerHTML=messageMarkup(page.items);}
+      catch(e){if(host.isConnected){host.replaceChildren();error(e);}}
+      finally{fetching=false;}
+    },5000);
+  }
+  async function uploadPhoto(){
+    const detail=state.detail,operationId=crypto.randomUUID();
+    form('<label>Photo<input type="file" name="photo" accept="image/*" required></label><p>Maximum 8 MB. Location metadata is removed before sharing.</p>',async values=>{
+      const file=values.get('photo');if(!file||file.size>8_000_000)throw new Error('Choose a photo smaller than 8 MB.');
+      const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});
+      await api('/resources/photos/upload','POST',{resource:detail.resource,input:{file_name:file.name,file_base64:data,client_operation_id:operationId}});
+      await openResource(detail);
+    });
+  }
+  async function handle(b){
+    const action=b.dataset.partnerAction,item=state.items[Number(b.dataset.index)];
+    if(action==='view'){state.view=b.dataset.view;return load();}if(action==='back')return load();if(action==='more')return load(true);if(action==='invite')return invite();if(action==='share')return share();
+    if(action==='copy'){await navigator.clipboard.writeText(b.dataset.url);b.textContent='Copied';return;}
+    if(action==='open')return openResource(item);
+    if(action==='detail')return openResource(state.detail);
+    if(action==='more-options')return chooseResource(b.dataset.type,b.dataset.cursor);
+    if(action==='notes'||action==='messages')return conversation(action);
+    if(action==='upload-photo')return uploadPhoto();
+    if(action==='work'||action==='schedule'){
+      const detail=state.detail,result=await api(`/resources/${action}`,'POST',detail.resource);state.projectItems=result.items;
+      content(`<h3>${action==='work'?'Shared work':'Shared schedule'}</h3>${result.items.map((entry,i)=>`<article style="padding:12px;border-bottom:1px solid var(--border,#888)"><strong>${esc(entry.title)}</strong><p>${esc(entry.description||entry.start_at||'')} · ${esc(entry.status)}</p>${action==='work'&&detail.operations.includes('work.update')?button('work-state','Complete',`data-entry="${i}"`):''}${action==='schedule'&&detail.operations.includes('schedule.update')?button('reschedule','Reschedule',`data-entry="${i}"`):''}</article>`).join('')}${button('detail','Back')}`);return;
+    }
+    if(action==='work-state'){
+      const item=state.projectItems[Number(b.dataset.entry)];return form(`<p>Mark ${esc(item.title)} complete?</p>`,async()=>{await api('/resources/work','PATCH',{resource:state.detail.resource,input:{node_id:item.id,status:'completed',expected_updated_at:item.updated_at}});await openResource(state.detail);});
+    }
+    if(action==='reschedule'){
+      const item=state.projectItems[Number(b.dataset.entry)];return form(`<h3>${esc(item.title)}</h3>${field('Start','start',item.start_at,'text')}${field('End','end',item.end_at,'text')}<p>Enter date and time with time zone. Existing booking conflicts and schedule locks apply.</p>`,async values=>{await api('/resources/schedule','PATCH',{resource:state.detail.resource,input:{event_id:item.id,expected_event_revision:item.event_revision,start_at:new Date(values.get('start')).toISOString(),end_at:new Date(values.get('end')).toISOString()}});await openResource(state.detail);});
+    }
+    if(action==='document'){
+      const detail=state.detail,info=await api('/resources/document','POST',detail.resource);state.documentInfo=info;
+      content(`<h3>Shared document revisions</h3>${info.snapshots.map(snapshot=>`<p><a target="_blank" rel="noopener" href="/v1/collaboration/organizations/${encodeURIComponent(org())}/shares/${encodeURIComponent(detail.share_id)}/documents/${encodeURIComponent(snapshot.id)}/pdf">Download ${esc(snapshot.label)}</a></p>`).join('')||'<p>No document revisions have been shared.</p>'}${detail.operations.includes('documents.respond')?info.signers.map((signer,i)=>button('sign-document','Review and sign',`data-signer="${i}"`)).join(''):''}${info.responses.map((response,i)=>button('respond-document',response.label,`data-response="${i}"`)).join('')}${button('detail','Back')}`);return;
+    }
+    if(action==='respond-document'){
+      const detail=state.detail,info=state.documentInfo,response=info.responses[Number(b.dataset.response)],boolean=['boolean','checkbox'].includes(response.type);
+      return form(`<h3>${esc(response.label)}</h3>${boolean?'<label><input name="value" type="checkbox"> Confirm</label>':field('Response','value','',response.type==='number'?'number':response.type==='date'?'date':'text')}`,async values=>{const value=boolean?values.has('value'):response.type==='number'?Number(values.get('value')):values.get('value');await api('/resources/document/respond','POST',{resource:detail.resource,input:{snapshot_id:info.current_snapshot_id,field:response.key,value}});await openResource(detail);});
+    }
+    if(action==='sign-document'){
+      const detail=state.detail,signer=state.documentInfo.signers[Number(b.dataset.signer)],review=await api('/resources/signatures/prepare','POST',{resource:detail.resource,input:{snapshot_id:signer.snapshot_id,signer_id:signer.signer_id}});
+      const pdf=`/v1/collaboration/organizations/${encodeURIComponent(org())}/shares/${encodeURIComponent(detail.share_id)}/documents/${encodeURIComponent(signer.snapshot_id)}/pdf`;
+      return form(`<h3>Review and sign</h3><p><a target="_blank" rel="noopener" href="${pdf}">Download the agreement for review</a></p><p style="white-space:pre-wrap">${esc(review.disclosure.text)}</p>${field('Your name as signature','signer_name',review.signer.name)}<label>Signature field<select name="field">${review.fields.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select></label><label><input type="checkbox" required name="intent"> I intend to sign this agreement.</label><label><input type="checkbox" required name="electronic_records"> I consent to electronic records and signatures.</label><label><input type="checkbox" required name="can_access_and_retain"> I have reviewed the agreement and can access and retain a copy.</label>`,async values=>{await api('/resources/signatures/accept','POST',{resource:detail.resource,input:{snapshot_id:signer.snapshot_id,signer_id:signer.signer_id,field:values.get('field'),value:{type:'typed',signer_name:values.get('signer_name')},challenge:review.challenge,content_hash:review.content_hash,consent:{intent:values.has('intent'),electronic_records:values.has('electronic_records'),can_access_and_retain:values.has('can_access_and_retain'),disclosure_hash:review.disclosure.hash}}});await openResource(detail);});
+    }
+    if(action==='pay-invoice'){
+      const resource=state.detail.resource,checkout=await api('/resources/checkout','POST',resource);
+      if(!checkout.online_available)throw new Error('This partner cannot receive platform payments yet. Record an external payment after paying them another way.');
+      if(!window.FirstMatePaymentIntake)throw new Error('The secure payment form could not be loaded.');
+      const operationId=crypto.randomUUID(),quotes={};
+      window.FirstMatePaymentIntake.open({title:'Pay partner invoice',description:String(checkout.invoice.invoice_number||resource.id),amountCents:checkout.invoice.amount_cents,allowCustomAmount:false,methods:['card','ach'],allowSavePaymentMethod:false,savedMethods:[],tokenization:{...checkout.tokenization,createPaymentMethod:input=>api('/resources/payment-method','POST',{resource,input})},surcharge:{enabled:true,quote:async(_amount,method)=>{const rail=method==='ach'?'bank':'card';const quote=await api('/resources/payment-quote','POST',{resource,method:rail});quotes[rail]=quote;return quote;}},onSubmit:async submitted=>{
+        const method=submitted.method==='ach'?'bank':'card',quote=quotes[method];if(!quote)throw new Error('Wait for the current payment total before continuing.');
+        const result=await api('/resources/pay','POST',{resource,input:{client_operation_id:operationId,payment_method_id:submitted.payment_method_id,method,expected_total_cents:quote.total_cents,expected_invoice_revision:quote.invoice_revision}});
+        if(result.payment.status!=='paid')throw new Error(result.payment.status==='failed'?'The payment was declined. Close this form before starting a new payment.':'Payment is pending or requires reconciliation. Do not submit another payment.');
+        return result.payment;
+      }});return;
+    }
+    if(action==='offline-payment'){
+      const resource=state.detail.resource,operationId=crypto.randomUUID();
+      return form(`${field('Amount paid','amount','','number')}<label>Method<select name="method"><option value="bank_transfer">Bank transfer</option><option value="check">Check</option><option value="cash">Cash</option><option value="other">Other</option></select></label>${field('Paid on','paid_on',new Date().toISOString().slice(0,10),'date')}<label>Notes<textarea name="note"></textarea></label><label>Receipt evidence (optional)<input type="file" name="receipt" accept="application/pdf,image/*"></label><p>This records payment on your side. The partner must reconcile their own invoice.</p>`,async values=>{const file=values.get('receipt');let receipt_file;if(file?.size){if(file.size>8_000_000)throw new Error('Choose evidence under 8 MB.');receipt_file={name:file.name,base64:await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);})};}await api('/resources/offline-payment','POST',{resource,input:{amount_cents:Math.round(Number(values.get('amount'))*100),method:values.get('method'),paid_at:new Date(values.get('paid_on')+'T12:00:00').toISOString(),note:values.get('note'),receipt_file,client_operation_id:operationId}});state.view='offline-payments';await load();});
+    }
+    if(action==='engagement-state')return form(`<p>${esc(b.textContent)} this work engagement? Closing it revokes its assignment share.</p>`,async()=>{await api(`/engagements/${item.id}`,'PATCH',{expected_revision:item.revision,status:b.dataset.status});await load();});
+    if(action==='engagement'){
+      const choices=await api('/sharing-options?type=project&limit=100'),operationId=crypto.randomUUID();
+      return form(`<h3>Offer work to ${esc(item.organization.name)}</h3>${field('Title','title')}<label>Project<select name="project">${choices.items.map(p=>`<option value="${esc(p.resource.id)}">${esc(p.label)}</option>`).join('')}</select></label><label>Scope of work<textarea name="description" rows="5"></textarea></label><label>Payment terms<textarea name="payment_terms">${esc(item.payment_terms)}</textarea></label><p>Acceptance grants access to project title, address, description, photos, and shared notes. The partner can add notes and photos. Completion or cancellation revokes this assignment share.</p>`,async values=>{await api('/engagements','POST',{relationship_id:item.id,project_id:values.get('project'),title:values.get('title'),description:values.get('description'),payment_terms:values.get('payment_terms'),client_operation_id:operationId,grant:{operations:['read','photos.read','photos.upload','notes.read','notes.create'],fields:['title','address','description'],include_future:true}});state.view='engagements';await load();});
+    }
+    if(action==='schedule-engagement'){
+      const operationId=crypto.randomUUID();
+      return form(`<h3>Schedule ${esc(item.title)}</h3>${field('Start','start','','datetime-local')}${field('End','end','','datetime-local')}<p>Assigns the partner organization as a crew resource using the project's existing scheduling rules.</p>`,async values=>{await api(`/engagements/${item.id}/schedule`,'POST',{expected_revision:item.revision,start_at:new Date(values.get('start')).toISOString(),end_at:new Date(values.get('end')).toISOString(),client_operation_id:operationId});await load();});
+    }
+    if(action==='partner-document'){
+      const operationId=crypto.randomUUID();
+      return form(`<h3>Document for ${esc(item.organization.name)}</h3>${field('Title','title')}${field('Category (license, certificate, insurance, other)','category','Other')}${field('Expires on (optional)','expires','','date')}<label>PDF or photo<input type="file" name="file" accept="application/pdf,image/*" required></label><p>Stored privately in your organization. Use Share resource to share a file explicitly.</p>`,async values=>{const file=values.get('file');if(!file||file.size>10_000_000)throw new Error('Choose a file smaller than 10 MB.');const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});await api('/partner-documents','POST',{relationship_id:item.id,title:values.get('title'),category:values.get('category'),file_name:file.name,file_base64:base64,client_operation_id:operationId,...(values.get('expires')?{expires_at:new Date(values.get('expires')+'T23:59:59').toISOString()}:{})});state.view='partner-documents';await load();});
+    }
+    if(action==='issue-document'){
+      const {choice,options}=state.issueChoice,operationId=crypto.randomUUID(),owner=org();
+      return form(`<h3>Issue ${esc(choice.label)} for FirstMate sharing</h3>${field('Signer name (if a signature is required)','name')}${field('Signer email (if required)','email','','email')}${field('Consent/support contact','consent_contact','','email')}<p>This prepares an immutable review PDF. Select its revision in the sharing form afterward. Initial email and SMS delivery are off.</p>`,async values=>{await window.PlatformAPI.request(new URL(`/v1/publication/organizations/${encodeURIComponent(owner)}/actions/invoke`,location.origin).href,{method:'POST',body:{action:'documents.instance.send',target:{scope:'organization',organizationId:owner,id:choice.resource.id},input:{recipients:values.get('email')?[{name:values.get('name'),email:values.get('email'),signer_id:'customer'}]:[],consent_contact:values.get('consent_contact'),include_portal:false,include_pdf:false,prepare_pdf:true},idempotencyKey:operationId}});await sharePermissions(choice,options);});
+    }
+    if(action==='audience'){
+      const settings=await api(`/shares/${item.share_id}/audience`);
+      return form(`<p>Limit access within your organization. The owner's grant remains the maximum access.</p><label>Audience<select name="mode">${['members','managers','selected'].map(mode=>`<option value="${mode}" ${settings.audience.mode===mode?'selected':''}>${esc(mode)}</option>`).join('')}</select></label><fieldset><legend>Selected local members</legend>${settings.users.map(user=>`<label style="display:block"><input type="checkbox" name="user" value="${esc(user.id)}" ${settings.audience.user_ids.includes(user.id)?'checked':''}> ${esc(user.name)}</label>`).join('')}</fieldset>`,async values=>{await api(`/shares/${item.share_id}/audience`,'PUT',{expected_revision:settings.revision,audience:{mode:values.get('mode'),user_ids:values.getAll('user')}});await load();});
+    }
+    if(action==='relationship')return form(`<h3>${esc(item.organization.name)}</h3><label>Classification<select name="classification">${['contact','partner','client'].map(v=>`<option ${item.classification===v?'selected':''}>${v}</option>`).join('')}</select></label><label>Private notes<textarea name="note">${esc(item.note)}</textarea></label><label>Payment terms<textarea name="payment_terms">${esc(item.payment_terms)}</textarea></label>`,async values=>{await api(`/partners/${item.id}`,'PATCH',{expected_revision:item.revision,...Object.fromEntries(values)});await load();});
+    if(action==='approve')return form(`<p>Approve this organization connection? Resource access remains limited to the invitation.</p><p>${esc(item.recipient_org_id)}</p>`,async()=>{await api(`/invitations/${item.id}/approve`,'POST',{expected_revision:item.revision});await load();});
+    if(action==='revoke-share'||action==='revoke-invitation')return form('<p>Revoke this access? Previously downloaded copies cannot be recalled.</p>',async()=>{await api(`/${action==='revoke-share'?'shares':'invitations'}/${item.id}/revoke`,'POST',{expected_revision:item.revision});await load();});
+    if(action==='disconnect')return form('<p>End this connection and stop its live shared access?</p>',async()=>{await api(`/connections/${item.connection.id}`,'PATCH',{expected_revision:item.connection.revision,status:'ended'});await load();});
+    if(action==='edit'){const d=state.detail;return form(['title','description'].filter(k=>Object.hasOwn(d.data,k)).map(k=>field(k,k,d.data[k])).join(''),async values=>{await api('/resources/details','PATCH',{resource:d.resource,input:{expected_revision:d.revision,fields:Object.fromEntries(values)}});await openResource(d);});}
+    if(action==='photos'){const d=await api('/resources/photos','POST',state.detail.resource);content(`<h3>Shared photos</h3>${d.items.map(m=>`<p><a target="_blank" rel="noopener" href="/v1/collaboration/organizations/${encodeURIComponent(org())}/shares/${encodeURIComponent(state.detail.share_id)}/files/${encodeURIComponent(m.id)}">${esc(m.file_name||m.id)}</a></p>`).join('')||'<p>No shared photos.</p>'}${button('detail','Back')}`);}
+  }
+  async function acceptPending(){
+    const token=sessionStorage.getItem('fm_collaboration_invite');if(!token)return false;
+    const p=await api('/invitations/preview','POST',{token});
+    form(`<h3>Connect with ${esc(p.inviter.name)}</h3><p>${esc(p.label)}</p><p>${p.recipient_kind==='individual'?'This access is assigned to your account in the currently selected organization.':'You are accepting for the currently selected organization.'} Switch organizations first if needed.</p><p>Names: ${p.policy.disclose_name?'shared':'private'} · Emails: ${p.policy.disclose_email?'shared':'private'} · Phones: ${p.policy.disclose_phone?'shared':'private'}</p>${p.requested_access?`<p>Requested access: ${esc(p.requested_access.type)} · ${esc(p.requested_access.operations.join(', '))}</p>`:''}${p.email_required&&!p.email_matches?'<p>Sign in with the invited email.</p>':''}`,async()=>{const result=await api('/invitations/accept','POST',{token});sessionStorage.removeItem('fm_collaboration_invite');state.view=p.recipient_kind==='individual'?'shared':'partners';await load();if(result.invitation.status==='claimed')error('Connection requested; awaiting inviter approval.');});return true;
+  }
+  let showing=null;
+  function show(){if(!state.root)return;if(showing&&!state.pending)return showing;if(state.pending){const item=state.pending;state.pending=null;window.__fmPendingCollaborationResource=null;state.epoch++;return openResource(item).catch(error);}showing=acceptPending().then(found=>{if(!found)return load();}).catch(error).finally(()=>{showing=null;});return showing;}
+  function mount(root){state.root=root;shell();show();return ()=>{state.epoch++;clearInterval(state.conversationTimer);state.root=null;};}
+  window.addEventListener('fm:collaboration:open',event=>{if(!event.detail?.resource)return;state.pending=event.detail;window.Portal.tabs?.activateTab?.('partners');if(state.root)show();});
+  function register(){if(!window.Portal?.apps?.registerPortalApp)return setTimeout(register,100);window.Portal.apps.registerPortalApp({id:'portal.partners',tabId:'partners',title:title(),icon:'fa-handshake',order:12,mount,onShow:show,onHide:()=>clearInterval(state.conversationTimer)});window.Portal.tabs?.renderTabs?.();if(sessionStorage.getItem('fm_collaboration_invite'))window.Portal.tabs?.activateTab?.('partners');}
+  window.FirstMatePartners={request:api,openResource,mount};register();
+})();

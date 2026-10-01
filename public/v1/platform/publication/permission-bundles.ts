@@ -8,6 +8,8 @@
  * member reading that channel), not unrestricted access.
  */
 const bundles: Record<string, { actions?: readonly string[]; data?: readonly string[] }> = {
+  use_external_shares:{data:["collaboration.resource","collaboration.resources"],actions:["collaboration.project.update","collaboration.note.create","collaboration.message.post","collaboration.work.update","collaboration.schedule.update"]},
+  manage_external_sharing:{actions:["collaboration.share.revoke"]},
   view_projects: { actions: ["projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["custom-fields-project.contract", "custom-fields-project.values", "custom-fields-organization.contract", "custom-fields-organization.values", "projects.record", "work.records", "organization.profile", "referrals.eligibility"] },
   manage_projects: { actions: ["custom-fields.project.write", "custom-fields.contact.write","projects.lead.create", "work.node.patch", "work.node.transition"] },
   view_contacts: { data: ["custom-fields-contact.contract", "custom-fields-contact.values","customers.record", "contacts.settings", "contacts.options"] },

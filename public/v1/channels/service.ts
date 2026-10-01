@@ -488,6 +488,12 @@ async function publishMessageEvent(topic: string, channel: ChannelRow, message: 
 }
 
 // --- hydration ----------------------------------------------------------------
+/** Durable producers announce a stored message only after their transaction commits. */
+export async function publishStoredMessage(orgId:string,messageId:string){
+  const message=await readMessageRecord(orgId,messageId);if(!message)return;
+  const channel=await readChannelRecord(orgId,message.channel_id);if(!channel)return;
+  await publishMessageEvent("channels.message.created",channel,message,null);
+}
 
 export async function hydrateMessages(ctx: PlatformAuthContext, channel: ChannelRow, messages: MessageRow[]) {
   for (const message of messages) {
@@ -507,6 +513,12 @@ export async function hydrateMessages(ctx: PlatformAuthContext, channel: Channel
   const translations = (await listMessageTranslations(ids, preferences.language));
   return Promise.all(messages.map(async message => {
     const hydrated = hydrateMessage(ctx, message, { directory, reactions, attachments, saved, manage, preferences, translations });
+    const externalActor=asObject(message.metadata.collaboration_actor);
+    if(externalActor.organization_id && message.author_id===`external_${externalActor.organization_id}_${externalActor.user_id}`){
+      const {participantView}=await import("../collaboration/service.js");
+      hydrated.author={id:message.author_id,...await participantView(ctx.orgId,{organization_id:String(externalActor.organization_id),user_id:String(externalActor.user_id)},true).catch(()=>({name:"External participant"}))};
+      const metadata={...asObject(hydrated.metadata)};delete metadata.collaboration_actor;hydrated.metadata=metadata;
+    }
     hydrated.thread_muted = (await collaboration.threadSubscriptionRecord(message.parent_id || message.id, ctx.userId))?.notify_level === "muted";
     if (!message.deleted_at && message.metadata.event === "huddle_started" && message.metadata.huddle_id) {
       const room = await calls.getRoom(ctx, String(message.metadata.huddle_id)).catch(() => null);

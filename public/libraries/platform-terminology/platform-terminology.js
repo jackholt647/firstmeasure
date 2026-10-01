@@ -9,6 +9,7 @@
   const section = (id, title, note, terms) => ({ id, title, note, terms });
 
   const CATALOG = [
+    section('partners','Partners','Connected organizations and partner collaboration.',[term('partner','Partner'),term('partners','Partners','navigation')]),
     section('projects', 'Projects', 'Project navigation, views, and the primary project record.', [
       term('portal_tab', 'My Projects', 'navigation'), term('crew_portal_tab', 'Projects', 'navigation'), term('overview_tab', 'Overview', 'navigation'), term('map_tab', 'Map', 'navigation'),
       term('project', 'Project'), term('projects', 'Projects'), term('stage', 'Stage'), term('status', 'Status'), term('owner', 'Owner'), term('address', 'Address'), term('submitted_date', 'Submitted')

@@ -63,6 +63,7 @@ session_write_close();
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script src="/libraries/apps/partners/invite-continuation.js?v=20260930"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#d93025">

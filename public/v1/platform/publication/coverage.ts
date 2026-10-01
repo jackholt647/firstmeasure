@@ -1,6 +1,7 @@
 /** Inventory of application ownership, not a claim that every legacy endpoint is
  * a published operation. Adding an app requires an explicit publication decision. */
 export const applicationPublication = {
+  partners:{providers:["collaboration"],domains:["collaboration"],note:"Authenticated organization connections, resource sharing and partner exchanges. Dedicated invitations and privacy administration remain explicit authenticated APIs."},
   assistant: { providers: [], domains: [], note: "Consumes the shared authorized publication catalog; assistant conversations, instructions and personal memories retain their dedicated subject-scoped APIs." },
   projects: { providers: ["projects", "custom-fields-project"], domains: ["projects", "custom-fields"] },
   contacts: { providers: ["customers", "custom-fields-contact", "contacts"], domains: ["projects", "custom-fields", "contacts"] },

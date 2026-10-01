@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { badRequest, notFound } from "../platform/errors.js";
+import { badRequest, notFound, conflict } from "../platform/errors.js";
 import { listDocuments, readDocument, upsertDocument } from "../platform/storage.js";
 import { updateProjectData } from "../platform/project_document_mutation.js";
 import { listScopeTemplates } from "../scopes/storage.js";
@@ -30,7 +30,7 @@ import {
   type JsonObject
 } from "./storage.js";
 import { createWorkPlanSchema, workNodeStatusSchema, type WorkNodeDefinition, type WorkNodeStatus } from "./schemas.js";
-import { emitWorkEvent } from "./engine.js";
+import { emitWorkEvent, withDeferredWorkEvents, dispatchDeferredWorkEvents } from "./engine.js";
 
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
@@ -300,9 +300,11 @@ async function setNodeStatus(orgId: string, node: JsonObject, status: WorkNodeSt
 }
 
 export async function transitionWorkNode(orgId: string, nodeId: string, statusValue: string, input: JsonObject = {}) {
+  const result=await withDeferredWorkEvents(()=>getWorkDatabase().transaction(async()=>{
   const status = workNodeStatusSchema.parse(statusValue);
   const node = (await readNodeRecord(orgId, nodeId));
   if (!node) throw notFound("work_node_not_found", "Work node was not found.");
+  if(input.expected_updated_at!==undefined&&input.expected_updated_at!==node.updated_at)throw conflict("work_node_changed","This work item changed. Reload it before updating.");
   const statusChanged = cleanText(node.status) !== status;
   const metadata = asObject(node.metadata);
   const typeTags = Array.isArray(metadata.type_tags) ? metadata.type_tags.map(cleanText) : [];
@@ -348,6 +350,9 @@ export async function transitionWorkNode(orgId: string, nodeId: string, statusVa
   await recalculateWorkPlan(orgId, cleanText(next.plan_id));
   if (statusChanged) await releaseCaughtUpManualStage(orgId, cleanText(next.plan_id));
   return (await readNodeRecord(orgId, nodeId)) || next;
+  }));
+  await dispatchDeferredWorkEvents();
+  return result;
 }
 
 /* A manually chosen board stage (setManualPlanStage) yields to the workflow

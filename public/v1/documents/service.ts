@@ -1868,7 +1868,7 @@ async function sendDocumentLocked(orgId: string, documentId: string, input: Json
   const snapshot = await createSnapshot(orgId, documentId, {
     ...input,
     reason: "send",
-    generate_pdf: input.include_pdf === true
+    generate_pdf: input.include_pdf === true || input.prepare_pdf === true
   }, ctx);
   const document = await readDocumentInstance(orgId, documentId);
   const now = nowIso();

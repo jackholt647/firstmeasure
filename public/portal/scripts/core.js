@@ -7,6 +7,15 @@
 
 
 (function(){
+  try {
+    const inviteUrl=new URL(location.href);
+    const token=new URLSearchParams(inviteUrl.hash.slice(1)).get('collaboration_invite')||inviteUrl.searchParams.get('collaboration_invite');
+    if(token&&/^[A-Za-z0-9_-]{43}$/.test(token)){
+      sessionStorage.setItem('fm_collaboration_invite',token);
+      inviteUrl.searchParams.delete('collaboration_invite');inviteUrl.hash='';
+      history.replaceState(history.state,'',inviteUrl.href);
+    }
+  } catch (_) {}
   const APP = window.__APP || {};
   const $ = (sel, root=document) => root.querySelector(sel);
 

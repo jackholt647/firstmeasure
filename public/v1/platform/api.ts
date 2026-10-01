@@ -1878,153 +1878,7 @@ app.get("/auth/google/config", async () => ({
     const projectId = getParam(request.params, "projectId");
     const actor = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission("projects") });
     const body = objectBodySchema.parse(request.body ?? {});
-    const branchId = String(body.branch_id || body.branchId || "default");
-    const incoming = asObject(body.event || body.data || body);
-    const unlockConfirmed = incoming.unlock_confirmed === true || incoming.unlockConfirmed === true || body.unlock_confirmed === true || body.unlockConfirmed === true;
-    const eventInput = { ...incoming };
-    delete eventInput.unlock_confirmed;
-    delete eventInput.unlockConfirmed;
-    const expectedRevision = expectedEventRevision(body, incoming);
-    stripEventRevisionTokens(eventInput);
-    // R3-TG-9: start_at/end_at are authoritative; view-only shadow copies
-    // (start/end/__start/__draft…) are never persisted.
-    stripClientOnlyEventFields(eventInput);
-    const requestedEventId = cleanText(eventInput.id);
-    // R3-RAIL-2: the whole read-check-write runs serialized per project and
-    // writes conditionally on the revision it read (retrying on conflict), so
-    // concurrent saves to one project never drop each other's items.
-    // R4-EQ-5: an item that books (or held) equipment also holds the
-    // organization's booking lock, so its conflict check and write cannot
-    // interleave with another project's booking of the same unit.
-    const saved = await mutateProjectDocument(orgId, projectId, async (current) => await withEquipmentBookingLock(orgId, projectEventWriteTouchesEquipment(asObject(current.data), requestedEventId, eventInput), async () => {
-    const currentData = asObject(current.data);
-    const events = Array.isArray(currentData.events) ? [...currentData.events] : [];
-    const existingIndex = requestedEventId ? events.findIndex((item) => cleanText(asObject(item).id) === requestedEventId) : -1;
-    const existingEvent = existingIndex >= 0 ? stripClientOnlyEventFields(asObject(events[existingIndex])) : {};
-    assertEventRevisionCurrent(expectedRevision, existingIndex >= 0 ? existingEvent : null, { event_id: requestedEventId, project_id: projectId });
-    const event: JsonObject = normalizeProjectEvent({ ...existingEvent, ...eventInput }, currentData, {
-      existing: existingIndex >= 0 ? existingEvent : null,
-      patch: eventInput
-    });
-    event.event_revision = storedEventRevision(existingEvent) + 1;
-    const assignmentChanged = existingIndex < 0
-      || JSON.stringify(eventAssignmentKeys(existingEvent)) !== JSON.stringify(eventAssignmentKeys(event));
-    if (assignmentChanged) {
-      event.assignment_policy = await assertProjectEventAssignmentsAllowed(orgId, branchId, event);
-    }
-    // Equipment double-booking guard: conflict_mode 'block' rejects, 'warn'
-    // returns the conflicts for the UI to render, 'off' skips the check.
-    const { equipmentConflicts, operatorWarnings } = await assessScheduleItemEquipment(orgId, event);
-    if (existingIndex < 0) {
-      const identity = asObject(actor.identity);
-      event.scheduled_by_user_id = cleanText(eventInput.scheduled_by_user_id || actor.userId);
-      event.scheduled_by_name = cleanText(eventInput.scheduled_by_name || identity.name || identity.display_name || identity.email);
-      event.scheduled_by_email = cleanText(eventInput.scheduled_by_email || identity.email);
-    }
-    const existingStartMs = Date.parse(cleanText(existingEvent.start_at || existingEvent.start));
-    const existingEndMs = Date.parse(cleanText(existingEvent.end_at || existingEvent.end));
-    const derivedExistingDuration = Number.isFinite(existingStartMs) && Number.isFinite(existingEndMs) && existingEndMs > existingStartMs
-      ? Math.max(1, Math.round((existingEndMs - existingStartMs) / 60000))
-      : 60;
-    const existingDuration = Math.max(1, Number(existingEvent.duration_minutes || existingEvent.duration || derivedExistingDuration));
-    const rangeChanged = existingIndex >= 0 && (
-      cleanText(existingEvent.start_at || existingEvent.start) !== cleanText(event.start_at)
-      || cleanText(existingEvent.end_at || existingEvent.end) !== cleanText(event.end_at)
-      || existingDuration !== Number(event.duration_minutes || 60)
-      || (cleanText(existingEvent.status).toLowerCase() === "unscheduled") !== (cleanText(event.status).toLowerCase() === "unscheduled")
-    );
-    const explicitUnlock = existingEvent.locked === true && eventInput.locked === false;
-    if (existingEvent.locked === true && (rangeChanged || explicitUnlock) && !unlockConfirmed) {
-      throw conflict("project_event_locked", "This item is locked. Confirm unlocking it before rescheduling.", {
-        event_id: requestedEventId,
-        locked_reason: cleanText(existingEvent.locked_reason),
-        unlock_confirmation_required: true
-      });
-    }
-    if (existingEvent.locked === true && unlockConfirmed) {
-      event.locked = false;
-      event.unlocked_at = new Date().toISOString();
-      event.unlocked_by_user_id = actor.userId;
-      event.unlock_reason = cleanText(incoming.unlock_reason || "confirmed_reschedule");
-      event.schedule_lock = {
-        ...asObject(existingEvent.schedule_lock),
-        locked: false,
-        unlocked_at: event.unlocked_at,
-        unlocked_by_user_id: actor.userId
-      };
-    }
-    if (eventInput.locked === true) {
-      event.locked = true;
-      event.locked_at = cleanText(existingEvent.locked_at || new Date().toISOString());
-      event.locked_by_user_id = actor.userId;
-      event.schedule_lock = {
-        ...asObject(existingEvent.schedule_lock),
-        ...asObject(eventInput.schedule_lock),
-        locked: true,
-        locked_at: event.locked_at,
-        locked_by_user_id: actor.userId,
-        unlocked_at: ""
-      };
-    }
-    // Appointment confirmations: reconcile the send queue with the event's
-    // current time and settings, and stamp the resulting status back onto the
-    // event so the schedule views can render it (dashed = awaiting the customer).
-    if (isAppointmentConfirmationCandidate(event)) {
-      try {
-        const { syncAppointmentConfirmation } = await import("../appointments/service.js");
-        event.confirmation = await syncAppointmentConfirmation(orgId, branchId, projectId, event, currentData);
-      } catch (error) {
-        request.log?.warn?.({ err: error }, "appointment confirmation sync failed");
-      }
-    }
-    if (existingIndex >= 0) events[existingIndex] = event;
-    else events.push(event);
-    const projectWithDefaults = applyProjectCustomFieldDefaults({
-      ...currentData,
-      events,
-      updated_at: new Date().toISOString()
-    });
-    await validateProjectCustomFieldValues(orgId, branchId, projectWithDefaults, currentData);
-    const document = await writeProjectDocument(orgId, current, projectWithDefaults, {
-      ...asObject(current.metadata),
-      last_project_event_id: event.id
-    });
-    return { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings };
-    }));
-    const { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings } = saved;
-    const materialList = cleanText(event.material_list_id)
-      ? await syncMaterialListFromScheduleEvent(orgId, event)
-      : null;
-    const isScheduled = cleanText(event.status).toLowerCase() !== "unscheduled" && !!cleanText(event.start_at);
-    const schedulingMutation = isScheduled && (existingIndex < 0 || rangeChanged);
-    if (schedulingMutation) {
-      await emitWorkEvent({
-        organization_id: orgId,
-        branch_id: branchId,
-        project_id: projectId,
-        type: "project.event_scheduled",
-        idempotency_key: `project.event_scheduled:${projectId}:${event.id}:${event.updated_at}`,
-        payload: {
-          event_id: event.id,
-          event_kind: asObject(event).kind || event.event_type_default_id,
-          event_type_default_id: event.event_type_default_id,
-          event
-        }
-      });
-    }
-    const latestDocument = schedulingMutation
-      ? await readDocument(orgId, "projects", projectId).catch(() => document)
-      : document;
-    invalidatePlatformSearchCache(orgId);
-    return {
-      ok: true,
-      event,
-      document: latestDocument,
-      project: asObject(asObject(latestDocument).data),
-      material_list: materialList,
-      equipment_conflicts: equipmentConflicts,
-      equipment_operator_warnings: operatorWarnings
-    };
+    return saveProjectScheduleEvent(orgId,projectId,actor,body,error=>request.log?.warn?.({err:error},"appointment confirmation sync failed"));
   });
 
   app.post("/organizations/:orgId/terminology-agent", async (request) => {
@@ -12703,4 +12557,155 @@ async function portalGetOrg(orgId: string, userDoc: JsonObject | null) {
     user,
     workspace_website_suggestion: workspaceWebsiteSuggestion
   };
+}
+
+/** Shared scheduling domain writer; callers authorize the resource and allowed input fields. */
+export async function saveProjectScheduleEvent(orgId:string,projectId:string,actor:import("./auth.js").PlatformAuthContext,body:JsonObject,warn?:(error:unknown)=>void){
+    const branchId = String(body.branch_id || body.branchId || "default");
+    const incoming = asObject(body.event || body.data || body);
+    const unlockConfirmed = incoming.unlock_confirmed === true || incoming.unlockConfirmed === true || body.unlock_confirmed === true || body.unlockConfirmed === true;
+    const eventInput = { ...incoming };
+    delete eventInput.unlock_confirmed;
+    delete eventInput.unlockConfirmed;
+    const expectedRevision = expectedEventRevision(body, incoming);
+    stripEventRevisionTokens(eventInput);
+    // R3-TG-9: start_at/end_at are authoritative; view-only shadow copies
+    // (start/end/__start/__draft…) are never persisted.
+    stripClientOnlyEventFields(eventInput);
+    const requestedEventId = cleanText(eventInput.id);
+    // R3-RAIL-2: the whole read-check-write runs serialized per project and
+    // writes conditionally on the revision it read (retrying on conflict), so
+    // concurrent saves to one project never drop each other's items.
+    // R4-EQ-5: an item that books (or held) equipment also holds the
+    // organization's booking lock, so its conflict check and write cannot
+    // interleave with another project's booking of the same unit.
+    const saved = await mutateProjectDocument(orgId, projectId, async (current) => await withEquipmentBookingLock(orgId, projectEventWriteTouchesEquipment(asObject(current.data), requestedEventId, eventInput), async () => {
+    const currentData = asObject(current.data);
+    const events = Array.isArray(currentData.events) ? [...currentData.events] : [];
+    const existingIndex = requestedEventId ? events.findIndex((item) => cleanText(asObject(item).id) === requestedEventId) : -1;
+    const existingEvent = existingIndex >= 0 ? stripClientOnlyEventFields(asObject(events[existingIndex])) : {};
+    assertEventRevisionCurrent(expectedRevision, existingIndex >= 0 ? existingEvent : null, { event_id: requestedEventId, project_id: projectId });
+    const event: JsonObject = normalizeProjectEvent({ ...existingEvent, ...eventInput }, currentData, {
+      existing: existingIndex >= 0 ? existingEvent : null,
+      patch: eventInput
+    });
+    event.event_revision = storedEventRevision(existingEvent) + 1;
+    const assignmentChanged = existingIndex < 0
+      || JSON.stringify(eventAssignmentKeys(existingEvent)) !== JSON.stringify(eventAssignmentKeys(event));
+    if (assignmentChanged) {
+      event.assignment_policy = await assertProjectEventAssignmentsAllowed(orgId, branchId, event);
+    }
+    // Equipment double-booking guard: conflict_mode 'block' rejects, 'warn'
+    // returns the conflicts for the UI to render, 'off' skips the check.
+    const { equipmentConflicts, operatorWarnings } = await assessScheduleItemEquipment(orgId, event);
+    if (existingIndex < 0) {
+      const identity = asObject(actor.identity);
+      event.scheduled_by_user_id = cleanText(eventInput.scheduled_by_user_id || actor.userId);
+      event.scheduled_by_name = cleanText(eventInput.scheduled_by_name || identity.name || identity.display_name || identity.email);
+      event.scheduled_by_email = cleanText(eventInput.scheduled_by_email || identity.email);
+    }
+    const existingStartMs = Date.parse(cleanText(existingEvent.start_at || existingEvent.start));
+    const existingEndMs = Date.parse(cleanText(existingEvent.end_at || existingEvent.end));
+    const derivedExistingDuration = Number.isFinite(existingStartMs) && Number.isFinite(existingEndMs) && existingEndMs > existingStartMs
+      ? Math.max(1, Math.round((existingEndMs - existingStartMs) / 60000))
+      : 60;
+    const existingDuration = Math.max(1, Number(existingEvent.duration_minutes || existingEvent.duration || derivedExistingDuration));
+    const rangeChanged = existingIndex >= 0 && (
+      cleanText(existingEvent.start_at || existingEvent.start) !== cleanText(event.start_at)
+      || cleanText(existingEvent.end_at || existingEvent.end) !== cleanText(event.end_at)
+      || existingDuration !== Number(event.duration_minutes || 60)
+      || (cleanText(existingEvent.status).toLowerCase() === "unscheduled") !== (cleanText(event.status).toLowerCase() === "unscheduled")
+    );
+    const explicitUnlock = existingEvent.locked === true && eventInput.locked === false;
+    if (existingEvent.locked === true && (rangeChanged || explicitUnlock) && !unlockConfirmed) {
+      throw conflict("project_event_locked", "This item is locked. Confirm unlocking it before rescheduling.", {
+        event_id: requestedEventId,
+        locked_reason: cleanText(existingEvent.locked_reason),
+        unlock_confirmation_required: true
+      });
+    }
+    if (existingEvent.locked === true && unlockConfirmed) {
+      event.locked = false;
+      event.unlocked_at = new Date().toISOString();
+      event.unlocked_by_user_id = actor.userId;
+      event.unlock_reason = cleanText(incoming.unlock_reason || "confirmed_reschedule");
+      event.schedule_lock = {
+        ...asObject(existingEvent.schedule_lock),
+        locked: false,
+        unlocked_at: event.unlocked_at,
+        unlocked_by_user_id: actor.userId
+      };
+    }
+    if (eventInput.locked === true) {
+      event.locked = true;
+      event.locked_at = cleanText(existingEvent.locked_at || new Date().toISOString());
+      event.locked_by_user_id = actor.userId;
+      event.schedule_lock = {
+        ...asObject(existingEvent.schedule_lock),
+        ...asObject(eventInput.schedule_lock),
+        locked: true,
+        locked_at: event.locked_at,
+        locked_by_user_id: actor.userId,
+        unlocked_at: ""
+      };
+    }
+    // Appointment confirmations: reconcile the send queue with the event's
+    // current time and settings, and stamp the resulting status back onto the
+    // event so the schedule views can render it (dashed = awaiting the customer).
+    if (isAppointmentConfirmationCandidate(event)) {
+      try {
+        const { syncAppointmentConfirmation } = await import("../appointments/service.js");
+        event.confirmation = await syncAppointmentConfirmation(orgId, branchId, projectId, event, currentData);
+      } catch (error) {
+        warn?.(error);
+      }
+    }
+    if (existingIndex >= 0) events[existingIndex] = event;
+    else events.push(event);
+    const projectWithDefaults = applyProjectCustomFieldDefaults({
+      ...currentData,
+      events,
+      updated_at: new Date().toISOString()
+    });
+    await validateProjectCustomFieldValues(orgId, branchId, projectWithDefaults, currentData);
+    const document = await writeProjectDocument(orgId, current, projectWithDefaults, {
+      ...asObject(current.metadata),
+      last_project_event_id: event.id
+    });
+    return { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings };
+    }));
+    const { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings } = saved;
+    const materialList = cleanText(event.material_list_id)
+      ? await syncMaterialListFromScheduleEvent(orgId, event)
+      : null;
+    const isScheduled = cleanText(event.status).toLowerCase() !== "unscheduled" && !!cleanText(event.start_at);
+    const schedulingMutation = isScheduled && (existingIndex < 0 || rangeChanged);
+    if (schedulingMutation) {
+      await emitWorkEvent({
+        organization_id: orgId,
+        branch_id: branchId,
+        project_id: projectId,
+        type: "project.event_scheduled",
+        idempotency_key: `project.event_scheduled:${projectId}:${event.id}:${event.updated_at}`,
+        payload: {
+          event_id: event.id,
+          event_kind: asObject(event).kind || event.event_type_default_id,
+          event_type_default_id: event.event_type_default_id,
+          event
+        }
+      });
+    }
+    const latestDocument = schedulingMutation
+      ? await readDocument(orgId, "projects", projectId).catch(() => document)
+      : document;
+    invalidatePlatformSearchCache(orgId);
+    return {
+      ok: true,
+      event,
+      document: latestDocument,
+      project: asObject(asObject(latestDocument).data),
+      material_list: materialList,
+      equipment_conflicts: equipmentConflicts,
+      equipment_operator_warnings: operatorWarnings
+    };
 }
