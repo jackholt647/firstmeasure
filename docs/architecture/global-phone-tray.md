@@ -43,6 +43,19 @@ they do not acquire a second microphone or generate simulated activity.
 and inbound agent selection while that caller has an unfinished outcome. Notes
 continue to autosave. Optional outcomes can be skipped without inventing a result.
 
+Keypad sounds default on. Number typing and keypad clicks synthesize short local
+DTMF frequency pairs; the saved per-account/per-organization browser preference
+is available in Call details & options and beside the active-call keypad. Turning
+sound off does not suppress provider DTMF actions. Local tone audio is released
+when the phone closes.
+
+First-call readiness uses an inline card over the number and a dimmed, inert
+dialer. Run check executes the existing device diagnostic with concise progress;
+Not now returns to number editing without bypassing the check requirement. The
+standalone settings diagnostic retains its detailed view. Errors remain in a
+small bottom strip. Number focus and selection are restored after tray rendering;
+the delete button removes the final digit or selected range.
+
 ## Development setup
 
 The server's `dataEnvironment`, never a browser flag, enables the development
