@@ -262,6 +262,7 @@ test("partner checkout uses the mock provider once and offline reports do not se
   const quote=await b.request("POST",br+"/resources/payment-quote",{resource,method:"card"});
   const token=await b.request("POST",br+"/resources/payment-method",{resource,input:{type:"card",card:{number:"4242424242424242",exp_month:12,exp_year:2030,cvc:"123"}}});
   const input={client_operation_id:"pay_once",payment_method_id:token.payment_method.id,method:"card",expected_total_cents:quote.total_cents,expected_invoice_revision:quote.invoice_revision};
+  await assert.rejects(()=>b.request("POST",br+"/resources/pay",{resource,input:{...input,client_operation_id:"wrong_rail",method:"bank"}}),/payment_method_mismatch|does not match/);
   const results=await Promise.all([1,2].map(()=>b.request("POST",br+"/resources/pay",{resource,input})));
   assert.ok(results.some(result=>result.payment.status==="paid"),JSON.stringify(results));
   const replay=await b.request("POST",br+"/resources/pay",{resource,input});assert.equal(replay.payment.status,"paid");

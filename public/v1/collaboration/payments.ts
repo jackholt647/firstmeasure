@@ -93,6 +93,8 @@ export async function payPartnerInvoice(ctx:PlatformAuthContext,resource:Resourc
     if(prior){if(prior.request_hash!==requestHash)throw conflict("operation_conflict","This payment reference was already used.");return {record:prior,provider:null};}
     const {provider,config}=await merchant(resource.owner_org_id),invoice=await readInvoice(resource.owner_org_id,resource.id);
     requireRail(config,input.method);
+    const paymentMethod=await provider!.getPaymentMethod(input.payment_method_id);
+    if(paymentMethod.id!==input.payment_method_id||paymentMethod.type!==input.method)throw badRequest("payment_method_mismatch","The payment method does not match the quoted payment rail. Request a new quote.");
     if(Number(invoice.revision)!==input.expected_invoice_revision||!["due","overdue","partially_paid"].includes(String(invoice.status)))throw conflict("invoice_changed","Reload this invoice before paying.");
     const pending=await collaborationStore().prepare("SELECT id FROM collaboration_records WHERE kind='partner_checkout' AND resource_key=? AND status NOT IN ('paid','failed') LIMIT 1").get(resourceKey(resource));
     if(pending)throw conflict("invoice_payment_pending","A payment is pending or requires reconciliation. Do not submit another payment.");
