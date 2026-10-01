@@ -908,6 +908,7 @@
   };
 
   const initialAppDefinitions = {
+    'portal.partners': { visible:true, icon:'fa-handshake', order:12 },
     'portal.feedback': { visible:true },
     'project.feedback': { visible:true },
     'portal.assistant': {
@@ -989,6 +990,7 @@
   // (shell, help, onboarding) are ungated. Add a mapping here when you add a
   // manifest entry that belongs to a flaggable app.
   const appCapabilities = {
+    'portal.partners': 'platform.collaboration',
     'portal.viewer': 'apps.projects',
     'portal.contacts': 'platform.contacts',
     'portal.photos_feed': 'platform.photos_feed',
