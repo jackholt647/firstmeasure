@@ -324,3 +324,9 @@ export async function participantView(viewerOrg:string,participant:{organization
   return {organization_id:participant.organization_id,name:policy.disclose_name?String(record?.data.name||"Former participant"):"Private participant",
     ...(policy.disclose_email?{email:String(record?.data.email||"")} : {}),...(policy.disclose_phone?{phone:String(record?.data.phone||"")}:{})};
 }
+export async function verifiedMessageContributor(message:{id:string;client_msg_id?:string|null;author_id:string;metadata:Record<string,any>}){
+  const participant=message.metadata.collaboration_actor;
+  if(!participant||message.author_id!==`external_${participant.organization_id}_${participant.user_id}`||!message.client_msg_id)return null;
+  const operation=await findRecord(message.client_msg_id,"message_operation");
+  return operation?.result?.id===message.id&&operation.created_by?.organization_id===participant.organization_id&&operation.created_by?.user_id===participant.user_id?{organization_id:String(participant.organization_id),user_id:String(participant.user_id)}:null;
+}

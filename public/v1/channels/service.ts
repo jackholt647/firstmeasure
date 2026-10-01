@@ -513,10 +513,10 @@ export async function hydrateMessages(ctx: PlatformAuthContext, channel: Channel
   const translations = (await listMessageTranslations(ids, preferences.language));
   return Promise.all(messages.map(async message => {
     const hydrated = hydrateMessage(ctx, message, { directory, reactions, attachments, saved, manage, preferences, translations });
-    const externalActor=asObject(message.metadata.collaboration_actor);
-    if(externalActor.organization_id && message.author_id===`external_${externalActor.organization_id}_${externalActor.user_id}`){
-      const {participantView}=await import("../collaboration/service.js");
-      hydrated.author={id:message.author_id,...await participantView(ctx.orgId,{organization_id:String(externalActor.organization_id),user_id:String(externalActor.user_id)},true).catch(()=>({name:"External participant"}))};
+    if(message.metadata.collaboration_actor){
+      const {participantView,verifiedMessageContributor}=await import("../collaboration/service.js");
+      const contributor=await verifiedMessageContributor(message);
+      if(contributor)hydrated.author={id:message.author_id,...await participantView(ctx.orgId,contributor,true).catch(()=>({name:"External participant"}))};
       const metadata={...asObject(hydrated.metadata)};delete metadata.collaboration_actor;hydrated.metadata=metadata;
     }
     hydrated.thread_muted = (await collaboration.threadSubscriptionRecord(message.parent_id || message.id, ctx.userId))?.notify_level === "muted";

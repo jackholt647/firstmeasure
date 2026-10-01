@@ -12,7 +12,7 @@ import { readChannelRecord, listMessageRecords, createMessageRecord, findChannel
 import { requireChannelAccess, channelAdminAllowed } from "../channels/service.js";
 import { isReceiptMedia, canReadReceiptMedia } from "../platform/media_access.js";
 import { type ResourceRef } from "./schemas.js";
-import { authorizeShared, withSharedAccess, requirePermission, actor, participantView, organizationProfile } from "./service.js";
+import { authorizeShared, withSharedAccess, requirePermission, actor, participantView, organizationProfile, verifiedMessageContributor } from "./service.js";
 import { audit, newId, now, getRecord, listRecords, listGrants, findRecord, insertRecord } from "./storage.js";
 
 const fields:Record<ResourceRef["type"],readonly string[]>={
@@ -87,10 +87,8 @@ export function projectFields(type:ResourceRef["type"],value:Record<string,any>,
 export function validateSharedFields(type:ResourceRef["type"],selected:string[]){
   if(selected.some(key=>!fields[type].includes(key)))throw badRequest("shared_field_invalid","Choose only supported fields for this resource type.");
 }
-function messageParticipant(message:Record<string,any>,owner:string){
-  const participant=message.metadata?.collaboration_actor;
-  return participant&&message.author_id===`external_${participant.organization_id}_${participant.user_id}`
-    ?participant:{organization_id:owner,user_id:message.author_id};
+async function messageParticipant(message:Record<string,any>,owner:string){
+  return await verifiedMessageContributor(message as any)||{organization_id:owner,user_id:message.author_id};
 }
 export async function readSharedResource(ctx:PlatformAuthContext,r:ResourceRef){
   return withSharedAccess(ctx,r,"read",async decision=>{
@@ -163,7 +161,7 @@ export async function sharedMessages(ctx:PlatformAuthContext,r:ResourceRef,after
     const earliest=d.grants.reduce((time,g)=>g.include_future?Math.min(time,Date.parse(g.created_at)):time,Infinity);
     const visible=messages.filter(m=>!m.deleted_at&&!m.audience.length&&(d.grants.some(g=>g.child_ids.includes(m.id))||Date.parse(m.created_at)>=earliest));
     return {items:await Promise.all(visible.map(async m=>({id:m.id,seq:m.seq,text:m.text,created_at:m.created_at,parent_id:m.parent_id,
-      author:await participantView(ctx.orgId,messageParticipant(m,r.owner_org_id),true)}))),next_sequence:messages.at(-1)?.seq||after};
+      author:await participantView(ctx.orgId,await messageParticipant(m,r.owner_org_id),true)}))),next_sequence:messages.at(-1)?.seq||after};
   });
 }
 async function messageOperation(ctx:PlatformAuthContext,r:ResourceRef,kind:string,input:{text:string;client_operation_id:string},write:(id:string)=>Promise<{id:string;seq?:number}>){
@@ -171,7 +169,7 @@ async function messageOperation(ctx:PlatformAuthContext,r:ResourceRef,kind:strin
   const id=`shared_message_${digest(JSON.stringify([r,ctx.orgId,ctx.userId,kind,input.client_operation_id]))}`,requestHash=digest(input.text),prior=await findRecord(id,"message_operation");
   if(prior){if(prior.request_hash!==requestHash)throw conflict("operation_conflict","This message reference was already used for different content.");return prior.result as {id:string;seq?:number};}
   const result=await write(id);
-  await insertRecord("message_operation",{id,owner_org_id:r.owner_org_id,recipient_org_id:ctx.orgId,resource:r,status:"completed",revision:1,request_hash:requestHash,result});return result;
+  await insertRecord("message_operation",{id,owner_org_id:r.owner_org_id,recipient_org_id:ctx.orgId,resource:r,status:"completed",revision:1,created_by:actor(ctx),request_hash:requestHash,result});return result;
 }
 export async function postSharedMessage(ctx:PlatformAuthContext,r:ResourceRef,raw:unknown){
   const input=z.object({text:z.string().trim().min(1).max(20000),client_operation_id:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)}).strict().parse(raw);
@@ -209,7 +207,7 @@ export async function sharedNotes(ctx:PlatformAuthContext,r:ResourceRef){
     const channel=await findChannelByProject(r.owner_org_id,r.id);if(!channel)return {items:[]};
     const messages=await listMessageRecords(r.owner_org_id,channel.id,{limit:200,projectNotes:true});
     const visible=messages.filter(m=>!m.deleted_at&&!m.audience.length&&(d.grants.some(g=>g.child_ids.includes(m.id))||m.metadata.collaboration_visible===true&&d.grants.some(g=>g.include_future)));
-    return {items:await Promise.all(visible.map(async m=>({id:m.id,text:m.text,created_at:m.created_at,author:await participantView(ctx.orgId,messageParticipant(m,r.owner_org_id),true)})))};
+    return {items:await Promise.all(visible.map(async m=>({id:m.id,text:m.text,created_at:m.created_at,author:await participantView(ctx.orgId,await messageParticipant(m,r.owner_org_id),true)})))};
   });
 }
 export async function createSharedNote(ctx:PlatformAuthContext,r:ResourceRef,raw:unknown){

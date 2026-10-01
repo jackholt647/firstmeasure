@@ -322,6 +322,10 @@ test("shared channels exclude history and private audiences and deduplicate post
   assert.deepEqual(read.items.map((m:any)=>m.text),["Partner message"]);
   assert.equal(read.items[0].author.phone,undefined);
   assert.equal(read.items[0].metadata,undefined);
+  const {verifiedMessageContributor}=await import("../collaboration/service.js");
+  assert.equal(await verifiedMessageContributor({id:"forged",client_msg_id:"forged",author_id:`external_${bo.orgId}_${bo.ownerUserId}`,metadata:{collaboration_actor:{organization_id:bo.orgId,user_id:bo.ownerUserId}}}),null);
+  const stored=await channels.readMessageRecord(ao.orgId,posted.id);assert.ok(stored);
+  assert.equal((await verifiedMessageContributor(stored!))?.organization_id,bo.orgId);
   const {collaborationStore}=await import("../collaboration/storage.js");
   assert.equal((await collaborationStore().prepare("SELECT id FROM collaboration_audit WHERE owner_org_id=? AND event_type=?").all(ao.orgId,"collaboration.message.posted")).length,1);
 });
