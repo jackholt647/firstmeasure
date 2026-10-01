@@ -8,7 +8,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
   try{
     const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];
     page.on('pageerror',e=>errors.push(e.message));
-    await page.route('https://phone.test/**',route=>route.fulfill({body:'<style>body{margin:0}.main{height:900px;position:relative}</style><main class="main"><header id="platformTopbar" style="height:50px"></header><div id="platformPhoneSlot"><button id="platformPhoneBtn">Phone</button></div><div id="mainPanels"></div></main>',contentType:'text/html'}));
+    await page.route('https://phone.test/**',route=>route.fulfill({body:'<style>body{margin:0}.main{height:100vh;position:relative}</style><main class="main"><header id="platformTopbar" style="height:50px"></header><div id="platformPhoneSlot"><button id="platformPhoneBtn">Phone</button></div><div id="mainPanels"></div></main>',contentType:'text/html'}));
     await page.goto('https://phone.test');
     await page.evaluate(()=>{
       window.__APP={orgId:'org-test',userId:'user-test'};
@@ -29,10 +29,13 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.addStyleTag({content:await readFile(new URL('../../libraries/apps/comms/communications.css',import.meta.url),'utf8')});
     await page.evaluate(()=>Portal.CustomerPhone.open());
     assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'docked');
+    await page.locator('[data-digit="+"]').click();
+    assert.equal(await page.locator('[name=customer_number]').inputValue(),'+');
+    await page.getByRole('button',{name:'Delete last digit'}).click();
     await page.locator('[data-digit="2"]').click();
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'2');
     await page.locator('[data-phone-tab=contacts]').click();
-    await page.getByRole('textbox',{name:'Search contacts'}).fill('Jane');
+    await page.getByRole('searchbox',{name:'Search contacts'}).fill('Jane');
     await page.getByRole('button',{name:'Jane Test'}).click();
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'+12025550124');
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/docked.png'});
@@ -42,7 +45,18 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.getByRole('button',{name:/Maximize phone|Fill workspace|Fill entire screen/}).count(),0);
     await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().bottom<=856);
     const box=await page.locator('.fm-phone-tray').boundingBox();assert.ok(box.width<400&&box.y+box.height<=858,JSON.stringify(box));
+    await page.setViewportSize({width:1280,height:720});
+    await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().bottom<=720);
+    const tray=await page.locator('.fm-phone-tray').boundingBox(),callButton=await page.locator('[data-phone=start]').boundingBox();
+    assert.ok(callButton.y>=tray.y&&callButton.y+callButton.height<=tray.y+tray.height,'The floating dialer must show its call action without scrolling');
+    assert.equal(await page.locator('[name=purpose]').isVisible(),false);
+    await page.locator('.fm-phone-options summary').click();
+    assert.equal(await page.locator('[name=purpose]').isVisible(),true);
+    await page.locator('.fm-phone-options summary').click();
+    await page.evaluate(()=>document.documentElement.style.setProperty('--primary','#6544aa'));
+    assert.equal(await page.locator('[data-phone=start]').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(101, 68, 170)');
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/floating.png'});
+    await page.setViewportSize({width:1280,height:900});
     await page.evaluate(()=>Portal.CustomerPhone.open({call_id:'call-test'}));
     assert.equal(await page.locator('[aria-label="Call keypad"] button').count(),12);
     await page.getByRole('button',{name:'Minimize phone',exact:true}).click();

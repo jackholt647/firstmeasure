@@ -9,23 +9,23 @@
   const org = () => String(window.__APP?.userOrgId || window.__APP?.orgId || '');
   const style = document.createElement('style');
   style.textContent = `
-    [data-app-header="shared"]{box-sizing:border-box;display:flex!important;align-items:center!important;justify-content:space-between;gap:16px!important;flex-wrap:wrap;flex:none;padding:18px 22px!important;background:#fff;border-bottom:1px solid #e7eaf0;min-height:76px}
+    [data-app-header="shared"]{box-sizing:border-box;display:flex!important;align-items:center!important;justify-content:space-between;gap:16px!important;flex-wrap:wrap;flex:none;padding:18px 22px!important;background:var(--bg,#f0f2f5);border-bottom:0;min-height:80px}
     [data-app-header="shared"]>.app-heading{display:flex;align-items:center;gap:12px;min-width:0}
-    [data-app-header="shared"] :is(h1,h2,strong){font-size:22px!important;font-weight:800!important;line-height:1.2;margin:0!important;color:#182230}
-    [data-app-header="shared"] .app-heading>i{font-size:24px;color:var(--primary-readable,var(--primary,#3b6ef6))}
+    [data-app-header="shared"] :is(h1,h2,strong){font-size:24px!important;font-weight:650!important;line-height:1.2;margin:0!important;color:var(--text,#202124)}
+    [data-app-header="shared"] .app-heading>i{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:var(--radius-md,10px);background:var(--primary,#d93025);color:var(--on-primary,#fff)!important;font-size:18px!important}
     [data-app-header="shared"] .app-subtitle{font-size:12px;color:#667085;margin:4px 0 0}
     :where([data-app-header="shared"]) button{min-height:34px;border-radius:8px;padding:8px 11px;font-family:inherit;font-size:12px;font-weight:600}
     [data-app-header="shared"]>:first-child i{color:var(--primary-readable,var(--primary,#3b6ef6));font-size:24px;margin-right:10px}
     [data-app-header="shared"] .app-heading>i{margin-right:0}
     .app-header-tools{display:flex;align-items:center;gap:8px;margin-left:auto;min-width:0;flex-wrap:wrap}
-    .app-tabs,[data-app-tab-row]{display:flex;align-items:center;gap:4px;max-width:100%;overflow-x:auto}
-    [data-app-header="shared"] .app-tabs button,.app-tabs button{border:0;background:transparent;padding:9px 11px;border-radius:8px;white-space:nowrap;color:#667085;font-family:inherit;font-size:12px;font-weight:600;line-height:1.3;cursor:pointer}
+    .app-tabs,[data-app-tab-row]{display:flex;align-items:center;gap:4px;max-width:100%;overflow-x:auto}.app-header-tools>.app-tabs{padding:3px;border:1px solid var(--border,#dadce0);border-radius:10px;background:var(--panel,#fff);gap:2px;scrollbar-width:thin}.app-header-tools>button{display:inline-flex;align-items:center;justify-content:center;min-width:36px;border:1px solid var(--border,#dadce0);background:var(--panel,#fff);color:var(--muted,#5f6368);cursor:pointer}.app-header-tools>button:hover{color:var(--primary-readable,var(--primary,#d93025));border-color:var(--primary,#d93025)}
+    [data-app-header="shared"] .app-tabs button,.app-tabs button{border:0;background:transparent;padding:8px 10px;border-radius:7px;white-space:nowrap;color:var(--muted,#5f6368);font-family:inherit;font-size:12px;font-weight:600;line-height:1.3;cursor:pointer}
     [data-app-header="shared"] .app-tabs button[aria-current=page],.app-tabs button[aria-current=page]{color:var(--primary-readable,var(--primary,#245cc5));background:color-mix(in srgb,var(--primary,#245cc5) 9%,white)}
     .app-tabs button:focus-visible{outline:2px solid var(--primary,#245cc5);outline-offset:2px}
     [data-app-tab-row]{padding:10px 22px;border-bottom:1px solid #e7eaf0;background:white;flex:none}
-    .app-layout{padding:20px;max-width:800px}.app-layout label{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:12px 0;border-bottom:1px solid #eaecf0}.app-layout select{padding:8px;max-width:60%}.app-layout button{margin-top:16px;padding:9px 14px}
-    .app-layout-dialog{border:1px solid #e4e7ec;border-radius:14px;width:min(680px,calc(100vw - 40px));max-height:85vh;overflow:auto;padding:16px;font:14px/1.5 system-ui;color:#182230}.app-layout-dialog::backdrop{background:rgba(16,24,40,.4)}.app-layout-dialog>[data-layout-close]{float:right;border:0;background:#f2f4f7;border-radius:8px;padding:8px 12px;cursor:pointer}
-    @media(max-width:800px){[data-app-header="shared"]{padding:14px!important;gap:12px!important}.app-header-tools{width:100%;margin:0;flex-wrap:nowrap}.app-header-tools .app-tabs{flex:1;min-width:0}[data-app-header="shared"] :is(h1,h2,strong){font-size:20px!important}}
+    .app-layout{padding:24px;max-width:800px;background:var(--panel,#fff);border:1px solid var(--border,#dadce0);border-radius:12px;margin:16px auto}.app-layout h2{font-size:20px;font-weight:600;margin:0 0 8px}.app-layout>p{font-size:13px;line-height:1.6;color:var(--muted,#5f6368)}.app-layout label{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:12px 0;border-bottom:1px solid #eaecf0}.app-layout select{font:inherit;font-size:12px;padding:9px 12px;max-width:60%;border:1px solid var(--border,#dadce0);border-radius:8px;background:var(--panel,#fff)}.app-layout button{margin-top:16px;padding:9px 14px;border:0;border-radius:8px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:inherit;font-size:12px;cursor:pointer}
+    .app-layout-dialog{border:1px solid #e4e7ec;border-radius:14px;width:min(680px,calc(100vw - 40px));max-height:85vh;overflow:auto;padding:16px;font:14px/1.5 system-ui;color:var(--text,#202124)}.app-layout-dialog::backdrop{background:rgba(16,24,40,.4)}.app-layout-dialog>[data-layout-close]{float:right;border:0;background:#f2f4f7;border-radius:8px;padding:8px 12px;cursor:pointer}
+    @media(max-width:800px){[data-app-header="shared"]{padding:14px!important;gap:12px!important}.app-header-tools{width:100%;margin:0;flex-wrap:nowrap}.app-header-tools .app-tabs{flex:1;min-width:0}.app-header-tools:not(:has(.app-tabs)){width:auto;margin-left:auto}[data-app-header="shared"] :is(h1,h2,strong){font-size:20px!important}}
   `;
   document.head.appendChild(style);
   function header({title, icon='fa-layer-group', subtitle='', tabs='', actions='', row=''}) {

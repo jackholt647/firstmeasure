@@ -143,9 +143,11 @@
       }
       if (win.mode === 'floating') {
         const r = win.rect;
+        const phoneRows=win.compactCall?Math.ceil(active.filter(w=>w!==win&&w.mode==='minimized').length/minimizedColumns):0;
+        const bottom=height-(win.compactCall?8+phoneRows*38:0);
         r.width = Math.min(Math.max(win.minWidth,r.width),width);
-        r.height = Math.min(Math.max(win.minHeight,r.height),Math.max(0,height-inset));
-        r.left = Math.max(0,Math.min(r.left,width-r.width)); r.top = Math.max(inset,Math.min(r.top,height-r.height));
+        r.height = Math.min(Math.max(win.minHeight,r.height),Math.max(0,bottom-inset));
+        r.left = Math.max(0,Math.min(r.left,width-r.width)); r.top = Math.max(inset,Math.min(r.top,bottom-r.height));
         place(win,r.left,r.top,r.width,r.height);
       }
     }

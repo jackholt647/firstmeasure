@@ -344,7 +344,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [bundle('../comms-api/comms-api.js'), bundle('../agent-chat/agent-chat.js'), bundle('comms/communications-ui.js'), versionedBundle('comms/phone-tray.js', '20260930-phone-tray-v3'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tray-v2'), versionedBundle('comms/workspace.js', '20260930-phone-tray-v1'), versionedBundle('comms/project.js', '20260929-overview-content-v1')]
+      bundles: [bundle('../comms-api/comms-api.js'), bundle('../agent-chat/agent-chat.js'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v1'), versionedBundle('comms/phone-tray.js', '20260930-phone-polish-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tray-v2'), versionedBundle('comms/workspace.js', '20260930-phone-polish-v1'), versionedBundle('comms/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.measurements',
@@ -519,9 +519,9 @@
         bundle('../comms-api/comms-api.js'),
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
-        bundle('comms/communications-ui.js'),
-        versionedBundle('comms/phone-tray.js', '20260930-phone-tray-v3'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tray-v2'),
-        versionedBundle('comms/workspace.js', '20260930-phone-tray-v1'),
+        versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v1'),
+        versionedBundle('comms/phone-tray.js', '20260930-phone-polish-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tray-v2'),
+        versionedBundle('comms/workspace.js', '20260930-phone-polish-v1'),
         versionedBundle('chat/app.js', '20260930-phone-tray-v1')
       ]
     },
@@ -1049,7 +1049,7 @@
   };
 
   apps.forEach((app) => {
-    app.bundles = [versionedBundle('../app-runtime/app-chrome.js', '20260930-header-isolation-v1'), ...(app.bundles || [])];
+    app.bundles = [versionedBundle('../app-runtime/app-chrome.js', '20260930-phone-polish-v1'), ...(app.bundles || [])];
     app.bundles = [versionedBundle('../date-time-picker/date-time-picker.js', '20260930-scheduling-qa-v2'), ...(app.bundles || [])];
     const capability = appCapabilities[app.id];
     if (capability) app.access = { ...(app.access || {}), capability };

@@ -110,3 +110,11 @@ test('Communications, Financials and Payroll render declared tabs and scope thei
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
+
+
+test('portal eager boot loads shared chrome before grouped apps',async()=>{
+  const source=await readFile(new URL('../../portal/index.php',import.meta.url),'utf8');
+  const chrome=source.indexOf('app-runtime/app-chrome.js');
+  assert.ok(chrome>source.indexOf('app-runtime/firstmate-embeddable-apps.js'));
+  for(const app of ['apps/chat/app.js','apps/financials/app.js','apps/payroll/app.js'])assert.ok(chrome<source.indexOf(app),app);
+});
