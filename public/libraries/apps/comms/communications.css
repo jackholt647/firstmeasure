@@ -106,3 +106,5 @@
 .fmcm-connection-details{margin-top:18px;padding-top:14px;border-top:1px solid var(--cm-line)}.fmcm-connection-details>summary{font-size:12px;color:var(--cm-muted);cursor:pointer}.fmcm-connection-details[open]>summary{margin-bottom:14px}.fmcm-view>.app-tabs{margin-bottom:18px;padding:3px;border:1px solid var(--cm-line);border-radius:10px;background:var(--panel,#fff);width:fit-content}.fmcm-view>.app-tabs button:first-child{border-right:1px solid var(--cm-line);border-radius:0;margin-right:3px}
 
 @media(max-width:600px){.fmcm-stat small{display:none}.fmcm-stat strong{margin-bottom:0}.fmcm-center-intro{margin-bottom:18px}}
+
+.fmcm-view>.app-tabs button{border:0;background:transparent}.fmcm-view>.app-tabs button[aria-current=page]{background:color-mix(in srgb,var(--primary,#d93025) 9%,white);color:var(--cm-readable)}
