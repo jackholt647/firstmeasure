@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+September 30 collaboration: [Native project, contact and channel sharing views](deploy/digitalocean/development-collaboration-native-ui-20260930.md) records the integrated filters, UI checks and verified development rollout.
+
 September 30 phone refresh: [Reload-safe phone identity and shared minimized chrome](deploy/digitalocean/development-phone-refresh-style-20260930.md) records the refresh conflict fix, standard window controls, validation and development rollout.
 
 September 30 phone sizing: [Compact minimized and floating phone](deploy/digitalocean/development-phone-size-20260930.md) records project-height parity, simplified controls and the smaller dialer.

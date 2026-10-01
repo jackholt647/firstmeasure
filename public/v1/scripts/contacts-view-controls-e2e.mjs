@@ -31,6 +31,7 @@ try {
   const flags={current:()=>({}),has:()=>true};
   window.Portal={cfg:{userOrgId:'fixture'},appFlags:flags,tabs:{renderTabs(){}},apps:{registerPortalApp:app=>window.fixtureApp=app},navigation:{read:()=>({}),registerSchema(){},registerHandler(){},replace(){}},modules:{contacts:{open:contact=>window.openedContact=contact},request:{openProject:project=>window.openedProject=project}},util:{injectCSS:(id,css)=>{let s=document.createElement('style');s.textContent=css;document.head.append(s)}}};
  });
+ await page.addScriptTag({content:await readFile(new URL('../../libraries/apps/partners/shared-list.js',import.meta.url),'utf8')});
  await page.addScriptTag({content:source});
  await page.waitForFunction(()=>!!window.fixtureApp);
  await page.evaluate(()=>(document.querySelector('#app').classList.toggle('full-bleed',!!window.fixtureApp.fullBleed),window.fixtureApp.mount(document.querySelector('#app'))));
@@ -58,7 +59,7 @@ try {
  await page.locator('#ctSearch').fill('Ada');assert.equal(await page.locator('.ct-card').count(),1);
  await page.locator('[data-ct-open-contact]').first().click();assert.equal(await page.evaluate(()=>window.openedContact.name),'Ada Smith');
  await page.locator('[data-ct-project]').first().click();assert.equal(await page.evaluate(()=>window.openedProject.id),'p1');
- await page.locator('#ctClearSearch').click();await page.locator('#ctSort').selectOption('recent');
+ await page.locator('#ctClearSearch').click();await page.locator('[data-ct-manage] summary').click();await page.locator('#ctSort').selectOption('recent');
  await page.setViewportSize({width:390,height:780});
  if(screenshotDir) await page.screenshot({path:screenshotDir+'/contacts-mobile.png'});
  assert.ok(await page.locator('.ct-top').evaluate(el=>el.getBoundingClientRect().right<=window.innerWidth));
