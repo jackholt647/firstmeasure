@@ -15,8 +15,21 @@
     const audio=audioElement();if(audio.setSinkId)await audio.setSinkId(preferences.speaker||'');
     else if(preferences.speaker)throw new Error('This browser uses the system speaker. Choose System default or use a browser with speaker selection.');
   }
-  // Each tab owns a distinct endpoint lease. Do not copy sessionStorage IDs across duplicated tabs.
-  const deviceId=uid();
+  // Keep a tab's endpoint identity across reloads. Web Locks prevent a duplicated
+  // tab (which copies sessionStorage) from borrowing a still-open tab's identity.
+  const identityKey='fm-customer-phone-tab';let deviceId=uid();
+  try{deviceId=sessionStorage.getItem(identityKey)||deviceId;}catch{}
+  function persistIdentity(){try{sessionStorage.setItem(identityKey,deviceId);}catch{}}
+  function ownIdentity(){
+    if(!navigator.locks){if(performance.getEntriesByType('navigation')[0]?.type!=='reload')deviceId=uid();persistIdentity();return Promise.resolve();}
+    return new Promise(resolve=>{
+      void navigator.locks.request(`firstmate-phone:${deviceId}`,{ifAvailable:true},async lock=>{
+        if(!lock){deviceId=uid();await ownIdentity();resolve();return;}
+        persistIdentity();resolve();await new Promise(()=>{});
+      }).catch(()=>{deviceId=uid();persistIdentity();resolve();});
+    });
+  }
+  const identityReady=ownIdentity();
   const callPath=suffix=>`calls/${encodeURIComponent(state.call.id)}${suffix||''}`;
   function changed(){window.dispatchEvent(new CustomEvent('fm:customer-calls:changed',{detail:{call:state.call,registered:state.registered,available:state.available}}));}
   function ensurePanel(){
@@ -304,7 +317,7 @@
     const guard=()=>{if(!valid())throw canceled();};
     state.connecting=true;state.error='';connectionChanged();
     const operation=(async()=>{
-      await state.disconnectPromise;guard();await loadSDK();guard();
+      await identityReady;guard();await state.disconnectPromise;guard();await loadSDK();guard();
       const token=await request('voice/endpoint/token',{device_id:deviceId});guard();
       const audio=audioElement();client=new window.TelnyxWebRTC.TelnyxRTC({login_token:token.token});state.client=client;client.remoteElement=audio;
       await applyAudio(client);guard();
@@ -426,6 +439,9 @@
     else if(route.customerCall&&route.customerCall===state.call?.id&&state.panel?.hidden){state.minimized=false;render();}
     // The global phone survives app navigation, including an ended call awaiting its outcome.
   }});
+  // Do not send a delayed server disconnect that could revoke the reloaded tab.
+  window.addEventListener('pagehide',()=>stopConnection());
+  window.addEventListener('pageshow',event=>{if(event.persisted&&state.panel&&!state.panel.hidden)autoConnect();});
   window.addEventListener('beforeunload',event=>{if((state.call?.mode==='browser'&&!terminal.has(state.call.state))||state.dirty){event.preventDefault();event.returnValue='';}});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&state.panel&&!state.panel.hidden&&!document.querySelector('dialog[open]')){state.minimized=true;render();}});
   window.addEventListener('fm:platform-session:updated',()=>{
@@ -437,7 +453,7 @@
     }
     if(ui.org()&&ui.user())void Portal.navigation?.applyCurrent?.({source:'phone-session-ready',only:'customer-call-workspace'});
   });
-  Portal.CustomerPhone={open,connect,disconnect,availability,diagnose,devices,refreshStatus,saveNotes,deviceId,
+  Portal.CustomerPhone={open,connect,disconnect,availability,diagnose,devices,refreshStatus,saveNotes,get deviceId(){return deviceId;},
     get diagnostic(){return state.diagnostic;},
     get connecting(){return state.connecting;},get status(){return state.status;},get connected(){return state.registered;},get available(){return state.available;},get currentCall(){return state.call;},get currentEntry(){return state.panel&&!state.panel.hidden?state.entry?.id:null;}};
   Portal.Communications=Portal.Communications||{};Portal.Communications.open=open;

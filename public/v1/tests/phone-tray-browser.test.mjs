@@ -32,6 +32,18 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.addStyleTag({content:await readFile(new URL('../../libraries/apps/comms/communications.css',import.meta.url),'utf8')});
     await page.evaluate(()=>Portal.CustomerPhone.open());
     assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'docked');
+    await page.getByRole('button',{name:'Minimize phone',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().height===32);
+    assert.equal(await page.locator('.fm-phone-title strong').textContent(),'New call');
+    assert.equal(await page.locator('.fm-phone-title small').isVisible(),false);
+    assert.equal(await page.locator('.fm-phone-title>i').isVisible(),true);
+    assert.equal(await page.locator('.fm-phone-compact').textContent(),'');
+    assert.equal(await page.locator('.fm-phone-compact canvas').count(),0);
+    const sizes=await page.locator('.fm-phone-tray .fm-window-controls button').evaluateAll(buttons=>buttons.filter(b=>b.getClientRects().length).map(b=>[b.offsetWidth,b.offsetHeight,getComputedStyle(b).fontSize]));
+    assert.ok(sizes.every(s=>JSON.stringify(s)===JSON.stringify(sizes[0])),JSON.stringify(sizes));
+    if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/idle.png'});
+    await page.locator('.fm-phone-title').click();
+
     await page.locator('[data-digit="+"]').click();
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'+');
     await page.getByRole('button',{name:'Delete last digit'}).click();

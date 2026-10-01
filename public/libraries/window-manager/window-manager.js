@@ -28,7 +28,8 @@
 .fm-window[data-window=minimized] .fm-window-title:after,.fm-window-title-plain:after{display:none}
 .fm-window-controls{display:flex;flex:0 0 auto;gap:2px;margin-left:auto}.fm-window-controls button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;background:none;border:0;border-radius:6px;color:inherit;cursor:pointer;font-size:12px}
 .fm-window-controls button:hover{background:#66708520}.fm-window-controls button[data-window-action=close]:hover{background:#d92d20;color:#fff}
-.fm-window[data-window=minimized]{border-radius:7px}.fm-window[data-window=minimized] .fm-window-header{height:30px;min-height:30px;padding:0 6px}.fm-window[data-window=minimized] .fm-window-controls button{height:28px!important;min-height:28px!important;width:24px!important}.fm-window[data-window=minimized] .fm-window-controls button:not([data-window-action=minimize]):not([data-window-action=close]){display:none!important}
+.fm-window[data-window=minimized]{border-radius:7px}.fm-window[data-window=minimized] .fm-window-header{height:30px;min-height:30px;padding:0 6px}.fm-window[data-window=minimized] .fm-window-controls button{height:28px!important;min-height:28px!important;width:24px!important}.fm-window[data-window=minimized] .fm-window-controls button:not([data-window-action=minimize]):not([data-window-action=close]):not([data-minimized-visible]){display:none!important}
+.fm-window[data-window=minimized] .fm-window-minimized-identity{display:flex;align-items:center;gap:7px;min-width:0;font-size:12px;font-weight:400;line-height:normal}.fm-window[data-window=minimized] .fm-window-minimized-identity>i{display:grid;place-items:center;flex:none;width:20px;height:20px;padding:0;border-radius:0;background:none;color:var(--primary,#d93025);font-size:15px}.fm-window[data-window=minimized] .fm-window-minimized-identity strong{font:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fm-window-content{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .fm-window[data-window=minimized] .fm-window-content,.fm-window[data-window=minimized] [data-window-secondary]{display:none!important}
 .fm-window-resize{display:none;position:absolute;z-index:10;touch-action:none}.fm-window[data-window=floating] .fm-window-resize{display:block}
@@ -137,7 +138,7 @@
       if (win.mode === 'modal') { const w=Math.min(1720,innerWidth*.96),h=Math.min(1180,innerHeight*.92); place(win,(innerWidth-w)/2,(innerHeight-h)/2,w,h); }
       if (win.mode === 'full') place(win,leftReserved,inset+topReserved,Math.max(0,width-reserved),Math.max(0,height-inset-topReserved-bottomReserved));
       if (win.mode === 'minimized') {
-        if(win.compactCall){const others=active.filter(w=>w!==win&&w.mode==='minimized');const rows=Math.ceil(others.length/minimizedColumns);place(win,Math.max(0,width-8-Math.min(360,width-16)),Math.max(inset,height-8-win.minimizedHeight-rows*38),Math.min(360,width-16),win.minimizedHeight);continue;}
+        if(win.compactCall){const others=active.filter(w=>w!==win&&w.mode==='minimized');const rows=Math.ceil(others.length/minimizedColumns);place(win,Math.max(0,width-8-Math.min(win.minimizedWidth||360,width-16)),Math.max(inset,height-8-win.minimizedHeight-rows*38),Math.min(win.minimizedWidth||360,width-16),win.minimizedHeight);continue;}
         const column = minimized % minimizedColumns, row = Math.floor(minimized++ / minimizedColumns);
         place(win,Math.max(0,width-8-minimizedWidth-column*(minimizedWidth+6)),Math.max(inset,height-8-32-row*38),minimizedWidth,32);
       }
@@ -341,6 +342,7 @@
     chrome();layout(host);focus();
     return {
       element, setMode, setPinned, focus, dock,
+      setMinimizedWidth(width){if(win.minimizedWidth!==width){win.minimizedWidth=width;layout(win.host);}},
       restore,
       get state(){return {mode:win.mode,dockSide:win.dockSide,pinned:win.pinned,visible:win.visible};},
       setVisible(value){win.visible=!!value;element.hidden=!win.visible;layout(win.host);if(value)focus();},
