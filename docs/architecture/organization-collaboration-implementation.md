@@ -33,21 +33,22 @@ Work engagements are separate from sharing. The partner accepts an offer before 
 
 Typed `collaboration.resource` and `collaboration.resources` providers run in the receiving organization's publication context. Frozen imports reauthorize current fields and grants. Published actions cover project details, notes, messages, work, schedules and revocation, reusing the same domain adapters. Document issuing uses the existing published document action with separate PDF preparation and delivery choices. No raw collections, foreign WorkContext, organization credentials or arbitrary source API proxies are published.
 
-Reference-only collaboration events enter the existing idempotent Work event ledger through an outbox. Recipient event delivery rechecks policy and connection state. Individual account-only shares do not broadcast activity to an unrelated receiving organization workflow. Signing outbox delivery and workflow execution occur after authorized mutations commit. The dedicated platform worker runs separate event, contact repair and payment reconciliation tasks.
+Reference-only collaboration events enter the existing idempotent Work event ledger through an outbox. Recipient event delivery rechecks policy and connection state. Individual account-only shares do not broadcast activity to an unrelated receiving organization workflow. Signing outbox delivery and workflow execution occur after authorized mutations commit. The dedicated platform-worker entry point registers separate event, contact repair and payment reconciliation tasks. The current development topology executes the fallback maintenance loop in the compatibility API processes; public web replicas keep heartbeats disabled.
 
 ## Limits to carry into testing
 
 External access is restricted to the explicit adapters above. It is not general access to every legacy project editor, financial ledger, channel attachment/huddle, module, or arbitrary document widget. Accepted engagements can be scheduled explicitly as an organization-connection crew resource using the native scheduling writer and its existing policy checks. Partner-local crew delegation is not implemented. Organization-wide standing grants, counterpart user directories, and bulk export are not implemented. Resource pickers still enumerate source-owned metadata before paginating and need further optimization for very large single organizations. The new workspace uses English strings; only Partner terminology overrides are integrated. Previously downloaded files cannot be recalled.
 
-The implementation is not yet the entire requested system. These limitations must not be presented as completed features. Hosted multi-organization browser acceptance and deployment remain required before claiming it ready for the requested testing handoff.
+The implementation is not yet the entire requested system. These limitations must not be presented as completed features. See the [development rollout record](../../deploy/digitalocean/development-organization-collaboration-20260930.md) for hosted acceptance, active artifacts and rollback.
 
 ## Verification
 
 - PostgreSQL integration: 8 tests pass for organization isolation, conditional edits, denials and recipient audience ceilings, identity-bound invitations, photo exclusions/privacy revocation, invitation races/replay, engagement lifecycle, mock payments/idempotency, real signing review/receipt flow, and shared-channel visibility/idempotency.
 - Publication suite: 49 passed; its PostgreSQL test was run separately against disposable embedded PostgreSQL and passed.
-- Browser harness: escaped external content, grant editor and shared note creation pass.
+- Browser harness: escaped external content, grant editor, shared note creation, and invitation continuation across login pass.
 - Existing scheduling and Work integration: 25 tests passed.
 - TypeScript checks have passed during development; repeat against each staged Linux role before activation.
 - Payment tests use the simulator. No live card charge was performed.
+- Final hosted acceptance passed using deployed files with zero browser errors: invitation continuation and consent, owner approval, selected project fields, shared notes, Projects list filtering/hide-show and revocation. All 20 generated collaboration events were delivered.
 
 Preserve unrelated workspace changes, particularly Contacts, Feedback, app manifest, project chrome and Work. The release snapshot is assembled from owned hunks using a temporary Git index; each role overlays its existing immutable live baseline.
