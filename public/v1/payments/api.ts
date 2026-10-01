@@ -911,7 +911,12 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, permission: "manage_projects" });
     const config = await getMerchantConfig(orgId);
-    return { ok: true, merchant_config: config, forward_environment: forwardEnvironment() };
+    const organization = env.dataEnvironment === "development" && forwardEnvironment() === "sandbox"
+      ? asObject(await readOrganization(orgId)) : {};
+    const redirectTest = asObject(organization.metadata).sandbox_test_org === true;
+    return { ok: true, merchant_config: config, forward_environment: forwardEnvironment(),
+      ...(redirectTest ? { redirect_test: { org_id: orgId, org_name: cleanText(organization.name),
+        fresh: !cleanText(config.forward.application_id) && !cleanText(config.forward.business_id) && !cleanText(config.forward.account_id) } } : {}) };
   });
 
   app.patch("/organizations/:orgId/merchant-config", async (request) => {
@@ -1147,6 +1152,13 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
     const body = hostedSignupSchema.parse(request.body ?? {});
+    if (body.redirect_mode) {
+      const organization = asObject(await readOrganization(orgId));
+      if (env.dataEnvironment !== "development" || forwardEnvironment() !== "sandbox"
+        || asObject(organization.metadata).sandbox_test_org !== true) {
+        throw badRequest("redirect_test_development_only", "Redirect comparisons require a development sandbox test organization.");
+      }
+    }
     const inFlight = hostedSignupInFlight.get(orgId);
     if (inFlight) {
       const shared = await inFlight;
@@ -1163,13 +1175,19 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     const work = (async (): Promise<{ result: JsonObject; created: boolean }> => {
       const config = await getMerchantConfig(orgId);
       const environment = forwardEnvironment();
+      if (body.redirect_mode && config.provider !== "forward") {
+        throw badRequest("redirect_test_forward_required", "Redirect comparisons require the Forward sandbox provider.");
+      }
       if (config.provider !== MOCK_PROVIDER && environment !== "sandbox") {
         throw badRequest("hosted_signup_sandbox_only", "Hosted-first signup is a test harness: it is only available on the mock provider or the Forward sandbox.");
       }
       const boarding = await requireBoardingProvider(orgId);
       const existingApplicationId = cleanText(config.forward.application_id);
+      if (body.redirect_mode && (existingApplicationId || cleanText(config.forward.business_id) || cleanText(config.forward.account_id))) {
+        throw badRequest("redirect_test_fresh_org_required", "Launch a fresh Instant full org for each redirect comparison.");
+      }
       let businessId = cleanText(config.forward.business_id);
-      let application;
+      let application: Awaited<ReturnType<typeof boarding.getApplication>>;
       if (existingApplicationId) {
         application = await boardingCall(() => boarding.getApplication(existingApplicationId));
         application = await ensureForwardApplicationRedirect(boarding, existingApplicationId, forwardApplicationRedirectUrl(request), application) || application;
@@ -1209,9 +1227,11 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
           ...(planId ? { processing_plan_id: planId } : {}),
           external_account_id: orgId,
           user_fields: { hosted_signup: "true", firstmate_org_id: orgId },
-          ...(boarding.provider === "forward" ? { partner_data: { redirect_url: forwardApplicationRedirectUrl(request) } } : {})
+          ...(boarding.provider === "forward" && body.redirect_mode !== "without_redirect" ? { partner_data: { redirect_url: forwardApplicationRedirectUrl(request) } } : {})
         }));
       }
+      // Read the provider's persisted value, rather than reporting only what we sent.
+      if (body.redirect_mode) application = await boardingCall(() => boarding.getApplication(application.id));
       if (application.status !== "DRAFT") {
         const merchantConfig = await upsertMerchantConfig(orgId, { forward: {
           ...(businessId ? { business_id: businessId } : {}),
@@ -1251,7 +1271,10 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
           application,
           link: { url: link.url, expires_at: link.expires_at },
           merchant_config: merchantConfig,
-          forward_environment: environment
+          forward_environment: environment,
+          ...(body.redirect_mode ? { redirect_test: { mode: body.redirect_mode,
+            application_id: application.id, org_id: orgId, fresh_application: true,
+            redirect_url: cleanText(asObject(application.raw.partner_data).redirect_url) } } : {})
         } as JsonObject,
         created: !existingApplicationId
       };

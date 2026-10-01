@@ -120,6 +120,48 @@ async function register(client: ReturnType<typeof createSessionClient>, options:
   return { orgId };
 }
 
+test('redirect comparison requires fresh sandbox orgs and verifies the provider value for both cases', async () => {
+  const {env}=await import('../src/config/env.js');
+  const {patchOrganization}=await import('../platform/storage.js');
+  const {upsertMerchantConfig}=await import('../payments/merchant_config.js');
+  const saved={forwardPrivateKey:env.forwardPrivateKey,forwardApiBase:env.forwardApiBase,dataEnvironment:env.dataEnvironment};
+  const originalFetch=globalThis.fetch;
+  const applications=new Map<string,any>();let sequence=0;
+  try {
+    Object.assign(env,{forwardPrivateKey:'test-key',forwardApiBase:'https://api.sandbox.getfwd.com',dataEnvironment:'development'});
+    globalThis.fetch=(async(input:any,options:any)=>{
+      const url=new URL(String(input)),method=options?.method||'GET',body=options?.body?JSON.parse(options.body):{};
+      assert.equal(url.hostname,'api.sandbox.getfwd.com','tests cannot call a real provider');
+      if(url.pathname.endsWith('/businesses'))return Response.json({business_id:`biz_${++sequence}`,name:body.name});
+      if(url.pathname.endsWith('/applications')&&method==='POST'){
+        const value={...body,application_id:`appl_${++sequence}`,status:'DRAFT'};applications.set(value.application_id,value);return Response.json(value);
+      }
+      if(url.pathname.endsWith('/link'))return Response.json({uri:'https://application.sandbox.getfwd.com/aapplink_test'});
+      const id=url.pathname.split('/').at(-1)!;
+      if(applications.has(id))return Response.json(applications.get(id));
+      throw new Error(`Unexpected provider call: ${method} ${url.pathname}`);
+    }) as typeof fetch;
+    for(const mode of ['with_redirect','without_redirect']){
+      const client=createSessionClient(),{orgId}=await register(client);
+      await upsertMerchantConfig(orgId,{provider:'forward'});
+      const base=`/v1/payments/organizations/${orgId}`;
+      const payload={redirect_mode:mode,processing_plan_id:'plan_test'};
+      assert.equal((await client.raw('POST',base+'/merchant-boarding/hosted-signup',payload)).statusCode,400,'ordinary organizations cannot use the test override');
+      await patchOrganization(orgId,{metadata:{sandbox_test_org:true}});
+      const before=await client.request('GET',base+'/merchant-config');assert.equal(before.redirect_test.fresh,true);
+      Object.assign(env,{dataEnvironment:'production'});
+      assert.equal((await client.raw('POST',base+'/merchant-boarding/hosted-signup',payload)).statusCode,400,'production rejects test controls');
+      Object.assign(env,{dataEnvironment:'development'});
+      const result=await client.request('POST',base+'/merchant-boarding/hosted-signup',payload,{host:'dev.1m8.ai'});
+      const expected=mode==='with_redirect'?'https://dev.1m8.ai/portal/payments-setup-complete.html':'';
+      assert.equal(result.redirect_test.redirect_url,expected);
+      assert.equal(applications.get(result.application.id).partner_data?.redirect_url||'',expected);
+      assert.equal((await client.raw('POST',base+'/merchant-boarding/hosted-signup',payload)).statusCode,400,'a comparison cannot reuse an existing application');
+      assert.equal((await client.request('GET',base+'/merchant-config')).redirect_test.fresh,false);
+    }
+  }finally{globalThis.fetch=originalFetch;Object.assign(env,saved);}
+});
+
 
 test("streamed signup reauthorizes org access and CSRF and never accepts a caller-selected URL", async () => {
   const owner=createSessionClient(), outsider=createSessionClient();

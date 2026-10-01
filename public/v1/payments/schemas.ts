@@ -195,6 +195,7 @@ export const boardingApplicationSchema = jsonObjectSchema.extend({
 // Hosted-first signup harness: every field optional — the whole point is
 // that the merchant fills the real application out on Forward's hosted form.
 export const hostedSignupSchema = jsonObjectSchema.extend({
+  redirect_mode: z.enum(["with_redirect", "without_redirect"]).optional(),
   business_name: z.string().trim().max(300).optional(),
   email: z.string().trim().max(300).optional(),
   processing_plan_id: z.string().trim().max(200).optional()
