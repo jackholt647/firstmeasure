@@ -108,3 +108,5 @@
 @media(max-width:600px){.fmcm-stat small{display:none}.fmcm-stat strong{margin-bottom:0}.fmcm-center-intro{margin-bottom:18px}}
 
 .fmcm-view>.app-tabs button{border:0;background:transparent}.fmcm-view>.app-tabs button[aria-current=page]{background:color-mix(in srgb,var(--primary,#d93025) 9%,white);color:var(--cm-readable)}
+
+.fmcm-empty>i{margin:0 auto 8px}
