@@ -13,6 +13,15 @@ cannot enter full, fullscreen or modal modes. Closing an active call minimizes i
 ending the call requires the explicit End control. An ended call stays available
 for its outcome. The minimized title restores the previous expanded placement.
 
+Opening an enabled phone starts browser registration automatically. Starting a
+browser call waits for that same connection and shows Connecting; disconnected
+state never silently selects an external phone. Closing an idle phone tears down
+the SDK immediately and releases the endpoint lease. Closing during registration
+cancels the pending start; late token, readiness and presence responses cannot
+reopen it. A reopen waits for the previous lease cleanup. Minimize, dock and float
+retain the connection. The first-device microphone/network readiness check and
+incoming-call availability remain separate from automatic registration.
+
 Dialer, Contacts, Call lists and Follow-ups share the call session. Contact lookup
 uses the existing organization/branch calling authorization. Live input/output
 traces use the SDK peer's existing audio tracks through Web Audio analysers;
