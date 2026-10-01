@@ -302,9 +302,11 @@
     });
   }
 
+  let contactSharing;
+  const sharingView = () => contactSharing ||= window.FirstMateSharedList?.create('contact', orgId);
   function sortedFilteredContacts(){
-    const query = normalizeKey(state.query);
-    const filtered = state.contacts.filter((contact) => !query || contact.searchText.includes(query));
+    const query=normalizeKey(state.query);
+    const filtered=state.contacts.filter(c=>(!query || String(c.searchText || [c.name,c.email,c.phone,c.address].join(' ')).toLowerCase().includes(query)) && (!sharingView() || sharingView().matches(c,c.id,c.record_project_id)));
     if (state.sort === 'recent') {
       filtered.sort((a, b) => (b.latestDateMs || 0) - (a.latestDateMs || 0) || a.name.localeCompare(b.name));
     } else if (state.sort === 'projects') {
@@ -381,6 +383,7 @@
   }
 
   function renderTile(contact){
+    if (contact._shared) return `<article class="ct-card" data-ct-contact="${escapeHtml(contact.key)}"><div class="ct-card-head">${contactAvatar(contact)}<div class="ct-contact-title"><h3>${escapeHtml(contact.name)}</h3><div class="ct-contact-line">${contactLine(contact)}</div>${sharingView().badge(contact)}</div><button type="button" class="ct-open-contact" data-ct-open-contact="${escapeHtml(contact.key)}" aria-label="Open ${escapeHtml(contact.name)}"><i class="fas fa-address-card"></i></button></div></article>`;
     return `
       <article class="ct-card" data-ct-contact="${String(escapeHtml(contact.key))}">
         ${contact.profile_media_id?`<img class="ct-profile-photo" alt="${escapeHtml(contact.name)} profile photo" src="${escapeHtml(window.PlatformAPI.media.fileUrl(orgId(),contact.profile_media_id))}">`:""}<div class="ct-card-head">
@@ -398,6 +401,7 @@
           <span>${String(escapeHtml(contact.latestDateLabel))}</span>
         </div>
         ${String(tagChips(contact))}
+        ${sharingView()?.badge(contact,contact.id,contact.record_project_id) || ''}
         ${String(projectRows(contact))}
       </article>
     `;
@@ -413,7 +417,7 @@
           <span>
             <strong>${escapeHtml(contact.name)}</strong>
             <small>${contactLine(contact)}</small>
-            ${tagChips(contact, 3)}
+            ${tagChips(contact, 3)}${sharingView()?.badge(contact,contact.id,contact.record_project_id) || ''}
           </span>
         </button>
         <div class="ct-list-projects">
@@ -425,7 +429,7 @@
           `).join('')}
           ${more ? `<span class="ct-chip-more">${((v0) => globalThis.PlatformLanguage?.htmlText("contacts","m_bdd2018a2c9640",`... ${v0} more`,{v0}) ?? `... ${v0} more`)(escapeHtml(String(more)))}</span>` : ''}
         </div>
-        <div class="ct-list-count">${escapeHtml(String(contact.projectCount))}</div>
+        <div class="ct-list-count">${contact._shared?'—':escapeHtml(String(contact.projectCount))}</div>
         <div class="ct-list-date">${escapeHtml(contact.latestDateLabel)}</div>
       </div>
     `;
@@ -444,7 +448,7 @@
     }
     const contacts = sortedFilteredContacts();
     if (!contacts.length) {
-      root.innerHTML = `<div class="ct-state"><i class="fas fa-address-book"></i><span>${state.query ? 'No contacts match this search.' : 'No contacts found yet.'}</span></div>`;
+      root.innerHTML = `<div class="ct-state"><i class="fas fa-address-book"></i><span>${sharingView()?.filtered?'No contacts match these sharing filters.':'No contacts found yet.'}</span></div>`;
       return;
     }
     root.innerHTML = state.view === 'list'
@@ -506,11 +510,11 @@
               <input id="ctSearch" type="search" value="${String(escapeHtml(state.query))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("contacts","m_978eee3aa943f8","Search contacts or projects") ?? "Search contacts or projects")}">
               ${String(state.query ? `<button id="ctClearSearch" type="button" class="ct-clear" data-fm-tooltip="Clear search"><i class="fas fa-xmark"></i></button>` : '')}
             </label>
-            <select id="ctSort" class="ct-select" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_05b258030f62ea","Sort contacts") ?? "Sort contacts")}">
+            <details class="fm-sharing-menu" data-ct-manage><summary class="ct-select"><i class="fas fa-sliders" aria-hidden="true"></i> Manage view</summary><div class="fm-sharing-popover"><label>Order by<select id="ctSort" class="ct-select" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_05b258030f62ea","Sort contacts") ?? "Sort contacts")}">
               <option value="name" ${String(state.sort === 'name' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8cf345002184e5","Name") ?? "Name")}</option>
               <option value="recent" ${String(state.sort === 'recent' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_fec172c2f71d24","Recent") ?? "Recent")}</option>
               <option value="projects" ${String(state.sort === 'projects' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_6e3f0973d60412","Project count") ?? "Project count")}</option>
-            </select>
+            </select></label>${sharingView()?.fields() || ''}</div></details>
             <div class="ct-segment" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_0a1d4f60d2434b","View mode") ?? "View mode")}">
               <button id="ctViewTiles" type="button" class="${String(state.view === 'tiles' ? 'active' : '')}" data-fm-tooltip="Tile view"><i class="fas fa-grip"></i><span>Tiles</span></button>
               <button id="ctViewList" type="button" class="${String(state.view === 'list' ? 'active' : '')}" data-fm-tooltip="List view"><i class="fas fa-list"></i><span>List</span></button>
@@ -521,11 +525,12 @@
         <main class="ct-body" data-ct-results></main>
       </div>
     `;
+    if (sharingView()?.incoming.length) {
+      const caption=state.root.querySelector('.ct-title span');
+      if(caption)caption.textContent=`${visibleCount} contact${visibleCount===1?'':'s'}`;
+    }
     bindChrome();
     renderResults();
-    const sharedHost=document.createElement('section');
-    state.root.querySelector('[data-ct-results]')?.before(sharedHost);
-    window.FirstMateSharedList?.mount(sharedHost,'contact');
   }
 
   function bindChrome(){
@@ -537,6 +542,9 @@
       next?.focus();
       try { next?.setSelectionRange(state.query.length, state.query.length); } catch (error) {}
     });
+    const menu=state.root?.querySelector('[data-ct-manage]');
+    menu?.addEventListener('change',event=>{if(sharingView()?.change(event)){render();const next=state.root?.querySelector('[data-ct-manage]');if(next){next.open=true;next.querySelector(event.target.matches('[data-sharing-mode]')?'[data-sharing-mode]':'[data-sharing-org]')?.focus();}}});
+    menu?.addEventListener('keydown',event=>{if(event.key==='Escape'){menu.open=false;menu.querySelector('summary').focus();}});
     state.root?.querySelector('#ctSort')?.addEventListener('change', (event) => {
       state.sort = event.target.value || 'name';
       localStorage.setItem(LS_SORT_KEY, state.sort);
@@ -617,6 +625,7 @@
   function openContact(key, options = {}){
     const contact = contactByKey(key) || state.contacts.find((entry) => cleanText(entry.id) === cleanText(key));
     if (!contact) return;
+    if (contact._shared) return window.FirstMateSharedList.open(contact._shared);
     const modalContact = {
       id: contact.id,
       contact_id: contact.id,
@@ -677,7 +686,11 @@
       if(window.PlatformAPI.contacts?.settings)state.tagCatalog=(await window.PlatformAPI.contacts.settings(oid)).settings?.tags || [];
       const docs = Array.isArray(result?.documents) ? result.documents : [];
       state.projects = docs.map(projectFromDocument).filter(Boolean);
-      state.contacts = buildContacts(state.projects);
+      await sharingView()?.load();
+      if (oid !== orgId()) return;
+      state.contacts = [...buildContacts(state.projects), ...(sharingView()?.incoming || []).map(item=>({
+        key:sharingView().id(item),id:sharingView().id(item),name:item.data?.name || 'Shared contact',email:item.data?.email || '',phone:item.data?.phone || '',address:item.data?.address || '',projects:[],tags:[],latestDateLabel:'—',_shared:item
+      }))];
       state.loadedAt = Date.now();
     } catch (error) {
       console.warn('My Contacts load failed', error);

@@ -1341,6 +1341,53 @@
 
     // --- data loading -------------------------------------------------------------
 
+    const channelSharing = window.FirstMateSharedList?.create('channel', () => orgId);
+    let sharedConversation;
+    function openSharedConversation(channel){
+      sharedConversation?.close();
+      const item=channel._shared;
+      const buildConversation = (body) => {
+        let closed=false, busy=false, timer, operationId=crypto.randomUUID();
+        const apiShared=(path,body)=>window.PlatformAPI.request(new URL(`/v1/collaboration/organizations/${encodeURIComponent(orgId)}/resources/${path}`,location.origin).href,{method:'POST',body});
+        body.innerHTML=`${channelSharing.badge(channel)}<div class="fm-ch-list" data-shared-messages style="min-height:100px;max-height:50vh;overflow:auto"></div><form data-shared-composer hidden><label>Message<textarea name="text" rows="3" maxlength="20000" required></textarea></label><button class="fm-ch-btn primary" type="submit">Send</button></form><p role="status">Loading conversation…</p>`;
+        const list=body.querySelector('[data-shared-messages]'),form=body.querySelector('form'),status=body.querySelector('[role=status]');
+        const active=()=>!closed&&!state.destroyed;
+        async function refresh(){
+          if(busy||!active())return;busy=true;
+          try{
+            const detail=await apiShared('read',item.resource);
+            const result=detail.operations.includes('messages.read')?await apiShared('messages/read',{resource:item.resource}):{items:[]};
+            if(!active())return;
+            form.hidden=!detail.operations.includes('messages.post');
+            const atBottom=list.scrollHeight-list.scrollTop-list.clientHeight<40;
+            list.innerHTML=(result.items||[]).map(m=>`<article class="fm-ch-message" style="padding:12px 0"><div><strong>${esc(m.author?.name||'Participant')}</strong> <small>${esc(new Date(m.created_at).toLocaleString())}</small></div><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(m.text)}</div></article>`).join('')||'<p>No messages yet.</p>';
+            if(atBottom)list.scrollTop=list.scrollHeight;
+            status.textContent=form.hidden?'Read-only conversation':'';
+          }catch(error){if(active()){list.replaceChildren();form.hidden=true;status.textContent=error.status===403?'This conversation is no longer shared with you.':error.message||'Could not load conversation.';}}
+          finally{busy=false;}
+        }
+        form.onsubmit=async event=>{event.preventDefault();const button=form.querySelector('button'),input=form.elements.text,text=input.value.trim();if(!text||button.disabled)return;button.disabled=true;try{await apiShared('messages',{resource:item.resource,input:{text,client_operation_id:operationId}});if(!active())return;operationId=crypto.randomUUID();input.value='';await refresh();}catch(error){if(active())status.textContent=error.message||'Message could not be sent.';}finally{button.disabled=false;}};
+        refresh();timer=setInterval(()=>{if(!document.hidden)refresh();},5000);
+        return ()=>{closed=true;clearInterval(timer);};
+      };
+      if(mode==='list') {
+        sharedConversation=showModal(channel.display_name || channel.name || 'Shared channel',buildConversation,[]);
+      } else {
+        const hidden=[...main.children].map(node=>({node,display:node.style.display}));
+        hidden.forEach(({node})=>{node.style.display='none';});
+        const reader=el('section','fm-ch-main');reader.dataset.sharedConversation=channel.id;reader.style.cssText='flex:1;min-height:0;width:100%';
+        const head=el('div','fm-ch-header');
+        const back=el('button','fm-ch-icon-btn','<i class="fas fa-arrow-left" aria-hidden="true"></i>');back.setAttribute('aria-label','Back to conversations');
+        head.append(back,el('strong','',esc(channel.display_name||channel.name)));
+        const body=el('div','fm-ch-modal-body');body.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column';reader.append(head,body);main.append(reader);
+        const cleanup=buildConversation(body);
+        const messages=body.querySelector('[data-shared-messages]');messages.style.cssText='flex:1;min-height:100px;overflow:auto';
+        let closed=false;sharedConversation={channelId:channel.id,close(){if(closed)return;closed=true;cleanup();reader.remove();hidden.forEach(({node,display})=>node.style.display=display);sharedConversation=null;renderSidebar();}};
+        back.onclick=()=>{sharedConversation?.close();if(isMobileFull())showMobileList();};
+        if(isMobileFull())showMobileConversation();
+        renderSidebar();
+      }
+    }
     async function loadChannels(){
       if (mode === 'embedded') return;
       try {
@@ -1349,7 +1396,9 @@
           features.attention ? api.sidebarSections?.list?.(orgId).catch(() => ({ sections:[] })) : Promise.resolve({ sections:[] })
         ]);
         const wasPostingBlocked = postingBlocked();
-        state.channels = data.channels || [];
+        await channelSharing?.load();
+        if (state.destroyed) return;
+        state.channels = [...(data.channels || []), ...(channelSharing?.incoming || []).map(item=>({id:channelSharing.id(item),name:item.data?.name || item.data?.title || 'Shared channel',type:'public',members:[],_shared:item}))];
         state.sidebarSections = sectionsData?.sections || [];
         state.channelsById = new Map(state.channels.map((channel) => [channel.id, channel]));
         if (state.activeChannel && state.activeChannel.type !== 'project' && !state.channelsById.has(state.activeChannelId)) {
@@ -1367,7 +1416,7 @@
           }
           return;
         }
-        if (!state.activeChannelId && state.channels.length) {
+        if (!state.activeChannelId && state.channels.length && !sharedConversation) {
           // On mobile the workspace opens on the channel list; auto-selecting
           // a channel would navigate straight into a conversation.
           if (isMobileFull()) { showMobileList(); return; }
@@ -1384,6 +1433,10 @@
     }
 
     async function setChannel(channelId, { reveal } = {}){
+      const shared=state.channelsById.get(channelId);
+      if(shared?._shared) return openSharedConversation(shared);
+      if(String(channelId).startsWith('shared:')) return; // Never route a foreign identity to local channel APIs.
+      sharedConversation?.close();
       projectNotesWorkspace?.destroy(); projectNotesWorkspace = null;
       if (state.destroyed) return;
       if (mode === 'list') {
@@ -1722,12 +1775,17 @@
     root.addEventListener('fm:channels-sidebar:changed', sidebarChanged);
 
     function sideItem(channel){
+      if(channel._shared){
+        const row=el('div','fm-ch-side-row');row.dataset.channelId=channel.id;
+        const button=el('button',`fm-ch-side-item${sharedConversation?.channelId===channel.id?' active':''}`,`<span class="fm-ch-hash"><i class="fas fa-hashtag" aria-hidden="true"></i></span><span class="fm-ch-side-label">${esc(channel.name)}${channelSharing.badge(channel)}</span>`);
+        button.type='button';button.onclick=()=>openSharedConversation(channel);row.append(button);return row;
+      }
       const unread = channel.unread || {};
       const unreadCount = Math.max(0, Math.floor(Number(unread.unread_count) || 0));
       const member = (channel.members || []).find(person => person.id === currentUser.id);
       const muted = member?.notify_level === 'muted';
       const row = el('div', `fm-ch-side-row${muted ? ' muted' : ''}`); row.dataset.channelId = channel.id;
-      const item = el('button', `fm-ch-side-item${channel.id === state.activeChannelId && state.view === 'channel' ? ' active' : ''}${unread.unread_count ? ' unread' : ''}`);
+      const item = el('button', `fm-ch-side-item${!sharedConversation && channel.id === state.activeChannelId && state.view === 'channel' ? ' active' : ''}${unread.unread_count ? ' unread' : ''}`);
       item.type = 'button';
       const isDm = channel.type === 'dm' || channel.type === 'group_dm';
       const label = channel.display_name || channel.name || 'untitled';
@@ -1738,6 +1796,7 @@
         <span class="fm-ch-side-label">${esc(label)}</span>
         ${muted ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" role="img" aria-label="Muted"><path d="m3 3 18 18M9 5a6 6 0 0 1 9 5v4M6 6v8l-2 3h13M10 21h4"/></svg>' : ''}
         ${unreadCount ? `<span class="fm-ch-badge" aria-label="${unreadCount} unread message${unreadCount === 1 ? '' : 's'}" title="${unreadCount} unread message${unreadCount === 1 ? '' : 's'}">${unreadCount}</span>` : ''}`;
+      item.querySelector('.fm-ch-side-label')?.insertAdjacentHTML('beforeend',channelSharing?.badge(channel)||'');
       item.addEventListener('click', () => setChannel(channel.id));
       const actions = el('div', 'fm-ch-side-actions');
       const more = el('button', '', '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>');
@@ -1815,7 +1874,7 @@
 
       const quick = el('div', 'fm-ch-quick');
       const quickItems = [
-        ['discover','See all company channels','fa-hashtag',() => openChannelDirectory().catch(showError)],
+        ['discover','Browse channels','fa-hashtag',() => openChannelDirectory().catch(showError)],
         ...(features.saved ? [['saved', 'Later', 'fa-bookmark', openSavedView]] : [])
       ];
       for (const [view, label, icon, handler] of quickItems) {
@@ -1847,7 +1906,7 @@
       sidebar.appendChild(quick);
 
       for (const group of groups) {
-        const channels = state.channels.filter(channel => !hiddenChannelIds().has(channel.id) && group.filter(channel));
+        const channels = state.channels.filter(channel => !hiddenChannelIds().has(channel.id) && group.filter(channel) && (!channelSharing || channelSharing.matches(channel)));
         if (!channels.length && !group.add && group.key !== 'channels') continue;
         const collapsed = state.collapsedGroups.has(group.key);
         const unreadCount = channels.reduce((sum, channel) => sum + Number(channel.unread?.unread_count || 0), 0);
@@ -5319,7 +5378,7 @@
           const selected = new Set(section?.channel_ids || []);
           const holder = body.querySelector('[data-section-channels]');
           holder.innerHTML = '';
-          for (const channel of state.channels) {
+          for (const channel of state.channels.filter(channel=>!channel._shared)) {
             const row = el('label', 'fm-ch-member-row', `<input type="checkbox" value="${esc(channel.id)}"${selected.has(channel.id) ? ' checked' : ''}><span class="name">${esc(channel.display_name || channel.name)}</span>`);
             holder.appendChild(row);
           }
@@ -5679,22 +5738,25 @@
     }
 
     async function openChannelDirectory(){
-      const {channels} = await api.channels.discover(orgId);
-      showModal('All company channels',(body,close) => {
-        const search = el('input'); search.type='search'; search.placeholder='Search public channels'; search.setAttribute('aria-label',search.placeholder);
+      const discovered = await api.channels.discover(orgId);
+      const channels=[...discovered.channels,...state.channels.filter(c=>c._shared)];
+      showModal('Browse channels',(body,close) => {
+        const search = el('input'); search.type='search'; search.placeholder='Search channels'; search.setAttribute('aria-label',search.placeholder);
         const results = el('div','fm-ch-current-members');
         const paint = () => {
           results.replaceChildren();
-          const matches = channels.filter(channel=>`${channel.name} ${channel.topic}`.toLowerCase().includes(search.value.toLowerCase()));
+          const matches = channels.filter(channel=>(!channelSharing || channelSharing.matches(channel)) && `${channel.name} ${channel.topic || ''}`.toLowerCase().includes(search.value.toLowerCase()));
           for (const channel of matches) {
-            const row = el('div','fm-ch-member-row',`<span class="name"><strong># ${esc(channel.name)}</strong><small>${esc(channel.topic || '')}</small></span>`);
-            const join = el('button','fm-ch-btn',channel.is_member?'Open':'Join channel');
-            join.onclick=async()=>{ join.disabled=true; try {if(!channel.is_member)await api.channels.join(orgId,channel.id);await loadChannels();close();await setChannel(channel.id);}catch(error){join.disabled=false;showError(error);} };
+            const row = el('div','fm-ch-member-row',`<span class="name"><strong># ${esc(channel.name)}</strong><small>${esc(channel.topic || '')}</small>${channelSharing?.badge(channel)||''}</span>`);
+            const join = el('button','fm-ch-btn',channel._shared||channel.is_member?'Open':'Join channel');
+            join.onclick=async()=>{ if(channel._shared){close();openSharedConversation(channel);return;}join.disabled=true; try {if(!channel.is_member)await api.channels.join(orgId,channel.id);await loadChannels();close();await setChannel(channel.id);}catch(error){join.disabled=false;showError(error);} };
             row.append(join);results.append(row);
           }
-          if(!matches.length)results.append(el('p','fm-ch-people-empty','No public channels match your search.'));
+          if(!matches.length)results.append(el('p','fm-ch-people-empty','No channels match your filters.'));
         };
-        search.oninput=paint;body.append(search,results);paint();
+        const filters=el('div','',channelSharing?.fields() || '');
+        filters.onchange=event=>{if(channelSharing?.change(event)){filters.innerHTML=channelSharing.fields();paint();renderSidebar();}};
+        search.oninput=paint;body.append(search,filters,results);paint();
       },[]);
     }
 
@@ -6003,6 +6065,7 @@
 
     const instance = {
       destroy(){
+        sharedConversation?.close();
         projectNotesWorkspace?.destroy();
         state.clipCleanup?.();
         if (state.huddle?.id) api.huddles.leave(orgId, state.huddle.id).catch(() => {});

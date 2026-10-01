@@ -2,54 +2,25 @@
   'use strict';
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const organization=()=>String(window.Portal?.cfg?.userOrgId||window.Portal?.cfg?.orgId||window.__APP?.userOrgId||window.__APP?.orgId||'');
+  const key=r=>JSON.stringify([r.owner_org_id,r.type,r.project_id||'',r.id]);
   function styles(){
-    if(document.getElementById('fm-shared-list-style'))return;
-    const style=document.createElement('style');style.id='fm-shared-list-style';
-    style.textContent=`
-.fm-shared-list-host{flex:0 0 auto;min-width:0;max-height:40vh;overflow:auto;font-size:13px;line-height:1.4;color:var(--text,#344054)}
-.fm-shared-list{margin:0 0 12px;border:1px solid var(--border,#e4e7ec);border-radius:10px;background:var(--panel,#fff)}
-.fm-shared-list>summary{padding:10px 12px;cursor:pointer;font-weight:600;font-size:13px;line-height:18px;color:var(--muted,#667085)}
-.fm-shared-list>summary:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:-2px;border-radius:10px}
-.fm-shared-list-body{padding:0 12px 12px}
-.fm-shared-list-filters{display:flex;align-items:flex-end;flex-wrap:wrap;gap:10px;padding:4px 0 12px}
-.fm-shared-list-filters label{display:flex;align-items:center;gap:8px;min-width:0;font-size:12px;color:var(--muted,#667085)}
-.fm-shared-list select,.fm-shared-list button{box-sizing:border-box;max-width:100%;min-height:32px;border:1px solid var(--border,#d0d5dd);border-radius:7px;background:var(--panel,#fff);color:var(--text,#344054);padding:6px 10px;font:inherit;font-size:12px}
-.fm-shared-list button{cursor:pointer}.fm-shared-list button:hover{background:var(--bg,#f2f4f7)}
-.fm-shared-list p{margin:8px 0;font-size:13px;color:var(--muted,#667085)}
-.fm-shared-list [role=status]:empty{display:none}.fm-shared-list [hidden]{display:none!important}
-.fm-shared-resource{padding:10px 12px;margin-bottom:8px;border:1px solid var(--border,#e4e7ec);border-radius:8px;overflow-wrap:anywhere}
-@media(max-width:600px){.fm-shared-list-filters{align-items:stretch}.fm-shared-list-filters label{flex:1 1 180px;justify-content:space-between}.fm-shared-list-filters select{min-width:0;flex:1}}
-`;document.head.append(style);
+    if(document.getElementById('fm-sharing-view-style'))return;
+    const style=document.createElement('style');style.id='fm-sharing-view-style';
+    style.textContent=`.fm-sharing-label{display:block;font-size:11px;font-weight:500;line-height:1.5;color:var(--muted,#667085);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fm-sharing-label i{margin-right:5px}.fm-sharing-fields{display:grid;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border,#e4e7ec)}.fm-sharing-fields label{display:grid;gap:5px;font-size:12px;color:var(--muted,#667085)}.fm-sharing-fields select{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--border,#d0d5dd);border-radius:7px;padding:7px 9px;background:var(--panel,#fff);color:var(--text,#344054);font:inherit}.fm-sharing-fields p{margin:0;font-size:12px}.fm-sharing-menu{position:relative}.fm-sharing-menu>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px}.ct-list-contact .fm-sharing-label{display:block}.fm-sharing-menu>summary::-webkit-details-marker{display:none}.fm-sharing-popover{position:absolute;right:0;top:calc(100% + 6px);width:240px;max-width:80vw;z-index:30;padding:14px;border:1px solid var(--border,#e4e7ec);border-radius:10px;background:var(--panel,#fff);box-shadow:0 12px 28px #10182820}.fm-sharing-popover>label{display:grid;gap:6px;font-size:12px}.fm-sharing-popover select{width:100%}.fm-ch-side-label .fm-sharing-label{font-size:10px}.fm-shared-project-thumb{display:flex;align-items:center;justify-content:center;background:var(--bg,#f4f6f8);color:#98a2b3;font-size:30px}`;
+    document.head.append(style);
   }
-  function mount(host,type){
-    if(!host)return;
-    styles();host.classList.add('fm-shared-list-host');
-    const org=organization();let cursor='',items=[],epoch=0;
-    host.innerHTML=`<details class="fm-shared-list"><summary>Shared ${escape({project:'projects',contact:'contacts',channel:'channels'}[type]||'resources')}</summary><div class="fm-shared-list-body"><div class="fm-shared-list-filters"><label>Show <select data-direction><option value="inbound">Shared with us</option><option value="outbound">Shared by us</option></select></label><label>Organization <select data-organization><option value="">All organizations</option></select></label></div><div data-items role="region" aria-label="Shared resources"></div><button type="button" data-more hidden>Load more</button><p role="status"></p></div></details>`;
-    const root=host.querySelector('details'),direction=host.querySelector('[data-direction]'),filter=host.querySelector('[data-organization]'),results=host.querySelector('[data-items]'),more=host.querySelector('[data-more]'),status=host.querySelector('[role=status]');
-    async function load(append=false){
-      const version=++epoch;status.textContent='Loading shared resources…';
-      const outbound=direction.value==='outbound';
-      const params=new URLSearchParams({type,limit:'50',...(append&&cursor?{after:cursor}:{}),...(filter.value?{[outbound?'recipient':'owner']:filter.value}:{})});
-      try{
-        const page=await window.PlatformAPI.request(new URL(`/v1/collaboration/organizations/${encodeURIComponent(org)}/${outbound?'shares':'shared'}?${params}`,location.origin).href);
-        if(version!==epoch||!root.isConnected||org!==organization())return;
-        items=append?[...items,...page.items]:page.items;cursor=page.next_cursor||'';
-        const filtered=items.filter(item=>item.resource.type===type&&(!outbound||item.status==='active'));
-        for(const item of filtered){const id=outbound?item.recipient_org_id:item.resource.owner_org_id;if(!Array.from(filter.options).some(o=>o.value===id)){const option=document.createElement('option');option.value=id;option.textContent=outbound?(item.recipient?.name||id):(item.owner?.name||id);filter.add(option);}}
-        const unique=[...new Map(filtered.map(item=>[JSON.stringify(item.resource)+(outbound?item.recipient_org_id:""),item])).values()];
-        results.innerHTML=unique.map((item,index)=>`<article class="fm-shared-resource"><strong>${escape(item.data?.title||item.data?.name||item.resource.id)}</strong><p>${outbound?'Shared with':'Shared by'} ${escape(outbound?(item.recipient?.name||item.recipient_org_id):item.owner?.name)}</p>${!outbound?`<button type="button" data-open="${index}">Open shared ${escape(type)}</button>`:''}</article>`).join('')||'<p>No shared resources in this view.</p>';
-        results.onclick=event=>{const button=event.target.closest('[data-open]');if(button){
-          const item=unique[Number(button.dataset.open)];window.__fmPendingCollaborationResource=item;
-          window.Portal.tabs?.activateTab?.('partners');
-          window.dispatchEvent(new CustomEvent('fm:collaboration:open',{detail:item}));
-        }};
-        more.hidden=!cursor;status.textContent='';
-      }catch(error){if(version===epoch){status.textContent=error.status===403?'You do not have access to this sharing view.':(error.message||'Shared resources could not be loaded.');results.replaceChildren();more.hidden=true;}}
-    }
-    direction.onchange=()=>{filter.value='';items=[];load();};filter.onchange=()=>load();more.onclick=()=>load(true);
-    root.ontoggle=()=>{if(root.open)load();};load();
-    return ()=>{epoch++;host.replaceChildren();};
+  function create(type,getOrg=organization){
+    styles();let org='',incoming=[],outgoing=[],error='',epoch=0,prefs={mode:'all',org:''};
+    function syncOrg(){const next=String(getOrg()||'');if(next!==org){org=next;incoming=[];outgoing=[];error='';prefs={mode:'all',org:''};try{Object.assign(prefs,JSON.parse(localStorage.getItem(`fm.sharing-view.${org}.${type}`)||'{}'));}catch{}if(!['all','owned','received','sent'].includes(prefs.mode))prefs.mode='all';}return org;}
+    async function pages(direction,oid){let after='',items=[],seen=new Set();do{const params=new URLSearchParams({type,limit:'100',...(after?{after}:{})});const page=await window.PlatformAPI.request(new URL(`/v1/collaboration/organizations/${encodeURIComponent(oid)}/${direction}?${params}`,location.origin).href);items.push(...(page.items||[]));after=page.next_cursor||'';if(seen.has(after))throw new Error('Could not finish loading sharing information.');seen.add(after);}while(after);return items;}
+    async function load(){const oid=syncOrg(),version=++epoch;if(!oid||!window.PlatformAPI?.request)return;const results=await Promise.allSettled([pages('shared',oid),pages('shares',oid)]);if(version!==epoch||oid!==syncOrg())return;incoming=results[0].status==='fulfilled'?[...new Map(results[0].value.filter(i=>i.resource?.type===type).map(i=>[key(i.resource),i])).values()]:[];outgoing=results[1].status==='fulfilled'?results[1].value.filter(i=>i.resource?.type===type&&i.status==='active'):[];error=results.some(r=>r.status==='rejected'&&r.reason?.status!==403)?'Sharing information could not be loaded. Refresh to try again.':'';}
+    function recipients(id,projectId){syncOrg();return outgoing.filter(i=>String(i.resource.id)===String(id)&&(!projectId||i.resource.project_id===projectId));}
+    function matches(record,id=record.id,projectId){syncOrg();const shared=record._shared,grants=recipients(id,projectId);if(prefs.mode==='owned'&&shared||prefs.mode==='received'&&!shared||prefs.mode==='sent'&&(shared||!grants.length))return false;if(prefs.org)return shared?shared.resource.owner_org_id===prefs.org:grants.some(i=>i.recipient_org_id===prefs.org);return true;}
+    function badge(record,id=record.id,projectId){const shared=record._shared,grants=recipients(id,projectId);const names=[...new Set(grants.map(i=>i.recipient?.name||'Partner organization'))];const label=shared?`From ${shared.owner?.name||'Partner organization'}`:names.length?`Shared with ${names.join(', ')}`:'';return label?`<span class="fm-sharing-label" title="${escape(label)}"><i class="fas fa-link" aria-hidden="true"></i>${escape(label)}</span>`:'';}
+    function fields(){syncOrg();const names=new Map();if(prefs.mode!=='owned'&&prefs.mode!=='sent')incoming.forEach(i=>names.set(i.resource.owner_org_id,i.owner?.name||'Partner organization'));if(prefs.mode!=='received')outgoing.forEach(i=>names.set(i.recipient_org_id,i.recipient?.name||'Partner organization'));if(prefs.org&&!names.has(prefs.org))names.set(prefs.org,'Selected organization (unavailable)');return `<div class="fm-sharing-fields"><label>Sharing<select data-sharing-mode>${[['all','All'],['owned','Owned by us'],['received','Shared with us'],['sent','Shared by us']].map(([v,l])=>`<option value="${v}" ${prefs.mode===v?'selected':''}>${l}</option>`).join('')}</select></label><label>Organization<select data-sharing-org><option value="">All organizations</option>${[...names].sort((a,b)=>a[1].localeCompare(b[1])).map(([id,name])=>`<option value="${escape(id)}" ${prefs.org===id?'selected':''}>${escape(name)}</option>`).join('')}</select></label>${error?`<p role="status">${escape(error)}</p>`:''}</div>`;}
+    function change(event){syncOrg();if(event.target.matches('[data-sharing-mode]')){prefs.mode=event.target.value;prefs.org='';}else if(event.target.matches('[data-sharing-org]'))prefs.org=event.target.value;else return false;try{localStorage.setItem(`fm.sharing-view.${org}.${type}`,JSON.stringify(prefs));}catch{}return true;}
+    return {load,matches,badge,fields,change,get incoming(){syncOrg();return incoming;},get mode(){syncOrg();return prefs.mode;},get filtered(){syncOrg();return prefs.mode!=='all'||!!prefs.org;},get error(){return error;},id:item=>'shared:'+encodeURIComponent(key(item.resource))};
   }
-  window.FirstMateSharedList={mount};
+  function open(item){window.__fmPendingCollaborationResource=item;window.Portal.tabs?.activateTab?.('partners');window.dispatchEvent(new CustomEvent('fm:collaboration:open',{detail:item}));}
+  window.FirstMateSharedList={create,open};
 })();

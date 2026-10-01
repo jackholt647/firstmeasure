@@ -5296,9 +5296,18 @@
     }
     return ids;
   }
+  let projectSharing;
+  let sharingClientPagination = false;
+  const projectSharingView = () => projectSharing ||= window.FirstMateSharedList?.create('project');
+  function sharedProjectRecords(){
+    return (projectSharingView()?.incoming || []).map(item => ({id:projectSharing.id(item),address:item.data?.address || item.data?.title || 'Shared project',title:item.data?.title || '',created_at:item.data?.created_at || '',_shared:item}));
+  }
   function applyQueryFilterSort(){
     let arr = allProjects.slice();
-    if (hideDrafts) arr = arr.filter((project) => !isDraftProject(project));
+    const sharing = projectSharingView();
+    if (viewMode !== 'stages') arr.push(...sharedProjectRecords().filter(p => !reportSearchQuery.trim() || `${p.address} ${p.title}`.toLowerCase().includes(reportSearchQuery.trim().toLowerCase())));
+    if (sharing) arr = arr.filter(p => sharing.matches(p));
+    if (hideDrafts) arr = arr.filter((project) => project._shared || !isDraftProject(project));
     if (viewMode === 'tiles' && tileStageFilter !== 'all') {
       const ids=tileStageProjectIds(tileStageFilter);
       arr=arr.filter((project) => ids.has(String(project.id)));
@@ -5306,6 +5315,11 @@
     const s = getActiveSort();
     arr.sort((a,b)=>compareProjects(a,b,s.key,s.dir));
     filteredProjects = arr;
+    updateViewControls();
+    if (sharingClientPagination && viewMode === 'tiles') {
+      totalCount = arr.length; totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+      currentPage = Math.min(currentPage, totalPages);
+    }
     renderResults();
     updateCount();
   }
@@ -5389,7 +5403,7 @@
   function updateCount(){
     const el = $('#vCount', panelEl);
     if (!el) return;
-    if (viewMode === 'stages' || (viewMode === 'list' && workBoards.length)) {
+    if (viewMode === 'stages' || (viewMode === 'list' && workBoards.length && !filteredProjects.some(p=>p._shared) && projectSharingView()?.mode !== 'received')) {
       const selected = workBoards.find((board) => String(board?.id || '') === activeWorkBoardId);
       const visibleIds = new Set(filteredProjects.map((project) => String(project.id)));
       const selectedCount = activeWorkBoardId === 'all' ? filteredProjects.length : selected ? new Set(selectedBoardColumns(selected).flatMap((column) => column.items).map((project) => String(project.id)).filter((id) => visibleIds.has(id))).size : 0;
@@ -5402,7 +5416,7 @@
       const end = Math.min(currentPage * PAGE_SIZE, totalCount);
       el.textContent = ((v0,v1,v2) => globalThis.PlatformLanguage?.text("projects","m_43e3b1a1d65dbe",`${v0}–${v1} of ${v2}`,{v0,v1,v2}) ?? `${v0}–${v1} of ${v2}`)(start,end,totalCount);
     } else {
-      const a = allProjects.length;
+      const a = allProjects.length + (viewMode==='stages' ? 0 : sharedProjectRecords().length);
       const f = filteredProjects.length;
       el.textContent = (a === f) ? `${a} project${a===1?'':'s'}` : `${f} of ${a}`;
     }
@@ -5485,8 +5499,9 @@
     const panel=$('#vManageViewPanel',panelEl);
     if (!panel) return;
     syncProjectColumnChoices();
+    const sharingFields = projectSharingView()?.fields() || '';
     if (viewMode === 'list') {
-      panel.innerHTML=`<div class="v-manage-title">List columns</div><div class="v-manage-columns">${availableProjectColumns().map((column) => `<label><input type="checkbox" data-list-column="${escapeHtml(column.key)}" ${listVisibleColumns.has(column.key) ? 'checked' : ''}><span>${escapeHtml(column.label)}</span></label>`).join('')}</div><div class="v-manage-note">Click a column heading to sort the list.</div>`;
+      panel.innerHTML=`<div class="v-manage-title">List columns</div><div class="v-manage-columns">${availableProjectColumns().map((column) => `<label><input type="checkbox" data-list-column="${escapeHtml(column.key)}" ${listVisibleColumns.has(column.key) ? 'checked' : ''}><span>${escapeHtml(column.label)}</span></label>`).join('')}</div><div class="v-manage-note">Click a column heading to sort the list.</div>${sharingFields}`;
       return;
     }
     const sort=getActiveSort();
@@ -5494,7 +5509,7 @@
     const sorting=`<label class="v-manage-field">Order by<select id="vManageSortKey">${sortColumns.map(column => `<option value="${escapeHtml(column.key)}" ${sort.key===column.key?'selected':''}>${escapeHtml(column.label)}</option>`).join('')}</select></label><button type="button" class="v-btn" id="vManageSortDirection" aria-label="Switch sort direction"><i class="fas fa-arrow-${sort.dir==='asc'?'up':'down'}"></i><span>${sort.dir==='asc'?'Ascending':'Descending'}</span></button>`;
     const stages=tileStageOptions();
     const filtering=viewMode==='tiles' ? `<label class="v-manage-field">Stage<select id="vManageStageFilter"><option value="all">All stages</option>${Array.from(stages,([id,title])=>`<option value="${escapeHtml(id)}" ${tileStageFilter===id?'selected':''}>${escapeHtml(title)}</option>`).join('')}</select></label>` : '';
-    panel.innerHTML=`<div class="v-manage-title">${viewMode==='stages'?'Stages':'Tiles'} view</div>${filtering}${sorting}`;
+    panel.innerHTML=`<div class="v-manage-title">${viewMode==='stages'?'Stages':'Tiles'} view</div>${filtering}${sorting}${sharingFields}${viewMode==='stages'?'<div class="v-manage-note">Stages show our workflow. Choose Shared with us to browse received projects in a list.</div>':''}`;
   }
   function updateViewControls(){
     const bT = $('#vViewTiles', panelEl); const bL = $('#vViewList', panelEl); const bS = $('#vViewStages', panelEl);
@@ -5524,7 +5539,7 @@
       fetchProjects(true);
       return;
     }
-    renderResults();
+    applyQueryFilterSort();
   }
   function applyStagesViewFlag(){
     const nextMode = normalizeViewMode(viewMode);
@@ -5598,7 +5613,19 @@
       });
     });
   }
+  function sharedProjectElement(p, list){
+    const element = document.createElement('div');
+    element.className = list ? 'v-lrow' : 'v-tile'; element.dataset.id=p.id;
+    element.tabIndex=0; element.setAttribute('role','button');
+    const name=escapeHtml(p.address), badge=projectSharingView().badge(p);
+    element.setAttribute('aria-label', `Open ${p.address}, shared by ${p._shared.owner?.name || 'partner organization'}`);
+    element.innerHTML = list ? availableProjectColumns().filter(c=>listVisibleColumns.has(c.key)).map(c=>`<div class="v-lcell" data-col="${escapeHtml(c.key)}">${c.key==='address'?`<div class="v-laddr"><div class="v-laddr1">${name}</div>${badge}</div>`:'—'}</div>`).join('') : `<div class="v-thumb fm-shared-project-thumb"><i class="fas fa-building" aria-hidden="true"></i></div><div class="v-body"><div class="v-addr">${name}</div>${badge}<div class="v-foot"><span>Shared project</span><span class="cta">View <i class="fas fa-chevron-right"></i></span></div></div>`;
+    const open=()=>window.FirstMateSharedList.open(p._shared);
+    element.onclick=open; element.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}};
+    return element;
+  }
   function createTile(p){
+    if (p._shared) return sharedProjectElement(p, false);
     p = normalizeProjectRecord(p);
     const id = String(p.id);
     const div = document.createElement('div'); div.className = 'v-tile'; div.dataset.id = id;
@@ -5615,6 +5642,7 @@
     const statusBadge = s ? `<div class="v-badge ${s.cls}">${statusBadgeContent(s)}</div>` : '';
     const contact = resolveResidentFields(p);
     div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}"><img src="${String(escapeHtml(thumbSrc))}" loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(gutterThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(displayAddress(p))}</div><div class="v-meta"><i class="fas fa-user"></i> ${String(escapeHtml(contact.displayName || contact.name || 'N/A'))}</div><div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></div></div>`;
+    div.querySelector('.v-body')?.insertAdjacentHTML('beforeend', projectSharingView()?.badge(p) || '');
     div.addEventListener('click', ()=>openModal(lastProjectsById.get(id) || p));
 
     const img = div.querySelector('.v-thumb img');
@@ -5666,6 +5694,7 @@
     return div;
   }
   function createListRow(p, allowDrag = false, groupedByStage = false){
+    if (p._shared) return sharedProjectElement(p, true);
     p = normalizeProjectRecord(p);
     const resident = resolveResidentFields(p);
     const id = String(p.id);
@@ -5684,6 +5713,7 @@
       const text = value != null && ['date','datetime'].includes(column.type) ? formatStageDate(value) : columnValueText(value);
       return `<div class="v-lcell" data-col="${escapeHtml(column.key)}">${escapeHtml(text)}</div>`;
     }).join('');
+    row.querySelector('.v-laddr')?.insertAdjacentHTML('beforeend', projectSharingView()?.badge(p) || '');
     const movable = allowDrag && manualStageMovementEnabled() && canManageProjectStages() && !!p.plan_id && !!p.stage_id;
     row.draggable = movable;
     row.addEventListener('click', ()=>{
@@ -5736,6 +5766,11 @@
   function renderGroupedList(){
     const scroll = $('#vListScroll', panelEl);
     if (!scroll) return;
+    if (filteredProjects.some(p => p._shared) || projectSharingView()?.mode === 'received') {
+      for (const project of filteredProjects) scroll.appendChild(createListRow(project));
+      const summary = $('#vWorkBoardSummary', panelEl); if (summary) summary.classList.remove('visible');
+      return;
+    }
     if (!workBoardsLoaded) { loadWorkBoards().catch(() => null); return; }
     if (!workBoards.length) {
       for (const project of filteredProjects) scroll.appendChild(createListRow(project));
@@ -5774,7 +5809,7 @@
   }
   function renderResults(){
     const results = $('#vResults', panelEl); if (!results) return;
-    if (!allProjects.length){
+    if (!allProjects.length && !sharedProjectRecords().length){
       if (hideDrafts && totalUnfilteredCount > 0) {
         results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.htmlText("projects","m_d430072e91bf61","No visible projects.") ?? "No visible projects.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.htmlText("projects","m_abe4b3a1ae323e","No non-draft projects match this view.") ?? "No non-draft projects match this view.")}</div></div>`;
         return;
@@ -5787,7 +5822,8 @@
     if (viewMode === 'list'){ results.innerHTML = renderListShell(); renderGroupedList(); wireListHeaderSort(); return; }
     results.innerHTML = `<div class="v-grid" id="vGrid"></div>`;
     const grid = $('#vGrid', panelEl);
-    for (const p of filteredProjects) grid.appendChild(createTile(p));
+    const page = sharingClientPagination ? filteredProjects.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE) : filteredProjects;
+    for (const p of page) grid.appendChild(createTile(p));
   }
   function upsertProjectForViewer(project, { redraw = true } = {}){
     if (!project) return null;
@@ -7145,7 +7181,10 @@
     try{
       if (redraw && !_optimisticProjects.length && !allProjects.length){ results.innerHTML = `<div class="v-grid" id="vGrid"><div style="grid-column:1/-1; text-align:center; color:#999; padding:40px 0; font-weight:900;"><i class="fas fa-spinner fa-spin" style="font-size:22px; margin-bottom:10px;"></i><br>${(globalThis.PlatformLanguage?.htmlText("projects","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div>`; }
       const previousVisibleIds = sortedProjectIds(allProjects);
-      const stagesMode = viewMode === 'stages' || viewMode === 'list' || (viewMode === 'tiles' && tileStageFilter !== 'all');
+      await projectSharingView()?.load();
+      if (requestSeq !== fetchProjectsSeq) return;
+      sharingClientPagination = !!projectSharing?.incoming.length || !!projectSharing?.filtered;
+      const stagesMode = sharingClientPagination || viewMode === 'stages' || viewMode === 'list' || (viewMode === 'tiles' && tileStageFilter !== 'all');
       const payload = { page: stagesMode ? 1 : currentPage, limit: stagesMode ? 0 : PAGE_SIZE, status_filter:'all', include_instant_only: '1', view: 'card', hide_drafts: hideDrafts ? '1' : '0' };
       if (reportSearchQuery.trim()) payload.search = reportSearchQuery.trim();
       const { data } = await postAction('list_projects', payload);
@@ -7155,7 +7194,7 @@
       projects = applyOptimisticProjectUpdates(projects);
       totalUnfilteredCount = Number(data?.unfiltered_count ?? data?.platform_total_count ?? projects.length) || projects.length;
       const pg = data?.pagination;
-      if (pg){ totalPages = pg.total_pages || 1; totalCount = pg.total_count || projects.length; if (currentPage > totalPages) currentPage = totalPages; }
+      if (pg){ totalPages = pg.total_pages || 1; totalCount = pg.total_count || projects.length; if (!sharingClientPagination && currentPage > totalPages) currentPage = totalPages; }
       else { totalPages = 1; totalCount = projects.length; }
 
       /* Merge optimistic stubs: keep any that the server doesn't have yet */
@@ -7188,7 +7227,7 @@
          other windows may spend credits, etc. */
       try { window.Portal.credits.refreshCredits(); } catch(e){}
 
-      if (!redraw && !optimisticConsumed && !_optimisticProjects.length && !visibleProjectsChanged){
+      if (!sharingClientPagination && !redraw && !optimisticConsumed && !_optimisticProjects.length && !visibleProjectsChanged){
         patchBadges(mergedProjects);
         updateOpenModalFromLatest(mergedProjects);
         renderPagination();
@@ -7295,9 +7334,6 @@
       </div>
     `;
 
-    const sharedHost=document.createElement('section');
-    $('#vResults',panelEl)?.before(sharedHost);
-    window.FirstMateSharedList?.mount(sharedHost,'project');
     const reportSearch = $('#vReportSearch', panelEl);
     if (reportSearch) {
       reportSearch.value = reportSearchQuery;
@@ -7324,6 +7360,13 @@
     document.addEventListener('click',(event)=>{ if (!manageWrap.contains(event.target)) closeManage(); });
     managePanel.addEventListener('keydown',(event)=>{ if (event.key==='Escape'){ closeManage(); manageButton.focus(); } });
     managePanel.addEventListener('change',(event)=>{
+      if (projectSharingView()?.change(event)) {
+        currentPage=1;
+        if (viewMode==='stages' && projectSharing.mode==='received') setView('list');
+        fetchProjects(true);
+        renderManageViewPanel();
+        return;
+      }
       const column=event.target.dataset.listColumn;
       if (column){
         if (event.target.checked) listVisibleColumns.add(column);
