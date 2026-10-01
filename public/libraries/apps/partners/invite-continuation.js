@@ -10,5 +10,10 @@
       url.searchParams.delete('collaboration_invite');url.hash='';
       history.replaceState(history.state,'',url.href);
     }
+    // Login/signup may drop the original query. Resume in the sharing app once
+    // the portal opens, before its initial navigation state is constructed.
+    if(['/portal/','/portal/index.php','/portal'].includes(url.pathname)&&/^[A-Za-z0-9_-]{43}$/.test(sessionStorage.getItem('fm_collaboration_invite')||'')){
+      url.searchParams.set('tab','partners');history.replaceState(history.state,'',url.href);
+    }
   }catch(_){/* Authentication remains usable when browser storage is disabled. */}
 })();
