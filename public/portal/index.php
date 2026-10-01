@@ -64,6 +64,7 @@ session_write_close();
 <html lang="en">
 <head>
 <script src="/libraries/apps/partners/invite-continuation.js?v=20260930-v2"></script>
+<script src="/libraries/apps/partners/shared-list.js?v=20260930-collaboration-v1"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#d93025">
