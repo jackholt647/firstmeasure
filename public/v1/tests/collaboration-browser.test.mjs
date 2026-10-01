@@ -57,3 +57,15 @@ test('partners workspace escapes external content, creates scoped grants and pos
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
+
+
+test('invitation tokens survive login and resume in Partners without remaining in the URL',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const page=await browser.newPage(),source=await readFile(new URL('../../libraries/apps/partners/invite-continuation.js',import.meta.url),'utf8');
+    await page.route('https://invite.test/**',route=>route.fulfill({contentType:'text/html',body:'<main>Authentication</main>'}));
+    await page.goto('https://invite.test/portal/login.php#collaboration_invite='+ 'a'.repeat(43));await page.addScriptTag({content:source});
+    assert.equal(new URL(page.url()).hash,'');assert.equal(await page.evaluate(()=>sessionStorage.getItem('fm_collaboration_invite')),'a'.repeat(43));
+    await page.goto('https://invite.test/portal/');await page.addScriptTag({content:source});assert.equal(new URL(page.url()).searchParams.get('tab'),'partners');assert.equal(new URL(page.url()).hash,'');
+  }finally{await browser.close();}
+});

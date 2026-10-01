@@ -63,7 +63,7 @@ session_write_close();
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="/libraries/apps/partners/invite-continuation.js?v=20260930"></script>
+<script src="/libraries/apps/partners/invite-continuation.js?v=20260930-v2"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#d93025">
@@ -2184,6 +2184,7 @@ session_write_close();
   <script src="../libraries/statsig/firstmate-statsig.js?v=<?= $ver ?>"></script>
   <script src="../libraries/settings-pages/firstmate-settings-pages.js?v=<?= $ver ?>"></script>
   <script src="../libraries/app-runtime/firstmate-embeddable-apps.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/app-runtime/app-chrome.js?v=<?= $ver ?>"></script>
   <script src="../libraries/app-runtime/firstmate-app-context.js?v=<?= $ver ?>"></script>
   <script src="../libraries/navigation/portal-navigation.js?v=<?= $ver ?>"></script>
   <script src="../libraries/setup-wizard/setup-wizard.js?v=<?= $ver ?>"></script>
