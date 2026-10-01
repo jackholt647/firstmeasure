@@ -2,6 +2,14 @@
  * the org-only editor: its legacy save paths intentionally remain inaccessible. */
 (function(){
   'use strict';
+  if(!document.getElementById('fm-partners-styles')){
+    const style=document.createElement('style');style.id='fm-partners-styles';style.textContent=`
+      .fm-partners{color:var(--text,#172334);font:inherit}.fm-partners .btn{font:inherit;font-size:13px;min-height:36px;padding:8px 12px;border:1px solid var(--border,#d6dce5);border-radius:8px;background:var(--surface,#fff);color:inherit;cursor:pointer}
+      .fm-partners .btn:hover{background:var(--surface-hover,#f3f5f8)}.fm-partners .btn:focus-visible{outline:2px solid #d92d20;outline-offset:2px}.fm-partners .btn:disabled{opacity:.55;cursor:wait}
+      .fm-partners nav [aria-pressed=true]{background:#fff0ed;border-color:#f5b7af;color:#b42318}.fm-partners article{background:var(--surface,#fff);border-radius:10px}.fm-partners label{font-size:13px}.fm-partners input:not([type=checkbox]),.fm-partners select,.fm-partners textarea{font:inherit;box-sizing:border-box;max-width:100%;padding:9px 11px;border:1px solid var(--border,#d6dce5);border-radius:7px;background:var(--surface,#fff);color:inherit}.fm-partners fieldset{border:1px solid var(--border,#d6dce5);border-radius:8px;padding:12px}.fm-partners fieldset label{display:inline-flex;align-items:center;gap:5px;margin:5px 12px 5px 0}.fm-partners dt{font-size:12px;color:var(--muted,#667085);margin-top:14px}.fm-partners dd{margin:4px 0;overflow-wrap:anywhere}
+      @media(max-width:640px){.fm-partners{padding:12px!important}.fm-partners nav{gap:6px!important}.fm-partners nav .btn{font-size:12px;padding:7px 9px}}
+    `;document.head.append(style);
+  }
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const org=()=>String(window.Portal?.cfg?.userOrgId||window.Portal?.cfg?.orgId||window.__APP?.userOrgId||window.__APP?.orgId||'');
   const title=()=>window.PlatformTerminology?.get?.('partners.partners','Partners')||'Partners';
@@ -13,7 +21,7 @@
   function content(html){clearInterval(state.conversationTimer);state.conversationTimer=null;const el=state.root?.querySelector('[data-partner-content]');if(el)el.innerHTML=html;}
   function shell(){
     if(!state.root)return;
-    state.root.innerHTML=`<section style="max-width:1200px;margin:auto;padding:20px"><header style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><h2 style="margin-right:auto">${esc(title())}</h2>${button('invite','Invite organization')}${button('share','Share resource')}</header><nav aria-label="Partner workspace" style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0">${[['partners',title()],['shared','Shared with us'],['shares','Shared by us'],['engagements','Work engagements'],['partner-documents','Documents'],['payments','Payments'],['offline-payments','External payments'],['invitations','Invitations'],['privacy','Privacy']].map(([v,t])=>button('view',t,`data-view="${v}" aria-pressed="${state.view===v}"`)).join('')}</nav><p role="alert" style="color:var(--danger,#f99)">${esc(state.error)}</p><div data-partner-content></div></section>`;
+    state.root.innerHTML=`<section class="fm-partners" style="max-width:1200px;margin:auto;padding:20px"><header style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><h2 style="margin-right:auto">${esc(title())}</h2>${button('invite','Invite organization')}${button('share','Share resource')}</header><nav aria-label="Partner workspace" style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0">${[['partners',title()],['shared','Shared with us'],['shares','Shared by us'],['engagements','Work engagements'],['partner-documents','Documents'],['payments','Payments'],['offline-payments','External payments'],['invitations','Invitations'],['privacy','Privacy']].map(([v,t])=>button('view',t,`data-view="${v}" aria-pressed="${state.view===v}"`)).join('')}</nav><p role="alert" style="color:var(--danger,#f99)">${esc(state.error)}</p><div data-partner-content></div></section>`;
     state.root.onclick=e=>{const b=e.target.closest('[data-partner-action]');if(b)handle(b).catch(error);};
   }
   function form(html,submit){

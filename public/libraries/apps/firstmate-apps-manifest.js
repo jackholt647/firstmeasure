@@ -73,7 +73,7 @@
   ];
 
   const apps = [
-    {id:'portal.partners',package:'partners',title:'Partners',terminologyKey:'partners.partners',kind:'portal_tab',surfaces:['portal_tab'],portalTabId:'partners',access:managementAccess,bundles:[versionedBundle('../payment-intake/payment-intake.js','20260803-field-flows-v10'),versionedBundle('../doc-widgets/firstmate-doc-widgets.js','20260803-field-flows-v10'),versionedBundle('partners/app.js','20260930-collaboration-v1')]},
+    {id:'portal.partners',package:'partners',title:'Partners',terminologyKey:'partners.partners',kind:'portal_tab',surfaces:['portal_tab'],portalTabId:'partners',access:managementAccess,bundles:[versionedBundle('../payment-intake/payment-intake.js','20260803-field-flows-v10'),versionedBundle('../doc-widgets/firstmate-doc-widgets.js','20260803-field-flows-v10'),versionedBundle('partners/app.js','20260930-collaboration-v2')]},
     {
       id: 'portal.viewer',
       package: 'projects',
