@@ -4,6 +4,13 @@ Project and Contact windows use `FirstMateWindows` for placement, docking,
 minimization and close controls, and `FirstMateWindowShell` for their content
 layout declaration and tab styling.
 
+On mobile viewports (760px and narrower), both entity windows use fullscreen
+for every expanded placement. Only fullscreen, minimize/restore and close controls
+are shown; docking menus and drag/resize gestures are disabled. Restoring a
+minimized desktop window on mobile also expands fullscreen. The shared manager
+opts these windows in with `mobileFullscreen: true`, using the outer portal
+viewport even when project controls live in an iframe.
+
 ## Opening a layout
 
 ```js

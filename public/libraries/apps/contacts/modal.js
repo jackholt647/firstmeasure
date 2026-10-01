@@ -322,7 +322,7 @@
       controlsHost:element.querySelector('.fm-contact-window-header'),
       title:element.querySelector('.fm-contact-window-identity'),
       contentTarget:document.getElementById('mainPanels'),
-      customChrome:true, presentationModes:true, viewportCoordinates:true, nativeModalLayout:true,
+      customChrome:true, presentationModes:true, mobileFullscreen:true, viewportCoordinates:true, nativeModalLayout:true,
       name:'contact', label:'Contact', mode:'modal', width:1100, height:760,
       dockWidth:760, minWidth:360, minimizedHeight:32,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
@@ -333,7 +333,7 @@
       }
     });
     overlay.classList.add('window-managed');
-    overlay.dataset.windowMode = 'modal';
+    overlay.dataset.windowMode = contactWindow.state.mode;
     contactWindow.setVisible(false);
   }
   function ensureContactShell(overlay){

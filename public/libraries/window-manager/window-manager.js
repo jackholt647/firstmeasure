@@ -21,7 +21,7 @@
 .fm-window-preview{box-sizing:border-box;position:fixed;pointer-events:none;z-index:2147483200;border:2px solid #528bff;border-radius:12px;background:#528bff30;box-shadow:0 0 0 1px #fff5 inset;transition:left .2s,top .2s,width .2s,height .2s,opacity .15s;animation:fm-preview-in .15s ease-out}
 @keyframes fm-preview-in{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.fm-window,.fm-window-preview{transition:none!important;animation:none!important}}
-.fm-window[hidden]{display:none!important}.fm-window[data-window=full],.fm-window[data-window=docked]{border-radius:0;box-shadow:none}.fm-window[data-window=docked]{overflow:visible}
+.fm-window[hidden]{display:none!important}.fm-window[data-window=full],.fm-window[data-window=fullscreen],.fm-window[data-window=docked]{border-radius:0;box-shadow:none}.fm-window[data-window=docked]{overflow:visible}
 .fm-window-header{display:flex;flex:none;align-items:center;gap:8px;min-height:44px;padding:6px 10px;border-bottom:1px solid #e4e7ec;white-space:nowrap;touch-action:none;user-select:none;cursor:default}
 .fm-window-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:700;white-space:nowrap}
 .fm-window-title:after{content:'';display:inline-block;width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);margin-left:6px;vertical-align:3px;opacity:.55;flex:0 0 auto}
@@ -163,6 +163,7 @@
     const element = options.element, header = options.header, title = options.title;
     if (!element || !header || !options.host) throw new Error('Window requires an element, header and host');
     const host = options.host;
+    const mobileFullscreen = () => options.mobileFullscreen === true && root.matchMedia('(max-width: 760px)').matches;
     const headerDocument = header.ownerDocument;
     function outerPoint(event){const frame=headerDocument!==document ? headerDocument.defaultView.frameElement?.getBoundingClientRect() : null;return {x:event.clientX+(frame?.left||0),y:event.clientY+(frame?.top||0)};}
     if (headerDocument !== document) {
@@ -185,6 +186,7 @@
       win.rect.width=Math.min(width,Math.max(Math.min(win.minWidth,width),Math.min(win.rect.width,width*.72)));
       win.rect.height=Math.min(height,Math.max(Math.min(win.minHeight,height),Math.min(win.rect.height,height*.60)));
     }
+    if (mobileFullscreen() && win.mode !== 'minimized') win.mode = 'fullscreen';
     fitFloatingSize();
     win.rect.left=Math.max(0,host.clientWidth-win.rect.width-24);
     windows.add(win); element.classList.add('fm-window'); if (!options.customChrome) header.classList.add('fm-window-header'); title?.classList.add('fm-window-title'); if (options.titleMenu === false) title?.classList.add('fm-window-title-plain'); options.body?.classList.add('fm-window-content');
@@ -205,25 +207,42 @@
     function chrome(){
       element.style.position = win.viewportCoordinates || ['modal','fullscreen'].includes(win.mode) ? 'fixed' : 'absolute';
       element.dataset.window = win.mode; element.dataset.pinned=String(win.pinned);
+      if (win.mode !== 'docked') element.querySelectorAll('.is-dock-divider').forEach(grip=>grip.classList.remove('is-dock-divider'));
+      const mobile = mobileFullscreen();
       const dock = true;
+      title?.classList.toggle('fm-window-title-plain', mobile || options.titleMenu === false);
+      controls.style.setProperty('display', mobile ? 'flex' : '', mobile ? 'important' : '');
+      for (const [action, button] of Object.entries(buttons)) {
+        button.style.setProperty('display', mobile && !['minimize','maximize','close'].includes(action) ? 'none' : '', mobile ? 'important' : '');
+      }
       const labels = {place:`${dock ? 'Dock' : 'Float'} ${name}`,minimize:`${win.mode === 'minimized' ? 'Restore' : 'Minimize'} ${name}`,maximize:`${win.mode === 'full' ? 'Float' : 'Maximize'} ${name}`,close:`Close ${name}`,modal:`Show ${name} as a modal`,floating:`Float ${name}`,fullscreen:`Fill entire screen with ${name}`,pin:`${win.pinned ? 'Unpin' : 'Pin'} ${name}`};
       labels.place=`Dock ${name} to the ${win.mode==='docked' && win.dockSide==='right' ? 'left' : 'right'} (right-click for placement)`;
       if(options.presentationModes) { labels.maximize=`Fill workspace with ${name}`; }
+      if (mobile) labels.maximize = `Fill entire screen with ${name}`;
       if (title && options.titleMenu !== false) {
         title.setAttribute('aria-label',win.mode === 'minimized' ? labels.minimize : ((v0) => globalThis.PlatformLanguage?.text("window-manager","m_d2465937dae930",`${v0} window menu`,{v0}) ?? `${v0} window menu`)(name));
         title.title=win.mode === 'minimized' ? labels.minimize : (globalThis.PlatformLanguage?.text("window-manager","m_e271e8dbdf1d3d","Window menu (right-click or Alt+Space)") ?? "Window menu (right-click or Alt+Space)");
       }
+      if (title && mobile && options.titleMenu !== false) {
+        const minimized = win.mode === 'minimized';
+        title.tabIndex = minimized ? 0 : -1;
+        if (minimized) title.setAttribute('role','button'); else title.removeAttribute('role');
+        title.setAttribute('aria-label', minimized ? labels.minimize : name);
+        title.title = minimized ? labels.minimize : '';
+      } else if (title && options.titleMenu !== false) { title.tabIndex=0; title.setAttribute('role','button'); }
       for (const [key,button] of Object.entries(buttons)) { button.title=labels[key]; button.setAttribute('aria-label',labels[key]); }
       buttons.place.innerHTML=`<i class="fas fa-${dock ? 'table-columns' : 'window-restore'}" aria-hidden="true"></i>`;
       buttons.maximize.hidden=options.compactCall===true;
       buttons.maximize.innerHTML=`<i class="fas fa-${!options.presentationModes && win.mode === 'full' ? 'window-restore' : 'expand'}" aria-hidden="true"></i>`;
       buttons.maximize.style.order=win.mode === 'full' ? '1' : '2'; buttons.minimize.style.order=win.mode === 'full' ? '2' : '1'; buttons.close.style.order='7';
       if(options.presentationModes) { for(const [action,mode] of Object.entries({modal:'modal',floating:'floating',place:'docked',maximize:'full',fullscreen:'fullscreen'})) buttons[action]?.setAttribute('aria-pressed',String(win.mode===mode)); buttons.modal.style.order='0';buttons.floating.style.order='1';buttons.place.style.order='2';buttons.maximize.style.order='3';if(buttons.fullscreen)buttons.fullscreen.style.order='4';buttons.minimize.style.order='5'; }
+      if (mobile) buttons.maximize.setAttribute('aria-pressed', String(win.mode === 'fullscreen'));
       buttons.minimize.innerHTML=`<i class="fas fa-${win.mode === 'minimized' ? 'window-restore' : 'minus'}" aria-hidden="true"></i>`;
     }
     function notify(reason){ options.onChange?.({mode:win.mode,dockSide:win.dockSide,pinned:win.pinned,reason}); }
     function setMode(mode,{silent=false}={}){
-      if (!modes.includes(mode) || (options.compactCall && !['floating','docked','minimized'].includes(mode)) || (mode==='fullscreen' && options.allowFullscreen===false)) return;
+      if (mobileFullscreen() && modes.includes(mode) && mode !== 'minimized') mode = 'fullscreen';
+      if (!modes.includes(mode) || (options.compactCall && !['floating','docked','minimized'].includes(mode)) || (mode==='fullscreen' && options.allowFullscreen===false && !mobileFullscreen())) return;
       if (mode !== win.mode) {
         options.onBeforeModeChange?.({mode,previous:win.mode});
         if (mode === 'minimized') win.previous = win.mode;
@@ -245,7 +264,7 @@
     buttons.maximize.onclick=() => setMode(options.presentationModes ? 'full' : win.mode === 'full' ? 'floating' : 'full');
     buttons.close.onclick=requestClose;
     function showMenu(event,dockOnly=false){
-      event.preventDefault(); closeMenu(); menu=document.createElement('div'); menu.className='fm-window-menu'; menu.setAttribute('role','menu');
+      event.preventDefault(); closeMenu(); if (mobileFullscreen()) return; menu=document.createElement('div'); menu.className='fm-window-menu'; menu.setAttribute('role','menu');
       const dockOptions=document.createElement('div');dockOptions.className='fm-window-dock-options';dockOptions.setAttribute('role','group');dockOptions.setAttribute('aria-label','Dock placement');
       for(const [index,side] of placements.slice(0,6).entries()) {
         if(index===2)dockOptions.append(document.createElement('hr'));
@@ -280,7 +299,7 @@
     let endGesture=null;
     function gesture(event,edge){
       dragged=false;
-      if(event.button!==0 || (!edge && (!['floating','docked'].includes(win.mode) || event.target.closest('button,input,a,select'))))return;
+      if(mobileFullscreen() || event.button!==0 || (!edge && (!['floating','docked'].includes(win.mode) || event.target.closest('button,input,a,select'))))return;
       endGesture?.();event.preventDefault(); dragged=false; focus();element.classList.add('is-gesturing');
       let candidate=null,preview=null;
       function clearPreview(){preview?.remove();preview=null;candidate=null;}
@@ -338,7 +357,13 @@
         layout(win.host);
       });element.append(grip);grips.push(grip);
     }
-    const refreshViewport=()=>layout(win.host); window.addEventListener('resize',refreshViewport);
+    const refreshViewport=()=>{
+      if (mobileFullscreen()) {
+        endGesture?.(); closeMenu();
+        if (win.mode !== 'minimized' && win.mode !== 'fullscreen') { setMode('fullscreen'); return; }
+      }
+      chrome(); layout(win.host);
+    }; window.addEventListener('resize',refreshViewport);
     chrome();layout(host);focus();
     return {
       element, setMode, setPinned, focus, dock,

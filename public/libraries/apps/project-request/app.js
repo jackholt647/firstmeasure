@@ -2780,7 +2780,7 @@ window.PlatformCommerce.onReady(async function(){
       title:element.querySelector('#rWindowProjectTitle'),
       controlsHost:element.querySelector('.r-window-bar-actions'),
       contentTarget:document.getElementById('mainPanels'),
-      customChrome:true, presentationModes:true, allowFullscreen:false, viewportCoordinates:true, nativeModalLayout:true,
+      customChrome:true, presentationModes:true, mobileFullscreen:true, allowFullscreen:false, viewportCoordinates:true, nativeModalLayout:true,
       name:'project', label:'Project', mode:'modal', width:1200, height:800,
       dockWidth:900, minWidth:360, minimizedHeight:32,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
@@ -2835,16 +2835,17 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.window-managed .r-win[data-window="minimized"] .r-window-identity{display:flex;flex:1;min-width:0;max-width:none;padding:0;border:0;font-size:12px;gap:6px}
       .r-overlay.window-managed .r-win[data-window="minimized"] .fm-window-controls button:not([data-window-action="minimize"]):not([data-window-action="close"]){display:none}
       @media(max-width:1080px){.r-overlay.window-managed .r-win{flex-direction:column;padding-top:0}}
+      @media(max-width:760px){.r-overlay.window-managed .r-window-bar-actions{flex-basis:90px;width:90px}.r-overlay.window-managed .fm-window-controls button{height:48px;min-height:48px}}
       @media(max-width:760px){.r-overlay.window-managed.entitlement-hide-fullscreen .fm-window-controls [data-window-action="fullscreen"]{display:none}}
       .project-window-embedded body{margin:0!important;overflow:hidden!important}
       .project-window-embedded .fm-attention-topbar,.project-window-embedded .mobile-topbar,.project-window-embedded #platformTopbar,.project-window-embedded .main,.project-window-embedded #mainSidebar,.project-window-embedded #sidebarBackdrop,.project-window-embedded #fmProjectRoutePrecover{display:none!important}
       .project-window-embedded #rOverlay{inset:0!important;width:100%!important;height:100%!important;background:transparent!important}
       .project-window-embedded #rOverlay .r-win{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}
     `);
-    if (projectWindowBridge) { document.documentElement.classList.add('project-window-embedded'); element.classList.add('fm-window'); element.dataset.window='modal'; }
+    if (projectWindowBridge) { document.documentElement.classList.add('project-window-embedded'); element.classList.add('fm-window'); element.dataset.window=projectModalWindow.state.mode; }
     overlay.classList.add('window-managed');
     observeProjectHeaderFit(overlay);
-    overlay.dataset.windowMode = 'modal';
+    overlay.dataset.windowMode = projectModalWindow.state.mode;
     projectLayout = window.FirstMateProjectLayout?.mount({ overlay, pane:projectContentPane, getProject:() => activeBaseProject, getTab:() => activePreviewTab, setTab:tab => setActivePreviewTab(tab) });
     if (!projectContentPane) projectWindowShell = window.FirstMateWindowShell.mount({
       element, header:element.querySelector('.r-window-bar'), identity:element.querySelector('.r-window-identity'),
@@ -2855,10 +2856,10 @@ window.PlatformCommerce.onReady(async function(){
   }
   function setProjectModalFullscreen(enabled, options = {}){
     enabled = false; // Entire-screen presentation is disabled for project windows.
-    projectModalFullscreen = !!enabled;
     projectModalWindow?.setMode(enabled ? 'fullscreen' : 'modal', {silent:true});
+    projectModalFullscreen = projectModalWindow ? projectModalWindow.state.mode === 'fullscreen' : !!enabled;
     const managedOverlay = $('#rOverlay');
-    if (managedOverlay && projectModalWindow) { managedOverlay.dataset.windowMode = enabled ? 'fullscreen' : 'modal'; managedOverlay.querySelector('.r-win').dataset.window = enabled ? 'fullscreen' : 'modal'; }
+    if (managedOverlay && projectModalWindow) { managedOverlay.dataset.windowMode = projectModalWindow.state.mode; managedOverlay.querySelector('.r-win').dataset.window = projectModalWindow.state.mode; }
     const overlay = $('#rOverlay');
     clearTimeout(projectModalFullscreenTimer);
     if (overlay) {
