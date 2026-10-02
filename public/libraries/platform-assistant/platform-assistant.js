@@ -1111,7 +1111,7 @@
       const summary = state.agents.find((entry) => clean(entry.id) === state.agentId) || agent;
       return { title:clean(summary.title) || 'Agent', sub:clean(summary.schedule_label) };
     }
-    if (state.threadId && state.threadId === clean(state.mainThread?.id)) return { title:'Main thread', sub:'' };
+    if (state.threadId && state.threadId === clean(state.mainThread?.id)) return { title:'', sub:'' };
     if (!state.threadId && !state.booted) return { title:state.assistantName, sub:'' };
     const thread = state.threads.find((entry) => clean(entry.id) === state.threadId);
     return { title:clean(thread?.title) || 'New side chat', sub:clean(thread?.subject_id).startsWith('channel:') ? 'Private channel conversation' : (state.threadId ? 'Side chat' : '') };
