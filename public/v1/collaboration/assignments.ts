@@ -4,7 +4,7 @@ import type { PlatformAuthContext } from "../platform/auth.js";
 import { badRequest, forbidden, conflict } from "../platform/errors.js";
 import { readDocument } from "../platform/storage.js";
 import { listAssignmentGroups, readWorkforceConfiguration, saveWorkforceConfiguration } from "../workforce/storage.js";
-import { currentActor, requirePermission, requireConnection, requireOpen, privacy, organizationProfile, actor } from "./service.js";
+import { currentActor, requirePermission, requireConnection, connectionBetween, requireOpen, privacy, organizationProfile, actor } from "./service.js";
 import { findRecord, getRecord, insertRecord, updateRecord, withOrganizationLocks, audit, type RecordValue } from "./storage.js";
 
 const id=z.string().trim().min(1).max(180);
@@ -14,7 +14,11 @@ const mappingSchema=z.object({local_kind_id:id,organization:z.boolean().default(
 const settingsSchema=z.object({expected_revision:z.number().int().nonnegative(),mappings:z.array(mappingSchema).max(100).optional(),exposure:exposureSchema.optional(),enable_kind_ids:ids.default([])}).strict();
 const key=(org:string,other:string)=>`assignment_${createHash("sha256").update(JSON.stringify([org,other])).digest("hex")}`;
 const defaults=()=>({mappings:[] as z.infer<typeof mappingSchema>[],exposure:exposureSchema.parse({})});
-async function settings(org:string,other:string){return await findRecord(key(org,other),"assignment_settings")||{...defaults(),id:key(org,other),owner_org_id:org,recipient_org_id:other,revision:0};}
+async function settings(org:string,other:string){
+ const saved=await findRecord(key(org,other),"assignment_settings"),connection=await connectionBetween(org,other);
+ if(saved)return saved.connection_revision===connection?.revision?saved:{...saved,...defaults()};
+ return {...defaults(),id:key(org,other),owner_org_id:org,recipient_org_id:other,revision:0};
+}
 async function relationship(ctx:PlatformAuthContext,relationshipId:string){
  const r=await getRecord(relationshipId,"relationship");
  if(r.owner_org_id!==ctx.orgId)throw forbidden("relationship_private","Choose one of your connected organizations.");
@@ -56,7 +60,7 @@ export async function saveAssignmentSettings(ctx:PlatformAuthContext,relationshi
  ctx=await currentActor(ctx);requirePermission(ctx,"manage_external_connections");requirePermission(ctx,"manage_company_settings");
  const input=settingsSchema.parse(raw),r=await relationship(ctx,relationshipId);
  return withOrganizationLocks([ctx.orgId,r.recipient_org_id],async()=>{
-  await requireConnection(ctx.orgId,r.recipient_org_id);
+  const connection=await requireConnection(ctx.orgId,r.recipient_org_id);
   const current=await settings(ctx.orgId,r.recipient_org_id);
   if(current.revision!==input.expected_revision)throw conflict("assignment_revision_conflict","Assignment settings changed. Reopen them before saving.");
   const config=await readWorkforceConfiguration(ctx.orgId),kinds=config.resource_group_kinds as any[];
@@ -77,7 +81,7 @@ export async function saveAssignmentSettings(ctx:PlatformAuthContext,relationshi
   }
   // Validate the entire proposal before enabling a type; mappings only enable this partnership.
   if(input.enable_kind_ids.length)await saveWorkforceConfiguration(ctx.orgId,{expected_revision:config.revision,resource_group_kinds:kinds.filter(k=>input.enable_kind_ids.includes(k.id)).map(k=>({...k,external_assignment:true}))});
-  const patch={mappings:input.mappings??current.mappings,exposure:input.exposure??current.exposure};
+  const patch={connection_revision:connection.revision,mappings:input.mappings??current.mappings,exposure:input.exposure??current.exposure};
   const saved=current.revision?await updateRecord(current as RecordValue,patch,current.revision):await insertRecord("assignment_settings",{...current,...patch,status:"active",revision:1});
   await audit(saved,"collaboration.assignments.configured",actor(ctx));return saved;
  });

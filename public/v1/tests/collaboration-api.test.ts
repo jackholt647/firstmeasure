@@ -381,5 +381,12 @@ test("partner assignment eligibility, privacy, isolation and withdrawal",async()
  assert.equal((await a.raw("POST",ar+`/engagements/${offer.id}/schedule`,{...schedule,client_operation_id:"withdrawn_booking"})).statusCode,403);
  const {saveProjectScheduleEvent}=await import("../platform/api.js");
  await assert.rejects(()=>saveProjectScheduleEvent(ao.orgId,"external_team_job",{} as any,{expected_event_revision:1,event:{id:booking.event_id,start_at:"2026-10-16T16:00:00Z",end_at:"2026-10-16T17:00:00Z"}}),(e:any)=>e.code==="event_assignment_not_allowed");
+ await b.request("PUT",back,{expected_revision:3,exposure:{organization:true,group_kind_ids:["crew"],group_ids:[crew.id],fields:[]}});
+ assert.equal((await listAssignableResources(ao.orgId,"default")).organization_connections.length,2);
+ const suspended=(await a.request("PATCH",ar+`/connections/${rel.connection.id}`,{expected_revision:rel.connection.revision,status:"suspended"})).connection;
+ await a.request("PATCH",ar+`/connections/${rel.connection.id}`,{expected_revision:suspended.revision,status:"active"});
+ assert.equal((await listAssignableResources(ao.orgId,"default")).organization_connections.length,0);
+ assert.deepEqual((await a.request("GET",url)).settings.mappings,[]);
+
 
 });
