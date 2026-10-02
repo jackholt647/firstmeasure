@@ -377,6 +377,7 @@
         options={...options,...next};header=next.header;title=next.title;headerDocument=header.ownerDocument;win.header=header;
         (next.controlsHost || header).append(controls);
         title?.classList.add('fm-window-title');
+        if(title && options.titleMenu!==false){title.tabIndex=0;title.setAttribute('role','button');}
         header.addEventListener('pointerdown',drag);header.addEventListener('contextmenu',showMenu);header.addEventListener('click',titleClick);
         if(headerDocument!==document){headerDocument.addEventListener('keydown',keydown);headerDocument.addEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.addEventListener('keydown',dismissMenuOnKey,true);}
         chrome();layout(win.host);
