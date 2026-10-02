@@ -52,3 +52,16 @@ The implementation is not yet the entire requested system. These limitations mus
 - Final hosted acceptance passed using deployed files with zero browser errors: invitation continuation and consent, owner approval, selected project fields, shared notes, Projects list filtering/hide-show and revocation. All 20 generated collaboration events were delivered.
 
 Preserve unrelated workspace changes, particularly Contacts, Feedback, app manifest, project chrome and Work. The release snapshot is assembled from owned hunks using a temporary Git index; each role overlays its existing immutable live baseline.
+
+
+## October 2 assignment extension
+
+Partners now have directional assignment mappings and team exposure settings. A local
+resource-group kind can enable partner assignments; each partner may fulfill it as an
+organization or through selected exposed team types. Team disclosure defaults to names
+only, with explicit headcount/member-name options and organization privacy enforcement.
+Connection-revision binding prevents old team exposure from reviving after suspension
+or reconnection. Accepted engagements can select an exposed team for scheduling; source
+ownership, contractual counterparty and project sharing remain separate. This adds direct
+external-team selection, not partner-internal delegation or cross-company calendar locks.
+See [implementation and rollout](../../deploy/digitalocean/development-partner-assignments-20261002.md).

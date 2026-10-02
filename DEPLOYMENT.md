@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 2 partner assignments: [Configurable partner organizations and exposed teams](deploy/digitalocean/development-partner-assignments-20261002.md) records group-type setup, privacy controls, scheduling validation and the verified development rollout.
+
 October 2 project tabs: [Earlier headers and animated tab reveal](deploy/digitalocean/development-project-tab-reveal-20261002.md) records the loading scrollbar fix, shared tray styling, parent metadata reuse and independent header/content rendering.
 
 October 2 project opening follow-up: [Complete initial header and controls](deploy/digitalocean/development-project-opening-chrome-20261002.md) records matching two-row chrome, immediate placement controls, tray affordances and preserved startup placement.

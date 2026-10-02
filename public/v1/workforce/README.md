@@ -125,3 +125,32 @@ code should make assignment decisions from the typed subject and policy.
   deleted so historical assignments remain resolvable.
 - Code uses neutral domain names. Tenant-facing labels come from workforce
   terminology, whose defaults are Crew, Crew Member, and Subcontractor.
+
+
+## Partner assignment configuration — October 2, 2026
+
+Group kinds may opt into `external_assignment`. Each connected pair has directional
+assignment settings in the collaboration domain: local kind mappings and a separate
+exposure policy for the organization's own groups. Setup may enable a selected kind,
+but it does not enroll other partners. Whole-organization assignment is the default
+partner offering; individual teams require explicit type/group exposure. Current and
+future groups, headcount, and member names each have separate choices. Organization
+privacy remains a ceiling; pay profiles, phones and arbitrary group attributes never
+enter the foreign projection.
+
+External teams are catalog projections with deterministic organization-qualified IDs,
+not local resource-group records. They retain `organization_connection` subject type
+and carry `external_target` and `mapped_group_kind_ids`. Local group-kind rules accept
+only mapped external kinds. If a policy identifies group kinds, unrelated external
+mappings cannot bypass them via a legacy broad organization-connection rule.
+
+The catalog rechecks connection state, privacy and current exposure. Settings bind to
+the connection revision; a suspended/reconnected relationship requires renewed setup.
+New project-event assignments and moves of existing external bookings revalidate
+eligibility. Historical assignments remain retained. Accepted engagements can select
+an eligible organization or team without changing the contractual counterparty.
+
+This does not expose foreign group membership as local membership, grant project
+access, coordinate calendars across companies, or add external subjects to every Work
+node assignment field. Those are separate contracts. See the
+[development release record](../../../deploy/digitalocean/development-partner-assignments-20261002.md).
