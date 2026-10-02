@@ -14,14 +14,18 @@
     document.head.append(style);
     style.textContent += `
       .fm-project-window-loading{inset:0;border-radius:inherit;display:block;color:#101828;font-weight:400}
-      .fm-project-window-loading:before{display:none}
-      .fm-project-loading-header{height:48px;display:flex;align-items:center;border-bottom:1px solid #e4e7ec;padding-left:16px;gap:8px}
-      .fm-project-loading-title{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px;font-weight:800}
-      .fm-project-loading-header svg{flex:none;width:16px;height:16px}
-      .fm-project-window-loading .fm-window-controls{align-self:flex-start;margin:0 0 0 auto;display:flex}
-      .fm-project-window-loading .fm-window-controls button{position:static;width:30px;height:32px;min-height:32px;padding:0;border:0;border-radius:6px;background:none;color:inherit;display:inline-flex;align-items:center;justify-content:center}
-      .fm-project-window-loading .fm-window-controls button:hover{background:#d92d20;color:#fff}
-      .fm-project-window-loading [role=status]{position:absolute;inset:49px 0 0;display:flex;align-items:center;justify-content:center;gap:10px;color:#667085;font-size:13px}
+      .fm-project-window-loading:before{display:none}.fm-project-window-loading[hidden]{display:none!important}
+      .fm-project-loading-header{position:relative;background:#fff;border-bottom:1px solid #e4e7ec;color:#101828}
+      .fm-project-loading-header .fm-shell-identity{display:flex;align-items:center;gap:8px;min-width:0}
+      .fm-project-loading-header .fm-shell-identity>i{color:var(--primary,#d93025)}
+      .fm-project-window-loading button{position:static;font-family:inherit}
+      .fm-project-window-loading .fm-window-controls{display:flex;gap:0}
+      .fm-project-window-loading .fm-window-controls button{padding:0;border:0;background:none}
+      .fm-project-window-loading .fm-window-controls button[aria-pressed=true]{background:#e4e7ec}
+      .fm-project-window-loading .fm-window-controls button:hover{background:#66708520}
+      .fm-project-window-loading .fm-window-controls button[data-window-action=close]:hover{background:#d92d20;color:#fff}
+      .fm-project-window-loading .fm-shell-tabs button{display:flex;align-items:center;gap:6px}
+      .fm-project-window-loading [role=status]{position:absolute;inset:69px 0 0;display:flex;align-items:center;justify-content:center;gap:10px;color:#667085;font-size:13px}
       .fm-project-window-loading [role=status]:before{content:"";width:16px;height:16px;border:2px solid #d0d5dd;border-top-color:var(--primary,#d93025);border-radius:50%;animation:fm-project-window-spin .8s linear infinite}
       .fm-project-window-loading.failed [role=status]:before{display:none}
       @media(max-width:760px){.fm-project-frame{inset:0;width:100%;height:100%;border-radius:0}}
@@ -125,6 +129,7 @@
     if (!host() || !root.FirstMateWindows) return null;
     styles();
     root.FirstMateWindows.ensureStyles?.();
+    root.FirstMateWindowShell?.ensureStyles?.();
     const projectId = identity(project);
     const existing = projectId && [...records.values()].find(record=>record.projectId === projectId);
     if (existing) {
@@ -146,14 +151,23 @@
     const layer = document.createElement('div'); layer.className='fm-project-window-layer';layer.dataset.mode='modal';layer.dataset.projectWindow=token;
     const element = document.createElement('section');element.className='fm-project-frame';element.hidden=false;
     const frame = document.createElement('iframe');frame.name='fm-project-window:'+token;frame.style.visibility='hidden';frame.setAttribute('aria-label',String(project?.title || project?.address || 'Project workspace'));frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');
-    const loading = document.createElement('div');loading.className='fm-project-window-loading';
-    const header=document.createElement('header');header.className='fm-project-loading-header';
+    const loading = document.createElement('div');loading.className='fm-project-window-loading fm-entity-window';
+    const header=document.createElement('header');header.className='fm-project-loading-header fm-shell-header';header.dataset.headerRows='2';
+    const identityNode=document.createElement('div');identityNode.className='fm-shell-identity';identityNode.innerHTML='<i class="fas fa-folder-open" aria-hidden="true"></i>';
     const title=document.createElement('span');title.className='fm-project-loading-title';
-    title.textContent=String(project?.title || project?.project_title || project?.address || 'Project');
-    const controls=document.createElement('div');controls.className='fm-window-controls';
+    title.textContent=String(project?.title || project?.project_title || project?.address || (projectId ? 'Project' : 'New Project'));
+    identityNode.append(title);
+    const controls=document.createElement('div');controls.className='r-window-bar-actions';
+    const tabs=document.createElement('nav');tabs.className='fm-shell-tabs';tabs.dataset.tabStyle='underline';tabs.setAttribute('aria-label','Project tabs');
+    const overview=document.createElement('button');overview.type='button';overview.innerHTML='<i class="fas fa-columns" aria-hidden="true"></i><span>Overview</span>';overview.setAttribute('aria-selected',String(!options.tab || options.tab==='map'));tabs.append(overview);
+    const trays=document.createElement('nav');trays.className='fm-project-tray-tabs';trays.setAttribute('role','tablist');trays.setAttribute('aria-label','Project trays');
+    for(const [label,icon] of [['Notes','note-sticky'],['Activity','clock-rotate-left'],['Agent','wand-magic-sparkles']]){
+      const button=document.createElement('button');button.type='button';button.setAttribute('role','tab');button.setAttribute('aria-label',label);button.setAttribute('aria-selected','false');button.disabled=true;button.title=label+' - loading project';button.innerHTML='<i class="fas fa-'+icon+'" aria-hidden="true"></i>';trays.append(button);
+    }
     const status=document.createElement('span');status.textContent='Opening project…';status.setAttribute('role','status');
-    const dismiss=document.createElement('button');dismiss.type='button';dismiss.dataset.windowAction='close';dismiss.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2"/></svg>';dismiss.setAttribute('aria-label','Close project');dismiss.onclick=()=>close(token);controls.append(dismiss);header.append(title,controls);loading.append(header,status);
+    header.append(identityNode,tabs,controls,trays);loading.append(header,status);
     const record={token,projectId,project,options,layer,element,frame,loading,controller:null,api:null,modal:null};
+    overview.onclick=()=>{record.options={...record.options,tab:'map',...(record.options.layout?.panes ? {layout:{...record.options.layout,panes:[{tab:'map'}]}} : {})};overview.setAttribute('aria-selected','true');};
     record.ready = new Promise((resolve,reject)=>{record.resolveReady=resolve;record.rejectReady=reject;});
     record.ready.catch(()=>{});
     records.set(token,record);active=record;
@@ -168,9 +182,11 @@
       }).catch(()=>null)};
     }
     element.append(frame,loading);layer.append(element);host().append(layer);clearRoutePrecover();
-    // While it loads the window is already the topmost layer: Escape closes it
-    // (not an editor left open underneath). sync() re-registers it by mode.
-    record.modal = root.Portal?.modals?.register?.(layer, {id:`project-${token}`,closeOnEscape:true,closeOnBackdrop:false,onClose:()=>close(token)}) || null;
+    attach(token,frame.contentWindow,{
+      header,title,controlsHost:controls,customChrome:true,presentationModes:true,mobileFullscreen:true,allowFullscreen:false,viewportCoordinates:true,
+      name:'project',label:'Project',mode:'modal',width:1200,height:800,dockWidth:900,minWidth:360,minimizedHeight:32
+    },true);
+
     const url=new URL(root.location.href);url.search='';url.hash='';url.searchParams.set('projectWindow',token);
     // Project-scoped deep-link state (e.g. the Schedule tab's view, target and
     // date) is applied inside the window once its project has opened.
@@ -209,14 +225,17 @@
       record.rejectReady(error);
       console.warn('Project workspace could not finish loading',error);
       if(!records.has(token))return;
+      record.controller?.rebindChrome({header:record.loading.querySelector('header'),title:record.loading.querySelector('.fm-project-loading-title'),controlsHost:record.loading.querySelector('.r-window-bar-actions')});
       record.element.append(record.loading);
       record.loading.hidden=false;record.loading.classList.add('failed');record.loading.querySelector('[role=status]').textContent='Unable to load this project. Close this window and try again.';
     });
   }
-  function attach(token, child, options){
+  function attach(token, child, options, loadingShell=false){
     const record=records.get(token);if(!record || !accepts(token,child))throw Error('Unknown project window');
-    if(record.controller)throw Error('Project workspace already attached');
+    if(record.childAttached)throw Error('Project workspace already attached');
+    if(!loadingShell)record.childAttached=true;
     child.FirstMateWindows?.ensureStyles?.();
+    record.minimizedBar?.remove();
     const bar=document.createElement('div');bar.className='fm-project-minimized-bar';bar.hidden=true;
     const title=document.createElement('button');title.type='button';title.className='fm-project-minimized-title';title.innerHTML='<i class="fas fa-folder-open" aria-hidden="true"></i><span></span>';
     const restore=document.createElement('button');restore.type='button';restore.setAttribute('aria-label','Restore project');restore.innerHTML='<i class="fas fa-window-restore" aria-hidden="true"></i>';
@@ -224,6 +243,8 @@
     title.onclick=restore.onclick=()=>{active=record;record.controller.restore();publishRoute(record);};dismiss.onclick=()=>close(token);bar.append(title,restore,dismiss);record.element.append(bar);record.minimizedBar=bar;
     function placement(state,notify=true){
       const minimized=state.mode==='minimized';bar.hidden=!minimized;
+      record.loading.hidden=minimized;
+      if(loadingShell && notify)record.userPlacement=true;
       bar.querySelector('span').textContent=options.title?.textContent || record.frame.getAttribute('aria-label') || '';
       title.title=bar.querySelector('span').textContent;
       if(!minimized){record.frame.style.width='100%';record.frame.style.height='100%';}
@@ -231,25 +252,28 @@
       record.frame.style.visibility=minimized || !record.shellVisible?'hidden':'visible';
       sync(record);if(notify)options.onChange?.(state);
     }
-    record.controller=root.FirstMateWindows.attach({...options,element:record.element,host:host(),stackElement:record.layer,contentTarget:document.getElementById('mainPanels'),nativeModalLayout:false,
+    const controllerOptions={...options,element:record.element,host:host(),stackElement:record.layer,contentTarget:document.getElementById('mainPanels'),nativeModalLayout:false,
       topInset:()=>document.getElementById('platformTopbar')?.offsetHeight || 0,
       onBeforeModeChange:({mode})=>{if(mode==='minimized'){record.frame.style.width=record.frame.clientWidth+'px';record.frame.style.height=record.frame.clientHeight+'px';}},
       onClose:()=>close(token),onChange:placement
-    });
+    };
+    if(record.controller)record.controller.rebindChrome(controllerOptions);
+    else record.controller=root.FirstMateWindows.attach(controllerOptions);
+    placement(record.controller.state,false);
     // attach() runs while the child is still building its shell and CSS.
     // Only setVisible(true), at the end of open(), may expose that document.
     return {
       get state(){return record.controller.state;},
-      setMode(mode,opts){record.controller.setMode(mode,opts);if(opts?.silent)placement(record.controller.state,false);},
+      setMode(mode,opts){if(!record.shellVisible && record.userPlacement)return;record.controller.setMode(mode,opts);if(opts?.silent)placement(record.controller.state,false);},
       setVisible(value){
         if(value && !record.shellVisible){
           // The embedded shell has its own ready state; unrelated credits
           // refreshes must not put the portal's boot cover above it.
           child.document.body.classList.remove('platform-booting');
           child.document.getElementById('fmPlatformBootCover')?.remove();
-          record.shellVisible=true;record.loading.remove();record.frame.style.visibility='visible';
+          record.shellVisible=true;record.loading.remove();
         }
-        record.controller.setVisible(value);sync(record);
+        record.controller.setVisible(value);placement(record.controller.state);
       },
       refresh(){record.controller.refresh();},focus(){active=record;record.controller.focus();},restore(){record.controller.restore();}
     };

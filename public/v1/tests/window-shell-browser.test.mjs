@@ -102,7 +102,9 @@ test('retained project windows accept pending and layout-only reopen requests',a
     const page=await browser.newPage();
     await page.route('https://shell.test/**',route=>route.fulfill({contentType:'text/html',body:'<main class="main"></main>'}));
     await page.goto('https://shell.test/');
-    await page.evaluate(()=>{window.FirstMateWindows={};window.Portal={};});
+    await page.evaluate(()=>{window.Portal={};});
+    await load(page,'window-manager/window-manager.js');
+    await load(page,'window-manager/window-shell.js');
     await load(page,'window-manager/project-windows.js');
     await page.evaluate(()=>{
       window.record=FirstMateProjectWindows.open({id:'p'});

@@ -10,9 +10,10 @@ test('project identity and styled close render before iframe startup; unfinished
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try {
     const page=await browser.newPage({viewport:{width:1200,height:800}});
-    await page.route('https://project.test/**',route=>route.fulfill({contentType:'text/html',body:'<main class="main"></main>'}));
+    await page.route('https://project.test/**',route=>route.fulfill({contentType:'text/html',body:'<main class="main" style="height:100vh;width:100vw"></main>'}));
     await page.goto('https://project.test/');
     await page.addScriptTag({content:await source('libraries/window-manager/window-manager.js')});
+    await page.addScriptTag({content:await source('libraries/window-manager/window-shell.js')});
     await page.addScriptTag({content:await source('libraries/window-manager/project-windows.js')});
     await page.evaluate(()=>{
       window.reads=[];
@@ -23,6 +24,10 @@ test('project identity and styled close render before iframe startup; unfinished
     assert.equal(await page.locator('.fm-project-loading-title').textContent(),'418 Juniper Lane');
     assert.equal(await page.getByRole('button',{name:'Close project',exact:true}).evaluate(el=>getComputedStyle(el).borderWidth),'0px');
     assert.equal(await page.locator('iframe').evaluate(el=>getComputedStyle(el).visibility),'hidden');
+    assert.equal(await page.locator('.fm-project-loading-header').evaluate(el=>el.getBoundingClientRect().height),69);
+    assert.equal(await page.getByRole('button',{name:'Overview',exact:true}).count(),1);
+    for(const name of ['Notes','Activity','Agent']) assert.equal(await page.getByRole('tab',{name,exact:true}).isVisible(),true);
+
     await page.locator('iframe').contentFrame().locator('main').waitFor({state:'attached'});
     assert.deepEqual(await page.evaluate(()=>reads),[['org_test','project_test']],'project read starts before child API is ready');
     await page.evaluate(()=>resolveRead());
@@ -36,6 +41,9 @@ test('project identity and styled close render before iframe startup; unfinished
       const repeated=bridge.takeProjectRead(record.token,child,'org_test','project_test');
       return [wrongWindow,wrongOrg,wrongProject,result.document.revision,repeated];
     }),[null,null,null,7,null],'handoff is restricted to the owning window, org and project and consumed once');
+    await page.getByRole('button',{name:'Dock project to the right (right-click for placement)',exact:true}).click();
+    await page.getByRole('button',{name:'Minimize project',exact:true}).click();
+    assert.equal(await page.evaluate(()=>record.controller.state.mode),'minimized');
     await page.evaluate(()=>{
       const child=record.frame.contentWindow;
       child.document.body.className='platform-booting';
@@ -45,9 +53,13 @@ test('project identity and styled close render before iframe startup; unfinished
         controlsHost:child.document.querySelector('#controls'),customChrome:true,name:'project',mode:'modal',
       });
     });
-    assert.equal(await page.locator('.fm-project-window-loading').isVisible(),true,'attaching controls does not expose an unfinished document');
+    assert.equal(await page.locator('.fm-project-window-loading').isVisible(),false,'minimized loading shell stays hidden through attachment');
     assert.equal(await page.locator('iframe').evaluate(el=>getComputedStyle(el).visibility),'hidden');
-    await page.evaluate(()=>control.setVisible(true));
+    await page.evaluate(()=>{control.setMode('modal',{silent:true});control.setVisible(true);});
+    assert.equal(await page.evaluate(()=>record.controller.state.mode),'minimized','child initial presentation must not undo user placement');
+    assert.equal(await page.locator('iframe').evaluate(el=>getComputedStyle(el).visibility),'hidden');
+    await page.evaluate(()=>control.restore());
+    assert.equal(await page.evaluate(()=>record.controller.state.mode),'docked','restore retains the pre-load docking choice');
     assert.equal(await page.locator('.fm-project-window-loading').count(),0);
     assert.equal(await page.locator('iframe').evaluate(el=>getComputedStyle(el).visibility),'visible');
     assert.equal(await page.locator('iframe').contentFrame().locator('#fmPlatformBootCover').count(),0,'unrelated portal boot does not block the ready project');
@@ -60,9 +72,10 @@ test('project can be dismissed immediately while its document is loading',async(
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try {
     const page=await browser.newPage();
-    await page.setContent('<main class="main"></main>');
+    await page.setContent('<main class="main" style="height:100vh;width:100vw"></main>');
     await page.evaluate(()=>{window.crypto.randomUUID=()=> 'project-loading-test';});
     await page.addScriptTag({content:await source('libraries/window-manager/window-manager.js')});
+    await page.addScriptTag({content:await source('libraries/window-manager/window-shell.js')});
     await page.addScriptTag({content:await source('libraries/window-manager/project-windows.js')});
     await page.evaluate(()=>{window.record=FirstMateProjectWindows.open({id:'project_test',title:'Test project'});});
     await page.getByRole('button',{name:'Close project',exact:true}).click();

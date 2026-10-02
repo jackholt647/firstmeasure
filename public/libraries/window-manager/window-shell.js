@@ -34,6 +34,12 @@
 .fm-entity-window[data-window=minimized]>.fm-shell-header{height:30px!important;min-height:30px!important}
 .fm-shell-toolbar{display:flex;flex:none;min-width:0;background:#fff;border-bottom:1px solid #e4e7ec}
 .fm-shell-toolbar>.fm-shell-tabs{flex:1;min-width:0;border-bottom:0}
+.fm-entity-window .fm-shell-header[data-header-rows="2"]{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto auto;grid-template-rows:36px 32px;height:68px!important;min-height:68px!important;padding:0;box-sizing:content-box}
+.fm-shell-header[data-header-rows="2"]>.fm-shell-identity{grid-row:1;grid-column:1 / -1;padding:0 224px 0 16px}
+.fm-shell-header[data-header-rows="2"]>.r-window-bar-actions{position:absolute;top:0;right:0;width:auto;border:0}
+.fm-shell-header[data-header-rows="2"]>.fm-shell-tabs{grid-row:2;grid-column:1;min-width:0}
+.fm-shell-header[data-header-rows="2"]>.fm-project-tray-tabs{grid-row:2;grid-column:4;display:flex;align-items:center;gap:2px;padding:0 4px}
+.fm-shell-header[data-header-rows="2"]>.fm-project-tray-tabs button{position:static;width:32px;height:30px;padding:0;border:0;border-radius:5px;background:none;color:#667085}
 @media(max-width:760px){.fm-shell-tray{position:absolute;right:0;top:36px;bottom:0;width:min(380px,100%);background:white;z-index:5}}
 `;document.head.append(style);
   }
@@ -125,5 +131,5 @@
     function reset(){select(null);handles.forEach(h=>h.destroy?.());handles.clear();panels.forEach(p=>p.remove());panels.clear();refresh();}
     return {available,select,refresh,reset,get selected(){return selected;},register(definition){if(!definition?.id||typeof definition.mount!=='function'||definitions.has(definition.id))throw Error('Tray requires a unique id and mount function.');definitions.set(definition.id,definition);refresh();return ()=>{if(selected===definition.id)select(null);handles.get(definition.id)?.destroy?.();handles.delete(definition.id);panels.get(definition.id)?.remove();panels.delete(definition.id);definitions.delete(definition.id);refresh();};},destroy(){reset();root.removeEventListener('fm:capabilities:updated',capabilityChanged);buttons.remove();aside.remove();definitions.clear();}};
   }
-  root.FirstMateWindowShell={mount,normalizePanes,localPanes,trayHost};
+  root.FirstMateWindowShell={mount,normalizePanes,localPanes,trayHost,ensureStyles:styles};
 })(window);

@@ -160,11 +160,12 @@
   }
   function attach(options){
     styles();
-    const element = options.element, header = options.header, title = options.title;
+    const element = options.element;
+    let header = options.header, title = options.title;
     if (!element || !header || !options.host) throw new Error('Window requires an element, header and host');
     const host = options.host;
     const mobileFullscreen = () => options.mobileFullscreen === true && root.matchMedia('(max-width: 760px)').matches;
-    const headerDocument = header.ownerDocument;
+    let headerDocument = header.ownerDocument;
     function outerPoint(event){const frame=headerDocument!==document ? headerDocument.defaultView.frameElement?.getBoundingClientRect() : null;return {x:event.clientX+(frame?.left||0),y:event.clientY+(frame?.top||0)};}
     if (headerDocument !== document) {
       headerDocument.addEventListener('pointerdown', dismissMenuOnPointer);
@@ -367,6 +368,19 @@
     chrome();layout(host);focus();
     return {
       element, setMode, setPinned, focus, dock,
+      // Keep placement, gestures and minimized restore state when a loading
+      // shell hands its chrome to the ready, isolated document.
+      rebindChrome(next){
+        endGesture?.();closeMenu();
+        header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);
+        if(headerDocument!==document){headerDocument.removeEventListener('keydown',keydown);headerDocument.removeEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.removeEventListener('keydown',dismissMenuOnKey,true);}
+        options={...options,...next};header=next.header;title=next.title;headerDocument=header.ownerDocument;win.header=header;
+        (next.controlsHost || header).append(controls);
+        title?.classList.add('fm-window-title');
+        header.addEventListener('pointerdown',drag);header.addEventListener('contextmenu',showMenu);header.addEventListener('click',titleClick);
+        if(headerDocument!==document){headerDocument.addEventListener('keydown',keydown);headerDocument.addEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.addEventListener('keydown',dismissMenuOnKey,true);}
+        chrome();layout(win.host);
+      },
       setMinimizedWidth(width){if(win.minimizedWidth!==width){win.minimizedWidth=width;layout(win.host);}},
       restore,
       get state(){return {mode:win.mode,dockSide:win.dockSide,pinned:win.pinned,visible:win.visible};},
