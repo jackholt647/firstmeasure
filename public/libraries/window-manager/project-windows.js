@@ -270,7 +270,7 @@
       record.frame.style.visibility=minimized || !record.shellVisible?'hidden':'visible';
       sync(record);if(notify)options.onChange?.(state);
     }
-    const controllerOptions={...options,element:record.element,host:host(),stackElement:record.layer,contentTarget:document.getElementById('mainPanels'),nativeModalLayout:false,
+    const controllerOptions={...options,element:record.element,host:host(),stackElement:record.layer,contentTarget:document.getElementById('mainPanels'),nativeModalLayout:false,titleMenu:false,animateGeometry:true,
       topInset:()=>document.getElementById('platformTopbar')?.offsetHeight || 0,
       onBeforeModeChange:({mode})=>{if(mode==='minimized'){record.frame.style.width=record.frame.clientWidth+'px';record.frame.style.height=record.frame.clientHeight+'px';}},
       onClose:()=>close(token),onChange:placement

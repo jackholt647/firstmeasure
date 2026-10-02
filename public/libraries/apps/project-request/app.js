@@ -2,9 +2,9 @@
  * Staged request workflow with optional roof-report ordering.
  */
 (function(){
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261002-project-tabs-v4', document.currentScript.src);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261002-project-identity-v1', document.currentScript.src);
   const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260930-shell-v1', document.currentScript.src);
-  const shellUrl = new URL('../../window-manager/window-shell.js?v=20261002-project-tabs-v4', document.currentScript.src);
+  const shellUrl = new URL('../../window-manager/window-shell.js?v=20261002-project-identity-v1', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
 window.PlatformCommerce.onReady(async function(){
   await registryReady;
@@ -851,6 +851,23 @@ window.PlatformCommerce.onReady(async function(){
     @media(max-width:820px){.r-cp-links{grid-template-columns:1fr}.r-cp-panel{padding:14px}.r-cp-media-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.r-cp-media-box-head{flex-direction:column}.r-cp-media-box-actions{justify-content:flex-start}.r-cp-activity-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.r-cp-visitor-counts{grid-template-columns:repeat(2,minmax(0,1fr))}}
     .r-modal-header{min-height:48px;display:flex;align-items:stretch;border-bottom:1px solid rgba(15,23,42,.10);background:#fff;flex:0 0 auto}
     .r-window-identity{display:flex;align-items:center;gap:8px;min-width:0;max-width:240px;padding:0 12px;border-right:1px solid rgba(15,23,42,.10);color:#344054;font-size:12px;font-weight:900;white-space:nowrap}
+
+    .r-window-identity.fm-shell-identity{max-width:none!important;gap:10px!important}
+    #rProjectIdentityTrigger{display:flex;align-items:center;min-width:0;flex:0 1 auto;border:0;background:none;color:inherit;padding:4px 0;font:inherit;text-align:left;cursor:pointer}
+    #rWindowProjectTitle{display:flex;align-items:baseline;gap:12px;min-width:0;overflow:hidden;font-size:13px}
+    #rWindowProjectTitle strong{font-weight:800;overflow:hidden;text-overflow:ellipsis}
+    .r-project-identity-secondary{font-weight:400;color:#667085;overflow:hidden;text-overflow:ellipsis}
+    .r-window-identity #rProjectStageBar{flex:0 1 auto;min-width:0;margin:0;padding:0;border:0;background:none;overflow:auto}
+    .r-window-identity .r-project-tags{flex-wrap:nowrap;margin:0;padding:0;gap:6px}
+    .r-project-identity-popover,.r-header-stage-popover.r-manual-stage-backdrop{position:fixed;inset:auto;z-index:2147483400;display:block;padding:0;border:1px solid #e4e7ec;border-radius:14px;background:#fff;backdrop-filter:none;box-shadow:0 18px 50px #1018282e;overflow:auto;animation:rPropertyMenuIn .14s ease-out}
+    .r-project-identity-popover>header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #e4e7ec;font-size:13px}
+    .r-project-identity-popover>header button{border:0;background:none;padding:4px 8px;cursor:pointer}
+    .r-project-identity-fields{padding:14px;display:grid;gap:12px}
+    .r-project-identity-fields .r-step{display:block!important;margin:0!important;padding:0!important;border:0!important}
+    .r-project-identity-fields .r-step-shell,.r-project-identity-fields .r-step-inner,.r-project-identity-fields .r-step-body{display:block!important;max-height:none!important;opacity:1!important;padding:0!important;overflow:visible!important}
+    .r-header-stage-popover .r-manual-stage-dialog{width:100%;max-width:none;max-height:none;box-shadow:none;border:0;border-radius:0}
+    .r-header-stage-popover .r-manual-stage-head{padding:12px}.r-header-stage-popover .r-manual-stage-head h3{font-size:13px}.r-header-stage-popover .r-manual-stage-head p,.r-header-stage-popover .r-manual-stage-note{display:none}
+    @media(prefers-reduced-motion:reduce){.r-project-identity-popover,.r-header-stage-popover{animation:none!important}}
     .r-window-identity i{color:var(--primary-readable,var(--primary,#d93025));flex:none}
     .r-window-identity span{overflow:hidden;text-overflow:ellipsis}
     .r-mobile-project-title,.r-mobile-project-notes-launcher,.r-mobile-project-notes-scrim,.r-mobile-project-notes-workspace{display:none}
@@ -2857,7 +2874,7 @@ window.PlatformCommerce.onReady(async function(){
       title:element.querySelector('#rWindowProjectTitle'),
       controlsHost:element.querySelector('.r-window-bar-actions'),
       contentTarget:document.getElementById('mainPanels'),
-      customChrome:true, presentationModes:true, mobileFullscreen:true, allowFullscreen:false, viewportCoordinates:true, nativeModalLayout:true,
+      customChrome:true, titleMenu:false, animateGeometry:true, presentationModes:true, mobileFullscreen:true, allowFullscreen:false, viewportCoordinates:true, nativeModalLayout:true,
       name:'project', label:'Project', mode:'modal', width:1200, height:800,
       dockWidth:900, minWidth:360, minimizedHeight:32,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
@@ -4321,11 +4338,73 @@ window.PlatformCommerce.onReady(async function(){
     });
   }
 
+  function projectHeaderIdentityHtml(title,contact,address){
+    const extras=[contact,address].filter((value,index,all)=>value && value!==title && all.indexOf(value)===index);
+    return `<strong>${escapeHtml(title)}</strong>${extras.map(value=>`<span class="r-project-identity-secondary">${escapeHtml(value)}</span>`).join('')}`;
+  }
+  let projectIdentityPopover=null;
+  function positionProjectHeaderPopover(menu,trigger,width){
+    const rect=trigger?.getBoundingClientRect(); if(!rect)return;
+    menu.style.width=Math.min(width,window.innerWidth-16)+'px';
+    menu.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-menu.offsetWidth-8))+'px';
+    menu.style.top=Math.min(rect.bottom+6,window.innerHeight-80)+'px';
+    menu.style.maxHeight=Math.max(64,window.innerHeight-rect.bottom-14)+'px';
+  }
+  function closeProjectIdentityPopover(restoreFocus=false){
+    if(!projectIdentityPopover)return;
+    const {menu,trigger,moved}=projectIdentityPopover;
+    for(const {node,marker} of moved){if(marker.parentNode){marker.replaceWith(node);}}
+    menu.remove();trigger.setAttribute('aria-expanded','false');projectIdentityPopover=null;
+    if(restoreFocus)trigger.focus();
+  }
+  function openProjectIdentityPopover(trigger){
+    if(projectIdentityPopover){closeProjectIdentityPopover(true);return;}
+    closeManualStagePicker();closeHeaderPropertyTypeMenu();
+    const menu=document.createElement('section');menu.className='r-project-identity-popover';
+    menu.setAttribute('role','dialog');menu.setAttribute('aria-label','Project contact and address');
+    menu.innerHTML='<header><strong>Project details</strong><button type="button" aria-label="Close project details"><i class="fas fa-xmark"></i></button></header><div class="r-project-identity-fields"></div>';
+    const moved=[],body=menu.querySelector('.r-project-identity-fields');
+    if(branchProjectConfig?.title_mode==='manual'){
+      const label=document.createElement('label');label.textContent='Project title';
+      const input=document.createElement('input');input.id='rProjectTitleInput';input.className='r-inp';input.value=projectTitleAlias(activeBaseProject || {});label.append(input);body.append(label);
+    }
+    const contact=document.getElementById('rContactList')?.closest('.r-group');
+    const address=document.getElementById('rStepAddress');
+    for(const node of [contact,address]){
+      if(!node || moved.some(item=>item.node.contains(node)))continue;
+      const marker=document.createComment('project identity control home');node.before(marker);body.append(node);moved.push({node,marker});
+    }
+    if(!moved.length)return;
+    document.getElementById('rOverlay').append(menu);projectIdentityPopover={menu,trigger,moved};
+    trigger.setAttribute('aria-expanded','true');positionProjectHeaderPopover(menu,trigger,420);
+    menu.querySelector('header button').onclick=()=>closeProjectIdentityPopover(true);
+    menu.querySelector('input,button')?.focus({preventScroll:true});
+  }
+  function bindProjectIdentityHeader(){
+    const trigger=document.getElementById('rProjectIdentityTrigger');
+    if(!trigger)return;
+    trigger.onclick=event=>{event.stopPropagation();openProjectIdentityPopover(trigger);};
+  }
+  document.addEventListener('pointerdown',event=>{
+    if(projectIdentityPopover && !projectIdentityPopover.menu.contains(event.target) && !projectIdentityPopover.trigger.contains(event.target) && !event.target.closest('.pac-container,.r-contact-suggestions,.r-contact-action-menu,.r-contact-picker'))closeProjectIdentityPopover();
+    const stage=document.querySelector('.r-header-stage-popover');
+    if(stage && !stage.contains(event.target) && !stage.__trigger?.contains(event.target))closeManualStagePicker();
+  });
+  window.addEventListener('keydown',event=>{
+    if(event.key!=='Escape')return;
+    if(projectIdentityPopover || document.querySelector('.r-header-stage-popover')){
+      event.preventDefault();event.stopImmediatePropagation();closeProjectIdentityPopover(true);closeManualStagePicker();
+    }
+  },true);
+  window.addEventListener('resize',()=>{closeProjectIdentityPopover();closeManualStagePicker();});
+
   function closeManualStagePicker(){
-    document.querySelector('#rOverlay .r-manual-stage-backdrop')?.remove();
+    const menu=document.querySelector('#rOverlay .r-manual-stage-backdrop');
+    menu?.__trigger?.setAttribute('aria-expanded','false');
+    menu?.remove();
   }
 
-  function openManualStagePicker(){
+  function openManualStagePicker(trigger){
     closeManualStagePicker();
     const contexts = projectManualStageContexts();
     if (!contexts.length) {
@@ -4337,7 +4416,12 @@ window.PlatformCommerce.onReady(async function(){
     const backdrop = document.createElement('div');
     backdrop.className = 'r-manual-stage-backdrop';
     backdrop.innerHTML = `<section class="r-manual-stage-dialog" role="dialog" aria-modal="true" aria-labelledby="rManualStageTitle"><header class="r-manual-stage-head"><i class="fas fa-arrows-left-right" aria-hidden="true"></i><div class="r-manual-stage-head-copy"><h3 id="rManualStageTitle">${(globalThis.PlatformLanguage?.htmlText("project-request","m_a12d99be8366cc","Move to another stage") ?? "Move to another stage")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("project-request","m_73f44538c28f3e","Choose the board and the stage where this project should appear.") ?? "Choose the board and the stage where this project should appear.")}</p></div><button type="button" class="r-manual-stage-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></header><div class="r-manual-stage-body"></div></section>`;
+    backdrop.classList.add('r-header-stage-popover');
+    backdrop.querySelector('section').setAttribute('aria-modal','false');
     overlay.appendChild(backdrop);
+    positionProjectHeaderPopover(backdrop,trigger,340);
+    trigger?.setAttribute('aria-expanded','true');
+    backdrop.__trigger=trigger;
     const body = backdrop.querySelector('.r-manual-stage-body');
     let activeContext = contexts[0];
     const render = () => {
@@ -4497,6 +4581,8 @@ window.PlatformCommerce.onReady(async function(){
     closeHeaderPropertyTypeMenu();
     const bar = document.getElementById('rProjectStageBar');
     if (!bar) return;
+    const identity=document.querySelector('#rOverlay .r-window-identity');
+    if(identity && bar.parentElement!==identity)identity.append(bar);
     if (!expandedPlatformEnabled() || !shouldRenderDefaultProjectInfo() || !activeBaseProject) {
       bar.hidden = true;
       bar.innerHTML = '';
@@ -4518,9 +4604,7 @@ window.PlatformCommerce.onReady(async function(){
       const scopeIndex = configuredWithCustomFields.indexOf('scope_type');
       configuredWithCustomFields.splice(scopeIndex >= 0 ? scopeIndex + 1 : 0, 0, 'stage');
     }
-    const fields = newProjectCreationSession
-      ? configuredWithCustomFields.filter((field) => field !== 'project_type')
-      : [...configuredWithCustomFields.filter((field) => field !== 'project_type'), 'project_type'];
+    const fields = [...configuredWithCustomFields.filter(field=>!['project_type','customer','customer_name','address'].includes(field)), 'project_type'];
     const pills = fields.map((field) => projectHeaderPillHtml(field, activeBaseProject, board)).filter(Boolean).join('');
     if (!pills) { bar.hidden = true; bar.innerHTML = ''; return; }
     bar.hidden = false;
@@ -4631,7 +4715,8 @@ window.PlatformCommerce.onReady(async function(){
     if (!bar || bar.__fmStageWheelBound) return;
     bar.__fmStageWheelBound = true;
     bar.addEventListener('click', (event) => {
-      if (event.target.closest('[data-manual-stage-trigger]')) openManualStagePicker();
+      const trigger=event.target.closest('[data-manual-stage-trigger]');
+      if (trigger) openManualStagePicker(trigger);
     });
     bar.addEventListener('wheel', (event) => {
       const track = bar.querySelector('.r-stage-track');
@@ -8260,7 +8345,7 @@ window.PlatformCommerce.onReady(async function(){
     const mode = branchProjectConfig?.title_mode || 'customer_name';
     const address = projectText($('#rAddress')?.value, reportOrderState?.address, activeBaseProject?.address);
     const primary = primaryContact();
-    const savedTitle = projectTitleAlias(activeBaseProject || {});
+    const savedTitle = projectText(document.getElementById('rProjectTitleInput')?.value,projectTitleAlias(activeBaseProject || {}));
     const activeResident = activeBaseProject?.resident && typeof activeBaseProject.resident === 'object' ? activeBaseProject.resident : {};
     const activeCustomer = activeBaseProject?.customer && typeof activeBaseProject.customer === 'object' ? activeBaseProject.customer : {};
     const customerName = projectText(
@@ -8291,7 +8376,9 @@ window.PlatformCommerce.onReady(async function(){
     }
     if (mobileTitle) mobileTitle.textContent = mobileDisplayTitle;
     const windowTitle = document.getElementById('rWindowProjectTitle');
-    if (windowTitle) windowTitle.textContent = mobileDisplayTitle;
+    if (windowTitle) {
+      windowTitle.innerHTML=projectHeaderIdentityHtml(mobileDisplayTitle,customerName,address);
+    }
     projectWindowBridge?.update(projectWindowToken,{title:mobileDisplayTitle,projectId:projectOpenId()});
     renderProjectStageBar();
   }
@@ -9287,7 +9374,7 @@ window.PlatformCommerce.onReady(async function(){
 
         <div class="r-right" id="rMapWrap">
           <div class="r-modal-header r-window-bar">
-            <div class="r-window-identity"><i class="fas fa-folder-open" aria-hidden="true"></i><span id="rWindowProjectTitle">Project</span></div>
+            <div class="r-window-identity"><i class="fas fa-folder-open" aria-hidden="true"></i><button type="button" id="rProjectIdentityTrigger" aria-haspopup="dialog" aria-expanded="false" aria-label="Edit project contact and address"><span id="rWindowProjectTitle">Project</span></button></div>
             <div class="r-tabbar" id="rProjectViewerTabs"></div>
             <div class="modal-shell-actions">
               <button type="button" class="modal-shell-action" id="rProjectHeaderAction" hidden></button>
@@ -9338,6 +9425,7 @@ window.PlatformCommerce.onReady(async function(){
     syncContactsFeatureState();
     bindProjectModalCloseControls();
     bindProjectStageBarWheel();
+    bindProjectIdentityHeader();
     if (!projectShellLoading) mountOverviewDetails();
     projectViewer = new window.Portal.ProjectViewer({
       root: el,
@@ -9773,16 +9861,18 @@ window.PlatformCommerce.onReady(async function(){
       preferMapForNewProjectInput();
       renderWorkflowState();
     }, { signal: projectFormListeners.signal });
-    $('#rForm')?.addEventListener('input', (e) => {
+    $('#rOverlay')?.addEventListener('input', (e) => {
+      if(!e.target.closest('#rForm,.r-project-identity-popover'))return;
       if (e.target.matches('input, textarea, select')) queueAutosaveNotice();
-      if (e.target.matches('#rAddress, [data-field="name"], [data-field="phone"], [data-field="email"]')) updateModalTitle();
+      if (e.target.matches('#rProjectTitleInput, #rAddress, [data-field="name"], [data-field="phone"], [data-field="email"]')) updateModalTitle();
       if (hasReportOrdered()) renderProjectViewerSummary();
       if (e.target.matches('[data-fm-cf-input]')) syncProjectCustomFieldValues();
       persistActiveBaseProject();
     }, { signal: projectFormListeners.signal });
-    $('#rForm')?.addEventListener('change', (e) => {
+    $('#rOverlay')?.addEventListener('change', (e) => {
+      if(!e.target.closest('#rForm,.r-project-identity-popover'))return;
       if (e.target.matches('input, textarea, select')) queueAutosaveNotice();
-      if (e.target.matches('#rAddress, [data-field="name"], [data-field="phone"], [data-field="email"]')) updateModalTitle();
+      if (e.target.matches('#rProjectTitleInput, #rAddress, [data-field="name"], [data-field="phone"], [data-field="email"]')) updateModalTitle();
       if (hasReportOrdered()) renderProjectViewerSummary();
       if (e.target.matches('[data-fm-cf-input]')) syncProjectCustomFieldValues();
       persistActiveBaseProject();
@@ -10824,6 +10914,8 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function close(options = {}){
+    closeProjectIdentityPopover();
+    closeManualStagePicker();
     if (!projectWindowBridge && window.FirstMateProjectWindows?.active) return window.FirstMateProjectWindows.close();
     projectLayout?.clear();
     projectTrays?.close();

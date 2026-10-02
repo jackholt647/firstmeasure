@@ -251,7 +251,21 @@
         if(mode==='floating' && options.compactCall && !win.floated){win.floated=true;const bars=[...windows].filter(w=>w!==win&&w.visible&&w.mode==='minimized'&&w.host===win.host);win.rect.top=Math.max(win.topInset(),win.host.clientHeight-win.rect.height-8-(bars.length?44:0));win.rect.left=Math.max(0,win.host.clientWidth-win.rect.width-8);}
         win.mode=mode;
       }
+      const motion = options.animateGeometry && !root.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const before = motion ? element.getBoundingClientRect() : null;
+      if (motion) { win.animation?.cancel(); element.style.transition='none'; }
       chrome(); layout(win.host); restack(); if (!silent) notify('mode');
+      if (motion) {
+        const after=element.getBoundingClientRect();
+        if(before.width && before.height && after.width && after.height){
+          win.animation=element.animate([
+            {transformOrigin:'top left',transform:`translate(${before.left-after.left}px,${before.top-after.top}px) scale(${before.width/after.width},${before.height/after.height})`},
+            {transformOrigin:'top left',transform:'none'}
+          ],{duration:320,easing:'cubic-bezier(.22,1,.36,1)'});
+          const animation=win.animation;
+          animation.finished.catch(()=>{}).finally(()=>{if(win.animation===animation){element.style.removeProperty('transition');win.animation=null;}});
+        } else element.style.removeProperty('transition');
+      }
     }
     function setPinned(value,{silent=false}={}){ win.pinned=!!value; chrome(); if (!silent) notify('pin'); }
     function focus(){ win.stackOrder=++order; restack(); }
@@ -265,6 +279,7 @@
     buttons.maximize.onclick=() => setMode(options.presentationModes ? 'full' : win.mode === 'full' ? 'floating' : 'full');
     buttons.close.onclick=requestClose;
     function showMenu(event,dockOnly=false){
+      if(options.titleMenu===false && !dockOnly)return;
       event.preventDefault(); closeMenu(); if (mobileFullscreen()) return; menu=document.createElement('div'); menu.className='fm-window-menu'; menu.setAttribute('role','menu');
       const dockOptions=document.createElement('div');dockOptions.className='fm-window-dock-options';dockOptions.setAttribute('role','group');dockOptions.setAttribute('aria-label','Dock placement');
       for(const [index,side] of placements.slice(0,6).entries()) {
@@ -388,7 +403,7 @@
       setVisible(value){win.visible=!!value;element.hidden=!win.visible;layout(win.host);if(value)focus();},
       rehost(nextHost,contentTarget){if(nextHost===win.host)return;const old=win.host;registerHost(nextHost);win.host=nextHost;win.contentTarget=contentTarget;nextHost.append(element);layout(old);releaseHost(old);layout(nextHost);},
       refresh(){layout(win.host);},
-      destroy(){if(headerDocument!==document){headerDocument.removeEventListener('keydown',keydown);headerDocument.removeEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.removeEventListener('keydown',dismissMenuOnKey,true);}window.removeEventListener('resize',refreshViewport);endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);element.remove();layout(win.host);releaseHost(win.host);}
+      destroy(){win.animation?.cancel();if(headerDocument!==document){headerDocument.removeEventListener('keydown',keydown);headerDocument.removeEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.removeEventListener('keydown',dismissMenuOnKey,true);}window.removeEventListener('resize',refreshViewport);endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);element.remove();layout(win.host);releaseHost(win.host);}
     };
   }
   root.FirstMateWindows={attach, ensureStyles:styles};

@@ -53,8 +53,8 @@ test('project identity and styled close render before iframe startup; unfinished
         controlsHost:child.document.querySelector('#controls'),customChrome:true,name:'project',mode:'modal',
       });
     });
-    assert.equal(await page.locator('iframe').contentFrame().locator('#title').getAttribute('tabindex'),'0');
-    assert.equal(await page.locator('iframe').contentFrame().locator('#title').getAttribute('role'),'button');
+    assert.equal(await page.locator('iframe').contentFrame().locator('#title').getAttribute('tabindex'),null);
+    assert.equal(await page.locator('iframe').contentFrame().locator('#title').getAttribute('role'),null);
     assert.equal(await page.locator('.fm-project-window-loading').isVisible(),false,'minimized loading shell stays hidden through attachment');
     assert.equal(await page.locator('iframe').evaluate(el=>getComputedStyle(el).visibility),'hidden');
     await page.evaluate(()=>{control.setMode('modal',{silent:true});control.setVisible(true);});
