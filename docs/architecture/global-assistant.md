@@ -278,3 +278,5 @@ Tests: `tests/assistant-voice-browser.test.mjs` and voice cases in
 `tests/assistant-api.test.ts`. A synthetic microphone/provider verification is
 recorded in ignored `output/assistant-live-20261002/`; it uses the existing
 server credential without copying it locally.
+
+Development delivery and verification: [GPT-Live voice rollout](../../deploy/digitalocean/development-assistant-live-20261002.md).
