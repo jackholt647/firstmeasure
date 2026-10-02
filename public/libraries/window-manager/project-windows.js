@@ -168,7 +168,7 @@
     header.append(identityNode,tabs,controls,trays);loading.append(header,status);
     const record={token,projectId,project,options,layer,element,frame,loading,controller:null,api:null,modal:null};
     const selectOpeningTab=id=>{
-      record.options={...record.options,tab:id,...(record.options.layout?.panes ? {layout:{...record.options.layout,panes:[{tab:id}]}} : {})};
+      record.options={...record.options,tab:id,...(id!=='photos' ? {photo:''} : {}),...(record.options.layout?.panes ? {layout:{...record.options.layout,panes:[{tab:id}]}} : {})};
       tabs.querySelectorAll('[data-tab]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.tab===id)));
     };
     overview.onclick=()=>selectOpeningTab('map');

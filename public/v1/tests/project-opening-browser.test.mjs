@@ -166,7 +166,7 @@ test('opening tabs use parent metadata before data or iframe readiness, without 
     await page.evaluate(()=>{
       window.Portal={cfg:{userOrgId:'org_test'},modules:{request:{openingTabs:()=>[{id:'map',label:'Overview'},{id:'photos',label:'Photos',icon:'fa-images'},{id:'docs',label:'Docs',icon:'fa-folder'}]}}};
       window.PlatformAPI={projects:{get:()=>new Promise(()=>{})}};
-      window.record=FirstMateProjectWindows.open({id:'project_test',address:'Test address'});
+      window.record=FirstMateProjectWindows.open({id:'project_test',address:'Test address'},{tab:'photos',photo:'photo_deep_link'});
     });
     assert.equal(await page.locator('.fm-shell-tabs button').count(),3);
     assert.equal(await page.locator('iframe').evaluate(el=>getComputedStyle(el).visibility),'hidden');
@@ -174,8 +174,9 @@ test('opening tabs use parent metadata before data or iframe readiness, without 
     assert.equal(await page.getByRole('tab',{name:'Notes',exact:true}).evaluate(el=>getComputedStyle(el).fontSize),'13.3333px');
     assert.equal(await page.locator('.fm-shell-tabs button').first().evaluate(el=>el.getAnimations().length),0);
     await page.locator('.fm-shell-tabs').evaluate(async el=>{await Promise.all(el.getAnimations({subtree:true}).map(a=>a.finished));});
-    await page.getByRole('button',{name:'Photos',exact:true}).click();
-    assert.equal(await page.evaluate(()=>record.options.tab),'photos');
+    await page.getByRole('button',{name:'Docs',exact:true}).click();
+    assert.equal(await page.evaluate(()=>record.options.tab),'docs');
+    assert.equal(await page.evaluate(()=>record.options.photo),'','an explicit tab choice supersedes an initial photo link');
     await page.evaluate(()=>FirstMateProjectWindows.close());
     await page.emulateMedia({reducedMotion:'reduce'});
     await page.evaluate(()=>{window.record=FirstMateProjectWindows.open({id:'project_reduced',address:'Test address'});});
