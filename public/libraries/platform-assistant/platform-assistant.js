@@ -14,6 +14,18 @@
   'use strict';
   if (!window.Portal || window.PlatformAssistant) return;
 
+  const bookingScriptUrl = new URL('../appointment-booking/booking.js', document.currentScript?.src || new URL('/libraries/platform-assistant/platform-assistant.js', location.href)).href;
+  let bookingScriptLoading;
+  async function ensureBookingWidget(){
+    if (window.FirstMateBooking) return;
+    await (bookingScriptLoading ||= new Promise((resolve, reject) => {
+      const script = document.createElement('script'); script.src = bookingScriptUrl;
+      script.onload = resolve;
+      script.onerror = () => { bookingScriptLoading = null; script.remove(); reject(new Error('Could not load appointment booking.')); };
+      document.head.append(script);
+    }));
+  }
+
   let stopActiveVoice = null;
   // Every surface owns its state, but uses this same renderer and controller.
   function createAssistant(surface = {}) {
@@ -705,7 +717,7 @@
     const host = surface.container || document.querySelector('main.main') || document.querySelector('.main');
     if (!host || (!embedded && !window.FirstMateWindows)) return;
     host.appendChild(drawer);
-    drawer.addEventListener('click', event => { if (event.target.closest('[data-payment-setup]')) openPaymentSetup(); });
+    drawer.addEventListener('click', event => { if (event.target.closest('[data-payment-setup]')) openPaymentSetup(); if (event.target.closest('[data-appointment-booking]')) openAppointmentBooking(); });
     const tooltip = document.createElement('div');
     tooltip.className = 'fma-tooltip';
     tooltip.hidden = true;
@@ -1022,6 +1034,7 @@
       html += `<div class="fma-msg-changes"><div class="label">${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_c46a636ed38aee","What changed") ?? "What changed")}</div>${String(changes.map((entry) => `<div class="row"><i class="fas fa-check" style="font-size:10px;color:#12b76a;"></i><span>${esc(entry)}</span></div>`).join(''))}</div>`;
     }
     html += '</div>';
+    if (array(data.renders).some(render => render.type === 'appointment_booking')) html += '<button type="button" class="fma-action" data-appointment-booking>Book an appointment</button>';
     if (array(data.renders).some(render => render.type === 'payment_setup')) html += '<button type="button" class="fma-action" data-payment-setup>Open payment setup</button>';
     html += widgetsHtml(data.renders);
     const artifacts = artifactsOf(message);
@@ -2239,6 +2252,7 @@
       } else renderMessages({ animateLast:true });
       els.input?.focus();
       updateComposer();
+      if (array(object(state.messages.at(-1)?.data).renders).some(render => render.type === 'appointment_booking')) openAppointmentBooking();
       if (array(object(state.messages.at(-1)?.data).renders).some(render => render.type === 'payment_setup')) openPaymentSetup();
     }
   }
@@ -2386,6 +2400,10 @@
     else open();
   }
 
+  async function openAppointmentBooking(){
+    try { await ensureBookingWidget(); await window.FirstMateBooking.open({orgId:orgId(), projectId}); }
+    catch (error) { window.Portal?.ui?.showToast?.('Appointment booking', error.message || 'Could not open booking.', false); }
+  }
   function openPaymentSetup(){
     if (embedded) return window.PlatformAssistant.openPaymentSetup();
     openFull();

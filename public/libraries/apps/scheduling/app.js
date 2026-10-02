@@ -639,6 +639,7 @@
       .dash-stats-row{grid-template-columns:var(--dash-mode-col) minmax(126px,var(--dash-filter-col)) repeat(var(--dash-stat-count),minmax(92px,1fr));overflow-x:auto;padding-bottom:2px}
       .dash-filter-menu{left:calc(var(--dash-mode-col) + var(--dash-stat-gap));right:auto;width:650px}
     }
+      .dash-new-appointment{background:#d93025!important;color:#fff!important;border:0!important;border-radius:8px;padding:9px 13px;font:inherit;font-weight:700;cursor:pointer;white-space:nowrap}
     .dash-mobile-toolbar{display:none}
     @media(max-width:720px){
       /* Phone Routing lanes: the person's name gets the full label width and
@@ -10406,6 +10407,7 @@
       ['week', window.Portal?.terminology?.get?.('scheduling.week_view', 'Week') || 'Week', 'fa-table-columns'],
       ['month', window.Portal?.terminology?.get?.('scheduling.month_view', 'Month') || 'Month', 'fa-calendar-days']
     ];
+    const appointmentButton = canEditSchedule() && window.Portal?.appFlags?.has?.('scheduling', 'appointment_slots') !== false ? '<button type="button" class="dash-new-appointment" data-new-appointment><i class="fas fa-plus" aria-hidden="true"></i> Appointment</button>' : '';
     const mobileToolbarExtras = `${canEditSchedule() ? '' : `<button type="button" class="dash-mobile-view-only" data-view-only-info aria-label="${escapeHtml(`${(globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only")}: ${scheduleReadOnlyMessage()}`)}" title="${escapeHtml(scheduleReadOnlyMessage())}"><i class="fas fa-eye" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_view_short","View") ?? "View")}</span></button>`}<span class="dash-mobile-menu-wrap"><button type="button" class="dash-mobile-control dash-mobile-show" data-mobile-schedule-menu aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2ea71a7fc7dec5","Choose schedules to show") ?? "Choose schedules to show")}" aria-expanded="${String(mobileScheduleMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><i class="fas fa-chevron-down" style="font-size:8px"></i></button>${String(mobileScheduleMenuOpen ? `<div class="dash-mobile-popover schedules" role="menu" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_92e47dd97f2a57","Schedules to show") ?? "Schedules to show")}"><button type="button" class="${showSalesSchedule ? 'active' : ''}" data-schedule-type-toggle="sales" role="menuitemcheckbox" aria-checked="${showSalesSchedule ? 'true' : 'false'}"><i class="fas fa-handshake"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2680c31facb03d","Sales") ?? "Sales")}</button><button type="button" class="${showProductionSchedule ? 'active' : ''}" data-schedule-type-toggle="production" role="menuitemcheckbox" aria-checked="${showProductionSchedule ? 'true' : 'false'}"><i class="fas fa-helmet-safety"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_c2e6380e130020","Production") ?? "Production")}</button><button type="button" class="${showOtherSchedule ? 'active' : ''}" data-schedule-type-toggle="other" role="menuitemcheckbox" aria-checked="${showOtherSchedule ? 'true' : 'false'}"${viewMode === 'appointment_schedule' ? ` disabled aria-disabled="true" title="${escapeHtml(globalThis.PlatformLanguage?.text("scheduling","m_other_not_in_routing","Routing shows sales and production lanes only") ?? "Routing shows sales and production lanes only")}"` : ''}><i class="fas fa-calendar-plus"></i>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_4a04382820d2e1","Other") ?? "Other")}</button></div>` : '')}</span><button type="button" class="dash-mobile-control dash-mobile-type" data-mobile-tray-open aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_858d2ae4d1a804","Open projects to schedule") ?? "Open projects to schedule")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8f66eeaac51322","Projects to schedule") ?? "Projects to schedule")}"><i class="fas fa-inbox"></i></button>`;
     const mobileToolbar = window.PlatformScheduleView?.mobileCalendarToolbarHtml?.({
       view: viewMode,
@@ -10447,7 +10449,8 @@
       ? `<span class="dash-filter-indicator" role="status" title="${escapeHtml(filterText)}"><span>${escapeHtml(filterText)}</span><button type="button" data-clear-schedule-filter aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_clear_filter","Clear filter") ?? "Clear filter")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_clear_filter","Clear filter") ?? "Clear filter")}"><i class="fas fa-xmark"></i></button></span>`
       : '';
     return `
-      ${String(mobileToolbarMarkup)}<div class="dash-toolbar">
+      ${isMobileScheduleLayout() ? appointmentButton : ''}${String(mobileToolbarMarkup)}<div class="dash-toolbar">
+        ${!isMobileScheduleLayout() ? appointmentButton : ''}
         <div class="dash-title-wrap"><h2 class="dash-title" title="${escapeHtml(visibleTitle())}">${String(escapeHtml(visibleTitle()))}</h2>${viewOnlyNote || filterIndicator || refreshingNote ? `<div class="dash-title-status">${viewOnlyNote}${filterIndicator}${refreshingNote}</div>` : ''}</div>
         <div class="dash-controls">
           <span class="dash-segmented dash-nav-group">
@@ -10968,6 +10971,11 @@
       // toggling a filter replaces the entry instead of stacking history.
       syncScheduleRoute({ scheduleType:typesValue }, { history:'replace', source:'schedule-type', ownedKeys:['scheduleType'] });
       render();
+    }));
+    rootEl.querySelectorAll('[data-new-appointment]').forEach(button => button.addEventListener('click', async () => {
+      if (!canEditSchedule()) return;
+      try { await window.FirstMateBooking.open({orgId:orgId(), onBooked:() => scheduleLoad()}); }
+      catch (error) { showToast('Appointment booking', error.message, false); }
     }));
     rootEl.querySelectorAll('[data-calendar-display]').forEach((btn) => btn.addEventListener('click', () => {
       calendarDisplayMode = ENABLE_CALENDAR_DISPLAY_SWITCH ? (btn.dataset.calendarDisplay || 'events') : 'events';

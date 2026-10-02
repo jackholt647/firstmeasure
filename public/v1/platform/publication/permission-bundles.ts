@@ -14,7 +14,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   manage_projects: { actions: ["custom-fields.project.write", "custom-fields.contact.write","projects.lead.create", "work.node.patch", "work.node.transition"] },
   view_contacts: { data: ["custom-fields-contact.contract", "custom-fields-contact.values","customers.record", "contacts.settings", "contacts.options"] },
   view_schedule: { actions: ["scheduling.availability"], data: ["calendar.record"] },
-  manage_schedule: { actions: ["scheduling.slot.hold", "scheduling.confirmation.set", "scheduling.reschedule.review"] },
+  manage_schedule: { actions: ["scheduling.appointment.book", "scheduling.slot.hold", "scheduling.confirmation.set", "scheduling.reschedule.review"] },
   view_financials: { actions: ["payments.ledger.list", "payments.project.summary"], data: ["payments.records", "financials.records"] },
   manage_project_billing: { actions: ["payments.invoice.create", "payments.invoice.due", "payments.invoice.void", "payments.payment.clear"] },
   refund_payments: { actions: ["payments.payment.refund"] },

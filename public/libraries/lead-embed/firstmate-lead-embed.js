@@ -78,39 +78,6 @@
     if (!res.ok || data?.ok === false) throw new Error(cleanText(data?.message || data?.error) || `Lead form request failed (${res.status})`);
     return data;
   }
-  function localDateInput(date = new Date()){
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  }
-  function dateFromInput(value){
-    const [year, month, day] = cleanText(value).split('-').map(Number);
-    const date = new Date(year || new Date().getFullYear(), (month || 1) - 1, day || 1);
-    return Number.isFinite(date.getTime()) ? date : new Date();
-  }
-  function addDays(date, days){
-    const next = new Date(date);
-    next.setDate(next.getDate() + days);
-    return next;
-  }
-  function calendarDays(selectedDate){
-    const selected = dateFromInput(selectedDate);
-    const first = new Date(selected.getFullYear(), selected.getMonth(), 1);
-    const start = addDays(first, -first.getDay());
-    return Array.from({ length: 42 }, (_, index) => addDays(start, index));
-  }
-  function upcomingDays(count = 21){
-    const today = new Date();
-    today.setHours(12, 0, 0, 0);
-    return Array.from({ length: count }, (_, index) => addDays(today, index));
-  }
-  function dayButton(date, selectedDate, mobile = false){
-    const value = localDateInput(date);
-    const selected = value === selectedDate;
-    if (mobile) {
-      return `<button type="button" class="fmle-day-pill ${selected ? 'active' : ''}" data-date="${esc(value)}"><span>${esc(date.toLocaleDateString([], { weekday:'short' }))}</span><b>${date.getDate()}</b></button>`;
-    }
-    const muted = date.getMonth() !== dateFromInput(selectedDate).getMonth();
-    return `<button type="button" class="fmle-cal-day ${selected ? 'active' : ''} ${muted ? 'muted' : ''}" data-date="${esc(value)}">${date.getDate()}</button>`;
-  }
   function estimatePagesFor(form){
     const pages = Array.isArray(form.estimate?.pages) && form.estimate.pages.length
       ? form.estimate.pages
@@ -288,27 +255,6 @@
         #${String(instanceId)} input:focus,#${String(instanceId)} textarea:focus,#${String(instanceId)} select:focus{border-color:var(--fmle-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--fmle-primary) 18%,transparent)}
         #${String(instanceId)} .fmle-contact{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
         #${String(instanceId)} button{border:0;border-radius:8px;background:var(--fmle-primary);color:#fff;padding:13px 14px;font:inherit;font-size:14px;font-weight:900;cursor:pointer}
-        #${String(instanceId)} .fmle-booking{display:grid;grid-template-columns:minmax(300px,1.35fr) minmax(170px,.65fr);gap:18px;align-items:stretch}
-        #${String(instanceId)} .fmle-calendar,#${String(instanceId)} .fmle-time-panel{border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#fff;padding:16px}
-        #${String(instanceId)} .fmle-cal-head{display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:900;margin-bottom:14px}
-        #${String(instanceId)} .fmle-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
-        #${String(instanceId)} .fmle-cal-dow{text-align:center;font-size:10px;font-weight:900;color:color-mix(in srgb,var(--fmle-text) 54%,#fff);padding:4px 0}
-        #${String(instanceId)} .fmle-cal-day{border:1px solid transparent;background:#fff;color:#111827;border-radius:8px;padding:9px 0;font-size:13px;font-weight:900;box-shadow:none}
-        #${String(instanceId)} .fmle-cal-day.muted{color:#a1a1aa}
-        #${String(instanceId)} .fmle-cal-day.active{background:var(--fmle-primary);border-color:var(--fmle-primary);color:#fff}
-        #${String(instanceId)} .fmle-mobile-days{display:none;gap:8px;overflow-x:auto;padding:2px calc(50% - 35px) 8px;scroll-snap-type:x proximity;scroll-behavior:smooth;mask-image:linear-gradient(to right,transparent,#000 14%,#000 86%,transparent);-webkit-mask-image:linear-gradient(to right,transparent,#000 14%,#000 86%,transparent)}
-        #${String(instanceId)} .fmle-day-pill{min-width:70px;border:1px solid rgba(15,23,42,.14);background:#fff;color:#111827;border-radius:10px;padding:9px 10px;display:grid;gap:3px;scroll-snap-align:start;box-shadow:none}
-        #${String(instanceId)} .fmle-day-pill span{font-size:11px;font-weight:900;color:color-mix(in srgb,var(--fmle-text) 58%,#fff)}
-        #${String(instanceId)} .fmle-day-pill b{font-size:18px;line-height:1}
-        #${String(instanceId)} .fmle-day-pill.active{background:var(--fmle-primary);border-color:var(--fmle-primary);color:#fff}
-        #${String(instanceId)} .fmle-day-pill.active span{color:#fff}
-        #${String(instanceId)} .fmle-time-title{font-size:13px;font-weight:900;margin-bottom:13px;text-align:center}
-        #${String(instanceId)} .fmle-slots{height:225px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:88px 6px;scroll-snap-type:y proximity;scroll-behavior:smooth;mask-image:linear-gradient(to bottom,transparent,#000 18%,#000 82%,transparent);-webkit-mask-image:linear-gradient(to bottom,transparent,#000 18%,#000 82%,transparent)}
-        #${String(instanceId)} .fmle-slot{border:1px solid rgba(15,23,42,.16);background:#fff;color:#111827;border-radius:8px;padding:12px 10px;font-size:14px;font-weight:900;box-shadow:none;scroll-snap-align:center}
-        #${String(instanceId)} .fmle-slot:hover{border-color:var(--fmle-primary)}
-        #${String(instanceId)} .fmle-slot.active{background:var(--fmle-primary);border-color:var(--fmle-primary);color:#fff}
-        #${String(instanceId)} .fmle-slot[disabled]{opacity:.42;cursor:not-allowed;text-decoration:line-through}
-        #${String(instanceId)} .fmle-schedule-note{min-height:8px;margin-top:12px;font-size:12px;font-weight:800;color:color-mix(in srgb,var(--fmle-text) 62%,#fff);line-height:1.35}
         #${String(instanceId)} button[disabled]{opacity:.62;cursor:progress}
         #${String(instanceId)} .fmle-fine{font-size:11px;line-height:1.35;font-weight:700;color:color-mix(in srgb,var(--fmle-text) 54%,#fff)}
         #${String(instanceId)} .fmle-status{font-size:13px;font-weight:800;line-height:1.35}
@@ -331,20 +277,7 @@
           <label>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_5d2b9327181e33","Email") ?? "Email")}<input name="email" autocomplete="email" inputmode="email"></label>
         </div>
         <label>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_53d803cdbe9ab1","Address") ?? "Address")}<input name="address" autocomplete="street-address"></label>
-        ${String(showSchedule ? `<div class="fmle-booking">
-          <input name="preferred_start_at" type="hidden">
-          <div class="fmle-mobile-days" data-mobile-days></div>
-          <section class="fmle-calendar">
-            <div class="fmle-cal-head"><span data-cal-month></span></div>
-            <div class="fmle-cal-grid" data-calendar></div>
-          </section>
-          <section class="fmle-time-panel">
-            <div class="fmle-time-title" data-selected-day>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_aef6b181d478e2","Choose a day") ?? "Choose a day")}</div>
-            <div class="fmle-slots" data-slots><button type="button" disabled>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_f7396ba34388fb","Loading times...") ?? "Loading times...")}</button></div>
-            <div class="fmle-schedule-note" data-schedule-note></div>
-            <button type="submit">${esc(copy.submit_label || 'Submit')}</button>
-          </section>
-        </div>` : '')}
+        ${showSchedule ? `<div class="fm-availability" style="--fmle-primary:inherit;--fmle-text:inherit">${window.FirstMateAvailability.markup({submitLabel:copy.submit_label || 'Submit'})}</div>` : ''}
         ${String(!showSchedule ? `<label>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_a16cfd85cfd122","Message") ?? "Message")}<textarea name="message"></textarea></label>` : '')}
         ${String(!showSchedule ? `<button type="submit">${esc(copy.submit_label || 'Submit')}</button>` : '')}
         <div class="fmle-fine">${String(esc(copy.fine_print || ''))}</div>
@@ -352,120 +285,31 @@
       </form>
     `;
   }
-  async function hydrateBooking(wrap, baseUrl, formId){
-    const hidden = wrap.querySelector('input[name="preferred_start_at"]');
-    const calendarEl = wrap.querySelector('[data-calendar]');
-    const monthEl = wrap.querySelector('[data-cal-month]');
-    const mobileDaysEl = wrap.querySelector('[data-mobile-days]');
-    const selectedDayEl = wrap.querySelector('[data-selected-day]');
-    const slotsEl = wrap.querySelector('[data-slots]');
-    const noteEl = wrap.querySelector('[data-schedule-note]');
-    if (!hidden || !slotsEl) return;
-    let selectedDate = localDateInput();
-    const availabilityPath = (date) => {
-      const params = new URLSearchParams({ date });
-      const address = cleanText(wrap.querySelector('input[name="address"]')?.value);
-      const lat = cleanText(wrap.querySelector('input[name="latitude"]')?.value);
-      const lng = cleanText(wrap.querySelector('input[name="longitude"]')?.value);
-      if (address) params.set('address', address);
-      if (lat) params.set('lat', lat);
-      if (lng) params.set('lng', lng);
-      return `/public/forms/${encodeURIComponent(formId)}/availability?${params.toString()}`;
-    };
-    const centerInScroller = (scroller, item, axis = 'x', behavior = 'smooth') => {
-      if (!scroller || !item) return;
-      const scrollerRect = scroller.getBoundingClientRect();
-      const itemRect = item.getBoundingClientRect();
-      if (axis === 'y') {
-        const delta = (itemRect.top + itemRect.height / 2) - (scrollerRect.top + scrollerRect.height / 2);
-        scroller.scrollTo({ top: Math.max(0, scroller.scrollTop + delta), behavior });
-        return;
-      }
-      const delta = (itemRect.left + itemRect.width / 2) - (scrollerRect.left + scrollerRect.width / 2);
-      scroller.scrollTo({ left: Math.max(0, scroller.scrollLeft + delta), behavior });
-    };
-    const restoreHorizontalScroll = (scroller, left) => {
-      if (!scroller) return;
-      const previousBehavior = scroller.style.scrollBehavior;
-      scroller.style.scrollBehavior = 'auto';
-      scroller.scrollLeft = left;
-      void scroller.offsetWidth;
-      scroller.style.scrollBehavior = previousBehavior;
-    };
-    const centerSelectedDay = (behavior = 'smooth') => {
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        centerInScroller(mobileDaysEl, mobileDaysEl?.querySelector('.fmle-day-pill.active'), 'x', behavior);
-      }));
-    };
-    const centerSelectedSlot = (behavior = 'smooth') => {
-      requestAnimationFrame(() => {
-        centerInScroller(slotsEl, slotsEl?.querySelector('.fmle-slot.active'), 'y', behavior);
-      });
-    };
-    const renderDays = () => {
-      const previousMobileScroll = mobileDaysEl ? mobileDaysEl.scrollLeft : 0;
-      const selected = dateFromInput(selectedDate);
-      if (monthEl) monthEl.textContent = selected.toLocaleDateString([], { month:'long', year:'numeric' });
-      if (calendarEl) {
-        const dows = ['S','M','T','W','T','F','S'].map((day) => `<div class="fmle-cal-dow">${day}</div>`).join('');
-        calendarEl.innerHTML = dows + calendarDays(selectedDate).map((date) => dayButton(date, selectedDate, false)).join('');
-      }
-      if (mobileDaysEl) {
-        mobileDaysEl.innerHTML = upcomingDays(21).map((date) => dayButton(date, selectedDate, true)).join('');
-        restoreHorizontalScroll(mobileDaysEl, previousMobileScroll);
-      }
-      if (selectedDayEl) selectedDayEl.textContent = selected.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' });
-      centerSelectedDay('smooth');
-      wrap.querySelectorAll('[data-date]').forEach((button) => {
-        button.addEventListener('click', () => {
-          selectedDate = button.dataset.date || selectedDate;
-          renderDays();
-          load(false);
-        });
-      });
-    };
-    const load = async (autoAdvance = false) => {
-      hidden.value = '';
-      slotsEl.innerHTML = `<button type="button" disabled>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_f7396ba34388fb","Loading times...") ?? "Loading times...")}</button>`;
-      try {
-        const data = await jsonFetch(baseUrl, availabilityPath(selectedDate));
-        const slots = Array.isArray(data.slots) ? data.slots : [];
-        let available = slots.filter((slot) => slot.available || slot.hasAvailability);
-        if (!available.length && autoAdvance) {
-          for (let offset = 1; offset <= 14; offset += 1) {
-            const nextDate = new Date();
-            nextDate.setDate(nextDate.getDate() + offset);
-            const nextDateText = localDateInput(nextDate);
-            const nextData = await jsonFetch(baseUrl, availabilityPath(nextDateText));
-            const nextAvailable = (Array.isArray(nextData.slots) ? nextData.slots : []).filter((slot) => slot.available || slot.hasAvailability);
-            if (nextAvailable.length) {
-              selectedDate = nextDateText;
-              available = nextAvailable;
-              renderDays();
-              break;
-            }
-          }
+  function hydrateBooking(wrap, baseUrl, formId){
+    const target = wrap.querySelector('.fm-availability');
+    if (!target) return;
+    const controller = window.FirstMateAvailability.mount(target, {
+      loadAvailability: date => {
+        const params = new URLSearchParams({ date });
+        for (const [field, key] of [['address','address'],['latitude','lat'],['longitude','lng']]) {
+          const value = cleanText(wrap.querySelector(`input[name="${field}"]`)?.value);
+          if (value) params.set(key, value);
         }
-        slotsEl.innerHTML = available.length
-          ? available.map((slot) => `<button type="button" class="fmle-slot" data-start="${esc(slot.start)}">${esc(slot.label || slot.time)}</button>`).join('')
-          : `<button type="button" disabled>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_e971bf8117127c","No times available") ?? "No times available")}</button>`;
-        if (noteEl) noteEl.textContent = available.length
-          ? ''
-          : 'Choose another date to see more availability.';
-        slotsEl.querySelectorAll('.fmle-slot').forEach((button) => {
-          button.addEventListener('click', () => {
-            hidden.value = button.dataset.start || '';
-            slotsEl.querySelectorAll('.fmle-slot').forEach((item) => item.classList.toggle('active', item === button));
-            centerSelectedSlot('smooth');
-          });
-        });
-      } catch (error) {
-        slotsEl.innerHTML = `<button type="button" disabled>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_f7267d11b3a3b7","Times unavailable") ?? "Times unavailable")}</button>`;
-        if (noteEl) noteEl.textContent = error.message || 'Could not load appointment times.';
+        return jsonFetch(baseUrl, `/public/forms/${encodeURIComponent(formId)}/availability?${params}`);
       }
-    };
-    renderDays();
-    await load(true);
+    });
+    wrap.querySelector('input[name="address"]')?.addEventListener('change', () => controller.refresh());
+    return controller;
+  }
+  let availabilityLoading;
+  const availabilityScript = new URL('../appointment-booking/availability.js', document.currentScript?.src || new URL('/libraries/lead-embed/firstmate-lead-embed.js', location.href)).href;
+  function ensureAvailability(){
+    if (window.FirstMateAvailability) return Promise.resolve();
+    return availabilityLoading ||= new Promise((resolve, reject) => {
+      const script = document.createElement('script'); script.src = availabilityScript;
+      script.onload = resolve; script.onerror = () => { availabilityLoading = null; script.remove(); reject(new Error('Could not load appointment calendar.')); };
+      document.head.append(script);
+    });
   }
   async function loadSolarPreview(formEl, baseUrl, formId){
     const address = cleanText(formEl.querySelector('input[name="address"]')?.value);
@@ -671,8 +515,9 @@
     const data = await jsonFetch(baseUrl, `/public/forms/${encodeURIComponent(formId)}`);
     const form = data.form || {};
     const wrap = mount.querySelector(`#${instanceId}`);
+    if (['appointment','call'].includes(form.mode)) await ensureAvailability();
     wrap.innerHTML = renderMarkup(form, instanceId);
-    hydrateBooking(wrap, baseUrl, formId).catch(() => null);
+    const booking = hydrateBooking(wrap, baseUrl, formId);
     hydrateInstantEstimate(wrap, baseUrl, formId);
     wrap.querySelector('form')?.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -690,6 +535,7 @@
       status.textContent = (globalThis.PlatformLanguage?.text("lead-embed","m_29c533fc9b2923","Sending...") ?? "Sending...");
       try {
         const result = await jsonFetch(baseUrl, `/public/forms/${encodeURIComponent(formId)}/submit`, { method:'POST', body: JSON.stringify(body) });
+        booking?.destroy();
         wrap.innerHTML = formEl.dataset.instantEstimate === 'true'
           ? estimateSuccessMarkup(form, result)
           : (form.mode === 'appointment' || form.mode === 'call')

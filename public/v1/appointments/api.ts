@@ -24,6 +24,7 @@ import {
 import { readConfirmationByEvent, readConfirmationsByToken } from "./storage.js";
 import {
   appointmentAvailability,
+  bookStaffAppointment,
   commitAppointmentReschedule,
   holdAppointmentSlot,
   readSchedulingAvailabilitySettings,
@@ -97,6 +98,17 @@ export const registerAppointmentsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, permission: "manage_schedule|view_projects", capability: "scheduling.appointment_slots" });
     return await appointmentAvailability(orgId, ctx.branchId || "default", asObject(request.query));
+  });
+
+  app.post('/organizations/:orgId/book', async (request) => {
+    const orgId = getParam(request.params, 'orgId');
+    const ctx = await requirePlatformAuth(request, { orgId, permission:'manage_schedule|manage_projects', capability:'scheduling.appointment_slots', csrf:true });
+    const input = z.object({
+      project_id:z.string().trim().min(1).max(200),
+      event_id:z.string().regex(/^appointment_[a-zA-Z0-9-]{16,80}$/),
+      start_at:z.string().datetime({offset:true})
+    }).strict().parse(request.body);
+    return bookStaffAppointment(ctx, input);
   });
 
   app.post("/organizations/:orgId/availability/holds", async (request) => {

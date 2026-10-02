@@ -10,7 +10,7 @@ import { notificationAssistantInstructions, notificationAssistantTools } from '.
 // do through the UI.
 
 import { env } from "../../src/config/env.js";
-import { hasPermission } from "../../platform/auth.js";
+import { can, hasPermission } from "../../platform/auth.js";
 import { readOrganization, readDocument, listDocuments } from "../../platform/storage.js";
 import {
   createCanonicalActionItem,
@@ -153,6 +153,18 @@ async function currentLocalTime(run: AgentRun) {
 // ── Tools ──────────────────────────────────────────────────────────────────
 
 const TOOLS: AgentTool[] = [
+  {
+    name:'open_scheduling_widget',
+    description:'Open the shared appointment booking calendar so the user can choose a project, available day and time, and confirm a new appointment.',
+    parameters:{type:'object', properties:{}, additionalProperties:false},
+    permission:SCHEDULE_PERMISSION,
+    gate:run => run.ctx ? true : 'Appointment booking requires an interactive signed-in user.',
+    async execute(run) {
+      if (!run.ctx || !(await can(run.ctx, 'scheduling.appointment_slots'))) return toolError('Appointment slots are disabled for this organization.');
+      if (!run.renders.some(render => render.type === 'appointment_booking')) run.renders.push({type:'appointment_booking', title:'Book an appointment'});
+      return {ok:true, status:'opening', message:'The user can choose an available time and confirm booking in the scheduling widget. No appointment has been booked yet.'};
+    }
+  },
   {
     name: "open_payment_setup",
     description: "Open the interactive payment signup workflow in the left dashboard beside this conversation. The customer enters and submits their own information in a streamed Chromium browser.",
@@ -712,6 +724,9 @@ ${run.subjectId === "notifications" ? "The user is in Notification settings. Hel
 ${run.scratch.channelContext || ""}
 ${run.scratch.projectContext || ""}
 ${run.agentId === ASSISTANT_AGENT_ID ? assistantAgentInstructions : ""}
+
+## Appointment booking
+When the user asks to pop up scheduling or book a new appointment using the calendar, call open_scheduling_widget. Opening it does not book an appointment; the user confirms inside the widget.
 
 ## Payment setup
 When the user asks to set up payments, call open_payment_setup to open the workflow beside the chat. Do not navigate them to the old overlay. Explain each stage when asked. The customer enters business, owner, bank and identity details directly into the signup browser and performs submission themselves. Never ask them to put account numbers, identity documents, SSNs, passwords or verification codes in chat. You cannot see or control their browser through this tool; do not invent what is on screen or claim signup succeeded. A completion screen means the application was submitted, not that underwriting approved it.

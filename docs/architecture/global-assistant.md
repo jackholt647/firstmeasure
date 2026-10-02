@@ -51,6 +51,15 @@ threads through the existing assistant API.
 
 ## API and UI
 
+The `open_scheduling_widget` tool opens `FirstMateBooking.open()` through an
+`appointment_booking` render. It requires an interactive user with schedule or
+project editing permission and the appointment-slots capability. Opening only
+displays the picker; the human selects a project and confirms the appointment.
+Scheduling's far-left **+ Appointment** button opens the same dialog. The public
+lead form and this dialog share `libraries/appointment-booking/availability.js`.
+Public embeds retain their credential-free form endpoints and contact intake;
+staff booking uses the authenticated, CSRF-protected appointments API.
+
 `/v1/assistant/organizations/:orgId/settings` remains the organization
 settings route. The API adds `global-instructions`, `profile` and `memories`
 routes under the same prefix. Profile and memory endpoints derive user identity

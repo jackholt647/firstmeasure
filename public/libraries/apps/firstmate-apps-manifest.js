@@ -27,9 +27,10 @@
       mobileFullscreenControl: false
     }
   };
+  const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261002-booking-v1');
   const widgetBundles = ['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js','20261002-measurement-precision'));
   const channelsLibBundles = [
-    ...widgetBundles,
+    ...widgetBundles, bookingBundle,
     versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
     versionedBundle('../channels-api/channels-api.js', '20260930-feed-posts-v1'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
@@ -384,7 +385,7 @@
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
       access: managementAccess,
-      bundles: [versionedBundle('scheduling/app.js', '20261002-dropdown-polish-v1')]
+      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'portal.training',
@@ -545,7 +546,7 @@
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20261002-project-identity-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
-        ...widgetBundles, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
+        ...widgetBundles, bookingBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
         versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261001-sharing-polish-v1'),
@@ -567,7 +568,7 @@
       placement: 'more',
       fullBleed: true,
       access: { applicationsAny: ['management', 'field'], permissionsAny: ['use_assistant', 'view_projects', 'manage_projects', 'manage_company_settings'] },
-      bundles: [...widgetBundles, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), bundle('../platform-assistant/platform-assistant.js')]
+      bundles: [...widgetBundles, bookingBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), bundle('../platform-assistant/platform-assistant.js')]
     },
     {
       id: 'portal.canvassing',

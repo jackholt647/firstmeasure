@@ -707,6 +707,9 @@
    * Settings live on a branch module; the per-event calls back the schedule
    * popup's "mark confirmed" / "send now" controls. */
   const appointments = {
+    book(orgId, payload){
+      return request(siblingPath('appointments', `/organizations/${enc(orgId)}/book`), {method:'POST', body:payload});
+    },
     availability(orgId, options = {}){
       const params = new URLSearchParams();
       Object.entries(options || {}).forEach(([key, value]) => {

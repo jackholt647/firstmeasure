@@ -142,6 +142,23 @@ test("payment setup tool delivers a browser widget without provider links or per
   }
 });
 
+test('assistant opens the shared booking widget without creating an appointment', async () => {
+  const client = createSessionClient(); const {orgId} = await register(client);
+  const {saveCapabilityValues} = await import('../platform/capabilities.js');
+  await saveCapabilityValues(orgId, {'platform.scheduling':true,'scheduling.appointment_slots':true});
+  const created = await client.request('POST', `/v1/assistant/organizations/${orgId}/threads`, {});
+  const mock = mockOpenAI([
+    {output:[functionCall('open_scheduling_widget',{},'booking_open')]},
+    {output:[functionCall('report_result',{status:'success',summary:'Choose an appointment time in the widget.'},'booking_report'),messageOutput('Choose an appointment time.')]},
+    {output:[messageOutput('Choose an appointment time.')]}
+  ]);
+  try {
+    const result = await client.request('POST', `/v1/assistant/organizations/${orgId}/threads/${created.thread.id}/messages`, {message:'Pop up the scheduling widget so I can schedule a new appointment'});
+    assert.deepEqual(result.renders,[{type:'appointment_booking',title:'Book an appointment'}]);
+    assert.deepEqual(result.assistant_message.data.renders,result.renders);
+  } finally { mock.restore(); }
+});
+
 test("assistant settings round-trip with normalization", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
