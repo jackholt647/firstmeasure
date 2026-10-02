@@ -289,7 +289,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261002-dropdown-polish-v1'), versionedBundle('project-request/app.js', '20261002-dropdown-polish-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261002-dropdown-polish-v1'), versionedBundle('project-request/app.js', '20261002-dropdown-polish-v2')]
     },
     {
       id: 'firstmeasure.order',
