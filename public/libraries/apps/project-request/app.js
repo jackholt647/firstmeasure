@@ -886,7 +886,7 @@ window.PlatformCommerce.onReady(async function(){
     [data-identity-actions]{display:none}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-shortcut-field{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:3px;min-width:0}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-shortcut-field>label{width:100%}
-    :is(.r-project-identity-popover,.r-overview-details) .r-contact-shortcut-field>input{flex:1;width:0;min-width:60px}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-shortcut-field>input{flex:1;width:0;min-width:0}
     :is(.r-project-identity-popover,.r-overview-details) [data-identity-actions]{display:inline-flex;flex:none;gap:1px}
     :is(.r-project-identity-popover,.r-overview-details) [data-contact-shortcut]{width:25px;height:28px;display:grid;place-items:center;padding:0;border:0;border-radius:5px;background:none;color:#667085;cursor:pointer}
     :is(.r-project-identity-popover,.r-overview-details) [data-contact-shortcut]:hover{background:#f2f4f7;color:#344054}
@@ -902,7 +902,7 @@ window.PlatformCommerce.onReady(async function(){
     .r-overview-details .r-contact-list{gap:14px}
     .r-overview-details .r-contact-card .r-inp{font-weight:600}
     .r-overview-details:has(.r-overview-initial-actions:not([hidden])) #rOrderMeasurements{display:none!important}
-    .r-overview-initial-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}.r-overview-initial-actions .r-toggle-btn{display:flex;align-items:center;justify-content:flex-start;gap:8px;width:100%;min-width:0;min-height:40px;padding:9px 10px;border-radius:8px;text-align:left;white-space:normal;font-size:12px;line-height:1.35}.r-overview-initial-actions .r-toggle-btn i{flex:none;color:inherit}.r-overview-initial-actions[hidden]{display:none!important}
+    .r-overview-initial-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr;gap:8px;margin:12px 0}.r-overview-initial-actions .r-toggle-btn{display:flex;align-items:center;justify-content:flex-start;gap:8px;width:100%;min-width:0;min-height:40px;padding:9px 10px;border-radius:8px;text-align:left;white-space:normal;font-size:12px;line-height:1.35}.r-overview-initial-actions .r-toggle-btn i{flex:none;color:inherit}.r-overview-initial-actions[hidden]{display:none!important}
     .r-workflow-project-picker[hidden]{display:none!important}
     .r-workflow-search-row{display:flex;align-items:center;gap:8px}
     .r-workflow-search-row input{flex:1;min-width:0}
