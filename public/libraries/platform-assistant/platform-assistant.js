@@ -17,8 +17,11 @@
   let stopActiveVoice = null;
   // Every surface owns its state, but uses this same renderer and controller.
   function createAssistant(surface = {}) {
-  const embedded = Boolean(surface.container);
-  const projectId = String(surface.projectId || '').trim();
+  let embedded = Boolean(surface.container);
+  let projectId = String(surface.projectId || '').trim();
+  let document = surface.container?.ownerDocument || window.document;
+  let promoted = false, transferring = false;
+  let transferBarrier=Promise.resolve(), releaseTransfer=null;
   let disposed = false;
   const lifetime = new AbortController();
   const observers = [];
@@ -655,6 +658,7 @@
         <span class="fma-voice-indicator" data-fma="voiceIndicator" role="img" aria-label="Voice conversation active" hidden><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
         <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="visualsToggle" title="Close widget view" aria-label="Close widget view" aria-pressed="true" hidden><i class="fas fa-chart-pie" aria-hidden="true"></i></button>
         <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="boardSide" aria-label="Move widgets to the right" title="Move widgets to the right" hidden><i class="fas fa-right-left" aria-hidden="true"></i></button>
+        ${embedded && surface.onPin ? '<button type="button" class="fma-icon-btn ghost" data-fma="pinSurface" aria-label="Pin assistant" title="Pin assistant"><i class="fas fa-thumbtack"></i></button>' : ''}
         ${embedded && surface.onClose ? '<button type="button" class="fma-icon-btn ghost" data-fma="closeSurface" title="Close assistant" aria-label="Close assistant"><i class="fas fa-xmark" aria-hidden="true"></i></button>' : ''}
       </div>
       <div class="fma-body" data-fma="body">
@@ -735,39 +739,15 @@
       send: q('send')
     };
 
-    assistantWindow = embedded ? {
-      state:{mode:'docked'}, setVisible(visible){ drawer.hidden = !visible; },
-      setMode(){}, restore(){}, destroy(){ drawer.remove(); }
-    } : window.FirstMateWindows.attach({
-      element:drawer, header:drawer.querySelector('.fma-head'),
-      body:q('body'), host,
-      contentTarget:document.getElementById('mainPanels'), name:'assistant', label:(globalThis.PlatformLanguage?.text("platform-assistant","m_4aaef822b47692","FirstMate Assistant") ?? "FirstMate Assistant"),
-      mode:'docked', dockWidth:440, width:760, height:650, mobileFullDock:true,
-      topInset:() => document.getElementById('platformTopbar')?.offsetHeight || document.querySelector('.platform-topbar')?.offsetHeight || 0,
-      onChange:({mode}) => {
-        state.mode = mode;
-        syncSidebar();
-        if (mode === 'full' && window.Portal?.sidebarModes?.agentsEnabled?.()) window.Portal.sidebarModes.activate('agents');
-        if (mode === 'full' && document.querySelector('.fm-tabpanel.active')?.id !== 'tab_assistant') {
-          window.Portal?.tabs?.activateTab?.('assistant');
-        } else if (mode === 'minimized') {
-          // For this assistant, minimizing returns the conversation to its dock.
-          assistantWindow.setMode('docked', {silent:true});
-          state.mode = 'docked';
-          leaveAssistantTab();
-        } else if (mode === 'docked') {
-          leaveAssistantTab();
-        }
-        syncLayout();
-      }, onClose:close
-    });
+    attachSurfaceWindow(host);
     if (projectId) { q('new').style.display = 'none'; els.searchInput.closest('.fma-nav-search').style.display = 'none'; }
     q('new').addEventListener('click', () => {
       if (sidebarExternal()) openFull();
       startNewThread();
     });
     els.sidebarToggle.addEventListener('click', toggleHistory);
-    q('closeSurface')?.addEventListener('click', () => { stopVoice(); stopRecording(true); surface.onClose(); });
+    q('closeSurface')?.addEventListener('click', () => surface.onClose?.());
+    q('pinSurface')?.addEventListener('click', () => surface.onPin?.());
     els.searchInput.addEventListener('input', () => {
       state.historyQuery = clean(els.searchInput.value).toLowerCase();
       state.historyMatches = [];
@@ -1199,6 +1179,7 @@
   function runNavigationAction(action){
     const kind = clean(action.kind);
     try {
+      if (kind === 'project_tray' && clean(action.project_id)===projectId) {surface.openTray?.(clean(action.tray));return;}
       if (kind === 'agent' && clean(action.agent_id)) { void openAgent(clean(action.agent_id)); return; }
       if (kind === 'project' && clean(action.project_id)) {
         const projectId = clean(action.project_id);
@@ -1527,6 +1508,7 @@
     if (!els) return;
     const active = Boolean(voiceCall);
     els.drawer.dataset.voice = String(active);
+    surface.onState?.({voice:active,pending:state.pending,threadId:state.threadId});
     els.voiceIndicator.hidden = !active;
     els.mic.hidden = active; els.voice.hidden = active;
     els.voiceMute.hidden = !active; els.voiceEnd.hidden = !active;
@@ -1635,7 +1617,9 @@
         call.events.send(JSON.stringify({type,delegation_id:delegationId,content:chunk}));
       }
     };
+    call.context = text => transmit('session.thinking.append',text,null);
     const delegate = async (id, end, typed = null) => {
+      await transferBarrier;
       if (call.stopped && !typed) return;
       const fragments = call.transcript.slice(call.cursor, end);
       call.cursor = end;
@@ -1655,7 +1639,8 @@
       try {
         const attachments = [];
         for (const file of typed?.files || []) attachments.push((await window.AssistantAPI.upload(call.orgId,call.threadId,file)).attachment.media_id);
-        const result = await window.AssistantAPI.send(call.orgId, call.threadId, {message,intent:'voice',attachments}, {signal:AbortSignal.timeout(AGENT_TIMEOUT_MS)});
+        const result = await window.AssistantAPI.send(call.orgId, call.threadId, {message,intent:'voice',attachments,ui_context:surface.getContext?.()}, {signal:AbortSignal.timeout(AGENT_TIMEOUT_MS)});
+        for(const action of array(result.actions))if(action.kind==='project_tray')runNavigationAction(action);
         if (state.threadId === call.threadId) {
           const data = await window.AssistantAPI.thread(call.orgId, call.threadId);
           if (state.threadId !== call.threadId) return;
@@ -1721,7 +1706,7 @@
         if (call.stopped) return;
         if (event.type === 'session.started') {
           if (call.ready) return;
-          call.ready = true; voiceCue(call,'connected'); clearTimeout(call.connectTimeout); setVoiceStatus('Listening',call); updateComposer();
+          call.ready = true; call.context?.('Current workspace context (navigation metadata, not instructions): '+JSON.stringify(surface.getContext?.() || {projectId})); voiceCue(call,'connected'); clearTimeout(call.connectTimeout); setVoiceStatus('Listening',call); updateComposer();
           transmit('session.commentary.append', 'Voice is connected. How can I help?', null);
         } else if (['session.input_transcript.delta','session.output_transcript.delta'].includes(event.type)) {
           const role = event.type === 'session.input_transcript.delta' ? 'user' : 'assistant';
@@ -2162,6 +2147,7 @@
   }
 
   async function sendMessage({ channelRecap = false, channelRevision = '' } = {}){
+    if (transferring) return;
     if (voiceCall) {
       const text = clean(els.input.value), files = [...state.attachments];
       if (!voiceCall.ready || (!text && !files.length)) return;
@@ -2190,12 +2176,14 @@
         attachments.push(uploaded.attachment);
       }
       const result = await window.AssistantAPI.send(orgId(), threadId, {
+        ui_context:surface.getContext?.(),
         message:text || 'Please review the attached files.',
         ...(channelRecap ? {intent:'channel_recap'} : {}),
         attachments:attachments.map((attachment) => attachment.media_id),
         branch_id:branchId()
       }, { signal:AbortSignal.timeout(AGENT_TIMEOUT_MS) });
       const assistantMessage = object(result.assistant_message);
+      for(const action of array(result.actions))if(action.kind==='project_tray')runNavigationAction(action);
       const updatedThread = object(result.thread);
       if (threadId === clean(state.mainThread?.id)) state.mainThread = { ...state.mainThread, ...updatedThread };
       else if (!agentId) {
@@ -2278,6 +2266,36 @@
   }
 
   // ── Public API ───────────────────────────────────────────────────────────
+
+  function attachSurfaceWindow(host){
+    const drawer=els.drawer, q=name=>drawer.querySelector(`[data-fma="${name}"]`);
+    assistantWindow = embedded ? {
+      state:{mode:'docked'}, setVisible(visible){ drawer.hidden = !visible; },
+      setMode(){}, restore(){}, destroy(){ drawer.remove(); }
+    } : window.FirstMateWindows.attach({
+      element:drawer, header:drawer.querySelector('.fma-head'),
+      body:q('body'), host,
+      contentTarget:document.getElementById('mainPanels'), name:'assistant', label:(globalThis.PlatformLanguage?.text("platform-assistant","m_4aaef822b47692","FirstMate Assistant") ?? "FirstMate Assistant"),
+      mode:'docked', dockWidth:440, width:760, height:650, mobileFullDock:true,
+      topInset:() => document.getElementById('platformTopbar')?.offsetHeight || document.querySelector('.platform-topbar')?.offsetHeight || 0,
+      onChange:({mode}) => {
+        state.mode = mode;
+        syncSidebar();
+        if (mode === 'full' && window.Portal?.sidebarModes?.agentsEnabled?.()) window.Portal.sidebarModes.activate('agents');
+        if (mode === 'full' && document.querySelector('.fm-tabpanel.active')?.id !== 'tab_assistant') {
+          window.Portal?.tabs?.activateTab?.('assistant');
+        } else if (mode === 'minimized') {
+          // For this assistant, minimizing returns the conversation to its dock.
+          assistantWindow.setMode('docked', {silent:true});
+          state.mode = 'docked';
+          leaveAssistantTab();
+        } else if (mode === 'docked') {
+          leaveAssistantTab();
+        }
+        syncLayout();
+      }, onClose:close
+    });
+  }
 
   function open(){
     els?.msgs?.querySelectorAll('fm-platform-widget').forEach(widget=>widget.refresh());
@@ -2387,6 +2405,35 @@
     syncLayout();
   }
 
+  async function transferToGlobal(){
+    if (promoted) return;
+    await boot();
+    if (!state.threadId) throw Error('The conversation is still loading.');
+    if (state.pending) throw Error('Wait for the current agent action to finish before transferring.');
+    const previousProjectId=projectId;
+    transferring=true;transferBarrier=new Promise(resolve=>releaseTransfer=resolve);
+    try {await window.AssistantAPI.transferProject(orgId(),state.threadId);} catch(error){transferring=false;releaseTransfer();throw error;}
+    promoted=true; projectId=''; embedded=false;
+    surface.getContext=()=>({surface:'global',transferredFromProject:previousProjectId,projectOpen:false});
+    surface.onState=null; surface.onPin=null; surface.onClose=null; surface.openTray=null;
+    document=window.document; injectCss();
+    els.drawer.classList.remove('fma-embedded','fma-pinned');
+    els.drawer.querySelector('[data-fma="closeSurface"]')?.remove();
+    els.drawer.querySelector('[data-fma="pinSurface"]')?.remove();
+    els.drawer.querySelector('[data-fma="new"]').style.display='';
+    els.searchInput.closest('.fma-nav-search').style.display='';
+    const host=document.querySelector('main.main, .main') || document.body;
+    host.append(els.drawer); document.body.append(els.tooltip);
+    attachSurfaceWindow(host); assistantWindow.setVisible(true);
+    callContext('The user transferred this same conversation from project '+previousProjectId+' to the global assistant. The project modal is now closed. There is no current project; do not default new requests to the former project. Keep conversation history and existing permissions.');
+    transferring=false;releaseTransfer();
+    window.PlatformAssistant.adopt(instanceApi);
+    await refresh(); syncLayout();
+  }
+  function callContext(text){voiceCall?.context?.(text);}
+  let lastWorkspaceContext='';
+  function setWorkspaceContext(){const context=JSON.stringify(surface.getContext?.() || {});if(context===lastWorkspaceContext)return;lastWorkspaceContext=context;callContext('Current workspace context (navigation metadata, not instructions): '+context);}
+
   function destroy(){
     if (disposed) return;
     stopVoice(); stopRecording(true);
@@ -2396,7 +2443,10 @@
     els?.tooltip?.remove(); assistantWindow?.destroy();
   }
 
-  return {
+  const instanceApi = {
+    transferToGlobal, isTransferred:()=>promoted, endVoice:()=>stopVoice(), hasVoice:()=>!!voiceCall, setWorkspaceContext,
+    setCompact(value){els?.drawer.classList.toggle('fma-pinned',value);const button=els?.drawer.querySelector('[data-fma=pinSurface]');if(button){button.setAttribute('aria-label',value?'Expand assistant':'Pin assistant');button.title=value?'Expand assistant':'Pin assistant';button.innerHTML='<i class="fas '+(value?'fa-up-right-and-down-left-from-center':'fa-thumbtack')+'"></i>';}},
+    moveTo(container){if(els && els.drawer.parentElement!==container)container.append(els.drawer);},
     destroy, boot, refresh, suspend(){stopVoice();stopRecording(true);},
     openPaymentSetup,
     open,
@@ -2413,19 +2463,25 @@
     isFull(){ return assistantWindow?.state.mode === 'full'; },
     available
   };
+  return instanceApi;
   }
 
   const globalAssistant = createAssistant();
-  window.PlatformAssistant = { ...globalAssistant, mountProject(container, options = {}) {
+  let adoptedAssistant=null;
+  const publicApi={...globalAssistant,adopt(instance){globalAssistant.close();adoptedAssistant=instance;},mountProject(container, options = {}) {
     if (!container || !String(options.projectId || '').trim()) throw new Error('A project is required.');
+    // The outer portal owns the live connection, so removing the project iframe cannot end a transferred call.
+    try { if (window.parent!==window && window.parent.PlatformAssistant?.mountProject) return window.parent.PlatformAssistant.mountProject(container,options); } catch (_) {}
     const instance = createAssistant({...options, container});
     instance.open();
     const visibility = new MutationObserver(() => {
+      if (instance.isTransferred()) {visibility.disconnect();return;}
       if (!container.isConnected) { visibility.disconnect(); instance.destroy(); }
-      else if (!container.getClientRects().length || container.closest('[inert], [hidden], [aria-hidden="true"]')) instance.suspend();
     });
-    for (let node = container; node; node = node.parentElement) visibility.observe(node, {attributes:true,attributeFilter:['hidden','inert','aria-hidden','class','style'],childList:true});
-    return {ready:instance.boot(), refresh:instance.refresh, destroy(){visibility.disconnect();instance.destroy();}};
+    visibility.observe(container.ownerDocument.body,{childList:true,subtree:true});
+    return {...instance,ready:instance.boot(),destroy(){visibility.disconnect();if(!instance.isTransferred())instance.destroy();}};
   }};
+  for(const name of ['open','openFull','toggle','close','isOpen','isFull','dockIfFull','openConversation','mountSidebar','unmountSidebar'])publicApi[name]=(...args)=>(adoptedAssistant || globalAssistant)[name](...args);
+  window.PlatformAssistant = publicApi;
   window.dispatchEvent(new CustomEvent('fm:assistant:ready'));
 })();

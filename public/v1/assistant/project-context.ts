@@ -29,6 +29,7 @@ export async function ensureProjectConversation(ctx: PlatformAuthContext, projec
 
 /** Persisted subject is authoritative; refresh project access and scope on every turn. */
 export async function projectConversationContext(ctx: PlatformAuthContext | null, subject: string) {
+  if (subject.startsWith("transferred-project:")) return `This conversation was transferred by the user from project ${subject.slice("transferred-project:".length)} to the global assistant. The previous project modal is closed. There is no default project now. Preserve conversation history, but ask which project when a new request is ambiguous. All existing authorization and confirmation rules apply.`;
   if (!subject.startsWith("project:")) return "";
   if (!ctx) throw forbidden("project_context_requires_user", "Sign in to use this project conversation.");
   const id = subject.slice("project:".length);

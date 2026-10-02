@@ -29,6 +29,9 @@
     const tray = document.createElement('aside'); tray.className = 'fm-project-tray'; tray.inert = true; tray.setAttribute('aria-hidden','true');
     tray.innerHTML = '<header><strong></strong><button type="button" class="fm-project-tray-close" aria-label="Close project tray"><i class="fas fa-xmark"></i></button></header>';
     content.append(tray);
+    const pin = document.createElement('div'); pin.className='fm-project-agent-pin'; pin.hidden=true; tray.append(pin);
+    const pinStyle=document.createElement('style');pinStyle.textContent=`.fm-project-agent-pin{height:100px;flex:0 0 100px;min-height:0;border-top:1px solid #e4e7ec}.fm-project-agent-pin[hidden]{display:none}.fm-project-content:has(>.fm-project-tray[data-pin-only=true]){grid-template-columns:minmax(0,1fr) 0px}.fm-project-tray[data-pin-only=true]{position:absolute;right:0;bottom:0;top:auto;height:100px;width:min(380px,100%);z-index:70;justify-content:flex-end;background:transparent;border-left:0;pointer-events:none}.fm-project-tray[data-pin-only=true]>.fm-project-agent-pin{background:white;pointer-events:auto;border:1px solid #e4e7ec;border-radius:10px 0 0 0}.fma-pinned .fma-stage,.fma-pinned .fma-sidebar,.fma-pinned .fma-attachments,.fma-pinned [data-fma=history],.fma-pinned [data-fma=boardSide],.fma-pinned [data-fma=visualsToggle],.fma-pinned [data-fma=closeSurface]{display:none!important}.fma-pinned .fma-head{min-height:32px;padding:4px 8px}.fma-pinned .fma-composer{padding:6px 8px}.fma-pinned .fma-body,.fma-pinned .fma-content{min-height:0}.fm-project-agent-close-menu{position:absolute;right:8px;top:4px;z-index:10000;background:white;border:1px solid #d0d5dd;border-radius:9px;padding:6px;box-shadow:0 8px 24px #10182830;display:flex;gap:6px}.fm-project-agent-close-menu button{padding:8px;border:0;border-radius:6px;background:#f2f4f7;color:#344054;cursor:pointer}.fm-project-agent-close-menu [role=status]{max-width:240px;font-size:12px}`;document.head.append(pinStyle);
+    let agentState={voice:false,pending:false}, manualPin=false, closeMenu=null;
     const panels = new Map(), handles = new Map();
     let projectId = '', selected = '', disposed = false, activityTimer = 0, interactionVersion = 0;
     const oid = clean(options.orgId || root.__APP?.userOrgId);
@@ -36,14 +39,14 @@
     const capable = key => root.Portal?.can?.(key) !== false;
     const separate = () => root.Portal?.can?.('channels.separate_project_notes') === true;
     const available = () => definitions().map(item=>item.id);
-    function close() {selected = ''; content.dataset.trayOpen = 'false'; tray.inert = true; tray.setAttribute('aria-hidden','true'); renderTabs();}
+    function close() {selected = ''; panels.forEach(node=>node.hidden=true); renderTabs(); syncAgentPin();}
     function renderTabs() {
       const allowed = definitions().map(item=>[item.id,item.label,item.icon]);
       if (selected && !allowed.some(([key]) => key === selected)) close();
       tabs.innerHTML = allowed.map(([key,title,icon]) => `<button type="button" role="tab" data-tray="${key}" aria-label="${title}" title="${title}" aria-selected="${selected === key}"><i class="fas ${icon}" aria-hidden="true"></i></button>`).join('');
     }
     function panel(key) {
-      if (!panels.has(key)) { const node = document.createElement('div'); node.className = 'fm-project-tray-panel'; node.hidden = true; node.setAttribute('role','tabpanel'); node.setAttribute('aria-label',registry.get(key).label); tray.append(node); panels.set(key,node); }
+      if (!panels.has(key)) { const node = document.createElement('div'); node.className = 'fm-project-tray-panel'; node.hidden = true; node.setAttribute('role','tabpanel'); node.setAttribute('aria-label',registry.get(key).label); tray.insertBefore(node,pin); panels.set(key,node); }
       return panels.get(key);
     }
     async function open(key) {
@@ -52,7 +55,7 @@
       selected = key; content.dataset.trayOpen = 'true'; tray.inert = false; tray.setAttribute('aria-hidden','false');
       tray.querySelector('header').hidden = key === 'agent';
       tray.querySelector('strong').textContent = registry.get(key).label;
-      const node = panel(key); panels.forEach((value,name) => value.hidden = name !== key); renderTabs();
+      const node = panel(key); panels.forEach((value,name) => value.hidden = name !== key); renderTabs(); syncAgentPin();
       if (handles.has(key)) {if (key === 'activity') handles.get(key).refresh(); if (key === 'todo') handles.get(key).load({quiet:true}).catch(()=>null); return;}
       if (!projectId && key !== 'notes') {node.textContent='Select or create a project to use '+registry.get(key).label.toLowerCase()+'.';return;}
       const mountingProject = projectId;
@@ -73,7 +76,7 @@
             query:{includeFuture:true,includeAll:true}
           }));
         }
-        if (key === 'agent') handles.set(key, root.PlatformAssistant.mountProject(node,{orgId:oid, projectId, onClose:close}));
+        if (key === 'agent') handles.set(key, root.PlatformAssistant.mountProject(node,{orgId:oid, projectId, onClose:close, openTray:key=>selected===key?Promise.resolve():open(key), onPin:()=>{if(selected==='agent'){manualPin=!manualPin;syncAgentPin();}else void open('agent');}, onState:state=>{agentState=state;queueMicrotask(syncAgentPin);}, getContext:()=>({surface:'project',projectId,trays:available(),tab:options.getActiveTab?.() || '',tray:selected || '',minimized:options.isMinimized?.() || false})}));
         if (key === 'messages') {
           const pending = {}; handles.set(key,pending);
           node.textContent = 'Loading messages…';
@@ -82,8 +85,38 @@
           node.replaceChildren(); handles.set(key,root.FirstMateChannels.create(node,{orgId:oid,context:{channelId:data.channel.id},mode:'embedded',features:{resources:false}}));
         }
         if (key === 'activity') handles.set(key,mountActivity(node,mountingProject));
+        syncAgentPin();
         if (registry.get(key).mount) handles.set(key,registry.get(key).mount(node,{getProject,projectId,orgId:oid}));
       } catch (error) {if (!disposed && mountingProject === projectId) {tray.querySelector('header').hidden = false; handles.delete(key); node.textContent = error.message; const retry = document.createElement('button'); retry.textContent = 'Retry'; retry.onclick = () => {selected = ''; open(key);}; node.append(retry);}}
+    }
+    function syncAgentPin(){
+      if(disposed)return;
+      const agent=handles.get('agent'), pinned=!!agent && selected!=='agent' && (manualPin || agentState.voice);
+      pin.hidden=!pinned;
+      if(agent){agent.moveTo(pinned?pin:panel('agent'));agent.setCompact(pinned);}
+      const visible=!!selected || pinned;
+      content.dataset.trayOpen=String(visible);tray.dataset.pinOnly=String(pinned && !selected);
+      tray.inert=!visible;tray.setAttribute('aria-hidden',String(!visible));
+      tray.querySelector('header').hidden=!selected || selected==='agent';
+      root.dispatchEvent(new CustomEvent('fm:project-agent:state',{detail:{...agentState,pinned:manualPin || agentState.voice}}));
+      agent?.setWorkspaceContext?.();
+    }
+    function requestClose(done){
+      const agent=handles.get('agent');
+      if(!agentState.voice && !agentState.pending && !manualPin)return true;
+      if(closeMenu)return false;
+      closeMenu=document.createElement('div');closeMenu.className='fm-project-agent-close-menu';closeMenu.setAttribute('role','group');closeMenu.setAttribute('aria-label','Close project with active agent');
+      closeMenu.innerHTML='<button type="button" data-end>End voice agent</button><button type="button" data-transfer>Transfer to global voice agent</button><button type="button" data-cancel aria-label="Keep project open">Cancel</button><span role="status"></span>';
+      (shell.closest('.r-overlay') || shell).append(closeMenu);
+      const dismiss=()=>{closeMenu?.remove();closeMenu=null;};
+      closeMenu.querySelector('[data-cancel]').onclick=dismiss;
+      closeMenu.querySelector('[data-end]').onclick=()=>{agent.endVoice();dismiss();done();};
+      closeMenu.querySelector('[data-transfer]').onclick=async()=>{
+        const menu=closeMenu;menu.querySelectorAll('button').forEach(button=>button.disabled=true);
+        try{await agent.transferToGlobal();handles.delete('agent');agentState={voice:false,pending:false};manualPin=false;dismiss();syncAgentPin();done();}
+        catch(error){menu.querySelector('[role=status]').textContent=error.message;menu.querySelectorAll('button').forEach(button=>button.disabled=false);}
+      };
+      closeMenu.querySelector('button').focus();return false;
     }
     function mountActivity(node,pid) {
       let events = [], before = '', loading = false, dead = false;
@@ -127,7 +160,7 @@
         const previousSelection = selected;
         handles.forEach((handle,key) => {if (!adoptingDraft || key !== 'notes') {handle.destroy?.();handles.delete(key);}});
         panels.forEach((node,key) => {if (!adoptingDraft || key !== 'notes') {node.remove();panels.delete(key);}});
-        projectId = next;
+        projectId = next;agentState={voice:false,pending:false};manualPin=false;
         if (adoptingDraft) {
           handles.get('notes')?.refresh?.();
           if (previousSelection && previousSelection !== 'notes') {selected='';void open(previousSelection);}
@@ -138,11 +171,13 @@
     tabs.onclick = event => {const button = event.target.closest('[data-tray]'); if (button) {interactionVersion++;open(button.dataset.tray);}};
     tray.querySelector('.fm-project-tray-close').onclick = () => {interactionVersion++;const key = selected; close(); tabs.querySelector(`[data-tray="${key}"]`)?.focus();};
     tray.onkeydown = event => {if (event.key === 'Escape') {event.stopPropagation(); interactionVersion++;close();}};
+    const contextChanged = () => handles.get('agent')?.setWorkspaceContext?.();
+    root.addEventListener('fm:route-state:updated',contextChanged);root.addEventListener('fm:project-window:placement',contextChanged);
     const changed = () => {renderTabs(); handles.get('notes')?.refresh?.();};
     const activityChanged = () => {clearTimeout(activityTimer); activityTimer = setTimeout(() => {if (selected === 'activity') handles.get('activity')?.refresh?.();},400);};
     root.addEventListener('fm:project-trays:updated',changed); root.addEventListener('fm:capabilities:updated',changed); root.addEventListener('fm:project-notes:refreshed',activityChanged); root.addEventListener('fm:projects:refresh',activityChanged);
     update();
-    return {update,close,open,available,interactionVersion:()=>interactionVersion,select(key){if(key===null){close();return;}if(!available().includes(key))throw Error('Unavailable project tray: '+key);update();return selected===key?Promise.resolve():open(key);},destroy() {disposed = true;clearTimeout(activityTimer);handles.forEach(handle => handle.destroy?.());root.removeEventListener('fm:project-trays:updated',changed); root.removeEventListener('fm:capabilities:updated',changed);root.removeEventListener('fm:project-notes:refreshed',activityChanged);root.removeEventListener('fm:projects:refresh',activityChanged);content.before(preview);content.remove();tabs.remove();style.remove();}};
+    return {requestClose,update,close,open,available,interactionVersion:()=>interactionVersion,select(key){if(key===null){close();return;}if(!available().includes(key))throw Error('Unavailable project tray: '+key);update();return selected===key?Promise.resolve():open(key);},destroy() {disposed = true;root.removeEventListener('fm:route-state:updated',contextChanged);root.removeEventListener('fm:project-window:placement',contextChanged);closeMenu?.remove();pinStyle.remove();clearTimeout(activityTimer);handles.forEach(handle => handle.destroy?.());root.removeEventListener('fm:project-trays:updated',changed); root.removeEventListener('fm:capabilities:updated',changed);root.removeEventListener('fm:project-notes:refreshed',activityChanged);root.removeEventListener('fm:projects:refresh',activityChanged);content.before(preview);content.remove();tabs.remove();style.remove();}};
   }
   root.FirstMateProjectTrays = {mount,definitions,register};
 })(window);

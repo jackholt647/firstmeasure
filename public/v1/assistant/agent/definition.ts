@@ -625,15 +625,20 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "suggest_navigation",
-    description: "Attach an 'open this' button to your reply: kind 'project' (with project_id) opens the project, kind 'tab' (with tab id like 'stats', 'scheduling', 'contacts', 'channels', 'money') opens a portal tab. Use whenever you reference something the customer will want to open.",
-    parameters: { type: "object", properties: { label: { type: "string" }, kind: { type: "string", enum: ["project", "tab"] }, project_id: { type: "string" }, tab: { type: "string" } }, required: ["label", "kind"], additionalProperties: false },
+    description: "Attach an 'open this' button to your reply: kind 'project' (with project_id) opens the project, kind 'tab' (with tab id like 'stats', 'scheduling', 'contacts', 'channels', 'money') opens a portal tab. Use whenever you reference something the customer will want to open. To show a project tray requested by the user, use kind project_tray and tray from the available trays in current UI context. The current project surface opens that tray while preserving the conversation.",
+    parameters: { type: "object", properties: { label: { type: "string" }, kind: { type: "string", enum: ["project", "tab", "project_tray"] }, project_id: { type: "string" }, tab: { type: "string" }, tray: {type:"string"} }, required: ["label", "kind"], additionalProperties: false },
     execute(run, args) {
       if (run.actions.length >= MAX_NAVIGATION_ACTIONS) return toolError("Too many navigation suggestions in one reply.");
       const label = cleanText(args.label);
       const kind = cleanText(args.kind);
-      if (!label || !["project", "tab"].includes(kind)) return toolError("label is required and kind must be 'project' or 'tab'.");
+      if (!label || !["project", "tab", "project_tray"].includes(kind)) return toolError("label is required and kind must be 'project' or 'tab'.");
       if (kind === "project" && !cleanText(args.project_id)) return toolError("project_id is required for kind 'project'.");
       if (kind === "tab" && !cleanText(args.tab)) return toolError("tab is required for kind 'tab'.");
+      if (kind === "project_tray") {
+        const ui=asObject(run.input.ui_context), tray=cleanText(args.tray);
+        if (ui.surface !== 'project' || !asArray(ui.trays).includes(tray)) return toolError('That tray is not available in the current project window.');
+        run.actions.push({label,kind,tray,project_id:cleanText(ui.projectId)});return {ok:true};
+      }
       run.actions.push({ label, kind, project_id: cleanText(args.project_id), tab: cleanText(args.tab) });
       return { ok: true };
     }

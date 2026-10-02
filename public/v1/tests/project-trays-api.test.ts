@@ -230,3 +230,36 @@ test("project assistant uses the global agent with personal durable threads and 
     assert.equal(calls.length,count);
   } finally {globalThis.fetch=original;}
 });
+
+
+test("project agent transfer preserves thread, changes default scope and rejects other owners", async()=>{
+ const {client,orgId,suffix}=await registerOwner();
+ const project=(await client.request('POST',`/v1/platform/organizations/${orgId}/projects`,{data:{title:'Transfer test'}})).document;
+ const base=`/v1/assistant/organizations/${orgId}`;
+ const {thread}=await client.request('POST',`${base}/projects/${project.id}/conversation`,{});
+ const other=await createOrgUser(client,orgId,suffix,'Other agent user',{permissions:{view_projects:true,use_assistant:true}});
+ const url=`${base}/threads/${thread.id}/transfer-global`;
+ assert.equal((await other.client.raw('POST',url,{})).statusCode,404);
+ assert.equal((await app.inject({method:'POST',url,payload:{}})).statusCode,401);
+ const transferred=await client.request('POST',url,{});
+ assert.equal(transferred.thread.id,thread.id);
+ assert.equal(transferred.thread.subject_id,`transferred-project:${project.id}`);
+ assert.equal((await client.request('POST',url,{})).thread.id,thread.id);
+ const next=await client.request('POST',`${base}/projects/${project.id}/conversation`,{});
+ assert.notEqual(next.thread.id,thread.id);
+ const {projectConversationContext}=await import('../assistant/project-context.js');
+ assert.match(await projectConversationContext(null,transferred.thread.subject_id),/no default project/);
+});
+
+
+test('assistant tray navigation is restricted to the current surface registry',async()=>{
+ const {requireAgentDefinition}=await import('../agents/registry.js');
+ const definition=requireAgentDefinition('assistant');
+ const run:any={input:{ui_context:{surface:'project',projectId:'p1',trays:['notes','todo','activity','agent']}},actions:[]};
+ const tools=typeof definition.tools==='function'?definition.tools(run):definition.tools;
+ const navigation=tools.find(tool=>tool.name==='suggest_navigation')!;
+ await navigation.execute(run,{label:'Open To Do',kind:'project_tray',tray:'todo'});
+ assert.deepEqual(run.actions,[{label:'Open To Do',kind:'project_tray',tray:'todo',project_id:'p1'}]);
+ await navigation.execute(run,{label:'Unknown',kind:'project_tray',tray:'unknown'});assert.equal(run.actions.length,1);
+ run.input.ui_context.surface='global';await navigation.execute(run,{label:'Notes',kind:'project_tray',tray:'notes'});assert.equal(run.actions.length,1);
+});

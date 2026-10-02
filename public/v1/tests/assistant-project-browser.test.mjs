@@ -54,7 +54,8 @@ test('project trays share the assistant composer, scope, responsive layout and v
   assert.equal(await page.evaluate(()=>sent[0].t),'p1');assert.equal(await two.locator('[data-fma=input]').inputValue(),'Project two draft');assert.equal(await global.locator('[data-fma=input]').inputValue(),'Global draft');
   await one.locator('[data-fma=voice]').click();await page.waitForFunction(()=>document.querySelector('#one [data-fma=voiceStatus]').textContent==='Listening');
   assert.equal(await page.evaluate(()=>starts[0].t),'p1');
-  await one.evaluate(e=>e.setAttribute('inert',''));await page.waitForFunction(()=>tracks[0].stopped);assert.equal(await page.evaluate(()=>stops[0]),'p1');
+  await one.evaluate(e=>e.setAttribute('inert',''));await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>!!tracks[0].stopped),false);assert.equal(await page.evaluate(()=>stops.length),0);
+  await page.evaluate(()=>first.endVoice());
   await one.evaluate(e=>e.removeAttribute('inert'));
   await one.locator('[data-fma=voice]').click();await page.waitForFunction(()=>starts.length===2);
   await page.evaluate(()=>first.destroy());await page.waitForFunction(()=>tracks[1].stopped);

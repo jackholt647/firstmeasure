@@ -123,7 +123,7 @@
   }
   function close(token = active?.token){
     const record = records.get(token); if (!record) return;
-    if (record.api) record.api.close({skipHistory:true});
+    if (record.api && record.api.close({skipHistory:true}) === false) {record.controller?.restore();return false;}
     closed(token);
   }
   function open(project, options = {}){
@@ -248,6 +248,7 @@
     const record=records.get(token);if(!record || !accepts(token,child) || record.api)return;
     record.api=api;clearTimeout(record.timer);
     const relayUp=type=>()=>root.dispatchEvent(new CustomEvent(type,{detail:{redraw:true,fromProjectWindow:token}}));
+    child.addEventListener('fm:project-agent:state',event=>{const live=event.detail?.voice || event.detail?.pending || event.detail?.pinned;const icon=record.minimizedBar?.querySelector('i');if(icon){icon.className=live?'fas fa-headset':'fas fa-folder-open';icon.title=live?'Agent conversation active':'';icon.setAttribute('aria-label',live?'Agent conversation active':'Project');}});
     child.addEventListener('fm:projects:refresh',relayUp('fm:projects:refresh'));
     child.addEventListener('fm:calendar:refresh',relayUp('fm:calendar:refresh'));
     child.addEventListener('fm:project-schedule:changed',relayUp('fm:calendar:refresh'));
@@ -290,6 +291,7 @@
       clearRoutePrecover();
       record.frame.style.visibility=minimized || !record.shellVisible?'hidden':'visible';
       sync(record);if(notify)options.onChange?.(state);
+      child.dispatchEvent(new child.CustomEvent('fm:project-window:placement',{detail:{mode:state.mode}}));
     }
     const controllerOptions={...options,element:record.element,host:host(),stackElement:record.layer,contentTarget:document.getElementById('mainPanels'),nativeModalLayout:false,titleMenu:false,animateGeometry:true,
       topInset:()=>document.getElementById('platformTopbar')?.offsetHeight || 0,

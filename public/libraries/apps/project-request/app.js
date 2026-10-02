@@ -8486,7 +8486,7 @@ window.PlatformCommerce.onReady(async function(){
   let projectPresenceUsers = [];
   function syncProjectPresence(){
     const trayShell = document.getElementById("rMapWrap");
-    if (!projectContentPane && !projectTrays && trayShell && window.FirstMateProjectTrays) projectTrays = window.FirstMateProjectTrays.mount(trayShell, {content:$('#rOverlay .r-project-body'),getProject:() => activeBaseProject, ensureProject:async() => { const project=ensureDraftBaseProject({allowEmpty:true}); if (!project) throw Error('Project could not be saved.'); await window.Portal.ProjectStore.saveRemote(project); return activeBaseProject; }, orgId:projectOrgId()});
+    if (!projectContentPane && !projectTrays && trayShell && window.FirstMateProjectTrays) projectTrays = window.FirstMateProjectTrays.mount(trayShell, {content:$('#rOverlay .r-project-body'),getProject:() => activeBaseProject, getActiveTab:()=>activePreviewTab, isMinimized:()=>projectModalWindow?.state?.mode==='minimized', ensureProject:async() => { const project=ensureDraftBaseProject({allowEmpty:true}); if (!project) throw Error('Project could not be saved.'); await window.Portal.ProjectStore.saveRemote(project); return activeBaseProject; }, orgId:projectOrgId()});
     projectTrays?.update();
     $('#rOverlay')?.classList.toggle('has-project-trays',!!projectTrays);
     const projectId = activeProjectRouteId();
@@ -11233,6 +11233,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function close(options = {}){
+    if (!options.agentResolved && projectTrays?.requestClose?.(()=>close({...options,agentResolved:true})) === false) return false;
     ++projectTrayOpenGeneration;
     closeProjectIdentityPopover();
     closeManualStagePicker();
