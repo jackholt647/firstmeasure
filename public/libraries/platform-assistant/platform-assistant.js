@@ -2401,7 +2401,7 @@
   }
 
   async function openAppointmentBooking(){
-    try { await ensureBookingWidget(); await window.FirstMateBooking.open({orgId:orgId(), projectId}); }
+    try { await ensureBookingWidget(); await window.FirstMateBooking.open({orgId:orgId(), projectId:typeof projectId === 'string' ? projectId : ''}); }
     catch (error) { window.Portal?.ui?.showToast?.('Appointment booking', error.message || 'Could not open booking.', false); }
   }
   function openPaymentSetup(){
