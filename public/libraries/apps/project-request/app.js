@@ -9363,7 +9363,7 @@ window.PlatformCommerce.onReady(async function(){
     let actions=details.querySelector('.r-overview-initial-actions');
     if (!actions) {actions=document.createElement('section');actions.className='r-overview-initial-actions';details.querySelector('#rStepCustomer')?.after(actions);}
     actions.hidden=requestedWorkflow!=='project' || !addressSelected || !selectedType;
-    const choices=[['roof','Order report',firstMeasureReportOrdersEnabled()],['proposal','Build proposal',actionAvailable('proposal')],['schedule','Schedule appointment',actionAvailable('schedule')]].filter(item=>item[2]);
+    const choices=[['roof','Order report',firstMeasureReportOrdersEnabled() && !hasReportOrdered()],['proposal','Build proposal',actionAvailable('proposal')],['schedule','Schedule appointment',actionAvailable('schedule')]].filter(item=>item[2]);
     const signature=choices.map(item=>item[0]).join(',');
     if (actions.dataset.choices!==signature) {
       actions.dataset.choices=signature;actions.replaceChildren();
@@ -10700,7 +10700,7 @@ window.PlatformCommerce.onReady(async function(){
     mobileTypeTransitioning = false;
     if (mobileTypeTransitionTimer) clearTimeout(mobileTypeTransitionTimer);
     const hasBaseMeasurement = projectHasReportOrder(base);
-    reportSelection = hasBaseMeasurement || isUnfinishedReportDraft(base)
+    reportSelection = hasBaseMeasurement || (requestedWorkflow === 'report' && isUnfinishedReportDraft(base))
       ? 'roof'
       : (base.workflow_state === 'proposal_only' ? 'proposal' : reportSelection);
     includeGutterMeasurements = !!(base.measurement?.include_gutters || base.include_gutter_measurements);
@@ -11070,8 +11070,8 @@ window.PlatformCommerce.onReady(async function(){
       || ''
     ).trim();
     const wasShellLoading = projectShellLoading;
-    // The URL shell only knows an ID. Recover the report workflow once the saved draft arrives.
-    if (isUnfinishedReportDraft(project)) requestedWorkflow = 'report';
+    // Saved draft intent is data, not an instruction to resume ordering.
+    // Only the current open/action may select the report workflow.
     // Capabilities may have become ready after the routed shell was painted.
     // Create its controls before hydrating values into them.
     ensureOverviewDetails();

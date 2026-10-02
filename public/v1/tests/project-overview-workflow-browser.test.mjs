@@ -45,7 +45,7 @@ test('report entry searches existing projects, preserves report intent, and swit
   const begin=app.indexOf('  function syncOverviewWorkflow(){'),end=app.indexOf('  function renderWorkflowStateBody',begin);
   await page.setContent('<div id="rOverlay"><div class="r-overview-details"><form id="rForm"><section id="rStepCustomer"><input data-field="name"></section></form></div></div>');
   await page.evaluate(()=>{
-   window.$=selector=>document.querySelector(selector);window.overviewWorkflowMode='report';window.reportProjectChoice='search';window.activeBaseProject=null;window.requestedWorkflow='report';window.addressSelected=false;window.selectedType='residential';window.firstMeasureReportOrdersEnabled=()=>true;window.actionAvailable=()=>true;
+   window.$=selector=>document.querySelector(selector);window.overviewWorkflowMode='report';window.reportProjectChoice='search';window.activeBaseProject=null;window.requestedWorkflow='report';window.addressSelected=false;window.selectedType='residential';window.hasReportOrdered=()=>false;window.firstMeasureReportOrdersEnabled=()=>true;window.actionAvailable=()=>true;
    window.decorateProjectContactActions=()=>{};window.handleProjectContactAction=()=>{};window.updateModalTitle=()=>{};window.scheduleProjectMapInitialize=()=>{};
    window.loadDocPickerRows=async()=>[{id:'p1',label:'Bill & Sarah Jones',address:'123 Main',search:'bill sarah jones 123 main',data:{address:'123 Main'}}];
    window.openProject=async(project,options)=>{window.opened={project,options};};window.renderWorkflowState=()=>syncOverviewWorkflow();
@@ -68,11 +68,13 @@ test('report entry searches existing projects, preserves report intent, and swit
     window.preloadFirstReportCheckoutEligibility=()=>{};window.setActivePreviewTab=tab=>{window.chosenTab=tab;};window.queueAutosaveNotice=()=>{};
     syncOverviewWorkflow();
   });
+  assert.equal(await page.getByRole('button',{name:'Order report',exact:true}).count(),0);
+  await page.evaluate(()=>{window.hasReportOrdered=()=>false;syncOverviewWorkflow();});
   assert.equal(await page.getByRole('button',{name:'Order report',exact:true}).isVisible(),true);
   assert.equal(await page.getByRole('button',{name:'Build proposal',exact:true}).isVisible(),true);
   assert.equal(await page.getByRole('button',{name:'Schedule appointment',exact:true}).isVisible(),true);
   await page.getByRole('button',{name:'Order report',exact:true}).click();
-  assert.deepEqual(await page.evaluate(()=>[window.reordered,requestedWorkflow,reportProjectChoice,window.chosenTab]),['existing','report','existing','map']);
+  assert.deepEqual(await page.evaluate(()=>[window.reordered,requestedWorkflow,reportProjectChoice,window.chosenTab]),[undefined,'report','existing','map']);
 
  }finally{await browser.close();}
 });
