@@ -1,6 +1,6 @@
 # Measurements viewer and development report samples
 
-Implemented locally October 2, 2026. Not deployed by this change.
+Deployed to dev.1m8.ai October 2, 2026. See the [verified rollout](../deploy/digitalocean/development-measurements-viewer-20261002.md).
 
 The Measurements app has a **Model & photos** view for completed reports.
 It reads stored Roofplan XML, renders a textured roof or the editor's colored
