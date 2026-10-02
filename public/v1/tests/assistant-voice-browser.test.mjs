@@ -56,6 +56,18 @@ test('voice connects, delegates once with context, preserves drafts, and release
  await page.evaluate(()=>{emit({type:'session.output_transcript.delta',delta:'Your orders ',start_ms:1000,end_ms:1800});emit({type:'session.input_transcript.delta',delta:'What about ',start_ms:3000,end_ms:3500});emit({type:'session.output_transcript.delta',delta:'are ready.',start_ms:1800,end_ms:2200});emit({type:'session.input_transcript.delta',delta:'tomorrow?',start_ms:3500,end_ms:4000});});
  assert.equal(await page.locator('[data-fma=voiceLog] .assistant').filter({hasText:'Your orders are ready.'}).count(),1);
  assert.equal(await page.locator('[data-fma=voiceLog] .user').filter({hasText:'What about tomorrow?'}).count(),1);
+ // Fast back-and-forth must create new bubbles for both speakers, even with
+ // less than 1500ms between their turns. Late fragments stay in their turn.
+ await page.evaluate(()=>{
+  emit({type:'session.output_transcript.delta',delta:'Tomorrow ',start_ms:4100,end_ms:4300});
+  emit({type:'session.input_transcript.delta',delta:'Thanks',start_ms:4600,end_ms:4700});
+  emit({type:'session.output_transcript.delta',delta:'too.',start_ms:4300,end_ms:4500});
+  emit({type:'session.output_transcript.delta',delta:'You are welcome.',start_ms:4800,end_ms:5100});
+  emit({type:'session.input_transcript.delta',delta:'One more thing.',start_ms:5200,end_ms:5500});
+ });
+ assert.deepEqual(await page.locator('[data-fma=voiceLog] .fma-msg').evaluateAll(nodes=>nodes.map(e=>e.textContent.trim())),[
+  'Check my orders','Your orders are ready.','What about tomorrow?','Tomorrow too.','Thanks','You are welcome.','One more thing.'
+ ]);
  assert.match(await page.locator('[data-fma=msgs]').innerText(),/Your orders are ready/);
  assert.equal(await page.locator('.fma-welcome').count(),0);
  // Typing and files join the same serialized voice backend queue.

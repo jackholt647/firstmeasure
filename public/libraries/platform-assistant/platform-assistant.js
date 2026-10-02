@@ -1659,10 +1659,19 @@
           call.transcript.push({role,text:event.delta,start:event.start_ms,end:event.end_ms});
           if (call.transcript.length > 10000) { stopVoice('Start a new voice session to continue.'); return; }
           let segment = call.speakerEntries[role];
-          if (!segment || Number(event.start_ms) - Number(segment.end) > 1500) {
-            segment = call.speakerEntries[role] = {entry:voiceEntry(call,role,''),end:event.end_ms};
+          const other = call.speakerEntries[role === 'user' ? 'assistant' : 'user'];
+          const start = Number(event.start_ms), end = Number(event.end_ms);
+          // A reply starts a new turn even without a silence gap. Compare audio
+          // intervals, not delivery order: the other speaker may arrive before
+          // the final fragment of an earlier turn.
+          const handoff = segment && other && (
+            (other.start >= segment.end && start >= other.start) ||
+            (other.end > segment.end && start >= other.end)
+          );
+          if (!segment || handoff || start - segment.end > 1500) {
+            segment = call.speakerEntries[role] = {entry:voiceEntry(call,role,''),start,end};
           }
-          segment.entry.content += event.delta; segment.end = event.end_ms;
+          segment.entry.content += event.delta; segment.end = Math.max(segment.end,end);
           if (state.threadId === call.threadId) renderVoiceChat();
         } else if (event.type === 'session.delegation.created' && event.delegation?.target === 'client') {
           const id = clean(event.delegation.id);
