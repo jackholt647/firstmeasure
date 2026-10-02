@@ -7,7 +7,7 @@
  W.attachRenderer('scope.measurements','1',(root,{data,context})=>{
   if(fragment(root,'scope.measurements',context))return;
   const host=card(root,'Measurements'),values=element('div','fm-widget-values');host.append(values);
-  for(const row of data?.rows||[]){const field=element('div','fm-widget-value');field.append(element('span','',row.label),element('strong','',String(row.value)+(row.unit?' '+row.unit:'')));values.append(field);}
+  for(const row of data?.rows||[]){const field=element('div','fm-widget-value');field.append(element('span','',row.label),element('strong','',((typeof row.value==='number'||typeof row.value==='string'&&row.value.trim()!=='')&&Number.isFinite(Number(row.value))?Number(row.value).toLocaleString([], {minimumFractionDigits:1,maximumFractionDigits:1}):String(row.value))+(row.unit?' '+row.unit:'')));values.append(field);}
   if(!values.children.length)host.append(element('p','fm-widget-status','No measurements are available yet.'));
  });
  W.attachRenderer('scope.lists','1',(root,{data,config,context})=>{

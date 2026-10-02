@@ -4428,7 +4428,7 @@
       if (value == null || value === '' || typeof value === 'object') return;
       used.add(key);
       const parsed = Number(value);
-      const display = Number.isFinite(parsed) ? parsed.toLocaleString([], { maximumFractionDigits: 2 }) : cleanText(value);
+      const display = Number.isFinite(parsed) ? parsed.toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : cleanText(value);
       if (!display) return;
       rows.push({ key, label, value: `${display}${unit === '/12' ? '/12' : unit ? ` ${unit}` : ''}` });
     };

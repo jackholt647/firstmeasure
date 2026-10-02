@@ -27,7 +27,7 @@
       mobileFullscreenControl: false
     }
   };
-  const widgetBundles = ['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js','20261002-key-vertical'));
+  const widgetBundles = ['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js','20261002-measurement-precision'));
   const channelsLibBundles = [
     ...widgetBundles,
     versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
@@ -268,7 +268,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['pricebook.bridge'],
-      bundles: [...channelsLibBundles, bundle('../materials-api/materials-api.js'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('materials/project.js', '20261002-scope-half')]
+      bundles: [...channelsLibBundles, bundle('../materials-api/materials-api.js'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('materials/project.js', '20261002-measurement-precision')]
     },
     {
       id: 'project.money',
