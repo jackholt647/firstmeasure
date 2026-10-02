@@ -216,7 +216,10 @@ export function assignableMatchesRule(subjectValue: unknown, ruleValue: unknown)
   const subject = normalizeAssignableSubject(subjectValue);
   const rule = normalizedRule(ruleValue, 0);
   if (!rule || !cleanText(subject.subject_type) || !cleanText(subject.id)) return false;
-  if (rule.subject_types.length && !rule.subject_types.includes(subject.subject_type as AssignableSubjectType)) return false;
+  const mappedExternal = subject.subject_type === "organization_connection" && subject.external_assignment === true;
+  const mappedKinds = uniqueIds(subject.mapped_group_kind_ids);
+  if (rule.subject_types.length && !rule.subject_types.includes(subject.subject_type as AssignableSubjectType)
+    && !(mappedExternal && rule.subject_types.includes("resource_group") && rule.group_kind_ids.some(id => mappedKinds.includes(id)))) return false;
   if (rule.subject_ids.length && !rule.subject_ids.includes(cleanText(subject.id))) return false;
   if (rule.role_ids.length) {
     if (subject.subject_type !== "organization_user") return false;
@@ -224,7 +227,7 @@ export function assignableMatchesRule(subjectValue: unknown, ruleValue: unknown)
     if (!rule.role_ids.some((roleId) => roles.includes(roleId))) return false;
   }
   if (rule.group_kind_ids.length) {
-    if (subject.subject_type !== "resource_group" || !rule.group_kind_ids.includes(cleanText(subject.group_kind_id))) return false;
+    if (mappedExternal ? !rule.group_kind_ids.some(id => mappedKinds.includes(id)) : subject.subject_type !== "resource_group" || !rule.group_kind_ids.includes(cleanText(subject.group_kind_id))) return false;
   }
   if (rule.kind_ids.length) {
     const kinds = uniqueIds(subject.kind_ids);
@@ -244,11 +247,14 @@ export function assignableMatchesRule(subjectValue: unknown, ruleValue: unknown)
 
 export function assignableMatchesPolicy(subjectValue: unknown, policyValue: unknown) {
   const policy = normalizeAssignmentPolicy(policyValue);
-  return !policy.rules.length || policy.rules.some((rule) => assignableMatchesRule(subjectValue, rule));
+  const subject = normalizeAssignableSubject(subjectValue);
+  const groupKinds = policy.rules.flatMap(rule => rule.group_kind_ids);
+  if (subject.external_assignment === true && groupKinds.length && !uniqueIds(subject.mapped_group_kind_ids).some(id => groupKinds.includes(id))) return false;
+  return !policy.rules.length || policy.rules.some((rule) => assignableMatchesRule(subject, rule));
 }
 
 export function filterAssignableSubjects(subjects: unknown, policyValue: unknown) {
   const policy = normalizeAssignmentPolicy(policyValue);
   return asArray(subjects).map(normalizeAssignableSubject)
-    .filter((subject) => !policy.rules.length || policy.rules.some((rule) => assignableMatchesRule(subject, rule)));
+    .filter((subject) => assignableMatchesPolicy(subject, policy));
 }

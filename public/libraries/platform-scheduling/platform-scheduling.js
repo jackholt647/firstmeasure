@@ -263,10 +263,12 @@
     const subject = normalizeAssignableSubject(subjectValue);
     const rule = normalizeAssignmentRule(ruleValue);
     if (!subject.subject_type || !subject.id) return false;
-    if (rule.subject_types.length && !rule.subject_types.includes(subject.subject_type)) return false;
+    const mappedExternal = subject.subject_type === 'organization_connection' && subject.external_assignment === true;
+    const mappedKinds = Array.isArray(subject.mapped_group_kind_ids) ? subject.mapped_group_kind_ids : [];
+    if (rule.subject_types.length && !rule.subject_types.includes(subject.subject_type) && !(mappedExternal && rule.subject_types.includes('resource_group') && rule.group_kind_ids.some(id => mappedKinds.includes(id)))) return false;
     if (rule.subject_ids.length && !rule.subject_ids.includes(subject.id)) return false;
     if (rule.role_ids.length && (subject.subject_type !== 'organization_user' || !rule.role_ids.some((id) => subject.role_ids.includes(id)))) return false;
-    if (rule.group_kind_ids.length && (subject.subject_type !== 'resource_group' || !rule.group_kind_ids.includes(subject.group_kind_id))) return false;
+    if (rule.group_kind_ids.length && (mappedExternal ? !rule.group_kind_ids.some(id => mappedKinds.includes(id)) : subject.subject_type !== 'resource_group' || !rule.group_kind_ids.includes(subject.group_kind_id))) return false;
     if (rule.kind_ids.length && !rule.kind_ids.some((id) => subject.kind_ids.includes(id))) return false;
     if (rule.assignment_tag_ids.length) {
       const hits = rule.assignment_tag_ids.map((id) => subject.assignment_tag_ids.includes(id));
@@ -278,7 +280,11 @@
   function filterAssignableSubjects(subjects = [], policyValue = {}){
     const policy = normalizeAssignmentPolicy(policyValue);
     return arrayValue(subjects).map(normalizeAssignableSubject)
-      .filter((subject) => !policy.rules.length || policy.rules.some((rule) => assignableMatchesRule(subject, rule)));
+      .filter((subject) => {
+        const kinds=policy.rules.flatMap(rule=>rule.group_kind_ids);
+        if(subject.external_assignment===true && kinds.length && !(subject.mapped_group_kind_ids||[]).some(id=>kinds.includes(id)))return false;
+        return !policy.rules.length || policy.rules.some(rule=>assignableMatchesRule(subject,rule));
+      });
   }
 
   function humanizeKey(key){

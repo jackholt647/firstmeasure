@@ -9899,6 +9899,7 @@
             ${String(viewState.workforceSubtab === 'groups' ? `<div class="wf-group-list">${activeGroups.map(groupCardHtml).join('') || `<div class="wf-empty">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_4b26fa05c4c75f",`No active ${v0} yet.`,{v0}) ?? `No active ${v0} yet.`)(escapeHtml(labels.resource_group_plural.toLowerCase()))}</div>`}</div>` : `<div class="wf-connection-list">${activeConnections.map(connectionCardHtml).join('') || `<div class="wf-empty">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_4b26fa05c4c75f",`No active ${v0} yet.`,{v0}) ?? `No active ${v0} yet.`)(escapeHtml(labels.organization_connection_plural.toLowerCase()))}</div>`}</div>`)}
             <section class="wf-terms" data-workforce-terms-panel hidden>
               <div class="wf-section-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_9eae37315ee584","Resource-group kinds and assignment tags") ?? "Resource-group kinds and assignment tags")}</div>
+              <fieldset class="wf-field"><legend>Partner assignments</legend><p class="cs-note">Allow connected organizations or their exposed teams to receive work for a group type.</p>${resourceGroupKinds().filter(k=>k.status!=='archived').map(k=>`<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-external-kind="${escapeHtml(k.id)}" ${k.external_assignment?'checked':''}>${escapeHtml(k.name)}<button type="button" class="cs-btn ghost" data-pair-kind="${escapeHtml(k.id)}">Manage partners</button></label>`).join('')}</fieldset>
               <div class="wf-grid two">
                 <label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4c4943b0d6acf1","Group kinds") ?? "Group kinds")}</span><textarea class="wf-input" rows="5" data-workforce-definitions="resource_group_kinds" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_addcc2d761e132","crew | Crew") ?? "crew | Crew")}">${String(escapeHtml(resourceGroupKinds().map((kind) => `${kind.id} | ${kind.name}`).join('\n')))}</textarea><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_02b1826ca4c69e","One per line: stable id | display name. Existing groups keep stable IDs.") ?? "One per line: stable id | display name. Existing groups keep stable IDs.")}</small></label>
                 <label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_75ef37c7aa8d48","Assignment tags") ?? "Assignment tags")}</span><textarea class="wf-input" rows="5" data-workforce-definitions="assignment_tags" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_abe5462c3e858a","drywall | Drywall") ?? "drywall | Drywall")}">${String(escapeHtml(assignmentTags().map((tag) => `${tag.id} | ${tag.name}`).join('\n')))}</textarea><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_749812be09209b","Tags can be applied to people and groups, then required by an event type.") ?? "Tags can be applied to people and groups, then required by an event type.")}</small></label>
@@ -9911,6 +9912,7 @@
             if (!window.Portal?.navigation?.applying) writeSettingsRoute({ sub:'crews', settingsView:viewState.workforceSubtab, settingsEntity:'' }, { history:'push', source:'workforce-settings-view' });
             draw();
           }));
+          paneCrews.querySelectorAll('[data-pair-kind]').forEach(b=>b.addEventListener('click',()=>{window.__fmPartnerAssignmentKind=b.dataset.pairKind;window.Portal?.tabs?.activateTab?.('partners');}));
           paneCrews.querySelector('[data-workforce-terms]')?.addEventListener('click', () => {
             const termsPanel = paneCrews.querySelector('[data-workforce-terms-panel]');
             if (termsPanel) termsPanel.hidden = !termsPanel.hidden;
@@ -9935,7 +9937,7 @@
               };
               const result = await api.workforce.saveConfiguration(orgId, branchId, {
                 expected_revision:Number(configuration.revision || 0),
-                resource_group_kinds:parseDefinitions('resource_group_kinds'),
+                resource_group_kinds:parseDefinitions('resource_group_kinds').map(k=>({...k,external_assignment:!!Array.from(paneCrews.querySelectorAll('[data-external-kind]:checked')).find(el=>el.dataset.externalKind===k.id)})),
                 assignment_tags:parseDefinitions('assignment_tags')
               });
               configuration = { ...configuration, ...(result?.configuration || result || {}), terminology:normalizeWorkforceTerminology(result?.configuration?.terminology || result?.terminology || nextTerminology) };

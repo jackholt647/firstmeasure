@@ -182,7 +182,9 @@ export async function listAssignableResources(orgId: string, branchId: string, o
     Promise.resolve((await listOrganizationConnections(orgId, query)))
   ]);
   const resourceGroups = groups.map((group) => resourceGroupAssignableProjection(group));
-  const organizationConnections = connections.map((connection) => organizationConnectionAssignableProjection(connection));
+  const localConnections = connections.filter(connection => !connection.linked_organization_id).map(connection => organizationConnectionAssignableProjection(connection));
+  const { externalAssignmentSubjects } = await import("../collaboration/assignments.js");
+  const organizationConnections = [...localConnections, ...await externalAssignmentSubjects(orgId, connections, branchId)];
   const users = (await listWorkforceUsers(orgId, { branch_id: branchId })).map((user) => ({
     subject_type: "organization_user",
     resource_kind: "organization_user",

@@ -1,3 +1,4 @@
+import * as assignments from "./assignments.js";
 import type { FastifyPluginAsync } from "fastify";
 import { z, ZodError } from "zod";
 import { requirePlatformAuth } from "../platform/auth.js";
@@ -102,6 +103,9 @@ export const registerCollaborationApi:FastifyPluginAsync=async app=>{
   });
   app.get(base+"/privacy",async req=>{const ctx=await auth(req,"use_external_shares");return {ok:true,...await service.privacy(ctx.orgId)};});
   app.put(base+"/privacy",async req=>{const ctx=await auth(req,"manage_external_privacy",true);const body=z.object({policy:z.unknown(),expected_revision:z.number().int().min(0)}).strict().parse(req.body);return {ok:true,record:await service.savePrivacy(ctx,body.policy,body.expected_revision)};});
+  app.get(base+"/engagements/:id/assignment-options",async req=>{const ctx=await auth(req,"manage_schedule");return {ok:true,...await partners.engagementAssignmentOptions(ctx,(req.params as any).id)};});
+  app.get(base+"/partners/:id/assignments",async req=>{const ctx=await auth(req,"manage_external_connections");return {ok:true,...await assignments.assignmentSettings(ctx,(req.params as any).id)};});
+  app.put(base+"/partners/:id/assignments",async req=>{const ctx=await auth(req,"manage_external_connections",true);return {ok:true,settings:await assignments.saveAssignmentSettings(ctx,(req.params as any).id,req.body)};});
   app.get(base+"/partners",async req=>{const ctx=await auth(req,"view_partners"),p=pageSchema.parse(req.query);return {ok:true,...await service.listRelationships(ctx,p.after,p.limit)};});
   app.patch(base+"/partners/:id",async req=>{const ctx=await auth(req,"manage_external_connections",true);return {ok:true,relationship:await service.updateRelationship(ctx,(req.params as any).id,req.body)};});
   app.get(base+"/invitations",async req=>{const ctx=await auth(req,"manage_external_connections"),p=pageSchema.parse(req.query);return {ok:true,...await listRecords("invitation",ctx.orgId,"both",p.after,p.limit)};});

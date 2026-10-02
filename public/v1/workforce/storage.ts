@@ -1073,3 +1073,11 @@ async function initializeWorkforceExtensions(db: SqlStore) {
   await ensureSqlColumn(db, "crew_checklist_items", "rating", "TEXT NOT NULL DEFAULT ''");
   await ensureSqlColumn(db, "crew_checklist_items", "note", "TEXT NOT NULL DEFAULT ''");
 }
+
+/** Minimal assignment exposure catalog: never hydrate pay profiles or private user records. */
+export async function listAssignmentGroups(orgIdValue:string, includeMembers=false) {
+  const orgId=cleanId(orgIdValue,"organization_id"),db=getWorkforceDatabase();
+  const rows=await db.prepare("SELECT id,name,kind_id,branch_id,status FROM resource_groups WHERE organization_id=? AND status='active' ORDER BY name,id").all(orgId);
+  const memberships=includeMembers?await db.prepare("SELECT group_id,user_id,status FROM resource_group_memberships WHERE organization_id=? AND status='active'").all(orgId):[];
+  return rows.map(row=>({...row,members:memberships.filter(m=>m.group_id===row.id).map(m=>({user_id:String(m.user_id),status:String(m.status)}))})) as Array<{id:string;name:string;kind_id:string;branch_id:string;status:string;members:Array<{user_id:string;status:string}>}>;
+}

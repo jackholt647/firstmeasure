@@ -84,7 +84,7 @@ export async function addPartnerDocument(ctx:PlatformAuthContext,raw:unknown){
 export async function scheduleEngagement(ctx:PlatformAuthContext,id:string,raw:unknown){
   ctx=await currentActor(ctx);requirePermission(ctx,"manage_projects");requirePermission(ctx,"manage_schedule");
   if(!await isCapabilityEnabled(ctx.orgId,"platform.scheduling"))throw forbidden("scheduling_disabled","Scheduling is disabled for your organization.");
-  const input=z.object({expected_revision:z.number().int().positive(),start_at:z.string().datetime(),end_at:z.string().datetime(),client_operation_id:operationId}).strict().parse(raw);
+  const input=z.object({assignment_id:idSchema.optional(),expected_revision:z.number().int().positive(),start_at:z.string().datetime(),end_at:z.string().datetime(),client_operation_id:operationId}).strict().parse(raw);
   if(Date.parse(input.end_at)<=Date.parse(input.start_at))throw badRequest("schedule_range","The end must follow the start.");
   const initial=await getRecord(id,"engagement");
   if(initial.owner_org_id!==ctx.orgId)throw forbidden("engagement_owner_required","Only the hiring organization can schedule this engagement.");
@@ -98,11 +98,26 @@ export async function scheduleEngagement(ctx:PlatformAuthContext,id:string,raw:u
     const project=await readDocument(ctx.orgId,"projects",engagement.resource.id),eventId=operation;
     const existing=(Array.isArray(project.data.events)?project.data.events as any[]:[]).find(e=>e.id===eventId);
     if(existing&&(existing.start_at!==input.start_at||existing.end_at!==input.end_at))throw conflict("operation_conflict","This scheduling reference was already used.");
+    const {listAssignableResources}=await import("../workforce/service.js");
+    const catalog=await listAssignableResources(ctx.orgId,String(project.data.branch_id||"default"));
+    const chosen=catalog.organization_connections.find((s:any)=>s.id===(input.assignment_id||engagement.work_resource_ref.id)&&s.linked_organization_id===engagement.recipient_org_id);
+    if(!chosen)throw forbidden("partner_assignment_unavailable","Set up assignments with this partner before scheduling this work.");
+    const reference=chosen.work_resource_ref;
     if(!existing){
       const {saveProjectScheduleEvent}=await import("../platform/api.js");
-      await saveProjectScheduleEvent(ctx.orgId,engagement.resource.id,ctx,{branch_id:project.data.branch_id||"default",expected_event_revision:0,event:{id:eventId,title:engagement.title,kind:"project_work",event_type_default_id:"project_work",start_at:input.start_at,end_at:input.end_at,work_resource_ref:engagement.work_resource_ref,resource_refs:[{...engagement.work_resource_ref,role:"crew"}],collaboration_engagement_id:id}});
+      await saveProjectScheduleEvent(ctx.orgId,engagement.resource.id,ctx,{branch_id:project.data.branch_id||"default",expected_event_revision:0,event:{id:eventId,title:engagement.title,kind:"project_work",event_type_default_id:"project_work",start_at:input.start_at,end_at:input.end_at,work_resource_ref:reference,resource_refs:[{...reference,role:"crew"}],collaboration_engagement_id:id}});
     }
     const record=await insertRecord("engagement_schedule",{id:operation,owner_org_id:ctx.orgId,recipient_org_id:engagement.recipient_org_id,resource:engagement.resource,engagement_id:id,event_id:eventId,request_hash:requestHash,status:"active",revision:1,created_at:now()});
     await audit(record,"collaboration.engagement.scheduled",actor(ctx));return {event_id:eventId};
   }));
+}
+
+export async function engagementAssignmentOptions(ctx:PlatformAuthContext,id:string){
+ ctx=await currentActor(ctx);requirePermission(ctx,"manage_schedule");requirePermission(ctx,"manage_projects");
+ const engagement=await getRecord(id,"engagement");if(engagement.owner_org_id!==ctx.orgId)throw forbidden("engagement_owner_required","Only the hiring organization can schedule this engagement.");
+ await requireConnection(ctx.orgId,engagement.recipient_org_id);
+ const project=await readDocument(ctx.orgId,"projects",engagement.resource.id);
+ const {listAssignableResources}=await import("../workforce/service.js");
+ const catalog=await listAssignableResources(ctx.orgId,String(project.data.branch_id||"default"));
+ return {relationship_id:engagement.relationship_id,items:catalog.organization_connections.filter((s:any)=>s.linked_organization_id===engagement.recipient_org_id)};
 }

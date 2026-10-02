@@ -23,6 +23,7 @@ export const workforceTerminologySchema = z.object({
 export const workforceConfigurationInputSchema = jsonObjectSchema.extend({
   terminology: workforceTerminologySchema.optional(),
   resource_group_kinds: z.array(jsonObjectSchema.extend({
+    external_assignment: z.boolean().optional(),
     id: stableIdSchema,
     name: z.string().trim().min(1).max(120),
     description: z.string().trim().max(500).optional(),
