@@ -11,7 +11,7 @@ test('voice connects, delegates once with context, preserves drafts, and release
  await page.evaluate(()=>{
   window.Portal={};window.__APP={userOrgId:'org'};window.calls=[];window.voiceClosed=[];
   const thread={id:'main',title:'Main thread'},messages=[];
-  window.AssistantAPI={context:async()=>({main_thread:thread,threads:[thread],agents:[],dashboard:[]}),thread:async()=>({thread,messages}),
+  window.AssistantAPI={context:async()=>{if(!window.bootReleased)await new Promise(resolve=>window.releaseBoot=()=>{window.bootReleased=true;resolve();});return{main_thread:thread,threads:[thread],agents:[],dashboard:[]};},thread:async()=>({thread,messages}),
    startVoice:async()=>{if(window.delayStart)await new Promise(r=>window.releaseStart=r);return{session:{id:'live-test'},transport:{sdp:'answer'},close_token:'signed'};},
    closeVoice:async(...args)=>{window.voiceClosed.push(args);},
    send:async(_org,_id,body)=>{window.calls.push(body);messages.push({role:'user',content:body.message},{role:'assistant',content:'Your result.'});return{assistant_message:{content:'Your result.'}};}};
@@ -25,9 +25,13 @@ test('voice connects, delegates once with context, preserves drafts, and release
   };
   window.emit=e=>window.events.dispatchEvent(new MessageEvent('message',{data:JSON.stringify(e)}));
  });
- for(const f of ['window-manager/window-manager.js','platform-assistant/platform-assistant.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+f,import.meta.url),'utf8')});
- await page.evaluate(()=>PlatformAssistant.openFull());await page.locator('[data-fma=input]').fill('Keep my draft');
- await page.locator('[data-fma=voice]').click();await page.waitForFunction(()=>document.querySelector('[data-fma=voiceStatus]').textContent==='Listening');
+ for(const f of ['window-manager/window-manager.js','platform-assistant/platform-assistant.js']) {
+  const source=process.env.ASSISTANT_ASSET_ORIGIN ? await (await fetch(`${process.env.ASSISTANT_ASSET_ORIGIN}/libraries/${f}?voice_verify=${Date.now()}`)).text() : await readFile(new URL('../../libraries/'+f,import.meta.url),'utf8');
+  await page.addScriptTag({content:source});
+ }
+ await page.evaluate(()=>PlatformAssistant.openFull());
+ await page.locator('[data-fma=voice]').click();await page.evaluate(()=>window.releaseBoot?.());await page.waitForFunction(()=>document.querySelector('[data-fma=voiceStatus]').textContent==='Listening');
+ await page.locator('[data-fma=input]').fill('Keep my draft');
  assert.equal(await page.locator('[data-fma=mic]').isDisabled(),true);
  await page.evaluate(()=>{emit({type:'session.input_transcript.delta',delta:'Check my orders',start_ms:0,end_ms:500});emit({type:'session.delegation.created',delegation:{id:'d1',target:'client'},offset_ms:510});emit({type:'session.delegation.created',delegation:{id:'d1',target:'client'}});});
  await page.waitForFunction(()=>events.sent.some(e=>e.type==='session.commentary.append'));

@@ -45,7 +45,7 @@ function createSessionClient() {
     method: "POST", url, payload,
     headers: { cookie, "x-platform-csrf": csrf, "content-type": `multipart/form-data; boundary=${boundary}` }
   });
-  return { request, raw, multipart };
+  return { request, raw, multipart, withoutCsrf: (url: string, payload: unknown) => app.inject({method:"POST",url,payload,headers:{cookie}}) };
 }
 
 before(async () => {
@@ -773,6 +773,7 @@ test("voice creation uses the existing server key, keeps ownership and CSRF gate
   }) as typeof fetch;
   try {
     assert.equal((await app.inject({method:"POST",url,payload:{sdp:"v=0"}})).statusCode,401);
+    assert.equal((await client.withoutCsrf(url,{sdp:"v=0"})).statusCode,403);
     assert.equal((await client.raw("POST",url,{sdp:"not-sdp"})).statusCode,400);
     const other = createSessionClient(); await register(other);
     assert.ok((await other.raw("POST",url,{sdp:"v=0"})).statusCode >= 400);

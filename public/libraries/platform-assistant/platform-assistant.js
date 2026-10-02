@@ -1769,7 +1769,7 @@
   }
 
   async function openThread(threadId, options = {}){
-    if (voiceCall && clean(threadId) !== voiceCall.threadId) stopVoice();
+    if (voiceCall?.threadId && clean(threadId) !== voiceCall.threadId) stopVoice();
     if (state.pending) return false;
     saveConversationDraft();
     state.agentId = '';

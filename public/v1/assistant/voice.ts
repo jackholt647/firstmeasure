@@ -8,9 +8,13 @@ export const VOICE_TURN_NOTE = `This is a delegated request from a live voice co
 /** The same server credential as agents/runtime; no provider credentials go to the browser. */
 export async function createAssistantVoiceSession(sdp: string, messages: Array<{ role: string; content: string }>) {
   if (!env.openaiApiKey) throw new PlatformError("voice_not_configured", 503, "Voice conversations are not configured yet.");
+  let historyBytes = 0;
   const input = messages.filter(m => ["user", "assistant"].includes(m.role) && m.content).slice(-12).map(m => ({
     type: "message", role: m.role, content: [{ type: m.role === "assistant" ? "output_text" : "input_text", text: m.content.slice(0, 1000) }]
-  }));
+  })).reverse().filter(message => {
+    historyBytes += Buffer.byteLength(message.content[0]!.text, "utf8");
+    return historyBytes <= 7000; // Conservative bound below Live's 8,192-token seed limit.
+  }).reverse();
   let response: Response;
   try {
     response = await fetch("https://api.openai.com/v1/live/sessions", {
@@ -27,7 +31,7 @@ export async function createAssistantVoiceSession(sdp: string, messages: Array<{
     throw new PlatformError("voice_unavailable", response.status === 429 ? 429 : 503,
       response.status === 429 ? "Voice is busy. Please try again shortly." : "GPT-Live is unavailable for this account right now.");
   }
-  const result = await response.json() as { session?: { id?: unknown }; transport?: { sdp?: unknown } };
+  const result = await response.json().catch(() => ({})) as { session?: { id?: unknown }; transport?: { sdp?: unknown } };
   if (typeof result.session?.id !== "string" || typeof result.transport?.sdp !== "string") {
     throw new PlatformError("voice_invalid_response", 502, "Voice could not establish a connection. Please try again.");
   }
