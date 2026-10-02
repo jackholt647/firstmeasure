@@ -902,7 +902,7 @@ window.PlatformCommerce.onReady(async function(){
     .r-overview-details .r-contact-list{gap:14px}
     .r-overview-details .r-contact-card .r-inp{font-weight:600}
     .r-overview-details:has(.r-overview-initial-actions:not([hidden])) #rOrderMeasurements{display:none!important}
-    .r-overview-initial-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr;gap:8px;margin:12px 0}.r-overview-initial-actions .r-toggle-btn{display:flex;align-items:center;justify-content:flex-start;gap:8px;width:100%;min-width:0;min-height:40px;padding:9px 10px;border-radius:8px;text-align:left;white-space:normal;font-size:12px;line-height:1.35}.r-overview-initial-actions .r-toggle-btn i{flex:none;color:inherit}.r-overview-initial-actions[hidden]{display:none!important}
+    .r-overview-initial-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;margin:12px 0}.r-overview-initial-actions .r-toggle-btn{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;width:100%;min-width:0;min-height:40px;padding:9px 10px;border-radius:8px;text-align:left;white-space:normal;font-size:12px;line-height:1.35}.r-overview-initial-actions .r-toggle-btn i{display:inline-flex;align-items:center;justify-content:center;flex:0 0 18px;width:18px;font-size:13px;line-height:1;color:inherit}.r-overview-initial-actions[hidden]{display:none!important}
     .r-workflow-project-picker[hidden]{display:none!important}
     .r-workflow-search-row{display:flex;align-items:center;gap:8px}
     .r-workflow-search-row input{flex:1;min-width:0}
