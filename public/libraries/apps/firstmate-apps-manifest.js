@@ -27,7 +27,7 @@
       mobileFullscreenControl: false
     }
   };
-  const widgetBundles = ['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js','20261002-widget-controls'));
+  const widgetBundles = ['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js','20261002-key-vertical'));
   const channelsLibBundles = [
     ...widgetBundles,
     versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
@@ -357,7 +357,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-widget-controls'), versionedBundle('measurements/project.js', '20261002-widget-controls')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-key-vertical'), versionedBundle('measurements/project.js', '20261002-widget-controls')]
     },
     {
       id: 'project.checklists',
