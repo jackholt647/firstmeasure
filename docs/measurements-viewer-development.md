@@ -84,3 +84,5 @@ is in ignored `output/measurements-viewer/`. Live authenticated rollout checks
 remain for a development deployment.
 
 October 2 follow-up: [Sandbox defaults and access fix](../deploy/digitalocean/development-sandbox-measurement-defaults-20261002.md) enables the helper for existing sandbox sessions and disables the regular instant/weather options in the full-org preset and 29 existing test orgs.
+
+October 2 UI follow-up: [Compact switch and portal viewer load](../deploy/digitalocean/development-compact-report-control-viewer-20261002.md) reduces the developer control to one line and fixes the missing renderer dependency on the portal static load path.
