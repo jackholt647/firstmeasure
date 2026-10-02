@@ -219,6 +219,9 @@ window.PlatformCommerce.onReady(async function(){
   const proposalPdfDownloadInFlight = new Set();
   let projectViewer = null;
   let activeBaseProject = null;
+  let overviewWorkflowMode = '';
+  let reportProjectChoice = '';
+  let projectTrayOpenGeneration = 0;
   let projectTrays = null;
   let projectWindowShell = null;
   let pendingRoutePhotoId = '';
@@ -866,27 +869,58 @@ window.PlatformCommerce.onReady(async function(){
     #rProjectIdentityTrigger[aria-expanded=true]::after{transform:translateY(2px) rotate(225deg)}
     .r-window-identity .r-project-tag i{color:inherit;flex:none}
     .r-project-identity-fields{padding:14px;gap:14px}
-    .r-project-identity-popover .r-contact-card,.r-project-identity-popover .r-contact-list.has-multiple .r-contact-card{border:0;border-radius:0;box-shadow:none;background:none;padding:0;margin:0}
-    .r-project-identity-popover .r-contact-card+.r-contact-card{border-top:1px solid #e4e7ec;padding-top:14px}
-    .r-project-identity-popover .r-contact-card::before{content:'Contact';grid-column:1 / -1;font-size:11px;font-weight:700;color:#667085;margin-bottom:4px}
-    .r-project-identity-popover .r-contact-card.primary::before{content:'Primary Contact'}
-    .r-project-identity-popover .r-contact-card{display:block}
-    .r-project-identity-popover .r-contact-card::before{display:block;min-height:26px;padding-right:64px}
-    .r-project-identity-popover .r-contact-card .r-inline{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center}
-    .r-project-identity-popover .r-contact-card .r-contact-email-row{margin-top:7px}
-    .r-project-identity-popover .r-contact-actions{position:absolute;right:0;top:0;flex-direction:row}
-    .r-project-identity-popover .r-contact-card+.r-contact-card .r-contact-actions{top:14px}
-    .r-project-identity-popover #rStepAddress{border-top:1px solid #e4e7ec!important;padding-top:14px!important}
-    .r-project-identity-popover #rStepAddress::before{content:'Project Address';display:block;font-size:11px;font-weight:700;color:#667085;margin-bottom:9px}
-    .r-project-identity-popover #rProjectCustomFields:not(:empty){border-top:1px solid #e4e7ec;padding-top:14px}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-card,:is(.r-project-identity-popover,.r-overview-details) .r-contact-list.has-multiple .r-contact-card{border:0;border-radius:0;box-shadow:none;background:none;padding:0;margin:0}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-card+.r-contact-card{border-top:1px solid #e4e7ec;padding-top:14px}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-card::before{content:'Contact';grid-column:1 / -1;font-size:11px;font-weight:700;color:#667085;margin-bottom:4px}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-card.primary::before{content:'Primary Contact'}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-card{display:block}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-card::before{display:block;min-height:26px;padding-right:64px}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-card .r-inline{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-card .r-contact-email-row{margin-top:7px}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-actions{position:absolute;right:0;top:0;flex-direction:row}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-card+.r-contact-card .r-contact-actions{top:14px}
+    :is(.r-project-identity-popover,.r-overview-details) #rStepAddress{border-top:1px solid #e4e7ec!important;padding-top:14px!important}
+    :is(.r-project-identity-popover,.r-overview-details) #rStepAddress::before{content:'Project Address';display:block;font-size:11px;font-weight:700;color:#667085;margin-bottom:9px}
+    :is(.r-project-identity-popover,.r-overview-details) #rProjectCustomFields:not(:empty){border-top:1px solid #e4e7ec;padding-top:14px}
     [data-identity-actions]{display:none}
-    .r-project-identity-popover .r-contact-shortcut-field{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:3px;min-width:0}
-    .r-project-identity-popover .r-contact-shortcut-field>label{width:100%}
-    .r-project-identity-popover .r-contact-shortcut-field>input{flex:1;width:0;min-width:60px}
-    .r-project-identity-popover [data-identity-actions]{display:inline-flex;flex:none;gap:1px}
-    .r-project-identity-popover [data-contact-shortcut]{width:25px;height:28px;display:grid;place-items:center;padding:0;border:0;border-radius:5px;background:none;color:#667085;cursor:pointer}
-    .r-project-identity-popover [data-contact-shortcut]:hover{background:#f2f4f7;color:#344054}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-shortcut-field{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:3px;min-width:0}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-shortcut-field>label{width:100%}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-shortcut-field>input{flex:1;width:0;min-width:60px}
+    :is(.r-project-identity-popover,.r-overview-details) [data-identity-actions]{display:inline-flex;flex:none;gap:1px}
+    :is(.r-project-identity-popover,.r-overview-details) [data-contact-shortcut]{width:25px;height:28px;display:grid;place-items:center;padding:0;border:0;border-radius:5px;background:none;color:#667085;cursor:pointer}
+    :is(.r-project-identity-popover,.r-overview-details) [data-contact-shortcut]:hover{background:#f2f4f7;color:#344054}
     .r-header-stage-popover .r-manual-stage-body{padding:12px}
+
+    .r-overlay.has-project-trays .r-overview-details .r-bottom-notes{display:none!important}
+    .r-overlay.has-project-trays .r-overview-details{padding-bottom:18px}
+    .r-overview-details #rStepAddress{margin-top:14px}
+    .r-overview-details .r-contact-list{gap:14px}
+    .r-overview-details .r-contact-card .r-inp{font-weight:600}
+    .r-workflow-project-picker[hidden]{display:none!important}
+    .r-workflow-search-row{display:flex;align-items:center;gap:8px}
+    .r-workflow-search-row input{flex:1;min-width:0}
+    .r-workflow-search-row button{white-space:nowrap;flex:none}
+    .r-workflow-project-picker [role=listbox]{display:grid;gap:4px;margin-top:8px}
+    .r-workflow-project-picker [role=option]{border:0;background:#f7f8fa;padding:10px;text-align:left;border-radius:6px;color:#344054;cursor:pointer}
+    .r-workflow-project-picker [role=option]:hover,.r-workflow-project-picker [role=option]:focus{background:#eef2f6}
+    .r-workflow-project-picker [role=status]{font-size:12px;color:#667085}
+    .r-overlay.overview-creation-flow .r-overview-details{border-right:0}
+    .r-overlay.overview-project-picker .r-overview-details{flex-basis:min(540px,100%);width:min(540px,100%)}
+    .r-overlay.overview-project-picker .r-overview-details #rForm{display:none!important}
+    .r-overlay.overview-project-picker [data-panel=map]>.r-tab-content>.r-tab-main{visibility:hidden}
+    .r-overlay.overview-project-picker .r-project-body{background:#fff}
+    .r-overlay.overview-focused-report #rProjectViewerTabs,.r-overlay.overview-focused-report #rProjectStageBar{display:none!important}
+    .r-overlay.overview-focused-report .r-window-identity{grid-row:1 / 3!important}
+    .r-overlay.overview-focused-report #rWindowProjectTitle{font-size:24px;line-height:1.2;font-weight:700}
+    .r-overlay.overview-focused-report #rProjectIdentityTrigger{pointer-events:none}
+    .r-overlay.overview-focused-report #rProjectIdentityTrigger::after{display:none}
+    .r-overlay .r-project-body{container-type:inline-size;container-name:project-body;min-width:0}
+    .r-overlay [data-panel=map]>.r-tab-content{min-width:0}
+    @container project-body (max-width:760px){
+      .r-overlay:not(.mobile-order) [data-panel=map]>.r-tab-content{flex-direction:column;overflow:auto}
+      .r-overlay:not(.mobile-order) [data-panel=map] .r-overview-details{width:100%;flex:0 0 auto;max-height:none;border-right:0;border-bottom:1px solid #e4e7ec;overflow:visible}
+      .r-overlay:not(.mobile-order) [data-panel=map]>.r-tab-content>.r-tab-main{flex:1 0 420px;min-height:420px}
+    }
     .r-window-identity>i{color:var(--primary-readable,var(--primary,#d93025));flex:none}
     .r-window-identity span{overflow:hidden;text-overflow:ellipsis}
     .r-mobile-project-title,.r-mobile-project-notes-launcher,.r-mobile-project-notes-scrim,.r-mobile-project-notes-workspace{display:none}
@@ -2752,7 +2786,7 @@ window.PlatformCommerce.onReady(async function(){
     return false;
   }
   function hasSelectedAddons(){ return reportSelection === 'roof'; }
-  function shouldUseExpandedOverviewMap(){ return hasSelectedAddons() && !hasReportOrdered(); }
+  function shouldUseExpandedOverviewMap(){ return !!overviewWorkflowMode || (hasSelectedAddons() && !hasReportOrdered()); }
   function isProposalChoice(){ return reportSelection === 'proposal' || reportSelection === 'none'; }
   function isScheduleChoice(){ return reportSelection === 'schedule'; }
   function hasReportOrdered(){
@@ -4179,6 +4213,7 @@ window.PlatformCommerce.onReady(async function(){
       ...(config && typeof config === 'object' ? config : {}),
       title_mode: ['all_contacts', 'customer_name', 'address', 'manual'].includes(mode) ? mode : 'all_contacts',
       celebrations_mode: ['on', 'small_only', 'off'].includes(celebrationMode) ? celebrationMode : 'on',
+      default_project_tray: String(config?.default_project_tray ?? 'notes'),
       project_header_pills: pillFields
     };
   }
@@ -4382,7 +4417,8 @@ window.PlatformCommerce.onReady(async function(){
     return (mode === 'manual' ? projectTitleAlias(project) : mode === 'address' ? address : contact)
       || contact || address || 'New Project';
   }
-  function openingProjectHeader(project = {}){
+  function openingProjectHeader(project = {}, options = {}){
+    if (options.workflow === 'report') return {title:'New Report',identityHtml:'New Report',pillsHtml:''};
     const contact = branchProjectConfig.title_mode === 'customer_name' ? projectPrimaryContactAlias(project).name
       : (formatProjectContactNames(project.contacts) || projectPrimaryContactAlias(project).name);
     const title = projectDisplayTitle(project);
@@ -6259,7 +6295,7 @@ window.PlatformCommerce.onReady(async function(){
     normalizeReportSelection();
     const availableActions = availableProjectActions();
     const actionRow = document.querySelector('.r-report-choice-row');
-    if (actionRow) actionRow.style.display = availableActions.length > 1 && !reportSelection ? '' : 'none';
+    if (actionRow) actionRow.style.display = availableActions.length > 0 && !reportSelection ? '' : 'none';
     document.querySelectorAll('.r-toggle-btn[data-report-choice]').forEach((btn) => {
       const key = btn.dataset.reportChoice;
       btn.classList.toggle('selected', reportSelection === key);
@@ -7578,6 +7614,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function projectDefaultPreviewTab(){
     const apps = projectModalApps();
+    if (apps.some((app) => app.id === 'map' && !app.disabled)) return 'map';
     const entitlementHome = apps.find((app) => app.defaultHome === true && !app.disabled);
     if (entitlementHome) return entitlementHome.id;
     if (projectModalAppsShouldInlineMap() && apps.some((app) => app.id === 'measurements')) return 'measurements';
@@ -8379,8 +8416,9 @@ window.PlatformCommerce.onReady(async function(){
   let projectPresenceUsers = [];
   function syncProjectPresence(){
     const trayShell = document.getElementById("rMapWrap");
-    if (!projectContentPane && !projectTrays && trayShell && window.FirstMateProjectTrays) projectTrays = window.FirstMateProjectTrays.mount(trayShell, {content:$('#rOverlay .r-project-body'),getProject:() => activeBaseProject, orgId:projectOrgId()});
+    if (!projectContentPane && !projectTrays && trayShell && window.FirstMateProjectTrays) projectTrays = window.FirstMateProjectTrays.mount(trayShell, {content:$('#rOverlay .r-project-body'),getProject:() => activeBaseProject, ensureProject:async() => { const project=ensureDraftBaseProject({allowEmpty:true}); if (!project) throw Error('Project could not be saved.'); await window.Portal.ProjectStore.saveRemote(project); return activeBaseProject; }, orgId:projectOrgId()});
     projectTrays?.update();
+    $('#rOverlay')?.classList.toggle('has-project-trays',!!projectTrays);
     const projectId = activeProjectRouteId();
     const orgId = projectOrgId();
     const key = orgId && projectId && document.querySelector('#rOverlay.active') ? `${orgId}:${projectId}` : '';
@@ -8459,6 +8497,12 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function updateModalTitle(){
+    if (overviewWorkflowMode === 'report') {
+      const title=document.getElementById('rWindowProjectTitle');if(title)title.textContent='New Report';
+      const mobile=document.getElementById('rMobileProjectTitleText');if(mobile)mobile.textContent='New Report';
+      projectWindowBridge?.update(projectWindowToken,{title:'New Report',projectId:projectOpenId()});
+      return;
+    }
     const mobileTitle = document.getElementById('rMobileProjectTitleText');
     const mode = branchProjectConfig?.title_mode || 'all_contacts';
     const address = projectText($('#rAddress')?.value, reportOrderState?.address, activeBaseProject?.address);
@@ -8612,8 +8656,8 @@ window.PlatformCommerce.onReady(async function(){
     return activeBaseProject;
   }
 
-  function ensureDraftBaseProject(){
-    if (activeBaseProject || !window.Portal.ProjectStore || !addressSelected) return activeBaseProject;
+  function ensureDraftBaseProject(options = {}){
+    if (activeBaseProject || !window.Portal.ProjectStore || (!addressSelected && !options.allowEmpty)) return activeBaseProject;
     activeBaseProject = window.Portal.ProjectStore.save({
       id: `project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
       title: manualProjectTitle(),
@@ -9236,7 +9280,53 @@ window.PlatformCommerce.onReady(async function(){
     }
   }
 
+  function syncOverviewWorkflow(){
+    const overlay=$('#rOverlay'),details=overlay?.querySelector('.r-overview-details');
+    if (!details) return;
+    const selecting=overviewWorkflowMode === 'report' && reportProjectChoice === 'search';
+    overlay.classList.toggle('overview-focused-report',overviewWorkflowMode === 'report');
+    overlay.classList.toggle('overview-project-picker',selecting);
+    overlay.classList.toggle('overview-creation-flow',!!overviewWorkflowMode);
+    decorateProjectContactActions(details);
+    if (!details.__contactActions) {details.addEventListener('click',handleProjectContactAction);details.__contactActions=true;}
+    let picker=details.querySelector('.r-workflow-project-picker');
+    if (!picker) {
+      picker=document.createElement('section');picker.className='r-workflow-project-picker';
+      picker.innerHTML='<div class="r-workflow-search-row"><input type="search" class="r-inp" placeholder="Search for an existing project" aria-label="Search for an existing project" aria-controls="rWorkflowProjectResults" aria-expanded="false"><button type="button" class="r-btn" data-new-project>New Project</button></div><div id="rWorkflowProjectResults" role="listbox" aria-label="Matching projects"></div><p role="status"></p>';
+      details.prepend(picker);
+      const input=picker.querySelector('input'),results=picker.querySelector('[role=listbox]'),status=picker.querySelector('[role=status]');
+      let searchVersion=0,timer;
+      input.oninput=()=>{
+        clearTimeout(timer);const version=++searchVersion,query=input.value.trim().toLowerCase();
+        results.replaceChildren();input.setAttribute('aria-expanded','false');status.textContent='';
+        if (!query) return;
+        status.textContent='Searching projects…';
+        timer=setTimeout(async()=>{
+          const rows=await loadDocPickerRows();
+          if (version!==searchVersion || reportProjectChoice!=='search' || !picker.isConnected) return;
+          const matches=rows.filter(row=>row.search.includes(query)).slice(0,10);
+          status.textContent=matches.length ? '' : 'No matching projects.';
+          input.setAttribute('aria-expanded',String(!!matches.length));
+          for (const row of matches) {
+            const button=document.createElement('button');button.type='button';button.setAttribute('role','option');button.textContent=row.label+(row.address && row.address!==row.label ? ' — '+row.address : '');
+            button.onclick=async()=>{
+              ++searchVersion;status.textContent='Opening project…';
+              try {await openProject({...row.data,id:row.id},{workflow:'report',tab:'map',forceRefresh:true});}
+              catch(error){status.textContent=error.message || 'Could not open project.';}
+            };
+            results.append(button);
+          }
+        },180);
+      };
+      input.onkeydown=event=>{if(event.key==='ArrowDown'){event.preventDefault();results.querySelector('button')?.focus();}if(event.key==='Escape'){++searchVersion;results.replaceChildren();input.setAttribute('aria-expanded','false');}};
+      picker.querySelector('[data-new-project]').onclick=()=>{++searchVersion;reportProjectChoice='new';renderWorkflowState();scheduleProjectMapInitialize(activeBaseProject,0);details.querySelector('[data-field=name]')?.focus();};
+    }
+    picker.hidden=!selecting;
+    updateModalTitle();
+  }
+
   function renderWorkflowStateBody(options = {}){
+    syncOverviewWorkflow();
     syncDevelopmentReportControls();
     const preserveRouteTab = options.preserveRouteTab === true;
     normalizeReportSelection();
@@ -9249,6 +9339,8 @@ window.PlatformCommerce.onReady(async function(){
       if (!preserveRouteTab && !window.Portal.ExteriorOrder?.active() && activePreviewTab !== 'map') setActivePreviewTab('map');
     }
     const hasAddress = !!(($('#rAddress')?.value || '').trim());
+    const customFields = $('#rProjectCustomFields');
+    if (customFields) customFields.hidden = !hasAddress;
     const mobileOrder = shouldUseMobileOrderPagination();
     const typeReady = mobileOrder ? addressSelected : addressSelected || hasAddress;
     const reportReady = addressSelected && !!selectedType;
@@ -9265,7 +9357,7 @@ window.PlatformCommerce.onReady(async function(){
     setStepState('#rStepType', typeReady && (!existingProjectSession || (requestedWorkflow === 'report' && !hasReportOrdered())), selectedType ? 'complete' : (typeReady ? 'active' : 'locked'), !!selectedType && (!mobileOrder || !typePickerExpanded), { hidePrices: isProposalChoice() || isScheduleChoice() });
     $('#rStepType')?.classList.toggle('is-type-collapsing', mobileOrder && mobileTypeTransitioning);
     const mobileReportOpen = mobileOrder && addressSelected && !!selectedType && !mobileTypeTransitioning;
-    const explicitActionWorkflow = !['project', 'contact'].includes(requestedWorkflow);
+    const explicitActionWorkflow = requestedWorkflow !== 'contact';
     setStepState('#rStepReport', mobileOrder ? mobileReportOpen : (explicitActionWorkflow && reportReady && hasAvailableActions), roofDecisionMade() ? 'complete' : (reportReady ? 'active' : 'locked'), mobileOrder ? false : reportCondensed, { hideHeadWhenCondensed: true });
     const scopeReady = mobileOrderScopeReady();
     $('#rOverlay')?.classList.toggle('mobile-scope-pending', mobileOrder && !scopeReady);
@@ -10890,6 +10982,7 @@ window.PlatformCommerce.onReady(async function(){
     // Create its controls before hydrating values into them.
     ensureOverviewDetails();
     hydrateFromBaseProject(project, { preferredTab:desiredTab });
+    if (options.workflow === 'report') {requestedWorkflow='report';overviewWorkflowMode='report';reportProjectChoice='existing';applyReorderPrefillState(project);}
     projectRecordPending = false;
     viewingExistingProject = true;
     setProjectShellLoading(false);
@@ -10933,7 +11026,7 @@ window.PlatformCommerce.onReady(async function(){
       && projectOpenId(baseProject) === projectOpenId(activeBaseProject);
     const unfinishedReportDraft = !!baseProject && isUnfinishedReportDraft(baseProject);
     const nextRequestedWorkflow = baseProject
-      ? (unfinishedReportDraft ? 'report' : 'project')
+      ? (options.workflow === 'report' || unfinishedReportDraft ? 'report' : 'project')
       : normalizeWorkflow(options.workflow || options.createWorkflow || options.intent);
     projectShellLoading = !!options.shellOnly;
     if (!baseProject) projectRecordPending = false;
@@ -10954,6 +11047,9 @@ window.PlatformCommerce.onReady(async function(){
     // bottom-sheet animation.
     resetNewProjectState();
     requestedWorkflow = nextRequestedWorkflow;
+    overviewWorkflowMode = requestedWorkflow === 'report' ? 'report' : (!baseProject && requestedWorkflow === 'project' ? 'project' : '');
+    reportProjectChoice = overviewWorkflowMode === 'report' ? (baseProject ? 'existing' : 'search') : '';
+    const trayGeneration = ++projectTrayOpenGeneration;
     requestedDocumentType = baseProject ? '' : String(options.documentType || '').trim().toLowerCase();
     requestedDocumentResume = baseProject ? null : (options.resumeDocument && typeof options.resumeDocument === 'object' ? options.resumeDocument : null);
     viewingExistingProject = !!baseProject;
@@ -10964,7 +11060,7 @@ window.PlatformCommerce.onReady(async function(){
     if (baseProject) hydrateFromBaseProject(baseProject, { deferRemoteContent: projectShellLoading, preferredTab:options.tab });
     else preloadFirstReportCheckoutEligibility();
     if (options.fromReorder) applyReorderPrefillState(baseProject || {});
-    if (!baseProject) applyRequestedWorkflow();
+    if (!baseProject || options.workflow === 'report') applyRequestedWorkflow();
     pendingRoutePhotoId = String(options.photo || '').trim();
     resetProjectModalAppPanels();
     setProjectModalFullscreen(routeFullscreenEnabled(options.projectFullscreen), { syncRoute: false });
@@ -10994,6 +11090,14 @@ window.PlatformCommerce.onReady(async function(){
     setProjectShellLoading(projectShellLoading);
     overlay.classList.add('active');
     syncProjectPresence();
+    if (!options.layout && (!options.tab || !baseProject || options.workflow === 'report')) {
+      const trayInteraction=projectTrays?.interactionVersion();
+      loadBranchProjectConfig().then(() => {
+        if (trayInteraction!==projectTrays?.interactionVersion() || trayGeneration !== projectTrayOpenGeneration || !overlay.classList.contains('active')) return;
+        const key = branchProjectConfig.default_project_tray ?? 'notes';
+        if (key && key !== 'off' && projectTrays?.available().includes(key)) projectTrays.select(key);
+      });
+    }
     try { if (options.layout) projectWindowShell?.apply(options.layout); }
     finally { projectRouteBatching = false; }
     if (!projectShellLoading) {
@@ -11034,6 +11138,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function close(options = {}){
+    ++projectTrayOpenGeneration;
     closeProjectIdentityPopover();
     closeManualStagePicker();
     if (!projectWindowBridge && window.FirstMateProjectWindows?.active) return window.FirstMateProjectWindows.close();
@@ -11373,7 +11478,7 @@ window.PlatformCommerce.onReady(async function(){
       const hydrated = useMeasurementResolver ? mergeProjectForViewing(resolved, project) : resolved;
       if(generation !== projectOpenGeneration || !activeModalMatchesProject(projectOpenId(base)))return hydrated;
       adoptOpeningHeaderState();
-      const header = openingProjectHeader(hydrated || {});
+      const header = openingProjectHeader(hydrated || {}, options);
       const titleNode = document.getElementById('rWindowProjectTitle');
       if(titleNode)titleNode.innerHTML=header.identityHtml;
       const bar = document.getElementById('rProjectStageBar');

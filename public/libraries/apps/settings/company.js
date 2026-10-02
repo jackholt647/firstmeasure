@@ -10101,6 +10101,7 @@
         const celebrationMode = String(config?.celebrations_mode || config?.celebrations?.mode || 'on').trim();
         return {
           ...(config && typeof config === 'object' ? config : {}),
+          default_project_tray: String(config?.default_project_tray ?? 'notes'),
           title_mode: ['all_contacts', 'customer_name', 'address', 'manual'].includes(mode) ? mode : 'all_contacts',
           celebrations_mode: ['on', 'small_only', 'off'].includes(celebrationMode) ? celebrationMode : 'on'
         };
@@ -10161,6 +10162,11 @@
             </div>
           </div>
         `;
+        const trayLabel=document.createElement('label');trayLabel.textContent='Default project tray ';
+        const traySelect=document.createElement('select');traySelect.setAttribute('aria-label','Default project tray');
+        for (const item of [{id:'off',label:'Off'},...(window.FirstMateProjectTrays?.definitions() || [])]) {const option=document.createElement('option');option.value=item.id;option.textContent=item.label;traySelect.append(option);}
+        traySelect.value=config.default_project_tray;traySelect.onchange=()=>{config.default_project_tray=traySelect.value;};trayLabel.append(traySelect);
+        paneConfiguration.querySelector('.cs-section').append(trayLabel);
         paneConfiguration.querySelectorAll('[data-title-mode]').forEach((button) => {
           button.addEventListener('click', () => {
             config.title_mode = button.dataset.titleMode || 'all_contacts';

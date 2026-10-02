@@ -5,6 +5,18 @@
   if (root.FirstMateProjectTrays) return;
   const clean = value => String(value ?? '').trim();
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const registry = new Map([
+    ['notes',{id:'notes',label:'Notes',icon:'fa-note-sticky',capability:'channels.project_notes'}],
+    ['messages',{id:'messages',label:'Messages',icon:'fa-comments',capability:'channels.project_notes',enabled:()=>root.Portal?.can?.('channels.separate_project_notes') === true}],
+    ['activity',{id:'activity',label:'Activity',icon:'fa-clock-rotate-left'}],
+    ['agent',{id:'agent',label:'Agent',icon:'fa-wand-magic-sparkles',capability:'apps.assistant'}]
+  ]);
+  function definitions() {return [...registry.values()].filter(item => (!item.capability || root.Portal?.can?.(item.capability) !== false) && (!item.enabled || item.enabled()));}
+  function register(definition) {
+    if (!/^[a-z][a-z0-9_-]*$/.test(definition?.id || '') || !definition.label) throw Error('Invalid project tray definition');
+    registry.set(definition.id,{...definition});
+    root.dispatchEvent(new CustomEvent('fm:project-trays:updated'));
+  }
   function mount(shell, options = {}) {
     const preview = options.content || shell.querySelector('.r-preview'), header = options.header || shell.querySelector('.r-modal-header') || shell.closest('.r-overlay')?.querySelector('.r-modal-header');
     if (!preview || !header) throw Error('Project shell content is unavailable.');
@@ -17,35 +29,34 @@
     tray.innerHTML = '<header><strong></strong><button type="button" class="fm-project-tray-close" aria-label="Close project tray"><i class="fas fa-xmark"></i></button></header>';
     content.append(tray);
     const panels = new Map(), handles = new Map();
-    let projectId = '', selected = '', disposed = false, activityTimer = 0;
+    let projectId = '', selected = '', disposed = false, activityTimer = 0, interactionVersion = 0;
     const oid = clean(options.orgId || root.__APP?.userOrgId);
     const getProject = () => options.getProject?.() || options.project || {};
     const capable = key => root.Portal?.can?.(key) !== false;
     const separate = () => root.Portal?.can?.('channels.separate_project_notes') === true;
-    const definitions = [ ['notes','Notes','fa-note-sticky'], ['messages','Messages','fa-comments'], ['activity','Activity','fa-clock-rotate-left'], ['agent','Agent','fa-wand-magic-sparkles'] ];
-    const available = () => definitions.filter(([key]) => key === 'messages' ? separate() && capable('channels.project_notes') : key === 'notes' ? capable('channels.project_notes') : key !== 'agent' || capable('apps.assistant')).map(([key])=>key);
+    const available = () => definitions().map(item=>item.id);
     function close() {selected = ''; content.dataset.trayOpen = 'false'; tray.inert = true; tray.setAttribute('aria-hidden','true'); renderTabs();}
     function renderTabs() {
-      const allowed = definitions.filter(([key]) => key === 'messages' ? separate() && capable('channels.project_notes') : key === 'notes' ? capable('channels.project_notes') : key !== 'agent' || capable('apps.assistant'));
+      const allowed = definitions().map(item=>[item.id,item.label,item.icon]);
       if (selected && !allowed.some(([key]) => key === selected)) close();
-      tabs.innerHTML = allowed.map(([key,title,icon]) => `<button type="button" role="tab" data-tray="${key}" aria-label="${title}" title="${title}" aria-selected="${selected === key}"${!projectId ? ' disabled' : ''}><i class="fas ${icon}" aria-hidden="true"></i></button>`).join('');
+      tabs.innerHTML = allowed.map(([key,title,icon]) => `<button type="button" role="tab" data-tray="${key}" aria-label="${title}" title="${title}" aria-selected="${selected === key}"><i class="fas ${icon}" aria-hidden="true"></i></button>`).join('');
     }
     function panel(key) {
-      if (!panels.has(key)) { const node = document.createElement('div'); node.className = 'fm-project-tray-panel'; node.hidden = true; node.setAttribute('role','tabpanel'); node.setAttribute('aria-label',definitions.find(item => item[0] === key)[1]); tray.append(node); panels.set(key,node); }
+      if (!panels.has(key)) { const node = document.createElement('div'); node.className = 'fm-project-tray-panel'; node.hidden = true; node.setAttribute('role','tabpanel'); node.setAttribute('aria-label',registry.get(key).label); tray.append(node); panels.set(key,node); }
       return panels.get(key);
     }
     async function open(key) {
       update(); if (!available().includes(key)) throw Error('Unavailable project tray: '+key);
-      if (!projectId) return;
       if (selected === key) {close(); return;}
       selected = key; content.dataset.trayOpen = 'true'; tray.inert = false; tray.setAttribute('aria-hidden','false');
       tray.querySelector('header').hidden = key === 'agent';
-      tray.querySelector('strong').textContent = definitions.find(item => item[0] === key)[1];
+      tray.querySelector('strong').textContent = registry.get(key).label;
       const node = panel(key); panels.forEach((value,name) => value.hidden = name !== key); renderTabs();
       if (handles.has(key)) {if (key === 'activity') handles.get(key).refresh(); return;}
+      if (!projectId && key !== 'notes') {node.textContent='Select or create a project to use '+registry.get(key).label.toLowerCase()+'.';return;}
       const mountingProject = projectId;
       try {
-        if (key === 'notes') handles.set(key, root.Portal.ProjectNotes.mount(node,{project:getProject(),getProject}));
+        if (key === 'notes') handles.set(key, root.Portal.ProjectNotes.mount(node,{project:getProject(),getProject,ensureProject:options.ensureProject}));
         if (key === 'agent') handles.set(key, root.PlatformAssistant.mountProject(node,{orgId:oid, projectId, onClose:close}));
         if (key === 'messages') {
           const pending = {}; handles.set(key,pending);
@@ -55,6 +66,7 @@
           node.replaceChildren(); handles.set(key,root.FirstMateChannels.create(node,{orgId:oid,context:{channelId:data.channel.id},mode:'embedded',features:{resources:false}}));
         }
         if (key === 'activity') handles.set(key,mountActivity(node,mountingProject));
+        if (registry.get(key).mount) handles.set(key,registry.get(key).mount(node,{getProject,projectId,orgId:oid}));
       } catch (error) {if (!disposed && mountingProject === projectId) {tray.querySelector('header').hidden = false; handles.delete(key); node.textContent = error.message; const retry = document.createElement('button'); retry.textContent = 'Retry'; retry.onclick = () => {selected = ''; open(key);}; node.append(retry);}}
     }
     function mountActivity(node,pid) {
@@ -94,17 +106,27 @@
     }
     function update() {
       const next = clean(getProject().platform_project_id || getProject().id);
-      if (next !== projectId) {handles.forEach(handle => handle.destroy?.()); handles.clear(); panels.forEach(node => node.remove()); panels.clear(); projectId = next; close();}
+      if (next !== projectId) {
+        const adoptingDraft = !projectId && !!next;
+        const previousSelection = selected;
+        handles.forEach((handle,key) => {if (!adoptingDraft || key !== 'notes') {handle.destroy?.();handles.delete(key);}});
+        panels.forEach((node,key) => {if (!adoptingDraft || key !== 'notes') {node.remove();panels.delete(key);}});
+        projectId = next;
+        if (adoptingDraft) {
+          handles.get('notes')?.refresh?.();
+          if (previousSelection && previousSelection !== 'notes') {selected='';void open(previousSelection);}
+        } else close();
+      }
       renderTabs();
     }
-    tabs.onclick = event => {const button = event.target.closest('[data-tray]'); if (button) open(button.dataset.tray);};
-    tray.querySelector('.fm-project-tray-close').onclick = () => {const key = selected; close(); tabs.querySelector(`[data-tray="${key}"]`)?.focus();};
-    tray.onkeydown = event => {if (event.key === 'Escape') {event.stopPropagation(); close();}};
+    tabs.onclick = event => {const button = event.target.closest('[data-tray]'); if (button) {interactionVersion++;open(button.dataset.tray);}};
+    tray.querySelector('.fm-project-tray-close').onclick = () => {interactionVersion++;const key = selected; close(); tabs.querySelector(`[data-tray="${key}"]`)?.focus();};
+    tray.onkeydown = event => {if (event.key === 'Escape') {event.stopPropagation(); interactionVersion++;close();}};
     const changed = () => {renderTabs(); handles.get('notes')?.refresh?.();};
     const activityChanged = () => {clearTimeout(activityTimer); activityTimer = setTimeout(() => {if (selected === 'activity') handles.get('activity')?.refresh?.();},400);};
-    root.addEventListener('fm:capabilities:updated',changed); root.addEventListener('fm:project-notes:refreshed',activityChanged); root.addEventListener('fm:projects:refresh',activityChanged);
+    root.addEventListener('fm:project-trays:updated',changed); root.addEventListener('fm:capabilities:updated',changed); root.addEventListener('fm:project-notes:refreshed',activityChanged); root.addEventListener('fm:projects:refresh',activityChanged);
     update();
-    return {update,close,open,available,select(key){if(key===null){close();return;}if(!available().includes(key))throw Error('Unavailable project tray: '+key);update();return selected===key?Promise.resolve():open(key);},destroy() {disposed = true;clearTimeout(activityTimer);handles.forEach(handle => handle.destroy?.());root.removeEventListener('fm:capabilities:updated',changed);root.removeEventListener('fm:project-notes:refreshed',activityChanged);root.removeEventListener('fm:projects:refresh',activityChanged);content.before(preview);content.remove();tabs.remove();style.remove();}};
+    return {update,close,open,available,interactionVersion:()=>interactionVersion,select(key){if(key===null){close();return;}if(!available().includes(key))throw Error('Unavailable project tray: '+key);update();return selected===key?Promise.resolve():open(key);},destroy() {disposed = true;clearTimeout(activityTimer);handles.forEach(handle => handle.destroy?.());root.removeEventListener('fm:project-trays:updated',changed); root.removeEventListener('fm:capabilities:updated',changed);root.removeEventListener('fm:project-notes:refreshed',activityChanged);root.removeEventListener('fm:projects:refresh',activityChanged);content.before(preview);content.remove();tabs.remove();style.remove();}};
   }
-  root.FirstMateProjectTrays = {mount};
+  root.FirstMateProjectTrays = {mount,definitions,register};
 })(window);

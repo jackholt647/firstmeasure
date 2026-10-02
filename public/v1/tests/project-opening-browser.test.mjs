@@ -14,6 +14,7 @@ test('project identity and styled close render before iframe startup; unfinished
     await page.goto('https://project.test/');
     await page.addScriptTag({content:await source('libraries/window-manager/window-manager.js')});
     await page.addScriptTag({content:await source('libraries/window-manager/window-shell.js')});
+    await page.addScriptTag({content:await source('libraries/project-trays/project-trays.js')});
     await page.addScriptTag({content:await source('libraries/window-manager/project-windows.js')});
     await page.evaluate(()=>{
       window.reads=[];
@@ -78,6 +79,7 @@ test('project can be dismissed immediately while its document is loading',async(
     await page.evaluate(()=>{window.crypto.randomUUID=()=> 'project-loading-test';});
     await page.addScriptTag({content:await source('libraries/window-manager/window-manager.js')});
     await page.addScriptTag({content:await source('libraries/window-manager/window-shell.js')});
+    await page.addScriptTag({content:await source('libraries/project-trays/project-trays.js')});
     await page.addScriptTag({content:await source('libraries/window-manager/project-windows.js')});
     await page.evaluate(()=>{window.record=FirstMateProjectWindows.open({id:'project_test',title:'Test project'});});
     await page.getByRole('button',{name:'Close project',exact:true}).click();
@@ -167,6 +169,7 @@ test('opening tabs use parent metadata before data or iframe readiness, without 
     const page=await browser.newPage({viewport:{width:1200,height:800}});
     await page.route('https://project.test/**',route=>route.fulfill({contentType:'text/html',body:'<style>*{box-sizing:border-box}main{height:100vh;width:100vw}</style><main class="main"></main>'}));
     await page.goto('https://project.test/');
+    await page.addScriptTag({content:await source('libraries/project-trays/project-trays.js')});
     for(const file of ['window-manager','window-shell','project-windows']) await page.addScriptTag({content:await source('libraries/window-manager/'+file+'.js')});
     await page.evaluate(()=>{
       window.Portal={cfg:{userOrgId:'org_test'},modules:{request:{openingTabs:()=>[{id:'map',label:'Overview'},{id:'photos',label:'Photos',icon:'fa-images'},{id:'docs',label:'Docs',icon:'fa-folder'}]}}};

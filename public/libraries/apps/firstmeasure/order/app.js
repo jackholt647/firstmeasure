@@ -66,10 +66,10 @@ ${String(expanded ? `    <section class="r-step is-open" id="rStepCustomer" data
             <input class="r-inp" id="rAddress" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_908c0715a481b7","Property address") ?? "Property address")}" placeholder="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_908c0715a481b7","Property address") ?? "Property address")}" autocomplete="off" required>
           </div>
         </div>
-        <div class="r-project-custom-fields" id="rProjectCustomFields"></div>
         <section class="r-step is-hidden" id="rStepType" data-status="locked">
           <div class="r-step-shell"><div class="r-step-inner"><div class="r-step-body"><div class="r-group"><label id="rStepTypeLabel">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_c9a026ebb1be8c","Property Type") ?? "Property Type")}</label><div class="r-choice-row" id="rTypeGroup">${buildTypeButtons()}</div><div class="r-type-pill-row" id="rTypePill"></div></div></div></div></div>
         </section>
+        <div class="r-project-custom-fields" id="rProjectCustomFields"></div>
         <div class="r-customer-portal-link" id="rCustomerPortalLinkMount"></div>
       </div></div></div>
     </section>

@@ -746,9 +746,21 @@
       style.textContent = `.pn-workspace{display:flex;flex-direction:column;flex:1;min-height:0;height:100%;font-size:13px;color:#101828;background:white}.pn-tools{display:flex;gap:8px;align-items:center;padding:10px;flex:none}.pn-tools input[type=search]{min-width:0;flex:1;border:1px solid #d0d5dd;border-radius:6px;padding:7px}.pn-tools label{white-space:nowrap;font-size:11px}.pn-pinned{flex:none;padding:0 10px;max-height:50%;overflow:auto;border-bottom:1px solid #e4e7ec}.pn-pinned[hidden]{display:none}.pn-pinned h4{margin:5px 0 8px;font-size:12px;color:#667085}.pn-history{flex:1;min-height:60px;overflow:auto;padding:10px}.pn-card{background:#fff;border:1px solid #e4e7ec;border-radius:9px;margin-bottom:9px;padding:9px}.pn-pinned .pn-card{background:#fffcf5;border-color:#f3e6be}.pn-card header{display:flex;align-items:center;gap:6px;font-size:11px}.pn-card header span{font-weight:600}.pn-card time{color:#667085;margin-left:auto}.pn-card-content{max-height:180px;overflow:hidden;overflow-wrap:anywhere}.pn-card-content.expanded{max-height:none}.pn-card-content p{white-space:pre-wrap}.pn-card footer{display:flex;align-items:center;gap:4px;color:#667085;font-size:11px;margin-top:8px}.pn-card footer button{margin-left:auto}.pn-workspace button{border:1px solid #e4e7ec;background:#fff;border-radius:5px;padding:5px 8px;color:#344054}.pn-menu{position:relative}.pn-menu summary{cursor:pointer;padding:5px;list-style:none}.pn-menu>div{position:absolute;top:100%;right:0;z-index:80;width:160px;padding:5px;background:white;border:1px solid #e4e7ec;border-radius:8px;box-shadow:0 8px 20px #10182820}.pn-menu button{display:block;width:100%;border:0;text-align:left}.pn-menu button:hover{background:#f2f4f7}.pn-composer{padding:10px;border-top:1px solid #e4e7ec;flex:none}.pn-composer textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:58px;max-height:180px;border:1px solid #d0d5dd;border-radius:8px;padding:8px;font:inherit}.pn-compose-actions{display:flex;align-items:center;gap:6px;margin-top:7px}.pn-compose-actions select{min-width:0;max-width:95px;font-size:11px;border:1px solid #e4e7ec;border-radius:5px;padding:4px}.pn-icon{padding:5px;cursor:pointer}.pn-add{margin-left:auto;display:flex;white-space:nowrap}.pn-add button{background:var(--primary,#175cd3);color:white;border:0;border-radius:6px 0 0 6px}.pn-add button+button{border-left:1px solid #ffffff55;border-radius:0 6px 6px 0}.pn-status{font-size:12px;color:#667085;padding:0 10px}.pn-status:empty{display:none}.pn-empty{color:#667085}.pn-uploads{max-height:180px;overflow:auto}.pn-more{font-size:11px;margin-top:5px}.pn-removed{color:#667085}`;
       document.head.append(style);
     }
-    const project = options.project || options.getProject?.();
-    const entry = storeFor(project);
-    if (!entry) throw Error('Save the project before adding notes.');
+    let project = options.getProject?.() || options.project;
+    let entry = storeFor(project) || {projectId:'',notes:[]};
+    function adoptProject() {
+      const current = options.getProject?.() || project;
+      const next = storeFor(current);
+      if (next) {project=current;entry=next;}
+    }
+    async function ensureSavedProject() {
+      adoptProject();
+      if (!entry.projectId) {
+        project = await options.ensureProject?.();
+        entry = storeFor(project) || entry;
+        if (!entry.projectId) throw Error('Choose a project or enter a property address before saving a note.');
+      }
+    }
     if (options.channelId) {entry.channelId = options.channelId; subscribeRealtime(entry);}
     let disposed = false, busy = false, prepared = [], editId = '', query = '', showRemoved = false;
     const expanded = new Set();
@@ -783,7 +795,7 @@
       window.FirstMateAudioNotes?.hydrate?.(container);
       history.scrollTop = scroll;
     }
-    async function refresh() { await refreshEntry(entry); render(); }
+    async function refresh() { adoptProject(); if (entry.projectId) await refreshEntry(entry); render(); }
     const ready = refresh().catch(error => say(error.message));
     const notified = event => { if (event.detail?.projectId === entry.projectId && !disposed) render(); };
     window.addEventListener('fm:project-notes:refreshed', notified);
@@ -795,6 +807,7 @@
       if (!body && !prepared.length) return;
       busy = true; form.querySelectorAll('button,input,textarea,select').forEach(node => node.disabled = true); say('Saving note…');
       try {
+        await ensureSavedProject();
         await ensureChannel(entry);
         const group = form.querySelector('select').value;
         const visibility = group === 'all' ? [] : [group];
@@ -819,6 +832,7 @@
     form.querySelector('[type=file]').onchange = async event => {
       say('Preparing files…');
       try {
+        await ensureSavedProject();
         for (const file of event.target.files) {
           const result = await prepareUpload(project, file);
           if (disposed) return;
@@ -835,7 +849,7 @@
       const node = document.createElement('div'); uploadBox.append(node);
       audio = true;
       let result;
-      try { result = await prepareAudioInline(project, node, {onRemove() {prepared = prepared.filter(item => item !== result); node.remove();}}); if (!disposed) prepared.push(result); }
+      try { await ensureSavedProject(); result = await prepareAudioInline(project, node, {onRemove() {prepared = prepared.filter(item => item !== result); node.remove();}}); if (!disposed) prepared.push(result); }
       catch (error) {node.remove(); say(error.message);}
       finally {audio = null;}
     };

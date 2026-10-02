@@ -15,6 +15,7 @@
     style.textContent += `
       .fm-project-window-loading{inset:0;border-radius:inherit;display:block;color:#101828;font-weight:400}
       .fm-project-window-loading:before{display:none}.fm-project-window-loading[hidden]{display:none!important}
+      .fm-report-workflow-header .fm-shell-tabs,.fm-report-workflow-header .r-project-stage-bar{display:none!important}.fm-report-workflow-header .fm-shell-identity{grid-row:1 / 3!important}.fm-report-workflow-header .r-window-project-title{font-size:24px;font-weight:700}.fm-report-workflow-header .r-project-identity-trigger::after{display:none}.fm-report-workflow-header .r-project-identity-trigger{pointer-events:none}
       .fm-project-loading-header{position:relative;background:#fff;border-bottom:1px solid #e4e7ec;color:#101828}
       .fm-project-loading-header .fm-shell-identity{display:flex;align-items:center;gap:8px;min-width:0}
       .fm-project-loading-header .fm-shell-identity>i{color:var(--primary,#d93025)}
@@ -164,7 +165,7 @@
     const tabs=document.createElement('nav');tabs.className='fm-shell-tabs';tabs.dataset.tabStyle='underline';tabs.setAttribute('aria-label','Project tabs');
     const overview=document.createElement('button');overview.type='button';overview.dataset.tab='map';overview.innerHTML='<i class="fas fa-columns" aria-hidden="true"></i><span>Overview</span>';overview.setAttribute('aria-selected',String(!options.tab || options.tab==='map'));tabs.append(overview);
     const trays=document.createElement('nav');trays.className='fm-project-tray-tabs';trays.setAttribute('role','tablist');trays.setAttribute('aria-label','Project trays');
-    for(const [label,icon] of [['Notes','note-sticky'],['Activity','clock-rotate-left'],['Agent','wand-magic-sparkles']]){
+    for(const [label,icon] of (root.FirstMateProjectTrays?.definitions?.() || []).map(item=>[item.label,item.icon.replace(/^fa-/, '')])){
       const button=document.createElement('button');button.type='button';button.setAttribute('role','tab');button.setAttribute('aria-label',label);button.setAttribute('aria-selected','false');button.disabled=true;button.title=label+' - loading project';button.innerHTML='<i class="fas fa-'+icon+'" aria-hidden="true"></i>';trays.append(button);
     }
     const status=document.createElement('span');status.textContent='Opening project…';status.setAttribute('role','status');
@@ -176,7 +177,8 @@
     };
     const paintHeader=()=>{
       if(record.shellVisible || !records.has(token))return;
-      const metadata=root.Portal?.modules?.request?.openingHeader?.(record.project || {});
+      const focused=record.options.workflow==='report';header.classList.toggle('fm-report-workflow-header',focused);
+      const metadata=root.Portal?.modules?.request?.openingHeader?.(record.project || {},record.options);
       if(!metadata){title.textContent=record.project?.title || record.project?.address || 'Project';return;}
       title.innerHTML=metadata.identityHtml;
       pills.innerHTML='<div class="r-project-tags">'+metadata.pillsHtml+'</div>';
