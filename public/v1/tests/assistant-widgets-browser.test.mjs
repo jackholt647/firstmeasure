@@ -49,6 +49,22 @@ test('assistant places widgets beside chat, remembers side, and expands inline c
  await page.screenshot({path:new URL('../../../output/assistant-widget-view-20261002/inline.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1')});
  await page.setViewportSize({width:1440,height:1000});await page.locator('[data-fma=boardItems]').getByText('Measurement 179',{exact:true}).waitFor();
  await page.screenshot({path:new URL('../../../output/assistant-widget-view-20261002/side.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1')});
+ // A compact measurements card is centered without manufacturing overflow.
+ await page.evaluate(()=>{PlatformAPI.publication.read=async()=>({status:'ready',value:{rows:Array.from({length:11},(_,i)=>({label:'Measurement '+i,value:i,unit:'ft'}))}});document.querySelector('[data-fma=boardItems] fm-platform-widget').refresh();});
+ await page.waitForFunction(()=>document.querySelectorAll('[data-fma=boardItems] .fm-widget-value').length===11);
+ const layout=await page.locator('[data-fma=boardItems]').evaluate(e=>{const card=e.querySelector('.fm-widget-card').getBoundingClientRect(),b=e.getBoundingClientRect(),style=getComputedStyle(e);const top=parseFloat(style.paddingTop),bottom=parseFloat(style.paddingBottom);return{overflow:e.scrollHeight-e.clientHeight,ratio:card.width/card.height,center:card.y+card.height/2-(b.y+top+(b.height-top-bottom)/2)};});
+ assert.ok(layout.overflow<=1);assert.ok(Math.abs(layout.center)<3);assert.ok(layout.ratio<1.6);
+ assert.equal(await page.locator('.fma-board-head').count(),0);
+ assert.equal(await page.locator('.fma-head [data-fma=boardSide]').count(),1);
+ assert.equal(await page.getByRole('button',{name:'Close widget view',exact:true}).count(),1);
+ // Fade only the edge with content beyond the current scroll position.
+ await page.locator('[data-fma=msgs]').evaluate(e=>{for(let i=0;i<35;i++){const p=document.createElement('p');p.textContent='A conversation turn '+i;p.style.flexShrink='0';e.append(p);}e.scrollTop=0;e.dispatchEvent(new Event('scroll'));});
+ const fades=()=>page.locator('[data-fma=msgs]').evaluate(e=>[e.style.getPropertyValue('--fma-fade-top'),e.style.getPropertyValue('--fma-fade-bottom')]);
+ assert.deepEqual(await fades(),['0px','28px']);
+ await page.locator('[data-fma=msgs]').evaluate(e=>{e.scrollTop=120;e.dispatchEvent(new Event('scroll'));});assert.deepEqual(await fades(),['28px','28px']);
+ await page.locator('[data-fma=msgs]').evaluate(e=>{e.scrollTop=e.scrollHeight;e.dispatchEvent(new Event('scroll'));});assert.deepEqual(await fades(),['28px','0px']);
+ await page.waitForTimeout(500);
+ await page.screenshot({path:new URL('../../../output/assistant-widget-view-20261002/spacing.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1')});
  assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });

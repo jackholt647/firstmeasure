@@ -359,6 +359,7 @@
       .fma-drawer[data-window=full] .fma-head .fm-window-controls button{width:34px;height:34px;border:1px solid #e4e7ec;border-radius:9px;background:#fff;box-shadow:0 2px 8px #10182814;}
       .fma-drawer[data-window=full] .fma-head .fm-window-controls button:hover{background:#f2f4f7;}
       .fma-head{position:relative;}
+      .fma-head [hidden]{display:none!important;}
       .fma-voice-indicator{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;gap:3px;width:64px;height:28px;pointer-events:none;color:var(--primary-readable,var(--primary,#175cd3));}
       .fma-voice-indicator[hidden]{display:none;}
       .fma-voice-indicator i{width:3px;height:20px;border-radius:3px;background:currentColor;transform:scaleY(.2);transform-origin:center;}
@@ -423,7 +424,9 @@
       @media(max-width:850px){.fma-payment-widget{padding-top:50px}.fma-drawer[data-payment-widget=true] .fma-stage{flex-direction:column;overflow:auto}.fma-drawer[data-payment-widget=true] .fma-board{width:100%;max-width:none;min-height:520px;flex:0 0 60vh}.fma-drawer[data-payment-widget=true] .fma-main{min-height:220px}.fma-drawer[data-payment-widget=true] .fma-split{display:none!important}}
       /* Stage: dashboard | splitter | conversation. */
       .fma-drawer[data-board-side=right] .fma-stage{flex-direction:row-reverse;}
-      .fma-board-items>.fm-widget-presentation{flex:0 0 auto;min-height:100%;}
+      .fma-board-items>*{flex:0 0 auto;width:100%;max-width:500px;box-sizing:border-box;align-self:center;}
+      .fma-board-items>:first-child{margin-top:auto}.fma-board-items>:last-child{margin-bottom:auto}
+      .fma-board-items .fm-widget-values{grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));}
       .fma-stage{flex:1;min-height:0;display:flex;flex-direction:row;}
       .fma-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;}
       .fma-thread-bar{display:none;flex:0 0 auto;align-items:center;gap:8px;min-height:54px;padding:10px 190px 4px 20px;box-sizing:border-box;}
@@ -434,10 +437,7 @@
       .fma-drawer[data-board=open] .fma-board{display:flex;animation:fmaBoardSlide .42s cubic-bezier(.16,1,.3,1) both;}
       @keyframes fmaBoardSlide{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}
       @media(prefers-reduced-motion:reduce){.fma-drawer[data-board=open] .fma-board{animation:none}}
-      .fma-board-head{flex:0 0 auto;display:flex;align-items:center;gap:8px;min-height:54px;padding:10px 12px 4px 20px;box-sizing:border-box;}
-      .fma-drawer[data-window=full] .fma-board-head{padding-top:54px;}
-      .fma-board-head h2{margin:0;font-size:15px;font-weight:800;flex:1;}
-      .fma-board-items{flex:1;min-height:0;overflow:auto;padding:6px 20px 20px;display:flex;flex-direction:column;gap:14px;}
+      .fma-board-items{flex:1;min-height:0;overflow:auto;box-sizing:border-box;padding:76px clamp(28px,4vw,64px) 32px;display:flex;flex-direction:column;gap:24px;scrollbar-width:thin;}
       .fma-split{display:none;flex:0 0 12px;margin:0 -6px;position:relative;z-index:2;cursor:col-resize;touch-action:none;}
       .fma-split:before{content:'';position:absolute;top:0;bottom:0;left:5px;width:2px;background:transparent;transition:background .15s ease;}
       .fma-split:hover:before,.fma-split.dragging:before,.fma-split:focus-visible:before{background:var(--primary-readable,var(--primary,#175cd3));opacity:.55;}
@@ -490,7 +490,7 @@
       .fma-artifact-chip:hover{border-color:var(--primary-readable,var(--primary,#175cd3));color:var(--primary-readable,var(--primary,#175cd3));}
 
       /* Conversation. */
-      .fma-msgs{flex:1;min-height:0;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+      .fma-msgs{--fma-fade-top:0px;--fma-fade-bottom:0px;mask-image:linear-gradient(to bottom,transparent,#000 var(--fma-fade-top),#000 calc(100% - var(--fma-fade-bottom)),transparent);flex:1;min-height:0;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
       .fma-msgs > *{flex:0 0 auto;}
       .fma-msg{max-width:92%;border-radius:12px;padding:9px 12px;font-size:13.5px;line-height:1.45;word-wrap:break-word;}
       .fma-msg.user{align-self:flex-end;background:var(--primary-readable, var(--primary, #175cd3));color:#fff;border-bottom-right-radius:4px;white-space:pre-wrap;}
@@ -626,7 +626,7 @@
 
       /* Full workspace: centered conversation, or conversation on the right of the dashboard. */
       .fma-drawer[data-window=full] .fma-msgs,.fma-drawer[data-window=full] .fma-settings{padding-top:6px;padding-left:max(20px,calc((100% - 850px)/2));padding-right:max(20px,calc((100% - 850px)/2));}
-      .fma-drawer[data-window=full][data-board=open] .fma-msgs{padding-left:24px;padding-right:24px;}
+      .fma-drawer[data-window=full][data-board=open] .fma-msgs{padding:28px clamp(28px,4vw,64px) 36px;}
       .fma-drawer[data-window=full][data-board=open] .fma-thread-bar{padding-left:58px;}
       .fma-drawer[data-window=full] .fma-composer{padding-left:max(20px,calc((100% - 850px)/2));padding-right:max(20px,calc((100% - 850px)/2));}
       .fma-drawer[data-window=full] .fma-msg{max-width:75%;}
@@ -654,6 +654,7 @@
         <span class="fma-head-title" data-fma="headTitle"></span>
         <span class="fma-voice-indicator" data-fma="voiceIndicator" role="img" aria-label="Voice conversation active" hidden><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
         <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="visualsToggle" title="Close widget view" aria-label="Close widget view" aria-pressed="true" hidden><i class="fas fa-chart-pie" aria-hidden="true"></i></button>
+        <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="boardSide" aria-label="Move widgets to the right" title="Move widgets to the right" hidden><i class="fas fa-right-left" aria-hidden="true"></i></button>
         ${embedded && surface.onClose ? '<button type="button" class="fma-icon-btn ghost" data-fma="closeSurface" title="Close assistant" aria-label="Close assistant"><i class="fas fa-xmark" aria-hidden="true"></i></button>' : ''}
       </div>
       <div class="fma-body" data-fma="body">
@@ -669,7 +670,6 @@
       <div class="fma-content" data-fma="content">
         <div class="fma-stage" data-fma="stage">
           <section class="fma-board" data-fma="board" aria-label="Dashboard">
-            <div class="fma-board-head"><h2>Widgets</h2><button type="button" class="fma-icon-btn ghost" data-fma="boardSide" aria-label="Move widgets to the right" title="Move widgets to the right"><i class="fas fa-right-left" aria-hidden="true"></i></button><button type="button" class="fma-icon-btn ghost" data-fma="boardHide" title="Close widget view" aria-label="Close widget view"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>
             <div class="fma-board-items" data-fma="boardItems"></div>
           </section>
           <div class="fma-split" data-fma="split" role="separator" aria-orientation="vertical" aria-label="Resize dashboard" tabindex="0"></div>
@@ -812,7 +812,6 @@
       else void openThread(item.dataset.id);
     });
     q('boardSide').addEventListener('click', () => { state.boardSide = state.boardSide === 'right' ? 'left' : 'right'; store('boardSide',state.boardSide); syncLayout(); });
-    q('boardHide').addEventListener('click', () => setBoardHidden(true));
     // One toggle shows or hides visuals: the dashboard column in the full view, chart cards in the conversation otherwise.
     els.visualsToggle.addEventListener('click', () => setBoardHidden(!state.boardHidden));
     els.boardItems.addEventListener('click', async (event) => {
@@ -827,6 +826,10 @@
     bindSplitter();
     bindTooltips();
     els.msgs.addEventListener('click', onMessagesClick);
+    listen(els.msgs,'scroll',updateChatFades);
+    observeSize(els.msgs,updateChatFades);
+    const transcriptObserver = new MutationObserver(updateChatFades);
+    transcriptObserver.observe(els.msgs,{childList:true,subtree:true,characterData:true}); observers.push(transcriptObserver);
     // Tapping outside the overlay navigation closes it.
     q('content').addEventListener('pointerdown', () => { if (state.sidebarOpen) { state.sidebarOpen = false; syncSidebar(); } });
     els.send.addEventListener('click', sendMessage);
@@ -905,6 +908,7 @@
     els.drawer.dataset.boardSide = state.boardSide;
     const sideLabel = state.boardSide === 'right' ? 'Move widgets to the left' : 'Move widgets to the right';
     const sideButton = els.drawer.querySelector('[data-fma=boardSide]');
+    sideButton.hidden = next !== 'open';
     sideButton.title = sideLabel; sideButton.setAttribute('aria-label',sideLabel);
     els.drawer.style.setProperty('--fma-board-w', `${Math.min(70, Math.max(28, Number(state.boardWidth) || 50))}%`);
     syncVisualsToggle();
@@ -933,7 +937,7 @@
 
   function renderBoard(){
     if (!els || els.drawer.dataset.board !== 'open') return;
-    els.boardItems.style.setProperty('--fma-widget-height', `${Math.max(280,els.boardItems.clientHeight - 26)}px`);
+    els.boardItems.style.setProperty('--fma-widget-height', `${Math.max(280,els.boardItems.clientHeight - 108)}px`);
     const widgets = widgetRenders();
     const signature = state.dashboard.map((item) => `${clean(item.id)}:${clean(item.updated_at)}`).join('|') + JSON.stringify(widgets);
     if (signature === els.boardItems.dataset.signature && els.boardItems.childElementCount) { fitArtifacts(els.boardItems); return; }
@@ -991,6 +995,13 @@
   }
 
   // ── Rendering ────────────────────────────────────────────────────────────
+
+  function updateChatFades(){
+    if (!els || disposed) return;
+    const box = els.msgs;
+    box.style.setProperty('--fma-fade-top',box.scrollTop > 2 ? '28px' : '0px');
+    box.style.setProperty('--fma-fade-bottom',box.scrollHeight - box.clientHeight - box.scrollTop > 2 ? '28px' : '0px');
+  }
 
   function scrollToBottom(){
     if (els?.msgs) els.msgs.scrollTop = els.msgs.scrollHeight;
