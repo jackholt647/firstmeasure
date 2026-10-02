@@ -36,13 +36,13 @@
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
     versionedBundle('../window-manager/window-manager.js', '20261002-project-identity-v1'),
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
-    versionedBundle('../assistant-api/assistant-api.js', '20260930-project-trays-v1'),
-    versionedBundle('../platform-assistant/platform-assistant.js', '20261002-widget-controls'),
+    versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
+    versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
     versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261001-sharing-polish-v1'),
     versionedBundle('../project-notes/project-notes.js', '20261002-overview-workflow-v1'),
-    versionedBundle('../project-trays/project-trays.js', '20261002-project-todo-tray-v1')
+    versionedBundle('../project-trays/project-trays.js', '20261002-agent-persistence-v1')
   ];
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20260803-field-flows-v10'),
@@ -291,7 +291,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261002-overview-workflow-v1'), versionedBundle('project-request/app.js', '20261002-overview-workflow-v2')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261002-agent-persistence-v1'), versionedBundle('project-request/app.js', '20261002-agent-persistence-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -544,8 +544,8 @@
         versionedBundle('../channels-api/channels-api.js', '20260930-feed-posts-v1'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20261002-project-identity-v1'),
-        versionedBundle('../assistant-api/assistant-api.js', '20260930-project-trays-v1'),
-        ...widgetBundles, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-widget-controls'),
+        versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
+        ...widgetBundles, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
         versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261001-sharing-polish-v1'),
