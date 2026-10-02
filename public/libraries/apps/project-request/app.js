@@ -896,6 +896,7 @@ window.PlatformCommerce.onReady(async function(){
     .r-overview-details #rStepAddress{margin-top:14px}
     .r-overview-details .r-contact-list{gap:14px}
     .r-overview-details .r-contact-card .r-inp{font-weight:600}
+    .r-overview-details:has(.r-overview-initial-actions:not([hidden])) #rOrderMeasurements{display:none!important}
     .r-overview-initial-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.r-overview-initial-actions[hidden]{display:none!important}
     .r-workflow-project-picker[hidden]{display:none!important}
     .r-workflow-search-row{display:flex;align-items:center;gap:8px}
@@ -4419,7 +4420,7 @@ window.PlatformCommerce.onReady(async function(){
       || contact || address || 'New Project';
   }
   function openingProjectHeader(project = {}, options = {}){
-    if (options.workflow === 'report') return {title:'New Report',identityHtml:'New Report',pillsHtml:''};
+    if (options.workflow === 'report') return {title:'New Report',identityHtml:projectHeaderIdentityHtml('New Report','',''),pillsHtml:''};
     const contact = branchProjectConfig.title_mode === 'customer_name' ? projectPrimaryContactAlias(project).name
       : (formatProjectContactNames(project.contacts) || projectPrimaryContactAlias(project).name);
     const title = projectDisplayTitle(project);
@@ -5427,9 +5428,10 @@ window.PlatformCommerce.onReady(async function(){
 
   function syncProposalPricebookItems(...args){ return proposalInvoke('syncProposalPricebookItems', args); }
   function queueAutosaveNotice(...args){
-    // FirstMeasure drafts must save even when the platform proposal app is off.
-    if (!proposalsEnabled() || !proposalTabModule()) return persistActiveBaseProject();
-    return proposalInvoke('queueAutosaveNotice', args);
+    if (suppressAutosaveNotice) return;
+    // Project fields belong to Overview, independent of proposal documents.
+    persistActiveBaseProject();
+    if (proposalsEnabled() && proposalTabModule()) return proposalInvoke('queueAutosaveNotice', args);
   }
   function ensureProposalSignatureData(...args){ return proposalInvoke('ensureProposalSignatureData', args); }
   function ensureProposalSigningSession(...args){ return proposalInvoke('ensureProposalSigningSession', args); }

@@ -58,6 +58,18 @@ test('report entry searches existing projects, preserves report intent, and swit
   assert.equal(await page.evaluate(()=>window.reportProjectChoice),'new');
   assert.equal(await page.locator('.r-workflow-project-picker').isVisible(),false);
   assert.equal(await page.locator('#rOverlay').evaluate(el=>el.classList.contains('overview-project-picker')),false);
+  await page.evaluate(()=>{
+    requestedWorkflow='project';overviewWorkflowMode='';activeBaseProject={id:'existing',measurement:{id:'report'}};addressSelected=true;
+    window.hasReportOrdered=()=>true;window.applyReorderPrefillState=project=>{window.reordered=project.id;};
+    window.preloadFirstReportCheckoutEligibility=()=>{};window.setActivePreviewTab=tab=>{window.chosenTab=tab;};window.queueAutosaveNotice=()=>{};
+    syncOverviewWorkflow();
+  });
+  assert.equal(await page.getByRole('button',{name:'Order report',exact:true}).isVisible(),true);
+  assert.equal(await page.getByRole('button',{name:'Build proposal',exact:true}).isVisible(),true);
+  assert.equal(await page.getByRole('button',{name:'Schedule appointment',exact:true}).isVisible(),true);
+  await page.getByRole('button',{name:'Order report',exact:true}).click();
+  assert.deepEqual(await page.evaluate(()=>[window.reordered,requestedWorkflow,reportProjectChoice,window.chosenTab]),['existing','report','existing','map']);
+
  }finally{await browser.close();}
 });
 
@@ -71,4 +83,14 @@ test('Overview responds to content width with a tray and preserves padding witho
   const result=await page.locator('.r-overview').evaluate(el=>({width:el.clientWidth,scroll:el.scrollWidth,padding:getComputedStyle(el).paddingRight,columns:getComputedStyle(el.querySelector('.r-overview-shell')).gridTemplateColumns}));
   assert.equal(result.width,result.scroll);assert.equal(result.padding,'18px');assert.equal(result.columns.trim().split(' ').length,1);
  }finally{await browser.close();}
+});
+
+
+test('Overview field autosave persists without a mounted proposal and honors hydration suppression',async()=>{
+ const {default:vm}=await import('node:vm');const app=await source('apps/project-request/app.js');
+ const start=app.indexOf('  function queueAutosaveNotice('),end=app.indexOf('\n  }',start)+4;
+ const calls=[];const context={suppressAutosaveNotice:false,persistActiveBaseProject:()=>calls.push('project'),proposalsEnabled:()=>true,proposalTabModule:()=>({}),proposalInvoke:()=>calls.push('proposal')};
+ vm.createContext(context);vm.runInContext(app.slice(start,end),context);context.queueAutosaveNotice();assert.deepEqual(calls,['project','proposal']);
+ calls.length=0;context.suppressAutosaveNotice=true;context.queueAutosaveNotice();assert.deepEqual(calls,[]);
+ context.suppressAutosaveNotice=false;context.proposalsEnabled=()=>false;context.queueAutosaveNotice();assert.deepEqual(calls,['project']);
 });
