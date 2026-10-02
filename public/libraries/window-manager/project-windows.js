@@ -24,7 +24,7 @@
       .fm-project-window-loading .fm-window-controls button[aria-pressed=true]{background:#e4e7ec}
       .fm-project-window-loading .fm-window-controls button:hover{background:#66708520}
       .fm-project-window-loading .fm-window-controls button[data-window-action=close]:hover{background:#d92d20;color:#fff}
-      .fm-project-window-loading .fm-shell-tabs button{display:flex;align-items:center;gap:6px}
+      .fm-project-window-loading .r-project-identity-trigger{height:auto;border:0;background:none;padding:4px 0;color:inherit;font:inherit}.fm-project-window-loading .r-project-tag{height:auto;font-family:inherit}.fm-project-window-loading .r-property-type-trigger{height:auto;border:0;background:none;color:inherit;padding:4px 9px;border-radius:999px}.fm-project-window-loading .r-project-tag i{color:inherit}\n      .fm-project-window-loading .fm-shell-tabs button{display:flex;align-items:center;gap:6px}
       .fm-project-window-loading [role=status]{position:absolute;inset:69px 0 0;display:flex;align-items:center;justify-content:center;gap:10px;color:#667085;font-size:13px}
       .fm-project-window-loading [role=status]:before{content:"";width:16px;height:16px;border:2px solid #d0d5dd;border-top-color:var(--primary,#d93025);border-radius:50%;animation:fm-project-window-spin .8s linear infinite}
       .fm-project-window-loading.failed [role=status]:before{display:none}
@@ -128,6 +128,7 @@
   function open(project, options = {}){
     if (!host() || !root.FirstMateWindows) return null;
     styles();
+    root.Portal?.modules?.request?.ensureStyles?.();
     root.FirstMateWindows.ensureStyles?.();
     root.FirstMateWindowShell?.ensureStyles?.();
     const projectId = identity(project);
@@ -153,10 +154,12 @@
     const frame = document.createElement('iframe');frame.name='fm-project-window:'+token;frame.style.visibility='hidden';frame.setAttribute('aria-label',String(project?.title || project?.address || 'Project workspace'));frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');
     const loading = document.createElement('div');loading.className='fm-project-window-loading fm-entity-window';
     const header=document.createElement('header');header.className='fm-project-loading-header fm-shell-header';header.dataset.headerRows='2';
-    const identityNode=document.createElement('div');identityNode.className='fm-shell-identity';identityNode.innerHTML='<i class="fas fa-folder-open" aria-hidden="true"></i>';
-    const title=document.createElement('span');title.className='fm-project-loading-title';
+    const identityNode=document.createElement('div');identityNode.className='r-window-identity fm-shell-identity';identityNode.innerHTML='<i class="fas fa-folder-open" aria-hidden="true"></i>';
+    const title=document.createElement('span');title.className='fm-project-loading-title r-window-project-title';
     title.textContent=String(project?.title || project?.project_title || project?.address || (projectId ? 'Project' : 'New Project'));
-    identityNode.append(title);
+    const identityTrigger=document.createElement('button');identityTrigger.type='button';identityTrigger.className='r-project-identity-trigger';identityTrigger.setAttribute('aria-label','Edit project contact and address');identityTrigger.append(title);
+    const pills=document.createElement('div');pills.className='r-project-stage-bar';
+    identityNode.append(identityTrigger,pills);
     const controls=document.createElement('div');controls.className='r-window-bar-actions';
     const tabs=document.createElement('nav');tabs.className='fm-shell-tabs';tabs.dataset.tabStyle='underline';tabs.setAttribute('aria-label','Project tabs');
     const overview=document.createElement('button');overview.type='button';overview.dataset.tab='map';overview.innerHTML='<i class="fas fa-columns" aria-hidden="true"></i><span>Overview</span>';overview.setAttribute('aria-selected',String(!options.tab || options.tab==='map'));tabs.append(overview);
@@ -171,6 +174,20 @@
       record.options={...record.options,tab:id,...(id!=='photos' ? {photo:''} : {}),...(record.options.layout?.panes ? {layout:{...record.options.layout,panes:[{tab:id}]}} : {})};
       tabs.querySelectorAll('[data-tab]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.tab===id)));
     };
+    const paintHeader=()=>{
+      if(record.shellVisible || !records.has(token))return;
+      const metadata=root.Portal?.modules?.request?.openingHeader?.(record.project || {});
+      if(!metadata){title.textContent=record.project?.title || record.project?.address || 'Project';return;}
+      title.innerHTML=metadata.identityHtml;
+      pills.innerHTML='<div class="r-project-tags">'+metadata.pillsHtml+'</div>';
+      // These are the eventual controls; queue the action while the child boots.
+      pills.querySelectorAll('button').forEach(button=>button.addEventListener('click',()=>{
+        const selector=button.hasAttribute('data-manual-stage-trigger')?'[data-manual-stage-trigger]':'[data-header-property-type]';
+        record.ready.then(()=>record.frame.contentDocument?.querySelector(selector)?.click()).catch(()=>{});
+      }));
+      record.frame.setAttribute('aria-label',metadata.title);
+    };
+    identityTrigger.onclick=()=>record.ready.then(()=>record.frame.contentDocument?.querySelector('#rProjectIdentityTrigger')?.click()).catch(()=>{});
     overview.onclick=()=>selectOpeningTab('map');
     // The parent already has the app catalog and access snapshot. Reading
     // descriptors does not mount apps or wait for the child portal's boot.
@@ -188,13 +205,15 @@
     record.ready = new Promise((resolve,reject)=>{record.resolveReady=resolve;record.rejectReady=reject;});
     record.ready.catch(()=>{});
     records.set(token,record);active=record;
+    paintHeader();
+    Promise.resolve(root.Portal?.modules?.request?.prepareHeader?.()).then(paintHeader).catch(()=>{});
     // Fetch the authoritative project while the isolated document boots,
     // instead of waiting for its scripts, session and commerce to finish.
     const orgId=String(root.Portal?.cfg?.userOrgId || root.Portal?.cfg?.orgId || root.__APP?.userOrgId || '').trim();
     if(orgId && /^(project|base|__optimistic)_/i.test(projectId) && root.PlatformAPI?.projects?.get){
       record.projectRead={orgId,projectId,started:Date.now(),promise:Promise.resolve().then(()=>root.PlatformAPI.projects.get(orgId,projectId)).then(result=>{
         const data=result?.document?.data;
-        if(data && records.get(token)===record)update(token,{title:data.title || data.project_title || data.address});
+        if(data && records.get(token)===record){record.project={...record.project,...data,id:data.id || result.document.id || projectId};paintHeader();}
         return result;
       }).catch(()=>null)};
     }
@@ -297,6 +316,7 @@
       refresh(){record.controller.refresh();},focus(){active=record;record.controller.focus();},restore(){record.controller.restore();}
     };
   }
-  function update(token, data){const record=records.get(token);if(!record)return;if(data.projectId)record.projectId=data.projectId;if(data.title){record.frame.setAttribute('aria-label',data.title);record.element.setAttribute('aria-label',data.title);const label=record.minimizedBar?.querySelector('span');if(label)label.textContent=data.title;const loadingTitle=record.loading.querySelector('.fm-project-loading-title');if(loadingTitle)loadingTitle.textContent=data.title;}}
-  root.FirstMateProjectWindows={open,close,closed,ready,attach,accepts,update,takeProjectRead,get active(){return active;},get size(){return records.size;}};
+  function update(token, data){const record=records.get(token);if(!record)return;if(data.projectId)record.projectId=data.projectId;if(data.title){record.frame.setAttribute('aria-label',data.title);record.element.setAttribute('aria-label',data.title);const label=record.minimizedBar?.querySelector('span');if(label)label.textContent=data.title;const loadingTitle=record.loading.querySelector('.fm-project-loading-title');if(loadingTitle && !loadingTitle.querySelector('strong'))loadingTitle.textContent=data.title;}}
+  function headerState(token,child){return accepts(token,child) ? root.Portal?.modules?.request?.headerState?.() : null;}
+  root.FirstMateProjectWindows={headerState,open,close,closed,ready,attach,accepts,update,takeProjectRead,get active(){return active;},get size(){return records.size;}};
 })(window);

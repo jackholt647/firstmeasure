@@ -127,7 +127,7 @@
       if (state.model?.state) state.model.state.activeBaseProject = value || null;
       callHost('setProject', value || null);
     });
-    defineHostAccessor('branchProjectConfig', () => callHost('getBranchProjectConfig') || state.model?.state?.branchProjectConfig || { title_mode: 'customer_name' });
+    defineHostAccessor('branchProjectConfig', () => callHost('getBranchProjectConfig') || state.model?.state?.branchProjectConfig || { title_mode: 'all_contacts' });
     defineHostAccessor('reportOrderState', () => callHost('getReportOrderState') || state.model?.state?.reportOrderState || null, (value) => {
       if (state.model?.state) state.model.state.reportOrderState = value || null;
       callHost('setReportOrderState', value || null);
@@ -2795,10 +2795,10 @@
   }
 
   function projectScheduleTitle(){
-    const mode = branchProjectConfig?.title_mode || 'customer_name';
+    const mode = branchProjectConfig?.title_mode || 'all_contacts';
     const address = ($('#rAddress')?.value || activeBaseProject?.address || reportOrderState?.address || '').trim();
     const primary = primaryContact();
-    const customerName = (primary.name || '').trim();
+    const customerName = ((mode === 'all_contacts' ? window.Portal?.modules?.request?.formatProjectContactNames?.(activeBaseProject?.contacts) : '') || primary.name || '').trim();
     if (mode === 'manual') return activeBaseProject?.title || manualProjectTitle() || customerName || address || 'Project';
     if (mode === 'address') return address || customerName || 'Project';
     return customerName || address || 'Project';

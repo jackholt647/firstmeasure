@@ -40,7 +40,7 @@
   let pendingGanttScrollDate = null;
   let schedulingConfig = null;
   let dashboardConfig = null;
-  let branchProjectConfig = { title_mode:'customer_name' };
+  let branchProjectConfig = { title_mode:'all_contacts' };
   let users = [];
   let projects = [];
   let events = [];
@@ -869,10 +869,10 @@
   }
   function branchId(){ return window.Portal.branchModules?.currentBranchId?.() || cfg.userBranchId || cfg.branchId || 'default'; }
   function normalizeProjectConfig(config = {}){
-    const mode = clean(config?.title_mode || config?.project_title_mode || 'customer_name');
+    const mode = clean(config?.title_mode || config?.project_title_mode || 'all_contacts');
     return {
       ...(config && typeof config === 'object' ? config : {}),
-      title_mode:['customer_name','address','manual'].includes(mode) ? mode : 'customer_name'
+      title_mode:['all_contacts','customer_name','address','manual'].includes(mode) ? mode : 'all_contacts'
     };
   }
   function validDate(value){
@@ -1946,8 +1946,8 @@
     const savedTitle = clean(savedCandidates.find((value) => clean(value)
       && norm(value) !== norm(address)
       && !isEventTypeTitle(value, event)));
-    const customerName = clean(contact.name || event.customer_name);
-    const mode = branchProjectConfig?.title_mode || 'customer_name';
+    const customerName = clean((branchProjectConfig?.title_mode === 'all_contacts' ? window.Portal?.modules?.request?.formatProjectContactNames?.(project.contacts) : '') || contact.name || event.customer_name);
+    const mode = branchProjectConfig?.title_mode || 'all_contacts';
     if (mode === 'manual') return savedTitle || customerName || address || 'Project';
     if (mode === 'address') return address || customerName || savedTitle || 'Project';
     return customerName || address || savedTitle || 'Project';

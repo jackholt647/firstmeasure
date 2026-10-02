@@ -1517,7 +1517,14 @@
     state.sidebarRoot = null;
   }
 
+  function openContactDraft(channel,recipient){
+    if(!['email','sms'].includes(channel) || !visibleTabs().some(tab=>tab.id===channel))throw new Error('This communication channel is not available.');
+    if(channel==='email'){beginEmailDraft();state.emailDraft.to=clean(recipient);}
+    else {beginSmsDraft();state.smsDraft.to=clean(recipient);}
+    setView(channel,{pushRoute:true});
+  }
   const api = {
+    openContactDraft,
     mount,
     setActive,
     activate: () => setActive(true),

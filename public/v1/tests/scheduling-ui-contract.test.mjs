@@ -692,9 +692,9 @@ test('appointment editor keeps all-day and recurrence switches with the non-over
 });
 
 test('project labels honor the branch title mode instead of stale event snapshots', () => {
-  assert.match(schedulingSource, /let branchProjectConfig = \{ title_mode:'customer_name' \};/);
+  assert.match(schedulingSource, /let branchProjectConfig = \{ title_mode:'all_contacts' \};/);
   assert.match(schedulingSource, /window\.Portal\.branchModules\.get\('project_configuration'\)/);
-  assert.match(schedulingSource, /const customerName = clean\(contact\.name \|\| event\.customer_name\);[\s\S]*?if \(mode === 'address'\) return address \|\| customerName \|\| savedTitle \|\| 'Project';[\s\S]*?return customerName \|\| address \|\| savedTitle \|\| 'Project';/);
+  assert.match(schedulingSource, /const customerName = clean\([\s\S]*?formatProjectContactNames[\s\S]*?contact\.name \|\| event\.customer_name\);[\s\S]*?if \(mode === 'address'\) return address \|\| customerName \|\| savedTitle \|\| 'Project';[\s\S]*?return customerName \|\| address \|\| savedTitle \|\| 'Project';/);
   assert.match(schedulingSource, /name:clean\(contact\.name[\s\S]*?project\.customer_name[\s\S]*?project\.resident_name[\s\S]*?customer\.name[\s\S]*?resident\.name/);
   assert.match(schedulingSource, /function decorateWorkEvent\(event = \{\}\)\{[\s\S]*?project_title: projectTitle\(eventProject\(event\), event\)/);
   assert.match(schedulingSource, /function decorateSalesEvent\(event = \{\}\)\{\s*const project = eventProject\(event\);[\s\S]*?project_title: projectTitle\(project, event\)/);

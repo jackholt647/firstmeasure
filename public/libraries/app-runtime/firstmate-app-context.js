@@ -153,7 +153,7 @@
     proposalBackendLoadedProjectId: '',
     proposalLocalMutationVersion: 0,
     reportOrderState: null,
-    branchProjectConfig: { title_mode: 'customer_name' }
+    branchProjectConfig: { title_mode: 'all_contacts' }
   });
 
   function createProjectModel(initial = {}, options = {}){
@@ -366,7 +366,7 @@
       ensureProposalOnlyBaseProject: () => ensureProject(model),
       trackRequestActivity: () => Promise.resolve(null),
       loadBranchProjectConfig: () => Promise.resolve(model.state.branchProjectConfig),
-      normalizeProjectConfig: (config) => config && typeof config === 'object' ? config : { title_mode: 'customer_name' },
+      normalizeProjectConfig: (config) => config && typeof config === 'object' ? config : { title_mode: 'all_contacts' },
       cssEscape: (value) => (root.CSS?.escape ? root.CSS.escape(value) : cleanText(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&')),
       formatStorageBytes: (bytes) => `${Math.round(Number(bytes || 0) / (1024 * 1024))} MB`,
       storageLimitBytes: () => 0,

@@ -2,7 +2,7 @@
  * Staged request workflow with optional roof-report ordering.
  */
 (function(){
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261002-project-identity-v1', document.currentScript.src);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261002-dropdown-polish-v1', document.currentScript.src);
   const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260930-shell-v1', document.currentScript.src);
   const shellUrl = new URL('../../window-manager/window-shell.js?v=20261002-project-identity-v1', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
@@ -316,7 +316,7 @@ window.PlatformCommerce.onReady(async function(){
   let primaryContactIndex = 0;
   let contactPickerOptions = [];
   let contactPickerLoadPromise = null;
-  let branchProjectConfig = { title_mode: 'customer_name' };
+  let branchProjectConfig = { title_mode: 'all_contacts' };
   let projectWorkPlanState = { projectId: '', plans: [], loaded: false };
   let projectWorkPlanPromise = null;
   let modalInitialProjectIds = new Set();
@@ -844,11 +844,11 @@ window.PlatformCommerce.onReady(async function(){
     .r-window-identity{display:flex;align-items:center;gap:8px;min-width:0;max-width:240px;padding:0 12px;border-right:1px solid rgba(15,23,42,.10);color:#344054;font-size:12px;font-weight:900;white-space:nowrap}
 
     .r-window-identity.fm-shell-identity{max-width:none!important;gap:10px!important}
-    #rProjectIdentityTrigger{display:flex;align-items:center;min-width:0;flex:0 1 auto;border:0;background:none;color:inherit;padding:4px 0;font:inherit;text-align:left;cursor:pointer}
-    #rWindowProjectTitle{display:flex;align-items:baseline;gap:12px;min-width:0;overflow:hidden;font-size:13px}
-    #rWindowProjectTitle strong{font-weight:800;overflow:hidden;text-overflow:ellipsis}
+    :is(#rProjectIdentityTrigger,.r-project-identity-trigger){display:flex;align-items:center;min-width:0;flex:0 1 auto;border:0;background:none;color:inherit;padding:4px 0;font:inherit;text-align:left;cursor:pointer}
+    :is(#rWindowProjectTitle,.r-window-project-title){display:flex;align-items:baseline;gap:12px;min-width:0;overflow:hidden;font-size:13px}
+    :is(#rWindowProjectTitle,.r-window-project-title) strong{font-weight:800;overflow:hidden;text-overflow:ellipsis}
     .r-project-identity-secondary{font-weight:400;color:#667085;overflow:hidden;text-overflow:ellipsis}
-    .r-window-identity #rProjectStageBar{flex:0 1 auto;min-width:0;margin:0;padding:0;border:0;background:none;overflow:auto}
+    .r-window-identity :is(#rProjectStageBar,.r-project-stage-bar){flex:0 1 auto;min-width:0;margin:0;padding:0;border:0;background:none;overflow:auto}
     .r-window-identity .r-project-tags{flex-wrap:nowrap;margin:0;padding:0;gap:6px}
     .r-project-identity-popover,.r-header-stage-popover.r-manual-stage-backdrop{position:fixed;inset:auto;z-index:2147483400;display:block;padding:0;border:1px solid #e4e7ec;border-radius:14px;background:#fff;backdrop-filter:none;box-shadow:0 18px 50px #1018282e;overflow:auto;animation:rPropertyMenuIn .14s ease-out}
     .r-project-identity-popover>header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #e4e7ec;font-size:13px}
@@ -859,7 +859,29 @@ window.PlatformCommerce.onReady(async function(){
     .r-header-stage-popover .r-manual-stage-dialog{width:100%;max-width:none;max-height:none;box-shadow:none;border:0;border-radius:0}
     .r-header-stage-popover .r-manual-stage-head{padding:12px}.r-header-stage-popover .r-manual-stage-head h3{font-size:13px}.r-header-stage-popover .r-manual-stage-head p,.r-header-stage-popover .r-manual-stage-note{display:none}
     @media(prefers-reduced-motion:reduce){.r-project-identity-popover,.r-header-stage-popover{animation:none!important}}
-    .r-window-identity i{color:var(--primary-readable,var(--primary,#d93025));flex:none}
+
+    #rWindowProjectTitle::after{display:none!important}
+    :is(#rProjectIdentityTrigger,.r-project-identity-trigger){gap:7px;flex:none;max-width:65%}
+    :is(#rProjectIdentityTrigger,.r-project-identity-trigger)::after{content:'';width:6px;height:6px;flex:none;border-right:1.5px solid #8491a3;border-bottom:1.5px solid #8491a3;transform:translateY(-2px) rotate(45deg)}
+    #rProjectIdentityTrigger[aria-expanded=true]::after{transform:translateY(2px) rotate(225deg)}
+    .r-window-identity .r-project-tag i{color:inherit;flex:none}
+    .r-project-identity-fields{padding:14px;gap:14px}
+    .r-project-identity-popover .r-contact-card,.r-project-identity-popover .r-contact-list.has-multiple .r-contact-card{border:0;border-radius:0;box-shadow:none;background:none;padding:0 0 14px;margin:0}
+    .r-project-identity-popover .r-contact-card+.r-contact-card{border-top:1px solid #e4e7ec;padding-top:14px}
+    .r-project-identity-popover .r-contact-card::before{content:'Contact';grid-column:1 / -1;font-size:11px;font-weight:700;color:#667085;margin-bottom:4px}
+    .r-project-identity-popover .r-contact-card.primary::before{content:'Primary Contact'}
+    .r-project-identity-popover #rStepAddress{border-top:1px solid #e4e7ec!important;padding-top:14px!important}
+    .r-project-identity-popover #rStepAddress::before{content:'Project Address';display:block;font-size:11px;font-weight:700;color:#667085;margin-bottom:9px}
+    .r-project-identity-popover #rProjectCustomFields:not(:empty){border-top:1px solid #e4e7ec;padding-top:14px}
+    [data-identity-actions]{display:none}
+    .r-project-identity-popover .r-contact-shortcut-field{display:flex;flex-wrap:wrap;align-items:center;gap:3px;min-width:0}
+    .r-project-identity-popover .r-contact-shortcut-field>label{width:100%}
+    .r-project-identity-popover .r-contact-shortcut-field>input{flex:1;width:0;min-width:60px}
+    .r-project-identity-popover [data-identity-actions]{display:inline-flex;flex:none;gap:1px}
+    .r-project-identity-popover [data-contact-shortcut]{width:25px;height:28px;display:grid;place-items:center;padding:0;border:0;border-radius:5px;background:none;color:#667085;cursor:pointer}
+    .r-project-identity-popover [data-contact-shortcut]:hover{background:#f2f4f7;color:#344054}
+    .r-header-stage-popover .r-manual-stage-body{padding:12px}
+    .r-window-identity>i{color:var(--primary-readable,var(--primary,#d93025));flex:none}
     .r-window-identity span{overflow:hidden;text-overflow:ellipsis}
     .r-mobile-project-title,.r-mobile-project-notes-launcher,.r-mobile-project-notes-scrim,.r-mobile-project-notes-workspace{display:none}
     .r-tabbar{display:flex;align-items:stretch;gap:0;padding:0;min-width:0;flex:1 1 auto;overflow-x:auto;scrollbar-width:none}
@@ -3661,6 +3683,7 @@ window.PlatformCommerce.onReady(async function(){
     const cards = [...list.querySelectorAll('.r-contact-card')];
     if (primaryContactIndex >= cards.length) primaryContactIndex = 0;
     list.classList.toggle('has-multiple', cards.length > 1);
+    if(projectIdentityPopover)decorateProjectContactActions(projectIdentityPopover.menu);
     list.querySelectorAll('.r-contact-email-row.has-add').forEach((row) => row.classList.remove('has-add'));
     cards.forEach((card) => card.classList.remove('has-inline-add'));
     cards.forEach((card, index) => {
@@ -3955,7 +3978,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function projectPrimaryContactAlias(project = {}){
     const contacts = Array.isArray(project.contacts) ? project.contacts : [];
-    const contact = contacts.find((entry) => projectText(entry?.name, entry?.email, entry?.phone)) || {};
+    const contact = contacts.find(entry => entry?.primary) || contacts.find((entry) => projectText(entry?.name, entry?.email, entry?.phone)) || {};
     const resident = project.resident && typeof project.resident === 'object' && !Array.isArray(project.resident) ? project.resident : {};
     const customer = project.customer && typeof project.customer === 'object' && !Array.isArray(project.customer) ? project.customer : {};
     return {
@@ -4070,7 +4093,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function manualProjectTitle(){
-    if ((branchProjectConfig?.title_mode || 'customer_name') !== 'manual') return '';
+    if ((branchProjectConfig?.title_mode || 'all_contacts') !== 'manual') return '';
     return projectText(document.getElementById('rProjectTitleInput')?.value, projectTitleAlias(activeBaseProject || {}));
   }
 
@@ -4143,18 +4166,22 @@ window.PlatformCommerce.onReady(async function(){
   ];
 
   function normalizeProjectConfig(config){
-    const mode = String(config?.title_mode || config?.project_title_mode || 'customer_name').trim();
+    const mode = String(config?.title_mode || config?.project_title_mode || 'all_contacts').trim();
     const celebrationMode = String(config?.celebrations_mode || config?.celebrations?.mode || 'on').trim();
     const pillFields = Array.isArray(config?.project_header_pills) ? config.project_header_pills.map(cleanStageText).filter(Boolean) : ['scope_type','stage','dollar_value'];
     return {
       ...(config && typeof config === 'object' ? config : {}),
-      title_mode: ['customer_name', 'address', 'manual'].includes(mode) ? mode : 'customer_name',
+      title_mode: ['all_contacts', 'customer_name', 'address', 'manual'].includes(mode) ? mode : 'all_contacts',
       celebrations_mode: ['on', 'small_only', 'off'].includes(celebrationMode) ? celebrationMode : 'on',
       project_header_pills: pillFields
     };
   }
 
-  async function loadBranchProjectConfig(){
+  let projectConfigRead = null;
+  function loadBranchProjectConfig(){
+    return projectConfigRead || (projectConfigRead = readBranchProjectConfig());
+  }
+  async function readBranchProjectConfig(){
     if (!window.Portal.branchModules?.get) return branchProjectConfig;
     try {
       const doc = await window.Portal.branchModules.get(PROJECT_CONFIG_MODULE_ID);
@@ -4204,7 +4231,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function projectTagProposals(project = activeBaseProject){
     const fromProject = Array.isArray(project?.proposals) ? project.proposals : [];
-    const fromWorkspace = Array.isArray(proposals) ? proposals : [];
+    const fromWorkspace = projectIdentity(project) === projectIdentity(activeBaseProject) && Array.isArray(proposals) ? proposals : [];
     const seen = new Set();
     return [...fromProject, ...fromWorkspace].filter((proposal) => {
       const key = cleanStageText(proposal?.id || proposal?.proposal_id || proposal?.uuid) || proposal;
@@ -4329,6 +4356,41 @@ window.PlatformCommerce.onReady(async function(){
     });
   }
 
+  function formatProjectContactNames(contacts){
+    const names=[...new Set((contacts || []).map(contact=>String(typeof contact==='string'?contact:contact?.name || '').trim().replace(/\s+/g,' ')).filter(Boolean))];
+    const groups=[];
+    for(const name of names){
+      const parts=name.split(' '),surname=parts.length>1?parts.pop():'',given=surname?parts.join(' '):name;
+      let group=surname?groups.find(item=>item.surname.toLocaleLowerCase()===surname.toLocaleLowerCase()):null;
+      if(!group){group={surname,given:[]};groups.push(group);}group.given.push(given);
+    }
+    const labels=groups.map(group=>group.given.join(' & ')+(group.surname?' '+group.surname:''));
+    if(labels.length===2 && groups.every(group=>group.given.length===1))return labels.join(' & ');
+    return labels.join(', ');
+  }
+  function projectDisplayTitle(project = {}, config = branchProjectConfig){
+    const primary = projectPrimaryContactAlias(project).name;
+    const contact = config?.title_mode === 'customer_name' ? primary : (formatProjectContactNames(project.contacts) || primary);
+    const address = projectText(project.address);
+    const mode = config?.title_mode || 'all_contacts';
+    return (mode === 'manual' ? projectTitleAlias(project) : mode === 'address' ? address : contact)
+      || contact || address || 'New Project';
+  }
+  function openingProjectHeader(project = {}){
+    const contact = branchProjectConfig.title_mode === 'customer_name' ? projectPrimaryContactAlias(project).name
+      : (formatProjectContactNames(project.contacts) || projectPrimaryContactAlias(project).name);
+    const title = projectDisplayTitle(project);
+    return { title, identityHtml:projectHeaderIdentityHtml(title,contact,projectText(project.address)),
+      pillsHtml:projectIdentity(project) ? projectHeaderPillsHtml(project) : '' };
+  }
+  function projectHeaderState(){ return { config:branchProjectConfig, boards:projectTagBoards, boardsLoaded:projectTagBoardsLoaded }; }
+  function adoptOpeningHeaderState(){
+    const state = projectWindowBridge?.headerState?.(projectWindowToken,window);
+    if(!state)return;
+    branchProjectConfig=normalizeProjectConfig(state.config);
+    projectTagBoards=state.boards || [];
+    projectTagBoardsLoaded=!!state.boardsLoaded;
+  }
   function projectHeaderIdentityHtml(title,contact,address){
     const extras=[contact,address].filter((value,index,all)=>value && value!==title && all.indexOf(value)===index);
     return `<strong>${escapeHtml(title)}</strong>${extras.map(value=>`<span class="r-project-identity-secondary">${escapeHtml(value)}</span>`).join('')}`;
@@ -4353,7 +4415,7 @@ window.PlatformCommerce.onReady(async function(){
     closeManualStagePicker();closeHeaderPropertyTypeMenu();
     const menu=document.createElement('section');menu.className='r-project-identity-popover';
     menu.setAttribute('role','dialog');menu.setAttribute('aria-label','Project contact and address');
-    menu.innerHTML='<header><strong>Project details</strong><button type="button" aria-label="Close project details"><i class="fas fa-xmark"></i></button></header><div class="r-project-identity-fields"></div>';
+    menu.innerHTML='<div class="r-project-identity-fields"></div>';
     const moved=[],body=menu.querySelector('.r-project-identity-fields');
     if(branchProjectConfig?.title_mode==='manual'){
       const label=document.createElement('label');label.textContent='Project title';
@@ -4361,15 +4423,66 @@ window.PlatformCommerce.onReady(async function(){
     }
     const contact=document.getElementById('rContactList')?.closest('.r-group');
     const address=document.getElementById('rStepAddress');
-    for(const node of [contact,address]){
+    for(const node of [contact,address,document.getElementById('rProjectCustomFields')]){
       if(!node || moved.some(item=>item.node.contains(node)))continue;
       const marker=document.createComment('project identity control home');node.before(marker);body.append(node);moved.push({node,marker});
     }
     if(!moved.length)return;
     document.getElementById('rOverlay').append(menu);projectIdentityPopover={menu,trigger,moved};
     trigger.setAttribute('aria-expanded','true');positionProjectHeaderPopover(menu,trigger,420);
-    menu.querySelector('header button').onclick=()=>closeProjectIdentityPopover(true);
+    decorateProjectContactActions(menu);
+    menu.addEventListener('click',handleProjectContactAction);
     menu.querySelector('input,button')?.focus({preventScroll:true});
+  }
+  function decorateProjectContactActions(menu){
+    for(const card of menu.querySelectorAll('.r-contact-card')){
+      for(const field of ['phone','email']){
+        const input=card.querySelector(`[data-field="${field}"]`),group=input?.parentElement;
+        if(!group || group.querySelector('[data-identity-actions]'))continue;
+        const actions=document.createElement('span');actions.dataset.identityActions='';
+        const specs=field==='phone'?[['call','phone','Call contact'],['sms','comment-sms','Message contact']]:[['email','envelope','Email contact']];
+        for(const [action,icon,label] of specs){const button=document.createElement('button');button.type='button';button.dataset.contactShortcut=action;button.setAttribute('aria-label',label);button.title=label;button.innerHTML=`<i class="fas fa-${icon}" aria-hidden="true"></i>`;actions.append(button);}
+        group.classList.add('r-contact-shortcut-field');group.append(actions);
+      }
+    }
+  }
+  async function prepareProjectContactCall(contact){
+    const owner=projectWindowBridge ? window.parent : window;
+    const portal=owner.Portal, phone=portal?.CustomerPhone;
+    if(portal?.appFlags?.has?.('apps','comms') && phone){
+      const status=await phone.refreshStatus();
+      if(status?.settings?.enabled){
+        const opened=await phone.open({contact_id:contact.id,customer_name:contact.name,customer_number:contact.phone,project_id:projectOpenId()});
+        if(opened!==false){
+          if(['modal','fullscreen'].includes(projectModalWindow?.state?.mode))projectModalWindow.setMode('full');
+          portal.PhoneTray?.showDocked?.();
+        }
+        return;
+      }
+    }
+    window.location.href='tel:'+contact.phone.replace(/[^+0-9*#,;]/g,'');
+  }
+  async function handleProjectContactAction(event){
+    const button=event.target.closest('[data-contact-shortcut]');if(!button)return;
+    const card=button.closest('.r-contact-card');
+    const contact={id:card.dataset.contactId||'',name:card.querySelector('[data-field="name"]')?.value.trim()||'',phone:card.querySelector('[data-field="phone"]')?.value.trim()||'',email:card.querySelector('[data-field="email"]')?.value.trim()||''};
+    const action=button.dataset.contactShortcut,value=action==='email'?contact.email:contact.phone;
+    if(!value){card.querySelector(`[data-field="${action==='email'?'email':'phone'}"]`)?.focus();return;}
+    button.disabled=true;
+    try{
+      if(action==='call')await prepareProjectContactCall(contact);
+      else {
+        const app=projectModalApps().find(app=>app.id==='comms');
+        if(!app || !validPreviewTabs().includes('comms'))throw new Error('Communications is not available for this project.');
+        closeProjectIdentityPopover();setActivePreviewTab('comms');
+        await mountProjectModalApp(app);
+        const comms=window.Portal?.modules?.commsTab;
+        if(!comms?.openContactDraft)throw new Error('Communications could not be opened.');
+        comms.openContactDraft(action,value);
+      }
+      closeProjectIdentityPopover();
+    }catch(error){window.Portal?.ui?.showToast?.('Could not open contact action',error.message,false);}
+    finally{button.disabled=false;}
   }
   function bindProjectIdentityHeader(){
     const trigger=document.getElementById('rProjectIdentityTrigger');
@@ -4396,6 +4509,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function openManualStagePicker(trigger){
+    if(document.querySelector('.r-header-stage-popover')?.__trigger===trigger){closeManualStagePicker();return;}
     closeManualStagePicker();
     const contexts = projectManualStageContexts();
     if (!contexts.length) {
@@ -4407,6 +4521,9 @@ window.PlatformCommerce.onReady(async function(){
     const backdrop = document.createElement('div');
     backdrop.className = 'r-manual-stage-backdrop';
     backdrop.innerHTML = `<section class="r-manual-stage-dialog" role="dialog" aria-modal="true" aria-labelledby="rManualStageTitle"><header class="r-manual-stage-head"><i class="fas fa-arrows-left-right" aria-hidden="true"></i><div class="r-manual-stage-head-copy"><h3 id="rManualStageTitle">${(globalThis.PlatformLanguage?.htmlText("project-request","m_a12d99be8366cc","Move to another stage") ?? "Move to another stage")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("project-request","m_73f44538c28f3e","Choose the board and the stage where this project should appear.") ?? "Choose the board and the stage where this project should appear.")}</p></div><button type="button" class="r-manual-stage-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></header><div class="r-manual-stage-body"></div></section>`;
+    backdrop.querySelector('.r-manual-stage-head')?.remove();
+    backdrop.querySelector('section').removeAttribute('aria-labelledby');
+    backdrop.querySelector('section').setAttribute('aria-label','Change board stage');
     backdrop.classList.add('r-header-stage-popover');
     backdrop.querySelector('section').setAttribute('aria-modal','false');
     overlay.appendChild(backdrop);
@@ -4452,7 +4569,7 @@ window.PlatformCommerce.onReady(async function(){
     backdrop.querySelector('.r-manual-stage-close')?.addEventListener('click', closeManualStagePicker);
     backdrop.addEventListener('click', (event) => { if (event.target === backdrop) closeManualStagePicker(); });
     backdrop.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeManualStagePicker(); });
-    backdrop.querySelector('.r-manual-stage-close')?.focus();
+    backdrop.querySelector('.r-manual-stage-option.current,.r-manual-stage-option')?.focus();
   }
 
   function projectHeaderPillHtml(field, project, board){
@@ -4568,6 +4685,26 @@ window.PlatformCommerce.onReady(async function(){
     return true;
   }
 
+  function projectHeaderPillsHtml(project){
+    const board = projectTagBoard(project);
+    const configuredFields = Array.isArray(branchProjectConfig?.project_header_pills) ? branchProjectConfig.project_header_pills : ['scope_type','stage','dollar_value'];
+    const customFieldPills = window.FirstMateCustomFields?.definitionsFor?.('project', project, { location:'all' })
+      ?.filter?.((definition) => projectAssignmentsEnabled() || definition.group_path !== 'assignments')
+      ?.filter?.((definition) => definition.ui?.project_tag === true || definition.ui?.visible_tag === true)
+      ?.map?.((definition) => `custom_field:${definition.path || definition.key}`) || [];
+    const configuredWithCustomFields = [...new Set([...configuredFields, ...customFieldPills])];
+    // Manual stage movement is an action, not merely an optional informational
+    // header field. Keep its control visible even when a branch customized the
+    // project pills before this feature existed.
+    if (manualProjectStageMovementEnabled() && canManageProjectStages() && projectManualStageContexts(project).length
+      && !configuredWithCustomFields.includes('stage')) {
+      const scopeIndex = configuredWithCustomFields.indexOf('scope_type');
+      configuredWithCustomFields.splice(scopeIndex >= 0 ? scopeIndex + 1 : 0, 0, 'stage');
+    }
+    const fields = [...configuredWithCustomFields.filter(field=>!['project_type','customer','customer_name','address'].includes(field)), 'project_type'];
+    return fields.map((field) => projectHeaderPillHtml(field, project, board)).filter(Boolean).join('');
+  }
+
   function renderProjectStageBar(){
     closeHeaderPropertyTypeMenu();
     const bar = document.getElementById('rProjectStageBar');
@@ -4580,23 +4717,7 @@ window.PlatformCommerce.onReady(async function(){
       return;
     }
     loadProjectTagBoards().catch(() => null);
-    const board = projectTagBoard();
-    const configuredFields = Array.isArray(branchProjectConfig?.project_header_pills) ? branchProjectConfig.project_header_pills : ['scope_type','stage','dollar_value'];
-    const customFieldPills = window.FirstMateCustomFields?.definitionsFor?.('project', activeBaseProject, { location:'all' })
-      ?.filter?.((definition) => projectAssignmentsEnabled() || definition.group_path !== 'assignments')
-      ?.filter?.((definition) => definition.ui?.project_tag === true || definition.ui?.visible_tag === true)
-      ?.map?.((definition) => `custom_field:${definition.path || definition.key}`) || [];
-    const configuredWithCustomFields = [...new Set([...configuredFields, ...customFieldPills])];
-    // Manual stage movement is an action, not merely an optional informational
-    // header field. Keep its control visible even when a branch customized the
-    // project pills before this feature existed.
-    if (manualProjectStageMovementEnabled() && canManageProjectStages() && projectManualStageContexts(activeBaseProject).length
-      && !configuredWithCustomFields.includes('stage')) {
-      const scopeIndex = configuredWithCustomFields.indexOf('scope_type');
-      configuredWithCustomFields.splice(scopeIndex >= 0 ? scopeIndex + 1 : 0, 0, 'stage');
-    }
-    const fields = [...configuredWithCustomFields.filter(field=>!['project_type','customer','customer_name','address'].includes(field)), 'project_type'];
-    const pills = fields.map((field) => projectHeaderPillHtml(field, activeBaseProject, board)).filter(Boolean).join('');
+    const pills = projectHeaderPillsHtml(activeBaseProject);
     if (!pills) { bar.hidden = true; bar.innerHTML = ''; return; }
     bar.hidden = false;
     bar.innerHTML = ("\n      <div class=\"r-project-tags\" aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("project-request","m_12e617b6b10c5c","Project details") ?? "Project details") + "\">\n        " + String(pills) + "\n      </div>\n    ");
@@ -8333,13 +8454,14 @@ window.PlatformCommerce.onReady(async function(){
 
   function updateModalTitle(){
     const mobileTitle = document.getElementById('rMobileProjectTitleText');
-    const mode = branchProjectConfig?.title_mode || 'customer_name';
+    const mode = branchProjectConfig?.title_mode || 'all_contacts';
     const address = projectText($('#rAddress')?.value, reportOrderState?.address, activeBaseProject?.address);
     const primary = primaryContact();
     const savedTitle = projectText(document.getElementById('rProjectTitleInput')?.value,projectTitleAlias(activeBaseProject || {}));
     const activeResident = activeBaseProject?.resident && typeof activeBaseProject.resident === 'object' ? activeBaseProject.resident : {};
     const activeCustomer = activeBaseProject?.customer && typeof activeBaseProject.customer === 'object' ? activeBaseProject.customer : {};
     const customerName = projectText(
+      mode !== 'customer_name' ? formatProjectContactNames(document.getElementById('rContactList') ? collectContacts() : activeBaseProject?.contacts) : '',
       primary.name,
       activeBaseProject?.customer_name,
       activeBaseProject?.customerName,
@@ -10810,6 +10932,7 @@ window.PlatformCommerce.onReady(async function(){
     projectShellLoading = !!options.shellOnly;
     if (!baseProject) projectRecordPending = false;
     projectRouteBatching = true;
+    adoptOpeningHeaderState();
     ensureUI();
     ensureProjectWindow();
     projectTrays?.close();
@@ -11240,8 +11363,18 @@ window.PlatformCommerce.onReady(async function(){
         : Promise.resolve(window.Portal.ProjectStore?.ensureFromMeasurementAsync?.(project)).then(value=>value || immediate);
       // Even an already-resolved parent read must not hydrate Overview in the
       // same paint as the shell. Network work continues during this yield.
-      const [resolved] = await Promise.all([pendingRecord, window.FirstMateWindowShell?.afterPaint?.()]);
+      const [resolved] = await Promise.all([pendingRecord, loadBranchProjectConfig(), window.FirstMateWindowShell?.afterPaint?.()]);
       const hydrated = useMeasurementResolver ? mergeProjectForViewing(resolved, project) : resolved;
+      if(generation !== projectOpenGeneration || !activeModalMatchesProject(projectOpenId(base)))return hydrated;
+      adoptOpeningHeaderState();
+      const header = openingProjectHeader(hydrated || {});
+      const titleNode = document.getElementById('rWindowProjectTitle');
+      if(titleNode)titleNode.innerHTML=header.identityHtml;
+      const bar = document.getElementById('rProjectStageBar');
+      if(bar){bar.hidden=!header.pillsHtml;bar.innerHTML='<div class="r-project-tags">'+header.pillsHtml+'</div>';}
+      projectWindowBridge?.update?.(projectWindowToken,{title:header.title});
+      // Commit the authoritative header before doing form hydration or app work.
+      await window.FirstMateWindowShell?.afterPaint?.();
       if (hydrated !== base || projectShellLoading) {
         hydrateOpenProjectContent(hydrated, options, generation, projectOpenId(base));
       }
@@ -11375,6 +11508,8 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   window.Portal.modules.request = { retainedProjectWindows:true, open, openProject, openDocumentDraft, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors,
+    projectDisplayTitle, formatProjectContactNames, openingHeader:openingProjectHeader, headerState:projectHeaderState,
+    prepareHeader:()=>Promise.all([loadBranchProjectConfig(),loadProjectTagBoards()]),
     openingTabs:(project,options={})=>(project || normalizeWorkflow(options.workflow || options.createWorkflow || options.intent)==='project') ? projectViewerTabs({opening:true,project}) : []
   };
   window.Portal?.navigation?.registerSchema?.('projectFullscreen', { history:'replace', scope:{ project:true } });

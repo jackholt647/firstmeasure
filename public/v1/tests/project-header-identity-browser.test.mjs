@@ -32,20 +32,24 @@ test('identity popover retains controls and edits, returns them on Escape, stage
  const browser=await chromium.launch({channel:'chrome',headless:true});
  try{
  const page=await browser.newPage({viewport:{width:1000,height:700}});
- await page.setContent('<div id="rOverlay"><header style="height:36px;display:flex;align-items:center"><button id="rProjectIdentityTrigger">Jane Doe · 123 Main</button><button id="stage">New lead</button></header><form id="rForm"><div class="r-group"><div id="rContactList"><input data-field="name" value="Jane Doe"></div><button id="rAddContact" type="button">Add contact</button></div><section id="rStepAddress"><input id="rAddress" value="123 Main"></section></form></div>');
- const css=source.slice(source.indexOf('    .r-window-identity.fm-shell-identity'),source.indexOf('    .r-window-identity i{'));
+ await page.setContent('<div id="rOverlay"><header style="height:36px;display:flex;align-items:center"><button id="rProjectIdentityTrigger">Jane Doe · 123 Main</button><button id="stage">New lead</button></header><form id="rForm"><div class="r-group"><div id="rContactList"><div class="r-contact-card primary"><input data-field="name" value="Jane Doe"><div><label>Phone</label><input data-field="phone" value="5551234567"></div><div><label>Email</label><input data-field="email" value="jane@example.test"></div></div></div><button id="rAddContact" type="button">Add contact</button></div><section id="rStepAddress"><input id="rAddress" value="123 Main"></section></form></div>');
+ const css=source.slice(source.indexOf('    .r-window-identity.fm-shell-identity'),source.indexOf('    .r-window-identity>i{'));
  await page.addStyleTag({content:css});
  await page.evaluate(()=>{window.branchProjectConfig={title_mode:'manual'};window.activeBaseProject={title:'Renovation'};window.projectTitleAlias=p=>p.title;window.closeHeaderPropertyTypeMenu=()=>{};window.escapeHtml=s=>String(s);window.cleanStageText=s=>s;window.projectManualStageContexts=()=>[{planId:'one',board:{id:'one',title:'Sales'},column:{id:'lead'},columns:[{id:'lead',title:'New lead'},{id:'won',title:'Won'}]}];window.original=document.querySelector('#rAddress');window.edits=0;original.addEventListener('input',()=>edits++);});
  const functions=source.slice(source.indexOf('  let projectIdentityPopover=null;'),source.indexOf('  function projectHeaderPillHtml('));
  await page.addScriptTag({content:functions+'\nbindProjectIdentityHeader();document.querySelector("#stage").onclick=e=>openManualStagePicker(e.currentTarget);'});
  await page.locator('#rProjectIdentityTrigger').click();
  assert.equal(await page.locator('#rAddress').evaluate(el=>el===original),true);
+ assert.equal(await page.locator('.r-project-identity-popover>header').count(),0);
+ for(const name of ['Call contact','Message contact','Email contact'])assert.equal(await page.getByRole('button',{name,exact:true}).isVisible(),true);
+ assert.equal(await page.locator('.r-project-identity-popover .r-contact-card').evaluate(el=>getComputedStyle(el).borderWidth),'0px');
  assert.ok((await page.locator('.r-project-identity-popover').boundingBox()).y>=36);
  await page.locator('#rAddress').fill('456 Oak');assert.equal(await page.evaluate(()=>edits),1);
  await page.keyboard.press('Escape');assert.equal(await page.locator('.r-project-identity-popover').count(),0);
  assert.equal(await page.locator('#rForm #rAddress').inputValue(),'456 Oak');
  await page.locator('#stage').click();assert.equal(await page.locator('.r-header-stage-popover').count(),1);
  assert.equal(await page.locator('.r-manual-stage-dialog').getAttribute('aria-modal'),'false');
+ assert.equal(await page.locator('.r-header-stage-popover .r-manual-stage-head').count(),0);
  assert.ok((await page.locator('.r-header-stage-popover').boundingBox()).y>=36);
  assert.equal(await page.locator('.r-header-stage-popover').evaluate(e=>getComputedStyle(e).position),'fixed');
  await page.keyboard.press('Escape');assert.equal(await page.locator('.r-header-stage-popover').count(),0);

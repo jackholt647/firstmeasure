@@ -36,7 +36,7 @@
     bundle('../agent-chat/agent-chat.js'),
     versionedBundle('../assistant-api/assistant-api.js', '20260930-project-trays-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20260930-project-trays-v1'),
-    versionedBundle('photos/feed.js', '20260930-app-groups-v1'),
+    versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261001-sharing-polish-v1'),
     versionedBundle('../project-notes/project-notes.js', '20260930-project-chrome-v2'),
@@ -106,7 +106,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
       access: managementAccess,
-      bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('photos/feed.js', '20260930-app-groups-v1')]
+      bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'portal.receipts',
@@ -118,7 +118,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'receipts',
       access: managementAccess,
-      bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-receipt-browser'), versionedBundle('photos/feed.js', '20260930-app-groups-v1'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
+      bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-receipt-browser'), versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
     },
     {
       // DEPRECATED (2026-08): legacy proposals surface â€” hidden by its bundle
@@ -194,7 +194,7 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
-        versionedBundle('photos/feed.js', '20260930-app-groups-v1'),
+        versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'),
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -223,7 +223,7 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
-        versionedBundle('photos/feed.js', '20260930-app-groups-v1'),
+        versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'),
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -279,7 +279,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20260714-scope-commission-rules'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20260930-app-groups-v1'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
+      bundles: [versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20260714-scope-commission-rules'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.request',
@@ -289,7 +289,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261002-project-identity-v1'), versionedBundle('project-request/app.js', '20261002-project-identity-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261002-dropdown-polish-v1'), versionedBundle('project-request/app.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -332,7 +332,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-schedule/panel.js', '20260930-scheduling-qa-v2')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'project.comms',
@@ -344,7 +344,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [bundle('../comms-api/comms-api.js'), bundle('../agent-chat/agent-chat.js'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'), versionedBundle('comms/phone-tray.js', '20260930-phone-tones-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tones-v1'), versionedBundle('comms/workspace.js', '20260930-phone-auto-v1'), versionedBundle('comms/project.js', '20260929-overview-content-v1')]
+      bundles: [bundle('../comms-api/comms-api.js'), bundle('../agent-chat/agent-chat.js'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'), versionedBundle('comms/phone-tray.js', '20261002-dropdown-polish-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tones-v1'), versionedBundle('comms/workspace.js', '20260930-phone-auto-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'project.measurements',
@@ -382,7 +382,7 @@
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
       access: managementAccess,
-      bundles: [bundle('scheduling/app.js')]
+      bundles: [versionedBundle('scheduling/app.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'portal.training',
@@ -520,7 +520,7 @@
         bundle('../agents-api/agents-api.js'),
         bundle('../agent-chat/agent-chat.js'),
         versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'),
-        versionedBundle('comms/phone-tray.js', '20260930-phone-tones-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tones-v1'),
+        versionedBundle('comms/phone-tray.js', '20261002-dropdown-polish-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tones-v1'),
         versionedBundle('comms/workspace.js', '20260930-phone-auto-v1'),
         versionedBundle('chat/app.js', '20260930-phone-tray-v1')
       ]
@@ -544,7 +544,7 @@
         versionedBundle('../window-manager/window-manager.js', '20261002-project-identity-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20260930-project-trays-v1'),
         versionedBundle('../platform-assistant/platform-assistant.js', '20260930-project-trays-v1'),
-        versionedBundle('photos/feed.js', '20260930-app-groups-v1'),
+        versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261001-sharing-polish-v1'),
         versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
@@ -604,7 +604,7 @@
       portalTabId: 'company_settings',
       placement: 'settings',
       access: managementAccess,
-      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260930-contact-search-picker-v1'), versionedBundle('../payroll-api/payroll-api.js', '20260712-payroll-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20260901-calls-configuration-v3'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('settings/payroll.js', '20260712-payroll-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20260929-brand-shape-choices'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20260930-phone-tray-v1')]
+      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260930-contact-search-picker-v1'), versionedBundle('../payroll-api/payroll-api.js', '20260712-payroll-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261002-dropdown-polish-v1'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('settings/payroll.js', '20260712-payroll-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20260929-brand-shape-choices'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'portal.crew_overview',

@@ -167,5 +167,5 @@
       paint(status.development);container.prepend(details);if(status.development.onboarded)onComplete?.(status.development);
     }catch{/* The normal setup remains available when calling access is unavailable. */}
   }
-  Portal.PhoneTray={attach,update,selectTab,developmentSetup,reset(){if(toneContext){void toneContext.close().catch(()=>{});toneContext=null;}++sequence;clearTimeout(timer);cancelAnimationFrame(frame);sources.forEach(s=>s.source.disconnect());sources=[];trackKey='';if(context){void context.close();context=null;}win?.setVisible(false);if(extra)extra.innerHTML='';}};
+  Portal.PhoneTray={attach,update,selectTab,showDocked(){win?.dock('right');},developmentSetup,reset(){if(toneContext){void toneContext.close().catch(()=>{});toneContext=null;}++sequence;clearTimeout(timer);cancelAnimationFrame(frame);sources.forEach(s=>s.source.disconnect());sources=[];trackKey='';if(context){void context.close();context=null;}win?.setVisible(false);if(extra)extra.innerHTML='';}};
 })();

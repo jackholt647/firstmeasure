@@ -126,12 +126,14 @@ test('existing project paints a provisional shell then hydrates once and preserv
   const start=app.indexOf('  async function openProject(');
   const code=app.slice(start,app.indexOf('\n  }',start)+4);
   const events=[];
-  let resolveRead,resolvePaint;
+  let resolveRead,resolvePaint,resolveHeaderPaint,paintCount=0;
+  const headerPaint=new Promise(resolve=>{resolveHeaderPaint=resolve;});
   const paint=new Promise(resolve=>{resolvePaint=resolve;});
   const read=new Promise(resolve=>{resolveRead=resolve;});
   const context={
-    projectWindowBridge:{},projectOpenGeneration:0,projectRecordPending:false,projectShellLoading:false,
-    window:{Portal:{},FirstMateWindowShell:{afterPaint:()=>paint}},console,
+    loadBranchProjectConfig:async()=>({}),adoptOpeningHeaderState(){},openingProjectHeader:project=>({title:project.address,identityHtml:project.address,pillsHtml:''}),document:{getElementById:()=>null},
+    projectWindowToken:'test',projectWindowBridge:{update:(_token,header)=>events.push(['header',header.title])},projectOpenGeneration:0,projectRecordPending:false,projectShellLoading:false,
+    window:{Portal:{},FirstMateWindowShell:{afterPaint:()=>paintCount++ ? headerPaint : paint}},console,
     projectOpenId:project=>project?.id || '',activeModalMatchesProject:()=>events.length>0,
     looksLikeMeasurementOnlyRecord:()=>false,
     open:(project,options)=>{
@@ -150,8 +152,11 @@ test('existing project paints a provisional shell then hydrates once and preserv
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(events.length,1,'an already-fetched record cannot hydrate before the shell paint');
   resolvePaint();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(events,[['shell','Cached address','docs',true],['header','Current address']],'authoritative header paints while content is still pending');
+  resolveHeaderPaint();
   await pending;
-  assert.deepEqual(events,[['shell','Cached address','docs',true],['hydrate','Current address','docs'],['intent','open']]);
+  assert.deepEqual(events,[['shell','Cached address','docs',true],['header','Current address'],['hydrate','Current address','docs'],['intent','open']]);
   assert.equal(context.projectRecordPending,false);
 });
 

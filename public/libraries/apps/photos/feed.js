@@ -30,7 +30,7 @@
     { id:'field', label:(globalThis.PlatformLanguage?.text("photos","m_ab8a6ac7c744e8","Field work") ?? "Field work"), icon:'fa-helmet-safety' }
   ];
   let registered = false;
-  let branchProjectConfig = { title_mode: 'customer_name' };
+  let branchProjectConfig = { title_mode: 'all_contacts' };
   const markupThumbnailRevisions = new Map();
   let state = {
     root: null,
@@ -450,10 +450,10 @@
     };
   }
   function normalizeProjectConfig(config){
-    const mode = cleanText(config?.title_mode || config?.project_title_mode || 'customer_name');
+    const mode = cleanText(config?.title_mode || config?.project_title_mode || 'all_contacts');
     return {
       ...(config && typeof config === 'object' ? config : {}),
-      title_mode: ['customer_name', 'address', 'manual'].includes(mode) ? mode : 'customer_name'
+      title_mode: ['all_contacts', 'customer_name', 'address', 'manual'].includes(mode) ? mode : 'all_contacts'
     };
   }
   async function loadBranchProjectConfig(){
@@ -497,9 +497,10 @@
   }
   function projectTitle(project = {}){
     const savedTitle = savedProjectTitle(project);
-    if (savedTitle) return savedTitle;
-    const mode = branchProjectConfig?.title_mode || 'customer_name';
-    const contact = primaryProjectContact(project);
+    if (savedTitle && branchProjectConfig?.title_mode === 'manual') return savedTitle;
+    const mode = branchProjectConfig?.title_mode || 'all_contacts';
+    const contact = {...primaryProjectContact(project)};
+    if(mode === 'all_contacts') contact.name = window.Portal?.modules?.request?.formatProjectContactNames?.(project.contacts) || contact.name;
     const address = projectAddress(project);
     if (mode === 'manual') return firstText(contact.name, address, 'Untitled project');
     if (mode === 'address') return firstText(address, contact.name, 'Untitled project');

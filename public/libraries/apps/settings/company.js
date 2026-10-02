@@ -10097,11 +10097,11 @@
       const branchId = String(window.Portal?.branchModules?.currentBranchId?.() || window.__APP?.userBranchId || 'default').trim() || 'default';
       const moduleId = 'project_configuration';
       const normalize = (config) => {
-        const mode = String(config?.title_mode || 'customer_name').trim();
+        const mode = String(config?.title_mode || 'all_contacts').trim();
         const celebrationMode = String(config?.celebrations_mode || config?.celebrations?.mode || 'on').trim();
         return {
           ...(config && typeof config === 'object' ? config : {}),
-          title_mode: ['customer_name', 'address', 'manual'].includes(mode) ? mode : 'customer_name',
+          title_mode: ['all_contacts', 'customer_name', 'address', 'manual'].includes(mode) ? mode : 'all_contacts',
           celebrations_mode: ['on', 'small_only', 'off'].includes(celebrationMode) ? celebrationMode : 'on'
         };
       };
@@ -10119,9 +10119,10 @@
       }
       const render = (saving = false) => {
         const options = [
-          ['customer_name', 'Customer name', 'Use the primary contact name. Falls back to address when no name is available.'],
-          ['address', 'Property address', 'Use the property address. Falls back to primary contact name when no address is available.'],
-          ['manual', 'Manual title', 'Show an editable project title field and keep saved overrides.']
+          ['all_contacts', 'All Contacts', 'Use all contact names, grouping shared last names.'],
+          ['customer_name', 'Primary Contact', 'Use the primary contact name. Falls back to address when no name is available.'],
+          ['address', 'Address', 'Use the property address. Falls back to primary contact name when no address is available.'],
+          ['manual', 'Manual', 'Show an editable project title field and keep saved overrides.']
         ];
         const celebrationOptions = [
           ['on', 'On', 'Allow small and large celebrations.'],
@@ -10162,7 +10163,7 @@
         `;
         paneConfiguration.querySelectorAll('[data-title-mode]').forEach((button) => {
           button.addEventListener('click', () => {
-            config.title_mode = button.dataset.titleMode || 'customer_name';
+            config.title_mode = button.dataset.titleMode || 'all_contacts';
             render(false);
           });
         });

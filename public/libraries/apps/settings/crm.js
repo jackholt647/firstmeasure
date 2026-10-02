@@ -98,9 +98,9 @@
     ];
     const DEFAULT_PROJECT_PILLS = ['scope_type','stage','dollar_value'];
     function normalizedProjectConfig(value = {}){
-      const mode = String(value?.title_mode || 'customer_name');
+      const mode = String(value?.title_mode || 'all_contacts');
       const celebrationMode = String(value?.celebrations_mode || value?.celebrations?.mode || 'on');
-      return { ...(value || {}), title_mode:['customer_name','address','manual'].includes(mode) ? mode : 'customer_name', celebrations_mode:['on','small_only','off'].includes(celebrationMode) ? celebrationMode : 'on', project_header_pills:Array.isArray(value?.project_header_pills) ? value.project_header_pills.filter((item) => PROJECT_PILL_FIELDS.some(([id]) => id === item)) : [...DEFAULT_PROJECT_PILLS] };
+      return { ...(value || {}), title_mode:['all_contacts','customer_name','address','manual'].includes(mode) ? mode : 'all_contacts', celebrations_mode:['on','small_only','off'].includes(celebrationMode) ? celebrationMode : 'on', project_header_pills:Array.isArray(value?.project_header_pills) ? value.project_header_pills.filter((item) => PROJECT_PILL_FIELDS.some(([id]) => id === item)) : [...DEFAULT_PROJECT_PILLS] };
     }
     function subTabs(){
       if (fixedView || allowedViews.length < 2) return '';
@@ -311,9 +311,10 @@
     function renderProjects(){
       const config = state.projectConfig;
       const titleOptions = [
-        ['customer_name','Customer name','Use the primary contact name, falling back to the address.'],
-        ['address','Property address','Use the project property address, falling back to the contact name.'],
-        ['manual','Manual title','Allow an editable project title and retain saved overrides.']
+        ['all_contacts','All Contacts','Use all contact names, grouping shared last names.'],
+        ['customer_name','Primary Contact','Use the primary contact name, falling back to the address.'],
+        ['address','Address','Use the project property address, falling back to the contact name.'],
+        ['manual','Manual','Allow an editable project title and retain saved overrides.']
       ];
       host.querySelector('.crm-settings').innerHTML = (String(subTabs()) + "\n        <div class=\"crm-head\"><div><h3>" + (globalThis.PlatformLanguage?.htmlText("settings","m_19156e80fc8a6e","Projects") ?? "Projects") + "</h3><p>" + (globalThis.PlatformLanguage?.htmlText("settings","m_f52c3d83780786","Control project naming and the quick details shown beneath project titles.") ?? "Control project naming and the quick details shown beneath project titles.") + "</p></div><div class=\"crm-head-actions\"><span class=\"crm-status\" id=\"crmStatus\"></span><button class=\"crm-btn primary\" id=\"crmSaveProjectConfig\" type=\"button\"><i class=\"fas fa-floppy-disk\"></i>" + (globalThis.PlatformLanguage?.htmlText("settings","m_bfcbd339764266"," Save changes") ?? " Save changes") + "</button></div></div>\n        <section class=\"crm-settings-block\"><h4>" + (globalThis.PlatformLanguage?.htmlText("settings","m_67ac09b40d11f8","Project titles") ?? "Project titles") + "</h4><p>" + (globalThis.PlatformLanguage?.htmlText("settings","m_d53f09731b34e7","Choose how project titles render across this branch.") ?? "Choose how project titles render across this branch.") + "</p><div class=\"crm-option-grid\">" + String(titleOptions.map(([id,label,description]) => `<button class="crm-option ${config.title_mode===id?'active':''}" data-title-mode="${id}" type="button"><strong>${label}</strong><span>${description}</span></button>`).join('')) + "</div></section>\n        <section class=\"crm-settings-block\"><h4>" + (globalThis.PlatformLanguage?.htmlText("settings","m_5cd6838b3a4d24","Project header pills") ?? "Project header pills") + "</h4><p>" + (globalThis.PlatformLanguage?.htmlText("settings","m_ce7214d000edda","Choose which project variables appear as pills in the My Projects project header. Click a variable to show or hide it.") ?? "Choose which project variables appear as pills in the My Projects project header. Click a variable to show or hide it.") + "</p><div class=\"crm-pill-options\">" + String(PROJECT_PILL_FIELDS.map(([id,label]) => `<button class="crm-pill-option ${config.project_header_pills.includes(id)?'active':''}" data-project-pill="${id}" type="button" aria-pressed="${config.project_header_pills.includes(id)}">${label}</button>`).join('')) + "</div></section>");
       bindSubTabs();
