@@ -1,6 +1,6 @@
 # Earlier project tabs and loading chrome parity — October 2, 2026
 
-Source release `face301551db403c65ba3c7b277a6985a7bd58b7` follows [complete opening chrome](development-project-opening-chrome-20261002.md). Five frontend files are scoped to development web, compatibility and pool roles. Worker and production are not part of this release.
+Final frontend source `02cbae1bf38f0b3534d36c5087edfeeec828f61a` follows [complete opening chrome](development-project-opening-chrome-20261002.md). Five frontend files are scoped to development web, compatibility and pool roles. Worker and production are not part of this release.
 
 ## Findings
 
@@ -21,3 +21,5 @@ Existing-project hydration starts its read immediately but gives the shell a pai
 13 focused opening, window-shell, window-manager and tray tests passed. The opening tests cover a blocked project read with already-visible tab metadata, scroll geometry, reduced motion, retained focus, and an already-resolved record held until the shell paint. All 18 opening tests against the three exact role payloads passed. Staging performs JavaScript syntax checks.
 
 Ignored operational artifacts are in `output/project-tab-reveal-20261002`; exact previous paths and hashes are in the manifest and installed `channels-release.json` receipts. Current roles retain their existing source through three-way merges. Autoscale replacement templates and provider topology are unchanged.
+
+Concurrent development releases triggered baseline guards; fresh snapshots preserve the Measurements backend and assistant sidebar/title fixes. The web role received the final frontend in `02cbae1b`, retained by the subsequent `e662cfd2` assistant release. Remaining activation and verification evidence is recorded under `output/project-tab-reveal-final-20261002` and `output/project-tab-reveal-completion-20261002`. No guard was bypassed.
