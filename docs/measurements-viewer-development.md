@@ -18,7 +18,9 @@ and retains the platform project ID.
 
 For authorized developers, an inline **FM** button chooses a random completed
 report matching the current residential/commercial/multifamily and roof/full-house
-selection. Unselected criteria default to residential/roof. It avoids the
+selection. Full-house scope is residential only; commercial and multifamily skip
+the choice and use roof scope. See the [scope and tooltip follow-up](../deploy/digitalocean/development-measurement-scope-help-20261002.md).
+Unselected criteria default to residential/roof. It avoids the
 previous report when another usable sample exists. No match leaves the address
 unchanged. It validates file inventory rather than assuming an index flag proves
 that a usable report exists.
