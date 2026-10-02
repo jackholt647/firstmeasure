@@ -639,6 +639,7 @@
         <button type="button" class="fma-icon-btn fma-sidebar-toggle" data-fma="history" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_ee81752261cfa1","Conversations") ?? "Conversations")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_f421bede1a732b","Open conversations") ?? "Open conversations")}" aria-expanded="false"><i class="fas fa-bars-staggered" aria-hidden="true"></i></button>
         <span class="fma-head-title" data-fma="headTitle"></span>
         <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="visualsToggle" title="Hide visuals" aria-label="Hide visuals" aria-pressed="true" hidden><i class="fas fa-chart-pie" aria-hidden="true"></i></button>
+        ${embedded && surface.onClose ? '<button type="button" class="fma-icon-btn ghost" data-fma="closeSurface" title="Close assistant" aria-label="Close assistant"><i class="fas fa-xmark" aria-hidden="true"></i></button>' : ''}
       </div>
       <div class="fma-body" data-fma="body">
       <aside class="fma-sidebar" data-fma="sidebar" aria-label="Assistant conversations">
@@ -752,6 +753,7 @@
       startNewThread();
     });
     els.sidebarToggle.addEventListener('click', toggleHistory);
+    q('closeSurface')?.addEventListener('click', () => { stopVoice(); stopRecording(true); surface.onClose(); });
     els.searchInput.addEventListener('input', () => {
       state.historyQuery = clean(els.searchInput.value).toLowerCase();
       state.historyMatches = [];

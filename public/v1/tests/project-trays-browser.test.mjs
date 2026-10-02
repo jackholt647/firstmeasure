@@ -41,8 +41,15 @@ test('project trays reuse Notes, Channels and the global agent and preserve draf
     await page.getByRole('textbox',{name:'New project note'}).fill('Keep this draft');
     await page.getByRole('tab',{name:'Agent',exact:true}).click();
     await page.waitForSelector('.fma-welcome');
+    assert.equal(await page.locator('.fm-project-tray>header').isVisible(),false);
+    assert.equal(await page.locator('.fma-head [data-fma=closeSurface]').isVisible(),true);
     await page.getByRole('textbox',{name:'Message'}).fill('Review scope');
+    await page.getByRole('button',{name:'Close assistant',exact:true}).click();
+    assert.equal(await page.locator('.fm-project-content').getAttribute('data-tray-open'),'false');
+    await page.getByRole('tab',{name:'Agent',exact:true}).click();
+    assert.equal(await page.getByRole('textbox',{name:'Message'}).inputValue(),'Review scope');
     await page.getByRole('tab',{name:'Notes',exact:true}).click();
+    assert.equal(await page.locator('.fm-project-tray>header').isVisible(),true);
     assert.equal(await page.getByRole('textbox',{name:'New project note'}).inputValue(),'Keep this draft');
     await page.getByRole('button',{name:'Add pinned note',exact:true}).click();
     await page.waitForFunction(()=>window.notePosts.length===1);
