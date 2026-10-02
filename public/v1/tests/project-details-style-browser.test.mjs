@@ -8,12 +8,12 @@ test('preloaded and loaded project pills have identical geometry, typography and
  try{
  const page=await browser.newPage();const app=await read('apps/project-request/app.js');
  const css=app.slice(app.indexOf('  const css = `')+15,app.indexOf('`;',app.indexOf('  const css = `')));
- await page.setContent('<main class="main"></main>');await page.addStyleTag({content:css});
+ await page.setContent('<main class="main"></main>');await page.addStyleTag({content:'*{box-sizing:border-box}'+css});
  for(const f of ['window-manager/window-manager.js','window-manager/window-shell.js','window-manager/project-windows.js'])await page.addScriptTag({content:await read(f)});
  await page.evaluate(()=>{window.Portal={};crypto.randomUUID=()=>"style-test";FirstMateProjectWindows.open({id:'p',address:'123 Main'});});
  const pills='<button class="r-project-tag status stage-editable"><i class="fas fa-circle-dot"></i><span>New Lead</span><i class="fas fa-chevron-down"></i></button><div class="r-project-tag total"><span>$0</span></div><div class="r-project-tag property-type"><button class="r-property-type-trigger"><span>Residential</span></button></div>';
- await page.evaluate(html=>{document.querySelector('.fm-project-window-loading').innerHTML='<div class="r-window-identity"><div class="r-project-tags">'+html+'</div></div>';const loaded=document.createElement('section');loaded.id='loaded';loaded.innerHTML='<div class="r-window-identity"><div class="r-project-tags">'+html+'</div></div>';document.body.append(loaded);},pills);
- const values=selector=>page.locator(selector+' .r-project-tag').evaluateAll(els=>els.map(el=>{const c=getComputedStyle(el);return ['borderRadius','padding','fontSize','fontWeight','lineHeight','minHeight','gap','color','backgroundColor','borderColor'].map(key=>c[key]);}));
+ await page.evaluate(html=>{document.querySelector('.fm-project-window-loading').innerHTML='<div class="r-window-identity fm-shell-identity"><div class="r-project-tags">'+html+'</div></div>';const loaded=document.createElement('section');loaded.id='loaded';loaded.className='fm-entity-window';loaded.innerHTML='<div class="r-window-identity fm-shell-identity"><div class="r-project-tags">'+html+'</div></div>';document.body.append(loaded);},pills);
+ const values=selector=>page.locator(selector+' :is(.r-project-tag,.r-property-type-trigger)').evaluateAll(els=>els.map(el=>{const c=getComputedStyle(el);return ['height','width','borderRadius','padding','fontSize','fontWeight','lineHeight','minHeight','gap','color','backgroundColor','borderColor'].map(key=>c[key]);}));
  assert.deepEqual(await values('.fm-project-window-loading'),await values('#loaded'));
  }finally{await browser.close();}
 });
