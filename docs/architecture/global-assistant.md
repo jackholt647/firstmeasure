@@ -100,8 +100,10 @@ right while the conversation body uses the full workspace height.
 The assistant header keeps the conversations toggle at left and the shared
 Float, Maximize and Close window controls at right, with Close to the right of
 Maximize. Conversation history is
-a persistent left sidebar in desktop full view and a 68%-width overlay in
-docked, floating and mobile views. The sidebar searches titles and the user's
+a default-closed, toggleable left sidebar in desktop full view and an overlay in
+docked, floating and mobile views. Full-screen mode keeps the conversations toggle
+at the upper left and does not automatically open history. When conversations
+are mounted in the global left column, that column retains its own visibility handling. The sidebar searches titles and the user's
 own conversation messages, and owns new
 conversation and assistant settings. The chat and settings panes use the same
 assistant instance, so switching window modes preserves their state.
