@@ -870,11 +870,17 @@ window.PlatformCommerce.onReady(async function(){
     .r-project-identity-popover .r-contact-card+.r-contact-card{border-top:1px solid #e4e7ec;padding-top:14px}
     .r-project-identity-popover .r-contact-card::before{content:'Contact';grid-column:1 / -1;font-size:11px;font-weight:700;color:#667085;margin-bottom:4px}
     .r-project-identity-popover .r-contact-card.primary::before{content:'Primary Contact'}
+    .r-project-identity-popover .r-contact-card{display:block}
+    .r-project-identity-popover .r-contact-card::before{display:block;min-height:26px;padding-right:64px}
+    .r-project-identity-popover .r-contact-card .r-inline{grid-template-columns:minmax(0,1fr);gap:7px}
+    .r-project-identity-popover .r-contact-card .r-contact-email-row{margin-top:7px}
+    .r-project-identity-popover .r-contact-actions{position:absolute;right:0;top:0;flex-direction:row}
+    .r-project-identity-popover .r-contact-card+.r-contact-card .r-contact-actions{top:14px}
     .r-project-identity-popover #rStepAddress{border-top:1px solid #e4e7ec!important;padding-top:14px!important}
     .r-project-identity-popover #rStepAddress::before{content:'Project Address';display:block;font-size:11px;font-weight:700;color:#667085;margin-bottom:9px}
     .r-project-identity-popover #rProjectCustomFields:not(:empty){border-top:1px solid #e4e7ec;padding-top:14px}
     [data-identity-actions]{display:none}
-    .r-project-identity-popover .r-contact-shortcut-field{display:flex;flex-wrap:wrap;align-items:center;gap:3px;min-width:0}
+    .r-project-identity-popover .r-contact-shortcut-field{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:3px;min-width:0}
     .r-project-identity-popover .r-contact-shortcut-field>label{width:100%}
     .r-project-identity-popover .r-contact-shortcut-field>input{flex:1;width:0;min-width:60px}
     .r-project-identity-popover [data-identity-actions]{display:inline-flex;flex:none;gap:1px}
