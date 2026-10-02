@@ -311,3 +311,25 @@ was exercised against GPT-Live using the existing remote credential; session
 start, received audio and orderly close succeeded.
 
 Delivery record: [Voice handshake and shared project UI](../../deploy/digitalocean/development-assistant-voice-project-20261002.md).
+
+
+### Voice inside chat (October 2)
+
+The shared assistant presents live speech as ordinary chat bubbles. Voice mode
+replaces Dictate/Start Voice with Mute/Stop controls in the composer; Stop uses a
+red square. The header indicator stays absolutely centered and scales fixed bars
+from the received remote audio RMS, with a static reduced-motion alternative.
+It owns a separate audio context and animation frame, both closed on hang-up.
+Autoplay recovery is a chat-level play button rather than a separate voice panel.
+
+Typing and file uploads remain available during voice. Typed requests share the
+serialized delegation queue and the existing authenticated upload/messages APIs;
+results return to GPT-Live through commentary. Submitted typed work may continue
+after hanging up, like an already submitted spoken task. Chat draft and unused
+attachments remain intact. Live transcripts are session-local; durable backend
+turns retain the existing storage behavior. Live chat segments retain their place
+relative to later typed messages during the mounted conversation.
+
+The official [client delegation guidance](https://developers.openai.com/api/docs/guides/live-delegation)
+directs typed input to the existing backend, with results returned as commentary.
+No provider credentials, tool grants or backend operation implementations change.

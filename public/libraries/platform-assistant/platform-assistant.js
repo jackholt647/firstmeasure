@@ -69,6 +69,8 @@
   let bootPromise = null;
   let openingChannel = false;
   const conversationDrafts = new Map();
+  const voiceChats = new Map();
+  const voiceArchives = new Map();
   let assistantWindow = null;
   let voiceCall = null;
   let recorder = null;
@@ -355,13 +357,20 @@
       .fma-drawer[data-window=full] .fma-head .fm-window-controls{gap:4px;margin-left:0;}
       .fma-drawer[data-window=full] .fma-head .fm-window-controls button{width:34px;height:34px;border:1px solid #e4e7ec;border-radius:9px;background:#fff;box-shadow:0 2px 8px #10182814;}
       .fma-drawer[data-window=full] .fma-head .fm-window-controls button:hover{background:#f2f4f7;}
-      .fma-voice-panel{margin:8px 0;padding:12px;border:1px solid #d0d5dd;border-radius:14px;background:#f8fafc;}
-      .fma-voice-panel[hidden]{display:none;}
-      .fma-voice-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-      .fma-voice-actions strong{flex:1;}
-      .fma-voice-actions button{border:1px solid #d0d5dd;border-radius:8px;background:white;padding:7px 10px;cursor:pointer;}
-      .fma-voice-caption{max-height:100px;overflow:auto;margin-top:8px;color:#475467;font-size:13px;white-space:pre-wrap;}
-      .fma-voice-panel audio{width:100%;height:32px;margin-top:8px;}
+      .fma-head{position:relative;}
+      .fma-voice-indicator{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;gap:3px;width:64px;height:28px;pointer-events:none;color:var(--primary-readable,var(--primary,#175cd3));}
+      .fma-voice-indicator[hidden]{display:none;}
+      .fma-voice-indicator i{width:3px;height:20px;border-radius:3px;background:currentColor;transform:scaleY(.2);transform-origin:center;}
+      .fma-drawer[data-voice=true] .fma-head-title{visibility:hidden;}
+      [data-fma=voiceLog],[data-voice-entry]{display:contents;}
+      .fma-voice-status{font-size:12px;color:#667085;text-align:center;padding:8px 0;}
+      .fma-voice-status:empty{display:none;}
+      .fma-compose-shell [hidden]{display:none!important;}
+      .fma-stop-square{display:block;width:13px;height:13px;border-radius:2px;background:#d92d20;}
+      .fma-compose-icon[data-fma=voiceMute],.fma-compose-icon[data-fma=voiceEnd]{width:32px;}
+      .fma-compose-icon[aria-pressed=true]{color:#d92d20;background:#fef3f2;}
+      .fma-audio-resume{display:block;margin:8px auto;border:1px solid #d0d5dd;border-radius:8px;background:white;padding:7px 10px;cursor:pointer;}
+      .fma-audio-resume[hidden]{display:none;}
       .fma-sidebar-toggle{border:0;background:transparent;font-size:16px;color:#475467;}
       .fma-drawer .fma-body{position:relative;flex:1;min-height:0;display:flex;flex-direction:row;overflow:hidden;}
       .fma-content{position:relative;flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;}
@@ -608,6 +617,7 @@
       .fma-composer[data-recording=true] textarea,.fma-composer[data-recording=true] [data-fma=attach],.fma-composer[data-recording=true] [data-fma=mic]{display:none;}
       .fma-recording-time{font-size:12px;color:#667085;font-variant-numeric:tabular-nums;}
       .fma-wave{display:block;flex:1;min-width:0;width:100%;height:28px;color:var(--primary-readable,var(--primary,#175cd3));}
+      @media(max-width:420px){.fma-drawer[data-voice=true] .fma-head .fm-window-controls button,.fma-drawer[data-voice=true] .fma-head .fma-visuals-toggle{width:24px;} .fma-drawer[data-voice=true] .fma-head{gap:4px;}}
       @media (prefers-reduced-motion:reduce){.fma-compose-shell textarea{transition:none;}.fma-anim,.fma-artifact.flash{animation:none;}}
 
       /* Full workspace: centered conversation, or conversation on the right of the dashboard. */
@@ -638,6 +648,7 @@
       <div class="fma-head">
         <button type="button" class="fma-icon-btn fma-sidebar-toggle" data-fma="history" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_ee81752261cfa1","Conversations") ?? "Conversations")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_f421bede1a732b","Open conversations") ?? "Open conversations")}" aria-expanded="false"><i class="fas fa-bars-staggered" aria-hidden="true"></i></button>
         <span class="fma-head-title" data-fma="headTitle"></span>
+        <span class="fma-voice-indicator" data-fma="voiceIndicator" role="img" aria-label="Voice conversation active" hidden><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
         <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="visualsToggle" title="Hide visuals" aria-label="Hide visuals" aria-pressed="true" hidden><i class="fas fa-chart-pie" aria-hidden="true"></i></button>
         ${embedded && surface.onClose ? '<button type="button" class="fma-icon-btn ghost" data-fma="closeSurface" title="Close assistant" aria-label="Close assistant"><i class="fas fa-xmark" aria-hidden="true"></i></button>' : ''}
       </div>
@@ -660,7 +671,7 @@
           <div class="fma-split" data-fma="split" role="separator" aria-orientation="vertical" aria-label="Resize dashboard" tabindex="0"></div>
           <div class="fma-main">
             <div class="fma-thread-bar"><span class="title" data-fma="barTitle"></span><span class="sub" data-fma="barSub"></span></div>
-            <div class="fma-msgs" data-fma="msgs"></div>
+            <div class="fma-msgs" data-fma="msgs"><div data-fma="voiceLog"></div><div class="fma-voice-status" data-fma="voiceStatus" role="status"></div><button type="button" class="fma-audio-resume" data-fma="voicePlay" hidden>Play assistant audio</button></div>
             <div class="fma-settings" data-fma="settingsPanel" style="display:none;"></div>
           </div>
         </div>
@@ -672,12 +683,11 @@
             <div class="fma-recording" data-fma="recording"><button type="button" class="fma-compose-icon" data-fma="discardRecording" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_46a483e740de95","Discard recording") ?? "Discard recording")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_46a483e740de95","Discard recording") ?? "Discard recording")}"><i class="fas fa-trash" aria-hidden="true"></i></button><span class="fma-recording-time" data-fma="recordingTime">0:00</span><canvas class="fma-wave" data-fma="wave" aria-hidden="true"></canvas></div>
             <button type="button" class="fma-compose-icon" data-fma="mic" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span></button>
             <button type="button" class="fma-compose-icon" data-fma="voice" title="Start voice conversation" aria-label="Start voice conversation"><i class="fas fa-headphones" aria-hidden="true"></i></button>
+            <button type="button" class="fma-compose-icon" data-fma="voiceMute" title="Mute microphone" aria-label="Mute microphone" aria-pressed="false" hidden><i class="fas fa-microphone" aria-hidden="true"></i></button>
+            <button type="button" class="fma-compose-icon" data-fma="voiceEnd" title="Stop voice conversation" aria-label="Stop voice conversation" hidden><span class="fma-stop-square" aria-hidden="true"></span></button>
             <button type="button" class="fma-send" data-fma="send" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_c23a056552a09f","Send") ?? "Send")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_c23a056552a09f","Send") ?? "Send")}"><i class="fas fa-arrow-up" aria-hidden="true"></i></button>
           </div>
-          <section class="fma-voice-panel" data-fma="voicePanel" aria-label="Voice conversation" hidden>
-            <div class="fma-voice-actions"><strong data-fma="voiceStatus" role="status">Connecting…</strong><button type="button" data-fma="voiceMute" aria-pressed="false">Mute</button><button type="button" data-fma="voiceEnd">End voice</button></div>
-            <div class="fma-voice-caption" data-fma="voiceCaption"></div><audio data-fma="voiceAudio" autoplay controls hidden></audio>
-          </section>
+          <audio data-fma="voiceAudio" autoplay hidden></audio>
           <div class="fma-attach-menu" data-fma="attachMenu" hidden><button type="button" data-fma="pickFile"><i class="fas fa-paperclip" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_09c2e180e4119b"," Upload files") ?? " Upload files")}</button><button type="button" data-fma="pickCamera"><i class="fas fa-camera" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_cd5157f3b879c4"," Take photo") ?? " Take photo")}</button></div>
           <input type="file" data-fma="fileInput" multiple hidden><input type="file" data-fma="cameraInput" accept="image/*,video/*" capture="environment" hidden>
         </div>
@@ -694,7 +704,7 @@
     document.body.appendChild(tooltip);
     const q = (name) => drawer.querySelector(`[data-fma="${name}"]`);
     els = {
-      drawer, tooltip, voice:q('voice'), voicePanel:q('voicePanel'), voiceStatus:q('voiceStatus'), voiceCaption:q('voiceCaption'), voiceAudio:q('voiceAudio'), voiceMute:q('voiceMute'), mic:q('mic'),
+      drawer, tooltip, voice:q('voice'), voiceIndicator:q('voiceIndicator'), voiceLog:q('voiceLog'), voicePlay:q('voicePlay'), voiceEnd:q('voiceEnd'), voiceStatus:q('voiceStatus'), voiceAudio:q('voiceAudio'), voiceMute:q('voiceMute'), mic:q('mic'),
       sidebar: q('sidebar'),
       sidebarToggle: q('history'),
       headTitle: q('headTitle'),
@@ -830,8 +840,14 @@
     for (const picker of [els.fileInput, els.cameraInput]) picker.addEventListener('change', () => { addAttachments(picker.files); picker.value = ''; });
     q('mic').addEventListener('click', startRecording);
     q('voice').addEventListener('click', startVoice);
-    q('voiceEnd').addEventListener('click', () => { if (voiceCall) stopVoice(); else els.voicePanel.hidden = true; });
-    q('voiceMute').addEventListener('click', () => { if (!voiceCall) return; voiceCall.muted = !voiceCall.muted; voiceCall.stream?.getAudioTracks().forEach(t => { t.enabled = !voiceCall.muted; }); els.voiceMute.textContent = voiceCall.muted ? 'Unmute' : 'Mute'; els.voiceMute.setAttribute('aria-pressed', String(voiceCall.muted)); });
+    q('voiceEnd').addEventListener('click', () => stopVoice());
+    q('voicePlay').addEventListener('click', () => { els.voiceAudio.play().then(() => { els.voicePlay.hidden = true; }).catch(() => setVoiceStatus('Audio could not play. Check your browser audio settings.')); voiceCall?.audioContext?.resume().catch(() => {}); });
+    q('voiceMute').addEventListener('click', () => {
+      if (!voiceCall) return;
+      voiceCall.muted = !voiceCall.muted;
+      voiceCall.stream?.getAudioTracks().forEach(t => { t.enabled = !voiceCall.muted; });
+      updateVoiceControls();
+    });
     listen(window, 'pagehide', () => stopVoice());
     q('discardRecording').addEventListener('click', () => stopRecording(true));
     els.input.addEventListener('keydown', (event) => {
@@ -1072,23 +1088,37 @@
     if (!els || disposed) return;
     const previousScroll = els.msgs.scrollTop;
     const parts = [];
+    const live = voiceChats.get(state.threadId);
+    const sessions = [...(voiceArchives.get(state.threadId) || []), ...(live ? [live] : [])];
+    let liveInserted = false;
+    const insertVoice = index => sessions.filter(chat => chat.startIndex === index).forEach(chat => {
+      if (chat === live) { parts.push('<div data-fma="voiceAnchor"></div>'); liveInserted = true; }
+      else parts.push(chat.entries.map(entry => messageHtml(entry,false)).join(''));
+    });
     if (state.view === 'agent' && state.agentDetail) parts.push(agentViewHtml(state.agentDetail));
     if (state.view === 'agent' && !state.agentDetail) parts.push('<p class="fma-empty">Loading agent…</p>');
     if (state.view !== 'agent' && !state.messages.length && !state.pending && !state.threadId && state.booting) {
       parts.push('<p class="fma-empty">Loading…</p>');
     } else if (state.view !== 'agent' && !state.messages.length && !state.pending) {
-      parts.push(welcomeHtml());
+      if (!sessions.some(chat => chat.entries.length) && !voiceCall) parts.push(welcomeHtml());
     } else {
       state.messages.forEach((message, index) => {
+        insertVoice(index);
         const channelThread = state.threads.some(thread => clean(thread.id) === clean(state.threadId) && clean(thread.subject_id).startsWith('channel:'));
         if (clean(message.role) === 'user' && (object(message.data).automatic_channel_recap === true || (channelThread && index === 0 && message.content === 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.'))) return;
+        if (sessions.some(chat => chat.hiddenIndexes.has(index))) return;
         parts.push(messageHtml(message, options.animateLast && index >= state.messages.length - 2));
       });
     }
-    if (state.pending) {
+    insertVoice(state.messages.length);
+    if (!liveInserted) parts.push('<div data-fma="voiceAnchor"></div>');
+    if (state.pending && !voiceCall) {
       parts.push(`<div class="fma-pending"><i class="fas fa-wand-magic-sparkles"></i><span>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_186fc46dfb3cc0","Working") ?? "Working")}<span class="dots"><span>.</span><span>.</span><span>.</span></span></span></div>`);
     }
     els.msgs.innerHTML = parts.join('');
+    els.msgs.querySelector('[data-fma="voiceAnchor"]').replaceWith(els.voiceLog);
+    els.msgs.append(els.voiceStatus, els.voicePlay);
+    renderVoiceChat();
     fitArtifacts(els.msgs);
     syncVisualsToggle();
     if (options.keepScroll) els.msgs.scrollTop = previousScroll;
@@ -1117,7 +1147,7 @@
     const chip = event.target.closest('.fma-action');
     if (chip) {
       const wrap = chip.closest('.fma-actions');
-      const message = state.messages.find((entry) => clean(entry.id) === clean(wrap?.getAttribute('data-message-id')));
+      const message = [...state.messages, ...(voiceChats.get(state.threadId)?.entries || []), ...(voiceArchives.get(state.threadId) || []).flatMap(chat => chat.entries)].find((entry) => clean(entry.id) === clean(wrap?.getAttribute('data-message-id')));
       const action = object(array(object(object(message).data).actions)[Number(chip.getAttribute('data-action-index'))]);
       runNavigationAction(action);
     }
@@ -1418,6 +1448,74 @@
     } catch (error) { panel.textContent = error?.message || 'Assistant settings could not be loaded.'; }
   }
 
+  function voiceChat(threadId = state.threadId){
+    if (!voiceChats.has(threadId)) voiceChats.set(threadId, {entries:[], hiddenIndexes:new Set(), status:'', startIndex:state.messages.length});
+    return voiceChats.get(threadId);
+  }
+  function renderVoiceChat(){
+    if (!els || disposed) return;
+    const chat = voiceChats.get(state.threadId);
+    const nearBottom = els.msgs.scrollHeight - els.msgs.scrollTop - els.msgs.clientHeight < 90;
+    if (chat?.entries.length) els.msgs.querySelector('.fma-welcome')?.remove();
+    const entries = chat?.entries || [];
+    const ids = new Set(entries.map(entry => entry.id));
+    for (const node of [...els.voiceLog.children]) if (!ids.has(node.dataset.voiceEntry)) node.remove();
+    for (const entry of entries) {
+      let node = [...els.voiceLog.children].find(node => node.dataset.voiceEntry === entry.id);
+      if (!node) { node = document.createElement('div'); node.dataset.voiceEntry = entry.id; els.voiceLog.append(node); }
+      if (node.__content !== entry.content) { node.innerHTML = messageHtml(entry,false); node.__content = entry.content; }
+    }
+    els.voiceStatus.textContent = chat?.status || '';
+    fitArtifacts(els.voiceLog);
+    if (nearBottom) scrollToBottom();
+  }
+  function setVoiceStatus(text, call = voiceCall){
+    const threadId = call?.threadId || state.threadId;
+    voiceChat(threadId).status = text;
+    if (threadId === state.threadId && els) els.voiceStatus.textContent = text;
+  }
+  function voiceEntry(call, role, text, data = {}){
+    const entry = {id:`voice_${Date.now()}_${Math.random()}`,role,content:text,data};
+    voiceChat(call.threadId).entries.push(entry);
+    if (state.threadId === call.threadId) renderVoiceChat();
+    return entry;
+  }
+  function updateVoiceControls(){
+    if (!els) return;
+    const active = Boolean(voiceCall);
+    els.drawer.dataset.voice = String(active);
+    els.voiceIndicator.hidden = !active;
+    els.mic.hidden = active; els.voice.hidden = active;
+    els.voiceMute.hidden = !active; els.voiceEnd.hidden = !active;
+    const muted = voiceCall?.muted === true;
+    els.voiceMute.title = muted ? 'Unmute microphone' : 'Mute microphone';
+    els.voiceMute.setAttribute('aria-label',els.voiceMute.title);
+    els.voiceMute.setAttribute('aria-pressed',String(muted));
+    els.voiceMute.innerHTML = `<i class="fas ${muted ? 'fa-microphone-slash' : 'fa-microphone'}" aria-hidden="true"></i>`;
+  }
+  function startVoiceMeter(call, stream){
+    if (!call.audioContext || call.stopped) return;
+    try {
+      const source = call.audioContext.createMediaStreamSource(stream);
+      const analyser = call.audioContext.createAnalyser(); analyser.fftSize = 256;
+      const silent = call.audioContext.createGain(); silent.gain.value = 0;
+      source.connect(analyser); analyser.connect(silent); silent.connect(call.audioContext.destination);
+      const samples = new Float32Array(analyser.fftSize);
+      const bars = [...els.voiceIndicator.children];
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let level = 0;
+      const frame = () => {
+        if (call.stopped) return;
+        analyser.getFloatTimeDomainData(samples);
+        const rms = Math.sqrt(samples.reduce((sum,value) => sum + value * value, 0) / samples.length);
+        level = level * .55 + Math.min(1, rms * 9) * .45;
+        bars.forEach((bar,index) => { const shape = 1 - Math.abs(index - 4) / 6; bar.style.transform = `scaleY(${reduced.matches ? .4 : .18 + level * shape})`; });
+        call.meterFrame = requestAnimationFrame(frame);
+      };
+      call.meterFrame = requestAnimationFrame(frame);
+    } catch (_) { /* Audio playback continues if metering is unavailable. */ }
+  }
+
   function stopVoice(message = 'Voice ended. Any task already submitted continues in this conversation.') {
     const call = voiceCall;
     if (!call) return;
@@ -1425,6 +1523,8 @@
     if (stopActiveVoice === stopVoice) stopActiveVoice = null;
     call.stopped = true;
     clearTimeout(call.timeout); clearTimeout(call.connectTimeout);
+    cancelAnimationFrame(call.meterFrame); call.audioContext?.close().catch(() => {});
+    [...els.voiceIndicator.children].forEach(bar => bar.style.transform = 'scaleY(.2)');
     call.stream?.getTracks().forEach(track => track.stop());
     if (call.events?.readyState === 'open') {
       try { call.events.send(JSON.stringify({type:'session.close'})); } catch (_) {}
@@ -1433,8 +1533,8 @@
     call.closeTimer = setTimeout(() => { call.events?.close(); call.peer?.close(); }, 1500);
     if (call.closeToken) window.AssistantAPI.closeVoice(call.orgId, call.threadId, call.closeToken).catch(() => null);
     els.voiceAudio.pause(); els.voiceAudio.srcObject = null; els.voiceAudio.hidden = true;
-    els.voiceStatus.textContent = message;
-    els.voiceMute.disabled = true;
+    els.voicePlay.hidden = true;
+    setVoiceStatus(message, call);
     updateComposer();
   }
 
@@ -1442,15 +1542,21 @@
     if (voiceCall || recorder || state.pending || disposed) return;
     stopActiveVoice?.();
     stopActiveVoice = stopVoice;
-    els.voicePanel.hidden = false;
     if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) {
-      els.voiceStatus.textContent = 'Voice needs a browser with microphone access over HTTPS.'; return;
+      setVoiceStatus('Voice needs a browser with microphone access over HTTPS.'); return;
     }
     const call = { orgId:orgId(), threadId:state.threadId, stream:null, peer:null, events:null, stopped:false,
-      ready:false, muted:false, transcript:[], cursor:0, seen:new Set(), chain:Promise.resolve(), closeToken:'' };
+      ready:false, muted:false, transcript:[], cursor:0, pending:0, baselineCount:state.messages.length, seen:new Set(), chain:Promise.resolve(), closeToken:'' };
+    const previousChat = voiceChats.get(state.threadId);
+    if (previousChat?.entries.length) {
+      voiceArchives.set(state.threadId,[...(voiceArchives.get(state.threadId) || []),previousChat]);
+      voiceChats.delete(state.threadId);
+    }
     voiceCall = call;
-    els.voiceStatus.textContent = 'Connecting…'; els.voiceCaption.textContent = '';
-    els.voiceMute.disabled = false; els.voiceMute.textContent = 'Mute'; els.voiceMute.setAttribute('aria-pressed','false');
+    renderMessages();
+    setVoiceStatus('Connecting…',call);
+    const Audio = window.AudioContext || window.webkitAudioContext;
+    try { if (Audio) { call.audioContext = new Audio(); call.audioContext.resume().catch(() => {}); } } catch (_) {}
     updateComposer();
     const transmit = (type, content, delegationId) => {
       if (call.stopped || !call.ready || call.events?.readyState !== 'open') return;
@@ -1459,11 +1565,11 @@
         call.events.send(JSON.stringify({type,delegation_id:delegationId,content:chunk}));
       }
     };
-    const delegate = async (id, end) => {
-      if (call.stopped) return;
+    const delegate = async (id, end, typed = null) => {
+      if (call.stopped && !typed) return;
       const fragments = call.transcript.slice(call.cursor, end);
       call.cursor = end;
-      if (!fragments.some(f => f.role === 'user' && clean(f.text))) {
+      if (!typed && !fragments.some(f => f.role === 'user' && clean(f.text))) {
         transmit('session.thinking.append','No new user request has been received. Do not repeat earlier actions.',id); return;
       }
       const lines = [];
@@ -1472,27 +1578,48 @@
         if (last?.role === f.role) last.text += f.text;
         else lines.push({...f});
       }
+      if (typed) lines.push({role:'user',text:typed.text || 'Please review the attached files.'});
       const message = lines.map(f => `${f.role === 'user' ? 'User' : 'Voice assistant'}: ${f.text}`).join('\n');
       if (message.length > 30000) { stopVoice('This voice conversation is too long. Start a new voice session to continue.'); return; }
-      els.voiceStatus.textContent = 'Working — you can keep talking';
+      setVoiceStatus('Working…',call);
       try {
-        const result = await window.AssistantAPI.send(call.orgId, call.threadId, {message,intent:'voice'}, {signal:AbortSignal.timeout(AGENT_TIMEOUT_MS)});
+        const attachments = [];
+        for (const file of typed?.files || []) attachments.push((await window.AssistantAPI.upload(call.orgId,call.threadId,file)).attachment.media_id);
+        const result = await window.AssistantAPI.send(call.orgId, call.threadId, {message,intent:'voice',attachments}, {signal:AbortSignal.timeout(AGENT_TIMEOUT_MS)});
         if (state.threadId === call.threadId) {
           const data = await window.AssistantAPI.thread(call.orgId, call.threadId);
           if (state.threadId !== call.threadId) return;
-          state.messages = array(data.messages);
+          for (let index=call.baselineCount; index<array(data.messages).length; index++) voiceChat(call.threadId).hiddenIndexes.add(index);
+          call.baselineCount = array(data.messages).length;
+          state.messages = mapThreadMessages(data.messages);
           if (Array.isArray(result.dashboard)) state.dashboard = result.dashboard;
           renderMessages(); renderHistory(); syncLayout();
         }
+        if (array(result.assistant_message?.data?.renders).length || array(result.assistant_message?.data?.actions).length) voiceEntry(call,'assistant','',object(result.assistant_message.data));
         const newer = call.transcript.slice(end).some(f => f.role === 'user');
         const answer = clean(result.assistant_message?.content) || 'The request finished without a spoken answer. Check the conversation.';
         transmit('session.commentary.append', (newer ? 'Result of the EARLIER request; the user has spoken since. Do not claim any correction has been applied: ' : '') + answer.slice(0,6000), id);
-        if (!call.stopped) els.voiceStatus.textContent = 'Listening';
+        if (!call.stopped) setVoiceStatus('Listening',call);
+        else voiceEntry(call,'assistant',answer);
       } catch (_) {
         // Never replay an uncertain action after a timeout or lost result.
         transmit('session.commentary.append','I could not confirm the result. Please check the conversation before retrying; the task may still be running.',id);
-        if (!call.stopped) els.voiceStatus.textContent = 'Could not confirm task result — check the conversation';
+        setVoiceStatus('Could not confirm task result — check the conversation before retrying.',call);
+        voiceEntry(call,'assistant','I could not confirm the result. The task may still be running.',{status:'failed'});
       }
+    };
+    const enqueue = (id, end, typed) => {
+      call.pending++; state.pending = true; updateComposer();
+      call.chain = call.chain.then(() => delegate(id,end,typed)).catch(() => null).finally(() => {
+        call.pending--; state.pending = call.pending > 0;
+        updateComposer();
+      });
+    };
+    call.submit = (text, files) => {
+      voiceEntry(call,'user',[text,...files.map(file => `📎 ${file.name}`)].filter(Boolean).join('\n'));
+      call.lastEntry = null;
+      transmit('session.thinking.append', 'The user submitted a typed message to the backend. It is already queued; do not repeat its actions. User text: ' + JSON.stringify(text).slice(0,6000), null);
+      enqueue(null,call.transcript.length,{text,files});
     };
     try {
       // Ask for microphone permission directly from the click, before asynchronous boot.
@@ -1501,14 +1628,15 @@
       call.stream = stream;
       await boot();
       if (!state.threadId) await ensureThread();
-      call.threadId = state.threadId;
+      call.threadId = state.threadId; call.baselineCount = state.messages.length;
       if (call.stopped) return;
       const peer = call.peer = new RTCPeerConnection();
       stream.getAudioTracks().forEach(track => { peer.addTrack(track,stream); track.addEventListener('ended',()=>{ if (!call.stopped) stopVoice('Microphone disconnected.'); }); });
       peer.addEventListener('track', event => {
         if (call.stopped) return;
-        els.voiceAudio.srcObject = new MediaStream([event.track]);
-        els.voiceAudio.play().catch(() => { if (!call.stopped) { els.voiceAudio.hidden = false; els.voiceStatus.textContent = 'Press play to hear the assistant'; } });
+        const output = new MediaStream([event.track]);
+        els.voiceAudio.srcObject = output; startVoiceMeter(call, output);
+        els.voiceAudio.play().catch(() => { if (!call.stopped) { els.voicePlay.hidden = false; setVoiceStatus('Press play to hear the assistant',call); } });
       });
       peer.addEventListener('connectionstatechange', () => {
         if (!call.stopped && ['failed','disconnected','closed'].includes(peer.connectionState)) stopVoice('Voice connection lost. Start voice again to reconnect.');
@@ -1523,14 +1651,16 @@
         if (call.stopped) return;
         if (event.type === 'session.started') {
           if (call.ready) return;
-          call.ready = true; clearTimeout(call.connectTimeout); els.voiceStatus.textContent = 'Listening';
+          call.ready = true; clearTimeout(call.connectTimeout); setVoiceStatus('Listening',call); updateComposer();
           transmit('session.commentary.append', 'Voice is connected. How can I help?', null);
         } else if (['session.input_transcript.delta','session.output_transcript.delta'].includes(event.type)) {
           const role = event.type === 'session.input_transcript.delta' ? 'user' : 'assistant';
           if (typeof event.delta !== 'string') return;
           call.transcript.push({role,text:event.delta,start:event.start_ms,end:event.end_ms});
           if (call.transcript.length > 10000) { stopVoice('Start a new voice session to continue.'); return; }
-          els.voiceCaption.textContent = call.transcript.slice(-25).map(f => f.text).join('').slice(-1500);
+          if (!call.lastEntry || call.lastEntry.role !== role || (Number(event.start_ms) - Number(call.lastEnd) > 1500)) call.lastEntry = voiceEntry(call,role,'');
+          call.lastEntry.content += event.delta; call.lastEnd = event.end_ms;
+          if (state.threadId === call.threadId) renderVoiceChat();
         } else if (event.type === 'session.delegation.created' && event.delegation?.target === 'client') {
           const id = clean(event.delegation.id);
           if (!id || call.seen.has(id)) return;
@@ -1538,7 +1668,7 @@
           // Serialize delegated turns through the existing durable agent runtime.
           // Include complete accumulated fragments; delegation events contain no task text.
           const end = call.transcript.length;
-          call.chain = call.chain.then(() => delegate(id,end)).catch(() => null);
+          enqueue(id,end);
         } else if (event.type === 'error') {
           stopVoice('Voice encountered an error. Please start a new session.');
         }
@@ -1596,7 +1726,8 @@
     resizeComposerInput();
     els.composer.dataset.canSend = String(Boolean(clean(els.input.value) || state.attachments.length || recorder));
     els.composer.dataset.recording = String(Boolean(recorder));
-    els.send.disabled = state.pending || Boolean(voiceCall);
+    els.send.disabled = voiceCall ? !voiceCall.ready : state.pending;
+    updateVoiceControls();
     els.mic.disabled = Boolean(voiceCall);
     els.voice.disabled = Boolean(voiceCall) || Boolean(recorder) || state.pending;
     els.send.title = recorder ? 'Finish dictation' : 'Send';
@@ -1949,7 +2080,11 @@
   }
 
   async function sendMessage({ channelRecap = false, channelRevision = '' } = {}){
-    if (voiceCall) return;
+    if (voiceCall) {
+      const text = clean(els.input.value), files = [...state.attachments];
+      if (!voiceCall.ready || (!text && !files.length)) return;
+      voiceCall.submit(text,files); els.input.value = ''; state.attachments = []; renderAttachments(); updateComposer(); return;
+    }
     if (!els || state.pending) return;
     if (recorder) { stopRecording(); return; }
     const text = channelRecap ? 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.' : clean(els.input.value);
