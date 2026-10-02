@@ -12599,7 +12599,12 @@ export async function saveProjectScheduleEvent(orgId:string,projectId:string,act
     event.event_revision = storedEventRevision(existingEvent) + 1;
     const assignmentChanged = existingIndex < 0
       || JSON.stringify(eventAssignmentKeys(existingEvent)) !== JSON.stringify(eventAssignmentKeys(event));
-    if (assignmentChanged) {
+    // Moving an external booking is a new use of the partner's current exposure.
+    // Preserve historical assignments, but do not let a withdrawn crew be booked again.
+    const externalRebooking = eventAssignmentKeys(event).some(key => key.startsWith("organization_connection:"))
+      && !["canceled", "cancelled", "completed", "deleted"].includes(cleanText(event.status))
+      && ["start_at", "end_at", "start", "end", "duration_minutes", "status"].some(key => Object.prototype.hasOwnProperty.call(eventInput, key) && eventInput[key] !== existingEvent[key]);
+    if (assignmentChanged || externalRebooking) {
       event.assignment_policy = await assertProjectEventAssignmentsAllowed(orgId, branchId, event);
     }
     // Equipment double-booking guard: conflict_mode 'block' rejects, 'warn'

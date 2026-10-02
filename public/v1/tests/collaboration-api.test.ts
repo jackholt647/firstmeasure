@@ -379,4 +379,7 @@ test("partner assignment eligibility, privacy, isolation and withdrawal",async()
  await b.request("PUT",back,{expected_revision:2,exposure:{organization:false,group_kind_ids:[],group_ids:[],fields:[]}});
  assert.equal((await listAssignableResources(ao.orgId,"default")).organization_connections.length,0);
  assert.equal((await a.raw("POST",ar+`/engagements/${offer.id}/schedule`,{...schedule,client_operation_id:"withdrawn_booking"})).statusCode,403);
+ const {saveProjectScheduleEvent}=await import("../platform/api.js");
+ await assert.rejects(()=>saveProjectScheduleEvent(ao.orgId,"external_team_job",{} as any,{expected_event_revision:1,event:{id:booking.event_id,start_at:"2026-10-16T16:00:00Z",end_at:"2026-10-16T17:00:00Z"}}),(e:any)=>e.code==="event_assignment_not_allowed");
+
 });
