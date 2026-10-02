@@ -29,7 +29,7 @@ test('project trays reuse Notes, Channels and the global agent and preserve draf
     const portal = await readFile(new URL('../../portal/index.php',import.meta.url),'utf8');
     assert.ok(portal.indexOf('project-trays/project-trays.js') > 0 && portal.indexOf('project-trays/project-trays.js') < portal.indexOf('apps/project-request/app.js'),'the static portal loader includes trays before the project app');
     await page.evaluate(() => {window.layout=window.FirstMateProjectLayout.mount({overlay:document.querySelector('#rOverlay'),getProject:()=>window.project,getTab:()=> 'map'});window.trays=window.FirstMateProjectTrays.mount(document.querySelector('#shell'),{orgId:'org',getProject:()=>window.project});});
-    assert.equal(await page.locator('.fm-project-tray-tabs button').count(),3);
+    assert.equal(await page.locator('.fm-project-tray-tabs button').count(),4);
     assert.equal(await page.locator('#shell .r-modal-header').count(),0,'layout moved the header out of the content rail');
     assert.equal(await page.locator('.r-window-bar .fm-project-tray-tabs').count(),1);
     assert.equal(await page.getByRole('tab',{name:'Notes',exact:true}).isVisible(),true);
@@ -61,7 +61,7 @@ test('project trays reuse Notes, Channels and the global agent and preserve draf
     await page.waitForSelector('.fma-msg.assistant strong');
     assert.equal(await page.evaluate(()=>window.sent[0].id),'thread-project');
     await page.evaluate(()=>{window.split=true;window.dispatchEvent(new CustomEvent('fm:capabilities:updated'));});
-    assert.equal(await page.locator('.fm-project-tray-tabs button').count(),4);
+    assert.equal(await page.locator('.fm-project-tray-tabs button').count(),5);
     await page.getByRole('tab',{name:'Messages',exact:true}).click();
     await page.waitForSelector('.fm-project-tray .fm-ch');
     await page.getByRole('tab',{name:'Activity',exact:true}).click();

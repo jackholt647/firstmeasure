@@ -7,6 +7,7 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const registry = new Map([
     ['notes',{id:'notes',label:'Notes',icon:'fa-note-sticky',capability:'channels.project_notes'}],
+    ['todo',{id:'todo',label:'To Do',icon:'fa-list-check'}],
     ['messages',{id:'messages',label:'Messages',icon:'fa-comments',capability:'channels.project_notes',enabled:()=>root.Portal?.can?.('channels.separate_project_notes') === true}],
     ['activity',{id:'activity',label:'Activity',icon:'fa-clock-rotate-left'}],
     ['agent',{id:'agent',label:'Agent',icon:'fa-wand-magic-sparkles',capability:'apps.assistant'}]
@@ -52,11 +53,26 @@
       tray.querySelector('header').hidden = key === 'agent';
       tray.querySelector('strong').textContent = registry.get(key).label;
       const node = panel(key); panels.forEach((value,name) => value.hidden = name !== key); renderTabs();
-      if (handles.has(key)) {if (key === 'activity') handles.get(key).refresh(); return;}
+      if (handles.has(key)) {if (key === 'activity') handles.get(key).refresh(); if (key === 'todo') handles.get(key).load({quiet:true}).catch(()=>null); return;}
       if (!projectId && key !== 'notes') {node.textContent='Select or create a project to use '+registry.get(key).label.toLowerCase()+'.';return;}
       const mountingProject = projectId;
       try {
         if (key === 'notes') handles.set(key, root.Portal.ProjectNotes.mount(node,{project:getProject(),getProject,ensureProject:options.ensureProject}));
+        if (key === 'todo') {
+          if (!root.PlatformActionItems?.renderTodayList) throw Error('Project to-dos are not available.');
+          const project = getProject();
+          node.style.padding = '12px';
+          handles.set(key,root.PlatformActionItems.renderTodayList(node,{
+            orgId:oid, projectId,
+            branchId:root.Portal?.branchModules?.currentBranchId?.() || root.__APP?.userBranchId || 'default',
+            userId:clean(root.__APP?.userId || root.__APP?.user_id),
+            projectTitle:clean(project.title || project.customer_name || project.address || 'Project'),
+            projectAddress:clean(project.address || project.project_address),
+            completedOpen:false, futureOpen:false, dockDeferredSections:true,
+            scrollItemsOnly:true, showProjectContext:false, showUpcoming:true, showFuture:true,
+            query:{includeFuture:true,includeAll:true}
+          }));
+        }
         if (key === 'agent') handles.set(key, root.PlatformAssistant.mountProject(node,{orgId:oid, projectId, onClose:close}));
         if (key === 'messages') {
           const pending = {}; handles.set(key,pending);

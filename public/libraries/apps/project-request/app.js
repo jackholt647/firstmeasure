@@ -3173,6 +3173,7 @@ window.PlatformCommerce.onReady(async function(){
     return true;
   }
   function showProjectTodoDock(){
+    if (projectTrays?.available?.().includes('todo')) return false;
     if (!projectTodosEnabled()) return false;
     if (shouldLockReportOrderingWorkflow()) return false;
     if (hasSelectedAddons() && !hasReportOrdered()) return false;
