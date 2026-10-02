@@ -2,9 +2,9 @@
  * Staged request workflow with optional roof-report ordering.
  */
 (function(){
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261002-project-chrome-v2', document.currentScript.src);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261002-project-tabs-v3', document.currentScript.src);
   const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260930-shell-v1', document.currentScript.src);
-  const shellUrl = new URL('../../window-manager/window-shell.js?v=20261002-project-chrome-v2', document.currentScript.src);
+  const shellUrl = new URL('../../window-manager/window-shell.js?v=20261002-project-tabs-v3', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
 window.PlatformCommerce.onReady(async function(){
   await registryReady;
@@ -6985,6 +6985,10 @@ window.PlatformCommerce.onReady(async function(){
     const runtime = window.FirstMateEmbeddableApps;
     if (!runtime?.listApps) return [];
     const context = projectModalRuntimeContext();
+    if(options.opening){
+      const project=options.project;
+      Object.assign(context,{project,activeProject:project,entity:project,projectId:project?.id || '',entityId:project?.id || ''});
+    }
     const apps = runtime.listApps(context)
       .filter((meta) => meta?.id && meta.id !== 'project.request')
       .filter((meta) => meta.app?.kind === 'project_modal_app' || String(meta.id || '').startsWith(PROJECT_MODAL_APP_PREFIX))
@@ -7007,14 +7011,14 @@ window.PlatformCommerce.onReady(async function(){
         panelHtml: meta.app?.panelHtml,
         app: meta.app
       }));
-    if (window.Portal.ExteriorOrder?.active()) {
+    if (!options.opening && window.Portal.ExteriorOrder?.active()) {
       const map = apps.find(app => app.id === 'map');
       const photos = apps.find(app => app.id === 'photos') || { id:'photos', label:(globalThis.PlatformLanguage?.text("project-request","m_be4cfb58b9c4d7","Photos") ?? "Photos"), title:(globalThis.PlatformLanguage?.text("project-request","m_be4cfb58b9c4d7","Photos") ?? "Photos"), icon:'fa-images', regions:['main'], panelHtml:'<div id="rExteriorPhotosPanel" style="height:100%"></div>' };
       return [map, photos, ...apps.filter(app => app.id === 'materials' && !app.app?.promoBadge)].filter(Boolean);
     }
     // Doc-first standalone mode: until a project is picked/created, the modal
     // is a single standalone document — only the Docs tab exists.
-    if (docWorkflowStandaloneActive()) return apps.filter((app) => app.id === 'docs');
+    if (!options.opening && docWorkflowStandaloneActive()) return apps.filter((app) => app.id === 'docs');
     return options.includeInlineMap || !projectModalAppsShouldInlineMap(apps)
       ? apps
       : apps.filter((app) => app.id !== 'map');
@@ -7265,9 +7269,9 @@ window.PlatformCommerce.onReady(async function(){
     if (activePreviewTab === 'map') scheduleProjectMapInitialize(activeBaseProject, 60);
   }
 
-  function projectViewerTabs(){
+  function projectViewerTabs(options = {}){
     const tabs = [];
-    if (mobileProjectInfoTabEnabled()) {
+    if (!options.opening && mobileProjectInfoTabEnabled()) {
       tabs.push({
         id: 'info',
         label: (globalThis.PlatformLanguage?.text("project-request","m_e3530bc541f8e4","Info") ?? "Info"),
@@ -7275,7 +7279,7 @@ window.PlatformCommerce.onReady(async function(){
         className: 'r-mobile-info-tab'
       });
     }
-    projectModalApps().forEach((tab) => {
+    projectModalApps(options).forEach((tab) => {
       if (!tabs.some((entry) => entry.id === tab.id)) {
         tabs.push({
           id: tab.id,
@@ -11136,9 +11140,12 @@ window.PlatformCommerce.onReady(async function(){
     // once, against the authoritative record rather than the list seed.
     open(base, { ...options, shellOnly:!!base, history:options.history || (options.fromRoute ? 'replace' : 'push') });
     try {
-      const resolved = !useMeasurementResolver
-        ? await hydratePlatformProjectForOpen(project)
-        : (await window.Portal.ProjectStore?.ensureFromMeasurementAsync?.(project) || immediate);
+      const pendingRecord = !useMeasurementResolver
+        ? hydratePlatformProjectForOpen(project)
+        : Promise.resolve(window.Portal.ProjectStore?.ensureFromMeasurementAsync?.(project)).then(value=>value || immediate);
+      // Even an already-resolved parent read must not hydrate Overview in the
+      // same paint as the shell. Network work continues during this yield.
+      const [resolved] = await Promise.all([pendingRecord, window.FirstMateWindowShell?.afterPaint?.()]);
       const hydrated = useMeasurementResolver ? mergeProjectForViewing(resolved, project) : resolved;
       if (hydrated !== base || projectShellLoading) {
         hydrateOpenProjectContent(hydrated, options, generation, projectOpenId(base));
@@ -11272,7 +11279,9 @@ window.PlatformCommerce.onReady(async function(){
     });
   }
 
-  window.Portal.modules.request = { retainedProjectWindows:true, open, openProject, openDocumentDraft, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors };
+  window.Portal.modules.request = { retainedProjectWindows:true, open, openProject, openDocumentDraft, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors,
+    openingTabs:(project,options={})=>(project || normalizeWorkflow(options.workflow || options.createWorkflow || options.intent)==='project') ? projectViewerTabs({opening:true,project}) : []
+  };
   window.Portal?.navigation?.registerSchema?.('projectFullscreen', { history:'replace', scope:{ project:true } });
   window.Portal?.navigation?.registerSchema?.('projectNote', { history:'replace', scope:{ project:true } });
   window.Portal?.navigation?.registerSchema?.('projectNotes', { history:'push', values:['1'], default:'', scope:{ project:true } });

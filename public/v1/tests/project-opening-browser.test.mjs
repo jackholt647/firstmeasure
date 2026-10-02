@@ -126,11 +126,12 @@ test('existing project paints a provisional shell then hydrates once and preserv
   const start=app.indexOf('  async function openProject(');
   const code=app.slice(start,app.indexOf('\n  }',start)+4);
   const events=[];
-  let resolveRead;
+  let resolveRead,resolvePaint;
+  const paint=new Promise(resolve=>{resolvePaint=resolve;});
   const read=new Promise(resolve=>{resolveRead=resolve;});
   const context={
     projectWindowBridge:{},projectOpenGeneration:0,projectRecordPending:false,projectShellLoading:false,
-    window:{Portal:{}},console,
+    window:{Portal:{},FirstMateWindowShell:{afterPaint:()=>paint}},console,
     projectOpenId:project=>project?.id || '',activeModalMatchesProject:()=>events.length>0,
     looksLikeMeasurementOnlyRecord:()=>false,
     open:(project,options)=>{
@@ -146,7 +147,54 @@ test('existing project paints a provisional shell then hydrates once and preserv
   assert.deepEqual(events,[['shell','Cached address','docs',true]]);
   assert.equal(context.projectRecordPending,true);
   resolveRead({id:'project_test',address:'Current address'});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(events.length,1,'an already-fetched record cannot hydrate before the shell paint');
+  resolvePaint();
   await pending;
   assert.deepEqual(events,[['shell','Cached address','docs',true],['hydrate','Current address','docs'],['intent','open']]);
   assert.equal(context.projectRecordPending,false);
+});
+
+
+test('opening tabs use parent metadata before data or iframe readiness, without overflow, and respect reduced motion',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:1200,height:800}});
+    await page.route('https://project.test/**',route=>route.fulfill({contentType:'text/html',body:'<style>*{box-sizing:border-box}main{height:100vh;width:100vw}</style><main class="main"></main>'}));
+    await page.goto('https://project.test/');
+    for(const file of ['window-manager','window-shell','project-windows']) await page.addScriptTag({content:await source('libraries/window-manager/'+file+'.js')});
+    await page.evaluate(()=>{
+      window.Portal={cfg:{userOrgId:'org_test'},modules:{request:{openingTabs:()=>[{id:'map',label:'Overview'},{id:'photos',label:'Photos',icon:'fa-images'},{id:'docs',label:'Docs',icon:'fa-folder'}]}}};
+      window.PlatformAPI={projects:{get:()=>new Promise(()=>{})}};
+      window.record=FirstMateProjectWindows.open({id:'project_test',address:'Test address'});
+    });
+    assert.equal(await page.locator('.fm-shell-tabs button').count(),3);
+    assert.equal(await page.locator('iframe').evaluate(el=>getComputedStyle(el).visibility),'hidden');
+    assert.deepEqual(await page.locator('.fm-shell-tabs').evaluate(el=>({client:el.clientHeight,scroll:el.scrollHeight,overflow:getComputedStyle(el).overflowY})),{client:32,scroll:32,overflow:'hidden'});
+    assert.equal(await page.getByRole('tab',{name:'Notes',exact:true}).evaluate(el=>getComputedStyle(el).fontSize),'13.3333px');
+    assert.equal(await page.locator('.fm-shell-tabs button').first().evaluate(el=>el.getAnimations().length),0);
+    await page.locator('.fm-shell-tabs').evaluate(async el=>{await Promise.all(el.getAnimations({subtree:true}).map(a=>a.finished));});
+    await page.getByRole('button',{name:'Photos',exact:true}).click();
+    assert.equal(await page.evaluate(()=>record.options.tab),'photos');
+    await page.evaluate(()=>FirstMateProjectWindows.close());
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.evaluate(()=>{window.record=FirstMateProjectWindows.open({id:'project_reduced',address:'Test address'});});
+    assert.equal(await page.locator('.fm-shell-tabs').evaluate(el=>el.getAnimations({subtree:true}).length),0);
+    await page.evaluate(()=>FirstMateProjectWindows.close());
+  }finally{await browser.close();}
+});
+
+test('unchanged project tab renders preserve button identity and keyboard focus',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await browser.newPage();await page.setContent('<nav></nav>');
+    await page.evaluate(()=>{window.Portal={};});
+    await page.addScriptTag({content:await source('portal/scripts/project_viewer.js')});
+    assert.equal(await page.evaluate(()=>{
+      const viewer=new Portal.ProjectViewer({tabsEl:document.querySelector('nav')});
+      const tabs=[{id:'map',label:'Overview'},{id:'photos',label:'Photos'}];viewer.setTabs(tabs);
+      const button=document.querySelector('[data-tab="photos"]');button.focus();viewer.setTabs(tabs.map(tab=>({...tab})));
+      return button===document.querySelector('[data-tab="photos"]') && document.activeElement===button;
+    }),true);
+  }finally{await browser.close();}
 });

@@ -14,7 +14,7 @@
 .fm-entity-window .fm-shell-header .fm-window-controls button{width:30px!important;height:32px!important;min-height:32px!important;border:0!important;border-radius:6px}
 .fm-shell-tabs{display:flex!important;align-items:stretch;gap:0!important;padding:0!important;margin:0!important;min-height:32px;overflow:auto;border-bottom:1px solid #e4e7ec;background:#fff}
 .fm-entity-window .fm-shell-tabs[hidden]{display:none!important}
-.fm-shell-tabs>button{flex:none;height:32px!important;min-height:32px!important;padding:4px 12px!important;border:0!important;border-radius:0!important;background:transparent!important;color:#667085;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer}
+.fm-shell-tabs>button{box-sizing:border-box;flex:none;height:32px!important;min-height:32px!important;padding:4px 12px!important;border:0!important;border-radius:0!important;background:transparent!important;color:#667085;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer}
 .fm-shell-tabs[data-tab-style=underline]>button:is([aria-selected=true],[data-pane-open=true]){color:var(--primary-readable,var(--primary,#d93025))!important;box-shadow:inset 0 -3px 0 var(--primary,#d93025)!important}
 .fm-shell-tabs[data-tab-style=pills]{gap:4px!important;padding:3px!important}
 .fm-shell-tabs[data-tab-style=pills]>button{border-radius:6px!important}
@@ -37,12 +37,37 @@
 .fm-entity-window .fm-shell-header[data-header-rows="2"]{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto auto;grid-template-rows:36px 32px;height:68px!important;min-height:68px!important;padding:0;box-sizing:content-box}
 .fm-shell-header[data-header-rows="2"]>.fm-shell-identity{grid-row:1;grid-column:1 / -1;padding:0 224px 0 16px}
 .fm-shell-header[data-header-rows="2"]>.r-window-bar-actions{position:absolute;top:0;right:0;width:auto;border:0}
-.fm-shell-header[data-header-rows="2"]>.fm-shell-tabs{grid-row:2;grid-column:1;min-width:0}
+.fm-shell-header[data-header-rows="2"]>.fm-shell-tabs{grid-row:2;grid-column:1;min-width:0;min-height:0;height:32px;box-sizing:border-box;border-bottom:0!important;overflow:hidden}
 .fm-shell-header[data-header-rows="2"]>.fm-project-tray-tabs{grid-row:2;grid-column:4;display:flex;align-items:center;gap:2px;padding:0 4px}
-.fm-shell-header[data-header-rows="2"]>.fm-project-tray-tabs button{position:static;width:32px;height:30px;padding:0;border:0;border-radius:5px;background:none;color:#667085}
+.fm-shell-header[data-header-rows="2"]>.fm-project-tray-tabs button{position:static;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:30px;padding:0;border:0;border-radius:5px;background:none;color:#667085;font-family:inherit;font-size:13.3333px;font-weight:400;line-height:normal}
+.fm-shell-tabs.fm-tabs-revealing>button{position:relative}
+.fm-shell-tabs.fm-tabs-revealing>button:first-child{z-index:1;background:#fff!important}
 @media(max-width:760px){.fm-shell-tray{position:absolute;right:0;top:36px;bottom:0;width:min(380px,100%);background:white;z-index:5}}
 `;document.head.append(style);
   }
+  // Reveal newly available tabs behind the first tab without delaying access
+  // or animating their layout widths. Retained tabs never replay the entrance.
+  function revealTabs(tabs, known = ['map']){
+    if(!tabs || root.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
+    const buttons=[...tabs.querySelectorAll('button[data-tab]')];
+    const anchor=buttons[0]?.getBoundingClientRect();
+    if(!anchor)return;
+    const existing=new Set(known),animations=[];
+    for(const button of buttons.slice(1)){
+      if(existing.has(button.dataset.tab) || !button.animate)continue;
+      const offset=Math.min(0,anchor.right-button.getBoundingClientRect().right);
+      animations.push(button.animate([{transform:`translateX(${offset}px)`,opacity:0},{transform:'translateX(0)',opacity:1}],{duration:240,delay:Math.min(120,animations.length*25),easing:'cubic-bezier(.2,.7,.2,1)',fill:'backwards'}));
+    }
+    if(!animations.length)return;
+    tabs.classList.add('fm-tabs-revealing');
+    Promise.allSettled(animations.map(a=>a.finished)).then(()=>tabs.classList.remove('fm-tabs-revealing'));
+  }
+  // Yield a real paint opportunity, not an animation-length loading delay.
+  // Hidden/minimized documents must still complete opening in the background.
+  function afterPaint(){return new Promise(resolve=>{
+    const fallback=root.setTimeout(resolve,100);
+    root.requestAnimationFrame(()=>root.setTimeout(()=>{root.clearTimeout(fallback);resolve();},0));
+  });}
   function normalizePanes(panes,available){
     if(!Array.isArray(panes)||!panes.length)throw Error('Layout panes must be a nonempty array.');
     const ids=new Set();
@@ -131,5 +156,5 @@
     function reset(){select(null);handles.forEach(h=>h.destroy?.());handles.clear();panels.forEach(p=>p.remove());panels.clear();refresh();}
     return {available,select,refresh,reset,get selected(){return selected;},register(definition){if(!definition?.id||typeof definition.mount!=='function'||definitions.has(definition.id))throw Error('Tray requires a unique id and mount function.');definitions.set(definition.id,definition);refresh();return ()=>{if(selected===definition.id)select(null);handles.get(definition.id)?.destroy?.();handles.delete(definition.id);panels.get(definition.id)?.remove();panels.delete(definition.id);definitions.delete(definition.id);refresh();};},destroy(){reset();root.removeEventListener('fm:capabilities:updated',capabilityChanged);buttons.remove();aside.remove();definitions.clear();}};
   }
-  root.FirstMateWindowShell={mount,normalizePanes,localPanes,trayHost,ensureStyles:styles};
+  root.FirstMateWindowShell={mount,normalizePanes,localPanes,trayHost,ensureStyles:styles,revealTabs,afterPaint};
 })(window);

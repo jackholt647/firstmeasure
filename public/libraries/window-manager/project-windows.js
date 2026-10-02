@@ -18,7 +18,7 @@
       .fm-project-loading-header{position:relative;background:#fff;border-bottom:1px solid #e4e7ec;color:#101828}
       .fm-project-loading-header .fm-shell-identity{display:flex;align-items:center;gap:8px;min-width:0}
       .fm-project-loading-header .fm-shell-identity>i{color:var(--primary,#d93025)}
-      .fm-project-window-loading button{position:static;font-family:inherit}
+      .fm-project-window-loading button{position:static;inset:auto;font-family:inherit}
       .fm-project-window-loading .fm-window-controls{display:flex;gap:0}
       .fm-project-window-loading .fm-window-controls button{padding:0;border:0;background:none}
       .fm-project-window-loading .fm-window-controls button[aria-pressed=true]{background:#e4e7ec}
@@ -159,7 +159,7 @@
     identityNode.append(title);
     const controls=document.createElement('div');controls.className='r-window-bar-actions';
     const tabs=document.createElement('nav');tabs.className='fm-shell-tabs';tabs.dataset.tabStyle='underline';tabs.setAttribute('aria-label','Project tabs');
-    const overview=document.createElement('button');overview.type='button';overview.innerHTML='<i class="fas fa-columns" aria-hidden="true"></i><span>Overview</span>';overview.setAttribute('aria-selected',String(!options.tab || options.tab==='map'));tabs.append(overview);
+    const overview=document.createElement('button');overview.type='button';overview.dataset.tab='map';overview.innerHTML='<i class="fas fa-columns" aria-hidden="true"></i><span>Overview</span>';overview.setAttribute('aria-selected',String(!options.tab || options.tab==='map'));tabs.append(overview);
     const trays=document.createElement('nav');trays.className='fm-project-tray-tabs';trays.setAttribute('role','tablist');trays.setAttribute('aria-label','Project trays');
     for(const [label,icon] of [['Notes','note-sticky'],['Activity','clock-rotate-left'],['Agent','wand-magic-sparkles']]){
       const button=document.createElement('button');button.type='button';button.setAttribute('role','tab');button.setAttribute('aria-label',label);button.setAttribute('aria-selected','false');button.disabled=true;button.title=label+' - loading project';button.innerHTML='<i class="fas fa-'+icon+'" aria-hidden="true"></i>';trays.append(button);
@@ -167,7 +167,24 @@
     const status=document.createElement('span');status.textContent='Opening project…';status.setAttribute('role','status');
     header.append(identityNode,tabs,controls,trays);loading.append(header,status);
     const record={token,projectId,project,options,layer,element,frame,loading,controller:null,api:null,modal:null};
-    overview.onclick=()=>{record.options={...record.options,tab:'map',...(record.options.layout?.panes ? {layout:{...record.options.layout,panes:[{tab:'map'}]}} : {})};overview.setAttribute('aria-selected','true');};
+    const selectOpeningTab=id=>{
+      record.options={...record.options,tab:id,...(record.options.layout?.panes ? {layout:{...record.options.layout,panes:[{tab:id}]}} : {})};
+      tabs.querySelectorAll('[data-tab]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.tab===id)));
+    };
+    overview.onclick=()=>selectOpeningTab('map');
+    // The parent already has the app catalog and access snapshot. Reading
+    // descriptors does not mount apps or wait for the child portal's boot.
+    try{
+      for(const tab of root.Portal?.modules?.request?.openingTabs?.(project,options) || []){
+        if(!tab.id || tab.id==='map')continue;
+        const button=document.createElement('button');button.type='button';button.dataset.tab=tab.id;button.disabled=!!tab.disabled;
+        button.setAttribute('aria-selected',String(tab.id===options.tab));
+        if(tab.icon){const icon=document.createElement('i');icon.className='fas '+tab.icon;icon.setAttribute('aria-hidden','true');button.append(icon);}
+        const label=document.createElement('span');label.textContent=tab.label || tab.id;button.append(label);
+        button.onclick=()=>selectOpeningTab(tab.id);tabs.append(button);
+      }
+    }catch(error){console.warn('Project opening tabs unavailable',error);}
+    record.openingTabIds=[...tabs.querySelectorAll('[data-tab]')].map(button=>button.dataset.tab);
     record.ready = new Promise((resolve,reject)=>{record.resolveReady=resolve;record.rejectReady=reject;});
     record.ready.catch(()=>{});
     records.set(token,record);active=record;
@@ -182,6 +199,7 @@
       }).catch(()=>null)};
     }
     element.append(frame,loading);layer.append(element);host().append(layer);clearRoutePrecover();
+    root.FirstMateWindowShell?.revealTabs?.(tabs);
     attach(token,frame.contentWindow,{
       header,title,controlsHost:controls,customChrome:true,presentationModes:true,mobileFullscreen:true,allowFullscreen:false,viewportCoordinates:true,
       name:'project',label:'Project',mode:'modal',width:1200,height:800,dockWidth:900,minWidth:360,minimizedHeight:32
@@ -272,6 +290,7 @@
           child.document.body.classList.remove('platform-booting');
           child.document.getElementById('fmPlatformBootCover')?.remove();
           record.shellVisible=true;record.loading.remove();
+          child.FirstMateWindowShell?.revealTabs?.(child.document.getElementById('rProjectViewerTabs'),record.openingTabIds);
         }
         record.controller.setVisible(value);placement(record.controller.state);
       },

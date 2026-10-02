@@ -52,6 +52,12 @@
     }
 
     render(){
+      const renderKey=JSON.stringify([this.tabs.map(tab=>[tab.id,tab.label,tab.icon,tab.className,tab.buttonId,tab.domId,tab.idAttr,tab.badge,tab.pending,tab.disabled]),this.activeTab,this.iconOnly,this.tabClass,this.activeClass,this.pendingClass]);
+      // Repeated shell/hydration updates with identical tabs must retain focus
+      // and any entrance animation rather than replacing all the buttons.
+      if(this.tabRenderKey!==renderKey){
+      const knownTabs=[...this.tabsEl?.querySelectorAll('[data-tab]') || []].map(button=>button.dataset.tab);
+      this.tabRenderKey=renderKey;
       ProjectViewer.renderTabs(this.tabsEl, this.tabs.map((tab) => ({
         ...tab,
         active: tab.id === this.activeTab
@@ -62,6 +68,8 @@
         iconOnly: this.iconOnly,
         onTabClick: (tab) => this.setActiveTab(tab.id)
       });
+      if(this.tabsEl?.id==='rProjectViewerTabs' && this.tabsEl.closest('.r-overlay.active'))window.FirstMateWindowShell?.revealTabs?.(this.tabsEl,knownTabs);
+      }
       if (!this.root || !this.panelSelector) return;
       this.root.querySelectorAll?.(this.panelSelector).forEach((panel) => {
         panel.classList.toggle(this.activeClass, panel.dataset.panel === this.activeTab);
