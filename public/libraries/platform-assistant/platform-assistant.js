@@ -585,6 +585,7 @@
       .fma-compose-shell{display:flex;align-items:flex-end;gap:2px;min-height:54px;padding:5px 7px;border:1px solid #e4e7ec;border-radius:28px;background:#fff;box-shadow:0 3px 14px #10182812;}
       .fma-compose-shell:focus-within{border-color:var(--primary-readable,var(--primary,#175cd3));}
       .fma-compose-shell textarea{flex:1;min-width:0;box-sizing:border-box;resize:none;border:0;background:transparent;padding:9px 5px;font:inherit;line-height:22px;height:40px;min-height:40px;outline:none;overflow-y:hidden;transition:height .14s ease;}
+      .fma-compose-shell textarea:placeholder-shown{white-space:nowrap;text-overflow:ellipsis;}
       .fma-compose-icon{flex:0 0 auto;align-self:flex-end;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:#344054;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:16px;}
       .fma-compose-icon[data-fma=mic],.fma-compose-icon[data-fma=voice]{width:32px;}
       .fma-compose-icon:hover{background:#f2f4f7;}
