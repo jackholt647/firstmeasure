@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 2 project opening follow-up: [Complete initial header and controls](deploy/digitalocean/development-project-opening-chrome-20261002.md) records matching two-row chrome, immediate placement controls, tray affordances and preserved startup placement.
+
 October 2 project opening: [Immediate project chrome and prioritized loading](deploy/digitalocean/development-project-opening-20261002.md) records cache reuse, concurrent startup, selected-tab mounting and verified development rollout.
 
 October 2 measurements: [Roof viewer and development ordering](deploy/digitalocean/development-measurements-viewer-20261002.md) records the verified development release, sample availability and rollback.
