@@ -547,10 +547,10 @@
     return `
       .mt-app{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f8fb;color:#111827;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;container-type:inline-size;container-name:materials-workspace}
       .r-overlay.materials-workspace #mtSidebarSection.visible{min-height:0}
-      .r-overlay.materials-workspace .mt-widget-sidebar{display:flex;flex-direction:column;flex:0 0 50%;width:50%;min-width:280px;max-width:none;min-height:0;padding:0;overflow:hidden}
+      .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar{display:flex;flex-direction:column;box-sizing:border-box;flex:0 0 50%!important;width:50%;min-width:0;max-width:none;min-height:0;padding:0;overflow:hidden}
       .r-overlay.materials-workspace #mtSidebarList{height:100%;flex:1;min-height:0;gap:0;overflow:hidden}
       .mt-widget-sidebar .mt-left{height:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding:0}
-      @media(max-width:850px){.r-overlay.materials-workspace .mt-widget-sidebar{width:100%;min-width:0;flex:0 0 420px;max-height:50vh}}
+      @media(max-width:850px){.r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar{width:100%;min-width:0;flex:0 0 420px!important;max-height:50vh}}
       .mt-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(15,23,42,.08);background:#fff}
       .mt-title{display:flex;align-items:center;gap:10px;min-width:0}
       .mt-title i{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:rgba(var(--primary-rgb,217,48,37),.10);color:var(--primary-readable,var(--primary,#d93025))}
