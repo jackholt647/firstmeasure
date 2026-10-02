@@ -292,7 +292,7 @@ window.PlatformCommerce.onReady(async function(){
       };
     }
     const toggle=$('#rInstantDevelopmentReport');
-    if(toggle&&!toggle.querySelector('[data-development-submit]')){const button=document.createElement('button');button.type='button';button.dataset.developmentSubmit='';button.className='r-btn';button.textContent='Use completed report';button.onclick=e=>{e.preventDefault();if(instantDevelopmentReport())onSubmit({preventDefault(){}});};toggle.append(button);}
+    if(toggle&&!toggle.querySelector('[data-development-submit]')){const button=document.createElement('button');button.type='button';button.dataset.developmentSubmit='';button.className='r-dev-report-submit';button.textContent='Use report';button.onclick=e=>{e.preventDefault();if(instantDevelopmentReport())onSubmit({preventDefault(){}});};toggle.append(button);}
     const order=$('#rOrderMeasurements');
     if(order)order.onclick=()=>{ requestedWorkflow='report'; reportSelection='roof'; locationConfirmed=false; setActivePreviewTab('map'); renderWorkflowState(); queueAutosaveNotice(); };
     const check=$('#rInstantDevelopmentCheck');
@@ -670,6 +670,18 @@ window.PlatformCommerce.onReady(async function(){
     .r-addon-toggle.selected .r-switch::after{transform:translateX(16px)}
     .r-addon-info-popout{position:absolute;left:18px;top:72px;z-index:34;width:min(360px,calc(100% - 36px));display:none;border:1px solid rgba(15,23,42,.12);border-radius:18px;background:rgba(255,255,255,.96);box-shadow:0 24px 60px rgba(15,23,42,.22);padding:16px;text-align:left;color:#344054;backdrop-filter:blur(12px)}
     .r-addon-info-popout.visible{display:block}
+    #rInstantDevelopmentReport{display:flex;align-items:center;gap:10px;min-width:0;min-height:32px;margin:8px 0;padding:0;border:0;background:none;white-space:nowrap}
+    #rInstantDevelopmentReport[hidden]{display:none!important}
+    #rInstantDevelopmentReport label{display:inline-flex;align-items:center;gap:8px;margin:0;min-width:0;font-size:12px;font-weight:650;line-height:20px;color:#667085;cursor:pointer;white-space:nowrap}
+    #rInstantDevelopmentCheck{appearance:none;-webkit-appearance:none;position:relative;flex:0 0 28px;width:28px;height:16px;margin:0;padding:0;border:0;border-radius:999px;background:#d0d5dd;cursor:pointer;transition:background .15s}
+    #rInstantDevelopmentCheck::before{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #0002;transition:transform .15s}
+    #rInstantDevelopmentCheck:checked{background:var(--primary,#d93025)}
+    #rInstantDevelopmentCheck:checked::before{transform:translateX(12px)}
+    #rInstantDevelopmentCheck:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:3px}
+    #rInstantDevelopmentReport .r-dev-report-submit{flex:0 0 auto;margin:0 0 0 auto;padding:4px 9px;min-height:28px;border:1px solid #e4e7ec;border-radius:7px;background:#fff;color:#344054;font:inherit;font-size:11px;font-weight:700;line-height:18px;white-space:nowrap;cursor:pointer}
+    #rInstantDevelopmentReport .r-dev-report-submit:hover{background:#f9fafb;border-color:#d0d5dd}
+    #rInstantDevelopmentReport .r-dev-report-submit:disabled{opacity:.5;cursor:default}
+    #rInstantDevelopmentReport .r-dev-report-submit[hidden]{display:none!important}
     .r-addon-info-card h4{margin:0 0 7px;font-size:15px;font-weight:1000;color:#101828}
     .r-addon-info-card p{margin:0 0 10px;font-size:12px;font-weight:800;line-height:1.5;color:#475467}
     .r-addon-info-card ul{margin:0;padding-left:18px;display:grid;gap:5px;font-size:12px;font-weight:850;line-height:1.4;color:#344054}

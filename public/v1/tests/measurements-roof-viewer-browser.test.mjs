@@ -6,6 +6,9 @@ import {writeArrayBuffer} from 'geotiff';
 
 const xml='<ROOT><ROOF><POINT id="a" data="0,0,0"/><POINT id="b" data="30,0,0"/><POINT id="c" data="30,15,9"/><POINT id="d" data="0,15,9"/><LINE id="ab" path="b,a" type="EAVE"/><LINE id="bc" path="b,c" type="RAKE"/><LINE id="cd" path="d,c" type="RIDGE"/><LINE id="da" path="d,a" type="RAKE"/><FACE><POLYGON path="ab,bc,cd,da"/></FACE></ROOF></ROOT>';
 test('read-only roof viewer draws saved geometry, switches modes and media, and adapts to pane width',async()=>{
+  const portal=await readFile(new URL('../../portal/index.php',import.meta.url),'utf8');
+  const viewerScript=portal.indexOf('<script src="../libraries/apps/measurements/roof-viewer.js');
+  assert.ok(viewerScript>=0 && viewerScript<portal.indexOf('<script src="../libraries/apps/measurements/project.js'),'Portal must preload the renderer before registering Measurements');
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--enable-webgl','--use-angle=swiftshader']});
   try{
     const page=await browser.newPage({viewport:{width:1200,height:720}}),errors=[],writes=[];

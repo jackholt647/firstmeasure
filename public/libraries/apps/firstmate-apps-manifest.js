@@ -289,7 +289,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261002-project-tabs-v4'), versionedBundle('project-request/app.js', '20261002-roof-scope-help')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261002-project-tabs-v4'), versionedBundle('project-request/app.js', '20261002-compact-dev-report')]
     },
     {
       id: 'firstmeasure.order',
@@ -299,7 +299,7 @@
       surfaces: ['project_modal'],
       regions: ['main'],
       access: managementShellAccess,
-      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20261002-measurement-order')]
+      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20261002-compact-dev-report')]
     },
     {
       id: 'project.map',
