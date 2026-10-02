@@ -371,7 +371,8 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
   app.post("/organizations/:orgId/threads/:threadId/voice", { bodyLimit: 65536 }, async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
-    const { sdp } = z.object({ sdp: z.string().trim().min(1).max(60000).startsWith("v=0") }).parse(request.body);
+    // SDP is a wire format: trimming its trailing CRLF makes Live reject the offer.
+    const { sdp } = z.object({ sdp: z.string().min(1).max(60000).startsWith("v=0") }).parse(request.body);
     const { thread, messages } = await readThreadForAgent(ASSISTANT_AGENT_ID, orgId, getParam(request.params, "threadId"), ctx.userId);
     const settings = await loadAgentSettings(ASSISTANT_AGENT_ID, orgId, cleanText(thread.branch_id) || ctx.branchId || "default");
     if (settings.enabled === false) throw forbidden("agent_disabled", "The assistant is turned off for this company.");

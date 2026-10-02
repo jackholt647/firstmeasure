@@ -27,9 +27,11 @@ export async function createAssistantVoiceSession(sdp: string, messages: Array<{
     });
   } catch { throw new PlatformError("voice_connection_failed", 502, "Could not connect voice. Please try again."); }
   if (!response.ok) {
-    // Never relay provider bodies: they can contain account or credential details.
+    // Provider bodies may contain sensitive details; expose only a fixed diagnostic.
+    if (response.status === 400) throw new PlatformError("voice_invalid_offer", 502,
+      "Voice could not negotiate the microphone connection. Please refresh and try again.");
     throw new PlatformError("voice_unavailable", response.status === 429 ? 429 : 503,
-      response.status === 429 ? "Voice is busy. Please try again shortly." : "GPT-Live is unavailable for this account right now.");
+      response.status === 429 ? "Voice is busy. Please try again shortly." : "Voice could not connect right now. Please try again shortly.");
   }
   const result = await response.json().catch(() => ({})) as { session?: { id?: unknown }; transport?: { sdp?: unknown } };
   if (typeof result.session?.id !== "string" || typeof result.transport?.sdp !== "string") {

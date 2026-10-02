@@ -14,6 +14,16 @@
   'use strict';
   if (!window.Portal || window.PlatformAssistant) return;
 
+  let stopActiveVoice = null;
+  // Every surface owns its state, but uses this same renderer and controller.
+  function createAssistant(surface = {}) {
+  const embedded = Boolean(surface.container);
+  const projectId = String(surface.projectId || '').trim();
+  let disposed = false;
+  const lifetime = new AbortController();
+  const observers = [];
+  const listen = (target, event, handler) => target.addEventListener(event, handler, {signal:lifetime.signal});
+  const observeSize = (target, callback) => { const observer = new ResizeObserver(callback); observer.observe(target); observers.push(observer); };
   const AGENT_TIMEOUT_MS = 160000;
   const REFRESH_MS = 45000;
   const BOARD_MIN_WIDTH = 860;
@@ -72,7 +82,7 @@
   let refreshTimer = null;
   let boardRenderFrame = 0;
 
-  function orgId(){ return clean((window.__APP || {}).userOrgId); }
+  function orgId(){ return clean(surface.orgId || (window.__APP || {}).userOrgId); }
   function branchId(){
     try { return clean(window.Portal.util?.currentBranchId?.() || (window.__APP || {}).userBranchId) || 'default'; }
     catch (_) { return 'default'; }
@@ -459,6 +469,8 @@
       .fma-table td{border-bottom:1px solid #f2f4f7;padding:6px 8px;color:#101828;}
       .fma-table .num{text-align:right;font-variant-numeric:tabular-nums;}
       .fma-artifact-text{font-size:13.5px;line-height:1.5;}
+      .fma-drawer.fma-embedded{position:relative;inset:auto;width:100%;height:100%;min-height:0;flex:1;box-shadow:none;border:0;border-radius:0;}
+      .fma-drawer.fma-embedded .fma-head{flex-shrink:0;}
       .fma-tooltip{position:fixed;z-index:4000;pointer-events:none;background:#101828;color:#fff;font-size:12px;font-weight:600;padding:6px 9px;border-radius:7px;box-shadow:0 6px 18px #10182833;white-space:nowrap;transform:translate(-50%,calc(-100% - 10px));}
       .fma-tooltip[hidden]{display:none;}
       .fma-artifact-chip{align-self:flex-start;display:inline-flex;align-items:center;gap:7px;border:1px solid #e4e7ec;background:#fff;border-radius:10px;padding:7px 11px;font:inherit;font-size:12.5px;font-weight:700;color:#344054;cursor:pointer;}
@@ -570,10 +582,11 @@
       /* Composer. */
       .fma-composer{position:relative;flex:0 0 auto;display:flex;flex-direction:column;gap:7px;padding:11px 13px;border-top:1px solid #e4e7ec;}
       .fma-drawer[data-window=full] .fma-composer{border-top:0;padding-top:6px;padding-bottom:16px;}
-      .fma-compose-shell{display:flex;align-items:flex-end;gap:5px;min-height:54px;padding:5px 7px;border:1px solid #e4e7ec;border-radius:28px;background:#fff;box-shadow:0 3px 14px #10182812;}
+      .fma-compose-shell{display:flex;align-items:flex-end;gap:2px;min-height:54px;padding:5px 7px;border:1px solid #e4e7ec;border-radius:28px;background:#fff;box-shadow:0 3px 14px #10182812;}
       .fma-compose-shell:focus-within{border-color:var(--primary-readable,var(--primary,#175cd3));}
       .fma-compose-shell textarea{flex:1;min-width:0;box-sizing:border-box;resize:none;border:0;background:transparent;padding:9px 5px;font:inherit;line-height:22px;height:40px;min-height:40px;outline:none;overflow-y:hidden;transition:height .14s ease;}
       .fma-compose-icon{flex:0 0 auto;align-self:flex-end;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:#344054;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:16px;}
+      .fma-compose-icon[data-fma=mic],.fma-compose-icon[data-fma=voice]{width:32px;}
       .fma-compose-icon:hover{background:#f2f4f7;}
       .fma-send{align-self:flex-end;width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;background:var(--primary-readable,var(--primary,#175cd3));color:#fff;display:none;align-items:center;justify-content:center;font-size:15px;transition:filter .15s ease,transform .12s ease;}
       .fma-composer[data-can-send=true] .fma-send{display:inline-flex;}
@@ -616,7 +629,8 @@
     injectCss();
     const drawer = document.createElement('div');
     drawer.className = 'fma-drawer';
-    drawer.id = 'platformAssistantDrawer';
+    if (!embedded) drawer.id = 'platformAssistantDrawer';
+    if (embedded) { drawer.classList.add('fma-embedded'); drawer.dataset.window = 'docked'; }
     drawer.hidden = true;
     drawer.dataset.board = 'none';
     drawer.innerHTML = `
@@ -652,7 +666,7 @@
           <div class="fma-attachments" data-fma="attachments"></div>
           <div class="fma-compose-shell">
             <button type="button" class="fma-compose-icon" data-fma="attach" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_cfbd7d8d189cab","Add files or camera photo") ?? "Add files or camera photo")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_cfbd7d8d189cab","Add files or camera photo") ?? "Add files or camera photo")}"><i class="fas fa-plus" aria-hidden="true"></i></button>
-            <textarea data-fma="input" rows="1" placeholder="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_2f18b7bd77b80f","Ask about anything in your workspace...") ?? "Ask about anything in your workspace...")}"></textarea>
+            <textarea data-fma="input" aria-label="Message" rows="1" placeholder="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_2f18b7bd77b80f","Ask about anything in your workspace...") ?? "Ask about anything in your workspace...")}"></textarea>
             <div class="fma-recording" data-fma="recording"><button type="button" class="fma-compose-icon" data-fma="discardRecording" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_46a483e740de95","Discard recording") ?? "Discard recording")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_46a483e740de95","Discard recording") ?? "Discard recording")}"><i class="fas fa-trash" aria-hidden="true"></i></button><span class="fma-recording-time" data-fma="recordingTime">0:00</span><canvas class="fma-wave" data-fma="wave" aria-hidden="true"></canvas></div>
             <button type="button" class="fma-compose-icon" data-fma="mic" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span></button>
             <button type="button" class="fma-compose-icon" data-fma="voice" title="Start voice conversation" aria-label="Start voice conversation"><i class="fas fa-headphones" aria-hidden="true"></i></button>
@@ -668,8 +682,8 @@
       </div>
       </div>
     `;
-    const host = document.querySelector('main.main') || document.querySelector('.main');
-    if (!host || !window.FirstMateWindows) return;
+    const host = surface.container || document.querySelector('main.main') || document.querySelector('.main');
+    if (!host || (!embedded && !window.FirstMateWindows)) return;
     host.appendChild(drawer);
     drawer.addEventListener('click', event => { if (event.target.closest('[data-payment-setup]')) openPaymentSetup(); });
     const tooltip = document.createElement('div');
@@ -705,7 +719,10 @@
       send: q('send')
     };
 
-    assistantWindow = window.FirstMateWindows.attach({
+    assistantWindow = embedded ? {
+      state:{mode:'docked'}, setVisible(visible){ drawer.hidden = !visible; },
+      setMode(){}, restore(){}, destroy(){ drawer.remove(); }
+    } : window.FirstMateWindows.attach({
       element:drawer, header:drawer.querySelector('.fma-head'),
       body:q('body'), host,
       contentTarget:document.getElementById('mainPanels'), name:'assistant', label:(globalThis.PlatformLanguage?.text("platform-assistant","m_4aaef822b47692","FirstMate Assistant") ?? "FirstMate Assistant"),
@@ -728,6 +745,7 @@
         syncLayout();
       }, onClose:close
     });
+    if (projectId) { q('new').style.display = 'none'; els.searchInput.closest('.fma-nav-search').style.display = 'none'; }
     q('new').addEventListener('click', () => {
       if (sidebarExternal()) openFull();
       startNewThread();
@@ -797,12 +815,12 @@
     els.input.addEventListener('input', updateComposer);
     let composerWidth = 0;
     if (window.ResizeObserver) {
-      new ResizeObserver(() => {
+      observeSize(els.input, () => {
         const width = els?.input?.clientWidth || 0;
         if (width && width !== composerWidth) { composerWidth = width; resizeComposerInput(); }
-      }).observe(els.input);
-      new ResizeObserver(() => syncLayout()).observe(drawer);
-    } else window.addEventListener('resize', () => { resizeComposerInput(); syncLayout(); });
+      });
+      observeSize(drawer, () => syncLayout());
+    } else listen(window, 'resize', () => { resizeComposerInput(); syncLayout(); });
     q('attach').addEventListener('click', () => { els.attachMenu.hidden = !els.attachMenu.hidden; });
     q('pickFile').addEventListener('click', () => { els.attachMenu.hidden = true; els.fileInput.click(); });
     q('pickCamera').addEventListener('click', () => { els.attachMenu.hidden = true; els.cameraInput.click(); });
@@ -811,7 +829,7 @@
     q('voice').addEventListener('click', startVoice);
     q('voiceEnd').addEventListener('click', () => { if (voiceCall) stopVoice(); else els.voicePanel.hidden = true; });
     q('voiceMute').addEventListener('click', () => { if (!voiceCall) return; voiceCall.muted = !voiceCall.muted; voiceCall.stream?.getAudioTracks().forEach(t => { t.enabled = !voiceCall.muted; }); els.voiceMute.textContent = voiceCall.muted ? 'Unmute' : 'Mute'; els.voiceMute.setAttribute('aria-pressed', String(voiceCall.muted)); });
-    window.addEventListener('pagehide', () => stopVoice());
+    listen(window, 'pagehide', () => stopVoice());
     q('discardRecording').addEventListener('click', () => stopRecording(true));
     els.input.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
@@ -819,14 +837,14 @@
         sendMessage();
       }
     });
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && state.open) {
+    listen(document, 'keydown', (event) => {
+      if (event.key === 'Escape' && state.open && (!embedded || els.drawer.contains(event.target))) {
         if (state.sidebarOpen) { state.sidebarOpen = false; syncSidebar(); }
-        else close();
+        else if (!embedded) close();
       }
     });
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.open) void refresh(); });
-    window.addEventListener('fm:portal-tab:activated', (event) => {
+    listen(document, 'visibilitychange', () => { if (document.visibilityState === 'visible' && state.open) void refresh(); });
+    listen(window, 'fm:portal-tab:activated', (event) => {
       if (event.detail?.id && event.detail.id !== 'assistant') state.returnTab = event.detail.id;
     });
     state.built = true;
@@ -851,7 +869,7 @@
   }
 
   function syncLayout(){
-    if (!els) return;
+    if (!els || disposed) return;
     const count = state.dashboard.length + (state.paymentWidget ? 1 : 0);
     const previous = els.drawer.dataset.board;
     const next = boardOpen() ? 'open' : (boardAvailable() && count ? 'hidden' : 'none');
@@ -864,7 +882,7 @@
   }
 
   function syncVisualsToggle(){
-    if (!els) return;
+    if (!els || disposed) return;
     const count = state.dashboard.length + (state.paymentWidget ? 1 : 0);
     const visible = !state.boardHidden;
     const label = visible ? 'Hide visuals' : 'Show visuals';
@@ -989,7 +1007,7 @@
 
   function welcomeHtml(){
     const main = state.threadId && state.threadId === clean(state.mainThread?.id);
-    const suggestions = main ? [
+    const suggestions = projectId ? ['What needs attention in this project?', 'Review this project’s scope, progress and blockers.', 'Summarize recent project activity and suggest next steps.'] : main ? [
       'Set up payments',
       'What happened in the business this week?',
       'Every morning at 11, tell me how yesterday went',
@@ -1006,7 +1024,7 @@
       <div class="fma-welcome fma-anim">
         <span class="fma-logo"></span>
         <div class="hi">${String(esc(state.assistantName))}</div>
-        <div class="hint">${main ? 'This is your main thread. Ask anything, or ask me to keep an eye on something for you. Scheduled updates from your agents arrive here.' : (globalThis.PlatformLanguage?.htmlText("platform-assistant","m_8247ee406cbbd6","Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.") ?? "Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.")}</div>
+        <div class="hint">${projectId ? 'Your private assistant for this project. Ask about its scope, progress, activity or next steps.' : main ? 'This is your main thread. Ask anything, or ask me to keep an eye on something for you. Scheduled updates from your agents arrive here.' : (globalThis.PlatformLanguage?.htmlText("platform-assistant","m_8247ee406cbbd6","Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.") ?? "Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.")}</div>
         <div class="fma-suggests">${String(suggestions.map((entry) => `<button type="button" class="fma-suggest">${esc(entry)}</button>`).join(''))}</div>
       </div>
     `;
@@ -1047,7 +1065,7 @@
   }
 
   function renderMessages(options = {}){
-    if (!els) return;
+    if (!els || disposed) return;
     const previousScroll = els.msgs.scrollTop;
     const parts = [];
     if (state.view === 'agent' && state.agentDetail) parts.push(agentViewHtml(state.agentDetail));
@@ -1135,12 +1153,12 @@
   }
 
   function syncTitles(){
-    if (!els) return;
+    if (!els || disposed) return;
     const { title, sub } = currentTitle();
     els.headTitle.textContent = title;
     els.barTitle.textContent = title;
     els.barSub.textContent = sub;
-    els.input.placeholder = state.view === 'agent' ? 'Tell this agent what to change…' : (globalThis.PlatformLanguage?.text("platform-assistant","m_2f18b7bd77b80f","Ask about anything in your workspace...") ?? "Ask about anything in your workspace...");
+    resizeComposerInput();
   }
 
   function sideChats(){
@@ -1161,8 +1179,9 @@
   }
 
   function renderHistory(){
-    if (!els) return;
+    if (!els || disposed) return;
     const query = state.historyQuery;
+    if (projectId) { els.historyList.innerHTML = state.mainThread ? navItemHtml({nav:'thread',id:state.mainThread.id,name:'Project conversation',meta:'Private to you',icon:'<span class="fma-logo"></span>',current:true}) : ''; return; }
     const matchingIds = new Set(state.historyMatches.map((match) => clean(match.thread_id)));
     const main = state.mainThread;
     const mainId = clean(main?.id);
@@ -1193,7 +1212,7 @@
   function setView(view){
     if (view !== state.view) stopVoice();
     state.view = view;
-    if (!els) return;
+    if (!els || disposed) return;
     const settings = view === 'settings';
     els.msgs.style.display = settings ? 'none' : '';
     els.composer.style.display = settings ? 'none' : '';
@@ -1227,7 +1246,7 @@
   }
 
   function syncSidebar(){
-    if (!els) return;
+    if (!els || disposed) return;
     els.drawer.dataset.sidebarOpen = String(state.sidebarOpen);
     els.sidebarToggle.setAttribute('aria-expanded',String(sidebarExternal() || state.sidebarOpen));
     els.sidebarToggle.setAttribute('aria-label',state.sidebarOpen ? 'Close conversations' : 'Open conversations');
@@ -1399,6 +1418,7 @@
     const call = voiceCall;
     if (!call) return;
     voiceCall = null;
+    if (stopActiveVoice === stopVoice) stopActiveVoice = null;
     call.stopped = true;
     clearTimeout(call.timeout); clearTimeout(call.connectTimeout);
     call.stream?.getTracks().forEach(track => track.stop());
@@ -1415,7 +1435,9 @@
   }
 
   async function startVoice() {
-    if (voiceCall || recorder || state.pending) return;
+    if (voiceCall || recorder || state.pending || disposed) return;
+    stopActiveVoice?.();
+    stopActiveVoice = stopVoice;
     els.voicePanel.hidden = false;
     if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) {
       els.voiceStatus.textContent = 'Voice needs a browser with microphone access over HTTPS.'; return;
@@ -1496,7 +1518,9 @@
         }
         if (call.stopped) return;
         if (event.type === 'session.started') {
+          if (call.ready) return;
           call.ready = true; clearTimeout(call.connectTimeout); els.voiceStatus.textContent = 'Listening';
+          transmit('session.commentary.append', 'Voice is connected. How can I help?', null);
         } else if (['session.input_transcript.delta','session.output_transcript.delta'].includes(event.type)) {
           const role = event.type === 'session.input_transcript.delta' ? 'user' : 'assistant';
           if (typeof event.delta !== 'string') return;
@@ -1539,6 +1563,14 @@
     if (!els?.input) return;
     const input = els.input;
     const style = getComputedStyle(input);
+    const candidates = state.view === 'agent' ? ['Tell this agent what to change…', 'Change this agent…', 'Ask…']
+      : projectId ? ['Ask about this project…', 'Ask anything…', 'Ask…']
+      : [(globalThis.PlatformLanguage?.text("platform-assistant","m_2f18b7bd77b80f","Ask about anything in your workspace...") ?? "Ask about anything in your workspace..."), 'Ask anything…', 'Ask…'];
+    const measure = document.createElement('canvas').getContext('2d');
+    measure.font = style.font;
+    const availableWidth = input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - 4;
+    input.placeholder = candidates.find(text => measure.measureText(text).width <= availableWidth) || '';
+
     const lineHeight = parseFloat(style.lineHeight) || 22;
     const padding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
     const minimum = Math.ceil(lineHeight + padding);
@@ -1546,7 +1578,7 @@
     const previous = input.getBoundingClientRect().height || minimum;
     input.style.transition = 'none';
     input.style.height = `${minimum}px`;
-    const needed = input.scrollHeight;
+    const needed = input.value ? input.scrollHeight : minimum;
     const next = Math.max(minimum, Math.min(needed, maximum));
     input.style.height = `${previous}px`;
     input.offsetHeight;
@@ -1556,7 +1588,7 @@
   }
 
   function updateComposer(){
-    if (!els) return;
+    if (!els || disposed) return;
     resizeComposerInput();
     els.composer.dataset.canSend = String(Boolean(clean(els.input.value) || state.attachments.length || recorder));
     els.composer.dataset.recording = String(Boolean(recorder));
@@ -1568,7 +1600,7 @@
   }
 
   function renderAttachments(){
-    if (!els) return;
+    if (!els || disposed) return;
     els.attachments.innerHTML = state.attachments.map((file, index) => `<div class="fma-attachment"><i class="fas fa-paperclip" aria-hidden="true"></i><span title="${esc(file.name)}">${esc(file.name)}</span><button type="button" data-remove-attachment="${index}" aria-label="${((v3) => globalThis.PlatformLanguage?.htmlText("platform-assistant","m_f2da0f4d54d9d9",`Remove ${v3}`,{v3}) ?? `Remove ${v3}`)(esc(file.name))}">×</button></div>`).join('');
     els.attachments.querySelectorAll('[data-remove-attachment]').forEach((button) => button.addEventListener('click', () => {
       state.attachments.splice(Number(button.dataset.removeAttachment), 1);
@@ -1587,13 +1619,16 @@
   }
 
   async function startRecording(){
-    if (voiceCall) return;
+    if (voiceCall || disposed) return;
     if (recorder || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       if (!recorder) window.alert((globalThis.PlatformLanguage?.text("platform-assistant","m_b4537274ad53bc","Microphone recording is unavailable in this browser.") ?? "Microphone recording is unavailable in this browser."));
       return;
     }
     try {
       recordingStream = await navigator.mediaDevices.getUserMedia({audio:true});
+      if (disposed || (embedded && (!surface.container.getClientRects().length || surface.container.closest('[inert], [hidden], [aria-hidden="true"]')))) {
+        recordingStream.getTracks().forEach(track => track.stop()); recordingStream = null; return;
+      }
       const chunks = [];
       recorder = new MediaRecorder(recordingStream);
       recorder.addEventListener('dataavailable', (event) => { if (event.data.size) chunks.push(event.data); });
@@ -1607,10 +1642,11 @@
         await audioContext?.close();
         audioContext = null;
         updateComposer();
-        if (state.discardRecording) { state.discardRecording = false; return; }
+        if (disposed || state.discardRecording) { state.discardRecording = false; return; }
         try {
           els.input.placeholder = (globalThis.PlatformLanguage?.text("platform-assistant","m_2719912047786a","Transcribing…") ?? "Transcribing…");
           const result = await window.AssistantAPI.transcribe(orgId(), new File([blob], 'dictation.webm', {type:blob.type}));
+          if (disposed) return;
           els.input.value = [els.input.value, clean(result.transcription?.text)].filter(Boolean).join(' ');
           els.input.focus();
         } catch (error) { window.alert(error?.message || 'Dictation failed.'); }
@@ -1685,7 +1721,8 @@
   function stopRecording(discard = false){
     if (!recorder) return;
     state.discardRecording = discard;
-    recorder.stop();
+    if (recorder.state !== 'inactive') recorder.stop();
+    if (discard) recordingStream?.getTracks().forEach(track => track.stop());
   }
 
   // ── Data ─────────────────────────────────────────────────────────────────
@@ -1700,6 +1737,13 @@
     }));
   }
 
+  async function loadContext(){
+    if (!projectId) return window.AssistantAPI.context(orgId());
+    const result = await window.AssistantAPI.projectConversation(orgId(), projectId);
+    if (!clean(result.thread?.id)) throw new Error('The project conversation could not be loaded.');
+    return {main_thread:result.thread, threads:[result.thread], agents:[], dashboard:[]};
+  }
+
   function applyContext(result){
     const settings = object(result.settings);
     state.assistantName = clean(settings.assistant_name) || state.assistantName || 'Assistant';
@@ -1710,18 +1754,21 @@
   }
 
   function boot(){
+    if (disposed) return Promise.resolve();
     if (bootPromise) return bootPromise;
     if (state.booted || !window.AssistantAPI) return Promise.resolve();
     state.booting = true;
     bootPromise = (async () => {
       try {
-        const result = await window.AssistantAPI.context(orgId());
+        const result = await loadContext();
+        if (disposed) return;
         applyContext(result);
         renderHistory();
         syncLayout();
         const target = clean(state.mainThread?.id) || clean(state.threads[0]?.id);
         if (target && !state.threadId && state.view !== 'agent') await openThread(target);
         else renderMessages();
+        if (disposed) return;
         state.booted = true;
         scheduleRefresh();
       } catch (error) {
@@ -1737,15 +1784,16 @@
 
   function scheduleRefresh(){
     clearInterval(refreshTimer);
-    refreshTimer = setInterval(() => { if (state.open && document.visibilityState === 'visible') void refresh(); }, REFRESH_MS);
+    refreshTimer = setInterval(() => { if (!disposed && state.open && (!embedded || els.drawer.getClientRects().length) && document.visibilityState === 'visible') void refresh(); }, REFRESH_MS);
   }
 
   /** Picks up agent results that arrived while the assistant was open. */
   async function refresh(){
-    if (!state.booted || !window.AssistantAPI) return;
+    if (disposed || !state.booted || !window.AssistantAPI) return;
     try {
       const previousMain = clean(state.mainThread?.updated_at);
-      const result = await window.AssistantAPI.context(orgId());
+      const result = await loadContext();
+      if (disposed) return;
       applyContext(result);
       renderHistory();
       syncLayout();
@@ -1777,6 +1825,7 @@
     setView('chat');
     try {
       const result = await window.AssistantAPI.thread(orgId(), threadId);
+      if (disposed) return false;
       state.threadId = clean(object(result.thread).id);
       const draft = conversationDrafts.get(state.threadId);
       els.input.value = draft?.text || '';
@@ -1815,6 +1864,7 @@
   }
 
   async function openAgent(agentId){
+    if (projectId) return window.PlatformAssistant.openAgent(agentId);
     stopVoice();
     if (!clean(agentId) || state.pending) return;
     state.agentId = clean(agentId);
@@ -1882,6 +1932,11 @@
 
   async function ensureThread(){
     if (state.threadId) return state.threadId;
+    if (projectId) {
+      const context = await loadContext();
+      if (disposed) throw new Error('Project conversation closed.');
+      applyContext(context); state.threadId = clean(context.main_thread.id); renderHistory(); return state.threadId;
+    }
     const result = await window.AssistantAPI.createThread(orgId(), { branch_id:branchId() });
     state.threadId = clean(object(result.thread).id);
     state.threads.unshift(object(result.thread));
@@ -2004,7 +2059,7 @@
   // ── Public API ───────────────────────────────────────────────────────────
 
   function open(){
-    if (!available()) return;
+    if (disposed || !available()) return;
     build();
     if (!assistantWindow) return;
     state.open = true;
@@ -2062,6 +2117,7 @@
   }
 
   function leaveAssistantTab(){
+    if (embedded) return;
     if (document.querySelector('.fm-tabpanel.active')?.id !== 'tab_assistant') return;
     const destination = state.returnTab || [...document.querySelectorAll('.fm-link[data-tab]')]
       .map((node) => node.dataset.tab).find((id) => id && id !== 'assistant');
@@ -2091,6 +2147,7 @@
   }
 
   function openPaymentSetup(){
+    if (embedded) return window.PlatformAssistant.openPaymentSetup();
     openFull();
     if (!els || !window.FirstMatePaymentsSetup?.mount) return;
     state.boardHidden = false;
@@ -2108,108 +2165,17 @@
     syncLayout();
   }
 
-  // Embedded project conversations use the same API, definition, markdown,
-  // actions, uploads, dictation and artifact renderer as the global assistant.
-  function mountProject(container, options = {}) {
-    injectCss();
-    const renderer = window.FirstMateAgentChat;
-    if (!renderer) throw Error('The shared agent chat library is unavailable.');
-    renderer.injectBaseCss('fmpa');
-    if (!document.getElementById('fm-project-agent-css')) {
-      const style = document.createElement('style'); style.id = 'fm-project-agent-css';
-      style.textContent = `.fmpa-panel{display:flex;flex-direction:column;flex:1;min-height:0;height:100%;font-size:13px;color:#101828}.fmpa-messages{overflow:auto;flex:1;min-height:0;padding:12px}.fmpa-msg{padding:10px 12px;margin:8px 0;border-radius:10px;overflow-wrap:anywhere}.fmpa-msg.user{margin-left:25px;background:var(--primary-light,#eff4ff);white-space:pre-wrap}.fmpa-msg.assistant{background:#f9fafb;margin-right:12px}.fmpa-msg.failed{background:#fef3f2}.fmpa-composer{padding:10px;border-top:1px solid #e4e7ec}.fmpa-composer textarea{font:inherit;box-sizing:border-box;width:100%;min-height:56px;max-height:180px;resize:vertical;border:1px solid #d0d5dd;border-radius:8px;padding:9px}.fmpa-composer>div{display:flex;gap:6px;align-items:center;margin-top:6px}.fmpa-composer [type=submit]{margin-left:auto;background:var(--primary,#175cd3);color:white}.fmpa-status{padding:0 12px;color:#667085;margin:5px 0;font-size:12px}.fmpa-status:empty{display:none}.fmpa-files{padding:0 12px}.fmpa-files button,.fmpa-welcome button{background:white;border:1px solid #e4e7ec;border-radius:8px;padding:8px;color:#344054;font-size:12px}.fmpa-welcome{text-align:center;padding:20px 0;color:#667085}.fmpa-welcome button{display:block;margin:8px auto}.fmpa-composer .recording{color:#d92d20}.fmpa-messages .fma-artifact{width:100%;box-sizing:border-box}`;
-      document.head.append(style);
-    }
-    const oid = clean(options.orgId || orgId()), pid = clean(options.projectId);
-    let disposed = false, pending = false, threadId = '', messages = [], files = [], recording = null, stream = null;
-    const abort = new AbortController();
-    container.innerHTML = `<section class="fmpa-panel"><div class="fmpa-messages" role="log" aria-label="Private project conversation"></div><p class="fmpa-status" role="status"></p><div class="fmpa-files"></div><form class="fmpa-composer"><textarea aria-label="Ask the project agent" placeholder="Ask about this project…" rows="2"></textarea><div><label class="fma-icon-btn" title="Attach files"><i class="fas fa-paperclip"></i><input type="file" multiple hidden></label><button type="button" data-dictate class="fma-icon-btn" aria-label="Dictate"><i class="fas fa-microphone"></i></button><button type="button" data-refresh class="fma-icon-btn" aria-label="Refresh conversation"><i class="fas fa-rotate"></i></button><button type="submit" class="fma-icon-btn" aria-label="Send"><i class="fas fa-arrow-up"></i></button></div></form></section>`;
-    const log = container.querySelector('.fmpa-messages'), status = container.querySelector('.fmpa-status');
-    const form = container.querySelector('form'), input = form.querySelector('textarea'), fileInput = form.querySelector('input');
-    const fileBox = container.querySelector('.fmpa-files'), send = form.querySelector('[type=submit]'), mic = form.querySelector('[data-dictate]');
-    const say = text => { if (!disposed) status.textContent = text; };
-    function render() {
-      if (disposed) return;
-      log.innerHTML = messages.length ? messages.map(message => renderer.messageHtml(message, {prefix:'fmpa'}) + artifactsOf(message).map(artifact => artifactCardHtml(artifact, {inline:true, width:Math.max(240, container.clientWidth - 44)})).join('')).join('')
-        : `<div class="fmpa-welcome"><span class="fma-logo"></span><p>Your private agent for this project.</p><button type="button" data-suggestion="What needs attention in this project?">What needs attention?</button><button type="button" data-suggestion="Review this project's scope, progress and blockers.">Review scope and blockers</button><button type="button" data-suggestion="Summarize recent project activity and suggest next steps.">Suggest next steps</button></div>`;
-      renderer.bindActions(log, messages);
-      log.querySelectorAll('[data-suggestion]').forEach(button => button.onclick = () => { input.value = button.dataset.suggestion; input.focus(); });
-      log.scrollTop = log.scrollHeight;
-    }
-    function renderFiles() {
-      fileBox.innerHTML = files.map((file, index) => `<button type="button" data-file="${index}" title="Remove attachment">${esc(file.name)} ×</button>`).join('');
-      fileBox.querySelectorAll('[data-file]').forEach(button => button.onclick = () => { files.splice(Number(button.dataset.file), 1); renderFiles(); });
-    }
-    async function refresh() {
-      if (!threadId) return;
-      const data = await window.AssistantAPI.thread(oid, threadId);
-      if (disposed) return;
-      messages = array(data.messages); render();
-    }
-    const ready = (async () => {
-      say('Loading project conversation…');
-      const result = await window.AssistantAPI.projectConversation(oid, pid);
-      if (disposed) return;
-      threadId = clean(result.thread?.id);
-      await refresh(); say('');
-    })().catch(error => { say(error.message || 'Could not load this project conversation.'); });
-    form.onsubmit = async event => {
-      event.preventDefault();
-      if (pending || disposed) return;
-      await ready;
-      if (!threadId) { say('Refresh to reconnect this project conversation.'); return; }
-      const text = clean(input.value), attached = [...files];
-      if (!text && !attached.length) return;
-      pending = true; send.disabled = true; input.disabled = true; fileInput.disabled = true; say('Working on this project…');
-      messages.push({id:'pending-user', role:'user', content:[text,...attached.map(file => `📎 ${file.name}`)].filter(Boolean).join('\n')}, {id:'pending-assistant', role:'assistant', content:'Working…', pending:true});render();
-      try {
-        const uploads = [];
-        for (const file of attached) uploads.push((await window.AssistantAPI.upload(oid, threadId, file)).attachment.media_id);
-        await window.AssistantAPI.send(oid, threadId, {message:text || 'Review these files for this project.', attachments:uploads, branch_id:branchId()}, {signal:AbortSignal.any([abort.signal, AbortSignal.timeout(AGENT_TIMEOUT_MS)])});
-        if (disposed) return;
-        input.value = ''; files = []; renderFiles(); await refresh(); say('');
-      } catch (error) {
-        // A lost response may still have persisted a turn. Reload its durable
-        // history and leave the draft available for the person to review.
-        if (!disposed) { await refresh().catch(() => {}); say(error.message || 'Could not complete the turn. Refresh the conversation before retrying.'); }
-      } finally {
-        pending = false;
-        if (!disposed) { send.disabled = false; input.disabled = false; fileInput.disabled = false; input.focus(); }
-      }
-    };
-    input.onkeydown = event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); form.requestSubmit(); } };
-    fileInput.onchange = () => { files = [...files, ...fileInput.files].slice(0, 5); fileInput.value = ''; renderFiles(); };
-    form.querySelector('[data-refresh]').onclick = async () => {
-      if (pending) return;
-      try {
-        if (!threadId) { threadId = clean((await window.AssistantAPI.projectConversation(oid, pid)).thread?.id); }
-        await refresh(); say('');
-      } catch (error) { say(error.message); }
-    };
-    mic.onclick = async () => {
-      if (recording) { recording.stop(); return; }
-      if (pending) return;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({audio:true});
-        if (disposed) { stream.getTracks().forEach(track => track.stop()); return; }
-        const chunks = [];
-        const current = recording = new MediaRecorder(stream);
-        current.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
-        current.onstop = async () => {
-          stream?.getTracks().forEach(track => track.stop()); stream = null; recording = null; mic.classList.remove('recording');
-          if (disposed) return;
-          say('Transcribing…');
-          try { const result = await window.AssistantAPI.transcribe(oid, new File(chunks, 'dictation.webm', {type:current.mimeType})); if (!disposed) { input.value = [input.value, result.text].filter(Boolean).join('\n'); say(''); input.focus(); } }
-          catch (error) { say(error.message); }
-        };
-        current.start(); mic.classList.add('recording'); say('Recording. Click the microphone to finish.');
-      } catch (error) { say(error.message); }
-    };
-    return {ready, refresh, destroy() { disposed = true; abort.abort(); if (recording?.state === 'recording') recording.stop(); stream?.getTracks().forEach(track => track.stop()); container.replaceChildren(); }};
+  function destroy(){
+    if (disposed) return;
+    stopVoice(); stopRecording(true);
+    disposed = true; state.open = false;
+    lifetime.abort(); observers.forEach(observer => observer.disconnect());
+    clearInterval(refreshTimer); clearTimeout(historySearchTimer); cancelAnimationFrame(boardRenderFrame);
+    els?.tooltip?.remove(); assistantWindow?.destroy();
   }
 
-  window.PlatformAssistant = {
-    mountProject,
+  return {
+    destroy, boot, refresh, suspend(){stopVoice();stopRecording(true);},
     openPaymentSetup,
     open,
     openFull,
@@ -2225,5 +2191,19 @@
     isFull(){ return assistantWindow?.state.mode === 'full'; },
     available
   };
+  }
+
+  const globalAssistant = createAssistant();
+  window.PlatformAssistant = { ...globalAssistant, mountProject(container, options = {}) {
+    if (!container || !String(options.projectId || '').trim()) throw new Error('A project is required.');
+    const instance = createAssistant({...options, container});
+    instance.open();
+    const visibility = new MutationObserver(() => {
+      if (!container.isConnected) { visibility.disconnect(); instance.destroy(); }
+      else if (!container.getClientRects().length || container.closest('[inert], [hidden], [aria-hidden="true"]')) instance.suspend();
+    });
+    for (let node = container; node; node = node.parentElement) visibility.observe(node, {attributes:true,attributeFilter:['hidden','inert','aria-hidden','class','style'],childList:true});
+    return {ready:instance.boot(), refresh:instance.refresh, destroy(){visibility.disconnect();instance.destroy();}};
+  }};
   window.dispatchEvent(new CustomEvent('fm:assistant:ready'));
 })();

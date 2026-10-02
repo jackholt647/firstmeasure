@@ -280,3 +280,32 @@ recorded in ignored `output/assistant-live-20261002/`; it uses the existing
 server credential without copying it locally.
 
 Development delivery and verification: [GPT-Live voice rollout](../../deploy/digitalocean/development-assistant-live-20261002.md).
+
+
+### Shared project surface and voice handshake follow-up (October 2)
+
+`createAssistant` owns the common renderer, composer, settings, attachments,
+dictation and voice controller. The global window and `mountProject` each create
+an independent instance; the old `fmpa` project chat implementation is removed.
+Project instances use the existing private project-conversation endpoint and its
+persisted subject binding. They show project suggestions and project history,
+with independent drafts and messages. The parent project shell still owns window
+placement and controls. Tray hiding or removal ends capture; destroying an
+instance releases its listeners, observers and refresh timer. Only one live voice
+call is active across assistant instances.
+
+The composer measures the placeholder against the available input width, falling
+back to shorter text. Dictation and live voice have adjacent 32px-wide controls.
+Empty inputs stay one line while typed messages retain multiline expansion.
+
+Voice session validation must preserve SDP bytes, including the final CRLF.
+Calling `trim()` caused OpenAI to return `invalid_offer` / SDP EOF, previously
+masked as unavailable account access. The route now preserves the offer, and
+connection errors no longer claim account ineligibility. A connected session
+receives initial spoken commentary so the person hears confirmation.
+
+Regression coverage: `assistant-project-browser.test.mjs`, the updated
+`project-trays-browser.test.mjs`, and the voice API test asserting exact SDP
+preservation. An isolated authenticated API fixture plus the actual browser UI
+was exercised against GPT-Live using the existing remote credential; session
+start, received audio and orderly close succeeded.

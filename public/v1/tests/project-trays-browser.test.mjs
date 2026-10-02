@@ -22,7 +22,7 @@ test('project trays reuse Notes, Channels and the global agent and preserve draf
       };
       window.PlatformAPI={work:{activity:async()=>({events:[{id:'event',type:'project.scope.created',payload:{summary:'Scope created'},created_at:'2026-09-29T10:00:00Z'}]})},userActivity:{listForProject:async()=>({events:[]})}};
       window.histories=new Map();
-      window.AssistantAPI={projectConversation:async (_org,pid)=>{const id='thread-'+pid;if(!window.histories.has(id))window.histories.set(id,[]);return {thread:{id}};},thread:async (_org,id)=>({messages:window.histories.get(id)}),send:async (_org,id,body)=>{window.sent.push({id,...body});window.histories.get(id).push({id:'u',role:'user',content:body.message},{id:'a',role:'assistant',content:'**Project scope** reviewed.'});return {};}};
+      window.AssistantAPI={projectConversation:async (_org,pid)=>{const id='thread-'+pid;if(!window.histories.has(id))window.histories.set(id,[]);return {thread:{id}};},thread:async (_org,id)=>({thread:{id},messages:window.histories.get(id)}),send:async (_org,id,body)=>{window.sent.push({id,...body});window.histories.get(id).push({id:'u',role:'user',content:body.message},{id:'a',role:'assistant',content:'**Project scope** reviewed.'});return {thread:{id},assistant_message:{role:'assistant',content:'**Project scope** reviewed.'}};}};
     });
     for (const file of ['window-manager/project-layout.js','agent-chat/agent-chat.js','platform-assistant/platform-assistant.js','channels-ui/channels-ui.js','project-notes/project-notes.js','project-trays/project-trays.js'])
       await page.addScriptTag({content:await readFile(new URL(`../../libraries/${file}`,import.meta.url),'utf8')});
@@ -40,8 +40,8 @@ test('project trays reuse Notes, Channels and the global agent and preserve draf
     assert.equal(await page.locator('.pn-card-content.expanded').count(),1);
     await page.getByRole('textbox',{name:'New project note'}).fill('Keep this draft');
     await page.getByRole('tab',{name:'Agent',exact:true}).click();
-    await page.waitForSelector('.fmpa-welcome');
-    await page.getByRole('textbox',{name:'Ask the project agent'}).fill('Review scope');
+    await page.waitForSelector('.fma-welcome');
+    await page.getByRole('textbox',{name:'Message'}).fill('Review scope');
     await page.getByRole('tab',{name:'Notes',exact:true}).click();
     assert.equal(await page.getByRole('textbox',{name:'New project note'}).inputValue(),'Keep this draft');
     await page.getByRole('button',{name:'Add pinned note',exact:true}).click();
@@ -49,9 +49,9 @@ test('project trays reuse Notes, Channels and the global agent and preserve draf
     assert.equal(await page.evaluate(()=>window.notePosts[0].pin),true);
     assert.equal(await page.evaluate(()=>window.notePosts[0].project_note),true);
     await page.getByRole('tab',{name:'Agent',exact:true}).click();
-    assert.equal(await page.getByRole('textbox',{name:'Ask the project agent'}).inputValue(),'Review scope');
+    assert.equal(await page.getByRole('textbox',{name:'Message'}).inputValue(),'Review scope');
     await page.getByRole('button',{name:'Send',exact:true}).click();
-    await page.waitForSelector('.fmpa-msg.assistant strong');
+    await page.waitForSelector('.fma-msg.assistant strong');
     assert.equal(await page.evaluate(()=>window.sent[0].id),'thread-project');
     await page.evaluate(()=>{window.split=true;window.dispatchEvent(new CustomEvent('fm:capabilities:updated'));});
     assert.equal(await page.locator('.fm-project-tray-tabs button').count(),4);
@@ -62,8 +62,8 @@ test('project trays reuse Notes, Channels and the global agent and preserve draf
     assert.match(await page.locator('.fm-project-activity').textContent(),/Scope created/);
     await page.evaluate(()=>{window.project={id:'other',title:'Other project'};window.trays.update();});
     await page.getByRole('tab',{name:'Agent',exact:true}).click();
-    await page.waitForSelector('.fmpa-welcome');
-    assert.equal(await page.getByRole('textbox',{name:'Ask the project agent'}).inputValue(),'');
+    await page.waitForSelector('.fma-welcome');
+    assert.equal(await page.getByRole('textbox',{name:'Message'}).inputValue(),'');
     // The real Channels Notes subtab mounts the same note component.
     await page.evaluate(()=>window.channelView=window.FirstMateChannels.create(document.querySelector('#channel'),{orgId:'org',channelId:'channel',mode:'conversation',realtime:false,features:{resources:false,richMessages:false,typing:false,reads:false}}));
     await page.evaluate(()=>window.channelView.setChannel('channel'));
