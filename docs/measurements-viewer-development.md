@@ -36,7 +36,8 @@ order response.
 
 The server requires `order_reports`, the development application environment,
 and the development data environment. Developer authority uses the existing
-`canManageTestAppFlags` operator gate; deployment-owned
+`canManageTestAppFlags` operator gate or an authenticated matching sandbox
+operator session (`canManageSandboxOrgFlags`); deployment-owned
 `FIRSTMEASURE_DEVELOPER_EMAILS` or `EXPERIMENTAL_ACCOUNTS_ADMIN_EMAILS` can explicitly
 grant it as well. An ordinary organization administrator is insufficient. A
 signed selection token is bound to the current user, organization, report,
@@ -81,3 +82,5 @@ existing `project_viewer.js` harness because its fake window lacks
 `addEventListener`; that source file is unchanged by this work. Browser evidence
 is in ignored `output/measurements-viewer/`. Live authenticated rollout checks
 remain for a development deployment.
+
+October 2 follow-up: [Sandbox defaults and access fix](../deploy/digitalocean/development-sandbox-measurement-defaults-20261002.md) enables the helper for existing sandbox sessions and disables the regular instant/weather options in the full-org preset and 29 existing test orgs.
