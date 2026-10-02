@@ -19,7 +19,9 @@ Projects and Contacts share the [entity window shell](window-shell.md). Its opti
 Overview also owns the focused New Report project picker and the map-first New Project
 form. The same mounted details form provides contacts, address, property type, custom
 fields, and initial actions; the project header presents a larger New Report heading
-while that flow is active. Existing project selection uses the authoritative project
+only until a project is selected or its address is defined. Known projects always retain
+their normal identity and tabs, including unfinished report drafts; report intent changes
+the content workflow independently of the header. Existing project selection uses the authoritative project
 open path and the existing measurement reorder prefill. Choosing a project or an action
 does not submit a report.
 

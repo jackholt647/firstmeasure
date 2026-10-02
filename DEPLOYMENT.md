@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 2 project details: [Synchronized fields, consistent pills, Notes styling and report header scope](deploy/digitalocean/development-project-details-sync-20261002.md) records the verified development update.
+
 October 2 Overview workflows: [Report entry, default trays and project actions](deploy/digitalocean/development-project-workflow-complete-20261002.md) records the verified workflow, flat details, responsive layout and independent project autosave.
 
 October 2 project opening: [Initial Schedule tab and compact contact dropdown](deploy/digitalocean/development-project-schedule-opening-20261002.md) records correct initial scheduling visibility and compact contact fields.
