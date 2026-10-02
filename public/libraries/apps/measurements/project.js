@@ -52,7 +52,9 @@ window.PlatformCommerce.onReady(function(){
 
   let cancellationCountdownTimer = null;
   let pendingExpediteSelection = '';
-  let activeMeasurementTab = 'standard';
+  let activeMeasurementTab = 'model';
+  let roofViewer = null;
+  let roofViewerKey = '';
   let activeInstantMountKey = '';
   let reportRequestModalState = null;
   const measurementAssetCache = new Map();
@@ -118,6 +120,7 @@ window.PlatformCommerce.onReady(function(){
     return `
       <div class="r-measure-tabs" id="rMeasureTabs"></div>
       <div class="r-measure-body">
+        <div class="r-measure-pane" data-measure-pane="model"><div id="rMeasurementModel" style="height:100%"></div></div>
         <div class="r-measure-pane" data-measure-pane="map"><div id="rMeasurementMap" style="height:100%"></div></div>
         <div class="r-measure-pane" data-measure-pane="summary"><div id="rMeasurementSummary" style="height:100%"></div></div>
         <div class="r-measure-pane" data-measure-pane="instant"><div id="rMeasurementInstant" style="height:100%"></div></div>
@@ -319,6 +322,7 @@ window.PlatformCommerce.onReady(function(){
     const projectId = activeMeasurementProjectId();
     const cachedAssets = projectId ? primeMeasurementAssetCacheFromKnownUrls(projectId) : null;
     const hasXml = ready && !!cachedAssets?.xmlUrl;
+    if(ready) tabs.push({id:'model',label:'Model & photos',icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
     const changes = reportFollowupEnabled() ? reportChangeRequests() : [];
     const supportView = !changes.length || reportRequestsAreSupportOnly(changes);
     if (inlineProjectMapWithReports()) {
@@ -3460,6 +3464,11 @@ window.PlatformCommerce.onReady(function(){
         xmlUrl: terminalWithoutReport ? '' : (cached?.xmlUrl || known.xmlUrl || (lowerNames.has('model_data.xml') ? fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/model_data.xml`) : '')),
         instantPdfUrl: cached?.instantPdfUrl || known.instantPdfUrl || (lowerNames.has('instant report.pdf') ? fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/Instant%20Report.pdf`) : ''),
         hasInstantPayload: names.has('instant-structures.json') || names.has('insights.json') || names.has('dsm.tif'),
+        media: terminalWithoutReport ? [] : files.filter(file => /^(rgb\.tif|google\.png|azure\.png|apple\.jpg|customer-reference-.*\.(?:jpg|jpeg|png|webp|mp4|mov|webm))$/i.test(file.name)).map(file => ({
+          url: fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(file.name)}`),
+          label: file.name==='rgb.tif'?'Top-down solar view':file.name==='google.png'?'Top-down map':file.name==='apple.jpg'?'Apple aerial view':file.name==='azure.png'?'Aerial view':file.name,
+          solar: file.name==='rgb.tif', video: /\.(mp4|mov|webm)$/i.test(file.name)
+        })),
         hasCheckedArtifacts: true,
       };
       measurementAssetCache.set(projectId, assets);
@@ -3861,6 +3870,13 @@ window.PlatformCommerce.onReady(function(){
       : ((knownAssets.reportUrl || knownAssets.summaryUrl || knownAssets.xmlUrl || knownAssets.instantPdfUrl)
         ? { ...knownAssets, hasCheckedArtifacts: true }
         : null);
+    const modelRoot = root.querySelector('#rMeasurementModel');
+    const modelKey = JSON.stringify([projectId,cachedAssets?.xmlUrl,cachedAssets?.media,terminalWithoutReport]);
+    if(activeMeasurementTab !== 'model' || terminalWithoutReport){roofViewer?.destroy();roofViewer=null;roofViewerKey='';}
+    else if(modelRoot && window.FirstMeasureRoofViewer && (roofViewerKey!==modelKey || !roofViewer)){
+      roofViewer?.destroy();roofViewerKey=modelKey;
+      roofViewer=window.FirstMeasureRoofViewer.mount(modelRoot,{xmlUrl:cachedAssets?.xmlUrl,media:cachedAssets?.media||[]});
+    }
     if (map && inlineProjectMapWithReports() && activeMeasurementTab === 'map') {
       mountInlineProjectMap(map);
     }
@@ -3993,7 +4009,8 @@ window.PlatformCommerce.onReady(function(){
     clearWeatherReportPoll();
     disposeInstantMeasurement();
     pendingExpediteSelection = '';
-    activeMeasurementTab = 'standard';
+    roofViewer?.destroy();roofViewer=null;roofViewerKey='';
+    activeMeasurementTab = 'model';
     reportRequestModalState = null;
     weatherReportPollAttempt = 0;
   }
@@ -4150,7 +4167,7 @@ window.PlatformCommerce.onReady(function(){
     priority:600,
     apply:(route) => {
       if (!route.project || route.projectTab !== 'measurements' || !state.mounted) return;
-      setActiveMeasurementTab(route.reportView || 'standard', { updateRoute:false });
+      setActiveMeasurementTab(route.reportView || 'model', { updateRoute:false });
     }
   });
 

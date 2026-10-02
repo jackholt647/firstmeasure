@@ -1,3 +1,4 @@
+import { developmentReportsAllowed, pickDevelopmentReport, copyDevelopmentReport } from '../firstmeasure/development_reports.js';
 import { registerContactRoutes } from "../contacts/api.js";
 import { resolveContact } from "../contacts/service.js";
 import { effectivePreferences } from './notifications/configuration.js';
@@ -9073,9 +9074,15 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
       const media=await storeMediaUpload(ctx.orgId,{bytes,fileName:cleanText(file.filename)||`reference.${format}`,contentType:`image/${format}`,ownerType:"user",ownerId:authenticated.userId,scope:"projects",slot:"exterior_references",metadata:{source:"exteriors_order_reference",uploaded_by:authenticated.userId}});
       return {success:true,media_id:media.id};
     }
-    case "queue":
-      await requirePlatformAuth(request, {csrf:true,permission:"order_reports"});
+    case "development_report_capability":
+      return {success: true, enabled: await developmentReportsAllowed(await requirePlatformAuth(request, {permission:"order_reports"}))};
+    case "development_report_sample":
+      return await pickDevelopmentReport(await requirePlatformAuth(request, {csrf:true,permission:"order_reports"}), body);
+    case "queue": {
+      const orderAuth = await requirePlatformAuth(request, {csrf:true,permission:"order_reports"});
+      if (parseBooleanField(body.instant_development_report, false)) return await copyDevelopmentReport(orderAuth, body);
       return await portalQueueProject(app, ctx.orgId, actor, body);
+    }
     case "expedite_queued_report":
       return await portalExpediteQueuedProject(app, ctx.orgId, actor, body);
     case "cancel_queued_report":

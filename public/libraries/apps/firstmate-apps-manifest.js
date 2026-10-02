@@ -289,7 +289,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20260930-window-shell-v1'), versionedBundle('project-request/app.js', '20260930-window-shell-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20260930-window-shell-v1'), versionedBundle('project-request/app.js', '20261002-measurement-order')]
     },
     {
       id: 'firstmeasure.order',
@@ -299,7 +299,7 @@
       surfaces: ['project_modal'],
       regions: ['main'],
       access: managementShellAccess,
-      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20260929-overview-content-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20261002-measurement-order')]
     },
     {
       id: 'project.map',
@@ -355,7 +355,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('measurements/project.js', '20260702-inline-map-reset')]
+      bundles: [versionedBundle('measurements/roof-viewer.js', '20261002-roof-media'), versionedBundle('measurements/project.js', '20261002-roof-media')]
     },
     {
       id: 'project.checklists',
@@ -954,7 +954,7 @@
     invoices: { invoicesView:{ default:'outstanding', values:['outstanding','needs_invoicing','history'], history:'push' }, invoice:{ history:'push' }, invoicesStatus:{ history:'replace' } },
     docs: { document:{ history:'push' }, documentView:{ default:'tiles', values:['tiles','list'], history:'replace' } },
     materials: { materialList:{ history:'push' }, materialSection:{ default:'all', history:'replace' } },
-    measurements: { reportView:{ default:'standard', history:'push' } },
+    measurements: { reportView:{ default:'model', history:'push' } },
     checklists: { checklistView:{ history:'push' } },
     'customer-portal': { customerPortalView:{ default:'overview', values:['overview','media'], history:'push' } },
     'web-editor': { site:{ history:'push' }, page:{ history:'push' }, view:{ history:'replace' }, domainSettings:{ values:['domains'], history:'push' } },

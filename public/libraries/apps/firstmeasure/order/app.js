@@ -95,6 +95,8 @@ ${String(expanded ? `    <section class="r-step is-open" id="rStepCustomer" data
     </section>
 
 `)}
+    <button type="button" id="rOrderMeasurements" class="r-btn" hidden>Order Measurements</button>
+    <label id="rInstantDevelopmentReport" class="r-addon-toggle" hidden style="margin:10px 0"><input type="checkbox" id="rInstantDevelopmentCheck"> Instant development report <small>Reuses saved PDFs · No charge</small></label>
     <section class="r-workflow-dock" id="rWorkflowDock">
       <div class="r-workflow-empty" id="rWorkflowEmpty">
         <div class="r-workflow-empty-title">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_dc7e7fb5fb7d6f","Project To-dos") ?? "Project To-dos")}</div>

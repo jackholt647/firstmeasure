@@ -236,6 +236,71 @@ window.PlatformCommerce.onReady(async function(){
   let newProjectCreationSession = false;
   let reportOrderState = null;
   let requestedWorkflow = 'project';
+  let developmentReportSample = null;
+  let developmentReportsEnabled = false;
+  let developmentCapabilityLoad = null;
+  let developmentSampleGeneration = 0;
+  let developmentReportSubmitting = false;
+  function developmentReportScope(){ return window.Portal.ExteriorOrder?.selectedScope(selectedType) || 'roof'; }
+  function matchingDevelopmentSample(){
+    const sample = developmentReportSample;
+    return sample && sample.address === ($('#rAddress')?.value || '').trim()
+      && sample.project_type === (selectedType || 'residential') && sample.measurement_scope === developmentReportScope();
+  }
+  function instantDevelopmentReport(){ return developmentReportsEnabled && matchingDevelopmentSample() && $('#rInstantDevelopmentCheck')?.checked === true; }
+  function syncDevelopmentReportControls(){
+    const order = $('#rOrderMeasurements');
+    if(order) order.hidden = !(hasPerm('order_reports') && addressSelected && selectedType && !hasReportOrdered() && requestedWorkflow === 'project');
+    const toggle = $('#rInstantDevelopmentReport');
+    if(toggle){
+      toggle.hidden = !(developmentReportsEnabled && matchingDevelopmentSample() && requestedWorkflow === 'report' && !hasReportOrdered());
+      if(toggle.hidden && $('#rInstantDevelopmentCheck')) $('#rInstantDevelopmentCheck').checked = false;
+      toggle.style.display=toggle.hidden?'none':'';
+      const options = $('#rReportAddons');
+      if(window.Portal.ExteriorOrder?.active()) $('#rWorkflowDock')?.before(toggle);
+      else if(options && toggle.parentElement !== options.parentElement) options.after(toggle);
+    }
+    const quickSubmit=toggle?.querySelector('[data-development-submit]');if(quickSubmit)quickSubmit.hidden=!instantDevelopmentReport();
+    const picker = $('#rDevelopmentAddress');
+    if(picker) picker.hidden = !developmentReportsEnabled || hasReportOrdered();
+  }
+  function bindDevelopmentReportControls(){
+    const address = $('#rAddress');
+    if(address && !$('#rDevelopmentAddress')){
+      const row = document.createElement('div'); row.style.cssText='display:flex;align-items:center;gap:6px;width:100%;min-width:0';
+      address.before(row); row.append(address); address.style.minWidth='0'; address.style.flex='1';
+      const button = document.createElement('button'); button.type='button'; button.id='rDevelopmentAddress'; button.hidden=true;
+      button.textContent='FM'; button.title='Use another completed development report matching the selected type and scope';
+      button.setAttribute('aria-label',button.title); button.style.cssText='flex:0 0 32px;padding:6px 2px;border:0;background:transparent;color:var(--primary,#d93025);font-size:11px;font-weight:800;cursor:pointer';
+      row.append(button); button.onclick=async()=>{
+        const generation=++developmentSampleGeneration, type=selectedType||'residential', scope=developmentReportScope();
+        button.disabled=true;
+        try{
+          const {data}=await postAction('development_report_sample',{project_type:type,measurement_scope:scope,exclude_id:developmentReportSample?.id||''});
+          if(generation!==developmentSampleGeneration || !button.isConnected || (selectedType||'residential')!==type || developmentReportScope()!==scope)return;
+          if(!data?.success)throw new Error(data?.message||data?.error||'Could not select a development report.');
+          if(!data.sample){showToast('No matching report',data.message,false);return;}
+          developmentReportSample=data.sample; $('#rInstantDevelopmentCheck').checked=false;
+          address.value=data.sample.address; $('#rLat').value=data.sample.lat; $('#rLng').value=data.sample.lng; $('#rComps').value='{}';
+          setCoords(data.sample.lat,data.sample.lng,true); addressSelected=true; locationConfirmed=false;
+          clearAllPins({silent:true});
+          const pins=data.sample.pins?.length?data.sample.pins:[{lat:data.sample.lat,lng:data.sample.lng}];
+          pins.forEach(pin=>addPin(pin,true,{silent:true}));
+          focusMapOnProject({address:data.sample.address,lat:data.sample.lat,lng:data.sample.lng,pins});
+          updateModalTitle(); renderWorkflowState(); queueAutosaveNotice();
+        }catch(error){showToast('Development report',error.message,false);}finally{button.disabled=false;}
+      };
+    }
+    const toggle=$('#rInstantDevelopmentReport');
+    if(toggle&&!toggle.querySelector('[data-development-submit]')){const button=document.createElement('button');button.type='button';button.dataset.developmentSubmit='';button.className='r-btn';button.textContent='Use completed report';button.onclick=e=>{e.preventDefault();if(instantDevelopmentReport())onSubmit({preventDefault(){}});};toggle.append(button);}
+    const order=$('#rOrderMeasurements');
+    if(order)order.onclick=()=>{ requestedWorkflow='report'; reportSelection='roof'; locationConfirmed=false; setActivePreviewTab('map'); renderWorkflowState(); queueAutosaveNotice(); };
+    const check=$('#rInstantDevelopmentCheck');
+    if(check)check.onchange=()=>{renderWorkflowState();};
+    developmentCapabilityLoad ||= postAction('development_report_capability',{}).then(({data})=>{developmentReportsEnabled=data?.enabled===true;}).catch(()=>{});
+    developmentCapabilityLoad.then(syncDevelopmentReportControls);
+  }
+
   // Doc-first workflows ("New Proposal"/"New Invoice"/…): the document type to
   // preselect in the create wizard, and whether the left-column project picker
   // was dismissed in favor of building a brand-new project.
@@ -3030,7 +3095,7 @@ window.PlatformCommerce.onReady(async function(){
   function reportExpediteChoiceComplete(){ return !reportExpediteOptionsEnabled() || !hasSelectedAddons() || reportOrderingClosed() || !!selectedReportExpediteOption(); }
   function roofStepComplete(){ return isProposalChoice() || isScheduleChoice() || (hasSelectedAddons() && locationConfirmed && reportExpediteChoiceComplete()); }
   function customerStepVisible(){ return roofDecisionMade() && roofStepComplete(); }
-  function canSubmit(){ if (window.Portal.ExteriorOrder?.needsChoice()) return false; if (window.Portal.ExteriorOrder?.active()) return window.Portal.ExteriorOrder.ready(); return !!(addressSelected && selectedType && roofDecisionMade() && roofStepComplete()); }
+  function canSubmit(){ if (instantDevelopmentReport()) return true; if (window.Portal.ExteriorOrder?.needsChoice()) return false; if (window.Portal.ExteriorOrder?.active()) return window.Portal.ExteriorOrder.ready(); return !!(addressSelected && selectedType && roofDecisionMade() && roofStepComplete()); }
   function roofReportControlsUnlocked(){
     return !hasSelectedAddons() || shouldUseMobileOrderPagination() || !!locationConfirmed;
   }
@@ -6476,7 +6541,7 @@ window.PlatformCommerce.onReady(async function(){
   // which the mobile pager changes, so callers must evaluate this fresh rather than copy a stale
   // submit.disabled value computed before the page changed.
   function orderSubmitBlocked(){
-    return !canSubmit() || selectedReportExpeditePricingPending() || (isScheduleChoice() && !scheduleHasDraft());
+    return !canSubmit() || (!instantDevelopmentReport() && selectedReportExpeditePricingPending()) || (isScheduleChoice() && !scheduleHasDraft());
   }
 
   function setSubmitBusyLabel(button, label){
@@ -8882,14 +8947,15 @@ window.PlatformCommerce.onReady(async function(){
       expediteRefundAt: data?.manifest?.report_expedite_refund_at || data?.project?.report_expedite_refund_at || '',
       expediteRefundMessage: data?.manifest?.report_expedite_refund_message || data?.project?.report_expedite_refund_message || '',
       submittedAt: data?.project?.created_at || data?.manifest?.created_at || new Date().toISOString(),
-      hasReadyReport: false,
+      hasReadyReport: data?.development_report === true,
+      status: data?.manifest?.status || '',
     };
     activeBaseProject = window.Portal.ProjectStore?.fromQueue?.(payload, data) || null;
     if (activeBaseProject) activeBaseProject.events = Array.isArray(activeBaseProject.events) ? activeBaseProject.events : [];
     if (activeBaseProject) syncProjectPhotosFromLibrary();
     setProjectionMode(true);
     refreshProjectModalAppsForOrderTransition();
-    setActiveMeasurementTab(reportOrderState.includeInspection ? 'instant' : 'standard');
+    setActiveMeasurementTab(data?.development_report ? 'model' : (reportOrderState.includeInspection ? 'instant' : 'standard'));
     projectViewer?.setActiveTab('measurements');
     renderMeasurementsPanel();
     refreshProjectModalAppsForOrderTransition('measurements');
@@ -8936,6 +9002,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function renderWorkflowStateBody(options = {}){
+    syncDevelopmentReportControls();
     const preserveRouteTab = options.preserveRouteTab === true;
     normalizeReportSelection();
     if (shouldLockReportOrderingWorkflow()) {
@@ -9656,12 +9723,14 @@ window.PlatformCommerce.onReady(async function(){
     }, { signal: projectFormListeners.signal });
     $('#rCcAdd')?.addEventListener('click', () => addCcRow(''), { signal: projectFormListeners.signal });
     $('#rAddContact')?.addEventListener('click', (event) => openContactPicker(event.currentTarget), { signal: projectFormListeners.signal });
+    bindDevelopmentReportControls();
     $('#rForm')?.addEventListener('submit', onSubmit, { signal: projectFormListeners.signal });
     $('#rAddress')?.addEventListener('focus', () => {
       initMapOnce();
       preferMapForNewProjectInput();
     }, { signal: projectFormListeners.signal });
     $('#rAddress')?.addEventListener('input', () => {
+      developmentReportSample=null; developmentSampleGeneration++;
       if (shouldUseMobileOrderPagination() && addressSelected) {
         addressSelected = false;
         locationConfirmed = false;
@@ -9981,7 +10050,8 @@ window.PlatformCommerce.onReady(async function(){
 
   async function onSubmit(e){
     e.preventDefault();
-    if (!window.Portal.ExteriorOrder?.active() && selectedReportExpeditePricingPending()) {
+    if(developmentReportSubmitting)return;
+    if (!instantDevelopmentReport() && !window.Portal.ExteriorOrder?.active() && selectedReportExpeditePricingPending()) {
       showToast((globalThis.PlatformLanguage?.text("project-request","m_de248990c3b2ce","Pricing still loading") ?? "Pricing still loading"), (globalThis.PlatformLanguage?.text("project-request","m_16748599c5acea","Please wait for the current expedited price before ordering.") ?? "Please wait for the current expedited price before ordering."), false);
       updateSubmitLabel();
       syncMobileOrderPagination();
@@ -10054,11 +10124,11 @@ window.PlatformCommerce.onReady(async function(){
       return;
     }
     setSubmitBusyLabel(activeSubmitButton(), 'Ordering...');
-    const ok = await ensureCreditsOrGate();
+    const ok = instantDevelopmentReport() || await ensureCreditsOrGate();
     if (!ok) return;
 
     const submitAddress = ($('#rAddress').value || '').trim();
-    if (submitAddress && !reorderSourceProjectId) {
+    if (submitAddress && !reorderSourceProjectId && !instantDevelopmentReport()) {
       const btn = activeSubmitButton();
       setSubmitBusyLabel(btn, 'Submitting...');
       const dup = await findDuplicateProject(submitAddress);
@@ -10111,7 +10181,11 @@ window.PlatformCommerce.onReady(async function(){
       reorder_project_id: shouldReopenReorderSource ? reorderSourceProjectId : '',
       source_project_id: shouldReopenReorderSource ? reorderSourceProjectId : '',
       ...window.Portal.ExteriorOrder?.payload(),
+      ...(instantDevelopmentReport() ? {instant_development_report:'1',development_selection_token:developmentReportSample.selection_token,measurement_scope:developmentReportScope()} : {}),
     };
+    developmentReportSubmitting=instantDevelopmentReport();
+    const developmentButton=$('[data-development-submit]');
+    if(developmentButton)developmentButton.disabled=developmentReportSubmitting;
     try {
       const { data } = await postAction('queue', payload);
       if (!data || !data.success) {
@@ -10134,10 +10208,13 @@ window.PlatformCommerce.onReady(async function(){
         return;
       }
       try { localStorage.removeItem(PENDING_ORDER_KEY); } catch (ex) {}
-      showToast(payload.measurement_scope === 'full_house' ? 'Full Structure report ordered' : 'Roof report ordered', getAfterHoursMessage() || 'Report is now processing.', true);
+      showToast(data.development_report ? 'Development report ready' : (payload.measurement_scope === 'full_house' ? 'Full Structure report ordered' : 'Roof report ordered'), data.development_report ? 'Existing report files are ready to view.' : (getAfterHoursMessage() || 'Report is now processing.'), true);
       const shouldUpdateExistingProject = !!String(payload.platform_project_id || payload.base_project_id || '').trim();
       reorderMeasurementProjectId = '';
       reorderSourceCanReopenInPlace = false;
+      if(data.development_report){
+        Object.assign(payload,{report_mode:'full',include_gutter_measurements:data.manifest?.include_gutter_measurements?'1':'0',include_weather_report:'0',is_expedited:'0',report_expedite_option:'',report_expedite_label:'',report_due_window_start:'',report_due_window_end:'',report_due_window_label:'',report_production_deadline_at:''});
+      }
       enterReportOrderedMode(data, payload);
       window.dispatchEvent(new CustomEvent(activeBaseProject ? 'fm:projects:optimistic-update' : 'fm:projects:optimistic-add', {
         detail: activeBaseProject
@@ -10171,6 +10248,9 @@ window.PlatformCommerce.onReady(async function(){
       showToast((globalThis.PlatformLanguage?.text("project-request","m_cb54e163f7df44","Couldn’t submit order") ?? "Couldn’t submit order"), error?.message || 'Connection error. Please try again.', false);
       window.Portal.credits.refreshCredits().catch(() => null);
       window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
+    } finally {
+      developmentReportSubmitting=false;
+      if(developmentButton)developmentButton.disabled=false;
     }
   }
 
@@ -10337,7 +10417,7 @@ window.PlatformCommerce.onReady(async function(){
           || !!summaryUrl
         ),
       };
-      setActiveMeasurementTab(cancelledMeasurement ? 'standard' : (reportOrderState.includeInspection ? 'instant' : 'standard'));
+      setActiveMeasurementTab(cancelledMeasurement ? 'standard' : (reportOrderState.hasReadyReport ? 'model' : (reportOrderState.includeInspection ? 'instant' : 'standard')));
       setProjectionMode(true);
       if (!options.preferredTab) setActivePreviewTab('measurements');
     }
@@ -10354,6 +10434,7 @@ window.PlatformCommerce.onReady(async function(){
     viewingExistingProject = false;
     newProjectCreationSession = false;
     reportOrderState = null;
+    developmentReportSample=null; developmentSampleGeneration++;
     requestedWorkflow = 'project';
     requestedDocumentType = '';
     requestedDocumentResume = null;
