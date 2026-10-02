@@ -31,23 +31,49 @@ Existing generated report files are not rewritten by this source change.
 - Test artifacts: ignored `output/report-localization/` and
   `output/metric-reports-20261001/`.
 
-## Development deployment: blocked, not activated
+## Development deployment: activated and verified
 
-The user authorized development deployment to `dev.1m8.ai`. No production
-deployment is authorized.
+Source release: `19f22a0983b91a53fd043a0373b27b0a89fead71`, pushed on the
+canonical branch and activated on all four development roles. Production was
+not changed. The initial attempt was blocked by SSH timeouts. On retry,
+per-command `IPQoS=none` restored access; the user's SSH configuration was not
+modified. The ignored deployment SSH config includes the existing SSH config
+and adds only that transport option. Private keys stayed local.
 
-Repeated SSH attempts to the configured `dev-sync-droplet` jump host time out;
-the development inventory through that host and a direct connection to the
-known development web host also time out. No remote files or services were
-modified. The public development readiness endpoint remains healthy with
-development data and outbound isolation enforced; it reported release
-`9775015b23df8db33b479508c8057f185d7a70de` during this attempt.
+The three live report scripts on every role matched the pre-change source
+commit. Immutable role-specific releases preserve each role's unrelated live
+baseline and runtime assets; only `pdf.js`, `exterior_pdf.js` and `report.js`
+were overlaid. Worker PDF assets are included. Hardlinked files and release
+metadata were detached before writing. Source syntax, readiness, runtime
+release identity, development data and outbound isolation passed on all roles.
+PHP-FPM was reloaded on the compatibility and web roles.
 
-Resume by restoring SSH connectivity, inventorying all development roles again,
-and comparing the three changed editor/runtime scripts against their live
-versions. Preserve role-specific baseline differences. Stage the exact scoped
-commit using the existing immutable overlay workflow, including the worker's
-PDF runtime assets. Activate roles sequentially, verify hashes/readiness and
-generated metric output, and record each previous release for rollback.
-No live-baseline assumptions or deployment payloads have been finalized while
-SSH is unavailable.
+| Role | Previous release | New release |
+| --- | --- | --- |
+| Web | `9775015b23df8db33b479508c8057f185d7a70de` | `19f22a0983b91a53fd043a0373b27b0a89fead71` |
+| Worker | `1e0858b281c905950e7d6476d67357d77f37e123` | `19f22a0983b91a53fd043a0373b27b0a89fead71` |
+| Compatibility | `9775015b23df8db33b479508c8057f185d7a70de` | `19f22a0983b91a53fd043a0373b27b0a89fead71` |
+| Web pool | `9775015b23df8db33b479508c8057f185d7a70de` | `19f22a0983b91a53fd043a0373b27b0a89fead71` |
+
+Public readiness confirms the new development release and enforced isolation.
+All three public editor scripts and the server PDF runtime endpoint match the
+tested source hashes. The 14 fixture PDFs were regenerated using the downloaded
+development report scripts: all metric exclusions and retained-measurement
+assertions passed, and default/explicit imperial output remains byte-identical.
+This verifies deployed rendering code with synthetic fixtures; it does not
+rewrite existing customer reports or submit a customer project.
+
+Deployment manifest, per-role payloads, SSH config, public verification and
+rendered fixture output are in ignored `output/metric-reports-20261001/`.
+Each installed release has `channels-release.json` recording the actual prior
+path and hashes. Compatibility is staged under
+`/opt/firstmeasure/releases-root-archive/`; the other roles use
+`/opt/firstmeasure/releases/`.
+
+## Rollback
+
+Check that the role still runs this release before rolling it back. Restore
+`/opt/firstmeasure/current` to that role's receipt `previous_path`, restart its
+`firstmeasure-development-{web,worker,legacy}.service`, and reload PHP-FPM for
+web/compatibility. Verify readiness, previous runtime release, development data
+and outbound isolation. Do not modify shared hardlinked release files in place.
