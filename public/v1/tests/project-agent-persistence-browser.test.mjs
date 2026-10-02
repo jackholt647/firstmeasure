@@ -13,7 +13,7 @@ test('project voice pins across trays, survives minimizing and transfers out of 
    const messages={main:[],p1:[],p2:[]};window.sent=[];window.starts=[];window.stops=[];window.tracks=[];
    window.AssistantAPI={context:async()=>({main_thread:threads.main,threads:[threads.main],agents:[],dashboard:[]}),
     projectConversation:async(_o,p)=>({thread:threads['p'+p]}),thread:async(_o,t)=>({thread:threads[t],messages:messages[t]}),
-    send:async(o,t,b)=>{sent.push({o,t,b});messages[t].push({role:'user',content:b.message},{role:'assistant',content:'Done for '+t});return{thread:threads[t],assistant_message:{role:'assistant',content:'Done for '+t}};},
+    send:async(o,t,b)=>{sent.push({o,t,b});messages[t].push({role:'user',content:b.message},{role:'assistant',content:'Done for '+t});return{actions:window.nextActions || [],thread:threads[t],assistant_message:{role:'assistant',content:'Done for '+t}};},
     startVoice:async(o,t)=>{starts.push({o,t});return{transport:{sdp:'answer'},close_token:'signed'};},closeVoice:async(o,t)=>{stops.push(t);}};
    Object.defineProperty(navigator,'mediaDevices',{value:{getUserMedia:async()=>{const t=new EventTarget();t.enabled=true;t.stop=()=>t.stopped=true;tracks.push(t);return{getTracks:()=>[t],getAudioTracks:()=>[t]};}}});
    window.RTCPeerConnection=class extends EventTarget{
@@ -42,7 +42,12 @@ test('project voice pins across trays, survives minimizing and transfers out of 
  await frame.getByRole('tab',{name:'Agent',exact:true}).click();
  await frame.getByRole('button',{name:'Pin assistant',exact:true}).click();
  await frame.getByRole('button',{name:'Start voice conversation',exact:true}).click();await page.waitForFunction(()=>starts.length===1);
- await frame.getByRole('tab',{name:'Notes',exact:true}).click();
+ await page.evaluate(()=>window.nextActions=[{kind:'project_tray',project_id:'1',tray:'notes'}]);
+ await frame.getByRole('textbox',{name:'Message',exact:true}).fill('Open notes');
+ await frame.getByRole('button',{name:'Send',exact:true}).click();
+ await frame.waitForFunction(()=>document.querySelector('[data-tray=notes]').getAttribute('aria-selected')==='true');
+ assert.equal(await page.evaluate(()=>sent[0].b.ui_context.projectId),'1');
+ assert.equal(await page.evaluate(()=>sent[0].b.ui_context.tray),'agent');
  assert.equal(await frame.locator('.fm-project-agent-pin').isVisible(),true);
  await frame.getByRole('button',{name:'Mute microphone',exact:true}).click();assert.equal(await page.evaluate(()=>tracks[0].enabled),false);
  await page.locator('#project').evaluate(e=>e.style.visibility='hidden');await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>!!tracks[0].stopped),false);

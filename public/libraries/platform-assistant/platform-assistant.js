@@ -2468,7 +2468,7 @@
 
   const globalAssistant = createAssistant();
   let adoptedAssistant=null;
-  const publicApi={...globalAssistant,adopt(instance){globalAssistant.close();adoptedAssistant=instance;},mountProject(container, options = {}) {
+  const publicApi={...globalAssistant,adopt(instance){globalAssistant.close();if(adoptedAssistant && adoptedAssistant!==instance){adoptedAssistant.close();adoptedAssistant.destroy();}adoptedAssistant=instance;},mountProject(container, options = {}) {
     if (!container || !String(options.projectId || '').trim()) throw new Error('A project is required.');
     // The outer portal owns the live connection, so removing the project iframe cannot end a transferred call.
     try { if (window.parent!==window && window.parent.PlatformAssistant?.mountProject) return window.parent.PlatformAssistant.mountProject(container,options); } catch (_) {}
