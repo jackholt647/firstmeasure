@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 2 project identity: [Early headers, all-contact titles and contact shortcuts](deploy/digitalocean/development-project-dropdown-polish-20261002.md) records shared opening headers, title options, flat dropdowns and communications shortcuts.
+
 October 2 project header: [Editable identity, header tags and restore animation](deploy/digitalocean/development-project-header-identity-20261002.md) records the project details dropdown, anchored stage selection and smooth minimized restoration.
 
 October 2 partner assignments: [Configurable partner organizations and exposed teams](deploy/digitalocean/development-partner-assignments-20261002.md) records group-type setup, privacy controls, scheduling validation and the verified development rollout.
