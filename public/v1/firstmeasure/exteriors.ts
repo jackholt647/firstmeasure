@@ -8,7 +8,7 @@ import { buildReportExpediteOptions } from "./expedite.js";
 export const EXTERIOR_VIEWS = ["front", "front-right", "right", "back-right", "back", "back-left", "left", "front-left"] as const;
 export const isCustomerExteriorId = (id:unknown) => /^exteriors_[a-f0-9]{32}$/.test(String(id ?? ""));
 export async function requireExteriorAccess(orgId:string, projectType:string) {
-  if (!["residential","commercial","multifamily"].includes(projectType) || !await isCapabilityEnabled(orgId,"firstmeasure.exteriors") || (projectType!=="residential" && !await isCapabilityEnabled(orgId,`firstmeasure.exteriors_${projectType}`))) {
+  if (projectType!=="residential" || !await isCapabilityEnabled(orgId,"firstmeasure.exteriors")) {
     throw new FirstMeasureError("exteriors_disabled",403,"Full-house reports are not enabled for this property type.");
   }
 }

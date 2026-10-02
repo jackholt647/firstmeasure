@@ -21,6 +21,7 @@ export function developmentCriteria(body: JsonObject) {
   const type = String(body.project_type || 'residential');
   const scope = String(body.measurement_scope || 'roof');
   if (!['residential', 'commercial', 'multifamily'].includes(type) || !['roof', 'full_house'].includes(scope)) throw badRequest('invalid_sample_criteria', 'Choose a property type and report scope.');
+  if (scope === 'full_house' && type !== 'residential') throw badRequest('invalid_sample_criteria', 'Full-house reports are available for residential properties only.');
   return { type, scope };
 }
 const signature = (text: string) => createHmac('sha256', env.platformSessionSecret).update(`development-report:${text}`).digest('base64url');

@@ -385,7 +385,7 @@
 
   const label=v=>v.split('-').map(s=>s[0].toUpperCase()+s.slice(1)).join(' ');
   const money=n=>window.PlatformCommerce.credit(n);
-  const allowed=type=>P.capabilities?.value?.('firstmeasure.exteriors',false)===true && (type==='residential'||P.capabilities?.value?.('firstmeasure.exteriors_'+type,false)===true);
+  const allowed=type=>type==='residential' && P.capabilities?.value?.('firstmeasure.exteriors',false)===true;
   const active=()=>scope==='full_house' && ctx && allowed(ctx.type) && !ctx.ordered;
   const closed=()=>ctx?.closed===true||quote?.ordering_closed===true;
   const option=()=>quote?.options.find(o=>o.key===delivery);
@@ -602,7 +602,7 @@
       body+=`<div class="ext-nav">${page?`<button type="button" data-back>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_121372231b5699","Back") ?? "Back")}</button>`:''}<button type="button" class="primary" data-next ${busy||!!error||!quote||!pinsConfirmed()||(page===1&&!photosReviewable())||(page===2&&!!orderBlocker())?'disabled':''}>${busy?'Please wait…':page===2?'Order Full Structure · '+money(q?.amount):page===0?'Continue to capture →':'Review order →'}</button></div>`;
     }
     guideNode?.remove();recNode?.remove();
-    root.innerHTML=`<div class="ext-choices ${scope?'compact':''}">${[['roof','Roof Only','fa-house-chimney'],['full_house','Full Structure','fa-house']].map(([key,title,icon])=>`<div class="ext-choice-wrap"><button type="button" class="ext-choice ${String(scope===key?'selected':'')}" data-scope="${String(key)}" data-addon-info="${String(key)}" aria-pressed="${String(scope===key)}"><strong>${String(scopeIcon(key))} ${String(title)}</strong></button><button type="button" class="ext-choice-info r-info-tip" data-details="${String(key)}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_79e68d505c1bac",`${v7} report information`,{v7}) ?? `${v7} report information`)(title)}"><i class="fas fa-info" aria-hidden="true"></i></button></div>`).join('')}</div><div class="ext-pages">${body}</div>${error?`<p class="ext-error" role="alert">${esc(error)} <button type="button" ${!quote?'data-reload':'data-dismiss-error'}>${!quote?'Retry':'Dismiss'}</button></p>`:''}`;
+    root.innerHTML=`<div class="ext-choices ${scope?'compact':''}">${[['roof','Roof Only','fa-house-chimney'],['full_house','Full Structure','fa-house']].map(([key,title,icon])=>`<div class="ext-choice-wrap"><button type="button" class="ext-choice ${String(scope===key?'selected':'')}" data-scope="${String(key)}" aria-pressed="${String(scope===key)}"><strong>${String(scopeIcon(key))} ${String(title)}</strong></button><button type="button" class="ext-choice-info r-info-tip" data-details="${String(key)}" data-addon-info="${String(key)}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_79e68d505c1bac",`${v7} report information`,{v7}) ?? `${v7} report information`)(title)}"><i class="fas fa-info" aria-hidden="true"></i></button></div>`).join('')}</div><div class="ext-pages">${body}</div>${error?`<p class="ext-error" role="alert">${esc(error)} <button type="button" ${!quote?'data-reload':'data-dismiss-error'}>${!quote?'Retry':'Dismiss'}</button></p>`:''}`;
     if(active()&&page===0){mountShared('rPinInfo','[data-pin-mount]');if(!mobileOrder)mountShared('rMobilePinStage','[data-confirm-mount]');mountShared('rTechNotes','[data-notes-mount]',true);mountShared('rCcList','[data-cc-mount]',true);}
     root.querySelectorAll('[data-details]').forEach(b=>{b.onclick=e=>{e.stopPropagation();ctx.showInfo?.(b.dataset.details);};});
     root.querySelectorAll('[data-addon-info]').forEach(b=>{b.onmouseenter=()=>ctx.hoverInfo?.(b);b.onmouseleave=()=>ctx.hideInfo?.();b.onfocus=()=>ctx.hoverInfo?.(b);b.onblur=()=>ctx.hideInfo?.();});
@@ -700,7 +700,7 @@
     });
   }
 
-  P.ExteriorOrder={active,reset,render,renderPhotos:renderPhotoWorkspace,offersChoice:type=>allowed(type),selectedScope:type=>ctx?.type===type?scope:null,
+  P.ExteriorOrder={active,reset,render,renderPhotos:renderPhotoWorkspace,offersChoice:type=>allowed(type),selectedScope:type=>['commercial','multifamily'].includes(type)?'roof':ctx?.type===type?scope:null,
     mobileDetailsReady:()=>active()&&pinsConfirmed()&&!!option()&&!busy&&!error,
     mobilePhotosReady:()=>active()&&photosReviewable(),
     mobilePhotoSummary:()=>photoSummary,

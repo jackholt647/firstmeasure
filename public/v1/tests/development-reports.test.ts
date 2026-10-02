@@ -18,7 +18,12 @@ test('development copies require a developer, matching signed selection and comp
   assert.equal(await service.developmentReportsAllowed(ordinary),false);
   await assert.rejects(service.copyDevelopmentReport(ordinary,{}),/developer access/);
   assert.throws(()=>service.developmentCriteria({project_type:'invalid'}));
-  assert.deepEqual(service.developmentCriteria({project_type:'commercial',measurement_scope:'full_house'}),{type:'commercial',scope:'full_house'});
+  for(const project_type of ['commercial','multifamily']) {
+    assert.throws(()=>service.developmentCriteria({project_type,measurement_scope:'full_house'}),/residential/);
+    const {requireExteriorAccess}=await import('../firstmeasure/exteriors.js');
+    await assert.rejects(requireExteriorAccess('dev-org',project_type),/not enabled/);
+  }
+  assert.deepEqual(service.developmentCriteria({project_type:'residential',measurement_scope:'full_house'}),{type:'residential',scope:'full_house'});
   Object.assign(env,{isDevelopment:false});assert.equal(await service.developmentReportsAllowed(auth),false);Object.assign(env,{isDevelopment:true});
   Object.assign(env,{dataEnvironment:'production'});assert.equal(await service.developmentReportsAllowed(auth),false);Object.assign(env,{dataEnvironment:'development'});
   const source='development-source';

@@ -6180,15 +6180,25 @@ window.PlatformCommerce.onReady(async function(){
     if (!toggle || isMobileProjectOrder()) return;
     const key = toggle.dataset.addonInfo || toggle.dataset.reportAddon || '';
     const pop = addonInfoPopout();
-    const right = document.getElementById('rMapWrap');
-    if (!key || !pop || !right) return;
+    const map = document.getElementById('rMap');
+    if (!key || !pop || !map) return;
     clearTimeout(addonInfoHideTimer);
-    pop.innerHTML = reportAddonInfoHtml(key);
+    pop.classList.remove('visible');
+    const mapRect = map.getBoundingClientRect();
     const toggleRect = toggle.getBoundingClientRect();
-    const rightRect = right.getBoundingClientRect();
-    const top = Math.max(18, Math.min(rightRect.height - 260, toggleRect.top - rightRect.top));
-    pop.style.top = `${top}px`;
+    // Overview owns the form inside the panel now; rMapWrap spans both columns.
+    // Keep hover help entirely within the actual map, clear of order controls.
+    if (mapRect.width < 200 || mapRect.height < 100 || mapRect.left < toggleRect.right) return;
+    pop.innerHTML = reportAddonInfoHtml(key);
+    pop.style.boxSizing = 'border-box';
+    pop.style.width = `${Math.min(360, mapRect.width - 24)}px`;
+    pop.style.maxHeight = `${mapRect.height - 24}px`;
+    pop.style.overflowY = 'auto';
     pop.classList.add('visible');
+    const parentRect = pop.offsetParent.getBoundingClientRect();
+    const top = Math.max(mapRect.top + 12, Math.min(mapRect.bottom - pop.offsetHeight - 12, toggleRect.top));
+    pop.style.left = `${mapRect.left + 12 - parentRect.left}px`;
+    pop.style.top = `${top - parentRect.top}px`;
   }
 
   function closeAddonInfoModal(){
