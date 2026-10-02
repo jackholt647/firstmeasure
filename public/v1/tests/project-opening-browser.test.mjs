@@ -204,3 +204,36 @@ test('unchanged project tab renders preserve button identity and keyboard focus'
     }),true);
   }finally{await browser.close();}
 });
+
+
+test('opening Schedule visibility uses the incoming project instead of stale modal state',async()=>{
+  const app=await source('libraries/apps/project-request/app.js');
+  const fn=name=>{
+    const start=app.indexOf(`  function ${name}(`);
+    assert.ok(start>=0);
+    return app.slice(start,app.indexOf('\n  }',start)+4);
+  };
+  // This predicate is intentionally a single line in the application.
+  const predicate=app.match(/  function schedulePreviewAvailable\([^\n]+/)[0];
+  let enabled=true;
+  const context={
+    activeBaseProject:null,addressSelected:false,schedulingEnabled:()=>enabled,
+    PROJECT_MODAL_APP_PREFIX:'project.',
+    projectModalRuntimeContext:()=>({schedulePreviewAvailable:false}),
+    projectModalTabId:meta=>meta.id.replace('project.',''),
+    projectModalAppsShouldInlineMap:()=>false,docWorkflowStandaloneActive:()=>false,
+    window:{Portal:{},FirstMateEmbeddableApps:{listApps:ctx=>[
+      {id:'project.map',app:{kind:'project_modal_app'}},
+      ...(ctx.schedulePreviewAvailable ? [{id:'project.schedule',app:{kind:'project_modal_app'}}] : [])
+    ]}}
+  };
+  vm.createContext(context);
+  vm.runInContext(predicate+'\n'+fn('projectModalApps'),context);
+  const ids=project=>Array.from(context.projectModalApps({opening:true,project}),app=>app.id);
+  assert.deepEqual(ids({id:'project_incoming'}),['map','schedule']);
+  enabled=false;
+  assert.deepEqual(ids({id:'project_incoming'}),['map'],'disabled scheduling stays hidden');
+  enabled=true;
+  context.activeBaseProject={id:'previous_project'};context.addressSelected=true;
+  assert.deepEqual(ids(null),['map'],'a new empty project does not inherit Schedule from the previous modal');
+});

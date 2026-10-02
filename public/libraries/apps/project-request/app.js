@@ -866,13 +866,13 @@ window.PlatformCommerce.onReady(async function(){
     #rProjectIdentityTrigger[aria-expanded=true]::after{transform:translateY(2px) rotate(225deg)}
     .r-window-identity .r-project-tag i{color:inherit;flex:none}
     .r-project-identity-fields{padding:14px;gap:14px}
-    .r-project-identity-popover .r-contact-card,.r-project-identity-popover .r-contact-list.has-multiple .r-contact-card{border:0;border-radius:0;box-shadow:none;background:none;padding:0 0 14px;margin:0}
+    .r-project-identity-popover .r-contact-card,.r-project-identity-popover .r-contact-list.has-multiple .r-contact-card{border:0;border-radius:0;box-shadow:none;background:none;padding:0;margin:0}
     .r-project-identity-popover .r-contact-card+.r-contact-card{border-top:1px solid #e4e7ec;padding-top:14px}
     .r-project-identity-popover .r-contact-card::before{content:'Contact';grid-column:1 / -1;font-size:11px;font-weight:700;color:#667085;margin-bottom:4px}
     .r-project-identity-popover .r-contact-card.primary::before{content:'Primary Contact'}
     .r-project-identity-popover .r-contact-card{display:block}
     .r-project-identity-popover .r-contact-card::before{display:block;min-height:26px;padding-right:64px}
-    .r-project-identity-popover .r-contact-card .r-inline{grid-template-columns:minmax(0,1fr);gap:7px}
+    .r-project-identity-popover .r-contact-card .r-inline{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center}
     .r-project-identity-popover .r-contact-card .r-contact-email-row{margin-top:7px}
     .r-project-identity-popover .r-contact-actions{position:absolute;right:0;top:0;flex-direction:row}
     .r-project-identity-popover .r-contact-card+.r-contact-card .r-contact-actions{top:14px}
@@ -3032,7 +3032,7 @@ window.PlatformCommerce.onReady(async function(){
     return permissions['*'] === true || permissions.manage_projects === true;
   }
   function schedulingEnabled(){ return appFeatureEnabled('platform', 'scheduling', false); }
-  function schedulePreviewAvailable(){ return schedulingEnabled() && (addressSelected || !!activeBaseProject); }
+  function schedulePreviewAvailable(project = activeBaseProject, hasSelectedAddress = addressSelected){ return schedulingEnabled() && (hasSelectedAddress || !!project); }
   function firstMeasureReportOrdersEnabled(){ return appFeatureEnabled('firstmeasure', 'report_orders', true); }
   function reportsEnabled(){ return firstMeasureReportOrdersEnabled(); }
   function gutterReportsEnabled(){ return appFeatureEnabled('firstmeasure', 'gutter_reports', false); }
@@ -7202,7 +7202,7 @@ window.PlatformCommerce.onReady(async function(){
     const context = projectModalRuntimeContext();
     if(options.opening){
       const project=options.project;
-      Object.assign(context,{project,activeProject:project,entity:project,projectId:project?.id || '',entityId:project?.id || ''});
+      Object.assign(context,{project,activeProject:project,entity:project,projectId:project?.id || '',entityId:project?.id || '',schedulePreviewAvailable:schedulePreviewAvailable(project, false)});
     }
     const apps = runtime.listApps(context)
       .filter((meta) => meta?.id && meta.id !== 'project.request')
