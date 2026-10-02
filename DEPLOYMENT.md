@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 2 project header: [Editable identity, header tags and restore animation](deploy/digitalocean/development-project-header-identity-20261002.md) records the project details dropdown, anchored stage selection and smooth minimized restoration.
+
 October 2 partner assignments: [Configurable partner organizations and exposed teams](deploy/digitalocean/development-partner-assignments-20261002.md) records group-type setup, privacy controls, scheduling validation and the verified development rollout.
 
 October 2 project tabs: [Earlier headers and animated tab reveal](deploy/digitalocean/development-project-tab-reveal-20261002.md) records the loading scrollbar fix, shared tray styling, parent metadata reuse and independent header/content rendering.
