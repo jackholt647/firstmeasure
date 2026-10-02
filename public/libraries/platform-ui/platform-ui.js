@@ -12,6 +12,7 @@
     tooltipHideTimer: null,
     tooltipSuppressedTarget: null,
     tooltipObserver: null,
+    tooltipFrame: null,
     toastTimer: null,
     listenersBound: false,
   };
@@ -238,7 +239,7 @@
   function positionTooltip(target){
     // A re-render can remove the hovered element without a mouseout; its rect
     // is then all zeros and the tooltip would pin to the viewport's corner.
-    if (!target?.isConnected) {
+    if (!target?.isConnected || !target.getClientRects().length || target.closest('[hidden],[inert]')) {
       if (state.tooltipTarget === target) hideTooltip();
       return;
     }
@@ -288,9 +289,32 @@
     tip.style.left = '0px';
     tip.style.top = '0px';
     positionTooltip(target);
+    const initialAnchor = target.getBoundingClientRect();
+    // Layout changes need not emit mouseout (window docking, hiding, reparenting).
+    // Watch only while a tooltip is visible, and dismiss when its anchor moves.
+    const watchAnchor = () => {
+      const rect = target.getBoundingClientRect();
+      const anchor = [rect.x, rect.y, rect.width, rect.height];
+      const check = () => {
+        if (state.tooltipTarget !== target) return;
+        const next = target.getBoundingClientRect();
+        if (!target.isConnected || !target.getClientRects().length || target.closest('[hidden],[inert]') ||
+            [next.x, next.y, next.width, next.height].some((value, i) => Math.abs(value - anchor[i]) > 1)) {
+          hideTooltip();
+          return;
+        }
+        state.tooltipFrame = requestAnimationFrame(check);
+      };
+      cancelAnimationFrame(state.tooltipFrame);
+      state.tooltipFrame = requestAnimationFrame(check);
+    };
     const reveal = () => {
       if (state.tooltipTarget !== target || !target.isConnected) return;
+      const currentAnchor = target.getBoundingClientRect();
+      if (['x', 'y', 'width', 'height'].some(key => Math.abs(currentAnchor[key] - initialAnchor[key]) > 1)) { hideTooltip(); return; }
       positionTooltip(target);
+      if (state.tooltipTarget !== target) return;
+      watchAnchor();
       if (instantSidebarTooltip(target)) {
         tip.classList.add('visible');
         return;
@@ -310,6 +334,8 @@
     clearTimeout(state.tooltipHideTimer);
     state.tooltipShowTimer = null;
     state.tooltipHideTimer = null;
+    cancelAnimationFrame(state.tooltipFrame);
+    state.tooltipFrame = null;
     const tip = state.tooltip;
     tip?.classList.remove('visible');
     state.tooltipTarget = null;
@@ -354,18 +380,19 @@
       if (recentTouch() || pressedHere(event)) return;
       const target = tooltipTargetFrom(event.target);
       if (target && !target.contains(event.relatedTarget)) showTooltip(target, { delay: 280 });
-    });
+    }, true);
     document.addEventListener('mousemove', (event) => {
       const target = tooltipTargetFrom(event.target);
-      if (target && state.tooltipTarget === target) positionTooltip(target);
-    });
+      if (state.tooltipTarget && target !== state.tooltipTarget) hideTooltip();
+      else if (target && state.tooltipTarget === target) positionTooltip(target);
+    }, true);
     document.addEventListener('mouseout', (event) => {
       const target = tooltipTargetFrom(event.target);
       if (target && !target.contains(event.relatedTarget)) {
         if (state.tooltipSuppressedTarget === target) state.tooltipSuppressedTarget = null;
         hideTooltip(target);
       }
-    });
+    }, true);
     // Focus shows a tooltip only when it is keyboard focus (focus a script
     // moved after a click or a dialog must not pop one over the next row).
     const keyboardFocus = (node) => { try { return !!node?.matches?.(':focus-visible'); } catch { return true; } };
@@ -373,14 +400,14 @@
       if (recentTouch() || !keyboardFocus(event.target)) return;
       const target = tooltipTargetFrom(event.target);
       if (target) showTooltip(target, { delay: 120 });
-    });
+    }, true);
     document.addEventListener('focusout', (event) => {
       const target = tooltipTargetFrom(event.target);
       if (target) {
         if (state.tooltipSuppressedTarget === target) state.tooltipSuppressedTarget = null;
         hideTooltip(target);
       }
-    });
+    }, true);
     // Activating a control often opens a native select or a custom popover.
     // Pointer-down precedes focus-in, so remember the target as suppressed;
     // otherwise focus-in immediately schedules the tooltip over the open UI.
@@ -388,20 +415,25 @@
     document.addEventListener('pointerdown', (event) => {
       state.tooltipSuppressedTarget = tooltipTargetFrom(event.target);
       hideTooltip();
-    });
+    }, true);
     document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') { hideTooltip(); return; }
       if (!['Enter', ' ', 'ArrowDown', 'ArrowUp', 'F4'].includes(event.key)) return;
       const target = tooltipTargetFrom(event.target);
       if (!target || !target.matches?.('select,button,[role="button"],[aria-haspopup]')) return;
       state.tooltipSuppressedTarget = target;
       hideTooltip();
-    });
+    }, true);
     window.addEventListener('scroll', () => {
       if (state.tooltipTarget) positionTooltip(state.tooltipTarget);
     }, true);
     window.addEventListener('resize', () => {
       if (state.tooltipTarget) positionTooltip(state.tooltipTarget);
     });
+    window.addEventListener('blur', () => hideTooltip());
+    window.addEventListener('pagehide', () => hideTooltip());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) hideTooltip(); });
+    document.documentElement.addEventListener('mouseleave', () => hideTooltip());
     window.addEventListener('fm:sidebar-mode:changed', () => hideTooltip());
   }
 
