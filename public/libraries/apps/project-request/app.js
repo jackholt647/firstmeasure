@@ -896,6 +896,7 @@ window.PlatformCommerce.onReady(async function(){
     .r-overview-details #rStepAddress{margin-top:14px}
     .r-overview-details .r-contact-list{gap:14px}
     .r-overview-details .r-contact-card .r-inp{font-weight:600}
+    .r-overview-initial-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.r-overview-initial-actions[hidden]{display:none!important}
     .r-workflow-project-picker[hidden]{display:none!important}
     .r-workflow-search-row{display:flex;align-items:center;gap:8px}
     .r-workflow-search-row input{flex:1;min-width:0}
@@ -9287,6 +9288,23 @@ window.PlatformCommerce.onReady(async function(){
     overlay.classList.toggle('overview-focused-report',overviewWorkflowMode === 'report');
     overlay.classList.toggle('overview-project-picker',selecting);
     overlay.classList.toggle('overview-creation-flow',!!overviewWorkflowMode);
+    let actions=details.querySelector('.r-overview-initial-actions');
+    if (!actions) {actions=document.createElement('section');actions.className='r-overview-initial-actions';details.querySelector('#rStepCustomer')?.after(actions);}
+    actions.hidden=requestedWorkflow!=='project' || !addressSelected || !selectedType;
+    const choices=[['roof','Order report',firstMeasureReportOrdersEnabled()],['proposal','Build proposal',actionAvailable('proposal')],['schedule','Schedule appointment',actionAvailable('schedule')]].filter(item=>item[2]);
+    const signature=choices.map(item=>item[0]).join(',');
+    if (actions.dataset.choices!==signature) {
+      actions.dataset.choices=signature;actions.replaceChildren();
+      for (const [key,label] of choices) {const button=document.createElement('button');button.type='button';button.className='r-toggle-btn';button.textContent=label;
+        button.onclick=()=>{
+          if (key==='roof') {
+            if (hasReportOrdered()) applyReorderPrefillState(activeBaseProject || {});
+            requestedWorkflow='report';overviewWorkflowMode='report';reportProjectChoice=activeBaseProject?'existing':'new';reportSelection='roof';locationConfirmed=false;
+            preloadFirstReportCheckoutEligibility();setActivePreviewTab('map');renderWorkflowState();queueAutosaveNotice();
+          } else document.querySelector('.r-toggle-btn[data-report-choice="'+key+'"]')?.click();
+        };actions.append(button);
+      }
+    }
     decorateProjectContactActions(details);
     if (!details.__contactActions) {details.addEventListener('click',handleProjectContactAction);details.__contactActions=true;}
     let picker=details.querySelector('.r-workflow-project-picker');
@@ -9357,7 +9375,7 @@ window.PlatformCommerce.onReady(async function(){
     setStepState('#rStepType', typeReady && (!existingProjectSession || (requestedWorkflow === 'report' && !hasReportOrdered())), selectedType ? 'complete' : (typeReady ? 'active' : 'locked'), !!selectedType && (!mobileOrder || !typePickerExpanded), { hidePrices: isProposalChoice() || isScheduleChoice() });
     $('#rStepType')?.classList.toggle('is-type-collapsing', mobileOrder && mobileTypeTransitioning);
     const mobileReportOpen = mobileOrder && addressSelected && !!selectedType && !mobileTypeTransitioning;
-    const explicitActionWorkflow = requestedWorkflow !== 'contact';
+    const explicitActionWorkflow = !['project','contact'].includes(requestedWorkflow) || !!reportSelection;
     setStepState('#rStepReport', mobileOrder ? mobileReportOpen : (explicitActionWorkflow && reportReady && hasAvailableActions), roofDecisionMade() ? 'complete' : (reportReady ? 'active' : 'locked'), mobileOrder ? false : reportCondensed, { hideHeadWhenCondensed: true });
     const scopeReady = mobileOrderScopeReady();
     $('#rOverlay')?.classList.toggle('mobile-scope-pending', mobileOrder && !scopeReady);

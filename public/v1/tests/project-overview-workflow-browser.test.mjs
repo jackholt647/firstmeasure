@@ -43,9 +43,9 @@ test('report entry searches existing projects, preserves report intent, and swit
  try {
   const page=await browser.newPage();const app=await source('apps/project-request/app.js');
   const begin=app.indexOf('  function syncOverviewWorkflow(){'),end=app.indexOf('  function renderWorkflowStateBody',begin);
-  await page.setContent('<div id="rOverlay"><div class="r-overview-details"><form id="rForm"><input data-field="name"></form></div></div>');
+  await page.setContent('<div id="rOverlay"><div class="r-overview-details"><form id="rForm"><section id="rStepCustomer"><input data-field="name"></section></form></div></div>');
   await page.evaluate(()=>{
-   window.$=selector=>document.querySelector(selector);window.overviewWorkflowMode='report';window.reportProjectChoice='search';window.activeBaseProject=null;
+   window.$=selector=>document.querySelector(selector);window.overviewWorkflowMode='report';window.reportProjectChoice='search';window.activeBaseProject=null;window.requestedWorkflow='report';window.addressSelected=false;window.selectedType='residential';window.firstMeasureReportOrdersEnabled=()=>true;window.actionAvailable=()=>true;
    window.decorateProjectContactActions=()=>{};window.handleProjectContactAction=()=>{};window.updateModalTitle=()=>{};window.scheduleProjectMapInitialize=()=>{};
    window.loadDocPickerRows=async()=>[{id:'p1',label:'Bill & Sarah Jones',address:'123 Main',search:'bill sarah jones 123 main',data:{address:'123 Main'}}];
    window.openProject=async(project,options)=>{window.opened={project,options};};window.renderWorkflowState=()=>syncOverviewWorkflow();
