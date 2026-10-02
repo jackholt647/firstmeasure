@@ -333,3 +333,19 @@ relative to later typed messages during the mounted conversation.
 The official [client delegation guidance](https://developers.openai.com/api/docs/guides/live-delegation)
 directs typed input to the existing backend, with results returned as commentary.
 No provider credentials, tool grants or backend operation implementations change.
+
+
+### Widget view and voice cues (October 2)
+
+Platform widget renders share the assistant's side panel with dashboard artifacts
+in full view. Left is the default; the panel's side switch persists the preference.
+The composer remains a sibling beneath both columns. Close widget view and narrow
+layouts render widgets inline instead. Content widgets retain natural height;
+inline previews cap at the larger of 600px/80vh and expand into the chat scroll,
+without a nested preview scrollbar. Fill widgets use the available panel height
+or a usable inline viewport. Hidden voice-backend messages retain widget renders.
+Closing the side view disposes its mounts before inline replacements are created.
+
+Voice-only Web Audio cues mark starting, connected and hang-up; a low-volume
+connecting pulse ends on readiness, cancellation or failure. Capture stops
+immediately on hang-up; the audio context closes after the short ending tone.

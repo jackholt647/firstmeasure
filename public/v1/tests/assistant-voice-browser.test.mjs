@@ -16,6 +16,8 @@ test('voice connects, delegates once with context, preserves drafts, and release
    closeVoice:async(...args)=>{window.voiceClosed.push(args);},
    upload:async(org,id,file)=>{uploads.push({org,id,name:file.name});return{attachment:{media_id:'uploaded-file'}};},
    send:async(_org,_id,body)=>{window.calls.push(body);if(window.delaySend)await new Promise(resolve=>window.releaseSend=resolve);messages.push({role:'user',content:body.message},{role:'assistant',content:'Your result.'});return{assistant_message:{content:'Your result.'}};}};
+  const NativeAudioContext=window.AudioContext; window.cueFrequencies=[];
+  window.AudioContext=class extends NativeAudioContext{createOscillator(){const oscillator=super.createOscillator(),set=oscillator.frequency.setValueAtTime.bind(oscillator.frequency);oscillator.frequency.setValueAtTime=(value,time)=>{cueFrequencies.push(value);return set(value,time);};return oscillator;}};
   window.tracks=[];Object.defineProperty(navigator,'mediaDevices',{value:{getUserMedia:async()=>{const track=new EventTarget();track.enabled=true;track.stop=()=>{track.stopped=true;};window.tracks.push(track);return{getTracks:()=>[track],getAudioTracks:()=>[track]};}}});
   window.RTCPeerConnection=class extends EventTarget{
    constructor(){super();window.peer=this;}
@@ -32,7 +34,9 @@ test('voice connects, delegates once with context, preserves drafts, and release
   await page.addScriptTag({content:source});
  }
  await page.evaluate(()=>PlatformAssistant.openFull());
- await page.locator('[data-fma=voice]').click();await page.evaluate(()=>window.releaseBoot?.());await page.waitForFunction(()=>document.querySelector('[data-fma=voiceStatus]').textContent==='Listening');
+ await page.locator('[data-fma=voice]').click();await page.waitForFunction(()=>cueFrequencies.includes(240));assert.ok(await page.evaluate(()=>cueFrequencies.includes(380)));await page.evaluate(()=>window.releaseBoot?.());await page.waitForFunction(()=>document.querySelector('[data-fma=voiceStatus]').textContent==='Listening');
+ assert.ok(await page.evaluate(()=>cueFrequencies.includes(960)));
+ const connectingCount=await page.evaluate(()=>cueFrequencies.filter(f=>f===240).length);await page.waitForTimeout(1400);assert.equal(await page.evaluate(()=>cueFrequencies.filter(f=>f===240).length),connectingCount);
  await page.locator('[data-fma=input]').fill('Keep my draft');
  assert.equal(await page.locator('[data-fma=mic]').isVisible(),false);
  assert.equal(await page.locator('[data-fma=voice]').isVisible(),false);
@@ -92,7 +96,7 @@ test('voice connects, delegates once with context, preserves drafts, and release
  await page.setViewportSize({width:1440,height:1000});
  await page.locator('[data-fma=voiceMute]').click();assert.equal(await page.evaluate(()=>tracks[0].enabled),false);
  assert.equal(await page.locator('[data-fma=voiceMute]').getAttribute('aria-label'),'Unmute microphone');
- await page.locator('[data-fma=voiceEnd]').click();assert.equal(await page.evaluate(()=>tracks[0].stopped),true);
+ await page.locator('[data-fma=voiceEnd]').click();assert.equal(await page.evaluate(()=>tracks[0].stopped),true);assert.ok(await page.evaluate(()=>cueFrequencies.includes(540)));
  assert.equal(await page.locator('[data-fma=input]').inputValue(),'Keep my draft');assert.equal(await page.locator('[data-fma=mic]').isDisabled(),false);
  assert.equal(await page.evaluate(()=>voiceClosed.length),1);
  assert.equal(await page.locator('[data-fma=voiceIndicator]').isVisible(),false);

@@ -61,6 +61,7 @@
     collapsed:stored('collapsed', {}),
     boardHidden:stored('boardHidden', false),
     boardWidth:stored('boardWidth', 50),
+    boardSide:stored('boardSide', 'left'),
     mode:'docked',
     returnTab:''
   };
@@ -421,6 +422,8 @@
       .fma-drawer[data-payment-widget=true] .fma-board-items:empty{display:none}
       @media(max-width:850px){.fma-payment-widget{padding-top:50px}.fma-drawer[data-payment-widget=true] .fma-stage{flex-direction:column;overflow:auto}.fma-drawer[data-payment-widget=true] .fma-board{width:100%;max-width:none;min-height:520px;flex:0 0 60vh}.fma-drawer[data-payment-widget=true] .fma-main{min-height:220px}.fma-drawer[data-payment-widget=true] .fma-split{display:none!important}}
       /* Stage: dashboard | splitter | conversation. */
+      .fma-drawer[data-board-side=right] .fma-stage{flex-direction:row-reverse;}
+      .fma-board-items>.fm-widget-presentation{flex:0 0 auto;min-height:100%;}
       .fma-stage{flex:1;min-height:0;display:flex;flex-direction:row;}
       .fma-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;}
       .fma-thread-bar{display:none;flex:0 0 auto;align-items:center;gap:8px;min-height:54px;padding:10px 190px 4px 20px;box-sizing:border-box;}
@@ -432,6 +435,7 @@
       @keyframes fmaBoardSlide{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}
       @media(prefers-reduced-motion:reduce){.fma-drawer[data-board=open] .fma-board{animation:none}}
       .fma-board-head{flex:0 0 auto;display:flex;align-items:center;gap:8px;min-height:54px;padding:10px 12px 4px 20px;box-sizing:border-box;}
+      .fma-drawer[data-window=full] .fma-board-head{padding-top:54px;}
       .fma-board-head h2{margin:0;font-size:15px;font-weight:800;flex:1;}
       .fma-board-items{flex:1;min-height:0;overflow:auto;padding:6px 20px 20px;display:flex;flex-direction:column;gap:14px;}
       .fma-split{display:none;flex:0 0 12px;margin:0 -6px;position:relative;z-index:2;cursor:col-resize;touch-action:none;}
@@ -649,7 +653,7 @@
         <button type="button" class="fma-icon-btn fma-sidebar-toggle" data-fma="history" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_ee81752261cfa1","Conversations") ?? "Conversations")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_f421bede1a732b","Open conversations") ?? "Open conversations")}" aria-expanded="false"><i class="fas fa-bars-staggered" aria-hidden="true"></i></button>
         <span class="fma-head-title" data-fma="headTitle"></span>
         <span class="fma-voice-indicator" data-fma="voiceIndicator" role="img" aria-label="Voice conversation active" hidden><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-        <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="visualsToggle" title="Hide visuals" aria-label="Hide visuals" aria-pressed="true" hidden><i class="fas fa-chart-pie" aria-hidden="true"></i></button>
+        <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="visualsToggle" title="Close widget view" aria-label="Close widget view" aria-pressed="true" hidden><i class="fas fa-chart-pie" aria-hidden="true"></i></button>
         ${embedded && surface.onClose ? '<button type="button" class="fma-icon-btn ghost" data-fma="closeSurface" title="Close assistant" aria-label="Close assistant"><i class="fas fa-xmark" aria-hidden="true"></i></button>' : ''}
       </div>
       <div class="fma-body" data-fma="body">
@@ -665,7 +669,7 @@
       <div class="fma-content" data-fma="content">
         <div class="fma-stage" data-fma="stage">
           <section class="fma-board" data-fma="board" aria-label="Dashboard">
-            <div class="fma-board-head"><h2>Dashboard</h2><button type="button" class="fma-icon-btn ghost" data-fma="boardHide" title="Hide dashboard" aria-label="Hide dashboard"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>
+            <div class="fma-board-head"><h2>Widgets</h2><button type="button" class="fma-icon-btn ghost" data-fma="boardSide" aria-label="Move widgets to the right" title="Move widgets to the right"><i class="fas fa-right-left" aria-hidden="true"></i></button><button type="button" class="fma-icon-btn ghost" data-fma="boardHide" title="Close widget view" aria-label="Close widget view"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>
             <div class="fma-board-items" data-fma="boardItems"></div>
           </section>
           <div class="fma-split" data-fma="split" role="separator" aria-orientation="vertical" aria-label="Resize dashboard" tabindex="0"></div>
@@ -807,6 +811,7 @@
       if (item.dataset.nav === 'agent') void openAgent(item.dataset.id);
       else void openThread(item.dataset.id);
     });
+    q('boardSide').addEventListener('click', () => { state.boardSide = state.boardSide === 'right' ? 'left' : 'right'; store('boardSide',state.boardSide); syncLayout(); });
     q('boardHide').addEventListener('click', () => setBoardHidden(true));
     // One toggle shows or hides visuals: the dashboard column in the full view, chart cards in the conversation otherwise.
     els.visualsToggle.addEventListener('click', () => setBoardHidden(!state.boardHidden));
@@ -872,12 +877,16 @@
 
   // ── Layout: dashboard split ──────────────────────────────────────────────
 
+  function widgetRenders(){
+    return state.messages.flatMap(message => array(object(message.data).renders)).filter(render => render.type === 'platform_widget' && render.widget);
+  }
+
   function boardAvailable(){
     return state.mode === 'full' && (state.paymentWidget || (els?.drawer?.clientWidth || 0) >= BOARD_MIN_WIDTH) && state.view !== 'settings';
   }
 
   function boardOpen(){
-    return boardAvailable() && !state.boardHidden && (state.paymentWidget || state.dashboard.length > 0);
+    return boardAvailable() && !state.boardHidden && (state.paymentWidget || state.dashboard.length > 0 || widgetRenders().length > 0);
   }
 
   function setBoardHidden(hidden){
@@ -889,22 +898,27 @@
 
   function syncLayout(){
     if (!els || disposed) return;
-    const count = state.dashboard.length + (state.paymentWidget ? 1 : 0);
+    const count = state.dashboard.length + widgetRenders().length + (state.paymentWidget ? 1 : 0);
     const previous = els.drawer.dataset.board;
     const next = boardOpen() ? 'open' : (boardAvailable() && count ? 'hidden' : 'none');
     els.drawer.dataset.board = next;
+    els.drawer.dataset.boardSide = state.boardSide;
+    const sideLabel = state.boardSide === 'right' ? 'Move widgets to the left' : 'Move widgets to the right';
+    const sideButton = els.drawer.querySelector('[data-fma=boardSide]');
+    sideButton.title = sideLabel; sideButton.setAttribute('aria-label',sideLabel);
     els.drawer.style.setProperty('--fma-board-w', `${Math.min(70, Math.max(28, Number(state.boardWidth) || 50))}%`);
     syncVisualsToggle();
     if (next === 'open') scheduleBoardRender();
+    else { els.boardItems.replaceChildren(); delete els.boardItems.dataset.signature; }
     if (previous !== next && previous !== undefined) renderMessages({ keepScroll:true });
     else fitArtifacts(els.msgs);
   }
 
   function syncVisualsToggle(){
     if (!els || disposed) return;
-    const count = state.dashboard.length + (state.paymentWidget ? 1 : 0);
+    const count = state.dashboard.length + widgetRenders().length + (state.paymentWidget ? 1 : 0);
     const visible = !state.boardHidden;
-    const label = visible ? 'Hide visuals' : 'Show visuals';
+    const label = visible ? 'Close widget view' : 'Open widget view';
     els.visualsToggle.hidden = !count && !state.messages.some((message) => artifactsOf(message).length);
     els.visualsToggle.setAttribute('aria-pressed', String(visible));
     els.visualsToggle.title = count ? `${label} (${count})` : label;
@@ -919,11 +933,13 @@
 
   function renderBoard(){
     if (!els || els.drawer.dataset.board !== 'open') return;
-    const signature = state.dashboard.map((item) => `${clean(item.id)}:${clean(item.updated_at)}`).join('|');
+    els.boardItems.style.setProperty('--fma-widget-height', `${Math.max(280,els.boardItems.clientHeight - 26)}px`);
+    const widgets = widgetRenders();
+    const signature = state.dashboard.map((item) => `${clean(item.id)}:${clean(item.updated_at)}`).join('|') + JSON.stringify(widgets);
     if (signature === els.boardItems.dataset.signature && els.boardItems.childElementCount) { fitArtifacts(els.boardItems); return; }
     els.boardItems.dataset.signature = signature;
     const width = Math.max(240, (els.boardItems.clientWidth || 480) - 40 - 34);
-    els.boardItems.innerHTML = state.dashboard.map((item) => artifactCardHtml(object(item.artifact), {
+    els.boardItems.innerHTML = (window.FirstMateWidgets?.presentationHtml?.(widgets,{side:true}) || '') + state.dashboard.map((item) => artifactCardHtml(object(item.artifact), {
       itemId:clean(item.id), width, source:clean(object(item.artifact).source_label), time:item.updated_at
     })).join('');
     fitArtifacts(els.boardItems);
@@ -990,6 +1006,13 @@
     return array(object(message.data).renders).map(object).filter((entry) => clean(entry.type) === 'artifact');
   }
 
+  function widgetsHtml(renders){
+    if (boardOpen()) {
+      return array(renders).filter(render => render.type === 'platform_widget' && render.widget).map(render => `<button type="button" class="fma-artifact-chip" data-focus-widget="${esc(JSON.stringify(render.widget))}">${esc(render.title || 'Open widget')}</button>`).join('');
+    }
+    return window.FirstMateWidgets?.presentationHtml?.(renders) || '';
+  }
+
   function messageHtml(message, animate){
     const data = object(message.data);
     const anim = animate ? ' fma-anim' : '';
@@ -1009,10 +1032,10 @@
     }
     html += '</div>';
     if (array(data.renders).some(render => render.type === 'payment_setup')) html += '<button type="button" class="fma-action" data-payment-setup>Open payment setup</button>';
-    html += window.FirstMateWidgets?.presentationHtml?.(data.renders) || '';
+    html += widgetsHtml(data.renders);
     const artifacts = artifactsOf(message);
     if (artifacts.length) {
-      const onBoard = els?.drawer?.dataset.board === 'open' || state.boardHidden;
+      const onBoard = els?.drawer?.dataset.board === 'open';
       const width = Math.max(220, Math.min(560, Math.floor(((els?.msgs?.clientWidth || 400) - 28) * 0.92 - 30)));
       html += artifacts.map((artifact) => onBoard
         ? `<button type="button" class="fma-artifact-chip${anim}" data-focus-artifact="${esc(artifact.id)}"><i class="fas fa-chart-column" aria-hidden="true"></i>${esc(artifact.title)}</button>`
@@ -1086,6 +1109,9 @@
 
   function renderMessages(options = {}){
     if (!els || disposed) return;
+    // Messages can introduce widgets after the context/dashboard request.
+    const boardState = boardOpen() ? 'open' : 'none';
+    if ((els.drawer.dataset.board === 'open') !== (boardState === 'open')) syncLayout();
     const previousScroll = els.msgs.scrollTop;
     const parts = [];
     const live = voiceChats.get(state.threadId);
@@ -1106,7 +1132,7 @@
         insertVoice(index);
         const channelThread = state.threads.some(thread => clean(thread.id) === clean(state.threadId) && clean(thread.subject_id).startsWith('channel:'));
         if (clean(message.role) === 'user' && (object(message.data).automatic_channel_recap === true || (channelThread && index === 0 && message.content === 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.'))) return;
-        if (sessions.some(chat => chat.hiddenIndexes.has(index))) return;
+        if (sessions.some(chat => chat.hiddenIndexes.has(index))) { parts.push(widgetsHtml(object(message.data).renders)); return; }
         parts.push(messageHtml(message, options.animateLast && index >= state.messages.length - 2));
       });
     }
@@ -1121,6 +1147,7 @@
     renderVoiceChat();
     fitArtifacts(els.msgs);
     syncVisualsToggle();
+    scheduleBoardRender();
     if (options.keepScroll) els.msgs.scrollTop = previousScroll;
     else if (state.view === 'agent' && !options.animateLast) els.msgs.scrollTop = 0;
     else scrollToBottom();
@@ -1128,6 +1155,11 @@
   }
 
   function onMessagesClick(event){
+    const widget = event.target.closest('[data-focus-widget]');
+    if (widget) {
+      const target = [...els.boardItems.querySelectorAll('fm-platform-widget')].find(el => el.getAttribute('reference') === widget.dataset.focusWidget);
+      target?.scrollIntoView({block:'nearest',behavior:'smooth'}); return;
+    }
     const suggest = event.target.closest('.fma-suggest');
     if (suggest) { els.input.value = suggest.textContent; sendMessage(); return; }
     const source = event.target.closest('[data-open-agent]');
@@ -1516,6 +1548,31 @@
     } catch (_) { /* Audio playback continues if metering is unavailable. */ }
   }
 
+  function voiceCue(call, kind){
+    const context = call.audioContext;
+    clearInterval(call.connectingTone);
+    call.cueNodes?.forEach(node => { try { node.stop(); } catch (_) {} });
+    call.cueNodes = [];
+    if (!context || context.state === 'closed') return;
+    const play = (notes,volume=.035) => {
+      notes.forEach(([frequency,delay,duration]) => {
+        const oscillator=context.createOscillator(), gain=context.createGain(), time=context.currentTime+delay;
+        oscillator.type='sine'; oscillator.frequency.setValueAtTime(frequency,time);
+        oscillator.frequency.exponentialRampToValueAtTime(frequency*.82,time+duration);
+        gain.gain.setValueAtTime(.0001,time); gain.gain.exponentialRampToValueAtTime(volume,time+.025); gain.gain.exponentialRampToValueAtTime(.0001,time+duration);
+        oscillator.connect(gain);gain.connect(context.destination);oscillator.start(time);oscillator.stop(time+duration+.02);
+        call.cueNodes.push(oscillator);oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();call.cueNodes=call.cueNodes.filter(node=>node!==oscillator);};
+      });
+    };
+    try {
+      if (kind==='start') {
+        play([[380,0,.16],[560,.1,.22]]);
+        call.connectingTone=setInterval(()=>{if(!call.stopped&&!call.ready)play([[240,0,.5],[300,.3,.5]],.008);},1300);
+      } else if(kind==='connected') play([[480,0,.15],[720,.1,.2],[960,.22,.25]],.025);
+      else play([[540,0,.19],[320,.14,.28]],.025);
+    } catch (_) { /* Audio cues never block a voice connection. */ }
+  }
+
   function stopVoice(message = 'Voice ended. Any task already submitted continues in this conversation.') {
     const call = voiceCall;
     if (!call) return;
@@ -1523,7 +1580,8 @@
     if (stopActiveVoice === stopVoice) stopActiveVoice = null;
     call.stopped = true;
     clearTimeout(call.timeout); clearTimeout(call.connectTimeout);
-    cancelAnimationFrame(call.meterFrame); call.audioContext?.close().catch(() => {});
+    cancelAnimationFrame(call.meterFrame); voiceCue(call,'end');
+    setTimeout(() => call.audioContext?.close().catch(() => {}),500);
     [...els.voiceIndicator.children].forEach(bar => bar.style.transform = 'scaleY(.2)');
     call.stream?.getTracks().forEach(track => track.stop());
     if (call.events?.readyState === 'open') {
@@ -1557,6 +1615,7 @@
     setVoiceStatus('Connecting…',call);
     const Audio = window.AudioContext || window.webkitAudioContext;
     try { if (Audio) { call.audioContext = new Audio(); call.audioContext.resume().catch(() => {}); } } catch (_) {}
+    voiceCue(call,'start');
     updateComposer();
     const transmit = (type, content, delegationId) => {
       if (call.stopped || !call.ready || call.events?.readyState !== 'open') return;
@@ -1651,7 +1710,7 @@
         if (call.stopped) return;
         if (event.type === 'session.started') {
           if (call.ready) return;
-          call.ready = true; clearTimeout(call.connectTimeout); setVoiceStatus('Listening',call); updateComposer();
+          call.ready = true; voiceCue(call,'connected'); clearTimeout(call.connectTimeout); setVoiceStatus('Listening',call); updateComposer();
           transmit('session.commentary.append', 'Voice is connected. How can I help?', null);
         } else if (['session.input_transcript.delta','session.output_transcript.delta'].includes(event.type)) {
           const role = event.type === 'session.input_transcript.delta' ? 'user' : 'assistant';
