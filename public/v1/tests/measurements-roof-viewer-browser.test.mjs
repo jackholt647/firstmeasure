@@ -4,7 +4,11 @@ import {readFile, mkdir} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
 import {writeArrayBuffer} from 'geotiff';
 
-const xml='<ROOT><ROOF><POINT id="a" data="0,0,0"/><POINT id="b" data="30,0,0"/><POINT id="c" data="30,15,9"/><POINT id="d" data="0,15,9"/><LINE id="ab" path="b,a" type="EAVE"/><LINE id="bc" path="b,c" type="RAKE"/><LINE id="cd" path="d,c" type="RIDGE"/><LINE id="da" path="d,a" type="RAKE"/><FACE><POLYGON path="ab,bc,cd,da"/></FACE></ROOF></ROOT>';
+const solidXml='<ROOT><ROOF><POINT id="a" data="0,0,0"/><POINT id="b" data="30,0,0"/><POINT id="c" data="30,15,9"/><POINT id="d" data="0,15,9"/><LINE id="ab" path="b,a" type="EAVE"/><LINE id="bc" path="b,c" type="RAKE"/><LINE id="cd" path="d,c" type="RIDGE"/><LINE id="da" path="d,a" type="RAKE"/><FACE><POLYGON path="ab,bc,cd,da"/></FACE></ROOF></ROOT>';
+// Match xml_generator.js: parent children ids reference sibling WALLPENETRATION faces.
+const opening=(prefix,x,y)=>`<POINT id="${prefix}a" data="${x},${y},${y*.6}"/><POINT id="${prefix}b" data="${x+4},${y},${y*.6}"/><POINT id="${prefix}c" data="${x+4},${y+4},${(y+4)*.6}"/><POINT id="${prefix}d" data="${x},${y+4},${(y+4)*.6}"/><LINE id="${prefix}ab" path="${prefix}b,${prefix}a" type="CHIMNEY_FRONT"/><LINE id="${prefix}bc" path="${prefix}b,${prefix}c" type="CHIMNEY_EDGE"/><LINE id="${prefix}cd" path="${prefix}d,${prefix}c" type="CHIMNEY_BACK"/><LINE id="${prefix}da" path="${prefix}d,${prefix}a" type="CHIMNEY_EDGE"/><FACE id="${prefix}" type="WALLPENETRATION"><POLYGON path="${prefix}ab,${prefix}bc,${prefix}cd,${prefix}da" pitch="Infinity"/></FACE>`;
+const xml=solidXml.replace('<FACE>','<FACE id="roof" type="ROOF" children="hole1,hole2">').replace('</ROOF>',opening('hole1',4,4)+opening('hole2',20,8)+'</ROOF>');
+
 test('read-only roof viewer draws saved geometry, switches modes and media, and adapts to pane width',async()=>{
   const portal=await readFile(new URL('../../portal/index.php',import.meta.url),'utf8');
   const viewerScript=portal.indexOf('<script src="../libraries/apps/measurements/roof-viewer.js');
@@ -17,8 +21,25 @@ test('read-only roof viewer draws saved geometry, switches modes and media, and 
     await page.route('http://roof.test/**',r=>r.request().url().endsWith('.tif')?r.fulfill({contentType:'image/tiff',body:solar}):r.fulfill({contentType:r.request().url().endsWith('.xml')?'application/xml':'text/html',body:r.request().url().endsWith('.xml')?xml:'<style>body{margin:0;font-family:Arial}#viewer{height:700px}</style><div id="viewer"></div>'}));
     await page.goto('http://roof.test/');
     await page.addScriptTag({content:await readFile(new URL('../../libraries/apps/measurements/roof-viewer.js',import.meta.url),'utf8')});
+    await page.addScriptTag({url:'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'});
+    // Observe actual mesh rendering without a production debug API.
+    await page.evaluate(()=>{const Renderer=THREE.WebGLRenderer;THREE.WebGLRenderer=function(options){const renderer=new Renderer(options),render=renderer.render;renderer.render=function(scene,camera){window.drawnScene=scene;return render.call(renderer,scene,camera);};return renderer;};});
     await page.evaluate(()=>{window.viewer=FirstMeasureRoofViewer.mount(document.querySelector('#viewer'),{xmlUrl:'/model.xml',media:[{label:'Aerial view',url:'/rgb.tif',solar:true},{label:'Reference photo',url:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="tan"/></svg>')}]});});
     await page.waitForFunction(()=>document.querySelector('.fm-roof-canvas canvas') && document.querySelector('.fm-roof-message').hidden,{},{timeout:45000});
+    const assertOpenings=async()=>{
+      const result=await page.evaluate(()=>{
+        const meshes=[];drawnScene.traverse(o=>{if(o.isMesh)meshes.push(o);});
+        let area=0;
+        for(const mesh of meshes){const a=mesh.geometry.attributes.position;for(let i=0;i<a.count;i+=3){const x=a.getX(i+1)-a.getX(i),z=a.getZ(i+1)-a.getZ(i),xx=a.getX(i+2)-a.getX(i),zz=a.getZ(i+2)-a.getZ(i);area+=Math.abs(x*zz-z*xx)/2;}}
+        const hit=(x,y)=>new THREE.Raycaster(new THREE.Vector3((x-15)*100/30,300,-(y-7.5)*100/30),new THREE.Vector3(0,-1,0)).intersectObjects(meshes).length;
+        return {count:meshes.length,area,hole1:hit(6,6),hole2:hit(22,10),solid:hit(15,7)};
+      });
+      assert.equal(result.count,1,'Penetration faces must not become roof meshes');
+      assert.ok(Math.abs(result.area-(450-32)*(100/30)**2)<.01,'Triangles must exclude both hole areas');
+      assert.equal(result.hole1,0);assert.equal(result.hole2,0);assert.ok(result.solid>0);
+    };
+    await page.getByRole('button',{name:'Reset view',exact:true}).click();
+    await assertOpenings();
     await page.waitForFunction(()=>document.querySelector('[data-id=media-0] img'));
     await page.getByRole('button',{name:'Aerial view',exact:true}).click();assert.equal(await page.locator('.fm-roof-media').getAttribute('src').then(x=>x.startsWith('blob:')),true);
     await page.getByRole('button',{name:'3D roof model',exact:true}).click();
@@ -26,6 +47,7 @@ test('read-only roof viewer draws saved geometry, switches modes and media, and 
     assert.equal(await page.locator('.fm-roof-key').isVisible(),true);
     await page.getByRole('button',{name:'Texture',exact:true}).click();
     assert.equal(await page.locator('[data-texture]').getAttribute('aria-pressed'),'false');
+    await assertOpenings();
     assert.equal(await page.locator('[data-lines]').getAttribute('aria-pressed'),'true');
     assert.match(await page.locator('.fm-roof-key').innerText(),/Eave/);assert.match(await page.locator('.fm-roof-key').innerText(),/Ridge/);
     await mkdir(new URL('../../../output/measurements-viewer/',import.meta.url),{recursive:true});
@@ -43,7 +65,9 @@ test('read-only roof viewer draws saved geometry, switches modes and media, and 
     assert.equal(await page.locator('.fm-roof-key').isVisible(),true);
     await page.screenshot({path:new URL('../../../output/measurements-viewer/textured-compact.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1')});
     assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);
-    assert.equal(await page.evaluate(xml=>FirstMeasureRoofViewer.parseModel(xml)[0].faces[0].length,xml),4);
+    assert.equal(await page.evaluate(xml=>FirstMeasureRoofViewer.parseModel(xml)[0].faces[0].points.length,xml),4);
+    assert.deepEqual(await page.evaluate(xml=>{const roof=xml.match(/<ROOF>[\s\S]*<\/ROOF>/)[0];return FirstMeasureRoofViewer.parseModel('<ROOT>'+roof+roof+'</ROOT>').map(r=>r.faces.map(f=>f.holes.length));},xml),[[2],[2]],'Face ids stay scoped to their structure');
+    assert.equal(await page.evaluate(xml=>FirstMeasureRoofViewer.parseModel(xml)[0].faces[0].holes.length,solidXml),0);
     const uvs=await page.evaluate(()=>{
       const f=[[0,0,0],[12,0,0],[12,12,9],[0,12,9]];
       const rotate=([x,y,z])=>[(x-y)/Math.sqrt(2),(x+y)/Math.sqrt(2),z];

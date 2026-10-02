@@ -355,7 +355,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('measurements/roof-viewer.js', '20261002-roof-presentation'), versionedBundle('measurements/project.js', '20261002-roof-presentation')]
+      bundles: [versionedBundle('measurements/roof-viewer.js', '20261002-roof-openings'), versionedBundle('measurements/project.js', '20261002-roof-openings')]
     },
     {
       id: 'project.checklists',

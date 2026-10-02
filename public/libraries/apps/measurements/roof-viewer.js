@@ -20,13 +20,29 @@
       const points=new Map(),lines=new Map(),faces=[];
       for(const p of roof.querySelectorAll('POINT')){const xyz=(p.getAttribute('data')||'').split(',').map(Number);if(xyz.length===3&&xyz.every(Number.isFinite))points.set(p.getAttribute('id'),xyz);}
       for(const l of roof.querySelectorAll('LINE')){const ids=(l.getAttribute('path')||'').split(',').map(x=>x.trim());if(ids.length===2&&ids.every(id=>points.has(id)))lines.set(l.getAttribute('id'),{ids,type:(l.getAttribute('type')||'NONE').toUpperCase()});}
-      for(const polygon of roof.querySelectorAll('FACE POLYGON')){
-        const edges=(polygon.getAttribute('path')||'').split(',').map(id=>lines.get(id.trim()));
-        if(edges.length<3||edges.some(e=>!e))continue;
+      function ring(polygon){
+        const edges=(polygon?.getAttribute('path')||'').split(',').map(id=>lines.get(id.trim()));
+        if(edges.length<3||edges.some(e=>!e))return null;
         // Walk undirected boundary edges; stored directions need not agree.
         const pending=edges.slice(1),path=[...edges[0].ids];
         while(pending.length){const end=path[path.length-1],i=pending.findIndex(e=>e.ids.includes(end));if(i<0)break;const [e]=pending.splice(i,1);path.push(e.ids[0]===end?e.ids[1]:e.ids[0]);}
-        if(!pending.length&&path[0]===path[path.length-1])faces.push(path.slice(0,-1).map(id=>points.get(id)));
+        return !pending.length&&path[0]===path[path.length-1]?path.slice(0,-1).map(id=>points.get(id)):null;
+      }
+      // FACE ids are local to each ROOF. Penetrations describe voids, never roof surfaces.
+      const records=[...roof.querySelectorAll('FACE')],byId=new Map(records.map(face=>[face.getAttribute('id'),face]));
+      for(const face of records){
+        const type=(face.getAttribute('type')||'ROOF').toUpperCase();
+        if(type!=='ROOF')continue;
+        const boundary=ring(face.querySelector('POLYGON'));if(!boundary)continue;
+        const holes=[];
+        for(const id of (face.getAttribute('children')||'').split(',').map(id=>id.trim()).filter(Boolean)){
+          const child=byId.get(id);
+          if(!child||(child.getAttribute('type')||'').toUpperCase()!=='WALLPENETRATION')continue;
+          const hole=ring(child.querySelector('POLYGON'));
+          if(!hole)throw new Error('This report contains an invalid roof opening.');
+          holes.push(hole);
+        }
+        faces.push({points:boundary,holes});
       }
       if(points.size)roofs.push({points,lines,faces});
     }
@@ -34,14 +50,14 @@
     return roofs;
   }
   // Build a face-local surface basis: shingle courses run across the slope.
-  function faceTextureUVs(face){
+  function faceTextureUVs(face,samples=face){
     const n=[0,0,0];
     face.forEach((p,i)=>{const q=face[(i+1)%face.length];n[0]+=(p[1]-q[1])*(p[2]+q[2]);n[1]+=(p[2]-q[2])*(p[0]+q[0]);n[2]+=(p[0]-q[0])*(p[1]+q[1]);});
     const norm=v=>{const length=Math.hypot(...v)||1;return v.map(x=>x/length);};
     const normal=norm(n[2]<0?n.map(x=>-x):n);
     const across=Math.hypot(normal[0],normal[1])>1e-8?norm([-normal[1],normal[0],0]):[1,0,0];
     const uphill=norm([normal[1]*across[2]-normal[2]*across[1],normal[2]*across[0]-normal[0]*across[2],normal[0]*across[1]-normal[1]*across[0]]);
-    return face.map(p=>{const d=p.map((v,i)=>v-face[0][i]);return [across,uphill].map(axis=>d.reduce((sum,v,i)=>sum+v*axis[i],0)/12);});
+    return samples.map(p=>{const d=p.map((v,i)=>v-face[0][i]);return [across,uphill].map(axis=>d.reduce((sum,v,i)=>sum+v*axis[i],0)/12);});
   }
   function injectStyle(){
     if(document.getElementById('fm-roof-viewer-style'))return;
@@ -118,7 +134,7 @@
       texture=new T.CanvasTexture(tile);texture.wrapS=texture.wrapT=T.RepeatWrapping;
       geometryGroup=new T.Group();lineGroup=new T.Group();scene.add(geometryGroup,lineGroup);const types=new Set();
       for(const roof of roofs){
-        for(const face of roof.faces){const vertices=face.map(point),faceUVs=faceTextureUVs(face);const triangles=T.ShapeUtils.triangulateShape(face.map(p=>new T.Vector2(p[0],p[1])),[]);const pos=[],uv=[];for(const tri of triangles)for(const i of tri){pos.push(...vertices[i].toArray());uv.push(...faceUVs[i]);}const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.computeVertexNormals();const mat=new T.MeshStandardMaterial({map:texture,side:T.DoubleSide,roughness:1,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});geometryGroup.add(new T.Mesh(geo,mat));objects.push(geo,mat);}
+        for(const face of roof.faces){const rings=[face.points,...face.holes],flat=rings.flat(),vertices=flat.map(point),faceUVs=faceTextureUVs(face.points,flat);const project=ring=>ring.map(p=>new T.Vector2(p[0],p[1]));const triangles=T.ShapeUtils.triangulateShape(project(face.points),face.holes.map(project));const pos=[],uv=[];for(const tri of triangles)for(const i of tri){pos.push(...vertices[i].toArray());uv.push(...faceUVs[i]);}const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.computeVertexNormals();const mat=new T.MeshStandardMaterial({map:texture,side:T.DoubleSide,roughness:1,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});geometryGroup.add(new T.Mesh(geo,mat));objects.push(geo,mat);}
         for(const line of roof.lines.values()){const type=styles[line.type]?line.type:'NONE';types.add(type);const geo=new T.BufferGeometry().setFromPoints(line.ids.map(id=>point(roof.points.get(id))));const mat=new T.LineBasicMaterial({color:styles[type][0]});const edge=new T.Line(geo,mat);edge.renderOrder=2;lineGroup.add(edge);objects.push(geo,mat);}
       }
       if(!geometryGroup.children.length){textureEnabled=false;tools.querySelector('[data-texture]').disabled=true;hint.textContent='Saved roof lines · Drag to orbit · Scroll to zoom';}
