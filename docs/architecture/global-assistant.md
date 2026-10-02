@@ -240,3 +240,41 @@ Deeper research uses the existing authorized platform tools.
 Regression coverage includes `tests/channel-assistant-browser.test.mjs`, the Channels
 workspace browser fixture, and the channel recap case in `tests/assistant-api.test.ts`.
 Provider requests in these tests are mocked.
+
+
+## GPT-Live voice conversations
+
+The global composer has a Voice conversation button beside dictation. It starts
+`gpt-live-1` over WebRTC, using the same server-side `env.openaiApiKey` as the
+Responses agent. Authenticated, CSRF-protected session creation checks assistant
+access, thread ownership, company settings and project/channel membership before
+seeding a bounded recent history. Browser configuration cannot select another
+model, instructions or tools. Provider credentials never reach the browser.
+
+GPT-Live uses **client delegation**: its input/output transcript fragments and
+delegation IDs drive serialized requests through the existing messages endpoint
+with `intent: voice`. All business tools, permissions, memory, limits, thread
+leases and required confirmations remain in the shared agent runtime. The voice
+turn note treats spoken assistant text as context rather than evidence of a
+completed action. Duplicate delegation events are ignored. Uncertain requests
+are not automatically replayed. Backend results remain in the thread; live
+captions and small talk are session-local. The browser is the sole delegation
+owner; no sideband also executes tools.
+
+Mute disables the microphone track. End voice, window close, settings or thread
+changes stop capture and close the session. An authenticated close endpoint can
+attach a server sideband as a fallback; its expiring HMAC ticket binds the provider
+session to the user, organization and thread across web nodes. The browser ends
+sessions at 20 minutes. Session starts have a per-user, per-process limit of six
+per minute; this is not a fleet-wide billing quota. A task already submitted can
+continue after interruption or end-call, which the UI states explicitly. Later
+corrections are serialized as subsequent agent requests; this first implementation
+does not cancel an already-running business operation or automatically retry it.
+
+Official protocol references: [WebRTC](https://developers.openai.com/api/docs/guides/voice-webrtc),
+[client delegation](https://developers.openai.com/api/docs/guides/live-delegation),
+and [session controls](https://developers.openai.com/api/docs/guides/voice-server-controls).
+Tests: `tests/assistant-voice-browser.test.mjs` and voice cases in
+`tests/assistant-api.test.ts`. A synthetic microphone/provider verification is
+recorded in ignored `output/assistant-live-20261002/`; it uses the existing
+server credential without copying it locally.

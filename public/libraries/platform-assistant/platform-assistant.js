@@ -60,6 +60,7 @@
   let openingChannel = false;
   const conversationDrafts = new Map();
   let assistantWindow = null;
+  let voiceCall = null;
   let recorder = null;
   let recordingStream = null;
   let recordingStarted = 0;
@@ -344,6 +345,13 @@
       .fma-drawer[data-window=full] .fma-head .fm-window-controls{gap:4px;margin-left:0;}
       .fma-drawer[data-window=full] .fma-head .fm-window-controls button{width:34px;height:34px;border:1px solid #e4e7ec;border-radius:9px;background:#fff;box-shadow:0 2px 8px #10182814;}
       .fma-drawer[data-window=full] .fma-head .fm-window-controls button:hover{background:#f2f4f7;}
+      .fma-voice-panel{margin:8px 0;padding:12px;border:1px solid #d0d5dd;border-radius:14px;background:#f8fafc;}
+      .fma-voice-panel[hidden]{display:none;}
+      .fma-voice-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+      .fma-voice-actions strong{flex:1;}
+      .fma-voice-actions button{border:1px solid #d0d5dd;border-radius:8px;background:white;padding:7px 10px;cursor:pointer;}
+      .fma-voice-caption{max-height:100px;overflow:auto;margin-top:8px;color:#475467;font-size:13px;white-space:pre-wrap;}
+      .fma-voice-panel audio{width:100%;height:32px;margin-top:8px;}
       .fma-sidebar-toggle{border:0;background:transparent;font-size:16px;color:#475467;}
       .fma-drawer .fma-body{position:relative;flex:1;min-height:0;display:flex;flex-direction:row;overflow:hidden;}
       .fma-content{position:relative;flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;}
@@ -647,8 +655,13 @@
             <textarea data-fma="input" rows="1" placeholder="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_2f18b7bd77b80f","Ask about anything in your workspace...") ?? "Ask about anything in your workspace...")}"></textarea>
             <div class="fma-recording" data-fma="recording"><button type="button" class="fma-compose-icon" data-fma="discardRecording" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_46a483e740de95","Discard recording") ?? "Discard recording")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_46a483e740de95","Discard recording") ?? "Discard recording")}"><i class="fas fa-trash" aria-hidden="true"></i></button><span class="fma-recording-time" data-fma="recordingTime">0:00</span><canvas class="fma-wave" data-fma="wave" aria-hidden="true"></canvas></div>
             <button type="button" class="fma-compose-icon" data-fma="mic" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_86ab4afbbbb82b","Dictate") ?? "Dictate")}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span></button>
+            <button type="button" class="fma-compose-icon" data-fma="voice" title="Start voice conversation" aria-label="Start voice conversation"><i class="fas fa-headphones" aria-hidden="true"></i></button>
             <button type="button" class="fma-send" data-fma="send" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_c23a056552a09f","Send") ?? "Send")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_c23a056552a09f","Send") ?? "Send")}"><i class="fas fa-arrow-up" aria-hidden="true"></i></button>
           </div>
+          <section class="fma-voice-panel" data-fma="voicePanel" aria-label="Voice conversation" hidden>
+            <div class="fma-voice-actions"><strong data-fma="voiceStatus" role="status">Connecting…</strong><button type="button" data-fma="voiceMute" aria-pressed="false">Mute</button><button type="button" data-fma="voiceEnd">End voice</button></div>
+            <div class="fma-voice-caption" data-fma="voiceCaption"></div><audio data-fma="voiceAudio" autoplay controls hidden></audio>
+          </section>
           <div class="fma-attach-menu" data-fma="attachMenu" hidden><button type="button" data-fma="pickFile"><i class="fas fa-paperclip" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_09c2e180e4119b"," Upload files") ?? " Upload files")}</button><button type="button" data-fma="pickCamera"><i class="fas fa-camera" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_cd5157f3b879c4"," Take photo") ?? " Take photo")}</button></div>
           <input type="file" data-fma="fileInput" multiple hidden><input type="file" data-fma="cameraInput" accept="image/*,video/*" capture="environment" hidden>
         </div>
@@ -665,7 +678,7 @@
     document.body.appendChild(tooltip);
     const q = (name) => drawer.querySelector(`[data-fma="${name}"]`);
     els = {
-      drawer, tooltip,
+      drawer, tooltip, voice:q('voice'), voicePanel:q('voicePanel'), voiceStatus:q('voiceStatus'), voiceCaption:q('voiceCaption'), voiceAudio:q('voiceAudio'), voiceMute:q('voiceMute'), mic:q('mic'),
       sidebar: q('sidebar'),
       sidebarToggle: q('history'),
       headTitle: q('headTitle'),
@@ -795,6 +808,10 @@
     q('pickCamera').addEventListener('click', () => { els.attachMenu.hidden = true; els.cameraInput.click(); });
     for (const picker of [els.fileInput, els.cameraInput]) picker.addEventListener('change', () => { addAttachments(picker.files); picker.value = ''; });
     q('mic').addEventListener('click', startRecording);
+    q('voice').addEventListener('click', startVoice);
+    q('voiceEnd').addEventListener('click', () => { if (voiceCall) stopVoice(); else els.voicePanel.hidden = true; });
+    q('voiceMute').addEventListener('click', () => { if (!voiceCall) return; voiceCall.muted = !voiceCall.muted; voiceCall.stream?.getAudioTracks().forEach(t => { t.enabled = !voiceCall.muted; }); els.voiceMute.textContent = voiceCall.muted ? 'Unmute' : 'Mute'; els.voiceMute.setAttribute('aria-pressed', String(voiceCall.muted)); });
+    window.addEventListener('pagehide', () => stopVoice());
     q('discardRecording').addEventListener('click', () => stopRecording(true));
     els.input.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
@@ -1174,6 +1191,7 @@
   }
 
   function setView(view){
+    if (view !== state.view) stopVoice();
     state.view = view;
     if (!els) return;
     const settings = view === 'settings';
@@ -1377,6 +1395,146 @@
     } catch (error) { panel.textContent = error?.message || 'Assistant settings could not be loaded.'; }
   }
 
+  function stopVoice(message = 'Voice ended. Any task already submitted continues in this conversation.') {
+    const call = voiceCall;
+    if (!call) return;
+    voiceCall = null;
+    call.stopped = true;
+    clearTimeout(call.timeout); clearTimeout(call.connectTimeout);
+    call.stream?.getTracks().forEach(track => track.stop());
+    if (call.events?.readyState === 'open') {
+      try { call.events.send(JSON.stringify({type:'session.close'})); } catch (_) {}
+    }
+    // Keep events alive briefly to receive session.closed, while stopping capture immediately.
+    call.closeTimer = setTimeout(() => { call.events?.close(); call.peer?.close(); }, 1500);
+    if (call.closeToken) window.AssistantAPI.closeVoice(call.orgId, call.threadId, call.closeToken).catch(() => null);
+    els.voiceAudio.pause(); els.voiceAudio.srcObject = null; els.voiceAudio.hidden = true;
+    els.voiceStatus.textContent = message;
+    els.voiceMute.disabled = true;
+    updateComposer();
+  }
+
+  async function startVoice() {
+    if (voiceCall || recorder || state.pending) return;
+    els.voicePanel.hidden = false;
+    if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) {
+      els.voiceStatus.textContent = 'Voice needs a browser with microphone access over HTTPS.'; return;
+    }
+    const call = { orgId:orgId(), threadId:state.threadId, stream:null, peer:null, events:null, stopped:false,
+      ready:false, muted:false, transcript:[], cursor:0, seen:new Set(), chain:Promise.resolve(), closeToken:'' };
+    voiceCall = call;
+    els.voiceStatus.textContent = 'Connecting…'; els.voiceCaption.textContent = '';
+    els.voiceMute.disabled = false; els.voiceMute.textContent = 'Mute'; els.voiceMute.setAttribute('aria-pressed','false');
+    updateComposer();
+    const transmit = (type, content, delegationId) => {
+      if (call.stopped || !call.ready || call.events?.readyState !== 'open') return;
+      // Append events have a 500-token limit; conservative Unicode chunks also fit non-English text.
+      for (const chunk of Array.from(content).reduce((a,c) => { if (!a.length || new TextEncoder().encode(a.at(-1) + c).length > 450) a.push(''); a[a.length-1] += c; return a; }, [])) {
+        call.events.send(JSON.stringify({type,delegation_id:delegationId,content:chunk}));
+      }
+    };
+    const delegate = async (id, end) => {
+      if (call.stopped) return;
+      const fragments = call.transcript.slice(call.cursor, end);
+      call.cursor = end;
+      if (!fragments.some(f => f.role === 'user' && clean(f.text))) {
+        transmit('session.thinking.append','No new user request has been received. Do not repeat earlier actions.',id); return;
+      }
+      const lines = [];
+      for (const f of fragments) {
+        const last = lines.at(-1);
+        if (last?.role === f.role) last.text += f.text;
+        else lines.push({...f});
+      }
+      const message = lines.map(f => `${f.role === 'user' ? 'User' : 'Voice assistant'}: ${f.text}`).join('\n');
+      if (message.length > 30000) { stopVoice('This voice conversation is too long. Start a new voice session to continue.'); return; }
+      els.voiceStatus.textContent = 'Working — you can keep talking';
+      try {
+        const result = await window.AssistantAPI.send(call.orgId, call.threadId, {message,intent:'voice'}, {signal:AbortSignal.timeout(AGENT_TIMEOUT_MS)});
+        if (state.threadId === call.threadId) {
+          const data = await window.AssistantAPI.thread(call.orgId, call.threadId);
+          if (state.threadId !== call.threadId) return;
+          state.messages = array(data.messages);
+          if (Array.isArray(result.dashboard)) state.dashboard = result.dashboard;
+          renderMessages(); renderHistory(); syncLayout();
+        }
+        const newer = call.transcript.slice(end).some(f => f.role === 'user');
+        const answer = clean(result.assistant_message?.content) || 'The request finished without a spoken answer. Check the conversation.';
+        transmit('session.commentary.append', (newer ? 'Result of the EARLIER request; the user has spoken since. Do not claim any correction has been applied: ' : '') + answer.slice(0,6000), id);
+        if (!call.stopped) els.voiceStatus.textContent = 'Listening';
+      } catch (_) {
+        // Never replay an uncertain action after a timeout or lost result.
+        transmit('session.commentary.append','I could not confirm the result. Please check the conversation before retrying; the task may still be running.',id);
+        if (!call.stopped) els.voiceStatus.textContent = 'Could not confirm task result — check the conversation';
+      }
+    };
+    try {
+      // Ask for microphone permission directly from the click, before asynchronous boot.
+      const stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      if (call.stopped) { stream.getTracks().forEach(t => t.stop()); return; }
+      call.stream = stream;
+      await boot();
+      if (!state.threadId) await ensureThread();
+      call.threadId = state.threadId;
+      if (call.stopped) return;
+      const peer = call.peer = new RTCPeerConnection();
+      stream.getAudioTracks().forEach(track => { peer.addTrack(track,stream); track.addEventListener('ended',()=>{ if (!call.stopped) stopVoice('Microphone disconnected.'); }); });
+      peer.addEventListener('track', event => {
+        if (call.stopped) return;
+        els.voiceAudio.srcObject = new MediaStream([event.track]);
+        els.voiceAudio.play().catch(() => { if (!call.stopped) { els.voiceAudio.hidden = false; els.voiceStatus.textContent = 'Press play to hear the assistant'; } });
+      });
+      peer.addEventListener('connectionstatechange', () => {
+        if (!call.stopped && ['failed','disconnected','closed'].includes(peer.connectionState)) stopVoice('Voice connection lost. Start voice again to reconnect.');
+      });
+      const events = call.events = peer.createDataChannel('oai-events');
+      events.addEventListener('message', ({data}) => {
+        let event; try { event = JSON.parse(data); } catch (_) { return; }
+        if (event.type === 'session.closed') {
+          if (!call.stopped) stopVoice();
+          clearTimeout(call.closeTimer); events.close(); peer.close(); return;
+        }
+        if (call.stopped) return;
+        if (event.type === 'session.started') {
+          call.ready = true; clearTimeout(call.connectTimeout); els.voiceStatus.textContent = 'Listening';
+        } else if (['session.input_transcript.delta','session.output_transcript.delta'].includes(event.type)) {
+          const role = event.type === 'session.input_transcript.delta' ? 'user' : 'assistant';
+          if (typeof event.delta !== 'string') return;
+          call.transcript.push({role,text:event.delta,start:event.start_ms,end:event.end_ms});
+          if (call.transcript.length > 10000) { stopVoice('Start a new voice session to continue.'); return; }
+          els.voiceCaption.textContent = call.transcript.slice(-25).map(f => f.text).join('').slice(-1500);
+        } else if (event.type === 'session.delegation.created' && event.delegation?.target === 'client') {
+          const id = clean(event.delegation.id);
+          if (!id || call.seen.has(id)) return;
+          call.seen.add(id);
+          // Serialize delegated turns through the existing durable agent runtime.
+          // Include complete accumulated fragments; delegation events contain no task text.
+          const end = call.transcript.length;
+          call.chain = call.chain.then(() => delegate(id,end)).catch(() => null);
+        } else if (event.type === 'error') {
+          stopVoice('Voice encountered an error. Please start a new session.');
+        }
+      });
+      events.addEventListener('close', () => { if (!call.stopped) stopVoice('Voice disconnected.'); });
+      events.addEventListener('error', () => { if (!call.stopped) stopVoice('Voice connection failed.'); });
+      call.connectTimeout = setTimeout(() => { if (!call.stopped) stopVoice('Voice connection timed out. Please try again.'); },45000);
+      await peer.setLocalDescription(await peer.createOffer());
+      if (peer.iceGatheringState !== 'complete') await new Promise((resolve,reject) => {
+        const timer = setTimeout(() => { peer.removeEventListener('icegatheringstatechange',check); reject(new Error('Microphone connection timed out.')); },10000);
+        function check(){ if (peer.iceGatheringState === 'complete') { clearTimeout(timer); peer.removeEventListener('icegatheringstatechange',check); resolve(); } }
+        peer.addEventListener('icegatheringstatechange',check); check();
+      });
+      if (call.stopped) return;
+      const result = await window.AssistantAPI.startVoice(call.orgId,call.threadId,peer.localDescription.sdp);
+      call.closeToken = result.close_token;
+      if (call.stopped) { window.AssistantAPI.closeVoice(call.orgId,call.threadId,call.closeToken).catch(()=>null); return; }
+      await peer.setRemoteDescription({type:'answer',sdp:result.transport.sdp});
+      call.timeout = setTimeout(() => { if (!call.stopped) stopVoice('Voice session ended after 20 minutes. Start voice again to continue.'); },20*60*1000);
+    } catch (error) {
+      if (!call.stopped) stopVoice(error?.name === 'NotAllowedError' ? 'Allow microphone access to start voice.' : (error?.message || 'Voice could not connect. Please try again.'));
+    }
+  }
+
   function resizeComposerInput(){
     if (!els?.input) return;
     const input = els.input;
@@ -1402,7 +1560,9 @@
     resizeComposerInput();
     els.composer.dataset.canSend = String(Boolean(clean(els.input.value) || state.attachments.length || recorder));
     els.composer.dataset.recording = String(Boolean(recorder));
-    els.send.disabled = state.pending;
+    els.send.disabled = state.pending || Boolean(voiceCall);
+    els.mic.disabled = Boolean(voiceCall);
+    els.voice.disabled = Boolean(voiceCall) || Boolean(recorder) || state.pending;
     els.send.title = recorder ? 'Finish dictation' : 'Send';
     els.send.setAttribute('aria-label', els.send.title);
   }
@@ -1427,6 +1587,7 @@
   }
 
   async function startRecording(){
+    if (voiceCall) return;
     if (recorder || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       if (!recorder) window.alert((globalThis.PlatformLanguage?.text("platform-assistant","m_b4537274ad53bc","Microphone recording is unavailable in this browser.") ?? "Microphone recording is unavailable in this browser."));
       return;
@@ -1608,6 +1769,7 @@
   }
 
   async function openThread(threadId, options = {}){
+    if (voiceCall && clean(threadId) !== voiceCall.threadId) stopVoice();
     if (state.pending) return false;
     saveConversationDraft();
     state.agentId = '';
@@ -1653,6 +1815,7 @@
   }
 
   async function openAgent(agentId){
+    stopVoice();
     if (!clean(agentId) || state.pending) return;
     state.agentId = clean(agentId);
     state.agentDetail = null;
@@ -1699,6 +1862,7 @@
   }
 
   function startNewThread(){
+    stopVoice();
     if (state.pending) return;
     saveConversationDraft();
     if (els) els.input.value = '';
@@ -1726,6 +1890,7 @@
   }
 
   async function sendMessage({ channelRecap = false, channelRevision = '' } = {}){
+    if (voiceCall) return;
     if (!els || state.pending) return;
     if (recorder) { stopRecording(); return; }
     const text = channelRecap ? 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.' : clean(els.input.value);
@@ -1912,6 +2077,7 @@
   }
 
   function close(){
+    stopVoice();
     if (!state.built) return;
     state.open = false;
     assistantWindow?.setVisible(false);

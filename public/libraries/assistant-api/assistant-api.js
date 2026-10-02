@@ -121,6 +121,8 @@
       form.append('file', file, file.name);
       return request(orgPath(orgId, `/threads/${enc(threadId)}/attachments`), { method:'POST', body:form });
     },
+    closeVoice(orgId, threadId, token){ return request(orgPath(orgId, `/threads/${enc(threadId)}/voice/close`), { method:'POST', body:{token}, keepalive:true }); },
+    startVoice(orgId, threadId, sdp){ return request(orgPath(orgId, `/threads/${enc(threadId)}/voice`), { method:'POST', body:{sdp}, signal:AbortSignal.timeout(30000) }); },
     transcribe(orgId, file){
       const form = new FormData();
       form.append('file', file, file.name);

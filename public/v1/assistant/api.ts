@@ -28,8 +28,9 @@ import {
   runAgentTurn
 } from "../agents/runtime.js";
 import { ASSISTANT_AGENT_ID } from "./agent/definition.js";
-import { ensureProjectConversation } from "./project-context.js";
-import { ensureChannelConversation, channelConversationRevision } from "./channel-context.js";
+import { createAssistantVoiceSession, closeAssistantVoiceSession, voiceCloseToken, limitVoiceStarts, VOICE_TURN_NOTE } from "./voice.js";
+import { ensureProjectConversation, projectConversationContext } from "./project-context.js";
+import { ensureChannelConversation, channelConversationRevision, channelConversationContext } from "./channel-context.js";
 import { readInternalUser } from "../internal/storage.js";
 import { forbidden, notFound } from "../platform/errors.js";
 import {
@@ -367,6 +368,29 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
     return { ok: true, transcription: await transcribeAudio(file) };
   });
 
+  app.post("/organizations/:orgId/threads/:threadId/voice", { bodyLimit: 65536 }, async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
+    const { sdp } = z.object({ sdp: z.string().trim().min(1).max(60000).startsWith("v=0") }).parse(request.body);
+    const { thread, messages } = await readThreadForAgent(ASSISTANT_AGENT_ID, orgId, getParam(request.params, "threadId"), ctx.userId);
+    const settings = await loadAgentSettings(ASSISTANT_AGENT_ID, orgId, cleanText(thread.branch_id) || ctx.branchId || "default");
+    if (settings.enabled === false) throw forbidden("agent_disabled", "The assistant is turned off for this company.");
+    await projectConversationContext(ctx, cleanText(thread.subject_id));
+    await channelConversationContext(ctx, cleanText(thread.subject_id));
+    const owner = JSON.stringify([orgId, ctx.userId, thread.id]);
+    limitVoiceStarts(JSON.stringify([orgId, ctx.userId]));
+    const result = await createAssistantVoiceSession(sdp, messages.map(raw => { const message = raw as Record<string, unknown>; return { role: cleanText(message.role), content: cleanText(message.content) }; }));
+    return { ok: true, ...result, close_token: voiceCloseToken(owner, result.session.id) };
+  });
+
+  app.post("/organizations/:orgId/threads/:threadId/voice/close", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const { token } = z.object({ token: z.string().max(4096) }).parse(request.body);
+    await closeAssistantVoiceSession(JSON.stringify([orgId, ctx.userId, getParam(request.params, "threadId")]), token);
+    return { ok: true };
+  });
+
   app.post("/organizations/:orgId/threads/:threadId/messages", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: USE_PERMISSION, capability: "apps.assistant" });
@@ -421,7 +445,7 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
       ctx,
       actorUserId: ctx.userId,
       actorName: cleanText((ctx.user as Record<string, unknown> | undefined)?.name),
-      ...(turnNote ? { turnNote } : {})
+      ...((turnNote || body.intent === "voice") ? { turnNote: [turnNote, body.intent === "voice" ? VOICE_TURN_NOTE : ""].filter(Boolean).join("\n\n") } : {})
     });
     const dashboard = await pinTurnArtifacts(orgId, ctx.userId, threadId, result);
     return { ok: true, ...result, ...(dashboard ? { dashboard } : {}) };

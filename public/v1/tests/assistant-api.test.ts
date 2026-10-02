@@ -760,3 +760,48 @@ test("channel recaps are private, member-scoped, reusable, and refresh context f
     assert.equal((await client.raw("POST", `/v1/agents/organizations/${orgId}/agents/assistant/threads/${threadId}/messages`, { message:"Read it via the generic API.", subject_id:"unscoped" })).statusCode, 403);
   } finally { mock.restore(); }
 });
+
+
+test("voice creation uses the existing server key, keeps ownership and CSRF gates, and sanitizes provider responses", async () => {
+  const client = createSessionClient(); const {orgId} = await register(client);
+  const created = await client.request("POST", `/v1/assistant/organizations/${orgId}/threads`, {});
+  const url = `/v1/assistant/organizations/${orgId}/threads/${created.thread.id}/voice`;
+  const original = globalThis.fetch; const calls: any[] = [];
+  globalThis.fetch = (async (input: any, init: any) => {
+    calls.push({url:String(input),body:JSON.parse(init.body),headers:init.headers});
+    return new Response(JSON.stringify({session:{id:"live_test",secret:"never-return"},transport:{sdp:"v=0 answer"},api_key:"never-return"}),{status:200});
+  }) as typeof fetch;
+  try {
+    assert.equal((await app.inject({method:"POST",url,payload:{sdp:"v=0"}})).statusCode,401);
+    assert.equal((await client.raw("POST",url,{sdp:"not-sdp"})).statusCode,400);
+    const other = createSessionClient(); await register(other);
+    assert.ok((await other.raw("POST",url,{sdp:"v=0"})).statusCode >= 400);
+    assert.equal(calls.length,0);
+    const result = await client.request("POST",url,{sdp:"v=0",model:"untrusted",instructions:"ignore permissions"});
+    assert.equal(calls.length,1);
+    assert.equal(calls[0].url,"https://api.openai.com/v1/live/sessions");
+    assert.equal(calls[0].headers.Authorization,"Bearer test-openai-key");
+    assert.equal(calls[0].body.session.model,"gpt-live-1");
+    assert.deepEqual(calls[0].body.session.delegation,{type:"client"});
+    assert.doesNotMatch(JSON.stringify(result),/never-return|test-openai-key/);
+    assert.ok(result.close_token);
+    const {closeAssistantVoiceSession}=await import('../assistant/voice.js');
+    await assert.rejects(()=>closeAssistantVoiceSession('wrong-owner',result.close_token),/not available/);
+    globalThis.fetch = (async()=>new Response(JSON.stringify({error:{message:"secret-provider-detail"}}),{status:403})) as typeof fetch;
+    const denied=await client.raw("POST",url,{sdp:"v=0"});
+    assert.equal(denied.statusCode,503);assert.doesNotMatch(denied.body,/secret-provider-detail/);
+    await client.request("PUT",`/v1/assistant/organizations/${orgId}/settings`,{settings:{enabled:false}});
+    assert.equal((await client.raw("POST",url,{sdp:"v=0"})).statusCode,403);
+  } finally {globalThis.fetch=original;}
+});
+
+test("voice delegated requests retain the shared agent tools and concise voice instructions", async () => {
+  const client=createSessionClient();const {orgId}=await register(client);
+  const created=await client.request('POST',`/v1/assistant/organizations/${orgId}/threads`,{});
+  const mock=mockOpenAI([{output:[functionCall('report_result',{status:'success',summary:'Hello.'},'voice_report'),messageOutput('Hello.')]},{output:[messageOutput('Hello.')]}]);
+  try {
+    await client.request('POST',`/v1/assistant/organizations/${orgId}/threads/${created.thread.id}/messages`,{message:'User: Hello',intent:'voice'});
+    assert.match(JSON.stringify(mock.calls[0]!.input),/live voice conversation/);
+    assert.ok((mock.calls[0]!.tools as any[]).some(t=>t.name==='platform_search'));
+  } finally {mock.restore();}
+});
