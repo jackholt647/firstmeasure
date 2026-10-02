@@ -1546,7 +1546,7 @@
       setVoiceStatus('Voice needs a browser with microphone access over HTTPS.'); return;
     }
     const call = { orgId:orgId(), threadId:state.threadId, stream:null, peer:null, events:null, stopped:false,
-      ready:false, muted:false, transcript:[], cursor:0, pending:0, baselineCount:state.messages.length, seen:new Set(), chain:Promise.resolve(), closeToken:'' };
+      ready:false, muted:false, transcript:[], speakerEntries:{}, cursor:0, pending:0, baselineCount:state.messages.length, seen:new Set(), chain:Promise.resolve(), closeToken:'' };
     const previousChat = voiceChats.get(state.threadId);
     if (previousChat?.entries.length) {
       voiceArchives.set(state.threadId,[...(voiceArchives.get(state.threadId) || []),previousChat]);
@@ -1617,7 +1617,7 @@
     };
     call.submit = (text, files) => {
       voiceEntry(call,'user',[text,...files.map(file => `📎 ${file.name}`)].filter(Boolean).join('\n'));
-      call.lastEntry = null;
+      call.speakerEntries = {};
       transmit('session.thinking.append', 'The user submitted a typed message to the backend. It is already queued; do not repeat its actions. User text: ' + JSON.stringify(text).slice(0,6000), null);
       enqueue(null,call.transcript.length,{text,files});
     };
@@ -1658,8 +1658,11 @@
           if (typeof event.delta !== 'string') return;
           call.transcript.push({role,text:event.delta,start:event.start_ms,end:event.end_ms});
           if (call.transcript.length > 10000) { stopVoice('Start a new voice session to continue.'); return; }
-          if (!call.lastEntry || call.lastEntry.role !== role || (Number(event.start_ms) - Number(call.lastEnd) > 1500)) call.lastEntry = voiceEntry(call,role,'');
-          call.lastEntry.content += event.delta; call.lastEnd = event.end_ms;
+          let segment = call.speakerEntries[role];
+          if (!segment || Number(event.start_ms) - Number(segment.end) > 1500) {
+            segment = call.speakerEntries[role] = {entry:voiceEntry(call,role,''),end:event.end_ms};
+          }
+          segment.entry.content += event.delta; segment.end = event.end_ms;
           if (state.threadId === call.threadId) renderVoiceChat();
         } else if (event.type === 'session.delegation.created' && event.delegation?.target === 'client') {
           const id = clean(event.delegation.id);

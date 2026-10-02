@@ -53,7 +53,9 @@ test('voice connects, delegates once with context, preserves drafts, and release
  assert.equal(await page.evaluate(()=>calls.length),1);assert.equal(await page.evaluate(()=>calls[0].intent),'voice');
  assert.match(await page.evaluate(()=>calls[0].message),/User: Check my orders/);
  assert.match(await page.locator('[data-fma=voiceLog]').innerText(),/Check my orders/);
- await page.evaluate(()=>emit({type:'session.output_transcript.delta',delta:'Your orders are ready.',start_ms:1000,end_ms:1800}));
+ await page.evaluate(()=>{emit({type:'session.output_transcript.delta',delta:'Your orders ',start_ms:1000,end_ms:1800});emit({type:'session.input_transcript.delta',delta:'What about ',start_ms:3000,end_ms:3500});emit({type:'session.output_transcript.delta',delta:'are ready.',start_ms:1800,end_ms:2200});emit({type:'session.input_transcript.delta',delta:'tomorrow?',start_ms:3500,end_ms:4000});});
+ assert.equal(await page.locator('[data-fma=voiceLog] .assistant').filter({hasText:'Your orders are ready.'}).count(),1);
+ assert.equal(await page.locator('[data-fma=voiceLog] .user').filter({hasText:'What about tomorrow?'}).count(),1);
  assert.match(await page.locator('[data-fma=msgs]').innerText(),/Your orders are ready/);
  assert.equal(await page.locator('.fma-welcome').count(),0);
  // Typing and files join the same serialized voice backend queue.
