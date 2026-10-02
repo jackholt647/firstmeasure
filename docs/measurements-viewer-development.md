@@ -86,3 +86,5 @@ remain for a development deployment.
 October 2 follow-up: [Sandbox defaults and access fix](../deploy/digitalocean/development-sandbox-measurement-defaults-20261002.md) enables the helper for existing sandbox sessions and disables the regular instant/weather options in the full-org preset and 29 existing test orgs.
 
 October 2 UI follow-up: [Compact switch and portal viewer load](../deploy/digitalocean/development-compact-report-control-viewer-20261002.md) reduces the developer control to one line and fixes the missing renderer dependency on the portal static load path.
+
+October 2 presentation follow-up: [Report options, roof appearance and selected aerial](../deploy/digitalocean/development-roof-presentation-20261002.md) places the developer switch above Gutters, separates texture and colored lines, corrects pitched shingle mapping, and shows only the aerial frozen into the report.
