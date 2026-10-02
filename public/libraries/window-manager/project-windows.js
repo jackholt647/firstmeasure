@@ -213,7 +213,7 @@
     if(orgId && /^(project|base|__optimistic)_/i.test(projectId) && root.PlatformAPI?.projects?.get){
       record.projectRead={orgId,projectId,started:Date.now(),promise:Promise.resolve().then(()=>root.PlatformAPI.projects.get(orgId,projectId)).then(result=>{
         const data=result?.document?.data;
-        if(data && records.get(token)===record){record.project={...record.project,...data,id:data.id || result.document.id || projectId};paintHeader();}
+        if(data && records.get(token)===record && !root.Portal?.ProjectStore?.hasPendingSave?.(projectId)){record.project={...record.project,...data,id:data.id || result.document.id || projectId};paintHeader();}
         return result;
       }).catch(()=>null)};
     }
