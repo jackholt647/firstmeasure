@@ -97,12 +97,15 @@ function channelsOnlyAppFlags(): JsonObject {
 }
 
 // Mirrors the "Full Platform" capability preset: every boolean capability on
-// (Money + merchant processing included), selects/numbers at their defaults.
+// (Money + merchant processing included), except optional weather/instant reports.
+// Selects/numbers retain their defaults.
 function instantFullOrgAppFlags(): JsonObject {
   const overrides: JsonObject = {};
   for (const capability of valueCapabilities()) {
     if (capability.type === "boolean") overrides[capability.key] = true;
   }
+  overrides["firstmeasure.weather_reports"] = false;
+  overrides["firstmeasure.instant_reports"] = false;
   overrides["platform.new_button_mode"] = "selector";
   overrides["platform.new_button_items"] = "";
   return overrides;
@@ -410,6 +413,8 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
   const workflowDefaults = normalizeEffects(runContext.workflow.defaults);
   if (workflowId === "swf_instant_full_org") {
     const flags = asObject(workflowDefaults.app_flags);
+    flags["firstmeasure.weather_reports"] = false;
+    flags["firstmeasure.instant_reports"] = false;
     if (!("platform.new_button_mode" in flags)) flags["platform.new_button_mode"] = "selector";
     if (!("platform.new_button_items" in flags)) flags["platform.new_button_items"] = "";
     workflowDefaults.app_flags = flags;
@@ -1159,7 +1164,7 @@ const ROOFING_WORKFLOW: JsonObject = {
 const INSTANT_FULL_ORG_WORKFLOW: JsonObject = {
   id: "swf_instant_full_org",
   title: "Instant full org (dev)",
-  description: "Zero-step dev shortcut: creating the test instance IS the whole signup. A fresh org with a random name and every capability enabled (full platform, Money and merchant processing included) lands straight in the portal — ready to test payments boarding end to end.",
+  description: "Zero-step dev shortcut: creating the test instance IS the whole signup. A fresh org with a random name and the full platform enabled (Money and merchant processing included; historical weather and regular instant reports off by default) lands straight in the portal — ready to test payments boarding end to end.",
   entry_mode: "signup_first",
   stages: [
     { id: "stg_instant_signup", page_id: "spg_firstmate_signup", notes: "Skipped by sandbox instances like every signup stage — with no setup stages after it, the instance opens directly in the portal." }
@@ -1190,8 +1195,8 @@ export async function ensureSeedData() {
     const current = (await sandboxStore.readWorkflow(String(INSTANT_FULL_ORG_WORKFLOW.id)))!;
     const defaults = asObject(current.defaults);
     const flags = asObject(defaults.app_flags);
-    if (!("platform.new_button_mode" in flags) && !("platform.new_button_items" in flags)) {
-      await sandboxStore.saveWorkflow({ ...current, defaults: { ...defaults, app_flags: { ...flags, "platform.new_button_mode": "selector", "platform.new_button_items": "" } }, updated_at: nowIso() });
+    if (!("platform.new_button_mode" in flags) || !("platform.new_button_items" in flags) || flags["firstmeasure.weather_reports"] !== false || flags["firstmeasure.instant_reports"] !== false) {
+      await sandboxStore.saveWorkflow({ ...current, description: INSTANT_FULL_ORG_WORKFLOW.description, defaults: { ...defaults, app_flags: { "platform.new_button_mode": "selector", "platform.new_button_items": "", ...flags, "firstmeasure.weather_reports": false, "firstmeasure.instant_reports": false } }, updated_at: nowIso() });
     }
   }
   const existingRoofingWorkflow = await sandboxStore.readWorkflow(String(ROOFING_WORKFLOW.id));

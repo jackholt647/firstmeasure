@@ -16,6 +16,13 @@ test('development copies require a developer, matching signed selection and comp
   const ordinary={...auth,identity:{email:'customer@example.test'}};
   assert.equal(await service.developmentReportsAllowed(auth),true);
   assert.equal(await service.developmentReportsAllowed(ordinary),false);
+  const sandbox={...ordinary,organization:{id:ordinary.orgId,metadata:{sandbox_test_org:true,sandbox_instance_id:'sbi_test'}},session:{metadata:{source:'signup_sandbox_instance',sandbox_instance_id:'sbi_test'}}};
+  assert.equal(await service.developmentReportsAllowed(sandbox),true);
+  assert.equal(await service.developmentReportsAllowed({...sandbox,session:{metadata:{source:'signup_sandbox_admin_jump',sandbox_instance_id:'sbi_test'}}}),true);
+  assert.equal(await service.developmentReportsAllowed({...sandbox,session:{metadata:{source:'signup_sandbox_instance',sandbox_instance_id:'sbi_other'}}}),false);
+  assert.equal(await service.developmentReportsAllowed({...sandbox,role:'member'}),false);
+  assert.equal(await service.developmentReportsAllowed({...sandbox,session:{}}),false);
+
   await assert.rejects(service.copyDevelopmentReport(ordinary,{}),/developer access/);
   assert.throws(()=>service.developmentCriteria({project_type:'invalid'}));
   for(const project_type of ['commercial','multifamily']) {
@@ -24,7 +31,7 @@ test('development copies require a developer, matching signed selection and comp
     await assert.rejects(requireExteriorAccess('dev-org',project_type),/not enabled/);
   }
   assert.deepEqual(service.developmentCriteria({project_type:'residential',measurement_scope:'full_house'}),{type:'residential',scope:'full_house'});
-  Object.assign(env,{isDevelopment:false});assert.equal(await service.developmentReportsAllowed(auth),false);Object.assign(env,{isDevelopment:true});
+  Object.assign(env,{isDevelopment:false});assert.equal(await service.developmentReportsAllowed(auth),false);assert.equal(await service.developmentReportsAllowed(sandbox),false);Object.assign(env,{isDevelopment:true});
   Object.assign(env,{dataEnvironment:'production'});assert.equal(await service.developmentReportsAllowed(auth),false);Object.assign(env,{dataEnvironment:'development'});
   const source='development-source';
   await storage.saveManifest(source,{id:source,status:'completed',schema_version:1,project_type:'residential',address:'10 Test Street',lat:40,lng:-90,pins:[{lat:40,lng:-90}],timestamps:{},organization_ref:{id:'source-org'},resident:{email:'private@example.test'}} as any);

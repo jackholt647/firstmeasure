@@ -3,16 +3,16 @@ import type { PlatformAuthContext } from '../platform/auth.js';
 import { env } from '../src/config/env.js';
 import { queryPostgres, isFirstMeasurePostgresEnabled } from '../src/database/postgres.js';
 import { forbidden, badRequest } from '../platform/errors.js';
-import { canManageTestAppFlags } from '../platform/app_flags.js';
+import { canManageTestAppFlags, canManageSandboxOrgFlags } from '../platform/app_flags.js';
 import { createProject, readManifest, readArtifact, listProjectFiles, saveArtifact, saveManifest, type JsonObject } from './storage.js';
 
-// This is an explicit developer grant, never an organization administrator grant.
+// Developer grants include authenticated sandbox operators, never ordinary org admins.
 export async function developmentReportsAllowed(auth: PlatformAuthContext) {
   if (!env.isDevelopment || env.dataEnvironment !== 'development') return false;
   const email = String(auth.identity.email || '').trim().toLowerCase();
   const allowed = `${process.env.FIRSTMEASURE_DEVELOPER_EMAILS || ''},${process.env.EXPERIMENTAL_ACCOUNTS_ADMIN_EMAILS || ''}`.split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
   if (allowed.includes(email)) return true;
-  return canManageTestAppFlags(auth);
+  return canManageTestAppFlags(auth) || canManageSandboxOrgFlags(auth);
 }
 export async function requireDevelopmentReports(auth: PlatformAuthContext) {
   if (!await developmentReportsAllowed(auth)) throw forbidden('development_reports_disabled', 'Development reports require developer access in development.');
