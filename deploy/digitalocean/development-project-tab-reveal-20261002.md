@@ -23,3 +23,5 @@ Existing-project hydration starts its read immediately but gives the shell a pai
 Ignored operational artifacts are in `output/project-tab-reveal-20261002`; exact previous paths and hashes are in the manifest and installed `channels-release.json` receipts. Current roles retain their existing source through three-way merges. Autoscale replacement templates and provider topology are unchanged.
 
 Concurrent development releases triggered baseline guards; fresh snapshots preserve the Measurements backend and assistant sidebar/title fixes. The web role received the final frontend in `02cbae1b`, retained by the subsequent `e662cfd2` assistant release. Remaining activation and verification evidence is recorded under `output/project-tab-reveal-final-20261002` and `output/project-tab-reveal-completion-20261002`. No guard was bypassed.
+
+The completion payload is pinned to frontend source `02cbae1b`, independently of documentation commits, to exclude unrelated source changes made during rollout. The compatibility role activated that source successfully. Web hashes confirm it survived the assistant title release.
