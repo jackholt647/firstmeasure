@@ -3730,7 +3730,7 @@ window.PlatformCommerce.onReady(async function(){
     const cards = [...list.querySelectorAll('.r-contact-card')];
     if (primaryContactIndex >= cards.length) primaryContactIndex = 0;
     list.classList.toggle('has-multiple', cards.length > 1);
-    if(projectIdentityPopover)decorateProjectContactActions(projectIdentityPopover.menu);
+    decorateProjectContactActions(list);
     list.querySelectorAll('.r-contact-email-row.has-add').forEach((row) => row.classList.remove('has-add'));
     cards.forEach((card) => card.classList.remove('has-inline-add'));
     cards.forEach((card, index) => {
