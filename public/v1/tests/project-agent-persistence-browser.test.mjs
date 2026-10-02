@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
+const asset=async f=>process.env.ASSISTANT_ASSET_ORIGIN?await(await fetch(`${process.env.ASSISTANT_ASSET_ORIGIN}/libraries/${f}?verify=${Date.now()}`)).text():readFile(new URL('../../libraries/'+f,import.meta.url),'utf8');
 test('project voice pins across trays, survives minimizing and transfers out of a removed iframe',async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true});
  try{
@@ -25,11 +26,11 @@ test('project voice pins across trays, survives minimizing and transfers out of 
   });
 
  await page.evaluate(()=>{window.transfers=[];AssistantAPI.transferProject=async(o,t)=>{transfers.push(t);return {ok:true};};});
- for(const f of ['window-manager/window-manager.js','platform-assistant/platform-assistant.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+f,import.meta.url),'utf8')});
+ for(const f of ['window-manager/window-manager.js','platform-assistant/platform-assistant.js'])await page.addScriptTag({content:await asset(f)});
  const frame=page.frames().find(f=>f!==page.mainFrame());
  await frame.setContent('<style>html,body,#shell{height:100%;margin:0}#shell{display:flex;flex-direction:column}.r-preview{flex:1}</style><div id="shell"><header class="r-modal-header"></header><main class="r-preview"></main></div>');
  await frame.evaluate(()=>{window.__APP={userOrgId:'org'};window.Portal={can:k=>k!=='channels.separate_project_notes',ProjectNotes:{mount(node){node.innerHTML='<textarea aria-label="Note"></textarea>';return {destroy(){}};}}};window.PlatformAssistant={mountProject:(...a)=>parent.PlatformAssistant.mountProject(...a)};});
- await frame.addScriptTag({content:await readFile(new URL('../../libraries/project-trays/project-trays.js',import.meta.url),'utf8')});
+ await frame.addScriptTag({content:await asset('project-trays/project-trays.js')});
  await frame.evaluate(()=>window.trays=FirstMateProjectTrays.mount(document.querySelector('#shell'),{project:{id:'1'}}));
  await frame.getByRole('tab',{name:'Agent',exact:true}).click();await frame.waitForSelector('.fma-welcome');
  await frame.getByRole('button',{name:'Pin assistant',exact:true}).click();

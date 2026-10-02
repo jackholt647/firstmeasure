@@ -42,3 +42,6 @@ header tabs and branch settings. Modules can declare additional trays with `regi
 Explicit tab/layout opens retain their intent, and late configuration does not override
 a user's tray interaction. Overview container queries respond to the actual remaining
 content width beside the right tray, rather than only the browser viewport.
+
+
+To Do is registered immediately after Notes and reuses `PlatformActionItems.renderTodayList` with a project filter, including its future and completed sections. The legacy project to-do dock is suppressed when this tray is available. The agent's compact pin occupies 100px below an open tray or floats at the bottom right when no tray is selected. Pinning moves the same renderer and preserves the conversation; session ownership and global transfer are described in [global assistant architecture](global-assistant.md#project-tray-session-lifetime).

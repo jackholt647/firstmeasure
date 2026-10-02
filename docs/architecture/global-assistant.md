@@ -349,3 +349,10 @@ Closing the side view disposes its mounts before inline replacements are created
 Voice-only Web Audio cues mark starting, connected and hang-up; a low-volume
 connecting pulse ends on readiness, cancellation or failure. Capture stops
 immediately on hang-up; the audio context closes after the short ending tone.
+
+
+## Project tray session lifetime
+
+The outer portal owns project assistant controllers, including their microphone, peer connection and audio context. Their existing renderer mounts in the project's document, so changing trays or minimizing a project changes presentation without stopping the call. Voice automatically pins the same renderer in a 100px bottom-right surface when the Agent tray is hidden; text conversations can be pinned manually. The current project, tab, tray and minimized state travel as bounded navigation metadata, never as instructions or authorization. The existing navigation presentation tool can show only a tray currently declared by the project surface.
+
+Closing a project with an active call offers End voice agent or Transfer to global voice agent. Ending uses the normal microphone cleanup and hang-up cue. Transfer preserves the same thread and live connection, moves its renderer to the outer assistant window, and changes the owned thread subject from `project:<id>` to `transferred-project:<id>` through a CSRF- and ownership-checked endpoint. The transferred subject supplies global context with explicit provenance and no default project; later project opens get a new project-scoped conversation. Transfer is rejected while an agent action is working. The originating project iframe may then be removed without terminating the transferred call.
