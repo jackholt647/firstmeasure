@@ -45,6 +45,8 @@ test('read-only roof viewer draws saved geometry, switches modes and media, and 
     await page.getByRole('button',{name:'3D roof model',exact:true}).click();
     assert.equal(await page.locator('.fm-roof-gallery').evaluate(e=>e.classList.contains('is-compact')),false);
     assert.equal(await page.locator('.fm-roof-key').isVisible(),true);
+    await page.getByRole('button',{name:'Key',exact:true}).click();assert.equal(await page.locator('.fm-roof-key').isVisible(),false);await page.getByRole('button',{name:'Key',exact:true}).click();
+    const row=await page.locator('.fm-roof-control-row').boundingBox(),legend=await page.locator('.fm-roof-key').boundingBox();assert.ok(legend.y>=row.y+row.height);assert.equal(await page.locator('[data-texture]').innerText(),'');
     await page.getByRole('button',{name:'Texture',exact:true}).click();
     assert.equal(await page.locator('[data-texture]').getAttribute('aria-pressed'),'false');
     await assertOpenings();

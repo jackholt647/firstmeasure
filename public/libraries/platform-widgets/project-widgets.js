@@ -24,7 +24,7 @@
   return {setVisible(value){if(!value&&media.video)el.pause();},destroy(){if(media.video){el.pause();el.removeAttribute('src');el.load();}el.remove();}};
  });
  W.attachRenderer('reports.roof','1',async(root,{data,state})=>{
-  if(!global.FirstMeasureRoofViewer){await (roofScript||=(new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=new URL('../apps/measurements/roof-viewer.js?v=20261002-widgets',base);s.onload=resolve;s.onerror=()=>{roofScript=null;reject(Error('The roof viewer could not load'));};document.head.append(s);})) );}
+  if(!global.FirstMeasureRoofViewer){await (roofScript||=(new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=new URL('../apps/measurements/roof-viewer.js?v=20261002-widget-controls',base);s.onload=resolve;s.onerror=()=>{roofScript=null;reject(Error('The roof viewer could not load'));};document.head.append(s);})) );}
   root.style.height='100%';return global.FirstMeasureRoofViewer.mount(root,{xmlUrl:data?.xmlUrl,standalone:true,initialState:state});
  });
  global.FirstMateProjectWidgets={

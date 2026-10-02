@@ -547,7 +547,7 @@
     return `
       .mt-app{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f8fb;color:#111827;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;container-type:inline-size;container-name:materials-workspace}
       .r-overlay.materials-workspace #mtSidebarSection.visible{min-height:0}
-      .r-overlay.materials-workspace .mt-widget-sidebar{display:flex;flex-direction:column;flex:0 0 44%;width:44%;min-width:280px;max-width:none;min-height:0;padding:0;overflow:hidden}
+      .r-overlay.materials-workspace .mt-widget-sidebar{display:flex;flex-direction:column;flex:0 0 50%;width:50%;min-width:280px;max-width:none;min-height:0;padding:0;overflow:hidden}
       .r-overlay.materials-workspace #mtSidebarList{height:100%;flex:1;min-height:0;gap:0;overflow:hidden}
       .mt-widget-sidebar .mt-left{height:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding:0}
       @media(max-width:850px){.r-overlay.materials-workspace .mt-widget-sidebar{width:100%;min-width:0;flex:0 0 420px;max-height:50vh}}
