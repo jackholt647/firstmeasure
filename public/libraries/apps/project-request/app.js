@@ -4425,7 +4425,7 @@ window.PlatformCommerce.onReady(async function(){
       || contact || address || 'New Project';
   }
   function openingProjectHeader(project = {}, options = {}){
-    if (options.workflow === 'report') return {title:'New Report',identityHtml:projectHeaderIdentityHtml('New Report','',''),pillsHtml:''};
+    if (options.workflow === 'report' && !projectOpenId(project)) return {title:'New Report',identityHtml:projectHeaderIdentityHtml('New Report','',''),pillsHtml:''};
     const contact = branchProjectConfig.title_mode === 'customer_name' ? projectPrimaryContactAlias(project).name
       : (formatProjectContactNames(project.contacts) || projectPrimaryContactAlias(project).name);
     const title = projectDisplayTitle(project);
@@ -8565,8 +8565,10 @@ window.PlatformCommerce.onReady(async function(){
     syncProjectNotesUi();
   }
 
+  function reportHeaderPending(){ return overviewWorkflowMode === 'report' && reportProjectChoice !== 'existing' && !addressSelected; }
+
   function updateModalTitle(){
-    if (overviewWorkflowMode === 'report') {
+    if (reportHeaderPending()) {
       const title=document.getElementById('rWindowProjectTitle');if(title)title.textContent='New Report';
       const mobile=document.getElementById('rMobileProjectTitleText');if(mobile)mobile.textContent='New Report';
       projectWindowBridge?.update(projectWindowToken,{title:'New Report',projectId:projectOpenId()});
@@ -9353,7 +9355,9 @@ window.PlatformCommerce.onReady(async function(){
     const overlay=$('#rOverlay'),details=overlay?.querySelector('.r-overview-details');
     if (!details) return;
     const selecting=overviewWorkflowMode === 'report' && reportProjectChoice === 'search';
-    overlay.classList.toggle('overview-focused-report',overviewWorkflowMode === 'report');
+    if(overviewWorkflowMode === 'report' && addressSelected)reportProjectChoice='existing';
+    const focused=reportHeaderPending(),reveal=overlay.classList.contains('overview-focused-report') && !focused;
+    overlay.classList.toggle('overview-focused-report',focused);
     overlay.classList.toggle('overview-project-picker',selecting);
     overlay.classList.toggle('overview-creation-flow',!!overviewWorkflowMode);
     let actions=details.querySelector('.r-overview-initial-actions');
@@ -9409,6 +9413,10 @@ window.PlatformCommerce.onReady(async function(){
     }
     picker.hidden=!selecting;
     updateModalTitle();
+    if(reveal && !window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      overlay.querySelector('.r-window-identity')?.animate([{opacity:.4,transform:'translateY(9px)'},{opacity:1,transform:'none'}],{duration:240,easing:'cubic-bezier(.22,1,.36,1)'});
+      overlay.querySelectorAll('#rProjectViewerTabs button').forEach((button,index)=>button.animate([{opacity:0,transform:'translateX(-18px)'},{opacity:1,transform:'none'}],{duration:240,delay:Math.min(index,8)*22,easing:'cubic-bezier(.22,1,.36,1)',fill:'backwards'}));
+    }
   }
 
   function renderWorkflowStateBody(options = {}){
@@ -11112,7 +11120,7 @@ window.PlatformCommerce.onReady(async function(){
       && projectOpenId(baseProject) === projectOpenId(activeBaseProject);
     const unfinishedReportDraft = !!baseProject && isUnfinishedReportDraft(baseProject);
     const nextRequestedWorkflow = baseProject
-      ? (options.workflow === 'report' || unfinishedReportDraft ? 'report' : 'project')
+      ? (options.workflow === 'report' ? 'report' : 'project')
       : normalizeWorkflow(options.workflow || options.createWorkflow || options.intent);
     projectShellLoading = !!options.shellOnly;
     if (!baseProject) projectRecordPending = false;

@@ -177,7 +177,7 @@
     };
     const paintHeader=()=>{
       if(record.shellVisible || !records.has(token))return;
-      const focused=record.options.workflow==='report';header.classList.toggle('fm-report-workflow-header',focused);
+      const focused=record.options.workflow==='report' && !identity(record.project);header.classList.toggle('fm-report-workflow-header',focused);
       const metadata=root.Portal?.modules?.request?.openingHeader?.(record.project || {},record.options);
       if(!metadata){title.textContent=record.project?.title || record.project?.address || 'Project';return;}
       title.innerHTML=metadata.identityHtml;

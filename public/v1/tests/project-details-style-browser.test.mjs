@@ -33,3 +33,16 @@ test('Notes keeps the original composer layout with permanent full-height histor
  }finally{await browser.close();}
 });
 
+
+test('narrow Overview keeps phone shortcuts inside the column and uses equal action tiles',async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ try{
+ const page=await browser.newPage();const app=await read('apps/project-request/app.js');
+ const css=app.slice(app.indexOf('  const css = `')+15,app.indexOf('`;',app.indexOf('  const css = `')));
+ await page.setContent('<section class="r-overview-details" style="width:253px;padding:12px"><div class="r-scroll"><div class="r-contact-card"><div class="r-inline"><div class="r-group"><input class="r-inp" value="Contact"></div><div class="r-group r-contact-shortcut-field"><input class="r-inp" value="1234567890"><span data-identity-actions><button data-contact-shortcut="call">C</button><button data-contact-shortcut="sms">M</button></span></div></div></div><div class="r-overview-initial-actions"><button class="r-toggle-btn">Order report</button><button class="r-toggle-btn">Build proposal</button><button class="r-toggle-btn">Schedule appointment</button></div></div></section>');
+ await page.addStyleTag({content:'*{box-sizing:border-box}'+css});
+ assert.equal(await page.locator('.r-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
+ const sizes=await page.locator('.r-overview-initial-actions button').evaluateAll(es=>es.map(e=>[e.getBoundingClientRect().width,e.getBoundingClientRect().height]));
+ assert.deepEqual(sizes[0],sizes[1]);assert.deepEqual(sizes[1],sizes[2]);
+ }finally{await browser.close();}
+});

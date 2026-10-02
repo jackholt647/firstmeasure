@@ -50,7 +50,8 @@ test('report entry searches existing projects, preserves report intent, and swit
    window.loadDocPickerRows=async()=>[{id:'p1',label:'Bill & Sarah Jones',address:'123 Main',search:'bill sarah jones 123 main',data:{address:'123 Main'}}];
    window.openProject=async(project,options)=>{window.opened={project,options};};window.renderWorkflowState=()=>syncOverviewWorkflow();
   });
-  await page.addScriptTag({content:app.slice(begin,end)+'\nsyncOverviewWorkflow();'});
+  await page.addScriptTag({content:app.match(/  function reportHeaderPending[^\n]+/)[0]+'\n'+app.slice(begin,end)+'\nsyncOverviewWorkflow();'});
+  assert.equal(await page.locator('#rOverlay').evaluate(el=>el.classList.contains('overview-focused-report')),true);
   await page.getByRole('searchbox',{name:'Search for an existing project'}).fill('Jones');
   await page.getByRole('option').click();
   assert.deepEqual(await page.evaluate(()=>window.opened),{project:{id:'p1',address:'123 Main'},options:{workflow:'report',tab:'map',forceRefresh:true}});
@@ -58,6 +59,9 @@ test('report entry searches existing projects, preserves report intent, and swit
   assert.equal(await page.evaluate(()=>window.reportProjectChoice),'new');
   assert.equal(await page.locator('.r-workflow-project-picker').isVisible(),false);
   assert.equal(await page.locator('#rOverlay').evaluate(el=>el.classList.contains('overview-project-picker')),false);
+  await page.evaluate(()=>{addressSelected=true;syncOverviewWorkflow();});
+  assert.equal(await page.locator('#rOverlay').evaluate(el=>el.classList.contains('overview-focused-report')),false,'a defined project restores normal chrome');
+  assert.equal(await page.evaluate(()=>reportProjectChoice),'existing');
   await page.evaluate(()=>{
     requestedWorkflow='project';overviewWorkflowMode='';activeBaseProject={id:'existing',measurement:{id:'report'}};addressSelected=true;
     window.hasReportOrdered=()=>true;window.applyReorderPrefillState=project=>{window.reordered=project.id;};
@@ -93,4 +97,14 @@ test('Overview field autosave persists without a mounted proposal and honors hyd
  vm.createContext(context);vm.runInContext(app.slice(start,end),context);context.queueAutosaveNotice();assert.deepEqual(calls,['project','proposal']);
  calls.length=0;context.suppressAutosaveNotice=true;context.queueAutosaveNotice();assert.deepEqual(calls,[]);
  context.suppressAutosaveNotice=false;context.proposalsEnabled=()=>false;context.queueAutosaveNotice();assert.deepEqual(calls,['project']);
+});
+
+test('existing projects always get normal opening identity, including explicit report entry',async()=>{
+ const app=await source('apps/project-request/app.js');
+ const fn=app.slice(app.indexOf('  function openingProjectHeader('),app.indexOf('  function projectHeaderState('));
+ const render=new Function('projectOpenId','projectHeaderIdentityHtml','branchProjectConfig','formatProjectContactNames','projectPrimaryContactAlias','projectDisplayTitle','projectText','projectIdentity','projectHeaderPillsHtml',fn+';return openingProjectHeader;')(
+  p=>p.id || p.platform_project_id || '',(title,contact,address)=>[title,contact,address].join('|'),{title_mode:'all_contacts'},()=>'',()=>({name:'Contact'}),p=>p.title || p.address,s=>s,p=>p.id,()=>'<pill>');
+ assert.equal(render({}, {workflow:'report'}).title,'New Report');
+ for(const options of [{},{workflow:'report'}])assert.equal(render({id:'existing',title:'Existing Project'},options).title,'Existing Project');
+ assert.equal(render({platform_project_id:'existing',address:'123 Main'},{workflow:'report'}).title,'123 Main');
 });
