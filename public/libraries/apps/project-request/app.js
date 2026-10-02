@@ -2,7 +2,7 @@
  * Staged request workflow with optional roof-report ordering.
  */
 (function(){
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20260930-shell-v1', document.currentScript.src);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261002-project-open-v1', document.currentScript.src);
   const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260930-shell-v1', document.currentScript.src);
   const shellUrl = new URL('../../window-manager/window-shell.js?v=20260930-v1', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
@@ -3336,6 +3336,7 @@ window.PlatformCommerce.onReady(async function(){
     clearTimeout(projectMapInitTimer);
     projectMapInitTimer = setTimeout(() => {
       projectMapInitTimer = 0;
+      if (activePreviewTab !== 'map' || projectShellLoading) return;
       initializeMapView(inputProject);
     }, Math.max(0, Number(delay) || 0));
   }
@@ -6588,7 +6589,7 @@ window.PlatformCommerce.onReady(async function(){
     // The mobile title is derived from the active tab, so update the shared
     // viewer chrome whenever a tab changes instead of only during a full render.
     syncProjectViewerTabs();
-    if (!projectShellLoading) syncProjectModalAppActivation(previousTab);
+    if (!projectShellLoading && !projectRouteBatching) syncProjectModalAppActivation(previousTab);
     refreshOverviewDetails();
     const hint = $('#rMapHint');
     const topMode = $('#rProposalTopMode');
@@ -7195,6 +7196,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function mountProjectModalApps(){
+    if (projectShellLoading || projectRouteBatching) return;
     ensureProjectModalAppPanels();
     const apps = projectModalApps();
     const appIds = new Set(apps.map((app) => app.appId));
@@ -7222,6 +7224,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function syncProjectModalAppActivation(previousTab = ''){
+    if (projectShellLoading || projectRouteBatching) return;
     ensureProjectModalAppPanels();
     setProjectModalHeaderAction(null);
     projectModalApps().forEach((app) => {
@@ -10608,6 +10611,9 @@ window.PlatformCommerce.onReady(async function(){
     if (!overlay) return;
     overlay.classList.toggle('project-shell-loading', projectShellLoading);
     overlay.setAttribute('aria-busy', projectShellLoading ? 'true' : 'false');
+    // Keep tabs/window controls usable, but don't allow keyboard edits to a
+    // provisional form that will be replaced by the authoritative record.
+    overlay.querySelector('.r-preview-stage')?.toggleAttribute('inert', projectShellLoading);
   }
 
   function activeModalMatchesProject(projectId){
@@ -10674,7 +10680,7 @@ window.PlatformCommerce.onReady(async function(){
         ...(options.photo ? { photo: options.photo, photoScope: 'project', projectTab: 'photos' } : {})
       });
     }
-    if (validPreviewTabs().includes('map') || projectModalAppsShouldInlineMap()) scheduleProjectMapInitialize(project, 80);
+    if (activePreviewTab === 'map') scheduleProjectMapInitialize(project, 80);
     window.dispatchEvent(new CustomEvent('fm:project-modal:hydrated', { detail: { projectId: projectOpenId(project) } }));
     restoreProjectNoteRoute();
     return true;
@@ -10733,13 +10739,8 @@ window.PlatformCommerce.onReady(async function(){
     closeSignatureChooser();
     setProjectionMode(hasReportOrdered());
     if (!baseProject) clearProjectRoute({ back:false, source:'new-project' });
-    if (options.fromReorder) {
-      setActivePreviewTab('map');
-    } else {
-      setActivePreviewTab(projectDefaultPreviewTab());
-    }
-    if (options.tab) setActivePreviewTab(options.tab);
-    if (pendingRoutePhotoId && projectPhotosEnabled()) setActivePreviewTab('photos');
+    setActivePreviewTab(pendingRoutePhotoId && projectPhotosEnabled() ? 'photos'
+      : options.tab || (options.fromReorder ? 'map' : projectDefaultPreviewTab()));
     renderContactContextBar();
     syncProjectViewerTabs();
     renderWorkflowState({ preserveRouteTab:options.fromRoute === true });
@@ -10759,6 +10760,10 @@ window.PlatformCommerce.onReady(async function(){
     syncProjectPresence();
     try { if (options.layout) projectWindowShell?.apply(options.layout); }
     finally { projectRouteBatching = false; }
+    if (!projectShellLoading) {
+      mountProjectModalApps();
+      syncProjectModalAppActivation();
+    }
     window.requestAnimationFrame(() => document.getElementById('fmProjectRoutePrecover')?.remove());
     projectModalWindow?.setVisible(true);
     syncProjectWindowModalRegistration();
@@ -10777,7 +10782,7 @@ window.PlatformCommerce.onReady(async function(){
     if (!projectShellLoading && options.proposalIntent) setTimeout(() => {
       applyProposalOpenIntent(options).catch((error) => console.warn('Proposal open intent failed', error));
     }, 0);
-    if (!projectShellLoading && (validPreviewTabs().includes('map') || projectModalAppsShouldInlineMap())) scheduleProjectMapInitialize(baseProject, 120);
+    if (!projectShellLoading && activePreviewTab === 'map') scheduleProjectMapInitialize(baseProject, 120);
     else {
       clearTimeout(projectMapInitTimer);
       projectMapInitTimer = 0;
@@ -11044,7 +11049,9 @@ window.PlatformCommerce.onReady(async function(){
     if (!localIsPlatformProjectId(id) || !window.PlatformAPI?.projects?.get) return project;
     const oid = projectOrgId();
     if (!oid) return project;
-    const result = await window.PlatformAPI.projects.get(oid, id).catch(() => null);
+    const earlyRead = projectWindowBridge?.takeProjectRead?.(projectWindowToken, window, oid, id);
+    const result = (earlyRead ? await earlyRead : null)
+      || await window.PlatformAPI.projects.get(oid, id).catch(() => null);
     const remote = projectFromPlatformDocument(result?.document);
     if (!remote) return project;
     const merged = mergeProjectForViewing(remote, project);
@@ -11115,7 +11122,9 @@ window.PlatformCommerce.onReady(async function(){
     const base = useMeasurementResolver ? mergeProjectForViewing(immediate, project) : immediate;
     // The passed record may be an id-only route seed or a stale cache entry.
     projectRecordPending = !!base;
-    open(base, { ...options, history:options.history || (options.fromRoute ? 'replace' : 'push') });
+    // Paint known identity/tabs immediately, but mount the selected app only
+    // once, against the authoritative record rather than the list seed.
+    open(base, { ...options, shellOnly:!!base, history:options.history || (options.fromRoute ? 'replace' : 'push') });
     try {
       const resolved = !useMeasurementResolver
         ? await hydratePlatformProjectForOpen(project)
@@ -11125,6 +11134,9 @@ window.PlatformCommerce.onReady(async function(){
         hydrateOpenProjectContent(hydrated, options, generation, projectOpenId(base));
       }
       if (generation === projectOpenGeneration) projectRecordPending = false;
+      if (options.proposalIntent && generation === projectOpenGeneration && activeModalMatchesProject(projectOpenId(hydrated))) {
+        await applyProposalOpenIntent(options).catch((error) => console.warn('Proposal open intent failed', error));
+      }
       return hydrated;
     } catch (error) {
       // A record that never loaded stays provisional: it must not be saved.

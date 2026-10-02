@@ -4769,17 +4769,21 @@
     // state before session, flags, or lazy app bundles can react to it.
     window.Portal?.navigation?.reconcile?.({ source:'portal-boot' });
     await syncPlatformSession().catch(()=>null);
-    await window.PlatformLanguage?.refresh?.().catch(error => console.warn("Language initialization failed", error));
+    const languageReady = Promise.resolve(window.PlatformLanguage?.refresh?.()).catch(error => console.warn("Language initialization failed", error));
     loadSidebarWidthPreference().catch(()=>null);
     window.FirstMateStatsig?.init?.({ source: 'platform' }).catch(()=>null);
     const appFlagsReady = loadAppFlags().catch(()=>null);
     const capabilitiesReady = loadCapabilities().catch(()=>null);
     const terminologyReady = Promise.resolve(window.Portal.terminology.load()).catch(()=>null);
     initializeSidebarModes();
-    await Promise.all([appFlagsReady, capabilitiesReady, terminologyReady]);
     try {
       const orgId=String(APP.userOrgId || '').trim();
-      const commerce=await window.PlatformAPI.request(`${window.PlatformAPI.baseUrl()}/organizations/${encodeURIComponent(orgId)}/commerce`);
+      // These reads share the resolved session, not one another's results.
+      // Start commerce alongside flags/language instead of adding another RTT.
+      const [commerce]=await Promise.all([
+        window.PlatformAPI.request(`${window.PlatformAPI.baseUrl()}/organizations/${encodeURIComponent(orgId)}/commerce`),
+        appFlagsReady, capabilitiesReady, terminologyReady, languageReady
+      ]);
       window.PlatformCommerce.set(commerce.commerce || commerce);
     } catch(error) {
       const cover=document.getElementById('fmPlatformBootCover');

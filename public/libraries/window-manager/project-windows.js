@@ -12,6 +12,20 @@
     const style = document.createElement('style'); style.id = 'fm-project-window-host-style';
     style.textContent = `.fm-project-window-layer{position:fixed;inset:0;pointer-events:none;z-index:2147483100}.fm-project-window-layer[data-mode=modal],.fm-project-window-layer[data-mode=fullscreen]{background:rgba(11,16,24,.78);pointer-events:auto}.fm-project-frame{position:fixed;left:2vw;top:4vh;width:96vw;height:92vh;pointer-events:auto;overflow:hidden!important;border-radius:14px;background:#fff}.fm-project-frame iframe{display:block;width:100%;height:100%;border:0}.fm-project-window-loading{position:absolute;inset:4%;display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;border-radius:14px;pointer-events:auto;color:#475467;font-weight:800;font-size:13px;font-family:inherit}.fm-project-window-loading:before{content:"";width:16px;height:16px;border:2px solid #d0d5dd;border-top-color:var(--primary,#d93025);border-radius:50%;animation:fm-project-window-spin .8s linear infinite}.fm-project-window-loading.failed:before{display:none}@keyframes fm-project-window-spin{to{transform:rotate(360deg)}}.fm-project-window-loading button{position:absolute;top:10px;right:10px;height:32px;padding:0 12px;border:1px solid rgba(15,23,42,.14);border-radius:9px;background:#fff;color:#344054;font-weight:900;font-size:12px;font-family:inherit;display:inline-flex;align-items:center;gap:6px;cursor:pointer}.fm-project-window-loading button:hover{background:#f2f4f7;color:#101828}.fm-project-window-loading button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}.fm-project-frame[hidden]{display:none!important}`;
     document.head.append(style);
+    style.textContent += `
+      .fm-project-window-loading{inset:0;border-radius:inherit;display:block;color:#101828;font-weight:400}
+      .fm-project-window-loading:before{display:none}
+      .fm-project-loading-header{height:48px;display:flex;align-items:center;border-bottom:1px solid #e4e7ec;padding-left:16px;gap:8px}
+      .fm-project-loading-title{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px;font-weight:800}
+      .fm-project-loading-header svg{flex:none;width:16px;height:16px}
+      .fm-project-window-loading .fm-window-controls{align-self:flex-start;margin:0 0 0 auto;display:flex}
+      .fm-project-window-loading .fm-window-controls button{position:static;width:30px;height:32px;min-height:32px;padding:0;border:0;border-radius:6px;background:none;color:inherit;display:inline-flex;align-items:center;justify-content:center}
+      .fm-project-window-loading .fm-window-controls button:hover{background:#d92d20;color:#fff}
+      .fm-project-window-loading [role=status]{position:absolute;inset:49px 0 0;display:flex;align-items:center;justify-content:center;gap:10px;color:#667085;font-size:13px}
+      .fm-project-window-loading [role=status]:before{content:"";width:16px;height:16px;border:2px solid #d0d5dd;border-top-color:var(--primary,#d93025);border-radius:50%;animation:fm-project-window-spin .8s linear infinite}
+      .fm-project-window-loading.failed [role=status]:before{display:none}
+      @media(max-width:760px){.fm-project-frame{inset:0;width:100%;height:100%;border-radius:0}}
+    `;
     style.textContent += `.fm-project-minimized-bar{position:absolute;inset:0;display:flex;align-items:center;gap:3px;padding:0 4px;background:#fff;font:12px Arial,sans-serif}.fm-project-minimized-bar[hidden]{display:none}.fm-project-minimized-bar button{height:28px;border:0;background:none;color:#344054;cursor:pointer}.fm-project-minimized-bar .fm-project-minimized-title{display:flex;align-items:center;gap:6px;min-width:0;flex:1;text-align:left}.fm-project-minimized-title span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.fm-project-minimized-title i{color:var(--primary,#d93025)}.fm-project-minimized-bar button:last-child:hover{background:#d92d20;color:white}`;
   }
   // The portal paints a project-shaped skeleton (#fmProjectRoutePrecover) on a
@@ -110,6 +124,7 @@
   function open(project, options = {}){
     if (!host() || !root.FirstMateWindows) return null;
     styles();
+    root.FirstMateWindows.ensureStyles?.();
     const projectId = identity(project);
     const existing = projectId && [...records.values()].find(record=>record.projectId === projectId);
     if (existing) {
@@ -132,13 +147,27 @@
     const element = document.createElement('section');element.className='fm-project-frame';element.hidden=false;
     const frame = document.createElement('iframe');frame.name='fm-project-window:'+token;frame.style.visibility='hidden';frame.setAttribute('aria-label',String(project?.title || project?.address || 'Project workspace'));frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');
     const loading = document.createElement('div');loading.className='fm-project-window-loading';
+    const header=document.createElement('header');header.className='fm-project-loading-header';
+    const title=document.createElement('span');title.className='fm-project-loading-title';
+    title.textContent=String(project?.title || project?.project_title || project?.address || 'Project');
+    const controls=document.createElement('div');controls.className='fm-window-controls';
     const status=document.createElement('span');status.textContent='Opening project…';status.setAttribute('role','status');
-    const dismiss=document.createElement('button');dismiss.type='button';dismiss.innerHTML='<i class="fas fa-xmark" aria-hidden="true"></i><span>Close</span>';dismiss.setAttribute('aria-label','Close project');dismiss.onclick=()=>close(token);loading.append(status,dismiss);
+    const dismiss=document.createElement('button');dismiss.type='button';dismiss.dataset.windowAction='close';dismiss.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2"/></svg>';dismiss.setAttribute('aria-label','Close project');dismiss.onclick=()=>close(token);controls.append(dismiss);header.append(title,controls);loading.append(header,status);
     const record={token,projectId,project,options,layer,element,frame,loading,controller:null,api:null,modal:null};
     record.ready = new Promise((resolve,reject)=>{record.resolveReady=resolve;record.rejectReady=reject;});
     record.ready.catch(()=>{});
     records.set(token,record);active=record;
-    element.append(frame);layer.append(element,loading);host().append(layer);clearRoutePrecover();
+    // Fetch the authoritative project while the isolated document boots,
+    // instead of waiting for its scripts, session and commerce to finish.
+    const orgId=String(root.Portal?.cfg?.userOrgId || root.Portal?.cfg?.orgId || root.__APP?.userOrgId || '').trim();
+    if(orgId && /^(project|base|__optimistic)_/i.test(projectId) && root.PlatformAPI?.projects?.get){
+      record.projectRead={orgId,projectId,started:Date.now(),promise:Promise.resolve().then(()=>root.PlatformAPI.projects.get(orgId,projectId)).then(result=>{
+        const data=result?.document?.data;
+        if(data && records.get(token)===record)update(token,{title:data.title || data.project_title || data.address});
+        return result;
+      }).catch(()=>null)};
+    }
+    element.append(frame,loading);layer.append(element);host().append(layer);clearRoutePrecover();
     // While it loads the window is already the topmost layer: Escape closes it
     // (not an editor left open underneath). sync() re-registers it by mode.
     record.modal = root.Portal?.modals?.register?.(layer, {id:`project-${token}`,closeOnEscape:true,closeOnBackdrop:false,onClose:()=>close(token)}) || null;
@@ -152,6 +181,14 @@
     return record;
   }
   function accepts(token, child){ return records.get(token)?.frame.contentWindow === child; }
+  function takeProjectRead(token, child, orgId, projectId){
+    const record=records.get(token),read=record?.projectRead;
+    if(!read || !accepts(token,child) || read.orgId!==orgId || read.projectId!==projectId)return null;
+    record.projectRead=null;
+    // This is a one-open handoff, never a cache for later refreshes or edits.
+    if(Date.now()-read.started>10000)return null;
+    return read.promise;
+  }
   function ready(token, child, api){
     const record=records.get(token);if(!record || !accepts(token,child) || record.api)return;
     record.api=api;clearTimeout(record.timer);
@@ -172,7 +209,7 @@
       record.rejectReady(error);
       console.warn('Project workspace could not finish loading',error);
       if(!records.has(token))return;
-      record.layer.append(record.loading);
+      record.element.append(record.loading);
       record.loading.hidden=false;record.loading.classList.add('failed');record.loading.querySelector('[role=status]').textContent='Unable to load this project. Close this window and try again.';
     });
   }
@@ -191,7 +228,7 @@
       title.title=bar.querySelector('span').textContent;
       if(!minimized){record.frame.style.width='100%';record.frame.style.height='100%';}
       clearRoutePrecover();
-      record.frame.style.visibility=minimized?'hidden':'visible';
+      record.frame.style.visibility=minimized || !record.shellVisible?'hidden':'visible';
       sync(record);if(notify)options.onChange?.(state);
     }
     record.controller=root.FirstMateWindows.attach({...options,element:record.element,host:host(),stackElement:record.layer,contentTarget:document.getElementById('mainPanels'),nativeModalLayout:false,
@@ -199,14 +236,24 @@
       onBeforeModeChange:({mode})=>{if(mode==='minimized'){record.frame.style.width=record.frame.clientWidth+'px';record.frame.style.height=record.frame.clientHeight+'px';}},
       onClose:()=>close(token),onChange:placement
     });
-    record.loading.remove();record.frame.style.visibility='visible';
+    // attach() runs while the child is still building its shell and CSS.
+    // Only setVisible(true), at the end of open(), may expose that document.
     return {
       get state(){return record.controller.state;},
       setMode(mode,opts){record.controller.setMode(mode,opts);if(opts?.silent)placement(record.controller.state,false);},
-      setVisible(value){record.controller.setVisible(value);sync(record);},
+      setVisible(value){
+        if(value && !record.shellVisible){
+          // The embedded shell has its own ready state; unrelated credits
+          // refreshes must not put the portal's boot cover above it.
+          child.document.body.classList.remove('platform-booting');
+          child.document.getElementById('fmPlatformBootCover')?.remove();
+          record.shellVisible=true;record.loading.remove();record.frame.style.visibility='visible';
+        }
+        record.controller.setVisible(value);sync(record);
+      },
       refresh(){record.controller.refresh();},focus(){active=record;record.controller.focus();},restore(){record.controller.restore();}
     };
   }
-  function update(token, data){const record=records.get(token);if(!record)return;if(data.projectId)record.projectId=data.projectId;if(data.title){record.frame.setAttribute('aria-label',data.title);record.element.setAttribute('aria-label',data.title);const label=record.minimizedBar?.querySelector('span');if(label)label.textContent=data.title;}}
-  root.FirstMateProjectWindows={open,close,closed,ready,attach,accepts,update,get active(){return active;},get size(){return records.size;}};
+  function update(token, data){const record=records.get(token);if(!record)return;if(data.projectId)record.projectId=data.projectId;if(data.title){record.frame.setAttribute('aria-label',data.title);record.element.setAttribute('aria-label',data.title);const label=record.minimizedBar?.querySelector('span');if(label)label.textContent=data.title;const loadingTitle=record.loading.querySelector('.fm-project-loading-title');if(loadingTitle)loadingTitle.textContent=data.title;}}
+  root.FirstMateProjectWindows={open,close,closed,ready,attach,accepts,update,takeProjectRead,get active(){return active;},get size(){return records.size;}};
 })(window);

@@ -18,7 +18,7 @@ $impersonatingFromEmail = $_SESSION['impersonating_from_email'] ?? null;
 
 $platformExpandedAssets = ($_SESSION['platform_expanded_access'] ?? false) === true;
 $platformAssistantAssets = $platformExpandedAssets || ($_SESSION['platform_assistant_access'] ?? false) === true;
-$ver = time(); // Cache busting
+require_once __DIR__ . '/asset-version.php';
 
 // --- TUTORIAL CHECK ---
 $headers = function_exists('getallheaders') ? getallheaders() : [];
@@ -2125,96 +2125,96 @@ session_write_close();
   <script src="https://cdn.jsdelivr.net/npm/geotiff"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script data-fm-color-picker src="../libraries/color-picker/firstmate-color-picker.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-api/platform-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-ui/platform-ui.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-undo/platform-undo.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/proposals-api/proposals-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/materials-api/materials-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/payments-api/payments-api.js?v=<?= $ver ?>"></script>
+  <script data-fm-color-picker src="../libraries/color-picker/firstmate-color-picker.js?v=<?= portalAssetVersion('../libraries/color-picker/firstmate-color-picker.js') ?>"></script>
+  <script src="../libraries/platform-api/platform-api.js?v=<?= portalAssetVersion('../libraries/platform-api/platform-api.js') ?>"></script>
+  <script src="../libraries/platform-ui/platform-ui.js?v=<?= portalAssetVersion('../libraries/platform-ui/platform-ui.js') ?>"></script>
+  <script src="../libraries/platform-undo/platform-undo.js?v=<?= portalAssetVersion('../libraries/platform-undo/platform-undo.js') ?>"></script>
+  <script src="../libraries/proposals-api/proposals-api.js?v=<?= portalAssetVersion('../libraries/proposals-api/proposals-api.js') ?>"></script>
+  <script src="../libraries/materials-api/materials-api.js?v=<?= portalAssetVersion('../libraries/materials-api/materials-api.js') ?>"></script>
+  <script src="../libraries/payments-api/payments-api.js?v=<?= portalAssetVersion('../libraries/payments-api/payments-api.js') ?>"></script>
   <?php if ($platformAssistantAssets): ?>
-  <script src="../libraries/assistant-api/assistant-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/window-manager/window-manager.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/assistant-api/assistant-api.js?v=<?= portalAssetVersion('../libraries/assistant-api/assistant-api.js') ?>"></script>
+  <script src="../libraries/window-manager/window-manager.js?v=<?= portalAssetVersion('../libraries/window-manager/window-manager.js') ?>"></script>
   <?php endif; ?>
   <?php if ($platformExpandedAssets): ?>
-  <script src="../libraries/payroll-api/payroll-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/financials-api/financials-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/stats-api/stats-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/agents-api/agents-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/agent-chat/agent-chat.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/insights/firstmate-insights.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/doc-agent/doc-agent.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/crew-api/crew-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/sales-api/sales-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/training-api/training-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/equipment-api/equipment-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/payment-intake/payment-intake.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/payroll-api/payroll-api.js?v=<?= portalAssetVersion('../libraries/payroll-api/payroll-api.js') ?>"></script>
+  <script src="../libraries/financials-api/financials-api.js?v=<?= portalAssetVersion('../libraries/financials-api/financials-api.js') ?>"></script>
+  <script src="../libraries/stats-api/stats-api.js?v=<?= portalAssetVersion('../libraries/stats-api/stats-api.js') ?>"></script>
+  <script src="../libraries/agents-api/agents-api.js?v=<?= portalAssetVersion('../libraries/agents-api/agents-api.js') ?>"></script>
+  <script src="../libraries/agent-chat/agent-chat.js?v=<?= portalAssetVersion('../libraries/agent-chat/agent-chat.js') ?>"></script>
+  <script src="../libraries/insights/firstmate-insights.js?v=<?= portalAssetVersion('../libraries/insights/firstmate-insights.js') ?>"></script>
+  <script src="../libraries/doc-agent/doc-agent.js?v=<?= portalAssetVersion('../libraries/doc-agent/doc-agent.js') ?>"></script>
+  <script src="../libraries/crew-api/crew-api.js?v=<?= portalAssetVersion('../libraries/crew-api/crew-api.js') ?>"></script>
+  <script src="../libraries/sales-api/sales-api.js?v=<?= portalAssetVersion('../libraries/sales-api/sales-api.js') ?>"></script>
+  <script src="../libraries/training-api/training-api.js?v=<?= portalAssetVersion('../libraries/training-api/training-api.js') ?>"></script>
+  <script src="../libraries/equipment-api/equipment-api.js?v=<?= portalAssetVersion('../libraries/equipment-api/equipment-api.js') ?>"></script>
+  <script src="../libraries/payment-intake/payment-intake.js?v=<?= portalAssetVersion('../libraries/payment-intake/payment-intake.js') ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/email-api/email-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/email-api/email-api.js?v=<?= portalAssetVersion('../libraries/email-api/email-api.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
-  <script src="../libraries/communications-api/communications-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/communications-api/communications-api.js?v=<?= portalAssetVersion('../libraries/communications-api/communications-api.js') ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/platform-realtime/platform-realtime.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/platform-realtime/platform-realtime.js?v=<?= portalAssetVersion('../libraries/platform-realtime/platform-realtime.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
-  <script src="../libraries/calls-runtime/livekit-client.umd.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/calls-api/calls-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/channels-api/channels-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/audio-notes/audio-notes.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/audio-structure/audio-structure.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/channels-ui/channels-ui.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/project-notes/project-notes.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/project-trays/project-trays.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/calls-runtime/livekit-client.umd.js?v=<?= portalAssetVersion('../libraries/calls-runtime/livekit-client.umd.js') ?>"></script>
+  <script src="../libraries/calls-api/calls-api.js?v=<?= portalAssetVersion('../libraries/calls-api/calls-api.js') ?>"></script>
+  <script src="../libraries/channels-api/channels-api.js?v=<?= portalAssetVersion('../libraries/channels-api/channels-api.js') ?>"></script>
+  <script src="../libraries/audio-notes/audio-notes.js?v=<?= portalAssetVersion('../libraries/audio-notes/audio-notes.js') ?>"></script>
+  <script src="../libraries/audio-structure/audio-structure.js?v=<?= portalAssetVersion('../libraries/audio-structure/audio-structure.js') ?>"></script>
+  <script src="../libraries/channels-ui/channels-ui.js?v=<?= portalAssetVersion('../libraries/channels-ui/channels-ui.js') ?>"></script>
+  <script src="../libraries/project-notes/project-notes.js?v=<?= portalAssetVersion('../libraries/project-notes/project-notes.js') ?>"></script>
+  <script src="../libraries/project-trays/project-trays.js?v=<?= portalAssetVersion('../libraries/project-trays/project-trays.js') ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/lead-intake-api/lead-intake-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/canvassing-api/canvassing-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-celebrations/platform-celebrations.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-notifications/platform-notifications.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-notifications/platform-push.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-banners/platform-banners.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-action-items/platform-action-items.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-tags/platform-tags.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/markup/firstmate-markup.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/lead-intake-api/lead-intake-api.js?v=<?= portalAssetVersion('../libraries/lead-intake-api/lead-intake-api.js') ?>"></script>
+  <script src="../libraries/canvassing-api/canvassing-api.js?v=<?= portalAssetVersion('../libraries/canvassing-api/canvassing-api.js') ?>"></script>
+  <script src="../libraries/platform-celebrations/platform-celebrations.js?v=<?= portalAssetVersion('../libraries/platform-celebrations/platform-celebrations.js') ?>"></script>
+  <script src="../libraries/platform-notifications/platform-notifications.js?v=<?= portalAssetVersion('../libraries/platform-notifications/platform-notifications.js') ?>"></script>
+  <script src="../libraries/platform-notifications/platform-push.js?v=<?= portalAssetVersion('../libraries/platform-notifications/platform-push.js') ?>"></script>
+  <script src="../libraries/platform-banners/platform-banners.js?v=<?= portalAssetVersion('../libraries/platform-banners/platform-banners.js') ?>"></script>
+  <script src="../libraries/platform-action-items/platform-action-items.js?v=<?= portalAssetVersion('../libraries/platform-action-items/platform-action-items.js') ?>"></script>
+  <script src="../libraries/platform-tags/platform-tags.js?v=<?= portalAssetVersion('../libraries/platform-tags/platform-tags.js') ?>"></script>
+  <script src="../libraries/markup/firstmate-markup.js?v=<?= portalAssetVersion('../libraries/markup/firstmate-markup.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
-  <script src="../libraries/video-editor/firstmate-video-editor.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/video-editor/firstmate-video-editor.js?v=<?= portalAssetVersion('../libraries/video-editor/firstmate-video-editor.js') ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/platform-scheduling/platform-scheduling.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-language/platform-language.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-terminology/platform-terminology.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-terminology/editor.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-schedule-view/platform-schedule-view.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/firstmeasure-api/firstmeasure-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/statsig/firstmate-statsig.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/settings-pages/firstmate-settings-pages.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/app-runtime/firstmate-embeddable-apps.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/app-runtime/app-chrome.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/app-runtime/firstmate-app-context.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/navigation/portal-navigation.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/setup-wizard/setup-wizard.js?v=<?= $ver ?>"></script>
-  <script src="landing/shared/signup-widget.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/account-switcher/account-switcher.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/custom-fields/firstmate-custom-fields.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/platform-scheduling/platform-scheduling.js?v=<?= portalAssetVersion('../libraries/platform-scheduling/platform-scheduling.js') ?>"></script>
+  <script src="../libraries/platform-language/platform-language.js?v=<?= portalAssetVersion('../libraries/platform-language/platform-language.js') ?>"></script>
+  <script src="../libraries/platform-terminology/platform-terminology.js?v=<?= portalAssetVersion('../libraries/platform-terminology/platform-terminology.js') ?>"></script>
+  <script src="../libraries/platform-terminology/editor.js?v=<?= portalAssetVersion('../libraries/platform-terminology/editor.js') ?>"></script>
+  <script src="../libraries/platform-schedule-view/platform-schedule-view.js?v=<?= portalAssetVersion('../libraries/platform-schedule-view/platform-schedule-view.js') ?>"></script>
+  <script src="../libraries/firstmeasure-api/firstmeasure-api.js?v=<?= portalAssetVersion('../libraries/firstmeasure-api/firstmeasure-api.js') ?>"></script>
+  <script src="../libraries/statsig/firstmate-statsig.js?v=<?= portalAssetVersion('../libraries/statsig/firstmate-statsig.js') ?>"></script>
+  <script src="../libraries/settings-pages/firstmate-settings-pages.js?v=<?= portalAssetVersion('../libraries/settings-pages/firstmate-settings-pages.js') ?>"></script>
+  <script src="../libraries/app-runtime/firstmate-embeddable-apps.js?v=<?= portalAssetVersion('../libraries/app-runtime/firstmate-embeddable-apps.js') ?>"></script>
+  <script src="../libraries/app-runtime/app-chrome.js?v=<?= portalAssetVersion('../libraries/app-runtime/app-chrome.js') ?>"></script>
+  <script src="../libraries/app-runtime/firstmate-app-context.js?v=<?= portalAssetVersion('../libraries/app-runtime/firstmate-app-context.js') ?>"></script>
+  <script src="../libraries/navigation/portal-navigation.js?v=<?= portalAssetVersion('../libraries/navigation/portal-navigation.js') ?>"></script>
+  <script src="../libraries/setup-wizard/setup-wizard.js?v=<?= portalAssetVersion('../libraries/setup-wizard/setup-wizard.js') ?>"></script>
+  <script src="landing/shared/signup-widget.js?v=<?= portalAssetVersion('landing/shared/signup-widget.js') ?>"></script>
+  <script src="../libraries/account-switcher/account-switcher.js?v=<?= portalAssetVersion('../libraries/account-switcher/account-switcher.js') ?>"></script>
+  <script src="../libraries/custom-fields/firstmate-custom-fields.js?v=<?= portalAssetVersion('../libraries/custom-fields/firstmate-custom-fields.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
-  <script src="../libraries/documents-api/documents-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/doc-model/firstmate-doc-model.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/doc-widgets/firstmate-doc-widgets.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/doc-renderer/firstmate-doc-renderer.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/doc-workflow/firstmate-doc-workflow.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/doc-language/firstmate-doc-language.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/doc-editor/firstmate-doc-editor.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/visual-editor/firstmate-visual-editor.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/doc-workflow/firstmate-workflow-editor.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/web-widgets/firstmate-web-widgets.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/portal-widgets/firstmate-portal-widgets.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/websites-api/websites-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/domains-api/domains-api.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/documents-api/documents-api.js?v=<?= portalAssetVersion('../libraries/documents-api/documents-api.js') ?>"></script>
+  <script src="../libraries/doc-model/firstmate-doc-model.js?v=<?= portalAssetVersion('../libraries/doc-model/firstmate-doc-model.js') ?>"></script>
+  <script src="../libraries/doc-widgets/firstmate-doc-widgets.js?v=<?= portalAssetVersion('../libraries/doc-widgets/firstmate-doc-widgets.js') ?>"></script>
+  <script src="../libraries/doc-renderer/firstmate-doc-renderer.js?v=<?= portalAssetVersion('../libraries/doc-renderer/firstmate-doc-renderer.js') ?>"></script>
+  <script src="../libraries/doc-workflow/firstmate-doc-workflow.js?v=<?= portalAssetVersion('../libraries/doc-workflow/firstmate-doc-workflow.js') ?>"></script>
+  <script src="../libraries/doc-language/firstmate-doc-language.js?v=<?= portalAssetVersion('../libraries/doc-language/firstmate-doc-language.js') ?>"></script>
+  <script src="../libraries/doc-editor/firstmate-doc-editor.js?v=<?= portalAssetVersion('../libraries/doc-editor/firstmate-doc-editor.js') ?>"></script>
+  <script src="../libraries/visual-editor/firstmate-visual-editor.js?v=<?= portalAssetVersion('../libraries/visual-editor/firstmate-visual-editor.js') ?>"></script>
+  <script src="../libraries/doc-workflow/firstmate-workflow-editor.js?v=<?= portalAssetVersion('../libraries/doc-workflow/firstmate-workflow-editor.js') ?>"></script>
+  <script src="../libraries/web-widgets/firstmate-web-widgets.js?v=<?= portalAssetVersion('../libraries/web-widgets/firstmate-web-widgets.js') ?>"></script>
+  <script src="../libraries/portal-widgets/firstmate-portal-widgets.js?v=<?= portalAssetVersion('../libraries/portal-widgets/firstmate-portal-widgets.js') ?>"></script>
+  <script src="../libraries/websites-api/websites-api.js?v=<?= portalAssetVersion('../libraries/websites-api/websites-api.js') ?>"></script>
+  <script src="../libraries/domains-api/domains-api.js?v=<?= portalAssetVersion('../libraries/domains-api/domains-api.js') ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/apps/firstmate-apps-manifest.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/report-units.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/platform-commerce/platform-commerce.js?v=<?= $ver ?>"></script>
-  <script src="scripts/core.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/payments-setup/payments-setup.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/firstmate-apps-manifest.js?v=<?= portalAssetVersion('../libraries/apps/firstmate-apps-manifest.js') ?>"></script>
+  <script src="../libraries/report-units.js?v=<?= portalAssetVersion('../libraries/report-units.js') ?>"></script>
+  <script src="../libraries/platform-commerce/platform-commerce.js?v=<?= portalAssetVersion('../libraries/platform-commerce/platform-commerce.js') ?>"></script>
+  <script src="scripts/core.js?v=<?= portalAssetVersion('scripts/core.js') ?>"></script>
+  <script src="../libraries/payments-setup/payments-setup.js?v=<?= portalAssetVersion('../libraries/payments-setup/payments-setup.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
-  <script src="../libraries/app-runtime/firstmate-external-apps.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/app-runtime/firstmate-external-apps.js?v=<?= portalAssetVersion('../libraries/app-runtime/firstmate-external-apps.js') ?>"></script>
   <?php endif; ?>
   <?php
     if ($platformExpandedAssets) {
@@ -2228,99 +2228,99 @@ session_write_close();
     }
   ?>
   <?php if ($platformExpandedAssets): ?>
-  <script src="../libraries/app-setup-workflows/app-setup-workflows.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/app-setup-workflows/app-setup-workflows.js?v=<?= portalAssetVersion('../libraries/app-setup-workflows/app-setup-workflows.js') ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/apps/settings/search.js?v=<?= $ver ?>"></script>
-  <script src="scripts/topbar-artifacts.js?v=<?= $ver ?>"></script>
-  <script src="scripts/topbar.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/settings/search.js?v=<?= portalAssetVersion('../libraries/apps/settings/search.js') ?>"></script>
+  <script src="scripts/topbar-artifacts.js?v=<?= portalAssetVersion('scripts/topbar-artifacts.js') ?>"></script>
+  <script src="scripts/topbar.js?v=<?= portalAssetVersion('scripts/topbar.js') ?>"></script>
   <?php if ($platformAssistantAssets): ?>
-  <script src="../libraries/platform-assistant/platform-assistant.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/platform-assistant/platform-assistant.js?v=<?= portalAssetVersion('../libraries/platform-assistant/platform-assistant.js') ?>"></script>
   <?php endif; ?>
-  <script src="scripts/project_viewer.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/tab-promos/project.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/project-map/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/customer-portal/project.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/project-schedule/panel.js?v=<?= $ver ?>"></script>
+  <script src="scripts/project_viewer.js?v=<?= portalAssetVersion('scripts/project_viewer.js') ?>"></script>
+  <script src="../libraries/apps/tab-promos/project.js?v=<?= portalAssetVersion('../libraries/apps/tab-promos/project.js') ?>"></script>
+  <script src="../libraries/apps/project-map/app.js?v=<?= portalAssetVersion('../libraries/apps/project-map/app.js') ?>"></script>
+  <script src="../libraries/apps/customer-portal/project.js?v=<?= portalAssetVersion('../libraries/apps/customer-portal/project.js') ?>"></script>
+  <script src="../libraries/apps/project-schedule/panel.js?v=<?= portalAssetVersion('../libraries/apps/project-schedule/panel.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
-  <script src="../libraries/comms-api/comms-api.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/comms/communications-ui.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/comms/phone-tray.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/comms/calling-runtime.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/comms/workspace.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/communications-templates/communications-templates.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/comms/project.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/comms-api/comms-api.js?v=<?= portalAssetVersion('../libraries/comms-api/comms-api.js') ?>"></script>
+  <script src="../libraries/apps/comms/communications-ui.js?v=<?= portalAssetVersion('../libraries/apps/comms/communications-ui.js') ?>"></script>
+  <script src="../libraries/apps/comms/phone-tray.js?v=<?= portalAssetVersion('../libraries/apps/comms/phone-tray.js') ?>"></script>
+  <script src="../libraries/apps/comms/calling-runtime.js?v=<?= portalAssetVersion('../libraries/apps/comms/calling-runtime.js') ?>"></script>
+  <script src="../libraries/apps/comms/workspace.js?v=<?= portalAssetVersion('../libraries/apps/comms/workspace.js') ?>"></script>
+  <script src="../libraries/communications-templates/communications-templates.js?v=<?= portalAssetVersion('../libraries/communications-templates/communications-templates.js') ?>"></script>
+  <script src="../libraries/apps/comms/project.js?v=<?= portalAssetVersion('../libraries/apps/comms/project.js') ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/apps/measurements/project.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/firstmeasure/order/exteriors.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/firstmeasure/order/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/projects/viewer.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/photos/feed.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/measurements/project.js?v=<?= portalAssetVersion('../libraries/apps/measurements/project.js') ?>"></script>
+  <script src="../libraries/apps/firstmeasure/order/exteriors.js?v=<?= portalAssetVersion('../libraries/apps/firstmeasure/order/exteriors.js') ?>"></script>
+  <script src="../libraries/apps/firstmeasure/order/app.js?v=<?= portalAssetVersion('../libraries/apps/firstmeasure/order/app.js') ?>"></script>
+  <script src="../libraries/apps/projects/viewer.js?v=<?= portalAssetVersion('../libraries/apps/projects/viewer.js') ?>"></script>
+  <script src="../libraries/apps/photos/feed.js?v=<?= portalAssetVersion('../libraries/apps/photos/feed.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
-  <script src="../libraries/apps/receipts/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/receipts/app.js?v=<?= portalAssetVersion('../libraries/apps/receipts/app.js') ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/apps/photos/project.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/docs/project.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/pricebook/firstmate-pricebook.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/pricebook/bridge.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/materials/project.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/proposals/project.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/photos/project.js?v=<?= portalAssetVersion('../libraries/apps/photos/project.js') ?>"></script>
+  <script src="../libraries/apps/docs/project.js?v=<?= portalAssetVersion('../libraries/apps/docs/project.js') ?>"></script>
+  <script src="../libraries/pricebook/firstmate-pricebook.js?v=<?= portalAssetVersion('../libraries/pricebook/firstmate-pricebook.js') ?>"></script>
+  <script src="../libraries/apps/pricebook/bridge.js?v=<?= portalAssetVersion('../libraries/apps/pricebook/bridge.js') ?>"></script>
+  <script src="../libraries/apps/materials/project.js?v=<?= portalAssetVersion('../libraries/apps/materials/project.js') ?>"></script>
+  <script src="../libraries/apps/proposals/project.js?v=<?= portalAssetVersion('../libraries/apps/proposals/project.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
-  <script src="../libraries/apps/documents/project.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/payroll/project.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/documents/project.js?v=<?= portalAssetVersion('../libraries/apps/documents/project.js') ?>"></script>
+  <script src="../libraries/apps/payroll/project.js?v=<?= portalAssetVersion('../libraries/apps/payroll/project.js') ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/apps/money/project.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/money/project.js?v=<?= portalAssetVersion('../libraries/apps/money/project.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
-  <script src="../libraries/apps/checklists/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/checklists/app.js?v=<?= portalAssetVersion('../libraries/apps/checklists/app.js') ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/apps/proposals/global.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/project-request/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/contacts/modal.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/contacts/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/scheduling/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/proposals/global.js?v=<?= portalAssetVersion('../libraries/apps/proposals/global.js') ?>"></script>
+  <script src="../libraries/apps/project-request/app.js?v=<?= portalAssetVersion('../libraries/apps/project-request/app.js') ?>"></script>
+  <script src="../libraries/apps/contacts/modal.js?v=<?= portalAssetVersion('../libraries/apps/contacts/modal.js') ?>"></script>
+  <script src="../libraries/apps/contacts/app.js?v=<?= portalAssetVersion('../libraries/apps/contacts/app.js') ?>"></script>
+  <script src="../libraries/apps/scheduling/app.js?v=<?= portalAssetVersion('../libraries/apps/scheduling/app.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
-  <script src="../libraries/apps/financials/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/invoices/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/stats/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/payroll/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/crew/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/sales/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/signatures/project.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/training/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/training/studio.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/equipment/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/documents/studio.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/web-editor/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/chat/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/channels/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/financials/app.js?v=<?= portalAssetVersion('../libraries/apps/financials/app.js') ?>"></script>
+  <script src="../libraries/apps/invoices/app.js?v=<?= portalAssetVersion('../libraries/apps/invoices/app.js') ?>"></script>
+  <script src="../libraries/apps/stats/app.js?v=<?= portalAssetVersion('../libraries/apps/stats/app.js') ?>"></script>
+  <script src="../libraries/apps/payroll/app.js?v=<?= portalAssetVersion('../libraries/apps/payroll/app.js') ?>"></script>
+  <script src="../libraries/apps/crew/app.js?v=<?= portalAssetVersion('../libraries/apps/crew/app.js') ?>"></script>
+  <script src="../libraries/apps/sales/app.js?v=<?= portalAssetVersion('../libraries/apps/sales/app.js') ?>"></script>
+  <script src="../libraries/apps/signatures/project.js?v=<?= portalAssetVersion('../libraries/apps/signatures/project.js') ?>"></script>
+  <script src="../libraries/apps/training/app.js?v=<?= portalAssetVersion('../libraries/apps/training/app.js') ?>"></script>
+  <script src="../libraries/apps/training/studio.js?v=<?= portalAssetVersion('../libraries/apps/training/studio.js') ?>"></script>
+  <script src="../libraries/apps/equipment/app.js?v=<?= portalAssetVersion('../libraries/apps/equipment/app.js') ?>"></script>
+  <script src="../libraries/apps/documents/studio.js?v=<?= portalAssetVersion('../libraries/apps/documents/studio.js') ?>"></script>
+  <script src="../libraries/apps/web-editor/app.js?v=<?= portalAssetVersion('../libraries/apps/web-editor/app.js') ?>"></script>
+  <script src="../libraries/apps/chat/app.js?v=<?= portalAssetVersion('../libraries/apps/chat/app.js') ?>"></script>
+  <script src="../libraries/apps/channels/app.js?v=<?= portalAssetVersion('../libraries/apps/channels/app.js') ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/apps/canvassing/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/billing/app.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/canvassing/app.js?v=<?= portalAssetVersion('../libraries/apps/canvassing/app.js') ?>"></script>
+  <script src="../libraries/apps/billing/app.js?v=<?= portalAssetVersion('../libraries/apps/billing/app.js') ?>"></script>
   <!-- Floating help widget disabled 2026-07-22: low value and it covered UI (e.g. chat composers). Re-enable by restoring this tag.
-  <script src="../libraries/apps/help/app.js?v=<?= $ver ?>"></script> -->
-  <!--<script src="../libraries/apps/tutorial/app.js?v=<?= $ver ?>"></script>-->
+  <script src="../libraries/apps/help/app.js?v=<?= portalAssetVersion('../libraries/apps/help/app.js') ?>"></script> -->
+  <!--<script src="../libraries/apps/tutorial/app.js?v=<?= portalAssetVersion('../libraries/apps/tutorial/app.js') ?>"></script>-->
   <?php if ($platformExpandedAssets): ?>
-  <script src="../libraries/apps/settings/crm.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/settings/contacts.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/settings/automations.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/settings/scope-events.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/settings/scope-artifacts.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/settings/feedback.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/settings/equipment.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/settings/live_chat.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/settings/comms.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/settings/channels.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/settings/payroll.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/settings/domains.js?v=<?= $ver ?>"></script>
+  <script src="../libraries/apps/settings/crm.js?v=<?= portalAssetVersion('../libraries/apps/settings/crm.js') ?>"></script>
+  <script src="../libraries/apps/settings/contacts.js?v=<?= portalAssetVersion('../libraries/apps/settings/contacts.js') ?>"></script>
+  <script src="../libraries/apps/settings/automations.js?v=<?= portalAssetVersion('../libraries/apps/settings/automations.js') ?>"></script>
+  <script src="../libraries/apps/settings/scope-events.js?v=<?= portalAssetVersion('../libraries/apps/settings/scope-events.js') ?>"></script>
+  <script src="../libraries/apps/settings/scope-artifacts.js?v=<?= portalAssetVersion('../libraries/apps/settings/scope-artifacts.js') ?>"></script>
+  <script src="../libraries/apps/settings/feedback.js?v=<?= portalAssetVersion('../libraries/apps/settings/feedback.js') ?>"></script>
+  <script src="../libraries/apps/settings/equipment.js?v=<?= portalAssetVersion('../libraries/apps/settings/equipment.js') ?>"></script>
+  <script src="../libraries/apps/settings/live_chat.js?v=<?= portalAssetVersion('../libraries/apps/settings/live_chat.js') ?>"></script>
+  <script src="../libraries/apps/settings/comms.js?v=<?= portalAssetVersion('../libraries/apps/settings/comms.js') ?>"></script>
+  <script src="../libraries/apps/settings/channels.js?v=<?= portalAssetVersion('../libraries/apps/settings/channels.js') ?>"></script>
+  <script src="../libraries/apps/settings/payroll.js?v=<?= portalAssetVersion('../libraries/apps/settings/payroll.js') ?>"></script>
+  <script src="../libraries/apps/settings/domains.js?v=<?= portalAssetVersion('../libraries/apps/settings/domains.js') ?>"></script>
   <?php endif; ?>
-<script src="../libraries/phone-features/phone-features.js?v=<?= $ver ?>"></script>
-<script src="../libraries/phone-features/app-download.js?v=<?= $ver ?>"></script>
-<script src="../libraries/apps/settings/firstmeasure-users.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/settings/platform-billing.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/brand-kit/brand-kit.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/settings/company.js?v=<?= $ver ?>"></script>
-  <script src="scripts/dev_overlay.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/promo-inject/app.js?v=<?= $ver ?>"></script>
-  <script src="../libraries/apps/referrals/app.js?v=<?= $ver ?>"></script>
+<script src="../libraries/phone-features/phone-features.js?v=<?= portalAssetVersion('../libraries/phone-features/phone-features.js') ?>"></script>
+<script src="../libraries/phone-features/app-download.js?v=<?= portalAssetVersion('../libraries/phone-features/app-download.js') ?>"></script>
+<script src="../libraries/apps/settings/firstmeasure-users.js?v=<?= portalAssetVersion('../libraries/apps/settings/firstmeasure-users.js') ?>"></script>
+  <script src="../libraries/apps/settings/platform-billing.js?v=<?= portalAssetVersion('../libraries/apps/settings/platform-billing.js') ?>"></script>
+  <script src="../libraries/brand-kit/brand-kit.js?v=<?= portalAssetVersion('../libraries/brand-kit/brand-kit.js') ?>"></script>
+  <script src="../libraries/apps/settings/company.js?v=<?= portalAssetVersion('../libraries/apps/settings/company.js') ?>"></script>
+  <script src="scripts/dev_overlay.js?v=<?= portalAssetVersion('scripts/dev_overlay.js') ?>"></script>
+  <script src="../libraries/apps/promo-inject/app.js?v=<?= portalAssetVersion('../libraries/apps/promo-inject/app.js') ?>"></script>
+  <script src="../libraries/apps/referrals/app.js?v=<?= portalAssetVersion('../libraries/apps/referrals/app.js') ?>"></script>
 
   <?php
   /*
@@ -2334,12 +2334,12 @@ session_write_close();
    *      dashboard with no wizard, losing the rest of the flow.
    */
   if ($showOnboarding || $paidFlag === '1'): ?>
-    <script src="../libraries/apps/onboarding/wizard.js?v=<?= $ver ?>"></script>
+    <script src="../libraries/apps/onboarding/wizard.js?v=<?= portalAssetVersion('../libraries/apps/onboarding/wizard.js') ?>"></script>
   <?php endif; ?>
 
   <!-- Signup Sandbox dev bar: no-ops unless the logged-in org is a sandbox
        test org (and /v1/signup-sandbox is dead in production entirely). -->
-  <script src="signup-sandbox/devbar.js?v=<?= $ver ?>" defer></script>
+  <script src="signup-sandbox/devbar.js?v=<?= portalAssetVersion('signup-sandbox/devbar.js') ?>" defer></script>
 
   <!-- Mobile sidebar toggle -->
   <script>
