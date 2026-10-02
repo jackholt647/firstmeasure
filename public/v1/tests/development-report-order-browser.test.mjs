@@ -9,7 +9,7 @@ test('ordinary projects launch ordering and the address shortcut follows current
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try{
     const page=await browser.newPage();
-    await page.setContent('<input id="rAddress" value="Typed address"><input id="rLat"><input id="rLng"><input id="rComps"><button id="rOrderMeasurements" hidden>Order Measurements</button><label id="rInstantDevelopmentReport" hidden><input id="rInstantDevelopmentCheck" type="checkbox">Instant development report</label><div id="rWorkflowDock"></div><div id="rReportAddons"></div>');
+    await page.setContent('<input id="rAddress" value="Typed address"><input id="rLat"><input id="rLng"><input id="rComps"><button id="rOrderMeasurements" hidden>Order Measurements</button><label id="rInstantDevelopmentReport" hidden><input id="rInstantDevelopmentCheck" type="checkbox">Instant development report</label><div id="rWorkflowDock"></div><div id="rReportAddons"></div><button data-report-addon="gutters">Gutters</button>');
     await page.addScriptTag({content:`
       var selectedType='residential',requestedWorkflow='project',addressSelected=true,locationConfirmed=false,reportSelection=null;
       var scope='roof',calls=[],counter=0,empty=false;
@@ -28,7 +28,9 @@ test('ordinary projects launch ordering and the address shortcut follows current
     await page.waitForFunction(()=>document.querySelector('#rAddress').value==='Sample 1');
     assert.equal(await page.locator('#rInstantDevelopmentCheck').isChecked(),false);
     assert.equal(await page.locator('#rInstantDevelopmentReport').isVisible(),true);
+    assert.equal(await page.locator('#rInstantDevelopmentReport').evaluate(e=>e.nextElementSibling.dataset.reportAddon),'gutters');
     await page.locator('#rInstantDevelopmentCheck').check();
+    assert.equal(await page.locator('#rInstantDevelopmentReport').evaluate(e=>e.classList.contains('selected')),true);
     assert.equal(await page.evaluate(()=>!!instantDevelopmentReport()),true);
     await page.evaluate(()=>{selectedType='commercial';scope='full_house';syncDevelopmentReportControls();});
     assert.equal(await page.locator('#rInstantDevelopmentReport').isVisible(),false);

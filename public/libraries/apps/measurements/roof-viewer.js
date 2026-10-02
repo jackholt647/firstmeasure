@@ -33,6 +33,16 @@
     if(!roofs.length)throw new Error('No saved roof geometry is available for this report.');
     return roofs;
   }
+  // Build a face-local surface basis: shingle courses run across the slope.
+  function faceTextureUVs(face){
+    const n=[0,0,0];
+    face.forEach((p,i)=>{const q=face[(i+1)%face.length];n[0]+=(p[1]-q[1])*(p[2]+q[2]);n[1]+=(p[2]-q[2])*(p[0]+q[0]);n[2]+=(p[0]-q[0])*(p[1]+q[1]);});
+    const norm=v=>{const length=Math.hypot(...v)||1;return v.map(x=>x/length);};
+    const normal=norm(n[2]<0?n.map(x=>-x):n);
+    const across=Math.hypot(normal[0],normal[1])>1e-8?norm([-normal[1],normal[0],0]):[1,0,0];
+    const uphill=norm([normal[1]*across[2]-normal[2]*across[1],normal[2]*across[0]-normal[0]*across[2],normal[0]*across[1]-normal[1]*across[0]]);
+    return face.map(p=>{const d=p.map((v,i)=>v-face[0][i]);return [across,uphill].map(axis=>d.reduce((sum,v,i)=>sum+v*axis[i],0)/12);});
+  }
   function injectStyle(){
     if(document.getElementById('fm-roof-viewer-style'))return;
     const el=document.createElement('style');el.id='fm-roof-viewer-style';el.textContent=`
@@ -50,16 +60,16 @@
     `;document.head.append(el);
   }
   function mount(root,{xmlUrl,media=[]}){
-    injectStyle();let disposed=false,renderer,controls,scene,camera,observer,geometryGroup,lineGroup,texture,selection='model',geometryMode=false;
+    injectStyle();let disposed=false,renderer,controls,scene,camera,observer,geometryGroup,lineGroup,texture,selection='model',textureEnabled=true,coloredLinesEnabled=true,keyVisible=true;
     let modelLoaded=false;const controller=new AbortController();const objects=[];const ownedUrls=[];
-    root.innerHTML='<div class="fm-roof-gallery"><div class="fm-roof-library" aria-label="Roof model and report media"></div><div class="fm-roof-stage"><div class="fm-roof-canvas"></div><div class="fm-roof-tools"><button type="button" data-mode aria-pressed="false">Geometry</button><button type="button" data-key aria-expanded="false">Line key</button><button type="button" data-reset>Reset view</button></div><div class="fm-roof-key" hidden></div><div class="fm-roof-message" role="status">Loading roof model…</div><div class="fm-roof-hint">Drag to orbit · Scroll to zoom</div></div></div>';
+    root.innerHTML='<div class="fm-roof-gallery"><div class="fm-roof-library" aria-label="Roof model and report media"></div><div class="fm-roof-stage"><div class="fm-roof-canvas"></div><div class="fm-roof-tools"><button type="button" data-texture aria-pressed="true">Texture</button><button type="button" data-lines aria-pressed="true">Colored lines</button><button type="button" data-key aria-expanded="true">Line key</button><button type="button" data-reset>Reset view</button></div><div class="fm-roof-key"></div><div class="fm-roof-message" role="status">Loading roof model…</div><div class="fm-roof-hint">Drag to orbit · Scroll to zoom</div></div></div>';
     const gallery=root.firstElementChild,stage=root.querySelector('.fm-roof-stage'),canvas=root.querySelector('.fm-roof-canvas'),library=root.querySelector('.fm-roof-library'),tools=root.querySelector('.fm-roof-tools'),key=root.querySelector('.fm-roof-key'),message=root.querySelector('.fm-roof-message'),hint=root.querySelector('.fm-roof-hint');
     const entries=[{id:'model',label:'3D roof model'},...media.map((m,i)=>({...m,id:'media-'+i}))];
     function draw(){if(!disposed&&renderer&&selection==='model')renderer.render(scene,camera);}
-    function resize(){if(disposed)return;gallery.classList.toggle('is-compact',gallery.clientWidth<800);if(renderer){renderer.setSize(stage.clientWidth,stage.clientHeight);const aspect=stage.clientWidth/Math.max(1,stage.clientHeight);camera.position.sub(controls.target).multiplyScalar(Math.max(1,1/aspect)/Math.max(1,1/camera.aspect)).add(controls.target);camera.aspect=aspect;camera.updateProjectionMatrix();draw();}}
+    function resize(){if(disposed)return;gallery.classList.toggle('is-compact',gallery.clientWidth<800);key.style.top=(tools.offsetTop+tools.offsetHeight+8)+'px';if(renderer){renderer.setSize(stage.clientWidth,stage.clientHeight);const aspect=stage.clientWidth/Math.max(1,stage.clientHeight);camera.position.sub(controls.target).multiplyScalar(Math.max(1,1/aspect)/Math.max(1,1/camera.aspect)).add(controls.target);camera.aspect=aspect;camera.updateProjectionMatrix();draw();}}
     function select(entry){
       selection=entry.id; stage.querySelector('.fm-roof-media')?.remove();
-      const model=selection==='model';canvas.hidden=!model;tools.hidden=!model;hint.hidden=!model;key.hidden=true;tools.querySelector('[data-key]').setAttribute('aria-expanded','false');message.hidden=!model||modelLoaded;
+      const model=selection==='model';canvas.hidden=!model;tools.hidden=!model;hint.hidden=!model;key.hidden=!model||!keyVisible;tools.querySelector('[data-key]').setAttribute('aria-expanded',String(keyVisible));message.hidden=!model||modelLoaded;
       library.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.id===entry.id)));
       if(!model){const el=document.createElement(entry.video?'video':'img');el.className='fm-roof-media';el.src=entry.url;el.alt=entry.label;if(entry.video){el.controls=true;el.playsInline=true;}el.onerror=()=>{message.hidden=false;message.textContent='This media could not load.';};stage.append(el);}else resize();
     }
@@ -83,8 +93,15 @@
       const label=document.createElement('span');label.textContent=entry.label;button.append(label);button.onclick=()=>{if(entry.solar&&!entry.url){message.textContent='Loading solar image…';message.hidden=false;return;}select(entry);};library.append(button);
     }
     function reset(){if(!camera)return;const aspect=stage.clientWidth/Math.max(1,stage.clientHeight);camera.position.set(1,1,1.3).normalize().multiplyScalar(190*Math.max(1,1/aspect));controls.target.set(0,0,0);controls.update();draw();}
-    tools.querySelector('[data-mode]').onclick=e=>{geometryMode=!geometryMode;e.currentTarget.setAttribute('aria-pressed',String(geometryMode));e.currentTarget.textContent=geometryMode?'Textured':'Geometry';if(geometryGroup)geometryGroup.visible=!geometryMode;if(lineGroup)lineGroup.visible=geometryMode;draw();};
-    tools.querySelector('[data-key]').onclick=e=>{key.hidden=!key.hidden;e.currentTarget.setAttribute('aria-expanded',String(!key.hidden));};tools.querySelector('[data-reset]').onclick=reset;
+    function applyAppearance(){
+      geometryGroup?.children.forEach(mesh=>{const mat=mesh.material;mat.map=textureEnabled?texture:null;mat.color.set(textureEnabled?'#ffffff':'#cbd5e1');mat.transparent=!textureEnabled;mat.opacity=textureEnabled?1:.62;mat.depthWrite=textureEnabled;mat.needsUpdate=true;});
+      if(lineGroup)lineGroup.visible=coloredLinesEnabled;
+      tools.querySelector('[data-texture]').setAttribute('aria-pressed',String(textureEnabled));
+      tools.querySelector('[data-lines]').setAttribute('aria-pressed',String(coloredLinesEnabled));draw();
+    }
+    tools.querySelector('[data-texture]').onclick=()=>{textureEnabled=!textureEnabled;applyAppearance();};
+    tools.querySelector('[data-lines]').onclick=()=>{coloredLinesEnabled=!coloredLinesEnabled;applyAppearance();};
+    tools.querySelector('[data-key]').onclick=e=>{keyVisible=!keyVisible;key.hidden=!keyVisible;e.currentTarget.setAttribute('aria-expanded',String(keyVisible));};tools.querySelector('[data-reset]').onclick=reset;
     observer=new ResizeObserver(resize);observer.observe(gallery);resize();
     (async()=>{
       if(!xmlUrl)throw new Error('The completed report does not contain a roof model yet.');
@@ -101,15 +118,15 @@
       texture=new T.CanvasTexture(tile);texture.wrapS=texture.wrapT=T.RepeatWrapping;
       geometryGroup=new T.Group();lineGroup=new T.Group();scene.add(geometryGroup,lineGroup);const types=new Set();
       for(const roof of roofs){
-        for(const face of roof.faces){const vertices=face.map(point);const triangles=T.ShapeUtils.triangulateShape(face.map(p=>new T.Vector2(p[0],p[1])),[]);const pos=[],uv=[];for(const tri of triangles)for(const i of tri){pos.push(...vertices[i].toArray());uv.push(face[i][0]/12,face[i][1]/12);}const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.computeVertexNormals();const mat=new T.MeshStandardMaterial({map:texture,side:T.DoubleSide,roughness:1});geometryGroup.add(new T.Mesh(geo,mat));objects.push(geo,mat);}
-        for(const line of roof.lines.values()){const type=styles[line.type]?line.type:'NONE';types.add(type);const geo=new T.BufferGeometry().setFromPoints(line.ids.map(id=>point(roof.points.get(id))));const mat=new T.LineBasicMaterial({color:styles[type][0]});lineGroup.add(new T.Line(geo,mat));objects.push(geo,mat);}
+        for(const face of roof.faces){const vertices=face.map(point),faceUVs=faceTextureUVs(face);const triangles=T.ShapeUtils.triangulateShape(face.map(p=>new T.Vector2(p[0],p[1])),[]);const pos=[],uv=[];for(const tri of triangles)for(const i of tri){pos.push(...vertices[i].toArray());uv.push(...faceUVs[i]);}const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.computeVertexNormals();const mat=new T.MeshStandardMaterial({map:texture,side:T.DoubleSide,roughness:1,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});geometryGroup.add(new T.Mesh(geo,mat));objects.push(geo,mat);}
+        for(const line of roof.lines.values()){const type=styles[line.type]?line.type:'NONE';types.add(type);const geo=new T.BufferGeometry().setFromPoints(line.ids.map(id=>point(roof.points.get(id))));const mat=new T.LineBasicMaterial({color:styles[type][0]});const edge=new T.Line(geo,mat);edge.renderOrder=2;lineGroup.add(edge);objects.push(geo,mat);}
       }
-      if(!geometryGroup.children.length){geometryMode=true;tools.querySelector('[data-mode]').disabled=true;hint.textContent='Saved roof lines · Drag to orbit · Scroll to zoom';}
-      geometryGroup.visible=!geometryMode;lineGroup.visible=geometryMode;
+      if(!geometryGroup.children.length){textureEnabled=false;tools.querySelector('[data-texture]').disabled=true;hint.textContent='Saved roof lines · Drag to orbit · Scroll to zoom';}
+      applyAppearance();
       for(const type of types){const row=document.createElement('span'),swatch=document.createElement('i');swatch.style.background=styles[type][0];row.append(swatch,document.createTextNode(styles[type][1]));key.append(row);}
       modelLoaded=true;message.hidden=true;resize();reset();
-    })().catch(error=>{if(!disposed){message.textContent=error.message;message.hidden=selection!=='model';tools.hidden=true;hint.hidden=true;}});
+    })().catch(error=>{if(!disposed){message.textContent=error.message;message.hidden=selection!=='model';tools.hidden=true;key.hidden=true;hint.hidden=true;}});
     return {destroy(){disposed=true;controller.abort();observer.disconnect();controls?.dispose();objects.forEach(o=>o.dispose());texture?.dispose();renderer?.dispose();ownedUrls.forEach(URL.revokeObjectURL);root.replaceChildren();}};
   }
-  window.FirstMeasureRoofViewer={mount,parseModel};
+  window.FirstMeasureRoofViewer={mount,parseModel,faceTextureUVs};
 })();

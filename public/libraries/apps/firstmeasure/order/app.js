@@ -96,7 +96,6 @@ ${String(expanded ? `    <section class="r-step is-open" id="rStepCustomer" data
 
 `)}
     <button type="button" id="rOrderMeasurements" class="r-btn" hidden>Order Measurements</button>
-    <div id="rInstantDevelopmentReport" hidden><label for="rInstantDevelopmentCheck"><input type="checkbox" role="switch" id="rInstantDevelopmentCheck"><span>Instant dev report</span></label></div>
     <section class="r-workflow-dock" id="rWorkflowDock">
       <div class="r-workflow-empty" id="rWorkflowEmpty">
         <div class="r-workflow-empty-title">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_dc7e7fb5fb7d6f","Project To-dos") ?? "Project To-dos")}</div>
@@ -121,6 +120,11 @@ ${String(expanded ? `    <section class="r-step is-open" id="rStepCustomer" data
           <div class="r-group"><label>${((v3) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_ea717c27aecafc",`Notes for Technician ${v3}`,{v3}) ?? `Notes for Technician ${v3}`)(infoTip('Any special instructions or details about the property that the technician should be aware of - e.g. detached garage, multiple buildings, steep slope, etc.'))}</label><textarea class="r-inp" id="rTechNotes" placeholder="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1ac4cec881f322","Anything the technician should know about this property...") ?? "Anything the technician should know about this property...")}" rows="3" style="resize:vertical;min-height:72px;font-family:inherit;font-size:13px;line-height:1.45"></textarea></div>
           <div class="r-group"><label>${((v4) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_88f39d3061e014",`CC for Reports ${v4}`,{v4}) ?? `CC for Reports ${v4}`)(infoTip('Additional email addresses that should receive the completed report.'))}</label><div class="r-cc-list" id="rCcList"></div><button type="button" class="r-cc-add" id="rCcAdd"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_9adb5b7e4e80ed"," Add CC") ?? " Add CC")}</button></div>
           <div class="r-mobile-internal-notes-mount" id="rMobileInternalNotesMount"></div>
+          <label id="rInstantDevelopmentReport" class="r-addon-toggle r-addon-inline" hidden>
+            <input type="checkbox" role="switch" id="rInstantDevelopmentCheck">
+            <span class="r-addon-copy"><span class="r-addon-title"><i class="fas fa-bolt" aria-hidden="true"></i> Instant dev report</span></span>
+            <span class="r-addon-side"><span class="r-switch" aria-hidden="true"></span></span>
+          </label>
           <button type="button" class="r-addon-toggle r-addon-inline r-gutter-inline" data-report-addon="gutters" data-addon-info="gutters">
             <span class="r-addon-copy"><span class="r-addon-title"><i class="fas fa-water"></i>${((v5) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_265b3dbdedd86c",` Gutters ${v5}`,{v5}) ?? ` Gutters ${v5}`)(addonInfoIcon('gutters'))}</span></span>
             <span class="r-addon-side"><span class="r-addon-price" data-addon-price="gutters">+${String(window.PlatformCommerce.credit(GUTTER_REPORT_ADDON))}</span><span class="r-switch" aria-hidden="true"></span></span>

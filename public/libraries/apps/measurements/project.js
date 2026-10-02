@@ -3464,11 +3464,15 @@ window.PlatformCommerce.onReady(function(){
         xmlUrl: terminalWithoutReport ? '' : (cached?.xmlUrl || known.xmlUrl || (lowerNames.has('model_data.xml') ? fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/model_data.xml`) : '')),
         instantPdfUrl: cached?.instantPdfUrl || known.instantPdfUrl || (lowerNames.has('instant report.pdf') ? fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/Instant%20Report.pdf`) : ''),
         hasInstantPayload: names.has('instant-structures.json') || names.has('insights.json') || names.has('dsm.tif'),
-        media: terminalWithoutReport ? [] : files.filter(file => /^(rgb\.tif|google\.png|azure\.png|apple\.jpg|customer-reference-.*\.(?:jpg|jpeg|png|webp|mp4|mov|webm))$/i.test(file.name)).map(file => ({
-          url: fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(file.name)}`),
-          label: file.name==='rgb.tif'?'Top-down solar view':file.name==='google.png'?'Top-down map':file.name==='apple.jpg'?'Apple aerial view':file.name==='azure.png'?'Aerial view':file.name,
-          solar: file.name==='rgb.tif', video: /\.(mp4|mov|webm)$/i.test(file.name)
-        })),
+        media: terminalWithoutReport ? [] : [
+          // solarImg is the frozen, cropped top view used by the PDF, regardless of provider.
+          ...(/^data:image\/(?:jpeg|png|webp);base64,/i.test(data?.project?.pdf_state?.solarImg || '')
+            ? [{url:data.project.pdf_state.solarImg,label:'Aerial view'}] : []),
+          ...files.filter(file => /^customer-reference-.*\.(?:jpg|jpeg|png|webp|mp4|mov|webm)$/i.test(file.name)).map(file => ({
+            url: fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(file.name)}`),
+            label: file.name, video: /\.(mp4|mov|webm)$/i.test(file.name)
+          }))
+        ],
         hasCheckedArtifacts: true,
       };
       measurementAssetCache.set(projectId, assets);

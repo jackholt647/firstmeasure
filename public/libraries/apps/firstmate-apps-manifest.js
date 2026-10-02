@@ -299,7 +299,7 @@
       surfaces: ['project_modal'],
       regions: ['main'],
       access: managementShellAccess,
-      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20261002-compact-dev-report')]
+      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20261002-report-options')]
     },
     {
       id: 'project.map',
@@ -355,7 +355,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('measurements/roof-viewer.js', '20261002-roof-media'), versionedBundle('measurements/project.js', '20261002-roof-media')]
+      bundles: [versionedBundle('measurements/roof-viewer.js', '20261002-roof-presentation'), versionedBundle('measurements/project.js', '20261002-roof-presentation')]
     },
     {
       id: 'project.checklists',
