@@ -1,7 +1,11 @@
 # Sandbox measurement defaults and developer controls — October 2, 2026
 
-Release `23a2ddd79a0ecc532696b143140cf970dd662b0d` is deployed to all four
-current development roles. Production is unchanged.
+Backend source release `23a2ddd79a0ecc532696b143140cf970dd662b0d` is verified
+on all four current development roles. Web, worker and compatibility run that
+release. The pool node subsequently activated the concurrent UI release
+`a8467b0f07a6940b624da6a9e360e4c5b788bce9`, retaining all four measurement
+source/compiled hashes unchanged. Its readiness and isolation were reverified.
+Production is unchanged.
 
 ## Behavior
 
