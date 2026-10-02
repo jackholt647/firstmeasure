@@ -309,3 +309,5 @@ Regression coverage: `assistant-project-browser.test.mjs`, the updated
 preservation. An isolated authenticated API fixture plus the actual browser UI
 was exercised against GPT-Live using the existing remote credential; session
 start, received audio and orderly close succeeded.
+
+Delivery record: [Voice handshake and shared project UI](../../deploy/digitalocean/development-assistant-voice-project-20261002.md).
