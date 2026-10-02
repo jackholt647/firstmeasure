@@ -591,7 +591,7 @@ window.PlatformCommerce.onReady(async function(){
     .r-contact-add.compact{width:34px;min-width:34px;min-height:34px;height:34px;padding:0;align-self:end;white-space:nowrap;flex:0 0 auto}
     .r-contact-add.compact span{display:none}
     .r-contact-card .r-contact-add{display:none}
-    #rAddContact{display:none!important}
+    :is(#rAddContact,[data-identity-source-id="rAddContact"]){display:none!important}
     .r-contact-add:hover{border-color:rgba(var(--primary-rgb,217,48,37),0.35);color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),0.03)}
     .r-contact-action-menu{position:fixed;z-index:2147483450;min-width:188px;display:none;flex-direction:column;gap:4px;padding:6px;border:1px solid rgba(15,23,42,.12);border-radius:12px;background:rgba(255,255,255,.98);box-shadow:0 18px 42px rgba(15,23,42,.20);backdrop-filter:blur(12px)}
     .r-contact-action-menu.visible{display:flex}
@@ -852,7 +852,8 @@ window.PlatformCommerce.onReady(async function(){
     :is(#rWindowProjectTitle,.r-window-project-title) strong{font-weight:800;overflow:hidden;text-overflow:ellipsis}
     .r-project-identity-secondary{font-weight:400;color:#667085;overflow:hidden;text-overflow:ellipsis}
     .r-window-identity :is(#rProjectStageBar,.r-project-stage-bar){flex:0 1 auto;min-width:0;margin:0;padding:0;border:0;background:none;overflow:auto}
-    .r-window-identity .r-project-tags{flex-wrap:nowrap;margin:0;padding:0;gap:6px}
+    .r-window-identity .r-project-tags{flex-wrap:nowrap;margin:0;padding:0;gap:9px}
+    .r-window-identity :is(#rProjectStageBar,.r-project-stage-bar){margin-left:6px}
     .r-project-identity-popover,.r-header-stage-popover.r-manual-stage-backdrop{position:fixed;inset:auto;z-index:2147483400;display:block;padding:0;border:1px solid #e4e7ec;border-radius:14px;background:#fff;backdrop-filter:none;box-shadow:0 18px 50px #1018282e;overflow:auto;animation:rPropertyMenuIn .14s ease-out}
     .r-project-identity-popover>header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #e4e7ec;font-size:13px}
     .r-project-identity-popover>header button{border:0;background:none;padding:4px 8px;cursor:pointer}
@@ -879,9 +880,9 @@ window.PlatformCommerce.onReady(async function(){
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card .r-contact-email-row{margin-top:7px}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-actions{position:absolute;right:0;top:0;flex-direction:row}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card+.r-contact-card .r-contact-actions{top:14px}
-    :is(.r-project-identity-popover,.r-overview-details) #rStepAddress{border-top:1px solid #e4e7ec!important;padding-top:14px!important}
-    :is(.r-project-identity-popover,.r-overview-details) #rStepAddress::before{content:'Project Address';display:block;font-size:11px;font-weight:700;color:#667085;margin-bottom:9px}
-    :is(.r-project-identity-popover,.r-overview-details) #rProjectCustomFields:not(:empty){border-top:1px solid #e4e7ec;padding-top:14px}
+    :is(.r-project-identity-popover,.r-overview-details) :is(#rStepAddress,[data-identity-source-id="rStepAddress"]){border-top:1px solid #e4e7ec!important;padding-top:14px!important}
+    :is(.r-project-identity-popover,.r-overview-details) :is(#rStepAddress,[data-identity-source-id="rStepAddress"])::before{content:'Project Address';display:block;font-size:11px;font-weight:700;color:#667085;margin-bottom:9px}
+    :is(.r-project-identity-popover,.r-overview-details) :is(#rProjectCustomFields,[data-identity-source-id="rProjectCustomFields"]):not(:empty){border-top:1px solid #e4e7ec;padding-top:14px}
     [data-identity-actions]{display:none}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-shortcut-field{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:3px;min-width:0}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-shortcut-field>label{width:100%}
@@ -893,11 +894,15 @@ window.PlatformCommerce.onReady(async function(){
 
     .r-overlay.has-project-trays .r-overview-details .r-bottom-notes{display:none!important}
     .r-overlay.has-project-trays .r-overview-details{padding-bottom:18px}
-    .r-overview-details #rStepAddress{margin-top:14px}
+    .r-overview-details #rStepAddress{margin-top:0}
+    .r-overview-details .r-scroll{padding-right:0;scrollbar-gutter:auto}
+    .r-overview-details .r-contact-card .r-group{margin:0}
+    .r-overview-details #rStepCustomer>.r-step-shell>.r-step-inner>.r-step-body{gap:14px}
+    .r-overview-details #rStepCustomer>.r-step-shell>.r-step-inner>.r-step-body>.r-group{margin:0}
     .r-overview-details .r-contact-list{gap:14px}
     .r-overview-details .r-contact-card .r-inp{font-weight:600}
     .r-overview-details:has(.r-overview-initial-actions:not([hidden])) #rOrderMeasurements{display:none!important}
-    .r-overview-initial-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.r-overview-initial-actions[hidden]{display:none!important}
+    .r-overview-initial-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}.r-overview-initial-actions .r-toggle-btn{display:flex;align-items:center;justify-content:flex-start;gap:8px;width:100%;min-width:0;min-height:40px;padding:9px 10px;border-radius:8px;text-align:left;white-space:normal;font-size:12px;line-height:1.35}.r-overview-initial-actions .r-toggle-btn i{flex:none;color:inherit}.r-overview-initial-actions[hidden]{display:none!important}
     .r-workflow-project-picker[hidden]{display:none!important}
     .r-workflow-search-row{display:flex;align-items:center;gap:8px}
     .r-workflow-search-row input{flex:1;min-width:0}
@@ -4449,8 +4454,8 @@ window.PlatformCommerce.onReady(async function(){
   }
   function closeProjectIdentityPopover(restoreFocus=false){
     if(!projectIdentityPopover)return;
-    const {menu,trigger,moved}=projectIdentityPopover;
-    for(const {node,marker} of moved){if(marker.parentNode){marker.replaceWith(node);}}
+    const {menu,trigger,dispose}=projectIdentityPopover;
+    dispose();
     menu.remove();trigger.setAttribute('aria-expanded','false');projectIdentityPopover=null;
     if(restoreFocus)trigger.focus();
   }
@@ -4460,19 +4465,80 @@ window.PlatformCommerce.onReady(async function(){
     const menu=document.createElement('section');menu.className='r-project-identity-popover';
     menu.setAttribute('role','dialog');menu.setAttribute('aria-label','Project contact and address');
     menu.innerHTML='<div class="r-project-identity-fields"></div>';
-    const moved=[],body=menu.querySelector('.r-project-identity-fields');
+    const body=menu.querySelector('.r-project-identity-fields');
     if(branchProjectConfig?.title_mode==='manual'){
       const label=document.createElement('label');label.textContent='Project title';
-      const input=document.createElement('input');input.id='rProjectTitleInput';input.className='r-inp';input.value=projectTitleAlias(activeBaseProject || {});label.append(input);body.append(label);
+      const input=document.createElement('input');input.id='rProjectTitleInput';input.className='r-inp';
+      input.value=projectTitleAlias(activeBaseProject || {});label.append(input);body.append(label);
     }
-    const contact=document.getElementById('rContactList')?.closest('.r-group');
-    const address=document.getElementById('rStepAddress');
-    for(const node of [contact,address,document.getElementById('rProjectCustomFields')]){
-      if(!node || moved.some(item=>item.node.contains(node)))continue;
-      const marker=document.createComment('project identity control home');node.before(marker);body.append(node);moved.push({node,marker});
+    const roots=[document.getElementById('rContactList')?.closest('.r-group'),document.getElementById('rStepAddress'),document.getElementById('rProjectCustomFields')].filter(Boolean);
+    if(!roots.length)return;
+    // Overview remains the owner. Reconcile a second view without duplicate IDs,
+    // preserving focused inputs and routing mutations through the original handlers.
+    const copies=new Map(), originals=new WeakMap(), listeners=new AbortController();
+    function reconcile(source){
+      let copy=copies.get(source);
+      if(!copy){copy=source.cloneNode(false);copies.set(source,copy);originals.set(copy,source);}
+      if(source.nodeType===Node.ELEMENT_NODE){
+        const attrs=new Map([...source.attributes].map(attr=>[attr.name,attr.name==='id'?'identity-'+attr.value:attr.value]));
+        if(source.id)attrs.set('data-identity-source-id',source.id);
+        for(const attr of [...copy.attributes])if(!attrs.has(attr.name))copy.removeAttribute(attr.name);
+        for(const [key,value] of attrs)if(copy.getAttribute(key)!==value)copy.setAttribute(key,value);
+        if(copy.hasAttribute('for'))copy.htmlFor='identity-'+source.htmlFor;
+      }else if(copy.nodeValue!==source.nodeValue)copy.nodeValue=source.nodeValue;
+      const children=[...source.childNodes].map(reconcile);
+      children.forEach((child,index)=>{if(copy.childNodes[index]!==child)copy.insertBefore(child,copy.childNodes[index] || null);});
+      while(copy.childNodes.length>children.length)copy.lastChild.remove();
+      if(source instanceof HTMLInputElement || source instanceof HTMLTextAreaElement || source instanceof HTMLSelectElement){
+        if(copy.value!==source.value)copy.value=source.value;
+        if('checked' in source)copy.checked=source.checked;
+      }
+      return copy;
     }
-    if(!moved.length)return;
-    document.getElementById('rOverlay').append(menu);projectIdentityPopover={menu,trigger,moved};
+    const sync=()=>{for(const root of roots){const copy=reconcile(root);if(copy.parentNode!==body)body.append(copy);}};
+    // Decorate originals first so both views share the same structure.
+    roots.forEach(decorateProjectContactActions);sync();
+    const observer=new MutationObserver(sync);
+    roots.forEach(root=>observer.observe(root,{childList:true,subtree:true,attributes:true,characterData:true}));
+    for(const type of ['input','change']){
+      menu.addEventListener(type,event=>{
+        const source=originals.get(event.target);if(!source)return;
+        event.stopPropagation();source.value=event.target.value;
+        if('checked' in source)source.checked=event.target.checked;
+        source.dispatchEvent(new Event(type,{bubbles:true}));sync();
+      },{signal:listeners.signal});
+      document.getElementById('rOverlay').addEventListener(type,()=>queueMicrotask(sync),{signal:listeners.signal});
+    }
+    menu.addEventListener('click',event=>{
+      const button=event.target.closest('button');const source=originals.get(button);
+      if(!source || button.matches('[data-contact-shortcut]'))return;
+      event.preventDefault();event.stopPropagation();
+      const card=source.closest('.r-contact-card');
+      if(button.matches('.r-contact-menu-btn'))openContactActionMenu(card,button);
+      else if(source.id==='rAddContact')openContactPicker(button);
+      else source.click();
+      sync();
+    },{signal:listeners.signal});
+    let autocomplete=null,placeGeneration=0;
+    const address=copies.get(document.getElementById('rAddress'));
+    address?.addEventListener('focus',()=>{
+      document.getElementById('rAddress').dispatchEvent(new Event('focus'));
+      if(!autocomplete && window.google?.maps?.places?.Autocomplete){
+        autocomplete=new google.maps.places.Autocomplete(address,{fields:['formatted_address','geometry','address_components'],strictBounds:false});
+        autocomplete.addListener('place_changed',()=>{
+          ++placeGeneration;const place=autocomplete.getPlace();
+          if(place?.geometry?.location)loadPlaceResult(place.geometry.location,place.address_components,place.formatted_address);
+          else if(address.value.trim())forwardGeocode(address.value.trim());
+          sync();
+        });
+      }
+    },{signal:listeners.signal});
+    address?.addEventListener('keydown',event=>{
+      if(event.key!=='Enter')return;event.preventDefault();const generation=placeGeneration;
+      setTimeout(()=>{if(projectIdentityPopover?.menu===menu && generation===placeGeneration && address.value.trim())forwardGeocode(address.value.trim());},220);
+    },{signal:listeners.signal});
+    document.getElementById('rOverlay').append(menu);
+    projectIdentityPopover={menu,trigger,sync,dispose(){observer.disconnect();listeners.abort();if(autocomplete)google.maps.event.clearInstanceListeners(autocomplete);copies.clear();}};
     trigger.setAttribute('aria-expanded','true');positionProjectHeaderPopover(menu,trigger,420);
     decorateProjectContactActions(menu);
     menu.addEventListener('click',handleProjectContactAction);
@@ -9297,7 +9363,7 @@ window.PlatformCommerce.onReady(async function(){
     const signature=choices.map(item=>item[0]).join(',');
     if (actions.dataset.choices!==signature) {
       actions.dataset.choices=signature;actions.replaceChildren();
-      for (const [key,label] of choices) {const button=document.createElement('button');button.type='button';button.className='r-toggle-btn';button.textContent=label;
+      for (const [key,label] of choices) {const button=document.createElement('button');button.type='button';button.className='r-toggle-btn';const icon=document.createElement('i');icon.className='fas '+({roof:'fa-ruler-combined',proposal:'fa-file-signature',schedule:'fa-calendar-days'}[key]);icon.setAttribute('aria-hidden','true');button.append(icon,document.createTextNode(label));
         button.onclick=()=>{
           if (key==='roof') {
             if (hasReportOrdered()) applyReorderPrefillState(activeBaseProject || {});

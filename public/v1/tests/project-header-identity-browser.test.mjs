@@ -28,7 +28,7 @@ test('project restore animates visible geometry; title does not open placement, 
  }finally{await browser.close();}
 });
 
-test('identity popover retains controls and edits, returns them on Escape, stage is anchored below header',async()=>{
+test('identity popover duplicates controls with synchronized edits without removing Overview fields, stage is anchored below header',async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true});
  try{
  const page=await browser.newPage({viewport:{width:1000,height:700}});
@@ -41,13 +41,22 @@ test('identity popover retains controls and edits, returns them on Escape, stage
  await page.locator('#rProjectIdentityTrigger').click();
  assert.equal(await page.locator('#rAddress').evaluate(el=>el===original),true);
  assert.equal(await page.locator('.r-project-identity-popover>header').count(),0);
- for(const name of ['Call contact','Message contact','Email contact'])assert.equal(await page.getByRole('button',{name,exact:true}).isVisible(),true);
+ for(const name of ['Call contact','Message contact','Email contact'])assert.equal(await page.locator('.r-project-identity-popover').getByRole('button',{name,exact:true}).isVisible(),true);
  assert.equal(await page.locator('.r-project-identity-popover .r-contact-card').evaluate(el=>getComputedStyle(el).borderWidth),'0px');
- const phone=await page.locator('[data-field=phone]').boundingBox(),call=await page.getByRole('button',{name:'Call contact',exact:true}).boundingBox();assert.ok(call.x>phone.x && Math.abs(call.y-phone.y)<8,'actions align beside the input');
- const name=await page.locator('[data-field=name]').boundingBox();assert.ok(phone.x>name.x && Math.abs(phone.y-name.y)<2,'name and phone share a row: '+JSON.stringify({name,phone}));
- assert.equal(await page.locator('.r-contact-card').evaluate(el=>getComputedStyle(el).paddingBottom),'0px','no duplicate gap above the address divider');
+ const phone=await page.locator('.r-project-identity-popover [data-field=phone]').boundingBox(),call=await page.locator('.r-project-identity-popover').getByRole('button',{name:'Call contact',exact:true}).boundingBox();assert.ok(call.x>phone.x && Math.abs(call.y-phone.y)<8,'actions align beside the input');
+ const name=await page.locator('.r-project-identity-popover [data-field=name]').boundingBox();assert.ok(phone.x>name.x && Math.abs(phone.y-name.y)<2,'name and phone share a row: '+JSON.stringify({name,phone}));
+ assert.equal(await page.locator('.r-project-identity-popover .r-contact-card').evaluate(el=>getComputedStyle(el).paddingBottom),'0px','no duplicate gap above the address divider');
  assert.ok((await page.locator('.r-project-identity-popover').boundingBox()).y>=36);
- await page.locator('#rAddress').fill('456 Oak');assert.equal(await page.evaluate(()=>edits),1);
+ assert.equal(await page.locator('#rForm #rAddress').count(),1);
+ assert.equal(await page.locator('#identity-rAddress').count(),1);
+ await page.locator('#identity-rAddress').fill('456 Oak');assert.equal(await page.evaluate(()=>edits),1);
+ assert.equal(await page.locator('#rForm #rAddress').inputValue(),'456 Oak');
+ await page.locator('#rForm [data-field=name]').fill('Janet Doe');
+ assert.equal(await page.locator('.r-project-identity-popover [data-field=name]').inputValue(),'Janet Doe');
+ await page.evaluate(()=>{const card=document.querySelector('#rContactList .r-contact-card').cloneNode(true);card.querySelector('[data-field=name]').value='Second contact';document.querySelector('#rContactList').append(card);});
+ await page.waitForFunction(()=>document.querySelectorAll('.r-project-identity-popover .r-contact-card').length===2);
+ assert.equal(await page.locator('#rContactList .r-contact-card').count(),2);
+ assert.equal(await page.evaluate(()=>{const ids=[...document.querySelectorAll('[id]')].map(e=>e.id);return ids.length===new Set(ids).size;}),true);
  await page.keyboard.press('Escape');assert.equal(await page.locator('.r-project-identity-popover').count(),0);
  assert.equal(await page.locator('#rForm #rAddress').inputValue(),'456 Oak');
  await page.locator('#stage').click();assert.equal(await page.locator('.r-header-stage-popover').count(),1);

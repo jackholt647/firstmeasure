@@ -762,11 +762,19 @@
       }
     }
     if (options.channelId) {entry.channelId = options.channelId; subscribeRealtime(entry);}
+    // Match the original project composer, with history permanently expanded.
+    if(!document.getElementById('fm-project-notes-composer-style')){
+      const style=document.createElement('style');style.id='fm-project-notes-composer-style';
+      style.textContent=`.pn-workspace{font-family:inherit}.pn-tools{padding:12px 14px 8px;gap:7px}.pn-tools input[type=search]{font:inherit;font-size:11px;padding:7px 9px;border-radius:8px}.pn-tools label{font-size:10px;color:#667085}.pn-history{padding:8px 14px}.pn-empty{font-size:11px}.pn-composer{padding:12px 14px;display:flex;flex-direction:column;gap:6px}.pn-composer-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:18px;color:#667085}.pn-composer-heading{font-size:10px;font-weight:800;letter-spacing:.06em}.pn-visibility{display:flex;align-items:center;gap:9px;white-space:nowrap}.pn-visibility>span{font-size:8px;font-weight:800;color:#98a2b3}.pn-visibility-choice{position:relative;display:flex;align-items:center;gap:4px;color:#667085;font-size:9px;font-weight:900}.pn-visibility-choice select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}.pn-visibility-choice:focus-within{outline:2px solid var(--primary,#d93025);outline-offset:3px;border-radius:3px}.pn-composer textarea{display:block;min-height:56px;max-height:180px;resize:none;border:1px solid #d0d5dd;border-radius:12px;padding:10px 12px;font-family:inherit;font-size:12px;line-height:1.42}.pn-compose-actions{gap:8px;margin-top:0;min-height:29px}.pn-history-label{margin-right:auto;display:flex;align-items:center;gap:5px;font-size:9px;font-weight:800;color:#667085}.pn-compose-actions .pn-icon{box-sizing:border-box;display:grid;place-items:center;flex:none;width:29px;height:29px;border:1px solid #d0d5dd;border-radius:8px;background:white;color:#475467;font-size:11px;cursor:pointer;padding:0}.pn-compose-actions .pn-icon:focus-within{outline:2px solid var(--primary,#d93025);outline-offset:2px}.pn-add{margin-left:0}.pn-add button{min-height:29px;padding:0 10px;font:inherit;font-size:10px;font-weight:900;background:var(--primary,#d93025);color:var(--on-primary,#fff);border-radius:7px 0 0 7px}.pn-add button+button{border-radius:0 7px 7px 0;padding:0 8px}.pn-card{border-radius:11px;padding:10px 11px;font-size:11px;line-height:1.45}.pn-card header{font-size:10px}.pn-card footer{font-size:9px}.pn-card-content p{margin:6px 0}.pn-uploads:empty{display:none}`;
+      document.head.append(style);
+    }
     let disposed = false, busy = false, prepared = [], editId = '', query = '', showRemoved = false;
     const expanded = new Set();
-    container.innerHTML = `<section class="pn-workspace"><div class="pn-tools"><input type="search" aria-label="Search project notes" placeholder="Search notes"><label><input type="checkbox" data-removed> Removed</label></div><div class="pn-pinned" aria-label="Pinned notes"></div><div class="pn-history" role="log" aria-label="Project notes history"></div><div class="pn-status" role="status"></div><form class="pn-composer"><textarea aria-label="New project note" placeholder="Add a note…" rows="3"></textarea><div class="pn-uploads"></div><div class="pn-compose-actions"><label class="pn-icon" title="Attach a file"><i class="fas fa-paperclip"></i><input type="file" hidden multiple></label><button type="button" class="pn-icon" data-audio aria-label="Record audio note"><i class="fas fa-microphone"></i></button><select aria-label="Note visibility"><option value="all">Everyone</option><option value="office">Office</option><option value="crew">Crew</option><option value="sales">Sales</option></select><div class="pn-add"><button type="submit" aria-label="Add note"><span aria-hidden="true">+</span> Note</button><button type="button" data-pin-send title="Add pinned note" aria-label="Add pinned note"><i class="fas fa-thumbtack"></i></button></div></div></form></section>`;
+    container.innerHTML = `<section class="pn-workspace"><div class="pn-tools"><input type="search" aria-label="Search project notes" placeholder="Search notes"><label><input type="checkbox" data-removed> Removed</label></div><div class="pn-pinned" aria-label="Pinned notes"></div><div class="pn-history" role="log" aria-label="Project notes history"></div><div class="pn-status" role="status"></div><form class="pn-composer"><div class="pn-composer-head"><span class="pn-composer-heading">ADD NOTE</span><div class="pn-visibility"><span>Who can see it?</span><label class="pn-visibility-choice"><strong data-visibility-label>Everybody</strong><i class="fas fa-eye" aria-hidden="true"></i><select aria-label="Note visibility"><option value="all">Everybody</option><option value="office">Office</option><option value="crew">Crew</option><option value="sales">Sales</option></select></label></div></div><textarea aria-label="New project note" placeholder="Add an internal note… Use @name or @email to tag someone." rows="2"></textarea><div class="pn-uploads"></div><div class="pn-compose-actions"><span class="pn-history-label"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i> History</span><label class="pn-icon" title="Attach a file"><i class="fas fa-paperclip"></i><input type="file" hidden multiple></label><button type="button" class="pn-icon" data-audio aria-label="Record audio note"><i class="fas fa-microphone"></i></button><div class="pn-add"><button type="submit" aria-label="Add note"><span aria-hidden="true">+</span> Note</button><button type="button" data-pin-send title="Add pinned note" aria-label="Add pinned note"><i class="fas fa-thumbtack"></i></button></div></div></form></section>`;
     const history = container.querySelector('.pn-history'), pinned = container.querySelector('.pn-pinned');
     const status = container.querySelector('.pn-status'), form = container.querySelector('form'), text = form.querySelector('textarea'), uploadBox = container.querySelector('.pn-uploads');
+    const syncVisibility=()=>{form.querySelector('[data-visibility-label]').textContent=form.querySelector('select').selectedOptions[0]?.textContent || 'Everybody';};
+    form.querySelector('select').addEventListener('change',syncVisibility);
     const esc = escapeHtml;
     const say = value => { if (!disposed) status.textContent = value; };
     function card(note) {
@@ -821,14 +829,14 @@
         }
         if (disposed) return;
         text.value = ''; prepared = []; editId = ''; delete form.dataset.operationId; uploadBox.replaceChildren();
-        form.querySelector('[type=submit]').textContent = 'Plus Note'; form.querySelector('[data-pin-send]').hidden = false;
+        form.querySelector('[type=submit]').textContent = '+ Note'; form.querySelector('[data-pin-send]').hidden = false;
         await refresh(); announce(entry.projectId); say('');
       } catch (error) { say(error.message || 'Could not save the note. Your draft has been kept.'); }
       finally { busy = false; if (!disposed) form.querySelectorAll('button,input,textarea,select').forEach(node => node.disabled = false); }
     }
     form.onsubmit = event => {event.preventDefault(); void submit();};
     form.querySelector('[data-pin-send]').onclick = () => submit(true);
-    text.oninput = () => { delete form.dataset.operationId; };
+    text.oninput = () => { delete form.dataset.operationId; text.style.height='auto';text.style.height=Math.min(180,Math.max(56,text.scrollHeight))+'px'; };
     form.querySelector('[type=file]').onchange = async event => {
       say('Preparing files…');
       try {
@@ -872,7 +880,7 @@
         if (action === 'expand') {expanded.has(note.id) ? expanded.delete(note.id) : expanded.add(note.id); render(); return;}
         if (action === 'edit') {
           editId = note.id; text.value = note.text; form.querySelector('select').value = note.visibility.length === GROUPS.length ? 'all' : note.visibility[0];
-          form.querySelector('[type=submit]').textContent = 'Save Note'; form.querySelector('[data-pin-send]').hidden = true; text.focus();
+          syncVisibility();form.querySelector('[type=submit]').textContent = 'Save Note'; form.querySelector('[data-pin-send]').hidden = true; text.focus();
           say('Editing note. Escape cancels.'); return;
         }
         if (action === 'copy') {await navigator.clipboard.writeText(note.text); say('Copied.'); return;}
@@ -892,7 +900,7 @@
       if (button) void sendReply(button.closest('.pn-replies-wrap').querySelector('input'), project, button.dataset.pnReplySend);
     });
     text.onkeydown = event => {
-      if (event.key === 'Escape' && editId) {event.stopPropagation(); editId = ''; text.value = ''; form.querySelector('[type=submit]').textContent = 'Plus Note'; form.querySelector('[data-pin-send]').hidden = false; say('');}
+      if (event.key === 'Escape' && editId) {event.stopPropagation(); editId = ''; text.value = ''; form.querySelector('[type=submit]').textContent = '+ Note'; form.querySelector('[data-pin-send]').hidden = false; say('');}
     };
     return {ready, refresh, destroy() {disposed = true; window.removeEventListener('fm:project-notes:refreshed',notified); container.querySelector('.fm-an-inline-remove')?.click(); container.replaceChildren();}};
   }
