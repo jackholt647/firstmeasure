@@ -13,3 +13,30 @@ Removed contracts: `project_modal_region_app`, the dynamic left-region registry/
 Each docked tab still has its own owned document for legacy app isolation. Realtime transport is shared with its owning portal; do not introduce another independent stream per pane.
 
 Projects and Contacts share the [entity window shell](window-shell.md). Its optional persistent sidebar is declared by Contacts; Projects declare none and keep the content ownership above.
+
+## Overview entry workflows and project trays
+
+Overview also owns the focused New Report project picker and the map-first New Project
+form. The same mounted details form provides contacts, address, property type, custom
+fields, and initial actions; the project header presents a larger New Report heading
+while that flow is active. Existing project selection uses the authoritative project
+open path and the existing measurement reorder prefill. Choosing a project or an action
+does not submit a report.
+
+Contact controls share the header dropdown's flat rows, communication shortcuts, and
+section dividers. Custom fields follow the address/type fields and actions follow the
+custom fields. Overview project-field autosave is independent of proposal document
+persistence. Loading/hydration guards still prevent provisional records being written.
+
+Shared right trays own the visible Notes composer. The legacy form note controls remain
+mounted for compatibility but are hidden in Overview when shared trays are present.
+Unsaved projects can mount the Notes workspace without creating a project; explicit note
+submission or attachment preparation can request a saved draft. The composer survives
+tray changes and acquisition of a project ID.
+
+`FirstMateProjectTrays.definitions()` is the shared, capability-filtered registry for
+header tabs and branch settings. Modules can declare additional trays with `register()`.
+`project_configuration.default_project_tray` defaults to `notes`; `off` closes all trays.
+Explicit tab/layout opens retain their intent, and late configuration does not override
+a user's tray interaction. Overview container queries respond to the actual remaining
+content width beside the right tray, rather than only the browser viewport.
