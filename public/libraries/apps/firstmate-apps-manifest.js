@@ -27,15 +27,17 @@
       mobileFullscreenControl: false
     }
   };
+  const widgetBundles = ['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js','20261002-widget-system'));
   const channelsLibBundles = [
+    ...widgetBundles,
     versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
     versionedBundle('../channels-api/channels-api.js', '20260930-feed-posts-v1'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
     versionedBundle('../window-manager/window-manager.js', '20261002-project-identity-v1'),
-    bundle('../agent-chat/agent-chat.js'),
+    versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-system'),
     versionedBundle('../assistant-api/assistant-api.js', '20260930-project-trays-v1'),
-    versionedBundle('../platform-assistant/platform-assistant.js', '20260930-project-trays-v1'),
+    versionedBundle('../platform-assistant/platform-assistant.js', '20261002-widget-system'),
     versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261001-sharing-polish-v1'),
@@ -196,7 +198,7 @@
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
         versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'),
         bundle('../agents-api/agents-api.js'),
-        bundle('../agent-chat/agent-chat.js'),
+        versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-system'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
         versionedBundle('documents/project.js', '20260812-agent-command-actions')
       ]
@@ -225,7 +227,7 @@
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
         versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'),
         bundle('../agents-api/agents-api.js'),
-        bundle('../agent-chat/agent-chat.js'),
+        versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-system'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
         versionedBundle('../brand-kit/brand-kit.js', '20260929-brand-shape-choices'),
         versionedBundle('documents/studio.js', '20260930-app-groups-v1')
@@ -266,7 +268,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['pricebook.bridge'],
-      bundles: [...channelsLibBundles, bundle('../materials-api/materials-api.js'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('materials/project.js', '20260929-overview-content-v1')]
+      bundles: [...channelsLibBundles, bundle('../materials-api/materials-api.js'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('materials/project.js', '20261002-widget-system')]
     },
     {
       id: 'project.money',
@@ -344,7 +346,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [bundle('../comms-api/comms-api.js'), bundle('../agent-chat/agent-chat.js'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'), versionedBundle('comms/phone-tray.js', '20261002-dropdown-polish-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tones-v1'), versionedBundle('comms/workspace.js', '20260930-phone-auto-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
+      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-system'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'), versionedBundle('comms/phone-tray.js', '20261002-dropdown-polish-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tones-v1'), versionedBundle('comms/workspace.js', '20260930-phone-auto-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'project.measurements',
@@ -355,7 +357,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('measurements/roof-viewer.js', '20261002-roof-openings'), versionedBundle('measurements/project.js', '20261002-roof-openings')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-widget-system'), versionedBundle('measurements/project.js', '20261002-widget-system')]
     },
     {
       id: 'project.checklists',
@@ -518,7 +520,7 @@
       bundles: [
         bundle('../comms-api/comms-api.js'),
         bundle('../agents-api/agents-api.js'),
-        bundle('../agent-chat/agent-chat.js'),
+        versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-system'),
         versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'),
         versionedBundle('comms/phone-tray.js', '20261002-dropdown-polish-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tones-v1'),
         versionedBundle('comms/workspace.js', '20260930-phone-auto-v1'),
@@ -543,7 +545,7 @@
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20261002-project-identity-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20260930-project-trays-v1'),
-        versionedBundle('../platform-assistant/platform-assistant.js', '20260930-project-trays-v1'),
+        ...widgetBundles, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-widget-system'),
         versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261001-sharing-polish-v1'),
@@ -565,7 +567,7 @@
       placement: 'more',
       fullBleed: true,
       access: { applicationsAny: ['management', 'field'], permissionsAny: ['use_assistant', 'view_projects', 'manage_projects', 'manage_company_settings'] },
-      bundles: [bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), bundle('../platform-assistant/platform-assistant.js')]
+      bundles: [...widgetBundles, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), bundle('../platform-assistant/platform-assistant.js')]
     },
     {
       id: 'portal.canvassing',

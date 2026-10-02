@@ -993,6 +993,7 @@
     }
     html += '</div>';
     if (array(data.renders).some(render => render.type === 'payment_setup')) html += '<button type="button" class="fma-action" data-payment-setup>Open payment setup</button>';
+    html += window.FirstMateWidgets?.presentationHtml?.(data.renders) || '';
     const artifacts = artifactsOf(message);
     if (artifacts.length) {
       const onBoard = els?.drawer?.dataset.board === 'open' || state.boardHidden;
@@ -2062,6 +2063,7 @@
   // ── Public API ───────────────────────────────────────────────────────────
 
   function open(){
+    els?.msgs?.querySelectorAll('fm-platform-widget').forEach(widget=>widget.refresh());
     if (disposed || !available()) return;
     build();
     if (!assistantWindow) return;

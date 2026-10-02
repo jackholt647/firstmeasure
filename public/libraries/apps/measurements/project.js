@@ -3877,12 +3877,13 @@ window.PlatformCommerce.onReady(function(){
     const modelRoot = root.querySelector('#rMeasurementModel');
     const modelKey = JSON.stringify([projectId,cachedAssets?.xmlUrl,cachedAssets?.media,terminalWithoutReport]);
     if(activeMeasurementTab !== 'model' || terminalWithoutReport){roofViewer?.destroy();roofViewer=null;roofViewerKey='';}
-    else if(modelRoot && !window.FirstMeasureRoofViewer){
+    else if(modelRoot && !window.FirstMateWidgets){
       modelRoot.innerHTML='<div class="r-report-pending" role="status">The roof viewer could not load. Refresh to try again.</div>';
     }
-    else if(modelRoot && window.FirstMeasureRoofViewer && (roofViewerKey!==modelKey || !roofViewer)){
+    else if(modelRoot && window.FirstMateWidgets && (roofViewerKey!==modelKey || !roofViewer)){
       roofViewer?.destroy();roofViewerKey=modelKey;
-      roofViewer=window.FirstMeasureRoofViewer.mount(modelRoot,{xmlUrl:cachedAssets?.xmlUrl,media:cachedAssets?.media||[]});
+      const data={xmlUrl:cachedAssets?.xmlUrl,media:cachedAssets?.media||[]};
+      roofViewer=window.FirstMateWidgets.library(modelRoot,{items:window.FirstMateProjectWidgets.reportItems(data.media),layout:'auto',context:{surface:'project',data:{'reports.roof':data,'reports.photo':data}}});
     }
     if (map && inlineProjectMapWithReports() && activeMeasurementTab === 'map') {
       mountInlineProjectMap(map);

@@ -1,3 +1,4 @@
+import { registerWidgetProviders } from '../widgets/catalog.js';
 import { registerNotificationProvider } from "../notifications/provider.js";
 import { registerBuiltinDataProviders } from "./provider-adapters.js";
 import { registerDomainActions } from "./action-adapters.js";
@@ -14,6 +15,7 @@ let initialized = false;
 export function initializePublication() {
   if (initialized) return;
   registerBuiltinDataProviders();
+  registerWidgetProviders();
   registerNotificationProvider();
   registerCustomFieldPublication();
   registerContactPublication();

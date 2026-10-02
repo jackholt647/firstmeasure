@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import vm from 'node:vm';
+const scopeSource = await readFile(new URL('../../libraries/platform-widgets/scope-data.js',import.meta.url),'utf8');
 const source = await readFile(new URL('../../libraries/apps/materials/project.js', import.meta.url), 'utf8');
 function fn(name) {
   const start = source.search(new RegExp(`  (?:async )?function ${name}\\(`));
@@ -10,9 +11,10 @@ function fn(name) {
   return source.slice(start, end);
 }
 function scope(project, report = {}) {
-  const ctx = { state: { project, lists: [] }, reportMeasurements: () => report,
+  const ctx = { window:{}, state: { project, lists: [] }, reportMeasurements: () => report,
     measurementsHaveValues: values => Object.values(values).some(v => Number(v) > 0) };
   vm.createContext(ctx);
+  vm.runInContext(scopeSource,ctx);
   vm.runInContext(fn('scopeForMaterials') + fn('scopeMeasurements'), ctx);
   return ctx;
 }

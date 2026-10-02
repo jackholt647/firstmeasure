@@ -282,6 +282,7 @@
     if (existing !== -1) versions.splice(existing, 1);
     versions.push({ version, def: entry });
     versions.sort((a, b) => a.version - b.version);
+    if(root?.FirstMateWidgets)root.FirstMateWidgets.registerDocumentWidget(entry);
     return entry;
   }
 

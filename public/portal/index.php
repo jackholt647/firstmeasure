@@ -2186,6 +2186,9 @@ session_write_close();
   <script src="../libraries/firstmeasure-api/firstmeasure-api.js?v=<?= portalAssetVersion('../libraries/firstmeasure-api/firstmeasure-api.js') ?>"></script>
   <script src="../libraries/statsig/firstmate-statsig.js?v=<?= portalAssetVersion('../libraries/statsig/firstmate-statsig.js') ?>"></script>
   <script src="../libraries/settings-pages/firstmate-settings-pages.js?v=<?= portalAssetVersion('../libraries/settings-pages/firstmate-settings-pages.js') ?>"></script>
+  <script src="../libraries/platform-widgets/scope-data.js?v=<?= portalAssetVersion('../libraries/platform-widgets/scope-data.js') ?>"></script>
+  <script src="../libraries/platform-widgets/runtime.js?v=<?= portalAssetVersion('../libraries/platform-widgets/runtime.js') ?>"></script>
+  <script src="../libraries/platform-widgets/project-widgets.js?v=<?= portalAssetVersion('../libraries/platform-widgets/project-widgets.js') ?>"></script>
   <script src="../libraries/app-runtime/firstmate-embeddable-apps.js?v=<?= portalAssetVersion('../libraries/app-runtime/firstmate-embeddable-apps.js') ?>"></script>
   <script src="../libraries/app-runtime/app-chrome.js?v=<?= portalAssetVersion('../libraries/app-runtime/app-chrome.js') ?>"></script>
   <script src="../libraries/app-runtime/firstmate-app-context.js?v=<?= portalAssetVersion('../libraries/app-runtime/firstmate-app-context.js') ?>"></script>

@@ -438,79 +438,10 @@
     return 'fa-plug-circle-bolt';
   }
   function scopeForMaterials(){
-    const project = state.project || {};
-    const hasMeasurements = (measurements) => Object.entries(measurements && typeof measurements === 'object' ? measurements : {})
-      .some(([key, value]) => !['wastePercent', 'pitchRise', 'structures', 'structureCount'].includes(key) && typeof value !== 'object' && Number(value) > 0);
-    const asObject = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-    const projectScopes = [project.scope, project.project_scope].map(asObject);
-    const hasDefinition = (scope) => scope.pieces?.length || scope.root_items?.length;
-    const projectScope = projectScopes.find(hasDefinition)
-      || projectScopes.find((scope) => hasMeasurements(scope.measurements))
-      || projectScopes.find((scope) => Object.keys(scope).length)
-      || {};
-    const proposals = Array.isArray(project.proposals) ? [...project.proposals].reverse() : [];
-
-    // A signed proposal is frozen in a snapshot.  The project summary commonly
-    // contains only delivery metadata for that proposal, while the measurements
-    // remain nested in its content/scope.  Material generation already receives
-    // this snapshot, so include the same sources when rendering the sidebar.
-    const proposalMeasurementSources = (proposal) => {
-      const item = asObject(proposal);
-      const content = asObject(item.content);
-      const editable = asObject(item.editable);
-      const snapshot = asObject(item.snapshot);
-      const snapshotContent = asObject(snapshot.content);
-      return [
-        item.measurements,
-        asObject(item.scope).measurements,
-        content.measurements,
-        asObject(content.scope).measurements,
-        editable.measurements,
-        asObject(editable.scope).measurements,
-        snapshotContent.measurements,
-        asObject(snapshotContent.scope).measurements
-      ].map(asObject);
-    };
-    const proposalScopes = (item) => [item.scope, item.content?.scope, item.editable?.scope, item.snapshot?.content?.scope].map(asObject);
-    const proposal = proposals.find((item) => proposalScopes(item).some(hasDefinition))
-      || proposals.find((item) => proposalMeasurementSources(item).some(hasMeasurements));
-    const proposalMeasurements = proposal
-      ? proposalMeasurementSources(proposal).reduce((merged, source) => ({ ...merged, ...source }), {})
-      : {};
-    const report = reportMeasurements();
-    const savedMeasurements = { ...asObject(project.measurements), ...proposalMeasurements, ...asObject(projectScope.measurements) };
-    const measurements = hasMeasurements(savedMeasurements)
-      ? { ...(measurementsHaveValues(report) ? report : {}), ...savedMeasurements }
-      : { ...savedMeasurements, ...(measurementsHaveValues(report) ? report : {}) };
-    const sourceScope = hasDefinition(projectScope) ? projectScope
-      : (proposal ? proposalScopes(proposal).find(hasDefinition) : null) || projectScope;
-    const pieces = Array.isArray(sourceScope.pieces) ? sourceScope.pieces.map((piece) => {
-      const pieceMeasurements = piece?.measurements && typeof piece.measurements === 'object' ? piece.measurements : {};
-      return hasMeasurements(pieceMeasurements) ? piece : { ...piece, measurements: { ...pieceMeasurements, ...measurements } };
-    }) : [];
-    return { ...sourceScope, measurements, pieces };
+    return window.FirstMateScopeData.scope(state.project||{},reportMeasurements());
   }
   function scopeMeasurements(){
-    const scope = scopeForMaterials();
-    const hasMeasurements = (measurements) => Object.entries(measurements && typeof measurements === 'object' ? measurements : {})
-      .some(([key, value]) => !['wastePercent', 'pitchRise', 'structures', 'structureCount'].includes(key) && typeof value !== 'object' && Number(value) > 0);
-    if (scope.measurements && typeof scope.measurements === 'object' && hasMeasurements(scope.measurements)) return scope.measurements;
-    const pieces = Array.isArray(scope.pieces) ? scope.pieces : [];
-    const pieceMeasurements = pieces.reduce((merged, piece) => ({
-      ...merged,
-      ...(piece?.measurements && typeof piece.measurements === 'object' ? piece.measurements : {})
-    }), {});
-    if (hasMeasurements(pieceMeasurements)) return pieceMeasurements;
-
-    // Generated lists retain the measurements from the signed proposal snapshot.
-    // Use them only as a display fallback: an editable project scope with actual
-    // values must always remain the source of truth for regeneration.
-    const listMeasurements = state.lists.reduce((merged, list) => ({
-      ...merged,
-      ...(list?.measurements && typeof list.measurements === 'object' ? list.measurements : {})
-    }), {});
-    if (hasMeasurements(listMeasurements)) return listMeasurements;
-    return scope.measurements && typeof scope.measurements === 'object' ? scope.measurements : pieceMeasurements;
+    return window.FirstMateScopeData.measurements(state.project||{},state.lists,reportMeasurements());
   }
   function linkedScheduleEvent(list = state.activeList){
     const listId = cleanText(list?.id);
@@ -616,7 +547,10 @@
     return `
       .mt-app{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f8fb;color:#111827;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;container-type:inline-size;container-name:materials-workspace}
       .r-overlay.materials-workspace #mtSidebarSection.visible{min-height:0}
-      .r-overlay.materials-workspace #mtSidebarList{min-height:0;gap:0}
+      .r-overlay.materials-workspace .mt-widget-sidebar{display:flex;flex-direction:column;flex:0 0 44%;width:44%;min-width:280px;max-width:none;min-height:0;padding:0;overflow:hidden}
+      .r-overlay.materials-workspace #mtSidebarList{height:100%;flex:1;min-height:0;gap:0;overflow:hidden}
+      .mt-widget-sidebar .mt-left{height:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding:0}
+      @media(max-width:850px){.r-overlay.materials-workspace .mt-widget-sidebar{width:100%;min-width:0;flex:0 0 420px;max-height:50vh}}
       .mt-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(15,23,42,.08);background:#fff}
       .mt-title{display:flex;align-items:center;gap:10px;min-width:0}
       .mt-title i{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:rgba(var(--primary-rgb,217,48,37),.10);color:var(--primary-readable,var(--primary,#d93025))}
@@ -4418,6 +4352,21 @@
     });
   }
 
+  let scopeWidgetLibrary=null,scopeWidgetKey='',scopeWidgetSelection='overview';
+  function scopeWidgetContext(){
+    const fragment=(kind,config={})=>{
+      const template=document.createElement('template');template.innerHTML=leftHtml();
+      const wrapper=document.createElement('div');wrapper.className='mt-left';
+      const groups=[...template.content.querySelectorAll('.mt-left-group')];
+      for(const group of groups){const name=group.querySelector('[data-mt-left-toggle]')?.dataset.mtLeftToggle;
+        if(name===kind || kind==='measurements'&&name==='custom_fields')wrapper.append(group);
+      }
+      if(config.resourceType&&config.resourceType!=='all')wrapper.querySelectorAll('[data-mt-resource-type]').forEach(el=>{if(el.dataset.mtResourceType!==config.resourceType)el.remove();});
+      bindLeft(wrapper);return wrapper;
+    };
+    return {surface:'project',target:{scope:'project',organizationId:orgId(),projectId:projectId()},data:{'scope.lists':{lists:state.lists},'scope.measurements':{rows:scopeMeasurementRows()}},fragments:{'scope.lists':config=>fragment('lists',config),'scope.measurements':()=>fragment('measurements')}};
+  }
+  function disposeScopeWidgets(){scopeWidgetLibrary?.destroy();scopeWidgetLibrary=null;scopeWidgetKey='';}
   function renderLeft(){
     const timingStart = performance.now();
     if (!state.sidebarRoot || !state.active) return;
@@ -4432,8 +4381,14 @@
       label.textContent = (globalThis.PlatformLanguage?.text("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope");
       label.hidden = true;
     }
-    target.innerHTML = leftHtml();
-    bindLeft(target);
+    const widgets=window.FirstMateWidgets,projectWidgets=window.FirstMateProjectWidgets;
+    if(!widgets||!projectWidgets){target.textContent='The widget viewer could not load. Refresh to try again.';return;}
+    const key=JSON.stringify([orgId(),projectId(),activeMeasurementProjectId()]);
+    if(!scopeWidgetLibrary||scopeWidgetKey!==key||!target.querySelector('.fm-widget-library')){
+      const changed=scopeWidgetKey!==key;disposeScopeWidgets();scopeWidgetKey=key;if(changed)scopeWidgetSelection='overview';
+      scopeWidgetLibrary=widgets.library(target,{items:projectWidgets.scopeItems(),selected:scopeWidgetSelection,layout:'stacked',context:scopeWidgetContext(),onSelect:key=>{scopeWidgetSelection=key;}});
+    }else scopeWidgetLibrary.update(scopeWidgetContext(),{ids:['scope.overview','scope.lists','scope.measurements']});
+    scopeWidgetLibrary.setVisible(true);
     timingMark('renderLeft:end', { active: state.active }, timingStart);
   }
 
@@ -4441,12 +4396,8 @@
     if (!state.sidebarRoot) return null;
     let list = state.sidebarRoot.querySelector('#mtSidebarList');
     if (!list) {
-      state.sidebarRoot.innerHTML = `
-        <div class="r-step-shell" style="grid-template-rows:1fr"><div class="r-step-inner"><div class="r-step-body">
-          <label id="mtSidebarLabel">${(globalThis.PlatformLanguage?.htmlText("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope")}</label>
-          <div class="r-proposal-listing" id="mtSidebarList"></div>
-        </div></div></div>
-      `;
+      state.sidebarRoot.classList.add('mt-widget-sidebar');
+      state.sidebarRoot.innerHTML = '<div id="mtSidebarList"></div>';
       list = state.sidebarRoot.querySelector('#mtSidebarList');
     }
     return list;
@@ -4549,7 +4500,7 @@
                 const lists = state.lists.filter((list) => resourceType(list) === type);
                 if (!lists.length) return '';
                 const terms = resourceTerms(type, lists[0]);
-                return `<div class="mt-resource-group"><div class="mt-resource-group-title"><i class="fas ${escapeHtml(terms.icon)}"></i>${escapeHtml(terms.plural)}</div>${lists.map((list) => renderScopeListCard(list, state.lists.indexOf(list))).join('')}</div>`;
+                return `<div class="mt-resource-group" data-mt-resource-type="${type}"><div class="mt-resource-group-title"><i class="fas ${escapeHtml(terms.icon)}"></i>${escapeHtml(terms.plural)}</div>${lists.map((list) => renderScopeListCard(list, state.lists.indexOf(list))).join('')}</div>`;
               }).join('') || `<div class="mt-empty">${(globalThis.PlatformLanguage?.htmlText("materials","m_9138375c2ce3e1","This scope does not define any resource lists.") ?? "This scope does not define any resource lists.")}</div>`)}
               <button type="button" class="mt-list-add mt-list-regenerate" data-mt-generate-materials ${String(state.generatingMaterials || state.saving ? 'disabled' : '')}><i class="fas ${String(state.generatingMaterials ? 'fa-rotate mt-spin' : 'fa-arrows-rotate')}"></i> ${String(state.generatingMaterials ? 'Regenerating' : 'Regenerate from scope')}</button>
               <button type="button" class="mt-list-add" data-mt-open-new-list><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_b8547d1ae4d15f"," New scope list") ?? " New scope list")}</button>
@@ -5014,7 +4965,7 @@
       if (!state.lists.length && !state.loading) loadData();
       else render();
     } else {
-      state.sidebarRoot?.querySelector?.('#mtSidebarList .mt-left')?.remove();
+      scopeWidgetLibrary?.setVisible(false);
       const activeTab = state.host?.getActivePreviewTab?.() || state.context?.activeTab || '';
       if (!['proposal', 'materials', 'schedule', 'money'].includes(activeTab)) {
         state.sidebarRoot?.classList?.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
@@ -5024,6 +4975,7 @@
   }
 
   function reset(){
+    disposeScopeWidgets();
     state.lists = [];
     state.activeListId = '';
     state.activeList = null;
@@ -5079,7 +5031,7 @@
     arrangeFrame = 0;
     if (noteVisibilityOutsideBound) document.removeEventListener('click', closeScopeNoteVisibilityOnOutsideClick);
     noteVisibilityOutsideBound = false;
-    state.sidebarRoot?.querySelector?.('#mtSidebarList .mt-left')?.remove();
+    disposeScopeWidgets();
     state.sidebarRoot?.classList?.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
     reset();
     state.mounted = false;

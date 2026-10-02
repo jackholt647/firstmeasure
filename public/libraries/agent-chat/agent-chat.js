@@ -108,6 +108,7 @@
     html += pending ? esc(record.content) : renderMarkdown(record.content);
     html += changesHtml(record, prefix);
     html += '</div>';
+    html += window.FirstMateWidgets?.presentationHtml?.(data.renders) || '';
     html += actionsHtml(record, prefix);
     return html;
   }

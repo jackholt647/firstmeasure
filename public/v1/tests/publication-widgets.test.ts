@@ -1,0 +1,39 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,rm} from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+test('widget reads and discovery enforce permissions, exact versions and project ownership without writes',async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'widgets-'));Object.assign(process.env,{NODE_ENV:'test',PLATFORM_STORAGE_ROOT:path.join(root,'platform'),FIRSTMEASURE_STORAGE_ROOT:path.join(root,'reports'),FIRSTMEASURE_INDEX_DB_PATH:path.join(root,'index.sqlite')});
+ const s=await import('../platform/storage.js'),w=await import('../platform/widgets/catalog.js'),p=await import('../platform/publication/providers.js');
+ const {saveCapabilityValues}=await import('../platform/capabilities.js'),{userPublicationContext}=await import('../platform/publication/context.js');
+ try{
+  await s.createOrganization({id:'org_widgets',name:'Widgets'});await saveCapabilityValues('org_widgets',{'platform.expanded_access':true,'platform.materials':true,'platform.pricebook':true});await s.saveGlobal('org_widgets',{data:{app_flags:{platform:{expanded_access:true,pricebook:true,materials:true}}}},{replace:false});
+  await s.upsertDocument('org_widgets','projects',{id:'project_widgets',data:{scope:{measurements:{roofSquares:24,eavesLf:120}}}});
+  await s.upsertDocument('org_widgets','material_lists',{id:'list1',data:{project_id:'project_widgets',title:'Roof labor',resource_type:'labor',status:'draft',current_items:[{id:'row',name:'Install',quantity:24,unit:'sq',private_note:'not exported'}]}});
+  await s.upsertDocument('org_widgets','material_lists',{id:'other',data:{project_id:'other_project',title:'Private'}});
+  const auth:any={orgId:'org_widgets',userId:'member',role:'member',permissions:{view_materials:true,view_reports:true,view_project_data:true},applicationAccess:{management:{enabled:true,permissions:{'*':true}}},capabilities:{effectiveByKey:{'platform.materials':true}}};
+  const ctx=userPublicationContext(auth),target={scope:'project' as const,organizationId:'org_widgets',projectId:'project_widgets'};(await import('../platform/publication/bootstrap.js')).initializePublication();
+  assert.equal((await w.listWidgets(ctx,target)).length,5);await w.authorizeWidget(ctx,'scope.lists','1',target,{resourceType:'labor'});
+  await assert.rejects(w.authorizeWidget(ctx,'scope.lists','1',target,{resourceType:'secret'}));await assert.rejects(w.authorizeWidget(ctx,'scope.lists','99',target,{}));await assert.rejects(w.authorizeWidget(ctx,'scope.lists','1',{...target,organizationId:'other'},{}));
+  const before=await s.readDocument('org_widgets','projects','project_widgets');
+  const lists=await p.readPublishedData(ctx,{provider:'project-widgets',export:'lists',target});assert.equal(lists.status,'ready',JSON.stringify(lists));if(lists.status!=='ready')throw Error('Missing lists');const data=lists.value as any;assert.equal(data.lists.length,1);assert.equal(data.lists[0].resourceType,'labor');assert.equal(data.lists[0].items[0].private_note,undefined);
+  const values=await p.readPublishedData(ctx,{provider:'project-widgets',export:'measurements',target});assert.equal(values.status,'ready');if(values.status==='ready')assert.equal((values.value as any).rows.find((r:any)=>r.key==='roofSquares').value,24);
+  assert.equal((await s.readDocument('org_widgets','projects','project_widgets')).revision,before.revision);assert.equal((await s.listDocuments('org_widgets','material_lists')).length,2);
+  assert.equal((await p.readPublishedData(ctx,{provider:'project-widgets',export:'lists',target:{...target,projectId:'missing'}})).status,'missing');
+  const identity=await s.createIdentity({email:'widget-agent@example.test',name:'Widget user'});
+  await s.addIdentityMembership(String(identity.id),'org_widgets','widget_user','owner');
+  await s.upsertDocument('org_widgets','users',{id:'widget_user',data:{identity_id:identity.id,email:identity.email,status:'active',org_permissions:{level:'owner',items:{}}}});
+  const {platformAgentTools}=await import('../agents/platform_tools.js');
+  const run:any={agentId:'assistant',orgId:'org_widgets',userId:'widget_user',ctx:auth,settings:{data_scope:{projects:false}},scratch:{},renders:[]};
+  const discover=platformAgentTools.find(t=>t.name==='platform_widgets')!,show=platformAgentTools.find(t=>t.name==='platform_show_widget')!;
+  const hidden=await discover.execute(run,{query:'lists'}) as any;assert.equal(hidden.widgets.length,0);
+  await assert.rejects(Promise.resolve().then(()=>show.execute(run,{id:'scope.lists',version:'1',target,config:{resourceType:'labor'}})));
+  run.settings.data_scope.projects=true;
+  await show.execute(run,{id:'scope.lists',version:'1',target,config:{resourceType:'labor'}});
+  assert.equal(run.renders.length,1);assert.deepEqual(run.renders[0].widget,{id:'scope.lists',version:'1',target,config:{resourceType:'labor'}});
+  await assert.rejects(Promise.resolve().then(()=>show.execute({...run,ctx:null},{id:'scope.lists',version:'1',target,config:{}})));
+  auth.permissions.view_materials=false;assert.deepEqual((await w.listWidgets(ctx,target)).map(d=>d.id),['reports.roof','reports.photo']);assert.equal((await p.readPublishedData(ctx,{provider:'project-widgets',export:'measurements',target})).status,'denied');
+  auth.permissions.view_reports=false;await assert.rejects(w.authorizeWidget(ctx,'reports.roof','1',target));assert.equal((await w.listWidgets(ctx,target)).length,0);
+ }finally{await (await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();await rm(root,{recursive:true,force:true}).catch(()=>{});}
+});

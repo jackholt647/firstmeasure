@@ -1,0 +1,185 @@
+[
+  {
+    "id": "reports.roof",
+    "version": "1",
+    "title": "3D roof",
+    "description": "Interactive read-only roof geometry, with textures, colored edges and roof openings.",
+    "app": "measurements",
+    "surfaces": [
+      "project",
+      "assistant",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "fill",
+      "minWidth": 180,
+      "minHeight": 280,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "project-widgets",
+        "export": "report"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "reports.photo",
+    "version": "1",
+    "title": "Aerial view",
+    "description": "The selected report aerial or a project report reference photo/video.",
+    "app": "measurements",
+    "surfaces": [
+      "project",
+      "assistant",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "aspect",
+      "minWidth": 180,
+      "minHeight": 280,
+      "aspectRatio": 1.5
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "mediaIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mediaKind": {
+          "type": "string",
+          "enum": [
+            "all",
+            "aerial"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "project-widgets",
+        "export": "report"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "scope.measurements",
+    "version": "1",
+    "title": "Measurements",
+    "description": "Effective project scope quantities used to generate scope resources.",
+    "app": "materials",
+    "surfaces": [
+      "project",
+      "assistant",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "project-widgets",
+        "export": "measurements"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "scope.lists",
+    "version": "1",
+    "title": "Lists",
+    "description": "Material, labor and equipment lists for this project. Filter by resource type or list identity.",
+    "app": "materials",
+    "surfaces": [
+      "project",
+      "assistant",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "resourceType": {
+          "type": "string",
+          "enum": [
+            "all",
+            "material",
+            "labor",
+            "equipment"
+          ]
+        },
+        "listId": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "project-widgets",
+        "export": "lists"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "scope.overview",
+    "version": "1",
+    "title": "Lists & measurements",
+    "description": "Content-sized stack of the lists and measurements widgets.",
+    "app": "materials",
+    "surfaces": [
+      "project",
+      "assistant",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "sources": [],
+    "actions": [],
+    "children": [
+      {
+        "id": "scope.lists",
+        "version": "1",
+        "key": "lists"
+      },
+      {
+        "id": "scope.measurements",
+        "version": "1",
+        "key": "measurements"
+      }
+    ]
+  }
+]

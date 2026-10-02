@@ -63,6 +63,7 @@
     if(document.getElementById('fm-roof-viewer-style'))return;
     const el=document.createElement('style');el.id='fm-roof-viewer-style';el.textContent=`
       .fm-roof-gallery{height:100%;min-height:360px;display:grid;grid-template-columns:minmax(200px,38%) minmax(0,1fr);gap:12px;padding:12px;box-sizing:border-box;container-type:inline-size;background:#f5f6f8}
+      .fm-roof-gallery.is-single{display:block;padding:0}.fm-roof-gallery.is-single .fm-roof-stage{height:100%;min-height:280px}
       .fm-roof-gallery *{box-sizing:border-box}.fm-roof-gallery [hidden]{display:none!important}
       .fm-roof-stage{position:relative;min-width:0;min-height:300px;overflow:hidden;background:#eef1f5;border:1px solid #e4e7ec;border-radius:12px;grid-column:2;grid-row:1}
       .fm-roof-canvas{position:absolute;inset:0}.fm-roof-canvas canvas{width:100%;height:100%;display:block;touch-action:none}
@@ -75,11 +76,13 @@
       .fm-roof-gallery.is-compact{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(300px,1fr) 112px}.fm-roof-gallery.is-compact .fm-roof-stage{grid-column:1;grid-row:1}.fm-roof-gallery.is-compact .fm-roof-library{grid-column:1;grid-row:2;display:flex;overflow-x:auto;overflow-y:hidden}.fm-roof-gallery.is-compact .fm-roof-thumb{flex:0 0 120px}.fm-roof-gallery.is-compact .fm-roof-thumb img,.fm-roof-gallery.is-compact .fm-roof-thumb video{height:66px}.fm-roof-gallery.is-compact .fm-roof-thumb span{padding:6px;font-size:11px}
     `;document.head.append(el);
   }
-  function mount(root,{xmlUrl,media=[]}){
-    injectStyle();let disposed=false,renderer,controls,scene,camera,observer,geometryGroup,lineGroup,texture,selection='model',textureEnabled=true,coloredLinesEnabled=true,keyVisible=true;
+  function mount(root,{xmlUrl,media=[],standalone=false,initialState={}}){
+    injectStyle();let disposed=false,renderer,controls,scene,camera,observer,geometryGroup,lineGroup,texture,selection='model',textureEnabled=initialState.texture!==false,coloredLinesEnabled=initialState.lines!==false,keyVisible=initialState.key!==false;
     let modelLoaded=false;const controller=new AbortController();const objects=[];const ownedUrls=[];
     root.innerHTML='<div class="fm-roof-gallery"><div class="fm-roof-library" aria-label="Roof model and report media"></div><div class="fm-roof-stage"><div class="fm-roof-canvas"></div><div class="fm-roof-tools"><button type="button" data-texture aria-pressed="true">Texture</button><button type="button" data-lines aria-pressed="true">Colored lines</button><button type="button" data-key aria-expanded="true">Line key</button><button type="button" data-reset>Reset view</button></div><div class="fm-roof-key"></div><div class="fm-roof-message" role="status">Loading roof model…</div><div class="fm-roof-hint">Drag to orbit · Scroll to zoom</div></div></div>';
     const gallery=root.firstElementChild,stage=root.querySelector('.fm-roof-stage'),canvas=root.querySelector('.fm-roof-canvas'),library=root.querySelector('.fm-roof-library'),tools=root.querySelector('.fm-roof-tools'),key=root.querySelector('.fm-roof-key'),message=root.querySelector('.fm-roof-message'),hint=root.querySelector('.fm-roof-hint');
+    if(standalone){gallery.classList.add('is-single');library.hidden=true;}
+    key.hidden=!keyVisible;tools.querySelector('[data-key]').setAttribute('aria-expanded',String(keyVisible));
     const entries=[{id:'model',label:'3D roof model'},...media.map((m,i)=>({...m,id:'media-'+i}))];
     function draw(){if(!disposed&&renderer&&selection==='model')renderer.render(scene,camera);}
     function resize(){if(disposed)return;gallery.classList.toggle('is-compact',gallery.clientWidth<800);key.style.top=(tools.offsetTop+tools.offsetHeight+8)+'px';if(renderer){renderer.setSize(stage.clientWidth,stage.clientHeight);const aspect=stage.clientWidth/Math.max(1,stage.clientHeight);camera.position.sub(controls.target).multiplyScalar(Math.max(1,1/aspect)/Math.max(1,1/camera.aspect)).add(controls.target);camera.aspect=aspect;camera.updateProjectionMatrix();draw();}}
@@ -142,7 +145,7 @@
       for(const type of types){const row=document.createElement('span'),swatch=document.createElement('i');swatch.style.background=styles[type][0];row.append(swatch,document.createTextNode(styles[type][1]));key.append(row);}
       modelLoaded=true;message.hidden=true;resize();reset();
     })().catch(error=>{if(!disposed){message.textContent=error.message;message.hidden=selection!=='model';tools.hidden=true;key.hidden=true;hint.hidden=true;}});
-    return {destroy(){disposed=true;controller.abort();observer.disconnect();controls?.dispose();objects.forEach(o=>o.dispose());texture?.dispose();renderer?.dispose();ownedUrls.forEach(URL.revokeObjectURL);root.replaceChildren();}};
+    return {serialize(){return {texture:textureEnabled,lines:coloredLinesEnabled,key:keyVisible};},setVisible(value){if(value)resize();},destroy(){disposed=true;controller.abort();observer.disconnect();controls?.dispose();objects.forEach(o=>o.dispose());texture?.dispose();renderer?.dispose();ownedUrls.forEach(URL.revokeObjectURL);root.replaceChildren();}};
   }
   window.FirstMeasureRoofViewer={mount,parseModel,faceTextureUVs};
 })();
