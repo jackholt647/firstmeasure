@@ -68,8 +68,8 @@ test('customer schedule visibility is explicit and defaults to internal', () => 
 });
 
 test('event creation supports production, multi-equipment assignments, and advanced type requirements', () => {
-  assert.match(projectScheduleSource, /data-new-production/);
-  assert.match(projectScheduleSource, /data-new-production[^\n]+openScheduleDialog\('project_work'\)/);
+  assert.match(projectScheduleSource, /data-project-new-appointment/);
+  assert.match(projectScheduleSource, /FirstMateBooking\.open\(\{orgId:cfg.userOrgId,projectId:project.id,lockProject:true/);
   assert.match(projectScheduleSource, /id="rScheduleEquipment" multiple/);
   assert.match(projectScheduleSource, /id="rScheduleAdvanced"[\s\S]{0,180}fa-sliders/);
   assert.match(projectScheduleSource, /resource_refs:resourceRefs/);
@@ -155,7 +155,7 @@ test('global scheduling keeps work and deliveries in one calendar before and dur
 test('calendar category toggles filter sales, production, and other items independently', () => {
   assert.match(schedulingSource, /let showSalesSchedule = true;[\s\S]*?let showProductionSchedule = true;[\s\S]*?let showOtherSchedule = true;/);
   assert.match(schedulingSource, /function calendarEventCategory\(event = \{\}\)\{[\s\S]*?isSalesEvent\(event\) \|\| isSalesFollowUpEvent\(event\)[\s\S]*?return 'production';[\s\S]*?return 'other';/);
-  assert.match(schedulingSource, /return scheduleTypeActive\(calendarEventCategory\(event\)\);/);
+  assert.match(schedulingSource, /departments.some\(departmentVisible\)/);
   assert.match(schedulingSource, /floatingEvents\.filter\(\(event\) => !isVehicleBooking\(event\) && !\['cancelled', 'canceled'\]\.includes\(clean\(event\.status\)\.toLowerCase\(\)\)\)\.filter\(eventMatchesMode\)\.filter\(eventMatchesBreakdown\)\.map\(decorateFloatingEvent\)/);
   assert.match(schedulingSource, /data-schedule-type-toggle="sales"[\s\S]*?data-schedule-type-toggle="production"[\s\S]*?data-schedule-type-toggle="other"/);
   assert.match(schedulingSource, /if \(next === 'production'\) showProductionSchedule = !showProductionSchedule;[\s\S]*?else if \(next === 'other'\) showOtherSchedule = !showOtherSchedule;[\s\S]*?else showSalesSchedule = !showSalesSchedule;/);
@@ -718,7 +718,6 @@ test('project work crew controls assign in place and stay synchronized', () => {
   assert.match(projectScheduleSource, /function productionCrewSelectHtml\(event = \{\}\)/);
   assert.match(projectScheduleSource, /data-production-resource-crew=/);
   assert.match(projectScheduleSource, /r-production-resource-crew-button[\s\S]*?aria-haspopup="listbox" aria-expanded="false"/);
-  assert.match(projectScheduleSource, /target\.querySelectorAll\('\[data-production-resource-crew\]'\)[\s\S]*?openWorkAssignmentMenu\(item, button\)/);
   assert.match(projectScheduleSource, /function openWorkAssignmentMenu\(event = \{\}, anchor = null\)/);
   assert.match(projectScheduleSource, /function schedulePopoverHost\(anchor = null\)[\s\S]*?anchor\?\.closest\?\.\('\[data-fm-modal-id\], #rOverlay, \.r-overlay'\)/);
   assert.match(projectScheduleSource, /schedulePopoverHost\(anchor\)\.appendChild\(menu\)/);

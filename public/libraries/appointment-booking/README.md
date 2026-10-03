@@ -44,3 +44,5 @@ existing bounded server search (12 results), debounces typing, discards stale
 responses, supports arrow keys/Enter/Escape, and keeps six recently selected IDs
 in user/organization-scoped session storage. `value`, `setDisabled()` and
 `destroy()` allow reuse by other forms without loading every project.
+
+`configuration.js` provides presets and independent department, delivery, recurrence, staffing and arrival-window controls. See [appointment planning](../../../docs/architecture/appointment-planning.md) for the catalog and engine contracts.

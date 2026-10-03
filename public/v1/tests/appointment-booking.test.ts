@@ -178,3 +178,37 @@ test('staff booking validates authority, rechecks availability, and retries with
   await saveCapabilityValues(orgId, {'scheduling.appointment_slots':false});
   assert.equal((await client.raw('POST',url,body)).statusCode,403);
 });
+
+test('configured appointments preserve departments, delivery, staffing and recurring arrival windows',async()=>{
+  const client=createSessionClient();const {orgId}=await registerOwner(client);
+  const storage=await import('../platform/storage.js');
+  const {saveCapabilityValues}=await import('../platform/capabilities.js');
+  await saveCapabilityValues(orgId,{'platform.scheduling':true,'scheduling.appointment_slots':true});
+  await storage.saveBranchModule(orgId,'default','scheduling',{data:{self_service:{default_policy:{min_notice_minutes:0}}}},{replace:true});
+  await createProject(orgId,'configured_project','Configured',{email:'',phone:''});
+  const base=`/v1/appointments/organizations/${orgId}`;
+  const catalog=await client.request('GET',base+'/catalog');
+  const person=catalog.resources.find((r:any)=>r.subject_type==='organization_user');assert.ok(person);
+  catalog.catalog.departments.push({id:'consulting',label:'Consulting',subject_keys:[person.key],color:'#123456',group_id:'customer-services'});
+  catalog.catalog.groups=[{id:'customer-services',label:'Customer services'}];
+  const saved=await client.request('PUT',base+'/catalog',{catalog:catalog.catalog,revision:catalog.revision});
+  assert.equal((await client.raw('PUT',base+'/catalog',{catalog:catalog.catalog,revision:catalog.revision})).statusCode,409);
+  assert.equal(saved.catalog.departments.at(-1).label,'Consulting');
+  const date=new Date(Date.now()+72*3600000).toISOString().slice(0,10);
+  const configuration={title:'Joint consultation delivery',department_ids:['sales','consulting'],delivery:true,duration_minutes:60,window_minutes:240,slot_minutes:30,requirements:[{department_id:'consulting',subject_type:'organization_user',mode:'specific',subject_keys:[person.key]}],recurrence:{frequency:'weekly',interval:1,occurrence_count:2}};
+  const preview=await client.request('POST',base+'/preview',{project_id:'configured_project',date,configuration});
+  const slot=preview.slots.find((s:any)=>s.available);assert.ok(slot);
+  assert.equal(Date.parse(slot.window_end_at)-Date.parse(slot.start_at),240*60000);
+  const body={project_id:'configured_project',event_id:'appointment_configured0123456789',start_at:slot.start_at,configuration};
+  const result=await client.request('POST',base+'/book',body);assert.ok(result.series);
+  const again=await client.request('POST',base+'/book',body);assert.equal(again.series.id,result.series.id);
+  const project=await storage.readDocument(orgId,'projects','configured_project');const events=project.data.events as any[];assert.equal(events.length,2);
+  for(const event of events){assert.deepEqual(event.department_ids,['sales','consulting']);assert.equal(event.delivery,true);assert.equal(event.assigned_user_ids[0],person.id);assert.equal(Date.parse(event.end_at)-Date.parse(event.start_at),60*60000);assert.equal(Date.parse(event.arrival_window_end_at)-Date.parse(event.arrival_window_start_at),240*60000);}
+  assert.notEqual(events[0].arrival_window_start_at,events[1].arrival_window_start_at);
+  const singleConfig={title:'Uncategorized',department_ids:[],requirements:[],delivery:false};
+  const single=await client.request('POST',base+'/preview',{project_id:'configured_project',date,configuration:singleConfig});
+  const booked=await client.request('POST',base+'/book',{project_id:'configured_project',event_id:'appointment_single0123456789012',start_at:single.slots.find((s:any)=>s.available).start_at,configuration:singleConfig});
+  assert.deepEqual(booked.event.department_ids,[]);
+  assert.equal(booked.event.delivery,false);
+  assert.equal(booked.event.event_type_default_id,'appointment');
+});

@@ -1071,7 +1071,7 @@
     if (['labor', 'equipment'].includes(scheduleKind)) return scheduleKind;
     return '';
   }
-  function isSalesEvent(event){ return !!event && eventKind(event) === 'sales_appointment'; }
+  function isSalesEvent(event){ return !!event && (Array.isArray(event.department_ids)?event.department_ids.includes('sales'):eventKind(event)==='sales_appointment'); }
   function isSalesFollowUpEvent(event){ return !!event && eventKind(event) === 'sales_follow_up'; }
   /* A project's schedule section (Timeline group): production-side, but
    * never a placement of its own. */
@@ -1081,6 +1081,7 @@
   }
   function isProductionEvent(event){
     if (!event) return false;
+    if(Array.isArray(event.department_ids))return event.department_ids.includes('production');
     const resourceType = productionResourceType(event);
     return resourceType === 'labor' || resourceType === 'equipment' || eventKind(event) === 'project_work';
   }
@@ -1152,9 +1153,19 @@
   function scheduleTypeActive(type){
     return activeScheduleTypes().includes(type);
   }
-  function eventMatchesMode(event){
-    return scheduleTypeActive(calendarEventCategory(event));
+  const hiddenAppointmentDepartments=new Set();
+  function schedulingDepartments(){return schedulingConfig?.appointment_catalog?.departments || [{id:'sales',label:'Sales'},{id:'production',label:'Production'}];}
+  function eventDepartments(event){return Array.isArray(event.department_ids)?event.department_ids:[calendarEventCategory(event)].filter(id=>id!=='other');}
+  function departmentVisible(id){return id==='sales'?showSalesSchedule:id==='production'?showProductionSchedule:id==='other'?showOtherSchedule:!hiddenAppointmentDepartments.has(id);}
+  function departmentFiltersHtml(){
+    const button=(id,label)=>`<button type="button" class="dash-type-chip ${departmentVisible(id)?'active':''}" data-appointment-department="${escapeHtml(id)}" aria-pressed="${departmentVisible(id)}">${escapeHtml(label)}</button>`;
+    return schedulingDepartments().map(d=>button(d.id,d.label)).join('')+button('other','No department')+(schedulingConfig?.appointment_catalog?.groups||[]).map(g=>`<button type="button" class="dash-btn" data-department-group="${escapeHtml(g.id)}">${escapeHtml(g.label)}</button>`).join('');
   }
+  function eventMatchesMode(event){
+    const departments=eventDepartments(event);
+    return departments.length?departments.some(departmentVisible):showOtherSchedule;
+  }
+
   function workAssignmentReferencesEvent(event = {}, resourceId = ''){
     const id = clean(resourceId);
     if (!id) return false;
@@ -8572,23 +8583,41 @@
     }
     return `<div class="dash-routing-placement-dock"><strong>${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2e5bd1a487b333","Projects to place") ?? "Projects to place")}</strong><div class="dash-routing-placement-track">${String(tiles.length ? tiles.join('') : `<div class="dash-routing-placement-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_8b9aa12deed5b3","No projects waiting to be placed.") ?? "No projects waiting to be placed.")}</div>`)}</div></div>`;
   }
+  function renderDepartmentRouting(){
+    return `<div class="dash-card dash-schedule-card">${[...schedulingDepartments().filter(d=>!['sales','production'].includes(d.id)),{id:'other',label:'No department'}].filter(d=>departmentVisible(d.id)).map(d=>`<section class="dash-routing-pane"><h3>${escapeHtml(d.label)}</h3><div data-department-routing="${escapeHtml(d.id)}"></div></section>`).join('')}</div>`;
+  }
+  function mountDepartmentRouting(){
+    rootEl.querySelectorAll('[data-department-routing]').forEach(mount=>{
+      const department=mount.dataset.departmentRouting;
+      const events=allEvents.filter(event=>eventIsScheduled(event)&&(department==='other'?!eventDepartments(event).length:eventDepartments(event).includes(department)));
+      const resources=new Map();const lanes=[];
+      events.forEach(event=>{
+        const refs=Array.isArray(event.resource_refs)&&event.resource_refs.length?event.resource_refs:((event.assigned_user_ids||[]).map(id=>({kind:'organization_user',id,name:id})));
+        const fallback=currentAssignmentId(event);const assignments=refs.length?refs:fallback?[{kind:'resource',id:fallback,name:event.assigned_resource_name||event.assigned_crew_name||fallback}]:[];
+        if(!assignments.length)lanes.push(event);
+        assignments.forEach(ref=>{const id=`${ref.kind}:${ref.id}`;resources.set(id,{id,name:ref.name||ref.id});lanes.push({...event,__departmentLane:id});});
+      });
+      window.PlatformScheduleView?.renderProjectRangeScheduler?.(mount,{Scheduling:window.PlatformScheduling,config:schedulingConfig,events:lanes,resources:[...resources.values()],date:anchorDate,mode:'week',dayCount:30,pastDays:7,showToolbar:false,allowCreate:false,allowEdit:false,resourceIdForItem:event=>event.__departmentLane||'',unassignedLabel:'Unassigned',onEventClick:(event,meta)=>openPlacedCalendarEvent(allEvents.find(e=>e.id===event.id)||event,meta)});
+    });
+  }
   function renderAppointmentSchedule(){
+    const additionalDepartments=renderDepartmentRouting();
     const availablePanes = [
       showSalesSchedule ? { id:'sales', label:(globalThis.PlatformLanguage?.text("scheduling","m_2680c31facb03d","Sales") ?? "Sales"), mount:'dashScheduleViewSales', scale:salesRoutingScale } : null,
       showProductionSchedule ? { id:'production', label:(globalThis.PlatformLanguage?.text("scheduling","m_c2e6380e130020","Production") ?? "Production"), mount:'dashScheduleViewProduction', scale:productionRoutingScale } : null
     ].filter(Boolean);
     if (!availablePanes.length) {
-      return `<div class="dash-empty">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_1364a554d79704","Turn on Sales or Production to show a routing schedule.") ?? "Turn on Sales or Production to show a routing schedule.")}</div>`;
+      return additionalDepartments;
     }
     if (!isMobileScheduleLayout()) {
-      return `<div class="dash-card dash-schedule-card">${placementBannerHtml('routing')}<div class="dash-schedule-split">${availablePanes.map((pane) => routingPane(pane.label, pane.mount, pane.scale)).join('')}</div></div>`;
+      return `<div class="dash-card dash-schedule-card">${placementBannerHtml('routing')}<div class="dash-schedule-split">${availablePanes.map((pane) => routingPane(pane.label, pane.mount, pane.scale)).join('')}</div></div>${additionalDepartments}`;
     }
     if (!availablePanes.some((pane) => pane.id === mobileRoutingPane)) {
       mobileRoutingPane = availablePanes.some((pane) => pane.id === scheduleMode) ? scheduleMode : availablePanes[0].id;
     }
     const activePane = availablePanes.find((pane) => pane.id === mobileRoutingPane) || availablePanes[0];
     const tabs = ("<div class=\"dash-routing-tabs\" role=\"tablist\" aria-label=\"" + (globalThis.PlatformLanguage?.text("scheduling","m_584e2a4849003b","Routing schedule") ?? "Routing schedule") + "\">" + String(availablePanes.map((pane) => `<button type="button" class="dash-routing-tab ${pane.id === activePane.id ? 'active' : ''}" data-mobile-routing-pane="${pane.id}" role="tab" aria-selected="${pane.id === activePane.id ? 'true' : 'false'}">${escapeHtml(pane.label)}</button>`).join('')) + "</div>");
-    return `<div class="dash-card dash-schedule-card">${tabs}${placementBannerHtml('routing')}<div class="dash-schedule-split mobile-routing">${routingPane(activePane.label, activePane.mount, activePane.scale)}</div>${renderMobileRoutingPlacementDock(activePane.id)}</div>`;
+    return `<div class="dash-card dash-schedule-card">${tabs}${placementBannerHtml('routing')}<div class="dash-schedule-split mobile-routing">${routingPane(activePane.label, activePane.mount, activePane.scale)}</div>${renderMobileRoutingPlacementDock(activePane.id)}</div>${additionalDepartments}`;
   }
   function renderEventCalendarShell(){
     return `<div class="dash-card dash-schedule-card">${placementBannerHtml('calendar')}<div id="dashEventCalendarView" class="dash-schedule-view ${mobileCalendarSwipeDirection ? `mobile-swipe-${mobileCalendarSwipeDirection}` : ''}"></div></div>`;
@@ -8879,6 +8908,7 @@
     panes.forEach((pane, index) => { pane.style.height = `${Math.floor(heights[index])}px`; });
   }
   function renderScheduleLibraryView(){
+    mountDepartmentRouting();
     const splitSales = rootEl?.querySelector('#dashScheduleViewSales');
     const splitProduction = rootEl?.querySelector('#dashScheduleViewProduction');
     // First load: show a loading state rather than empty lanes.
@@ -10395,17 +10425,7 @@
     // Category filters are checkable chips, visually distinct from the view
     // switch, and shown in every view so the header never shifts.
     const typeChip = (type, label, on) => `<button type="button" class="dash-type-chip ${type} ${on ? 'active' : ''}" data-schedule-type-toggle="${type}" aria-pressed="${on ? 'true' : 'false'}"><span class="dash-type-chip-box" aria-hidden="true"><i class="fas fa-check"></i></span>${escapeHtml(label)}</button>`;
-    const modeButtons = `
-      <span class="dash-type-chips" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_92e47dd97f2a57","Schedules to show") ?? "Schedules to show")}">
-        <span class="dash-control-label">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_6290719711de40","Show") ?? "Show")}</span>
-        ${typeChip('sales', (globalThis.PlatformLanguage?.text("scheduling","m_2680c31facb03d","Sales") ?? "Sales"), showSalesSchedule)}
-        ${typeChip('production', (globalThis.PlatformLanguage?.text("scheduling","m_c2e6380e130020","Production") ?? "Production"), showProductionSchedule)}
-        ${viewMode === 'appointment_schedule'
-          // Routing has only Sales and Production lanes: "Other" can't apply
-          // there, so it stays in place (no header shift) but is disabled.
-          ? typeChip('other', (globalThis.PlatformLanguage?.text("scheduling","m_4a04382820d2e1","Other") ?? "Other"), showOtherSchedule).replace('<button type="button"', `<button type="button" disabled aria-disabled="true" title="${escapeHtml(globalThis.PlatformLanguage?.text("scheduling","m_other_not_in_routing","Routing shows sales and production lanes only") ?? "Routing shows sales and production lanes only")}"`)
-          : typeChip('other', (globalThis.PlatformLanguage?.text("scheduling","m_4a04382820d2e1","Other") ?? "Other"), showOtherSchedule)}
-      </span>`;
+    const modeButtons=`<span class="dash-type-chips" role="group" aria-label="Departments">${departmentFiltersHtml()}</span>`;
     const displayButtons = ENABLE_CALENDAR_DISPLAY_SWITCH ? `
       <span class="dash-control-group">
         <span class="dash-control-label">${(globalThis.PlatformLanguage?.htmlText("scheduling","m_2b8e4c9b866e80","View") ?? "View")}</span>
@@ -10656,6 +10676,17 @@
     window.PlatformUI?.hideTooltip?.();
   }
   function bind(){
+    const mobileDepartments=rootEl.querySelector('.dash-mobile-popover.schedules');
+    if(mobileDepartments)mobileDepartments.innerHTML=departmentFiltersHtml();
+    rootEl.querySelectorAll('[data-appointment-department]').forEach(button=>button.onclick=()=>{
+      const id=button.dataset.appointmentDepartment;
+      if(id==='sales')showSalesSchedule=!showSalesSchedule;else if(id==='production')showProductionSchedule=!showProductionSchedule;else if(id==='other')showOtherSchedule=!showOtherSchedule;else if(hiddenAppointmentDepartments.has(id))hiddenAppointmentDepartments.delete(id);else hiddenAppointmentDepartments.add(id);
+      render();
+    });
+    rootEl.querySelectorAll('[data-department-group]').forEach(button=>button.onclick=()=>{
+      const members=schedulingDepartments().filter(d=>d.group_id===button.dataset.departmentGroup);const hide=members.every(d=>departmentVisible(d.id));
+      members.forEach(d=>{if(d.id==='sales')showSalesSchedule=!hide;else if(d.id==='production')showProductionSchedule=!hide;else if(hide)hiddenAppointmentDepartments.add(d.id);else hiddenAppointmentDepartments.delete(d.id);});render();
+    });
     rootEl.querySelector('[data-mobile-view-menu]')?.addEventListener('click', (event) => {
       event.stopPropagation();
       mobileViewMenuOpen = !mobileViewMenuOpen;

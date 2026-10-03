@@ -1,3 +1,4 @@
+import {readAppointmentCatalog,saveAppointmentCatalog,previewAppointment,previewSchema,plannedBookingSchema,bookPlannedAppointment} from './planning.js';
 // Appointment confirmation API. Authenticated routes back the company settings
 // section, the schedule popup's confirmation panel, and manual resend/override;
 // the /public/:token routes are the customer-facing confirm page reached from
@@ -100,9 +101,22 @@ export const registerAppointmentsApi: FastifyPluginAsync = async (app) => {
     return await appointmentAvailability(orgId, ctx.branchId || "default", asObject(request.query));
   });
 
+  app.get('/organizations/:orgId/catalog', async request => {
+    const ctx=await requirePlatformAuth(request,{orgId:getParam(request.params,'orgId'),permission:'manage_schedule|view_projects',capability:'scheduling.appointment_slots'});
+    return {ok:true,...await readAppointmentCatalog(ctx)};
+  });
+  app.put('/organizations/:orgId/catalog', async request => {
+    const ctx=await requirePlatformAuth(request,{orgId:getParam(request.params,'orgId'),permission:'manage_company_settings',csrf:true});
+    return {ok:true,...await saveAppointmentCatalog(ctx,request.body)};
+  });
+  app.post('/organizations/:orgId/preview', async request => {
+    const ctx=await requirePlatformAuth(request,{orgId:getParam(request.params,'orgId'),permission:'manage_schedule|view_projects',capability:'scheduling.appointment_slots',csrf:true});
+    return previewAppointment(ctx,previewSchema.parse(request.body));
+  });
   app.post('/organizations/:orgId/book', async (request) => {
     const orgId = getParam(request.params, 'orgId');
     const ctx = await requirePlatformAuth(request, { orgId, permission:'manage_schedule|manage_projects', capability:'scheduling.appointment_slots', csrf:true });
+    if(asObject(request.body).configuration) return bookPlannedAppointment(ctx,plannedBookingSchema.parse(request.body));
     const input = z.object({
       project_id:z.string().trim().min(1).max(200).optional(),
       event_id:z.string().regex(/^appointment_[a-zA-Z0-9-]{16,80}$/),

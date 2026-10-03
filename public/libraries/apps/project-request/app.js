@@ -3146,7 +3146,7 @@ window.PlatformCommerce.onReady(async function(){
     }
   }
   function projectTabHasSidebar(tab = activePreviewTab){
-    return ['proposal','materials','money','schedule'].includes(tab);
+    return ['proposal','materials','money'].includes(tab);
   }
   function syncProjectTabContent(){
     applyProjectModalPresentation();

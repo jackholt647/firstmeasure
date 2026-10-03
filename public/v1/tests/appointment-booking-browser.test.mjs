@@ -5,21 +5,51 @@ import {chromium} from 'playwright-core';
 
 const picker = await readFile(new URL('../../libraries/appointment-booking/availability.js', import.meta.url), 'utf8');
 const selector = await readFile(new URL('../../libraries/project-selector/project-selector.js', import.meta.url), 'utf8');
+const configuration = await readFile(new URL('../../libraries/appointment-booking/configuration.js', import.meta.url), 'utf8');
 const booking = await readFile(new URL('../../libraries/appointment-booking/booking.js', import.meta.url), 'utf8');
 const embed = await readFile(new URL('../../libraries/lead-embed/firstmate-lead-embed.js', import.meta.url), 'utf8');
 const scheduling = await readFile(new URL('../../libraries/apps/scheduling/app.js', import.meta.url), 'utf8');
+test('presets request a named assignee up front; advanced changes become Custom and keep independent flags',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:1000,height:1000}});
+    await page.route('http://localhost/**',route=>route.fulfill({body:'<html><body></body></html>',contentType:'text/html'}));await page.goto('http://localhost/');
+    for(const content of [picker,selector,configuration,booking])await page.addScriptTag({content});
+    await page.evaluate(()=>{
+      const config={title:'Consultation',department_ids:['sales'],delivery:false,duration_minutes:60,window_minutes:60,slot_minutes:30,recurrence:null,requirements:[{department_id:'sales',subject_type:'organization_user',mode:'specific',subject_keys:[],count:1,percent:100,crew_member_percent:0}]};
+      window.requests=[];
+      window.PlatformAPI={projects:{get:async()=>({document:{id:'project',data:{title:'Project'}}})},appointments:{catalog:async()=>({can_manage:false,resources:[{id:'person',key:'organization_user:person',name:'Alex',subject_type:'organization_user'}],catalog:{departments:[{id:'sales',label:'Sales'},{id:'production',label:'Production'}],groups:[],presets:[{id:'consultation',label:'Consultation',configuration:config}]}}),preview:async(org,input)=>{window.requests.push(input);return {slots:[{start_at:'2026-10-08T15:00:00Z',available:true,label:'10:00 AM'}]};},book:async()=>({ok:true})}};
+      return FirstMateBooking.open({orgId:'org',projectId:'project',lockProject:true});
+    });
+    await page.locator('[data-preset]').selectOption('consultation');
+    assert.equal(await page.locator('[data-advanced]').getAttribute('open'),null);
+    await page.locator('[data-quick-specific]').selectOption('organization_user:person');
+    await page.locator('[data-advanced] summary').click();
+    await page.locator('[data-delivery]').check();
+    await page.locator('[data-department][value=production]').check();
+    await page.locator('[data-window]').fill('240');await page.locator('[data-window]').press('Tab');
+    await page.locator('[data-recurring]').check();
+    assert.equal(await page.locator('[data-preset]').inputValue(),'');
+    const selected=await page.evaluate(()=>window.requests.at(-1).configuration);
+    assert.deepEqual(selected.department_ids,['sales','production']);assert.equal(selected.delivery,true);assert.equal(selected.recurrence.frequency,'weekly');assert.equal(selected.window_minutes,240);assert.equal(selected.duration_minutes,60);
+    assert.deepEqual(selected.requirements[0].subject_keys,['organization_user:person']);
+    assert.equal(await page.locator('[data-project] input').isDisabled(),true);
+    await page.setViewportSize({width:390,height:844});
+    assert.ok(await page.locator('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth));
+  }finally{await browser.close();}
+});
 test('direct Scheduling entry loads booking without the app manifest', async () => {
   const browser = await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless:true});
   try {
     const page = await browser.newPage();
     await page.route('http://localhost/**', route => {
       const url = route.request().url();
-      return route.fulfill({body:url.endsWith('/booking.js') ? booking : url.endsWith('/availability.js') ? picker : url.endsWith('/project-selector.js') ? selector : '<html><body></body></html>',contentType:url.endsWith('.js') ? 'text/javascript' : 'text/html'});
+      return route.fulfill({body:url.endsWith('/configuration.js') ? configuration : url.endsWith('/booking.js') ? booking : url.endsWith('/availability.js') ? picker : url.endsWith('/project-selector.js') ? selector : '<html><body></body></html>',contentType:url.endsWith('.js') ? 'text/javascript' : 'text/html'});
     });
     await page.goto('http://localhost/');
     await page.evaluate(() => {
       window.orgId = () => 'org'; window.scheduleLoad = () => {};
-      window.PlatformAPI = {projects:{list:async () => ({documents:[]})},appointments:{availability:async()=>({slots:[]}),book:async () => ({ok:true})}};
+      window.PlatformAPI = {projects:{list:async () => ({documents:[]})},appointments:{catalog:async()=>({catalog:{departments:[],presets:[],groups:[]},resources:[],can_manage:false}),preview:async()=>({slots:[]}),book:async () => ({ok:true})}};
     });
     await page.addScriptTag({content:scheduling.slice(scheduling.indexOf('  const bookingScriptUrl'),scheduling.indexOf('  const cfg =')) + '\nwindow.openBookingWidget = openBookingWidget;'});
     await page.evaluate(() => window.openBookingWidget());
@@ -37,12 +67,13 @@ test('shared picker rejects stale responses, books once, and public embeds retai
     await page.setContent('<button id="opener">Open</button><div id="public"></div>');
     await page.addScriptTag({content:picker});
     await page.addScriptTag({content:selector});
+    await page.addScriptTag({content:configuration});
     await page.addScriptTag({content:booking});
     await page.evaluate(() => {
       window.__APP = {userOrgId:'org'}; window.bookings = []; window.pending = [];
       window.PlatformAPI = {
         projects:{list:async () => ({documents:[{id:'project',data:{title:'Test project'}}]})},
-        appointments:{availability:() => new Promise(resolve => window.pending.push(resolve)), book:async (_org, input) => { window.bookings.push(input); }}
+        appointments:{catalog:async()=>({catalog:{departments:[],presets:[],groups:[]},resources:[],can_manage:false}),preview:() => new Promise(resolve => window.pending.push(resolve)), book:async (_org, input) => { window.bookings.push(input); }}
       };
       document.querySelector('#opener').focus();
       return window.FirstMateBooking.open();

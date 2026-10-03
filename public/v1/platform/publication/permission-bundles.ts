@@ -13,8 +13,8 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   view_projects: { actions: ["projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["custom-fields-project.contract", "custom-fields-project.values", "custom-fields-organization.contract", "custom-fields-organization.values", "projects.record", "work.records", "organization.profile", "referrals.eligibility"] },
   manage_projects: { actions: ["custom-fields.project.write", "custom-fields.contact.write","projects.lead.create", "work.node.patch", "work.node.transition"] },
   view_contacts: { data: ["custom-fields-contact.contract", "custom-fields-contact.values","customers.record", "contacts.settings", "contacts.options"] },
-  view_schedule: { actions: ["scheduling.availability"], data: ["calendar.record"] },
-  manage_schedule: { actions: ["scheduling.appointment.book", "scheduling.slot.hold", "scheduling.confirmation.set", "scheduling.reschedule.review"] },
+  view_schedule: { actions: ["scheduling.availability", "scheduling.appointment.catalog", "scheduling.appointment.preview"], data: ["calendar.record"] },
+  manage_schedule: { actions: ["scheduling.appointment.create", "scheduling.appointment.book", "scheduling.slot.hold", "scheduling.confirmation.set", "scheduling.reschedule.review"] },
   view_financials: { actions: ["payments.ledger.list", "payments.project.summary"], data: ["payments.records", "financials.records"] },
   manage_project_billing: { actions: ["payments.invoice.create", "payments.invoice.due", "payments.invoice.void", "payments.payment.clear"] },
   refund_payments: { actions: ["payments.payment.refund"] },
@@ -53,7 +53,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   "equipment.service": { actions: ["equipment.maintenance.cancel", "equipment.maintenance.complete", "equipment.maintenance.open", "equipment.meter.record", "equipment.unit.checkIn", "equipment.unit.checkOut"] },
   manage_company_users: { actions: ["workforce.users.list"], data: ["workforce.records"] },
   manage_company_settings: { actions:["custom-fields.organization.write", "contacts.settings.save"], data: ["scopes.records"] },
-  manage_training: { actions: ["training.course.progress"] },
+  manage_training: { actions: ["scheduling.appointment.configure", "training.course.progress"] },
   // Membership and per-subject checks are the permission for these exports.
   "": { actions: ["channels.feed.thread", "channels.feed.resolve", "channels.feed.comment", "channels.feed.react", "channels.list", "channels.messages.list", "channels.message.react", "channels.note.create", "channels.note.share", "channels.note.pin", "channels.note.edit", "channels.note.delete", "channels.note.restore", "training.courses.mine"], data: ["channels.records", "training.records", "notification-rules.value"] }
 };

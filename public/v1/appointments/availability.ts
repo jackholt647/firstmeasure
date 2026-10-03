@@ -294,7 +294,7 @@ type AvailabilityOptions = {
   limit?: number;
 };
 
-export async function appointmentAvailability(orgId: string, branchIdValue: string, options: AvailabilityOptions = {}) {
+export async function appointmentAvailability(orgId: string, branchIdValue: string, options: AvailabilityOptions = {}, internal: { assignmentPolicy?:JsonObject; slotMinutes?:number } = {}) {
   const branchId = cleanText(branchIdValue) || "default";
   const { scheduling, settings } = await readSchedulingAvailabilitySettings(orgId, branchId);
   const timezone = await resolveOrganizationTimezone(orgId, branchId);
@@ -311,9 +311,9 @@ export async function appointmentAvailability(orgId: string, branchIdValue: stri
   const scopePolicy = asObject(scopeTemplate.customer_scheduling);
   const policy = effectiveCustomerSchedulingPolicy({ ...sourceEvent, customer_scheduling:{ ...scopePolicy, ...asObject(sourceEvent.customer_scheduling), ...(options.min_notice_minutes == null ? {} : { min_notice_minutes:options.min_notice_minutes }) } }, eventType, scheduling);
   const durationMinutes = Math.round(clamp(options.duration_minutes || sourceEvent.duration_minutes || eventType.duration_minutes, 5, 1440, 60));
-  const slotMinutes = Math.round(clamp(eventType.slot_minutes || asObject(scheduling.availability).sales_appointment_slot_minutes, 5, 240, 30));
+  const slotMinutes = Math.round(clamp(internal.slotMinutes || eventType.slot_minutes || asObject(scheduling.availability).sales_appointment_slot_minutes, 5, 240, 30));
   const bufferMinutes = clamp(eventType.buffer_minutes || asObject(scheduling.availability).sales_appointment_buffer_minutes, 0, 240, 0);
-  const assignmentPolicy = normalizeAssignmentPolicy(eventType.assignment_policy || sourceEvent.assignment_policy || {
+  const assignmentPolicy = normalizeAssignmentPolicy(internal.assignmentPolicy || eventType.assignment_policy || sourceEvent.assignment_policy || {
     allow_unassigned: eventType.allow_unassigned !== false,
     rules: unique(eventType.required_role_ids || eventType.allowed_role_ids || eventType.role_ids).length
       ? [{ subject_types: ["organization_user"], role_ids: unique(eventType.required_role_ids || eventType.allowed_role_ids || eventType.role_ids) }]

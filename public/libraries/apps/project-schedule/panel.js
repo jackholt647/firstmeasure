@@ -2978,6 +2978,7 @@
     const button = ([id, label]) => `<button type="button" class="r-schedule-view-btn ${scheduleViewMode === id || (id === 'scheduling-week' && scheduleViewMode === 'scheduling') ? 'active' : ''}" data-schedule-view="${id}">${escapeHtml(label)}</button>`;
     const modes = isScheduling ? schedulingModes : calendarModes;
     return `<div class="r-schedule-view-switch">
+      ${canEditSchedule()?'<button type="button" data-project-new-appointment style="background:#d93025;color:white;border:0;border-radius:7px;padding:10px 14px;font:inherit;font-weight:700;cursor:pointer">+ Appointment</button>':''}
       <span class="r-schedule-view-group surface">${String(surfaceButton('calendar', escapeHtml(terminology('scheduling.calendar_view', 'Calendar'))))}${String(projectRoutingViewEnabled() ? surfaceButton('scheduling', escapeHtml(routingLabel)) : '')}${String(projectGanttViewEnabled() ? surfaceButton('gantt', escapeHtml(ganttLabel)) : '')}</span>
       <span class="r-schedule-view-group navigation"><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="-1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button><button type="button" class="r-schedule-anchor-nav today" data-schedule-anchor-nav="0">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_23929ba4ba84dd","Today") ?? "Today")}</button><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button></span>
       ${String(isScheduling && !isGantt ? `<span class="r-schedule-view-group target"><span class="r-schedule-view-label">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</span>${targetButton('production', escapeHtml(terminology('scheduling.production_view', 'Production')))}${targetButton('sales', escapeHtml(terminology('scheduling.sales_view', 'Sales')))}</span>` : '')}
@@ -2985,7 +2986,17 @@
     </div>`;
   }
 
+  let bookingBundle;
+  const bookingSource=new URL('../../appointment-booking/booking.js',document.currentScript?.src||new URL('/libraries/apps/project-schedule/panel.js',location.href)).href;
+  async function openProjectBooking(){
+    if(!(await confirmDiscardPlacementDraft()))return;
+    if(!window.FirstMateBooking)await (bookingBundle ||= new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=bookingSource;script.onload=resolve;script.onerror=()=>{bookingBundle=null;reject(new Error('Could not load booking.'));};document.head.append(script);}));
+    const project=await ensureRemoteSchedulingProject();
+    if(!project?.id)throw new Error('Save this project before booking.');
+    await window.FirstMateBooking.open({orgId:cfg.userOrgId,projectId:project.id,lockProject:true,onBooked:async()=>{await refreshProjectFromServer({render:false});scheduleRecurringSeries=[];await loadRecurringSeries({refresh:true});renderSchedulePanel();}});
+  }
   function bindScheduleViewSwitch(rootEl){
+    rootEl.querySelector('[data-project-new-appointment]')?.addEventListener('click',()=>openProjectBooking().catch(error=>showToast('Could not open booking',error.message,false)));
     rootEl.querySelectorAll('[data-schedule-anchor-nav]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const delta = Number(btn.dataset.scheduleAnchorNav || 0);
@@ -4985,112 +4996,10 @@
     showToast(renamed && !changes.length ? 'Section renamed' : 'Section updated', parts.join(' '), !failed);
   }
   function renderScheduleLeft(){
-    if (!state.sidebarRoot || !state.active) return;
-    const target = leftContentRoot();
-    if (!target) return;
-    target.querySelector?.('.mt-left')?.remove();
-    target.querySelector?.('.mn-left')?.remove();
-    state.sidebarRoot.classList.add('visible', 'mode-edit');
-    state.sidebarRoot.classList.remove('mode-list', 'mode-send');
-    const label = state.sidebarRoot.querySelector('#psSidebarLabel');
-    if (label) {
-      label.textContent = (globalThis.PlatformLanguage?.text("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule");
-      label.hidden = true;
-    }
-    const canEdit = canEditSchedule();
-    target.innerHTML = `<div class="r-schedule-left-shell"><div class="r-schedule-left-scroll">
-      ${canEdit ? '' : `<div class="r-schedule-left-status r-schedule-view-only"><strong>${escapeHtml((globalThis.PlatformLanguage?.text("scheduling","m_view_only","View only") ?? "View only"))}</strong>${escapeHtml(scheduleReadOnlyMessage())}</div>`}
-      <section class="r-schedule-section">
-        <div class="r-schedule-section-head">
-          <div class="r-schedule-section-title"><i class="fas fa-calendar-check"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc4a079f9b76e3"," Sales") ?? " Sales")}</div>
-          ${canEdit ? `<button type="button" class="r-schedule-mini-action primary" data-new-appointment><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>` : ''}
-        </div>
-        ${String(scheduleAppointmentTilesHtml())}
-      </section>
-      <section class="r-schedule-section">
-        <div class="r-schedule-section-head">
-          <div class="r-schedule-section-title"><i class="fas fa-hammer"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_60694fdb9845ef"," Production") ?? " Production")}</div>
-          ${canEdit ? `<button type="button" class="r-schedule-mini-action primary" data-new-production><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>` : ''}
-        </div>
-        ${String(productionTilesHtml())}
-      </section>
-      <section class="r-schedule-section">
-        <div class="r-schedule-section-head">
-          <div class="r-schedule-section-title"><i class="fas fa-repeat"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5585bec15a89f3"," Recurring") ?? " Recurring")}</div>
-          ${canEdit ? `<button type="button" class="r-schedule-mini-action primary" data-new-recurrence><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5fe01108f83039"," New") ?? " New")}</button>` : ''}
-        </div>
-        ${String(recurringTilesHtml())}
-      </section>
-      ${String(otherEventTilesHtml())}
-      ${String(leftStatusHtml())}
-    </div></div>`;
-    target.querySelector('[data-new-appointment]')?.addEventListener('click', async () => {
-      if (!(await confirmDiscardPlacementDraft())) return;
-      startAppointmentScheduling();
-    });
-    target.querySelector('[data-new-production]')?.addEventListener('click', () => openScheduleDialog('project_work'));
-    target.querySelector('[data-new-recurrence]')?.addEventListener('click', () => openScheduleDialog('project_work', null, { recurring:true }));
-    target.querySelectorAll('[data-other-event]').forEach((button) => button.addEventListener('click', () => {
-      const item = projectOtherEvents().find((candidate) => String(candidate.id || '') === String(button.dataset.otherEvent || ''));
-      if (!item) return;
-      const start = window.PlatformScheduling?.eventStart?.(item);
-      if (start && Number.isFinite(start.getTime()) && !scheduleDateVisible(start) && scheduleViewMode !== 'gantt') {
-        scheduleAnchorDate = start;
-        renderSchedulePanel();
-      }
-      const anchor = leftContentRoot()?.querySelector(`[data-other-event="${cssEscape(item.id || '')}"]`) || button;
-      openScheduleEventPopover(item, anchor);
-    }));
-    target.querySelectorAll('[data-edit-recurrence]').forEach((button) => button.addEventListener('click', () => {
-      const series = scheduleRecurringSeries.find((item) => String(item.id || '') === String(button.dataset.editRecurrence || ''));
-      if (series) openScheduleDialog(String(series.event_template?.event_type_default_id || 'project_work'), series);
-    }));
-    target.querySelectorAll('[data-production-resource-event]').forEach((button) => button.addEventListener('click', async () => {
-      const eventId = String(button.dataset.productionResourceEvent || '');
-      if (!(await confirmDiscardPlacementDraft(eventId))) return;
-      const item = projectProductionEvents().find((candidate) => String(candidate.id || '') === eventId);
-      // Selecting a scheduled item brings its date into view on the calendar.
-      if (item?.__start && String(materialScheduleEventId || '') !== eventId && !scheduleDateVisible(item.__start)) scheduleAnchorDate = new Date(item.__start);
-      focusMaterialDelivery({ event_id: eventId });
-    }));
-    target.querySelectorAll('[data-sales-appointment-event]').forEach((button) => button.addEventListener('click', () => {
-      const item = projectSalesAppointmentEvents().find((candidate) => String(candidate.id || '') === String(button.dataset.salesAppointmentEvent || ''));
-      if (!item) return;
-      const start = window.PlatformScheduling?.eventStart?.(item) || new Date(item.start_at || item.start || Date.now());
-      if (Number.isFinite(start.getTime()) && !scheduleDateVisible(start)) {
-        scheduleAnchorDate = start;
-        renderSchedulePanel();
-      }
-      const anchor = leftContentRoot()?.querySelector(`[data-sales-appointment-event="${cssEscape(item.id || '')}"]`) || button;
-      openScheduleEventPopover(item, anchor);
-    }));
-    target.querySelectorAll('[data-production-resource-crew]').forEach((button) => {
-      button.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const item = scheduleProjectEvents().find((candidate) => String(candidate.id || '') === String(button.dataset.productionResourceCrew || ''));
-        if (item) openWorkAssignmentMenu(item, button);
-      });
-    });
-    target.querySelector('#rSalesAssignment')?.addEventListener('change', (event) => {
-      const salespeople = cachedSalesAppointmentUsers();
-      const user = salespeople.find((item) => String(item.id || '') === String(event.target.value || '')) || null;
-      schedulePreferredSalesUserId = user?.id || '';
-      if (scheduleDraft?.start) {
-        setScheduleDraft(new Date(scheduleDraft.start), user, {
-          ...scheduleDraft,
-          user: undefined,
-          userLabel: undefined
-        });
-      }
-      renderScheduleLeft();
-    });
-    refreshSchedulePlacementBanner();
-    const recurrenceProjectId = String(currentSchedulingProject()?.id || '');
-    if (recurrenceProjectId && recurrenceProjectId !== scheduleRecurrenceProjectId) scheduleRecurrenceLoaded = false;
-    if (recurrenceProjectId && !scheduleRecurrenceLoading && !scheduleRecurrenceLoaded) {
-      loadRecurringSeries().then(() => { if (state.active) renderScheduleLeft(); });
-    }
+    if(!state.sidebarRoot)return;
+    state.sidebarRoot.replaceChildren();
+    state.sidebarRoot.classList.remove('visible');
+    state.sidebarRoot.style.display='none';
   }
 
   function renderWorkScheduler(target){
@@ -5609,6 +5518,11 @@
       setScheduleWorkspaceChrome(false);
       clearScheduleLeft();
       return;
+    }
+    const recurrenceProjectId = String(currentSchedulingProject()?.id || '');
+    if (recurrenceProjectId && recurrenceProjectId !== scheduleRecurrenceProjectId) scheduleRecurrenceLoaded = false;
+    if (recurrenceProjectId && !scheduleRecurrenceLoading && !scheduleRecurrenceLoaded) {
+      loadRecurringSeries().then(() => { if (state.active) renderSchedulePanel(); });
     }
     syncScheduleRoute();
     if ((scheduleIsSchedulingView() && scheduleSchedulingTarget === 'sales') || scheduleModeActive || scheduleDraft || scheduleAssignmentEventId || scheduleSelectedEventId) {

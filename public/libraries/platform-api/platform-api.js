@@ -707,6 +707,9 @@
    * Settings live on a branch module; the per-event calls back the schedule
    * popup's "mark confirmed" / "send now" controls. */
   const appointments = {
+    catalog(orgId){return request(siblingPath('appointments', `/organizations/${enc(orgId)}/catalog`));},
+    saveCatalog(orgId,payload){return request(siblingPath('appointments', `/organizations/${enc(orgId)}/catalog`),{method:'PUT',body:payload});},
+    preview(orgId,payload){return request(siblingPath('appointments', `/organizations/${enc(orgId)}/preview`),{method:'POST',body:payload});},
     book(orgId, payload){
       return request(siblingPath('appointments', `/organizations/${enc(orgId)}/book`), {method:'POST', body:payload});
     },
