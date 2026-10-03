@@ -1,5 +1,8 @@
 # FirstMeasure: local development and production deployment
 
+October 3 appointment defaults: [Instant Full Org types and company office](deploy/digitalocean/development-appointment-defaults-20261003.md) records day-based installations, quarterly maintenance, meeting defaults and verified development rollout.
+
+
 October 3 appointment planning: [Presets, departments and project booking](deploy/digitalocean/development-appointment-presets-20261003.md) records the configurable availability engine and verified development rollout.
 
 
