@@ -4,6 +4,19 @@
 (function(){
   if (!window.Portal) return;
 
+  // The portal can load Scheduling directly, without the app-manifest bundles.
+  const bookingScriptUrl = new URL('../../appointment-booking/booking.js', document.currentScript?.src || new URL('/libraries/apps/scheduling/app.js', location.href)).href;
+  let bookingScriptLoading;
+  async function openBookingWidget(){
+    if (!window.FirstMateBooking) await (bookingScriptLoading ||= new Promise((resolve, reject) => {
+      const script = document.createElement('script'); script.src = bookingScriptUrl;
+      script.onload = resolve;
+      script.onerror = () => { bookingScriptLoading = null; script.remove(); reject(new Error('Could not load appointment booking.')); };
+      document.head.append(script);
+    }));
+    return window.FirstMateBooking.open({orgId:orgId(), onBooked:() => scheduleLoad()});
+  }
+
   const cfg = window.Portal.cfg || {};
   const { injectCSS, escapeHtml } = window.Portal.util;
   const portalShowToast = window.Portal.ui.showToast;
@@ -10974,7 +10987,7 @@
     }));
     rootEl.querySelectorAll('[data-new-appointment]').forEach(button => button.addEventListener('click', async () => {
       if (!canEditSchedule()) return;
-      try { await window.FirstMateBooking.open({orgId:orgId(), onBooked:() => scheduleLoad()}); }
+      try { await openBookingWidget(); }
       catch (error) { showToast('Appointment booking', error.message, false); }
     }));
     rootEl.querySelectorAll('[data-calendar-display]').forEach((btn) => btn.addEventListener('click', () => {
