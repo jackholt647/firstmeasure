@@ -60,9 +60,12 @@ the delete button removes the final digit or selected range.
 
 The server's `dataEnvironment`, never a browser flag, enables the development
 shortcut. New signup sandbox organizations carry development setup defaults and
-standalone Call Center placement. Setup remains pending until a manager chooses
-**Development tools → Skip to fully onboarded** in Call Center, Phone Setup, or
-the SMS/10DLC setup screen.
+standalone Call Center placement. Instant full org (dev) automatically completes
+mock phone onboarding at creation when the server has one verified test transport.
+Voice starts enabled and the development campaign summary is mock-approved.
+Other signup workflows, and servers without a ready unambiguous test transport,
+retain pending setup. Managers can choose **Development tools → Skip to fully
+onboarded** in Call Center, Phone Setup, or the SMS/10DLC setup screen.
 
 The shortcut stores organization-specific mock brand/campaign approval and phone
 settings. It does not purchase a number, submit a carrier registration, create a

@@ -1,4 +1,6 @@
 import { env } from '../src/config/env.js';
+import { completeDevelopmentOnboarding } from '../comms/calls/development.js';
+import { PlatformError } from '../platform/errors.js';
 import { gatedAccounts } from "./admin.js";
 import { randomBytes } from "node:crypto";
 
@@ -493,6 +495,18 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
     metadata: { source: "signup_sandbox_instance", sandbox_instance_id: instanceId }
   });
 
+  // Instant development organizations start ready to test using the existing
+  // shared transport. Other workflows still exercise their onboarding stages.
+  if (env.dataEnvironment === 'development' && workflowId === 'swf_instant_full_org') {
+    try {
+      await completeDevelopmentOnboarding(ctx);
+    } catch (error) {
+      // A fresh development server may not have a verified transport yet.
+      // Keep setup pending; never fabricate a number or carrier approval.
+      if (!(error instanceof PlatformError) || error.code !== 'development_transport_required') throw error;
+    }
+  }
+
   const testOrg = await sandboxStore.saveTestOrg({
     schema_version: sandboxStore.schemaVersion,
     kind: "signup_sandbox_test_org",
@@ -577,7 +591,7 @@ export async function applyStageEffects(instanceId: string, stageId: string) {
 // The surface a stage lives on. Every stage runs in the real app: builtin
 // wizard steps in the portal wizard, landing/signup on their real pages, and
 // placeholder/bundle pages as a dev-bar overlay inside the portal
-// (?sbx_stage=<index>) — there is no separate runner surface.
+// (?sbx_stage=<index>) â€” there is no separate runner surface.
 function stageSurfaceUrl(_workflowId: string, _instanceId: string, stage: JsonObject, index: number) {
   const page = asObject(stage.page);
   const implementation = asObject(page.implementation);
@@ -981,7 +995,7 @@ const SEED_PAGES: JsonObject[] = [
     role: "setup",
     status: "implemented",
     implementation: { type: "bundle", bundle: "pages/spg_roofing_profile/page.js" },
-    brief: "Roofing company profile: exterior services offered (roofing preselected), the job types the company runs (retail replacement, insurance restoration, repairs, maintenance plans — these drive the per-job-type setup tabs later), and team size excluding crews.",
+    brief: "Roofing company profile: exterior services offered (roofing preselected), the job types the company runs (retail replacement, insurance restoration, repairs, maintenance plans â€” these drive the per-job-type setup tabs later), and team size excluding crews.",
     effects: {
       settings: {
         "roofing_setup.services": "$user",
@@ -997,7 +1011,7 @@ const SEED_PAGES: JsonObject[] = [
     role: "setup",
     status: "implemented",
     implementation: { type: "bundle", bundle: "pages/spg_roofing_lead_intake/page.js" },
-    brief: "Where leads come from, how the company first reaches out (phone/text/email — text discloses the SMS add-on), and optional lead-import inbox + website lead form. The inbox is set up automatically; the web form can't be (it must be embedded on their site), so enabling it adds a post-setup step with the embed code.",
+    brief: "Where leads come from, how the company first reaches out (phone/text/email â€” text discloses the SMS add-on), and optional lead-import inbox + website lead form. The inbox is set up automatically; the web form can't be (it must be embedded on their site), so enabling it adds a post-setup step with the embed code.",
     effects: { settings: { "roofing_setup.lead_intake": "$user" } },
     tags: ["roofing", "sales"]
   },
@@ -1164,10 +1178,10 @@ const ROOFING_WORKFLOW: JsonObject = {
 const INSTANT_FULL_ORG_WORKFLOW: JsonObject = {
   id: "swf_instant_full_org",
   title: "Instant full org (dev)",
-  description: "Zero-step dev shortcut: creating the test instance IS the whole signup. A fresh org with a random name and the full platform enabled (Money and merchant processing included; historical weather and regular instant reports off by default) lands straight in the portal — ready to test payments boarding end to end.",
+  description: "Zero-step dev shortcut: creating the test instance IS the whole signup. A fresh org with a random name and the full platform enabled (Money and merchant processing included; historical weather and regular instant reports off by default) lands straight in the portal â€” ready to test payments boarding end to end.",
   entry_mode: "signup_first",
   stages: [
-    { id: "stg_instant_signup", page_id: "spg_firstmate_signup", notes: "Skipped by sandbox instances like every signup stage — with no setup stages after it, the instance opens directly in the portal." }
+    { id: "stg_instant_signup", page_id: "spg_firstmate_signup", notes: "Skipped by sandbox instances like every signup stage â€” with no setup stages after it, the instance opens directly in the portal." }
   ],
   tags: ["template", "dev", "instant"]
 };
