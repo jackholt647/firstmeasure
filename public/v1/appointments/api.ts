@@ -104,7 +104,7 @@ export const registerAppointmentsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, 'orgId');
     const ctx = await requirePlatformAuth(request, { orgId, permission:'manage_schedule|manage_projects', capability:'scheduling.appointment_slots', csrf:true });
     const input = z.object({
-      project_id:z.string().trim().min(1).max(200),
+      project_id:z.string().trim().min(1).max(200).optional(),
       event_id:z.string().regex(/^appointment_[a-zA-Z0-9-]{16,80}$/),
       start_at:z.string().datetime({offset:true})
     }).strict().parse(request.body);

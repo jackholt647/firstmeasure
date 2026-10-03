@@ -4955,7 +4955,7 @@ async function prepareCalendarEventWrite(orgId: string, documentId: string, body
  * the equipment conflict check run against the stored copy that the write is
  * conditional on (retried on a concurrent write). PATCH merges into the
  * stored data here so stale shadow fields already stored are dropped too. */
-async function saveCalendarEventDocument(orgId: string, documentId: string, parsedBody: JsonObject, replace: boolean) {
+export async function saveCalendarEventDocument(orgId: string, documentId: string, parsedBody: JsonObject, replace: boolean) {
   const id = cleanText(documentId);
   const attempt = async (existing: JsonObject | null) => {
     const body = await prepareCalendarEventWrite(orgId, id, parsedBody, replace, { document: existing });

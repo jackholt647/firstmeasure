@@ -76,6 +76,7 @@ before(async () => {
 });
 
 after(async () => {
+  await (await import("../firstmeasure/job_runtime.js")).stopFirstMeasureJobRuntime();
   if (app) await app.close();
   await closePlatformFixtureStores();
   const { closeWorkDatabase } = await import("../work/storage.js");
@@ -157,6 +158,23 @@ test('staff booking validates authority, rechecks availability, and retries with
   assert.equal(invalid.statusCode,409);
   await upsertDocument(orgId,'projects',{id:'other_branch',data:{branch_id:'other',title:'Other'}});
   assert.equal((await client.raw('POST',url,{...body,project_id:'other_branch'})).statusCode,403);
+  const next = await client.request('GET', `/v1/appointments/organizations/${orgId}/availability?start_date=${day}&end_date=${day}`);
+  const free = next.slots.find((row:any) => row.available);
+  assert.ok(free);
+  const standaloneBody = {event_id:'appointment_standalone0123456789',start_at:free.start_at};
+  const standalone = await client.request('POST',url,standaloneBody);
+  assert.equal(standalone.event.start_at,free.start_at);
+  assert.equal(standalone.event.project_id,undefined);
+  assert.equal((await client.request('POST',url,standaloneBody)).event.id,standalone.event.id);
+  const calendarDoc = await readDocument(orgId,'calendar_events',standalone.event.id);
+  assert.equal(calendarDoc.data.branch_id,'default');
+  const after = await client.request('GET', `/v1/appointments/organizations/${orgId}/availability?start_date=${day}&end_date=${day}`);
+  assert.equal(after.slots.find((row:any)=>row.start_at===free.start_at)?.available,false);
+  assert.equal((await client.raw('POST',url,{...standaloneBody,event_id:'appointment_conflicting0123456789'})).statusCode,409);
+  await client.request('PATCH',`/v1/platform/organizations/${orgId}/calendar_events/${standalone.event.id}`,{data:{project_id:'booking_project'}});
+  const linked = await readDocument(orgId,'calendar_events',standalone.event.id);
+  assert.equal(linked.data.project_id,'booking_project');
+  assert.equal(linked.data.start_at,free.start_at);
   await saveCapabilityValues(orgId, {'scheduling.appointment_slots':false});
   assert.equal((await client.raw('POST',url,body)).statusCode,403);
 });

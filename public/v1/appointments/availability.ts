@@ -348,7 +348,7 @@ export async function appointmentAvailability(orgId: string, branchIdValue: stri
       }
       return rows;
     });
-  }).filter((entry) => {
+  }).concat((await listDocuments(orgId, "calendar_events")).filter(document => (cleanText(asObject(document.data).branch_id) || "default") === branchId).map(document => ({event:{...asObject(document.data),id:document.id},project:{},project_id:"",request_id:""}))).filter((entry) => {
     if (entry.project_id === projectId && cleanText(entry.event.id) === eventId) return false;
     if (cleanText(entry.request_id) && cleanText(entry.request_id) === cleanText(options.exclude_reschedule_request_id)) return false;
     const range = eventRange(entry.event);
@@ -499,29 +499,34 @@ function applyAssignment(event: JsonObject, resourceKey: string, candidates: Jso
 }
 
 /** Staff booking uses the same capacity holds and domain writer as scheduling. */
-export async function bookStaffAppointment(ctx: import('../platform/auth.js').PlatformAuthContext, input: { project_id:string; event_id:string; start_at:string }) {
-  if (!input.project_id || !/^appointment_[a-zA-Z0-9-]{16,80}$/.test(input.event_id) || !Number.isFinite(Date.parse(input.start_at))) throw badRequest('invalid_booking', 'Choose a project and valid appointment time.');
+export async function bookStaffAppointment(ctx: import('../platform/auth.js').PlatformAuthContext, input: { project_id?:string; event_id:string; start_at:string }) {
+  if (!/^appointment_[a-zA-Z0-9-]{16,80}$/.test(input.event_id) || !Number.isFinite(Date.parse(input.start_at))) throw badRequest('invalid_booking', 'Choose a valid appointment time.');
   const { withProjectDocumentLock } = await import('../platform/project_document_mutation.js');
-  const { saveProjectScheduleEvent } = await import('../platform/api.js');
-  return withProjectDocumentLock(ctx.orgId, input.project_id, () => withProjectDocumentLock(ctx.orgId, '\u0000appointment_bookings', async () => {
-    const document = await readDocument(ctx.orgId, 'projects', input.project_id);
-    const project = asObject(document.data);
-    const branchId = cleanText(project.branch_id) || 'default';
+  const { saveProjectScheduleEvent, saveCalendarEventDocument } = await import('../platform/api.js');
+  const projectId = cleanText(input.project_id);
+  if (!projectId && !(await import('../platform/auth.js')).hasPermission(ctx, 'manage_schedule')) throw forbidden('schedule_permission_required', 'Schedule management permission is required.');
+  return withProjectDocumentLock(ctx.orgId, projectId || `booking:${input.event_id}`, () => withProjectDocumentLock(ctx.orgId, '\u0000appointment_bookings', async () => {
+    const document = projectId ? await readDocument(ctx.orgId, 'projects', projectId) : null;
+    const project = asObject(document?.data);
+    const branchId = projectId ? cleanText(project.branch_id) || 'default' : ctx.branchId || 'default';
     if (branchId !== (ctx.branchId || 'default')) throw forbidden('appointment_branch_mismatch', 'Choose a project in your current branch.');
-    const existing = asArray(project.events).map(asObject).find(event => event.id === input.event_id);
+    const standalone = projectId ? null : await readDocument(ctx.orgId, 'calendar_events', input.event_id).catch(error => { if (error.statusCode === 404) return null; throw error; });
+    const existing = projectId ? asArray(project.events).map(asObject).find(event => event.id === input.event_id) : standalone?.data;
     if (existing) {
-      if (existing.booking_actor !== ctx.userId || existing.start_at !== new Date(input.start_at).toISOString()) throw conflict('appointment_booking_conflict', 'This booking was already used for another appointment.');
-      return { ok:true, event:existing, document };
+      if ((!projectId && (cleanText(existing.branch_id) || 'default') !== branchId) || existing.booking_actor !== ctx.userId || existing.start_at !== new Date(input.start_at).toISOString()) throw conflict('appointment_booking_conflict', 'This booking was already used for another appointment.');
+      return { ok:true, event:existing, document:document || standalone };
     }
-    const held = await holdAppointmentSlot(ctx.orgId, branchId, { project_id:input.project_id, event_type_id:'sales_appointment', start_at:input.start_at, source:'staff_booking' });
+    const held = await holdAppointmentSlot(ctx.orgId, branchId, { project_id:projectId, event_type_id:'sales_appointment', start_at:input.start_at, source:'staff_booking' });
     try {
       const event = applyAssignment({
         id:input.event_id, title:'Appointment', event_type_default_id:'sales_appointment', type:'sales_appointment',
         start_at:held.hold.start_at, end_at:held.hold.end_at,
         duration_minutes:(Date.parse(held.hold.end_at) - Date.parse(held.hold.start_at)) / 60000,
-        status:'scheduled', customer_visible:true, booking_actor:ctx.userId
+        status:'scheduled', branch_id:branchId, customer_visible:true, booking_actor:ctx.userId
       }, held.hold.resource_key, asArray(asObject(held.slot).candidates).map(asObject));
-      return await saveProjectScheduleEvent(ctx.orgId, input.project_id, ctx, { branch_id:branchId, event });
+      if (projectId) return await saveProjectScheduleEvent(ctx.orgId, projectId, ctx, { branch_id:branchId, event });
+      const document = await saveCalendarEventDocument(ctx.orgId, input.event_id, {data:event, metadata:{kind:'calendar_event',branch_id:branchId}}, true);
+      return {ok:true, event:document.data, document};
     } finally { await deleteSlotHold(held.hold.id); }
   }));
 }
