@@ -95,12 +95,14 @@ function makeLines(set: SetRecord, requirements: Requirement[], removed: Line[],
     if (line.replaces && (!prior || replaced.has(line.replaces))) throw badRequest("amendment_reference", "Each replacement must reference one removed line, at most once.");
     if (prior) replaced.add(prior.id);
     const id = identity("line", [set.id, command, line.key]);
-    const order_quantity = line.packaging ? Math.ceil(line.quantity / line.packaging.coverage) : line.quantity;
+    const packages = line.packaging ? line.quantity / line.packaging.coverage : 0;
+    // Absorb only representational noise at integer package boundaries.
+    const order_quantity = line.packaging ? (line.quantity === 0 ? 0 : Math.max(1, Math.ceil(packages - Math.min(1e-9, Number.EPSILON * Math.max(1, packages) * 4)))) : line.quantity;
     if (!Number.isFinite(order_quantity) || order_quantity > 1e12) throw badRequest("material_quantity", "Order quantity exceeds the supported range.");
     return { ...line, id, order_quantity, order_unit: line.packaging?.unit || line.unit, lineage: [...(prior?.lineage || []), id] };
   });
 }
-function amend(ledger: MaterialsLedger, set: SetRecord, input: JsonObject, command: string, at: string) {
+function amend(ledger: MaterialsLedger, set: SetRecord, input: JsonObject, command: string, at: string, source: JsonObject = { type: "manual" }) {
   if (input.set_revision !== set.revision) throw conflict("material_set_revision", "The material set changed. Review its latest revision before applying this amendment.");
   const remove = z.array(z.string()).max(1000).parse(input.remove || []);
   if (new Set(remove).size !== remove.length || remove.some(id => !set.lines.some(l => l.id === id))) throw badRequest("amendment_reference", "Removal references must name distinct active lines in this set.");
@@ -108,7 +110,7 @@ function amend(ledger: MaterialsLedger, set: SetRecord, input: JsonObject, comma
   const added = makeLines(set, z.array(requirementSchema).max(1000).parse(input.add || []), removed, command);
   const lines = [...set.lines.filter(l => !remove.includes(l.id)), ...added];
   if (lines.length > 1000 || new Set(lines.map(l => l.key)).size !== lines.length) throw badRequest("material_line_key", "Active line keys must be unique within this set; replace the old line when reusing its key.");
-  set.history.push({ id: identity("amendment", command), revision: set.revision + 1, based_on: set.revision, removed: jsonClone(removed), added: jsonClone(added), reason: z.string().min(1).max(2000).parse(input.reason), source: input.source || { type: "manual" }, at });
+  set.history.push({ id: identity("amendment", command), revision: set.revision + 1, based_on: set.revision, removed: jsonClone(removed), added: jsonClone(added), reason: z.string().min(1).max(2000).parse(input.reason), source: jsonClone(source), at });
   set.lines = lines; set.revision++;
   return { set_id: set.id, set_revision: set.revision };
 }
@@ -189,7 +191,7 @@ async function execute(ctx: PublicationContext, ledger: MaterialsLedger, command
     const set = target ? findSet(ledger, target.set_id) : producer;
     const removed = target ? (target.replace_all ? set.lines.map(l => l.id) : target.remove) : set.lines.map(l => l.id);
     const additions = evaluation.lines.map(line => { const replaces = line.replaces || set.lines.find(l => l.key === line.key && removed.includes(l.id))?.id; return { ...line, ...(replaces ? { replaces } : {}) }; });
-    const result = amend(ledger, set, { set_revision: target?.revision ?? evaluation.base_revision, remove: removed, add: additions, reason: input.reason || "Apply calculated requirements", source: { ...producer.origin, calculus_id: producer.id, evaluation_id: evaluation.id } }, key, at);
+    const result = amend(ledger, set, { set_revision: target?.revision ?? evaluation.base_revision, remove: removed, add: additions, reason: input.reason || "Apply calculated requirements" }, key, at, { ...producer.origin, calculus_id: producer.id, evaluation_id: evaluation.id });
     producer.applied_evaluation = evaluation.id;
     if (target) producer.revision++;
     return result;

@@ -181,3 +181,11 @@ test("browser creates, reviews, amends and orders a material set against the rea
     assert.deepEqual(errors,[]);
   } finally {await browser.close();}
 });
+
+
+test("manual amendments cannot forge accepted-document provenance and package noise does not overorder",async()=>{
+  const p=await project(),set=await materialSet(p);
+  const changed=await command(p,"amend",{set_id:set.id,set_revision:set.revision,remove:[set.lines[0]!.id],add:[{key:"decimal",product_id:"hdz",name:"HDZ",quantity:0.1+0.2,unit:"square",packaging:{unit:"bundle",coverage:0.1}},{key:"tiny",product_id:"hdz",name:"HDZ",quantity:1e-16,unit:"square",packaging:{unit:"bundle",coverage:1}}],reason:"Precision check",source:{type:"document",document_id:"forged"}});
+  assert.deepEqual(changed.ledger.sets[0]!.history.at(-1)!.source,{type:"manual"});
+  assert.deepEqual(changed.ledger.sets[0]!.lines.map(l=>l.order_quantity),[3,1]);
+});

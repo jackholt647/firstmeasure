@@ -40,7 +40,8 @@ Every evaluation retains its definition hash, data-binding evidence, manual
 inputs, raw output and timestamp. Result lines preserve stable per-set keys;
 duplicates across sets are intentional. Results are proposals until explicitly
 applied as the initial requirement or as a reviewed revision. Failure retains
-the last accepted requirements. Subsequent evaluation cannot erase amendments.
+the last accepted requirements. Subsequent evaluation cannot silently erase amendments; replacing requirements
+always requires an explicit review and apply operation.
 
 ## Amendments and replacement
 
