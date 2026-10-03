@@ -25,7 +25,7 @@
     const el=document.createElement('style');el.id='fm-widget-styles';el.textContent=`
     .fm-widget-presentation{flex-shrink:0;min-width:0;width:100%;margin:10px 0}.fm-widget-preview{max-height:max(600px,80vh);overflow:hidden}.fm-widget-presentation[data-expanded=true]>.fm-widget-preview,.fm-widget-presentation[data-side=true]>.fm-widget-preview{max-height:none;overflow:visible}.fm-widget-preview>fm-platform-widget{display:block;min-width:0;width:100%}.fm-widget-preview>fm-platform-widget[data-sizing=fill]{height:max(480px,65vh)}.fm-widget-presentation[data-side=true] fm-platform-widget[data-sizing=fill]{height:var(--fma-widget-height,65vh)}.fm-widget-presentation[data-side=true] .fm-widget-expand{display:none}.fm-widget-expand{font:inherit;font-size:12px;border:1px solid #d0d5dd;background:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;margin-top:8px}
     .fm-widget,.fm-widget *,.fm-widget-library,.fm-widget-library *{box-sizing:border-box}
-    .fm-widget{min-width:0;width:100%;font:inherit;color:inherit}.fm-widget[data-sizing=fill]{height:100%;min-height:280px}.fm-widget[data-sizing=aspect]{min-height:240px;aspect-ratio:1.5;position:relative}.fm-widget[data-sizing=content]{height:auto}
+    .fm-widget{min-width:0;width:100%;font:inherit;color:inherit}.fm-widget[data-sizing=fill]{height:100%;min-height:var(--fm-widget-min-height,280px)}.fm-widget[data-sizing=aspect]{min-height:240px;aspect-ratio:1.5;position:relative}.fm-widget[data-sizing=content]{height:auto}
     .fm-widget-status{padding:20px;color:#667085;font-size:12px;line-height:1.5}.fm-widget-stack{display:flex;flex-direction:column;gap:12px;min-width:0}.fm-widget-stack>.fm-widget{flex:none}
     .fm-widget-library{height:100%;min-height:360px;min-width:0;display:grid;grid-template-columns:210px minmax(0,1fr);gap:10px;padding:10px;background:#f5f6f8;overflow:hidden}
     .fm-widget-library[data-layout=stacked]{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
@@ -50,7 +50,7 @@
         await ready;if(!alive||generation!==revision)return;
         definition=definitions.get(key(ref.id,ref.version||'1'));if(!definition)throw Error('This widget version is unavailable');
         if(!definition.surfaces.includes(context.surface||'project'))throw Error('This widget is not supported on this surface');
-        validate(definition,config);root.dataset.sizing=definition.sizing.mode;content.style.height=definition.sizing.mode==='content'?'auto':'100%';
+        validate(definition,config);root.dataset.sizing=definition.sizing.mode;root.style.setProperty('--fm-widget-min-height',(definition.sizing.minHeight ?? 280)+'px');content.style.height=definition.sizing.mode==='content'?'auto':'100%';
         const renderer=renderers.get(key(definition.id,definition.version));clear();
         if(definition.children){content.className='fm-widget-stack';content.style.height='auto';for(const child of definition.children){const el=document.createElement('div');content.append(el);children.push(mount(el,child,{...context,target:ref.target||context.target}));}await Promise.all(children.map(c=>c.ready));return;}
         if(!renderer)throw Error('The widget renderer is unavailable');
@@ -104,4 +104,5 @@
     refresh(){this.handle?.destroy();try{const ref=JSON.parse(this.getAttribute('reference')||'{}');const org=global.__APP?.userOrgId;if(org&&ref.target?.organizationId&&ref.target.organizationId!==org)throw Error('This widget belongs to another organization.');this.handle=mount(this,ref,{surface:this.getAttribute('surface')||'assistant'});}catch(error){status(this,error.message);}}
   });
   global.FirstMateWidgets={presentationHtml,ready,register,attachRenderer,mount,library,registerDocumentWidget,list:async()=>{await ready;return [...definitions.values()].map(clone);},describe:async(id,version='1')=>{await ready;const def=definitions.get(key(id,version));return def?clone(def):null;}};
+  global.FirstMateProjectTrays?.registerWidgets?.();
 })(window);

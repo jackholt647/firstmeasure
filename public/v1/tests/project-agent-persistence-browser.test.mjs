@@ -7,6 +7,8 @@ test('project voice pins across trays, survives minimizing and transfers out of 
  const browser=await chromium.launch({channel:'chrome',headless:true});
  try{
  const page=await browser.newPage({viewport:{width:1280,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('http://agent.test/**',async route=>{const path=new URL(route.request().url()).pathname;if(path.startsWith('/libraries/'))return route.fulfill({contentType:path.endsWith('.json')?'application/json':'application/javascript',body:await asset(path.slice('/libraries/'.length))});return route.fulfill({contentType:'text/html',body:'<html></html>'});});
+ await page.goto('http://agent.test/');
  await page.setContent('<main class="main" style="height:850px"><div id="mainPanels"></div><iframe id="project" style="width:1000px;height:700px"></iframe></main>');
   await page.evaluate(()=>{
    window.__APP={userOrgId:'org'};window.Portal={can:()=>true,tabs:{activateTab(){}},util:{currentBranchId:()=> 'default'}};
@@ -31,6 +33,7 @@ test('project voice pins across trays, survives minimizing and transfers out of 
  await frame.setContent('<style>html,body,#shell{height:100%;margin:0}#shell{display:flex;flex-direction:column}.r-preview{flex:1}</style><div id="shell"><header class="r-modal-header"></header><main class="r-preview"></main></div>');
  await frame.evaluate(()=>{window.__APP={userOrgId:'org'};window.Portal={can:k=>k!=='channels.separate_project_notes',ProjectNotes:{mount(node){node.innerHTML='<textarea aria-label="Note"></textarea>';return {destroy(){}};}}};window.PlatformAssistant={mountProject:(...a)=>parent.PlatformAssistant.mountProject(...a)};});
  await frame.addScriptTag({content:await asset('project-trays/project-trays.js')});
+ await frame.addScriptTag({url:'http://agent.test/libraries/platform-widgets/runtime.js'});
  await frame.evaluate(()=>window.trays=FirstMateProjectTrays.mount(document.querySelector('#shell'),{project:{id:'1'}}));
  await frame.getByRole('tab',{name:'Agent',exact:true}).click();await frame.waitForSelector('.fma-welcome');
  await frame.getByRole('button',{name:'Pin assistant',exact:true}).click();

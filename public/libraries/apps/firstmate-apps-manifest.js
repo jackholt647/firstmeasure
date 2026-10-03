@@ -28,7 +28,7 @@
     }
   };
   const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261002-booking-v1');
-  const widgetBundles = ['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js','20261002-measurement-precision'));
+  const widgetBundles = ['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js','20261003-project-widgets-v1'));
   const channelsLibBundles = [
     ...widgetBundles, bookingBundle,
     versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
@@ -43,7 +43,7 @@
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261001-sharing-polish-v1'),
     versionedBundle('../project-notes/project-notes.js', '20261002-overview-workflow-v1'),
-    versionedBundle('../project-trays/project-trays.js', '20261002-agent-persistence-v1')
+    versionedBundle('../project-trays/project-trays.js', '20261003-project-widgets-v1')
   ];
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20260803-field-flows-v10'),

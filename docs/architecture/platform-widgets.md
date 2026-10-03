@@ -32,3 +32,23 @@ Existing document widgets enter the registry through an adapter. Documents retai
 4. Test authorization, configuration, independent mounts, resizing and cleanup. Update publication coverage for new app ownership and run publication tests plus the TypeScript check when contracts change.
 
 The initial migration covers Scope, Reports, shared agent chat, the global assistant and the document-registry bridge. Other app features can adopt this shared host without being rewritten into widgets all at once.
+
+## Project workspace widgets
+
+`project-trays.js` registers `project.notes`, `project.todo`, `project.activity`,
+and `project.agent` (version `1`) in `FirstMateWidgets`, plus the optional
+`project.messages` widget. Registration supports either portal load order. Tray
+definitions expose the matching widget reference; the shell mounts it through
+the same runtime as Scope and report widgets. These interactive workspaces
+support project and dashboard surfaces and fill the host height with a zero
+minimum height; their inner content owns scrolling. They are registered client
+application widgets, like the document adapters, not assistant tool catalog entries.
+
+Hosts supply the organization/project target and may pass `getProject`,
+`ensureProject`, and trusted Agent placement callbacks as context. Existing
+Notes, To Do, Channels and Agent controllers retain record ownership, API
+authorization, drafts and session lifetime. Agent pinning moves the same inner
+renderer; returning it restores the widget render root. Runtime destruction owns
+controller cleanup. Activity instances own their filters, search, pagination and
+visibility-aware polling; refreshing retains loaded history and shows a single
+retryable error without replacing the current timeline.
