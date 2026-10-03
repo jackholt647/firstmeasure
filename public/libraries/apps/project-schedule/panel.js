@@ -2120,7 +2120,7 @@
     scheduleEventPopoverId = String(event.id || '');
     if (anchor instanceof Element) scheduleEventPopoverAnchor = anchor;
     const kind = scheduleEventKind(event);
-    const address = String(event.project_address || activeBaseProject?.address || '').trim();
+    const address = event.location_mode==='none'?'':String(['company_office','custom'].includes(event.location_mode)?(event.location?.address||event.address||(event.location_mode==='company_office'?'Company office':'')):(event.project_address || activeBaseProject?.address || event.address || '')).trim();
     const deliveryStatus = isMaterialDeliveryEvent(event)
       ? `<div class="r-schedule-event-popover-row"><i class="fas fa-box"></i><span>${materialEventIsOrdered(event) ? 'Materials ordered' : 'Materials not ordered'}${materialEventIsLocked(event) ? ' · Date locked' : ''}</span></div>`
       : '';

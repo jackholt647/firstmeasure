@@ -1993,6 +1993,8 @@
     return projectAddressValue(project, event) || 'No address yet';
   }
   function projectAddressValue(project = {}, event = {}){
+    if(event.location_mode==='none')return '';
+    if(['company_office','custom'].includes(event.location_mode))return clean(event.location?.address||event.address||(event.location_mode==='company_office'?'Company office':''));
     return [project.address, project.project_address, project.property_address, project.formatted_address, project.manifest?.address, event.project_address]
       .map(clean)
       .find((value) => value && !/^(?:no|missing|unknown|n\/?a)(?:\s+address)?(?:\s+yet)?$/i.test(value)) || '';

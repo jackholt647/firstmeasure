@@ -160,3 +160,15 @@ test('shared project selector searches remotely, remembers choices and supports 
     assert.equal(await input.getAttribute('aria-expanded'),'false');
   } finally {await browser.close();}
 });
+
+
+test('calendar location overrides show the office or custom address, and no-location stays empty',()=>{
+  const start=scheduling.indexOf('  function projectAddressValue('),end=scheduling.indexOf('  function missingAddressLabel()',start);
+  const address=new Function('clean',scheduling.slice(start,end)+';return projectAddressValue;')(value=>String(value??'').trim());
+  const project={address:'Customer property'};
+  assert.equal(address(project,{location_mode:'company_office',location:{address:'Company office address'}}),'Company office address');
+  assert.equal(address(project,{location_mode:'custom',address:'Meeting room'}),'Meeting room');
+  assert.equal(address(project,{location_mode:'none',project_address:'Customer property'}),'');
+  assert.equal(address(project,{location_mode:'company_office',location:{address:''}}),'Company office');
+  assert.equal(address(project,{}),'Customer property');
+});
