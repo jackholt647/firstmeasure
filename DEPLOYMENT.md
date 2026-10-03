@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 3 appointment booking: [Searchable project selection and standalone appointments](deploy/digitalocean/development-appointment-booking-followup-20261003.md) records optional project assignment, the reusable selector and verified development rollout.
+
 October 2 appointment booking: [Global availability widget and development rollout](deploy/digitalocean/development-appointment-booking-20261002.md) records the shared public/staff picker, assistant entry point and verified deployment.
 
 October 2 project details: [Synchronized fields, consistent pills, Notes styling and report header scope](deploy/digitalocean/development-project-details-sync-20261002.md) records the verified development update.
