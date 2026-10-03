@@ -58,6 +58,7 @@ export async function mountProgramPanel(host, options) {
   let program = clone(options.getProgram?.() || {});
   const defaults = { enabled: false, inputSchema: { type:'object', properties:{} }, outputSchema: { type:'object', properties:{} }, exports:{}, bindings:{}, source:'return { outputs: { ...inputs } };' };
   program = { ...defaults, ...program };
+  program.deliverables ||= [];
   host.innerHTML = `<section style="padding:16px;display:grid;gap:14px;font-size:12px">
     <strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_f8e3874860785b","Data & behavior") ?? "Data & behavior")}</strong><p style="margin:0">${(globalThis.PlatformLanguage?.htmlText("documents","m_d64eb158b8a6c9","Connect published data, calculate values, and expose results. The visual builder continues to control the layout.") ?? "Connect published data, calculate values, and expose results. The visual builder continues to control the layout.")}</p>
     <label><input type="checkbox" data-enabled ${program.enabled ? 'checked' : ''}>${(globalThis.PlatformLanguage?.htmlText("documents","m_56a03fdd7a6c37"," Enable custom behavior") ?? " Enable custom behavior")}</label>
@@ -69,13 +70,17 @@ export async function mountProgramPanel(host, options) {
       <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_4eb9a4a3047e30","Output schema") ?? "Output schema")}<textarea data-outputSchema rows="7" style="width:100%"></textarea></label>
       <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_d697bbeec653a1","Exports") ?? "Exports")}<textarea data-exports rows="7" style="width:100%"></textarea></label>
       <small>${(globalThis.PlatformLanguage?.htmlText("documents","m_c4837daf1b3ad0","Each export has path (such as /outputs/total), schema, and access: read, write, or private. Writable exports address inputs. Workflow controls write params inputs; code owns calculated outputs.") ?? "Each export has path (such as /outputs/total), schema, and access: read, write, or private. Writable exports address inputs. Workflow controls write params inputs; code owns calculated outputs.")}</small>
-    </details><button type="button" data-apply>${(globalThis.PlatformLanguage?.htmlText("documents","m_53a1260a13e590","Apply behavior to this design") ?? "Apply behavior to this design")}</button><p role="status" data-status></p>
+    </details><details open><summary>Materials deliverables</summary><p>Each signed document publishes independent material sets. Calculations receive inputs.document.params, inputs.document.outputs, inputs.values, and declared api.data.read bindings. Return { outputs: { lines, warnings } }. Calculations cannot place orders.</p><button type="button" data-material-example>Add roof calculation example</button><textarea data-deliverables rows="12" style="width:100%" aria-label="Materials deliverable definitions"></textarea><small>Use stable line keys. For a change order, include amendment: { set_id, revision, remove: [line IDs], replace_all: false }. Added lines may identify replaces: "old line ID". The Materials source panel provides exact identities.</small></details><button type="button" data-apply>${(globalThis.PlatformLanguage?.htmlText("documents","m_53a1260a13e590","Apply behavior to this design") ?? "Apply behavior to this design")}</button><p role="status" data-status></p>
   </section>`;
   const el = key => host.querySelector(`[data-${key}]`);
+  el('deliverables').value = JSON.stringify(program.deliverables, null, 2);
+  el('material-example').onclick = async () => { try { const { sampleCalculus } = await import('../materials/calculus-workspace.js?v=20261003-calculus'); const definitions = JSON.parse(el('deliverables').value || '[]'); const sample = sampleCalculus({document:true}); sample.key = `roof_${definitions.length + 1}`; definitions.push(sample); el('deliverables').value = JSON.stringify(definitions, null, 2); } catch(error) { el('status').textContent = error.message; } };
   for (const key of ['source','bindings','inputSchema','outputSchema','exports']) el(key).value = key === 'source' ? program[key] : JSON.stringify(program[key], null, 2);
   el('apply').onclick = () => {
     try {
       const next = { ...program, enabled: el('enabled').checked, source: el('source').value };
+      next.deliverables = JSON.parse(el('deliverables').value || '[]');
+      if (!Array.isArray(next.deliverables)) throw new Error('Materials deliverables must be an array.');
       for (const key of ['bindings','inputSchema','outputSchema','exports']) next[key] = JSON.parse(el(key).value || '{}');
       if (next.enabled && !next.source.trim()) throw new Error('Code is required when custom behavior is enabled.');
       options.onChange(next); program = next;

@@ -11,7 +11,7 @@ export const applicationPublication = {
   docs: { providers: ["documents"], domains: ["documents"] },
   documents: { providers: ["documents", "document-modules"], domains: ["documents"] },
   "web-editor": { providers: ["websites"], domains: ["websites"] },
-  materials: { providers: ["materials", "project-widgets"], domains: ["materials"] },
+  materials: { providers: ["materials", "materials-calculus", "materials-inputs", "project-widgets"], domains: ["materials"] },
   money: { providers: ["payments"], domains: ["payments"] },
   "project-request": { providers: ["projects"], domains: ["projects"] },
   "firstmeasure/order": { providers: ["firstmeasure"], domains: ["firstmeasure"] },

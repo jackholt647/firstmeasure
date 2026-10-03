@@ -1,4 +1,5 @@
 import { documentTags } from "../tags.js";
+import { validateDeliverables, publishAcceptedMaterials } from "../../materials/calculus.js";
 import { randomUUID, createHash } from "node:crypto";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { badRequest, conflict, forbidden, notFound } from "../../platform/errors.js";
@@ -16,7 +17,7 @@ export function signingSource(document: JsonObject) {
   const defs = object(document.output_defs);
   return { title: document.title, project_id: document.project_id, branch_id: document.branch_id, document_type: document.document_type, ...(document.tags !== undefined ? { tags: documentTags(document.tags) } : {}), ingestion: document.ingestion, params: document.params, overrides: document.overrides, template_ref: document.template_ref,
     workflow_ref: document.workflow_ref, theme_ref: document.theme_ref, theme_overrides: document.theme_overrides,
-    output_defs: defs, module_ref: document.module_ref, module_resolved: document.module_resolved,
+    output_defs: defs, module_ref: document.module_ref, module_resolved: document.module_resolved, materials_deliverables: document.materials_deliverables,
     outputs: Object.fromEntries(Object.entries(object(document.outputs)).filter(([key]) => !["signature", "payment"].includes(text(object(defs[key]).type)))) };
 }
 /** Last line of defense for domain adapters that persist document projections. */
@@ -41,6 +42,7 @@ export async function revokeSigningPackages(orgId: string, documentId: string, s
 }
 
 export async function validateSigningIssue(orgId: string, document: JsonObject, recipients: JsonObject[], input: JsonObject = {}) {
+  validateDeliverables(document.materials_deliverables);
   const fields = signatureDefinitions(document.output_defs);
   if (!Object.keys(fields).length) return null;
   if (["signed", "completed"].includes(text(document.status))) throw conflict("document_locked_signed", "Create a replacement or amendment rather than reissuing an executed document.");
@@ -120,7 +122,8 @@ export async function prepareSigning(access: SigningAccess) {
       const snapshot = await readDocumentSnapshot(pkg.organization_id, pkg.snapshot_id);
       const unsignedOutputs = Object.fromEntries(Object.entries(object(document.outputs)).filter(([key]) => !pkg.fields[key]));
       const resolved = await resolveDocumentInstance(pkg.organization_id, { ...document, outputs: unsignedOutputs }, { target: "static", snapshot });
-      const content: JsonObject = { ...resolved, document_type: document.document_type, tags: documentTags(document.tags), title: document.title, params: object(resolved.scope.params), outputs: publicSignatureOutputs(unsignedOutputs), module_ref: document.module_ref, module_binding_manifest: document.module_binding_manifest };
+      const materialsDeliverables = validateDeliverables(snapshot.materials_deliverables || document.materials_deliverables || object(object(resolved.resolved_definition).program).deliverables);
+      const content: JsonObject = { ...resolved, document_type: document.document_type, tags: documentTags(document.tags), title: document.title, params: object(resolved.scope.params), outputs: publicSignatureOutputs(unsignedOutputs), module_ref: document.module_ref, module_binding_manifest: document.module_binding_manifest, materials_deliverables: materialsDeliverables };
       const pricing = await documentCheckoutPricing(pkg.organization_id, document, object(content.params), {});
       const subtotal = Number(pricing.totals.subtotal_cents || 0) - Number(pricing.totals.adjustments_cents || 0);
       content.contract_basis_cents = Math.max(0, subtotal + Math.round(subtotal * (Number(object(content.params).tax_percent) || 0) / 100)) || Number(object(content.params).amount_cents || object(content.params).total_cents || 0);
@@ -275,6 +278,7 @@ async function deliverSigningOutbox() {
       await projectSigningPackage(pkg.id);
       const document = await readDocumentInstance(pkg.organization_id, pkg.document_id);
       const payload = { snapshot_id: pkg.snapshot_id, package_id: pkg.id, content_hash: pkg.content_hash, ...JSON.parse(String(entry.payload_json)) };
+      if (entry.event_type === "document.signed") await publishAcceptedMaterials(pkg.organization_id, text(document.project_id), pkg.document_id, pkg.snapshot_id);
       if (entry.event_type === "document.signing.deliver_copy") {
         const signer = pkg.signers.find(s => s.id === payload.signer_id);
         if (signer?.email && pkg.final_pdf) {

@@ -6,6 +6,7 @@ import { badRequest } from "../../platform/errors.js";
 import { jsonClone, validateJson } from "../../platform/publication/validation.js";
 import { assertSafeTenantSchema } from "../../platform/publication/tenant-schema.js";
 import { workflowDefinitionSchema } from "../workflows/schemas.js";
+import { deliverablesSchema } from "../../materials/calculus-contract.js";
 
 const jsonSchema = z.record(z.unknown());
 const key = z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/);
@@ -22,6 +23,7 @@ export const moduleDefinitionSchema = z.object({
   inputSchema: jsonSchema, outputSchema: jsonSchema, privateStateSchema: jsonSchema.default({ type: "object" }),
   exports: z.record(key, z.object({ path: z.string().regex(/^\/(outputs|inputs)(\/|$)/), schema: jsonSchema, access: z.enum(["read", "write", "private"]), description: z.string().max(1000).optional() }).strict()),
   bindings: z.record(key, moduleBindingSchema).default({}),
+  deliverables: deliverablesSchema,
   source: z.string().min(1).max(128_000), renderer: jsonSchema.optional(), workflow: jsonSchema.optional()
 }).strict();
 export type ModuleDefinition = z.infer<typeof moduleDefinitionSchema>;

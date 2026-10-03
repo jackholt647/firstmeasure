@@ -64,7 +64,7 @@ type FileEntry = {
   updated_at: string;
 };
 
-type SharedPricebookRecord = { manifest: PricebookManifest; catalog: PricebookCatalog };
+type SharedPricebookRecord = { manifest: PricebookManifest; catalog: PricebookCatalog; overlay?: OrganizationPricebookOverlay };
 
 function sharedPricebookKey(pricebookId: string) {
   return { namespace: "pricebook", collection: "pricebooks", id: sanitizePricebookId(pricebookId) };
@@ -328,9 +328,12 @@ export async function readCatalog(pricebookId: string): Promise<PricebookCatalog
   return normalizeCatalog(raw);
 }
 
+async function pricebookExists(id: string) {
+  try { await readManifest(id); return true; } catch (error) { if ((error as { statusCode?: number }).statusCode === 404) return false; throw error; }
+}
+
 export async function getGlobalMarketPricebook() {
-  const manifestPath = path.join(pricebookDir(GLOBAL_MARKET_PRICEBOOK_ID), PRICEBOOK_FILE_NAMES.manifest);
-  if (!(await pathExists(manifestPath))) {
+  if (!(await pricebookExists(GLOBAL_MARKET_PRICEBOOK_ID))) {
     await createPricebook({
       id: GLOBAL_MARKET_PRICEBOOK_ID,
       name: "Global Market Price Book",
@@ -345,9 +348,8 @@ export async function getOrganizationPricebook(organizationIdValue: string) {
   const organizationId = cleanRequiredId(organizationIdValue, "organization_id");
   const global = await getGlobalMarketPricebook();
   const pricebookId = organizationPricebookId(organizationId);
-  const manifestPath = path.join(pricebookDir(pricebookId), PRICEBOOK_FILE_NAMES.manifest);
 
-  if (!(await pathExists(manifestPath))) {
+  if (!(await pricebookExists(pricebookId))) {
     await createPricebook({
       id: pricebookId,
       name: "Organization Price Book",
@@ -374,10 +376,36 @@ export async function getOrganizationPricebook(organizationIdValue: string) {
   };
 }
 
+/** Read-only publication path: never creates a catalog or migrates an overlay. */
+export async function readOrganizationPricebook(organizationIdValue: string) {
+  const organizationId = cleanRequiredId(organizationIdValue, "organization_id");
+  const pricebookId = organizationPricebookId(organizationId);
+  const manifest = await readManifest(pricebookId);
+  if (isFirstMeasurePostgresEnabled()) {
+    const stored = (await readSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId)))!;
+    return { manifest: stored.manifest, catalog: stored.overlay ? materializeOrganizationCatalog(await readCatalog(GLOBAL_MARKET_PRICEBOOK_ID), stored.overlay) : stored.catalog };
+  }
+  const filePath = organizationOverlayPath(pricebookId);
+  if (!(await pathExists(filePath))) return { manifest, catalog: await readCatalog(pricebookId) };
+  const overlay = await readJsonFile<OrganizationPricebookOverlay>(filePath, { code: "organization_pricebook_overlay_not_found", message: "Organization price book overlay is unavailable." });
+  const globalCatalog = await readCatalog(GLOBAL_MARKET_PRICEBOOK_ID);
+  return { manifest, catalog: materializeOrganizationCatalog(globalCatalog, overlay) };
+}
+
 export async function saveOrganizationCatalog(organizationIdValue: string, catalogInput: unknown, expectedRevision?: number) {
   const organizationId = cleanRequiredId(organizationIdValue, "organization_id");
   const current = await getOrganizationPricebook(organizationId);
   const pricebookId = String(current.manifest.id);
+  if (isFirstMeasurePostgresEnabled()) {
+    const global = await getGlobalMarketPricebook();
+    return mutateSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId), stored => {
+      assertExpectedRevision(stored.manifest, expectedRevision);
+      const overlay = buildOrganizationOverlay(organizationId, global, normalizeCatalog(catalogInput), stored.overlay);
+      const catalog = materializeOrganizationCatalog(global.catalog, overlay);
+      validateCatalogGraph(catalog);
+      return { ...nextCatalogRecord(stored, catalog), overlay };
+    });
+  }
   const manifest = await readManifest(pricebookId);
   assertExpectedRevision(manifest, expectedRevision);
   const global = await getGlobalMarketPricebook();
@@ -702,6 +730,10 @@ async function readOrganizationOverlay(
   organizationId: string,
   global: Awaited<ReturnType<typeof getPricebookDetail>>
 ): Promise<OrganizationPricebookOverlay> {
+  if (isFirstMeasurePostgresEnabled()) {
+    const stored = (await readSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId)))!;
+    return stored.overlay || buildOrganizationOverlay(organizationId, global, stored.catalog);
+  }
   const filePath = organizationOverlayPath(pricebookId);
   if (!(await pathExists(filePath))) {
     const legacyCatalog = await readCatalog(pricebookId);
@@ -728,6 +760,10 @@ async function readOrganizationOverlay(
 }
 
 async function saveOrganizationOverlayRaw(pricebookId: string, overlay: OrganizationPricebookOverlay) {
+  if (isFirstMeasurePostgresEnabled()) {
+    await mutateSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId), current => ({ ...current, overlay }));
+    return;
+  }
   await writeJsonAtomic(organizationOverlayPath(pricebookId), overlay);
 }
 

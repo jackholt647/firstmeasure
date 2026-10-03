@@ -1,3 +1,5 @@
+import { registerMaterialsCalculusPublication } from '../../materials/calculus-publication.js';
+import { registerMaterialsInputs } from '../../materials/calculus-inputs.js';
 import { registerWidgetProviders } from '../widgets/catalog.js';
 import { registerNotificationProvider } from "../notifications/provider.js";
 import { registerBuiltinDataProviders } from "./provider-adapters.js";
@@ -23,5 +25,7 @@ export function initializePublication() {
   registerDomainActions();
   registerDatasetActions();
   registerModuleDataProvider();
+  registerMaterialsCalculusPublication();
+  registerMaterialsInputs();
   initialized = true;
 }

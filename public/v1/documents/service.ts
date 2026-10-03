@@ -1814,6 +1814,7 @@ async function createSnapshotLocked(orgId: string, documentId: string, input: Js
     status: cleanText(document.status),
     snapshot_number: snapshotNumber,
     reason,
+    materials_deliverables: (await import("../materials/calculus.js")).validateDeliverables(document.materials_deliverables || asObject((await templateDefinitionFor(orgId, document)).program).deliverables),
     resolved_definition: cloneJson(resolved.resolved_definition),
     widget_data: cloneJson(resolved.widget_data),
     sources: cloneJson(resolved.sources || {}),

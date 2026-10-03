@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
+import { registerCalculusApi } from "./calculus-api.js";
 import { ZodError } from "zod";
 
 import { requirePlatformAuth } from "../platform/auth.js";
@@ -36,6 +37,7 @@ import {
 } from "./schemas.js";
 
 export const registerMaterialsApi: FastifyPluginAsync = async (app) => {
+  registerCalculusApi(app);
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {
       reply.code(400);

@@ -3,6 +3,8 @@
  */
 (function(){
   const runtime = window.FirstMateEmbeddableApps;
+  let calculusMode = true, calculusHandle = null, calculusRoot = null, calculusProject = '';
+  const calculusUrl = new URL('./calculus-workspace.js?v=20261003-calculus', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const Portal = window.Portal;
   const util = Portal?.util || {};
   const cfg = Portal?.cfg || window.__APP || {};
@@ -1764,6 +1766,7 @@
   }
 
   async function loadData(){
+    if (calculusMode) { render(); return; }
     const timingStart = performance.now();
     timingMark('loadData:start');
     if (!state.mounted) return;
@@ -3216,6 +3219,25 @@
   }
 
   function render(options = {}){
+    if (calculusMode && state.panelRoot) {
+      const identity = `${orgId()}:${projectId()}`;
+      if (calculusRoot?.isConnected && calculusProject === identity) return;
+      calculusHandle?.destroy(); calculusHandle = null;
+      state.panelRoot.innerHTML = '<div data-materials-calculus style="height:100%;min-height:0"></div>';
+      const target = state.panelRoot.querySelector('[data-materials-calculus]');
+      calculusRoot = target; calculusProject = identity;
+      state.sidebarRoot?.classList?.remove('visible');
+      if (!orgId() || !projectId()) { target.textContent = 'Save this project to create material sets.'; return; }
+      import(calculusUrl).then(async module => {
+        if (calculusRoot !== target || !target.isConnected) return;
+        const handle = await module.mountMaterialsCalculus(target, { organizationId: orgId(), projectId: projectId(), onResources() {
+          calculusMode = false; calculusHandle?.destroy(); calculusHandle = null; calculusRoot = null;
+          state.panelRoot.innerHTML = panelHtml(); loadData(); renderLeft();
+        } });
+        if (calculusRoot !== target || !target.isConnected) handle.destroy(); else calculusHandle = handle;
+      }).catch(error => { if (target.isConnected) target.textContent = error.message || 'Could not load materials.'; });
+      return;
+    }
     const timingStart = performance.now();
     if (!state.panelRoot) return;
     closeListMenu();
@@ -3246,6 +3268,7 @@
           <div><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope")}</strong><span>${String(escapeHtml(list ? `${list.title || activeTerms.list} active · ${visibleCount} of ${state.lists.length} visible` : (state.project?.address || state.project?.title || (globalThis.PlatformLanguage?.text("materials","m_c9170d09831e64","No scope lists") ?? "No scope lists"))))}</span></div>
         </div>
         <div class="mt-actions">
+          <button type="button" class="mt-btn" data-mt-calculus>Materials</button>
           <button type="button" class="mt-icon-btn" data-mt-refresh title="${(globalThis.PlatformLanguage?.htmlText("materials","m_78973ce0cf3403","Refresh") ?? "Refresh")}"><i class="fas fa-rotate"></i></button>
           ${String(activeType === 'material' ? `<button type="button" class="mt-btn${state.pricebookOpen ? ' primary' : ''}" data-mt-open-pricebook ${!list ? 'disabled' : ''}><i class="fas fa-book"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_cf3630161575f6"," Price Book") ?? " Price Book")}</button>` : '')}
           <button type="button" class="mt-btn" data-mt-add-custom ${String(!list ? 'disabled' : '')}><i class="fas fa-plus"></i> ${String(escapeHtml(activeTerms.singular))}</button>
@@ -4201,6 +4224,7 @@
 
   function bindMain(root){
     root.querySelector('[data-mt-refresh]')?.addEventListener('click', loadData);
+    root.querySelector('[data-mt-calculus]')?.addEventListener('click', () => { calculusMode = true; renderLeft(); render(); });
     root.querySelectorAll('[data-mt-section]').forEach((button) => button.addEventListener('click', () => {
       state.selectedSection = button.dataset.mtSection || 'all';
       rootWindow.Portal?.navigation?.replace?.({ materialSection:state.selectedSection === 'all' ? null : state.selectedSection }, { source:'scope-section', ownedKeys:['materialSection'] });
@@ -4368,6 +4392,7 @@
   }
   function disposeScopeWidgets(){scopeWidgetLibrary?.destroy();scopeWidgetLibrary=null;scopeWidgetKey='';}
   function renderLeft(){
+    if (calculusMode) { state.sidebarRoot?.classList?.remove('visible'); return; }
     const timingStart = performance.now();
     if (!state.sidebarRoot || !state.active) return;
     const target = leftContentRoot();
@@ -4975,6 +5000,7 @@
   }
 
   function reset(){
+    calculusHandle?.destroy(); calculusHandle = null; calculusRoot = null; calculusProject = ''; calculusMode = true;
     disposeScopeWidgets();
     state.lists = [];
     state.activeListId = '';

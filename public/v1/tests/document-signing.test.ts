@@ -100,6 +100,8 @@ async function registerOrg(client: ReturnType<typeof createSessionClient>) {
   await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, {
     values: {
       "platform.documents": true,
+      "platform.materials": true,
+      "platform.pricebook": true,
       "documents.templates_studio": true,
       "documents.workflow_authoring": true,
       "documents.theme_authoring": true,
@@ -157,16 +159,18 @@ test("signing: assigned signers, immutable revisions, concurrent receipts, execu
   const deniedSend = await client.raw("POST",invokeUrl,{...sendRequest,idempotencyKey:"denied-send"});
   assert.equal(deniedSend.statusCode,403);
   await identityStore.upsertDocument(orgId,"users",{id:userId,data:{permission_overrides:(ownerBefore.data as any).permission_overrides || {}}});
-  const create = async (defs?: any, recipients?: any[]) => {
+  const create = async (defs?: any, recipients?: any[], deliverables?: any[]) => {
     const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/signing_project/documents`, { document_type: "contract", params: { body: "Immutable agreement", effective_date: "2026-09-26" } });
     const id = created.document.id;
-    if (defs) await storage.saveDocumentInstance(orgId, id, { ...created.document, output_defs: defs });
+    if (defs || deliverables) await storage.saveDocumentInstance(orgId, id, { ...created.document, ...(defs ? { output_defs: defs } : {}), ...(deliverables ? { materials_deliverables: deliverables } : {}) });
     const sent = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${id}/send`, { recipients: recipients || [{ name: "Alice", email: "alice@example.test", role: "customer" }, ...(defs?.sig_b ? [{ name: "Bob", email: "bob@example.test", signer_id: "second" }] : [])], consent_contact: "support@example.test" });
     return { id, ...sent };
   };
   const prepare = (t: string) => client.request("POST", `/v1/documents/public/${t}/signing/prepare`, {});
   const payload = (r: any, name: string) => ({ value: { type: "typed", signer_name: name, signed_at: "1900-01-01" }, challenge: r.challenge, content_hash: r.content_hash, consent: { intent: true, electronic_records: true, can_access_and_retain: true, disclosure_hash: r.disclosure.hash } });
-  const doc = await create({ sig_customer: { type: "signature", signer_id: "customer", required: true }, sig_b: { type: "signature", signer_id: "second", required: true } });
+  const doc = await create({ sig_customer: { type: "signature", signer_id: "customer", required: true }, sig_b: { type: "signature", signer_id: "second", required: true } }, undefined, [{ type: "materials_calculus", key: "roof", title: "Signed roof materials", source: "return {outputs:{lines:[{key:'shingles',product_id:'hdz',name:inputs.document.params.body,quantity:20,unit:'bundle'}]}};" }]);
+  const calculusUrl = `/v1/materials/organizations/${orgId}/projects/signing_project/calculus`;
+  assert.equal((await client.request("GET", calculusUrl)).ledger.sets.length, 0);
   const a = doc.signing.invitations.find((i: any) => i.signer_id === "customer").token, b = doc.signing.invitations.find((i: any) => i.signer_id === "second").token;
   assert.notEqual(a, b);
   assert.equal((await client.raw("POST", `/v1/documents/public/${doc.snapshot.public_token}/signing/prepare`, {})).statusCode, 403);
@@ -182,6 +186,12 @@ test("signing: assigned signers, immutable revisions, concurrent receipts, execu
   await Promise.all([client.request("POST", base, ap), client.request("POST", `/v1/documents/public/${b}/outputs/sig_b`, bp)]);
   const retained = await storage.readDocumentInstance(orgId, doc.id);
   assert.equal(retained.status, "completed");
+  await (await import("../documents/signing/service.js")).drainSigningOutbox();
+  const materialLedger = (await client.request("GET", calculusUrl)).ledger;
+  assert.equal(materialLedger.sets.length, 1);
+  assert.equal(materialLedger.sets[0].origin.snapshot_id, doc.snapshot.id);
+  const materialPreview = await client.request("POST", `${calculusUrl}/commands`, { key: "signed-material-preview", expected_revision: materialLedger.revision, operation: "evaluate", input: { set_id: materialLedger.sets[0].id } });
+  assert.equal(materialPreview.ledger.sets[0].evaluations[0].lines[0].name, "Immutable agreement");
   assert.equal((retained.outputs as any).sig_customer.signer_name, "Alice"); assert.equal((retained.outputs as any).sig_b.signer_name, "Bob");
   assert.notEqual((retained.outputs as any).sig_customer.signed_at, "1900-01-01");
   assert.equal((await client.raw("POST", base, { ...ap, value: { text: "Mallory" } })).statusCode, 409);

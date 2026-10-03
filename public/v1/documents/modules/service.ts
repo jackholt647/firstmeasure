@@ -13,6 +13,7 @@ import { runModuleCode, type ModuleBroker } from "./runtime.js";
 import { authorizeModuleEvidence, refreshModuleDependencies } from "./dependencies.js";
 import { instantiateBindings } from "../../platform/publication/instantiate.js";
 import { describeAction } from "../../platform/publication/actions.js";
+import { validateDeliverables } from "../../materials/calculus.js";
 
 export type ModuleInstance = JsonObject & { id: string; revision: number; projectId: string; moduleId: string; version: string; kind: "document" | "workflow"; inputs: JsonObject; outputs: JsonObject; privateState: JsonObject; bindings: ModuleDefinition["bindings"] };
 export type ModuleExecutionBroker = ModuleBroker & { manifest?: () => unknown };
@@ -33,6 +34,7 @@ export async function listModules(ctx: PublicationContext) { await allowed(ctx);
 export async function publishModule(ctx: PublicationContext, raw: unknown, moduleId = "") {
   await allowed(ctx, undefined, true);
   const definition = validateModuleDefinition(raw);
+  definition.deliverables = validateDeliverables(definition.deliverables);
   const version = contentHash(definition);
   const selectedId = moduleId || id("module");
   const key = `${selectedId}_${version}`;
@@ -276,8 +278,10 @@ export async function materializeModuleDocument(ctx: PublicationContext, instanc
   if (document.project_id !== instance.projectId || document.status !== "draft") throw conflict("module_document_not_draft", "Only a draft in the same project may adopt this module result.");
   if (input.documentId && input.expectedDocumentRevision !== document.revision) throw conflict("module_document_revision", "The current document revision is required.");
   const publicParams = (await moduleInstanceView(ctx, instance)).exports;
+  const deliverables = validateDeliverables(validateModuleDefinition((await moduleDefinition(ctx, instance.moduleId, instance.version)).definition).deliverables);
   const renderedDocument = {
     ...document, module_ref: { instance_id: instanceId, module_id: instance.moduleId, version: instance.version, execution_id: instance.lastExecutionId, revision: instance.revision },
+    materials_deliverables: deliverables,
     module_render: validateModuleView(instance.view), module_binding_manifest: instance.bindingManifest || {},
     output_defs: (await import("../signing/model.js")).inferSignatureDefinitions(validateModuleView(instance.view), (instance.view as JsonObject).outputs as JsonObject || {}),
     module_resolved: null,
