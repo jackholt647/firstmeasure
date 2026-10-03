@@ -54,3 +54,5 @@ identity, source hashes, readiness and enforced outbound isolation passed.
 Public readiness reports the source release above, and all three public asset
 hashes match their inspected packages. The Activity browser test also passed
 using JavaScript fetched from development with mocked domain APIs.
+
+Follow-up: [Custom searchable multi-select Activity filters](development-activity-filters-20261003.md) adds thirteen categories, combined selection and keyboard/mobile behavior.
