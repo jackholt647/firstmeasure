@@ -34,6 +34,14 @@ test('presets request a named assignee up front; advanced changes become Custom 
     assert.deepEqual(selected.department_ids,['sales','production']);assert.equal(selected.delivery,true);assert.equal(selected.recurrence.frequency,'weekly');assert.equal(selected.window_minutes,240);assert.equal(selected.duration_minutes,60);
     assert.deepEqual(selected.requirements[0].subject_keys,['organization_user:person']);
     assert.equal(await page.locator('[data-project] input').isDisabled(),true);
+    await page.locator('[data-timing]').selectOption('days');
+    assert.equal(await page.locator('[data-duration]').isVisible(),false);
+    await page.locator('[data-days]').fill('3');await page.locator('[data-days]').press('Tab');
+    await page.locator('[data-location]').selectOption('company_office');
+    assert.ok(await page.getByText(/Company office address is not set/).isVisible());
+    const days=await page.evaluate(()=>window.requests.at(-1).configuration);assert.equal(days.timing_mode,'days');assert.equal(days.duration_days,3);assert.equal(days.location.mode,'company_office');
+    await page.locator('[data-location]').selectOption('none');assert.equal(await page.locator('[data-address]').isVisible(),false);
+
     await page.setViewportSize({width:390,height:844});
     assert.ok(await page.locator('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth));
   }finally{await browser.close();}

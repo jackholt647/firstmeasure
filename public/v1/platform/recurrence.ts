@@ -224,8 +224,8 @@ function eventForOccurrence(series: JsonObject, start: Date, key: string, timezo
     end_at: end.toISOString(),
     duration_minutes: duration,
     ...(template.arrival_window_start_at && template.start_at ? {
-      arrival_window_start_at: new Date(start.getTime() + Date.parse(String(template.arrival_window_start_at)) - Date.parse(String(template.start_at))).toISOString(),
-      arrival_window_end_at: new Date(start.getTime() + Date.parse(String(template.arrival_window_end_at)) - Date.parse(String(template.start_at))).toISOString()
+      arrival_window_start_at: template.all_day === true ? start.toISOString() : new Date(start.getTime() + Date.parse(String(template.arrival_window_start_at)) - Date.parse(String(template.start_at))).toISOString(),
+      arrival_window_end_at: template.all_day === true ? end.toISOString() : new Date(start.getTime() + Date.parse(String(template.arrival_window_end_at)) - Date.parse(String(template.start_at))).toISOString()
     } : {}),
     recurrence_series_id: cleanText(series.id),
     recurrence_occurrence_key: key,

@@ -23,3 +23,12 @@ Typed publications are `scheduling.appointment.catalog`, `.configure`, `.preview
 The internal `appointment_bookings` receipt collection is not added to the generic browser collection API. Replays check the actor and full request fingerprint before returning the saved result.
 
 Validation covers attendance thresholds, crew rosters, named selection, department combinations, arrival-window persistence, recurrence, retry safety, catalog revisions, optional projects and browser interaction. Public forms retain their existing contact collection and public endpoint boundary while sharing the calendar/time-slot component.
+
+
+## Instant Full Org development defaults
+
+New Instant Full Org development sandboxes seed seven presets: Sales (60 minutes, exact start), Installation (two consecutive full days, one production crew and its roster), Maintenance (60 minutes in a four-hour window, four quarterly occurrences), Repair (same timing without recurrence), Material deliveries (four-hour window and delivery flag), Company meeting (all people, 60 minutes), and Company sales meeting (all salespeople, 60 minutes). Durations, attendance and recurrence remain editable. Existing sandboxes with no saved catalog receive these defaults on reads; saved catalogs are preserved, including intentionally deleted defaults. Seeding occurs only during creation and never changes ordinary organization defaults.
+
+`timing_mode: days` and `duration_days` (1–31) expose a date choice rather than hourly slots. Every consecutive local day must be open and the same resources must be available for its full working window; conflicts anywhere on each reserved day prevent booking. Saved events use local-midnight start and exclusive end, `all_day: true`, and nominal local-day duration. DST can change elapsed hours without changing the number of days. Closed days are not silently skipped. Overlapping recurring day spans are unavailable.
+
+Preset `location.mode` supports project address, Company office, custom address or no location. Company office resolves current branch `contact.business_address`/`contact.address`, falling back to global contact data, at booking time. It uses the existing Company Settings address; no duplicate office record is created. A booking stores its resolved address and mode. Missing office addresses retain the Company office label and display a settings hint. Location is available outside Advanced for easy per-booking overrides.

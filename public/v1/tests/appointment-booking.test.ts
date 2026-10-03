@@ -212,3 +212,39 @@ test('configured appointments preserve departments, delivery, staffing and recur
   assert.equal(booked.event.delivery,false);
   assert.equal(booked.event.event_type_default_id,'appointment');
 });
+
+
+test('Instant Full presets use day installations, quarterly maintenance and office meetings; days check every date',async()=>{
+  const client=createSessionClient();const {orgId}=await registerOwner(client);
+  const storage=await import('../platform/storage.js');
+  const {instantFullAppointmentCatalog,seedInstantFullAppointmentCatalog}=await import('../appointments/defaults.js');
+  const {saveCapabilityValues}=await import('../platform/capabilities.js');
+  await saveCapabilityValues(orgId,{'platform.scheduling':true,'scheduling.appointment_slots':true});
+  await storage.saveBranchModule(orgId,'default','scheduling',{data:{availability:{timezone:'America/New_York'},self_service:{default_policy:{min_notice_minutes:0}}}},{replace:true});
+  await seedInstantFullAppointmentCatalog(orgId);await seedInstantFullAppointmentCatalog(orgId);
+  const seeded=instantFullAppointmentCatalog();assert.equal(seeded.presets.length,7);
+  assert.equal(seeded.presets.find(p=>p.id==='maintenance')?.configuration.recurrence?.frequency,'quarterly');
+  assert.equal(seeded.presets.find(p=>p.id==='repair')?.configuration.recurrence,null);
+  assert.equal(seeded.presets.find(p=>p.id==='sales')?.configuration.window_minutes,60);
+  assert.equal(seeded.presets.find(p=>p.id==='delivery')?.configuration.delivery,true);
+  await storage.upsertDocument(orgId,'branch',{id:'default',data:{contact:{business_address:{address1:'100 Office Lane',city:'Austin',state:'TX',postal_code:'78701'}}}});
+  const base=`/v1/appointments/organizations/${orgId}`;
+  const catalog=await client.request('GET',base+'/catalog');assert.match(catalog.company_office.address,/100 Office Lane/);
+  const person=catalog.resources.find((r:any)=>r.subject_type==='organization_user');assert.ok(person);
+  // Cross next year's spring DST transition: two local days are 47 elapsed hours.
+  const year=new Date().getUTCFullYear()+1,firstSunday=1+(7-new Date(Date.UTC(year,2,1)).getUTCDay())%7,day=firstSunday+6;
+  const date=`${year}-03-${String(day).padStart(2,'0')}`;
+  const configuration={...seeded.presets.find(p=>p.id==='installation')!.configuration,requirements:[{subject_type:'organization_user',mode:'specific',subject_keys:[person.key]}]};
+  const preview=await client.request('POST',base+'/preview',{date,configuration});assert.equal(preview.slots.length,1);assert.equal(preview.slots[0].available,true);
+  assert.equal(Date.parse(preview.slots[0].plan.end_at)-Date.parse(preview.slots[0].plan.start_at),47*3600000);
+  const result=await client.request('POST',base+'/book',{event_id:'appointment_installation123456789',start_at:preview.slots[0].start_at,configuration});assert.equal(result.event.all_day,true);assert.equal(result.event.duration_minutes,2880);
+  const busy=await client.request('POST',base+'/preview',{date,configuration});assert.equal(busy.slots[0].available,false);
+  const secondDay=`${year}-03-${String(day+1).padStart(2,'0')}`;
+  const meetings=await client.request('POST',base+'/preview',{date:secondDay,configuration:seeded.presets.find(p=>p.id==='company-meeting')!.configuration});assert.ok(meetings.slots.every((s:any)=>!s.available));
+  const nextDate=`${year}-03-${String(day+3).padStart(2,'0')}`,meeting=seeded.presets.find(p=>p.id==='company-meeting')!.configuration;
+  const free=await client.request('POST',base+'/preview',{date:nextDate,configuration:meeting});
+  await storage.upsertDocument(orgId,'branch',{id:'default',data:{contact:{address:'200 New Office Road'}}});
+  const booked=await client.request('POST',base+'/book',{event_id:'appointment_officemeeting123456',start_at:free.slots.find((s:any)=>s.available).start_at,configuration:meeting});
+  assert.equal(booked.event.location.mode,'company_office');assert.equal(booked.event.address,'200 New Office Road');assert.ok(booked.event.assigned_user_ids.includes(person.id));
+  const blocked=await client.request('POST',base+'/preview',{date:nextDate,configuration:{...meeting,location:{mode:'none'}}});assert.equal(blocked.slots.find((s:any)=>s.start_at===booked.event.start_at)?.available,false);
+});

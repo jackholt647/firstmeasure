@@ -294,7 +294,7 @@ type AvailabilityOptions = {
   limit?: number;
 };
 
-export async function appointmentAvailability(orgId: string, branchIdValue: string, options: AvailabilityOptions = {}, internal: { assignmentPolicy?:JsonObject; slotMinutes?:number } = {}) {
+export async function appointmentAvailability(orgId: string, branchIdValue: string, options: AvailabilityOptions = {}, internal: { assignmentPolicy?:JsonObject; slotMinutes?:number; fullDay?:boolean } = {}) {
   const branchId = cleanText(branchIdValue) || "default";
   const { scheduling, settings } = await readSchedulingAvailabilitySettings(orgId, branchId);
   const timezone = await resolveOrganizationTimezone(orgId, branchId);
@@ -362,22 +362,23 @@ export async function appointmentAvailability(orgId: string, branchIdValue: stri
   while (dateKey <= endDate && slots.length < Math.round(clamp(options.limit, 1, 500, 240))) {
     const window = availabilityWindow(scheduling.availability, eventTypeId, dateKey);
     if (window) {
-      for (let minute = window.start; minute + durationMinutes <= window.end; minute += slotMinutes) {
+      const bookingMinutes = internal.fullDay ? window.end - window.start : durationMinutes;
+      for (let minute = window.start; minute + bookingMinutes <= window.end; minute += internal.fullDay ? bookingMinutes : slotMinutes) {
         const start = instantFor(dateKey, minute, timezone);
-        const end = new Date(start.getTime() + durationMinutes * 60_000);
+        const end = new Date(start.getTime() + bookingMinutes * 60_000);
         if (start.getTime() < Date.now() + policy.min_notice_minutes * 60_000) continue;
         const candidateRows: JsonObject[] = [];
         for (const subject of subjects) {
           const key = subjectKey(subject);
           const rule = resourceAvailabilityRule(settings, subject);
           if (subjectUnavailableOnDate(scheduling, subject.id || subject.resource_id, dateKey)) continue;
-          if (!rule.enabled || !resourceWorking(rule, dateKey, minute, minute + durationMinutes)) continue;
+          if (!rule.enabled || !resourceWorking(rule, dateKey, minute, minute + bookingMinutes)) continue;
           const memberKeys = subjectMemberIds(subject).map((id) => `organization_user:${id}`.toLowerCase());
           const relevantKeys = [key, ...(rule.capacity_mode === "members" ? memberKeys : [])];
           const conflicts = scheduledEvents.filter((entry) => {
             const range = eventRange(entry.event);
-            const expandedStart = new Date(start.getTime() - (bufferMinutes + rule.buffer_minutes) * 60_000);
-            const expandedEnd = new Date(end.getTime() + (bufferMinutes + rule.buffer_minutes) * 60_000);
+            const expandedStart = internal.fullDay ? instantFor(dateKey,0,timezone) : new Date(start.getTime() - (bufferMinutes + rule.buffer_minutes) * 60_000);
+            const expandedEnd = internal.fullDay ? instantFor(addLocalDays(dateKey,1),0,timezone) : new Date(end.getTime() + (bufferMinutes + rule.buffer_minutes) * 60_000);
             return eventResourceKeys(entry.event).some((assigned) => relevantKeys.includes(assigned))
               && intervalsOverlap(expandedStart, expandedEnd, range.start, range.end);
           });
@@ -392,11 +393,11 @@ export async function appointmentAvailability(orgId: string, branchIdValue: stri
             const previous = assigned.filter((entry) => eventRange(entry.event).end <= start).sort((a, b) => eventRange(b.event).end.getTime() - eventRange(a.event).end.getTime())[0];
             const next = assigned.filter((entry) => eventRange(entry.event).start >= end).sort((a, b) => eventRange(a.event).start.getTime() - eventRange(b.event).start.getTime())[0];
             if (previous) {
-              travel_before_minutes = travelMinutes(previous.project, targetLocation, settings);
+              travel_before_minutes = travelMinutes(previous.event.location || previous.project, targetLocation, settings);
               if (eventRange(previous.event).end.getTime() + (travel_before_minutes + settings.travel.slack_minutes) * 60_000 > start.getTime()) availableUnits = 0;
             }
             if (next) {
-              travel_after_minutes = travelMinutes(targetLocation, next.project, settings);
+              travel_after_minutes = travelMinutes(targetLocation, next.event.location || next.project, settings);
               if (end.getTime() + (travel_after_minutes + settings.travel.slack_minutes) * 60_000 > eventRange(next.event).start.getTime()) availableUnits = 0;
             }
           }

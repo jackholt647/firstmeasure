@@ -1,13 +1,15 @@
+import {env} from '../src/config/env.js';
+import {defaultAppointmentCatalog,instantFullAppointmentCatalog} from './defaults.js';
 import {z} from 'zod';
 import {createHash} from 'node:crypto';
-import {readBranchModule,saveBranchModule,readDocument,upsertDocument,type JsonObject} from '../platform/storage.js';
+import {readBranchModule,saveBranchModule,readDocument,readGlobal,readOrganization,upsertDocument,type JsonObject} from '../platform/storage.js';
 import {hasPermission,type PlatformAuthContext} from '../platform/auth.js';
 import {badRequest,conflict,forbidden} from '../platform/errors.js';
 import {withProjectDocumentLock} from '../platform/project_document_mutation.js';
 import {appointmentAvailability,subjectMemberIds} from './availability.js';
 import {resolveAssignableSubjects} from '../workforce/service.js';
 import {filterAssignableSubjects} from '../workforce/assignability.js';
-import {resolveOrganizationTimezone,zonedParts} from '../platform/timezone.js';
+import {resolveOrganizationTimezone,zonedParts,zonedInstant} from '../platform/timezone.js';
 import {occurrenceDate,createRecurrenceSeries,materializeRecurrenceSeries} from '../platform/recurrence.js';
 import {isFirstMeasurePostgresEnabled,withPostgresTransaction,withPlatformPostgresClient} from '../src/database/postgres.js';
 
@@ -17,13 +19,37 @@ const object=(v:unknown):JsonObject=>v&&typeof v==='object'&&!Array.isArray(v)?v
 const list=(v:unknown):JsonObject[]=>Array.isArray(v)?v.map(object):[];
 const key=(v:JsonObject)=>`${v.subject_type}:${v.id}`;
 
-function defaults(){return appointmentCatalogSchema.parse({departments:[{id:'sales',label:'Sales',color:'#16a34a',role_ids:['sales_appointments']},{id:'production',label:'Production',color:'#2563eb',group_kind_ids:['crew'],role_ids:['crew_member','repairman','crew_foreman','supervisor']}],presets:[{id:'sales',label:'Sales appointment',configuration:{title:'Sales appointment',department_ids:['sales'],requirements:[{department_id:'sales',subject_type:'organization_user'}]}},{id:'production',label:'Production appointment',configuration:{title:'Production appointment',department_ids:['production'],requirements:[{department_id:'production',subject_type:'resource_group'}]}}]});}
+const defaults=defaultAppointmentCatalog;
+const optional=<T>(operation:Promise<T>)=>operation.catch((error)=>{if(error.statusCode===404)return null;throw error;});
+function addressText(value:unknown):string {
+  if(typeof value==='string')return value.trim();
+  const a=object(value);return String(a.formatted_address||a.formatted||[a.address1||a.address_1||a.line1||a.address_line1||a.street,a.address2||a.address_2||a.line2||a.address_line2,a.city||a.locality,a.state||a.region||a.province,a.postal_code||a.postalCode||a.zip||a.zip_code,a.country||a.country_code].filter(Boolean).join(', '));
+}
+export async function companyOffice(orgId:string,branchId:string){
+  const [global,branch]=await Promise.all([optional(readGlobal(orgId)),optional(readDocument(orgId,'branch',branchId))]);
+  const globalContact=object(object(global?.data).contact),branchContact=object(object(branch?.data).contact);
+  for(const contact of [branchContact,globalContact]){
+    const address=addressText(contact.business_address||contact.businessAddress)||addressText(contact.address);
+    if(address)return {mode:'company_office',label:'Company office',address,...object(contact.location)};
+  }
+  return {mode:'company_office',label:'Company office',address:''};
+}
+async function bookingLocation(ctx:PlatformAuthContext,config:AppointmentConfiguration,projectId?:string){
+  if(config.location.mode==='none')return {mode:'none',address:''};
+  if(config.location.mode==='company_office')return companyOffice(ctx.orgId,ctx.branchId||'default');
+  if(config.location.mode==='custom')return {mode:'custom',address:config.location.address};
+  const project=projectId?await readDocument(ctx.orgId,'projects',projectId):null,data=object(project?.data);
+  return {...object(data.location),mode:'project',address:addressText(data.address||data.project_address||data.location),lat:data.lat||object(data.location).lat,lng:data.lng||object(data.location).lng};
+}
 export async function readAppointmentCatalog(ctx:PlatformAuthContext){
   const branch=await readBranchModule(ctx.orgId,ctx.branchId||'default','scheduling').catch((error)=>{if(error.statusCode===404)return null;throw error;});
   const stored=object(branch?.data).appointment_catalog;
-  const catalog=stored?appointmentCatalogSchema.parse(stored):defaults();
+  const org=await readOrganization(ctx.orgId);
+  const isInstant=env.dataEnvironment==='development'&&object(org.metadata).sandbox_workflow_id==='swf_instant_full_org';
+  const fallback=isInstant?instantFullAppointmentCatalog():defaults();
+  const catalog=stored?appointmentCatalogSchema.parse(stored):fallback;
   const resources=await resolveAssignableSubjects(ctx.orgId,ctx.branchId||'default',{allow_unassigned:true,rules:[]});
-  return {catalog,revision:Number(branch?.revision||0),can_manage:hasPermission(ctx,'manage_company_settings'),resources:resources.subjects.map((r:JsonObject)=>({id:r.id,key:key(r),name:r.name||r.label||r.id,subject_type:r.subject_type,role_ids:r.role_ids,group_kind_id:r.group_kind_id,member_user_ids:subjectMemberIds(r)}))};
+  return {catalog,company_office:await companyOffice(ctx.orgId,ctx.branchId||'default'),revision:Number(branch?.revision||0),can_manage:hasPermission(ctx,'manage_company_settings'),resources:resources.subjects.map((r:JsonObject)=>({id:r.id,key:key(r),name:r.name||r.label||r.id,subject_type:r.subject_type,role_ids:r.role_ids,group_kind_id:r.group_kind_id,member_user_ids:subjectMemberIds(r)}))};
 }
 export async function saveAppointmentCatalog(ctx:PlatformAuthContext,input:unknown){
   if(!hasPermission(ctx,'manage_company_settings'))throw forbidden('appointment_catalog_denied','Company settings permission is required.');
@@ -80,13 +106,37 @@ export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<t
   if(config.department_ids.some(id=>!catalog.departments.some(d=>d.id===id)))throw badRequest('unknown_department','A selected department no longer exists.');
   if(config.requirements.some(r=>r.department_id&&!config.department_ids.includes(r.department_id)))throw badRequest('department_requirement','Staffing departments must also be selected for this appointment.');
   const zone=await resolveOrganizationTimezone(ctx.orgId,ctx.branchId||'default');
+  const location=await bookingLocation(ctx,config,input.project_id);
   const cache=new Map<string,Awaited<ReturnType<typeof appointmentAvailability>>>();
   const daily=async(date:string)=>{
-    if(!cache.has(date))cache.set(date,await appointmentAvailability(ctx.orgId,ctx.branchId||'default',{project_id:input.project_id,event_type_id:'appointment',start_date:date,end_date:date,duration_minutes:config.duration_minutes,limit:500},{assignmentPolicy:{allow_unassigned:true,rules:[]},slotMinutes:config.slot_minutes}));
+    if(!cache.has(date))cache.set(date,await appointmentAvailability(ctx.orgId,ctx.branchId||'default',{project_id:input.project_id,event_type_id:'appointment',start_date:date,end_date:date,duration_minutes:config.duration_minutes,address:location,limit:500},{assignmentPolicy:{allow_unassigned:true,rules:[]},slotMinutes:config.slot_minutes,fullDay:config.timing_mode==='days'}));
     return cache.get(date)!;
   };
   const day=await daily(input.date),slots:JsonObject[]=[];
   const rule=config.recurrence?{...config.recurrence,end_at:''}:null;
+  if(config.timing_mode==='days'){
+    const [y,m,d]=input.date.split('-').map(Number),anchor=zonedInstant(y!,m!,d!,0,0,zone);
+    let available:Set<string>|null=null,valid=true;
+    const starts=Array.from({length:rule?.occurrence_count||1},(_,i)=>rule?occurrenceDate(anchor,rule,i,zone):anchor);
+    let previousEnd:Date|null=null;
+    for(const start of starts){
+      const local=zonedParts(start,zone);
+      if(previousEnd&&start<previousEnd){valid=false;break;}
+      previousEnd=zonedInstant(local.year,local.month,local.day+config.duration_days,0,0,zone);
+      for(let offset=0;offset<config.duration_days;offset++){
+        const date=zonedInstant(local.year,local.month,local.day+offset,0,0,zone);
+        if(date.getTime()>Date.now()+730*86400000){valid=false;break;}
+        const option=(await daily(dayKey(date,zone))).slots[0];
+        if(!option){valid=false;break;}
+        const keys=new Set(list(option.candidates).filter(r=>Number(r.available_units)>0).map(r=>String(r.resource_key)));
+        available=available===null?keys:new Set(Array.from(available as Set<string>).filter(k=>keys.has(k)));
+      }
+      if(!valid)break;
+    }
+    const assigned=valid?selectAppointmentResources(config,catalog.departments,resources,available||new Set()):null;
+    const end=zonedInstant(y!,m!,d!+config.duration_days,0,0,zone);
+    return {ok:true,timezone:zone,slots:[{start_at:anchor.toISOString(),window_end_at:end.toISOString(),available:!!assigned,label:`${config.duration_days} full day${config.duration_days===1?'':'s'} · ${input.date}`,plan:assigned?{start_at:anchor.toISOString(),end_at:end.toISOString(),resources:assigned}:null}]};
+  }
   for(const raw of day.slots){
     const anchor=new Date(String(raw.start_at)),windowEnd=new Date(anchor.getTime()+config.window_minutes*60000);
     const occurrences=Array.from({length:rule?.occurrence_count||1},(_,i)=>rule?occurrenceDate(anchor,rule,i,zone):anchor);
@@ -125,7 +175,8 @@ export async function bookPlannedAppointment(ctx:PlatformAuthContext,input:z.inf
     if(!slot)throw conflict('appointment_slot_unavailable','The requirements are no longer available at that time. Choose another slot.');
     const plan=object(slot.plan),resources=list(plan.resources),config=input.configuration;
     const people=resources.filter(r=>r.subject_type==='organization_user').map(r=>r.id),groups=resources.filter(r=>r.subject_type==='resource_group');
-    const event:JsonObject={id:input.event_id,title:config.title,type:'appointment',event_type_default_id:'appointment',department_ids:config.department_ids,delivery:config.delivery,appointment_configuration:config,start_at:plan.start_at,end_at:plan.end_at,duration_minutes:config.duration_minutes,arrival_window_start_at:slot.start_at,arrival_window_end_at:slot.window_end_at,status:'scheduled',branch_id:ctx.branchId||'default',booking_actor:ctx.userId,assigned_user_ids:people,assigned_user_id:people[0]||'',assigned_crew_ids:groups.map(r=>r.id),assigned_crew_id:groups[0]?.id||'',resource_refs:resources.map(r=>({kind:r.subject_type,id:r.id,name:r.name})),customer_visible:true};
+    const location=await bookingLocation(ctx,config,input.project_id);
+    const event:JsonObject={id:input.event_id,title:config.title,type:'appointment',event_type_default_id:'appointment',department_ids:config.department_ids,delivery:config.delivery,appointment_configuration:config,start_at:plan.start_at,end_at:plan.end_at,duration_minutes:config.timing_mode==='days'?config.duration_days*1440:config.duration_minutes,all_day:config.timing_mode==='days',duration_days:config.timing_mode==='days'?config.duration_days:undefined,location,location_mode:config.location.mode,address:location.address,arrival_window_start_at:slot.start_at,arrival_window_end_at:slot.window_end_at,status:'scheduled',branch_id:ctx.branchId||'default',booking_actor:ctx.userId,assigned_user_ids:people,assigned_user_id:people[0]||'',assigned_crew_ids:groups.map(r=>r.id),assigned_crew_id:groups[0]?.id||'',resource_refs:resources.map(r=>({kind:r.subject_type,id:r.id,name:r.name})),customer_visible:true};
     await upsertDocument(ctx.orgId,'appointment_bookings',{id:input.event_id,data:{fingerprint,actor:ctx.userId,status:'saving'}},{replace:true});
     let result:JsonObject;
     if(config.recurrence){

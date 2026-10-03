@@ -456,6 +456,9 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
       flags: literalScopeFlags
     }));
   }
+  if (env.dataEnvironment === 'development' && workflowId === 'swf_instant_full_org') {
+    await (await import('../appointments/defaults.js')).seedInstantFullAppointmentCatalog(String(organization.id));
+  }
   const identity = await createIdentity({
     email,
     password_hash: await hashPassword(password),
