@@ -6,6 +6,26 @@ import {chromium} from 'playwright-core';
 const picker = await readFile(new URL('../../libraries/appointment-booking/availability.js', import.meta.url), 'utf8');
 const booking = await readFile(new URL('../../libraries/appointment-booking/booking.js', import.meta.url), 'utf8');
 const embed = await readFile(new URL('../../libraries/lead-embed/firstmate-lead-embed.js', import.meta.url), 'utf8');
+const scheduling = await readFile(new URL('../../libraries/apps/scheduling/app.js', import.meta.url), 'utf8');
+test('direct Scheduling entry loads booking without the app manifest', async () => {
+  const browser = await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless:true});
+  try {
+    const page = await browser.newPage();
+    await page.route('http://localhost/**', route => {
+      const url = route.request().url();
+      return route.fulfill({body:url.endsWith('/booking.js') ? booking : url.endsWith('/availability.js') ? picker : '<html><body></body></html>',contentType:url.endsWith('.js') ? 'text/javascript' : 'text/html'});
+    });
+    await page.goto('http://localhost/');
+    await page.evaluate(() => {
+      window.orgId = () => 'org'; window.scheduleLoad = () => {};
+      window.PlatformAPI = {projects:{list:async () => ({documents:[]})},appointments:{book:async () => ({ok:true})}};
+    });
+    await page.addScriptTag({content:scheduling.slice(scheduling.indexOf('  const bookingScriptUrl'),scheduling.indexOf('  const cfg =')) + '\nwindow.openBookingWidget = openBookingWidget;'});
+    await page.evaluate(() => window.openBookingWidget());
+    assert.equal(await page.getByRole('dialog').isVisible(),true);
+    assert.equal(await page.getByText('Create a project or lead first, then book its appointment here.').isVisible(),true);
+  } finally { await browser.close(); }
+});
 test('shared picker rejects stale responses, books once, and public embeds retain their calendar styling', async () => {
   const browser = await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless:true});
   try {
