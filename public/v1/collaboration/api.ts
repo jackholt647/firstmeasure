@@ -124,7 +124,7 @@ export const registerCollaborationApi:FastifyPluginAsync=async app=>{
   });
   app.post(base+"/invitations/:id/send",{config:{rateLimit:{max:10,timeWindow:"1 minute"}}},async req=>{
     const ctx=await auth(req,"manage_external_connections",true);
-    return {ok:true,...await service.sendPartnerInvitation(ctx,(req.params as any).id)};
+    return {ok:true,...await service.sendPartnerInvitation(ctx,(req.params as any).id,String(req.headers["x-forwarded-host"]||req.headers.host||""))};
   });
   app.get(base+"/invitations",async req=>{const ctx=await auth(req,"manage_external_connections"),p=pageSchema.parse(req.query);const page=await listRecords("invitation",ctx.orgId,"outbound",p.after,p.limit);return {ok:true,...page,items:await Promise.all(page.items.map(async item=>({...item,delivery:await service.invitationDelivery(item)})))};});
   app.post(base+"/invitations",async req=>{const ctx=await auth(req,"manage_external_connections",true);return {ok:true,...await service.createInvitation(ctx,req.body)};});

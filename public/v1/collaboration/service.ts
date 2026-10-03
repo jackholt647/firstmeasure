@@ -96,14 +96,18 @@ export async function invitationDelivery(inv:RecordValue){
   const message=await messageDetail(inv.owner_org_id,inv.email_message_id,true) as Record<string,any>;
   return {status:message.developer?.captured?'captured':message.status,sent_at:message.sent_at,delivered_at:message.delivered_at,failed_at:message.failed_at};
 }
-export async function sendPartnerInvitation(ctx:PlatformAuthContext,id:string){
+export async function sendPartnerInvitation(ctx:PlatformAuthContext,id:string,publicHost=""){
   ctx=await currentActor(ctx);
   if(!['manage_projects','manage_sales','send_communications','manage_company_settings'].some(p=>ctx.permissions?.[p]!==false&&hasPermission(ctx,p)))throw forbidden('communications_permission_denied','You do not have permission to send email.');
   // The durable communications idempotency key makes retries safe after a lost response.
   const result=await partnerInvitationLink(ctx,id);
   const {sendCommunication}=await import("../messaging/communications_service.js");
   const {sendCommunicationSchema}=await import("../messaging/schemas.js");
-  const profile=await organizationProfile(ctx.orgId),url=new URL(result.url,env.publicBaseUrl).href;
+  // Only known FirstMate hosts can override the configured local origin.
+  const host=publicHost.split(',')[0]?.trim().toLowerCase();
+  const canonicalHost=env.dataEnvironment==='production'?'app.1m8.ai':'dev.1m8.ai';
+  const origin=host===canonicalHost?`https://${canonicalHost}`:env.publicBaseUrl;
+  const profile=await organizationProfile(ctx.orgId),url=new URL(result.url,origin).href;
   const sent=await sendCommunication(ctx.orgId,sendCommunicationSchema.parse({channel:'email',recipients:[{address:result.invitation.email,name:result.invitation.label}],content:{subject:`Connect with ${profile.name} on FirstMate`,text:`Hello ${result.invitation.label},\n\n${profile.name} invited your organization to work together on FirstMate. Sign in or sign up with ${result.invitation.email} to accept.\n\n${url}\n\nThis invitation expires ${result.invitation.expires_at}.`},context:{collaboration_invitation_id:id},idempotency_key:`partner-invitation:${id}`}),ctx);
   return withOrganizationLocks([ctx.orgId],async()=>{
     const current=await getRecord(id,'invitation');

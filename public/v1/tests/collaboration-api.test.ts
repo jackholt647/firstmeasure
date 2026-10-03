@@ -19,12 +19,13 @@ function readCookie(setCookie: string[] | string | undefined, name: string) {
 function createSessionClient() {
   let cookie = "";
   let csrf = "";
-  const raw = async (method: string, url: string, payload?: unknown) => {
+  const raw = async (method: string, url: string, payload?: unknown, extraHeaders:Record<string,string>={}) => {
     const response = await (app.inject as any)({
       method,
       url,
       payload,
       headers: {
+        ...extraHeaders,
         ...(cookie ? { cookie } : {}),
         ...(csrf && !["GET", "HEAD"].includes(method.toUpperCase()) ? { "x-platform-csrf": csrf } : {})
       }
@@ -42,8 +43,8 @@ function createSessionClient() {
     const data = response.body ? JSON.parse(response.body) : null;
     return { statusCode: response.statusCode, data, body: response.body };
   };
-  const request = async (method: string, url: string, payload?: unknown) => {
-    const response = await raw(method, url, payload);
+  const request = async (method: string, url: string, payload?: unknown, extraHeaders:Record<string,string>={}) => {
+    const response = await raw(method, url, payload, extraHeaders);
     assert.ok(response.statusCode < 400, `${method} ${url} failed: ${response.statusCode} ${response.body}`);
     return response.data;
   };
@@ -402,8 +403,9 @@ test("named partner invitations bind email, recover privately and track opens se
  const created=await a.request('POST',ar+'/partner-invitations',{name:'Acme Roofing',email:identity.email});
  assert.equal(created.invitation.relationship,'partner');assert.equal(created.invitation.sealed_link,undefined);
  const id=created.invitation.id;
- const sent=await a.request('POST',ar+`/invitations/${id}/send`,{});assert.equal(sent.delivery.status,'captured');
- const retried=await a.request('POST',ar+`/invitations/${id}/send`,{});assert.equal(retried.invitation.email_message_id,sent.invitation.email_message_id);
+ const sent=await a.request('POST',ar+`/invitations/${id}/send`,{},{'x-forwarded-host':'dev.1m8.ai'});assert.equal(sent.delivery.status,'captured');
+ const retried=await a.request('POST',ar+`/invitations/${id}/send`,{},{'x-forwarded-host':'dev.1m8.ai'});assert.equal(retried.invitation.email_message_id,sent.invitation.email_message_id);
+ const message=await (await import('../messaging/communications_service.js')).messageDetail(ao.orgId,sent.invitation.email_message_id);assert.ok(String(message.content.text).includes('https://dev.1m8.ai/portal/#collaboration_invite='));
  assert.equal((await a.request('GET',ar+`/invitations/${id}/link`)).url,created.url);
  assert.equal((await b.raw('GET',br+`/invitations/${id}/link`)).statusCode,404);
  let listed=(await a.request('GET',ar+'/invitations')).items[0];assert.equal(listed.label,'Acme Roofing');assert.equal(listed.sealed_link,undefined);assert.equal(listed.token,undefined);
