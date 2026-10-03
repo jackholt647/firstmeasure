@@ -83,16 +83,22 @@
   }
   function mountActivity(node,oid,pid) {
     let events=[],before='',loading=false,dead=false,visible=true,loaded=false;
+    const selectedTypes=new Set();
     const style=document.createElement('style');
     style.textContent=`
-      .fm-activity-widget{height:100%;min-height:0;display:flex;flex-direction:column;font-size:11px;color:#202124;background:#fff}
+      .fm-activity-widget{position:relative;height:100%;min-height:0;display:flex;flex-direction:column;font-size:11px;color:#202124;background:#fff}
       .fm-project-activity-tools{flex:none;padding:12px 12px 9px;border-bottom:1px solid #eef0f3;display:grid;gap:8px}
       .fm-activity-search{display:flex;align-items:center;gap:7px;border:1px solid #e4e7ec;border-radius:6px;padding:0 8px;color:#98a2b3}
       .fm-activity-search input{font:inherit;font-size:11px;border:0;background:transparent;min-width:0;width:100%;height:30px;outline:none;color:#202124}
       .fm-activity-search:focus-within{outline:2px solid var(--primary,#175cd3);outline-offset:1px}
-      .fm-activity-filter-row{display:flex;align-items:center;gap:6px}.fm-activity-filter-row select{font:inherit;font-size:11px;max-width:65%;border:0;background:#f5f6f8;border-radius:5px;padding:6px;color:#475467}
+      .fm-activity-filter-row{display:flex;align-items:center;gap:6px}.fm-activity-filter-toggle{display:flex;align-items:center;gap:6px;font:inherit;font-size:11px;max-width:70%;min-height:28px;border:1px solid transparent;background:#f5f6f8;border-radius:5px;padding:5px 8px;color:#475467;cursor:pointer}.fm-activity-filter-toggle span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.fm-activity-filter-toggle[data-active=true]{color:var(--primary,#175cd3);background:var(--primary-light,#eef2ff)}
+      .fm-activity-filter-menu{position:absolute;left:12px;right:12px;z-index:20;display:flex;flex-direction:column;overflow:hidden;background:white;border:1px solid #e4e7ec;border-radius:8px;box-shadow:0 8px 24px #10182824;padding:6px}.fm-activity-filter-menu[hidden]{display:none}
+      .fm-activity-filter-menu input[type=search]{flex:none;box-sizing:border-box;width:100%;min-width:0;border:0;border-bottom:1px solid #eef0f3;background:white;padding:8px;font:inherit;font-size:11px;color:#344054;border-radius:0}
+      .fm-activity-filter-options{min-height:0;overflow:auto;overscroll-behavior:contain;padding:4px 0}.fm-activity-filter-option{display:flex;align-items:center;border-radius:5px;min-height:32px}.fm-activity-filter-option[hidden]{display:none}.fm-activity-filter-option:hover,.fm-activity-filter-option:focus-within{background:#f5f6f8}.fm-activity-filter-option[data-selected=true]{background:var(--primary-light,#eef2ff)}
+      .fm-activity-filter-option label{display:flex;flex:1;align-items:center;min-width:0;gap:7px;padding:7px 6px;cursor:pointer;font-size:11px}.fm-activity-filter-option input{width:13px;height:13px;margin:0;accent-color:var(--primary,#175cd3);flex:none}.fm-activity-filter-option label>i{width:13px;text-align:center;color:#667085}.fm-activity-filter-total{margin-left:auto;color:#98a2b3;font-size:10px;font-variant-numeric:tabular-nums}
+      .fm-activity-filter-only{font:inherit;font-size:10px;border:0;background:transparent;color:#667085;padding:6px;cursor:pointer}.fm-activity-filter-only:hover{color:var(--primary,#175cd3)}.fm-activity-filter-footer{flex:none;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 4px 2px;border-top:1px solid #eef0f3;color:#667085;font-size:10px}.fm-activity-filter-footer button{font:inherit;color:var(--primary,#175cd3);border:0;background:transparent;cursor:pointer;padding:4px}.fm-activity-filter-none{padding:12px 6px;font-size:11px;color:#667085}.fm-activity-filter-none[hidden]{display:none}
       .fm-activity-count{margin-left:auto;color:#667085;font-size:10px;white-space:nowrap}.fm-activity-refresh{border:0;background:transparent;color:#667085;border-radius:5px;width:28px;height:28px;cursor:pointer}
-      .fm-activity-refresh:hover{background:#f2f4f7}.fm-activity-widget button:focus-visible,.fm-activity-widget select:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}
+      .fm-activity-refresh:hover{background:#f2f4f7}.fm-activity-widget button:focus-visible,.fm-activity-widget input:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}
       .fm-project-activity{overflow:auto;overscroll-behavior:contain;min-height:0;flex:1;padding:0 12px 12px}
       .fm-activity-day{position:sticky;top:0;z-index:1;margin:0;background:#fff;padding:13px 0 8px;font-size:10.5px;font-weight:700;color:#667085;border-bottom:1px solid #f2f4f7}
       .fm-project-activity article{display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;position:relative;padding:11px 0}
@@ -105,12 +111,59 @@
     `;
     node.append(style);
     const shell=document.createElement('section');shell.className='fm-activity-widget';shell.setAttribute('aria-label','Project activity');
-    shell.innerHTML='<div class="fm-project-activity-tools"><label class="fm-activity-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" aria-label="Search activity" placeholder="Search activity…"></label><div class="fm-activity-filter-row"><select aria-label="Activity type"><option value="all">All activity</option><option value="project">Project changes</option><option value="tasks">To-dos</option><option value="notes">Notes</option><option value="files">Files & reports</option><option value="schedule">Scheduling</option></select><span class="fm-activity-count" role="status"></span><button class="fm-activity-refresh" type="button" aria-label="Refresh activity" title="Refresh activity"><i class="fas fa-arrow-rotate-right" aria-hidden="true"></i></button></div></div><div class="fm-activity-error" role="alert" hidden></div><div class="fm-project-activity" role="log" aria-label="Activity timeline" aria-live="off"></div>';
+    shell.innerHTML='<div class="fm-project-activity-tools"><label class="fm-activity-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" aria-label="Search activity" placeholder="Search activity…"></label><div class="fm-activity-filter-row"><button type="button" class="fm-activity-filter-toggle" aria-label="Filter activity: All activity" aria-haspopup="dialog" aria-expanded="false"><i class="fas fa-filter" aria-hidden="true"></i><span>All activity</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button><span class="fm-activity-count" role="status"></span><button class="fm-activity-refresh" type="button" aria-label="Refresh activity" title="Refresh activity"><i class="fas fa-arrow-rotate-right" aria-hidden="true"></i></button></div></div><div class="fm-activity-error" role="alert" hidden></div><div class="fm-project-activity" role="log" aria-label="Activity timeline" aria-live="off"></div>';
     node.append(shell);
-    const log=shell.querySelector('[role=log]'),search=shell.querySelector('input'),filter=shell.querySelector('select'),count=shell.querySelector('[role=status]'),failure=shell.querySelector('[role=alert]'),refreshButton=shell.querySelector('.fm-activity-refresh');
+    const log=shell.querySelector('[role=log]'),search=shell.querySelector('input'),filter=shell.querySelector('.fm-activity-filter-toggle'),count=shell.querySelector('[role=status]'),failure=shell.querySelector('[role=alert]'),refreshButton=shell.querySelector('.fm-activity-refresh');
     const kind=event=>clean(event.type || event.data?.type);
-    const category=event=>/note/.test(kind(event))?'notes':/action.item|action_item|task|todo/.test(kind(event))?'tasks':/file|report|upload|document|measurement/.test(kind(event))?'files':/schedule|appointment|booking/.test(kind(event))?'schedule':'project';
-    const categories={project:['Project','fa-pen'],tasks:['To-do','fa-check'],notes:['Note','fa-note-sticky'],files:['File / report','fa-file-lines'],schedule:['Schedule','fa-calendar']};
+    const categories={project:['Project changes','fa-pen'],tasks:['To-dos','fa-check'],notes:['Notes','fa-note-sticky'],schedule:['Scheduling','fa-calendar'],reports:['Reports & measurements','fa-ruler-combined'],files:['Files & photos','fa-image'],documents:['Documents & signatures','fa-file-signature'],scope:['Scope & materials','fa-layer-group'],payments:['Payments & billing','fa-credit-card'],contacts:['Contacts & people','fa-user-group'],communications:['Calls & communications','fa-phone'],workflow:['Workflow & stages','fa-diagram-project'],field:['Field work & checklists','fa-clipboard-check']};
+    const category=event=>{
+      const type=kind(event).toLowerCase();
+      if(/note/.test(type))return 'notes';
+      if(/action[._]item|task|todo/.test(type))return 'tasks';
+      if(/payment|invoice|receipt|expense|payroll|billing/.test(type))return 'payments';
+      if(/schedule|appointment|booking|project[._]event/.test(type))return 'schedule';
+      if(/report|measurement/.test(type))return 'reports';
+      if(/document|proposal|signature|contract/.test(type))return 'documents';
+      if(/scope|material|list[._]item/.test(type))return 'scope';
+      if(/file|photo|upload|attachment/.test(type))return 'files';
+      if(/contact|member|assignee|assignment|collaborator/.test(type))return 'contacts';
+      if(/call|communication|email|sms|comment|mention/.test(type))return 'communications';
+      if(/crew|checklist|punch_list|field|inspection/.test(type))return 'field';
+      if(/^work[._]|stage|status/.test(type))return 'workflow';
+      return 'project';
+    };
+    const menu=document.createElement('div');menu.className='fm-activity-filter-menu';menu.hidden=true;menu.setAttribute('role','dialog');menu.setAttribute('aria-label','Activity filters');
+    menu.id='fm-activity-filter-'+Math.random().toString(36).slice(2);filter.setAttribute('aria-controls',menu.id);
+    menu.innerHTML='<input type="search" aria-label="Find activity types" placeholder="Find activity types…"><div class="fm-activity-filter-options" role="group" aria-label="Activity types"></div><div class="fm-activity-filter-footer"><span>Choose one or more types</span><button type="button">All activity</button></div>';
+    shell.append(menu);
+    const typeSearch=menu.querySelector('input'),optionsList=menu.querySelector('[role=group]'),allButton=menu.querySelector('button'),typeRows=new Map();
+    for(const [key,[label,icon]] of Object.entries(categories)){
+      const row=document.createElement('div');row.className='fm-activity-filter-option';
+      row.innerHTML=`<label><input type="checkbox" aria-label="${label}"><i class="fas ${icon}" aria-hidden="true"></i><span>${label}</span><span class="fm-activity-filter-total" aria-hidden="true">0</span></label><button type="button" class="fm-activity-filter-only" aria-label="Only ${label}">Only</button>`;
+      const checkbox=row.querySelector('input');checkbox.onchange=()=>{if(checkbox.checked)selectedTypes.add(key);else selectedTypes.delete(key);applyTypes();};
+      row.querySelector('button').onclick=()=>{selectedTypes.clear();selectedTypes.add(key);applyTypes();};
+      typeRows.set(key,row);optionsList.append(row);
+    }
+    const noTypes=document.createElement('div');noTypes.className='fm-activity-filter-none';noTypes.textContent='No matching activity types.';noTypes.hidden=true;optionsList.append(noTypes);
+    function applyTypes(){if(selectedTypes.size===Object.keys(categories).length)selectedTypes.clear();log.scrollTop=0;render();}
+    function syncTypes(rows){
+      const labels=[...selectedTypes].map(key=>categories[key][0]),summary=labels.length>1?labels[0]+' +'+(labels.length-1):labels[0] || 'All activity';
+      filter.querySelector('span').textContent=summary;filter.dataset.active=String(!!labels.length);filter.setAttribute('aria-label','Filter activity: '+(labels.join(', ') || 'All activity'));filter.title=labels.join(', ') || 'All activity';
+      allButton.setAttribute('aria-pressed',String(!labels.length));
+      const totals={};for(const event of rows){const key=category(event);totals[key]=(totals[key]||0)+1;}
+      for(const [key,row]of typeRows){row.dataset.selected=String(selectedTypes.has(key));row.querySelector('input').checked=selectedTypes.has(key);row.querySelector('.fm-activity-filter-total').textContent=String(totals[key]||0);}
+    }
+    function positionMenu(){if(menu.hidden)return;const top=filter.getBoundingClientRect().bottom-shell.getBoundingClientRect().top+5;menu.style.top=top+'px';menu.style.maxHeight=Math.max(0,Math.min(390,shell.clientHeight-top-8))+'px';}
+    function closeFilter(restoreFocus=false){menu.hidden=true;filter.setAttribute('aria-expanded','false');if(restoreFocus)filter.focus();}
+    function openFilter(){menu.hidden=false;filter.setAttribute('aria-expanded','true');typeSearch.value='';typeSearch.oninput();positionMenu();typeSearch.focus();}
+    filter.onclick=()=>menu.hidden?openFilter():closeFilter();filter.onkeydown=event=>{if(event.key==='ArrowDown'){event.preventDefault();openFilter();}};
+    menu.onkeydown=event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeFilter(true);}};
+    menu.onfocusout=event=>{if(event.relatedTarget&&!menu.contains(event.relatedTarget)&&event.relatedTarget!==filter)closeFilter();};
+    typeSearch.oninput=()=>{const query=typeSearch.value.trim().toLocaleLowerCase();let matches=0;for(const [key,row]of typeRows){row.hidden=!categories[key][0].toLocaleLowerCase().includes(query);if(!row.hidden)matches++;}noTypes.hidden=!!matches;};
+    allButton.onclick=()=>{selectedTypes.clear();applyTypes();};
+    const outside=event=>{if(!menu.hidden&&!menu.contains(event.target)&&!filter.contains(event.target))closeFilter();};
+    const ownerDocument=node.ownerDocument;ownerDocument.addEventListener('pointerdown',outside,true);
+    const menuResize=new ResizeObserver(positionMenu);menuResize.observe(shell);
     const timestamp=event=>Date.parse(event.created_at || event.data?.created_at) || 0;
     const format=event=>{
       const data=event.data || event,payload=event.payload || {};
@@ -124,15 +177,17 @@
     function render(){
       if(dead)return;
       const top=log.scrollTop,query=search.value.trim().toLocaleLowerCase();
-      const rows=events.filter(event=>!kind(event).startsWith('channels.message.')&&!/^(message|note)_(added|created|sent)$/.test(kind(event))&&(root.Portal?.can?.('channels.separate_project_notes')===true||!kind(event).startsWith('project.note.')))
-        .filter(event=>(filter.value==='all'||category(event)===filter.value)&&(!query||(format(event)+' '+actor(event)).toLocaleLowerCase().includes(query)));
+      const matching=events.filter(event=>!kind(event).startsWith('channels.message.')&&!/^(message|note)_(added|created|sent)$/.test(kind(event))&&(root.Portal?.can?.('channels.separate_project_notes')===true||!kind(event).startsWith('project.note.')))
+        .filter(event=>!query||(format(event)+' '+actor(event)).toLocaleLowerCase().includes(query));
+      syncTypes(matching);
+      const rows=matching.filter(event=>!selectedTypes.size||selectedTypes.has(category(event)));
       count.textContent=loaded?rows.length+' event'+(rows.length===1?'':'s'): 'Loading…';
       let group='';
       log.innerHTML=rows.map(event=>{
         const date=new Date(timestamp(event)),valid=!!timestamp(event),day=valid?dayLabel(date):'Earlier activity',heading=day!==group?`<h3 class="fm-activity-day">${esc(day)}</h3>`:'';group=day;
         const [label,icon]=categories[category(event)],name=actor(event),summary=format(event);
         return `${heading}<article><span class="fm-activity-icon"><i class="fas ${icon}" aria-hidden="true"></i></span><div><p>${esc(summary)}</p><div class="fm-activity-meta">${name&&!summary.includes(name)?`<span>${esc(name)}</span><span aria-hidden="true">·</span>`:''}<span>${label}</span>${valid?`<span aria-hidden="true">·</span><time datetime="${date.toISOString()}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</time>`:''}</div></div></article>`;
-      }).join('') || `<div class="fm-activity-empty"><i class="fas ${loaded?'fa-clock-rotate-left':'fa-spinner'}" aria-hidden="true"></i><strong>${loaded?(query||filter.value!=='all'?'No matching activity':'No activity yet'):'Loading activity…'}</strong>${loaded?(query||filter.value!=='all'?'Try another search or activity type.':'Project updates will appear here as work progresses.'):''}</div>`;
+      }).join('') || `<div class="fm-activity-empty"><i class="fas ${loaded?'fa-clock-rotate-left':'fa-spinner'}" aria-hidden="true"></i><strong>${loaded?(query||selectedTypes.size?'No matching activity':'No activity yet'):'Loading activity…'}</strong>${loaded?(query||selectedTypes.size?'Try another search or activity type.':'Project updates will appear here as work progresses.'):''}</div>`;
       if(before){const more=document.createElement('button');more.type='button';more.className='fm-activity-more';more.textContent='Load older activity';more.disabled=loading;more.onclick=()=>refresh(true);log.append(more);}
       log.scrollTop=top;
     }
@@ -150,12 +205,12 @@
       }catch(error){if(!dead){failure.textContent=(loaded?'Could not refresh activity. ':'Could not load activity. ')+(error.message || 'Try again.')+' Use Refresh to retry.';failure.hidden=false;}}
       finally{loading=false;if(!dead){refreshButton.disabled=false;log.setAttribute('aria-busy','false');render();if(!loaded){count.textContent='Unavailable';log.innerHTML='';}}}
     }
-    search.oninput=filter.onchange=()=>{log.scrollTop=0;render();};refreshButton.onclick=()=>refresh();
+    search.oninput=()=>{log.scrollTop=0;render();};refreshButton.onclick=()=>refresh();
     const onChange=()=>{if(visible)void refresh();};
     root.addEventListener('fm:project-notes:refreshed',onChange);root.addEventListener('fm:projects:refresh',onChange);
     const poll=setInterval(()=>{if(visible)void refresh();},30000);
     render();void refresh();
-    return {refresh,setVisible(value){visible=!!value;},destroy(){dead=true;clearInterval(poll);root.removeEventListener('fm:project-notes:refreshed',onChange);root.removeEventListener('fm:projects:refresh',onChange);style.remove();shell.remove();}};
+    return {refresh,setVisible(value){visible=!!value;if(!visible)closeFilter();},destroy(){dead=true;menuResize.disconnect();ownerDocument.removeEventListener('pointerdown',outside,true);clearInterval(poll);root.removeEventListener('fm:project-notes:refreshed',onChange);root.removeEventListener('fm:projects:refresh',onChange);style.remove();shell.remove();}};
   }
 
   function mount(shell, options = {}) {
