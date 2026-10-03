@@ -7,6 +7,8 @@
     const token=new URLSearchParams(url.hash.slice(1)).get('collaboration_invite')||url.searchParams.get('collaboration_invite');
     if(token&&/^[A-Za-z0-9_-]{43}$/.test(token)){
       sessionStorage.setItem('fm_collaboration_invite',token);
+      // An anonymous open is not proof of receipt by the invited person.
+      fetch('/v1/collaboration/invitations/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token}),credentials:'omit',keepalive:true}).catch(()=>{});
       url.searchParams.delete('collaboration_invite');url.hash='';
       history.replaceState(history.state,'',url.href);
     }

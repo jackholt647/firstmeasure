@@ -16,7 +16,7 @@ import { registerCollaborationEvents, drainCollaborationEvents } from "./events.
 export const registerCollaborationApi:FastifyPluginAsync=async app=>{
   // Domain audit actors are retained server-side. Cross-org response envelopes
   // must not expose global identity IDs or private organization user references.
-  const privateKeys=new Set(["created_by","accepted_by","responded_by","request_hash","recipient_identity_id"]);
+  const privateKeys=new Set(["created_by","accepted_by","responded_by","request_hash","recipient_identity_id","sealed_link"]);
   const publicEnvelope=(value:any):any=>Array.isArray(value)?value.map(publicEnvelope):value&&typeof value==="object"&&!Buffer.isBuffer(value)?Object.fromEntries(Object.entries(value).filter(([key])=>!privateKeys.has(key)).map(([key,entry])=>[key,publicEnvelope(entry)])):value;
   app.addHook("preSerialization",async(_request,_reply,payload)=>publicEnvelope(payload));
   registerCollaborationEvents();
@@ -108,7 +108,25 @@ export const registerCollaborationApi:FastifyPluginAsync=async app=>{
   app.put(base+"/partners/:id/assignments",async req=>{const ctx=await auth(req,"manage_external_connections",true);return {ok:true,settings:await assignments.saveAssignmentSettings(ctx,(req.params as any).id,req.body)};});
   app.get(base+"/partners",async req=>{const ctx=await auth(req,"view_partners"),p=pageSchema.parse(req.query);return {ok:true,...await service.listRelationships(ctx,p.after,p.limit)};});
   app.patch(base+"/partners/:id",async req=>{const ctx=await auth(req,"manage_external_connections",true);return {ok:true,relationship:await service.updateRelationship(ctx,(req.params as any).id,req.body)};});
-  app.get(base+"/invitations",async req=>{const ctx=await auth(req,"manage_external_connections"),p=pageSchema.parse(req.query);return {ok:true,...await listRecords("invitation",ctx.orgId,"both",p.after,p.limit)};});
+  app.post("/invitations/open",{config:{rateLimit:{max:30,timeWindow:"1 minute"}}},async req=>{
+    const {token}=z.object({token:z.string().regex(/^[A-Za-z0-9_-]{43}$/)}).strict().parse(req.body);
+    await service.recordInvitationOpen(token);return {ok:true};
+  });
+  app.post(base+"/partner-invitations",async(req,reply)=>{
+    const ctx=await auth(req,"manage_external_connections",true);
+    const input=z.object({name:z.string().trim().min(1).max(160),email:z.string().trim().email().max(254).toLowerCase()}).strict().parse(req.body);
+    reply.header('Cache-Control','private, no-store');
+    return {ok:true,...await service.createInvitation(ctx,{label:input.name,email:input.email,relationship:'partner'},true)};
+  });
+  app.get(base+"/invitations/:id/link",async(req,reply)=>{
+    const ctx=await auth(req,"manage_external_connections");reply.header('Cache-Control','private, no-store');
+    return {ok:true,...await service.partnerInvitationLink(ctx,(req.params as any).id)};
+  });
+  app.post(base+"/invitations/:id/send",{config:{rateLimit:{max:10,timeWindow:"1 minute"}}},async req=>{
+    const ctx=await auth(req,"manage_external_connections",true);
+    return {ok:true,...await service.sendPartnerInvitation(ctx,(req.params as any).id)};
+  });
+  app.get(base+"/invitations",async req=>{const ctx=await auth(req,"manage_external_connections"),p=pageSchema.parse(req.query);const page=await listRecords("invitation",ctx.orgId,"outbound",p.after,p.limit);return {ok:true,...page,items:await Promise.all(page.items.map(async item=>({...item,delivery:await service.invitationDelivery(item)})))};});
   app.post(base+"/invitations",async req=>{const ctx=await auth(req,"manage_external_connections",true);return {ok:true,...await service.createInvitation(ctx,req.body)};});
   app.post(base+"/invitations/preview",async req=>{const ctx=await auth(req,"use_external_shares");const {token}=z.object({token:z.string().max(100)}).strict().parse(req.body);return {ok:true,...await service.previewInvitation(ctx,token)};});
   app.post(base+"/invitations/accept",async req=>{const ctx=await auth(req,"use_external_shares",true);const {token}=z.object({token:z.string().max(100)}).strict().parse(req.body);return {ok:true,...await service.acceptInvitation(ctx,token)};});

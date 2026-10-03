@@ -57,6 +57,7 @@ before(async () => {
   process.env.WORK_SCHEDULER_DISABLED = "1";
   process.env.FIRSTMEASURE_JOB_WORKERS = "0";
   process.env.EMAIL_OUTBOUND_DISABLED = "1";
+  process.env.EMAIL_DELIVERY_MODE = "capture";
   process.env.PLATFORM_STORAGE_ROOT = path.join(storageRoot, "platform");
   process.env.CRM_STORAGE_ROOT = path.join(storageRoot, "crm");
   process.env.FIRSTMEASURE_STORAGE_ROOT = path.join(storageRoot, "firstmeasure");
@@ -389,4 +390,36 @@ test("partner assignment eligibility, privacy, isolation and withdrawal",async()
  assert.deepEqual((await a.request("GET",url)).settings.mappings,[]);
 
 
+});
+
+
+test("named partner invitations bind email, recover privately and track opens separately from verified views",async()=>{
+ const a=createSessionClient(),b=createSessionClient();const ao=await registerOwner(a),bo=await registerOwner(b);
+ const ar=`/v1/collaboration/organizations/${ao.orgId}`,br=`/v1/collaboration/organizations/${bo.orgId}`;
+ const {readDocument,readIdentity,patchIdentity}=await import('../platform/storage.js');
+ const user=await readDocument(bo.orgId,'users',bo.ownerUserId),identity=await readIdentity(String(user.data.identity_id));
+ for(const input of [{name:'Acme'},{name:'',email:identity.email},{name:'Acme',email:'bad'},{name:'Acme',email:identity.email,relationship:'client'}])assert.equal((await a.raw('POST',ar+'/partner-invitations',input)).statusCode,400);
+ const created=await a.request('POST',ar+'/partner-invitations',{name:'Acme Roofing',email:identity.email});
+ assert.equal(created.invitation.relationship,'partner');assert.equal(created.invitation.sealed_link,undefined);
+ const id=created.invitation.id;
+ const sent=await a.request('POST',ar+`/invitations/${id}/send`,{});assert.equal(sent.delivery.status,'captured');
+ const retried=await a.request('POST',ar+`/invitations/${id}/send`,{});assert.equal(retried.invitation.email_message_id,sent.invitation.email_message_id);
+ assert.equal((await a.request('GET',ar+`/invitations/${id}/link`)).url,created.url);
+ assert.equal((await b.raw('GET',br+`/invitations/${id}/link`)).statusCode,404);
+ let listed=(await a.request('GET',ar+'/invitations')).items[0];assert.equal(listed.label,'Acme Roofing');assert.equal(listed.sealed_link,undefined);assert.equal(listed.token,undefined);
+ assert.equal((await b.request('GET',br+'/invitations')).items.length,0);
+ assert.equal((await b.raw('POST',br+'/invitations/accept',{token:created.token})).statusCode,403);
+ await b.request('POST',br+'/invitations/preview',{token:created.token});
+ assert.equal((await a.request('GET',ar+'/invitations')).items[0].recipient_viewed_at,undefined);
+ await app.inject({method:'POST',url:'/v1/collaboration/invitations/open',payload:{token:created.token}});
+ listed=(await a.request('GET',ar+'/invitations')).items[0];assert.ok(listed.link_opened_at);assert.equal(listed.recipient_viewed_at,undefined);
+ await patchIdentity(String(identity.id),{metadata:{...identity.metadata as any,email_verified:true}});
+ await b.request('POST',br+'/invitations/preview',{token:created.token});
+ listed=(await a.request('GET',ar+'/invitations')).items[0];assert.ok(listed.recipient_viewed_at);
+ const result=await b.request('POST',br+'/invitations/accept',{token:created.token});assert.ok(result.invitation.accepted_at);assert.equal(result.invitation.sealed_link,undefined);
+ assert.equal((await a.raw('GET',ar+`/invitations/${id}/link`)).statusCode,400);
+ const second=await a.request('POST',ar+'/partner-invitations',{name:'Other',email:identity.email});
+ await a.request('POST',ar+`/invitations/${second.invitation.id}/revoke`,{expected_revision:second.invitation.revision});
+ assert.equal((await a.raw('GET',ar+`/invitations/${second.invitation.id}/link`)).statusCode,400);
+ assert.equal((await b.raw('POST',br+'/invitations/accept',{token:second.token})).statusCode,404);
 });

@@ -1,4 +1,5 @@
-import { createHash, randomBytes } from "node:crypto";
+import { env } from "../src/config/env.js";
+import { createHash, randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
 import { backgroundAuthContext, hasPermission, type PlatformAuthContext } from "../platform/auth.js";
 import { isCapabilityEnabled } from "../platform/capabilities.js";
 import { badRequest, forbidden, notFound } from "../platform/errors.js";
@@ -49,7 +50,7 @@ export async function organizationProfile(orgId:string){
   const p=await privacy(orgId), org=await readOrganization(orgId);
   return {organization_id:orgId,name:p.policy.enabled?String(org.name):"Private organization"};
 }
-export async function createInvitation(ctx:PlatformAuthContext,raw:unknown){
+export async function createInvitation(ctx:PlatformAuthContext,raw:unknown,partnerOnboarding=false){
   ctx=await currentActor(ctx);requirePermission(ctx,"manage_external_connections");
   const input=invitationSchema.parse(raw);
   if(input.grant){
@@ -60,10 +61,62 @@ export async function createInvitation(ctx:PlatformAuthContext,raw:unknown){
   const token=randomBytes(32).toString("base64url");
   return withOrganizationLocks([ctx.orgId],async()=>{
     await requireOpen(ctx.orgId,"send_shares");
-    const invitation=await insertRecord("invitation",{...input,id:newId("invitation"),owner_org_id:ctx.orgId,revision:1,status:"pending",created_by:actor(ctx),created_at:now(),expires_at:new Date(Date.now()+input.expires_in_days*86400000).toISOString()});
+    const invitation=await insertRecord("invitation",{...input,...(partnerOnboarding?{partner_onboarding:true,sealed_link:sealInvitationToken(token)}:{}),id:newId("invitation"),owner_org_id:ctx.orgId,revision:1,status:"pending",created_by:actor(ctx),created_at:now(),expires_at:new Date(Date.now()+input.expires_in_days*86400000).toISOString()});
     await collaborationStore().prepare("INSERT INTO collaboration_tokens(token_hash,invitation_id) VALUES(?,?)").run(digest(token),invitation.id);
     await audit(invitation,"collaboration.invitation.created",actor(ctx));
     return {invitation,token,url:`/portal/#collaboration_invite=${encodeURIComponent(token)}`};
+  });
+}
+// A recoverable link is encrypted at rest and never included in list/accept envelopes.
+// Domain separation keeps this key independent of session signing.
+const invitationKey=()=>createHash("sha256").update("firstmate:partner-invitation:v1:").update(env.platformSessionSecret).digest();
+function sealInvitationToken(token:string){
+  const iv=randomBytes(12),cipher=createCipheriv("aes-256-gcm",invitationKey(),iv);
+  const encrypted=Buffer.concat([cipher.update(token,"utf8"),cipher.final()]);
+  return [iv,cipher.getAuthTag(),encrypted].map(b=>b.toString("base64url")).join(".");
+}
+function unsealInvitationToken(value:string){
+  const [iv,tag,encrypted]=value.split(".").map(v=>Buffer.from(v,"base64url"));
+  if(!iv||!tag||!encrypted)throw badRequest("invitation_link_unavailable","This invitation link is unavailable.");
+  const decipher=createDecipheriv("aes-256-gcm",invitationKey(),iv);decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(encrypted),decipher.final()]).toString("utf8");
+}
+export async function partnerInvitationLink(ctx:PlatformAuthContext,id:string){
+  ctx=await currentActor(ctx);requirePermission(ctx,"manage_external_connections");
+  const inv=await getRecord(id,"invitation");
+  if(inv.owner_org_id!==ctx.orgId||!inv.partner_onboarding)throw notFound("invitation_unavailable","This invitation is unavailable.");
+  await requireOpen(ctx.orgId,"send_shares");
+  if(inv.status!=="pending"||Date.parse(inv.expires_at)<=Date.now())throw badRequest("invitation_inactive","This invitation is no longer active.");
+  const token=unsealInvitationToken(inv.sealed_link);
+  return {invitation:inv,url:`/portal/#collaboration_invite=${token}`};
+}
+export async function invitationDelivery(inv:RecordValue){
+  if(!inv.email_message_id)return null;
+  const {messageDetail}=await import("../messaging/communications_service.js");
+  const message=await messageDetail(inv.owner_org_id,inv.email_message_id,true) as Record<string,any>;
+  return {status:message.developer?.captured?'captured':message.status,sent_at:message.sent_at,delivered_at:message.delivered_at,failed_at:message.failed_at};
+}
+export async function sendPartnerInvitation(ctx:PlatformAuthContext,id:string){
+  ctx=await currentActor(ctx);
+  if(!['manage_projects','manage_sales','send_communications','manage_company_settings'].some(p=>ctx.permissions?.[p]!==false&&hasPermission(ctx,p)))throw forbidden('communications_permission_denied','You do not have permission to send email.');
+  // The durable communications idempotency key makes retries safe after a lost response.
+  const result=await partnerInvitationLink(ctx,id);
+  const {sendCommunication}=await import("../messaging/communications_service.js");
+  const {sendCommunicationSchema}=await import("../messaging/schemas.js");
+  const profile=await organizationProfile(ctx.orgId),url=new URL(result.url,env.publicBaseUrl).href;
+  const sent=await sendCommunication(ctx.orgId,sendCommunicationSchema.parse({channel:'email',recipients:[{address:result.invitation.email,name:result.invitation.label}],content:{subject:`Connect with ${profile.name} on FirstMate`,text:`Hello ${result.invitation.label},\n\n${profile.name} invited your organization to work together on FirstMate. Sign in or sign up with ${result.invitation.email} to accept.\n\n${url}\n\nThis invitation expires ${result.invitation.expires_at}.`},context:{collaboration_invitation_id:id},idempotency_key:`partner-invitation:${id}`}),ctx);
+  return withOrganizationLocks([ctx.orgId],async()=>{
+    const current=await getRecord(id,'invitation');
+    const saved=current.email_message_id?current:await updateRecord(current,{email_message_id:sent.message.id},current.revision);
+    return {invitation:saved,delivery:await invitationDelivery(saved)};
+  });
+}
+export async function recordInvitationOpen(token:string){
+  let initial;try{initial=await invitationByToken(token);}catch{return;}
+  if(!initial.partner_onboarding||initial.link_opened_at||initial.status!=='pending')return;
+  await withOrganizationLocks([initial.owner_org_id],async()=>{
+    const current=await invitationByToken(token);
+    if(!current.link_opened_at&&current.status==='pending')await updateRecord(current,{link_opened_at:now()},current.revision);
   });
 }
 async function invitationByToken(token:string){
@@ -77,6 +130,13 @@ async function invitationByToken(token:string){
 export async function previewInvitation(ctx:PlatformAuthContext,token:string){
   const invitation=await invitationByToken(token);
   await requireOpen(invitation.owner_org_id,"send_shares");
+  const metadata=ctx.identity.metadata as Record<string,any>||{};
+  if(invitation.partner_onboarding&&!invitation.recipient_viewed_at&&invitation.owner_org_id!==ctx.orgId&&invitation.email===String(ctx.identity.email).toLowerCase()&&(metadata.email_verified===true||metadata.signup_email_verification?.verified===true)){
+    await withOrganizationLocks([invitation.owner_org_id],async()=>{
+      const current=await invitationByToken(token);
+      if(!current.recipient_viewed_at)await updateRecord(current,{recipient_viewed_at:now()},current.revision);
+    });
+  }
   return {id:invitation.id,kind:invitation.kind,label:invitation.label,relationship:invitation.relationship,
     inviter:await organizationProfile(invitation.owner_org_id),expires_at:invitation.expires_at,
     recipient_kind:invitation.recipient_kind||"organization",email_required:!!invitation.email,email_matches:!invitation.email||invitation.email===String(ctx.identity.email).toLowerCase(),
@@ -100,7 +160,7 @@ export async function acceptInvitation(ctx:PlatformAuthContext,token:string){
     }
     if(inv.status==="claimed")return {invitation:inv,connection:null};
     // Untargeted links request owner approval. Possession alone never grants project access.
-    const claimed=await updateRecord(inv,{recipient_org_id:ctx.orgId,accepted_by:actor(ctx),status:inv.email?"accepted":"claimed"},inv.revision);
+    const claimed=await updateRecord(inv,{recipient_org_id:ctx.orgId,accepted_by:actor(ctx),accepted_at:inv.email?now():null,status:inv.email?"accepted":"claimed"},inv.revision);
     if(!inv.email){await audit(claimed,"collaboration.connection.requested",actor(ctx));return {invitation:claimed,connection:null};}
     return finalizeInvitation(ctx,claimed);
   });

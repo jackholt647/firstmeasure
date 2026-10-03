@@ -458,6 +458,11 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
   }
   if (env.dataEnvironment === 'development' && workflowId === 'swf_instant_full_org') {
     await (await import('../appointments/defaults.js')).seedInstantFullAppointmentCatalog(String(organization.id));
+    const {readBranchModule,saveBranchModule}=await import('../platform/storage.js');
+    let mapping:JsonObject={};
+    try{mapping=asObject((await readBranchModule(String(organization.id),'default','variable_mappings')).data);}catch(error:any){if(error.statusCode!==404&&error.code!=='ENOENT')throw error;}
+    const labels=asObject(mapping.labels);
+    await saveBranchModule(String(organization.id),'default','variable_mappings',{data:{...mapping,labels:{...labels,partners:{...asObject(labels.partners),partner:'Subcontractor',partners:'Subcontractors'}}}});
   }
   const identity = await createIdentity({
     email,
