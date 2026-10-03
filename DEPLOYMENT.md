@@ -1,5 +1,8 @@
 # FirstMeasure: local development and production deployment
 
+October 3 project widgets: [Reusable full-height trays and Activity timeline](deploy/digitalocean/development-project-activity-widgets-20261003.md) records the global widget registration, compact Activity redesign, checks and verified development rollout.
+
+
 October 3 appointment booking: [Searchable project selection and standalone appointments](deploy/digitalocean/development-appointment-booking-followup-20261003.md) records optional project assignment, the reusable selector and verified development rollout.
 
 October 2 appointment booking: [Global availability widget and development rollout](deploy/digitalocean/development-appointment-booking-20261002.md) records the shared public/staff picker, assistant entry point and verified deployment.
