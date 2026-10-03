@@ -1,5 +1,8 @@
 # FirstMeasure: local development and production deployment
 
+October 3 appointment planning: [Presets, departments and project booking](deploy/digitalocean/development-appointment-presets-20261003.md) records the configurable availability engine and verified development rollout.
+
+
 October 3 phone defaults: [Automatic mock onboarding for Instant Full Org](deploy/digitalocean/development-phone-defaults-20261003.md) records enabled development phones, retained SMS capture, recipient restrictions and hosted verification.
 
 October 3 project widgets: [Reusable full-height trays and Activity timeline](deploy/digitalocean/development-project-activity-widgets-20261003.md) records the global widget registration, compact Activity redesign, checks and verified development rollout.
