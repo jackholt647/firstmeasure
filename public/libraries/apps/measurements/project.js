@@ -3819,16 +3819,7 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function reportHeaderTabs(projectTabs, reportTabs, ordered){
-    const ids = projectTabs.map(tab => tab.id);
-    if (!ordered || !ids.includes('map') || !ids.includes('measurements') || ids.some(id => !['map','measurements','photos'].includes(id))) return null;
-    // The compact report header exposes the three report views; XML remains in Summary.
-    // Optional report products and support tools keep their nested navigation.
-    if (reportTabs.some(tab => !['customer','standard','summary','model','xml'].includes(tab.id)) || !['customer','standard','summary'].every(id => reportTabs.some(tab => tab.id === id))) return null;
-    return [
-      ...['customer','standard','summary'].map(id => ({...reportTabs.find(tab => tab.id === id),icon:{customer:'fa-file-lines',standard:'fa-file-pdf',summary:'fa-clipboard-list'}[id]})),
-      {...projectTabs.find(tab => tab.id === 'map'),id:'project:map',label:'Map',icon:'fa-map-location-dot'},
-      ...projectTabs.filter(tab => tab.id === 'photos').map(tab => ({...tab,id:'project:photos'}))
-    ];
+    return window.Portal.ProjectViewer.reportHeaderTabs(projectTabs, reportTabs, ordered);
   }
 
   function renderReportNavigation(){
@@ -3841,6 +3832,7 @@ window.PlatformCommerce.onReady(function(){
     const context = callHost('reportNavigationContext') || {};
     const reports = measurementTabs();
     const flat = reportHeaderTabs(context.tabs || [], reports, context.ordered);
+    header.querySelector('#rOpeningReportTabs')?.remove();
     const merged = !!flat || !!header.querySelector('#rProjectViewerTabs.single-tab');
     if (merged) header.insertBefore(tabsEl, header.querySelector('.modal-shell-actions'));
     else root.insertBefore(tabsEl, root.firstChild);

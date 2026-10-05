@@ -2,7 +2,7 @@
  * Staged request workflow with optional roof-report ordering.
  */
 (function(){
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261005-order-resume-v1', document.currentScript.src);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261005-report-opening-v1', document.currentScript.src);
   const layoutUrl = new URL('../../window-manager/project-layout.js?v=20261005-mobile-map-v1', document.currentScript.src);
   const shellUrl = new URL('../../window-manager/window-shell.js?v=20261005-mobile-chrome-v1', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
@@ -976,10 +976,10 @@ window.PlatformCommerce.onReady(async function(){
     .r-measure-tab.pending{color:#7b8794}
     .r-measure-tab:disabled{cursor:default}
     .r-overlay.flat-report-navigation #rProjectViewerTabs{display:none!important}
-    .r-overlay.flat-report-navigation .r-modal-header #rMeasureTabs{display:grid!important;grid-row:2;grid-column:1 / -1;width:100%;height:32px!important;min-height:32px;padding:0;gap:0;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);background:#fff;overflow:hidden}
-    .r-overlay.flat-report-navigation .r-modal-header #rMeasureTabs .r-measure-tab{display:flex;justify-content:center;align-items:center;width:100%;min-width:0;height:32px;min-height:32px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--muted,#667085)}
-    .r-overlay.flat-report-navigation .r-modal-header #rMeasureTabs .r-measure-tab.active{color:var(--primary-readable,var(--primary));box-shadow:inset 0 -3px 0 var(--primary)}
-    .r-overlay.flat-report-navigation .r-modal-header #rMeasureTabs .r-measure-tab i{font-size:17px}
+    .r-overlay.flat-report-navigation .r-modal-header :is(#rMeasureTabs,#rOpeningReportTabs){display:grid!important;grid-row:2;grid-column:1 / -1;width:100%;height:32px!important;min-height:32px;padding:0;gap:0;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);background:#fff;overflow:hidden}
+    .r-overlay.flat-report-navigation .r-modal-header :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab{display:flex;justify-content:center;align-items:center;width:100%;min-width:0;height:32px;min-height:32px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--muted,#667085)}
+    .r-overlay.flat-report-navigation .r-modal-header :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab.active{color:var(--primary-readable,var(--primary));box-shadow:inset 0 -3px 0 var(--primary)}
+    .r-overlay.flat-report-navigation .r-modal-header :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab i{font-size:17px}
     .r-overlay.flat-report-navigation .r-measure-body{inset:0}
 
     .r-measure-body{position:absolute;inset:46px 0 0;background:#eef2f6}
@@ -7653,6 +7653,34 @@ window.PlatformCommerce.onReady(async function(){
     return tabs;
   }
 
+  function openingProjectTabs(project, options = {}){
+    if (!project && normalizeWorkflow(options.workflow || options.createWorkflow || options.intent)!=='project') return [];
+    const tabs=projectViewerTabs({opening:true,project});
+    const measurement=project?.measurement_project || project?.measurement || {};
+    const manifest=project?.manifest || measurement.raw?.manifest || {};
+    const rows=[project || {},measurement,measurement.raw || {},manifest];
+    const ordered=rows.some(row=>row.has_report || row.report_url || row.pdf_url || row.summary_url || row.xml_url || ['measurement_ordered','submitted','processing','in_progress','completed','complete','queued'].includes(String(row.workflow_state || row.status || '').toLowerCase())) || !!(project?.measurement_project_id || project?.firstmeasure_project_id || measurement.id || measurement.project_id);
+    if(!ordered || weatherReportsEnabled() || reportFollowupEnabled() || !appFeatureEnabled('firstmeasure','measurement_report_summary',false) || rows.some(row=>row.include_inspection || row.include_instant || row.include_instant_preview || row.report_mode === 'both'))return tabs;
+    const reportTabs=[{id:'summary',label:'Summary'},{id:'standard',label:window.Portal?.terminology?.get?.('reports.standard_view','Standard Report') || 'Standard Report'},{id:'customer',label:window.Portal?.terminology?.get?.('reports.customer_view','Customer Report') || 'Customer Report'}];
+    return window.Portal.ProjectViewer.reportHeaderTabs(tabs,reportTabs,true) || tabs;
+  }
+
+  function renderOpeningReportTabs(){
+    const header=$('#rOverlay .r-modal-header');
+    if(!header || header.querySelector('#rMeasureTabs'))return;
+    const tabs=openingProjectTabs(activeBaseProject,{workflow:requestedWorkflow});
+    if(!tabs.some(tab=>tab.id==='project:map')){header.querySelector('#rOpeningReportTabs')?.remove();return;}
+    let nav=header.querySelector('#rOpeningReportTabs');
+    if(!nav){nav=document.createElement('nav');nav.id='rOpeningReportTabs';nav.className='r-measure-tabs';header.append(nav);}
+    $('#rOverlay')?.classList.add('flat-report-navigation','report-tabs-in-header');
+    const reportView=window.Portal?.navigation?.read?.().reportView || 'standard';
+    const selected=activePreviewTab==='measurements' ? reportView : 'project:'+activePreviewTab;
+    window.Portal.ProjectViewer.renderTabs(nav,tabs.map(tab=>({...tab,active:tab.id===selected})),{tabClass:'r-measure-tab',iconOnly:true,onTabClick:tab=>{
+      if(tab.id.startsWith('project:'))setActivePreviewTab(tab.id.slice(8),{history:'push'});
+      else {setActivePreviewTab('measurements',{history:'push'});setActiveMeasurementTab(tab.id);}
+    }});
+  }
+
   function syncProjectViewerTabs(){
     ensureProjectModalAppPanels();
     const tabs = projectViewerTabs();
@@ -7691,6 +7719,7 @@ window.PlatformCommerce.onReady(async function(){
       if (mobileTabIcon) mobileTabIcon.hidden = true;
     }
     applyProjectModalPresentation();
+    renderOpeningReportTabs();
     projectMeasurementsModule()?.renderReportNavigation?.();
   }
 
@@ -11834,7 +11863,7 @@ window.PlatformCommerce.onReady(async function(){
   window.Portal.modules.request = { retainedProjectWindows:true, orderSession, open, openProject, openDocumentDraft, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors,
     projectDisplayTitle, formatProjectContactNames, openingHeader:openingProjectHeader, headerState:projectHeaderState,
     prepareHeader:()=>Promise.all([loadBranchProjectConfig(),loadProjectTagBoards()]),
-    openingTabs:(project,options={})=>(project || normalizeWorkflow(options.workflow || options.createWorkflow || options.intent)==='project') ? projectViewerTabs({opening:true,project}) : []
+    openingTabs:openingProjectTabs
   };
   window.Portal?.navigation?.registerSchema?.('projectFullscreen', { history:'replace', scope:{ project:true } });
   window.Portal?.navigation?.registerSchema?.('projectNote', { history:'replace', scope:{ project:true } });

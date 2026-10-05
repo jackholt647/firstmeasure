@@ -292,7 +292,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261002-agent-persistence-v1'), versionedBundle('project-request/app.js', '20261002-agent-persistence-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261005-report-opening-v1'), versionedBundle('project-request/app.js', '20261005-report-opening-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -358,7 +358,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-key-vertical'), versionedBundle('measurements/project.js', '20261002-widget-controls')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-key-vertical'), versionedBundle('measurements/project.js', '20261005-report-opening-v1')]
     },
     {
       id: 'project.checklists',

@@ -48,6 +48,11 @@
       .fm-project-window-loading .fm-window-controls button:hover{background:#66708520}
       .fm-project-window-loading .fm-window-controls button[data-window-action=close]:hover{background:#d92d20;color:#fff}
       .fm-project-window-loading .r-project-identity-trigger{height:auto;border:0;background:none;padding:4px 0;color:inherit;font:inherit}.fm-project-window-loading .r-project-tag{height:auto;font-family:inherit;border-radius:999px;font-size:10.5px;font-weight:1000;line-height:1;min-height:25px;padding:4px 9px;gap:5px}.fm-project-window-loading .r-project-tag.property-type{padding:0;gap:0}.fm-project-window-loading .r-property-type-trigger{height:25px;border:0;background:transparent;color:inherit;padding:4px 8px;border-radius:0;font:inherit;font-weight:1000;line-height:1;gap:6px;display:flex}.fm-project-window-loading .r-project-tag i{color:inherit}\n      .fm-project-window-loading .fm-shell-tabs button{display:flex;align-items:center;gap:6px}
+      .fm-project-loading-header[data-window-mobile=true] .r-project-stage-bar{display:none!important}
+      .fm-project-loading-header[data-window-mobile=true] .r-window-project-title{font-size:18px}
+      .fm-project-loading-header.flat-report-navigation .fm-shell-tabs{display:grid!important;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);grid-column:1 / -1!important;width:100%}
+      .fm-project-loading-header.flat-report-navigation .fm-shell-tabs button{justify-content:center;min-width:0;width:100%;padding:0!important;font-size:17px}
+      .fm-project-loading-header.flat-report-navigation .fm-project-tray-tabs{display:none}
       .fm-project-window-loading [role=status]{position:absolute;inset:69px 0 0;display:flex;align-items:center;justify-content:center;gap:10px;color:#667085;font-size:13px}
       .fm-project-window-loading [role=status]:before{content:"";width:16px;height:16px;border:2px solid #d0d5dd;border-top-color:var(--primary,#d93025);border-radius:50%;animation:fm-project-window-spin .8s linear infinite}
       .fm-project-window-loading.failed [role=status]:before{display:none}
@@ -180,7 +185,7 @@
     const element = document.createElement('section');element.className='fm-project-frame';element.hidden=false;
     const frame = document.createElement('iframe');frame.name='fm-project-window:'+token;frame.style.visibility='hidden';frame.setAttribute('aria-label',String(project?.title || project?.address || 'Project workspace'));frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');
     const loading = document.createElement('div');loading.className='fm-project-window-loading fm-entity-window';
-    const header=document.createElement('header');header.className='fm-project-loading-header fm-shell-header';header.dataset.headerRows='2';
+    const header=document.createElement('header');header.className='fm-project-loading-header fm-shell-header';header.dataset.headerRows='2';header.dataset.windowMobile=String(root.matchMedia('(max-width:760px)').matches);
     const identityNode=document.createElement('div');identityNode.className='r-window-identity fm-shell-identity';identityNode.innerHTML='<i class="fas fa-folder-open" aria-hidden="true"></i>';
     const title=document.createElement('span');title.className='fm-project-loading-title r-window-project-title';
     title.textContent=String(project?.title || project?.project_title || project?.address || (projectId ? 'Project' : 'New Project'));
@@ -214,21 +219,31 @@
         record.ready.then(()=>record.frame.contentDocument?.querySelector(selector)?.click()).catch(()=>{});
       }));
       record.frame.setAttribute('aria-label',metadata.title);
+      paintTabs();
     };
     identityTrigger.onclick=()=>record.ready.then(()=>record.frame.contentDocument?.querySelector('#rProjectIdentityTrigger')?.click()).catch(()=>{});
     overview.onclick=()=>selectOpeningTab('map');
-    // The parent already has the app catalog and access snapshot. Reading
-    // descriptors does not mount apps or wait for the child portal's boot.
-    try{
-      for(const tab of root.Portal?.modules?.request?.openingTabs?.(project,options) || []){
-        if(!tab.id || tab.id==='map')continue;
-        const button=document.createElement('button');button.type='button';button.dataset.tab=tab.id;button.disabled=!!tab.disabled;
-        button.setAttribute('aria-selected',String(tab.id===options.tab));
-        if(tab.icon){const icon=document.createElement('i');icon.className='fas '+tab.icon;icon.setAttribute('aria-hidden','true');button.append(icon);}
-        const label=document.createElement('span');label.textContent=tab.label || tab.id;button.append(label);
-        button.onclick=()=>selectOpeningTab(tab.id);tabs.append(button);
-      }
-    }catch(error){console.warn('Project opening tabs unavailable',error);}
+    function paintTabs(){
+      if(record.shellVisible)return;
+      try{
+        const items=root.Portal?.modules?.request?.openingTabs?.(record.project,record.options) || [];
+        if(!items.length)return;
+        const flat=items.some(tab=>tab.id==='project:map');
+        header.classList.toggle('flat-report-navigation',flat);
+        const selected=flat ? (record.options.tab && record.options.tab!=='measurements' ? 'project:'+record.options.tab : record.options.reportView || 'standard') : record.options.tab || 'map';
+        root.Portal.ProjectViewer.renderTabs(tabs,items.map(tab=>({...tab,active:tab.id===selected})),{tabClass:'fm-opening-tab',iconOnly:flat,onTabClick:tab=>{
+          const projectTab=tab.id.startsWith('project:') ? tab.id.slice(8) : flat ? 'measurements' : tab.id;
+          selectOpeningTab(projectTab);
+          if(flat && projectTab==='measurements'){
+            record.options.reportView=tab.id;
+            record.ready.then(()=>record.frame.contentDocument?.querySelector('#rMeasureTabs [data-tab="'+tab.id+'"]')?.click()).catch(()=>{});
+          }
+          paintTabs();
+        }});
+        tabs.querySelectorAll('[data-tab]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.tab===selected)));
+      }catch(error){console.warn('Project opening tabs unavailable',error);}
+    }
+    paintTabs();
     record.openingTabIds=[...tabs.querySelectorAll('[data-tab]')].map(button=>button.dataset.tab);
     record.ready = new Promise((resolve,reject)=>{record.resolveReady=resolve;record.rejectReady=reject;});
     record.ready.catch(()=>{});
@@ -246,7 +261,7 @@
       }).catch(()=>null)};
     }
     element.append(frame,loading);layer.append(element);host().append(layer);clearRoutePrecover();
-    root.FirstMateWindowShell?.revealTabs?.(tabs);
+    if(!header.classList.contains('flat-report-navigation'))root.FirstMateWindowShell?.revealTabs?.(tabs);
     attach(token,frame.contentWindow,{
       header,title,controlsHost:controls,customChrome:true,presentationModes:true,mobileFullscreen:true,allowFullscreen:false,viewportCoordinates:true,
       name:'project',label:'Project',mode:'modal',width:1200,height:800,dockWidth:900,minWidth:360,minimizedHeight:32

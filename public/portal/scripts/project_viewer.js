@@ -52,7 +52,7 @@
     }
 
     render(){
-      const renderKey=JSON.stringify([this.tabs.map(tab=>[tab.id,tab.label,tab.icon,tab.className,tab.buttonId,tab.domId,tab.idAttr,tab.badge,tab.pending,tab.disabled]),this.activeTab,this.iconOnly,this.tabClass,this.activeClass,this.pendingClass]);
+      const renderKey=JSON.stringify([this.tabs.map(tab=>[tab.id,tab.label,tab.icon,tab.iconBadge,tab.className,tab.buttonId,tab.domId,tab.idAttr,tab.badge,tab.pending,tab.disabled]),this.activeTab,this.iconOnly,this.tabClass,this.activeClass,this.pendingClass]);
       // Repeated shell/hydration updates with identical tabs must retain focus
       // and any entrance animation rather than replacing all the buttons.
       if(this.tabRenderKey!==renderKey){
@@ -76,6 +76,17 @@
       });
     }
 
+    static reportHeaderTabs(projectTabs, reportTabs, ordered){
+      const ids=projectTabs.map(tab=>tab.id);
+      if(!ordered || !ids.includes('map') || !ids.includes('measurements') || ids.some(id=>!['map','measurements','photos'].includes(id)))return null;
+      if(reportTabs.some(tab=>!['customer','standard','summary','model','xml'].includes(tab.id)) || !['customer','standard','summary'].every(id=>reportTabs.some(tab=>tab.id===id)))return null;
+      return [
+        {...projectTabs.find(tab=>tab.id==='map'),id:'project:map',label:'Map',icon:'fa-map-location-dot'},
+        ...['summary','standard','customer'].map(id=>({...reportTabs.find(tab=>tab.id===id),icon:id==='summary'?'fa-list-ul':'fa-file-pdf',iconBadge:id==='customer'?'fa-user':''})),
+        ...projectTabs.filter(tab=>tab.id==='photos').map(tab=>({...tab,id:'project:photos'}))
+      ];
+    }
+
     static renderTabs(tabsEl, tabs, options = {}){
       if (!tabsEl) return;
       const tabClass = options.tabClass || 'pv-tab';
@@ -97,7 +108,7 @@
         const buttonId = tab.buttonId || tab.domId || tab.idAttr || '';
         const idAttr = buttonId ? ` id="${escapeHtml(buttonId)}"` : '';
         const disabledAttr = tab.disabled ? ' disabled' : '';
-        const iconHtml = tab.icon ? `<i class="fas ${escapeHtml(tab.icon)}"></i> ` : '';
+        const iconHtml = tab.icon ? `<span class="pv-tab-icon" style="position:relative;display:inline-flex" aria-hidden="true"><i class="fas ${escapeHtml(tab.icon)}"></i>${tab.iconBadge ? `<i class="fas ${escapeHtml(tab.iconBadge)} pv-tab-icon-badge" style="position:absolute;top:-6px;right:-7px;font-size:9px;line-height:12px;width:12px;height:12px;text-align:center;background:#fff;border-radius:50%"></i>` : ''}</span> ` : '';
         const label = tab.label || tab.id;
         const badgeHtml = tab.badge ? `<span class="pv-tab-badge">${escapeHtml(tab.badge)}</span>` : '';
         const labelHtml = (iconOnly && tab.icon && !tab.badge ? '' : `<span class="pv-tab-label">${escapeHtml(label)}</span>`) + badgeHtml;

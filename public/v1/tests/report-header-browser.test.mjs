@@ -36,8 +36,46 @@ test('report header uses four or five equal tabs and retains selection across pr
  assert.equal(await page.locator('#rMeasureTabs .active').getAttribute('data-tab'),'summary');
  await page.evaluate(()=>{context.tabs=context.tabs.filter(t=>t.id!=='docs');context.ordered=false;renderReportNavigation();});
  assert.equal(await page.locator('.flat-report-navigation').count(),0);
- assert.deepEqual(await page.evaluate(()=>reportHeaderTabs([{id:'map'},{id:'measurements'}],[...measurementTabs(),{id:'model'},{id:'xml'}],true).map(t=>t.id)),['customer','standard','summary','project:map']);
+ assert.deepEqual(await page.evaluate(()=>reportHeaderTabs([{id:'map'},{id:'measurements'}],[...measurementTabs(),{id:'model'},{id:'xml'}],true).map(t=>t.id)),['project:map','summary','standard','customer']);
  assert.equal(await page.evaluate(()=>reportHeaderTabs([{id:'map'},{id:'measurements'}],[...measurementTabs(),{id:'weather'}],true)),null);
  await page.close();
  }}finally{await browser.close();}
+});
+
+
+test('mobile opening header has final tabs and no desktop pills before child boot',async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ try{
+ const page=await browser.newPage({viewport:{width:414,height:850}});
+ await page.route('https://shell.test/**',route=>route.fulfill({contentType:'text/html',body:'<main class="main"></main>'}));
+ await page.goto('https://shell.test/');
+ await page.evaluate(()=>{window.Portal={modules:{request:{openingHeader:()=>({title:'Test roof',identityHtml:'Test roof',pillsHtml:'<button>Residential</button>'})}}};});
+ await page.addScriptTag({content:await load('public/portal/scripts/project_viewer.js')});
+ const start=shell.indexOf('  function openingProjectTabs(');
+ await page.evaluate(()=>{window.projectViewerTabs=()=>[{id:'map'},{id:'measurements'}];window.weatherReportsEnabled=()=>false;window.reportFollowupEnabled=()=>false;window.appFeatureEnabled=()=>true;});
+ await page.addScriptTag({content:shell.slice(start,shell.indexOf('\n  }',start)+4)+'\nPortal.modules.request.openingTabs=openingProjectTabs;'});
+ for(const file of ['window-manager.js','window-shell.js','project-windows.js'])await page.addScriptTag({content:await load('public/libraries/window-manager/'+file)});
+ const initial=await page.evaluate(()=>{
+  window.record=FirstMateProjectWindows.open({id:'project_test',status:'processing'},{tab:'measurements'});
+  const h=document.querySelector('.fm-project-loading-header');
+  return {mobile:h.dataset.windowMobile,tabs:[...h.querySelectorAll('[data-tab]')].map(e=>e.dataset.tab),pills:getComputedStyle(h.querySelector('.r-project-stage-bar')).display};
+ });
+ assert.equal(initial.mobile,'true');assert.equal(initial.pills,'none');assert.deepEqual(initial.tabs,['project:map','summary','standard','customer']);
+ assert.equal(await page.locator('.fm-project-loading-header .fa-file-pdf').count(),2);
+ assert.equal(await page.locator('.fm-project-loading-header [data-tab=customer] .fa-user').count(),1);
+ const sizes=await page.locator('.fm-project-loading-header [data-tab]').evaluateAll(nodes=>nodes.map(e=>e.getBoundingClientRect()));
+ assert.ok(sizes.every(r=>Math.abs(r.width-sizes[0].width)<1&&r.height===32));
+ assert.equal(await page.locator('.fm-project-loading-header [data-window-action=close]').isVisible(),true);
+ assert.equal(await page.locator('.fm-project-loading-header [data-window-action=minimize]').isVisible(),false);
+ await page.evaluate(()=>FirstMateProjectWindows.close(record.token));
+ await page.evaluate(()=>{
+  document.body.innerHTML='<div id="rOverlay"><header class="r-modal-header"><nav id="rProjectViewerTabs"></nav></header></div>';
+  window.$=selector=>document.querySelector(selector);window.activeBaseProject={id:'project_test',status:'processing'};window.activePreviewTab='measurements';window.requestedWorkflow='project';
+ });
+ const renderStart=shell.indexOf('  function renderOpeningReportTabs(');
+ await page.addScriptTag({content:shell.slice(renderStart,shell.indexOf('\n  }',renderStart)+4)+'\nrenderOpeningReportTabs();'});
+ assert.deepEqual(await page.locator('#rOpeningReportTabs [data-tab]').evaluateAll(nodes=>nodes.map(e=>e.dataset.tab)),initial.tabs);
+ assert.equal(await page.locator('#rOpeningReportTabs .active').getAttribute('data-tab'),'standard');
+
+ }finally{await browser.close();}
 });
