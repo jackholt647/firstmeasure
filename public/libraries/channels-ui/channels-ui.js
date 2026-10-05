@@ -1910,7 +1910,12 @@
         const channels = state.channels.filter(channel => !hiddenChannelIds().has(channel.id) && group.filter(channel) && (!channelSharing || channelSharing.matches(channel)));
         if (!channels.length && !group.add && group.key !== 'channels') continue;
         const collapsed = state.collapsedGroups.has(group.key);
-        const unreadCount = channels.reduce((sum, channel) => sum + Number(channel.unread?.unread_count || 0), 0);
+        // Channels keeps the overall channel count when conversations are moved
+        // into Starred or custom sections. Hidden conversations stay excluded.
+        const unreadChannels = group.key === 'channels'
+          ? state.channels.filter(channel => !hiddenChannelIds().has(channel.id) && (channel.type === 'public' || channel.type === 'private') && (!channelSharing || channelSharing.matches(channel)))
+          : channels;
+        const unreadCount = unreadChannels.reduce((sum, channel) => sum + Math.max(0, Math.floor(Number(channel.unread?.unread_count) || 0)), 0);
         const section = el('div', `fm-ch-side-section${collapsed ? ' collapsed' : ''}`);
         const head = el('div', 'fm-ch-side-head');
         const title = el('span', 'fm-ch-side-title', `${group.icon ? `<i class="fas ${group.icon}" aria-hidden="true"></i> ` : ''}${esc(group.title)}`);
@@ -1928,7 +1933,11 @@
         };
         head.addEventListener('click', toggleGroup);
         head.appendChild(title);
-        if (unreadCount) head.appendChild(el('span', 'fm-ch-group-badge', unreadCount));
+        if (unreadCount) {
+          const badge = el('span', 'fm-ch-group-badge', unreadCount);
+          badge.setAttribute('aria-label', `${unreadCount} unread ${unreadCount === 1 ? 'message' : 'messages'} in ${group.title}`);
+          head.appendChild(badge);
+        }
         if (group.add) {
           const addBtn = el('button', 'fm-ch-side-add', '+');
           addBtn.title = group.key === 'dms' ? 'New direct message' : 'Create a channel';
