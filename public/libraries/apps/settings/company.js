@@ -1686,7 +1686,7 @@
     `;
   }
   const DEFAULT_VISIBLE_APP_FLAGS = {
-    apps: ['firstmeasure', 'notifications'],
+    apps: ['firstmeasure'],
     mobile: [],
     platform: [],
     scheduling: ['routing', 'gantt'],
@@ -2162,7 +2162,8 @@
     let firstMeasureUsersController = null;
     panel.__firstMeasureUsers?.destroy?.();
     delete panel.__firstMeasureUsers;
-    const canMySettings = true;
+    const canLeftColumnSettings = appFlag('platform', 'left_column_settings');
+    const canMessageTranslation = appFlag('apps', 'channels');
     const canCompany = hasPerm('manage_company_settings');
     const extendedPalette = appFlag('platform', 'company_extended_palette');
     const companyBusinessAddress = appFlag('platform', 'company_business_address');
@@ -2201,7 +2202,8 @@
     const canStorage = canCompany && storageLimitsEnabled();
     const canSmsSettings = canCompany && (appFlag('platform', 'sms_settings') || window.FirstMatePlatformBilling?.configured('platform', 'sms_settings'));
     const canDomains = canCompany && appFlag('apps', 'web_editor') && appFlag('web_editor', 'custom_domains');
-    const canAssistant = (appFlag('apps', 'assistant') || window.FirstMatePlatformBilling?.configured('apps', 'assistant')) && (canCompany || hasPerm('use_assistant') || hasPerm('view_projects') || hasPerm('manage_projects'));
+    const canAssistant = appFlag('apps', 'assistant') && (canCompany || hasPerm('use_assistant') || hasPerm('view_projects') || hasPerm('manage_projects'));
+    const canMySettings = appFlag('platform', 'my_settings') || appFlag('firstmeasure', 'report_localization') || canLeftColumnSettings || canMessageTranslation || canAssistant;
     const canAppFlags = canCompany && window.Portal?.appFlags?.current?.()?.test_admin === true;
     const canPlatformBilling = window.FirstMatePlatformBilling?.isEnabled({definitions:appFlagDefinitions(),has:appFlag}) === true && (hasPerm('view_platform_billing') || hasPerm('manage_platform_billing') || canAppFlags);
     let floatingMenu = null;
@@ -2217,7 +2219,7 @@
       { id:'money', allowed:canPayments, icon:'fas fa-wallet', title:(globalThis.PlatformLanguage?.text("settings","m_05cb9dd7e5a780","Money") ?? "Money"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_764ee227ff8bd4","Accounts, payment defaults, and disputes.") ?? "Accounts, payment defaults, and disputes."), tabId:'csTabMoney', paneId:'csPaneMoney' },
       { id:'calls', allowed:canCallWorkflows, icon:'fas fa-phone', title:(globalThis.PlatformLanguage?.text("settings","m_e830f5588df87c","Calls") ?? "Calls"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_cb8b711a9efc4a","Configure call queues, assignments, follow-ups, and outcomes.") ?? "Configure call queues, assignments, follow-ups, and outcomes."), tabId:'csTabCalls', paneId:'csPaneCalls' },
       { id:'contacts', allowed:canContacts, icon:'fas fa-address-book', term:'contacts.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_6fe082da60f3b0","Contacts") ?? "Contacts"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3b1e71af416b42","Import contacts and review prior imports.") ?? "Import contacts and review prior imports."), tabId:'csTabContacts', paneId:'csPaneContacts' },
-      { id:'connections', allowed:canCompany, icon:'fas fa-plug', title:'Connections', subtitle:'Connect external tools, publish data, and automate workflows.', tabId:'csTabConnections', paneId:'csPaneConnections' },
+      { id:'connections', allowed:canCompany && appFlag('platform', 'connections'), icon:'fas fa-plug', title:'Connections', subtitle:'Connect external tools, publish data, and automate workflows.', tabId:'csTabConnections', paneId:'csPaneConnections' },
       { id:'feedback', allowed:canFeedback, icon:'fas fa-star', term:'settings.feedback_tab', title:(globalThis.PlatformLanguage?.text("settings","m_d77e00c8c3f0b8","Feedback") ?? "Feedback"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_0b7fe3900fd0b1","Configure customer feedback and review responses.") ?? "Configure customer feedback and review responses."), tabId:'csTabFeedback', paneId:'csPaneFeedback' },
       { id:'equipment', allowed:canEquipment, icon:'fas fa-truck-pickup', term:'equipment.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_2813f320a63b94","Equipment") ?? "Equipment"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_d081ea6e554702","Configure equipment types and operating defaults.") ?? "Configure equipment types and operating defaults."), tabId:'csTabEquipment', paneId:'csPaneEquipment' },
       { id:'live_chat', allowed:canLiveChat, icon:'fas fa-comments', term:'settings.live_chat_tab', title:(globalThis.PlatformLanguage?.text("settings","m_1405ecd3fe696b","Live Chat") ?? "Live Chat"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_24e86bac9b5986","Configure chat availability, behavior, and appearance.") ?? "Configure chat availability, behavior, and appearance."), tabId:'csTabLiveChat', paneId:'csPaneLiveChat' },
@@ -13527,16 +13529,16 @@
               <label class="my-settings-row"><span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_6a345cd0072503","Interface language") ?? "Interface language")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_338ca4c4d53ee1","Use the company language or choose your own. Reports use the company language.") ?? "Use the company language or choose your own. Reports use the company language.")}</small></span>
                 <select class="cs-in" data-interface-locale>${languageOptions(preferences.interface_locale, {inherit:true, companyLocale:preferences.company_locale})}</select>
               </label>
-              <label class="my-settings-row">
+              <label class="my-settings-row" data-my-translation-row>
                 <span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_1c783adbd1d4a5","Message translation language") ?? "Message translation language")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_c7cb58bc75e592","Messages in other detected languages can be translated into this language.") ?? "Messages in other detected languages can be translated into this language.")}</small></span>
                 <select class="cs-in" data-my-language>${languageOptions(preferences.language, {inherit:true, translation:true, companyLocale:preferences.company_locale})}</select>
               </label>
-              <label class="my-settings-row">
+              <label class="my-settings-row" data-my-translation-row>
                 <span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_c4030f56eb495c","Show translations automatically") ?? "Show translations automatically")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_4405a3f8c91aac","Foreign-language messages open translated. You can still toggle each message back to its original text.") ?? "Foreign-language messages open translated. You can still toggle each message back to its original text.")}</small></span>
                 <span style="display:flex;justify-content:flex-end"><span class="li-switch"><input type="checkbox" data-my-auto-translate ${String(preferences.auto_translate_messages ? 'checked' : '')}><span class="li-slider"></span></span></span>
               </label>
             </div>
-            <div class="my-settings-group">
+            <div class="my-settings-group" data-my-left-column-group>
               <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_2805026f294644","Appearance") ?? "Appearance")}</h4>
               <label class="my-settings-row">
                 <span><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_7af6be7c241afb","Left column width") ?? "Left column width")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_579ea823971e41","Adjust the global navigation column. Changes preview immediately and apply to every portal app.") ?? "Adjust the global navigation column. Changes preview immediately and apply to every portal app.")}</small></span>
@@ -13546,7 +13548,7 @@
                 </span>
               </label>
             </div>
-            <div class="my-settings-group">
+            <div class="my-settings-group" data-my-left-column-group>
               <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_292b7ebd649d77","Left column") ?? "Left column")}</h4>
               <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_d14f58ab8ec89a","Choose the tabs and layout you see. These preferences only affect your account.") ?? "Choose the tabs and layout you see. These preferences only affect your account.")}</p>
               ${leftColumnSwitch('left-column-apps', 'Apps', 'Show your app navigation.', preferences.left_column_apps !== false)}
@@ -13567,13 +13569,16 @@
               <span class="my-settings-status" data-my-settings-status></span>
             </div>
           </div>`;
-        paneMySettings.querySelector('[data-my-left-column-behavior]').value = preferences.left_column_behavior || 'adaptive';
-        paneMySettings.querySelector('[data-my-left-column-default-mode]').value = preferences.left_column_default_mode || 'apps';
-        paneMySettings.querySelector('[data-my-left-column-expansion-mode]').value = preferences.left_column_expansion_mode || 'resize';
+        if (!window.PlatformLanguage?.enabled?.()) paneMySettings.querySelector('[data-interface-locale]')?.closest('label')?.remove();
+        if (!canMessageTranslation) paneMySettings.querySelectorAll('[data-my-translation-row]').forEach(row => row.remove());
+        if (!canLeftColumnSettings) paneMySettings.querySelectorAll('[data-my-left-column-group]').forEach(group => group.remove());
+        paneMySettings.querySelectorAll('.my-settings-group').forEach(group => { if (!group.querySelector('input, select, button')) group.remove(); });
+        if (canLeftColumnSettings) paneMySettings.querySelector('[data-my-left-column-behavior]').value = preferences.left_column_behavior || 'adaptive';
+        if (canLeftColumnSettings) paneMySettings.querySelector('[data-my-left-column-default-mode]').value = preferences.left_column_default_mode || 'apps';
+        if (canLeftColumnSettings) paneMySettings.querySelector('[data-my-left-column-expansion-mode]').value = preferences.left_column_expansion_mode || 'resize';
         paneMySettings.querySelector('[data-my-assistant-settings]')?.addEventListener('click', () => {
           window.Portal?.navigation?.navigate?.({tab:'company_settings', sub:'assistant'}, {source:'my-settings', ownedKeys:['tab','sub']});
         });
-        if (!window.PlatformLanguage?.enabled?.()) paneMySettings.querySelector('[data-interface-locale]')?.closest('label')?.remove();
         const sidebarWidthInput = paneMySettings.querySelector('[data-my-sidebar-width]');
         const sidebarWidthOutput = paneMySettings.querySelector('[data-my-sidebar-width-output]');
         sidebarWidthInput?.addEventListener('input', () => {
@@ -13589,20 +13594,24 @@
             const previousLocale = window.PlatformLanguage?.context?.().locale;
             const saved = await window.PlatformAPI.preferences.patch({
               ...(paneMySettings.querySelector('[data-interface-locale]') ? { interface_locale: paneMySettings.querySelector('[data-interface-locale]').value || null } : {}),
-              language: paneMySettings.querySelector('[data-my-language]').value || null,
-              auto_translate_messages: paneMySettings.querySelector('[data-my-auto-translate]').checked,
-              sidebar_width: Number(sidebarWidthInput?.value || sidebarWidth),
-              left_column_apps: paneMySettings.querySelector('[data-my-left-column-apps]').checked,
-              left_column_todo_list: paneMySettings.querySelector('[data-my-left-column-todo-list]').checked,
-              left_column_channels: paneMySettings.querySelector('[data-my-left-column-channels]').checked,
-              left_column_agents: paneMySettings.querySelector('[data-my-left-column-agents]').checked,
-              left_column_behavior: paneMySettings.querySelector('[data-my-left-column-behavior]').value,
+              ...(canMessageTranslation ? {
+                language: paneMySettings.querySelector('[data-my-language]').value || null,
+                auto_translate_messages: paneMySettings.querySelector('[data-my-auto-translate]').checked,
+              } : {}),
+              ...(canLeftColumnSettings ? {
+                sidebar_width: Number(sidebarWidthInput?.value || sidebarWidth),
+                left_column_apps: paneMySettings.querySelector('[data-my-left-column-apps]').checked,
+                left_column_todo_list: paneMySettings.querySelector('[data-my-left-column-todo-list]').checked,
+                left_column_channels: paneMySettings.querySelector('[data-my-left-column-channels]').checked,
+                left_column_agents: paneMySettings.querySelector('[data-my-left-column-agents]').checked,
+                left_column_behavior: paneMySettings.querySelector('[data-my-left-column-behavior]').value,
               ...(paneMySettings.querySelector('[data-my-left-column-behavior]').value === 'locked' && window.Portal?.currentUser?.identity?.preferences?.left_column_behavior !== 'locked'
-                ? { left_column_locked_expanded: window.Portal?.sidebarMode?.expanded?.() === true } : {}),
-              left_column_default_mode: paneMySettings.querySelector('[data-my-left-column-default-mode]').value,
-              left_column_auto_collapse: Object.fromEntries(['apps', 'todo', 'channels', 'agents'].map(mode => [mode, paneMySettings.querySelector('[data-my-collapse-' + mode + ']').checked])),
-              resizable_left_column: paneMySettings.querySelector('[data-my-resizable-left-column]').checked,
-              left_column_expansion_mode: paneMySettings.querySelector('[data-my-left-column-expansion-mode]').value
+                  ? { left_column_locked_expanded: window.Portal?.sidebarMode?.expanded?.() === true } : {}),
+                left_column_default_mode: paneMySettings.querySelector('[data-my-left-column-default-mode]').value,
+                left_column_auto_collapse: Object.fromEntries(['apps', 'todo', 'channels', 'agents'].map(mode => [mode, paneMySettings.querySelector('[data-my-collapse-' + mode + ']').checked])),
+                resizable_left_column: paneMySettings.querySelector('[data-my-resizable-left-column]').checked,
+                left_column_expansion_mode: paneMySettings.querySelector('[data-my-left-column-expansion-mode]').value
+              } : {})
             });
             if (window.Portal?.currentUser?.identity) {
               window.Portal.currentUser.identity.preferences = saved.preferences;

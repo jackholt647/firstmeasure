@@ -15,6 +15,7 @@ test("operator user targeting keeps FirstMeasure defaults and blocks direct plat
     PLATFORM_SESSION_SECRET: "isolated-rollout-fixture-secret", EMAIL_OUTBOUND_DISABLED: "1" });
   const storage = await import("../platform/storage.js");
   const { registerPlatformApi } = await import("../platform/api.js");
+  await import("../assistant/capabilities.js");
   const { registerDocumentsApi } = await import("../documents/api.js");
   const { requirePlatformAuth } = await import("../platform/auth.js");
   const { closeSqlStoresForTests } = await import("../platform/sql_store.js");
@@ -103,6 +104,8 @@ test("operator user targeting keeps FirstMeasure defaults and blocks direct plat
   assert.equal(ownerFlags.platform.people_access, false);
   assert.equal(ownerFlags.platform.new_button_mode, "report");
   assert.equal(ownerFlags.firstmeasure.report_orders, true);
+  const { computeMoneyOnboardingEntries } = await import("../payments/onboarding_attention.js");
+  assert.deepEqual(await computeMoneyOnboardingEntries(orgId), []);
   assert.equal((await request("GET", "/v1/platform/auth/session", ownerCookie)).json().platform_expanded_access, false);
   assert.equal((await request("GET", "/v1/platform/auth/session", pilot.cookie)).json().platform_expanded_access, true);
   const pilotFlags = (await request("GET", `${api}/app-flags`, pilot.cookie)).json().effective;
@@ -130,6 +133,11 @@ test("operator user targeting keeps FirstMeasure defaults and blocks direct plat
   await storage.mutatePlatformConfiguration("app_flag_defaults", () => ({ app_flags: { platform: { expanded_access: true, more_apps: true } } }));
   assert.equal((await newOrganizationAppFlagDefaults()).platform?.expanded_access, false);
   assert.equal((await newOrganizationAppFlagDefaults()).platform?.more_apps, false);
+  await storage.mutatePlatformConfiguration("app_flag_defaults", () => ({ app_flags: { platform: { expanded_access: true, money: true, connections: true, left_column_settings: true }, apps: { assistant: true, notifications: true }, money: { merchant_processing: true } } }));
+  const cleanSignup = await newOrganizationAppFlagDefaults();
+  for (const [group,flag] of [["platform","money"],["platform","connections"],["platform","left_column_settings"],["apps","assistant"],["apps","notifications"],["money","merchant_processing"]]) assert.equal(cleanSignup[group!]?.[flag!], false, `${group}.${flag}`);
+  const fullPresetSignup = await newOrganizationCapabilityValues();
+  for (const key of ["platform.money","platform.connections","apps.assistant","apps.notifications","platform.left_column_settings"]) assert.equal(fullPresetSignup[key], false, key);
   await request("PUT", `${api}/capabilities`, operator.cookie, operator.csrf, { values: { "platform.expanded_access": false } });
   assert.equal((await request("GET", `${api}/app-flags`, pilot.cookie)).json().effective.platform.expanded_access, false);
   assert.equal((await request("GET", `/v1/channels/organizations/${orgId}/integration-probe`, pilot.cookie)).statusCode, 403);

@@ -36,6 +36,7 @@ export async function loadConnectionPublications(orgId: string) {
         scopes: ["organization", "project"],
         applications: false,
         permissions: [],
+        capabilities: ["platform.connections"],
         authorize: async (ctx, target) => {
           if (
             !ctx.auth ||

@@ -202,7 +202,7 @@ before(async () => {
         .split("=")[1]!,
     ),
   };
-  await enableExpandedPlatformFixture(org);
+  await enableExpandedPlatformFixture(org, { "platform.connections": true, "apps.assistant": true });
   const users = await (
     await import("../platform/storage.js")
   ).listDocuments(org, "users");
@@ -1237,4 +1237,27 @@ test("organization automation usage inherits its trigger, conditions and plain-l
   );
   await rules.saveAutomationRules(org, "default", { rules: [] });
   assert.equal((await usage.connectionUses(org, c.id)).length, 0);
+});
+
+
+test("disabled Connections blocks HTTP, published operations and signed webhook ingestion", async () => {
+  const {saveCapabilityValues}=await import("../platform/capabilities.js");
+  const {backgroundAuthContext}=await import("../platform/auth.js");
+  const service=await import("../integrations/service.js");
+  await saveCapabilityValues(org,{"platform.connections":false});
+  try {
+    assert.equal((await request("GET","/connections")).statusCode,403);
+    assert.equal((await request("POST","/connections",{name:"Disabled"})).statusCode,403);
+    const disabled=await backgroundAuthContext(org,ctx.userId);
+    await assert.rejects(service.connection(disabled,c.id),{code:"capability_denied"});
+    const catalog=await app.inject({method:"GET",url:`/v1/publication/organizations/${org}/catalog`,headers});
+    assert.equal(catalog.statusCode,200);
+    assert.equal(catalog.json().providers.some((p:any)=>p.id===`external.${c.id}`),false);
+    const {readPublishedData}=await import("../platform/publication/providers.js");
+    const {userPublicationContext}=await import("../platform/publication/context.js");
+    const data=await readPublishedData(userPublicationContext(disabled),{provider:`external.${c.id}`,export:"records",target:{scope:"organization",organizationId:org}});
+    assert.equal(data.status,"denied");
+    const webhook=await import("../integrations/webhooks.js");
+    await assert.rejects(webhook.receiveWebhook(org,c.id,"{}",{}),{code:"webhook_unavailable"});
+  } finally {await saveCapabilityValues(org,{"platform.connections":true});}
 });

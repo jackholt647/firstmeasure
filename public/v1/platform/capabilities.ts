@@ -146,7 +146,8 @@ export type CapabilityPreset = {
 
 const firstMeasureCapabilities = new Set([
   "mobile.app_download", "mobile.developer_downloads",
-  "platform.expanded_access", "apps.projects", "apps.project_map", "apps.firstmeasure", "apps.notifications", "apps.billing", "apps.referrals",
+  "platform.expanded_access", "apps.projects", "apps.project_map", "apps.firstmeasure", "apps.billing", "apps.referrals",
+  "platform.left_column_settings",
   "platform.separate_user_section", "platform.cobrand_sidebar_logo",
   "platform.new_button_mode", "platform.new_button_items",
   "platform.storage_limits", "platform.free_storage_gb", "platform.purchasable_storage",
@@ -154,12 +155,6 @@ const firstMeasureCapabilities = new Set([
   "permission.order_reports", "permission.manage_report_settings", "permission.manage_billing",
   "permission.manage_company_settings", "permission.manage_company_users", "permission.manage_company_user_permissions"
 ]);
-
-// Development's payment-onboarding entry point must work in a freshly created
-// organization, before any expanded platform apps have been enabled.
-if (process.env.FIRSTMEASURE_DATA_ENVIRONMENT === "development") {
-  for (const key of ["apps.assistant", "assistant.actions", "permission.use_assistant", "platform.money", "money.merchant_processing"]) firstMeasureCapabilities.add(key);
-}
 
 const registry = new Map<string, NormalizedCapability>();
 let registryValidated = false;
@@ -894,6 +889,15 @@ function signupPresetConfigPath() {
   return path.join(platformStorageRoot(), "config", "capability_signup_preset.json");
 }
 
+/** Public signup always starts with the FirstMeasure-only product, in every environment. */
+export function firstMeasureSignupValues(values: Record<string, CapabilityValue>) {
+  return { ...values, ...Object.fromEntries([
+    "platform.expanded_access", "platform.more_apps", "apps.notifications",
+    "platform.money", "money.merchant_processing", "apps.assistant",
+    "platform.connections", "platform.left_column_settings"
+  ].map(key => [key, false])) };
+}
+
 /**
  * The flat value map applied to newly registered organizations: the configured
  * signup preset when one is set, otherwise registry defaults.
@@ -911,15 +915,13 @@ export async function newOrganizationCapabilityValues() {
         for (const key of Object.keys(defaults)) {
           if (firstMeasureCapabilities.has(key) || key.startsWith("firstmeasure.")) values[key] = defaults[key]!;
         }
-        values["platform.expanded_access"] = false;
-        values["platform.more_apps"] = false;
-        return values;
+        return firstMeasureSignupValues(values);
       }
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
-  return capabilityDefaultValues();
+  return firstMeasureSignupValues(capabilityDefaultValues());
 }
 
 export async function setSignupCapabilityPreset(presetId: string) {

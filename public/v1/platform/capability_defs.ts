@@ -76,6 +76,8 @@ const definitions: CapabilityDefinition[] = [
   { key: "platform.expanded_access", kind: "feature", label: "Expanded Platform Access", description: "Operator-controlled access to platform apps beyond FirstMeasure.", default: false },
   { key: "platform.more_apps", kind: "feature", label: "More Apps", description: "Shows the app catalog and discovery controls.", requires: ["platform.expanded_access"], default: false },
   { key: "platform.my_settings", kind: "feature", label: "My Settings", description: "Personal language and appearance preferences in Settings.", requires: ["platform.expanded_access"], default: false },
+  { key: "platform.left_column_settings", kind: "feature", label: "Personal Left Column Settings", category: "Platform & Appearance", description: "Show personal left-column width, tabs, resizing and layout controls in My Settings.", default: false },
+  { key: "platform.connections", kind: "feature", label: "Connections", category: "Platform & Appearance", description: "External connections, credentials, published data, webhooks and connection automations.", default: false },
   { key: "platform.company_extended_palette", kind: "feature", label: "Extended Company Palette", description: "Supporting brand colors and palette generation.", requires: ["platform.expanded_access"], default: false },
   { key: "platform.company_business_address", kind: "feature", label: "Company Business Address", description: "Business address fields in company settings.", requires: ["platform.expanded_access"], default: false },
   { key: "platform.company_advanced_logos", kind: "feature", label: "Advanced Company Logos", description: "Alternate logos and advanced logo appearance controls.", requires: ["platform.expanded_access"], default: false },
@@ -88,7 +90,7 @@ const definitions: CapabilityDefinition[] = [
     category: "Platform & Appearance",
     label: "Notifications",
     description: "Personal notification preferences and delivery across the portal and phone apps.",
-    default: true
+    default: false
   },
   {
     key: "apps.projects",
@@ -400,7 +402,7 @@ const definitions: CapabilityDefinition[] = [
     label: "Money",
     description: "Project payment schedules, customer payment tracking, profitability, payables, and disbursements.",
     catalog_stub: "Payments, profitability, and payables.",
-    default: process.env.FIRSTMEASURE_DATA_ENVIRONMENT === "development",
+    default: false,
     runtime_app_id: "money"
   },
   {
@@ -989,7 +991,7 @@ const definitions: CapabilityDefinition[] = [
     parent: "platform.money",
     label: "Merchant Processing",
     description: "Real card and bank payment processing through the boarded merchant account (Forward). Off until the organization completes merchant onboarding.",
-    default: process.env.FIRSTMEASURE_DATA_ENVIRONMENT === "development"
+    default: false
   },
   {
     key: "money.expenses",
@@ -1126,6 +1128,7 @@ const definitions: CapabilityDefinition[] = [
     key: "topbar.notifications",
     kind: "setting",
     parent: "platform.top_bar",
+    requires: ["apps.notifications"],
     label: "Notifications Bell",
     description: "The notifications bell and menu in the platform header.",
     default: true

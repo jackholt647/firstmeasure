@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { hasPermission, type PlatformAuthContext } from "../platform/auth.js";
+import { hasPermission, requireCapability, type PlatformAuthContext } from "../platform/auth.js";
 import { forbidden, badRequest, conflict } from "../platform/errors.js";
 import { runModuleCode } from "../documents/modules/runtime.js";
 import { contentHash } from "../platform/publication/validation.js";
@@ -39,6 +39,7 @@ export async function connection(
   operation?: string,
   effect = "read",
 ) {
+  await requireCapability(ctx, "platform.connections");
   const c = await requireObject(ctx.orgId, "connection", key);
   const owner = c.owner === ctx.userId;
   const administrator =

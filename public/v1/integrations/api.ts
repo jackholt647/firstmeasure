@@ -80,6 +80,7 @@ export const registerIntegrationsApi: FastifyPluginAsync = async (app) => {
     requirePlatformAuth(request, {
       orgId: String(object(request.params).orgId),
       permission: "manage_company_settings",
+      capability: "platform.connections",
       csrf: request.method !== "GET",
       application: false,
     });

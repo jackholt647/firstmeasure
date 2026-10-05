@@ -13,7 +13,7 @@ registerCapabilities([
     label: "AI Assistant",
     description: "The company-wide AI assistant in the top bar: answers questions, looks up projects and customers, runs stats, and takes action across the platform.",
     catalog_stub: "AI answers and actions across FirstMate.",
-    default: true,
+    default: false,
     runtime_app_id: "assistant"
   },
 

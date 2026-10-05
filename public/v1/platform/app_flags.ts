@@ -7,6 +7,7 @@ import {
   capabilityValuesForUser,
   capabilityDefinition,
   flattenGroupedValues,
+  firstMeasureSignupValues,
   groupCapabilityValues,
   newOrganizationCapabilityValues,
   normalizeCapabilityValue,
@@ -170,8 +171,7 @@ export async function newOrganizationAppFlagDefaults() {
   if (raw) {
     const data = asObject(raw.data);
     const defaults = normalizeFullAppFlags(asObject(data.app_flags || data.feature_flags || raw.app_flags || raw.feature_flags));
-    defaults.platform = { ...defaults.platform, expanded_access: false, more_apps: false };
-    return defaults;
+    return groupCapabilityValues(firstMeasureSignupValues(flattenGroupedValues(defaults)));
   }
   return groupCapabilityValues(await newOrganizationCapabilityValues()) as Record<AppFlagGroup, Record<string, AppFlagValue>>;
 }

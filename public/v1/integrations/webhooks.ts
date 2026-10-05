@@ -8,6 +8,7 @@ import { at, object, type Obj } from "./contracts.js";
 import { redact } from "./transport.js";
 import { contentHash } from "../platform/publication/validation.js";
 import { emitWorkEvent } from "../work/engine.js";
+import { isCapabilityEnabled } from "../platform/capabilities.js";
 
 export async function receiveWebhook(
   org: string,
@@ -15,6 +16,8 @@ export async function receiveWebhook(
   body: string,
   headers: Obj,
 ) {
+  if (!await isCapabilityEnabled(org, "platform.connections"))
+    throw forbidden("webhook_unavailable", "Webhook unavailable.");
   const c = await read(org, "connection", key);
   if (!c?.enabled)
     throw forbidden("webhook_unavailable", "Webhook unavailable.");
