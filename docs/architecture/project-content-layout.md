@@ -18,7 +18,13 @@ Projects and Contacts share the [entity window shell](window-shell.md). Its opti
 
 Overview also owns the focused New Report project picker and the map-first New Project
 form. The same mounted details form provides contacts, address, property type, custom
-fields, and initial actions; the project header presents a larger New Report heading
+fields, and initial actions. `firstmeasure.new_report_project` defaults to `auto`:
+new reports skip the project picker when the effective `platform.new_button_mode`
+is `report`, and use the picker for the selector menu. Explicit `on`/`off` overrides
+always start a new project or show the picker, respectively. Existing-project
+report/reorder entry points retain their project. Skipping the picker selects the
+unsaved new-project form; it does not submit an order or eagerly save a project.
+The project header presents a larger New Report heading
 only until a project is selected or its address is defined. Known projects always retain
 their normal identity and tabs, including unfinished report drafts; report intent changes
 the content workflow independently of the header. Existing project selection uses the authoritative project

@@ -6,6 +6,41 @@ import {chromium} from 'playwright-core';
 const source = file => readFile(new URL(`../../${file}`,import.meta.url),'utf8');
 const launch = () => chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
 
+test('narrow desktop project docks retain desktop close and minimize controls', async () => {
+  const app = await source('libraries/apps/project-request/app.js');
+  const start = app.indexOf('  function isMobileProjectOrder(');
+  const mobileFunction = app.slice(start, app.indexOf('\n  }', start) + 4);
+  const mobileCloseRule = app.match(/\.r-overlay\.mobile-order \.r-mobile-close\{[^}]+\}/)[0];
+  const browser = await launch();
+  try {
+    const page = await browser.newPage({viewport:{width:1400,height:900}});
+    await page.setContent('<iframe style="width:900px;height:650px" srcdoc="<header><span>New Report</span><div id=controls></div></header><div class=r-overlay><button class=r-mobile-close>Close</button></div>"></iframe>');
+    const frame = page.frames().find(frame => frame !== page.mainFrame());
+    await frame.waitForSelector('header');
+    await frame.addScriptTag({content:await source('libraries/window-manager/window-manager.js')});
+    await frame.addStyleTag({content:'.r-mobile-close{display:none}' + mobileCloseRule});
+    await frame.evaluate(code => {
+      window.projectWindowBridge = {};
+      window.mobileOrderViewport = new Function(code + ';return isMobileProjectOrder();');
+      window.control=FirstMateWindows.attach({element:document.querySelector('.r-overlay'),host:document.body,header:document.querySelector('header'),controlsHost:document.querySelector('#controls'),customChrome:true,onClose:()=>window.closedByControl=true,onChange:({mode})=>window.lastMode=mode});
+    }, mobileFunction);
+    for (const width of [900,700,420,800]) {
+      await page.locator('iframe').evaluate((el,width)=>{el.style.width=width+'px';},width);
+      assert.equal(await frame.evaluate(()=>{
+        const mobile=mobileOrderViewport();document.querySelector('.r-overlay').classList.toggle('mobile-order',mobile);return mobile;
+      }),false);
+      assert.equal(await frame.locator('.r-mobile-close').isVisible(),false);
+      await frame.locator('[data-window-action=minimize]').click();
+      assert.equal(await frame.evaluate(()=>lastMode),'minimized');
+      await frame.evaluate(()=>control.setMode('modal'));
+      await frame.locator('[data-window-action=close]').click();
+      assert.equal(await frame.evaluate(()=>closedByControl),true);
+    }
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await frame.evaluate(()=>mobileOrderViewport()),true,'real phone viewport keeps mobile ordering');
+  } finally { await browser.close(); }
+});
+
 test('header and docking menus use placement icons and follow the cursor across iframe documents',async()=>{
   const browser=await launch();
   try {

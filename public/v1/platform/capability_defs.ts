@@ -57,6 +57,15 @@ const definitions: CapabilityDefinition[] = [
   { key: "permission.manage_platform_billing", kind: "permission", parent: "platform.platform_billing", permission_key: "manage_platform_billing", access: "write", label: "Manage Platform Billing", description: "Accept platform pricing, cancel subscriptions and pay platform invoices." },
   { key: "mobile.app_download", kind: "feature", label: "App Download", description: "Show mobile app download links in Settings.", default: false },
   { key: "mobile.developer_downloads", kind: "feature", label: "Mobile Test Downloads", description: "Allow private test builds on development deployments only.", requires: ["mobile.app_download"], default: false },
+  {
+    key: "firstmeasure.new_report_project",
+    kind: "setting",
+    type: "select",
+    label: "New Reports Start New Projects",
+    description: "Automatically skip project selection when New Report is the primary button. Override to always start a new project or always show the project picker.",
+    default: "auto",
+    options: [["auto", "Automatic (follow New button)"], ["on", "On (start a new project)"], ["off", "Off (choose a project)"]]
+  },
   { key: "firstmeasure.metric_measurements", kind: "feature", label: "Metric Measurements", description: "Default new reports to metric measurements.", default: false },
   { key: "firstmeasure.report_localization", kind: "feature", label: "Platform Language and Units", description: "Allow Company settings to customize platform language, report language and measurement units, with optional personal interface language.", default: false },
   { key: "firstmeasure.exteriors", kind: "feature", label: "Full House Reports", description: "Allow customers to order full-house exterior measurements with mandatory reference photos.", default: false },

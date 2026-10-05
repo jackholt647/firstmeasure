@@ -2486,6 +2486,11 @@ window.PlatformCommerce.onReady(async function(){
   `;
 
   function isMobileProjectOrder(){
+    // A narrow desktop dock is not a phone viewport. Match the outer portal,
+    // as the shared window manager does for its desktop controls.
+    if (projectWindowBridge) {
+      try { return !!window.top.matchMedia?.('(max-width: 720px)')?.matches; } catch {}
+    }
     return !!window.matchMedia?.('(max-width: 720px)')?.matches;
   }
 
@@ -2835,6 +2840,13 @@ window.PlatformCommerce.onReady(async function(){
     return fallback;
   }
   function projectPhotosEnabled(){ return appFeatureEnabled('platform', 'project_photos', false); }
+  function initialReportProjectChoice(workflow, baseProject){
+    if (workflow !== 'report') return '';
+    if (baseProject) return 'existing';
+    const mode = appFlagValue('firstmeasure', 'new_report_project', 'auto');
+    const startNew = mode === 'on' || (mode !== 'off' && appFlagValue('platform', 'new_button_mode', 'report') === 'report');
+    return startNew ? 'new' : 'search';
+  }
   // Consolidated Docs tab: shown when either the legacy project-docs flag or
   // the document engine is on (the tab embeds the engine when available).
   function projectDocsEnabled(){
@@ -11143,7 +11155,7 @@ window.PlatformCommerce.onReady(async function(){
     resetNewProjectState();
     requestedWorkflow = nextRequestedWorkflow;
     overviewWorkflowMode = requestedWorkflow === 'report' ? 'report' : (!baseProject && requestedWorkflow === 'project' ? 'project' : '');
-    reportProjectChoice = overviewWorkflowMode === 'report' ? (baseProject ? 'existing' : 'search') : '';
+    reportProjectChoice = initialReportProjectChoice(overviewWorkflowMode, baseProject);
     const trayGeneration = ++projectTrayOpenGeneration;
     requestedDocumentType = baseProject ? '' : String(options.documentType || '').trim().toLowerCase();
     requestedDocumentResume = baseProject ? null : (options.resumeDocument && typeof options.resumeDocument === 'object' ? options.resumeDocument : null);

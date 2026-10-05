@@ -178,6 +178,18 @@ test("solver enforces parent chains and cross dependencies with legacy reason st
   assert.equal(healed.effectiveByKey["platform.materials"], true);
 });
 
+test("report project entry defaults to automatic and remains configurable without expanded access", async () => {
+  const { resolveCapabilities, capabilityDefaultValues, validateValueSet } = await import("../platform/capabilities.js");
+  const defaults = capabilityDefaultValues();
+  assert.equal(defaults["firstmeasure.new_report_project"], "auto");
+  for (const mode of ["auto", "on", "off"]) {
+    const resolution = resolveCapabilities({ ...defaults, "platform.expanded_access": false, "firstmeasure.new_report_project": mode });
+    assert.equal(resolution.values["firstmeasure.new_report_project"], mode);
+    assert.equal(resolution.values["platform.new_button_mode"], "report");
+    assert.deepEqual(validateValueSet({ "firstmeasure.new_report_project": mode }).violations, []);
+  }
+});
+
 test("app-level parent gates nested firstmeasure features", async () => {
   const { resolveCapabilities, capabilityDefaultValues } = await import("../platform/capabilities.js");
   const off = resolveCapabilities({ ...capabilityDefaultValues(), "apps.firstmeasure": false });
