@@ -83,3 +83,45 @@ test('mobile opening header has final tabs and no desktop pills before child boo
 
  }finally{await browser.close();}
 });
+
+
+test('mobile title and dropdown geometry match before and after content boot',async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ try{
+ const page=await browser.newPage({viewport:{width:414,height:850}});
+ await page.route('https://shell.test/**',route=>route.fulfill({contentType:'text/html',body:'<main class="main"></main>'}));await page.goto('https://shell.test/');
+ await page.evaluate(()=>{window.Portal={modules:{request:{openingHeader:()=>({title:'1850 N Clark St, Chicago, IL 60614',identityHtml:'<strong>1850 N Clark St, Chicago, IL 60614</strong>',pillsHtml:''})}}};});
+ const cssStart=shell.indexOf('  const css = `')+15;
+ await page.addStyleTag({content:shell.slice(cssStart,shell.indexOf('\n  `;',cssStart))});
+ for(const file of ['window-manager.js','window-shell.js','project-windows.js'])await page.addScriptTag({content:await load('public/libraries/window-manager/'+file)});
+ await page.evaluate(()=>{window.record=FirstMateProjectWindows.open({id:'project_test',status:'processing'},{tab:'measurements'});});
+ const readGeometry=()=>{
+  const header=document.querySelector('.fm-project-loading-header') || document.querySelector('.r-window-bar');
+  const trigger=header.querySelector('.r-project-identity-trigger'),title=trigger.querySelector('span'),controls=header.querySelector('.r-window-bar-actions');
+  return {mobile:header.dataset.windowMobile,headerClass:header.className,parent:header.parentElement.className,headerWidth:header.getBoundingClientRect().width,identityWidth:trigger.parentElement.getBoundingClientRect().width,controlsWidth:controls.getBoundingClientRect().width,stageWidth:header.querySelector('.r-project-stage-bar')?.getBoundingClientRect().width,stageDisplay:getComputedStyle(header.querySelector('.r-project-stage-bar')).display,font:getComputedStyle(title).fontSize,width:trigger.getBoundingClientRect().width,titleWidth:title.getBoundingClientRect().width,maxWidth:getComputedStyle(trigger).maxWidth,height:header.getBoundingClientRect().height,border:getComputedStyle(controls).borderLeftWidth};
+ };
+ await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});await page.evaluate(()=>document.fonts.ready);
+ const opening=await page.evaluate(readGeometry);
+ if(process.env.EVIDENCE_DIR)await page.screenshot({path:process.env.EVIDENCE_DIR+'/opening.png'});
+ assert.equal(opening.font,'18px');assert.equal(opening.maxWidth,'100%');assert.equal(opening.border,'0px');
+ await page.evaluate(()=>{
+  const header=document.querySelector('.fm-project-loading-header').cloneNode(true);
+  FirstMateProjectWindows.close(record.token);
+  header.className='r-window-bar r-modal-header fm-shell-header';
+  header.querySelector('.r-project-identity-trigger').id='rProjectIdentityTrigger';header.querySelector('.r-window-project-title').id='rWindowProjectTitle';
+  const overlay=document.createElement('div');overlay.className='r-overlay active window-managed project-layout-prototype';overlay.style.cssText='display:block;position:fixed;inset:0';
+  const win=document.createElement('div');win.className='r-win fm-entity-window';win.style.cssText='position:absolute;inset:0;width:100%;height:100%;padding:0;max-width:none;max-height:none;border:0';win.append(header);overlay.append(win);document.body.append(overlay);
+ });
+ const windowStart=shell.indexOf("injectCSS('project-window', `")+"injectCSS('project-window', `".length;
+ await page.addStyleTag({content:shell.slice(windowStart,shell.indexOf('`);',windowStart))});
+ const layout=await load('public/libraries/window-manager/project-layout.js');const layoutStart=layout.indexOf('textContent=`')+13;
+ await page.addStyleTag({content:layout.slice(layoutStart,layout.indexOf('`;',layoutStart))});
+ await page.evaluate(()=>document.head.append(document.getElementById('fm-window-shell-style')));
+ const loaded=await page.evaluate(readGeometry);
+ if(process.env.EVIDENCE_DIR)await page.screenshot({path:process.env.EVIDENCE_DIR+'/loaded.png'});
+ assert.equal(loaded.font,opening.font);assert.equal(loaded.maxWidth,opening.maxWidth);assert.equal(loaded.border,opening.border);
+ assert.ok(Math.abs(loaded.width-opening.width)<1,JSON.stringify({opening,loaded}));
+ assert.ok(Math.abs(loaded.titleWidth-opening.titleWidth)<1,JSON.stringify({opening,loaded}));
+ assert.ok(Math.abs(loaded.height-opening.height)<1,JSON.stringify({opening,loaded}));
+ }finally{await browser.close();}
+});

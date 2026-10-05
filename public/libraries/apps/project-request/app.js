@@ -868,6 +868,13 @@ window.PlatformCommerce.onReady(async function(){
 
     #rWindowProjectTitle::after{display:none!important}
     :is(#rProjectIdentityTrigger,.r-project-identity-trigger){gap:7px;flex:none;max-width:65%}
+    /* Opening and loaded project headers share mobile identity geometry. */
+    .fm-shell-header[data-window-mobile=true]>.r-window-identity{border:0}
+    .fm-shell-header[data-window-mobile=true] :is(#rProjectIdentityTrigger,.r-project-identity-trigger){max-width:100%;flex:1}
+    .fm-shell-header[data-window-mobile=true] :is(#rWindowProjectTitle,.r-window-project-title){font-size:18px}
+    .fm-shell-header[data-window-mobile=true]>.r-window-bar-actions{border:0;width:auto;flex:none}
+    .fm-shell-header[data-window-mobile=true] :is(#rProjectStageBar,.r-project-stage-bar){display:none}
+
     :is(#rProjectIdentityTrigger,.r-project-identity-trigger)::after{content:'';width:6px;height:6px;flex:none;border-right:1.5px solid #8491a3;border-bottom:1.5px solid #8491a3;transform:translateY(-2px) rotate(45deg)}
     #rProjectIdentityTrigger[aria-expanded=true]::after{transform:translateY(2px) rotate(225deg)}
     .r-window-identity .r-project-tag i{color:inherit;flex:none}
