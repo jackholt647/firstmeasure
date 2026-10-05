@@ -1,5 +1,8 @@
 # FirstMeasure: local development and production deployment
 
+October 5 Brand Kit: [Palette regeneration and persistent color dragging](deploy/digitalocean/development-brand-palette-20261005.md) records both layouts, interaction fixes and verified development activation.
+
+
 October 5 development tools: [Header panel and synthetic data](deploy/digitalocean/development-synthetic-data-20261005.md) records the sandbox-only controls, eight selectable generators, isolated library and verified fresh-org workflow.
 
 October 5 Channels: [Unread badges, Edit Sections alignment and Messages alerts](deploy/digitalocean/development-channels-linear-20261005.md) records PLA-24, PLA-31 and PLA-32, isolated API/browser verification and the four-role development rollout.
