@@ -268,7 +268,7 @@
   const ORBIT_STEPS='<ol class="ext-orbit-steps"><li><span><b>Start at the front.</b> Step back until the whole house fits in the frame, roofline to foundation.</span></li><li><span><b>Walk one full circle.</b> Go slowly and keep the house centered the whole way around.</span></li><li><span><b>Pause whenever you need to.</b> Record in as many segments as it takes, or upload videos you already have.</span></li></ol>';
   function videoIntroUI(){
     const have=Array.from({length:ctx.count},(_,i)=>orbitVideos(i).length).reduce((a,b)=>a+b,0);
-    return `<section class="ext-orbit-intro"><h3>Record an orbital video</h3><p>Walk one full circle around the house while recording. It is the quickest way to show us every side.${ctx.count>1?` You will record each of the ${ctx.count} structures separately.`:''}</p>${orbitScene()}${ORBIT_STEPS}<div class="ext-orbit-actions"><button type="button" class="ext-orbit-primary" data-video-start><i class="fas fa-video" aria-hidden="true"></i>${have?'Record another segment':'Start recording'}</button><button type="button" class="ext-orbit-secondary" data-video-upload><i class="fas fa-arrow-up-from-bracket" aria-hidden="true"></i>Upload a video</button>${have?`<button type="button" class="ext-orbit-secondary" data-video-review>Review ${have} video${have===1?'':'s'}</button>`:''}</div><button type="button" class="ext-orbit-switch" data-mode="photos">Can’t take a video? Order from photos instead</button></section>`;
+    return `<section class="ext-orbit-intro ext-video-intro"><h3>Record an orbital video</h3><p>Walk one full circle around the house while recording. It is the quickest way to show us every side.${ctx.count>1?` You will record each of the ${ctx.count} structures separately.`:''}</p>${orbitScene()}${ORBIT_STEPS}<div class="ext-orbit-actions"><button type="button" class="ext-orbit-primary" data-video-start><i class="fas fa-video" aria-hidden="true"></i>${have?'Record another segment':'Start recording'}</button><button type="button" class="ext-orbit-secondary" data-video-upload><i class="fas fa-arrow-up-from-bracket" aria-hidden="true"></i>Upload a video</button>${have?`<button type="button" class="ext-orbit-secondary" data-video-review>Review ${have} video${have===1?'':'s'}</button>`:''}</div><button type="button" class="ext-orbit-switch" data-mode="photos">Can’t take a video? Order from photos instead</button></section>`;
   }
   function photoIntroUI(){
     return `<section class="ext-orbit-intro"><h3>Order from photos</h3><p>No video? We can measure from photos instead. We need all eight angles of the house, and we will guide you through each one.</p>${orbitScene(true)}<ol class="ext-orbit-steps"><li><span><b>Take all eight angles.</b> Each side and each corner, with the whole house in the frame.</span></li><li><span><b>Add anything hard to see.</b> If the eight angles miss it or it is hidden from the street, add extra photos or a video afterwards.</span></li></ol><p class="ext-photo-warning"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span>${PHOTO_RISK}</span></p><div class="ext-orbit-actions"><button type="button" class="ext-orbit-primary" data-photos-start><i class="fas fa-camera" aria-hidden="true"></i>Start the eight photos</button></div><button type="button" class="ext-orbit-switch" data-mode="video">Back to orbital video (recommended)</button></section>`;
@@ -493,10 +493,16 @@
     .ext-order .ext-orbit-steps li::before{content:counter(orbit);width:26px;height:26px;border-radius:50%;background:color-mix(in srgb,var(--primary,#d93025) 12%,white);color:var(--primary,#d93025);font-weight:800;font-size:12px;display:grid;place-items:center}
     .ext-order .ext-orbit-steps b{color:#1d2939}
     .ext-orbit-actions{display:grid;gap:8px}
-    /* Give the video introduction breathing room when its mobile window is tall, with bounded gaps. */
-    .mobile-order .ext-order .ext-orbit-intro:has([data-video-start]){gap:clamp(14px,calc(8dvh - 46px),28px)}
-    .mobile-order .ext-orbit-intro:has([data-video-start]) .ext-orbit-steps{gap:clamp(10px,calc(5dvh - 27.5px),20px)}
-    .mobile-order .ext-orbit-intro:has([data-video-start]) .ext-orbit-actions{gap:clamp(8px,calc(3dvh - 14.5px),14px)}
+    /* Spend available height between instructions, not on fixed viewport-sized gutters. */
+    .mobile-order .r-scroll:has(.ext-video-intro){display:flex;flex-direction:column;scrollbar-gutter:auto}
+    .mobile-order #rExteriorOrder:has(.ext-video-intro),.mobile-order .ext-pages:has(.ext-video-intro){display:flex;flex-direction:column;flex:1 0 auto;margin:0}
+    .mobile-order .ext-order .ext-video-intro{flex:1 0 auto;gap:0}
+    .mobile-order .ext-video-intro>h3,.mobile-order .ext-video-intro>p{flex:none;margin:0 0 16px}
+    .mobile-order .ext-video-intro>.ext-orbit{flex:none}
+    .mobile-order .ext-video-intro>.ext-orbit-steps{display:flex;flex-direction:column;justify-content:space-evenly;flex:1 0 auto;gap:10px;padding:12px 0;margin:0}
+    .mobile-order .ext-video-intro>.ext-orbit-actions{flex:none;gap:8px}
+    .mobile-order .ext-order .ext-video-intro>.ext-orbit-switch{flex:none;margin:4px auto 0;padding:6px 0;min-height:36px}
+
     .ext-order .ext-orbit-primary,.ext-order .ext-orbit-secondary{min-height:50px;border-radius:14px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px}
     .ext-order .ext-orbit-primary{border:0;background:var(--primary,#d93025);color:#fff}.ext-order .ext-orbit-primary:active{transform:scale(.98)}
     .ext-order .ext-orbit-secondary{border:1px solid color-mix(in srgb,var(--primary,#d93025) 28%,white);background:#fff;color:var(--primary-readable,var(--primary,#d93025));font-weight:600;min-height:46px}
