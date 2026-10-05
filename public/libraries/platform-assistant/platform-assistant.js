@@ -2363,7 +2363,7 @@
     if (assistantWindow.state.mode === 'minimized') assistantWindow.restore();
     assistantWindow.setVisible(true);
     if (state.booted) void refresh(); else void boot();
-    setTimeout(() => els?.input?.focus(), 220);
+    setTimeout(() => els?.input?.focus({preventScroll:embedded}), 220);
   }
 
   function openFull(){
@@ -2505,7 +2505,7 @@
   }
 
   const instanceApi = {
-    setDraft(text){if(els?.input){els.input.value=String(text);updateComposer();els.input.focus();}},
+    setDraft(text){if(els?.input){els.input.value=String(text);updateComposer();els.input.focus({preventScroll:embedded});}},
     transferToGlobal, isTransferred:()=>promoted, endVoice:()=>stopVoice(), hasVoice:()=>!!voiceCall, setWorkspaceContext,
     setCompact(value){els?.drawer.classList.toggle('fma-pinned',value);const button=els?.drawer.querySelector('[data-fma=pinSurface]');if(button){button.setAttribute('aria-label',value?'Expand assistant':'Pin assistant');button.title=value?'Expand assistant':'Pin assistant';button.innerHTML='<i class="fas '+(value?'fa-up-right-and-down-left-from-center':'fa-thumbtack')+'"></i>';}},
     moveTo(container){if(els && els.drawer.parentElement!==container)container.append(els.drawer);},

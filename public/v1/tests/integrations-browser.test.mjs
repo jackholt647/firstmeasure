@@ -15,6 +15,7 @@ test("Connections settings: accessible setup, shared assistant, private credenti
       errors = [],
       submissions = [];
     page.on("pageerror", (e) => errors.push(e.message));
+    let emptyConnections = true;
     const connection = {
       id: "conn_demo",
       name: "Field photos",
@@ -75,7 +76,7 @@ test("Connections settings: accessible setup, shared assistant, private credenti
           method === "POST" ? route.request().postDataJSON() : null;
         if (payload) submissions.push({ p, payload });
         let data = {};
-        if (p.endsWith("/connections")) data = { connections: [connection] };
+        if (p.endsWith("/connections")) data = { connections: emptyConnections ? [] : [connection] };
         else if (p.includes("/library"))
           data = { entries: [{ name: "CompanyCam", connector: null }] };
         else if (p.endsWith("/conversation"))
@@ -127,7 +128,7 @@ test("Connections settings: accessible setup, shared assistant, private credenti
       }
       return route.fulfill({
         contentType: "text/html",
-        body: '<!doctype html><meta charset="utf-8"><style>body{margin:0;padding:30px;font:14px system-ui;background:#f8fafc}main{max-width:1250px;margin:auto}</style><main class="main"><section id="settings"></section></main>',
+        body: '<!doctype html><meta charset="utf-8"><style>html{height:100%}body{height:100dvh;box-sizing:border-box;margin:0;padding:12px;font:14px system-ui;background:#f8fafc}main{height:calc(100dvh - 24px);max-width:1250px;margin:auto}.cs-main>.cs-card{padding:24px;overflow:auto}</style><main class="main" id="tab_company_settings"><div class="cs-wrap"><div class="cs-layout"><div class="cs-main"><div class="cs-card"><section id="csPaneConnections" class="cs-pane active"></section></div></div></div></div></main>',
       });
     });
     await page.goto("http://connections.test");
@@ -162,10 +163,33 @@ test("Connections settings: accessible setup, shared assistant, private credenti
     ])
       await page.addScriptTag({ url: "/libraries/" + name });
     await page.evaluate(() =>
-      FirstMateConnections.mount(document.querySelector("#settings"), {
+      FirstMateConnections.mount(document.querySelector("#csPaneConnections"), {
         orgId: "org",
       }),
     );
+    const newButton = page.getByRole("button", { name: /New connection/ });
+    await newButton.hover();
+    assert.ok(await newButton.evaluate(b => { const s=getComputedStyle(b); return s.opacity!=="0" && s.visibility!=="hidden" && s.color!==s.backgroundColor && s.backgroundColor!=="rgb(248, 250, 252)"; }), "primary button must retain contrast on hover");
+    const setupButton=page.getByRole("button", {name:"Set up a connection",exact:true});
+    await setupButton.hover();
+    assert.ok(await setupButton.evaluate(b => getComputedStyle(b).color!==getComputedStyle(b).backgroundColor && getComputedStyle(b).backgroundColor!=="rgb(248, 250, 252)"), "empty-state button must retain contrast on hover");
+    await newButton.click();
+    await page.locator(".ic-chat [data-fma=input]").waitFor();
+    await page.waitForTimeout(350);
+    const layout = await page.evaluate(() => {
+      const root=document.querySelector("#csPaneConnections"),chat=root.querySelector(".ic-chat"),left=root.querySelector(".ic-main");
+      const before=chat.getBoundingClientRect();
+      left.insertAdjacentHTML("beforeend", '<div style="height:1600px">Long connection instructions</div>');left.scrollTop=400;
+      const after=chat.getBoundingClientRect();
+      return {top:before.top-root.getBoundingClientRect().top,height:before.height,available:root.clientHeight,leftScroll:left.scrollTop,chatMoved:after.top-before.top,pageScroll:document.scrollingElement.scrollTop,composerBottom:root.querySelector("[data-fma=input]").getBoundingClientRect().bottom,chatBottom:after.bottom};
+    });
+    assert.ok(Math.abs(layout.top)<2, "assistant begins at the top of the workspace");
+    assert.ok(Math.abs(layout.height-layout.available)<2, "assistant fills available workspace height");
+    assert.ok(layout.leftScroll>0 && Math.abs(layout.chatMoved)<2, "connection content scrolls independently");
+    assert.equal(layout.pageScroll,0, "opening and focusing chat must not scroll the page");
+    assert.ok(layout.composerBottom<=layout.chatBottom, "composer stays visible");
+    emptyConnections = false;
+    await page.getByRole("button", { name: "← Connections", exact:true }).click();
     await page.getByRole("button", { name: /Field photos/ }).click();
     await page.getByRole("tab", { name: "Access", exact: true }).click();
     assert.equal(await page.locator("[data-operation=read]").isChecked(), true);
