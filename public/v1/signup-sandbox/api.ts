@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 
-import { authContextFromRequest, publicAuthContext, rememberPlatformAccount, setPlatformAuthCookies } from "../platform/auth.js";
+import { authContextFromRequest, requirePlatformAuth, publicAuthContext, rememberPlatformAccount, setPlatformAuthCookies } from "../platform/auth.js";
 import { gatedAccounts, experimentalAdmin, loginExperimentalAdmin, logoutExperimentalAdmin, requireAdminOrigin } from "./admin.js";
 import { loginPlatformIdentity } from "../platform/auth.js";
 import { env } from "../src/config/env.js";
@@ -30,7 +30,6 @@ import {
   updateWorkflow
 } from "./service.js";
 import { sandboxStore, type JsonObject } from "./storage.js";
-import { addTestOrgSampleData } from "./sample-data.js";
 
 function body(request: FastifyRequest): JsonObject {
   return (request.body ?? {}) as JsonObject;
@@ -76,6 +75,19 @@ export const registerSignupSandboxApi: FastifyPluginAsync = async (app) => {
       code: err.code || "sandbox_error",
       error: err.message || "Signup sandbox request failed."
     });
+  });
+
+  // Session-scoped development tools: no caller-supplied organization or instance.
+  app.get("/development", async (request) => {
+    const ctx = await requirePlatformAuth(request, { permission: "manage_company_settings" });
+    const tools = await import("../development/synthetic-data.js");
+    await tools.requireDevelopmentOrganization(ctx);
+    return { ok: true, organization_id: ctx.orgId, companies: tools.COMPANIES, categories: tools.CATEGORIES };
+  });
+  app.post("/development/synthetic-data", async (request) => {
+    const ctx = await requirePlatformAuth(request, { permission: "manage_company_settings", csrf: true });
+    const tools = await import("../development/synthetic-data.js");
+    return { ok: true, ...(await tools.generateSyntheticData(ctx, request.body)) };
   });
 
   app.get("/state", async () => {
@@ -147,7 +159,7 @@ export const registerSignupSandboxApi: FastifyPluginAsync = async (app) => {
     ...(await applyStageEffects(param(request, "id"), param(request, "stageId")))
   }));
   app.get("/test-orgs", async () => ({ ok: true, test_orgs: await sandboxStore.listTestOrgs() }));
-  app.post("/test-orgs/:id/sample-data", async (request) => ({ ok: true, samples: await addTestOrgSampleData(param(request, "id"), body(request)) }));
+  app.post("/test-orgs/:id/sample-data", async (request) => ({ ok: true, samples: await (await import("./sample-data.js")).addTestOrgSampleData(param(request, "id"), body(request)) }));
   app.get("/test-orgs/:id/users", async (request) => ({ ok: true, users: await listTestOrgUsers(param(request, "id")) }));
   app.post("/test-orgs/:id/users", async (request) => ({ ok: true, user: await addTestOrgUser(param(request, "id"), body(request)) }));
   app.post("/test-orgs/:id/users/:userId/login", async (request, reply) => {

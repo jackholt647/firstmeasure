@@ -18,7 +18,7 @@
         return `${location.origin}/v1/signup-sandbox`;
     }
 
-    if (sessionStorage.getItem('sbxDevbarHidden') === '1') return;
+    const barHidden = sessionStorage.getItem('sbxDevbarHidden') === '1';
 
     const BAR_HEIGHT = 34;
     const ASSET_VERSION = new URL(document.currentScript?.src || location.href).searchParams.get('v') || 'dev';
@@ -443,7 +443,12 @@
     fetch(`${apiBaseUrl()}/current-instance`, { credentials: 'include' })
         .then((res) => (res.ok ? res.json() : null))
         .then((payload) => {
-            if (payload && payload.ok && payload.instance) render(payload.instance);
+            if (payload && payload.ok && payload.instance) {
+                if (!barHidden) render(payload.instance);
+                if (document.getElementById('platformAssistantSlot') && window.top === window) {
+                    import('/libraries/development-tools/development-tools.js?v=20261005-1').then(module => module.mount()).catch(() => {});
+                }
+            }
         })
         .catch(() => { /* not a dev environment; stay silent */ });
 })();
