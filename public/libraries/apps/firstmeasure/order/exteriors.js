@@ -489,6 +489,10 @@
     .ext-order .ext-orbit-steps li::before{content:counter(orbit);width:26px;height:26px;border-radius:50%;background:#e2efe7;color:#27734b;font-weight:800;font-size:12px;display:grid;place-items:center}
     .ext-order .ext-orbit-steps b{color:#1d2939}
     .ext-orbit-actions{display:grid;gap:8px}
+    /* Give the video introduction breathing room when its mobile window is tall, with bounded gaps. */
+    .mobile-order .ext-order .ext-orbit-intro:has([data-video-start]){gap:clamp(14px,calc(8dvh - 46px),28px)}
+    .mobile-order .ext-orbit-intro:has([data-video-start]) .ext-orbit-steps{gap:clamp(10px,calc(5dvh - 27.5px),20px)}
+    .mobile-order .ext-orbit-intro:has([data-video-start]) .ext-orbit-actions{gap:clamp(8px,calc(3dvh - 14.5px),14px)}
     .ext-order .ext-orbit-primary,.ext-order .ext-orbit-secondary{min-height:50px;border-radius:14px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px}
     .ext-order .ext-orbit-primary{border:0;background:#27734b;color:#fff}.ext-order .ext-orbit-primary:active{transform:scale(.98)}
     .ext-order .ext-orbit-secondary{border:1px solid #c5d5cb;background:#fff;color:#245e41;font-weight:600;min-height:46px}
