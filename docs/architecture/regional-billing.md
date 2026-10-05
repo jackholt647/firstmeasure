@@ -51,7 +51,7 @@ the website team still must publish them.
 ## Property verification and charge safety
 
 `commerce/property-market.ts` resolves the actual order coordinates (or address)
-through the server's Google geocoder. Client `country` and `address_components`
+through server-side geocoding (Google with the configured Azure Maps fallback). Client `country` and `address_components`
 values cannot authorize domestic pricing. Successful results are cached for
 five minutes, with bounded in-memory storage; unavailable/unknown countries
 stop an order before charging. Multiple pins cannot combine domestic and
@@ -105,3 +105,5 @@ Run `npm run check` in `public/v1`. Focused tests include
 `firstmeasure-expedite.test.ts`, `expedite-workload.test.ts`, and
 `exteriors-order.test.ts`. Payment and geocoder tests use provider fixtures;
 no real card charges or customer messages are needed.
+
+Development rollout and hosted evidence: [October 5 release record](../../deploy/digitalocean/development-address-market-20261005.md).
