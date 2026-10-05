@@ -254,6 +254,30 @@ test("Channels activity lives only in Messages and clears on viewing without rep
   await upsertDocument(orgId,'notifications',{id:'native-huddle',data:{id:'native-huddle',source:'channels',kind:'huddle_invite',category:'messages',title:'Native huddle invitation',body:'Join the team',status:'active',passive:true,target_user_ids:[ownerId],branch_id:'default',created_at:new Date().toISOString(),frontend_action:{kind:'open_channel_message',channel_id:channel.id,huddle_id:'fixture-huddle'}}});
   await page.evaluate(()=>{(window as any).deliverEvent({topic:'channels.unreads.changed'});});await page.waitForFunction(()=>document.querySelector('#platformMessagesCount')?.textContent==='1');
   await page.locator('#platformMessagesBtn').click();await page.locator('#platformMessagesList [data-message-entry]').filter({hasText:'Native huddle invitation'}).click();await page.waitForFunction(()=>document.querySelector('#platformMessagesCount')?.textContent==='0');const savedDeadline=Date.now()+5000;while((await owner.request('GET',base+'/inbox')).entries.length&&Date.now()<savedDeadline)await page.waitForTimeout(100);assert.equal((await owner.request('GET',base+'/inbox')).entries.length,0,'opened lifecycle notification persists as read');
+  // Mount the real Messages list against a bounded project inbox response and
+  // exercise native clicks: occurrence IDs acknowledge alerts, never select notes.
+  await page.evaluate(()=>{
+   const w=window as any;w.projectRoutes=[];w.projectApplies=0;w.projectReads=[];
+   w.Portal.navigation={navigate:(route:any)=>w.projectRoutes.push(route),applyCurrent:async()=>{w.projectApplies++;}};
+   w.projectInbox=[
+    {entry_id:'project-linked',kind:'activity',channel_type:'project',channel_id:'project-channel',project_id:'project-route',message_id:'notification-occurrence',related_message_id:'actual-project-message',title:'Linked project activity',text:'Updated project message',unread:true,at:new Date().toISOString()},
+    {entry_id:'project-lifecycle',kind:'activity',channel_type:'project',channel_id:'project-channel',project_id:'project-route',message_id:'lifecycle-occurrence',related_message_id:'',title:'Project lifecycle activity',text:'Lifecycle without message',unread:true,at:new Date().toISOString()},
+    {entry_id:'project-native',kind:'mention',channel_type:'project',channel_id:'project-channel',project_id:'project-route',message_id:'ordinary-project-message',title:'Native project message',text:'Ordinary project message',unread:true,at:new Date().toISOString()}
+   ];
+   w.ChannelsAPI.readState.inbox=async()=>({entries:w.projectInbox,unread_total:w.projectInbox.length});
+   w.ChannelsAPI.readState.inboxRead=async(_org:any,entry:any)=>{w.projectReads.push({entry_id:entry.entry_id,message_id:entry.message_id,kind:entry.kind});w.projectInbox=w.projectInbox.filter((e:any)=>e.entry_id!==entry.entry_id);return{read:true};};
+   w.deliverEvent({topic:'channels.unreads.changed'});
+  });
+  await page.waitForFunction(()=>document.querySelector('#platformMessagesCount')?.textContent==='3');
+  for(const [id,note,occurrence,kind] of [['project-linked','actual-project-message','notification-occurrence','activity'],['project-lifecycle',null,'lifecycle-occurrence','activity'],['project-native','ordinary-project-message','ordinary-project-message','mention']] as const){
+   await page.locator('#platformMessagesBtn').click();await page.locator('#platformMessagesList [data-message-entry]').first().click();
+   await page.waitForFunction((entryId:string)=>(window as any).projectReads.some((e:any)=>e.entry_id===entryId),id);
+   const captured=await page.evaluate(()=>{const w=window as any;return{route:w.projectRoutes.at(-1),read:w.projectReads.at(-1),applies:w.projectApplies};});
+   assert.deepEqual(captured.route,{project:'project-route',projectTab:'materials',projectNote:note});
+   assert.deepEqual(captured.read,{entry_id:id,message_id:occurrence,kind});
+   assert.equal(captured.applies,(await page.evaluate(()=>(window as any).projectReads.length)),'project route applies before acknowledgement');
+  }
+  await page.waitForFunction(()=>document.querySelector('#platformMessagesCount')?.textContent==='0');
   await page.screenshot({path:path.join(output,'read-cleared.png')});await page.evaluate(()=>(window as any).instance.destroy());
  }finally{releaseRead();await browser.close();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
@@ -311,4 +335,26 @@ test("Messages includes Channels lifecycle and followed replies, respects Off/Si
  await owner.request('POST',base+'/channels/'+channel.id+'/unarchive',{});
  await owner.request('POST',base+'/channels/'+channel.id+'/members',{user_ids:[teammate.userId]});
  await notice('private-after-removal','channels');await owner.request('PATCH',base+'/channels/'+channel.id+'/members/'+teammate.userId,{role:'admin'});await owner.request('DELETE',base+'/channels/'+channel.id+'/members/'+ownerId);assert.equal((await inbox()).entries.length,0,'fresh membership revocation removes private activity');
+});
+
+
+test("separated project notes stay outside Messages occurrence bridge while ordinary project activity remains",async()=>{
+ const {client:owner,orgId,userId:ownerId}=await registerOwner();
+ const {saveCapabilityValues}=await import('../platform/capabilities.js');
+ const {upsertDocument}=await import('../platform/storage.js');
+ const base=`/v1/channels/organizations/${orgId}`;
+ const project=(await owner.request('POST',`/v1/platform/organizations/${orgId}/projects`,{data:{title:'Separated occurrence project'}})).document;
+ const channel=(await owner.request('POST',base+'/channels/project/'+project.id)).channel;
+ const note=(await owner.request('POST',base+'/channels/'+channel.id+'/messages',{text:'Separate note',project_note:true})).message;
+ const message=(await owner.request('POST',base+'/channels/'+channel.id+'/messages',{text:'Ordinary project message'})).message;
+ const add=async(id:string,messageId:string)=>upsertDocument(orgId,'notifications',{id,data:{id,title:id,body:'Recent project activity',source:'project_message',kind:'passive',category:'messages',target_user_ids:[ownerId],status:'active',passive:true,branch_id:'default',created_at:new Date().toISOString(),frontend_action:{kind:'open_project_message',project_id:project.id,channel_id:channel.id,message_id:messageId}}});
+ await add('persisted-separated-note',note.id);await add('ordinary-project-activity',message.id);
+ await saveCapabilityValues(orgId,{'channels.separate_project_notes':true});
+ const inbox=()=>owner.request('GET',base+'/inbox');
+ let entries=(await inbox()).entries;assert.ok(!entries.some((e:Json)=>e.title==='persisted-separated-note'),'old linked note occurrence obeys current project-note separation');
+ const visible=entries.find((e:Json)=>e.title==='ordinary-project-activity');assert.ok(visible);assert.equal(visible.channel_type,'project');assert.equal(visible.project_id,project.id);assert.equal(visible.related_message_id,message.id);
+ await saveCapabilityValues(orgId,{'channels.separate_project_notes':false});
+ assert.ok((await inbox()).entries.some((e:Json)=>e.title==='persisted-separated-note'),'feature reversal preserves existing non-separated visibility');
+ await saveCapabilityValues(orgId,{'channels.separate_project_notes':true});
+ await owner.request('POST',base+'/inbox/read',{entry_id:visible.entry_id,message_id:visible.message_id,kind:'activity'});assert.equal((await inbox()).entries.length,0,'acknowledges only the visible occurrence while separated note remains excluded');
 });

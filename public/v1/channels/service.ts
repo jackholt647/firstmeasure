@@ -310,6 +310,7 @@ export async function personalInbox(ctx: PlatformAuthContext, options: { limit?:
   const limit = Math.min(80, Math.max(10, Number(options.limit || 40)));
   const seenAt = (await readChannelsMeta(inboxSeenKey(ctx.orgId, ctx.userId)));
   const readEntries = JSON.parse(await readChannelsMeta(`inbox_read:${ctx.orgId}:${ctx.userId}`) || "{}");
+  const separateNotes = await separateProjectNotes(ctx);
   const windowStart = new Date(Date.now() - INBOX_WINDOW_MS).toISOString();
   const directory = await userDirectory(ctx.orgId);
   const views = await listChannelsForUser(ctx, { initialize: false });
@@ -401,7 +402,7 @@ export async function personalInbox(ctx: PlatformAuthContext, options: { limit?:
     if (cleanText(membership?.notify_level || preferences.default_notify_level) !== "all") continue;
     const unread = asObject(view.unread as JsonObject);
     if (Number(unread.unread_count || 0) <= 0) continue;
-    const last = (await listMessageRecords(ctx.orgId, String(view.id), { limit: 1, parentId:null, projectNotes:view.type === "project" && await separateProjectNotes(ctx) ? false : undefined })).pop();
+    const last = (await listMessageRecords(ctx.orgId, String(view.id), { limit: 1, parentId:null, projectNotes:view.type === "project" && separateNotes ? false : undefined })).pop();
     pushEntry({
       kind: "channel",
       unread: true,
@@ -419,7 +420,7 @@ export async function personalInbox(ctx: PlatformAuthContext, options: { limit?:
   // otherwise appear twice — keep the mention).
   const dmMentionChannels = new Set(entries.filter((entry) => entry.kind === "mention").map((entry) => cleanText(entry.channel_id)));
   const hiddenNotes = new Set<string>();
-  if (await separateProjectNotes(ctx)) {
+  if (separateNotes) {
     for (const id of new Set(entries.map(entry => cleanText(entry.message_id)).filter(Boolean))) {
       if ((await readMessageRecord(ctx.orgId,id))?.metadata.project_note === true) hiddenNotes.add(id);
     }
@@ -444,6 +445,7 @@ export async function personalInbox(ctx: PlatformAuthContext, options: { limit?:
     if ((!occurrence || entry.message_notification) && (!message || message.deleted_at)) return false;
     if (message) {
       if (message.channel_id !== id) return false;
+      if (separateNotes && message.metadata.project_note === true) return false;
       if (!messageVisibleTo(message, ctx, groups)) return false;
       if (message.parent_id) {
         const root = await readMessageRecord(ctx.orgId, message.parent_id);

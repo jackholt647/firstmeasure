@@ -241,7 +241,7 @@
     renderMessagesList();
     try {
       if (entry.channel_type === 'project' && cleanText(entry.project_id)) {
-        window.Portal?.navigation?.navigate?.({project:cleanText(entry.project_id), projectTab:'materials', projectNote:cleanText(entry.message_id) || null}, {source:'messages-inbox'});
+        window.Portal?.navigation?.navigate?.({project:cleanText(entry.project_id), projectTab:'materials', projectNote:cleanText(entry.kind === 'activity' ? entry.related_message_id : entry.message_id) || null}, {source:'messages-inbox'});
         await window.Portal?.navigation?.applyCurrent?.();
       } else {
         const detail = {channel_id:cleanText(entry.channel_id), message_id:cleanText(entry.kind === 'activity' ? entry.related_message_id : entry.message_id), parent_id:cleanText(entry.parent_id), huddle_id:cleanText(entry.huddle_id)};
