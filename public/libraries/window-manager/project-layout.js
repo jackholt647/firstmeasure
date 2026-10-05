@@ -37,6 +37,11 @@
 }
 .r-overlay.project-layout-prototype.mobile-order [data-panel=map]>.r-tab-content{flex-direction:column;overflow:auto}
 .r-overlay.project-layout-prototype.mobile-order [data-panel=map] .r-overview-details{width:100%;min-width:0;max-width:none;height:auto;flex:none;max-height:none;overflow:visible}
+/* Later ordering pages own the remaining viewport; do not inherit Overview's content-height rail. */
+.r-overlay.project-layout-prototype.mobile-order:not(.mobile-order-location) [data-panel=map]>.r-tab-content{overflow:hidden}
+.r-overlay.project-layout-prototype.mobile-order:not(.mobile-order-location) [data-panel=map]>.r-tab-content>.r-overview-details{flex:1 1 0;height:100%;min-height:0;overflow:hidden;border:0}
+.r-overlay.project-layout-prototype.mobile-order:not(.mobile-order-location) [data-panel=map] .r-overview-details .r-scroll{flex:1 1 0;min-height:0;overflow:auto}
+.r-overlay.project-layout-prototype.mobile-order.ext-guiding [data-panel=map] .r-overview-details .r-scroll{display:flex;flex-direction:column;overflow:hidden}
 .r-overlay.project-layout-prototype.mobile-order.mobile-order-location [data-panel=map]>.r-tab-content>.r-tab-main{display:block;flex:1 0 320px;min-height:320px}
 .r-overlay.project-layout-prototype.mobile-order:not(.mobile-order-location) [data-panel=map]>.r-tab-content>.r-tab-main{display:none!important}
 .r-overlay.project-layout-prototype .r-mobile-project-title,.r-overlay.project-layout-prototype .r-mobile-left-tray-scrim,.r-overlay.project-layout-prototype .r-mobile-default-info-tray-scrim{display:none!important}

@@ -433,6 +433,7 @@ window.PlatformCommerce.onReady(async function(){
     .r-form{display:flex;flex-direction:column;gap:8px;min-height:0;flex:1}
     .r-after-hours{display:none;align-items:center;gap:9px;margin:0 0 6px;padding:12px 14px;border-radius:18px;background:#fff7e6;border:1px solid rgba(245,158,11,.24);font-size:12.5px;font-weight:800;color:#9a6700;line-height:1.45}
     .r-after-hours.visible{display:flex}
+    .r-overlay.mobile-order:not(.mobile-order-location) .r-after-hours,.r-overlay.exteriors-photos .r-after-hours{display:none!important}
     .r-step{border:0;background:transparent;border-radius:0;box-shadow:none;overflow:visible;transition:opacity .34s cubic-bezier(.22,1,.36,1),margin .34s cubic-bezier(.22,1,.36,1)}
     .r-step + .r-step{border-top:0}
     .r-step:hover{transform:none;box-shadow:none}
@@ -2618,6 +2619,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function setMobileOrderPage(page){
+    if (orderSubmissionPending) return;
     const previous = mobileOrderPage;
     mobileOrderPage = ['details', 'photos', 'final'].includes(page) ? page : 'location';
     if (mobileOrderPage === 'photos' && !window.Portal.ExteriorOrder?.active()) mobileOrderPage = 'details';
@@ -2659,6 +2661,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function mobileOrderGoBack(){
+    if (orderSubmissionPending) return;
     if (!shouldUseMobileOrderPagination() || mobileOrderPage === 'location') return;
     const exterior=window.Portal.ExteriorOrder;
     if (mobileOrderPage === 'photos' && exterior?.mobilePhotoBack?.()) return;
@@ -2711,6 +2714,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function syncMobileOrderPagination(){
+    if(orderSubmissionPending && !hasReportOrdered()){lockOrderSubmission(true);return;}
     const overlay = $('#rOverlay');
     if (!overlay) return;
     const mobile = shouldUseMobileOrderPagination();
@@ -2727,6 +2731,7 @@ window.PlatformCommerce.onReady(async function(){
     overlay.classList.toggle('mobile-order-photos', mobile && mobileOrderPage === 'photos');
     overlay.classList.toggle('mobile-order-final', mobile && mobileOrderPage === 'final');
     if (mobile && window.Portal.ExteriorOrder?.active()) window.Portal.ExteriorOrder.setMobilePage(mobileOrderPage);
+    renderAfterHoursNotice();
     syncMobileProjectNotes();
     const contacts=$('#rContactList');
     if(contacts&&!contacts.parentElement.querySelector('.r-mobile-customer-heading')){
@@ -2735,7 +2740,7 @@ window.PlatformCommerce.onReady(async function(){
     const back = $('#rMobileBack');
     const next = $('#rMobileNext');
     const order = $('#rMobileOrder');
-    if (back) back.style.display = mobile && mobileOrderPage !== 'location' ? '' : 'none';
+    if (back) {back.style.display = mobile && mobileOrderPage !== 'location' ? '' : 'none';back.disabled=orderSubmissionPending;}
     if (next) {
       const exterior = window.Portal.ExteriorOrder?.active();
       const ready = mobileOrderPage === 'photos' ? (window.Portal.ExteriorOrder.mobilePhotoSummary() && window.Portal.ExteriorOrder.mobilePhotosReady())
@@ -2758,6 +2763,7 @@ window.PlatformCommerce.onReady(async function(){
       order.disabled = !orderVisible || blocked || submit.disabled;
       const label = window.Portal.ExteriorOrder?.active() ? 'Order Full Structure' : (submit?.textContent?.trim() || 'Order Roof Report');
       order.textContent = label.replace(/^Order Roof Report\b/, 'Order Report');
+      if(orderSubmissionPending)setSubmitBusyLabel(order,'Ordering…');
     }
   }
 
@@ -6855,6 +6861,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function updateSubmitLabel(){
+    if(orderSubmissionPending){setSubmitBusyLabel(activeSubmitButton(),'Ordering…');return;}
     const submits = Array.from(document.querySelectorAll('#rSubmit,#rExpediteSubmit'));
     if (!submits.length) return;
     let text = 'Continue';
@@ -6891,7 +6898,7 @@ window.PlatformCommerce.onReady(async function(){
   // which the mobile pager changes, so callers must evaluate this fresh rather than copy a stale
   // submit.disabled value computed before the page changed.
   function orderSubmitBlocked(){
-    return !canSubmit() || (!instantDevelopmentReport() && selectedReportExpeditePricingPending()) || (isScheduleChoice() && !scheduleHasDraft());
+    return orderSubmissionPending || !canSubmit() || (!instantDevelopmentReport() && selectedReportExpeditePricingPending()) || (isScheduleChoice() && !scheduleHasDraft());
   }
 
   function setSubmitBusyLabel(button, label){
@@ -6903,6 +6910,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function setActivePreviewTab(tab, options = {}){
+    if (orderSubmissionPending && !hasReportOrdered()) return;
     const previousTab = activePreviewTab;
     window.Portal.ExteriorOrder?.previewTabChanged?.(tab);
     const allowed = validPreviewTabs();
@@ -7350,11 +7358,6 @@ window.PlatformCommerce.onReady(async function(){
         panelHtml: meta.app?.panelHtml,
         app: meta.app
       }));
-    if (!options.opening && window.Portal.ExteriorOrder?.active()) {
-      const map = apps.find(app => app.id === 'map');
-      const photos = apps.find(app => app.id === 'photos') || { id:'photos', label:(globalThis.PlatformLanguage?.text("project-request","m_be4cfb58b9c4d7","Photos") ?? "Photos"), title:(globalThis.PlatformLanguage?.text("project-request","m_be4cfb58b9c4d7","Photos") ?? "Photos"), icon:'fa-images', regions:['main'], panelHtml:'<div id="rExteriorPhotosPanel" style="height:100%"></div>' };
-      return [map, photos, ...apps.filter(app => app.id === 'materials' && !app.app?.promoBadge)].filter(Boolean);
-    }
     // Doc-first standalone mode: until a project is picked/created, the modal
     // is a single standalone document — only the Docs tab exists.
     if (!options.opening && docWorkflowStandaloneActive()) return apps.filter((app) => app.id === 'docs');
@@ -9633,7 +9636,8 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function renderAfterHoursNotice(){
-    const ahMsg = (hasSelectedAddons() || window.Portal.ExteriorOrder?.active()) ? getAfterHoursMessage()?.replace(/Roof reports/g, 'Reports') : null;
+    const onFirstPage = !shouldUseMobileOrderPagination() || mobileOrderPage === 'location';
+    const ahMsg = onFirstPage && (hasSelectedAddons() || window.Portal.ExteriorOrder?.active()) ? getAfterHoursMessage()?.replace(/Roof reports/g, 'Reports') : null;
     const message = $('#rAfterHoursMsg');
     const notice = $('#rAfterHours');
     if (!message || !notice) return;
@@ -10260,7 +10264,7 @@ window.PlatformCommerce.onReady(async function(){
     if (Number.isFinite(cachedBalance) && cachedBalance < price) {
       capturePendingOrder();
       showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db_currency","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae_currency",`You need ${v0} to place this report order.`,{v0}) ?? `You need ${v0} to place this report order.`)(fmtCredit(price)), false);
-      close();
+      close({submissionGate:true});
       await openReportCreditGateTopup({
         label: window.Portal.ExteriorOrder?.active() ? 'this Full Structure report' : 'this roof report',
         required: price,
@@ -10275,7 +10279,7 @@ window.PlatformCommerce.onReady(async function(){
     if (bal >= price) return true;
     capturePendingOrder();
     showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db_currency","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae_currency",`You need ${v0} to place this report order.`,{v0}) ?? `You need ${v0} to place this report order.`)(fmtCredit(price)), false);
-    close();
+    close({submissionGate:true});
     await openReportCreditGateTopup({
       label: window.Portal.ExteriorOrder?.active() ? 'this Full Structure report' : 'this roof report',
       required: price,
@@ -10492,7 +10496,27 @@ window.PlatformCommerce.onReady(async function(){
     });
   }
 
-  async function onSubmit(e){
+  let orderSubmissionPending=false,orderSubmissionPromise=null;
+  function lockOrderSubmission(locked){
+    const overlay=$('#rOverlay');overlay?.classList.toggle('order-submitting',locked);
+    overlay?.setAttribute('aria-busy',String(locked));
+    const form=$('#rForm');if(form)form.inert=locked;
+    overlay?.querySelectorAll('#rMobileBack,#rMobileNext,#rMapCloseX,#rMobileClose,[data-window-action="close"],#rExteriorOrder [data-back]').forEach(button=>{button.disabled=locked;});
+    if(locked)setSubmitBusyLabel(activeSubmitButton(),'Ordering…');
+  }
+  function onSubmit(e){
+    e.preventDefault();
+    if(orderSubmissionPromise)return orderSubmissionPromise;
+    if(hasReportOrdered() || isScheduleChoice() || (!hasSelectedAddons() && !window.Portal.ExteriorOrder?.active()))return submitReport(e);
+    orderSubmissionPending=true;
+    lockOrderSubmission(true);
+    orderSubmissionPromise=Promise.resolve().then(()=>submitReport(e)).finally(()=>{
+      orderSubmissionPending=false;orderSubmissionPromise=null;lockOrderSubmission(false);
+      updateSubmitLabel();syncMobileOrderPagination();
+    });
+    return orderSubmissionPromise;
+  }
+  async function submitReport(e){
     e.preventDefault();
     if(developmentReportSubmitting)return;
     if (!instantDevelopmentReport() && !window.Portal.ExteriorOrder?.active() && selectedReportExpeditePricingPending()) {
@@ -11085,7 +11109,7 @@ window.PlatformCommerce.onReady(async function(){
     window.Portal.ExteriorOrder?.restoreOrderSession?.(session.exterior);
     locationConfirmed = !!session.locationConfirmed;
     mobileOrderPage = ['location','photos','details','final'].includes(session.page) ? session.page : 'location';
-    if (session.tab === 'photos' && window.Portal.ExteriorOrder?.active()) setActivePreviewTab('photos',{syncRoute:false});
+    if (session.tab === 'photos' && window.Portal.ExteriorOrder?.active()) setActivePreviewTab('map',{syncRoute:false});
     syncMobileOrderPagination();renderConfirm();
   }
 
@@ -11300,6 +11324,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function close(options = {}){
+    if (orderSubmissionPending && !options.submissionGate) return false;
     if (!options.agentResolved && projectTrays?.requestClose?.(()=>close({...options,agentResolved:true})) === false) return false;
     ++projectTrayOpenGeneration;
     closeProjectIdentityPopover();

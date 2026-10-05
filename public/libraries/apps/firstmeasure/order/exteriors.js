@@ -313,8 +313,8 @@
     document.getElementById('rOverlay')?.classList.toggle('exteriors-photos',!!visible);
     if(!visible){if(workspaceStep){removePhotoWorkspace();ctx?.showMap?.();}return;}
     const entering=!workspaceStep;workspaceStep=true;
-    if(entering){ctx.syncPhotoTabs?.();ctx.showPhotos?.();}
-    const right=document.querySelector('#rOverlay .r-preview-panel[data-panel="photos"]');if(!right)return;
+    if(entering){ctx.syncPhotoTabs?.();ctx.showMap?.();}
+    const right=document.querySelector('#rOverlay .r-preview-panel[data-panel="map"] .r-tab-main');if(!right)return;
     if(!photoWorkspace?.isConnected){
       photoWorkspace=document.createElement('section');photoWorkspace.className='ext-workspace';photoWorkspace.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("firstmeasure","m_1ca9bec888658a","Exterior upload photos") ?? "Exterior upload photos"));
       photoWorkspace.innerHTML=`<div class="ext-workspace-gallery" data-reference-gallery></div><div class="ext-workspace-drop" hidden>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_acaf0eb128605e","Drop photos to upload") ?? "Drop photos to upload")}</div><input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" multiple hidden data-workspace-picker>`;
@@ -437,7 +437,7 @@
   `;
   P.util.injectCSS('exterior-order',css);
   P.util.injectCSS('exterior-photo-workspace',`
-    .r-overlay.exteriors-photos .r-preview-panel[data-panel=photos]{overflow:hidden}
+    .r-overlay.exteriors-photos .r-preview-panel[data-panel=map] .r-tab-main{overflow:hidden}
     .ext-workspace{position:absolute;inset:0;display:flex;flex-direction:column;gap:16px;padding:24px;background:#f8fafc;color:#344054;min-height:0;z-index:10;font-size:13px}
     .ext-workspace *{box-sizing:border-box}.ext-workspace [hidden]{display:none!important}
     .ext-workspace header{display:flex;justify-content:space-between;align-items:center;gap:16px}.ext-workspace h2{margin:0;font-size:22px}.ext-workspace p{margin:6px 0 0;color:#667085;line-height:1.5}
@@ -599,7 +599,7 @@
       }
       const blocker=page===2&&ready()?orderBlocker():'';
       if(blocker)body+=`<p class="ext-order-blocker ext-test-notice" role="status" data-order-blocker>${esc(blocker)}</p>`;
-      body+=`<div class="ext-nav">${page?`<button type="button" data-back>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_121372231b5699","Back") ?? "Back")}</button>`:''}<button type="button" class="primary" data-next ${busy||!!error||!quote||!pinsConfirmed()||(page===1&&!photosReviewable())||(page===2&&!!orderBlocker())?'disabled':''}>${busy?'Please wait…':page===2?'Order Full Structure · '+money(q?.amount):page===0?'Continue to capture →':'Review order →'}</button></div>`;
+      body+=`<div class="ext-nav">${page?`<button type="button" data-back ${busy?'disabled':''}>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_121372231b5699","Back") ?? "Back")}</button>`:''}<button type="button" class="primary" data-next ${busy||!!error||!quote||!pinsConfirmed()||(page===1&&!photosReviewable())||(page===2&&!!orderBlocker())?'disabled':''}>${busy?'Please wait…':page===2?'Order Full Structure · '+money(q?.amount):page===0?'Continue to capture →':'Review order →'}</button></div>`;
     }
     guideNode?.remove();recNode?.remove();
     root.innerHTML=`<div class="ext-choices ${scope?'compact':''}">${[['roof','Roof Only','fa-house-chimney'],['full_house','Full Structure','fa-house']].map(([key,title,icon])=>`<div class="ext-choice-wrap"><button type="button" class="ext-choice ${String(scope===key?'selected':'')}" data-scope="${String(key)}" aria-pressed="${String(scope===key)}"><strong>${String(scopeIcon(key))} ${String(title)}</strong></button><button type="button" class="ext-choice-info r-info-tip" data-details="${String(key)}" data-addon-info="${String(key)}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_79e68d505c1bac",`${v7} report information`,{v7}) ?? `${v7} report information`)(title)}"><i class="fas fa-info" aria-hidden="true"></i></button></div>`).join('')}</div><div class="ext-pages">${body}</div>${error?`<p class="ext-error" role="alert">${esc(error)} <button type="button" ${!quote?'data-reload':'data-dismiss-error'}>${!quote?'Retry':'Dismiss'}</button></p>`:''}`;
@@ -622,9 +622,9 @@
     root.querySelectorAll('[data-scope]').forEach(b=>b.onclick=()=>{if(busy)return;ctx.hideInfo?.();scope=b.dataset.scope;page=0;if(scope==='full_house'){ctx.setPinConfirmed?.(false);ctx.locationConfirmed=false;}ctx.refresh();render();});
     root.querySelectorAll('[data-delivery]').forEach(b=>b.onclick=()=>{delivery=b.dataset.delivery;render();});
     root.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(Number(b.dataset.page)));
-    root.querySelector('[data-back]')?.addEventListener('click',()=>go(page-1));
+    root.querySelector('[data-back]')?.addEventListener('click',()=>{if(!busy)go(page-1);});
     root.querySelector('[data-confirm-pins]')?.addEventListener('change',e=>{confirmedPins=e.target.checked?pinSignature:null;render();});
-    root.querySelector('[data-next]')?.addEventListener('click',async()=>{if(page<2){go(page+1);}else{busy=true;render();try{await ctx.submit();}finally{busy=false;render();}}});
+    root.querySelector('[data-next]')?.addEventListener('click',async()=>{if(busy)return;if(page<2){go(page+1);}else{busy=true;render();try{await ctx.submit();}finally{busy=false;render();}}});
     root.querySelector('[data-edit-map]')?.addEventListener('click',()=>{mapOpen=true;ctx.showMap?.();render();});
     root.querySelector('[data-reload]')?.addEventListener('click',load);
     root.querySelector('[data-dismiss-error]')?.addEventListener('click',()=>{error='';render();});
@@ -730,7 +730,7 @@
       photoIntroSeen=false;stopCamera();render();return true;
     },
     setMobilePage(step){if(!active())return;const next=step==='photos'?1:step==='final'?2:0;if(page!==next){if(next!==1)stopCamera();page=next;render();}},
-    previewTabChanged(tab){if(tab!=='photos')closeReferenceViewer();},
+    previewTabChanged(tab){if(tab!=='map')closeReferenceViewer();},
     failed(data){error=data?.message||data?.error||'Could not submit this order.';page=0;if(data?.error==='pricing_changed'||data?.error==='exteriors_closed')void load();render();},
     restore(fields){if(!ctx||!allowed(ctx.type)||fields.measurement_scope!=='full_house')return;scope='full_house';delivery=fields.report_expedite_option;notes=fields.tech_notes||'';ctx.setNotes?.(notes);page=0;let refs=[];try{refs=JSON.parse(fields.exterior_references||'[]');}catch{}for(const r of refs){const orbit=r.view==='orbital_video';files.set(r.structure+':'+(orbit?'video-'+r.media_id:r.view+(r.view==='additional'?'-'+r.media_id:'')),{media_id:r.media_id,name:orbit?'Orbital video':label(r.view)+' reference',...(orbit||r.kind==='video'?{kind:'video'}:{}),...(r.angle?{angleKey:r.structure+':'+r.angle}:{})});}
       // A draft resumes in the capture mode it was saved in.
