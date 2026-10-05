@@ -60,7 +60,7 @@ test('exterior ordering stays open after 8pm Pacific and overnight',()=>{
 
 test('configured Azure verifies coordinates and addresses when Google Geocoding is unavailable',async()=>{
  const {env}=await import('../src/config/env.js');const originalFetch=globalThis.fetch,originalKey=env.azureMapsSubscriptionKey;
- env.azureMapsSubscriptionKey='azure-country-fixture';const seen:URL[]=[];
+ Object.assign(env,{azureMapsSubscriptionKey:'azure-country-fixture'});const seen:URL[]=[];
  try{
   globalThis.fetch=(async(input,options)=>{
    const url=new URL(String(input));
@@ -74,5 +74,5 @@ test('configured Azure verifies coordinates and addresses when Google Geocoding 
   assert.equal(seen[1]!.pathname,'/geocode');assert.equal(seen[1]!.searchParams.get('query'),'10 Downing Street, London');
   globalThis.fetch=(async()=>new Response(JSON.stringify({features:[]}))) as typeof fetch;
   await assert.rejects(property.resolveReportPropertyCountry({lat:52.1,lng:0.1}),{code:'property_country_unavailable'});
- }finally{globalThis.fetch=originalFetch;env.azureMapsSubscriptionKey=originalKey;}
+ }finally{globalThis.fetch=originalFetch;Object.assign(env,{azureMapsSubscriptionKey:originalKey});}
 });
