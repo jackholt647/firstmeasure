@@ -39,3 +39,17 @@ test('existing-project reports and non-report workflows retain their entry behav
   }
   assert.match(source, /reportProjectChoice = initialReportProjectChoice\(overviewWorkflowMode, baseProject\)/);
 });
+
+
+test('report contact placeholder survives an empty restored contact list without replacing entered contacts', () => {
+  let cards = 0, additions = 0;
+  const context = vm.createContext({
+    requestedWorkflow:'report', primaryContactIndex:3,
+    $:()=>({querySelector:()=>cards ? {} : null}),
+    addContactCard:(values, options)=>{assert.equal(Object.keys(values).length,0);assert.equal(options.hydrate,true);cards++;additions++;}
+  });
+  vm.runInContext(functionSource('ensureOrderContactFields'),context);
+  context.ensureOrderContactFields();assert.equal(cards,1);assert.equal(context.primaryContactIndex,0);
+  context.ensureOrderContactFields();assert.equal(additions,1);
+  cards=0;context.requestedWorkflow='project';context.ensureOrderContactFields();assert.equal(additions,1);
+});

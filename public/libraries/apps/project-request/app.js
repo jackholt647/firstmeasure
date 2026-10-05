@@ -904,7 +904,8 @@ window.PlatformCommerce.onReady(async function(){
     .r-overview-details #rStepCustomer>.r-step-shell>.r-step-inner>.r-step-body{gap:14px}
     .r-overview-details #rStepCustomer>.r-step-shell>.r-step-inner>.r-step-body>.r-group{margin:0}
     .r-overview-details .r-contact-list{gap:14px}
-    .r-overview-details .r-contact-card .r-inp{font-weight:600}
+    .r-overlay :is(.r-project-identity-popover,.r-overview-details) .r-contact-list .r-contact-card{padding-left:0;padding-right:0}
+    .r-overlay :is(.r-project-identity-popover,.r-overview-details) .r-contact-card .r-inp{box-sizing:border-box;height:32px;min-height:32px;padding:5px 8px;line-height:20px;font-size:12px;font-weight:600}
     .r-overview-details:has(.r-overview-initial-actions:not([hidden])) #rOrderMeasurements{display:none!important}
     .r-overview-initial-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;margin:12px 0}.r-overview-initial-actions .r-toggle-btn{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;width:100%;min-width:0;min-height:40px;padding:9px 10px;border-radius:8px;text-align:left;white-space:normal;font-size:12px;line-height:1.35}.r-overview-initial-actions .r-toggle-btn i{display:inline-flex;align-items:center;justify-content:center;flex:0 0 18px;width:18px;font-size:13px;line-height:1;color:inherit}.r-overview-initial-actions[hidden]{display:none!important}
     .r-workflow-project-picker[hidden]{display:none!important}
@@ -923,8 +924,6 @@ window.PlatformCommerce.onReady(async function(){
     .r-overlay.overview-focused-report #rProjectViewerTabs,.r-overlay.overview-focused-report #rProjectStageBar{display:none!important}
     .r-overlay.overview-focused-report .r-window-identity{grid-row:1 / 3!important}
     .r-overlay.overview-focused-report #rWindowProjectTitle{font-size:24px;line-height:1.2;font-weight:700}
-    .r-overlay.overview-focused-report #rProjectIdentityTrigger{pointer-events:none}
-    .r-overlay.overview-focused-report #rProjectIdentityTrigger::after{display:none}
     .r-overlay .r-project-body{container-type:inline-size;container-name:project-body;min-width:0}
     .r-overlay [data-panel=map]>.r-tab-content{min-width:0}
     @container project-body (max-width:760px){
@@ -4485,7 +4484,15 @@ window.PlatformCommerce.onReady(async function(){
     menu.remove();trigger.setAttribute('aria-expanded','false');projectIdentityPopover=null;
     if(restoreFocus)trigger.focus();
   }
+  function ensureOrderContactFields(){
+    const list = $('#rContactList');
+    if (requestedWorkflow !== 'report' || !list || list.querySelector('.r-contact-card')) return;
+    // An empty contact is an editable placeholder, not a saved contact record.
+    primaryContactIndex = 0;
+    addContactCard({}, {hydrate:true});
+  }
   function openProjectIdentityPopover(trigger){
+    ensureOrderContactFields();
     if(projectIdentityPopover){closeProjectIdentityPopover(true);return;}
     closeManualStagePicker();closeHeaderPropertyTypeMenu();
     const menu=document.createElement('section');menu.className='r-project-identity-popover';
@@ -8593,7 +8600,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function updateModalTitle(){
     if (reportHeaderPending()) {
-      const title=document.getElementById('rWindowProjectTitle');if(title)title.textContent='New Report';
+      const title=document.getElementById('rWindowProjectTitle');if(title && title.textContent!=='New Report')title.textContent='New Report';
       const mobile=document.getElementById('rMobileProjectTitleText');if(mobile)mobile.textContent='New Report';
       projectWindowBridge?.update(projectWindowToken,{title:'New Report',projectId:projectOpenId()});
       return;
@@ -8635,7 +8642,9 @@ window.PlatformCommerce.onReady(async function(){
     if (mobileTitle) mobileTitle.textContent = mobileDisplayTitle;
     const windowTitle = document.getElementById('rWindowProjectTitle');
     if (windowTitle) {
-      windowTitle.innerHTML=projectHeaderIdentityHtml(mobileDisplayTitle,customerName,address);
+      const identityHtml=projectHeaderIdentityHtml(mobileDisplayTitle,customerName,address);
+      // A contact blur/change must not replace the title span under a click.
+      if(windowTitle.innerHTML!==identityHtml)windowTitle.innerHTML=identityHtml;
     }
     projectWindowBridge?.update(projectWindowToken,{title:mobileDisplayTitle,projectId:projectOpenId()});
     renderProjectStageBar();
@@ -9445,6 +9454,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function renderWorkflowStateBody(options = {}){
+    ensureOrderContactFields();
     syncOverviewWorkflow();
     syncDevelopmentReportControls();
     const preserveRouteTab = options.preserveRouteTab === true;
@@ -11094,6 +11104,7 @@ window.PlatformCommerce.onReady(async function(){
     }
     if (Array.isArray(session.contacts) && $('#rContactList')) {
       $('#rContactList').replaceChildren();session.contacts.forEach(contact=>addContactCard(contact,{hydrate:true}));
+      ensureOrderContactFields();
     }
     if (Array.isArray(session.cc) && $('#rCcList')) {
       $('#rCcList').replaceChildren();session.cc.forEach(email=>addCcRow(email,{hydrate:true}));
