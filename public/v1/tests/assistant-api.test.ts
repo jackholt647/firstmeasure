@@ -625,7 +625,7 @@ test("the assistant creates a personal agent that runs on schedule into the main
   await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, { values: { "apps.channels": false } });
   assert.equal(await sweepAgentSchedules(new Date()), 1);
   const run = mockOpenAI([
-    { output: [functionCall("create_artifact", { kind: "donut", title: "Yesterday's profit by job", key: "daily-profit", unit: "currency", labels: ["Roof", "Siding"], series: [{ name: "Profit", values: [700, 300] }] }, "r1")] },
+    { output: [functionCall("present_panel", { title: "Yesterday's profit by job", key: "daily-profit", widgets: [{ type: "visualization",  kind: "donut", title: "Yesterday's profit by job", unit: "currency", labels: ["Roof", "Siding"], series: [{ name: "Profit", values: [700, 300] }]  }] }, "r1")] },
     { output: [functionCall("report_result", { status: "success", summary: "Reported." }, "r2")] },
     { output: [messageOutput("You made $1,000 profit yesterday.\nRoofing led with $700.")] }
   ]);
@@ -638,10 +638,10 @@ test("the assistant creates a personal agent that runs on schedule into the main
   assert.equal(delivered.content, "You made $1,000 profit yesterday.\nRoofing led with $700.");
   assert.equal(delivered.data.source, "agent");
   assert.equal(delivered.data.agent_title, "Daily Profit Tracker");
-  assert.equal(delivered.data.renders[0].kind, "donut");
+  assert.equal(delivered.data.renders[0].widgets[0].kind, "donut");
   const dashboard = (await client.request("GET", `${base}/dashboard`)).dashboard;
   assert.equal(dashboard.length, 1);
-  assert.equal(dashboard[0].artifact.source_label, "Daily Profit Tracker");
+  assert.equal(dashboard[0].panel.source_label, "Daily Profit Tracker");
   const schedule = await readAgentSchedule(agentId);
   assert.equal(schedule?.last_result, "You made $1,000 profit yesterday.");
   const { readDocument } = await import("../platform/storage.js");
@@ -654,20 +654,20 @@ test("the assistant creates a personal agent that runs on schedule into the main
   assert.equal(afterRun.runs.length, 1);
   assert.ok(afterRun.messages.every((message: any) => message.data?.kind !== "agent_run"));
 
-  // Closing an artifact removes it; deleting the agent stops it.
+  // Closing a panel removes it; deleting the agent stops it.
   assert.deepEqual((await client.request("DELETE", `${base}/dashboard/${dashboard[0].id}`)).dashboard, []);
   await client.request("DELETE", `${base}/agents/${agentId}`);
   assert.deepEqual((await client.request("GET", `${base}/agents`)).agents, []);
 });
 
-test("chat artifacts are validated and pinned to the dashboard", async () => {
+test("chat panels are validated and pinned to the dashboard", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
   const base = `/v1/assistant/organizations/${orgId}`;
   const created = await client.request("POST", `${base}/threads`, {});
   const mock = mockOpenAI([
-    { output: [functionCall("create_artifact", { kind: "pie", title: "Bad", labels: ["A"], series: [{ name: "x", values: [-1] }] }, "a0")] },
-    { output: [functionCall("create_artifact", { kind: "metrics", title: "This week", metrics: [{ label: "Revenue", value: 4200, unit: "currency", delta: "+8% vs last week" }] }, "a1")] },
+    { output: [functionCall("present_panel", { title: "Bad", widgets: [{ type: "visualization",  kind: "pie", title: "Bad", labels: ["A"], series: [{ name: "x", values: [-1] }]  }] }, "a0")] },
+    { output: [functionCall("present_panel", { title: "This week", widgets: [{ type: "visualization",  kind: "metrics", title: "This week", metrics: [{ label: "Revenue", value: 4200, unit: "currency", delta: "+8% vs last week" }]  }] }, "a1")] },
     { output: [functionCall("report_result", { status: "success", summary: "Shown." }, "a2")] },
     { output: [messageOutput("Revenue is up 8% this week.")] }
   ]);
@@ -676,8 +676,8 @@ test("chat artifacts are validated and pinned to the dashboard", async () => {
     assert.match(JSON.parse((mock.calls[1] as any).input.at(-1).output).errors[0], /zero or greater/);
     assert.equal(reply.renders.length, 1);
     assert.equal(reply.dashboard.length, 1);
-    assert.equal(reply.dashboard[0].artifact.metrics[0].value, 4200);
-    assert.equal(reply.assistant_message.data.renders[0].kind, "metrics");
+    assert.equal(reply.dashboard[0].panel.widgets[0].metrics[0].value, 4200);
+    assert.equal(reply.assistant_message.data.renders[0].widgets[0].kind, "metrics");
   } finally { mock.restore(); }
 });
 

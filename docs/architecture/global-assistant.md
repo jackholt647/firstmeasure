@@ -155,19 +155,29 @@ occurrence. The recurring sweep evaluates cron minutes since each agent's last
 run; revisit its cost before very large agent counts. A run executes in the agent thread as its creator through
 `backgroundAuthContext`, so current permissions, capability and settings gates
 still apply. The reply is appended to the creator's main thread with
-`data.source = 'agent'`, its artifacts are pinned to the dashboard (replacing the
-same agent's artifact with the same key), the schedule records the last result,
+`data.source = 'agent'`, its panels are pinned to the dashboard (replacing the
+same agent's panel with the same key), the schedule records the last result,
 and a push notification (`frontend_action.kind = 'open_assistant'`) opens the
 main thread. Delivery is in-app and push; agents do not send SMS.
 
-**Artifacts** are declarative specs from `create_artifact` (bar, line, pie,
-donut, metrics, table, text), validated server-side and drawn by the browser's
-own SVG/HTML renderer; model-authored HTML or script is never executed. Chat
-artifacts are pinned to the per-user `assistant_dashboard_items` table (12 most
-recent). In the full workspace the dashboard sits left of the conversation with
-an invisible, draggable divider; the composer stays centered beneath both. When
-the window is narrow, docked, or the dashboard is hidden, artifacts render
-inline in the conversation. Settings → Agents lists, pauses, resumes, runs and
+**Chat panels** are presentation containers created with `present_panel`. Each panel
+has its own identity, title and optional stable replacement key, and contains one
+to six widgets: bounded chart/metrics/table/text visualization specifications or
+authorized references to registered platform widgets. `platform_show_widget`
+is a convenience tool that presents a one-widget panel. Panels are UI; published
+artifacts are digital objects consumed through providers, exports and bindings.
+Neither a panel nor a widget publishes a domain record merely by being displayed.
+
+Panel specifications are validated server-side; registered widget children use
+the existing source authorization and agent restrictions. The browser renders
+the widgets without executing model-authored HTML or scripts. Chat panels are
+pinned to the per-user `assistant_dashboard_items` table (12 most recent).
+Dashboard responses expose `panel`; the historical `artifact_json` SQL column
+is retained for storage compatibility. Old `artifact` and `platform_widget`
+message payloads remain readable. New tools and messages use `panel` with a
+`widgets` array. In the full workspace panels sit beside the conversation;
+docked, hidden-side-view and narrow layouts render panels inline.
+Settings → Agents lists, pauses, resumes, runs and
 deletes a user's agents. Routes: `agents`, `agents/:id` (GET, PATCH, DELETE),
 `agents/:id/run`, `dashboard` and `dashboard/:itemId` under the organization prefix.
 
@@ -346,7 +356,7 @@ No provider credentials, tool grants or backend operation implementations change
 
 ### Widget view and voice cues (October 2)
 
-Platform widget renders share the assistant's side panel with dashboard artifacts
+Platform widget renders share the assistant's side panel with dashboard panels
 in full view. Left is the default; the panel's side switch persists the preference.
 The composer remains a sibling beneath both columns. Close widget view and narrow
 layouts render widgets inline instead. Content widgets retain natural height;

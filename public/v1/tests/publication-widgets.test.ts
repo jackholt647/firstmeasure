@@ -31,7 +31,17 @@ test('widget reads and discovery enforce permissions, exact versions and project
   await assert.rejects(Promise.resolve().then(()=>show.execute(run,{id:'scope.lists',version:'1',target,config:{resourceType:'labor'}})));
   run.settings.data_scope.projects=true;
   await show.execute(run,{id:'scope.lists',version:'1',target,config:{resourceType:'labor'}});
-  assert.equal(run.renders.length,1);assert.deepEqual(run.renders[0].widget,{id:'scope.lists',version:'1',target,config:{resourceType:'labor'}});
+  assert.equal(run.renders.length,1);assert.deepEqual(run.renders[0].widgets[0].widget,{id:'scope.lists',version:'1',target,config:{resourceType:'labor'}});
+  const {assistantAgentTools}=await import('../assistant/agent/agents.js');
+  const present=assistantAgentTools.find(t=>t.name==='present_panel')!;
+  const mixed={title:'Material review',widgets:[{type:'visualization',kind:'text',text:'Review before ordering.'},{type:'platform_widget',widget:{id:'scope.lists',version:'1',target,config:{resourceType:'labor'}}}]};
+  const beforePanel=await s.readDocument('org_widgets','projects','project_widgets');
+  await present.execute(run,mixed);assert.equal(run.renders[1].type,'panel');assert.equal(run.renders[1].widgets.length,2);
+  assert.deepEqual(await s.readDocument('org_widgets','projects','project_widgets'),beforePanel);
+  run.settings.data_scope.projects=false;
+  await assert.rejects(Promise.resolve().then(()=>present.execute(run,mixed)));
+  assert.equal(run.renders.length,2,'A denied child must not publish a partial panel');
+  run.settings.data_scope.projects=true;
   await assert.rejects(Promise.resolve().then(()=>show.execute({...run,ctx:null},{id:'scope.lists',version:'1',target,config:{}})));
   auth.permissions.view_materials=false;assert.deepEqual((await w.listWidgets(ctx,target)).map(d=>d.id),['reports.roof','reports.photo']);assert.equal((await p.readPublishedData(ctx,{provider:'project-widgets',export:'measurements',target})).status,'denied');
   auth.permissions.view_reports=false;await assert.rejects(w.authorizeWidget(ctx,'reports.roof','1',target));assert.equal((await w.listWidgets(ctx,target)).length,0);

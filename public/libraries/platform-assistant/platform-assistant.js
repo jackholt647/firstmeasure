@@ -7,7 +7,7 @@
  * Navigation: one main thread (where scheduled agents report), collapsible
  * Agents and Side chats sections, search at the bottom. Opening an agent
  * shows its configuration with a small chat for changing it. In the full
- * workspace, artifacts (charts, metrics, tables) sit on a dashboard to the
+ * workspace, panels (charts, metrics, tables) sit on a dashboard to the
  * left of the conversation; the composer stays centered underneath both.
  */
 (function(){
@@ -176,7 +176,7 @@
     return new Intl.NumberFormat(undefined, { notation:compact ? 'compact' : 'standard', maximumFractionDigits:compact ? 1 : 2 }).format(number);
   }
 
-  // ── Artifacts (declarative specs rendered locally, never model HTML) ─────
+  // ── Panels (declarative specs rendered locally, never model HTML) ─────
 
   // Validated categorical order (fixed, never cycled); single series use the brand color.
   const SERIES_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
@@ -200,11 +200,11 @@
 
   function tip(text){ return ` data-tip="${esc(text)}"`; }
 
-  function cartesianSvg(artifact, width){
-    const labels = array(artifact.labels);
-    const series = array(artifact.series).map(object);
-    const unit = clean(artifact.unit);
-    const currency = clean(artifact.currency) || 'USD';
+  function cartesianSvg(widget, width){
+    const labels = array(widget.labels);
+    const series = array(widget.series).map(object);
+    const unit = clean(widget.unit);
+    const currency = clean(widget.currency) || 'USD';
     const values = series.flatMap((entry) => array(entry.values).map(Number));
     const minValue = Math.min(0, ...values);
     const maxValue = Math.max(0, ...values);
@@ -218,7 +218,7 @@
     const band = (plot.right - plot.left) / Math.max(1, labels.length);
     const labelSpace = Math.min(12, Math.max(...labels.map((label) => String(label).length), 1)) * 6.4 + 10;
     const labelEvery = Math.max(1, Math.ceil(labels.length / Math.max(1, Math.floor((plot.right - plot.left) / labelSpace))));
-    const parts = [`<svg class="fma-chart" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(artifact.title)}">`];
+    const parts = [`<svg class="fma-chart" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(widget.title)}">`];
     ticks.concat(bottom < 0 ? [bottom] : []).forEach((tick) => {
       parts.push(`<line class="grid" x1="${plot.left}" x2="${plot.right}" y1="${y(tick)}" y2="${y(tick)}"/><text class="axis" x="${plot.left - 8}" y="${y(tick) + 4}" text-anchor="end">${esc(formatValue(tick, unit, { compact:true, currency }))}</text>`);
     });
@@ -228,7 +228,7 @@
       parts.push(`<text class="axis" x="${plot.left + band * index + band / 2}" y="${height - 8}" text-anchor="middle">${esc(text)}</text>`);
     });
     const color = (index) => series.length > 1 ? SERIES_COLORS[index % SERIES_COLORS.length] : BRAND;
-    if (clean(artifact.kind) === 'line') {
+    if (clean(widget.kind) === 'line') {
       series.forEach((entry, seriesIndex) => {
         const points = array(entry.values).map((value, index) => [plot.left + band * index + band / 2, y(Number(value))]);
         if (!points.length) return;
@@ -264,15 +264,15 @@
     return parts.join('') + legendHtml(series);
   }
 
-  function pieHtml(artifact, width){
-    const labels = array(artifact.labels);
-    const values = array(object(array(artifact.series)[0]).values).map((value) => Math.max(0, Number(value) || 0));
-    const unit = clean(artifact.unit);
-    const currency = clean(artifact.currency) || 'USD';
+  function pieHtml(widget, width){
+    const labels = array(widget.labels);
+    const values = array(object(array(widget.series)[0]).values).map((value) => Math.max(0, Number(value) || 0));
+    const unit = clean(widget.unit);
+    const currency = clean(widget.currency) || 'USD';
     const total = values.reduce((sum, value) => sum + value, 0);
     const size = Math.max(120, Math.min(180, width * 0.42));
     const radius = size / 2 - 2;
-    const inner = clean(artifact.kind) === 'donut' ? radius * 0.62 : 0;
+    const inner = clean(widget.kind) === 'donut' ? radius * 0.62 : 0;
     const center = size / 2;
     let angle = -Math.PI / 2;
     const slices = values.map((value, index) => {
@@ -295,12 +295,12 @@
       const share = total ? Math.round((value / total) * 100) : 0;
       return `<li><i style="background:${SERIES_COLORS[index % SERIES_COLORS.length]}"></i><span class="name">${esc(label)}</span><span class="value">${esc(formatValue(value, unit, { currency }))}</span><span class="share">${share}%</span></li>`;
     }).join('');
-    return `<div class="fma-pie"><svg class="fma-chart" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${esc(artifact.title)}">${slices}${hole}</svg><ul class="fma-pie-legend">${legend}</ul></div>`;
+    return `<div class="fma-pie"><svg class="fma-chart" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${esc(widget.title)}">${slices}${hole}</svg><ul class="fma-pie-legend">${legend}</ul></div>`;
   }
 
-  function metricsHtml(artifact){
-    const currency = clean(artifact.currency) || 'USD';
-    return `<div class="fma-metrics">${array(artifact.metrics).map(object).map((metric) => {
+  function metricsHtml(widget){
+    const currency = clean(widget.currency) || 'USD';
+    return `<div class="fma-metrics">${array(widget.metrics).map(object).map((metric) => {
       const trend = clean(metric.trend);
       const good = trend && trend !== 'flat' ? (trend === (clean(metric.good) || 'up') ? 'good' : 'bad') : '';
       const icon = trend === 'up' ? 'fa-arrow-up' : trend === 'down' ? 'fa-arrow-down' : '';
@@ -308,45 +308,62 @@
     }).join('')}</div>`;
   }
 
-  function tableHtml(artifact){
-    const columns = array(artifact.columns);
-    const rows = array(artifact.rows);
-    return `<div class="fma-table-wrap"><table class="fma-table"><thead><tr>${columns.map((column) => `<th>${esc(column)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${array(row).map((cell) => typeof cell === 'number' ? `<td class="num">${esc(formatValue(cell, clean(artifact.unit), { currency:clean(artifact.currency) || 'USD' }))}</td>` : `<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  function tableHtml(widget){
+    const columns = array(widget.columns);
+    const rows = array(widget.rows);
+    return `<div class="fma-table-wrap"><table class="fma-table"><thead><tr>${columns.map((column) => `<th>${esc(column)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${array(row).map((cell) => typeof cell === 'number' ? `<td class="num">${esc(formatValue(cell, clean(widget.unit), { currency:clean(widget.currency) || 'USD' }))}</td>` : `<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
 
-  function artifactBodyHtml(artifact, width){
-    const kind = clean(artifact.kind);
+  // Legacy artifact payloads remain readable; new chat UI uses panels with child widgets.
+  function chatPanel(value){
+    const entry = object(value);
+    return entry.type === 'artifact' ? {...entry,type:'panel',widgets:[{...entry,type:'visualization'}]} : entry;
+  }
+
+  function visualizationHtml(widget, width){
+    const kind = clean(widget.kind);
+    if (kind === 'bar' || kind === 'line') return cartesianSvg(widget, Math.max(240, Math.floor(width)));
+    if (kind === 'pie' || kind === 'donut') return pieHtml(widget, width);
+    if (kind === 'metrics') return metricsHtml(widget);
+    if (kind === 'table') return tableHtml(widget);
+    return `<div class="fma-panel-text">${renderMarkdown(widget.text)}</div>`;
+  }
+
+  function panelBodyHtml(panel, width, options = {}){
     try {
-      if (kind === 'bar' || kind === 'line') return cartesianSvg(artifact, Math.max(240, Math.floor(width)));
-      if (kind === 'pie' || kind === 'donut') return pieHtml(artifact, width);
-      if (kind === 'metrics') return metricsHtml(artifact);
-      if (kind === 'table') return tableHtml(artifact);
-      return `<div class="fma-artifact-text">${renderMarkdown(artifact.text)}</div>`;
+      return array(panel.widgets).map((widget,index) => {
+        if (widget.type === 'platform_widget') return window.FirstMateWidgets?.presentationHtml?.([widget],{side:!options.inline}) || '<p class="fma-empty">Widget renderer unavailable.</p>';
+        return `<section data-panel-visualization="${index}">${widget.title && widget.title !== panel.title ? `<h4>${esc(widget.title)}</h4>` : ''}<div data-visualization-body>${visualizationHtml(widget,width)}</div></section>`;
+      }).join('');
     } catch (error) {
-      console.warn('[assistant] artifact render failed', error);
-      return '<p class="fma-empty">This artifact could not be displayed.</p>';
+      console.warn('[assistant] panel render failed', error);
+      return '<p class="fma-empty">This panel could not be displayed.</p>';
     }
   }
 
-  const artifactRegistry = new Map();
+  const panelRegistry = new Map();
 
-  /** Charts are drawn at their container's measured width so labels never scale or clip. */
-  function fitArtifacts(container){
-    container?.querySelectorAll('[data-artifact-id]').forEach((body) => {
-      const artifact = artifactRegistry.get(body.dataset.artifactId);
+  function fitPanels(container){
+    container?.querySelectorAll('[data-panel-id]').forEach((body) => {
+      const panel = panelRegistry.get(body.dataset.panelId);
       const width = body.clientWidth;
-      if (!artifact || !width || Math.abs(width - Number(body.dataset.renderedWidth || 0)) < 2) return;
-      body.innerHTML = artifactBodyHtml(artifact, width);
-      body.dataset.renderedWidth = String(width);
+      if (!panel || !width || Math.abs(width - Number(body.dataset.renderedWidth || 0)) < 2) return;
+      // Resize visualization children without destroying mounted platform widgets.
+      body.querySelectorAll('[data-panel-visualization]').forEach(section => {
+        const widget = array(panel.widgets)[Number(section.dataset.panelVisualization)];
+        if (widget) section.querySelector('[data-visualization-body]').innerHTML = visualizationHtml(widget,width);
+      });
+      body.dataset.renderedWidth = width;
     });
   }
 
-  function artifactCardHtml(artifact, options = {}){
-    if (artifact.id) artifactRegistry.set(clean(artifact.id), artifact);
-    const meta = [clean(artifact.subtitle), clean(options.source), options.time ? relativeTime(options.time) : ''].filter(Boolean).join(' · ');
-    return `<article class="fma-artifact${options.inline ? ' inline' : ''}"${options.itemId ? ` data-board-item="${esc(options.itemId)}"` : ''}>
-      <header><div><h3>${esc(artifact.title)}</h3>${meta ? `<p>${esc(meta)}</p>` : ''}</div>${options.itemId ? `<button type="button" class="fma-icon-btn ghost" data-board-close="${esc(options.itemId)}" title="Close" aria-label="Close ${esc(artifact.title)}"><i class="fas fa-xmark" aria-hidden="true"></i></button>` : ''}</header>
-      <div class="fma-artifact-body" data-artifact-id="${esc(artifact.id)}" data-rendered-width="${options.width || 360}">${artifactBodyHtml(artifact, options.width || 360)}</div>
+  function panelCardHtml(panel, options = {}){
+    panel = chatPanel(panel);
+    if (panel.id) panelRegistry.set(clean(panel.id), panel);
+    const meta = [clean(panel.subtitle), clean(options.source), options.time ? relativeTime(options.time) : ''].filter(Boolean).join(' · ');
+    return `<article class="fma-panel${options.inline ? ' inline' : ''}"${options.itemId ? ` data-board-item="${esc(options.itemId)}"` : ''}>
+      <header><div><h3>${esc(panel.title)}</h3>${meta ? `<p>${esc(meta)}</p>` : ''}</div>${options.itemId ? `<button type="button" class="fma-icon-btn ghost" data-board-close="${esc(options.itemId)}" title="Close" aria-label="Close ${esc(panel.title)}"><i class="fas fa-xmark" aria-hidden="true"></i></button>` : ''}</header>
+      <div class="fma-panel-body" data-panel-id="${esc(panel.id)}" data-rendered-width="${options.width || 360}">${panelBodyHtml(panel, options.width || 360, options)}</div>
     </article>`;
   }
 
@@ -458,14 +475,14 @@
       .fma-split:hover:before,.fma-split.dragging:before,.fma-split:focus-visible:before{background:var(--primary-readable,var(--primary,#175cd3));opacity:.55;}
       .fma-split:focus-visible{outline:none;}
       .fma-drawer[data-board=open] .fma-split{display:none;}
-      .fma-artifact{background:#fff;border:1px solid #e4e7ec;border-radius:14px;padding:14px 16px 16px;box-shadow:0 1px 2px #1018280a;display:flex;flex-direction:column;gap:10px;min-width:0;}
-      .fma-artifact.inline{align-self:stretch;max-width:92%;padding:12px 12px 14px;}
-      .fma-artifact header{display:flex;align-items:flex-start;gap:8px;}
-      .fma-artifact header div{flex:1;min-width:0;}
-      .fma-artifact h3{margin:0;font-size:14px;font-weight:800;color:#101828;}
-      .fma-artifact header p{margin:2px 0 0;font-size:12px;color:#667085;}
-      .fma-artifact-body{min-width:0;overflow:hidden;}
-      .fma-artifact.flash{animation:fmaFlash 1.2s ease;}
+      .fma-panel{background:#fff;border:1px solid #e4e7ec;border-radius:14px;padding:14px 16px 16px;box-shadow:0 1px 2px #1018280a;display:flex;flex-direction:column;gap:10px;min-width:0;}
+      .fma-panel.inline{align-self:stretch;max-width:92%;padding:12px 12px 14px;}
+      .fma-panel header{display:flex;align-items:flex-start;gap:8px;}
+      .fma-panel header div{flex:1;min-width:0;}
+      .fma-panel h3{margin:0;font-size:14px;font-weight:800;color:#101828;}
+      .fma-panel header p{margin:2px 0 0;font-size:12px;color:#667085;}
+      .fma-panel-body{min-width:0;overflow:hidden;}
+      .fma-panel.flash{animation:fmaFlash 1.2s ease;}
       @keyframes fmaFlash{0%,100%{box-shadow:0 1px 2px #1018280a}30%{box-shadow:0 0 0 3px rgba(var(--primary-rgb,23,92,211),.35)}}
       .fma-chart{display:block;overflow:visible;}
       .fma-chart .grid{stroke:#eceef2;stroke-width:1;}
@@ -496,13 +513,13 @@
       .fma-table th{position:sticky;top:0;background:#fff;text-align:left;font-weight:700;color:#475467;border-bottom:1px solid #e4e7ec;padding:6px 8px;}
       .fma-table td{border-bottom:1px solid #f2f4f7;padding:6px 8px;color:#101828;}
       .fma-table .num{text-align:right;font-variant-numeric:tabular-nums;}
-      .fma-artifact-text{font-size:13.5px;line-height:1.5;}
+      .fma-panel-text{font-size:13.5px;line-height:1.5;}
       .fma-drawer.fma-embedded{position:relative;inset:auto;width:100%;height:100%;min-height:0;flex:1;box-shadow:none;border:0;border-radius:0;}
       .fma-drawer.fma-embedded .fma-head{flex-shrink:0;}
       .fma-tooltip{position:fixed;z-index:4000;pointer-events:none;background:#101828;color:#fff;font-size:12px;font-weight:600;padding:6px 9px;border-radius:7px;box-shadow:0 6px 18px #10182833;white-space:nowrap;transform:translate(-50%,calc(-100% - 10px));}
       .fma-tooltip[hidden]{display:none;}
-      .fma-artifact-chip{align-self:flex-start;display:inline-flex;align-items:center;gap:7px;border:1px solid #e4e7ec;background:#fff;border-radius:10px;padding:7px 11px;font:inherit;font-size:12.5px;font-weight:700;color:#344054;cursor:pointer;}
-      .fma-artifact-chip:hover{border-color:var(--primary-readable,var(--primary,#175cd3));color:var(--primary-readable,var(--primary,#175cd3));}
+      .fma-panel-chip{align-self:flex-start;display:inline-flex;align-items:center;gap:7px;border:1px solid #e4e7ec;background:#fff;border-radius:10px;padding:7px 11px;font:inherit;font-size:12.5px;font-weight:700;color:#344054;cursor:pointer;}
+      .fma-panel-chip:hover{border-color:var(--primary-readable,var(--primary,#175cd3));color:var(--primary-readable,var(--primary,#175cd3));}
 
       /* Conversation. */
       .fma-msgs{--fma-fade-top:0px;--fma-fade-bottom:0px;mask-image:linear-gradient(to bottom,transparent,#000 var(--fma-fade-top),#000 calc(100% - var(--fma-fade-bottom)),transparent);flex:1;min-height:0;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
@@ -637,7 +654,7 @@
       .fma-recording-time{font-size:12px;color:#667085;font-variant-numeric:tabular-nums;}
       .fma-wave{display:block;flex:1;min-width:0;width:100%;height:28px;color:var(--primary-readable,var(--primary,#175cd3));}
       @media(max-width:420px){.fma-drawer[data-voice=true] .fma-head .fm-window-controls button,.fma-drawer[data-voice=true] .fma-head .fma-visuals-toggle{width:24px;} .fma-drawer[data-voice=true] .fma-head{gap:4px;}}
-      @media (prefers-reduced-motion:reduce){.fma-compose-shell textarea{transition:none;}.fma-anim,.fma-artifact.flash{animation:none;}}
+      @media (prefers-reduced-motion:reduce){.fma-compose-shell textarea{transition:none;}.fma-anim,.fma-panel.flash{animation:none;}}
 
       /* Full workspace: centered conversation, or conversation on the right of the dashboard. */
       .fma-drawer[data-window=full] .fma-msgs,.fma-drawer[data-window=full] .fma-settings{padding-top:6px;padding-left:max(20px,calc((100% - 850px)/2));padding-right:max(20px,calc((100% - 850px)/2));}
@@ -668,8 +685,8 @@
         <button type="button" class="fma-icon-btn fma-sidebar-toggle" data-fma="history" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_ee81752261cfa1","Conversations") ?? "Conversations")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_f421bede1a732b","Open conversations") ?? "Open conversations")}" aria-expanded="false"><i class="fas fa-bars-staggered" aria-hidden="true"></i></button>
         <span class="fma-head-title" data-fma="headTitle"></span>
         <span class="fma-voice-indicator" data-fma="voiceIndicator" role="img" aria-label="Voice conversation active" hidden><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-        <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="visualsToggle" title="Close widget view" aria-label="Close widget view" aria-pressed="true" hidden><i class="fas fa-chart-pie" aria-hidden="true"></i></button>
-        <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="boardSide" aria-label="Move widgets to the right" title="Move widgets to the right" hidden><i class="fas fa-right-left" aria-hidden="true"></i></button>
+        <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="visualsToggle" title="Close panel view" aria-label="Close panel view" aria-pressed="true" hidden><i class="fas fa-chart-pie" aria-hidden="true"></i></button>
+        <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="boardSide" aria-label="Move panels to the right" title="Move panels to the right" hidden><i class="fas fa-right-left" aria-hidden="true"></i></button>
         ${embedded && surface.onPin ? '<button type="button" class="fma-icon-btn ghost" data-fma="pinSurface" aria-label="Pin assistant" title="Pin assistant"><i class="fas fa-thumbtack"></i></button>' : ''}
         ${embedded && surface.onClose ? '<button type="button" class="fma-icon-btn ghost" data-fma="closeSurface" title="Close assistant" aria-label="Close assistant"><i class="fas fa-xmark" aria-hidden="true"></i></button>' : ''}
       </div>
@@ -810,10 +827,12 @@
       const button = event.target.closest('[data-board-close]');
       if (!button) return;
       const itemId = button.dataset.boardClose;
+      const closed = state.dashboard.find(item => clean(item.id) === itemId);
+      if (closed) dismissedPanels.add(clean(chatPanel(closed.panel || closed.artifact).id));
       state.dashboard = state.dashboard.filter((item) => clean(item.id) !== itemId);
       syncLayout();
       try { state.dashboard = array((await window.AssistantAPI.dashboard.remove(orgId(), itemId)).dashboard); syncLayout(); }
-      catch (error) { console.warn('[assistant] could not close artifact', error); }
+      catch (error) { console.warn('[assistant] could not close panel', error); }
     });
     bindSplitter();
     bindTooltips();
@@ -876,12 +895,24 @@
     return state.messages.flatMap(message => array(object(message.data).renders)).filter(render => render.type === 'platform_widget' && render.widget);
   }
 
+  const dismissedPanels = new Set();
+  function boardPanels(){
+    const items = state.dashboard.map(item => ({...item,panel:chatPanel(item.panel || item.artifact)}));
+    if (!projectId) return items;
+    const ids = new Set(items.map(item => clean(item.panel.id)));
+    for (const message of state.messages) for (const panel of panelsOf(message)) {
+      if (ids.has(clean(panel.id)) || dismissedPanels.has(clean(panel.id))) continue;
+      ids.add(clean(panel.id)); items.push({panel,updated_at:message.created_at});
+    }
+    return items.slice(-12);
+  }
+
   function boardAvailable(){
-    return state.mode === 'full' && (state.paymentWidget || (els?.drawer?.clientWidth || 0) >= BOARD_MIN_WIDTH) && state.view !== 'settings';
+    return ['full','fullscreen'].includes(state.mode) && (state.paymentWidget || (els?.drawer?.clientWidth || 0) >= BOARD_MIN_WIDTH) && state.view !== 'settings';
   }
 
   function boardOpen(){
-    return boardAvailable() && !state.boardHidden && (state.paymentWidget || state.dashboard.length > 0 || widgetRenders().length > 0);
+    return boardAvailable() && !state.boardHidden && (state.paymentWidget || boardPanels().length > 0 || widgetRenders().length > 0);
   }
 
   function setBoardHidden(hidden){
@@ -893,12 +924,12 @@
 
   function syncLayout(){
     if (!els || disposed) return;
-    const count = state.dashboard.length + widgetRenders().length + (state.paymentWidget ? 1 : 0);
+    const count = boardPanels().length + widgetRenders().length + (state.paymentWidget ? 1 : 0);
     const previous = els.drawer.dataset.board;
     const next = boardOpen() ? 'open' : (boardAvailable() && count ? 'hidden' : 'none');
     els.drawer.dataset.board = next;
     els.drawer.dataset.boardSide = state.boardSide;
-    const sideLabel = state.boardSide === 'right' ? 'Move widgets to the left' : 'Move widgets to the right';
+    const sideLabel = state.boardSide === 'right' ? 'Move panels to the left' : 'Move panels to the right';
     const sideButton = els.drawer.querySelector('[data-fma=boardSide]');
     sideButton.hidden = next !== 'open';
     sideButton.title = sideLabel; sideButton.setAttribute('aria-label',sideLabel);
@@ -907,15 +938,15 @@
     if (next === 'open') scheduleBoardRender();
     else { els.boardItems.replaceChildren(); delete els.boardItems.dataset.signature; }
     if (previous !== next && previous !== undefined) renderMessages({ keepScroll:true });
-    else fitArtifacts(els.msgs);
+    else fitPanels(els.msgs);
   }
 
   function syncVisualsToggle(){
     if (!els || disposed) return;
-    const count = state.dashboard.length + widgetRenders().length + (state.paymentWidget ? 1 : 0);
+    const count = boardPanels().length + widgetRenders().length + (state.paymentWidget ? 1 : 0);
     const visible = !state.boardHidden;
-    const label = visible ? 'Close widget view' : 'Open widget view';
-    els.visualsToggle.hidden = !count && !state.messages.some((message) => artifactsOf(message).length);
+    const label = visible ? 'Close panel view' : 'Open panel view';
+    els.visualsToggle.hidden = !count && !state.messages.some((message) => panelsOf(message).length);
     els.visualsToggle.setAttribute('aria-pressed', String(visible));
     els.visualsToggle.title = count ? `${label} (${count})` : label;
     els.visualsToggle.setAttribute('aria-label', label);
@@ -923,7 +954,7 @@
 
   function scheduleBoardRender(options = {}){
     cancelAnimationFrame(boardRenderFrame);
-    if (options.frame) boardRenderFrame = requestAnimationFrame(() => fitArtifacts(els?.boardItems));
+    if (options.frame) boardRenderFrame = requestAnimationFrame(() => fitPanels(els?.boardItems));
     else renderBoard();
   }
 
@@ -931,14 +962,15 @@
     if (!els || els.drawer.dataset.board !== 'open') return;
     els.boardItems.style.setProperty('--fma-widget-height', `${Math.max(280,els.boardItems.clientHeight - 108)}px`);
     const widgets = widgetRenders();
-    const signature = state.dashboard.map((item) => `${clean(item.id)}:${clean(item.updated_at)}`).join('|') + JSON.stringify(widgets);
-    if (signature === els.boardItems.dataset.signature && els.boardItems.childElementCount) { fitArtifacts(els.boardItems); return; }
+    const panels = boardPanels();
+    const signature = JSON.stringify(panels) + JSON.stringify(widgets);
+    if (signature === els.boardItems.dataset.signature && els.boardItems.childElementCount) { fitPanels(els.boardItems); return; }
     els.boardItems.dataset.signature = signature;
     const width = Math.max(240, (els.boardItems.clientWidth || 480) - 40 - 34);
-    els.boardItems.innerHTML = (window.FirstMateWidgets?.presentationHtml?.(widgets,{side:true}) || '') + state.dashboard.map((item) => artifactCardHtml(object(item.artifact), {
-      itemId:clean(item.id), width, source:clean(object(item.artifact).source_label), time:item.updated_at
+    els.boardItems.innerHTML = (window.FirstMateWidgets?.presentationHtml?.(widgets,{side:true}) || '') + panels.map((item) => panelCardHtml(chatPanel(item.panel || item.artifact), {
+      itemId:clean(item.id), width, source:clean(chatPanel(item.panel || item.artifact).source_label), time:item.updated_at
     })).join('');
-    fitArtifacts(els.boardItems);
+    fitPanels(els.boardItems);
   }
 
   function bindSplitter(){
@@ -1005,13 +1037,13 @@
     return `<button type="button" class="fma-action" data-action-index="${index}"><i class="fas ${icon}"></i>${esc(kind === 'agent' ? `Open ${action.label}` : action.label)}</button>`;
   }
 
-  function artifactsOf(message){
-    return array(object(message.data).renders).map(object).filter((entry) => clean(entry.type) === 'artifact');
+  function panelsOf(message){
+    return array(object(message.data).renders).map(object).filter((entry) => ['panel','artifact'].includes(clean(entry.type))).map(chatPanel);
   }
 
   function widgetsHtml(renders){
     if (boardOpen()) {
-      return array(renders).filter(render => render.type === 'platform_widget' && render.widget).map(render => `<button type="button" class="fma-artifact-chip" data-focus-widget="${esc(JSON.stringify(render.widget))}">${esc(render.title || 'Open widget')}</button>`).join('');
+      return array(renders).filter(render => render.type === 'platform_widget' && render.widget).map(render => `<button type="button" class="fma-panel-chip" data-focus-widget="${esc(JSON.stringify(render.widget))}">${esc(render.title || 'Open widget')}</button>`).join('');
     }
     return window.FirstMateWidgets?.presentationHtml?.(renders) || '';
   }
@@ -1038,13 +1070,13 @@
     if (array(data.renders).some(render => render.type === 'payment_setup')) html += '<button type="button" class="fma-action" data-payment-setup>Open payment setup</button>';
     for (const render of array(data.renders).filter(r => r.type === 'connection_credentials')) html += `<div data-connection-credential="${esc(render.requestId)}"></div>`;
     html += widgetsHtml(data.renders);
-    const artifacts = artifactsOf(message);
-    if (artifacts.length) {
+    const panels = panelsOf(message);
+    if (panels.length) {
       const onBoard = els?.drawer?.dataset.board === 'open';
       const width = Math.max(220, Math.min(560, Math.floor(((els?.msgs?.clientWidth || 400) - 28) * 0.92 - 30)));
-      html += artifacts.map((artifact) => onBoard
-        ? `<button type="button" class="fma-artifact-chip${anim}" data-focus-artifact="${esc(artifact.id)}"><i class="fas fa-chart-column" aria-hidden="true"></i>${esc(artifact.title)}</button>`
-        : artifactCardHtml(artifact, { inline:true, width })).join('');
+      html += panels.map((panel) => onBoard
+        ? `<button type="button" class="fma-panel-chip${anim}" data-focus-panel="${esc(panel.id)}"><i class="fas fa-chart-column" aria-hidden="true"></i>${esc(panel.title)}</button>`
+        : panelCardHtml(panel, { inline:true, width })).join('');
     }
     const actions = array(data.actions);
     if (actions.length) {
@@ -1137,7 +1169,11 @@
         insertVoice(index);
         const channelThread = state.threads.some(thread => clean(thread.id) === clean(state.threadId) && clean(thread.subject_id).startsWith('channel:'));
         if (clean(message.role) === 'user' && (object(message.data).automatic_channel_recap === true || (channelThread && index === 0 && message.content === 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.'))) return;
-        if (sessions.some(chat => chat.hiddenIndexes.has(index))) { parts.push(widgetsHtml(object(message.data).renders)); return; }
+        if (sessions.some(chat => chat.hiddenIndexes.has(index))) {
+          parts.push(widgetsHtml(object(message.data).renders));
+          if (!boardOpen()) parts.push(panelsOf(message).map(panel => panelCardHtml(panel,{inline:true})).join(''));
+          return;
+        }
         parts.push(messageHtml(message, options.animateLast && index >= state.messages.length - 2));
       });
     }
@@ -1155,7 +1191,7 @@
     els.msgs.querySelector('[data-fma="voiceAnchor"]').replaceWith(els.voiceLog);
     els.msgs.append(els.voiceStatus, els.voicePlay);
     renderVoiceChat();
-    fitArtifacts(els.msgs);
+    fitPanels(els.msgs);
     syncVisualsToggle();
     scheduleBoardRender();
     if (options.keepScroll) els.msgs.scrollTop = previousScroll;
@@ -1174,14 +1210,14 @@
     if (suggest) { els.input.value = suggest.textContent; sendMessage(); return; }
     const source = event.target.closest('[data-open-agent]');
     if (source) { void openAgent(source.dataset.openAgent); return; }
-    const focus = event.target.closest('[data-focus-artifact]');
+    const focus = event.target.closest('[data-focus-panel]');
     if (focus) {
-      const item = state.dashboard.find((entry) => clean(object(entry.artifact).id) === focus.dataset.focusArtifact);
+      const item = state.dashboard.find((entry) => clean(chatPanel(entry.panel || entry.artifact).id) === focus.dataset.focusPanel);
       const card = item && els.boardItems.querySelector(`[data-board-item="${CSS.escape(clean(item.id))}"]`);
       if (card) { card.scrollIntoView({ behavior:'smooth', block:'nearest' }); card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash'); return; }
       // Closed on the dashboard: show it in the conversation instead.
-      const artifact = artifactRegistry.get(focus.dataset.focusArtifact) || state.messages.flatMap(artifactsOf).find((entry) => clean(entry.id) === focus.dataset.focusArtifact);
-      if (artifact) { focus.outerHTML = artifactCardHtml(artifact, { inline:true }); fitArtifacts(els.msgs); }
+      const panel = panelRegistry.get(focus.dataset.focusPanel) || state.messages.flatMap(panelsOf).find((entry) => clean(entry.id) === focus.dataset.focusPanel);
+      if (panel) { focus.outerHTML = panelCardHtml(panel, { inline:true }); fitPanels(els.msgs); }
       return;
     }
     const agentAction = event.target.closest('[data-agent-action]');
@@ -1509,7 +1545,7 @@
       if (node.__content !== entry.content) { node.innerHTML = messageHtml(entry,false); node.__content = entry.content; }
     }
     els.voiceStatus.textContent = chat?.status || '';
-    fitArtifacts(els.voiceLog);
+    fitPanels(els.voiceLog);
     if (nearBottom) scrollToBottom();
   }
   function setVoiceStatus(text, call = voiceCall){

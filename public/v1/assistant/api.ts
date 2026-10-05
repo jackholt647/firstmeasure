@@ -19,7 +19,7 @@ import {
 } from "../agents/storage.js";
 import {
   agentConfigurationTurnNote, agentIdFromSubject, describeAssistantAgent, ensureAssistantMainThread, listAssistantAgents,
-  pinTurnArtifacts, queueAssistantAgentRun, readAssistantAgentDetail, readOwnedAssistantAgent, startAssistantAgentLane
+  pinTurnPanels, queueAssistantAgentRun, readAssistantAgentDetail, readOwnedAssistantAgent, startAssistantAgentLane
 } from "./agent/agents.js";
 import {
   createThreadForAgent,
@@ -198,7 +198,7 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
     return { ok: true, queued: await queueAssistantAgentRun(entry) };
   });
 
-  // The dashboard beside the chat: artifacts the assistant and agents produced.
+  // The dashboard beside the chat: panels the assistant and agents produced.
   app.get("/organizations/:orgId/dashboard", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, permission: USE_PERMISSION, capability: "apps.assistant" });
@@ -464,7 +464,7 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
       actorName: cleanText((ctx.user as Record<string, unknown> | undefined)?.name),
       ...((turnNote || navigationNote || body.intent === "voice") ? { turnNote: [turnNote, navigationNote, body.intent === "voice" ? VOICE_TURN_NOTE : ""].filter(Boolean).join("\n\n") } : {})
     });
-    const dashboard = await pinTurnArtifacts(orgId, ctx.userId, threadId, result);
+    const dashboard = await pinTurnPanels(orgId, ctx.userId, threadId, result);
     return { ok: true, ...result, ...(dashboard ? { dashboard } : {}) };
   });
 };

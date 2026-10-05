@@ -1,3 +1,4 @@
+import { MAX_PANELS_PER_TURN, panelEnvelope, panelsFrom } from "./panels.js";
 import { listWidgets, authorizeWidget, widgetSources } from '../platform/widgets/catalog.js';
 /** Shared, permission-filtered publication tools for every human-initiated agent. */
 import type { AgentRun, AgentTool } from "./types.js";
@@ -17,7 +18,7 @@ const targetSchema = { type: "object", properties: { scope: { type: "string", en
 const sourceSchema = { type: "object", properties: { provider: string, export: string, version: string, target: targetSchema, args: object, path: string, revision: string }, required: ["provider", "export", "target"], additionalProperties: false };
 
 export const platformAgentInstructions = `## Platform data and actions
-Use platform_widgets to discover reusable visual widgets. When the user asks to see measurements, lists, a roof model or aerial, use platform_show_widget with the exact discovered id/version and project target. This displays the registered widget beside your response; it does not mutate data. Read its declared sources with platform_read to reason about values. Do not claim the browser has displayed it until the user can see it; the tool queues presentation and the browser reports load errors.
+Use platform_widgets to discover reusable visual widgets. When the user asks to see measurements, lists, a roof model or aerial, use platform_show_widget with the exact discovered id/version and project target. This presents a panel containing the registered widget beside your response; it does not mutate data. Read its declared sources with platform_read to reason about values. Do not claim the browser has displayed it until the user can see it; the tool queues presentation and the browser reports load errors.
 You may work across apps through one published catalog, regardless of which app opened this conversation. Search with platform_search, inspect a selected contract with platform_describe, then use platform_read/platform_list or platform_invoke. Search again when the first term misses; app names and business concepts are useful queries. Project operations need an explicit project id. Use platform_resolve_binding when an artifact needs a live or frozen data reference, and put the returned source identity in the artifact's declared binding rather than flattening provenance into anonymous text. Never guess action inputs or record ids; inspect schemas and read current records first. The server filters discovery and rechecks every operation against the current human user, enabled apps, target resource and any extra agent restriction. An unavailable operation is unavailable to you. Effects need an explicit user request; confirm hard-to-reverse external effects in the conversation before invoking them. Do not claim an operation succeeded when its tool reports failure or an uncertain outcome.`;
 
 function target(value: unknown, orgId: string): TargetRef {
@@ -83,6 +84,17 @@ async function discover(run: AgentRun, policy: AccessPolicy, scopes: readonly Ta
 
 const businessActions = () => listActions().filter(action => action.executionKinds.includes("agent") && !action.id.startsWith("agent."));
 
+export async function authorizePanelWidget(run: AgentRun, args: JsonObject): Promise<JsonObject> {
+  initializePublication();
+  const destination = target(args.target, run.orgId);
+  const config = asObject(args.config);
+  const def = await authorizeWidget(await context(run), cleanText(args.id), cleanText(args.version), destination, config);
+  if (!def.surfaces.includes('assistant') || !widgetSources(def).every(source => allowedByAgent(run, `${source.provider}.${source.export}`))) {
+    throw forbidden('agent_widget_denied', 'This widget is unavailable to this agent.');
+  }
+  return {type:'platform_widget',widget:{id:def.id,version:def.version,target:destination,config},title:def.title} as unknown as JsonObject;
+}
+
 export const platformAgentTools: AgentTool[] = [
   {
     name:'platform_widgets',description:'Discover reusable widgets and their typed data sources, configuration, sizes and supported surfaces. Filter by a business concept or app.',
@@ -90,15 +102,13 @@ export const platformAgentTools: AgentTool[] = [
     async execute(run,args){initializePublication();const query=cleanText(args.query).toLowerCase();const widgets=await listWidgets(await context(run));return {widgets:widgets.filter(def=>widgetSources(def).every(source=>allowedByAgent(run,`${source.provider}.${source.export}`))&&(!query||`${def.id} ${def.title} ${def.description} ${def.app}`.toLowerCase().includes(query)))} as unknown as JsonObject;}
   },
   {
-    name:'platform_show_widget',description:'Display a registered widget for an authorized project. Use platform_widgets first. Only presentation is queued; data is freshly authorized when the user opens it.',
+    name:'platform_show_widget',description:'Display a registered widget for an authorized project. Use platform_widgets first. The widget is placed inside a chat panel. Only presentation is queued; data is freshly authorized when the user opens it.',
     parameters:{type:'object',properties:{id:string,version:string,target:targetSchema,config:object},required:['id','version','target'],additionalProperties:false},
     async execute(run,args){
-      initializePublication();const destination=target(args.target,run.orgId);const config=asObject(args.config);
-      const def=await authorizeWidget(await context(run),cleanText(args.id),cleanText(args.version),destination,config);
-      if(!def.surfaces.includes('assistant')||!widgetSources(def).every(source=>allowedByAgent(run,`${source.provider}.${source.export}`)))throw forbidden('agent_widget_denied','This widget is unavailable to this agent.');
-      if(run.renders.filter(r=>r.type==='platform_widget').length>=6)throw badRequest('agent_widget_limit','Display at most six widgets per response.');
-      run.renders.push({type:'platform_widget',widget:{id:def.id,version:def.version,target:destination,config},title:def.title} as unknown as JsonObject);
-      return {ok:true,status:'presentation_requested',widget:def.id,title:def.title};
+      if(panelsFrom(run.renders).length>=MAX_PANELS_PER_TURN)throw badRequest('agent_panel_limit','Display at most four panels per response.');
+      const widget=await authorizePanelWidget(run,args);
+      const panel=panelEnvelope({title:widget.title},[widget]);run.renders.push(panel);
+      return {ok:true,status:'presentation_requested',panel_id:panel.id,widget:asObject(widget.widget).id,title:panel.title};
     }
   },
 

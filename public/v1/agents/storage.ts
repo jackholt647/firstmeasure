@@ -1,3 +1,4 @@
+import { panelFrom } from "./panels.js";
 // Shared PostgreSQL agent conversation and usage storage (SQLite for local mode): one
 // agent_threads/agent_messages pair for EVERY registered agent (keyed by
 // agent_id), plus an agent_runs usage/audit table and a meta table used for
@@ -556,7 +557,7 @@ export async function finishAgentWakeup(id: string, token: string, state: "succe
     .run(state, error.slice(0,2000), nowIso(), id, token, nowIso())).changes === 1;
 }
 
-// ── Assistant dashboard (artifacts beside the chat) ───────────────────────
+// ── Assistant dashboard (panels beside the chat) ───────────────────────
 
 const MAX_DASHBOARD_ITEMS = 12;
 
@@ -564,7 +565,7 @@ function dashboardItemFromRow(row: unknown) {
   const entry = asObject(row);
   return {
     id: cleanText(entry.id), source_key: cleanText(entry.source_key), thread_id: cleanText(entry.thread_id),
-    message_id: cleanText(entry.message_id), artifact: asObject(parseJson(entry.artifact_json)),
+    message_id: cleanText(entry.message_id), panel: panelFrom(parseJson(entry.artifact_json)),
     created_at: cleanText(entry.created_at), updated_at: cleanText(entry.updated_at)
   };
 }
@@ -574,7 +575,7 @@ export async function listAssistantDashboard(orgId: string, userId: string) {
     ORDER BY updated_at DESC, id DESC LIMIT ?`).all(orgId, cleanText(userId), MAX_DASHBOARD_ITEMS)).map(dashboardItemFromRow);
 }
 
-/** Pins an artifact. An item with the same source key is replaced rather than stacked. */
+/** Pins a panel. An item with the same source key is replaced rather than stacked. */
 export async function pinAssistantDashboardItem(orgId: string, userId: string, input: JsonObject) {
   return (await getAgentsDatabase().transaction(async db => {
     const now = nowIso();
@@ -585,10 +586,10 @@ export async function pinAssistantDashboardItem(orgId: string, userId: string, i
     const id = cleanText(existing.id) || `assistant_dash_${randomUUID().replace(/-/g, "")}`;
     if (cleanText(existing.id)) {
       await db.prepare("UPDATE assistant_dashboard_items SET thread_id=?, message_id=?, artifact_json=?, updated_at=? WHERE id=?")
-        .run(cleanText(input.thread_id), cleanText(input.message_id), json(input.artifact), now, id);
+        .run(cleanText(input.thread_id), cleanText(input.message_id), json(input.panel ?? input.artifact), now, id);
     } else {
       await db.prepare(`INSERT INTO assistant_dashboard_items (id, organization_id, user_id, source_key, thread_id, message_id, artifact_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, orgId, owner, sourceKey, cleanText(input.thread_id), cleanText(input.message_id), json(input.artifact), now, now);
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, orgId, owner, sourceKey, cleanText(input.thread_id), cleanText(input.message_id), json(input.panel ?? input.artifact), now, now);
     }
     const stale = await db.prepare(`SELECT id FROM assistant_dashboard_items WHERE organization_id=? AND user_id=?
       ORDER BY updated_at DESC, id DESC LIMIT 1000 OFFSET ?`).all(orgId, owner, MAX_DASHBOARD_ITEMS);

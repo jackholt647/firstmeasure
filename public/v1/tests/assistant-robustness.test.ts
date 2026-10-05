@@ -117,7 +117,7 @@ test("malformed, unknown and schema-invalid function calls are reported back to 
   const mock = mockOpenAI([
     { output: [call("list_agents", "{not json", "c1")] },
     { output: [call("delete_everything", {}, "c2")] },
-    { output: [call("create_artifact", { kind: "donut", title: 42 }, "c3")] },
+    { output: [call("present_panel", { title: 42 , widgets: [{ type: "visualization",  kind: "donut", title: 42  }] }, "c3")] },
     { output: [call("update_agent", { agent_id: ["x"] }, "c4")] },
     done(), { output: [say("Recovered.")] }
   ]);
@@ -266,17 +266,17 @@ test("agent tools reject bad schedules, other users' agents and limits", async (
   assert.equal((await ctx.client.raw("PATCH", `${ctx.base}/agents/${agentId}`, { title: "x".repeat(40) })).statusCode, 400);
 });
 
-test("artifacts survive hostile or oversized specs", async () => {
-  const { normalizeArtifact } = await import("../assistant/agent/agents.js");
-  const huge = normalizeArtifact({ kind: "bar", title: "<script>alert(1)</script>", labels: Array.from({ length: 500 }, (_, i) => `L${i}`),
+test("visualization widgets survive hostile or oversized specs", async () => {
+  const { normalizeVisualizationWidget } = await import("../agents/panels.js");
+  const huge = normalizeVisualizationWidget({ kind: "bar", title: "<script>alert(1)</script>", labels: Array.from({ length: 500 }, (_, i) => `L${i}`),
     series: Array.from({ length: 20 }, () => ({ name: "s", values: Array.from({ length: 500 }, () => "NaN") })) }) as any;
   assert.equal(huge.labels.length, 60);
   assert.equal(huge.series.length, 6);
   assert.ok(huge.series.every((entry: any) => entry.values.every((value: number) => Number.isFinite(value))));
-  assert.equal(typeof normalizeArtifact({ kind: "table", title: "t", columns: [], rows: [] }), "string");
-  assert.equal(typeof normalizeArtifact({ kind: "pie", title: "t", labels: ["a"], series: [] }), "string");
-  assert.equal(typeof normalizeArtifact({ kind: "html", title: "t" }), "string");
-  const table = normalizeArtifact({ kind: "table", title: "t", columns: ["a"], rows: [[{ evil: true }, 1], "not a row"] }) as any;
+  assert.equal(typeof normalizeVisualizationWidget({ kind: "table", title: "t", columns: [], rows: [] }), "string");
+  assert.equal(typeof normalizeVisualizationWidget({ kind: "pie", title: "t", labels: ["a"], series: [] }), "string");
+  assert.equal(typeof normalizeVisualizationWidget({ kind: "html", title: "t" }), "string");
+  const table = normalizeVisualizationWidget({ kind: "table", title: "t", columns: ["a"], rows: [[{ evil: true }, 1], "not a row"] }) as any;
   assert.deepEqual(table.rows[0], ["[object Object]"]);
   assert.deepEqual(table.rows[1], []);
 });

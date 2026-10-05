@@ -1,5 +1,5 @@
 // Personal agents for the global FirstMate assistant, its main thread, and
-// dashboard artifacts.
+// dashboard panels.
 //
 // An agent is a named, self-scheduled task ("Daily Profit Tracker"). It is an
 // agent_schedules row (surface 'assistant') plus its own agent thread
@@ -7,9 +7,11 @@
 // the history of scheduled runs, so each run remembers earlier ones. The shared
 // channel scheduler sweeps due rows on the worker; assistant rows are routed
 // here instead of into a channel. Every run's reply is delivered to the user's
-// single main thread, pinned artifacts land on their dashboard, and a push
+// single main thread, pinned panels land on their dashboard, and a push
 // notification goes to their devices.
 
+import { MAX_PANELS_PER_TURN, MAX_WIDGETS_PER_PANEL, VISUALIZATION_KINDS, UNITS, normalizeVisualizationWidget, panelEnvelope, panelsFrom } from "../../agents/panels.js";
+import { authorizePanelWidget } from "../../agents/platform_tools.js";
 import { randomUUID } from "node:crypto";
 import { runAgentTurn } from "../../agents/runtime.js";
 import { assertAgentWakeupLease, drainAgentWakeups } from "../../agents/wakeups.js";
@@ -42,7 +44,6 @@ const MAX_AGENTS_PER_USER = 20;
 const MAX_TITLE_LENGTH = 32;
 const MIN_RECURRING_GAP_MS = 15 * 60_000;
 const MAX_SCHEDULE_DAYS = 366;
-const MAX_ARTIFACTS_PER_TURN = 4;
 const LISTED_STATUSES = ["active", "paused", "done"];
 
 // ── Schedule wording ────────────────────────────────────────────────────────
@@ -216,93 +217,21 @@ function ownerOnly(run: AgentRun) {
   return run.ctx && run.userId ? true : "Agents belong to a signed-in user and are unavailable here.";
 }
 
-// ── Artifacts ───────────────────────────────────────────────────────────────
+// ── panels ───────────────────────────────────────────────────────────────
 
-const ARTIFACT_KINDS = ["bar", "line", "pie", "donut", "metrics", "table", "text"];
-const UNITS = ["currency", "number", "percent"];
-
-function finiteNumbers(value: unknown, limit: number) {
-  return asArray(value).slice(0, limit).map((entry) => {
-    const number = Number(entry);
-    return Number.isFinite(number) ? number : 0;
-  });
-}
-
-/** Validates a declarative artifact. The client renders it with its own chart code; no model HTML is ever executed. */
-export function normalizeArtifact(args: JsonObject): JsonObject | string {
-  const kind = cleanText(args.kind).toLowerCase();
-  if (!ARTIFACT_KINDS.includes(kind)) return `kind must be one of ${ARTIFACT_KINDS.join(", ")}.`;
-  const title = cleanText(args.title).slice(0, 80);
-  if (!title) return "title is required.";
-  const unit = UNITS.includes(cleanText(args.unit)) ? cleanText(args.unit) : "number";
-  const artifact: JsonObject = {
-    type: "artifact",
-    id: `artifact_${randomUUID().replace(/-/g, "").slice(0, 16)}`,
-    key: cleanText(args.key).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").slice(0, 60),
-    kind, title, unit,
-    subtitle: cleanText(args.subtitle).slice(0, 160),
-    currency: cleanText(args.currency).toUpperCase().slice(0, 3) || "USD",
-    created_at: nowIso()
-  };
-  if (["bar", "line", "pie", "donut"].includes(kind)) {
-    const labels = asArray(args.labels).slice(0, 60).map((entry) => cleanText(entry).slice(0, 40));
-    if (!labels.length) return "labels are required for charts.";
-    const seriesLimit = kind === "pie" || kind === "donut" ? 1 : 6;
-    const series = asArray(args.series).slice(0, seriesLimit).map((entry) => {
-      const item = asObject(entry);
-      return { name: cleanText(item.name).slice(0, 40), values: finiteNumbers(item.values, labels.length) };
-    }).filter((item) => item.values.length);
-    if (!series.length) return "series needs at least one entry with numeric values.";
-    if ((kind === "pie" || kind === "donut") && series[0]?.values.some((value) => value < 0)) return "Pie and donut values must be zero or greater.";
-    Object.assign(artifact, { labels, series });
-  } else if (kind === "metrics") {
-    const metrics = asArray(args.metrics).slice(0, 6).map((entry) => {
-      const item = asObject(entry);
-      const value = Number(item.value);
-      return {
-        label: cleanText(item.label).slice(0, 40),
-        value: Number.isFinite(value) ? value : 0,
-        unit: UNITS.includes(cleanText(item.unit)) ? cleanText(item.unit) : unit,
-        delta: cleanText(item.delta).slice(0, 40),
-        trend: ["up", "down", "flat"].includes(cleanText(item.trend)) ? cleanText(item.trend) : "",
-        good: ["up", "down"].includes(cleanText(item.good)) ? cleanText(item.good) : "up"
-      };
-    }).filter((item) => item.label);
-    if (!metrics.length) return "metrics needs at least one {label, value}.";
-    artifact.metrics = metrics;
-  } else if (kind === "table") {
-    const columns = asArray(args.columns).slice(0, 8).map((entry) => cleanText(entry).slice(0, 40));
-    if (!columns.length) return "columns are required for a table.";
-    artifact.columns = columns;
-    artifact.rows = asArray(args.rows).slice(0, 50).map((row) => asArray(row).slice(0, columns.length).map((cell) => {
-      if (typeof cell === "number" && Number.isFinite(cell)) return cell;
-      return cleanText(cell).slice(0, 120);
-    }));
-  } else {
-    const text = cleanText(args.text).slice(0, 4000);
-    if (!text) return "text is required for a text artifact.";
-    artifact.text = text;
-  }
-  return artifact;
-}
-
-export function artifactsFrom(renders: unknown) {
-  return asArray(renders).map(asObject).filter((entry) => cleanText(entry.type) === "artifact");
-}
-
-/** Artifacts from a finished turn go onto the owner's dashboard beside the chat. */
-export async function pinTurnArtifacts(orgId: string, userId: string, threadId: string, result: AgentTurnResult, sourcePrefix = "") {
+/** panels from a finished turn go onto the owner's dashboard beside the chat. */
+export async function pinTurnPanels(orgId: string, userId: string, threadId: string, result: AgentTurnResult, sourcePrefix = "") {
   const message = asObject(result.assistant_message);
   const messageId = cleanText(message.id);
-  const artifacts = artifactsFrom(result.renders);
-  for (const [index, artifact] of artifacts.entries()) {
-    const key = cleanText(artifact.key) || String(index);
+  const panels = panelsFrom(result.renders);
+  for (const [index, panel] of panels.entries()) {
+    const key = cleanText(panel.key) || String(index);
     await pinAssistantDashboardItem(orgId, userId, {
       source_key: sourcePrefix ? `${sourcePrefix}:${key}` : `message:${messageId}:${key}`,
-      thread_id: threadId, message_id: messageId, artifact
+      thread_id: threadId, message_id: messageId, panel
     });
   }
-  return artifacts.length ? await listAssistantDashboard(orgId, userId) : null;
+  return panels.length ? await listAssistantDashboard(orgId, userId) : null;
 }
 
 // ── Tools ───────────────────────────────────────────────────────────────────
@@ -321,7 +250,7 @@ export const assistantAgentTools: AgentTool[] = [
       properties: {
         title: { type: "string", description: `Short Title Case name that fits a narrow sidebar, at most ${MAX_TITLE_LENGTH} characters, e.g. 'Daily Profit Tracker', 'Permit Watch', 'Friday Payroll Reminder'.` },
         summary: { type: "string", description: "One plain sentence for the user describing what the agent does and when, e.g. 'Reports yesterday's profit every morning at 11 AM.'" },
-        instructions: { type: "string", description: "Instructions for each future run, written to your future self: exactly what to look up (tools, date ranges relative to the run time), how to present it, and when to stop. Say to lead with a one-line headline and to use create_artifact for numbers." },
+        instructions: { type: "string", description: "Instructions for each future run, written to your future self: exactly what to look up (tools, date ranges relative to the run time), how to present it, and when to stop. Say to lead with a one-line headline and to use present_panel for numbers." },
         ...scheduleParameters
       },
       required: ["title", "summary", "instructions"],
@@ -453,32 +382,45 @@ export const assistantAgentTools: AgentTool[] = [
     }
   },
   {
-    name: "create_artifact",
-    description: "Show a visual artifact beside the chat on the user's dashboard: a chart (bar, line, pie, donut), metric tiles (metrics), a table, or a short text note. Use it whenever numbers are easier to see than read: a breakdown gets a pie/donut or bar, change over time gets a line, a few headline figures get metrics. One focused artifact beats several. Money values must be in dollars (not cents) with unit 'currency'.",
-    parameters: {
-      type: "object",
-      properties: {
-        kind: { type: "string", enum: ARTIFACT_KINDS },
-        title: { type: "string", description: "Short title, e.g. 'Yesterday's profit by job'." },
-        subtitle: { type: "string", description: "Optional context such as the date range." },
-        key: { type: "string", description: "Stable id for artifacts that refresh on a schedule, e.g. 'daily-profit'. A new artifact with the same key from the same agent replaces the old one on the dashboard." },
+    name: "present_panel",
+    description: "Present a chat panel containing one to six widgets: registered platform widgets, charts, metrics, tables or text. A panel is UI; an artifact is a published digital object. Use platform_widgets to discover registered widgets. Money values use dollars and unit currency. A stable key replaces this agent's previous panel on the dashboard.",
+    parameters: { type: "object", properties: {
+      title: { type: "string" }, subtitle: { type: "string" }, key: { type: "string" },
+      widgets: { type: "array", minItems: 1, maxItems: MAX_WIDGETS_PER_PANEL, items: {
+        type: "object", properties: {
+          type: { type: "string", enum: ["visualization", "platform_widget"] },
+          title: { type: "string" },
+          widget: { type: "object", properties: { id: { type: "string" }, version: { type: "string" }, target: { type: "object" }, config: { type: "object" } }, required: ["id", "version", "target"], additionalProperties: false },
+        kind: { type: "string", enum: VISUALIZATION_KINDS },
         unit: { type: "string", enum: UNITS },
+        currency: { type: "string", description: "ISO currency code; defaults to USD." },
         labels: { type: "array", items: { type: "string" }, description: "Category or date labels for charts." },
         series: { type: "array", items: { type: "object", properties: { name: { type: "string" }, values: { type: "array", items: { type: "number" } } } }, description: "One entry per series; values align with labels. Pie/donut use exactly one series." },
         metrics: { type: "array", items: { type: "object", properties: { label: { type: "string" }, value: { type: "number" }, unit: { type: "string" }, delta: { type: "string", description: "Signed change with its comparison, e.g. '+12% vs prior day'." }, trend: { type: "string", enum: ["up", "down", "flat"] }, good: { type: "string", enum: ["up", "down"], description: "Which direction is good for this metric." } } } },
         columns: { type: "array", items: { type: "string" } },
         rows: { type: "array", items: { type: "array", items: {} } },
         text: { type: "string", description: "Markdown for a text note." }
-      },
-      required: ["kind", "title"],
-      additionalProperties: false
-    },
-    execute(run, args) {
-      if (artifactsFrom(run.renders).length >= MAX_ARTIFACTS_PER_TURN) return toolError(`At most ${MAX_ARTIFACTS_PER_TURN} artifacts per reply.`);
-      const artifact = normalizeArtifact(args);
-      if (typeof artifact === "string") return toolError(artifact);
-      run.renders.push(artifact);
-      return { ok: true, artifact_id: artifact.id, note: "Shown on the dashboard beside the chat. Refer to it briefly instead of repeating every number." };
+        }, required: ["type"], additionalProperties: false
+      } }
+    }, required: ["title", "widgets"], additionalProperties: false },
+    async execute(run, args) {
+      if (panelsFrom(run.renders).length >= MAX_PANELS_PER_TURN) return toolError(`At most ${MAX_PANELS_PER_TURN} panels per reply.`);
+      if (!cleanText(args.title)) return toolError("title is required.");
+      const raw = asArray(args.widgets);
+      if (!raw.length || raw.length > MAX_WIDGETS_PER_PANEL) return toolError(`A panel needs one to ${MAX_WIDGETS_PER_PANEL} widgets.`);
+      const widgets: JsonObject[] = [];
+      for (const value of raw) {
+        const child = asObject(value);
+        if (child.type === "platform_widget") widgets.push(await authorizePanelWidget(run, asObject(child.widget)));
+        else if (child.type === "visualization") {
+          const normalized = normalizeVisualizationWidget({ ...child, title: child.title || args.title });
+          if (typeof normalized === "string") return toolError(normalized);
+          widgets.push(normalized);
+        } else return toolError("Unknown panel widget type.");
+      }
+      const panel = panelEnvelope(args, widgets);
+      run.renders.push(panel);
+      return { ok: true, panel_id: panel.id, status: "presentation_requested", note: "Panel queued beside the chat; the browser reports widget loading errors." };
     }
   }
 ];
@@ -487,9 +429,9 @@ export const assistantAgentInstructions = `## Agents, scheduling and the main th
 - The user has one main thread plus side chats. You can create personal agents: named tasks that run on their own schedule. Each run's result is posted to the user's main thread and sent as a push notification to the FirstMate app on their phone.
 - When the user asks for anything recurring or later ("every morning at 11 tell me how yesterday went", "remind me Friday", "watch this every Monday"), create an agent with create_agent right away when the request is clear. Give it a short Title Case name that fits a narrow sidebar (e.g. "Daily Profit Tracker"). Then confirm in one or two sentences what it will do and when (with the timezone), and offer a test run with run_agent_now.
 - Delivery is the main thread plus a push notification. If they ask for a text message (SMS), explain that agents notify through FirstMate push notifications and the main thread, then set it up that way.
-- Write agent instructions so each run is self-sufficient: which tools and date ranges to use relative to the run time (for example "yesterday" in the company timezone), a one-line headline first (it becomes the notification), a create_artifact chart for the numbers with a stable key, and a brief comparison with the previous run when useful.
+- Write agent instructions so each run is self-sufficient: which tools and date ranges to use relative to the run time (for example "yesterday" in the company timezone), a one-line headline first (it becomes the notification), a present_panel panel containing a chart widget for the numbers with a stable key, and a brief comparison with the previous run when useful.
 - Use list_agents before creating one to avoid duplicates. Use update_agent to change an agent's name, behavior, schedule, or to pause and resume it, and delete_agent to stop it.
-- Use create_artifact to show numbers visually on the dashboard beside the chat. Do not repeat every number in the text: state the headline and refer to the chart.`;
+- Use present_panel with visualization widgets to show numbers visually on the dashboard beside the chat. Do not repeat every number in the text: state the headline and refer to the chart.`;
 
 // ── Configuration conversations ─────────────────────────────────────────────
 
@@ -565,7 +507,7 @@ export async function runAssistantAgentJob(record: JsonObject, event: JsonObject
   const agent = describeAssistantAgent(current);
   const firedAt = cleanText(event.firedAt) || nowIso();
   const message = `[${manual ? "Test run" : "Scheduled run"} of "${agent.title}" at ${describeInstant(firedAt, agent.timezone)} (${agent.timezone})]\n\n${agent.instructions}`;
-  const turnNote = `\n\n(You are the user's agent "${agent.title}" (agent_id ${agent.id}), running on its own${manual ? " as a test the user requested" : ` on schedule: ${agent.schedule_label}`}. Nobody is waiting in this chat. Do the work now with your tools. Your final reply is delivered to the user's main thread and its first line becomes a push notification, so open with a one-line headline, then brief detail. Use create_artifact${agent.id ? ` with a stable key` : ""} when numbers are involved. ${agent.kind === "once" ? "This is a one-time agent." : "If the task is permanently complete or no longer makes sense, you may pause it with update_agent."})`;
+  const turnNote = `\n\n(You are the user's agent "${agent.title}" (agent_id ${agent.id}), running on its own${manual ? " as a test the user requested" : ` on schedule: ${agent.schedule_label}`}. Nobody is waiting in this chat. Do the work now with your tools. Your final reply is delivered to the user's main thread and its first line becomes a push notification, so open with a one-line headline, then brief detail. Use present_panel${agent.id ? ` with a stable key` : ""} when numbers are involved. ${agent.kind === "once" ? "This is a one-time agent." : "If the task is permanently complete or no longer makes sense, you may pause it with update_agent."})`;
   const result = await runWhenIdle({
     orgId, branchId, threadId: agentThreadId, message, ctx,
     actorUserId: userId, actorName: cleanText(asObject(ctx.user).name),
@@ -577,19 +519,19 @@ export async function runAssistantAgentJob(record: JsonObject, event: JsonObject
   const failed = result.status === "failed";
   const main = await ensureAssistantMainThread(orgId, userId, branchId);
   const mainThreadId = cleanText(main.id);
-  const artifacts = artifactsFrom(result.renders);
+  const panels = panelsFrom(result.renders);
   const delivered = asObject(await appendAgentMessage(AGENT_ID, orgId, mainThreadId, {
     role: "assistant",
     content: reply || (failed ? `${agent.title} couldn't finish this run.` : "Done."),
     data: {
       status: failed ? "failed" : "success", source: "agent", agent_id: agent.id, agent_title: agent.title, manual,
-      renders: artifacts, actions: result.actions, changes: result.changes
+      renders: panels, actions: result.actions, changes: result.changes
     }
   }));
-  for (const [index, artifact] of artifacts.entries()) {
+  for (const [index, panel] of panels.entries()) {
     await pinAssistantDashboardItem(orgId, userId, {
-      source_key: `agent:${agent.id}:${cleanText(artifact.key) || index}`,
-      thread_id: mainThreadId, message_id: cleanText(delivered.id), artifact: { ...artifact, source_label: agent.title }
+      source_key: `agent:${agent.id}:${cleanText(panel.key) || index}`,
+      thread_id: mainThreadId, message_id: cleanText(delivered.id), panel: { ...panel, source_label: agent.title }
     });
   }
   const summary = headline(reply);
