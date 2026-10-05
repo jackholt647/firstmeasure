@@ -1,6 +1,6 @@
 # Development report capture and submission â€” October 4, 2026
 
-Release: `05dc46411c5facb4a7d78cbfc8f09d2cfa0a8783`.
+Initial release: `05dc46411c5facb4a7d78cbfc8f09d2cfa0a8783`. Final integration release: `a9673d074ec3c17957b0f7303d0a30809e05ae0a`, including the capture mount correction `2964d5c48b6862df92373689e39a3db7a63f0035`.
 
 Full Structure no longer synthesizes a Photos project tab. Its desktop reference workspace stays inside Overview; mobile capture uses the remaining viewport, without the Overview divider. The closed-hours notice is confined to the map step.
 
@@ -15,3 +15,9 @@ Deployment: applied only the three frontend files as an immutable overlay to fre
 - web: `/opt/firstmeasure/releases/33320dc9bd6034f6074040fb160f04dbb26cd898`
 - legacy: `/opt/firstmeasure/releases-root-archive/33320dc9bd6034f6074040fb160f04dbb26cd898`
 - pool: `/opt/firstmeasure/releases/33320dc9bd6034f6074040fb160f04dbb26cd898`
+
+## Hosted integration follow-up
+
+The real workflow nests the type picker inside Customer. Capture now mounts as a sibling of that containing step, outside the section hidden on page two. The regression fixture includes this nesting. Full Structure keeps only Overview during ordering even after project autosave exposes ordinary project apps.
+
+After these corrections, 22 focused capture, upload and submission tests passed. Hosted preview using the exact release payload confirmed the real project iframe shows the orbital intro, has no Photos tab or rail divider, hides the closed banner after the map, and renders a live test-camera preview at 615 pixels tall in a 412×915 viewport. QA used disposable signup sandboxes; no real report was ordered.
