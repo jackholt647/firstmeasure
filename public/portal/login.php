@@ -2,15 +2,21 @@
 $publicRegistrationEnabled = (getenv('PUBLIC_REGISTRATION_ENABLED') ?: ($_SERVER['PUBLIC_REGISTRATION_ENABLED'] ?? 'true')) !== 'false';
 $initialReferralCode = $publicRegistrationEnabled ? strtoupper(trim((string)($_GET['ref'] ?? ''))) : '';
 $hasReferralInvite = $initialReferralCode !== '';
-$loginBillboardFile = basename((string)(defined('LOGIN_MARKETING_BILLBOARD_FILE') ? LOGIN_MARKETING_BILLBOARD_FILE : 'login_billboard.php'));
-$loginBannerFile = basename((string)(defined('LOGIN_MARKETING_BANNER_FILE') ? LOGIN_MARKETING_BANNER_FILE : 'login_banner.php'));
-$loginBillboardPath = __DIR__ . '/marketing/' . $loginBillboardFile;
-$loginBannerPath = __DIR__ . '/marketing/' . $loginBannerFile;
-$loginBillboardSrc = 'marketing/' . $loginBillboardFile;
-$loginBannerSrc = 'marketing/' . $loginBannerFile;
-$showLoginBillboard = $publicRegistrationEnabled && !$hasReferralInvite && is_file($loginBillboardPath);
-$showLoginBanner = $publicRegistrationEnabled && !$hasReferralInvite && is_file($loginBannerPath);
-$hasLoginMarketing = $showLoginBillboard || $showLoginBanner;
+// Marketing geography only; this does not assign an account's commercial region.
+$loginEuropeanCountries = explode(' ', 'AL AD AT BY BE BA BG HR CY CZ DK EE FI FR DE GR HU IS IE IT XK LV LI LT LU MT MD MC ME NL MK NO PL PT RO RU SM RS SK SI ES SE CH TR UA GB VA AX FO GI GG IM JE');
+$loginRegionHeader = strtoupper(trim((string)($_SERVER['HTTP_X_FIRSTMATE_REGION'] ?? '')));
+$loginBillboardRegion = in_array($loginRegionHeader, ['EU', 'EUROPE'], true) ? 'eu' : 'detect';
+if ($loginBillboardRegion === 'detect') {
+    foreach (['HTTP_CF_IPCOUNTRY', 'HTTP_X_VERCEL_IP_COUNTRY', 'HTTP_X_APPENGINE_COUNTRY'] as $countryHeader) {
+        $country = strtoupper(trim((string)($_SERVER[$countryHeader] ?? '')));
+        if (preg_match('/^[A-Z]{2}$/', $country) && !in_array($country, ['XX', 'ZZ', 'T1'], true)) {
+            $loginBillboardRegion = in_array($country, $loginEuropeanCountries, true) ? 'eu' : 'default';
+            break;
+        }
+    }
+}
+$loginBillboardSrc = $loginBillboardRegion === 'eu' ? 'https://eu.1m8.ai/billboards/login' : 'https://1m8.ai/billboards/login';
+$showLoginBillboard = $publicRegistrationEnabled && !$hasReferralInvite;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -58,7 +64,7 @@ $hasLoginMarketing = $showLoginBillboard || $showLoginBanner;
         .login-shell.has-login-billboard {
             width: min(1180px, calc(100% - 48px));
             display: grid;
-            grid-template-columns: minmax(420px, 1fr) 400px;
+            grid-template-columns: minmax(0, 1fr) 400px;
             gap: 28px;
             padding: 0;
         }
@@ -66,9 +72,11 @@ $hasLoginMarketing = $showLoginBillboard || $showLoginBanner;
             width: 400px;
             max-width: 100%;
         }
-        .login-marketing-billboard,
-        .login-marketing-banner {
+        .login-marketing-billboard {
             width: 100%;
+            height: auto;
+            padding: 0;
+            margin: 0;
             border: 0;
             background: #fff;
             box-shadow: 0 18px 45px rgba(17, 24, 39, 0.12);
@@ -78,11 +86,6 @@ $hasLoginMarketing = $showLoginBillboard || $showLoginBanner;
             display: block;
             aspect-ratio: 16 / 10;
             border-radius: 18px;
-        }
-        .login-marketing-banner {
-            display: none;
-            aspect-ratio: 4 / 1;
-            border-radius: 16px;
         }
         .container.referral-mode {
             width: min(1120px, 96vw);
@@ -447,22 +450,20 @@ $hasLoginMarketing = $showLoginBillboard || $showLoginBanner;
             .login-shell {
                 padding: 0;
             }
-            .login-shell.has-login-marketing {
+            .login-shell.has-login-billboard {
                 width: min(100% - 28px, 520px);
                 display: flex;
                 flex-direction: column;
                 align-items: stretch;
                 gap: 16px;
             }
-            .login-shell.has-login-marketing .container:not(.referral-mode) {
+            .login-shell.has-login-billboard .container:not(.referral-mode) {
                 width: 100%;
                 max-width: 100%;
             }
             .login-marketing-billboard {
-                display: none;
-            }
-            .login-marketing-banner {
-                display: block;
+                aspect-ratio: 4 / 1;
+                border-radius: 16px;
             }
             .container.referral-mode {
                 width: min(94vw, 620px);
@@ -581,12 +582,28 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 </head>
 <body class="<?= $hasReferralInvite ? 'referral-active referral-pending' : '' ?>">
 
-<div class="login-shell <?= $hasLoginMarketing ? 'has-login-marketing' : '' ?> <?= $showLoginBillboard ? 'has-login-billboard' : '' ?> <?= $showLoginBanner ? 'has-login-banner' : '' ?>">
+<div class="login-shell <?= $showLoginBillboard ? 'has-login-billboard' : '' ?>">
 <?php if ($showLoginBillboard): ?>
     <iframe class="login-marketing-billboard" src="<?= htmlspecialchars($loginBillboardSrc, ENT_QUOTES) ?>" title="FirstMate marketing billboard" loading="lazy" scrolling="no"></iframe>
+<?php if ($loginBillboardRegion === 'detect'): ?>
+    <script>
+        (() => {
+            let european = false;
+            let timeZone = '';
+            try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
+            // Time zone is more specific than language; use locale only without a regional zone.
+            if (timeZone && !/^(UTC|GMT|Etc\/)/.test(timeZone)) {
+                european = timeZone.startsWith('Europe/') || ['Asia/Nicosia', 'Asia/Famagusta', 'Atlantic/Azores', 'Atlantic/Madeira', 'Atlantic/Canary', 'Atlantic/Faroe', 'Atlantic/Faeroe', 'Atlantic/Reykjavik', 'Arctic/Longyearbyen'].includes(timeZone);
+            } else {
+                try {
+                    const country = new Intl.Locale(navigator.language).region;
+                    european = <?= json_encode($loginEuropeanCountries) ?>.includes(country);
+                } catch (_) {}
+            }
+            if (european) document.querySelector('.login-marketing-billboard').src = 'https://eu.1m8.ai/billboards/login';
+        })();
+    </script>
 <?php endif; ?>
-<?php if ($showLoginBanner): ?>
-    <iframe class="login-marketing-banner" src="<?= htmlspecialchars($loginBannerSrc, ENT_QUOTES) ?>" title="FirstMate marketing banner" loading="lazy" scrolling="no"></iframe>
 <?php endif; ?>
 <div class="container <?= $hasReferralInvite ? 'referral-mode' : '' ?>">
     <div class="header">
