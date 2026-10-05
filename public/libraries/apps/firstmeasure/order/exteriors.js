@@ -572,7 +572,11 @@
 
   }
   function render(){const scroller=root?.closest('.r-scroll');const savedScroll=scroller?.scrollTop;const focused=document.activeElement;const caret=focused&&/^(INPUT|TEXTAREA)$/.test(focused.tagName)?[focused.selectionStart,focused.selectionEnd]:null;restoreShared();if(!ctx)return;const step=document.getElementById('rStepType');if(!step)return;
-    if(!root?.isConnected){root=document.createElement('section');root.className='ext-order';root.id='rExteriorOrder';step.after(root);}
+    if(!root?.isConnected){root=document.createElement('section');root.className='ext-order';root.id='rExteriorOrder';}
+    // Workflow fields can nest the type picker inside Customer, which is hidden during capture.
+    const host=step.closest('.r-scroll');let anchor=step;
+    if(host){while(anchor.parentElement!==host)anchor=anchor.parentElement;if(root.parentElement!==host)anchor.after(root);}
+    else if(!root.isConnected)step.after(root);
     const visible=!ctx.ordered && ctx.type && allowed(ctx.type) && ctx.orderWorkflow && (!ctx.mobileOrder || (ctx.type==='residential' && ctx.addressSelected && !ctx.typeTransitioning));
     const overlay=document.getElementById('rOverlay');const mobileOrder=!!overlay?.classList.contains('mobile-order');
     root.hidden=!visible||(mobileOrder&&scope==='roof');overlay?.classList.toggle('exteriors-active',!!visible&&active());overlay?.classList.toggle('exteriors-choose',!!visible&&!scope);
