@@ -57,3 +57,22 @@ test('country verification ignores client claims and rejects missing geocoder co
 test('exterior ordering stays open after 8pm Pacific and overnight',()=>{
  for(const hour of [3,4,6,10])pricingContext.run({config:{...DEFAULT_EXPEDITE_PRICING},revision:0,now:new Date(`2026-10-06T${String(hour).padStart(2,'0')}:00:00Z`)},()=>assert.equal(exteriorQuote().ordering_closed,false));
 });
+
+test('configured Azure verifies coordinates and addresses when Google Geocoding is unavailable',async()=>{
+ const {env}=await import('../src/config/env.js');const originalFetch=globalThis.fetch,originalKey=env.azureMapsSubscriptionKey;
+ env.azureMapsSubscriptionKey='azure-country-fixture';const seen:URL[]=[];
+ try{
+  globalThis.fetch=(async(input,options)=>{
+   const url=new URL(String(input));
+   if(url.hostname==='maps.googleapis.com')return new Response(JSON.stringify({status:'REQUEST_DENIED'}));
+   assert.equal(url.hostname,'atlas.microsoft.com');assert.equal(new Headers(options?.headers).get('subscription-key'),'azure-country-fixture');seen.push(url);
+   return new Response(JSON.stringify({features:[{properties:{address:{countryRegion:{ISO:'GB'}}}}]}));
+  }) as typeof fetch;
+  assert.equal(await property.resolveReportPropertyCountry({lat:51.51,lng:-0.13,country:'US'}),'GB');
+  assert.equal(seen[0]!.pathname,'/reverseGeocode');assert.equal(seen[0]!.searchParams.get('coordinates'),'-0.13,51.51');
+  assert.equal(await property.resolveReportPropertyCountry({address:'10 Downing Street, London'}),'GB');
+  assert.equal(seen[1]!.pathname,'/geocode');assert.equal(seen[1]!.searchParams.get('query'),'10 Downing Street, London');
+  globalThis.fetch=(async()=>new Response(JSON.stringify({features:[]}))) as typeof fetch;
+  await assert.rejects(property.resolveReportPropertyCountry({lat:52.1,lng:0.1}),{code:'property_country_unavailable'});
+ }finally{globalThis.fetch=originalFetch;env.azureMapsSubscriptionKey=originalKey;}
+});

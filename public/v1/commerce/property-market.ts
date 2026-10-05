@@ -17,6 +17,16 @@ export function countryFromGeocode(payload: unknown) {
   }
   return "";
 }
+export function countryFromAzureGeocode(payload: unknown) {
+  const features = object(payload).features;
+  if (!Array.isArray(features)) return "";
+  for (const feature of features) {
+    const address = object(object(object(feature).properties).address);
+    const country = countryCode(object(address.countryRegion).ISO);
+    if (country) return country;
+  }
+  return "";
+}
 
 /** Client country fields never authorize a domestic discount. Resolve the actual order location at the server. */
 export async function resolveReportPropertyCountry(input: Record<string, unknown>, required = true): Promise<string> {
@@ -44,15 +54,27 @@ export async function resolveReportPropertyCountry(input: Record<string, unknown
   const cached = cache.get(cacheKey);
   if (cached && cached.expires > Date.now()) return cached.country;
   const key = env.googleMapsApiKey;
-  if (!key) throw badRequest("property_country_unavailable", "We could not verify the property's country. Please try again shortly.");
-  const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
-  url.searchParams.set(hasCoordinates ? "latlng" : "address", hasCoordinates ? `${lat},${lng}` : address);
-  url.searchParams.set("key", key);
   let country = "";
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (response.ok) country = countryFromGeocode(await response.json());
-  } catch { /* Fail before charging; never guess the lower price. */ }
+  if (key) {
+    const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+    url.searchParams.set(hasCoordinates ? "latlng" : "address", hasCoordinates ? `${lat},${lng}` : address);
+    url.searchParams.set("key", key);
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (response.ok) country = countryFromGeocode(await response.json());
+    } catch { /* Try the configured alternate geocoder before rejecting the order. */ }
+  }
+  // Azure Maps is already configured for server-side mapping. Google Geocoding
+  // may be disabled independently of the browser Maps/Places APIs.
+  if (!country && env.azureMapsSubscriptionKey) {
+    const url = new URL(hasCoordinates ? "https://atlas.microsoft.com/reverseGeocode" : "https://atlas.microsoft.com/geocode");
+    url.searchParams.set("api-version", "2025-01-01");
+    url.searchParams.set(hasCoordinates ? "coordinates" : "query", hasCoordinates ? `${lng},${lat}` : address);
+    try {
+      const response = await fetch(url, { headers: { "subscription-key": env.azureMapsSubscriptionKey }, signal: AbortSignal.timeout(10000) });
+      if (response.ok) country = countryFromAzureGeocode(await response.json());
+    } catch { /* Fail before charging; never guess the lower price. */ }
+  }
   if (!country) throw badRequest("property_country_unavailable", "We could not verify the property's country. Check the address and try again.");
   if (cache.size >= 1000) cache.delete(cache.keys().next().value!);
   cache.set(cacheKey, { country, expires: Date.now() + 300000 });
