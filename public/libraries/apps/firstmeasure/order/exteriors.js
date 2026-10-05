@@ -21,6 +21,9 @@
     @media(prefers-reduced-motion:reduce){.ext-model,.ext-guide-progress span{transition:none}}
   `);
   // Keep the guide DOM (especially the video) alive across upload/status renders.
+  P.util.injectCSS('exterior-camera-controls',`
+    .ext-camera-controls{position:absolute;bottom:10px;left:12px;right:12px;z-index:3;display:flex;align-items:center;gap:10px;color:white;background:#101828a8;border-radius:24px;padding:5px 10px}.ext-camera-controls[hidden],.ext-camera-controls [hidden]{display:none!important}.ext-camera-controls button{border:0;border-radius:50%;background:transparent;color:inherit;min-width:38px;min-height:38px;padding:4px;font:inherit;font-size:13px;cursor:pointer}.ext-camera-controls button:disabled{opacity:.4}.ext-camera-controls [data-camera-switch]{font-size:20px;flex:none}.ext-camera-zoom{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.ext-camera-controls [data-zoom-presets]{display:flex;justify-content:space-evenly;overflow-x:auto}.ext-camera-controls [aria-pressed=true]{background:var(--primary,#d93025);color:white}.ext-camera-controls input{width:100%;margin:0;height:18px;accent-color:var(--primary,#d93025)}.ext-camera-controls output{min-width:32px;font-size:12px;text-align:right}.ext-camera.has-camera-controls{touch-action:none}.ext-camera.has-camera-controls .ext-photo-dock{bottom:90px;touch-action:pan-x}.ext-camera.has-camera-controls .ext-camera-status{bottom:180px}
+  `);
   let guideNode=null, guideIndex=0, photoSummary=false, cameraStream=null, cameraEpoch=0, cameraStarting=false, cameraFallback=false, cameraNeedsUpdate=false, cameraMessage='', capturing=false;
   // Orbital video is the default capture; the eight guided photos are the fallback.
   let captureMode='video', videoStage='intro', photoIntroSeen=false, recNode=null;
@@ -41,25 +44,86 @@
   const clock=ms=>{const total=Math.max(0,Math.round(ms/1000));return Math.floor(total/60)+':'+String(total%60).padStart(2,'0');};
   const guideKey=()=>Math.floor(guideIndex/8)+':'+views[guideIndex%8];
   const anglePhotos=key=>[...files].filter(([k,f])=>k===key||f.angleKey===key);
-  function stopCamera(){stopRecording();cameraEpoch++;cameraStarting=false;cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;for(const node of [guideNode,recNode])if(node?.querySelector('video'))node.querySelector('video').srcObject=null;}
+  let cameraFacing='environment',cameraDevices=[],cameraZoom=null,zoomPending=null,zoomApplying=false;
+  const mobileCamera=()=>/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||window.matchMedia?.('(pointer:coarse)').matches;
+  const zoomLabel=value=>Number(value.toFixed(1))+'x';
+  function updateCameraControls(node){
+    if(!node)return;
+    let bar=node.querySelector('.ext-camera-controls');
+    if(!bar){
+      bar=document.createElement('div');bar.className='ext-camera-controls';
+      bar.innerHTML='<button type="button" data-camera-switch aria-label="Switch camera"><i class="fas fa-camera-rotate" aria-hidden="true"></i></button><div class="ext-camera-zoom"><div data-zoom-presets></div><input type="range" data-camera-zoom aria-label="Camera zoom"></div><output data-camera-zoom-value aria-live="off"></output>';
+      node.querySelector('.ext-camera').append(bar);
+      bar.querySelector('[data-camera-switch]').onclick=switchCamera;
+      bar.querySelector('[data-camera-zoom]').oninput=e=>setCameraZoom(Number(e.target.value));
+      bar.querySelector('[data-zoom-presets]').onclick=e=>{const b=e.target.closest('[data-zoom]');if(b)setCameraZoom(Number(b.dataset.zoom));};
+      const surface=node.querySelector('.ext-camera');let pinch=null;
+      const distance=e=>Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+      surface.addEventListener('touchstart',e=>{if(mobileCamera()&&cameraZoom&&e.touches.length===2&&!e.target.closest('button,input,.ext-photo-dock')){pinch={distance:distance(e),zoom:cameraZoom.value};e.preventDefault();}},{passive:false});
+      surface.addEventListener('touchmove',e=>{if(pinch&&cameraZoom&&e.touches.length===2){e.preventDefault();setCameraZoom(pinch.zoom*distance(e)/Math.max(1,pinch.distance));}},{passive:false});
+      for(const type of ['touchend','touchcancel'])surface.addEventListener(type,e=>{if(e.touches.length<2)pinch=null;});
+    }
+    bar.hidden=!mobileCamera()||!cameraStream;
+    node.querySelector('.ext-camera').classList.toggle('has-camera-controls',!bar.hidden);
+    const flip=bar.querySelector('[data-camera-switch]');flip.disabled=cameraStarting||recording()||cameraDevices.length<2;
+    flip.title=recording()?'Stop recording to switch cameras':'Switch camera';
+    const group=bar.querySelector('.ext-camera-zoom'),output=bar.querySelector('output');group.hidden=!cameraZoom;output.hidden=!cameraZoom;
+    if(cameraZoom){
+      const {min,max,step,value}=cameraZoom,input=bar.querySelector('input');input.min=min;input.max=max;input.step=step;input.value=value;
+      output.textContent=zoomLabel(value);
+      const presets=[...new Set([min,...[.5,1,2,3,5,10].filter(v=>v>=min&&v<=max)])].sort((a,b)=>a-b);
+      const host=bar.querySelector('[data-zoom-presets]'),key=presets.join(',');
+      if(host.dataset.range!==key){host.dataset.range=key;host.innerHTML=presets.map(v=>'<button type="button" data-zoom="'+v+'" aria-label="Zoom '+zoomLabel(v)+'">'+zoomLabel(v)+'</button>').join('');}
+      for(const b of host.children)b.setAttribute('aria-pressed',String(Math.abs(Number(b.dataset.zoom)-value)<step/2+.001));
+    }
+  }
+  async function setCameraZoom(value){
+    if(!cameraZoom||!cameraStream)return;
+    const {min,max,step}=cameraZoom;
+    cameraZoom.value=Math.max(min,Math.min(max,min+Math.round((value-min)/step)*step));zoomPending=cameraZoom.value;updateCameraControls(cameraNode());
+    if(zoomApplying)return;zoomApplying=true;
+    try{while(zoomPending!==null&&cameraStream&&cameraZoom){
+      const desired=zoomPending,track=cameraStream.getVideoTracks()[0];zoomPending=null;
+      try{await track.applyConstraints({advanced:[{zoom:desired}]});}
+      catch{if(track===cameraStream?.getVideoTracks()[0]){cameraZoom.value=track.getSettings?.().zoom??min;zoomPending=null;cameraMessage='This camera could not change zoom.';updateCapture();}}
+    }}finally{zoomApplying=false;updateCameraControls(cameraNode());}
+  }
+  async function configureCameraControls(stream){
+    const track=stream.getVideoTracks()[0],caps=track.getCapabilities?.()||{},settings=track.getSettings?.()||{};
+    cameraFacing=settings.facingMode||cameraFacing;
+    cameraZoom=caps.zoom&&Number.isFinite(caps.zoom.min)&&caps.zoom.max>caps.zoom.min?{min:caps.zoom.min,max:caps.zoom.max,step:caps.zoom.step||.1,value:settings.zoom??caps.zoom.min}:null;
+    updateCameraControls(cameraNode());
+    try{const devices=await navigator.mediaDevices.enumerateDevices();if(stream===cameraStream){cameraDevices=devices.filter(d=>d.kind==='videoinput');updateCameraControls(cameraNode());}}catch{if(stream===cameraStream){cameraDevices=[];updateCameraControls(cameraNode());}}
+  }
+  async function switchCamera(){
+    if(!mobileCamera()||cameraStarting||recording()||cameraDevices.length<2)return;
+    const previous=cameraFacing;stopCamera();cameraFacing=previous==='environment'?'user':'environment';cameraFallback=false;
+    await startCamera(true);
+    if(cameraFallback&&cameraNode()?.isConnected&&page===1&&!workspaceSuspended){cameraFacing=previous;cameraFallback=false;await startCamera();}
+  }
+  function stopCamera(){stopRecording();cameraEpoch++;cameraStarting=false;cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;cameraZoom=null;zoomPending=null;for(const node of [guideNode,recNode])if(node?.querySelector('video'))node.querySelector('video').srcObject=null;}
   function resetGuide(){photoToast?.remove();if(photoToastTimer)clearTimeout(photoToastTimer);closeVideoPreview();stopCamera();guideNode?.remove();guideNode=null;recNode?.remove();recNode=null;guideIndex=0;photoSummary=false;cameraMessage='';cameraFallback=false;cameraNeedsUpdate=false;captureMode='video';videoStage='intro';photoIntroSeen=false;}
   function houseModel(){return `<div class="ext-model-scene" role="img" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_e4b02dd6cf2314","House angle guide") ?? "House angle guide")}"><div class="ext-model"><div class="ext-ground"></div><div class="ext-wall front"><i></i><b></b><i></i></div><div class="ext-wall back"><i></i><i></i></div><div class="ext-wall left"><i></i><i></i></div><div class="ext-wall right"><i></i><i></i></div><div class="ext-gable front"></div><div class="ext-gable back"></div><div class="ext-roof left"></div><div class="ext-roof right"></div><div class="ext-path">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_76f61845dd2aea","STREET") ?? "STREET")}</div></div></div>`;}
-  async function startCamera(){
+  async function startCamera(switching=false){
     if(cameraStream||cameraStarting||cameraFallback||photoSummary||page!==1||!ctx?.mobileOrder||!cameraStage())return;
     const video=captureMode==='video',noun=video?'videos':'photos';
     cameraStarting=true;cameraMessage='Opening camera…';const epoch=++cameraEpoch;updateCapture();
     try{
-      // Native capability discovery is asynchronous. A pending reply is not an
-      // unsupported camera, and must not permanently latch the upload fallback.
-      const phone=window.PhoneFeatures,native=phone?.isNative?.();
-      const info=native?(await phone.ready??phone.info?.()):null;
+      // Known legacy hosts retain the update hint; unknown capability state must
+      // not delay the browser's own camera permission request.
+      let phone=window.PhoneFeatures;
+      try{phone=window.top.PhoneFeatures||phone;}catch{}
+      const native=phone?.isNative?.(),info=native?phone.info?.():null;
+      // Permission should open immediately. A child-frame bridge reply can never
+      // arrive on Android (native messages are main-frame only), so do not await it.
       if(epoch!==cameraEpoch||page!==1||photoSummary||workspaceSuspended)return;
       cameraNeedsUpdate=!!(native&&info?.platform==='android'&&info?.capabilities&&!info.capabilities.includes('liveCamera'));
       if(cameraNeedsUpdate){cameraFallback=true;cameraMessage=`Update FirstMate from Settings → App download for the live camera. You can still take or upload ${noun} below.`;return;}
       if(!navigator.mediaDevices?.getUserMedia||(video&&typeof MediaRecorder!=='function')){cameraFallback=true;cameraMessage='Live camera is unavailable here. Use the camera button or Upload below.';return;}
-      const stream=await navigator.mediaDevices.getUserMedia({video:video?{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}}:{facingMode:{ideal:'environment'},width:{ideal:2560},height:{ideal:1920}},audio:false});
+      const stream=await navigator.mediaDevices.getUserMedia({video:video?{facingMode:switching?{exact:cameraFacing}:{ideal:cameraFacing},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}}:{facingMode:switching?{exact:cameraFacing}:{ideal:cameraFacing},width:{ideal:2560},height:{ideal:1920}},audio:false});
       if(epoch!==cameraEpoch||page!==1||photoSummary||workspaceSuspended||!cameraStage()||video!==(captureMode==='video')){stream.getTracks().forEach(track=>track.stop());return;}
-      cameraStream=stream;cameraFallback=false;cameraMessage='';const preview=cameraNode()?.querySelector('video');if(preview){preview.srcObject=stream;await preview.play();}
+      if(document.hidden){stream.getTracks().forEach(track=>track.stop());return;}
+      cameraStream=stream;cameraFallback=false;cameraMessage='';const preview=cameraNode()?.querySelector('video');if(preview){preview.srcObject=stream;await preview.play();}if(epoch===cameraEpoch)void configureCameraControls(stream);
     }catch(e){if(epoch!==cameraEpoch)return;stopCamera();cameraFallback=true;cameraMessage=e.name==='NotAllowedError'?`Camera access is off. Allow it in device settings, or upload your ${noun}.`:video?'Camera unavailable. You can still upload a video of the house.':'Camera unavailable. You can still upload photos for every angle.';}
     finally{if(epoch===cameraEpoch)cameraStarting=false;updateCapture();}
   }
@@ -123,7 +187,7 @@
     guideNode.querySelector('[data-guide-title]').textContent=((v0) => globalThis.PlatformLanguage?.text("firstmeasure","m_8ac00bef24971e",`${v0} of House`,{v0}) ?? `${v0} of House`)(label(view));
     guideNode.querySelector('.ext-model').style.transform=`rotateX(-18deg) rotateY(${45*(guideIndex%8)}deg)`;
     guideNode.querySelector('.ext-model-scene').setAttribute('aria-label',((v0) => globalThis.PlatformLanguage?.text("firstmeasure","m_acb62edbd19fa2",`${v0} of the house; front faces the street`,{v0}) ?? `${v0} of the house; front faces the street`)(label(view)));
-    guideNode.querySelector('.ext-camera').classList.toggle('live',!!cameraStream);
+    guideNode.querySelector('.ext-camera').classList.toggle('live',!!cameraStream);updateCameraControls(guideNode);
     guideNode.querySelector('.ext-camera-status').textContent=cameraMessage;
     guideNode.querySelector('[data-guide-capture]').disabled=capturing||cameraStarting;
     guideNode.querySelector('[data-guide-retry-camera]').hidden=!!cameraStream||cameraStarting||cameraNeedsUpdate;
@@ -156,7 +220,12 @@
     for(const tile of [...strip.children])if(!wanted.has(tile))tile.remove();
   }
   window.addEventListener?.('pagehide',stopCamera);
-  document.addEventListener?.('visibilitychange',()=>{if(document.hidden)stopCamera();else if(cameraNode()?.isConnected&&!photoSummary&&page===1)updateCapture();});
+  document.addEventListener?.('visibilitychange',()=>{
+    // Android permission dialogs can temporarily hide the document. Keep the
+    // pending request alive so its accepted stream is not discarded as stale.
+    if(document.hidden){if(!cameraStarting)stopCamera();}
+    else if(cameraNode()?.isConnected&&!photoSummary&&page===1&&!workspaceSuspended){updateCapture();void startCamera();}
+  });
   // ---- Orbital video: explainer animation, recorder and video uploads ----
   const HOUSE_PARTS='<div class="ext-wall front"><i></i><b></b><i></i></div><div class="ext-wall back"><i></i><i></i></div><div class="ext-wall left"><i></i><i></i></div><div class="ext-wall right"><i></i><i></i></div><div class="ext-gable front"></div><div class="ext-gable back"></div><div class="ext-roof left"></div><div class="ext-roof right"></div>';
   const WALKER='<svg viewBox="0 0 18 32" width="18" height="32"><rect class="ext-orbit-leg" x="4" y="20" width="4" height="12" rx="2" fill="color-mix(in srgb,var(--primary,#d93025) 55%,#101828)"/><rect class="ext-orbit-leg" x="9" y="20" width="4" height="12" rx="2" fill="color-mix(in srgb,var(--primary,#d93025) 55%,#101828)"/><path d="M3 12a5.5 5.5 0 0 1 11 0v10H3z" fill="var(--primary,#d93025)"/><circle cx="8.5" cy="4.5" r="4.2" fill="#f0c49a"/><path d="M11 13l4.5-2" stroke="#f0c49a" stroke-width="2.6" stroke-linecap="round"/><rect x="13.6" y="6" width="4" height="7" rx="1" fill="#101828"/></svg>';
@@ -252,7 +321,7 @@
     recNode.querySelector('[data-rec-title]').textContent=paused?'Paused':live?'Keep walking the circle':takes.length?'Segment saved':'Record your orbital video';
     recNode.querySelector('[data-rec-step]').textContent=(ctx.count>1?`House ${structure+1} of ${ctx.count} · `:'')+(takes.length?`${takes.length} segment${takes.length===1?'':'s'} · ${clock(total*1000)}`:'One full circle around the house');
     recNode.querySelector('[data-rec-hint]').textContent=live||!cameraStream?'':takes.length?'Record another segment to continue the circle, or review when you have gone all the way around.':'Start at the front. Walk one full circle, keeping the whole house in frame.';
-    recNode.querySelector('.ext-camera').classList.toggle('live',!!cameraStream);
+    recNode.querySelector('.ext-camera').classList.toggle('live',!!cameraStream);updateCameraControls(recNode);
     recNode.querySelector('.ext-camera-status').textContent=cameraMessage;
     const toggle=recNode.querySelector('[data-rec-toggle]');toggle.disabled=cameraStarting;toggle.setAttribute('aria-label',live?'Stop recording':'Start recording');
     recNode.querySelector('[data-rec-badge]').hidden=!live;updateRecorderClock();

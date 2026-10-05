@@ -4,21 +4,25 @@ import test from 'node:test';
 import {chromium} from 'playwright-core';
 
 const source=await readFile(new URL('../../libraries/apps/firstmeasure/order/exteriors.js',import.meta.url),'utf8');
-const instrumented=source.replace('  P.ExteriorOrder={','  P.test={files,upload,visitGuide,finishGuide,removeGuided,stopCamera,getStream:()=>cameraStream,usePhotos:()=>{captureMode="photos";photoIntroSeen=true;}};\n  P.ExteriorOrder={');
-async function setup(t,{denied=false,width=390,height=844,native=null}={}){
+const instrumented=source.replace('  P.ExteriorOrder={','  P.test={files,upload,visitGuide,finishGuide,removeGuided,stopCamera,configureCameraControls,useVideo:()=>{stopCamera();captureMode="video";videoStage="record";},getStream:()=>cameraStream,usePhotos:()=>{captureMode="photos";photoIntroSeen=true;}};\n  P.ExteriorOrder={');
+async function setup(t,{denied=false,width=390,height=844,native=null,controls=false,permissionPending=false}={}){
  const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
  t.after(()=>browser.close());
- const page=await browser.newPage({viewport:{width,height}});
+ const page=await browser.newPage({viewport:{width,height},...(controls?{hasTouch:true,userAgent:'Mozilla/5.0 (Linux; Android 15) Chrome/140 Mobile Safari/537.36 FirstMateMobile/1.0.2'}:{})});
  await page.route('https://capture.test/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}.r-left{height:100dvh;box-sizing:border-box;display:flex;flex-direction:column;padding:12px;gap:8px}.r-top{height:42px;flex-shrink:0}.r-form{display:flex;flex:1;min-height:0}.r-scroll{flex:1;min-height:0;overflow:auto}button{font:inherit}</style></head><body><div id="rOverlay" class="r-overlay mobile-order mobile-order-photos"><div class="r-left"><div class="r-top">Property address</div><form class="r-form"><div class="r-scroll"><div id="rStepType"><div id="rTypePill"></div></div></div></form></div></div></body></html>'}));
  await page.goto('https://capture.test/');
- await page.evaluate(({denied,native})=>{
+ await page.evaluate(({denied,native,controls,permissionPending})=>{
   window.PlatformCommerce={credit:n=>'$'+Number(n||0).toFixed(2)};
-  window.cameraCalls=0;const get=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-  navigator.mediaDevices.getUserMedia=async opts=>{window.cameraCalls++;if(denied)throw new DOMException('denied','NotAllowedError');return get(opts);};
+  window.cameraCalls=0;window.cameraConstraints=[];window.zoomCalls=[];let zoom=1;
+  if(permissionPending)window.permissionGate=new Promise(resolve=>window.acceptCamera=resolve);const get=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getUserMedia=async opts=>{window.cameraCalls++;cameraConstraints.push(opts);if(denied)throw new DOMException('denied','NotAllowedError');if(permissionPending)await permissionGate;
+   const stream=await get(controls?{video:true,audio:false}:opts);
+   if(controls){const track=stream.getVideoTracks()[0],settings=track.getSettings.bind(track);zoom=1;track.getCapabilities=()=>({zoom:{min:.5,max:3,step:.1}});track.getSettings=()=>({...settings(),zoom,facingMode:opts.video.facingMode.exact||opts.video.facingMode.ideal});track.applyConstraints=async c=>{zoom=c.advanced[0].zoom;zoomCalls.push(zoom);};}return stream;};
+  if(controls)navigator.mediaDevices.enumerateDevices=async()=>[{kind:'videoinput',deviceId:'rear'},{kind:'videoinput',deviceId:'front'}];
   window.Portal={cfg:{serverEndpoint:'/upload'},capabilities:{value:()=>true},util:{escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;'),injectCSS:(id,css)=>{const style=document.createElement('style');style.textContent=css;document.head.append(style);},postAction:async()=>({data:{success:true,base_price:25,options:[{key:'exteriors_standard',amount:25}]}})}};
   window.fetch=async()=>({ok:true,json:async()=>({success:true,media_id:crypto.randomUUID()})});
   if(native){let info=null;const ready=new Promise(resolve=>{window.finishNativeInfo=()=>{info={platform:'android',version:native==='legacy'?'1.0.1':'1.0.2',capabilities:native==='legacy'?['camera']:['camera','liveCamera']};resolve(info);};});window.PhoneFeatures={isNative:()=>true,info:()=>info,ready};if(native==='legacy')window.finishNativeInfo();}
- },{denied,native});
+ },{denied,native,controls,permissionPending});
  await page.evaluate(instrumented);
  await page.evaluate(()=>{
   const order=Portal.ExteriorOrder;
@@ -61,8 +65,7 @@ test('camera stays mounted across captures; newest is primary, extras persist an
 
 test('native discovery can finish after the photo screen opens without disabling live capture',async t=>{
  const page=await setup(t,{native:'delayed'});
- assert.equal(await page.evaluate(()=>cameraCalls),0);
- assert.equal(await page.locator('video').evaluate(v=>getComputedStyle(v).visibility),'hidden');
+ assert.equal(await page.evaluate(()=>cameraCalls),1,'permission request does not wait for native info');
  await page.evaluate(()=>{Portal.ExteriorOrder.render();window.finishNativeInfo();});
  await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
  assert.equal(await page.evaluate(()=>cameraCalls),1);
@@ -248,4 +251,59 @@ test('project-request evaluates order readiness after syncing the exterior page,
  assert.ok(syncAt>=0&&readinessAt>syncAt,'order button readiness must be computed after the exterior page changes');
  assert.match(pager,/order\.disabled = !orderVisible \|\| blocked/);
  assert.match(body('updateSubmitLabel'),/submit\.disabled = orderSubmitBlocked\(\);/);
+});
+
+
+test('mobile controls use supported zoom, pinch, switch camera and sit below uploaded media',async t=>{
+ const page=await setup(t,{controls:true});
+ await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
+ await page.waitForFunction(()=>!document.querySelector('[data-camera-switch]').disabled);
+ assert.deepEqual(await page.locator('[data-zoom]').evaluateAll(bs=>bs.map(b=>Number(b.dataset.zoom))),[.5,1,2,3]);
+ await page.click('[data-zoom="2"]');await page.waitForFunction(()=>zoomCalls.at(-1)===2);
+ await page.locator('[data-camera-zoom]').fill('1');await page.waitForFunction(()=>zoomCalls.at(-1)===1);
+ await page.evaluate(()=>{const surface=document.querySelector('.ext-camera'),event=(type,x)=>{const touches=x===null?[]:[new Touch({identifier:1,target:surface,clientX:10,clientY:100}),new Touch({identifier:2,target:surface,clientX:x,clientY:100})];surface.dispatchEvent(new TouchEvent(type,{touches,bubbles:true,cancelable:true}));};event('touchstart',110);event('touchmove',210);event('touchend',null);});
+ await page.waitForFunction(()=>zoomCalls.at(-1)===2);
+ const geometry=await page.evaluate(()=>({dock:document.querySelector('.ext-photo-dock').getBoundingClientRect().bottom,bar:document.querySelector('.ext-camera-controls').getBoundingClientRect().top}));assert.ok(geometry.dock<=geometry.bar,JSON.stringify(geometry));
+ if(process.env.CAMERA_EVIDENCE)await page.screenshot({path:process.env.CAMERA_EVIDENCE});
+ await page.evaluate(()=>window.oldTrack=Portal.test.getStream().getVideoTracks()[0]);
+ await page.click('[data-camera-switch]');await page.waitForFunction(()=>cameraCalls===2&&Portal.test.getStream()?.getVideoTracks()[0]!==oldTrack);
+ assert.equal(await page.evaluate(()=>oldTrack.readyState),'ended');
+ assert.equal(await page.evaluate(()=>cameraConstraints[1].video.facingMode.exact),'user');
+ await page.waitForFunction(()=>!document.querySelector('[data-camera-switch]').disabled);
+ await page.click('[data-camera-switch]');await page.waitForFunction(()=>cameraCalls===3);
+ assert.equal(await page.evaluate(()=>cameraConstraints[2].video.facingMode.exact),'environment');
+});
+
+test('permission visibility change does not discard the first accepted camera stream',async t=>{
+ const page=await setup(t,{controls:true,native:'delayed',permissionPending:true});
+ assert.equal(await page.evaluate(()=>cameraCalls),1);
+ await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));acceptCamera();});
+ await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
+ assert.equal(await page.evaluate(()=>cameraCalls),1);assert.equal(await page.locator('[data-guide-retry-camera]').isVisible(),false);
+});
+
+test('desktop camera does not display mobile lens controls',async t=>{
+ const page=await setup(t,{width:1200});await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
+ assert.equal(await page.locator('.ext-camera-controls').isVisible(),false);
+});
+
+
+test('video has the same lens controls; recording locks switch but retains live zoom',async t=>{
+ const page=await setup(t,{controls:true});await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
+ await page.evaluate(()=>{Portal.test.useVideo();Portal.ExteriorOrder.render();});
+ await page.waitForFunction(()=>document.querySelector('[data-rec-toggle]')&&!document.querySelector('[data-camera-switch]').disabled);
+ await page.click('[data-rec-toggle]');await page.waitForFunction(()=>document.querySelector('.ext-capture').classList.contains('recording'));
+ assert.equal(await page.locator('[data-camera-switch]').isDisabled(),true);
+ await page.click('[data-zoom="3"]');await page.waitForFunction(()=>zoomCalls.at(-1)===3);
+ assert.equal(await page.locator('.ext-capture').evaluate(e=>e.classList.contains('recording')),true);
+ await page.evaluate(()=>Portal.test.stopCamera());
+});
+
+test('unsupported zoom is hidden, and rejected zoom restores the real track setting',async t=>{
+ const page=await setup(t,{controls:true});await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
+ await page.evaluate(()=>{Portal.test.getStream().getVideoTracks()[0].applyConstraints=async()=>{throw Error('unsupported');};});
+ await page.click('[data-zoom="2"]');await page.waitForFunction(()=>document.querySelector('[data-camera-zoom-value]').textContent==='1x');
+ await page.evaluate(async()=>{const stream=Portal.test.getStream();stream.getVideoTracks()[0].getCapabilities=()=>({});await Portal.test.configureCameraControls(stream);});
+ assert.equal(await page.locator('.ext-camera-zoom').isVisible(),false);
+ assert.equal(await page.locator('[data-camera-switch]').isEnabled(),true);
 });
