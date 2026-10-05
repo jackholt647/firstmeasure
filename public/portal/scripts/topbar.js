@@ -195,13 +195,14 @@
     dm: { icon:'fa-message', label:(globalThis.PlatformLanguage?.text("platform","m_e3cc894d04e408","sent you a message") ?? "sent you a message") },
     reply: { icon:'fa-reply', label:(globalThis.PlatformLanguage?.text("platform","m_68e3c79189e8dd","replied to you") ?? "replied to you") },
     reaction: { icon:'fa-face-smile', label:(globalThis.PlatformLanguage?.text("platform","m_a7e03e084a102a","reacted") ?? "reacted") },
+    activity: { icon:'fa-message', label:'Channels update' },
     channel: { icon:'fa-hashtag', label:(globalThis.PlatformLanguage?.text("platform","m_4c04db54662b57","new messages") ?? "new messages") }
   };
 
   function messageEntryHtml(entry, index, groupedReaction = false){
     const meta = MESSAGE_KIND_META[entry.kind] || MESSAGE_KIND_META.channel;
     const who = escapeHtml(cleanText(entry.author?.name) || 'Someone');
-    const line = entry.kind === 'reaction'
+    const line = entry.kind === 'activity' ? `<b>${escapeHtml(cleanText(entry.title) || 'Channels update')}</b>` : entry.kind === 'reaction'
       ? `<b>${who}</b> reacted ${escapeHtml(cleanText(entry.emoji))} to your message`
       : entry.kind === 'channel'
         ? `<b>${escapeHtml(cleanText(entry.channel_name))}</b> · ${Number(entry.count || 0)} new`
@@ -243,7 +244,7 @@
         window.Portal?.navigation?.navigate?.({project:cleanText(entry.project_id), projectTab:'materials', projectNote:cleanText(entry.message_id) || null}, {source:'messages-inbox'});
         await window.Portal?.navigation?.applyCurrent?.();
       } else {
-        const detail = {channel_id:cleanText(entry.channel_id), message_id:cleanText(entry.message_id), parent_id:cleanText(entry.parent_id)};
+        const detail = {channel_id:cleanText(entry.channel_id), message_id:cleanText(entry.kind === 'activity' ? entry.related_message_id : entry.message_id), parent_id:cleanText(entry.parent_id), huddle_id:cleanText(entry.huddle_id)};
         if (window.FirstMateChannelsNavigation?.openMessage) {
           if (await window.FirstMateChannelsNavigation.openMessage(detail) === false) throw new Error('This conversation could not be opened.');
         } else {
@@ -1085,6 +1086,9 @@
     updateAssistantVisibility(true);
     window.addEventListener('fm:capabilities:updated', () => { updateAssistantVisibility(); updateMessagesVisibility(); });
     window.PlatformNotifications?.subscribe(renderNotifications);
+    window.PlatformRealtime?.subscribe?.(orgId(), "channels.", event => {
+      if (['channels.read.updated','channels.read_state.updated','channels.unreads.changed','channels.message.created','channels.reaction.updated'].includes(event.topic)) loadMessagesInbox().catch(() => null);
+    });
     window.addEventListener('fm:notification:open', async (event) => {
       const id = String(event.detail?.id || '');
       if (!id) return;

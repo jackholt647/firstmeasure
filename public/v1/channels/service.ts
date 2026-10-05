@@ -41,6 +41,7 @@ import {
   listSavedMessageIds,
   listSavedMessages,
   readChannelMember,
+  readStateFor,
   readChannelRecord,
   readChannelsMeta,
   readAttachmentRecord,
@@ -423,7 +424,66 @@ export async function personalInbox(ctx: PlatformAuthContext, options: { limit?:
       if ((await readMessageRecord(ctx.orgId,id))?.metadata.project_note === true) hiddenNotes.add(id);
     }
   }
-  const deduped = entries.filter(entry => !hiddenNotes.has(cleanText(entry.message_id))).filter((entry) => !(entry.kind === "dm" && dmMentionChannels.has(cleanText(entry.channel_id))));
+  const { effectivePreferences } = await import("../platform/notifications/configuration.js");
+  const { notificationPreferenceEnabled } = await import("../platform/notification_delivery.js");
+  const user = await readDocument(ctx.orgId, "users", ctx.userId);
+  const effective = await effectivePreferences(ctx.orgId, ctx.userId, ctx.branchId || "default", asObject(user.data).notification_preferences);
+  const preferences = await collaboration.readCollaborationPreferences(ctx.orgId, ctx.userId);
+  const groups = viewerAudienceGroups(ctx);
+  const readStates = new Map<string, Awaited<ReturnType<typeof readStateFor>>>();
+  const stateFor = async (id: string) => { if (!readStates.has(id)) readStates.set(id, await readStateFor(id, ctx.userId)); return readStates.get(id)!; };
+  const allowed = async (entry: JsonObject, occurrence = false) => {
+    const id = cleanText(entry.channel_id), view = channelById.get(id);
+    if (!view || occurrence && view.type === "feed") return false;
+    try { await requireChannelAccess(ctx, id); } catch { return false; }
+    if (asObject(preferences.dnd).enabled === true) return false;
+    const membership = await readChannelMember(id, ctx.userId);
+    if (cleanText(membership?.notify_level || preferences.default_notify_level) === "muted") return false;
+    const state = await stateFor(id), messageId = cleanText(entry.related_message_id || entry.message_id);
+    const message = messageId ? await readMessageRecord(ctx.orgId, messageId) : null;
+    if ((!occurrence || entry.message_notification) && (!message || message.deleted_at)) return false;
+    if (message) {
+      if (message.channel_id !== id) return false;
+      if (!messageVisibleTo(message, ctx, groups)) return false;
+      if (message.parent_id) {
+        const root = await readMessageRecord(ctx.orgId, message.parent_id);
+        if (!root || root.channel_id !== id || root.deleted_at || !messageVisibleTo(root, ctx, groups)) return false;
+        const thread = await collaboration.threadSubscriptionRecord(message.parent_id, ctx.userId);
+        if (thread?.notify_level === "muted") return false;
+        if (entry.kind === "reply" && Number(thread?.last_read_reply_seq || 0) >= message.seq) return false;
+      }
+      // Only a message sequence proves what a bounded conversation read included.
+      // Reactions, edits and lifecycle notices are acknowledged by their exact inbox entry;
+      // applying an older read later must not erase a newer occurrence on the same channel.
+      if (message.seq <= state.last_read_seq && (occurrence ? entry.message_notification : entry.kind !== "reaction")) return false;
+    }
+    if (!occurrence) {
+      const note = {kind:entry.kind, category:entry.kind === "mention" ? "mentions" : "messages", ...(entry.kind === "reply" ? {preference_key:"channel_replies"} : {})};
+      if (!notificationPreferenceEnabled(effective, note, "in_app")) return false;
+    }
+    return true;
+  };
+  const native = [];
+  for (const entry of entries) if (!hiddenNotes.has(cleanText(entry.message_id)) && await allowed(entry)) native.push(entry);
+  const nativeMessageIds = new Set(native.map(entry => cleanText(entry.message_id)));
+  const { listMessageInboxNotifications } = await import("../platform/notifications/view.js");
+  for (const note of await listMessageInboxNotifications(ctx)) {
+    const action = asObject(note.frontend_action), context = asObject(note.context), payload = asObject(context.payload), event = asObject(note.inbox_event);
+    if (String(note.created_at || "") < windowStart) continue;
+    const channelId = cleanText(action.channel_id || context.channel_id || payload.channel_id || event.channel_id);
+    const messageId = cleanText(action.message_id || context.message_id || payload.message_id || event.message_id);
+    const duplicateMessage = ["channel_message","channel_reply","mention"].includes(cleanText(note.kind)) || cleanText(note.preference_key) === "event.channels.message.posted" || event.type === "channels.message.posted";
+    if (messageId && nativeMessageIds.has(messageId) && duplicateMessage) continue;
+    const activity: JsonObject = {kind:"activity", channel_id:channelId, message_id:note.id, related_message_id:messageId,
+      parent_id:action.parent_id, text:note.body, title:note.title, notification_id:note.id, huddle_id:action.huddle_id, message_notification:duplicateMessage,
+      at:note.created_at, unread:!asObject(note.user_state).seen_at, author:{id:"",name:"Channels"}};
+    if (await allowed(activity, true)) pushEntry(activity);
+  }
+  const mentions = new Set(native.filter(entry => entry.kind === "mention").map(entry => cleanText(entry.channel_id)));
+  const mentionedMessages = new Set(native.filter(entry => entry.kind === "mention").map(entry => cleanText(entry.message_id)));
+  const deduped = [...native, ...entries.filter(entry => entry.kind === "activity")]
+    .filter(entry => !(entry.kind === "reply" && mentionedMessages.has(cleanText(entry.message_id))))
+    .filter(entry => !(entry.kind === "dm" && mentions.has(cleanText(entry.channel_id))));
   deduped.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
   const sliced = deduped.slice(0, limit);
   const unreadTotal = deduped.reduce((sum, entry) => sum + (entry.unread ? Math.max(1, Number(entry.count || 1)) : 0), 0);
@@ -439,10 +499,26 @@ export async function readPersonalInboxEntry(ctx: PlatformAuthContext, input: {e
   const entry = inbox.entries.find(item => item.entry_id === entryId);
   // Opening the conversation or a newer DM can replace this inbox summary.
   // Acknowledge only the clicked message, never a newer arrival.
+  if (input.kind === "activity") {
+    // Re-resolve the authorized, preference-filtered entry; never trust a client occurrence ID.
+    if (!entry) return {read:true};
+    await getChannelsDatabase().transaction(async () => {
+      const current = JSON.parse(await readChannelsMeta(key) || "{}");
+      current[entryId] = nowIso(); await writeChannelsMeta(key, JSON.stringify(current));
+    });
+    await publishRealtimeEvent({organization_id:ctx.orgId, topic:"channels.unreads.changed", user_ids:[ctx.userId], payload:{channel_id:entry.channel_id}});
+    return {read:true};
+  }
   const selected = entry || {message_id:input.message_id, kind:input.kind};
   const message = await readMessageRecord(ctx.orgId, cleanText(selected.message_id));
   if (!message) throw notFound("message_not_found", "This message no longer exists.");
   await requireChannelAccess(ctx, message.channel_id);
+  const groups = viewerAudienceGroups(ctx);
+  if (message.deleted_at || !messageVisibleTo(message, ctx, groups)) throw notFound("message_not_found", "This message no longer exists.");
+  if (message.parent_id) {
+    const root = await readMessageRecord(ctx.orgId, message.parent_id);
+    if (!root || root.deleted_at || !messageVisibleTo(root, ctx, groups)) throw notFound("message_not_found", "This message no longer exists.");
+  }
   if (["mention", "dm", "channel"].includes(cleanText(selected.kind))) await markRead(ctx, message.channel_id, message.seq);
   if (selected.kind === "reply" && message.parent_id) await collaboration.markThreadReadRecord(ctx.orgId, ctx.userId, message.parent_id, message.seq);
   await getChannelsDatabase().transaction(async () => {

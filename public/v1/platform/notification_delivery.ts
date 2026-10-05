@@ -47,12 +47,12 @@ export function notificationPresentation(raw: unknown, note: Json) {
   return {
     sound: enabled && object(preferences.in_app_sound)[key] !== false,
     badge: enabled && object(preferences.in_app_badge)[key] !== false,
-    bell: enabled && (typeof object(preferences.in_app_bell)[key] === "boolean" ? object(preferences.in_app_bell)[key] === true : key !== "messages" && !isMessageInboxNotification(note))
+    bell: enabled && !isMessageInboxNotification(note) && (typeof object(preferences.in_app_bell)[key] === "boolean" ? object(preferences.in_app_bell)[key] === true : key !== "messages" && !isMessageInboxNotification(note))
   };
 }
 export function isMessageInboxNotification(note: Json) {
-  if (note.kind === "huddle_invite") return false;
-  return note.kind === "channel_message" || ["channel_message", "project_message"].includes(String(note.source || ""))
+  const source = String(note.source || ""), key = String(note.preference_key || "");
+  return ["channels", "channels_agent"].includes(source) || key === "channel_replies" || key.startsWith("event.channels.") || String(note.event || object(note.inbox_event).type || "").startsWith("channels.") || note.kind === "channel_message" || ["channel_message", "project_message"].includes(String(note.source || ""))
     || ["open_channel_message", "open_project_message"].includes(String(object(note.frontend_action).kind || ""));
 }
 

@@ -696,7 +696,7 @@ test("reusable calls API owns room lifecycle and media state outside channels", 
   assert.ok(events.events.some((event: Json) => event.kind === "call_ended"));
 });
 
-test("Channels replies reach visible notification delivery without the Messaging app", async () => {
+test("Channels replies reach Messages without bell entries or the Messaging app", async () => {
   const {client:owner,orgId,suffix,userId}=await registerOwner();
   const {saveCapabilityValues}=await import("../platform/capabilities.js");
   await saveCapabilityValues(orgId,{"apps.messaging":false});
@@ -723,9 +723,11 @@ test("Channels replies reach visible notification delivery without the Messaging
   const {message:root}=await owner.request("POST",post,{text:"Please reply"});
   const {message:reply}=await teammate.client.request("POST",post,{text:"Here is the reply",parent_id:root.id});
   const notifications=await owner.request("GET",`/v1/platform/organizations/${orgId}/notifications`);
-  const visible=notifications.notifications.find((note:Json)=>note.context?.message_id===reply.id);
-  assert.ok(visible,"an authored-thread reply must reach the notification UI, not just durable storage or Activity");
-  assert.equal(visible.presentation.bell,true);assert.equal(visible.deliveries.methods.in_app.state,"available");
+  const visible=[...notifications.notifications,...(notifications.in_app_alerts||[])].find((note:Json)=>note.context?.message_id===reply.id);
+  assert.ok(visible,"an authored-thread reply retains current delivery for the Messages lane");
+  assert.equal(visible.presentation.bell,false);
+  assert.ok(!notifications.notifications.some((note:Json)=>note.context?.message_id===reply.id));
+  assert.ok((await owner.request("GET",`${base}/inbox`)).entries.some((entry:Json)=>entry.message_id===reply.id),"reply reaches actual Messages inbox");assert.equal(visible.deliveries.methods.in_app.state,"available");
   assert.equal(visible.preference_key,"channel_replies");assert.deepEqual(visible.target_user_ids,[userId]);
   const observedOwner=(await readPersonalConfiguration(orgId,userId,"default"))!;
   assert.equal(observedOwner.revision,18);assert.equal(observedOwner.defaults_revision,9);assert.equal((observedOwner.preferences.in_app as Json).system,false,"first reply appends only its new definition without reseeding older settings");
@@ -739,13 +741,15 @@ test("Channels replies reach visible notification delivery without the Messaging
     await page.evaluate((data:Json)=>{(window as any).PlatformAPI={notifications:{list:async()=>data,acknowledge:async(_org:string,id:string)=>(window as any).fixtureAcknowledge(id)}};},notifications);
     await page.addScriptTag({content:await readFile(new URL("../../libraries/platform-notifications/platform-notifications.js",import.meta.url),"utf8")});
     const ui=await page.evaluate(async({orgId,id}:Json)=>{await (window as any).PlatformNotifications.load(orgId,{silent:true});const state=(window as any).PlatformNotifications.getState();return {visible:state.notifications.some((note:Json)=>note.id===id),unread:state.unread_count};},{orgId,id:visible.id});
-    assert.equal(ui.visible,true);assert.ok(ui.unread>0,"the real notification UI receives a bell entry and unread indicator");
+    assert.equal(ui.visible,false);assert.equal(ui.unread,0,"the real bell UI excludes message entries and their unread indicator");
   } finally {await browser.close();}
   const prefs=`/v1/platform/organizations/${orgId}/notification-preferences`;
   const catalog=await owner.request("GET",prefs);
   assert.ok(catalog.catalog.some((group:Json)=>group.definitions.some((definition:Json)=>definition.key==="channel_replies")),"Channels owns the reply preference even without Messaging");
   const {message:mention}=await teammate.client.request("POST",post,{text:"Reply mentioning author",parent_id:root.id,mention_users:[{id:userId}]});
-  assert.equal((await owner.request("GET",`/v1/platform/organizations/${orgId}/notifications`)).notifications.filter((note:Json)=>note.context?.message_id===mention.id).length,1);
+  const mentionDelivery=await owner.request("GET",`/v1/platform/organizations/${orgId}/notifications`);
+  assert.equal([...(mentionDelivery.notifications||[]),...(mentionDelivery.in_app_alerts||[])].filter((note:Json)=>note.context?.message_id===mention.id).length,1);
+  assert.equal((await owner.request("GET",`${base}/inbox`)).entries.filter((entry:Json)=>entry.message_id===mention.id).length,1,"mentioned thread author receives one Messages entry");
   await owner.request("PATCH",prefs,{in_app:{channel_replies:false},push:{channel_replies:false},audio:{channel_replies:false}});
   const {message:off}=await teammate.client.request("POST",post,{text:"Opted out reply",parent_id:root.id});
   const {recipientDeliveries}=await import("../platform/notifications/delivery.js");
@@ -772,8 +776,9 @@ test("Channels replies reach visible notification delivery without the Messaging
   assert.equal(legacyMethods.methods.in_app.state,"suppressed");assert.equal(legacyMethods.methods.push.state,"suppressed");assert.equal(legacyMethods.methods.audio.state,"suppressed");
   await legacy.client.request("PATCH",prefs+"?branch_id=north",{in_app:{channel_replies:true},push:{channel_replies:false}});
   const {message:override}=await teammate.client.request("POST",post,{text:"Explicit reply override",parent_id:legacyRoot.id});
-  const overrideVisible=(await legacy.client.request("GET",`/v1/platform/organizations/${orgId}/notifications?branch_id=north`)).notifications.find((note:Json)=>note.context?.message_id===override.id);
-  assert.ok(overrideVisible);assert.equal(overrideVisible.deliveries.methods.audio.state,"suppressed","legacy Silent remains respected");
+  const overrideDelivery=await legacy.client.request("GET",`/v1/platform/organizations/${orgId}/notifications?branch_id=north`);
+  const overrideVisible=[...overrideDelivery.notifications,...(overrideDelivery.in_app_alerts||[])].find((note:Json)=>note.context?.message_id===override.id);
+  assert.ok(overrideVisible);assert.equal(overrideVisible.presentation.bell,false);assert.ok((await legacy.client.request("GET",`${base}/inbox`)).entries.some((entry:Json)=>entry.message_id===override.id));assert.equal(overrideVisible.deliveries.methods.audio.state,"suppressed","legacy Silent remains respected");
   const {message:nonParticipantMention}=await teammate.client.request("POST",post,{text:"Mention-only recipient",parent_id:root.id,mention_users:[{id:legacy.userId}]});
   const mentionOnly=(await listDocuments(orgId,"notifications")).find(note=>(note.data.frontend_action as Json)?.message_id===nonParticipantMention.id&&note.data.branch_id==="north")!;
   assert.notEqual(mentionOnly.data.preference_key,"channel_replies","mere mention keeps its existing preference");

@@ -1412,20 +1412,19 @@ export async function listMentionRowsForUser(orgId: string, userId: string, limi
   `).all(orgId, userId, Math.max(1, Math.floor(limit)))) as JsonObject[]);
 }
 
-/** Replies (thread messages) under messages the user authored. */
+/** Unread replies to authored or explicitly followed threads. */
 export async function listRepliesToUser(orgId: string, userId: string, sinceIso: string, limit = 30) {
   return ((await getChannelsDatabase().prepare(`
     SELECT m.id AS message_id, m.channel_id, m.parent_id, m.author_id, m.text, m.created_at
-    FROM messages m
-    JOIN messages p ON p.id = m.parent_id
-    WHERE m.organization_id = ? AND p.author_id = ? AND m.author_id <> ?
+    FROM messages m JOIN messages p ON p.id = m.parent_id
+    WHERE m.organization_id = ? AND m.author_id <> ? AND p.deleted_at IS NULL
+      AND (p.author_id = ? OR EXISTS (SELECT 1 FROM channel_thread_subscriptions s
+        WHERE s.root_message_id = m.parent_id AND s.user_id = ? AND s.following = 1 AND s.notify_level = 'all'))
       AND m.deleted_at IS NULL AND m.created_at > ?
-      AND NOT EXISTS (
-        SELECT 1 FROM channel_thread_subscriptions s
-        WHERE s.root_message_id = m.parent_id AND s.user_id = p.author_id AND s.notify_level = 'muted'
-      )
+      AND NOT EXISTS (SELECT 1 FROM channel_thread_subscriptions s
+        WHERE s.root_message_id = m.parent_id AND s.user_id = ? AND s.notify_level = 'muted')
     ORDER BY m.created_at DESC LIMIT ?
-  `).all(orgId, userId, userId, cleanText(sinceIso), Math.max(1, Math.floor(limit)))) as JsonObject[]);
+  `).all(orgId, userId, userId, userId, cleanText(sinceIso), userId, Math.max(1, Math.floor(limit)))) as JsonObject[]);
 }
 
 /** Reactions others left on messages the user authored. */

@@ -1,3 +1,4 @@
+import { listVisibleNotifications } from "./notifications/view.js";
 import { effectiveNavigationPreferences } from './navigation-defaults.js';
 import { developmentReportsAllowed, pickDevelopmentReport, copyDevelopmentReport } from '../firstmeasure/development_reports.js';
 import { registerContactRoutes } from "../contacts/api.js";
@@ -4073,54 +4074,6 @@ async function setUserNotificationState(orgId: string, userId: string, notificat
   return next;
 }
 
-async function listVisibleNotifications(orgId: string, userId: string, options: { includeDismissed?: boolean; branchId?: string; ignorePreferences?: boolean; includeMessageAlerts?: boolean } = {}) {
-  if (!await isAppFlagEnabled(orgId, "apps", "notifications")) return { notifications: [], unread_count: 0, active_count: 0 };
-  const measurementsEnabled = await isAppFlagEnabled(orgId, "apps", "firstmeasure");
-  const [userDoc, notificationDocs] = await Promise.all([
-    readDocument(orgId, "users", userId),
-    listDocuments(orgId, NOTIFICATION_COLLECTION)
-  ]);
-  const user = { id: userId, ...asObject(userDoc.data) };
-  const states = asObject(asObject(userDoc.data).notification_state);
-  const roles = new Set(userRoleIds(user));
-  const rawPreferences = await effectivePreferences(orgId,userId,options.branchId||"default",asObject(userDoc.data).notification_preferences);
-  const deliveryRecords = await recipientDeliveries(orgId, userId);
-  const notifications = notificationDocs
-    .map((doc) => ({ document: doc, data: asObject(doc.data) }))
-    .filter(({ data }) => String(data.status || "active") === "active")
-    .filter(({ document, data }) => {
-      if (data.delivery_version !== 2) return true;
-      const delivery = deliveryRecords.get(String(data.id || document.id));
-      if (!delivery) return false;
-      if (options.ignorePreferences) return true;
-      return ["in_app","audio","toast","celebration"].some(method=>["available", "presented"].includes(String(asObject(asObject(delivery.methods)[method]).state)));
-    })
-    .filter(({ data }) => data.delivery_version === 2 || data.passive !== false || isMessageInboxNotification(data))
-    .filter(({ data }) => categoryForNotification(data) !== "measurements" || measurementsEnabled)
-    .filter(({ data }) => !notificationExpired(data))
-    .filter(({ data }) => options.ignorePreferences || data.delivery_version === 2 || notificationPreferenceEnabled(rawPreferences,data,"in_app"))
-    .filter(({ data }) => !data.branch_id || String(data.branch_id) === String(options.branchId || "default"))
-    .filter(({ data }) => {
-      if (data.delivery_version === 2) return true; // The durable recipient list is authoritative.
-      const targetUserIds = normalizeStringArray(data.target_user_ids);
-      const targetRoleIds = normalizeStringArray(data.target_role_ids);
-      if (!targetUserIds.length && !targetRoleIds.length) return true;
-      if (targetUserIds.includes(userId)) return true;
-      return targetRoleIds.some((roleId) => roles.has(roleId));
-    })
-    .map(({ document, data }) => {
-      const state = asObject(states[String(data.id || document.id)]);
-      return { ...data, id: String(data.id || document.id), user_state: state, presentation: (() => { const p = notificationPresentation(rawPreferences, data), d = deliveryRecords.get(String(data.id || document.id)); if (!d) return p; const m = asObject(d.methods); return {...p, bell: p.bell && ["available","presented"].includes(String(asObject(m.in_app).state)), sound: asObject(m.audio).state === "available" && baselinePlan(data,rawPreferences).audio?.decision !== "suppress", celebration: asObject(m.celebration).state === "available" && baselinePlan(data,rawPreferences).celebration?.decision !== "suppress", toast: asObject(m.toast).state === "available" && baselinePlan(data,rawPreferences).toast?.decision !== "suppress"}; })(), deliveries: deliveryRecords.get(String(data.id || document.id)), document_revision: document.revision };
-    })
-    .filter((item) => options.includeDismissed || !item.user_state.dismissed_at && !item.user_state.completed_at)
-    .sort((a, b) => String((b as Record<string, unknown>).created_at).localeCompare(String((a as Record<string, unknown>).created_at)));
-  return {
-    notifications: notifications.filter(item => options.includeMessageAlerts || item.presentation.bell),
-    in_app_alerts: options.includeMessageAlerts ? [] : notifications.filter(item => !item.presentation.bell),
-    unread_count: notifications.filter((item) => item.presentation.bell && item.presentation.badge && !item.user_state.seen_at).length,
-    active_count: notifications.filter(item => item.presentation.bell).length
-  };
-}
 
 function normalizeLooseStringArray(value: unknown) {
   return (Array.isArray(value) ? value : [value])
