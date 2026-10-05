@@ -77,6 +77,15 @@ existing isolated documents and share the portal's transport. Changing ratios
 or order retains open panes. Project trays sit to the right of the entire
 workspace, outside all split panes.
 
+Contact pane wrappers own the content inset: 18px on desktop and 12px on mobile.
+Tab renderers mount inside that wrapper without duplicating its padding. The
+same inset applies to single and split layouts and subsequent contact panes.
+
+Project-to-contact navigation goes through the retained window's validated
+`openContact` bridge. The owning portal loads Contacts if needed, opens the
+contact window, and then closes the source project. Split project panes forward
+through their own bridge. Loading failures preserve the source project.
+
 ## Optional Contact trays
 
 Contacts currently declare no domain trays. Trusted application code can add one:
