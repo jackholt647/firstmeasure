@@ -918,6 +918,8 @@ window.PlatformCommerce.onReady(async function(){
     .r-overlay :is(.r-project-identity-popover,.r-overview-details) .r-contact-list .r-contact-card{padding-left:0;padding-right:0}
     .r-overlay :is(.r-project-identity-popover,.r-overview-details) .r-contact-card .r-inp{box-sizing:border-box;height:32px;min-height:32px;padding:5px 8px;line-height:20px;font-size:12px;font-weight:600}
     .r-overview-details:has(.r-overview-initial-actions:not([hidden])) #rOrderMeasurements{display:none!important}
+    .r-overlay.firstmeasure-unordered-overview .r-overview-details :is(#rStepCustomer,.r-left-bottom,#rInlineNotesMount,#rCustomerPortalLinkMount,#rProjectCustomFields,#rWorkflowDock,#rAfterHours,#rProjectionCard,#rViewerSummary){display:none!important}
+    .r-overlay.firstmeasure-unordered-overview .r-overview-details #rStepAddress{border-top:0!important;padding-top:0!important}
     .r-overview-initial-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;margin:12px 0}.r-overview-initial-actions .r-toggle-btn{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;width:100%;min-width:0;min-height:40px;padding:9px 10px;border-radius:8px;text-align:left;white-space:normal;font-size:12px;line-height:1.35}.r-overview-initial-actions .r-toggle-btn i{display:inline-flex;align-items:center;justify-content:center;flex:0 0 18px;width:18px;font-size:13px;line-height:1;color:inherit}.r-overview-initial-actions[hidden]{display:none!important}
     .r-workflow-project-picker[hidden]{display:none!important}
     .r-workflow-search-row{display:flex;align-items:center;gap:8px}
@@ -4521,7 +4523,7 @@ window.PlatformCommerce.onReady(async function(){
   }
   function ensureOrderContactFields(){
     const list = $('#rContactList');
-    if (requestedWorkflow !== 'report' || !list || list.querySelector('.r-contact-card')) return;
+    if ((requestedWorkflow !== 'report' && !(requestedWorkflow === 'project' && !expandedPlatformEnabled() && !hasReportOrdered())) || !list || list.querySelector('.r-contact-card')) return;
     // An empty contact is an editable placeholder, not a saved contact record.
     primaryContactIndex = 0;
     addContactCard({}, {hydrate:true});
@@ -9473,7 +9475,12 @@ window.PlatformCommerce.onReady(async function(){
     overlay.classList.toggle('overview-project-picker',selecting);
     overlay.classList.toggle('overview-creation-flow',!!overviewWorkflowMode);
     let actions=details.querySelector('.r-overview-initial-actions');
-    if (!actions) {actions=document.createElement('section');actions.className='r-overview-initial-actions';details.querySelector('#rStepCustomer')?.after(actions);}
+    if (!actions) {actions=document.createElement('section');actions.className='r-overview-initial-actions';}
+    // Expanded details nest address/type inside Customer; FirstMeasure keeps
+    // them as siblings. Place actions after the last property field in either form.
+    const actionAnchor=details.querySelector('#rProjectCustomFields') || details.querySelector('#rStepType') || details.querySelector('#rStepAddress') || details.querySelector('#rStepCustomer');
+    if(actionAnchor && actionAnchor.nextElementSibling!==actions)actionAnchor.after(actions);
+    overlay.classList.toggle('firstmeasure-unordered-overview',requestedWorkflow==='project' && !expandedPlatformEnabled() && !hasReportOrdered());
     actions.hidden=requestedWorkflow!=='project' || !addressSelected || !selectedType;
     const choices=[['roof','Order report',firstMeasureReportOrdersEnabled() && !hasReportOrdered()],['proposal','Build proposal',actionAvailable('proposal')],['schedule','Schedule appointment',actionAvailable('schedule')]].filter(item=>item[2]);
     const signature=choices.map(item=>item[0]).join(',');

@@ -45,7 +45,7 @@ test('report entry searches existing projects, preserves report intent, and swit
   const begin=app.indexOf('  function syncOverviewWorkflow(){'),end=app.indexOf('  function renderWorkflowStateBody',begin);
   await page.setContent('<div id="rOverlay"><div class="r-overview-details"><form id="rForm"><section id="rStepCustomer"><input data-field="name"></section></form></div></div>');
   await page.evaluate(()=>{
-   window.$=selector=>document.querySelector(selector);window.overviewWorkflowMode='report';window.reportProjectChoice='search';window.activeBaseProject=null;window.requestedWorkflow='report';window.addressSelected=false;window.selectedType='residential';window.hasReportOrdered=()=>false;window.firstMeasureReportOrdersEnabled=()=>true;window.actionAvailable=()=>true;
+   window.$=selector=>document.querySelector(selector);window.overviewWorkflowMode='report';window.reportProjectChoice='search';window.activeBaseProject=null;window.requestedWorkflow='report';window.addressSelected=false;window.selectedType='residential';window.hasReportOrdered=()=>false;window.firstMeasureReportOrdersEnabled=()=>true;window.actionAvailable=()=>true;window.expandedPlatformEnabled=()=>true;
    window.decorateProjectContactActions=()=>{};window.handleProjectContactAction=()=>{};window.updateModalTitle=()=>{};window.scheduleProjectMapInitialize=()=>{};
    window.loadDocPickerRows=async()=>[{id:'p1',label:'Bill & Sarah Jones',address:'123 Main',search:'bill sarah jones 123 main',data:{address:'123 Main'}}];
    window.openProject=async(project,options)=>{window.opened={project,options};};window.renderWorkflowState=()=>syncOverviewWorkflow();
@@ -109,4 +109,45 @@ test('existing projects always get normal opening identity, including explicit r
  assert.equal(render({}, {workflow:'report'}).title,'New Report');
  for(const options of [{},{workflow:'report'}])assert.equal(render({id:'existing',title:'Existing Project'},options).title,'Existing Project');
  assert.equal(render({platform_project_id:'existing',address:'123 Main'},{workflow:'report'}).title,'123 Main');
+});
+
+
+for(const width of [390,1280])for(const expanded of [false,true])test(`unordered overview actions and contact visibility ${width}, expanded=${expanded}`,async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});try{
+ const page=await browser.newPage({viewport:{width,height:900}}),app=await source('apps/project-request/app.js');
+ const contact='<div class="r-group"><div id="rContactList"><div class="r-contact-card"><input aria-label="Contact name" value="Kept contact"></div></div></div>';
+ const address='<section id="rStepAddress"><input id="rAddress" value="123 Main"></section><section id="rStepType"><select aria-label="Property type"><option>Residential</option></select></section>';
+ await page.setContent(`<div id="rOverlay" class="r-overlay active"><div class="r-overview-details"><form><div class="r-scroll"><section id="rStepCustomer">${contact}${expanded?address+'<div id="rProjectCustomFields">Custom</div>':''}</section>${expanded?'':address}<div id="rWorkflowDock">Tasks</div></div><div class="r-left-bottom">Internal notes</div></form></div><section class="r-project-identity-popover"><input aria-label="Header contact" value="Kept contact"></section></div>`);
+ const cssStart=app.indexOf('  const css = `')+15;await page.addStyleTag({content:app.slice(cssStart,app.indexOf('\n  `;',cssStart))});
+ await page.addStyleTag({content:'#rOverlay{display:block;overflow:auto}.r-project-identity-popover{position:static}'});
+ await page.evaluate(expanded=>{
+ window.$=s=>document.querySelector(s);window.expandedPlatformEnabled=()=>expanded;window.hasReportOrdered=()=>false;window.overviewWorkflowMode='';window.reportProjectChoice='existing';window.activeBaseProject={id:'p1'};window.requestedWorkflow='project';window.addressSelected=true;window.selectedType='residential';window.firstMeasureReportOrdersEnabled=()=>true;window.actionAvailable=()=>expanded;window.decorateProjectContactActions=()=>{};window.handleProjectContactAction=()=>{};window.updateModalTitle=()=>{};window.preloadFirstReportCheckoutEligibility=()=>{};window.setActivePreviewTab=t=>window.selectedTab=t;window.queueAutosaveNotice=()=>{};window.renderWorkflowState=()=>syncOverviewWorkflow();
+ },expanded);
+ const begin=app.indexOf('  function syncOverviewWorkflow(){'),end=app.indexOf('  function renderWorkflowStateBody',begin);
+ await page.addScriptTag({content:app.match(/  function reportHeaderPending[^\n]+/)[0]+'\n'+app.slice(begin,end)+'\nsyncOverviewWorkflow();'});
+ assert.equal(await page.locator('.r-overview-initial-actions button').count(),expanded?3:1);
+ const boxes=await page.evaluate(()=>Object.fromEntries(['#rStepAddress','#rStepType','.r-overview-initial-actions'].map(s=>[s,document.querySelector(s).getBoundingClientRect().toJSON()])));
+ assert.ok(boxes['.r-overview-initial-actions'].y>=boxes['#rStepType'].bottom);assert.ok(boxes['.r-overview-initial-actions'].y>=boxes['#rStepAddress'].bottom);
+ assert.equal(await page.getByRole('textbox',{name:'Contact name',exact:true}).isVisible(),expanded);
+ if(!expanded)assert.equal(await page.locator('.r-left-bottom').isVisible(),false);
+ assert.equal(await page.getByRole('textbox',{name:'Header contact'}).inputValue(),'Kept contact');
+ assert.equal(await page.locator('#rStepAddress').evaluate(e=>getComputedStyle(e).borderTopWidth),expanded?'1px':'0px');
+ await page.getByRole('button',{name:'Order report',exact:true}).click();
+ assert.deepEqual(await page.evaluate(()=>[requestedWorkflow,reportProjectChoice,selectedTab]),['report','existing','map']);
+ assert.equal(await page.locator('#rOverlay').evaluate(e=>e.classList.contains('firstmeasure-unordered-overview')),false);
+ assert.equal(await page.getByRole('textbox',{name:'Contact name',exact:true}).inputValue(),'Kept contact');
+ await page.evaluate(()=>{requestedWorkflow='project';window.hasReportOrdered=()=>true;syncOverviewWorkflow();});
+ assert.equal(await page.locator('#rStepCustomer').isVisible(),true);
+ assert.equal(await page.getByRole('button',{name:'Order report',exact:true}).count(),0);
+ }finally{await browser.close();}
+});
+
+
+test('an unordered FirstMeasure project can edit an empty contact from its header before entering the order',async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});try{
+ const page=await browser.newPage(),app=await source('apps/project-request/app.js');await page.setContent('<div id="rContactList"></div>');
+ await page.evaluate(()=>{window.$=s=>document.querySelector(s);window.requestedWorkflow='project';window.expandedPlatformEnabled=()=>false;window.hasReportOrdered=()=>false;window.calls=[];window.addContactCard=(data,options)=>{calls.push(options);document.querySelector('#rContactList').innerHTML='<div class="r-contact-card"></div>';};});
+ const start=app.indexOf('  function ensureOrderContactFields(){'),end=app.indexOf('  function openProjectIdentityPopover',start);await page.addScriptTag({content:app.slice(start,end)+'\nensureOrderContactFields();ensureOrderContactFields();'});
+ assert.deepEqual(await page.evaluate(()=>calls),[{hydrate:true}]);
+ }finally{await browser.close();}
 });
