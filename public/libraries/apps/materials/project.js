@@ -3,8 +3,6 @@
  */
 (function(){
   const runtime = window.FirstMateEmbeddableApps;
-  let calculusHandle = null, calculusRoot = null, calculusProject = '', calculusContext = '';
-  const calculusUrl = new URL('./calculus-workspace.js?v=20261005-scope', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const Portal = window.Portal;
   const util = Portal?.util || {};
   const cfg = Portal?.cfg || window.__APP || {};
@@ -3243,7 +3241,6 @@
     const canSchedule = !!list && resourceScheduleEnabled(list);
     const visibleCount = visibleMaterialLists().length;
     const htmlStart = performance.now();
-    calculusRoot?.remove(); // Preserve generated-list state and open editors across Scope renders.
     root.innerHTML = `
       <div class="mt-top">
         <div class="mt-title">
@@ -3263,9 +3260,8 @@
           ${String(state.loading ? `<div class="mt-card"><p>${(globalThis.PlatformLanguage?.htmlText("materials","m_7b94d3b02679a9","Loading scope...") ?? "Loading scope...")}</p></div>` : '')}
           ${String(state.lastError ? `<div class="mt-card"><p>${escapeHtml(state.lastError)}</p></div>` : '')}
           <div class="mt-material-scroll" data-mt-material-scroll>
-            <section data-mt-generated-materials></section>
             <div class="mt-material-grid" data-mt-material-grid>
-              ${String(state.lists.length ? renderMaterialSections() : '')}
+              ${String(renderMaterialSections())}
             </div>
           </div>
           ${String(activeType === 'labor' ? renderLaborProjectionPanel(list) : '')}
@@ -3285,7 +3281,6 @@
     timingMark('render:innerHTML', { items: listItems().length, pricebookOpen: state.pricebookOpen, loading: state.loading }, htmlStart);
     const bindStart = performance.now();
     bindMain(root);
-    mountGeneratedMaterials(root);
     timingMark('render:bindMain', { items: listItems().length }, bindStart);
     if (options.preserveScroll) {
       const scroller = root.querySelector('.mt-material-scroll');
@@ -3299,25 +3294,6 @@
     positionColorPortal(root);
     scheduleArrange(root);
     timingMark('render:end', { items: listItems().length, pricebookOpen: state.pricebookOpen, preserveScroll: !!options.preserveScroll }, timingStart);
-  }
-
-  function mountGeneratedMaterials(root){
-    const slot = root.querySelector('[data-mt-generated-materials]');
-    if (!slot || !orgId() || !projectId()) return;
-    const identity = `${orgId()}:${projectId()}`;
-    if (calculusRoot && calculusProject === identity) { slot.append(calculusRoot); return; }
-    calculusHandle?.destroy(); calculusHandle = null; calculusContext = '';
-    const target = document.createElement('div');
-    calculusRoot = target; calculusProject = identity; slot.append(target);
-    import(calculusUrl).then(async module => {
-      if (calculusRoot !== target) return;
-      const handle = await module.mountMaterialsCalculus(target, {
-        organizationId: orgId(), projectId: projectId(), embedded: true,
-        onSelect() { scopeWidgetLibrary?.select('overview'); },
-        onContext(html) { if (calculusRoot === target) { calculusContext = html; renderLeft(); } }
-      });
-      if (calculusRoot !== target) handle.destroy(); else calculusHandle = handle;
-    }).catch(error => { if (calculusRoot === target) target.textContent = error.message || 'Could not load document materials.'; });
   }
 
   function expenseTargetForList(list){
@@ -4226,7 +4202,7 @@
   }
 
   function bindMain(root){
-    root.querySelector('[data-mt-refresh]')?.addEventListener('click', () => { calculusHandle?.refresh(); loadData(); });
+    root.querySelector('[data-mt-refresh]')?.addEventListener('click', loadData);
     root.querySelectorAll('[data-mt-section]').forEach((button) => button.addEventListener('click', () => {
       state.selectedSection = button.dataset.mtSection || 'all';
       rootWindow.Portal?.navigation?.replace?.({ materialSection:state.selectedSection === 'all' ? null : state.selectedSection }, { source:'scope-section', ownedKeys:['materialSection'] });
@@ -4388,11 +4364,6 @@
         if(name===kind || kind==='measurements'&&name==='custom_fields')wrapper.append(group);
       }
       if(config.resourceType&&config.resourceType!=='all')wrapper.querySelectorAll('[data-mt-resource-type]').forEach(el=>{if(el.dataset.mtResourceType!==config.resourceType)el.remove();});
-      if (kind === 'lists' && (!config.resourceType || config.resourceType === 'all' || config.resourceType === 'material')) {
-        const sources = document.createElement('section'); sources.className = 'mt-left-group';
-        sources.innerHTML = calculusContext; wrapper.prepend(sources);
-        sources.querySelectorAll('[data-generated-set]').forEach(button => button.onclick = () => calculusHandle?.select(button.dataset.generatedSet));
-      }
       bindLeft(wrapper);return wrapper;
     };
     return {surface:'project',target:{scope:'project',organizationId:orgId(),projectId:projectId()},data:{'scope.lists':{lists:state.lists},'scope.measurements':{rows:scopeMeasurementRows()}},fragments:{'scope.lists':config=>fragment('lists',config),'scope.measurements':()=>fragment('measurements')}};
@@ -4417,7 +4388,7 @@
     const key=JSON.stringify([orgId(),projectId(),activeMeasurementProjectId()]);
     if(!scopeWidgetLibrary||scopeWidgetKey!==key||!target.querySelector('.fm-widget-library')){
       const changed=scopeWidgetKey!==key;disposeScopeWidgets();scopeWidgetKey=key;if(changed)scopeWidgetSelection='overview';
-      scopeWidgetLibrary=widgets.library(target,{items:projectWidgets.scopeItems(),selected:scopeWidgetSelection,layout:'stacked',context:scopeWidgetContext(),onSelect:key=>{scopeWidgetSelection=key;}});
+      scopeWidgetLibrary=widgets.library(target,{items:projectWidgets.scopeItems().filter(item => item.key !== 'materials'),selected:scopeWidgetSelection,layout:'stacked',context:scopeWidgetContext(),onSelect:key=>{scopeWidgetSelection=key;}});
     }else scopeWidgetLibrary.update(scopeWidgetContext(),{ids:['scope.overview','scope.lists','scope.measurements']});
     scopeWidgetLibrary.setVisible(true);
     timingMark('renderLeft:end', { active: state.active }, timingStart);
@@ -5006,7 +4977,6 @@
   }
 
   function reset(){
-    calculusHandle?.destroy(); calculusHandle = null; calculusRoot = null; calculusProject = ''; calculusContext = '';
     disposeScopeWidgets();
     state.lists = [];
     state.activeListId = '';

@@ -269,7 +269,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['pricebook.bridge'],
-      bundles: [...channelsLibBundles, bundle('../materials-api/materials-api.js'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('materials/project.js', '20261005-scope-responsive')]
+      bundles: [...channelsLibBundles, bundle('../materials-api/materials-api.js'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('materials/project.js', '20261005-native-materials')]
     },
     {
       id: 'project.money',
