@@ -98,7 +98,7 @@ test('shared picker rejects stale responses, books once, and public embeds retai
     await page.setViewportSize({width:390,height:844});
     assert.equal(await page.locator('dialog .fmle-calendar').isVisible(),false);
     assert.equal(await page.locator('dialog .fmle-mobile-days').isVisible(),true);
-    assert.ok(await page.locator('dialog').evaluate(el => el.getBoundingClientRect().right <= innerWidth));
+    assert.deepEqual(await page.locator('dialog').boundingBox(),{x:0,y:0,width:390,height:844});
     await page.setViewportSize({width:1100,height:850});
     if (process.env.BOOKING_SCREENSHOT) await page.screenshot({path:process.env.BOOKING_SCREENSHOT});
     await page.getByRole('button',{name:'Book appointment',exact:true}).click();

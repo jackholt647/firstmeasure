@@ -321,6 +321,8 @@
       background:rgba(15,23,42,.08); color:#101828;
     }
     @media (max-width: 820px){
+      /* The mobile header already reserves the banner above the flex column. */
+      body.has-attention-topbar .main{margin-top:0;height:auto}
       .fm-attention-topbar{ padding:6px 10px; }
       .fm-attention-topbar-body{ display:none; }
       .fm-attention-topbar-title{ white-space:normal; font-size:12px; }

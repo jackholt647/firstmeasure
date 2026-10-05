@@ -663,6 +663,12 @@
       /* Timeline "Items shown" opens toward the screen's middle. */
       .dash-gantt-shown-menu{left:auto;right:0}
       .dash-toolbar{display:none}
+      .dash-shell .prs-mobile-toolbar{flex:0 0 50px;gap:2px}
+      .dash-shell .prs-mobile-menu:has(.month){flex:0 1 112px;min-width:58px}
+      .dash-shell .prs-mobile-control.month{width:100%;max-width:112px;min-width:0;padding:0 4px}
+      .dash-shell .prs-mobile-control.today,.dash-shell .prs-mobile-control.nav{flex-shrink:0}
+      .dash-shell .dash-mobile-appointment{display:inline-flex;align-items:center;justify-content:center;flex:0 0 40px;width:40px;height:40px;padding:0;margin-left:2px;border-radius:10px;font-size:20px;line-height:1}
+      .dash-mobile-appointment:focus-visible{outline:2px solid #b42318;outline-offset:2px}
       .dash-mobile-toolbar{position:relative;z-index:40;display:flex;align-items:center;gap:2px;height:50px;padding:0 6px;background:#fff;border-bottom:0;box-sizing:border-box;white-space:nowrap}
       .dash-mobile-menu-wrap{position:relative;flex:0 0 auto}
       .dash-mobile-control{height:34px;border:0;border-radius:8px;background:transparent;color:#344054;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:0 8px;font:inherit;font-size:12px;font-weight:1000;cursor:pointer}
@@ -10453,7 +10459,7 @@
       pickerMonth: mobilePickerMonth,
       pickerYear: mobilePickerYear,
       years: mobileYearChoices(),
-      trailingHtml: mobileToolbarExtras,
+      trailingHtml: mobileToolbarExtras + (appointmentButton ? '<button type="button" class="dash-new-appointment dash-mobile-appointment" data-new-appointment aria-label="New appointment" title="New appointment"><i class="fas fa-plus" aria-hidden="true"></i></button>' : ''),
       attributes: {
         viewMenu:'data-mobile-view-menu',
         view:'data-dash-view',
@@ -10484,7 +10490,7 @@
       ? `<span class="dash-filter-indicator" role="status" title="${escapeHtml(filterText)}"><span>${escapeHtml(filterText)}</span><button type="button" data-clear-schedule-filter aria-label="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_clear_filter","Clear filter") ?? "Clear filter")}" title="${(globalThis.PlatformLanguage?.htmlText("scheduling","m_clear_filter","Clear filter") ?? "Clear filter")}"><i class="fas fa-xmark"></i></button></span>`
       : '';
     return `
-      ${isMobileScheduleLayout() ? appointmentButton : ''}${String(mobileToolbarMarkup)}<div class="dash-toolbar">
+      ${String(mobileToolbarMarkup)}<div class="dash-toolbar">
         ${!isMobileScheduleLayout() ? appointmentButton : ''}
         <div class="dash-title-wrap"><h2 class="dash-title" title="${escapeHtml(visibleTitle())}">${String(escapeHtml(visibleTitle()))}</h2>${viewOnlyNote || filterIndicator || refreshingNote ? `<div class="dash-title-status">${viewOnlyNote}${filterIndicator}${refreshingNote}</div>` : ''}</div>
         <div class="dash-controls">
