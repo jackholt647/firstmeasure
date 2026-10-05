@@ -14,11 +14,11 @@ test('narrow desktop project docks retain desktop close and minimize controls', 
   const browser = await launch();
   try {
     const page = await browser.newPage({viewport:{width:1400,height:900}});
-    await page.setContent('<iframe style="width:900px;height:650px" srcdoc="<header><span>New Report</span><div id=controls></div></header><div class=r-overlay><button class=r-mobile-close>Close</button></div>"></iframe>');
+    await page.setContent('<iframe style="width:900px;height:650px" srcdoc="<div class=r-overlay><header><span>New Report</span><div id=controls></div></header><button class=r-mobile-close>Close</button></div>"></iframe>');
     const frame = page.frames().find(frame => frame !== page.mainFrame());
     await frame.waitForSelector('header');
     await frame.addScriptTag({content:await source('libraries/window-manager/window-manager.js')});
-    await frame.addStyleTag({content:'.r-mobile-close{display:none}' + mobileCloseRule});
+    await frame.addStyleTag({content:'html,body{margin:0;height:100%}header{height:48px;display:flex;position:relative;z-index:2}#controls{margin-left:auto}.r-mobile-close{display:none}' + mobileCloseRule});
     await frame.evaluate(code => {
       window.projectWindowBridge = {};
       window.mobileOrderViewport = new Function(code + ';return isMobileProjectOrder();');
