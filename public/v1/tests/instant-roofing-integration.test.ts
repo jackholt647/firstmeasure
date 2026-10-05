@@ -46,11 +46,12 @@ for(const spec of ROOFING_ESTIMATES){
   const native=nativeCalculusAPI({projects:{list:async()=>({material_lists:[]})},lists:{},orders:{},request:async(_path:string,options:any)=>options?calculus.materialsCommand(c,String(project.id),JSON.parse(JSON.stringify(options.body))):{ledger:await calculus.readMaterialsLedger(c,String(project.id))}},()=>String(project.id));
   const lists=await native.projects.list(ctx.orgId,String(project.id));
   let material=lists.material_lists[0];const original=material.current_items[0];
-  let edited=await native.lists.createVersion(ctx.orgId,material.id,{expected_revision:material.revision,update_items:[{id:original.id,quantity:25}],reason:'Review roof quantities'});
+  assert.equal(original.selected_options.color,'charcoal');
+  let edited=await native.lists.createVersion(ctx.orgId,material.id,{expected_revision:material.revision,update_items:[{id:original.id,quantity:25.5,selected_options:{color:'weathered_wood'}}],reason:'Review roof quantities and finish'});
   assert.notEqual(edited.material_list.current_items[0].id,original.id);
   material=edited.material_list;
   const changed=material.current_items.find((l:any)=>l.pricebook_ref.item_id==='gaf_hd');
-  assert.equal(changed.quantity,25);assert.equal(changed.order_quantity,75);
+  assert.equal(changed.quantity,25.5);assert.equal(changed.order_quantity,77);assert.equal(changed.selected_options.color,'weathered_wood');
   const order=await native.lists.createOrder(ctx.orgId,material.id,{expected_revision:material.revision,title:'QA roof order',vendor:{name:'Development supplier'}});
   assert.equal(order.material_list.status,'ordered');
   await native.orders.recordDelivery(ctx.orgId,order.order.id,{status:'delivered'});

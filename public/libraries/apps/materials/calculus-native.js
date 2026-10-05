@@ -12,7 +12,8 @@ export function nativeCalculusAPI(base, currentProject) {
     return response;
   };
   const item = l => ({...l.presentation,id:l.id,name:l.name,quantity:l.quantity,unit:l.unit,order_quantity:l.order_quantity,order_unit:l.order_unit,
-    section_id:l.group || 'materials',section:l.group || 'materials',structure_name:l.structure,variant_id:l.variant,
+    section_id:l.group || 'materials',section:l.group || 'materials',structure_name:l.structure,variant_id:l.presentation?.variant_id || '',
+    selected_options:{...(l.variant?{color:l.variant}:{}),...l.presentation?.selected_options},
     projected_unit_price:l.unit_cost, currency:l.currency,
     pricebook_ref:{...l.presentation?.pricebook_ref,item_id:l.product_id},
     ...(l.packaging?{order_packaging:{order_unit:l.packaging.unit,units_per_package:l.packaging.coverage}}:{}),
@@ -28,7 +29,7 @@ export function nativeCalculusAPI(base, currentProject) {
   function requirement(row, old) {
     const coverage=Number(row.order_packaging?.units_per_package) || (Number(row.order_packaging?.packages_per_unit)>0?1/Number(row.order_packaging.packages_per_unit):0);
     return {key:old?.key || `item_${crypto.randomUUID()}`,product_id:row.pricebook_ref?.item_id || old?.product_id || row.id,
-      name:row.name,quantity:Number(row.quantity),unit:row.unit || old?.unit || 'each',variant:row.variant_id || '',
+      name:row.name,quantity:Number(row.quantity),unit:row.unit || old?.unit || 'each',variant:String(row.selected_options?.color || row.variant_id || old?.variant || ''),
       group:row.section_id || row.section || old?.group || 'materials',structure:row.structure_name || old?.structure || '',
       explanation:old?.explanation || 'Material added during review',currency:row.currency || 'USD',
       ...(Number.isFinite(Number(row.projected_unit_price))?{unit_cost:Number(row.projected_unit_price)}:{}),
@@ -60,7 +61,7 @@ export function nativeCalculusAPI(base, currentProject) {
     lists:{...base.lists,
       async get(o,id){return set(id)?result(id):base.lists.get(o,id);},
       async versions(o,id){return set(id)?{versions:set(id).history.map(h=>({...h,items:(h.added||[]).map(item)}))}:base.lists.versions(o,id);},
-      async orders(o,id){return set(id)?{orders:ledger.orders.filter(order=>order.lines.some(l=>l.set_id===id)).map(order=>({...order.presentation,...order,title:order.reference || 'Material order',vendor:{name:order.supplier},delivery_status:order.lines.every(a=>a.received>=a.quantity-a.cancelled)?'delivered':order.lines.some(a=>a.received>0)?'partially_delivered':'ordered',items:order.lines.map(a=>({...item(a.line),quantity:a.quantity}))}))}:base.lists.orders(o,id);},
+      async orders(o,id){return set(id)?{orders:ledger.orders.filter(order=>order.lines.some(l=>l.set_id===id)).map(order=>({...order.presentation,...order,title:order.reference || 'Material order',vendor:{name:order.supplier},delivery_status:order.lines.every(a=>a.received>=a.quantity-a.cancelled)?'delivered':order.lines.some(a=>a.received>0)?'partially_delivered':'ordered',items:order.lines.map(a=>({...item(a.line),quantity:a.quantity,unit:a.line.order_unit}))}))}:base.lists.orders(o,id);},
       async patch(o,id,patch){
         if(!set(id))return base.lists.patch(o,id,patch);
         await command('configure',{set_id:id,set_revision:patch.expected_revision ?? 0,title:patch.title || set(id).title,presentation:{...set(id).presentation,...patch}});

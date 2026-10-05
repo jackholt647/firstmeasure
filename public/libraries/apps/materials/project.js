@@ -3,7 +3,7 @@
  */
 (function(){
   let materialsAPI;
-  const calculusAdapterUrl = new URL('./calculus-native.js?v=20261005', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const calculusAdapterUrl = new URL('./calculus-native.js?v=20261005-quantities', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
   const util = Portal?.util || {};
@@ -2682,9 +2682,10 @@
     const baseItems = listItems(targetList);
     const current = baseItems.find((item) => item.id === itemId);
     if (!current) return;
+    const wholeUnits = discreteMaterial && !current.metadata?.calculus_line_id;
     const quantity = patch.quantity != null
-      ? (discreteMaterial ? integerQuantity(patch.quantity, current.quantity) : preciseQuantity(patch.quantity, current.quantity))
-      : (discreteMaterial ? integerQuantity(current.quantity, 0) : preciseQuantity(current.quantity, 0));
+      ? (wholeUnits ? integerQuantity(patch.quantity, current.quantity) : preciseQuantity(patch.quantity, current.quantity))
+      : (wholeUnits ? integerQuantity(current.quantity, 0) : preciseQuantity(current.quantity, 0));
     const unitPrice = patch.projected_unit_price != null ? number(patch.projected_unit_price, current.projected_unit_price) : number(current.projected_unit_price, NaN);
     const nextPatch = {
       ...patch,
@@ -3442,7 +3443,7 @@
     const listColor = normalizeColor(item.__material_list_color || materialListColor(materialListById(listId)));
     const incomplete = item.__scope_list_incomplete === true;
     const type = cleanText(item.__resource_type || resourceType(materialListById(listId))) || 'material';
-    const quantity = type === 'material' ? integerQuantity(item.quantity, 0) : preciseQuantity(item.quantity, 0);
+    const quantity = type === 'material' && !item.metadata?.calculus_line_id ? integerQuantity(item.quantity, 0) : preciseQuantity(item.quantity, 0);
     const material = type === 'material';
     const labor = type === 'labor';
     const payType = cleanText(item?.metadata?.compensation_kind || item?.metadata?.pay_type || item?.metadata?.estimate_mode || 'piece_rate').replace('piece-rate', 'piece_rate');
@@ -3456,7 +3457,7 @@
         ${String(orderInfo ? `
         <td><div class="mt-order-qty-cell" data-fm-tooltip="${escapeHtml(orderTooltip)}"><strong>${escapeHtml(orderInfo.order_quantity)}</strong><span>${escapeHtml(`${quantity} ${cleanText(item.unit || 'ea')}`)}</span></div></td>
         <td><div class="mt-order-qty-cell" data-fm-tooltip="${escapeHtml(orderTooltip)}"><strong>${escapeHtml(orderInfo.order_unit)}</strong>${orderInfo.packaging?.description ? `<span>${escapeHtml(orderInfo.packaging.description)}</span>` : ''}</div></td>` : `
-        <td><input class="mt-input mt-cell-input mt-number mt-qty-input" data-mt-item-qty="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" type="number" min="0" step="${type === 'material' ? '1' : '0.01'}" value="${escapeHtml(quantity || '')}" ${state.saving ? 'disabled' : ''}></td>
+        <td><input class="mt-input mt-cell-input mt-number mt-qty-input" data-mt-item-qty="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" type="number" min="0" step="${type === 'material' && !item.metadata?.calculus_line_id ? '1' : '0.01'}" value="${escapeHtml(quantity || '')}" ${state.saving ? 'disabled' : ''}></td>
         <td><input class="mt-input mt-cell-input" data-mt-item-unit="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" value="${escapeHtml(item.unit || '')}" ${state.saving ? 'disabled' : ''}></td>`)}
         <td><input class="mt-input mt-cell-input mt-number" data-mt-item-price="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" type="number" min="0" step="0.01" value="${String(escapeHtml(item.projected_unit_price ?? ''))}" title="${String(escapeHtml(item.projected_total != null ? `Total ${money(item.projected_total)}` : ''))}" ${String(state.saving ? 'disabled' : '')}></td>
         <td><button type="button" class="mt-icon-btn" data-mt-remove="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" ${String(state.saving ? 'disabled' : '')}><i class="fas fa-trash"></i></button></td>
