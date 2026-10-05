@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 5 development tools: [Compact dropdown and batch amounts](deploy/digitalocean/development-tools-dropdown-20261005.md) records the anchored panel, dismissal behavior, two-column switches and configurable generation amounts.
+
 October 5 Brand Kit: [Palette regeneration and persistent color dragging](deploy/digitalocean/development-brand-palette-20261005.md) records both layouts, interaction fixes and verified development activation.
 
 
