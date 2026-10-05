@@ -3,7 +3,7 @@
   if(window.FirstMateAppointmentSettings)return;
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   async function mount(host,orgId){
-    if(!window.FirstMateAppointmentConfiguration){await(window.__appointmentConfigurationLoading||=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='/libraries/appointment-booking/configuration.js';s.onload=resolve;s.onerror=()=>reject(Error('Could not load appointment settings.'));document.head.append(s);}));}
+    if(!window.FirstMateAppointmentConfiguration){await(window.__appointmentConfigurationLoading||=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='/libraries/appointment-booking/configuration.js?v=20261005-compact-booking-v2';s.onload=resolve;s.onerror=()=>reject(Error('Could not load appointment settings.'));document.head.append(s);}));}
     let response=await PlatformAPI.appointments.catalog(orgId),editor=null,selected='',busy=false;
     if(!host.isConnected)return;
     host.innerHTML=`<section class="cs-section fm-ap-admin" data-settings-autosave="off"><h3>Appointment presets</h3><div class="fm-ap-admin-layout"><div><input type="search" data-preset-search placeholder="Search presets" aria-label="Search presets"><div data-preset-list></div>${response.can_manage?'<button type="button" data-new-preset>+ New preset</button>':''}</div><div data-preset-editor></div></div><div role="status" data-preset-status></div></section>`;

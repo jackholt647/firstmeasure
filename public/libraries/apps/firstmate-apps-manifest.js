@@ -27,7 +27,7 @@
       mobileFullscreenControl: false
     }
   };
-  const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261002-booking-v1');
+  const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261005-compact-booking-v2');
   const widgetBundles = ['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js','20261003-project-widgets-v1'));
   const channelsLibBundles = [
     ...widgetBundles, bookingBundle,

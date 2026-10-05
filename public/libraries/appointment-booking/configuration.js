@@ -6,7 +6,7 @@
   const empty=()=>({title:'Appointment',department_ids:[],delivery:false,timing_mode:'timed',duration_days:2,location:{mode:'project',address:''},duration_minutes:60,window_minutes:60,slot_minutes:30,requirements:[],recurrence:null});
   const tip=text=>`<span class="fm-ap-help" tabindex="0" role="img" aria-label="${esc(text)}" title="${esc(text)}" data-fm-tooltip="${esc(text)}">?</span>`;
   const options=(rows,value)=>rows.map(([id,label])=>`<option value="${esc(id)}" ${id===value?'selected':''}>${esc(label)}</option>`).join('');
-  function ensureStyle(){if(document.getElementById('fm-appointment-style'))return;const link=document.createElement('link');link.id='fm-appointment-style';link.rel='stylesheet';link.href=new URL('booking.css',source).href;document.head.append(link);}
+  function ensureStyle(){if(document.getElementById('fm-appointment-style'))return;const link=document.createElement('link');link.id='fm-appointment-style';link.rel='stylesheet';const url=new URL('booking.css',source);url.searchParams.set('v',new URL(source).searchParams.get('v')||'20261005-compact-booking-v2');link.href=url.href;document.head.append(link);}
   function readLocal(key){try{return JSON.parse(localStorage.getItem(key)||'[]');}catch{return [];}}
   function writeLocal(key,value){try{localStorage.setItem(key,JSON.stringify(value));}catch{}}
   async function mount(host,{orgId,onChange,initialValue,settingsMode=false,projectControl,projectId}={}){

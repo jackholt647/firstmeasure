@@ -7,7 +7,7 @@
   async function ensurePicker(){
     if (window.FirstMateAvailability && window.FirstMateProjectSelector && window.FirstMateAppointmentConfiguration) return;
     await (loading ||= Promise.all([!window.FirstMateAppointmentConfiguration ? "configuration.js" : "", !window.FirstMateAvailability ? "availability.js" : "", !window.FirstMateProjectSelector ? "../project-selector/project-selector.js" : ""].filter(Boolean).map(path => new Promise((resolve, reject) => {
-      const script = document.createElement('script'); script.src = new URL(path, source).href;
+      const script = document.createElement('script'); const url = new URL(path, source); url.searchParams.set('v', new URL(source).searchParams.get('v') || '20261005-compact-booking-v2'); script.src = url.href;
       script.onload = resolve;
       script.onerror = () => { loading = null; script.remove(); reject(new Error('Could not load the appointment calendar.')); };
       document.head.append(script);

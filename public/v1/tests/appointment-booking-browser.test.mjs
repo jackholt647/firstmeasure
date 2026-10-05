@@ -53,7 +53,7 @@ test('direct Scheduling entry loads booking without the app manifest', async () 
   try {
     const page = await browser.newPage();
     await page.route('http://localhost/**', route => {
-      const url = route.request().url();
+      const url = new URL(route.request().url()).pathname;
       return route.fulfill({body:url.endsWith('/configuration.js') ? configuration : url.endsWith('/booking.js') ? booking : url.endsWith('/availability.js') ? picker : url.endsWith('/project-selector.js') ? selector : '<html><body></body></html>',contentType:url.endsWith('.js') ? 'text/javascript' : 'text/html'});
     });
     await page.goto('http://localhost/');await page.addStyleTag({content:styles});
@@ -195,4 +195,18 @@ test('Settings disables preset navigation while its editor is loading',async()=>
  await page.evaluate(()=>{let calls=0;const data={can_manage:true,revision:1,resources:[],catalog:{departments:[],groups:[],presets:[{id:'existing',label:'Existing preset',configuration:{title:'Existing appointment'}}]}};window.PlatformAPI={appointments:{catalog:async()=>{if(++calls===2)await new Promise(resolve=>window.finishLoading=resolve);return structuredClone(data);}}};window.mounting=FirstMateAppointmentSettings.mount(document.querySelector('#settings'),'org');});
  await page.waitForFunction(()=>window.finishLoading);assert.equal(await page.locator('[data-new-preset]').isDisabled(),true);await page.evaluate(async()=>{window.finishLoading();await window.mounting;});await page.locator('[data-new-preset]').click();await page.waitForFunction(()=>!document.querySelector('[data-new-preset]').disabled);assert.equal(await page.locator('[data-preset-label]').inputValue(),'');assert.equal(await page.locator('[data-title]').inputValue(),'Appointment');
  }finally{await browser.close();}
+});
+test('versioned booking loads the new UI when old lazy scripts remain in the browser cache',async()=>{
+ const {createServer}=await import('node:http');const requests=[];
+ const scripts={'booking.js':booking,'configuration.js':configuration,'availability.js':picker,'project-selector.js':selector};
+ const server=createServer((req,res)=>{const url=new URL(req.url,'http://localhost');requests.push(req.url);const name=url.pathname.split('/').pop();
+  if(url.pathname==='/warm'){res.setHeader('Content-Type','text/html');res.end('<script src="/libraries/appointment-booking/booking.js"></script><script src="/libraries/appointment-booking/configuration.js"></script>');return;}
+  if(url.pathname==='/new'){res.setHeader('Content-Type','text/html');res.end('<script src="/libraries/appointment-booking/booking.js?v=release-new"></script>');return;}
+  res.setHeader('Cache-Control','public, max-age=31536000');res.setHeader('Content-Type',name.endsWith('.css')?'text/css':'text/javascript');
+  if(!url.searchParams.has('v')){res.end(name==='booking.js'?'window.FirstMateBooking={old:true};':'window.FirstMateAppointmentConfiguration={old:true};');return;}
+  res.end(name==='booking.css'?styles:scripts[name]||'');
+ });await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base=`http://127.0.0.1:${server.address().port}`;
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{const page=await browser.newPage();await page.goto(base+'/warm');assert.equal(await page.evaluate(()=>FirstMateBooking.old),true);await page.goto(base+'/new');await page.evaluate(async()=>{window.PlatformAPI={projects:{list:async()=>({documents:[]})},appointments:{catalog:async()=>({catalog:{departments:[],groups:[],presets:[]},resources:[]}),preview:async()=>({slots:[]}),book:async()=>({ok:true})}};await FirstMateBooking.open({orgId:'org'});});await page.locator('.fm-ap-presets').waitFor();assert.equal(await page.locator('[data-advanced]>summary').innerText(),'Advanced');assert.equal(await page.locator('[data-manage]').count(),0);for(const name of ['configuration.js','availability.js','booking.css'])assert.ok(requests.some(url=>url.endsWith(name+'?v=release-new')),name);assert.equal(requests.filter(url=>url==='/libraries/appointment-booking/configuration.js').length,1);
+ }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 });
