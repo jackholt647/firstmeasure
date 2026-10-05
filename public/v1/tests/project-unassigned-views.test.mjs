@@ -1,0 +1,23 @@
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+const source=readFileSync(new URL('../../libraries/apps/projects/viewer.js',import.meta.url),'utf8');
+const functions=source.slice(source.indexOf('  function projectBoards(){'),source.indexOf('  function orderedWorkBoards(){'))+source.slice(source.indexOf('  function selectedBoardColumns(selected){'),source.indexOf('  function renderStagesView(){'));
+test('projects with no board or missing stage remain selectable without mutating board records',()=>{
+ const workBoards=[{id:'sales',columns:[{id:'quoted',cards:[{project_id:'assigned'}]}],cards:[{project_id:'assigned'},{project_id:'missing-stage',plan_id:'plan-2'}]}];
+ const projects=[{id:'assigned'},{id:'missing-stage'},{id:'orphan'},{id:'shared',_shared:true}];
+ const context=vm.createContext({workBoards,allProjects:projects,filteredProjects:projects.filter(p=>p.id!=='assigned'),lastProjectsById:new Map(projects.map(p=>[p.id,p]))});
+ vm.runInContext(functions,context);
+ const boards=vm.runInContext('projectBoards()',context);
+ assert.deepEqual(Array.from(boards.at(-1).cards,c=>c.project_id),['orphan']);
+ assert.equal(boards.at(-1).title,'No board');
+ assert.equal(boards[0].columns.at(-1).title,'No stage');
+ assert.deepEqual(Array.from(boards[0].columns.at(-1).cards,c=>c.project_id),['missing-stage']);
+ assert.equal(workBoards[0].columns.length,1);
+ context.board=boards[0];
+ const columns=vm.runInContext('selectedBoardColumns(board)',context);
+ assert.deepEqual(Array.from(columns.flatMap(c=>c.items),p=>p.id),['missing-stage'],'Stage cards must respect visible project filters');
+ context.workBoards=[];
+ assert.equal(vm.runInContext('projectBoards().at(-1).cards.length',context),3,'Projects remain visible when no boards exist');
+});

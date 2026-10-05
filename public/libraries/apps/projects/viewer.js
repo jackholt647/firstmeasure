@@ -4878,8 +4878,24 @@
     });
     return projectIds.size;
   }
+  // Missing workflow data must never make an otherwise visible project disappear.
+  function projectBoards(){
+    const assigned = new Set();
+    const boards = workBoards.map(board => {
+      const columns = (board.columns || []).map(column => ({...column, cards:column.cards || []}));
+      const inColumns = new Set(columns.flatMap(column => column.cards).map(card => String(card.project_id || '')));
+      const loose = (board.cards || []).filter(card => !inColumns.has(String(card.project_id || '')));
+      if (loose.length) columns.push({id:'__no_stage__',title:'No stage',color:'#667085',cards:loose});
+      for (const column of columns) for (const card of column.cards) assigned.add(String(card.project_id || ''));
+      return {...board,columns};
+    });
+    const cards = allProjects.filter(project => !project._shared && !assigned.has(String(project.id)))
+      .map(project => ({project_id:project.id,title:project.title,address:project.address}));
+    boards.push({id:'__no_board__',title:'No board',color:'#667085',cards,columns:[{id:'__no_board__',title:'No board',color:'#667085',cards}]});
+    return boards;
+  }
   function orderedWorkBoards(){
-    return workBoards.slice().sort((left, right) => (
+    return projectBoards().sort((left, right) => (
       workBoardProjectCount(right) - workBoardProjectCount(left)
       || String(left?.title || left?.id || '').localeCompare(String(right?.title || right?.id || ''))
     ));
@@ -4890,7 +4906,7 @@
     const projectId = String(payload?.projectId || '').trim();
     targetStageId = String(targetStageId || '').trim();
     if (!planId || !projectId || !targetStageId || targetStageId === String(payload?.fromStageId || '')) return;
-    const board = workBoards.find((item) => String(item.id) === activeWorkBoardId);
+    const board = projectBoards().find((item) => String(item.id) === activeWorkBoardId);
     const source = board?.columns?.find((column) => (column.cards || []).some((card) => String(card.project_id) === projectId && String(card.plan_id) === planId));
     const target = board?.columns?.find((column) => String(column.id) === targetStageId);
     if (!source || !target) return;
@@ -4977,7 +4993,7 @@
   }
   function selectWorkBoard(boardId, options = {}){
     const value = String(boardId || '').trim();
-    if (!(value === 'all' && viewMode === 'list') && !workBoards.some((board) => String(board?.id || '') === value)) return false;
+    if (!(value === 'all' && viewMode === 'list') && !projectBoards().some((board) => String(board?.id || '') === value)) return false;
     activeWorkBoardId = value;
     listGrouping = value === 'all' ? 'board' : 'stage';
     syncProjectColumnChoices();
@@ -5002,7 +5018,7 @@
       const routeBoardId = requestedWorkBoardId();
       const preferredBoardId = routeBoardId || activeWorkBoardId || rememberedWorkBoardId();
       const boardsByUsage = orderedWorkBoards();
-      activeWorkBoardId = (preferredBoardId === 'all' && viewMode === 'list') || workBoards.some((board) => String(board?.id || '') === preferredBoardId)
+      activeWorkBoardId = (preferredBoardId === 'all' && viewMode === 'list') || projectBoards().some((board) => String(board?.id || '') === preferredBoardId)
         ? preferredBoardId
         : String(boardsByUsage[0]?.id || '');
       if (activeWorkBoardId) {
@@ -5142,7 +5158,7 @@
         col.innerHTML = `<div class="v-stage-head"><div class="v-stage-title-row"><div class="v-stage-title"><span class="v-stage-icon"><i class="fas fa-layer-group"></i></span><span data-stage-title></span></div><span class="v-stage-count"></span></div></div><div class="v-stage-list"></div>`;
       }
       col.style.setProperty('--stage-color', column.color || '#667085');
-      bindStageColumnDrop(col, stageId);
+      if (!stageId.startsWith('__no_')) bindStageColumnDrop(col, stageId);
       const title = col.querySelector('[data-stage-title]');
       if (title && title.textContent !== column.title) title.textContent = column.title;
       const count = col.querySelector('.v-stage-count');
@@ -5205,11 +5221,12 @@
       }
   }
   function selectedBoardColumns(selected){
+      const visibleIds = new Set(filteredProjects.map(project => String(project.id)));
       return (Array.isArray(selected?.columns) ? selected.columns : []).map((column) => {
         const items = (Array.isArray(column.cards) ? column.cards : []).map((card) => {
           const project = lastProjectsById.get(String(card.project_id || '')) || {};
           return { ...card, ...project, board_field_values:card.board_field_values, board_field_errors:card.board_field_errors, id: card.project_id || project.id, plan_id:card.plan_id, stage_id:column.id, manual_stage_override:card.manual_stage_override === true, title: project.title || card.title, address: project.address || card.address };
-        }).filter((project) => project.id);
+        }).filter((project) => project.id && visibleIds.has(String(project.id)));
         return { id:column.id, title:column.title || (globalThis.PlatformLanguage?.text("projects","m_43f2c4d59757a1","Stage") ?? "Stage"), color:column.color || selected?.color || '#667085', items };
       });
   }
@@ -5225,9 +5242,9 @@
       return;
     }
     board.querySelector(':scope > .v-stage-empty')?.remove();
-    if (workBoards.length) {
+    if (projectBoards().length) {
       const boardsByUsage = orderedWorkBoards();
-      const selected = workBoards.find((item) => String(item.id) === activeWorkBoardId) || boardsByUsage[0];
+      const selected = projectBoards().find((item) => String(item.id) === activeWorkBoardId) || boardsByUsage[0];
       activeWorkBoardId = String(selected?.id || '');
       renderWorkBoardSummary(selected, boardsByUsage);
       const columns = selectedBoardColumns(selected);
@@ -5278,7 +5295,7 @@
   }
   function tileStageOptions(){
     const stages=new Map();
-    for (const board of workBoards) for (const column of board.columns || []) {
+    for (const board of projectBoards()) for (const column of board.columns || []) {
       const id=String(column.id || '');
       if (id && !stages.has(id)) stages.set(id, String(column.title || 'Stage'));
     }
@@ -5287,7 +5304,7 @@
   }
   function tileStageProjectIds(stageId){
     const ids=new Set();
-    for (const board of workBoards) for (const column of board.columns || []) {
+    for (const board of projectBoards()) for (const column of board.columns || []) {
       if (String(column.id) !== stageId) continue;
       for (const card of column.cards || []) ids.add(String(card.project_id || card.project?.id || ''));
     }
@@ -5403,8 +5420,8 @@
   function updateCount(){
     const el = $('#vCount', panelEl);
     if (!el) return;
-    if (viewMode === 'stages' || (viewMode === 'list' && workBoards.length && !filteredProjects.some(p=>p._shared) && projectSharingView()?.mode !== 'received')) {
-      const selected = workBoards.find((board) => String(board?.id || '') === activeWorkBoardId);
+    if (viewMode === 'stages' || (viewMode === 'list' && projectBoards().length && !filteredProjects.some(p=>p._shared) && projectSharingView()?.mode !== 'received')) {
+      const selected = projectBoards().find((board) => String(board?.id || '') === activeWorkBoardId);
       const visibleIds = new Set(filteredProjects.map((project) => String(project.id)));
       const selectedCount = activeWorkBoardId === 'all' ? filteredProjects.length : selected ? new Set(selectedBoardColumns(selected).flatMap((column) => column.items).map((project) => String(project.id)).filter((id) => visibleIds.has(id))).size : 0;
       const total = totalUnfilteredCount || totalCount || filteredProjects.length || allProjects.length;
@@ -5520,7 +5537,7 @@
       bS.classList.toggle('active', viewMode === 'stages');
     }
     const boardSummary = $('#vWorkBoardSummary', panelEl);
-    if (boardSummary) boardSummary.classList.toggle('visible', (viewMode === 'stages' || viewMode === 'list') && workBoards.length > 0);
+    if (boardSummary) boardSummary.classList.toggle('visible', (viewMode === 'stages' || viewMode === 'list') && workBoardsLoaded);
     renderManageViewPanel();
   }
   function setView(mode, options = {}){
@@ -5760,7 +5777,7 @@
       else collapsed.add(key);
     });
     for (const project of visibleItems) rows.appendChild(createListRow(project, !!dropStageId, kind === 'stage'));
-    if (dropStageId) bindStageColumnDrop(group, dropStageId);
+    if (dropStageId && !String(dropStageId).startsWith('__no_')) bindStageColumnDrop(group, dropStageId);
     scroll.appendChild(group);
   }
   function renderGroupedList(){
@@ -5772,13 +5789,13 @@
       return;
     }
     if (!workBoardsLoaded) { loadWorkBoards().catch(() => null); return; }
-    if (!workBoards.length) {
+    if (!projectBoards().length) {
       for (const project of filteredProjects) scroll.appendChild(createListRow(project));
       return;
     }
     const boardsByUsage = orderedWorkBoards();
     const allBoards = activeWorkBoardId === 'all';
-    const selected = allBoards ? null : workBoards.find((board) => String(board.id) === activeWorkBoardId) || boardsByUsage[0];
+    const selected = allBoards ? null : projectBoards().find((board) => String(board.id) === activeWorkBoardId) || boardsByUsage[0];
     activeWorkBoardId = allBoards ? 'all' : String(selected?.id || '');
     if (allBoards) listGrouping = 'board';
     renderWorkBoardSummary(selected, boardsByUsage);
@@ -5799,7 +5816,7 @@
       }
       if (allBoards) {
         const unassigned = filteredProjects.filter((project) => !assigned.has(String(project.id)));
-        if (unassigned.length) appendListGroup(scroll, { id:'unassigned', title:'Unassigned', color:'#667085', items:unassigned, kind:'board' }, order);
+        if (unassigned.length) appendListGroup(scroll, { id:'unassigned', title:'No board', color:'#667085', items:unassigned, kind:'board' }, order);
       }
       return;
     }

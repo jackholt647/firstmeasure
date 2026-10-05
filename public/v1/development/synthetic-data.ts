@@ -6,17 +6,20 @@ import { hasPermission, type PlatformAuthContext } from '../platform/auth.js';
 import { readOrganization, readDocument, listDocuments, upsertDocument, type JsonObject } from '../platform/storage.js';
 import { sandboxStore, sandboxError } from '../signup-sandbox/storage.js';
 import { isCapabilityEnabled } from '../platform/capabilities.js';
-import { currentSyntheticBatch, withSyntheticBatch, sampleId, seedCustomers, seedProjects, seedEquipment, seedChannels } from './fixtures.js';
+import { withSyntheticBatch, sampleId } from './fixtures.js';
+
+import { batchProjects, companyContacts, companyProjects, companyEquipment, companyUsers, companyChannels } from './roofing-company.js';
 
 export const COMPANIES = [{ id: 'roofing', label: 'Roofing & exteriors' }];
 export const CATEGORIES = [
  { id: 'events', label: 'Events', description: 'Site visits, installations and walkthroughs', icon: 'fa-calendar-days' },
  { id: 'equipment', label: 'Equipment', description: 'Vehicles, trailers, tools and a yard', icon: 'fa-truck-pickup' },
- { id: 'projects', label: 'Projects', description: 'Four roofing jobs with sample measurements', icon: 'fa-house' },
- { id: 'contacts', label: 'Contacts', description: 'Five fictional homeowners', icon: 'fa-address-book' },
+ { id: 'projects', label: 'Projects', description: 'Sixteen roofing jobs across pipeline stages', icon: 'fa-house' },
+ { id: 'contacts', label: 'Contacts', description: 'Twenty-four fictional homeowners', icon: 'fa-address-book' },
  { id: 'material_lists', label: 'Material lists', description: 'Editable, price-book-linked project lists', icon: 'fa-layer-group' },
  { id: 'document_types', label: 'Document types', description: 'Four estimate styles and draft proposals', icon: 'fa-file-signature' },
- { id: 'channels', label: 'Channels', description: 'Team spaces and fictional teammates', icon: 'fa-hashtag' },
+ { id: 'users', label: 'Users', description: 'Six reusable fictional team members', icon: 'fa-users' },
+ { id: 'channels', label: 'Channels', description: 'Two shared team spaces reused between batches', icon: 'fa-hashtag' },
  { id: 'communication', label: 'Communication', description: 'Sample inbox messages and channel replies', icon: 'fa-comments' }
 ];
 const selection = z.object(Object.fromEntries(CATEGORIES.map(c => [c.id, z.boolean().default(true)]))).strict();
@@ -38,12 +41,10 @@ async function insert(org: string, collection: string, id: string, data: JsonObj
  if(await maybe(org, collection, id)) return false;
  await upsertDocument(org, collection, { id, data, metadata }, { createOnly: true }); return true;
 }
-const projectKeys = ['maple','cedar','harbor','willow'];
 async function projects(org: string) {
- const found = await Promise.all(projectKeys.map(key=>maybe(org,'projects',sampleId(org,`project:${key}`))));
- const matches=found.filter((p):p is NonNullable<typeof p>=>!!p);
- if(matches.length || !currentSyntheticBatch())return matches;
- return (await listDocuments(org,'projects')).filter(p=>(p.metadata as JsonObject)?.source==='signup_sandbox_samples' && (p.data as JsonObject)?.workflow_state==='project').slice(0,4);
+ const found=await batchProjects(org);
+ if(found.length)return found;
+ return (await listDocuments(org,'projects')).filter(p=>['signup_sandbox_samples','development_roofing_company'].includes(String((p.metadata as JsonObject)?.source)) && (p.data as JsonObject)?.workflow_state==='project').slice(0,16);
 }
 async function measurements(ctx: PlatformAuthContext) {
  const { userPublicationContext } = await import('../platform/publication/context.js');
@@ -53,7 +54,7 @@ async function measurements(ctx: PlatformAuthContext) {
   if(await maybe(ctx.orgId,'project_datasets',id)) continue;
   const target={scope:'project' as const,organizationId:ctx.orgId,projectId:String(p.id)};
   const c=userPublicationContext(ctx,{projectId:String(p.id),mode:'command'});
-  await saveProjectDataset(c,target,{id,name:'Synthetic roof measurements',type:'measurements',schemaVersion:'1',role:'measurements',value:{measurements:Object.fromEntries(Object.entries({roofSquares:20+i*3.5,eavesLf:120+i*10,rakesLf:80+i*8,hipsLf:40,ridgesLf:60}).map(([k,value])=>[k,{value,unit:k==='roofSquares'?'roofing_square':'ft',status:'ready',source:'Synthetic development fixture'}]))},provenance:metadata});
+  await saveProjectDataset(c,target,{id,name:'Synthetic roof measurements',type:'measurements',schemaVersion:'1',role:'measurements',value:{measurements:Object.fromEntries(Object.entries({roofSquares:20+i*1.5,eavesLf:120+i*10,rakesLf:80+i*8,hipsLf:40,ridgesLf:60}).map(([k,value])=>[k,{value,unit:k==='roofSquares'?'roofing_square':'ft',status:'ready',source:'Synthetic development fixture'}]))},provenance:metadata});
   await selectProjectDataset(c,target,'measurements',id,Number(p.revision));
  }
 }
@@ -72,7 +73,7 @@ async function materialLists(ctx: PlatformAuthContext) {
  for(const [i,p] of ps.entries()) {
   const id=sampleId(ctx.orgId,`dev-materials:${p.id}`);
   if(await maybe(ctx.orgId,'material_lists',id))continue;
-  await createMaterialList(ctx.orgId,String(p.id),{id,title:'Roof system (Sample)',color:['#d93025','#2563eb','#7c3aed','#059669'][i],metadata,items:[{id:'shingles',name:'GAF Timberline HDZ',quantity:22+i*3.5,unit:'sq',pricebook_ref:{item_id:'gaf_hd'},selected_options:{color:'charcoal'}},{id:'underlayment',name:'Synthetic Underlayment',quantity:22+i*3.5,unit:'sq',pricebook_ref:{item_id:'underlayment'}}]},ctx);created++;
+  await createMaterialList(ctx.orgId,String(p.id),{id,title:'Roof system (Sample)',color:['#d93025','#2563eb','#7c3aed','#059669'][i%4],metadata,items:[{id:'shingles',name:'GAF Timberline HDZ',quantity:(20+i*1.5)*1.1,unit:'sq',pricebook_ref:{item_id:'gaf_hd'},selected_options:{color:'charcoal'}},{id:'underlayment',name:'Synthetic Underlayment',quantity:(20+i*1.5)*1.1,unit:'sq',pricebook_ref:{item_id:'underlayment'}}]},ctx);created++;
  }
  return {created,...(!ps.length?{note:'Enable Projects first, then run Material lists again.'}:{})};
 }
@@ -97,7 +98,9 @@ async function communication(ctx: PlatformAuthContext) {
   const seed=sampleId(ctx.orgId,`dev-conversation:${i}`);
   // The communications store namespaces caller-supplied IDs by organization.
   const conversationId=`conversation_${createHash('sha256').update(ctx.orgId).digest('hex').slice(0,12)}_${seed}`;
-  const sender={name:['Avery Morgan','Jordan Rivera','Taylor Chen'][i]+' (Sample)',email:`sample${i}@example.test`,address:`sample${i}@example.test`,type:'external'};
+  const contact=(ps[i]?.data?.contacts as JsonObject[]|undefined)?.[0];
+  const email=String(contact?.email||`sample${i}@example.test`);
+  const sender={name:String(contact?.name||['Avery Morgan','Jordan Rivera','Taylor Chen'][i]),email,address:email,type:'external'};
   const context={project_id:ps[i]?.id||''};
   let conversation;
   try {conversation=await store.readConversationRecord(ctx.orgId,conversationId);}catch(e:any){if(e.statusCode!==404)throw e;}
@@ -113,10 +116,10 @@ export async function generateSyntheticData(ctx: PlatformAuthContext, raw: unkno
  const parsed=inputSchema.safeParse(raw);if(!parsed.success)throw sandboxError(400,'invalid_selection','Choose a supported company and boolean category toggles.');
  const selected=parsed.data.categories as Record<string,boolean>;
  if(!Object.values(selected).some(Boolean))throw sandboxError(400,'empty_selection','Select at least one category.');
- const requirements:Record<string,[string,string]>={events:['platform.scheduling','manage_projects'],equipment:['apps.equipment','equipment.manage'],projects:['apps.projects','manage_projects'],contacts:['platform.contacts','manage_projects'],material_lists:['platform.materials','manage_projects'],document_types:['platform.documents','manage_documents'],channels:['apps.channels','manage_channels'],communication:['apps.messaging','send_communications']};
+ const requirements:Record<string,[string,string]>={events:['platform.scheduling','manage_projects'],equipment:['apps.equipment','equipment.manage'],projects:['apps.projects','manage_projects'],contacts:['platform.contacts','manage_projects'],material_lists:['platform.materials','manage_projects'],document_types:['platform.documents','manage_documents'],users:['','manage_company_users'],channels:['apps.channels','manage_channels'],communication:['apps.messaging','send_communications']};
  for(const [key,[capability,permission]]of Object.entries(requirements))if(selected[key]) {
   if(!hasPermission(ctx,permission))throw sandboxError(403,'permission_denied',`You need ${permission} access to generate ${key.replaceAll('_',' ')}.`);
-  if(!await isCapabilityEnabled(ctx.orgId,capability))throw sandboxError(400,'feature_disabled',`Enable ${key.replaceAll('_',' ')} for this organization, or turn its toggle off.`);
+  if(capability && !await isCapabilityEnabled(ctx.orgId,capability))throw sandboxError(400,'feature_disabled',`Enable ${key.replaceAll('_',' ')} for this organization, or turn its toggle off.`);
  }
  // Durable lease serializes concurrent clicks across development web nodes.
  const leaseId='development_synthetic_data_lease';const prior=await maybe(ctx.orgId,'onboarding_events',leaseId);
@@ -127,24 +130,15 @@ export async function generateSyntheticData(ctx: PlatformAuthContext, raw: unkno
  try {
   for(let batch=0;batch<parsed.data.amount;batch++)await withSyntheticBatch(parsed.data.request_id ? `${parsed.data.request_id}:${batch}` : batch?`amount:${batch}`:'',async()=>{
   const run=async(key:string,fn:()=>Promise<unknown>)=>{if(!selected[key])return;try{const value=await fn() as JsonObject;const previous=results[key];results[key]={...addCounts(previous,value),status:previous?.status==='failed'?'failed':'complete',...(previous?.error?{error:previous.error}:{})};}catch(e:any){results[key]={...results[key],status:'failed',error:String(e.message||'Generation failed')};}};
-  await run('contacts',()=>seedCustomers(ctx.orgId));
-  await run('projects',async()=>{
-   const existing=new Set((await projects(ctx.orgId)).map(p=>p.id));
-   const r=await seedProjects(ctx.orgId,false);
-   if(selected.contacts)for(const [i,p]of (await projects(ctx.orgId)).entries()) {
-    if(existing.has(p.id))continue;
-    const key=['avery','jordan','taylor','casey'][i];
-    const customer=await maybe(ctx.orgId,'projects',sampleId(ctx.orgId,`customer-record:${key}`));
-    if(customer){const data=customer.data as JsonObject;await upsertDocument(ctx.orgId,'projects',{id:p.id,expected_revision:p.revision,data:{contacts:data.contacts,contact_id:data.contact_id,primary_contact_id:data.primary_contact_id,contact_ids:data.contact_ids}});}
-   }
-   await measurements(ctx);return r;
-  });
-  await run('equipment',()=>seedEquipment(ctx.orgId,false));
+  await run('users',()=>companyUsers(ctx.orgId));
+  await run('contacts',()=>companyContacts(ctx.orgId));
+  await run('projects',async()=>{const r=await companyProjects(ctx);await measurements(ctx);return r;});
+  await run('equipment',()=>companyEquipment(ctx.orgId));
   await run('events',()=>events(ctx));
   await run('material_lists',()=>materialLists(ctx));
   await run('document_types',()=>documents(ctx));
-  await run('channels',()=>seedChannels(ctx.orgId,false));
-  await run('communication',async()=>{const r=await communication(ctx); if(selected.channels) return {...r,channels:await seedChannels(ctx.orgId,true)};return r;});
+  await run('channels',()=>companyChannels(ctx,false,true));
+  await run('communication',async()=>{const r=await communication(ctx); return {...r,channels:await companyChannels(ctx,true,selected.channels===true)};});
   });
   return {organization_id:ctx.orgId,amount:parsed.data.amount,results};
  }finally {await upsertDocument(ctx.orgId,'onboarding_events',{id:leaseId,expected_revision:lease.revision,data:{expires:0},metadata},{replace:true});}

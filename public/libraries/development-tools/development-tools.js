@@ -48,7 +48,7 @@ export async function mount() {
      const line=document.createElement('div');line.className=value.status==='failed'?'fm-dev-error':'';
      const label=catalog.categories.find(c=>c.id===key)?.label||key;
      const count=typeof value.created==='number'?value.created: Object.values(value.created||{}).reduce((a,b)=>a+Number(b||0),0);
-     line.textContent=label+': '+(value.status==='failed'?value.error:count+' added'+(value.drafts?' · '+value.drafts+' drafts':''));report.append(line);
+     line.textContent=label+': '+(value.status==='failed'?value.error:key==='communication'?count+' emails · '+Number(value.channels?.messages||0)+' channel messages':count+' added'+(value.drafts?' · '+value.drafts+' drafts':''));report.append(line);
     }
     const refresh=document.createElement('button');refresh.type='button';refresh.className='fm-dev-refresh';refresh.textContent='Refresh workspace';refresh.onclick=()=>location.reload();report.append(refresh);
     window.dispatchEvent(new CustomEvent('development:synthetic-data',{detail:result}));

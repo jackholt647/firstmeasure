@@ -7,8 +7,8 @@ independently of whether the bottom test-run bar is dismissed. It is a single to
 close-button and Escape dismissal. No generator is loaded by production boot.
 
 `synthetic-data.ts` owns the category/company catalog, strict request schema,
-authorization, durable organization lease, and orchestration. `fixtures.ts` holds
-reusable fixtures also used by the older sandbox sample button. The older module
+authorization, durable organization lease, and orchestration. `roofing-company.ts` owns the connected development company fixtures. `fixtures.ts` holds
+legacy fixtures used by the older sandbox sample button. The older module
 is a re-export, not a second implementation.
 
 Only the authenticated organization may be changed: it must be in the development
@@ -17,7 +17,7 @@ Company settings permission and each selected category's capability/permission
 are checked before any writes. Requests require the normal platform CSRF token.
 This private development operation is not published to document modules or agents.
 
-All eight category toggles default on. Unselected categories are not synthesized.
+All nine category toggles default on. Unselected categories are not synthesized.
 Events can stand alone. Material lists and draft estimates attach only to the
 known sample projects; if Projects is off and none exist, results explain how to
 add them. Contacts are linked when generating new projects together. Channels
@@ -46,7 +46,30 @@ Tests: `tests/development-tools.test.ts` and `tests/signup-sandbox-samples.test.
 Browser verification scripts and screenshots: `output/development-tools-20261005`.
 
 Amount selects 1, 3, 5 or 10 fixture batches per click. The UI sends a UUID request_id;
-request-scoped AsyncLocalStorage namespaces every fixture ID and channel key. A
+request-scoped AsyncLocalStorage namespaces additive fixture IDs. Company users,
+equipment and shared channels use stable organization IDs. A
 retry keeps that UUID; a successful click clears it so the next click adds new data.
 Templates remain shared. API amounts must be integers from 1 to 10; calls without
 a request_id retain the original additive/idempotent fixture behavior.
+
+## Roofing company balance
+
+Each 1x batch adds 24 contacts and 16 residential roofing projects. Projects include
+customer identity, addresses, scope notes, estimated values, measurements and real
+work plans on the organization's sales pipeline, spread across its configured
+stages. Manual fixture nodes contain no automation bindings; generating data does
+not sign an estimate, order materials or send a message externally.
+
+Users creates six fictional employee profiles without login credentials or access
+grants. Equipment creates four tracked units with reusable types and one yard;
+only units count in the result. Both are organization-scoped and remain bounded
+across batches and repeated clicks. Channels reuses two shared team spaces;
+Communication fills those with threaded conversations and adds discussions to
+only two project channels per project batch. Authors are the existing sample
+team, or the requesting user when Users is off. Disabling Channels prevents new
+channels while allowing Communication to populate existing ones.
+
+New company scenarios are isolated in this library. The old sandbox fixtures are
+preserved for that older API. Prior generated projects are not deleted or reset;
+the project viewer's No board group exposes records with no workflow, and No stage
+exposes cards missing a stage. Additional sample batches preserve user edits.
