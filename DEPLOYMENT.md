@@ -1,4 +1,6 @@
 # FirstMeasure: local development and production deployment
+October 5 forms: [Block-based forms on document modules](deploy/digitalocean/development-forms-20261005.md) records the forms library, editor and public embed, the four-role development rollout alongside other sessions, and what remains to exercise.
+
 October 5 FirstMeasure defaults: [Settings and module visibility](deploy/digitalocean/development-firstmeasure-settings-defaults-20261005.md) records disabled signup modules, Channels-dependent translation, personal sidebar controls and development verification.
 
 October 5 Connections UI: [Full-height assistant and visible hover buttons](deploy/digitalocean/development-connections-layout-20261005.md) records independent scrolling, compact spacing, native browser checks and verified development rollout.
