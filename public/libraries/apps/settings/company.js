@@ -2217,6 +2217,7 @@
       { id:'money', allowed:canPayments, icon:'fas fa-wallet', title:(globalThis.PlatformLanguage?.text("settings","m_05cb9dd7e5a780","Money") ?? "Money"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_764ee227ff8bd4","Accounts, payment defaults, and disputes.") ?? "Accounts, payment defaults, and disputes."), tabId:'csTabMoney', paneId:'csPaneMoney' },
       { id:'calls', allowed:canCallWorkflows, icon:'fas fa-phone', title:(globalThis.PlatformLanguage?.text("settings","m_e830f5588df87c","Calls") ?? "Calls"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_cb8b711a9efc4a","Configure call queues, assignments, follow-ups, and outcomes.") ?? "Configure call queues, assignments, follow-ups, and outcomes."), tabId:'csTabCalls', paneId:'csPaneCalls' },
       { id:'contacts', allowed:canContacts, icon:'fas fa-address-book', term:'contacts.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_6fe082da60f3b0","Contacts") ?? "Contacts"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3b1e71af416b42","Import contacts and review prior imports.") ?? "Import contacts and review prior imports."), tabId:'csTabContacts', paneId:'csPaneContacts' },
+      { id:'connections', allowed:canCompany, icon:'fas fa-plug', title:'Connections', subtitle:'Connect external tools, publish data, and automate workflows.', tabId:'csTabConnections', paneId:'csPaneConnections' },
       { id:'feedback', allowed:canFeedback, icon:'fas fa-star', term:'settings.feedback_tab', title:(globalThis.PlatformLanguage?.text("settings","m_d77e00c8c3f0b8","Feedback") ?? "Feedback"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_0b7fe3900fd0b1","Configure customer feedback and review responses.") ?? "Configure customer feedback and review responses."), tabId:'csTabFeedback', paneId:'csPaneFeedback' },
       { id:'equipment', allowed:canEquipment, icon:'fas fa-truck-pickup', term:'equipment.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_2813f320a63b94","Equipment") ?? "Equipment"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_d081ea6e554702","Configure equipment types and operating defaults.") ?? "Configure equipment types and operating defaults."), tabId:'csTabEquipment', paneId:'csPaneEquipment' },
       { id:'live_chat', allowed:canLiveChat, icon:'fas fa-comments', term:'settings.live_chat_tab', title:(globalThis.PlatformLanguage?.text("settings","m_1405ecd3fe696b","Live Chat") ?? "Live Chat"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_24e86bac9b5986","Configure chat availability, behavior, and appearance.") ?? "Configure chat availability, behavior, and appearance."), tabId:'csTabLiveChat', paneId:'csPaneLiveChat' },
@@ -13108,6 +13109,13 @@
         else await window.FirstMateDepartments.mount(host,currentOrgId());
       } catch(error) { host.textContent=error.message || 'Could not load departments.'; }
     }
+    async function renderConnectionsSettings(){
+      const host=panel.querySelector('#csPaneConnections');if(!host||host.dataset.connectionsMounted)return;
+      host.dataset.connectionsMounted='1';host.textContent='Loading connections…';
+      try {if(!window.FirstMateConnections)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/apps/settings/connections.js';script.onload=resolve;script.onerror=reject;document.head.append(script);});
+        await window.FirstMateConnections.mount(host,{orgId:currentOrgId()});
+      }catch(error){host.textContent=error.message||'Could not load connections.';delete host.dataset.connectionsMounted;}
+    }
     function setSubTab(which, options = {}){
       if (!tabAllowed(which)) return;
       closeSettingsSearch();
@@ -13137,6 +13145,7 @@
       if (which === 'money' && canPayments) renderMoneySettings();
       if (which === 'calls' && canCallWorkflows) renderCallsSettings();
       if (which === 'contacts' && canContacts) renderContactsSettings();
+      if (which === 'connections' && canCompany) renderConnectionsSettings();
       if (which === 'feedback' && canFeedback) renderFeedbackSettings();
       if (which === 'equipment' && canEquipment) renderEquipmentSettings();
       if (which === 'live_chat' && canLiveChat) renderLiveChatSettings();
@@ -13764,6 +13773,7 @@
         return;
       }
       window.FirstMateFeedbackSettings.mount(paneFeedback, {
+        surface:'settings',
         orgId: currentOrgId(),
         branchId: currentBranchId(),
         showToast,
@@ -19067,6 +19077,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       if (canDocuments && activeTab === 'documents') renderDocumentSettings();
       if (canCallWorkflows && activeTab === 'calls') renderCallsSettings();
       if (canContacts && activeTab === 'contacts') renderContactsSettings();
+      if (canCompany && activeTab === 'connections') renderConnectionsSettings();
       if (canFeedback && activeTab === 'feedback') renderFeedbackSettings();
       if (canEquipment && activeTab === 'equipment') renderEquipmentSettings();
       if (canAssistant && activeTab === 'assistant') renderAssistantSettings();

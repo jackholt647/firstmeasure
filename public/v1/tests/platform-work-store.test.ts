@@ -12,7 +12,7 @@ test("workflow plans, scope seeds and event claims remain atomic across concurre
   const store = await import("../work/storage.js");
   const scopes = await import("../scopes/storage.js");
   const postgres = await import("../src/database/postgres.js");
-  t.after(async () => { await store.closeWorkDatabase(); await postgres.closePostgresPools(); await rm(root, { recursive: true, force: true }); });
+  t.after(async () => { await store.closeWorkDatabase(); await (await import("../platform/sql_store.js")).closeSqlStoresForTests(); await postgres.closePostgresPools(); await rm(root, { recursive: true, force: true }); });
   const org = `work_${randomUUID()}`;
   const plans = await Promise.all(Array.from({ length: 12 }, () => store.createPlanRecord({ organization_id: org, source_key: "one", title: "Shared plan", status: "pending" })));
   assert.equal(plans.filter(result => result.created).length, 1);

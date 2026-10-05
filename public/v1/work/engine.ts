@@ -232,6 +232,7 @@ async function executeEvent(event: JsonObject) {
   let project = await projectForEvent(event, plan);
 
   await notifyWorkEvent(event);
+  await (await import('../integrations/jobs.js')).enqueueConnectionEvent(event);
   await assertEventLease(event);
 
   // 1. Organization automation rules — the always-on layer above every scope

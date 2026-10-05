@@ -193,6 +193,7 @@ export function listWorkEventDefinitions() {
 }
 
 registerWorkEvents([
+  { name: "connection.resource.updated", notification: { group: "organization", source: "organization", tab: "general" }, description: "A complete external data revision became available.", visibility: "system", payload: { connection_id: "Connection identity.", resource: "Published resource.", revision: "Immutable completed snapshot.", previous_revision: "Previous complete snapshot, if any." } },
   // ── Work engine ─────────────────────────────────────────────────────────
   { name: "work.plan.created", notification: { group: "scopes", source: "scopes", tab: "scopes" }, description: "A scope instance (work plan) was created on a project.", visibility: "system" },
   { name: "work.plan.started", notification: { group: "scopes", source: "scopes", tab: "scopes" }, description: "A scope instance started.", visibility: "activity" },

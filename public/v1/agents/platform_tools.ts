@@ -74,7 +74,7 @@ async function discover(run: AgentRun, policy: AccessPolicy, scopes: readonly Ta
     try {
       // Discovery checks grants, not ownership of a resource that has not yet
       // been selected. Reads and invocations use the full policy.
-      await authorizePublication(ctx, candidate, { ...policy, authorize: undefined }, operation);
+      await authorizePublication(ctx, candidate, { ...policy, authorize: operation.startsWith('external.') ? policy.authorize : undefined }, operation);
       return true;
     } catch { /* Another supported scope may be available. */ }
   }
@@ -109,6 +109,7 @@ export const platformAgentTools: AgentTool[] = [
     async execute(run, args) {
       initializePublication();
       const query = cleanText(args.query).toLowerCase();
+      await (await import('../integrations/publication.js')).loadConnectionPublications(run.orgId);
       const kind = cleanText(args.kind) || "all";
       const matches: JsonObject[] = [];
       if (kind !== "action") for (const provider of listDataProviders()) for (const [name, entry] of Object.entries(provider.exports)) {
@@ -130,6 +131,7 @@ export const platformAgentTools: AgentTool[] = [
     async execute(run, args) {
       initializePublication();
       const id = cleanText(args.id);
+      if(id.startsWith('external.')) await (await import('../integrations/publication.js')).loadConnectionPublications(run.orgId);
       if (args.kind === "action") {
         const action = describeAction(id);
         if (!action || !action.executionKinds.includes("agent") || id.startsWith("agent.") || !allowedByAgent(run, id, action.effect) || !await discover(run, action.policy, action.policy.scopes, id)) return { available: false };
@@ -161,6 +163,7 @@ export const platformAgentTools: AgentTool[] = [
     async execute(run, args, invocationKey) {
       initializePublication();
       const id = cleanText(args.action);
+      if(id.startsWith('external.')) await (await import('../integrations/publication.js')).loadConnectionPublications(run.orgId);
       const action = describeAction(id, cleanText(args.version) || undefined);
       if (!action || !action.executionKinds.includes("agent") || id.startsWith("agent.") || !allowedByAgent(run, id, action.effect)) throw forbidden("agent_action_denied", "This action is unavailable to this agent.");
       const result = await invokeAction(await context(run, "command"), { action: id, ...(cleanText(args.version) ? { version: cleanText(args.version) } : {}), target: target(args.target, run.orgId) }, asObject(args.input), { idempotencyKey: invocationKey });

@@ -11,6 +11,8 @@ export async function getRecord(org: string, collection: string, id: string) {
   return view(record);
 }
 export async function saveRecord(org: string, collection: string, id: string, data: JsonObject, expectedRevision?: number, createOnly = false) {
-  return view(await upsertDocument(org, collection, { id, data, ...(expectedRevision ? { expected_revision: expectedRevision } : {}) }, { replace: true, createOnly }));
+  const result=view(await upsertDocument(org, collection, { id, data, ...(expectedRevision ? { expected_revision: expectedRevision } : {}) }, { replace: true, createOnly }));
+  if(collection===MODULES||collection===INSTANCES)await (await import('../../integrations/usage.js')).indexConnectionUses(org,`${collection}:${id}`,result);
+  return result;
 }
 export async function records(org: string, collection: string) { return (await listDocuments(org, collection)).map(view); }

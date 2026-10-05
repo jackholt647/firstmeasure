@@ -206,6 +206,7 @@ export async function buildApp() {
 
 
   // Platform APIs use the same host, auth context and runtime boundaries.
+  void app.register((await import('../integrations/api.js')).registerIntegrationsApi, { prefix: '/v1/integrations' });
   void app.register(registerPublicationApi, { prefix: "/v1/publication" });
   void app.register(registerDocumentModuleRoutes, { prefix: "/v1/document-modules" });
   void app.register(registerPublicLinksApi);

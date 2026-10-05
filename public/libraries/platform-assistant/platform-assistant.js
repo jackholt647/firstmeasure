@@ -1036,6 +1036,7 @@
     html += '</div>';
     if (array(data.renders).some(render => render.type === 'appointment_booking')) html += '<button type="button" class="fma-action" data-appointment-booking>Book an appointment</button>';
     if (array(data.renders).some(render => render.type === 'payment_setup')) html += '<button type="button" class="fma-action" data-payment-setup>Open payment setup</button>';
+    for (const render of array(data.renders).filter(r => r.type === 'connection_credentials')) html += `<div data-connection-credential="${esc(render.requestId)}"></div>`;
     html += widgetsHtml(data.renders);
     const artifacts = artifactsOf(message);
     if (artifacts.length) {
@@ -1054,7 +1055,7 @@
 
   function welcomeHtml(){
     const main = state.threadId && state.threadId === clean(state.mainThread?.id);
-    const suggestions = projectId ? ['What needs attention in this project?', 'Review this project’s scope, progress and blockers.', 'Summarize recent project activity and suggest next steps.'] : main ? [
+    const suggestions = surface.suggestions || (projectId ? ['What needs attention in this project?', 'Review this project’s scope, progress and blockers.', 'Summarize recent project activity and suggest next steps.'] : main ? [
       'Set up payments',
       'What happened in the business this week?',
       'Every morning at 11, tell me how yesterday went',
@@ -1066,12 +1067,12 @@
       'Find a customer or project for me',
       'What’s overdue on my to-do list?',
       'How many jobs did we sell this month?'
-    ];
+    ]);
     return `
       <div class="fma-welcome fma-anim">
         <span class="fma-logo"></span>
         <div class="hi">${String(esc(state.assistantName))}</div>
-        <div class="hint">${projectId ? 'Your private assistant for this project. Ask about its scope, progress, activity or next steps.' : main ? 'This is your main thread. Ask anything, or ask me to keep an eye on something for you. Scheduled updates from your agents arrive here.' : (globalThis.PlatformLanguage?.htmlText("platform-assistant","m_8247ee406cbbd6","Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.") ?? "Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.")}</div>
+        <div class="hint">${surface.welcome ? esc(surface.welcome) : projectId ? 'Your private assistant for this project. Ask about its scope, progress, activity or next steps.' : main ? 'This is your main thread. Ask anything, or ask me to keep an eye on something for you. Scheduled updates from your agents arrive here.' : (globalThis.PlatformLanguage?.htmlText("platform-assistant","m_8247ee406cbbd6","Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.") ?? "Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.")}</div>
         <div class="fma-suggests">${String(suggestions.map((entry) => `<button type="button" class="fma-suggest">${esc(entry)}</button>`).join(''))}</div>
       </div>
     `;
@@ -1146,6 +1147,11 @@
       parts.push(`<div class="fma-pending"><i class="fas fa-wand-magic-sparkles"></i><span>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_186fc46dfb3cc0","Working") ?? "Working")}<span class="dots"><span>.</span><span>.</span><span>.</span></span></span></div>`);
     }
     els.msgs.innerHTML = parts.join('');
+    for(const host of els.msgs.querySelectorAll('[data-connection-credential]')) {
+      const mount=()=>window.FirstMateConnections?.mountCredential(host,orgId(),host.dataset.connectionCredential);
+      if(window.FirstMateConnections) mount();
+      else {let script=document.querySelector('script[data-connections-ui]');if(!script){script=document.createElement('script');script.dataset.connectionsUi='1';script.src='/libraries/apps/settings/connections.js';document.head.append(script);}script.addEventListener('load',mount,{once:true});}
+    }
     els.msgs.querySelector('[data-fma="voiceAnchor"]').replaceWith(els.voiceLog);
     els.msgs.append(els.voiceStatus, els.voicePlay);
     renderVoiceChat();
@@ -1953,6 +1959,7 @@
   }
 
   async function loadContext(){
+    if (surface.loadContext) return surface.loadContext();
     if (!projectId) return window.AssistantAPI.context(orgId());
     const result = await window.AssistantAPI.projectConversation(orgId(), projectId);
     if (!clean(result.thread?.id)) throw new Error('The project conversation could not be loaded.');
@@ -2462,6 +2469,7 @@
   }
 
   const instanceApi = {
+    setDraft(text){if(els?.input){els.input.value=String(text);updateComposer();els.input.focus();}},
     transferToGlobal, isTransferred:()=>promoted, endVoice:()=>stopVoice(), hasVoice:()=>!!voiceCall, setWorkspaceContext,
     setCompact(value){els?.drawer.classList.toggle('fma-pinned',value);const button=els?.drawer.querySelector('[data-fma=pinSurface]');if(button){button.setAttribute('aria-label',value?'Expand assistant':'Pin assistant');button.title=value?'Expand assistant':'Pin assistant';button.innerHTML='<i class="fas '+(value?'fa-up-right-and-down-left-from-center':'fa-thumbtack')+'"></i>';}},
     moveTo(container){if(els && els.drawer.parentElement!==container)container.append(els.drawer);},
@@ -2500,6 +2508,13 @@
     return {...instance,ready:instance.boot(),destroy(){visibility.disconnect();if(!instance.isTransferred())instance.destroy();}};
   }};
   for(const name of ['open','openFull','toggle','close','isOpen','isFull','dockIfFull','openConversation','mountSidebar','unmountSidebar'])publicApi[name]=(...args)=>(adoptedAssistant || globalAssistant)[name](...args);
+  publicApi.mountSurface=(container,options={})=>{
+    if(!container)throw new Error('A container is required.');
+    const instance=createAssistant({...options,container});instance.open();
+    const observer=new MutationObserver(()=>{if(!container.isConnected){observer.disconnect();instance.destroy();}});
+    observer.observe(container.ownerDocument.body,{childList:true,subtree:true});
+    return {...instance,ready:instance.boot(),destroy(){observer.disconnect();instance.destroy();}};
+  };
   window.PlatformAssistant = publicApi;
   window.dispatchEvent(new CustomEvent('fm:assistant:ready'));
 })();

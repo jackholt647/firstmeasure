@@ -391,6 +391,7 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
     if (settings.enabled === false) throw forbidden("agent_disabled", "The assistant is turned off for this company.");
     await projectConversationContext(ctx, cleanText(thread.subject_id));
     await channelConversationContext(ctx, cleanText(thread.subject_id));
+    await (await import('../integrations/assistant.js')).connectionContext(ctx, cleanText(thread.subject_id));
     const owner = JSON.stringify([orgId, ctx.userId, thread.id]);
     limitVoiceStarts(JSON.stringify([orgId, ctx.userId]));
     const result = await createAssistantVoiceSession(sdp, messages.map(raw => { const message = raw as Record<string, unknown>; return { role: cleanText(message.role), content: cleanText(message.content) }; }));

@@ -33,7 +33,7 @@ export const applicationPublication = {
   channels: { providers: ["channels"], domains: ["channels"], note:"Project trays reuse Channels records and its subject authorization; note creation, sharing, pinning, editing, deletion and restoration are published operations. The feature flag changes rendering, not storage." },
   canvassing: { providers: ["canvassing"], domains: ["canvassing"] },
   feedback: { providers: ["feedback"], domains: ["feedback"] },
-  settings: { providers: ["workforce-departments", "notification-rules", "organization", "scopes", "custom-fields-organization"], domains: ["custom-fields", "workforce"], note: "Settings are selectively published; credentials and platform administration are never generic data exports. Platform Billing owns dedicated authenticated catalog, subscription and invoice flows under /v1/platform-billing; commercial changes are not exposed to tenant modules or agent tools." },
+  settings: { providers: ["workforce-departments", "notification-rules", "organization", "scopes", "custom-fields-organization"], domains: ["custom-fields", "workforce"], note: "Settings owns external connections with dynamic external.<connectionId> providers and versioned connection actions, loaded per organization. Settings are selectively published; credentials and platform administration are never generic data exports. Platform Billing owns dedicated authenticated catalog, subscription and invoice flows under /v1/platform-billing; commercial changes are not exposed to tenant modules or agent tools." },
   crew: { providers: ["work", "workforce"], domains: ["work", "workforce"] },
   sales: { providers: ["work", "workforce"], domains: ["work", "workforce"] },
   field_visit: { providers: ["work"], domains: ["work"] },

@@ -67,8 +67,13 @@ export function describeAction(id: string, version?: string): ActionDescription 
   return def ? describe(def) : null;
 }
 export function listActions(): ActionDescription[] { return [...definitions.values()].map(describe).sort((a,b) => a.id.localeCompare(b.id) || a.version.localeCompare(b.version)); }
+export function selectExternalActionVersion(id:string,version:string){
+  if(!id.startsWith('external.')||!definitions.has(`${id}@${version}`))throw notFound('action_not_found','Unknown external action version.');
+  latest.set(id,version);
+}
 
 export async function authorizeAction(ctx: PublicationContext, ref: ActionRef): Promise<ActionDescription> {
+  if (ref.action.startsWith('external.')) await (await import('../../integrations/publication.js')).loadConnectionPublications(ctx.organizationId);
   const def = definitions.get(`${ref.action}@${ref.version || latest.get(ref.action)}`);
   if (!def) throw notFound("action_not_found", "The requested action version is unavailable.");
   if (!def.executionKinds.includes(ctx.executionKind)) throw forbidden("action_execution_kind_denied", "This action is unavailable in this runtime.");
@@ -80,12 +85,14 @@ export async function authorizeAction(ctx: PublicationContext, ref: ActionRef): 
 /** Reading retained calculation evidence never executes the action. Read/compute
  * actions are data dependencies and must retain their current resource access. */
 export async function authorizeActionResult(ctx: PublicationContext, ref: ActionRef) {
+  if (ref.action.startsWith('external.')) await (await import('../../integrations/publication.js')).loadConnectionPublications(ctx.organizationId);
   const def = definitions.get(`${ref.action}@${ref.version || latest.get(ref.action)}`);
   if (!def) throw notFound("action_not_found", "The requested action version is unavailable.");
   if (def.effect === "read" || def.effect === "compute") await authorizePublication(ctx, ref.target, def.policy, def.id);
 }
 
 export async function invokeAction(ctx: PublicationContext, ref: ActionRef, input: unknown, options: InvocationOptions = {}) {
+  if (ref.action.startsWith('external.')) await (await import('../../integrations/publication.js')).loadConnectionPublications(ctx.organizationId);
   const def = definitions.get(`${ref.action}@${ref.version || latest.get(ref.action)}`);
   if (!def) throw notFound("action_not_found", "The requested action version is unavailable.");
   if (options.expectedImplementation && options.expectedImplementation !== def.implementation) throw conflict("action_implementation_changed", "The pinned action implementation does not match.");

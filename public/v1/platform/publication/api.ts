@@ -40,6 +40,7 @@ export const registerPublicationApi: FastifyPluginAsync = async app => {
   app.get("/organizations/:orgId/catalog", async request => {
     const query = z.object({ scope: z.enum(["global", "organization", "project", "all"]).default("organization"), executionKind: z.enum(["api", "module", "work"]).default("api"), projectId: identity.optional(), branchId: identity.optional() }).parse(request.query);
     const ctx = await context(request);
+    await (await import('../../integrations/publication.js')).loadConnectionPublications(ctx.organizationId);
     const target: TargetRef = { ...query, scope: query.scope === "all" ? "organization" : query.scope, organizationId: ctx.organizationId };
     const visible = async (policy: AccessPolicy, operation: string) => {
       if (query.scope !== "all") return discoverable(ctx, target, policy, operation);

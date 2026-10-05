@@ -69,6 +69,7 @@ export async function resolveDataBinding(ctx: PublicationContext, consumerId: st
 }
 
 export async function resolveActionBinding(ctx: PublicationContext, consumerId: string, name: string, binding: ActionBinding) {
+  if(binding.action.action.startsWith('external.')) await (await import('../../integrations/publication.js')).loadConnectionPublications(ctx.organizationId);
   const key = captureKey(ctx, consumerId, name, binding);
   if (binding.policy !== "live" && binding.policy !== "frozen") throw badRequest("binding_policy_invalid", "Binding policy must be live or frozen.");
   const prior = binding.policy === "frozen" ? await savedCapture(key) : null;

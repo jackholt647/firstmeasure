@@ -343,7 +343,9 @@ export async function createPlanRecord(input: JsonObject) {
     if (existing) return { plan: planFromRow(existing), created: false };
     throw new Error(`Work plan id '${id}' is already in use by another organization.`);
   }
-  return { plan: (await readPlanRecord(cleanText(input.organization_id), id)), created: true };
+  const plan=await readPlanRecord(cleanText(input.organization_id),id);
+  if(plan)await (await import('../integrations/usage.js')).indexConnectionUses(cleanText(input.organization_id),`work-plan:${id}`,plan);
+  return {plan,created:true};
 
   }));
 }
@@ -376,7 +378,9 @@ export async function updatePlanRecord(orgId: string, planId: string, patch: Jso
       json(next.context), json(next.metadata), cleanText(next.started_at) || null, cleanText(next.completed_at) || null,
       cleanText(next.canceled_at) || null, cleanText(next.updated_at), orgId, planId
     ));
-  return (await readPlanRecord(orgId, planId));
+  const plan=await readPlanRecord(orgId,planId);
+  if(plan)await (await import('../integrations/usage.js')).indexConnectionUses(orgId,`work-plan:${planId}`,plan);
+  return plan;
 
   }));
 }
@@ -402,7 +406,9 @@ export async function createNodeRecord(input: JsonObject) {
       json(input.assigned_user_ids || []), json(input.assigned_role_ids || []), json(input.assigned_resource_group_ids || []), json(input.automation_bindings),
       json(input.external_triggers || []), json(input.notes || []), json(input.metadata), cleanText(input.due_at) || null, now, now
     ));
-  return (await readNodeRecord(cleanText(input.organization_id), id));
+  const node=await readNodeRecord(cleanText(input.organization_id),id);
+  if(node)await (await import('../integrations/usage.js')).indexConnectionUses(cleanText(input.organization_id),`work-node:${id}`,node);
+  return node;
 
   }));
 }
@@ -451,7 +457,9 @@ export async function updateNodeRecord(orgId: string, nodeId: string, patch: Jso
       cleanText(next.started_at) || null, cleanText(next.completed_at) || null, cleanText(next.skipped_at) || null,
       cleanText(next.canceled_at) || null, cleanText(next.updated_at), orgId, nodeId
     ));
-  return (await readNodeRecord(orgId, nodeId));
+  const node=await readNodeRecord(orgId,nodeId);
+  if(node)await (await import('../integrations/usage.js')).indexConnectionUses(orgId,`work-node:${nodeId}`,node);
+  return node;
 
   }));
 }

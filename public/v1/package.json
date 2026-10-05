@@ -146,6 +146,9 @@
     "localization:check": "node scripts/localization-catalogs.mjs --check",
     "test:localization": "node --experimental-sqlite --import tsx --test --test-force-exit tests/platform-localization.test.ts tests/localization-api.test.ts tests/localization-browser.test.mjs tests/report-localization.test.ts",
     "test:publication:ui": "node scripts/publication-authoring-uitest.mjs",
+    "test:integrations": "node --experimental-sqlite --import tsx --test --test-force-exit tests/integrations.test.ts",
+    "test:integrations:ui": "node --test tests/integrations-browser.test.mjs",
+    "test:integrations:postgres": "node tests/run-embedded-postgres.mjs tests/integrations.test.ts",
     "test:publication": "node --experimental-sqlite --import tsx --test --test-force-exit tests/publication-*.test.ts",
     "terminology:check": "node scripts/terminology-audit.mjs"
   },

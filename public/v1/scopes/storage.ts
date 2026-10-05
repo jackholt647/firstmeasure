@@ -367,14 +367,18 @@ export async function saveScopeTemplate(orgId: string, branchId: string, inputVa
     (await insertVersion(orgId, branchId, definition, nextVersion));
   
   });
-  return (await readScopeTemplate(orgId, branchId, parsedDefinition.id));
+  const savedTemplate=await readScopeTemplate(orgId, branchId, parsedDefinition.id);
+  if(savedTemplate)await (await import('../integrations/usage.js')).indexConnectionUses(orgId,`scope:${branchId}:${parsedDefinition.id}`,savedTemplate);
+  return savedTemplate;
 }
 
 export async function archiveScopeTemplate(orgId: string, branchId: string, templateId: string) {
   const result = (await getWorkDatabase().prepare(`UPDATE scope_templates SET status='archived', updated_at=?
     WHERE organization_id=? AND branch_id=? AND id=?`).run(nowIso(), orgId, branchId, templateId));
   if (!Number(result.changes || 0)) throw notFound("scope_template_not_found", "Scope template was not found.");
-  return (await readScopeTemplate(orgId, branchId, templateId));
+  const savedTemplate=await readScopeTemplate(orgId, branchId, templateId);
+  if(savedTemplate)await (await import('../integrations/usage.js')).indexConnectionUses(orgId,`scope:${branchId}:${templateId}`,savedTemplate);
+  return savedTemplate;
 }
 
 export async function setScopeTemplateState(
@@ -409,6 +413,7 @@ export async function setScopeTemplateState(
   }
 
   const template = (await readScopeTemplate(orgId, branchId, templateId));
+  await (await import('../integrations/usage.js')).indexConnectionUses(orgId,`scope:${branchId}:${templateId}`,template);
   return {
     template,
     state: {

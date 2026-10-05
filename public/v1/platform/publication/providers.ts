@@ -16,6 +16,12 @@ export type DataExport = {
 };
 export type DataProvider = { id:string; version:string; apps: string[]; exports:Record<string,DataExport> };
 const registry = new Map<string,DataProvider>();
+const externalDefaults = new Map<string,string>();
+/** Select an installed external version without mutating its immutable contract. */
+export function selectExternalProviderVersion(id:string,version:string){
+  if(!id.startsWith('external.')||!registry.has(`${id}@${version}`))throw badRequest('provider_unknown','Unknown external provider version.');
+  externalDefaults.set(id,version);
+}
 export function registerDataProvider(provider:DataProvider):void {
   provider={...provider,exports:Object.fromEntries(Object.entries(provider.exports).map(([name,entry])=>{
     const permission=publishedDataPermission(`${provider.id}.${name}`);
@@ -29,7 +35,8 @@ export function registerDataProvider(provider:DataProvider):void {
 }
 function resolve(ref:SourceRef) {
   const versions = [...registry.values()].filter(p=>p.id===ref.provider);
-  const provider = ref.version ? registry.get(`${ref.provider}@${ref.version}`) : versions.at(-1);
+  const selected=ref.version||externalDefaults.get(ref.provider);
+  const provider = selected ? registry.get(`${ref.provider}@${selected}`) : versions.at(-1);
   const exported = provider&&Object.hasOwn(provider.exports,ref.export)?provider.exports[ref.export]:undefined;
   if (!provider || !exported) throw badRequest("source_unknown","Unknown published source or version.");
   return {provider,exported};
@@ -38,9 +45,10 @@ function descriptor(p:DataProvider) {
   return {id:p.id,version:p.version,apps:[...p.apps],exports:Object.fromEntries(Object.entries(p.exports).map(([id,e])=>[id,{schema:e.schema,schemaVersion:e.schemaVersion,argsSchema:e.argsSchema||{type:"object",additionalProperties:false},description:e.description,units:e.units||{},historical:!!e.historical,listable:!!e.list,access:{scopes:e.access.scopes,permissions:e.access.permissions,capabilities:e.access.capabilities||[],applications:e.access.applications??["management"],...(e.access.applicationPermission?{applicationPermission:e.access.applicationPermission}: {})}}]))};
 }
 export function listDataProviders(){return [...registry.values()].map(descriptor);}
-export function describeDataProvider(id:string,version?:string){const p=[...registry.values()].filter(p=>p.id===id&&(!version||p.version===version)).at(-1);return p?descriptor(p):null;}
+export function describeDataProvider(id:string,version?:string){version ||= externalDefaults.get(id);const p=[...registry.values()].filter(p=>p.id===id&&(!version||p.version===version)).at(-1);return p?descriptor(p):null;}
 /** Also used for frozen replay: authorize without refetching mutable values. */
 export async function authorizeSource(ctx:PublicationContext,ref:SourceRef):Promise<void>{
+  if(ref.provider.startsWith('external.')) await (await import('../../integrations/publication.js')).loadConnectionPublications(ctx.organizationId);
   const {exported}=resolve(ref);
   await authorizePublication(ctx,ref.target,exported.access,`${ref.provider}.${ref.export}`);
   await exported.authorizeRef?.(ctx,ref);
@@ -55,6 +63,7 @@ function failure(error:unknown):Exclude<DataResult,{status:"ready"}>{
 }
 export async function readPublishedData(ctx:PublicationContext,ref:SourceRef):Promise<DataResult>{
   try{
+    if(ref.provider.startsWith('external.')) await (await import('../../integrations/publication.js')).loadConnectionPublications(ctx.organizationId);
     const {provider,exported}=resolve(ref);
     await authorizeSource(ctx,ref);
     validateJson(exported.argsSchema||{type:"object",additionalProperties:false},ref.args||{},"source arguments");
@@ -71,6 +80,7 @@ export async function readPublishedData(ctx:PublicationContext,ref:SourceRef):Pr
 }
 export async function listPublishedData(ctx:PublicationContext,ref:SourceRef,page:{limit?:number;cursor?:string}={}):Promise<{status:"ready";items:unknown[];nextCursor?:string}|Exclude<DataResult,{status:"ready"}>>{
   try{
+    if(ref.provider.startsWith('external.')) await (await import('../../integrations/publication.js')).loadConnectionPublications(ctx.organizationId);
     const {exported}=resolve(ref);await authorizeSource(ctx,ref);
     if(!exported.list)throw badRequest("source_not_listable","This export cannot be listed.");
     if(ref.path||ref.revision)throw badRequest("source_list_selector","List requests cannot select a value path or revision.");

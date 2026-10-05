@@ -170,5 +170,6 @@ export async function saveAutomationRules(orgId: string, branchId: string, value
     data: { schema_version: 1, rules },
     metadata: { kind: "branch_automation_rules" }
   }, { replace: true });
+  await (await import('../integrations/usage.js')).indexConnectionUses(orgId,`organization-rules:${branchId}`,{rules});
   return { rules: asArray(asObject(module.data).rules).map(normalizeRule), revision: Number(module.revision || 0) };
 }
