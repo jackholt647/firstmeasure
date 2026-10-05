@@ -1000,6 +1000,22 @@ window.PlatformCommerce.onReady(async function(){
     .r-pending-badge i{font-size:10px;color:#b77900}
     .r-pending-detail{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:14px;background:#f8fafc;border:1px solid rgba(15,23,42,.07);font-size:12px;font-weight:900;color:#344054}
     .r-pending-detail strong{font-size:11px;color:#667085;text-transform:uppercase;letter-spacing:.04em}
+
+    /* Mobile processing uses the whole tab; short screens scroll instead of clipping controls. */
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-report-pending{box-sizing:border-box;width:100%;height:100%;padding:clamp(24px,6vw,36px);background:#fff;overflow:auto;align-items:flex-start}
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-report-pending-card{box-sizing:border-box;flex-shrink:0;width:min(100%,360px);max-height:none;margin:auto;padding:0;gap:16px;overflow:visible;border:0;border-radius:0;box-shadow:none;background:transparent}
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-report-pending-card i{font-size:26px}
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-report-pending-card h3{font-size:18px;line-height:1.35}
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-report-pending-card p{font-size:13px;line-height:1.55}
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-pending-detail{padding:12px 14px;gap:5px;font-size:12px;border-radius:12px}
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-pending-detail strong{font-size:10px}
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-pending-actions{gap:12px;margin-top:4px}
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-pending-action-row{gap:12px;grid-template-columns:minmax(0,1fr)}
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) :is(.r-pending-action,.r-pending-cancel,.r-pending-reorder,.r-pending-expedite-confirm){padding:12px;font-size:12px;line-height:1.3;border-radius:12px}
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-pending-action-price{font-size:20px}
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-pending-action-copy strong{font-size:12px;line-height:1.3}
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-pending-action-copy span{font-size:11px;line-height:1.4}
+    .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-pending-note{font-size:11px;line-height:1.5}
     .r-report-refund-note{display:flex;align-items:flex-start;gap:10px;margin:0 0 12px;padding:12px 14px;border-radius:14px;background:#fff8e1;border:1px solid rgba(245,158,11,.28);color:#7a4a00;text-align:left;font-size:12px;line-height:1.45}
     .r-report-refund-note>i{font-size:17px;color:#f59e0b;margin-top:1px;flex:0 0 auto}
     .r-report-refund-note strong{display:block;color:#3f2a00;font-size:12px;margin-bottom:2px}
