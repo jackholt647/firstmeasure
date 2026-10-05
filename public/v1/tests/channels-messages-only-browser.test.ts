@@ -19,8 +19,12 @@ function readCookie(setCookie: string[] | string | undefined, name: string) {
 function createSessionClient() {
   let cookie = "";
   let csrf = "";
-  const raw = async (method: string, url: string, payload?: unknown) => {
-    return await app.inject({
+  // SQLite/file-backed fixtures touch one JSON session per request. Serialize
+  // this client's inject calls so Windows rename-over-existing cannot remove a
+  // session under another touch. Held-read delivery still pauses before inject.
+  let pending: Promise<unknown> = Promise.resolve();
+  const raw = (method: string, url: string, payload?: unknown) => {
+    const next = pending.then(() => app.inject({
       method,
       url,
       payload,
@@ -28,7 +32,9 @@ function createSessionClient() {
         ...(cookie ? { cookie } : {}),
         ...(csrf && !["GET", "HEAD"].includes(method.toUpperCase()) ? { "x-platform-csrf": csrf } : {})
       }
-    });
+    }));
+    pending = next.catch(() => undefined);
+    return next;
   };
   const request = async (method: string, url: string, payload?: unknown) => {
     const response = await raw(method, url, payload);
@@ -286,5 +292,23 @@ test("Messages includes Channels lifecycle and followed replies, respects Off/Si
  bells=await owner.request('GET',`/v1/platform/organizations/${orgId}/notifications`);assert.ok(!bells.notifications.some((n:Json)=>n.id==='channel-lifecycle'));
  await owner.request('POST',base+'/channels/'+channel.id+'/read',{last_read_seq:reply.seq});assert.equal((await inbox()).entries.length,2,'unsequenced lifecycle notices survive a message-only bounded read');
  for(const entry of (await inbox()).entries) await owner.request('POST',base+'/inbox/read',{entry_id:entry.entry_id,message_id:entry.message_id,kind:entry.kind});assert.equal((await inbox()).entries.length,0,'opening each lifecycle notice acknowledges its exact occurrence');
+ const {listChannelRecords,listMembershipChannelIds}=await import('../channels/storage.js');
+ const beforeChannels=(await listChannelRecords(orgId,{includeArchived:true})).map(c=>c.id).sort();
+ const beforeMemberships=(await listMembershipChannelIds(orgId,teammate.userId)).sort();
+ await owner.request('POST',base+'/channels/'+channel.id+'/archive',{});
+ await notice('member-archive','channels',{kind:'passive',target_user_ids:[teammate.userId],preference_key:'messages'});
+ const memberInbox=()=>teammate.client.request('GET',base+'/inbox');
+ const archivedEntry=(await memberInbox()).entries.find((e:Json)=>e.title==='member-archive');
+ assert.ok(archivedEntry,'ordinary authorized member receives an actually archived channel alert');
+ assert.deepEqual((await listChannelRecords(orgId,{includeArchived:true})).map(c=>c.id).sort(),beforeChannels,'inbox reads do not create default or assistant channels');
+ assert.deepEqual((await listMembershipChannelIds(orgId,teammate.userId)).sort(),beforeMemberships,'inbox reads do not enroll the viewer in default channels');
+ const deniedPost=await teammate.client.raw('POST',post,{text:'cannot post into archived channel'});assert.equal(deniedPost.statusCode,400);assert.match(deniedPost.body,/channel_archived/);
+ await teammate.client.request('POST',base+'/inbox/read',{entry_id:archivedEntry.entry_id,message_id:archivedEntry.message_id,kind:'activity'});
+ assert.ok(!(await memberInbox()).entries.some((e:Json)=>e.title==='member-archive'),'archived alert acknowledgement persists');
+ await notice('revoked-archive','channels',{kind:'passive',target_user_ids:[teammate.userId],preference_key:'messages'});
+ await owner.request('DELETE',base+'/channels/'+channel.id+'/members/'+teammate.userId);
+ assert.equal((await memberInbox()).entries.length,0,'removed member cannot see archived private-channel alerts');
+ await owner.request('POST',base+'/channels/'+channel.id+'/unarchive',{});
+ await owner.request('POST',base+'/channels/'+channel.id+'/members',{user_ids:[teammate.userId]});
  await notice('private-after-removal','channels');await owner.request('PATCH',base+'/channels/'+channel.id+'/members/'+teammate.userId,{role:'admin'});await owner.request('DELETE',base+'/channels/'+channel.id+'/members/'+ownerId);assert.equal((await inbox()).entries.length,0,'fresh membership revocation removes private activity');
 });

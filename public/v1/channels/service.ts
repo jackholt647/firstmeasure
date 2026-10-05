@@ -312,7 +312,7 @@ export async function personalInbox(ctx: PlatformAuthContext, options: { limit?:
   const readEntries = JSON.parse(await readChannelsMeta(`inbox_read:${ctx.orgId}:${ctx.userId}`) || "{}");
   const windowStart = new Date(Date.now() - INBOX_WINDOW_MS).toISOString();
   const directory = await userDirectory(ctx.orgId);
-  const views = await listChannelsForUser(ctx);
+  const views = await listChannelsForUser(ctx, { initialize: false });
   const channelById = new Map(views.map((view) => [String(view.id), view] as const));
   const authorName = (id: string) => directory.get(cleanText(id))?.name || "Someone";
   const snippet = (text: unknown) => cleanText(text).replace(/\s+/g, " ").slice(0, 120);
@@ -450,7 +450,7 @@ export async function personalInbox(ctx: PlatformAuthContext, options: { limit?:
         if (!root || root.channel_id !== id || root.deleted_at || !messageVisibleTo(root, ctx, groups)) return false;
         const thread = await collaboration.threadSubscriptionRecord(message.parent_id, ctx.userId);
         if (thread?.notify_level === "muted") return false;
-        if (entry.kind === "reply" && Number(thread?.last_read_reply_seq || 0) >= message.seq) return false;
+        if ((entry.kind === "reply" || occurrence && entry.message_notification) && Number(thread?.last_read_reply_seq || 0) >= message.seq) return false;
       }
       // Only a message sequence proves what a bounded conversation read included.
       // Reactions, edits and lifecycle notices are acknowledged by their exact inbox entry;
@@ -471,6 +471,15 @@ export async function personalInbox(ctx: PlatformAuthContext, options: { limit?:
     const action = asObject(note.frontend_action), context = asObject(note.context), payload = asObject(context.payload), event = asObject(note.inbox_event);
     if (String(note.created_at || "") < windowStart) continue;
     const channelId = cleanText(action.channel_id || context.channel_id || payload.channel_id || event.channel_id);
+    // Archive hides a channel from the sidebar, not from an existing member's
+    // authorized lifecycle alerts. Resolve only this occurrence's archived route;
+    // inbox reads must not initialize channels or expose the archive directory.
+    if (channelId && !channelById.has(channelId)) {
+      try {
+        const { channel } = await requireChannelAccess(ctx, channelId);
+        if (channel.archived_at) channelById.set(channelId, await channelView(ctx, channel));
+      } catch { /* Removed members cannot see an old private-channel alert. */ }
+    }
     const messageId = cleanText(action.message_id || context.message_id || payload.message_id || event.message_id);
     const duplicateMessage = ["channel_message","channel_reply","mention"].includes(cleanText(note.kind)) || cleanText(note.preference_key) === "event.channels.message.posted" || event.type === "channels.message.posted";
     if (messageId && nativeMessageIds.has(messageId) && duplicateMessage) continue;

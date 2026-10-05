@@ -46,5 +46,7 @@ test("in-app sound, bell and badge remain independent of push", () => {
   assert.equal(notificationPreferenceEnabled(silent, note, "push"), true);
   assert.deepEqual(notificationPresentation({ ...silent, in_app: { system: false } }, note), { sound: false, bell: false, badge: false });
   assert.equal(notificationPresentation({}, { kind: "channel_message" }).bell, false);
-  assert.equal(notificationPresentation({ in_app_bell: { messages: true } }, { kind: "channel_message" }).bell, true);
+  assert.equal(notificationPresentation({ in_app_bell: { messages: true } }, { kind: "channel_message" }).bell, false);
+  assert.equal(notificationPresentation({ in_app_bell: { messages: true } }, { source: "channels", kind: "huddle_invite" }).bell, false);
+  assert.equal(notificationPresentation({ in_app_bell: { system: true } }, { source: "calls", category: "system" }).bell, true);
 });
