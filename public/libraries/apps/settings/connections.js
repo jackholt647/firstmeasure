@@ -53,7 +53,7 @@
     .ic-root .ic-primary:hover,.ic-root .ic-primary:active,.ic-credentials .ic-primary:hover,.ic-credentials .ic-primary:active{background:var(--primary,#175cd3);color:white;filter:brightness(.9)}
     #tab_company_settings:has(#csPaneConnections.active),.cs-wrap:has(#csPaneConnections.active),.cs-layout:has(#csPaneConnections.active),.cs-main:has(#csPaneConnections.active){height:100%;min-height:0;overflow:hidden;box-sizing:border-box}
     .cs-main>.cs-card:has(#csPaneConnections.active){height:100%;min-height:0;overflow:hidden;padding:0}
-    #csPaneConnections.active{display:grid;height:100%;min-height:0}
+    #csPaneConnections.active{display:grid;height:100%;min-height:0}#csPaneConnections:not(.active){display:none}
     @media(max-width:900px){.ic-workspace{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}.ic-workspace>.ic-main{max-height:35dvh;padding:12px}.ic-chat{border-left:0;border-top:1px solid var(--ic-line)}.ic-header{align-items:flex-start;flex-wrap:wrap}.ic-root h2{font-size:21px}.ic-row{flex-wrap:wrap}}
 
   `;

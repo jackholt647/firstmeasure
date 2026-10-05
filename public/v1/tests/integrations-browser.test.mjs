@@ -188,6 +188,9 @@ test("Connections settings: accessible setup, shared assistant, private credenti
     assert.ok(layout.leftScroll>0 && Math.abs(layout.chatMoved)<2, "connection content scrolls independently");
     assert.equal(layout.pageScroll,0, "opening and focusing chat must not scroll the page");
     assert.ok(layout.composerBottom<=layout.chatBottom, "composer stays visible");
+    await page.evaluate(() => document.querySelector("#csPaneConnections").classList.remove("active"));
+    assert.equal(await page.locator("#csPaneConnections").isVisible(), false, "leaving Connections must hide its pane");
+    await page.evaluate(() => document.querySelector("#csPaneConnections").classList.add("active"));
     emptyConnections = false;
     await page.getByRole("button", { name: "← Connections", exact:true }).click();
     await page.getByRole("button", { name: /Field photos/ }).click();
