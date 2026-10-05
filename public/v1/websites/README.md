@@ -66,7 +66,7 @@ capability `web_editor.portal_pages`).
   `{ page: { slug, title, seo }, definition, widget_data, theme_vars }`.
 - Server widget resolvers registered into the SHARED documents registry:
   `web.nav_menu` → `{ links: [{ slug, title, href, order }], source }`,
-  `web.lead_form` → `{ form_id, form_title, available }`.
+  `web.lead_form` → `{ form_id, form_title, form_key, available }`; only published, unpaused forms are available.
 
 Events (`work/events.ts` + `website_events` rows): `website.site.created`,
 `website.page.published|restored|deleted|enabled|disabled`.

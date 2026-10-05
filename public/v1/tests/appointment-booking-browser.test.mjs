@@ -9,7 +9,6 @@ const picker = await readFile(new URL('../../libraries/appointment-booking/avail
 const selector = await readFile(new URL('../../libraries/project-selector/project-selector.js', import.meta.url), 'utf8');
 const configuration = await readFile(new URL('../../libraries/appointment-booking/configuration.js', import.meta.url), 'utf8');
 const booking = await readFile(new URL('../../libraries/appointment-booking/booking.js', import.meta.url), 'utf8');
-const embed = await readFile(new URL('../../libraries/lead-embed/firstmate-lead-embed.js', import.meta.url), 'utf8');
 const scheduling = await readFile(new URL('../../libraries/apps/scheduling/app.js', import.meta.url), 'utf8');
 test('presets request a named assignee up front; advanced changes become Custom and keep independent flags',async()=>{
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
@@ -109,22 +108,6 @@ test('shared picker rejects stale responses, books once, and public embeds retai
     assert.equal(await page.evaluate(() => 'project_id' in window.bookings[0]),false);
     await page.getByRole('button',{name:'Close appointment booking'}).click();
     assert.equal(await page.evaluate(() => document.activeElement.id),'opener');
-    await page.evaluate(() => {
-      window.fetch = async url => ({ok:true,status:200,text:async () => JSON.stringify(String(url).includes('/availability')
-        ? {slots:[{available:true,start:'2026-10-05T15:00:00Z',label:'10:00 AM'}]}
-        : {form:{mode:'appointment',copy:{headline:'Schedule an appointment'},style:{primary_color:'#d93025'}}})});
-    });
-    await page.addScriptTag({content:embed});
-    await page.evaluate(() => window.FirstMateLeadEmbed.render({formId:'form',target:'#public',baseUrl:'http://localhost/v1/lead-intake'}));
-    await page.locator('#public .fmle-slot').waitFor();
-    assert.equal(await page.locator('#public .fmle-slot').evaluate(el => getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');
-    await page.locator('#public .fmle-slot').click();
-    assert.equal(await page.locator('#public input[name=preferred_start_at]').inputValue(),'2026-10-05T15:00:00Z');
-    assert.equal(await page.locator('#public .fmle-slot').evaluate(el => getComputedStyle(el).backgroundColor),'rgb(217, 48, 37)');
-    await page.setViewportSize({width:390,height:844});
-    assert.equal(await page.locator('#public .fmle-calendar').isVisible(),false);
-    assert.equal(await page.locator('#public .fmle-mobile-days').isVisible(),true);
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   } finally { await browser.close(); }
 });
 

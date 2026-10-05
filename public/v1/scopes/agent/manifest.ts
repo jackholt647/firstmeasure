@@ -125,7 +125,8 @@ cross-instance coordination via project.claims.
 - Messaging: SMS (Telnyx, consent-aware) and transactional email;
   communications.sendSms/sendEmail automations; inbound messages emit
   communication.received.
-- Canvassing, Lead intake (public forms + instant estimates), Customer
+- Canvassing, Forms (website forms that create leads, book appointments
+  and price instant estimates; lead.form.submitted), Customer
   portal (proposal viewing/signing, payments, shared media; portal.visited).
 - Recurrence: recurring visit series materializing calendar events plus
   per-occurrence billing.

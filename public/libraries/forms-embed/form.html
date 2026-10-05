@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Form</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #f3f5f8; }
+    body { padding: 32px 16px 48px; font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }
+    @media (max-width: 560px) { body { padding: 12px 8px 32px; } }
+  </style>
+</head>
+<body>
+  <!-- Hosted page for sharing a form by link: form.html?k=FORM_KEY -->
+  <div id="form"></div>
+  <script src="firstmate-forms-embed.js" data-auto="false"></script>
+  <script>
+    (function () {
+      var key = new URLSearchParams(location.search).get('k') || '';
+      var target = document.getElementById('form');
+      if (!key) { target.textContent = 'This form link is incomplete.'; return; }
+      target.addEventListener('fm-form:ready', function (event) { if (event.detail && event.detail.name) document.title = event.detail.name; });
+      window.FirstMateForms.render({ key: key, target: target }).ready.catch(function () {});
+    })();
+  </script>
+</body>
+</html>

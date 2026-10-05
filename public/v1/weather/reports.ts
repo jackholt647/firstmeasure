@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-import { previewSolarProperty } from "../lead-intake/solar.js";
+import { previewSolarProperty } from "../forms/solar.js";
 import type { WeatherReportRequest, WeatherTier } from "./schemas.js";
 import { buildStormEventSummaries } from "./events.js";
 import { generateGeminiSummary } from "./gemini.js";

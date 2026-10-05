@@ -16,7 +16,8 @@
  *     welcome: 'Tell me what this workflow should do…',
  *     suggestions: ['Add a customer signature step'],
  *     getInput: () => ({ mode:'workflow', subject:{...}, definition:{...} }),
- *     onAction: (action) => { ...apply... }
+ *     onAction: (action) => { ...apply... },
+ *     agentId: 'forms'            // optional: another agent with the same contract
  *   });
  *   panel.destroy();
  */
@@ -147,29 +148,31 @@
       inputEl.disabled = busy;
     }
 
+    // Other editors (e.g. the form builder) reuse this panel with their own agent.
+    const agentId = clean(options.agentId) || AGENT_ID;
     async function ensureThread(fresh){
       if (state.thread && !fresh) return state.thread;
       const body = subjectId ? { subject_id: subjectId } : {};
       if (!fresh) {
         try {
-          const res = await api().threads(orgId, AGENT_ID, subjectId ? { subjectId } : {});
+          const res = await api().threads(orgId, agentId, subjectId ? { subjectId } : {});
           const existing = array(res.threads)[0];
           if (existing?.id) {
             state.thread = existing;
-            const detail = await api().thread(orgId, AGENT_ID, existing.id);
+            const detail = await api().thread(orgId, agentId, existing.id);
             state.messages = array(detail.messages);
             return state.thread;
           }
         } catch (error) { console.warn('[doc-agent] thread lookup failed', error); }
       }
-      const created = await api().createThread(orgId, AGENT_ID, body);
+      const created = await api().createThread(orgId, agentId, body);
       state.thread = object(created.thread);
       state.messages = [];
       return state.thread;
     }
 
     async function boot(){
-      if (!available()) {
+      if (!options.agentId && !available()) {
         msgsEl.innerHTML = `<div class="${String(PREFIX)}-unavailable"><i class="fas fa-wand-magic-sparkles"></i><span>${(globalThis.PlatformLanguage?.htmlText("doc-agent","m_2bc4619571c6d8","The Document Designer agent is turned off for this workspace.") ?? "The Document Designer agent is turned off for this workspace.")}<br>${(globalThis.PlatformLanguage?.htmlText("doc-agent","m_b5271e6ee249a2","Enable it under Company Settings → AI Agents.") ?? "Enable it under Company Settings → AI Agents.")}</span></div>`;
         inputEl.disabled = true;
         sendBtn.disabled = true;
@@ -207,7 +210,7 @@
         const input = (() => {
           try { return object(options.getInput?.()); } catch (_) { return {}; }
         })();
-        const result = await api().send(orgId, AGENT_ID, thread.id, { message: text, input }, { signal: AbortSignal.timeout(180000) });
+        const result = await api().send(orgId, agentId, thread.id, { message: text, input }, { signal: AbortSignal.timeout(180000) });
         state.messages = state.messages.filter((m) => m.id !== 'local_pending');
         if (result.user_message) state.messages.splice(state.messages.length - 1, 1, result.user_message);
         if (result.assistant_message) state.messages.push(result.assistant_message);

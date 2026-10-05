@@ -15,9 +15,9 @@ const picker = FirstMateAvailability.mount(target, {
 
 Slots use `available`, `start_at` (or public `start`), and `label`. Requests carry
 a generation token, so changing dates or removing the widget invalidates stale
-responses. The surrounding form owns the submit action. Public lead embeds keep
-their original form-scoped endpoints, contact fields, branding and credential-free
-requests; changing the address refreshes availability.
+responses. The surrounding form owns the submit action. The public forms embed
+(`libraries/forms-embed`) mounts this picker for its appointment block and loads
+slots from the form-scoped, credential-free availability endpoint.
 
 Load `booking.js` to call `FirstMateBooking.open({orgId, projectId?, onBooked?})`
 from any authenticated portal surface. It lazily loads the shared picker. Staff

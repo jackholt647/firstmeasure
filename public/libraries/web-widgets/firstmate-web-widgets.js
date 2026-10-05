@@ -8,8 +8,8 @@
  * docs/document-engine-contracts.md §2 (widget shape/ctx) and §10 (web.*).
  *
  * Widgets:
- *   web.lead_form — mounts the public lead-capture embed
- *                   (libraries/lead-embed/firstmate-lead-embed.js, lazy-loaded
+ *   web.lead_form — mounts a published form through the public forms embed
+ *                   (libraries/forms-embed/firstmate-forms-embed.js, lazy-loaded
  *                   relative to this script's own URL) in interactive mode;
  *                   static/editor renders a labeled placeholder card.
  *   web.nav_menu  — renders site navigation links from server-resolved
@@ -81,40 +81,40 @@
     return "/libraries/" + rel;
   }
 
-  /** Lead-intake API base mirroring lead-embed's own localhost switch, derived
-   *  from this script's origin (robust when lead-embed is lazy-injected and
-   *  can no longer see its own script tag). */
-  function leadIntakeBaseUrl() {
+  /** Forms API base, derived from this script's origin so it stays correct when
+   *  the embed is lazy-injected and can no longer see its own script tag. */
+  function formsBaseUrl() {
     try {
       const src = new URL(SCRIPT_SRC || (root.location && root.location.href) || "", root.location ? root.location.href : undefined);
       if (src.hostname === "localhost" || src.hostname === "127.0.0.1") {
-        return src.protocol + "//" + src.hostname + ":3101/v1/lead-intake";
+        return src.protocol + "//" + src.hostname + ":3101/v1/forms";
       }
-      return src.origin + "/v1/lead-intake";
+      return src.origin + "/v1/forms";
     } catch (error) {
-      return "/v1/lead-intake";
+      return "/v1/forms";
     }
   }
 
-  let leadEmbedPromise = null;
-  function ensureLeadEmbed() {
-    if (root && root.FirstMateLeadEmbed) return Promise.resolve(root.FirstMateLeadEmbed);
-    if (leadEmbedPromise) return leadEmbedPromise;
-    leadEmbedPromise = new Promise(function (resolve, reject) {
+  let formsEmbedPromise = null;
+  function ensureFormsEmbed() {
+    if (root && root.FirstMateForms) return Promise.resolve(root.FirstMateForms);
+    if (formsEmbedPromise) return formsEmbedPromise;
+    formsEmbedPromise = new Promise(function (resolve, reject) {
       const script = document.createElement("script");
-      script.src = siblingLibraryUrl("lead-embed/firstmate-lead-embed.js");
+      script.src = siblingLibraryUrl("forms-embed/firstmate-forms-embed.js");
       script.async = true;
+      script.dataset.auto = "false";
       script.onload = function () {
-        if (root.FirstMateLeadEmbed) resolve(root.FirstMateLeadEmbed);
-        else reject(new Error("lead-embed loaded without its global"));
+        if (root.FirstMateForms) resolve(root.FirstMateForms);
+        else reject(new Error("forms-embed loaded without its global"));
       };
       script.onerror = function () {
-        leadEmbedPromise = null;
-        reject(new Error("Failed to load firstmate-lead-embed.js"));
+        formsEmbedPromise = null;
+        reject(new Error("Failed to load firstmate-forms-embed.js"));
       };
       document.head.appendChild(script);
     });
-    return leadEmbedPromise;
+    return formsEmbedPromise;
   }
 
   // ---------------------------------------------------------------------------
@@ -183,12 +183,13 @@
       return;
     }
     const available = !ctx.data || ctx.data.available !== false;
-    leadFormPlaceholder(el, ctx, available ? "Form loads here on the live site" : "Selected form is unavailable");
+    leadFormPlaceholder(el, ctx, available ? "Form loads here on the live site" : "Publish this form to show it here");
   }
 
   function renderLeadFormInteractive(el, ctx) {
     const formId = cleanText(ctx.config && ctx.config.form_id);
-    if (!formId || (ctx.data && ctx.data.available === false)) {
+    const formKey = cleanText(ctx.data && ctx.data.form_key);
+    if (!formId || !formKey || (ctx.data && ctx.data.available === false)) {
       renderLeadFormStatic(el, ctx);
       return;
     }
@@ -196,10 +197,10 @@
     const mount = h("div", "fm-webw-lead-mount");
     el.appendChild(mount);
     let cancelled = false;
-    ensureLeadEmbed()
+    ensureFormsEmbed()
       .then(function (lib) {
         if (cancelled || !mount.isConnected) return;
-        return lib.render({ formId: formId, target: mount, baseUrl: leadIntakeBaseUrl() });
+        return lib.render({ key: formKey, target: mount, baseUrl: formsBaseUrl() }).ready;
       })
       .catch(function () {
         if (cancelled) return;

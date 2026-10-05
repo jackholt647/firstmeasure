@@ -34,17 +34,12 @@ Current inbound lead flow:
   - a `projects` document with `stage` and `stage_id` set to `new_lead`, and contacts stored on `project.data.contacts`,
   - a passive `notifications` document targeted to branch notification roles.
 
-- Embeddable website forms have moved to `/v1/lead-intake`.
-- Legacy `/v1/email/public/forms/*` routes delegate to Lead Intake for compatibility only.
-- Do not add new form modes, form settings, or website form storage under this Email API.
-- Public customer websites should load `public/libraries/lead-embed/firstmate-lead-embed.js`; Platform admin UI should manage forms through `public/libraries/lead-intake-api/lead-intake-api.js`.
-- Appointment/call submissions may add a requested event to the new Platform project. The event stores one `start_at` and one `duration_minutes`, with plural role/user arrays.
-- Branch sales appointment hours live in `branch_data/{branchId}/scheduling.json` under `data.availability.sales_appointment_start_time` and `data.availability.sales_appointment_end_time`. The Platform settings UI edits these as Scheduling Settings, and both project scheduling and website forms should use them.
+- Website forms are not part of this API. They live in the Forms API (`/v1/forms`, see `public/v1/forms/README.md`); do not add form definitions, form settings or form storage here.
 
 App flags:
 
 - Email inbox import requires `platform.lead_import` and `email.inbound_lead_import`.
-- Website embeds require `platform.website_embed_import` and are served by the Lead Intake API.
+- Website forms require `platform.website_embed_import` and are served by the Forms API.
 - These flags live in Platform org `global.json` under `data.app_flags` and are read through `public/v1/platform/app_flags.ts`.
 - Do not expose disabled lead import features in customer settings; the API also rejects direct calls when a flag is off.
 
@@ -65,7 +60,7 @@ Outbound email:
 - Customer-facing delivery must use `sendOrganizationTransactionalEmail` from `email/organization_outbound.ts`; it selects the organization's custom identity or FirstMate Mail fallback and sends through Cloudflare Email Service.
 - FirstMate account/system delivery from `1m8.ai` uses `sendPlatformTransactionalEmail` from `email/outbound.ts` and remains backed by Postmark.
 - Authenticated admins may call `POST /v1/email/outbound/platform-transactional`. `POST /v1/email/outbound/transactional` remains as a compatibility alias and has the same platform/Postmark semantics; it must not be used for customer-facing messages.
-- Public form submissions should not call that route directly from the browser. Lead Intake triggers controlled customer emails server-side after it creates/handles the form submission.
+- Public form submissions never call that route from the browser. The Forms API sends its confirmation email server-side after it has handled the submission.
 - Configure Postmark with `POSTMARK_SERVER_TOKEN`, `POSTMARK_API_TOKEN`, `FIRSTMEASURE_POSTMARK_TOKEN`, or `storage/secrets/pm_server_token.txt`.
 - Set `EMAIL_OUTBOUND_DISABLED=1` in tests/local probes that should never send real email.
 

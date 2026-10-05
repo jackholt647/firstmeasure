@@ -57,6 +57,18 @@ Before data/action publication or document/scope architecture work, read
 It links the full-conversation continuation. Audit the canonical integrated
 source before treating earlier checkout findings as current facts.
 
+## Forms
+
+Read [forms](docs/architecture/forms.md) before changing website forms, their
+public runtime, pricing or booking. A form is steps of blocks published as a
+workflow document module; there are no form types. Add capability as a block
+kind or a template, never as a mode. Form calculations run evaluate-only in the
+module sandbox with no data or action bindings; do not widen that for anonymous
+requests without a publication-layer design. Appointment blocks book through the
+appointments domain writer using an appointment type; do not compute slots or
+write events in `public/v1/forms`. Run `npm run test:forms` and
+`npm run test:forms:browser` in `public/v1` for changes to these contracts.
+
 ## Platform publications and programmable modules
 
 Read [publication architecture](docs/architecture/publication-architecture.md)

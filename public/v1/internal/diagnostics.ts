@@ -388,7 +388,7 @@ function appAreaForUrl(url: string) {
   if (clean.startsWith("/v1/internal/crm")) return "crm-api";
   if (clean.startsWith("/v1/internal")) return "internal-api";
   if (clean.startsWith("/v1/email")) return "email-api";
-  if (clean.startsWith("/v1/lead-intake")) return "lead-intake-api";
+  if (clean.startsWith("/v1/forms")) return "forms-api";
   if (clean.startsWith("/v1/canvassing")) return "canvassing-api";
   if (clean.includes("/measure/internal")) return "measure-internal";
   if (clean.includes("/measure/sales")) return "measure-sales";

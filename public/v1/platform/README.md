@@ -23,7 +23,7 @@ Frontend browser client lives at:
 - Celebrations docs: `public/libraries/platform-celebrations/README.md`
 - Email API client: `public/libraries/email-api/email-api.js`
 - Email API backend/docs: `public/v1/email/api.ts` and `public/v1/email/README.md`
-- Public website lead embed: `public/libraries/lead-embed/firstmate-lead-embed.js`
+- Public website forms embed: `public/libraries/forms-embed/firstmate-forms-embed.js`
 
 All frontend Platform-owned data access should go through `window.PlatformAPI`. FirstMeasure measurement/report calls are separate and use `window.FirstMeasureAPI` from `public/libraries/firstmeasure-api/firstmeasure-api.js`.
 
@@ -270,7 +270,6 @@ Scheduling is stored with schema-light fields and branch modules:
 - `branch_data/{branchId}/triggers.json` stores branch trigger pair definitions.
 - `branch_data/{branchId}/project_configuration.json` stores project UI rules such as title mode and celebration mode.
 - `branch_data/{branchId}/lead_import.json` stores branch inbound email lead settings. Access this through `/v1/email/organizations/:orgId/branch/:branchId/lead-import`.
-- `branch_data/{branchId}/lead_intake.json` stores embeddable website forms. Access this through `/v1/lead-intake/organizations/:orgId/branch/:branchId/settings`.
 - `notifications/{notificationId}.json` stores passive/push notification records.
 - `users/{userId}.json` stores per-user notification state under `data.notification_state`.
 - Work plans and recursively nested work nodes are stored by `public/v1/work/storage.ts`.
@@ -445,14 +444,13 @@ Inbound lead routing lives in the Email API, not the Platform API:
 
 When the webhook matches a recipient to `lead_import.inbound_email`, it extracts provider lead data and then calls the generic Platform lead creator. OpenAI extraction is server-only: configure `OPENAI_API_KEY`, optionally override `OPENAI_LEAD_MODEL`, and use `EMAIL_LEAD_AI_DISABLED=1` for deterministic tests.
 
-Embeddable website forms live in the Lead Intake API:
+Website forms live in the Forms API (`public/v1/forms/README.md`, `docs/architecture/forms.md`):
 
-- Branch settings store `lead_intake.forms[]`.
-- Authenticated management should use `LeadIntakeAPI.settings` or `LeadIntakeAPI.forms`.
-- Public websites should use `public/libraries/lead-embed/firstmate-lead-embed.js`.
-- Public endpoints are `GET /v1/lead-intake/public/forms/:formId` and `POST /v1/lead-intake/public/forms/:formId/submit`.
-- Legacy `/v1/email/public/forms/*` endpoints delegate to Lead Intake for compatibility only.
-- Website submissions call the same generic Platform lead creator with source-specific `source_kind`, optional contact details, optional requested event, and passive notification.
+- Forms are organization documents in the `forms` collection; submissions are in `form_submissions`.
+- Authenticated management uses `FormsAPI` (`public/libraries/forms-api/forms-api.js`).
+- Public websites use `public/libraries/forms-embed/firstmate-forms-embed.js`.
+- Public endpoints are under `/v1/forms/public/:formKey`.
+- Submissions call the same generic Platform lead creator with `source_kind: "web_form"`, contact details and a passive notification. A booked appointment is written by the appointments domain writer, not by the lead creator.
 
 ## Generic Lead Creation
 

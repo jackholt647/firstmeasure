@@ -2096,9 +2096,9 @@
       if (!isPortalSite()) {
         const forms = arrayValue(objectValue(state.catalog).lead_forms).map(objectValue).filter((form) => form.enabled !== false && cleanText(form.id));
         const formItems = forms.map((form) => {
-          const mode = cleanText(form.mode).toLowerCase();
-          const scheduling = mode === 'appointment';
-          const estimate = mode === 'instant_estimate';
+          const kind = cleanText(form.kind).toLowerCase();
+          const scheduling = kind === 'appointment';
+          const estimate = kind === 'estimate';
           const name = firstText(form.name, scheduling ? 'Customer scheduling form' : (estimate ? 'Instant estimate' : 'Contact form'));
           return {
             id: `el_web_form_${cleanText(form.id).replace(/[^a-z0-9]+/gi, '_')}`,

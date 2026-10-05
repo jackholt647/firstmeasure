@@ -315,8 +315,8 @@ registerWorkEvents([
   { name: "communication.auto_replied", notification: { group: "messages", source: "messaging", tab: "messaging" }, description: "The comms AI agent automatically replied to an inbound customer message.", visibility: "activity", payload: { auto_reply_id: "comms_auto_replies row id", mode: "send" } },
 
   // ── Intake & measurement ────────────────────────────────────────────────
-  { name: "lead.form.submitted", notification: { group: "leads", source: "crm", tab: "general" }, description: "A public form (appointment, estimate, contact) was submitted.", visibility: "activity" },
-  { name: "lead.instant_estimate.generated", notification: { group: "leads", source: "crm", tab: "general" }, description: "An instant estimate was produced for a lead.", visibility: "activity" },
+  { name: "lead.form.submitted", notification: { group: "leads", source: "crm", tab: "general" }, description: "A website form was submitted and created a lead. Payload carries form_id, template, submission_id and any appointment_status.", visibility: "activity" },
+  { name: "lead.instant_estimate.generated", notification: { group: "leads", source: "crm", tab: "general" }, description: "A form submission produced a price estimate. Payload carries low_cents, high_cents, currency and the priced quantity with its unit.", visibility: "activity" },
   { name: "canvassing.pin.created", notification: { group: "leads", source: "canvassing", tab: "general" }, description: "A canvassing pin was dropped.", visibility: "system" },
   { name: "canvassing.pin.promoted", notification: { group: "leads", source: "canvassing", tab: "general" }, description: "A canvassing pin was promoted to a lead.", visibility: "activity" },
   { name: "measurement.report.ordered", notification: { group: "measurements", source: "measurements", tab: "general" }, description: "A measurement report was ordered.", visibility: "activity" },

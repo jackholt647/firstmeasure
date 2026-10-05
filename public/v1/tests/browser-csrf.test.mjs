@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const clients = { platform: 'PlatformAPI', payments: 'PaymentsAPI', canvassing: 'CanvassingAPI', materials: 'MaterialsAPI', 'lead-intake': 'LeadIntakeAPI', email: 'EmailAPI', proposals: 'ProposalsAPI', equipment: 'EquipmentAPI' };
+const clients = { platform: 'PlatformAPI', payments: 'PaymentsAPI', canvassing: 'CanvassingAPI', materials: 'MaterialsAPI', forms: 'FormsAPI', email: 'EmailAPI', proposals: 'ProposalsAPI', equipment: 'EquipmentAPI' };
 test('cloned report links use the current artifact service without rewriting external URLs', () => {
   const window = {};
   vm.runInNewContext(readFileSync(new URL('../../libraries/platform-api/platform-api.js', import.meta.url), 'utf8'), { window, location: { origin: 'https://dev.1m8.ai', hostname: 'dev.1m8.ai' }, URL });

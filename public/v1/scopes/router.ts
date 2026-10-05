@@ -99,7 +99,7 @@ function normalizeRouting(value: unknown) {
       enabled: rule.enabled !== false,
       title: cleanText(rule.title),
       // Dot-path equality conditions evaluated against the project document,
-      // e.g. { "lead_source.kind": "instant_estimate" } or { "source": ["canvassing", "call"] }.
+      // e.g. { "lead_source.template": "roofing_instant_estimate" } or { "source": ["canvassing", "call"] }.
       conditions: asObject(rule.conditions),
       formula: {
         match: cleanText(asObject(rule.formula).match).toLowerCase() === "any" ? "any" : "all",

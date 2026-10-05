@@ -33,13 +33,18 @@ async function allowed(ctx: PublicationContext, projectId?: string, edit: boolea
 export async function listModules(ctx: PublicationContext) { await allowed(ctx); return records(ctx.organizationId, MODULES); }
 export async function publishModule(ctx: PublicationContext, raw: unknown, moduleId = "") {
   await allowed(ctx, undefined, true);
+  return storeModuleVersion(ctx.organizationId, raw, moduleId);
+}
+/** Trusted-host publication for modules another domain owns (e.g. forms). The
+ * caller authorizes the publish; never reach this from module HTTP routes. */
+export async function storeModuleVersion(organizationId: string, raw: unknown, moduleId = "") {
   const definition = validateModuleDefinition(raw);
   definition.deliverables = validateDeliverables(definition.deliverables);
   const version = contentHash(definition);
   const selectedId = moduleId || id("module");
   const key = `${selectedId}_${version}`;
-  if (!(await optionalRecord(ctx.organizationId, VERSIONS, key))) await saveRecord(ctx.organizationId, VERSIONS, key, { moduleId: selectedId, version, definition, createdAt: new Date().toISOString() }, undefined, true);
-  return saveRecord(ctx.organizationId, MODULES, selectedId, { name: definition.name, kind: definition.kind, tags: definition.tags, version });
+  if (!(await optionalRecord(organizationId, VERSIONS, key))) await saveRecord(organizationId, VERSIONS, key, { moduleId: selectedId, version, definition, createdAt: new Date().toISOString() }, undefined, true);
+  return saveRecord(organizationId, MODULES, selectedId, { name: definition.name, kind: definition.kind, tags: definition.tags, version });
 }
 export async function moduleDefinition(ctx: PublicationContext, moduleId: string, version?: string) {
   await allowed(ctx, ctx.projectId);

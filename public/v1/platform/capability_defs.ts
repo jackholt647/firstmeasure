@@ -192,8 +192,8 @@ const definitions: CapabilityDefinition[] = [
     key: "lead_forms.contact_form",
     kind: "feature",
     parent: "platform.website_embed_import",
-    label: "Contact Form",
-    description: "Basic website contact forms.",
+    label: "Lead Forms",
+    description: "Website forms built from question blocks that create leads.",
     default: false
   },
   {
@@ -201,16 +201,16 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "platform.website_embed_import",
     requires: ["platform.scheduling"],
-    label: "Appointment Form",
-    description: "Website appointment forms that book against scheduling.",
+    label: "Appointment Booking in Forms",
+    description: "The appointment picker block: visitors book an appointment type against live scheduling.",
     default: false
   },
   {
     key: "lead_forms.instant_estimate",
     kind: "feature",
     parent: "platform.website_embed_import",
-    label: "Instant Estimate",
-    description: "Website instant estimate forms.",
+    label: "Instant Estimates in Forms",
+    description: "Pricing and property-measurement blocks: forms show a calculated price range on submission.",
     default: false
   },
   {

@@ -6,7 +6,7 @@ Runtime layers:
 - Browser API clients live in `public/libraries/`: `platform-api/platform-api.js` creates `window.PlatformAPI` for `/v1/platform`, and `firstmeasure-api/firstmeasure-api.js` creates `window.FirstMeasureAPI` for `/v1/firstmeasure`. Frontend code in `platform/` should talk to those clients instead of hardcoding API base URLs or building raw API fetches.
 - Shared UI affordances live in `public/libraries/platform-ui/platform-ui.js` / `window.PlatformUI`. It is loaded before `public/portal/scripts/core.js`; `window.Portal.ui` delegates to it for toasts, custom black/translucent tooltips, and styled alert/confirm dialogs. Use `data-fm-tooltip="..."` or `PlatformUI.showTooltip(...)` instead of native `title` attributes or one-off tooltip CSS.
 - Email API browser calls use `public/libraries/email-api/email-api.js` / `window.EmailAPI`. Backend code lives in `public/v1/email/api.ts`. It is mounted at `/v1/email` and currently owns inbound lead email routing; future outbound email should go there too.
-- Public website lead embeds use `public/libraries/lead-embed/firstmate-lead-embed.js`. Admin/settings code manages those forms through `window.EmailAPI`; customer websites load the public embed directly.
+- Website forms render through `public/libraries/forms-embed/firstmate-forms-embed.js`. Settings manages them through `window.FormsAPI`; customer websites load the embed directly.
 - Canvassing API browser calls use `public/libraries/canvassing-api/canvassing-api.js` / `window.CanvassingAPI`. Backend code lives in `public/v1/canvassing/api.ts`. It is mounted at `/v1/canvassing` and stores lightweight canvassing pins separately from Platform projects.
 - Scheduling helpers live in `public/libraries/platform-scheduling/platform-scheduling.js` and create `window.PlatformScheduling`. It loads branch scheduling defaults and branch variable mappings through `window.PlatformAPI`, then returns mapped labels plus stable ids.
 - Celebration effects live in `public/libraries/platform-celebrations/platform-celebrations.js` and create `window.PlatformCelebrations`. Settings writes branch `project_configuration.celebrations_mode`; trigger-created celebration notifications are consumed by `platform-notifications`.
@@ -99,7 +99,6 @@ Branch/global rule:
 - `pricebook`: branch estimating formulas/items. Read/write through `/organizations/{orgId}/branch/{branchId}/modules/pricebook`; Platform UI renders and edits it through `public/libraries/pricebook/firstmate-pricebook.js` so Settings and proposal modals use the same editor and pricing helpers. `public/libraries/pricebook/default-pricebook.json` is only the bootstrap seed when no branch module exists.
   - `presentation_style`: branch proposal/presentation style defaults, brand colors, marketing pages, and proposal page defaults. Read/write through `/organizations/{orgId}/branch/{branchId}/modules/presentation_style`.
   - `lead_import`: branch inbound lead email settings. Read/write through `/v1/email/organizations/{orgId}/branch/{branchId}/lead-import` or `window.EmailAPI`, not raw Platform module calls.
-  - `lead_intake`: embeddable website form definitions for appointment forms, contact forms, instant estimate forms, and future custom intake forms. Read/write through `/v1/lead-intake/organizations/{orgId}/branch/{branchId}/settings` or `window.LeadIntakeAPI`, not raw Platform module calls.
   - `canvassing`: branch canvassing statuses, display labels, default status, canvasser role id, enabled flag, and lead target stage. Read/write through `/v1/canvassing/organizations/{orgId}/branch/{branchId}/settings` or `window.CanvassingAPI.settings`, not raw Platform module calls.
 - Current default branch is `default`; PHP session key is `platform_branch_id`.
 
@@ -121,13 +120,12 @@ Email lead import rule:
 - OpenAI extraction is server-only. Configure `OPENAI_API_KEY`; default model is `gpt-5-nano`; use `EMAIL_LEAD_AI_DISABLED=1` in tests.
 
 Website embed rule:
-- Website forms are configured in Settings -> Forms and Leads and stored at `lead_intake.forms[]`.
-- Website form type subtabs appear under Settings -> Forms and Leads when `platform.website_embed_import` and at least one `lead_forms.*` form type flag are enabled.
-- Form ids are public because they are used by embeds, but disabled forms and disabled lead intake reject public reads/submits.
-- The short embed loads `public/libraries/lead-embed/firstmate-lead-embed.js` with `data-form-id` and optional `data-target`.
-- Public endpoint `POST /v1/lead-intake/public/forms/{formId}/submit` creates a Platform lead through `createPlatformLead`.
-- Legacy `/v1/email/public/forms/*` routes delegate to Lead Intake for compatibility only.
-- Form configuration includes copy, fine print, colors, optional logo URL, font, tracking key, scheduling mode, fields, pages, questions, and estimate settings. Keep this data in `lead_intake`; do not create separate page-script-only configs.
+- Forms are built in Settings -> Forms and Leads and stored in the organization `forms` collection through `/v1/forms`. See `docs/architecture/forms.md`.
+- The Forms pane appears when `platform.website_embed_import` and at least one `lead_forms.*` flag are enabled. Those flags gate blocks (appointment booking, instant estimates), not form types.
+- A published form has an embed key. The key is public by design; pausing a form or resetting its key stops public reads and submissions.
+- The embed is one script tag: `<script src=".../libraries/forms-embed/firstmate-forms-embed.js" data-form="FORM_KEY"></script>`, with an optional `data-target`.
+- `POST /v1/forms/public/{formKey}/submit` validates the answers against the published form and creates a Platform lead through `createPlatformLead`.
+- Everything about a form (blocks, wording, style, pricing, submission settings) lives in its definition. Do not create page-script-only form configuration.
 
 Canvassing rule:
 - Canvassing pins are not Platform projects. They live under `v1/storage/canvassing/organizations/{orgId}/branches/{branchId}/pins`.

@@ -1277,13 +1277,7 @@ session_write_close();
         }
         return `${location.origin}/v1/messaging`;
       })(),
-      leadIntakeApiBase: (function(){
-        const host = String(location.hostname || '').toLowerCase();
-        if (host === '127.0.0.1' || host === 'localhost' || host === '10.0.2.2') {
-          return `${location.origin}/v1/lead-intake`;
-        }
-        return `${location.origin}/v1/lead-intake`;
-      })(),
+      formsApiBase: `${location.origin}/v1/forms`,
       canvassingApiBase: (function(){
         const host = String(location.hostname || '').toLowerCase();
         if (host === '127.0.0.1' || host === 'localhost' || host === '10.0.2.2') {
@@ -2176,7 +2170,7 @@ session_write_close();
   <script src="../libraries/project-notes/project-notes.js?v=<?= portalAssetVersion('../libraries/project-notes/project-notes.js') ?>"></script>
   <script src="../libraries/project-trays/project-trays.js?v=<?= portalAssetVersion('../libraries/project-trays/project-trays.js') ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/lead-intake-api/lead-intake-api.js?v=<?= portalAssetVersion('../libraries/lead-intake-api/lead-intake-api.js') ?>"></script>
+  <script src="../libraries/forms-api/forms-api.js?v=<?= portalAssetVersion('../libraries/forms-api/forms-api.js') ?>"></script>
   <script src="../libraries/canvassing-api/canvassing-api.js?v=<?= portalAssetVersion('../libraries/canvassing-api/canvassing-api.js') ?>"></script>
   <script src="../libraries/platform-celebrations/platform-celebrations.js?v=<?= portalAssetVersion('../libraries/platform-celebrations/platform-celebrations.js') ?>"></script>
   <script src="../libraries/platform-notifications/platform-notifications.js?v=<?= portalAssetVersion('../libraries/platform-notifications/platform-notifications.js') ?>"></script>
@@ -2323,6 +2317,7 @@ session_write_close();
   <script src="../libraries/apps/settings/feedback.js?v=<?= portalAssetVersion('../libraries/apps/settings/feedback.js') ?>"></script>
   <script src="../libraries/apps/settings/equipment.js?v=<?= portalAssetVersion('../libraries/apps/settings/equipment.js') ?>"></script>
   <script src="../libraries/apps/settings/live_chat.js?v=<?= portalAssetVersion('../libraries/apps/settings/live_chat.js') ?>"></script>
+  <script src="../libraries/apps/settings/forms.js?v=<?= portalAssetVersion('../libraries/apps/settings/forms.js') ?>"></script>
   <script src="../libraries/apps/settings/comms.js?v=<?= portalAssetVersion('../libraries/apps/settings/comms.js') ?>"></script>
   <script src="../libraries/apps/settings/channels.js?v=<?= portalAssetVersion('../libraries/apps/settings/channels.js') ?>"></script>
   <script src="../libraries/apps/settings/payroll.js?v=<?= portalAssetVersion('../libraries/apps/settings/payroll.js') ?>"></script>

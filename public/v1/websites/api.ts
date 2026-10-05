@@ -61,7 +61,7 @@ const WRITE_AUTH = { csrf: true, permission: "manage_company_settings", capabili
  * per-org options baked in by the catalog route.
  */
 function webWidgetCatalog(
-  leadForms: Array<{ id: string; name: string; mode: string; enabled: boolean }>,
+  leadForms: Array<{ id: string; name: string; kind: string; enabled: boolean }>,
   pageOptions: Array<[string, string]> = []
 ) {
   const formOptions = leadForms.filter((form) => form.enabled).map((form) => [form.id, form.name || form.id]);

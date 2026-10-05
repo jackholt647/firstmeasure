@@ -22,12 +22,18 @@ export type WorkflowItemKindDefinition = {
   schema: z.ZodTypeAny;
   /** Which contract side the kind is allowed to write. */
   writes: WorkflowWriteTarget;
+  /**
+   * Which authoring surface offers the kind. Every kind validates in any
+   * workflow definition; only "documents" kinds appear in the workflow editor.
+   */
+  surface: string;
   validate_write: (path: string) => { ok: boolean; reason?: string };
 };
 
 export type WorkflowItemKindInput = {
   schema?: z.ZodTypeAny;
   writes?: WorkflowWriteTarget;
+  surface?: string;
   validate_write?: (path: string) => { ok: boolean; reason?: string };
 };
 
@@ -66,6 +72,7 @@ export function registerWorkflowItemKind(id: string, input: WorkflowItemKindInpu
     id: cleaned,
     schema: input.schema || baseItemSchema,
     writes,
+    surface: input.surface || "documents",
     validate_write: input.validate_write || defaultValidateWrite(cleaned, writes)
   });
 }
@@ -74,8 +81,8 @@ export function workflowItemKind(id: string): WorkflowItemKindDefinition | null 
   return registry.get(String(id || "").trim().toLowerCase()) || null;
 }
 
-export function listWorkflowItemKinds(): Array<{ id: string; writes: WorkflowWriteTarget }> {
-  return [...registry.values()].map((kind) => ({ id: kind.id, writes: kind.writes }));
+export function listWorkflowItemKinds(surface = "documents"): Array<{ id: string; writes: WorkflowWriteTarget }> {
+  return [...registry.values()].filter((kind) => kind.surface === surface).map((kind) => ({ id: kind.id, writes: kind.writes }));
 }
 
 // ---------------------------------------------------------------------------

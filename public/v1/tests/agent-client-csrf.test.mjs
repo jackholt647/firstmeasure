@@ -4,7 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const clients = [
-  ...['platform','canvassing','equipment','email','materials','lead-intake','payments','proposals','channels','communications','crew','documents','payroll','sales','training','websites'].map(name => ({
+  ...['platform','canvassing','equipment','email','materials','forms','payments','proposals','channels','communications','crew','documents','payroll','sales','training','websites'].map(name => ({
     path:`../../libraries/${name}-api/${name}-api.js`,
     name:name.split('-').map(part => part[0].toUpperCase() + part.slice(1)).join('') + 'API',
     send:api => api.request('/organizations/org-1/test', { method:'POST', body:{} })

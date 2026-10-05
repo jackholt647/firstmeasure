@@ -3,13 +3,6 @@ import { createHash, randomBytes } from "node:crypto";
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
-import {
-  ensureLeadIntakeSettings,
-  patchLeadIntakeSettings,
-  publicFormAvailabilityById,
-  publicFormConfigById,
-  submitPublicFormById
-} from "../lead-intake/api.js";
 import "./instructions.js";
 import { sendPlatformTransactionalEmail } from "./outbound.js";
 import { ensureOrgEmailInbox } from "./engine.js";
@@ -35,8 +28,6 @@ const VARIABLE_MAPPING_MODULE_ID = "variable_mappings";
 const NEW_LEAD_STAGE_ID = "new_lead";
 const DEFAULT_BRANCH_ID = "default";
 const DEFAULT_NOTIFICATION_ROLES = ["inside_sales", "sales_appointments"];
-const DEFAULT_WEBSITE_FORM_FONT = "Montserrat";
-const WEBSITE_FORM_FONTS = ["Montserrat", "Inter", "Roboto", "Open Sans", "Lato", "Poppins", "Source Sans 3"];
 
 type LeadImportAssignment = {
   orgId: string;
@@ -45,13 +36,6 @@ type LeadImportAssignment = {
   data: JsonObject;
   email: string;
   localPart: string;
-};
-
-type WebsiteFormAssignment = {
-  orgId: string;
-  branchId: string;
-  data: JsonObject;
-  form: JsonObject;
 };
 
 function asObject(value: unknown): JsonObject {
@@ -127,73 +111,6 @@ async function hasAnyLeadImportFlag(orgId: string) {
   if (!(await isAppFlagEnabled(orgId, "platform", "lead_import"))) return false;
   return (await isAppFlagEnabled(orgId, "email", "inbound_lead_import"))
     || (await isAppFlagEnabled(orgId, "platform", "website_embed_import"));
-}
-
-function generatedFormId(orgId: string, branchId: string) {
-  const orgToken = createHash("sha256").update(`${orgId}:${branchId}:${randomBytes(8).toString("hex")}`).digest("hex").slice(0, 18);
-  return `form_${orgToken}`;
-}
-
-function normalizeHexColor(value: unknown, fallback: string) {
-  const raw = cleanText(value);
-  return /^#[0-9a-f]{6}$/i.test(raw) ? raw : fallback;
-}
-
-function defaultWebsiteForm(orgId: string, branchId: string, input: JsonObject = {}) {
-  const id = cleanText(input.id) || generatedFormId(orgId, branchId);
-  const mode = ["appointment", "call"].includes(cleanText(input.mode)) ? cleanText(input.mode) : "appointment";
-  const copy = asObject(input.copy);
-  const style = asObject(input.style);
-  const scheduling = asObject(input.scheduling);
-  const now = nowIso();
-  return {
-    schema_version: 1,
-    id,
-    enabled: input.enabled !== false,
-    name: cleanText(input.name) || (mode === "call" ? "Website Call Request" : "Website Appointment Form"),
-    tracking_key: sanitizeToken(input.tracking_key || input.name || id, "website-lead"),
-    mode,
-    copy: {
-      headline: cleanText(copy.headline) || (mode === "call" ? "Schedule a quick call" : "Schedule an appointment"),
-      subheadline: cleanText(copy.subheadline) || "Tell us where to reach you and we will confirm the next step.",
-      submit_label: cleanText(copy.submit_label) || (mode === "call" ? "Request Call" : "Request Appointment"),
-      fine_print: cleanText(copy.fine_print) || "By submitting, you agree to be contacted about your request.",
-      success_title: cleanText(copy.success_title) || "Request received",
-      success_body: cleanText(copy.success_body) || "We have your information and will follow up shortly."
-    },
-    style: {
-      primary_color: normalizeHexColor(style.primary_color, "#d93025"),
-      secondary_color: normalizeHexColor(style.secondary_color, "#111827"),
-      background_color: normalizeHexColor(style.background_color, "#ffffff"),
-      text_color: normalizeHexColor(style.text_color, "#111827"),
-      font_family: WEBSITE_FORM_FONTS.includes(cleanText(style.font_family)) ? cleanText(style.font_family) : DEFAULT_WEBSITE_FORM_FONT,
-      use_company_colors: style.use_company_colors !== false,
-      logo_enabled: style.logo_enabled === true,
-      logo_url: cleanText(style.logo_url)
-    },
-    scheduling: {
-      event_type_default_id: cleanText(scheduling.event_type_default_id) || (mode === "call" ? "contact_call" : "sales_appointment"),
-      duration_minutes: Math.max(15, Math.min(240, Number(scheduling.duration_minutes || (mode === "call" ? 30 : 60)) || 60)),
-      slot_minutes: Math.max(15, Math.min(120, Number(scheduling.slot_minutes || 30) || 30)),
-      buffer_minutes: Math.max(0, Math.min(240, Number(scheduling.buffer_minutes || scheduling.travel_buffer_minutes || 30) || 0)),
-      min_notice_minutes: Math.max(0, Math.min(10080, Number(scheduling.min_notice_minutes || 120) || 0)),
-      available_days: Array.isArray(scheduling.available_days) && scheduling.available_days.length
-        ? scheduling.available_days.map((day) => Number(day)).filter((day) => day >= 0 && day <= 6)
-        : [1, 2, 3, 4, 5],
-      start_time: /^\d{2}:\d{2}$/.test(cleanText(scheduling.start_time)) ? cleanText(scheduling.start_time) : "09:00",
-      end_time: /^\d{2}:\d{2}$/.test(cleanText(scheduling.end_time)) ? cleanText(scheduling.end_time) : "17:00",
-      required_role_ids: Array.isArray(scheduling.required_role_ids) ? scheduling.required_role_ids.map(cleanText).filter(Boolean) : [],
-      allowed_role_ids: Array.isArray(scheduling.allowed_role_ids) && scheduling.allowed_role_ids.length
-        ? scheduling.allowed_role_ids.map(cleanText).filter(Boolean)
-        : [mode === "call" ? "inside_sales" : "sales_appointments"]
-    },
-    created_at: cleanText(input.created_at) || now,
-    updated_at: now
-  };
-}
-
-function normalizeWebsiteForms(orgId: string, branchId: string, value: unknown) {
-  return asArray(value).map((entry) => defaultWebsiteForm(orgId, branchId, asObject(entry)));
 }
 
 async function readBranchModuleDataOrNull(orgId: string, branchId: string, moduleId: string) {
@@ -765,320 +682,6 @@ async function createProjectFromLead(assignment: LeadImportAssignment, payload: 
   });
 }
 
-async function findWebsiteFormAssignment(formId: string): Promise<WebsiteFormAssignment | null> {
-  const targetId = cleanText(formId);
-  if (!targetId) return null;
-  const orgs = await listOrganizations();
-  for (const org of orgs) {
-    const orgId = cleanText(asObject(org).id);
-    if (!orgId) continue;
-    let branches: JsonObject[] = [];
-    try {
-      branches = await listDocuments(orgId, "branch");
-    } catch {
-      branches = [];
-    }
-    for (const branchDoc of branches) {
-      const branchId = cleanText(branchDoc.id) || DEFAULT_BRANCH_ID;
-      try {
-        const module = await readBranchModule(orgId, branchId, LEAD_IMPORT_MODULE_ID);
-        const data = asObject(module.data);
-        const form = asArray(data.website_forms).map(asObject).find((entry) => cleanText(entry.id) === targetId);
-        if (!form) continue;
-        return { orgId, branchId, data, form };
-      } catch {
-        // Missing lead import module for this branch is normal.
-      }
-    }
-  }
-  return null;
-}
-
-function publicWebsiteForm(form: JsonObject) {
-  const normalized = defaultWebsiteForm("", DEFAULT_BRANCH_ID, form);
-  return {
-    id: normalized.id,
-    enabled: normalized.enabled,
-    name: normalized.name,
-    tracking_key: normalized.tracking_key,
-    mode: normalized.mode,
-    copy: normalized.copy,
-    style: normalized.style,
-    scheduling: normalized.scheduling,
-    fields: {
-      name: { required: true },
-      email: { required: false },
-      phone: { required: true },
-      address: { required: false },
-      message: { required: false },
-      preferred_start_at: { required: false }
-    }
-  };
-}
-
-function normalizeStringArray(value: unknown) {
-  return [...new Set(asArray(value).map(cleanText).filter(Boolean))];
-}
-
-function minutesFromTime(value: unknown) {
-  const match = cleanText(value).match(/^(\d{1,2}):(\d{2})/);
-  if (!match) return 0;
-  return Math.max(0, Math.min(24 * 60, Number(match[1]) * 60 + Number(match[2])));
-}
-
-function timeFromMinutes(value: number) {
-  const mins = Math.max(0, Math.min(24 * 60 - 1, Number(value) || 0));
-  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
-}
-
-function dateInput(value: unknown) {
-  const date = new Date(cleanText(value) || Date.now());
-  if (!Number.isFinite(date.getTime())) return new Date().toISOString().slice(0, 10);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function dateAtTime(date: string, time: string) {
-  return new Date(`${date}T${time}:00`);
-}
-
-function intervalsOverlap(startA: Date, endA: Date, startB: Date, endB: Date) {
-  return startA < endB && startB < endA;
-}
-
-async function readSchedulingData(orgId: string, branchId: string) {
-  try {
-    const module = await readBranchModule(orgId, branchId, SCHEDULING_MODULE_ID);
-    return asObject(module.data);
-  } catch {
-    return {};
-  }
-}
-
-function eventTypeFromScheduling(schedulingData: JsonObject, form: JsonObject) {
-  const formScheduling = asObject(form.scheduling);
-  const formMode = cleanText(form.mode) || "appointment";
-  const eventTypeId = cleanText(formScheduling.event_type_default_id) || (formMode === "call" ? "contact_call" : "sales_appointment");
-  const eventTypes = asObject(schedulingData.event_types);
-  const eventType = asObject(eventTypes[eventTypeId]);
-  const requiredRoleIds = normalizeStringArray(eventType.required_role_ids || formScheduling.required_role_ids || eventType.role_ids || formScheduling.role_ids || (eventTypeId === "sales_appointment" ? ["sales_appointments"] : []));
-  const allowedRoleIds = normalizeStringArray(eventType.allowed_role_ids || formScheduling.allowed_role_ids || eventType.role_ids || formScheduling.role_ids || requiredRoleIds);
-  const duration = Math.max(15, Math.min(240, Number(eventType.duration_minutes || asObject(schedulingData.availability).sales_appointment_duration_minutes || formScheduling.duration_minutes || (formMode === "call" ? 30 : 60)) || 60));
-  const slotMinutes = Math.max(15, Math.min(120, Number(eventType.slot_minutes || asObject(schedulingData.availability).sales_appointment_slot_minutes || formScheduling.slot_minutes || 30) || 30));
-  const bufferMinutes = Math.max(0, Math.min(240, Number(eventType.buffer_minutes || asObject(schedulingData.availability).sales_appointment_buffer_minutes || formScheduling.buffer_minutes || 30) || 0));
-  return { id: eventTypeId, requiredRoleIds, allowedRoleIds, duration, slotMinutes, bufferMinutes };
-}
-
-function branchAvailabilityWindow(schedulingData: JsonObject, form: JsonObject, date: string, eventTypeId: string) {
-  const availability = asObject(schedulingData.availability);
-  const formScheduling = asObject(form.scheduling);
-  const targetDay = dateAtTime(date, "12:00").getDay();
-  const workingHours = asArray(availability.working_hours).map(asObject);
-  const matching = workingHours.find((entry) => asArray(entry.days).map(Number).includes(targetDay)) || workingHours[0] || {};
-  const eventWindows = asObject(availability.event_type_windows);
-  const eventWindow = asObject(eventWindows[eventTypeId]);
-  const startRaw = cleanText(eventWindow.start || eventWindow.start_time || matching.start || matching.start_time || availability[`${eventTypeId}_start_time`] || availability.sales_appointment_start_time || formScheduling.start_time || "09:00");
-  const endRaw = cleanText(eventWindow.end || eventWindow.end_time || matching.end || matching.end_time || availability[`${eventTypeId}_end_time`] || availability.sales_appointment_end_time || formScheduling.end_time || "17:00");
-  const days = asArray(matching.days).length ? asArray(matching.days).map(Number) : (Array.isArray(formScheduling.available_days) ? formScheduling.available_days.map(Number) : [1, 2, 3, 4, 5]);
-  return {
-    start: timeFromMinutes(minutesFromTime(startRaw || "09:00")),
-    end: timeFromMinutes(minutesFromTime(endRaw || "17:00")),
-    days
-  };
-}
-
-function normalizeUserForAvailability(document: JsonObject) {
-  const data = asObject(document.data || document);
-  const roles = normalizeStringArray(data.roles);
-  const role = cleanText(data.role || data.permission_level).toLowerCase();
-  const adminRoles = ["owner", "admin", "super_admin"].includes(role) ? ["sales_appointments", "inside_sales"] : [];
-  return {
-    id: cleanText(document.id || data.id),
-    name: cleanText(data.name || data.full_name || data.email),
-    email: cleanText(data.email),
-    status: cleanText(data.status),
-    roles: roles.length ? roles : adminRoles
-  };
-}
-
-function normalizeEventForAvailability(event: JsonObject, project: JsonObject) {
-  const start = new Date(cleanText(event.start_at || event.start || event.starts_at));
-  const duration = Math.max(1, Number(event.duration_minutes || event.duration || 60));
-  const assignedUserIds = normalizeStringArray([event.assigned_user_id, event.user_id, ...asArray(event.assigned_user_ids), ...asArray(event.user_ids)]);
-  const requiredRoleIds = normalizeStringArray(event.required_role_ids || event.role_ids || event.roles);
-  const allowedRoleIds = normalizeStringArray(event.allowed_role_ids || event.role_ids || event.roles || requiredRoleIds);
-  return {
-    id: cleanText(event.id),
-    start,
-    end: new Date(start.getTime() + duration * 60000),
-    assignedUserIds,
-    requiredRoleIds,
-    allowedRoleIds,
-    projectId: cleanText(project.id)
-  };
-}
-
-function roleAvailability(users: ReturnType<typeof normalizeUserForAvailability>[], events: ReturnType<typeof normalizeEventForAvailability>[], roleId: string, start: Date, duration: number, bufferMinutes = 0) {
-  const end = new Date(start.getTime() + duration * 60000);
-  const conflictStart = new Date(start.getTime() - Math.max(0, bufferMinutes) * 60000);
-  const conflictEnd = new Date(end.getTime() + Math.max(0, bufferMinutes) * 60000);
-  const roleUsers = users.filter((user) => user.status !== "disabled" && user.roles.includes(roleId));
-  const overlapping = events.filter((event) => Number.isFinite(event.start.getTime()) && intervalsOverlap(conflictStart, conflictEnd, event.start, event.end));
-  const busyAssigned = new Set(overlapping.flatMap((event) => event.assignedUserIds));
-  const unassignedRoleConflicts = overlapping.filter((event) => !event.assignedUserIds.length && [...event.requiredRoleIds, ...event.allowedRoleIds].includes(roleId)).length;
-  const availableUsers = roleUsers.filter((user) => !busyAssigned.has(user.id));
-  return {
-    role_id: roleId,
-    available_count: Math.max(0, availableUsers.length - unassignedRoleConflicts),
-    eligible_count: roleUsers.length,
-    available_user_ids: availableUsers.map((user) => user.id)
-  };
-}
-
-async function websiteFormAvailability(assignment: WebsiteFormAssignment, query: JsonObject) {
-  const form = defaultWebsiteForm(assignment.orgId, assignment.branchId, assignment.form);
-  const schedulingData = await readSchedulingData(assignment.orgId, assignment.branchId);
-  const eventType = eventTypeFromScheduling(schedulingData, form);
-  const date = dateInput(query.date);
-  const window = branchAvailabilityWindow(schedulingData, form, date, eventType.id);
-  const stepMinutes = eventType.slotMinutes;
-  const minNoticeMinutes = Math.max(0, Math.min(10080, Number(asObject(form.scheduling).min_notice_minutes || 120) || 0));
-  const minTime = Date.now() + minNoticeMinutes * 60000;
-  const users = (await listDocuments(assignment.orgId, "users")).map(normalizeUserForAvailability);
-  const projects = await listDocuments(assignment.orgId, "projects");
-  const events = projects.flatMap((document) => {
-    const project = asObject({ ...asObject(document.data), id: cleanText(document.id) });
-    return asArray(project.events).map(asObject).map((event) => normalizeEventForAvailability(event, project));
-  });
-  const slots = [];
-  if (window.days.includes(dateAtTime(date, "12:00").getDay())) {
-    for (let minute = minutesFromTime(window.start); minute + eventType.duration <= minutesFromTime(window.end); minute += stepMinutes) {
-      const time = timeFromMinutes(minute);
-      const start = dateAtTime(date, time);
-      if (start.getTime() <= minTime) continue;
-      const required = eventType.requiredRoleIds.map((roleId) => roleAvailability(users, events, roleId, start, eventType.duration, eventType.bufferMinutes));
-      const allowed = eventType.allowedRoleIds.map((roleId) => roleAvailability(users, events, roleId, start, eventType.duration, eventType.bufferMinutes));
-      const requiredOk = required.every((entry) => entry.available_count > 0);
-      const allowedOk = allowed.length ? allowed.some((entry) => entry.available_count > 0) : true;
-      const available = required.length ? requiredOk : allowedOk;
-      slots.push({
-        start: start.toISOString(),
-        time,
-        label: start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
-        available,
-        hasAvailability: available,
-        eligible_count: Math.max(...allowed.map((entry) => entry.eligible_count), ...required.map((entry) => entry.eligible_count), 0),
-        available_count: Math.max(...allowed.map((entry) => entry.available_count), ...required.map((entry) => entry.available_count), 0)
-      });
-    }
-  }
-  return {
-    ok: true,
-    form_id: form.id,
-    date,
-    event_type_id: eventType.id,
-    duration_minutes: eventType.duration,
-    slot_minutes: eventType.slotMinutes,
-    buffer_minutes: eventType.bufferMinutes,
-    window,
-    slots
-  };
-}
-
-function normalizePreferredStart(value: unknown) {
-  const raw = cleanText(value);
-  if (!raw) return "";
-  const date = new Date(raw);
-  return Number.isFinite(date.getTime()) ? date.toISOString() : "";
-}
-
-function websiteLeadEvents(form: JsonObject, body: JsonObject, schedulingData: JsonObject = {}) {
-  const preferredStart = normalizePreferredStart(body.preferred_start_at || body.preferredStartAt);
-  if (!preferredStart) return [];
-  const scheduling = asObject(form.scheduling);
-  const mode = cleanText(form.mode) || "appointment";
-  const eventType = eventTypeFromScheduling(schedulingData, form);
-  return [{
-    id: `event_${Date.now().toString(36)}${randomBytes(4).toString("hex")}`,
-    event_type_default_id: eventType.id,
-    type_id: eventType.id,
-    title: eventType.id.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()),
-    start_at: preferredStart,
-    duration_minutes: eventType.duration,
-    buffer_minutes: eventType.bufferMinutes,
-    required_role_ids: eventType.requiredRoleIds,
-    allowed_role_ids: eventType.allowedRoleIds,
-    assigned_user_ids: [],
-    status: "requested",
-    source: "website_embed"
-  }];
-}
-
-async function createProjectFromWebsiteForm(assignment: WebsiteFormAssignment, payload: JsonObject) {
-  const form = defaultWebsiteForm(assignment.orgId, assignment.branchId, assignment.form);
-  const schedulingData = await readSchedulingData(assignment.orgId, assignment.branchId);
-  const name = cleanText(payload.name || payload.customer_name);
-  const email = normalizeEmail(payload.email);
-  const phone = cleanText(payload.phone);
-  const address = cleanText(payload.address);
-  const message = cleanText(payload.message || payload.notes);
-  const contacts = name || email || phone ? [{ name, email, phone, phones: phone ? [phone] : [] }] : [];
-  const targetRoleIds = Array.isArray(assignment.data.notification_target_role_ids)
-    ? assignment.data.notification_target_role_ids.map(cleanText).filter(Boolean)
-    : DEFAULT_NOTIFICATION_ROLES;
-  const preferredStart = normalizePreferredStart(payload.preferred_start_at || payload.preferredStartAt);
-  return await createPlatformLead(assignment.orgId, {
-    branch_id: assignment.branchId,
-    source_kind: "website_embed",
-    address,
-    title: address || name || cleanText(form.name) || "Website lead",
-    summary: message,
-    contacts,
-    provider: "Website Embed",
-    confidence: 1,
-    events: websiteLeadEvents(form, payload, schedulingData),
-    provider_fields: {
-      form_id: form.id,
-      form_name: form.name,
-      tracking_key: form.tracking_key,
-      mode: form.mode,
-      preferred_start_at: preferredStart,
-      page_url: cleanText(payload.page_url || payload.pageUrl),
-      referrer: cleanText(payload.referrer)
-    },
-    lead_source: {
-      kind: "website_embed",
-      provider: "Website Embed",
-      form_id: form.id,
-      form_name: form.name,
-      tracking_key: form.tracking_key,
-      mode: form.mode,
-      preferred_start_at: preferredStart,
-      page_url: cleanText(payload.page_url || payload.pageUrl),
-      referrer: cleanText(payload.referrer),
-      raw: payload
-    },
-    project_data: {
-      website_form: {
-        id: form.id,
-        name: form.name,
-        tracking_key: form.tracking_key,
-        mode: form.mode
-      }
-    },
-    notification: {
-      source: "website_embed_lead_import",
-      title: form.mode === "call" ? "New website call request" : "New website appointment request",
-      body: address || name || message || "A website lead form was submitted.",
-      target_role_ids: targetRoleIds,
-      context: {
-        form_id: form.id,
-        tracking_key: form.tracking_key,
-        preferred_start_at: preferredStart
-      }
-    }
-  });
-}
-
 function verifyInboundWebhook(request: { headers: Record<string, unknown>; query: unknown }) {
   const configured = cleanText(env.emailInboundWebhookToken);
   if (!configured) return;
@@ -1107,10 +710,7 @@ export const registerEmailApi: FastifyPluginAsync = async (app) => {
     api: "email",
     inbound: {
       postmark: "/v1/email/inbound/postmark",
-      leadImportSettings: "/v1/email/organizations/:orgId/branch/:branchId/lead-import",
-      publicWebsiteForm: "/v1/email/public/forms/:formId",
-      publicWebsiteAvailability: "/v1/email/public/forms/:formId/availability",
-      publicWebsiteSubmit: "/v1/email/public/forms/:formId/submit"
+      leadImportSettings: "/v1/email/organizations/:orgId/branch/:branchId/lead-import"
     },
     outbound: {
       platformTransactional: "/v1/email/outbound/platform-transactional",
@@ -1140,7 +740,6 @@ export const registerEmailApi: FastifyPluginAsync = async (app) => {
     const branchId = getParam(request.params, "branchId") || DEFAULT_BRANCH_ID;
     await requirePlatformAuth(request, { orgId, permission: "manage_company_settings" });
     if (!(await hasAnyLeadImportFlag(orgId))) throw forbidden("app_flag_disabled", "Lead import is not enabled for this organization.");
-    await ensureLeadIntakeSettings(orgId, branchId);
     const { module, data } = await ensureLeadImportSettings(orgId, branchId);
     return { ok: true, settings: data, module };
   });
@@ -1153,12 +752,6 @@ export const registerEmailApi: FastifyPluginAsync = async (app) => {
     const body = objectBodySchema.parse(request.body ?? {});
     if ((body.regenerate === true || body.enabled !== undefined || body.notification_target_role_ids !== undefined) && !(await isAppFlagEnabled(orgId, "email", "inbound_lead_import"))) {
       throw forbidden("app_flag_disabled", "Email lead import is not enabled for this organization.");
-    }
-    if (body.website_forms !== undefined && !(await isAppFlagEnabled(orgId, "platform", "website_embed_import"))) {
-      throw forbidden("app_flag_disabled", "Website lead embeds are not enabled for this organization.");
-    }
-    if (Array.isArray(body.website_forms)) {
-      await patchLeadIntakeSettings(orgId, branchId, { forms: body.website_forms });
     }
     const { data: current } = await ensureLeadImportSettings(orgId, branchId);
     const next = {
@@ -1178,20 +771,6 @@ export const registerEmailApi: FastifyPluginAsync = async (app) => {
       metadata: { kind: "branch_lead_import", source: "email_api" }
     }, { replace: true });
     return { ok: true, settings: next, module };
-  });
-
-  app.get("/public/forms/:formId", async (request) => {
-    return publicFormConfigById(getParam(request.params, "formId"));
-  });
-
-  app.get("/public/forms/:formId/availability", async (request) => {
-    return publicFormAvailabilityById(getParam(request.params, "formId"), asObject(request.query));
-  });
-
-  app.post("/public/forms/:formId/submit", async (request, reply) => {
-    const created = await submitPublicFormById(getParam(request.params, "formId"), objectBodySchema.parse(request.body ?? {}));
-    reply.code(201);
-    return created;
   });
 
   // The organization's FirstMate Mail inbox (provisions on first read).

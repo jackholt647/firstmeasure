@@ -22,7 +22,7 @@ import {
   type DocumentWidgetServices,
   type WidgetResolveContext
 } from "../documents/widgets/registry.js";
-import { ensureLeadIntakeSettings } from "../lead-intake/api.js";
+import { embeddableForms } from "../forms/service.js";
 import { FMDocModel } from "./schemas.js";
 import { WEBSITE_SCHEMA_VERSION } from "./schemas.js";
 import {
@@ -824,14 +824,9 @@ function widgetServices(): DocumentWidgetServices {
   };
 }
 
+/** Published forms the web builder can place on a page. */
 export async function leadFormsForOrg(orgId: string) {
-  const { data } = await ensureLeadIntakeSettings(orgId).catch(() => ({ data: {} as JsonObject }));
-  return asArray(asObject(data).forms).map(asObject).map((form) => ({
-    id: cleanText(form.id),
-    name: cleanText(form.name),
-    mode: cleanText(form.mode),
-    enabled: form.enabled !== false
-  })).filter((form) => form.id);
+  return embeddableForms(orgId);
 }
 
 let resolversRegistered = false;
@@ -852,7 +847,7 @@ export function registerWebsiteWidgetResolvers() {
     const formId = cleanText(config.form_id);
     const forms = await leadFormsForOrg(ctx.organizationId);
     const form = forms.find((entry) => entry.id === formId && entry.enabled);
-    return { form_id: formId, form_title: cleanText(form?.name), available: Boolean(form) };
+    return { form_id: formId, form_title: cleanText(form?.name), form_key: cleanText(form?.public_key), available: Boolean(form) };
   }, { title: "Lead form", category: "input" });
 
   registerDocumentWidgetResolver("web.page_embed", async (ctx: WidgetResolveContext, config: JsonObject) => {

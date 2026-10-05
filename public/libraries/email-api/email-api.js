@@ -131,40 +131,6 @@
     },
     setEnabled(orgId, branchId = 'default', enabled = true){
       return leadImport.patch(orgId, branchId, { enabled: enabled !== false });
-    },
-    async saveWebsiteForms(orgId, branchId = 'default', forms = []){
-      if (root.LeadIntakeAPI?.forms?.saveAll) return root.LeadIntakeAPI.forms.saveAll(orgId, branchId, forms);
-      return leadImport.patch(orgId, branchId, { website_forms: Array.isArray(forms) ? forms : [] });
-    }
-  };
-
-  const websiteForms = {
-    publicConfig(formId){
-      if (root.LeadIntakeAPI?.forms?.publicConfig) return root.LeadIntakeAPI.forms.publicConfig(formId);
-      return request(`/public/forms/${enc(formId)}`, { credentials: 'omit' });
-    },
-    availability(formId, date = ''){
-      if (root.LeadIntakeAPI?.forms?.availability) return root.LeadIntakeAPI.forms.availability(formId, date);
-      const suffix = date ? `?date=${enc(date)}` : '';
-      return request(`/public/forms/${enc(formId)}/availability${suffix}`, { credentials: 'omit' });
-    },
-    submit(formId, payload = {}){
-      if (root.LeadIntakeAPI?.forms?.submit) return root.LeadIntakeAPI.forms.submit(formId, payload);
-      return request(`/public/forms/${enc(formId)}/submit`, {
-        method: 'POST',
-        credentials: 'omit',
-        body: payload || {}
-      });
-    },
-    async list(orgId, branchId = 'default'){
-      if (root.LeadIntakeAPI?.forms?.list) return root.LeadIntakeAPI.forms.list(orgId, branchId);
-      const result = await leadImport.get(orgId, branchId);
-      return result?.settings?.website_forms || [];
-    },
-    async saveAll(orgId, branchId = 'default', forms = []){
-      if (root.LeadIntakeAPI?.forms?.saveAll) return root.LeadIntakeAPI.forms.saveAll(orgId, branchId, forms);
-      const result = await leadImport.patch(orgId, branchId, { website_forms: Array.isArray(forms) ? forms : [] });
-      return result?.settings?.website_forms || [];
     }
   };
 
@@ -178,7 +144,7 @@
     }
   };
 
-  const api = { configure, baseUrl, url, request, leadImport, websiteForms, inbound };
+  const api = { configure, baseUrl, url, request, leadImport, inbound };
   configure({ baseUrl: APP.emailApiBase || '' });
   root.EmailAPI = api;
 })();
