@@ -7358,6 +7358,7 @@ window.PlatformCommerce.onReady(async function(){
         panelHtml: meta.app?.panelHtml,
         app: meta.app
       }));
+    if (!options.opening && window.Portal.ExteriorOrder?.active()) return apps.filter(app => app.id === 'map');
     // Doc-first standalone mode: until a project is picked/created, the modal
     // is a single standalone document — only the Docs tab exists.
     if (!options.opening && docWorkflowStandaloneActive()) return apps.filter((app) => app.id === 'docs');
