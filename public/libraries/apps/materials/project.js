@@ -3649,6 +3649,7 @@
     const selector = '[data-mt-add-section],[data-mt-item-variant],[data-mt-color-trigger],[data-mt-list-trigger],[data-mt-item-name],[data-mt-item-qty],[data-mt-item-unit],[data-mt-item-price],[data-mt-remove]';
     root?.querySelectorAll?.(selector)?.forEach((control) => { control.disabled = !!saving; });
     root?.classList?.toggle('is-saving', !!saving);
+    syncTopBar();
   }
 
   function syncLineRow(itemId, listId){
