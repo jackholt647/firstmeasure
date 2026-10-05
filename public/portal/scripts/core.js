@@ -3799,6 +3799,7 @@
       #sidebarBottomLinks>.fm-link.active,#sidebarBottomLinks>.fm-link.active .ic{color:#333}
       .fm-link.bottom{ padding-top:12px; }
       .fm-tabpanel{display:none;min-height:100%}
+      .fm-tabpanel:not(.active){display:none!important}
       .fm-tabpanel.active{display:block;height:100%}
       .main-panels:has(>.fm-tabpanel.active.full-bleed){padding:0;overflow:hidden}
       .fm-tabpanel.full-bleed{height:100%;min-height:0;overflow:hidden}
