@@ -1818,21 +1818,24 @@ session_write_close();
       #fmProjectRoutePrecover .fm-pr-content{min-width:0;padding:18px;background:#eef2f6}
       #fmProjectRoutePrecover .fm-pr-content-card{height:100%;min-height:180px;border:1px solid rgba(15,23,42,.07);border-radius:14px;background:#fff}
       #fmProjectRoutePrecover .fm-pr-content-card:before{content:'';display:block;width:34%;height:16px;margin:18px;border-radius:999px;background:#eef1f5}
-      @media(max-width:720px){
-        #fmProjectRoutePrecover{align-items:flex-end!important;justify-content:center!important;padding-top:20px!important;box-sizing:border-box;background:rgba(11,16,24,.34)!important;backdrop-filter:blur(2px)!important}
-        #fmProjectRoutePrecover .fm-pr-shell{width:100vw;height:calc(100dvh - 20px);border-radius:18px 18px 0 0;box-shadow:0 -9px 28px rgba(15,23,42,.30)}
-        #fmProjectRoutePrecover .fm-pr-header{height:48px;min-height:48px}
-        #fmProjectRoutePrecover .fm-pr-tabs{display:grid;grid-auto-columns:minmax(44px,1fr);grid-auto-flow:column}
-        #fmProjectRoutePrecover .fm-pr-tab{min-height:48px;padding:0;font-size:0}
-        #fmProjectRoutePrecover .fm-pr-tab i{font-size:16px}
-        #fmProjectRoutePrecover .fm-pr-close{width:48px;min-width:48px;font-size:17px}
-        #fmProjectRoutePrecover .fm-pr-title{height:48px;min-height:48px;padding:0 16px;border-bottom:1px solid rgba(15,23,42,.10);display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;font-size:16px;font-weight:900;color:#475467}
-        #fmProjectRoutePrecover .fm-pr-current{display:inline-flex;align-items:center;gap:9px;min-width:0;overflow:hidden;white-space:nowrap}
-        #fmProjectRoutePrecover .fm-pr-project{margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#475467}
-        #fmProjectRoutePrecover .fm-pr-body{display:block;min-height:0;background:#eef2f6}
+      @media(max-width:760px){
+        /* Match the mobile window from first paint, before project capabilities arrive. */
+        #fmProjectRoutePrecover{align-items:stretch!important;justify-content:stretch!important;padding:0!important;background:#fff!important;backdrop-filter:none!important}
+        #fmProjectRoutePrecover .fm-pr-shell{position:relative;width:100%;height:100%;border-radius:0;box-shadow:none}
+        #fmProjectRoutePrecover .fm-pr-title{order:-1;box-sizing:content-box;height:60px;min-height:60px;padding:env(safe-area-inset-top,0px) 64px 0 16px;border:0;display:flex;align-items:center;background:#fff;font-size:18px;font-weight:800;color:#101828}
+        #fmProjectRoutePrecover .fm-pr-current{display:none}
+        #fmProjectRoutePrecover .fm-pr-project{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;white-space:nowrap}
+        #fmProjectRoutePrecover .fm-pr-project:before{content:'\f07c';font-family:'Font Awesome 6 Free';font-weight:900;color:var(--primary,#d93025)}
+        #fmProjectRoutePrecover .fm-pr-project i{display:none}
+        #fmProjectRoutePrecover .fm-pr-header{height:32px;min-height:32px;border:0;border-bottom:1px solid #e4e7ec}
+        /* Do not flash a fabricated eight-tab menu before permissions/configuration load. */
+        #fmProjectRoutePrecover .fm-pr-tabs{visibility:hidden}
+        #fmProjectRoutePrecover .fm-pr-close{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);right:8px;box-sizing:border-box;width:44px;height:44px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;color:#101828;font-size:24px;cursor:pointer}
+        #fmProjectRoutePrecover .fm-pr-body{display:block;background:#fff}
         #fmProjectRoutePrecover .fm-pr-left{display:none}
-        #fmProjectRoutePrecover .fm-pr-content{height:100%;padding:12px;box-sizing:border-box;background:#eef2f6}
-        #fmProjectRoutePrecover .fm-pr-content-card{min-height:0;border-radius:12px}
+        #fmProjectRoutePrecover .fm-pr-content{height:100%;padding:0;background:#fff}
+        #fmProjectRoutePrecover .fm-pr-content-card{height:100%;min-height:0;border:0;border-radius:0;display:grid;place-items:center}
+        #fmProjectRoutePrecover .fm-pr-content-card:before{content:'Opening project...' ;width:auto;height:auto;margin:0;background:none;color:#667085;font-size:13px}
       }
     </style>
     <div class="fm-pr-shell">
