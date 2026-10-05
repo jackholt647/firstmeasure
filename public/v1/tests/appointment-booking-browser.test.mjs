@@ -25,7 +25,7 @@ test('presets request a named assignee up front; advanced changes become Custom 
     });
     await page.locator('[data-preset-button=consultation]').first().click();
     assert.equal(await page.locator('[data-advanced]').getAttribute('open'),null);
-    await page.locator('.fm-ap-quick details summary').click();await page.locator('.fm-ap-quick [data-specific]').check();await page.locator('.fm-ap-quick details summary').click();
+    await page.locator('.fm-ap-quick [data-people-picker] summary').click();await page.locator('.fm-ap-quick [data-specific]').check();await page.locator('.fm-ap-quick [data-people-picker] summary').click();
     await page.locator('[data-advanced]>summary').click();
     await page.locator('label:has(>[data-delivery])').click();
     await page.locator('label:has(>[data-department][value=production])').click();await page.locator('label:has(>[data-window-toggle])').click();
@@ -38,7 +38,7 @@ test('presets request a named assignee up front; advanced changes become Custom 
     assert.equal(await page.locator('[data-project] input').isDisabled(),true);
     await page.locator('[data-timing]').selectOption('days');
     assert.equal(await page.locator('[data-duration]').count(),0);
-    await page.locator('[data-days]').fill('3');await page.locator('[data-days]').press('Tab');
+    await page.locator('[data-duration-preset="3"]').click();
     await page.getByLabel('Location presets',{exact:true}).click();await page.locator('[data-location-preset="1"]').click();
     assert.equal(await page.locator('[data-address]').getAttribute('placeholder'),'Company office address');
     const days=await page.evaluate(()=>window.requests.at(-1).configuration);assert.equal(days.timing_mode,'days');assert.equal(days.duration_days,3);assert.equal(days.location.mode,'company_office');
@@ -209,4 +209,13 @@ test('versioned booking loads the new UI when old lazy scripts remain in the bro
  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  try{const page=await browser.newPage();await page.goto(base+'/warm');assert.equal(await page.evaluate(()=>FirstMateBooking.old),true);await page.goto(base+'/new');await page.evaluate(async()=>{window.PlatformAPI={projects:{list:async()=>({documents:[]})},appointments:{catalog:async()=>({catalog:{departments:[],groups:[],presets:[]},resources:[]}),preview:async()=>({slots:[]}),book:async()=>({ok:true})}};await FirstMateBooking.open({orgId:'org'});});await page.locator('.fm-ap-presets').waitFor();assert.equal(await page.locator('[data-advanced]>summary').innerText(),'Advanced');assert.equal(await page.locator('[data-manage]').count(),0);for(const name of ['configuration.js','availability.js','booking.css'])assert.ok(requests.some(url=>url.endsWith(name+'?v=release-new')),name);assert.equal(requests.filter(url=>url==='/libraries/appointment-booking/configuration.js').length,1);
  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
+});
+test('multi-day ranges cross months, exclude crew conflicts and book an inclusive end date',async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{const page=await browser.newPage({viewport:{width:1280,height:800}});await page.route('http://localhost/**',r=>r.fulfill({body:'<html></html>',contentType:'text/html'}));await page.goto('http://localhost/');await page.addStyleTag({content:styles});for(const content of [picker,selector,configuration,booking])await page.addScriptTag({content});
+ await page.evaluate(async()=>{const base={title:'Installation',department_ids:[],delivery:false,timing_mode:'days',duration_days:2,location:{mode:'none',address:''},duration_minutes:60,window_minutes:60,slot_minutes:30,requirements:[],recurrence:null};window.booked=[];window.PlatformAPI={projects:{list:async()=>({documents:[]})},appointments:{catalog:async()=>({catalog:{departments:[],groups:[],presets:[{id:'installation',label:'Installation',configuration:base}]},resources:[]}),preview:async(org,input)=>{const start=new Date(input.date+'T00:00:00Z'),end=new Date(+start+input.configuration.duration_days*86400000),blocked=new Date('2026-11-03T00:00:00Z');return {slots:[{start_at:start.toISOString(),available:!(start<=blocked&&end>blocked),window_end_at:end.toISOString()}]};},book:async(org,input)=>window.booked.push(input)}};await FirstMateBooking.open({orgId:'org',date:'2026-10-30'});});
+ await page.locator('[data-preset-button=installation]').first().click();assert.equal(await page.locator('.fmle-time-panel').count(),0);assert.equal(await page.locator('[data-duration-preset="7"]').innerText(),'1 week');await page.locator('[data-range-date="2026-10-30"]').click();await page.waitForFunction(()=>!document.querySelector('.fm-range [type=submit]').disabled);assert.match(await page.locator('[data-range-end]').innerText(),/Oct 31/);
+ await page.locator('[data-range-field=end]').click();await page.locator('[data-range-month="1"]').click();await page.locator('[data-range-date="2026-11-02"]').click();await page.waitForFunction(()=>!document.querySelector('.fm-range [type=submit]').disabled);assert.match(await page.locator('[data-range-end]').innerText(),/Nov 2/);assert.equal(await page.locator('[data-days]').inputValue(),'4');assert.equal(await page.locator('[data-range-date="2026-11-03"]').isDisabled(),true);assert.equal(await page.locator('[data-range-date="2026-11-01"]').evaluate(el=>el.classList.contains('in-range')),true);
+ await page.setViewportSize({width:390,height:844});assert.ok(await page.locator('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth&&el.scrollHeight<=el.clientHeight+1));await page.locator('.fm-range [type=submit]').click();await page.getByText('Appointment booked.',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.booked[0].configuration.duration_days),4);assert.equal(await page.evaluate(()=>window.booked[0].start_at),'2026-10-30T00:00:00.000Z');
+ }finally{await browser.close();}
 });

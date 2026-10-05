@@ -2212,7 +2212,7 @@ session_write_close();
   <script src="../libraries/websites-api/websites-api.js?v=<?= portalAssetVersion('../libraries/websites-api/websites-api.js') ?>"></script>
   <script src="../libraries/domains-api/domains-api.js?v=<?= portalAssetVersion('../libraries/domains-api/domains-api.js') ?>"></script>
   <?php endif; ?>
-  <script src="../libraries/appointment-booking/booking.js?v=<?= portalAssetVersion('../libraries/appointment-booking/booking.js') . '-' . portalAssetVersion('../libraries/appointment-booking/configuration.js') . '-' . portalAssetVersion('../libraries/appointment-booking/booking.css') ?>"></script>
+  <script src="../libraries/appointment-booking/booking.js?v=<?= portalAssetVersion('../libraries/appointment-booking/booking.js') . '-' . portalAssetVersion('../libraries/appointment-booking/configuration.js') . '-' . portalAssetVersion('../libraries/appointment-booking/booking.css') . '-' . portalAssetVersion('../libraries/appointment-booking/availability.js') ?>"></script>
   <script src="../libraries/apps/firstmate-apps-manifest.js?v=<?= portalAssetVersion('../libraries/apps/firstmate-apps-manifest.js') ?>"></script>
   <script src="../libraries/report-units.js?v=<?= portalAssetVersion('../libraries/report-units.js') ?>"></script>
   <script src="../libraries/platform-commerce/platform-commerce.js?v=<?= portalAssetVersion('../libraries/platform-commerce/platform-commerce.js') ?>"></script>

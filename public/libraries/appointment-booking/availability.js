@@ -193,5 +193,35 @@
     const ready = load(options.autoAdvance !== false);
     return { ready, refresh:() => load(false), destroy:() => { destroyed = true; generation++; notify(null); } };
   }
-  window.FirstMateAvailability = { markup, mount };
+  function rangeMarkup(){return `<div class="fm-range"><div class="fm-range-dates"><button type="button" data-range-field="start" title="Choose the first day">Start <b data-range-start>Choose date</b></button><span aria-hidden="true">→</span><button type="button" data-range-field="end" title="Choose the last day, included in the appointment">End <b data-range-end>Choose date</b></button></div><div class="fm-range-head"><button type="button" data-range-month="-1" aria-label="Previous month">‹</button><div><strong data-range-month-label></strong><small data-range-loading></small></div><button type="button" data-range-month="1" aria-label="Next month">›</button></div><div class="fm-range-grid" data-range-grid></div><div class="fm-range-footer"><span role="status" data-range-status></span><button type="submit" disabled>Book appointment</button></div></div>`;}
+  function mountRange(wrap,options){
+    let start=options.date||localDateInput(),days=options.days||2,month=dateFromInput(start),field='start',picked=false,disposed=false,epoch=0,selectionEpoch=0;
+    const cache=new Map(),today=localDateInput(),$=q=>wrap.querySelector(q),end=()=>localDateInput(addDays(dateFromInput(start),days-1));
+    const utc=date=>{const [y,m,d]=date.split('-').map(Number);return Date.UTC(y,m-1,d);};
+    const length=date=>Math.round((utc(date)-utc(start))/86400000)+1;
+    const caption=date=>dateFromInput(date).toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'});
+    async function available(date,count){const key=date+':'+count;if(!cache.has(key)){const pending=Promise.resolve().then(()=>options.loadAvailability(date,count)).then(data=>(data.slots||[]).find(s=>s.available||s.hasAvailability)||null).catch(error=>{cache.delete(key);throw error;});cache.set(key,pending);}return cache.get(key);}
+    function header(){ $('[data-range-start]').textContent=picked?caption(start):'Choose date';$('[data-range-end]').textContent=picked?caption(end()):'Choose date';wrap.querySelectorAll('[data-range-field]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.rangeField===field))); }
+    async function select(date){
+      const ticket=++selectionEpoch;options.onChange?.(null);$('[type=submit]').disabled=true;
+      if(field==='end'){days=length(date);options.onDurationChange?.(days);}else start=date;
+      picked=true;header();paint();$('[data-range-status]').textContent='Checking crew availability…';
+      try{const slot=await available(start,days);if(disposed||ticket!==selectionEpoch)return;options.onChange?.(slot);$('[type=submit]').disabled=!slot;$('[data-range-status]').textContent=slot?`${days} day${days===1?'':'s'} · ${caption(start)} – ${caption(end())}`:'No matching team is available for this entire range.';}catch(error){if(!disposed&&ticket===selectionEpoch)$('[data-range-status]').textContent=error.message||'Could not check availability.';}
+    }
+    function paint(){wrap.querySelectorAll('[data-range-date]').forEach(b=>{const date=b.dataset.rangeDate;b.classList.toggle('in-range',picked&&date>=start&&date<=end());b.classList.toggle('endpoint',picked&&(date===start||date===end()));b.setAttribute('aria-pressed',String(picked&&(date===start||date===end())));});}
+    async function render(){
+      const ticket=++epoch;header();$('[data-range-month-label]').textContent=month.toLocaleDateString([],{month:'long',year:'numeric'});
+      $('[data-range-loading]').textContent='Checking dates…';
+      const dates=calendarDays(localDateInput(month)).slice(0,Math.ceil((new Date(month.getFullYear(),month.getMonth(),1).getDay()+new Date(month.getFullYear(),month.getMonth()+1,0).getDate())/7)*7);$('[data-range-grid]').innerHTML=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<span class="fm-range-dow">${d}</span>`).join('')+dates.map(d=>{const date=localDateInput(d),valid=d.getMonth()===month.getMonth()&&date>=today&&(field==='start'||(picked&&length(date)>=1&&length(date)<=31));return `<button type="button" data-range-date="${date}" ${valid?'':'disabled'} class="${valid?'pending':'outside'}" aria-label="${esc(d.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric',year:'numeric'}))}">${d.getDate()}</button>`;}).join('');paint();
+      const queue=[...wrap.querySelectorAll('[data-range-date]:not(:disabled)')];queue.forEach(b=>{b.disabled=true;b.onclick=()=>void select(b.dataset.rangeDate);});
+      if(options.unavailableMessage){$('[data-range-loading]').textContent='';$('[data-range-status]').textContent=options.unavailableMessage;return;}
+      let failures=0,found=0;
+      async function worker(){while(queue.length&&!disposed&&ticket===epoch){const b=queue.shift(),date=b.dataset.rangeDate;try{const slot=await available(field==='end'?start:date,field==='end'?length(date):days);if(disposed||ticket!==epoch)return;b.classList.remove('pending');b.disabled=!slot;b.classList.toggle('unavailable',!slot);b.title=slot?'Available for the entire appointment':'No matching team available for the entire range';if(slot)found++;}catch{if(disposed||ticket!==epoch)return;failures++;b.classList.remove('pending');b.title='Could not check availability';}}}
+      await Promise.all(Array.from({length:3},worker));if(!disposed&&ticket===epoch)$('[data-range-loading]').textContent='';if(!disposed&&ticket===epoch&&!picked)$('[data-range-status]').textContent=failures?'Some dates could not be checked. Try another month or reopen the calendar.':found?'Choose an available start date.':'No matching team is available this month.';
+    }
+    wrap.querySelectorAll('[data-range-field]').forEach(b=>b.onclick=()=>{if(b.dataset.rangeField==='end'&&!picked)return;field=b.dataset.rangeField;month=dateFromInput(field==='start'?start:end());void render();});
+    wrap.querySelectorAll('[data-range-month]').forEach(b=>b.onclick=()=>{month=new Date(month.getFullYear(),month.getMonth()+Number(b.dataset.rangeMonth),1);void render();});
+    const ready=render();return {ready,get value(){return {date:start,days};},refresh(){cache.clear();return picked?select(field==='end'?end():start):render();},destroy(){disposed=true;epoch++;selectionEpoch++;options.onChange?.(null);}};
+  }
+  window.FirstMateAvailability = { markup, mount, rangeMarkup, mountRange };
 })();

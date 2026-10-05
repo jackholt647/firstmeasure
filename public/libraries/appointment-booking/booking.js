@@ -7,7 +7,7 @@
   async function ensurePicker(){
     if (window.FirstMateAvailability && window.FirstMateProjectSelector && window.FirstMateAppointmentConfiguration) return;
     await (loading ||= Promise.all([!window.FirstMateAppointmentConfiguration ? "configuration.js" : "", !window.FirstMateAvailability ? "availability.js" : "", !window.FirstMateProjectSelector ? "../project-selector/project-selector.js" : ""].filter(Boolean).map(path => new Promise((resolve, reject) => {
-      const script = document.createElement('script'); const url = new URL(path, source); url.searchParams.set('v', new URL(source).searchParams.get('v') || '20261005-compact-booking-v2'); script.src = url.href;
+      const script = document.createElement('script'); const url = new URL(path, source); url.searchParams.set('v', new URL(source).searchParams.get('v') || '20261005-appointment-ranges-v1'); script.src = url.href;
       script.onload = resolve;
       script.onerror = () => { loading = null; script.remove(); reject(new Error('Could not load the appointment calendar.')); };
       document.head.append(script);
@@ -45,13 +45,18 @@
     dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
     dialog.addEventListener('close', () => { picker?.destroy(); configuration?.destroy(); select.destroy(); dialog.remove(); if (active === dialog) active = null; previousFocus?.focus?.(); }, {once:true});
     const refresh = () => {
-      const date=target.querySelector('[data-date][aria-pressed=true]')?.dataset.date||options.date;
+      const previousDate=picker?.value?.date;
+      const date=previousDate||target.querySelector('[data-date][aria-pressed=true]')?.dataset.date||options.date;
       picker?.destroy(); selected = null; status.textContent = '';
-      target.innerHTML = window.FirstMateAvailability.markup({submitLabel:'Book appointment'});
+      const dayMode=configuration.value.timing_mode==='days';
+      target.innerHTML = dayMode?window.FirstMateAvailability.rangeMarkup():window.FirstMateAvailability.markup({submitLabel:'Book appointment'});
       const submit = target.querySelector('[type=submit]'); submit.disabled = true;
-      picker = window.FirstMateAvailability.mount(target, {
+      picker = window.FirstMateAvailability[dayMode?'mountRange':'mount'](target, {
+        days:configuration.value.duration_days,
+        unavailableMessage:configuration.availabilityHint,
+        onDurationChange:days=>{configuration.setDuration(days,false);eventId=`appointment_${crypto.randomUUID()}`;},
         date,
-        loadAvailability: date => api.appointments.preview(orgId, {...(select.value ? {project_id:select.value} : {}), date, configuration:configuration.value}),
+        loadAvailability: (date,days) => api.appointments.preview(orgId, {...(select.value ? {project_id:select.value} : {}), date, configuration:{...configuration.value,...(dayMode?{duration_days:days}:{})}}),
         onChange: slot => { selected = slot; submit.disabled = !slot || saving; }
       });
     };
