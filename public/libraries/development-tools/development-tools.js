@@ -54,4 +54,7 @@ export async function mount() {
   body.querySelector('select').focus();
  }
  button.onclick=open;slot.querySelector('[data-dev-launch]').onclick=open;
+ const more=document.getElementById('mobilePlatformMoreMenu');
+ if(more){const mobile=document.createElement('button');mobile.type='button';mobile.className='ptb-more-item';mobile.dataset.devMobile='';mobile.innerHTML='<i class="fas fa-code" aria-hidden="true"></i><span>Development tools</span>';more.prepend(mobile);mobile.onclick=()=>{document.getElementById('mobilePlatformMoreBtn')?.click();open();};}
+
 }
