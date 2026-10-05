@@ -30,3 +30,18 @@ baselines, preserving role-specific code and unrelated workspace changes. Only
 the two material UI files and their bundle version are deployed. No database or
 worker changes. The manifest records previous paths for atomic symlink rollback,
 development service restart and PHP-FPM reload.
+
+## Activation and live verification
+
+Initial restoration: `880e1216b9b2438e952bed3f162b62e18584f69f`. Final runtime:
+`46d41f7f4967ca29a4fb9ca70acdde485365074c`, including the narrow-screen
+sidebar correction. Web, compatibility and pool serving roles activated and
+passed source-hash and development-readiness verification. Outbound safety
+remains enforced. Worker and backend implementations are unchanged.
+
+Live desktop and 390px phone checks passed without asset overrides or browser
+errors: Scope widgets remain visible, roof selection retains material lists,
+View scope returns to source context, and refresh leaves the ledger revision
+unchanged. The phone material area is 372px wide with no content overflow.
+The material-service browser test additionally covers manual creation, generation
+review, editing, ordering and retained outstanding quantities.

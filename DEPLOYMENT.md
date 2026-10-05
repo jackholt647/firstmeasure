@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 5 Scope: [Restored context widgets and material-list review](deploy/digitalocean/development-scope-restoration-20261005.md) records the restored workspace, document material integration and responsive development rollout.
+
 October 4 ordering: [Capture layout and submission lock](deploy/digitalocean/development-order-capture-20261004.md) records full-height capture, scoped ordering notices and verified development rollout.
 
 

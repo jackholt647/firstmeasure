@@ -78,6 +78,16 @@ and input/source contracts. Materials displays sets by source, readiness,
 requirements, calculation evidence, revisions and pending amendments. Manual
 creation, input editing, evaluation preview, amendment review, purchasing and
 delivery grouping are explicit user actions. Unsaved edits survive errors.
+
+The project entry point is the existing Scope workspace, not a replacement
+calculator screen. Its left widget library retains roof, aerial, measurements
+and list views, with accepted document values beside the selected material set.
+The main review area contains independent generated lists alongside existing
+scope resources. Formula source and generator configuration belong in document
+authoring; project users see quantities, plain-language explanations, generation
+readiness and explicit change review. Opening or refreshing Scope is read-only.
+On narrow screens the context widgets stack above the material lists.
+
 Project identity and organization are server-authorized; cross-project amendment,
 order and delivery references are rejected. Source evidence is reauthorized on
 reads. Publication actions reuse the same service as HTTP/UI operations.
