@@ -7669,7 +7669,7 @@ window.PlatformCommerce.onReady(async function(){
     const header=$('#rOverlay .r-modal-header');
     if(!header || header.querySelector('#rMeasureTabs'))return;
     const tabs=openingProjectTabs(activeBaseProject,{workflow:requestedWorkflow});
-    if(!tabs.some(tab=>tab.id==='project:map')){header.querySelector('#rOpeningReportTabs')?.remove();return;}
+    if(!tabs.some(tab=>tab.id==='project:map')){const pending=header.querySelector('#rOpeningReportTabs');if(pending){pending.remove();$('#rOverlay')?.classList.remove('flat-report-navigation','report-tabs-in-header');}return;}
     let nav=header.querySelector('#rOpeningReportTabs');
     if(!nav){nav=document.createElement('nav');nav.id='rOpeningReportTabs';nav.className='r-measure-tabs';header.append(nav);}
     $('#rOverlay')?.classList.add('flat-report-navigation','report-tabs-in-header');

@@ -67,6 +67,10 @@ test('mobile opening header has final tabs and no desktop pills before child boo
  assert.ok(sizes.every(r=>Math.abs(r.width-sizes[0].width)<1&&r.height===32));
  assert.equal(await page.locator('.fm-project-loading-header [data-window-action=close]').isVisible(),true);
  assert.equal(await page.locator('.fm-project-loading-header [data-window-action=minimize]').isVisible(),false);
+ await page.locator('.fm-project-loading-header [data-tab="project:map"]').click();
+ assert.equal(await page.evaluate(()=>record.options.tab),'map');
+ await page.locator('.fm-project-loading-header [data-tab=standard]').click();
+ assert.equal(await page.evaluate(()=>record.options.reportView),'standard');
  await page.evaluate(()=>FirstMateProjectWindows.close(record.token));
  await page.evaluate(()=>{
   document.body.innerHTML='<div id="rOverlay"><header class="r-modal-header"><nav id="rProjectViewerTabs"></nav></header></div>';
