@@ -1045,7 +1045,7 @@
     if (boardOpen()) {
       return array(renders).filter(render => render.type === 'platform_widget' && render.widget).map(render => `<button type="button" class="fma-panel-chip" data-focus-widget="${esc(JSON.stringify(render.widget))}">${esc(render.title || 'Open widget')}</button>`).join('');
     }
-    return window.FirstMateWidgets?.presentationHtml?.(renders) || '';
+    return window.FirstMateWidgets?.presentationHtml?.(array(renders).filter(render => render.type === 'platform_widget')) || '';
   }
 
   function messageHtml(message, animate){

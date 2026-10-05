@@ -94,7 +94,17 @@
   global.addEventListener('fm:document-widget-registered',event=>registerDocumentWidget(event.detail));
   adoptDocumentWidgets();
   const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  function presentationHtml(renders=[],{side=false}={}){styles();return (Array.isArray(renders)?renders:[]).filter(r=>r.type==='platform_widget'&&r.widget).map(r=>`<section class="fm-widget-presentation" data-side="${side}"><div class="fm-widget-preview"><fm-platform-widget surface="assistant" reference="${escape(JSON.stringify(r.widget))}" aria-label="${escape(r.title||'Project widget')}"></fm-platform-widget></div><button type="button" class="fm-widget-expand" aria-expanded="false">Expand widget</button></section>`).join('');}
+  function presentationHtml(renders=[],{side=false}={}){
+    styles();
+    const widgetHtml=r=>`<section class="fm-widget-presentation" data-side="${side}"><div class="fm-widget-preview"><fm-platform-widget surface="assistant" reference="${escape(JSON.stringify(r.widget))}" aria-label="${escape(r.title||'Project widget')}"></fm-platform-widget></div><button type="button" class="fm-widget-expand" aria-expanded="false">Expand widget</button></section>`;
+    return (Array.isArray(renders)?renders:[]).map(r=>{
+      if(r.type==='platform_widget'&&r.widget)return widgetHtml(r);
+      if(r.type!=='panel')return '';
+      const children=(Array.isArray(r.widgets)?r.widgets:[]).slice(0,6).filter(w=>w.type==='platform_widget'&&w.widget);
+      if(!children.length)return '';
+      return `<section class="fm-chat-panel" data-chat-panel-id="${escape(r.id||'')}"><header><h3>${escape(r.title||'Panel')}</h3></header>${children.map(widgetHtml).join('')}</section>`;
+    }).join('');
+  }
   global.document.addEventListener('click',event=>{const button=event.target.closest?.('.fm-widget-expand');if(!button)return;const card=button.closest('.fm-widget-presentation');const expanded=card.dataset.expanded!=='true';card.dataset.expanded=String(expanded);button.setAttribute('aria-expanded',String(expanded));button.textContent=expanded?'Collapse widget':'Expand widget';});
   if(!customElements.get('fm-platform-widget'))customElements.define('fm-platform-widget',class extends HTMLElement{
     static get observedAttributes(){return ['reference','surface'];}

@@ -1021,7 +1021,8 @@
         html += `<div class="st-msg-changes"><strong>${(globalThis.PlatformLanguage?.htmlText("stats","m_c46a636ed38aee","What changed") ?? "What changed")}</strong>${String(changes.map((change) => `<div><i class="fas fa-check" style="color:#12b76a;font-size:10px;"></i><span>${esc(change)}</span></div>`).join(''))}</div>`;
       }
       html += `</div>`;
-      array(data.renders).slice(0, 8).forEach((render) => {
+      html += window.FirstMateWidgets?.presentationHtml?.(data.renders) || '';
+      array(data.renders).filter(render => !['panel','platform_widget'].includes(render.type)).slice(0, 8).forEach((render) => {
         const widget = object(object(render).widget);
         const renderData = object(object(render).data);
         html += `<div class="st-msg-render${anim}"><div class="st-card-title"><span>${esc(widget.title || '')}</span></div>${renderWidgetBody(widget, renderData, state.labels)}</div>`;
