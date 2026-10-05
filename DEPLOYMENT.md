@@ -1,5 +1,8 @@
 # FirstMeasure: local development and production deployment
 
+October 4 appointment UI: [Compact booking and Settings-only administration](deploy/digitalocean/development-appointment-ui-20261004.md) records the responsive redesign, focused browser checks and verified development rollout.
+
+
 October 3 materials: [Document-owned calculations, amendments and deliveries](deploy/digitalocean/development-materials-calculus-20261003.md) records the architecture, validation and verified development rollout.
 
 October 3 partner invitations: [Named onboarding, invitation history and polished link/QR sharing](deploy/digitalocean/development-partner-invitations-20261003.md) records required-email invitations, Subcontractor sandbox defaults, tracking and the verified development rollout.
