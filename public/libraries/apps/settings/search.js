@@ -30,7 +30,6 @@
   add('feedback', 'Feedback', [
     { title:(globalThis.PlatformLanguage?.text("settings","m_40390cdba7b5db","Feedback delivery") ?? "Feedback delivery"), view:'delivery' },
     { title:(globalThis.PlatformLanguage?.text("settings","m_d4349c36aae182","Feedback workflow") ?? "Feedback workflow"), view:'workflow' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_781d4602fae423","Feedback responses") ?? "Feedback responses"), view:'responses' },
     { title:(globalThis.PlatformLanguage?.text("settings","m_25aca3d07d8eca","Review requests") ?? "Review requests"), view:'delivery' },
     { title:(globalThis.PlatformLanguage?.text("settings","m_d0201580beb20c","Customer rating scale") ?? "Customer rating scale"), view:'workflow' }
   ]);
@@ -65,6 +64,7 @@
     { title:(globalThis.PlatformLanguage?.text("settings","m_ef207345c8196c","Celebrations") ?? "Celebrations"), view:'celebrations', keywords:'confetti success animation' },
     { title:(globalThis.PlatformLanguage?.text("settings","m_5430e6902b900e","Insights") ?? "Insights"), view:'insights', keywords:'recommendations tips tooltip agent contextual help' }
   ]);
+  add('users', 'Users', [{title:'Departments',view:'departments',keywords:'organization create department membership user types role defaults group types crews teams people'}]);
   add('scheduling', 'Scheduling', ['Appointment confirmations', 'Scheduling availability', 'Assignment rules', 'Booking windows']);
   add('crews', 'Crews and Subcontractors', [
     { title:(globalThis.PlatformLanguage?.text("settings","m_40d0afffa9e25d","Crews and resource groups") ?? "Crews and resource groups"), view:'groups', keywords:'crew members teams' },
@@ -107,7 +107,7 @@
     const allowed = options.sections ? new Set(Array.from(options.sections, String)) : null;
     return catalog
       .map((item) => {
-        if (item.section !== 'users' || root.Portal?.appFlags?.has?.('platform', 'people_access')) return item;
+        if (item.section !== 'users' || item.view === 'departments' || root.Portal?.appFlags?.has?.('platform', 'people_access')) return item;
         const titles = { People:'Users', 'Roles & access':'Permissions', 'Invite user':'Add user' };
         return { ...item, title:titles[item.title] || item.title, view:'' };
       })

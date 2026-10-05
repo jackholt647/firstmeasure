@@ -1,6 +1,7 @@
+import { registerDepartmentPublication } from '../../workforce/department-publication.js';
+import { registerWidgetProviders } from '../widgets/catalog.js';
 import { registerMaterialsCalculusPublication } from '../../materials/calculus-publication.js';
 import { registerMaterialsInputs } from '../../materials/calculus-inputs.js';
-import { registerWidgetProviders } from '../widgets/catalog.js';
 import { registerNotificationProvider } from "../notifications/provider.js";
 import { registerBuiltinDataProviders } from "./provider-adapters.js";
 import { registerDomainActions } from "./action-adapters.js";
@@ -23,6 +24,7 @@ export function initializePublication() {
   registerContactPublication();
   registerCollaborationPublication();
   registerDomainActions();
+  registerDepartmentPublication();
   registerDatasetActions();
   registerModuleDataProvider();
   registerMaterialsCalculusPublication();

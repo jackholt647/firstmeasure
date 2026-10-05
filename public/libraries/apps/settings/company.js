@@ -9800,6 +9800,7 @@
               <div><div class="wf-member-toolbar"><div><div class="wf-section-title">${String(escapeHtml(terms().worker_plural))}</div><div class="wf-member-summary">${((v12) => globalThis.PlatformLanguage?.htmlText("settings","m_7439d2a2f3897d",`Only people assigned to this ${v12} appear here.`,{v12}) ?? `Only people assigned to this ${v12} appear here.`)(escapeHtml(terms().resource_group_singular.toLowerCase()))}</div></div><button type="button" class="cs-btn primary" data-group-member-picker><i class="fas fa-user-plus"></i>${((v13) => globalThis.PlatformLanguage?.htmlText("settings","m_ef421e925b36cc",` Add ${v13}`,{v13}) ?? ` Add ${v13}`)(escapeHtml(terms().worker_singular))}</button></div><div class="wf-member-list">${String(memberRows || `<div class="wf-member-empty"><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_37a2946aba9d92",`No ${v0} assigned yet.`,{v0}) ?? `No ${v0} assigned yet.`)(escapeHtml(terms().worker_plural.toLowerCase()))}</strong><span>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_ab6055c71030ce",`Add someone when this ${v1} is ready.`,{v1}) ?? `Add someone when this ${v1} is ready.`)(escapeHtml(terms().resource_group_singular.toLowerCase()))}</span></div>`)}</div></div>
               ${String(compensationEditorHtml(groupPlan, { prefix:`group_${group.id || 'new'}`, title:((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_4f1a61ef0749c1",`${v0} compensation fallback`,{v0}) ?? `${v0} compensation fallback`)(terms().resource_group_singular) }))}
               <div><div class="wf-section-title" style="margin-bottom:7px">${(globalThis.PlatformLanguage?.htmlText("settings","m_f2426f1592b4bf","Scope capabilities") ?? "Scope capabilities")}</div>${String(scopeOptionsHtml(workforceScopeIds(group)))}</div>
+              <div data-group-departments data-settings-autosave="off"></div>
               <div class="wf-status" data-card-status></div>
             </div>
           </section>`;
@@ -9952,9 +9953,11 @@
                 <label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4c4943b0d6acf1","Group kinds") ?? "Group kinds")}</span><textarea class="wf-input" rows="5" data-workforce-definitions="resource_group_kinds" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_addcc2d761e132","crew | Crew") ?? "crew | Crew")}">${String(escapeHtml(resourceGroupKinds().map((kind) => `${kind.id} | ${kind.name}`).join('\n')))}</textarea><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_02b1826ca4c69e","One per line: stable id | display name. Existing groups keep stable IDs.") ?? "One per line: stable id | display name. Existing groups keep stable IDs.")}</small></label>
                 <label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_75ef37c7aa8d48","Assignment tags") ?? "Assignment tags")}</span><textarea class="wf-input" rows="5" data-workforce-definitions="assignment_tags" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_abe5462c3e858a","drywall | Drywall") ?? "drywall | Drywall")}">${String(escapeHtml(assignmentTags().map((tag) => `${tag.id} | ${tag.name}`).join('\n')))}</textarea><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_749812be09209b","Tags can be applied to people and groups, then required by an event type.") ?? "Tags can be applied to people and groups, then required by an event type.")}</small></label>
               </div>
+              <div data-settings-autosave="off"><h4>Default departments by user group type</h4><p class="cs-note">Save new group types above before assigning departments.</p>${resourceGroupKinds().map(kind=>`<details data-department-group-kind="${escapeHtml(kind.id)}"><summary>${escapeHtml(kind.name)}</summary><div data-kind-departments></div></details>`).join('')}</div>
               <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_40bc5e5c088e3f","Display names are managed by language in Configuration → Terminology.") ?? "Display names are managed by language in Configuration → Terminology.")}</p><div class="wf-card-actions"><button type="button" class="cs-btn primary" data-terms-save>${(globalThis.PlatformLanguage?.htmlText("settings","m_98ed5b5d193fc7","Save types and tags") ?? "Save types and tags")}</button></div>
             </section>
           </div>`;
+          paneCrews.querySelectorAll('[data-department-group-kind]').forEach(details=>details.addEventListener('toggle',()=>{if(details.open)void departmentUi(details.querySelector('[data-kind-departments]'),'group_kind',details.dataset.departmentGroupKind);}));
           paneCrews.querySelectorAll('[data-workforce-subtab]').forEach((button) => button.addEventListener('click', () => {
             viewState.workforceSubtab = button.dataset.workforceSubtab;
             if (!window.Portal?.navigation?.applying) writeSettingsRoute({ sub:'crews', settingsView:viewState.workforceSubtab, settingsEntity:'' }, { history:'push', source:'workforce-settings-view' });
@@ -10031,6 +10034,7 @@
           }));
           paneCrews.querySelectorAll('[data-resource-group]').forEach((card) => {
             const group = workforceUi.resourceGroups.find((item) => workforceText(item.id) === workforceText(card.dataset.resourceGroup)) || {};
+            const groupDepartmentEditor = departmentUi(card.querySelector('[data-group-departments]'),'group',group.id);
             card.querySelector('[data-group-member-picker]')?.addEventListener('click', () => openGroupMemberPicker(group));
             card.querySelectorAll('[data-group-member-remove]').forEach((button) => button.addEventListener('click', () => {
               button.closest('[data-group-user-row]')?.remove();
@@ -10054,6 +10058,7 @@
               try {
                 const members = memberAssignments.map((member) => ({ user_id:member.user_id, role:workforceText(member.role_id, 'member'), is_lead:member.is_lead, status:'active' }));
                 const compensationProfile = compensationFromEditor(card.querySelector('[data-comp-editor]'));
+                await (await groupDepartmentEditor)?.save();
                 const result = await api.workforce.updateResourceGroup(orgId, branchId, group.id, {
                   expected_revision:Number(group.revision || 0) || undefined,
                   name:card.querySelector('[data-group-name]')?.value || group.name,
@@ -13087,6 +13092,22 @@
         }
       });
     }
+    async function departmentUi(host, kind = '', id = ''){
+      if (!host) return;
+      host.setAttribute('data-settings-autosave','off');
+      try {
+        if (!window.FirstMateDepartments) {
+          window.__departmentUiLoading ||= new Promise((resolve,reject) => {
+            const script=document.createElement('script');script.src='/libraries/apps/settings/departments.js';
+            script.onload=resolve;script.onerror=()=>{window.__departmentUiLoading=null;script.remove();reject(new Error('Could not load departments. Reopen this view to retry.'));};document.head.appendChild(script);
+          });
+          await window.__departmentUiLoading;
+        }
+        if (!host.isConnected) return;
+        if (kind) return await window.FirstMateDepartments.mountAssignment(host,currentOrgId(),kind,id);
+        else await window.FirstMateDepartments.mount(host,currentOrgId());
+      } catch(error) { host.textContent=error.message || 'Could not load departments.'; }
+    }
     function setSubTab(which, options = {}){
       if (!tabAllowed(which)) return;
       closeSettingsSearch();
@@ -13112,7 +13133,7 @@
       if (which === 'my_settings' && canMySettings) renderMySettings();
       if (which === 'notifications') renderNotificationSettings();
       if (which === 'app_download') window.FirstMeasureAppDownload?.mount($('#csPaneAppDownload',panel), {orgId:currentOrgId()});
-      if (which === 'users' && canUsers) refreshUsers();
+      if (which === 'users' && canUsers) { setUsersView(options.settingsView || viewState.usersSubtab, false); refreshUsers(); }
       if (which === 'money' && canPayments) renderMoneySettings();
       if (which === 'calls' && canCallWorkflows) renderCallsSettings();
       if (which === 'contacts' && canContacts) renderContactsSettings();
@@ -15740,7 +15761,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     const canAddDelete = hasPerm('manage_company_users');
     const canManagePerms = hasPerm('manage_company_user_permissions');
     const canManageAccess = canManagePerms || canAddDelete || hasPerm('manage_company_settings');
-    const allowedUsersViews = ['people', ...(canManageAccess ? ['access'] : [])];
+    const allowedUsersViews = ['people', ...(!firstMeasureUsers && canManageAccess ? ['access'] : []), 'departments'];
     const routedUsersView = readSettingsRoute().settingsView;
     if (allowedUsersViews.includes(routedUsersView)) viewState.usersSubtab = routedUsersView;
     if (!allowedUsersViews.includes(viewState.usersSubtab)) viewState.usersSubtab = 'people';
@@ -15769,6 +15790,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           <nav class="cu-subnav" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_11bb3908df0f4e","User administration") ?? "User administration")}" role="tablist">
             <button type="button" class="cu-subtab ${String(viewState.usersSubtab === 'people' ? 'active' : '')}" data-users-view="people" role="tab" aria-selected="${String(viewState.usersSubtab === 'people')}"><i class="fas fa-users"></i><span>${String(escapeHtml(terminologyLabel('settings.people_view', 'People')))}</span></button>
             ${String(canManageAccess ? `<button type="button" class="cu-subtab ${viewState.usersSubtab === 'access' ? 'active' : ''}" data-users-view="access" role="tab" aria-selected="${viewState.usersSubtab === 'access'}"><i class="fas fa-user-shield"></i><span>${escapeHtml(terminologyLabel('settings.roles_access_view', 'Roles & access'))}</span><small data-access-role-count>0</small></button>` : '')}
+            <button type="button" class="cu-subtab ${viewState.usersSubtab === 'departments' ? 'active' : ''}" data-users-view="departments" role="tab" aria-selected="${viewState.usersSubtab === 'departments'}"><i class="fas fa-sitemap"></i><span>Departments</span></button>
           </nav>
 
           <section class="cu-view ${String(viewState.usersSubtab === 'people' ? 'active' : '')}" data-users-view-panel="people" ${String(viewState.usersSubtab === 'people' ? '' : 'hidden')}>
@@ -15802,6 +15824,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
               <div class="cu-access-manager-body" data-access-role-body><div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_1f1ad34d149fdf","Loading access roles...") ?? "Loading access roles...")}</div></div>
             </div>
           </section>` : '')}
+          <section class="cu-view ${viewState.usersSubtab === 'departments' ? 'active' : ''}" data-users-view-panel="departments" data-settings-autosave="off" ${viewState.usersSubtab === 'departments' ? '' : 'hidden'}></section>
         </div>
       `;
     }
@@ -17812,6 +17835,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             ${String(surfaceMarkup(role))}
             <div><div class="cu-workforce-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_275ff357425e43","Default data &amp; actions") ?? "Default data &amp; actions")}</div><div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_949c4257bb016e","Role permissions control capability. App visibility and permissions are intentionally separate.") ?? "Role permissions control capability. App visibility and permissions are intentionally separate.")}</div></div>
             ${String(permissionsMarkup(role))}
+            ${draft ? '<p class="cs-note">Create the role to assign default departments.</p>' : '<div data-role-departments data-settings-autosave="off"></div>'}
             <div class="cu-role-actions">
               ${String(draft ? `<button type="button" class="cs-btn ghost" data-role-cancel>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>` : `<button type="button" class="cs-btn ghost" data-role-archive ${systemRole ? 'disabled title="System roles cannot be archived."' : ''}><i class="fas fa-box-archive"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_d248c450100477"," Archive") ?? " Archive")}</button>`)}
               <button type="button" class="cs-btn primary" data-role-save><i class="fas fa-save"></i> ${String(draft ? 'Create role' : 'Save role')}</button>
@@ -17839,6 +17863,10 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       body.querySelectorAll('.cu-role-card').forEach((card) => {
         const roleId = workforceText(card.dataset.accessRoleId);
         const draft = card.hasAttribute('data-access-role-draft');
+        let roleDepartmentEditor = null;
+        const loadRoleDepartments=()=>{if(!draft)roleDepartmentEditor ||= departmentUi(card.querySelector('[data-role-departments]'),'role',roleId);};
+        if(card.open)loadRoleDepartments();
+        card.addEventListener('toggle',()=>{if(card.open)loadRoleDepartments();});
         const role = roles.find((entry) => workforceText(entry.id, entry.role_id) === roleId) || {};
         const systemRole = role.is_system === true || workforceObject(role.metadata).system_default === true;
         const setBusy = (busy, message = '') => {
@@ -17891,6 +17919,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
               appDefaults[appId] = { enabled, params, layout };
             }
           });
+          try { await (await roleDepartmentEditor)?.save(); } catch(error) { const status=card.querySelector('[data-role-status]');if(status)status.textContent=error.message;return; }
           setBusy(true, draft ? 'Creating role...' : 'Saving with revision check...');
           try {
             const payload = {
@@ -18053,10 +18082,12 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
               <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</span><input class="cs-in" id="cuEditCompPiece" inputmode="decimal" value="${String(escapeHtml(workforceMoney(currentCompensation.piece_rates?.[0]?.rate_cents)))}" placeholder="0.00"></label>
             </div>
           </section>` : ''}
+          <div data-user-departments data-settings-autosave="off"></div>
           <div class="cs-note" id="cuEditStatus" style="margin-top:10px;"></div>
         `
       });
       m.el.querySelector('.cu-modal')?.classList.add('cu-access-modal');
+      const userDepartmentEditor = departmentUi(m.el.querySelector('[data-user-departments]'),'user',u.id);
       wireWorkforceTristates(m.el);
       const footer = document.createElement('div');
       footer.className = 'cu-mactions';
@@ -18100,6 +18131,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         }
         btnSave.disabled = true;
         elStatus.textContent = (globalThis.PlatformLanguage?.text("settings","m_7372b758cf9670","Saving changes...") ?? "Saving changes...");
+        try { await (await userDepartmentEditor)?.save(); } catch(error) { btnSave.disabled=false;elStatus.textContent=error.message || 'Could not save departments.';return; }
         const ret = canAddDelete ? await userUpdate({ userId: u.id, email, name }) : { ok:true, sessionUpdated:false };
         elStatus.textContent = '';
         if (!ret.ok){
@@ -18668,23 +18700,30 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       if (tableEl) tableEl.style.opacity = '1';
       requestAnimationFrame(()=>{ if (tableEl) tableEl.style.minHeight = ''; });
     }
+    function setUsersView(nextView, updateRoute = true) {
+      const usersHost = $('#csPaneUsers', panel);
+      if (!usersHost) return;
+      const next = allowedUsersViews.includes(nextView) ? nextView : 'people';
+      viewState.usersSubtab = next;
+      if (updateRoute && !window.Portal?.navigation?.applying) writeSettingsRoute({ sub:'users', settingsView:next, settingsEntity:'' }, { history:'push', source:'users-settings-view' });
+      usersHost.querySelectorAll('[data-users-view]').forEach(button => {
+        const active = button.dataset.usersView === next;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-selected', String(active));
+      });
+      usersHost.querySelectorAll('[data-users-view-panel]').forEach(pane => {
+        const active = pane.dataset.usersViewPanel === next;
+        pane.classList.toggle('active', active);
+        pane.hidden = !active;
+      });
+      if (next === 'departments') {
+        const host = usersHost.querySelector('[data-users-view-panel=departments]');
+        if (host && !host.childNodes.length) void departmentUi(host);
+      }
+      scheduleSettingsSubtabsSync();
+    }
     if(paneUsers) {
-      const setUsersView = (nextView) => {
-        const next = allowedUsersViews.includes(nextView) ? nextView : 'people';
-        viewState.usersSubtab = next;
-        if (!window.Portal?.navigation?.applying) writeSettingsRoute({ sub:'users', settingsView:next, settingsEntity:'' }, { history:'push', source:'users-settings-view' });
-        paneUsers.querySelectorAll('[data-users-view]').forEach((button) => {
-          const active = button.dataset.usersView === next;
-          button.classList.toggle('active', active);
-          button.setAttribute('aria-selected', active ? 'true' : 'false');
-        });
-        paneUsers.querySelectorAll('[data-users-view-panel]').forEach((panel) => {
-          const active = panel.dataset.usersViewPanel === next;
-          panel.classList.toggle('active', active);
-          panel.hidden = !active;
-        });
-      };
-      paneUsers.querySelectorAll('[data-users-view]').forEach((button) => {
+      paneUsers.querySelectorAll('[data-users-view]').forEach(button => {
         button.addEventListener('click', () => setUsersView(button.dataset.usersView));
       });
       const searchInput = $('#cuSearch', paneUsers);
@@ -18978,9 +19017,13 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       }
     }
     if (firstMeasureUsers && canUsers) {
-      firstMeasureUsersController = window.FirstMeasureUsers.mount($('#csPaneUsers', panel), { portalAssetUrl, platformUserFromDocument, uploadUserAvatar });
+      const usersHost = $('#csPaneUsers', panel);
+      usersHost.innerHTML = `<nav class="cu-subnav" role="tablist" aria-label="User administration"><button type="button" class="cu-subtab" data-users-view="people" role="tab">Users</button><button type="button" class="cu-subtab" data-users-view="departments" role="tab">Departments</button></nav><section data-users-view-panel="people"></section><section data-users-view-panel="departments" data-settings-autosave="off" hidden></section>`;
+      firstMeasureUsersController = window.FirstMeasureUsers.mount(usersHost.querySelector('[data-users-view-panel=people]'), { portalAssetUrl, platformUserFromDocument, uploadUserAvatar });
+      usersHost.querySelectorAll('[data-users-view]').forEach(button => button.addEventListener('click', () => setUsersView(button.dataset.usersView)));
       panel.__firstMeasureUsers = firstMeasureUsersController;
     }
+    if (canUsers && activeTab === 'users') setUsersView(viewState.usersSubtab, false);
     // **** Boot: cached -> server ----
     (async ()=>{
       const cached = readCachedTheme();

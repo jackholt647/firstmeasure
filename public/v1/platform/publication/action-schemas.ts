@@ -1,3 +1,4 @@
+import {departmentSaveSchema,departmentAssignmentSchema} from '../../workforce/department-contracts.js';
 import {appointmentConfigurationSchema,appointmentCatalogSchema,previewSchema} from '../../appointments/planning-contracts.js';
 import { z, type ZodTypeAny } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
@@ -12,6 +13,8 @@ import type { JsonSchema } from "./contracts.js";
 // Reuse the very same schemas as the domain services/routes. This is deliberately
 // not a second handwritten list of fields, defaults or validation constraints.
 const valuesSchemas: Record<string, ZodTypeAny> = {
+  "workforce.departments.save":departmentSaveSchema,
+  "workforce.departments.assign":departmentAssignmentSchema,
   "scheduling.appointment.preview": previewSchema.omit({project_id:true}),
   "scheduling.appointment.configure": z.object({catalog:appointmentCatalogSchema,revision:z.number().int().nonnegative()}).strict(),
   "scheduling.appointment.create": z.object({event_id:z.string().regex(/^appointment_[a-zA-Z0-9-]{16,80}$/),start_at:z.string().datetime({offset:true}),configuration:appointmentConfigurationSchema}).strict(),

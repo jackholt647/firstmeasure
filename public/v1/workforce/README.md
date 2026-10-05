@@ -154,3 +154,50 @@ This does not expose foreign group membership as local membership, grant project
 access, coordinate calendars across companies, or add external subjects to every Work
 node assignment field. Those are separate contracts. See the
 [development release record](../../../deploy/digitalocean/development-partner-assignments-20261002.md).
+
+
+## Organization departments
+
+Settings → Users → Departments owns one organization catalog, stored as the internal
+`organization_departments/catalog` document with revision checks. It is not
+available through the generic document API. Department membership is additive:
+`role_ids` supplies defaults for user roles, `group_kind_ids` supplies defaults
+for generic resource-group types, and `subject_keys` adds individual users or
+groups. Multiple departments are supported. Group membership does not grant
+permissions or automatically turn each group member into an individually
+assignable department member; group roster requirements still reserve members
+through the existing scheduler.
+
+The department editor exposes all four assignment lists. Users, Roles & access,
+individual group cards, and the group-type settings expose the reverse view of
+the same records. Inherited membership is identified separately from direct
+checkbox assignments. Existing user/role/group Save controls also persist their
+department selections. Department saves are independent revision-checked writes;
+they are not a transaction with the rest of a user or group profile.
+
+Company-settings administrators manage departments and group/type membership.
+User administrators can change direct user assignments; permission administrators
+can change role defaults. Department membership never changes permission grants.
+Scheduling readers receive the catalog without the administrative user directory.
+
+Before the first explicit save, a read-only projection combines existing branch
+catalogs. Stable department IDs are retained; memberships and type rules with the
+same ID are unioned. Default-branch labels/colors/categories take priority,
+followed by branch IDs in sorted order. Saved empty catalogs remain empty. With
+no legacy catalog, Sales and Production are seeded in the projection only.
+The first write checks a fingerprint of the branch revisions and creates the
+organization catalog atomically. Branch snapshots, presets and saved appointment
+IDs remain intact. Existing department IDs cannot be removed by this API.
+
+The booking widget manages presets and links to department settings. Both booking
+and calendar filters read organization departments. Legacy catalog saves reject
+attempts to change departments; branch scheduling configuration is not a second
+authority after adoption. The generic resource-group resolver remains the engine
+for every group type; `crew_member_percent` is retained as a compatibility field
+name, while the UI labels it “Group members required”.
+
+API: `GET/PUT /v1/workforce/organizations/:orgId/departments` and
+`PATCH /v1/workforce/organizations/:orgId/departments/assignments`.
+Published data: `workforce-departments.catalog`. Typed actions:
+`workforce.departments.read`, `.save`, and `.assign`. All reuse the domain
+permission checks and optimistic revisions.

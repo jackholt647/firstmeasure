@@ -1,3 +1,4 @@
+import {readOrganizationDepartments} from '../workforce/departments.js';
 import {env} from '../src/config/env.js';
 import {defaultAppointmentCatalog,instantFullAppointmentCatalog} from './defaults.js';
 import {z} from 'zod';
@@ -47,13 +48,17 @@ export async function readAppointmentCatalog(ctx:PlatformAuthContext){
   const org=await readOrganization(ctx.orgId);
   const isInstant=env.dataEnvironment==='development'&&object(org.metadata).sandbox_workflow_id==='swf_instant_full_org';
   const fallback=isInstant?instantFullAppointmentCatalog():defaults();
-  const catalog=stored?appointmentCatalogSchema.parse(stored):fallback;
+  const branchCatalog=stored?appointmentCatalogSchema.parse(stored):fallback;
+  const organizationDepartments=await readOrganizationDepartments(ctx.orgId);
+  const catalog={...branchCatalog,departments:organizationDepartments.departments,groups:organizationDepartments.groups};
   const resources=await resolveAssignableSubjects(ctx.orgId,ctx.branchId||'default',{allow_unassigned:true,rules:[]});
   return {catalog,company_office:await companyOffice(ctx.orgId,ctx.branchId||'default'),revision:Number(branch?.revision||0),can_manage:hasPermission(ctx,'manage_company_settings'),resources:resources.subjects.map((r:JsonObject)=>({id:r.id,key:key(r),name:r.name||r.label||r.id,subject_type:r.subject_type,role_ids:r.role_ids,group_kind_id:r.group_kind_id,member_user_ids:subjectMemberIds(r)}))};
 }
 export async function saveAppointmentCatalog(ctx:PlatformAuthContext,input:unknown){
   if(!hasPermission(ctx,'manage_company_settings'))throw forbidden('appointment_catalog_denied','Company settings permission is required.');
   const {catalog,revision}=z.object({catalog:appointmentCatalogSchema,revision:z.number().int().nonnegative()}).strict().parse(input);
+  const organizationDepartments=await readOrganizationDepartments(ctx.orgId);
+  if(JSON.stringify(catalog.departments)!==JSON.stringify(organizationDepartments.departments)||JSON.stringify(catalog.groups)!==JSON.stringify(organizationDepartments.groups))throw conflict('departments_owned_by_organization','Manage departments in organization Settings. Reload the appointment before saving a preset.');
   for(const rows of [catalog.departments,catalog.groups,catalog.presets])if(new Set(rows.map(r=>r.id)).size!==rows.length)throw badRequest('duplicate_catalog_id','Each entry needs a unique ID.');
   const deps=new Set(catalog.departments.map(d=>d.id)),groups=new Set(catalog.groups.map(d=>d.id));
   if(catalog.departments.some(d=>d.group_id&&!groups.has(d.group_id)))throw badRequest('unknown_department_group','Choose an existing department group.');

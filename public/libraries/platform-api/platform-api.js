@@ -749,6 +749,9 @@
   };
 
   const workforce = {
+    departments(orgId){return request(siblingPath('workforce', `/organizations/${enc(orgId)}/departments`));},
+    saveDepartments(orgId,payload){return request(siblingPath('workforce', `/organizations/${enc(orgId)}/departments`),{method:'PUT',body:payload});},
+    saveDepartmentAssignment(orgId,payload){return request(siblingPath('workforce', `/organizations/${enc(orgId)}/departments/assignments`),{method:'PATCH',body:payload});},
     configuration(orgId, branchId = 'default'){
       return request(siblingPath('workforce', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/configuration`));
     },

@@ -32,7 +32,7 @@
       const departmentHost=document.createElement('div');departmentHost.className='fm-ap-department-settings';host.querySelector('section').append(departmentHost);
       if(PlatformAPI.workforce?.departments){
         departmentHost.innerHTML='<button type="button">Manage departments</button>';
-        departmentHost.querySelector('button').onclick=()=>window.Portal?.navigation?.navigate({tab:'company_settings',sub:'departments',settingsView:''},{source:'appointment-settings',ownedKeys:['tab','sub','settingsView']});
+        departmentHost.querySelector('button').onclick=()=>window.Portal?.navigation?.navigate({tab:'company_settings',sub:'users',settingsView:'departments'},{source:'appointment-settings',ownedKeys:['tab','sub','settingsView']});
       }else{
         departmentHost.innerHTML=`<details><summary>Departments</summary><form><label>Department<select data-department-edit><option value="">New department</option>${response.catalog.departments.map(d=>`<option value="${esc(d.id)}">${esc(d.label)}</option>`).join('')}</select></label><label>Name<input data-department-name required maxlength="100"></label><label>Color<input type="color" data-department-color value="#64748b"></label><label>Scheduling group<input data-department-group maxlength="100"></label><div data-department-members>${response.resources.map(r=>`<label><input type="checkbox" value="${esc(r.key)}">${esc(r.name)}</label>`).join('')}</div><button type="submit">Save department</button></form></details>`;
         const d=s=>departmentHost.querySelector(s);

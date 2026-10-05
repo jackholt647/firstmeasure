@@ -1,3 +1,4 @@
+import {departmentSettings,saveDepartmentSettings,saveDepartmentAssignment} from './departments.js';
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
@@ -143,6 +144,19 @@ async function settingsPayload(orgId: string, branchId: string) {
 }
 
 export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
+  app.get('/organizations/:orgId/departments', async (request) => {
+    const ctx=await requirePlatformAuth(request,{orgId:getParam(request.params,'orgId'),permission:'manage_company_settings|manage_company_users|manage_company_user_permissions|manage_schedule|view_projects'});
+    return {ok:true,...await departmentSettings(ctx)};
+  });
+  app.put('/organizations/:orgId/departments', async (request) => {
+    const ctx=await requireWorkforceMutation(request,getParam(request.params,'orgId'));
+    return {ok:true,...await saveDepartmentSettings(ctx,request.body)};
+  });
+  app.patch('/organizations/:orgId/departments/assignments', async (request) => {
+    const ctx=await requireUserProfileMutation(request,getParam(request.params,'orgId'));
+    return {ok:true,...await saveDepartmentAssignment(ctx,request.body)};
+  });
+
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) return reply.code(400).send({ ok: false, error: "validation_error", issues: error.issues });
     if (error instanceof PlatformError) {

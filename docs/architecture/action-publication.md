@@ -154,3 +154,10 @@ Historical action executables are not archived by this architecture. Accepted
 receipts/results remain retained, and unavailable pinned implementations fail.
 Module commands with uncertain effects have an explicit administrator review
 flow; review never implies that an external side effect was rolled back.
+
+
+Organization departments are published through `workforce-departments.catalog`
+and `workforce.departments.read`, `.save`, `.assign`. Their organization-scoped
+contracts reuse workforce department schemas, revision checks, and subject-specific
+administrative permissions. Scheduling preset writes consume the organization
+catalog and cannot redefine it. See the [workforce guide](../../public/v1/workforce/README.md#organization-departments).

@@ -1338,6 +1338,8 @@
     }
   }
 
+  window.addEventListener?.('fm:departments:updated', () => cache.clear());
+
   async function loadBranchConfig(orgId, branchId, options = {}){
     const key = cacheKey(orgId, branchId);
     if (!options.refresh && cache.has(key)) return cache.get(key);
@@ -1354,6 +1356,11 @@
     const scheduling = mergeSchedulingModule(schedulingRaw);
     const mappings = mergeMappingsModule(mappingsRaw);
     const config = withMappedLabels({ scheduling, mappings });
+    if (window.PlatformAPI?.workforce?.departments) {
+      const departments = await window.PlatformAPI.workforce.departments(orgId);
+      config.appointment_catalog = { ...config.scheduling.appointment_catalog, departments:departments.departments, groups:departments.groups };
+      config.scheduling.appointment_catalog = config.appointment_catalog;
+    }
     config.org_id = orgId;
     config.branch_id = branchId || 'default';
     // The module list failed to load: the stored modules are unknown, so the
