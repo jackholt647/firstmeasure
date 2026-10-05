@@ -2,9 +2,9 @@
  * Staged request workflow with optional roof-report ordering.
  */
 (function(){
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261002-agent-persistence-v1', document.currentScript.src);
-  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20260930-shell-v1', document.currentScript.src);
-  const shellUrl = new URL('../../window-manager/window-shell.js?v=20261002-project-identity-v1', document.currentScript.src);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261005-order-resume-v1', document.currentScript.src);
+  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20261005-mobile-map-v1', document.currentScript.src);
+  const shellUrl = new URL('../../window-manager/window-shell.js?v=20261005-mobile-chrome-v1', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
 window.PlatformCommerce.onReady(async function(){
   await registryReady;
@@ -127,6 +127,7 @@ window.PlatformCommerce.onReady(async function(){
   let mobileTypeTransitionTimer = null;
   let reportSelection = null;
   let mobileOrderPage = 'location';
+  let pendingOrderSession = null;
   let mobileProjectNotesOpen = false;
   let mobileOrderAnimTimer = null;
   let mobileSwipeStart = null;
@@ -9364,6 +9365,7 @@ window.PlatformCommerce.onReady(async function(){
     workflowRenderInProgress = true;
     try {
       renderWorkflowStateBody(options);
+      finishOrderSessionRestore();
     } finally {
       workflowRenderInProgress = false;
     }
@@ -10899,6 +10901,7 @@ window.PlatformCommerce.onReady(async function(){
     typePickerExpanded = false;
     reportSelection = null;
     mobileOrderPage = 'location';
+    pendingOrderSession = null;
     selectedReportExpedite = null;
     includeGutterMeasurements = false;
     includeWeatherReport = false;
@@ -11040,6 +11043,52 @@ window.PlatformCommerce.onReady(async function(){
     return true;
   }
 
+  function orderSession(){
+    if (requestedWorkflow !== 'report' || hasReportOrdered() || !$('#rOverlay')?.classList.contains('active') || projectShellLoading) return null;
+    return {
+      page:mobileOrderPage, tab:activePreviewTab, locationConfirmed,
+      selectedType, reportSelection, includeGutterMeasurements, includeWeatherReport,
+      includeInstantPreview, selectedReportExpedite,
+      fields:Object.fromEntries(['rAddress','rLat','rLng','rComps','rTechNotes'].map(id=>[id,document.getElementById(id)?.value || ''])),
+      pins:getMarkersData(), contacts:collectContacts(), cc:collectCcEmails(),
+      exterior:window.Portal.ExteriorOrder?.orderSession?.()
+    };
+  }
+
+  function restoreOrderSession(session){
+    if (!session || hasReportOrdered() || requestedWorkflow !== 'report') return;
+    selectedType = session.selectedType || selectedType;
+    reportSelection = session.reportSelection || 'roof';
+    includeGutterMeasurements = !!session.includeGutterMeasurements;
+    includeWeatherReport = !!session.includeWeatherReport;
+    includeInstantPreview = !!session.includeInstantPreview;
+    selectedReportExpedite = session.selectedReportExpedite || null;
+    for (const id of ['rAddress','rLat','rLng','rComps','rTechNotes']) {
+      if (typeof session.fields?.[id] === 'string' && document.getElementById(id)) document.getElementById(id).value = session.fields[id];
+    }
+    if (Array.isArray(session.contacts) && $('#rContactList')) {
+      $('#rContactList').replaceChildren();session.contacts.forEach(contact=>addContactCard(contact,{hydrate:true}));
+    }
+    if (Array.isArray(session.cc) && $('#rCcList')) {
+      $('#rCcList').replaceChildren();session.cc.forEach(email=>addCcRow(email,{hydrate:true}));
+    }
+    addressSelected = !!$('#rAddress')?.value && !!$('#rLat')?.value && !!$('#rLng')?.value;
+    if (activeBaseProject && Array.isArray(session.pins)) activeBaseProject = {...activeBaseProject,pins:session.pins};
+    pendingOrderSession = session;
+    initializeMapView(activeBaseProject);
+  }
+
+  function finishOrderSessionRestore(){
+    const session = pendingOrderSession;
+    if (!session || projectShellLoading || (session.pins?.length && !pinCount())) return;
+    pendingOrderSession = null;
+    window.Portal.ExteriorOrder?.restoreOrderSession?.(session.exterior);
+    locationConfirmed = !!session.locationConfirmed;
+    mobileOrderPage = ['location','photos','details','final'].includes(session.page) ? session.page : 'location';
+    if (session.tab === 'photos' && window.Portal.ExteriorOrder?.active()) setActivePreviewTab('photos',{syncRoute:false});
+    syncMobileOrderPagination();renderConfirm();
+  }
+
   function projectOpenId(project = activeBaseProject){
     return String(platformProjectId(project) || project?.id || '').trim();
   }
@@ -11094,10 +11143,11 @@ window.PlatformCommerce.onReady(async function(){
     // Create its controls before hydrating values into them.
     ensureOverviewDetails();
     hydrateFromBaseProject(project, { preferredTab:desiredTab });
-    if (options.workflow === 'report') {requestedWorkflow='report';overviewWorkflowMode='report';reportProjectChoice='existing';applyReorderPrefillState(project);}
+    if (options.workflow === 'report') {requestedWorkflow='report';overviewWorkflowMode='report';reportProjectChoice='existing';if (!options.orderSession) applyReorderPrefillState(project);}
     projectRecordPending = false;
     viewingExistingProject = true;
     setProjectShellLoading(false);
+    restoreOrderSession(options.orderSession);
     // The routed shell is already the modal the user can see. Keep that exact
     // DOM mounted while the project record hydrates so loading content cannot
     // look like a second modal opening. Shell-only opens never mount app
@@ -11615,6 +11665,9 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   async function restoreRouteState(){
+    // The parent owns the initial read. Child route events during that read
+    // must not start a second hydration that overwrites restored order state.
+    if (projectWindowBridge && projectRecordPending) return;
     // A docked pane is owned by its parent layout, not this document's startup route.
     if (projectContentPane) return;
     if (!projectWindowBridge && window.FirstMateProjectWindows && document.querySelector('main.main, .main')) {
@@ -11731,7 +11784,7 @@ window.PlatformCommerce.onReady(async function(){
     });
   }
 
-  window.Portal.modules.request = { retainedProjectWindows:true, open, openProject, openDocumentDraft, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors,
+  window.Portal.modules.request = { retainedProjectWindows:true, orderSession, open, openProject, openDocumentDraft, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors,
     projectDisplayTitle, formatProjectContactNames, openingHeader:openingProjectHeader, headerState:projectHeaderState,
     prepareHeader:()=>Promise.all([loadBranchProjectConfig(),loadProjectTagBoards()]),
     openingTabs:(project,options={})=>(project || normalizeWorkflow(options.workflow || options.createWorkflow || options.intent)==='project') ? projectViewerTabs({opening:true,project}) : []

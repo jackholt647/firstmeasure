@@ -701,6 +701,18 @@
   }
 
   P.ExteriorOrder={active,reset,render,renderPhotos:renderPhotoWorkspace,offersChoice:type=>allowed(type),selectedScope:type=>['commercial','multifamily'].includes(type)?'roof':ctx?.type===type?scope:null,
+    orderSession(){return {scope,page,structure,guideIndex,photoIntroSeen,photoSummary,videoStage,fields:this.payload()};},
+    restoreOrderSession(saved){
+      if (!saved || !ctx || !allowed(ctx.type)) return;
+      if (saved.scope === 'full_house') this.restore(saved.fields || {});
+      else scope = saved.scope === 'roof' ? 'roof' : null;
+      page = [0,1,2].includes(saved.page) ? saved.page : 0;
+      structure = Math.max(0,Math.min(Number(saved.structure)||0,ctx.count-1));
+      guideIndex = Math.max(0,Number(saved.guideIndex)||0);
+      photoIntroSeen = !!saved.photoIntroSeen;photoSummary = !!saved.photoSummary;
+      videoStage = saved.videoStage === 'record' ? 'record' : 'intro';
+      render();
+    },
     mobileDetailsReady:()=>active()&&pinsConfirmed()&&!!option()&&!busy&&!error,
     mobilePhotosReady:()=>active()&&photosReviewable(),
     mobilePhotoSummary:()=>photoSummary,

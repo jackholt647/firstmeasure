@@ -159,3 +159,29 @@ test('Overview form stacks at narrow widths, retains its map, and hides redundan
   assert.equal(await page.locator('.r-tabbar').isVisible(),true);
  }finally{await browser.close();}
 });
+
+
+test('only the owning portal restores an order on reload; close and reopen clear the session',async()=>{
+ const browser=await launch();
+ try{
+  const page=await browser.newPage();
+  const scripts=await Promise.all(['window-manager.js','window-shell.js','project-windows.js'].map(file=>readFile(new URL('../../libraries/window-manager/'+file,import.meta.url),'utf8')));
+  const html='<main class="main"></main><script>window.route={project:"p"};window.Portal={cfg:{orgId:"org"},routeState:{get:()=>route,set:p=>Object.assign(route,p)}};</script>'+scripts.map(s=>'<script>'+s+'</script>').join('');
+  await page.route('https://order.test/**',r=>r.fulfill({contentType:'text/html',body:html}));
+  await page.goto('https://order.test/?project=p');
+  async function open(){
+   await page.evaluate(()=>{window.record=FirstMateProjectWindows.open({id:'p'},{fromRoute:true});});
+   await page.waitForFunction(()=>document.querySelector('iframe').contentWindow.FirstMateProjectWindows);
+   return page.evaluate(async()=>{
+    const api={openProject:async()=>{},close:()=>true,orderSession:()=>({page:'details',locationConfirmed:true})};
+    FirstMateProjectWindows.ready(record.token,record.frame.contentWindow,api);await record.ready;return record.options;
+   });
+  }
+  assert.equal((await open()).workflow,undefined);
+  await page.reload();
+  const restored=await open();assert.equal(restored.workflow,'report');assert.equal(restored.orderSession.page,'details');
+  await page.evaluate(()=>FirstMateProjectWindows.close());
+  await page.reload();
+  assert.equal((await open()).workflow,undefined);
+ }finally{await browser.close();}
+});

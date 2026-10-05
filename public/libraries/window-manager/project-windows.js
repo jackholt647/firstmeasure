@@ -5,6 +5,28 @@
   if (root.FirstMateProjectWindows) return;
   const records = new Map();
   let active = null;
+  // Reload continuity belongs to this browser tab, not to the saved project.
+  const orderSessionKey = 'fm-project-order-reload-v1';
+  let reloadOrderSession = null;
+  const ownsProjectWindows = !/^fm-project-(window|pane):/.test(root.name) && !new URLSearchParams(root.location.search).has('projectWindow') && !new URLSearchParams(root.location.search).has('projectPane');
+  try {
+    if (ownsProjectWindows && root.performance?.getEntriesByType('navigation')[0]?.type === 'reload') reloadOrderSession = JSON.parse(root.sessionStorage.getItem(orderSessionKey) || 'null');
+    if (ownsProjectWindows) root.sessionStorage.removeItem(orderSessionKey);
+  } catch (_) {}
+  function sessionOrgId(){ return String(root.Portal?.cfg?.userOrgId || root.Portal?.cfg?.orgId || root.__APP?.userOrgId || ''); }
+  function saveOrderSessionForReload(){
+    try {
+      const projectId = String(root.Portal?.routeState?.get?.().project || '');
+      const record = [...records.values()].find(item => item.projectId === projectId);
+      const state = record?.api?.orderSession?.();
+      if (projectId && state) root.sessionStorage.setItem(orderSessionKey, JSON.stringify({projectId,orgId:sessionOrgId(),state}));
+      else root.sessionStorage.removeItem(orderSessionKey);
+    } catch (_) {}
+  }
+  if (ownsProjectWindows) {
+    root.addEventListener('pagehide', saveOrderSessionForReload);
+    root.addEventListener('beforeunload', saveOrderSessionForReload);
+  }
   function identity(project){ return String(project?.platform_project_id || project?.base_project_id || project?.id || '').trim(); }
   function host(){ return document.querySelector('main.main') || document.querySelector('.main'); }
   function styles(){
@@ -133,6 +155,10 @@
     root.FirstMateWindows.ensureStyles?.();
     root.FirstMateWindowShell?.ensureStyles?.();
     const projectId = identity(project);
+    if (options.fromRoute && reloadOrderSession?.projectId === projectId && reloadOrderSession.orgId === sessionOrgId()) {
+      options = {...options, workflow:'report', orderSession:reloadOrderSession.state};
+      reloadOrderSession = null;
+    }
     const existing = projectId && [...records.values()].find(record=>record.projectId === projectId);
     if (existing) {
       clearRoutePrecover();
