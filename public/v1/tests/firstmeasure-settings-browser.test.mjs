@@ -3,6 +3,14 @@ import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
 
+test('report window controls load without enabling the assistant', async () => {
+  const portal=await readFile(new URL('../../portal/index.php',import.meta.url),'utf8');
+  const assistantBlocks=portal.match(/<\?php if \(\$platformAssistantAssets\): \?>[\s\S]*?<\?php endif; \?>/g) || [];
+  assert(assistantBlocks.length,'Assistant asset gate exists');
+  for(const block of assistantBlocks)assert(!/window-manager\/(window-manager|window-shell)\.js/.test(block),'Shared report window controls must not require the assistant');
+  for(const name of ['window-manager','window-shell'])assert(portal.includes(`libraries/window-manager/${name}.js`));
+});
+
 test('personal settings respect module flags and saving retains hidden preferences', async () => {
   const source=await readFile(new URL('../../libraries/apps/settings/company.js',import.meta.url),'utf8');
   const start=source.indexOf('    async function renderMySettings(){');

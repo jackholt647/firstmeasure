@@ -2138,9 +2138,9 @@ session_write_close();
   <script src="../libraries/payments-api/payments-api.js?v=<?= portalAssetVersion('../libraries/payments-api/payments-api.js') ?>"></script>
   <?php if ($platformAssistantAssets): ?>
   <script src="../libraries/assistant-api/assistant-api.js?v=<?= portalAssetVersion('../libraries/assistant-api/assistant-api.js') ?>"></script>
+  <?php endif; ?>
   <script src="../libraries/window-manager/window-manager.js?v=<?= portalAssetVersion('../libraries/window-manager/window-manager.js') ?>"></script>
   <script src="../libraries/window-manager/window-shell.js?v=<?= portalAssetVersion('../libraries/window-manager/window-shell.js') ?>"></script>
-  <?php endif; ?>
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/payroll-api/payroll-api.js?v=<?= portalAssetVersion('../libraries/payroll-api/payroll-api.js') ?>"></script>
   <script src="../libraries/financials-api/financials-api.js?v=<?= portalAssetVersion('../libraries/financials-api/financials-api.js') ?>"></script>
