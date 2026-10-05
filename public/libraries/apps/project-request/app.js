@@ -2269,6 +2269,7 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order.mobile-order-location .r-form{gap:8px}
       .r-overlay.mobile-order.mobile-order-location .r-scroll{flex:0 1 auto;scrollbar-gutter:auto}
       .r-overlay.mobile-order.mobile-order-location #rStepAddress .r-step-body{padding:0 0 6px}
+      .r-overlay.mobile-order.mobile-order-location .r-overview-details #rStepAddress{border-top:0!important;padding-top:0!important}
       .r-overlay.mobile-order.mobile-order-location #rAddress:focus{box-shadow:inset 0 0 0 3px rgba(217,48,37,.12);transform:none}
       .r-overlay.mobile-order.mobile-order-location .r-step-shell{transition:none}
       .r-overlay.mobile-order.mobile-order-location .r-step-body{gap:9px;padding-bottom:6px}
