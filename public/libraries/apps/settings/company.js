@@ -2413,12 +2413,13 @@
       .cs-settings-search>i{position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px;color:#98a2b3;pointer-events:none}
       .cs-settings-search input{width:100%;height:36px;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:0 32px 0 32px;color:#101828;font:850 12px/1 inherit;outline:none}
       .cs-settings-search input:focus{border-color:rgba(var(--primary-rgb,217,48,37),.42);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.09)}
+      .cs-settings-search input::-webkit-search-cancel-button{display:none;-webkit-appearance:none}
       .cs-settings-search-clear{position:absolute;right:4px;top:4px;width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:#98a2b3;cursor:pointer;display:none;place-items:center}
       .cs-settings-search.has-value .cs-settings-search-clear{display:grid}
-      .cs-settings-search-results{min-height:0;overflow-y:auto;display:grid;align-content:start;gap:3px;padding-right:2px}
+      .cs-settings-search-results{position:fixed;inset:auto;z-index:10000;box-sizing:border-box;margin:0;padding:6px;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:3px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;color:#344054;box-shadow:0 12px 32px rgba(16,24,40,.2);font-family:inherit}
       .cs-settings-search-results[hidden]{display:none}
       .cs-settings-result{width:100%;border:0;border-radius:10px;background:transparent;padding:9px 10px;text-align:left;display:grid;gap:2px;cursor:pointer;color:#344054}
-      .cs-settings-result:hover{background:#f8fafc}
+      .cs-settings-result:hover,.cs-settings-result[aria-selected="true"]{background:#eef2f6;outline:none}
       .cs-settings-result strong{font-size:11.5px;font-weight:950;line-height:1.25}
       .cs-settings-result small{font-size:10px;font-weight:800;color:#667085}
       .cs-settings-empty{padding:16px 10px;color:#98a2b3;font-size:11px;font-weight:850;text-align:center}
@@ -2765,7 +2766,7 @@
         .cs-layout{display:block;padding-top:0}
         .cs-sidebar{position:static;max-height:none;padding:0;overflow:hidden;display:block}
         .cs-settings-search{margin:10px 16px}
-        .cs-settings-search-results{max-height:260px;margin:0 16px 10px}
+        .cs-settings-search-results{margin:0}
         .cs-tabs{flex-direction:row;gap:0;overflow-x:auto;border-top:1px solid #eaecf0;border-bottom:1px solid #eaecf0;background:#fff;padding:0 16px;scrollbar-width:none}
         .cs-tabs::-webkit-scrollbar{display:none}
         .cs-tab{flex:0 0 auto;width:auto;min-height:44px;border-radius:0;padding:9px 12px;white-space:nowrap}
@@ -4692,10 +4693,10 @@
           <aside class="cs-sidebar" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_e22e1a31e49113","Settings categories") ?? "Settings categories")}">
             <div class="cs-settings-search">
               <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
-              <input type="search" data-settings-search placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_6232d2f546ad35","Search settings") ?? "Search settings")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_6232d2f546ad35","Search settings") ?? "Search settings")}" autocomplete="off">
+              <input type="text" inputmode="search" role="combobox" aria-autocomplete="list" aria-expanded="false" data-settings-search placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_6232d2f546ad35","Search settings") ?? "Search settings")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_6232d2f546ad35","Search settings") ?? "Search settings")}" autocomplete="off">
               <button class="cs-settings-search-clear" type="button" data-settings-search-clear aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_9917fb251885da","Clear settings search") ?? "Clear settings search")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
             </div>
-            <div class="cs-settings-search-results" data-settings-search-results hidden></div>
+            <div class="cs-settings-search-results" popover="manual" role="listbox" aria-label="Settings search results" data-settings-search-results data-settings-autosave="off" hidden></div>
             <nav class="cs-tabs" role="tablist" aria-orientation="vertical">${String(availableSettingsSections.map(sectionTabHtml).join(''))}</nav>
           </aside>
           <div class="cs-subtabs-slot" data-settings-subtabs-slot hidden></div>
@@ -4818,39 +4819,86 @@
     const settingsSearchInput = $('[data-settings-search]', panel);
     const settingsSearchClear = $('[data-settings-search-clear]', panel);
     const settingsSearchResults = $('[data-settings-search-results]', panel);
-    const settingsTabs = $('.cs-tabs', panel);
     const settingsSectionIds = new Set(availableSettingsSections.map((section) => section.id));
+    let settingsSearchListeners = null;
+    let settingsSearchMatches = [];
+    let settingsSearchIndex = -1;
+    const settingsSearchId = `settings-search-${Math.random().toString(36).slice(2)}`;
+    settingsSearchResults.id = settingsSearchId;
+    settingsSearchInput.setAttribute('aria-controls', settingsSearchId);
+    const closeSettingsSearch = () => {
+      settingsSearchListeners?.abort();
+      settingsSearchListeners = null;
+      if (settingsSearchResults.matches(':popover-open')) settingsSearchResults.hidePopover();
+      settingsSearchResults.hidden = true;
+      settingsSearchInput.setAttribute('aria-expanded','false');
+      settingsSearchInput.removeAttribute('aria-activedescendant');
+      settingsSearchIndex = -1;
+    };
+    const positionSettingsSearch = () => {
+      const rect = settingsSearchInput.getBoundingClientRect();
+      if (!settingsSearchInput.isConnected || !rect.width || !rect.height) { closeSettingsSearch(); return; }
+      const width = Math.min(rect.width, window.innerWidth - 16);
+      settingsSearchResults.style.width = `${width}px`;
+      settingsSearchResults.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
+      settingsSearchResults.style.top = `${rect.bottom + 6}px`;
+      settingsSearchResults.style.maxHeight = `${Math.max(0, Math.min(420, window.innerHeight - rect.bottom - 18))}px`;
+    };
+    const chooseSettingsSearch = (index) => {
+      const item = settingsSearchMatches[index];
+      if (!item) return;
+      settingsSearchInput.value = '';
+      settingsSearchInput.closest('.cs-settings-search')?.classList.remove('has-value');
+      closeSettingsSearch();
+      window.FirstMateSettingsSearch?.open?.(item, { source:'settings-sidebar-search' });
+    };
     const renderSettingsSearch = () => {
-      if (!settingsSearchInput || !settingsSearchResults || !settingsTabs) return;
       const query = String(settingsSearchInput.value || '').trim();
-      settingsSearchInput.closest('.cs-settings-search')?.classList.toggle('has-value', !!query);
-      if (!query) {
-        settingsSearchResults.hidden = true;
-        settingsSearchResults.innerHTML = '';
-        settingsTabs.hidden = false;
-        return;
-      }
-      const matches = window.FirstMateSettingsSearch?.search?.(query, { sections:settingsSectionIds, limit:40 }) || [];
-      settingsTabs.hidden = true;
+      settingsSearchInput.closest('.cs-settings-search')?.classList.toggle('has-value', !!settingsSearchInput.value);
+      if (!query) { closeSettingsSearch(); settingsSearchMatches = []; settingsSearchResults.innerHTML = ''; return; }
+      settingsSearchMatches = window.FirstMateSettingsSearch?.search?.(query, { sections:settingsSectionIds, limit:40 }) || [];
+      settingsSearchIndex = -1;
+      settingsSearchInput.removeAttribute('aria-activedescendant');
+      settingsSearchResults.innerHTML = settingsSearchMatches.length ? settingsSearchMatches.map((item, index) => `
+        <button class="cs-settings-result" type="button" role="option" aria-selected="false" tabindex="-1" id="${settingsSearchId}-${index}" data-settings-search-result="${index}">
+          <strong>${escapeHtml(item.title)}</strong><small>${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_698af40b56ff68",`${v2} settings`,{v2}) ?? `${v2} settings`)(escapeHtml(item.tab))}</small>
+        </button>`).join('') : `<div class="cs-settings-empty" role="status">${globalThis.PlatformLanguage?.htmlText("settings","m_aa396b00eb8558","No matching settings") ?? "No matching settings"}</div>`;
+      settingsSearchResults.querySelectorAll('[data-settings-search-result]').forEach(button => {
+        button.addEventListener('mousedown', event => event.preventDefault());
+        button.addEventListener('click', () => chooseSettingsSearch(Number(button.dataset.settingsSearchResult)));
+      });
       settingsSearchResults.hidden = false;
-      settingsSearchResults.innerHTML = matches.length ? matches.map((item, index) => `
-        <button class="cs-settings-result" type="button" data-settings-search-result="${String(index)}">
-          <strong>${String(escapeHtml(item.title))}</strong>
-          <small>${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_698af40b56ff68",`${v2} settings`,{v2}) ?? `${v2} settings`)(escapeHtml(item.tab))}</small>
-        </button>`).join('') : `<div class="cs-settings-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_aa396b00eb8558","No matching settings") ?? "No matching settings")}</div>`;
-      settingsSearchResults.querySelectorAll('[data-settings-search-result]').forEach((button) => button.addEventListener('click', () => {
-        const item = matches[Number(button.dataset.settingsSearchResult)];
-        if (!item) return;
-        window.FirstMateSettingsSearch?.open?.(item, { source:'settings-sidebar-search' });
-        settingsSearchInput.value = '';
-        renderSettingsSearch();
-      }));
+      positionSettingsSearch();
+      if (!settingsSearchResults.matches(':popover-open')) settingsSearchResults.showPopover();
+      settingsSearchInput.setAttribute('aria-expanded','true');
+      if (!settingsSearchListeners) {
+        settingsSearchListeners = new AbortController();
+        const options = {capture:true, signal:settingsSearchListeners.signal};
+        const outside = event => {
+          if (!settingsSearchInput.closest('.cs-settings-search').contains(event.target) && !settingsSearchResults.contains(event.target)) closeSettingsSearch();
+        };
+        document.addEventListener('pointerdown', outside, options);
+        document.addEventListener('focusin', outside, options);
+        window.addEventListener('resize', positionSettingsSearch, options);
+        window.addEventListener('scroll', event => { if (!settingsSearchResults.contains(event.target)) positionSettingsSearch(); }, options);
+      }
     };
     settingsSearchInput?.addEventListener('input', renderSettingsSearch);
-    settingsSearchInput?.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape') return;
-      settingsSearchInput.value = '';
-      renderSettingsSearch();
+    settingsSearchInput?.addEventListener('focus', renderSettingsSearch);
+    settingsSearchInput?.addEventListener('click', () => { if (settingsSearchResults.hidden) renderSettingsSearch(); });
+    settingsSearchInput?.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeSettingsSearch(); return; }
+      if (event.key === 'Tab') { closeSettingsSearch(); return; }
+      if (event.key === 'Enter' && !settingsSearchResults.hidden && settingsSearchIndex >= 0) { event.preventDefault(); chooseSettingsSearch(settingsSearchIndex); return; }
+      if (!['ArrowDown','ArrowUp'].includes(event.key)) return;
+      event.preventDefault();
+      if (settingsSearchResults.hidden) renderSettingsSearch();
+      if (!settingsSearchMatches.length) return;
+      settingsSearchIndex = (settingsSearchIndex + (event.key === 'ArrowDown' ? 1 : settingsSearchIndex < 0 ? 0 : -1) + settingsSearchMatches.length) % settingsSearchMatches.length;
+      settingsSearchResults.querySelectorAll('[role=option]').forEach((button,index) => button.setAttribute('aria-selected', String(index === settingsSearchIndex)));
+      const selected = settingsSearchResults.querySelector('[aria-selected="true"]');
+      settingsSearchInput.setAttribute('aria-activedescendant', selected.id);
+      selected.scrollIntoView({block:'nearest'});
     });
     settingsSearchClear?.addEventListener('click', () => {
       settingsSearchInput.value = '';
@@ -13041,6 +13089,7 @@
     }
     function setSubTab(which, options = {}){
       if (!tabAllowed(which)) return;
+      closeSettingsSearch();
       activeTab = which;
       viewState.activeTab = which;
       if (options.updateRoute !== false && !window.Portal?.navigation?.applying) writeSettingsRoute({ sub:which, settingsView:'', settingsEntity:'', scopeTemplateView:'', terminologyQuery:'', terminologySection:'', terminologyStatus:'', workflow:'', workflow_step:'' }, { history:options.history || 'push', source:'settings-tab' });
