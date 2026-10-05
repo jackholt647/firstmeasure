@@ -209,3 +209,5 @@ Remaining policy work before treating geography as fraud protection:
 - Review legacy organizations and region-specific acquisition offers. The
   separate referral hero still contains a fixed $7 offer; it is outside the
   website billboard and has not been generalized by this change.
+
+[Development deployment and verification](../../deploy/digitalocean/development-login-billboard-20261005.md).
