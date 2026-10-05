@@ -1,9 +1,10 @@
+import regionData from "./region-data.json" with { type: "json" };
 import { TERRITORY_DEFAULTS } from "./territory-defaults.js";
 import { TIME_ZONE_COUNTRIES } from "./timezone-countries.js";
 import { SUPPORTED_LOCALES } from "../platform/localization/core.js";
 
 // Policy regions are independent of UI language and the currency of a visitor's card.
-export const EU_COUNTRIES = new Set("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE".split(" "));
+export const EU_COUNTRIES = new Set(regionData.eu_countries);
 const AMERICAS = new Set("US CA MX GT BZ SV HN NI CR PA CU DO HT JM BS BB TT AG DM GD KN LC VC AR BO BR CL CO EC FK GF GY PE PY SR UY VE PR VI AW CW SX BQ BM KY TC VG AI MS GP MQ BL MF GL PM".split(" "));
 const LANGUAGES: Record<string,string> = {
   US:"en-US",CA:"en-CA",GB:"en-GB",IE:"en-IE",AU:"en-AU",NZ:"en-NZ",ZA:"en-ZA",

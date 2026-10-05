@@ -3,7 +3,8 @@ $publicRegistrationEnabled = (getenv('PUBLIC_REGISTRATION_ENABLED') ?: ($_SERVER
 $initialReferralCode = $publicRegistrationEnabled ? strtoupper(trim((string)($_GET['ref'] ?? ''))) : '';
 $hasReferralInvite = $initialReferralCode !== '';
 // Marketing geography only; this does not assign an account's commercial region.
-$loginEuropeanCountries = explode(' ', 'AL AD AT BY BE BA BG HR CY CZ DK EE FI FR DE GR HU IS IE IT XK LV LI LT LU MT MD MC ME NL MK NO PL PT RO RU SM RS SK SI ES SE CH TR UA GB VA AX FO GI GG IM JE');
+$loginRegionData = json_decode(file_get_contents(__DIR__ . '/../v1/commerce/region-data.json'), true, 512, JSON_THROW_ON_ERROR);
+$loginEuropeanCountries = $loginRegionData['eu_countries'];
 $loginRegionHeader = strtoupper(trim((string)($_SERVER['HTTP_X_FIRSTMATE_REGION'] ?? '')));
 $loginBillboardRegion = in_array($loginRegionHeader, ['EU', 'EUROPE'], true) ? 'eu' : 'detect';
 if ($loginBillboardRegion === 'detect') {
@@ -591,15 +592,13 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             let european = false;
             let timeZone = '';
             try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
-            // Time zone is more specific than language; use locale only without a regional zone.
-            if (timeZone && !/^(UTC|GMT|Etc\/)/.test(timeZone)) {
-                european = timeZone.startsWith('Europe/') || ['Asia/Nicosia', 'Asia/Famagusta', 'Atlantic/Azores', 'Atlantic/Madeira', 'Atlantic/Canary', 'Atlantic/Faroe', 'Atlantic/Faeroe', 'Atlantic/Reykjavik', 'Arctic/Longyearbyen'].includes(timeZone);
-            } else {
-                try {
-                    const country = new Intl.Locale(navigator.language).region;
-                    european = <?= json_encode($loginEuropeanCountries) ?>.includes(country);
-                } catch (_) {}
+            // Use the same IANA country map and EU membership as signup pricing.
+            const zoneCountries = <?= json_encode($loginRegionData['time_zone_countries']) ?>;
+            let country = zoneCountries[timeZone] || '';
+            if (!country) {
+                try { country = new Intl.Locale(navigator.language).region || ''; } catch (_) {}
             }
+            european = <?= json_encode($loginEuropeanCountries) ?>.includes(country);
             if (european) document.querySelector('.login-marketing-billboard').src = 'https://eu.1m8.ai/billboards/login';
         })();
     </script>
@@ -677,7 +676,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             </div>
             <div class="form-group">
                 <label>Phone</label>
-                <input type="tel" name="phone" inputmode="tel" autocomplete="tel" placeholder="(555) 555-0123" maxlength="14" required>
+                <input type="tel" name="phone" inputmode="tel" autocomplete="tel" placeholder="(555) 555-0123" maxlength="24" required>
             </div>
             <div class="form-group">
                 <label>Email</label>
@@ -799,6 +798,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
     }
 
     function formatSignupPhone(value) {
+        if (String(value || '').trim().startsWith('+')) return '+' + String(value).replace(/\D/g, '').slice(0, 15);
         const digits = signupPhoneDigits(value);
         if (!digits) return '';
         if (digits.length <= 3) return `(${digits}`;
@@ -808,6 +808,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 
     function isValidSignupPhone(value) {
         const digits = String(value || '').replace(/\D/g, '');
+        if (String(value || '').trim().startsWith('+')) return /^[1-9]\d{6,14}$/.test(digits);
         return digits.length === 10 || (digits.length === 11 && digits.startsWith('1'));
     }
 
@@ -815,7 +816,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 
     function validateRegistrationPhone() {
         const valid = !!registrationPhoneInput && isValidSignupPhone(registrationPhoneInput.value);
-        registrationPhoneInput?.setCustomValidity(valid ? '' : 'Enter a valid ten-digit mobile phone number.');
+        registrationPhoneInput?.setCustomValidity(valid ? '' : 'Enter a valid mobile phone number, including the country code outside the US and Canada.');
         if (valid) registrationPhoneInput.value = formatSignupPhone(registrationPhoneInput.value);
         return valid;
     }
@@ -849,10 +850,16 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
         requestAnimationFrame(() => setFormAreaHeightTo(err.closest('form.auth-form')));
     }
 
+    function signupRegionHints() {
+        let timeZone = '';
+        try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
+        return { signup_locale: navigator.language || '', signup_time_zone: timeZone };
+    }
+
     async function googleRegistrationPayload() {
         await waitForAcquisitionTrackingBeforeSubmit();
         const fd = new FormData(document.getElementById('registerForm'));
-        const payload = {};
+        const payload = signupRegionHints();
         fd.forEach((value, key) => {
             if (key !== 'password' && key !== 'confirm_password' && key !== 'phone' && key !== 'email') payload[key] = value;
         });
@@ -958,7 +965,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             not_found: "We couldn't find an account with that email or phone number.",
             identity_phone_not_found: "We couldn't find an account with that phone number.",
             invalid_email: 'Enter a valid email address.',
-            invalid_phone_number: 'Enter a valid ten-digit mobile phone number.',
+            invalid_phone_number: 'Enter a valid mobile phone number, including the country code outside the US and Canada.',
             missing_login_identifier: 'Enter your email address or phone number.',
             registration_in_progress: 'Your account is already being created. Wait a moment, then try logging in.',
             identity_inactive: 'This account is disabled. Contact your company administrator or support.',
@@ -978,7 +985,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             csrf_required: 'Please refresh this page and try again.',
             connection_error: 'We could not connect to the server. Check your connection and try again.',
             'Missing required account fields.': 'Complete all required account fields.',
-            'Enter a valid ten-digit mobile phone number.': 'Enter a valid ten-digit mobile phone number.',
+            'Enter a valid mobile phone number, including the country code outside the US and Canada.': 'Enter a valid mobile phone number, including the country code outside the US and Canada.',
             'Invalid or expired code.': 'That verification code is incorrect or has expired. Request a new code and try again.',
             'Password too short': 'Use a password with at least 6 characters.',
             'Password reset is not authorized.': 'Verify your recovery code before setting a new password. Start again with Forgot Password.'
@@ -1359,7 +1366,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
         };
         const err = document.getElementById('regError'); err.style.display='none';
         if (!validateRegistrationPhone()) {
-            err.innerText = 'Enter a valid ten-digit mobile phone number.';
+            err.innerText = 'Enter a valid mobile phone number, including the country code outside the US and Canada.';
             err.style.display = 'block';
             registrationPhoneInput?.reportValidity();
             resetSubmitting();
@@ -1373,6 +1380,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
         }
 
         fd.append('action', 'register');
+        Object.entries(signupRegionHints()).forEach(([key, value]) => fd.set(key, value));
         await waitForAcquisitionTrackingBeforeSubmit();
 
         // Forward any UTM / attribution params from the URL to the server

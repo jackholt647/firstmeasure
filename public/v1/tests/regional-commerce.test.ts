@@ -42,6 +42,8 @@ test("signup assigns organization prices, currency and localization once; custom
       const language=await c.request("GET","/v1/platform/me/localization",undefined,"US");
       assert.equal(language.context.locale,locale);assert.equal(language.context.measurement_system,units);
       const saved=await profile.organizationProfile(c.org);assert.equal(saved.country,country);
+      const {resolveOrderReportPreferences}=await import("../firstmeasure/report_preferences.js");
+      assert.equal((await resolveOrderReportPreferences({organization_ref:{id:c.org}})).measurement_system,units);
       assert.equal((await c.raw("PATCH",`/v1/platform/organizations/${c.org}/global`,{data:{commercial_profile:{...saved,tier:"domestic"}}})).statusCode,country==="US"||country==="CA"?200:403);
       const prior=await storage.readGlobal(c.org);
       await c.request("PUT",`/v1/platform/organizations/${c.org}/global`,{data:{branding:{}}});

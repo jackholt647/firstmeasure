@@ -6,7 +6,7 @@
 | --- | --- | --- | --- | --- | --- |
 | US | Base | USD | Dollars | en-US | Imperial |
 | Canada | Base | USD | Dollars | en-US | Metric |
-| EU | International, initially 2× base | EUR | Euros | Closest installed language, currently en-GB | Metric |
+| EU | International, initially 2× base | EUR | Euros | Closest installed language | Metric |
 | Other countries with an officially supported local currency | International | That currency | Currency | Closest installed language | Metric |
 | Other countries | International | USD | Credits | Americas en-US, otherwise en-GB until a closer pack exists | Metric |
 
@@ -46,9 +46,9 @@ methods, pending payments and existing contracts explicitly.
 
 Country language routing prefers an exact installed pack, then the same language,
 then another national official language, then the geographic English fallback.
-English-speaking countries retain their geographic English fallback. Only en-US/en-GB are currently shipped.
-France records fr-FR as its preferred locale and uses en-GB until a French pack
-is installed and the organization's preference is explicitly changed. Adding a
+English-speaking countries retain their geographic English fallback. The installed set is defined in `public/v1/platform/localization/languages.json`;
+French and Japanese registration defaults are covered by the regional commerce
+tests. Existing organizations are not silently reassigned when packs are added. Adding a
 pack requires updating the shared locale registry/validators and translated
 catalogs, templates and fonts as described in `docs/platform-localization.md`.
 
@@ -153,3 +153,59 @@ checkout and automatic top-ups, settlement mismatch/replay handling, Stripe
 subscription price separation, future currency configuration and browser
 formatting/mobile layouts. Payment tests use deterministic provider fixtures;
 they do not charge cards. Screenshots are written to `output/regional-billing-ui`.
+
+## Login billboard and signup continuity (October 5, 2026)
+
+The login iframe embeds `https://1m8.ai/billboards/login`, or
+`https://eu.1m8.ai/billboards/login` for the same EU country set used by EUR
+pricing. `public/v1/commerce/region-data.json` is the shared source of EU
+membership and the IANA zone-to-country map for PHP/browser presentation and
+the Node signup resolver. The UK, Switzerland and Norway are not in that EU set;
+they still receive international pricing and metric defaults under existing
+commercial policy. EU marketing here means EU membership, not all of Europe.
+
+An HTTP request header `X-FirstMate-Region: EU` (case-insensitive value; `EUROPE`
+also accepted) forces only the EU billboard. Otherwise country headers take
+precedence (`CF-IPCountry`, `X-Vercel-IP-Country`, `X-AppEngine-Country`), then
+browser time zone, then browser locale region. Unknown visitors receive the
+main billboard. The header is not an account-country or pricing override.
+Password and Google registration from the main login now submit the same
+`signup_locale` and `signup_time_zone` hints as the landing signup widget.
+The main form also accepts international +country-code phones without truncating
+them to ten digits. Signup's North American phone fallback remains unchanged.
+
+The iframe fills its responsive area with zero border/padding, rounded clipping,
+and `scrolling="no"`. Desktop is 16:10; at viewport widths up to 760px it becomes
+4:1. The website owns content fit, padding and any internal overflow containers;
+cross-origin app code cannot rewrite its document styles. Both external URLs
+returned 404 during implementation, so website publication is still required.
+
+### Verified defaults and protection boundaries
+
+The default residential roof policy is US/Canada 7 USD; EU 14 EUR;
+UK/Japan 14 USD-backed credits unless another currency is explicitly configured.
+These are code-default examples, not a read of current production price settings.
+Every non-US signup defaults to metric, including Canada. The new tests also
+check the actual FirstMeasure order-preference resolver after signup.
+Order preferences prioritize explicit order choices, then branch defaults,
+then organization defaults when report localization is enabled; saved orders
+retain their chosen units. Feature flags can limit customization.
+
+Commercial profiles are assigned once and customer global-document writes
+cannot replace them. Login/travel/language changes do not reprice an organization.
+Legacy organizations without a profile retain US/USD/imperial defaults; this
+release does not migrate them. Authenticated prices use organization context;
+policy revisions reject stale ordering prices, accepted subscriptions retain
+snapshotted prices, and payment fulfillment checks currency/amount and idempotency.
+
+Remaining policy work before treating geography as fraud protection:
+
+- Confirm the edge overwrites geolocation headers. Browser time zone/locale and
+  externally supplied country headers are hints, not verified residence.
+- Define confirmed organization-country collection, conflicting-signal handling,
+  and whether verified billing/tax/payment country should constrain eligibility.
+- Define an audited administrative country/currency migration process including
+  balances and subscriptions; never silently reassign profiles at login.
+- Review legacy organizations and region-specific acquisition offers. The
+  separate referral hero still contains a fixed $7 offer; it is outside the
+  website billboard and has not been generalized by this change.
