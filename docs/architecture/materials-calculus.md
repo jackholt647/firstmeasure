@@ -85,10 +85,14 @@ Document materials viewer was removed after user rejection on October 5. The
 left library retains roof, aerial, measurements and list views without a duplicate
 Materials selector. On narrow screens these widgets stack above the lists.
 
-Integration gap: document ledger sets are not yet adapted into the original
-material-list API/renderer. Their backend data is preserved. Future integration
-must use that renderer and its editing/ordering workflow, with accepted source
-context on the left; it must not add a separate replacement material list UI.
+Document ledger sets now project into the original material-list renderer through
+`calculus-native.js`, alongside manually created lists. Pending accepted sets have
+an explicit Generate materials action. The original color-coded grid, price-book
+picker, inline edits and ordering controls operate on these projections without
+creating a second mutable material-list record. Inline edits use revision-checked
+remove/add amendments; fractional measured quantities remain precise until package
+rounding. Presentation metadata retains native colors and scheduling details.
+Orders and receipts retain the ledger's independent line allocations.
 Formula source and generator configuration belong in document authoring.
 Opening or refreshing Scope is read-only.
 
@@ -129,7 +133,7 @@ reads. Publication actions reuse the same service as HTTP/UI operations.
    is selected. Choose live or frozen binding policy according to the contract.
 4. Issue and sign the generated document. Its accepted source, public values and
    material recipe are retained together. The signing outbox creates pending sets.
-5. In Materials, calculate, inspect warnings/evidence, and apply a preview. Record
+5. In Scope, use Generate materials, then review the grid and source warnings. Record
    orders against the resulting independent lines and group their deliveries.
    Recalculation is explicitly reviewed; it never silently changes an order.
 
