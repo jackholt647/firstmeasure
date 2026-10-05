@@ -42,7 +42,7 @@
 .fm-shell-header[data-header-rows="2"]>.fm-project-tray-tabs button{position:static;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:30px;padding:0;border:0;border-radius:5px;background:none;color:#667085;font-family:inherit;font-size:13.3333px;font-weight:400;line-height:normal}
 .fm-shell-tabs.fm-tabs-revealing>button{position:relative}
 .fm-shell-tabs.fm-tabs-revealing>button:first-child{z-index:1;background:#fff!important}
-.fm-entity-window .fm-shell-header[data-window-mobile=true]{display:grid!important;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:60px auto;height:auto!important;min-height:60px!important;padding-top:env(safe-area-inset-top,0px)!important}
+.fm-entity-window .fm-shell-header[data-window-mobile=true]{display:grid!important;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:60px auto;height:auto!important;min-height:60px!important;padding-top:var(--fm-window-safe-top,env(safe-area-inset-top,0px))!important}
 .fm-entity-window .fm-shell-header[data-window-mobile=true]>.fm-shell-identity{grid-column:1;grid-row:1!important;padding:0 4px 0 16px!important;font-size:18px!important;align-self:stretch}
 .fm-entity-window .fm-shell-header[data-window-mobile=true]>.r-window-bar-actions{position:static;grid-row:1;grid-column:2;align-self:center}
 .fm-entity-window .fm-shell-header[data-window-mobile=true] .fm-window-controls{height:60px!important}

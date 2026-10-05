@@ -63,6 +63,13 @@ session_write_close();
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script id="fm-native-window-insets">
+  // Android MainActivity already pads the WebView for system bars. Apply this
+  // before any loading chrome paints, without waiting for the native bridge.
+  if (/Android.*FirstMateMobile\//i.test(navigator.userAgent)) {
+    document.documentElement.style.setProperty('--fm-window-safe-top', '0px');
+  }
+</script>
 <script src="/libraries/apps/partners/invite-continuation.js?v=20260930-v2"></script>
 <script src="/libraries/apps/partners/shared-list.js?v=20261001-sharing-polish-v1"></script>
 <script src="/libraries/apps/partners/share-dialog.js?v=20261001-sharing-polish-v1"></script>
@@ -1822,7 +1829,7 @@ session_write_close();
         /* Match the mobile window from first paint, before project capabilities arrive. */
         #fmProjectRoutePrecover{align-items:stretch!important;justify-content:stretch!important;padding:0!important;background:#fff!important;backdrop-filter:none!important}
         #fmProjectRoutePrecover .fm-pr-shell{position:relative;width:100%;height:100%;border-radius:0;box-shadow:none}
-        #fmProjectRoutePrecover .fm-pr-title{order:-1;box-sizing:content-box;height:60px;min-height:60px;padding:env(safe-area-inset-top,0px) 64px 0 16px;border:0;display:flex;align-items:center;background:#fff;font-size:18px;font-weight:800;color:#101828}
+        #fmProjectRoutePrecover .fm-pr-title{order:-1;box-sizing:content-box;height:60px;min-height:60px;padding:var(--fm-window-safe-top,env(safe-area-inset-top,0px)) 64px 0 16px;border:0;display:flex;align-items:center;background:#fff;font-size:18px;font-weight:800;color:#101828}
         #fmProjectRoutePrecover .fm-pr-current{display:none}
         #fmProjectRoutePrecover .fm-pr-project{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;white-space:nowrap}
         #fmProjectRoutePrecover .fm-pr-project:before{content:'\f07c';font-family:'Font Awesome 6 Free';font-weight:900;color:var(--primary,#d93025)}
@@ -1830,7 +1837,7 @@ session_write_close();
         #fmProjectRoutePrecover .fm-pr-header{height:32px;min-height:32px;border:0;border-bottom:1px solid #e4e7ec}
         /* Do not flash a fabricated eight-tab menu before permissions/configuration load. */
         #fmProjectRoutePrecover .fm-pr-tabs{visibility:hidden}
-        #fmProjectRoutePrecover .fm-pr-close{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);right:8px;box-sizing:border-box;width:44px;height:44px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;color:#101828;font-size:24px;cursor:pointer}
+        #fmProjectRoutePrecover .fm-pr-close{position:absolute;top:calc(var(--fm-window-safe-top,env(safe-area-inset-top,0px)) + 8px);right:8px;box-sizing:border-box;width:44px;height:44px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;color:#101828;font-size:24px;cursor:pointer}
         #fmProjectRoutePrecover .fm-pr-body{display:block;background:#fff}
         #fmProjectRoutePrecover .fm-pr-left{display:none}
         #fmProjectRoutePrecover .fm-pr-content{height:100%;padding:0;background:#fff}
