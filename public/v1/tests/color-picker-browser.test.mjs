@@ -67,6 +67,34 @@ test('shared picker replaces native dialogs and preserves existing color event c
     await page.locator('[data-hex]').fill('#112233'); await page.locator('[data-hex]').fill('#223344');
     assert.equal(await page.locator('#replaced').inputValue(), '#223344');
     assert.deepEqual(await page.evaluate(() => window.rerenderEvents), [['input','#112233'],['change','#112233'],['input','#223344'],['change','#223344']]);
+    // Some consumers replace the backing control on change rather than input.
+    await page.evaluate(() => {
+      const host = document.querySelector('#rerender');
+      host.replaceWith(host.cloneNode(true));
+      const next = document.querySelector('#rerender');
+      next.addEventListener('change', event => {
+        next.innerHTML = `<input id="replaced" type="color" value="${event.target.value}">`;
+      });
+      window.FirstMateColorPicker.close();
+    });
+    await page.locator('#replaced').click();
+    const plane = await page.locator('.fm-color-plane').boundingBox();
+    await page.mouse.move(plane.x + 20, plane.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(plane.x + 80, plane.y + 60, { steps: 8 });
+    const midway = await page.locator('#replaced').inputValue();
+    await page.mouse.move(plane.x + 180, plane.y + 90, { steps: 8 });
+    await page.mouse.up();
+    assert.notEqual(await page.locator('#replaced').inputValue(), midway);
+    assert.equal(await page.getByRole('dialog').count(), 1);
+    // A retargeted click after a gesture is not a new outside press.
+    await page.locator('body').dispatchEvent('click');
+    assert.equal(await page.getByRole('dialog').count(), 1);
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    await page.locator('#replaced').click();
+    await page.locator('#text').click();
+    assert.equal(await page.getByRole('dialog').count(), 0);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

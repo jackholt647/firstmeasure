@@ -10,7 +10,7 @@
   if (typeof document !== 'undefined' && document.head && document.createElement && !root.FirstMateColorPicker && !document.querySelector('script[data-fm-color-picker]')) {
     const picker = document.createElement('script');
     const source = document.currentScript?.src || new URL('/libraries/platform-api/platform-api.js', location.href).href;
-    picker.src = new URL('../color-picker/firstmate-color-picker.js?v=20260929-1', source).href;
+    picker.src = new URL('../color-picker/firstmate-color-picker.js?v=20261005-1', source).href;
     picker.dataset.fmColorPicker = 'true';
     document.head.appendChild(picker);
   }

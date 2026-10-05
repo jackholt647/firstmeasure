@@ -77,6 +77,13 @@
     panel.querySelectorAll('[data-rgb]').forEach((input, index) => { if (document.activeElement !== input) input.value = rgb[index]; });
     panel.querySelector('[role=status]').textContent = '';
   }
+  function rebind(hex) {
+    if (active && !active.isConnected && identity) {
+      const candidates = identity.id ? [document.getElementById(identity.id)] : [...(anchor?.isConnected ? anchor : document).querySelectorAll('input[type="color"]')];
+      const replacement = candidates.find(candidate => candidate && candidate.type === 'color' && identity.attributes.every(([name, value]) => candidate.getAttribute(name) === value));
+      if (replacement) { active = replacement; enhance(replacement); replacement.value = hex; replacement.setAttribute('aria-expanded', 'true'); }
+    }
+  }
   function choose(hex, preserveHsv = false) {
     hex = normalize(hex); if (!hex || !active) return;
     const input = active; const changed = input.value.toLowerCase() !== hex;
@@ -87,12 +94,9 @@
       input.dispatchEvent(new Event('input', { bubbles: true }));
       // A consumer may rerender its field from an input event. Keep subsequent
       // changes attached to the replacement so delegated application listeners work.
-      if (!input.isConnected && active && identity) {
-        const candidates = identity.id ? [document.getElementById(identity.id)] : [...(anchor?.isConnected ? anchor : document).querySelectorAll('input[type="color"]')];
-        const replacement = candidates.find(candidate => candidate && candidate.type === 'color' && identity.attributes.every(([name, value]) => candidate.getAttribute(name) === value));
-        if (replacement) { active = replacement; enhance(replacement); replacement.value = hex; replacement.setAttribute('aria-expanded', 'true'); }
-      }
+      rebind(hex);
       (active || input).dispatchEvent(new Event('change', { bubbles: true }));
+      rebind(hex);
     }
   }
   function open(input) {
@@ -121,7 +125,7 @@
     panel.querySelector('[data-hue]').addEventListener('input', event => { hsv.h = Number(event.target.value); choose(rgbToHex(hsvToRgb(hsv)), true); });
     const plane = panel.querySelector('.fm-color-plane');
     const move = event => { const box = plane.getBoundingClientRect(); hsv.s = clamp((event.clientX - box.left) / box.width); hsv.v = 1 - clamp((event.clientY - box.top) / box.height); choose(rgbToHex(hsvToRgb(hsv)), true); };
-    plane.addEventListener('pointerdown', event => { event.preventDefault(); plane.focus(); plane.setPointerCapture(event.pointerId); move(event); });
+    plane.addEventListener('pointerdown', event => { event.preventDefault(); plane.focus({ preventScroll: true }); plane.setPointerCapture(event.pointerId); move(event); });
     plane.addEventListener('pointermove', event => { if (plane.hasPointerCapture(event.pointerId)) move(event); });
     plane.addEventListener('keydown', event => { const step = event.shiftKey ? .1 : .01; if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) return; event.preventDefault(); hsv.s = clamp(hsv.s + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0)); hsv.v = clamp(hsv.v + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0)); choose(rgbToHex(hsvToRgb(hsv)), true); });
     document.body.appendChild(panel); sync(); position(); panel.querySelector('[data-hex]').focus({ preventScroll: true });
@@ -133,7 +137,10 @@
   }
   function install() {
     refresh();
-    document.addEventListener('click', event => { if (panel?.contains(event.target)) return; const input = colorTarget(event.target); if (input) { event.preventDefault(); event.stopPropagation(); open(input); } else close(false); }, true);
+    // Dismiss where a gesture starts, not where its synthesized click ends.
+    // Dragging and consumer rerenders can retarget the final click outside the panel.
+    document.addEventListener('pointerdown', event => { if (panel && !panel.contains(event.target) && event.target !== active) close(false); }, true);
+    document.addEventListener('click', event => { if (panel?.contains(event.target)) return; const input = colorTarget(event.target); if (input) { event.preventDefault(); event.stopPropagation(); open(input); } }, true);
     document.addEventListener('keydown', event => {
       const input = colorTarget(event.target);
       if (input && ['Enter', ' '].includes(event.key)) { event.preventDefault(); event.stopPropagation(); open(input); }

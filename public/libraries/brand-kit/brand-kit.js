@@ -61,7 +61,7 @@
               <div class="brand-color-control"><input type="color" class="cs-color" id="${id('Primary')}"><div class="brand-color-copy"><label for="${id('PrimaryHex')}">Primary</label><span class="cs-chip" id="${id('PrimaryChip')}"><span class="hash">#</span><input id="${id('PrimaryHex')}" maxlength="6" autocomplete="off" spellcheck="false"></span></div></div>
               <div class="brand-color-control"><input type="color" class="cs-color" id="${id('Secondary')}"><div class="brand-color-copy"><label for="${id('SecondaryHex')}">Secondary</label><span class="cs-chip" id="${id('SecondaryChip')}"><span class="hash">#</span><input id="${id('SecondaryHex')}" maxlength="6" autocomplete="off" spellcheck="false"></span></div></div>
             </div>
-            ${extendedPalette ? `<div class="brand-palette-strip" id="${id('PaletteStrip')}" aria-label="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_629cca6181934e","Six-color company palette") ?? "Six-color company palette")}"></div><div class="palette-inline-footer"><button type="button" class="palette-regenerate" id="${id('GeneratePalette')}"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_695aa2f7da3152"," Regenerate palette from logo") ?? " Regenerate palette from logo")}</button></div>` : ''}
+            ${extendedPalette ? `<div class="brand-palette-strip" id="${id('PaletteStrip')}" aria-label="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_629cca6181934e","Six-color company palette") ?? "Six-color company palette")}"></div>` : ''}<div class="palette-inline-footer"><button type="button" class="palette-regenerate" id="${id('GeneratePalette')}"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_695aa2f7da3152"," Regenerate palette from logo") ?? " Regenerate palette from logo")}</button></div>
           </div>
         </section>
         <section class="company-settings-card company-font-card"><div class="company-settings-card-head"><strong>Company font</strong><button type="button" class="company-settings-card-help" title="The default family is used for document body text and titles. Optionally choose a separate title family for headings." aria-label="About company fonts">ⓘ</button></div><div class="company-settings-card-body"><label class="cs-field"><span>Default font family</span><select id="${id('BrandFont')}">${fonts.map((font) => `<option value="${escape(font)}">${escape(font)}</option>`).join('')}</select></label><label class="brand-title-toggle"><input type="checkbox" id="${id('SeparateTitleFont')}"> Use a separate title font</label><label class="cs-field" id="${id('TitleFontField')}" hidden><span>Title font family</span><select id="${id('TitleFont')}">${fonts.map((font) => `<option value="${escape(font)}">${escape(font)}</option>`).join('')}</select></label></div></section>
@@ -146,9 +146,9 @@
       try {
         const colors=await options.onGeneratePalette?.(model.logo);
         if(Array.isArray(colors) && colors.length){
-          const chosen=new Set(model.palette.slice(0,2).map((color)=>color.toUpperCase()));
-          const supporting=colors.map((color)=>hex(color)).filter((color)=>!chosen.has(color)).slice(0,4);
-          supporting.forEach((color,index)=>{model.palette[index+2]=color;}); fill(root,prefix,model); emit();
+          colors.slice(0,6).forEach((color,index)=>{model.palette[index]=hex(color);});
+          model.primary=model.palette[0]; model.secondary=model.palette[1];
+          fill(root,prefix,model); emit();
         }
       } catch (error) { options.onError?.(error); }
     });

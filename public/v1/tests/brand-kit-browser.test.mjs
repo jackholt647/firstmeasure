@@ -85,3 +85,27 @@ test('Doc Studio shares logo editing, fonts and serialized autosaves in a respon
     assert.deepEqual(errors,[]);
   } finally { await browser.close(); }
 });
+
+
+test('simple and advanced Brand Kits regenerate visible primary and secondary colors', async () => {
+  const browser = await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try {
+    const page = await browser.newPage();
+    await page.route('http://brand.test/**', route=>route.fulfill({contentType:'text/html',body:'<main></main>'}));
+    await page.goto('http://brand.test/');
+    await page.addScriptTag({content:await readFile(new URL('../../libraries/brand-kit/brand-kit.js',import.meta.url),'utf8')});
+    for (const extendedPalette of [false,true]) {
+      await page.evaluate(extendedPalette => {
+        const root=document.querySelector('main');
+        root.innerHTML=PlatformBrandKit.markup({prefix:'test',extendedPalette});
+        const value={palette:['#111111','#222222','#333333','#444444','#555555','#666666'],font:'Inter',logo:'fixture'};
+        PlatformBrandKit.bind(root,{prefix:'test',value,onGeneratePalette:async()=>['#AA1122','#33BB44','#5566CC'],onChange:change=>window.savedPalette=change.palette});
+      },extendedPalette);
+      assert.equal(await page.locator('#testPaletteStrip').count(),extendedPalette ? 1 : 0);
+      await page.getByRole('button',{name:/Regenerate palette from logo/}).click();
+      assert.equal(await page.locator('#testPrimary').inputValue(),'#aa1122');
+      assert.equal(await page.locator('#testSecondary').inputValue(),'#33bb44');
+      assert.deepEqual(await page.evaluate(()=>window.savedPalette.slice(0,3)),['#AA1122','#33BB44','#5566CC']);
+    }
+  } finally { await browser.close(); }
+});

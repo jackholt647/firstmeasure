@@ -17630,7 +17630,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       });
       csGeneratePalette?.addEventListener('click', async ()=>{
         if (!state.logo) {
-          showToast((globalThis.PlatformLanguage?.text("settings","m_33e333511389de","Add a logo first") ?? "Add a logo first"), (globalThis.PlatformLanguage?.text("settings","m_484f439bbd72ff","Upload a company logo before generating supporting colors.") ?? "Upload a company logo before generating supporting colors."), false);
+          showToast((globalThis.PlatformLanguage?.text("settings","m_33e333511389de","Add a logo first") ?? "Add a logo first"), (globalThis.PlatformLanguage?.text("settings","m_484f439bbd72ff","Upload a company logo before generating a palette.") ?? "Upload a company logo before generating a palette."), false);
           return;
         }
         const defaultHtml = csGeneratePalette.innerHTML;
@@ -17638,11 +17638,13 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         csGeneratePalette.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Reading logo...';
         try {
           const extracted = await extractBrandPalette(state.logo);
-          const blessed = new Set([state.primary, state.secondary].map((color)=>clampHex(color, '').toUpperCase()));
-          const supporting = extracted.filter((color)=>!blessed.has(color.toUpperCase())).slice(0,4);
+          if (!extracted.length) throw new Error('No usable colors were found in this logo.');
+          state.primary = extracted[0];
+          state.secondary = extracted[1] || state.secondary;
+          const supporting = extracted.slice(2,6);
           const fallbacks = defaultBrandPalette(state.primary, state.secondary).slice(2);
           state.palette = [state.primary, state.secondary, ...fallbacks.map((fallback,index)=>supporting[index] || fallback)];
-          renderBrandPalette();
+          renderCompany({ writeInputs:true });
           scheduleBrandSave();
         } catch(e) {
           showToast((globalThis.PlatformLanguage?.text("settings","m_3e81c0909c4003","Could not generate palette") ?? "Could not generate palette"), e?.message || 'The logo colors could not be read.', false);
