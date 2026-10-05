@@ -3818,43 +3818,61 @@ window.PlatformCommerce.onReady(function(){
     return mounted;
   }
 
+  function reportHeaderTabs(projectTabs, reportTabs, ordered){
+    const ids = projectTabs.map(tab => tab.id);
+    if (!ordered || !ids.includes('map') || !ids.includes('measurements') || ids.some(id => !['map','measurements','photos'].includes(id))) return null;
+    // The compact report header exposes the three report views; XML remains in Summary.
+    // Optional report products and support tools keep their nested navigation.
+    if (reportTabs.some(tab => !['customer','standard','summary','model','xml'].includes(tab.id)) || !['customer','standard','summary'].every(id => reportTabs.some(tab => tab.id === id))) return null;
+    return [
+      ...['customer','standard','summary'].map(id => ({...reportTabs.find(tab => tab.id === id),icon:{customer:'fa-file-lines',standard:'fa-file-pdf',summary:'fa-clipboard-list'}[id]})),
+      {...projectTabs.find(tab => tab.id === 'map'),id:'project:map',label:'Map',icon:'fa-map-location-dot'},
+      ...projectTabs.filter(tab => tab.id === 'photos').map(tab => ({...tab,id:'project:photos'}))
+    ];
+  }
+
+  function renderReportNavigation(){
+    if (!state.mounted || !state.host) return;
+    const root = currentPanelRoot();
+    const overlay = root?.closest('#rOverlay');
+    const header = overlay?.querySelector('.r-modal-header');
+    const tabsEl = root?.querySelector('#rMeasureTabs') || header?.querySelector('#rMeasureTabs');
+    if (!root || !header || !tabsEl) return;
+    const context = callHost('reportNavigationContext') || {};
+    const reports = measurementTabs();
+    const flat = reportHeaderTabs(context.tabs || [], reports, context.ordered);
+    const merged = !!flat || !!header.querySelector('#rProjectViewerTabs.single-tab');
+    if (merged) header.insertBefore(tabsEl, header.querySelector('.modal-shell-actions'));
+    else root.insertBefore(tabsEl, root.firstChild);
+    overlay.classList.toggle('report-tabs-in-header', merged);
+    overlay.classList.toggle('flat-report-navigation', !!flat);
+    const selected = flat && context.activeTab !== 'measurements' ? 'project:'+context.activeTab : activeMeasurementTab;
+    window.Portal.ProjectViewer.renderTabs(tabsEl, (flat || reports).map(tab => ({
+      ...tab,active:tab.id === selected,buttonId:'rSubTab'+tab.id[0].toUpperCase()+tab.id.slice(1)
+    })), {tabClass:'r-measure-tab',iconOnly:!!flat,onTabClick:tab => {
+      if (tab.id.startsWith('project:')) setActivePreviewTab(tab.id.slice(8), {history:'push',source:'report-header'});
+      else {
+        if (flat && context.activeTab !== 'measurements') setActivePreviewTab('measurements', {history:'push',source:'report-header'});
+        setActiveMeasurementTab(tab.id);
+      }
+    }});
+    tabsEl.querySelectorAll('[data-tab]').forEach(button => button.setAttribute('aria-selected',String(button.dataset.tab === selected)));
+  }
+
   function renderMeasurementsPanel(){
     const root = currentPanelRoot();
     if (!root) return;
-    const overlay = root.closest('#rOverlay');
-    const header = overlay?.querySelector('.r-modal-header');
-    const tabsEl = root.querySelector('#rMeasureTabs') || header?.querySelector('#rMeasureTabs');
-    // FirstMeasure has one app: use its report tabs as the modal navigation.
-    // Keep the same nodes so tab and window-control handlers survive rerenders.
-    const merged = !!header?.querySelector('#rProjectViewerTabs.single-tab');
-    if (tabsEl && header) {
-      if (merged) header.insertBefore(tabsEl, header.querySelector('.modal-shell-actions'));
-      else root.insertBefore(tabsEl, root.firstChild);
-    }
-    overlay?.classList.toggle('report-tabs-in-header', merged);
     ensureInlineProjectMapPane();
     ensureReportSummaryPane();
     ensureReportChangesPane();
-    const tabs = measurementTabs();
+    const reportTabs = measurementTabs();
+    const context = callHost('reportNavigationContext') || {};
+    const compactTabs = reportHeaderTabs(context.tabs || [], reportTabs, context.ordered);
+    const tabs = compactTabs ? reportTabs.filter(tab => ['customer','standard','summary'].includes(tab.id)) : reportTabs;
     if (!tabs.some((tab) => tab.id === activeMeasurementTab)) {
       activeMeasurementTab = tabs.find((tab) => tab.id === 'standard' && !tab.disabled)?.id || tabs.find((tab) => !tab.disabled)?.id || 'standard';
     }
-    const buttonIds = {
-      map: 'rSubTabMap',
-      summary: 'rSubTabSummary',
-      instant: 'rSubTabInstant',
-      standard: 'rSubTabStandard',
-      customer: 'rSubTabCustomer',
-      weather: 'rSubTabWeather',
-      changes: 'rSubTabChanges'
-    };
-    window.Portal.ProjectViewer.renderTabs(tabsEl, tabs.map((tab) => ({
-      ...tab,
-      buttonId: buttonIds[tab.id] || `rSubTab${tab.id}`
-    })), {
-      tabClass: 'r-measure-tab',
-      onTabClick: (tab) => setActiveMeasurementTab(tab.id)
-    });
+    renderReportNavigation();
     root.querySelectorAll('.r-measure-pane').forEach((pane) => {
       pane.classList.toggle('active', pane.dataset.measurePane === activeMeasurementTab);
     });
@@ -4012,7 +4030,7 @@ window.PlatformCommerce.onReady(function(){
     const overlay = state.panelRoot?.closest('#rOverlay');
     const headerTabs = overlay?.querySelector('.r-modal-header #rMeasureTabs');
     if (headerTabs && state.panelRoot) state.panelRoot.prepend(headerTabs);
-    overlay?.classList.remove('report-tabs-in-header');
+    overlay?.classList.remove('report-tabs-in-header','flat-report-navigation');
     clearCancellationCountdown();
     clearWeatherReportPoll();
     disposeInstantMeasurement();
@@ -4036,6 +4054,7 @@ window.PlatformCommerce.onReady(function(){
     unmount: reset,
     invoke,
     measurementTabs,
+    renderReportNavigation,
     isPlatformProjectId,
     isFirstMeasureCompleteStatus,
     isFirstMeasureReturnedReportStatus,

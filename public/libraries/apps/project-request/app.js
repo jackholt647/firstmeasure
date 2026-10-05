@@ -975,6 +975,13 @@ window.PlatformCommerce.onReady(async function(){
     .r-measure-tab.active{background:#fff;border-color:rgba(15,23,42,.10);color:#1f2937;box-shadow:0 8px 18px rgba(15,23,42,.08)}
     .r-measure-tab.pending{color:#7b8794}
     .r-measure-tab:disabled{cursor:default}
+    .r-overlay.flat-report-navigation #rProjectViewerTabs{display:none!important}
+    .r-overlay.flat-report-navigation .r-modal-header #rMeasureTabs{display:grid!important;grid-row:2;grid-column:1 / -1;width:100%;height:32px!important;min-height:32px;padding:0;gap:0;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);background:#fff;overflow:hidden}
+    .r-overlay.flat-report-navigation .r-modal-header #rMeasureTabs .r-measure-tab{display:flex;justify-content:center;align-items:center;width:100%;min-width:0;height:32px;min-height:32px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--muted,#667085)}
+    .r-overlay.flat-report-navigation .r-modal-header #rMeasureTabs .r-measure-tab.active{color:var(--primary-readable,var(--primary));box-shadow:inset 0 -3px 0 var(--primary)}
+    .r-overlay.flat-report-navigation .r-modal-header #rMeasureTabs .r-measure-tab i{font-size:17px}
+    .r-overlay.flat-report-navigation .r-measure-body{inset:0}
+
     .r-measure-body{position:absolute;inset:46px 0 0;background:#eef2f6}
     .r-measure-pane{position:absolute;inset:0;display:none}
     .r-measure-pane.active{display:block}
@@ -7113,6 +7120,7 @@ window.PlatformCommerce.onReady(async function(){
       isMobileReportOrder: () => shouldUseMobileOrderPagination(),
       mobileOrderPinsLocked: () => shouldUseMobileOrderPagination() && !mobileOrderScopeReady(),
       inlineProjectMapWithReports: () => projectModalAppsShouldInlineMap(),
+      reportNavigationContext: () => ({ordered:hasReportOrdered(),tabs:projectViewerTabs(),activeTab:activePreviewTab}),
       showStructurePinLimitNotice: () => showStructurePinLimitNotice(),
       invalidateReportExpediteOptions: () => invalidateReportExpediteOptions(),
       renderPinInfo: () => renderPinInfo(),
@@ -7635,7 +7643,7 @@ window.PlatformCommerce.onReady(async function(){
         tabs.push({
           id: tab.id,
           label: tab.id === 'map' ? (window.Portal.ExteriorOrder?.active() ? 'Map' : projectOverviewTabLabel()) : (tab.label || tab.title || tab.id),
-          icon: tab.icon || '',
+          icon: tab.id === 'map' ? 'fa-map-location-dot' : (tab.icon || ''),
           pending: !!tab.pending,
           badge: tab.app?.promoBadge || '',
           disabled: !!tab.disabled
@@ -7683,6 +7691,7 @@ window.PlatformCommerce.onReady(async function(){
       if (mobileTabIcon) mobileTabIcon.hidden = true;
     }
     applyProjectModalPresentation();
+    projectMeasurementsModule()?.renderReportNavigation?.();
   }
 
   function validPreviewTabs(){
