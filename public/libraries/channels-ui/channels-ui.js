@@ -1000,6 +1000,7 @@
 .fm-ch-member-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:8px}
 .fm-ch-member-row:hover{background:var(--ch-hover)}
 .fm-ch-member-row .name{flex:1}
+.fm-ch-modal-body .fm-ch-section-conversation{display:flex;align-items:center;gap:10px;margin:0;padding:10px 8px;border-radius:8px;cursor:pointer}.fm-ch-section-conversation:hover{background:var(--ch-hover)}.fm-ch-section-conversation input[type=checkbox]{width:17px;height:17px;flex:0 0 17px;margin:0;accent-color:var(--ch-accent)}.fm-ch-section-conversation .name{flex:1;min-width:0;font-size:13px;font-weight:500;line-height:1.4;overflow-wrap:anywhere}
 .fm-ch-member-choice{width:100%;min-height:46px;padding:7px 9px;border:1px solid transparent;text-align:left;transition:background .14s ease,border-color .14s ease,color .14s ease}
 .fm-ch-member-choice+.fm-ch-member-choice{margin-top:5px}
 .fm-ch-member-choice:hover{border-color:var(--ch-border)}
@@ -5389,7 +5390,7 @@
           const holder = body.querySelector('[data-section-channels]');
           holder.innerHTML = '';
           for (const channel of state.channels.filter(channel=>!channel._shared)) {
-            const row = el('label', 'fm-ch-member-row', `<input type="checkbox" value="${esc(channel.id)}"${selected.has(channel.id) ? ' checked' : ''}><span class="name">${esc(channel.display_name || channel.name)}</span>`);
+            const row = el('label', 'fm-ch-section-conversation', `<input type="checkbox" value="${esc(channel.id)}"${selected.has(channel.id) ? ' checked' : ''}><span class="name">${esc(channel.display_name || channel.name)}</span>`);
             holder.appendChild(row);
           }
         };
