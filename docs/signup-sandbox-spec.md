@@ -272,10 +272,12 @@ are posted with stage completion and saved under the test org's global data;
 only `$user` keys declared by that page are accepted.
 
 The instant full organization template enables expanded access and all boolean
-capabilities. It sets `platform.new_button_mode` to `selector` and leaves
+capabilities except historical weather reports, regular instant reports,
+Training, Training Studio, and Canvassing. These exceptions are refreshed in
+saved workflow defaults; existing test organizations retain their settings.
+It sets `platform.new_button_mode` to `selector` and leaves
 `platform.new_button_items` empty, showing the default multi-action New menu.
 Existing copies of this seed gain those two defaults only when neither was set.
-
 The generic home improvement flow (`swf_home_improvement`) is the expandable
 foundation for onboarding a full-service contractor:
 
