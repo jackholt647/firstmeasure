@@ -1,4 +1,6 @@
 # FirstMeasure: local development and production deployment
+October 5 Connections: [External connections and shared agent setup](deploy/digitalocean/development-external-connections-20261005.md) records secure credentials, shared publications, Instant Full Org verification and the four-role development rollout.
+
 
 October 5 development tools: [Compact dropdown and batch amounts](deploy/digitalocean/development-tools-dropdown-20261005.md) records the anchored panel, dismissal behavior, two-column switches and configurable generation amounts.
 
