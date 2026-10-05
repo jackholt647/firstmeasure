@@ -7,7 +7,7 @@
   async function ensurePicker(){
     if (window.FirstMateAvailability && window.FirstMateProjectSelector && window.FirstMateAppointmentConfiguration) return;
     await (loading ||= Promise.all([!window.FirstMateAppointmentConfiguration ? "configuration.js" : "", !window.FirstMateAvailability ? "availability.js" : "", !window.FirstMateProjectSelector ? "../project-selector/project-selector.js" : ""].filter(Boolean).map(path => new Promise((resolve, reject) => {
-      const script = document.createElement('script'); const url = new URL(path, source); url.searchParams.set('v', new URL(source).searchParams.get('v') || '20261005-appointment-ranges-v1'); script.src = url.href;
+      const script = document.createElement('script'); const url = new URL(path, source); url.searchParams.set('v', new URL(source).searchParams.get('v') || '20261005-appointment-picker-v1'); script.src = url.href;
       script.onload = resolve;
       script.onerror = () => { loading = null; script.remove(); reject(new Error('Could not load the appointment calendar.')); };
       document.head.append(script);
@@ -34,9 +34,9 @@
     const select = window.FirstMateProjectSelector.mount(projectControl.querySelector('[data-project]'), {orgId,projectId:options.projectId,onChange:()=>{
       eventId = `appointment_${crypto.randomUUID()}`;
       projectControl.querySelector('[data-project-label]').textContent=projectControl.querySelector('input').value||'Project';
-      if(select.value)projectControl.open=false;
+      
       configuration?.setProject(select.value);if(configuration)refresh();
-    }});
+    },onSelect:()=>{projectControl.open=false;projectControl.querySelector('summary').focus();}});
     projectControl.addEventListener('toggle',()=>{if(projectControl.open)projectControl.querySelector('input')?.focus();});
     select.ready.then(()=>{projectControl.querySelector('[data-project-label]').textContent=projectControl.querySelector('input')?.value||'Project';});
     const target = dialog.querySelector('.fm-availability');

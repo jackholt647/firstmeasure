@@ -13,7 +13,7 @@
     function choose(row){
       value=row?.id || '';input.value=row?.title || '';close();
       if(value)try{sessionStorage.setItem(key,JSON.stringify([value,...recent().filter(id=>id!==value)].slice(0,6)));}catch{}
-      options.onChange?.(value);input.focus();close();
+      input.focus();close();options.onChange?.(value);options.onSelect?.(value);
     }
     function button(row){const b=document.createElement('button');b.type='button';b.setAttribute('role','option');b.setAttribute('aria-selected',String(value===(row?.id||'')));b.textContent=row?.title||'No project — assign later';if(row?.subtitle){const sub=document.createElement('small');sub.textContent=row.subtitle;b.append(sub);}b.onclick=()=>choose(row);return b;}
     async function search(){

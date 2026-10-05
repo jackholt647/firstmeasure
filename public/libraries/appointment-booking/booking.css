@@ -43,3 +43,7 @@
 @media(max-width:700px){#fm-booking-dialog .fm-range{padding:8px}#fm-booking-dialog .fm-range-dates button{display:grid;gap:2px;padding:6px 8px;flex:1}#fm-booking-dialog .fm-range-footer{flex-wrap:wrap;gap:6px}#fm-booking-dialog .fm-range-footer [type=submit]{width:100%}.fm-ap-duration>button{padding:5px 7px}}
 
 #fm-booking-dialog .fm-range-head>div{text-align:center}#fm-booking-dialog [data-range-loading]{display:block;font-size:10px;color:#98a2b3;font-weight:400;height:14px;margin-top:2px}
+
+/* Dialog typography follows the active portal theme, including branded fonts. */
+#fm-booking-dialog,#fm-booking-dialog h2{font-family:inherit}
+.fm-ap-picker:not([open])>.fm-ap-popover{display:none}

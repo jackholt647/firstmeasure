@@ -6,13 +6,13 @@
   const empty=()=>({title:'Appointment',department_ids:[],delivery:false,timing_mode:'timed',duration_days:2,location:{mode:'project',address:''},duration_minutes:60,window_minutes:60,slot_minutes:30,requirements:[],recurrence:null});
   const tip=text=>`<span class="fm-ap-help" tabindex="0" role="img" aria-label="${esc(text)}" title="${esc(text)}" data-fm-tooltip="${esc(text)}">?</span>`;
   const options=(rows,value)=>rows.map(([id,label])=>`<option value="${esc(id)}" ${id===value?'selected':''}>${esc(label)}</option>`).join('');
-  function ensureStyle(){if(document.getElementById('fm-appointment-style'))return;const link=document.createElement('link');link.id='fm-appointment-style';link.rel='stylesheet';const url=new URL('booking.css',source);url.searchParams.set('v',new URL(source).searchParams.get('v')||'20261005-appointment-ranges-v1');link.href=url.href;document.head.append(link);}
+  function ensureStyle(){if(document.getElementById('fm-appointment-style'))return;const link=document.createElement('link');link.id='fm-appointment-style';link.rel='stylesheet';const url=new URL('booking.css',source);url.searchParams.set('v',new URL(source).searchParams.get('v')||'20261005-appointment-picker-v1');link.href=url.href;document.head.append(link);}
   function readLocal(key){try{return JSON.parse(localStorage.getItem(key)||'[]');}catch{return [];}}
   function writeLocal(key,value){try{localStorage.setItem(key,JSON.stringify(value));}catch{}}
   async function mount(host,{orgId,onChange,initialValue,settingsMode=false,projectControl,projectId}={}){
     ensureStyle();
     const response=await window.PlatformAPI.appointments.catalog(orgId),catalog=response.catalog;
-    let config={...empty(),...structuredClone(initialValue||{})},disposed=false,advanced=settingsMode,projectAddress='',projectSequence=0;
+    let config={...empty(),...structuredClone(initialValue||{})},disposed=false,advanced=settingsMode,projectAddress='',projectSequence=0,projectTitle='',titleEdited=!!initialValue?.title,defaultTitle=config.title;
     const user=window.Portal?.cfg?.userId||window.__APP?.userId||'session';
     const recentKey=`fm:appointment-presets:${orgId}:${user}`,addressKey=`fm:appointment-addresses:${orgId}:${user}`;
     const resources=response.resources.filter(r=>['organization_user','resource_group'].includes(r.subject_type));
@@ -61,13 +61,14 @@
       $('[data-advanced]').ontoggle=()=>{advanced=$('[data-advanced]').open;};
       host.querySelectorAll('details.fm-ap-picker').forEach(details=>details.ontoggle=()=>{if(details.open){host.querySelectorAll('details.fm-ap-picker').forEach(other=>{if(other!==details&&!other.contains(details))other.open=false;});details.querySelector('input:not([type=checkbox])')?.focus();}});
       host.querySelectorAll('[data-preset-button]').forEach(button=>button.onclick=()=>{
-        const id=button.dataset.presetButton,preset=catalog.presets.find(p=>p.id===id);config={...empty(),...structuredClone(preset?.configuration||{})};if(preset)config.preset_id=id;
+        const previousTitle=config.title,id=button.dataset.presetButton,preset=catalog.presets.find(p=>p.id===id);config={...empty(),...structuredClone(preset?.configuration||{})};defaultTitle=config.title;config.title=titleEdited?previousTitle:projectTitle||defaultTitle;if(preset)config.preset_id=id;
         if(id)writeLocal(recentKey,[id,...readLocal(recentKey).filter(value=>value!==id)].slice(0,8));render();notify();
       });
       $('[data-filter-presets]')?.addEventListener('input',event=>{const q=event.target.value.toLowerCase();host.querySelectorAll('.fm-ap-menu [data-preset-button]').forEach(b=>b.hidden=!b.textContent.toLowerCase().includes(q));});
       host.querySelectorAll('[data-filter-people]').forEach(input=>input.oninput=()=>input.closest('.fm-ap-popover').querySelectorAll('[data-person-row]').forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(input.value.toLowerCase())));
       host.querySelectorAll('[data-specific]').forEach(input=>input.onchange=()=>{const r=config.requirements[Number(input.dataset.specific)],keys=new Set(r.subject_keys||[]);input.checked?keys.add(input.value):keys.delete(input.value);r.subject_keys=[...keys];const picker=input.closest("details").dataset.peoplePicker;render();const reopened=host.querySelector(`[data-people-picker="${picker}"]`);if(reopened)reopened.open=true;notify();});
-      $('[data-title]').onchange=event=>{config.title=event.target.value.trim()||'Appointment';markCustom();$('[data-title-label]').textContent=config.title;notify();};
+      $('[data-title]').oninput=event=>{titleEdited=!!event.target.value.trim();config.title=event.target.value.trim()||projectTitle||defaultTitle;};
+      $('[data-title]').onchange=event=>{config.title=event.target.value.trim()||projectTitle||defaultTitle;markCustom();$('[data-title-label]').textContent=config.title;notify();};
       $('[data-address]').onchange=event=>{const address=event.target.value.trim();config.location={mode:address?'custom':'none',address};markCustom();if(address)writeLocal(addressKey,[address,...readLocal(addressKey).filter(a=>a!==address)].slice(0,6));notify();};
       host.querySelectorAll('[data-location-preset]').forEach(b=>b.onclick=()=>{const row=locations[Number(b.dataset.locationPreset)];config.location={mode:row.mode,address:row.mode==='custom'?row.address:''};markCustom();render();notify();});
       host.querySelectorAll('[data-days],[data-duration],[data-window],[data-step],[data-interval],[data-count]').forEach(input=>input.onchange=()=>{
@@ -92,9 +93,19 @@
       host.querySelectorAll('[data-remove-rule]').forEach(b=>b.onclick=()=>{config.requirements.splice(Number(b.dataset.removeRule),1);markCustom();render();notify();});
     }
     function setDuration(value,emit=true){if(config.timing_mode==='days')config.duration_days=value;else{const exact=config.window_minutes===config.duration_minutes;config.duration_minutes=value;config.window_minutes=exact?value:Math.max(value,config.window_minutes);}render();if(emit)notify();}
-    async function setProject(id){const ticket=++projectSequence;projectAddress='';if(id){try{const result=await window.PlatformAPI.projects.get(orgId,id),data=result.document?.data||{};if(ticket!==projectSequence||disposed)return;projectAddress=typeof data.address==='string'?data.address:typeof data.project_address==='string'?data.project_address:'';}catch{}}if(!disposed&&ticket===projectSequence&&config.location.mode==='project'){const input=$('[data-address]');if(input)input.value=projectAddress;}}
-    render();void setProject(projectId);
-    return {get value(){return structuredClone(config);},get catalog(){return catalog;},get availabilityHint(){return config.requirements.some(r=>r.subject_type==='resource_group')&&!resources.some(r=>r.subject_type==='resource_group')?'No crews are configured for this appointment. Add a crew in Settings.':'';},setProject,setDuration,destroy(){disposed=true;projectSequence++;host.replaceChildren();}};
+    async function setProject(id,emit=true){
+      const ticket=++projectSequence;projectAddress='';projectTitle='';
+      if(id){try{const result=await window.PlatformAPI.projects.get(orgId,id),data=result.document?.data||{};if(ticket!==projectSequence||disposed)return;projectAddress=typeof data.address==='string'?data.address:typeof data.project_address==='string'?data.project_address:'';projectTitle=String(data.title||data.customer_name||'').trim().slice(0,200);}catch{}}
+      if(disposed||ticket!==projectSequence)return;
+      if(config.location.mode==='project'){const input=$('[data-address]');if(input)input.value=projectAddress;}
+      if(!settingsMode&&!titleEdited){const next=projectTitle||defaultTitle;if(config.title!==next){config.title=next;$('[data-title]').value=next;$('[data-title-label]').textContent=next;if(emit)notify();}}
+    }
+    function dismissPickers(event){host.querySelectorAll('details.fm-ap-picker[open]').forEach(details=>{if(!details.contains(event.target))details.open=false;});}
+    function escapePicker(event){if(event.key!=='Escape')return;const open=host.querySelector('details.fm-ap-picker[open]');if(open){event.preventDefault();event.stopPropagation();host.querySelectorAll('details.fm-ap-picker[open]').forEach(d=>d.open=false);open.querySelector('summary')?.focus();}}
+    document.addEventListener('pointerdown',dismissPickers,true);document.addEventListener('focusin',dismissPickers,true);host.addEventListener('keydown',escapePicker,true);
+
+    render();await setProject(projectId,false);
+    return {get value(){return structuredClone(config);},get catalog(){return catalog;},get availabilityHint(){return config.requirements.some(r=>r.subject_type==='resource_group')&&!resources.some(r=>r.subject_type==='resource_group')?'No crews are configured for this appointment. Add a crew in Settings.':'';},setProject,setDuration,destroy(){disposed=true;projectSequence++;document.removeEventListener('pointerdown',dismissPickers,true);document.removeEventListener('focusin',dismissPickers,true);host.removeEventListener('keydown',escapePicker,true);host.replaceChildren();}};
   }
   window.FirstMateAppointmentConfiguration={mount,ensureStyle};
 })();
