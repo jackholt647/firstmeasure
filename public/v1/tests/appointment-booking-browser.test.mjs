@@ -3,6 +3,8 @@ import {readFile} from 'node:fs/promises';
 import test from 'node:test';
 import {chromium} from 'playwright-core';
 
+const styles = await readFile(new URL('../../libraries/appointment-booking/booking.css', import.meta.url), 'utf8');
+const settings = await readFile(new URL('../../libraries/appointment-booking/settings.js', import.meta.url), 'utf8');
 const picker = await readFile(new URL('../../libraries/appointment-booking/availability.js', import.meta.url), 'utf8');
 const selector = await readFile(new URL('../../libraries/project-selector/project-selector.js', import.meta.url), 'utf8');
 const configuration = await readFile(new URL('../../libraries/appointment-booking/configuration.js', import.meta.url), 'utf8');
@@ -13,7 +15,7 @@ test('presets request a named assignee up front; advanced changes become Custom 
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try{
     const page=await browser.newPage({viewport:{width:1000,height:1000}});
-    await page.route('http://localhost/**',route=>route.fulfill({body:'<html><body></body></html>',contentType:'text/html'}));await page.goto('http://localhost/');
+    await page.route('http://localhost/**',route=>route.fulfill({body:'<html><body></body></html>',contentType:'text/html'}));await page.goto('http://localhost/');await page.addStyleTag({content:styles});
     for(const content of [picker,selector,configuration,booking])await page.addScriptTag({content});
     await page.evaluate(()=>{
       const config={title:'Consultation',department_ids:['sales'],delivery:false,duration_minutes:60,window_minutes:60,slot_minutes:30,recurrence:null,requirements:[{department_id:'sales',subject_type:'organization_user',mode:'specific',subject_keys:[],count:1,percent:100,crew_member_percent:0}]};
@@ -21,26 +23,26 @@ test('presets request a named assignee up front; advanced changes become Custom 
       window.PlatformAPI={projects:{get:async()=>({document:{id:'project',data:{title:'Project'}}})},appointments:{catalog:async()=>({can_manage:false,resources:[{id:'person',key:'organization_user:person',name:'Alex',subject_type:'organization_user'}],catalog:{departments:[{id:'sales',label:'Sales'},{id:'production',label:'Production'}],groups:[],presets:[{id:'consultation',label:'Consultation',configuration:config}]}}),preview:async(org,input)=>{window.requests.push(input);return {slots:[{start_at:'2026-10-08T15:00:00Z',available:true,label:'10:00 AM'}]};},book:async()=>({ok:true})}};
       return FirstMateBooking.open({orgId:'org',projectId:'project',lockProject:true});
     });
-    await page.locator('[data-preset]').selectOption('consultation');
+    await page.locator('[data-preset-button=consultation]').first().click();
     assert.equal(await page.locator('[data-advanced]').getAttribute('open'),null);
-    await page.locator('[data-quick-specific]').selectOption('organization_user:person');
-    await page.locator('[data-advanced] summary').click();
-    await page.locator('[data-delivery]').check();
-    await page.locator('[data-department][value=production]').check();
+    await page.locator('.fm-ap-quick details summary').click();await page.locator('.fm-ap-quick [data-specific]').check();await page.locator('.fm-ap-quick details summary').click();
+    await page.locator('[data-advanced]>summary').click();
+    await page.locator('label:has(>[data-delivery])').click();
+    await page.locator('label:has(>[data-department][value=production])').click();await page.locator('label:has(>[data-window-toggle])').click();
     await page.locator('[data-window]').fill('240');await page.locator('[data-window]').press('Tab');
-    await page.locator('[data-recurring]').check();
-    assert.equal(await page.locator('[data-preset]').inputValue(),'');
+    await page.locator('label:has(>[data-recurring])').click();
+    assert.equal(await page.locator('[data-preset-button=""]').getAttribute('aria-pressed'),'true');assert.equal(await page.locator('[data-manage],[data-save-preset]').count(),0);
     const selected=await page.evaluate(()=>window.requests.at(-1).configuration);
     assert.deepEqual(selected.department_ids,['sales','production']);assert.equal(selected.delivery,true);assert.equal(selected.recurrence.frequency,'weekly');assert.equal(selected.window_minutes,240);assert.equal(selected.duration_minutes,60);
     assert.deepEqual(selected.requirements[0].subject_keys,['organization_user:person']);
     assert.equal(await page.locator('[data-project] input').isDisabled(),true);
     await page.locator('[data-timing]').selectOption('days');
-    assert.equal(await page.locator('[data-duration]').isVisible(),false);
+    assert.equal(await page.locator('[data-duration]').count(),0);
     await page.locator('[data-days]').fill('3');await page.locator('[data-days]').press('Tab');
-    await page.locator('[data-location]').selectOption('company_office');
-    assert.ok(await page.getByText(/Company office address is not set/).isVisible());
+    await page.getByLabel('Location presets',{exact:true}).click();await page.locator('[data-location-preset="1"]').click();
+    assert.equal(await page.locator('[data-address]').getAttribute('placeholder'),'Company office address');
     const days=await page.evaluate(()=>window.requests.at(-1).configuration);assert.equal(days.timing_mode,'days');assert.equal(days.duration_days,3);assert.equal(days.location.mode,'company_office');
-    await page.locator('[data-location]').selectOption('none');assert.equal(await page.locator('[data-address]').isVisible(),false);
+    await page.getByLabel('Location presets',{exact:true}).click();await page.locator('[data-location-preset="2"]').click();assert.equal(await page.locator('[data-address]').inputValue(),'');await page.locator('[data-address]').fill('123 New Street');await page.locator('[data-address]').press('Tab');assert.equal(await page.evaluate(()=>window.requests.at(-1).configuration.location.address),'123 New Street');
 
     await page.setViewportSize({width:390,height:844});
     assert.ok(await page.locator('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth));
@@ -54,7 +56,7 @@ test('direct Scheduling entry loads booking without the app manifest', async () 
       const url = route.request().url();
       return route.fulfill({body:url.endsWith('/configuration.js') ? configuration : url.endsWith('/booking.js') ? booking : url.endsWith('/availability.js') ? picker : url.endsWith('/project-selector.js') ? selector : '<html><body></body></html>',contentType:url.endsWith('.js') ? 'text/javascript' : 'text/html'});
     });
-    await page.goto('http://localhost/');
+    await page.goto('http://localhost/');await page.addStyleTag({content:styles});
     await page.evaluate(() => {
       window.orgId = () => 'org'; window.scheduleLoad = () => {};
       window.PlatformAPI = {projects:{list:async () => ({documents:[]})},appointments:{catalog:async()=>({catalog:{departments:[],presets:[],groups:[]},resources:[],can_manage:false}),preview:async()=>({slots:[]}),book:async () => ({ok:true})}};
@@ -62,7 +64,7 @@ test('direct Scheduling entry loads booking without the app manifest', async () 
     await page.addScriptTag({content:scheduling.slice(scheduling.indexOf('  const bookingScriptUrl'),scheduling.indexOf('  const cfg =')) + '\nwindow.openBookingWidget = openBookingWidget;'});
     await page.evaluate(() => window.openBookingWidget());
     assert.equal(await page.getByRole('dialog').isVisible(),true);
-    assert.equal(await page.getByText('You can book now and assign a project later.').isVisible(),true);
+    assert.equal(await page.locator('.fm-ap-project').isVisible(),true);assert.equal(await page.locator('[data-save-preset]').count(),0);
   } finally { await browser.close(); }
 });
 test('shared picker rejects stale responses, books once, and public embeds retain their calendar styling', async () => {
@@ -70,9 +72,9 @@ test('shared picker rejects stale responses, books once, and public embeds retai
   try {
     const page = await browser.newPage({viewport:{width:1100,height:850}});
     await page.route('http://localhost/**', route => route.fulfill({body:'<html><body></body></html>',contentType:'text/html'}));
-    await page.goto('http://localhost/');
+    await page.goto('http://localhost/');await page.addStyleTag({content:styles});
     page.setDefaultTimeout(5000);
-    await page.setContent('<button id="opener">Open</button><div id="public"></div>');
+    await page.setContent('<button id="opener">Open</button><div id="public"></div>');await page.addStyleTag({content:styles});
     await page.addScriptTag({content:picker});
     await page.addScriptTag({content:selector});
     await page.addScriptTag({content:configuration});
@@ -131,7 +133,7 @@ test('shared project selector searches remotely, remembers choices and supports 
   try {
     const page = await browser.newPage();
     await page.route('http://localhost/**',route=>route.fulfill({body:'<div id="selector"></div>'}));
-    await page.goto('http://localhost/');
+    await page.goto('http://localhost/');await page.addStyleTag({content:styles});
     await page.addScriptTag({content:selector});
     await page.evaluate(()=>{
       window.queries=[];window.changes=[];window.pendingSearch={};
@@ -171,4 +173,19 @@ test('calendar location overrides show the office or custom address, and no-loca
   assert.equal(address(project,{location_mode:'none',project_address:'Customer property'}),'');
   assert.equal(address(project,{location_mode:'company_office',location:{address:''}}),'Company office');
   assert.equal(address(project,{}),'Customer property');
+});
+test('Settings owns preset editing and preserves server concurrency errors',async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const page=await browser.newPage();await page.route('http://localhost/**',r=>r.fulfill({body:'<div id="settings"></div>',contentType:'text/html'}));await page.goto('http://localhost/');await page.addStyleTag({content:styles});for(const content of [configuration,settings])await page.addScriptTag({content});
+  await page.evaluate(async()=>{
+   window.saved=[];window.conflict=false;let data={can_manage:true,revision:3,resources:[],catalog:{departments:[],groups:[],presets:[]}};
+   window.PlatformAPI={appointments:{catalog:async()=>structuredClone(data),saveCatalog:async(org,input)=>{if(window.conflict)throw Error('Settings changed. Reload before saving.');window.saved.push(input);data={...data,catalog:input.catalog,revision:data.revision+1};return structuredClone(data);}}};
+   await FirstMateAppointmentSettings.mount(document.querySelector('#settings'),'org');
+  });
+  await page.locator('[data-preset-label]').fill('Quarterly visit');await page.locator('label:has(>[data-recurring])').click();await page.locator('[data-frequency]').selectOption('quarterly');await page.locator('[data-save-preset]').click();await page.getByText('Preset saved.',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.saved[0].revision),3);assert.equal(await page.evaluate(()=>window.saved[0].catalog.presets[0].configuration.recurrence.frequency),'quarterly');
+  await page.evaluate(()=>window.conflict=true);await page.locator('[data-preset-label]').fill('Edited visit');await page.locator('[data-save-preset]').click();await page.getByText('Settings changed. Reload before saving.').waitFor();assert.equal(await page.locator('[data-preset-label]').inputValue(),'Edited visit');assert.equal(await page.evaluate(()=>window.saved.length),1);
+  await page.evaluate(()=>window.conflict=false);await page.locator('[data-delete-preset]').click();await page.getByText('Preset deleted.',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.saved.at(-1).catalog.presets.length),0);
+ }finally{await browser.close();}
 });

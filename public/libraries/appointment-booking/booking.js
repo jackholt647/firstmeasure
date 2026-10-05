@@ -23,25 +23,34 @@
     const previousFocus = document.activeElement;
     const dialog = document.createElement('dialog'); active = dialog;
     dialog.setAttribute('aria-labelledby', 'fm-booking-title');
-    dialog.style.cssText = 'box-sizing:border-box;font-family:Montserrat,Arial,sans-serif;width:min(900px,calc(100vw - 24px));max-height:calc(100dvh - 32px);padding:24px;border:1px solid #ddd;border-radius:14px;background:white;color:#111827;box-shadow:0 24px 80px #0004;';
-    dialog.innerHTML = `<style>dialog::backdrop{background:#11182788}.fm-booking-head{display:flex;align-items:center;justify-content:space-between;gap:16px}.fm-booking-head h2{margin:0;font-size:22px}.fm-booking-head button{border:0;background:transparent;font-size:24px;cursor:pointer}.fm-booking-form{display:grid;gap:18px;margin-top:20px}.fm-booking-form label{display:grid;gap:8px;font-weight:700}.fm-booking-form select{padding:10px;width:100%;font:inherit;border:1px solid #ccc;border-radius:8px}.fm-booking-form [role=status]{font-size:14px}</style>
-      <div class="fm-booking-head"><h2 id="fm-booking-title">New appointment</h2><button type="button" data-close aria-label="Close appointment booking">×</button></div>
-      <form class="fm-booking-form"><div><div style="font-weight:700;margin-bottom:8px">Project or lead <span style="font-weight:400">(optional)</span></div><div data-project></div><small>You can book now and assign a project later.</small></div><div data-configuration></div><div class="fm-availability"></div><div role="status" data-status></div></form>`;
+    dialog.id='fm-booking-dialog';
+    window.FirstMateAppointmentConfiguration.ensureStyle();
+    dialog.innerHTML = `<div class="fm-booking-head"><h2 id="fm-booking-title">New appointment</h2><button type="button" data-close aria-label="Close appointment booking">×</button></div><form class="fm-booking-form"><div data-configuration></div><div class="fm-availability"></div><div role="status" data-status></div></form>`;
     document.body.append(dialog); dialog.showModal();
     let picker, selected, configuration, saving = false;
     const status = dialog.querySelector('[data-status]');
-    const select = window.FirstMateProjectSelector.mount(dialog.querySelector('[data-project]'), {orgId,projectId:options.projectId,onChange:()=>{eventId = `appointment_${crypto.randomUUID()}`;refresh();}});
+    const projectControl=document.createElement('details');projectControl.className='fm-ap-picker fm-ap-project';
+    projectControl.innerHTML='<summary title="Optional project. Search existing projects, or leave unassigned and type an address."><span class="fm-ap-icon" aria-hidden="true">▱</span><span data-project-label>Project</span><span class="fm-ap-chevron"></span></summary><div class="fm-ap-popover"><div data-project></div></div>';
+    const select = window.FirstMateProjectSelector.mount(projectControl.querySelector('[data-project]'), {orgId,projectId:options.projectId,onChange:()=>{
+      eventId = `appointment_${crypto.randomUUID()}`;
+      projectControl.querySelector('[data-project-label]').textContent=projectControl.querySelector('input').value||'Project';
+      if(select.value)projectControl.open=false;
+      configuration?.setProject(select.value);if(configuration)refresh();
+    }});
+    projectControl.addEventListener('toggle',()=>{if(projectControl.open)projectControl.querySelector('input')?.focus();});
+    select.ready.then(()=>{projectControl.querySelector('[data-project-label]').textContent=projectControl.querySelector('input')?.value||'Project';});
     const target = dialog.querySelector('.fm-availability');
     const close = () => { if (!saving) dialog.close(); };
     dialog.querySelector('[data-close]').onclick = close;
     dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
     dialog.addEventListener('close', () => { picker?.destroy(); configuration?.destroy(); select.destroy(); dialog.remove(); if (active === dialog) active = null; previousFocus?.focus?.(); }, {once:true});
     const refresh = () => {
+      const date=target.querySelector('[data-date][aria-pressed=true]')?.dataset.date||options.date;
       picker?.destroy(); selected = null; status.textContent = '';
       target.innerHTML = window.FirstMateAvailability.markup({submitLabel:'Book appointment'});
       const submit = target.querySelector('[type=submit]'); submit.disabled = true;
       picker = window.FirstMateAvailability.mount(target, {
-        date:options.date,
+        date,
         loadAvailability: date => api.appointments.preview(orgId, {...(select.value ? {project_id:select.value} : {}), date, configuration:configuration.value}),
         onChange: slot => { selected = slot; submit.disabled = !slot || saving; }
       });
@@ -65,7 +74,7 @@
       } finally { saving = false; target.inert = false; }
     });
     try {
-      configuration = await window.FirstMateAppointmentConfiguration.mount(dialog.querySelector('[data-configuration]'), {orgId,onChange:()=>{eventId=`appointment_${crypto.randomUUID()}`;refresh();}});
+      configuration = await window.FirstMateAppointmentConfiguration.mount(dialog.querySelector('[data-configuration]'), {orgId,projectControl,projectId:options.projectId,onChange:()=>{eventId=`appointment_${crypto.randomUUID()}`;refresh();}});
       if(!dialog.isConnected){configuration.destroy();return;}
       select.setDisabled(!!options.lockProject);
       refresh();

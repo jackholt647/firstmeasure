@@ -10704,6 +10704,21 @@
           </div>
           <div class="cs-section" id="csApptConfirmSection"><div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_36a4ecd5471235","Loading appointment confirmation settings...") ?? "Loading appointment confirmation settings...")}</div></div>
         `;
+        const presetHost = document.createElement('div');
+        presetHost.setAttribute('data-settings-autosave', 'off');
+        paneScheduling.prepend(presetHost);
+        (async () => {
+          if (!window.FirstMateAppointmentSettings) {
+            await (window.__appointmentSettingsLoading ||= new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = '/libraries/appointment-booking/settings.js';
+              script.onload = resolve;
+              script.onerror = () => reject(new Error('Could not load appointment presets.'));
+              document.head.append(script);
+            }));
+          }
+          if (presetHost.isConnected) await window.FirstMateAppointmentSettings.mount(presetHost, orgId);
+        })().catch(error => { presetHost.textContent = error.message; });
         renderAppointmentConfirmations(paneScheduling, orgId, branchId).catch(() => null);
         const collectSelfService = () => ({
           ...selfService,

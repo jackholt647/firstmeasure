@@ -145,7 +145,7 @@
     const load = async (autoAdvance = false) => {
       const request = ++generation;
       notify(null);
-      if (noteEl) noteEl.textContent = '';
+      if (noteEl) {noteEl.textContent = '';delete noteEl.dataset.error;}
       const requestedDate = selectedDate;
       slotsEl.innerHTML = `<button type="button" disabled>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_f7396ba34388fb","Loading times...") ?? "Loading times...")}</button>`;
       try {
@@ -186,7 +186,7 @@
       } catch (error) {
         if (destroyed || request !== generation) return;
         slotsEl.innerHTML = `<button type="button" disabled>${(globalThis.PlatformLanguage?.htmlText("lead-embed","m_f7267d11b3a3b7","Times unavailable") ?? "Times unavailable")}</button>`;
-        if (noteEl) noteEl.textContent = error.message || 'Could not load appointment times.';
+        if (noteEl) {noteEl.dataset.error='true';noteEl.textContent = error.message || 'Could not load appointment times.';}
       }
     };
     renderDays();
