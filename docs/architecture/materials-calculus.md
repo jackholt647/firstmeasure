@@ -79,14 +79,18 @@ requirements, calculation evidence, revisions and pending amendments. Manual
 creation, input editing, evaluation preview, amendment review, purchasing and
 delivery grouping are explicit user actions. Unsaved edits survive errors.
 
-The project entry point is the existing Scope workspace, not a replacement
-calculator screen. Its left widget library retains roof, aerial, measurements
-and list views, with accepted document values beside the selected material set.
-The main review area contains independent generated lists alongside existing
-scope resources. Formula source and generator configuration belong in document
-authoring; project users see quantities, plain-language explanations, generation
-readiness and explicit change review. Opening or refreshing Scope is read-only.
-On narrow screens the context widgets stack above the material lists.
+The project entry point is the original Scope workspace and its color-coded
+material-section renderer, inline fields and price-book controls. The separate
+Document materials viewer was removed after user rejection on October 5. The
+left library retains roof, aerial, measurements and list views without a duplicate
+Materials selector. On narrow screens these widgets stack above the lists.
+
+Integration gap: document ledger sets are not yet adapted into the original
+material-list API/renderer. Their backend data is preserved. Future integration
+must use that renderer and its editing/ordering workflow, with accepted source
+context on the left; it must not add a separate replacement material list UI.
+Formula source and generator configuration belong in document authoring.
+Opening or refreshing Scope is read-only.
 
 Project identity and organization are server-authorized; cross-project amendment,
 order and delivery references are rejected. Source evidence is reauthorized on
