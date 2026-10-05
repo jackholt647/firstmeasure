@@ -793,7 +793,7 @@
       .dash-event-popover{z-index:2147483000!important;top:0!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:100dvh!important;max-width:none!important;max-height:none!important;border:0;border-radius:0;box-shadow:none;padding:16px;padding-top:max(16px,env(safe-area-inset-top));gap:12px}
       .dash-event-time-options{gap:10px 14px}.dash-event-switch{white-space:normal;min-width:0}
       .dash-event-pop-head>.dash-event-time-fields,.dash-event-pop-head>.dash-event-time-options,.dash-event-pop-head>.dash-event-recurrence-fields{grid-column:1/-1}
-      .dash-shell .prs-mobile-control.month{width:auto;max-width:min(150px,40vw)}
+
       .dash-mobile-toolbar-placeholder{height:50px;background:#fff}
       .dash-event-time-fields{grid-template-columns:minmax(0,1fr)}
       .dash-event-pop-head{display:grid;grid-template-columns:minmax(0,1fr) 38px;column-gap:8px;align-items:center;padding-right:0}
