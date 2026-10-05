@@ -1,6 +1,6 @@
 /** Development-only fixture orchestration. Never imported by production boot. */
 import { z } from 'zod';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { env } from '../src/config/env.js';
 import { hasPermission, type PlatformAuthContext } from '../platform/auth.js';
 import { readOrganization, readDocument, listDocuments, upsertDocument, type JsonObject } from '../platform/storage.js';
@@ -89,10 +89,19 @@ async function documents(ctx: PlatformAuthContext) {
 }
 async function communication(ctx: PlatformAuthContext) {
  const store=await import('../messaging/communications_storage.js');
- let created=0;
+ let created=0;const ps=await projects(ctx.orgId);
  // Retained incoming records only. No transport, delivery queue, signatures or notifications.
  for(const [i,text] of ['Can you include the garage roof in the estimate?','The driveway will be clear for your site visit.','Please show me the charcoal and weathered wood options.'].entries()) {
-  const result=await store.createMessageRecord({id:sampleId(ctx.orgId,`dev-message:${i}`),organization_id:ctx.orgId,branch_id:ctx.branchId||'default',direction:'inbound',channel:'email',status:'received',subject:'Roofing enquiry (Sample)',text_body:text,sender:{name:['Avery Morgan','Jordan Rivera','Taylor Chen'][i]+' (Sample)',email:`sample${i}@example.test`},recipients:[],metadata,tags:['synthetic'],idempotency_key:sampleId(ctx.orgId,`dev-message:${i}`),created_by_user_id:ctx.userId});
+  const seed=sampleId(ctx.orgId,`dev-conversation:${i}`);
+  // The communications store namespaces caller-supplied IDs by organization.
+  const conversationId=`conversation_${createHash('sha256').update(ctx.orgId).digest('hex').slice(0,12)}_${seed}`;
+  const sender={name:['Avery Morgan','Jordan Rivera','Taylor Chen'][i]+' (Sample)',email:`sample${i}@example.test`,address:`sample${i}@example.test`,type:'external'};
+  const context={project_id:ps[i]?.id||''};
+  let conversation;
+  try {conversation=await store.readConversationRecord(ctx.orgId,conversationId);}catch(e:any){if(e.statusCode!==404)throw e;}
+  if(!conversation)conversation=await store.createConversationRecord({id:seed,organization_id:ctx.orgId,branch_id:ctx.branchId||'default',channel_strategy:'email',subject:'Roofing enquiry (Sample)',participants:[sender],context,metadata,created_by_user_id:ctx.userId});
+  const result=await store.createMessageRecord({id:sampleId(ctx.orgId,`dev-message:${i}`),organization_id:ctx.orgId,branch_id:ctx.branchId||'default',conversation_id:conversation.id,context,direction:'inbound',channel:'email',status:'received',subject:'Roofing enquiry (Sample)',text_body:text,sender,recipients:[],metadata,tags:['synthetic'],idempotency_key:sampleId(ctx.orgId,`dev-message:${i}`),created_by_user_id:ctx.userId});
+  if(result.created)await store.touchConversationForMessage(ctx.orgId,String(conversation.id),String(result.message.created_at));
   if(result.created)created++;
  }
  return {created};

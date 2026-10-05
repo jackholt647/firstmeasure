@@ -42,6 +42,7 @@ test('development fixtures enforce isolation, independent toggles and additive r
  assert.equal((await storage.listDocuments(ctx.orgId,'documents')).length,4);
  const comm=await import('../messaging/communications_storage.js');
  assert.equal((await comm.listMessageRecords(ctx.orgId)).length,3);
+ assert.equal((await (await import('../comms/service.js')).orgCommsInbox(ctx.orgId,{channel:'email'})).length,3);
  assert.ok((await comm.listMessageRecords(ctx.orgId)).every(m=>m.direction==='inbound'&&m.status==='received'));
  result=await tools.generateSyntheticData(ctx,{company:'roofing',categories:{}});
  assert.ok(Object.values(result.results).every((r:any)=>r.status==='complete'),JSON.stringify(result.results));
@@ -49,6 +50,7 @@ test('development fixtures enforce isolation, independent toggles and additive r
  assert.equal((await storage.listDocuments(ctx.orgId,'documents')).length,4);
  assert.equal((await storage.readDocument(ctx.orgId,'projects',String(ps[0]!.id))).data?.title,'Edited roof');
  assert.equal((await comm.listMessageRecords(ctx.orgId)).length,3);
+ assert.equal((await (await import('../comms/service.js')).orgCommsInbox(ctx.orgId,{channel:'email'})).length,3);
  const concurrent=await Promise.allSettled([tools.generateSyntheticData(ctx,only('events')),tools.generateSyntheticData(ctx,only('events'))]);
  assert.ok(concurrent.some(r=>r.status==='fulfilled'));assert.equal((await storage.listDocuments(ctx.orgId,'calendar_events')).length,6);
  const {env}=await import('../src/config/env.js');const original=env.dataEnvironment;(env as any).dataEnvironment='production';
