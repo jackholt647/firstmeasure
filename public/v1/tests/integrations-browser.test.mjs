@@ -128,7 +128,7 @@ test("Connections settings: accessible setup, shared assistant, private credenti
       }
       return route.fulfill({
         contentType: "text/html",
-        body: '<!doctype html><meta charset="utf-8"><style>html{height:100%}body{height:100dvh;box-sizing:border-box;margin:0;padding:12px;font:14px system-ui;background:#f8fafc}main{height:calc(100dvh - 24px);max-width:1250px;margin:auto}.cs-main>.cs-card{padding:24px;overflow:auto}</style><main class="main" id="tab_company_settings"><div class="cs-wrap"><div class="cs-layout"><div class="cs-main"><div class="cs-card"><section id="csPaneConnections" class="cs-pane active"></section></div></div></div></div></main>',
+        body: '<!doctype html><meta charset="utf-8"><style>html{height:100%}body{height:100dvh;box-sizing:border-box;margin:0;padding:12px;font:14px system-ui;background:#f8fafc}main{height:calc(100dvh - 24px);max-width:1250px;margin:auto}.cs-main>.cs-card{padding:24px;overflow:auto}.cs-pane{display:none}.cs-pane.active{display:block}</style><main class="main" id="tab_company_settings"><div class="cs-wrap"><div class="cs-layout"><div class="cs-main"><div class="cs-card"><section id="csPaneConnections" class="cs-pane active"></section></div></div></div></div></main>',
       });
     });
     await page.goto("http://connections.test");
