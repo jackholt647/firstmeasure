@@ -578,5 +578,9 @@
     "US/Samoa": "AS",
     "W-SU": "RU",
     "WET": "PT"
-  }
+  },
+  "domestic_countries": [
+    "US",
+    "CA"
+  ]
 }

@@ -14,7 +14,7 @@ export async function requireExteriorAccess(orgId:string, projectType:string) {
 }
 export function exteriorQuote(count=1) {
   const raw=currentExpeditePricing(), config={...raw,exteriors_base_price:reportPrice(raw.exteriors_base_price),exteriors_same_day_fee:reportPrice(raw.exteriors_same_day_fee),exteriors_priority_fee:reportPrice(raw.exteriors_priority_fee)}, now=pricingContext.getStore()?.now ?? new Date();
-  const orderingClosed=Number(new Intl.DateTimeFormat("en-US",{timeZone:"America/Los_Angeles",hour:"numeric",hourCycle:"h23"}).format(now))>=20;
+  const orderingClosed=false; // Reports are processed 24/7.
   const roof=buildReportExpediteOptions({now}).options[0]!;
   const ratio=Math.max(0,Math.min(1,((roof.estimated_wait_minutes ?? 240)-240)/180));
   return {ordering_closed:orderingClosed,pricing_revision:pricingContext.getStore()?.revision ?? 0,structure_count:count,base_price:config.exteriors_base_price,

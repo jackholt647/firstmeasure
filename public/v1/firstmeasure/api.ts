@@ -1,3 +1,4 @@
+import { withReportPropertyMarket } from "../commerce/property-market.js";
 import { reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { resolveOrderReportPreferences, normalizeReportPreferences } from "./report_preferences.js";
 import { validateExteriorOrder, isCustomerExteriorId } from "./exteriors.js";
@@ -1166,7 +1167,9 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     const providerRoute = String(request.routeOptions.url ?? "").replace(/^\/v1\/firstmeasure/, "");
 
-    if (request.method !== "POST" || !providerBackedRoutes.has(providerRoute)) return;
+    const quoteInput = request.method === "GET" ? asRecord(request.query) : asRecord(request.body);
+    const propertyQuote = providerRoute === "/report-expedite-options" && Boolean(quoteInput.address || quoteInput.lat || quoteInput.lng || quoteInput.pins);
+    if (!propertyQuote && (request.method !== "POST" || !providerBackedRoutes.has(providerRoute))) return;
 
     const suppliedInternalSecret = String(request.headers["x-firstmeasure-internal"] ?? "");
 
@@ -1612,7 +1615,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     const query = asRecord(request.query);
 
-    return buildReportExpediteOptions({ projectType: query.project_type, structureCount: query.structure_count ?? query.structures ?? query.pin_count });
+    return withReportPropertyMarket(query, country => ({ ...buildReportExpediteOptions({ projectType: query.project_type, structureCount: query.structure_count ?? query.structures ?? query.pin_count }), property_country: country }), false);
 
   });
 
@@ -1622,7 +1625,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     const body = asRecord(request.body);
 
-    return buildReportExpediteOptions({ projectType: body.project_type, structureCount: body.structure_count ?? body.structures ?? body.pin_count });
+    return withReportPropertyMarket(body, country => ({ ...buildReportExpediteOptions({ projectType: body.project_type, structureCount: body.structure_count ?? body.structures ?? body.pin_count }), property_country: country }), false);
 
   });
 

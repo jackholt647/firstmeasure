@@ -1,213 +1,107 @@
-# Organization regional billing
+# Regional billing and property markets
 
-## Initial policy
+## Current roof-report policy — October 5, 2026
 
-| Signup country | Price schedule | Billing currency | FirstMeasure display | Initial language | Units |
-| --- | --- | --- | --- | --- | --- |
-| US | Base | USD | Dollars | en-US | Imperial |
-| Canada | Base | USD | Dollars | en-US | Metric |
-| EU | International, initially 2× base | EUR | Euros | Closest installed language | Metric |
-| Other countries with an officially supported local currency | International | That currency | Currency | Closest installed language | Metric |
-| Other countries | International | USD | Credits | Americas en-US, otherwise en-GB until a closer pack exists | Metric |
+The shared market boundary is **US/Canada versus every other country**. The UK,
+Switzerland, Japan and Australia are international; EU membership is irrelevant.
+`commerce/region-data.json` owns the domestic-country list and IANA time-zone
+map used by signup and the login billboard.
 
-A residential roof report is therefore $7 in the US/Canada, €14 in the EU, and
-14 USD-backed credits in Japan or the UK. Add-ons, rush fees, additional
-structures, exteriors, subscription base prices and metered rates use the
-organization's schedule. A credit purchase itself is not multiplied: buying
-50 credits purchases 50 units of the organization's billing currency, plus any
-separately authorized promotional credit.
+| Account | Property | Standard roof report | Gutter add-on | Currency |
+| --- | --- | --- | --- | --- |
+| US/Canada | US/Canada | Existing rates: residential 7; commercial/multifamily 12 per structure | 2 | USD |
+| US/Canada | Any other country | 21 | 2 | USD |
+| International | Anywhere | 20 | 2 | EUR |
 
-These policy names and comparisons are operator information. Customer responses
-and screens show the organization's resolved price, currency and credit label.
-Customer settings cannot change the assigned commercial profile. Currency,
-pricing schedule, language and measurement units are separate concepts.
+International commercial/multifamily prices are per structure. Residential keeps
+its existing flat-report/structure allowance. International-priced rush
+**surcharges** are 2.5 times the corresponding US surcharge, rounded to cents,
+then added to 20 EUR or 21 USD. A free-rush entitlement discounts only that
+surcharge, never the international base. US/Canada pricing is unchanged.
+Weather, instant-preview add-ons, full-house base rates and subscription rates
+retain their existing separate policies; this change targets full roof reports
+and the gutter add-on.
 
-## Signup and persistence
+There is no currency conversion at order time. Location may raise a domestic
+account's price but cannot lower an international account's price. Stripe
+funding and the prepaid ledger remain in the organization's currency.
 
-`public/v1/commerce/regions.ts` selects the signup country using country headers
-from the edge, then browser time zone, browser locale region, and the legacy
-North American phone convention. Unrecognized countries use international
-USD-backed credits. The signup form supports international E.164 phone numbers
-and sends browser locale/time-zone hints for both password and Google signup.
+## Region detection and presentation
 
-`timezone-countries.ts` contains IANA country mappings including aliases.
-`territory-defaults.ts` contains Unicode CLDR dominant national official language
-and current currency defaults, with business defaults in `regions.ts` taking
-priority. Their headers record source/version. Time-zone and locale hints are
-fallbacks, not proof of residence. Edge deployment should overwrite geolocation
-headers; no VPN, card-country or property-location enforcement is implemented.
+Signup resolves country from country headers (`CF-IPCountry`, then
+`X-Vercel-IP-Country`, then `X-AppEngine-Country`), browser time zone, browser
+locale region, and the existing North American phone fallback. New US/Canada
+accounts receive USD; every other country receives EUR, including the UK.
+Non-US accounts default to metric; US accounts default to imperial. Language
+comes from installed packs in `platform/localization/languages.json` and is
+independent of billing currency.
 
-All three registration paths write `global.data.commercial_profile` once.
-Login, travel, personal language changes and normal company settings never
-reassign the profile. Organizations without a profile keep legacy US/USD prices.
-There is no automatic migration of existing balances or subscriptions. Any
-future currency migration must reconcile prepaid balances, saved payment
-methods, pending payments and existing contracts explicitly.
+The login embeds `https://1m8.ai/billboards/login` for US/Canada and
+`https://eu.1m8.ai/billboards/login` for known international visitors.
+`X-FirstMate-Region: EU` or `EUROPE` forces the international billboard only.
+It never changes account country, currency or prices. Unknown visitors use the
+main billboard until a country is resolved. Browser and password/Google signup
+use the same time-zone/country data. Both signup paths send browser hints.
 
-Country language routing prefers an exact installed pack, then the same language,
-then another national official language, then the geographic English fallback.
-English-speaking countries retain their geographic English fallback. The installed set is defined in `public/v1/platform/localization/languages.json`;
-French and Japanese registration defaults are covered by the regional commerce
-tests. Existing organizations are not silently reassigned when packs are added. Adding a
-pack requires updating the shared locale registry/validators and translated
-catalogs, templates and fonts as described in `docs/platform-localization.md`.
+The website owns all billboard content and internal padding. The app provides
+a rounded, zero-padding, non-scrolling frame, 16:10 on desktop and 4:1 at
+viewport widths up to 760px. The external pages returned 404 during rollout;
+the website team still must publish them.
 
-## Pricing and administration
+## Property verification and charge safety
 
-The shared internal document `pricing_config/commercial` holds:
+`commerce/property-market.ts` resolves the actual order coordinates (or address)
+through the server's Google geocoder. Client `country` and `address_components`
+values cannot authorize domestic pricing. Successful results are cached for
+five minutes, with bounded in-memory storage; unavailable/unknown countries
+stop an order before charging. Multiple pins cannot combine domestic and
+international markets in one order.
 
-```json
-{
-  "multipliers": {"domestic": 1, "international": 2},
-  "currencies": {
-    "USD": {"minor_digits": 2, "report_multiplier": 1},
-    "EUR": {"minor_digits": 2, "report_multiplier": 1}
-  }
-}
-```
+Portal and public-API quotes and orders use the same pricing context. Portal
+quotes refresh on address/type/structure changes and discard stale responses.
+Ordering waits for a verified quote. New international prices require
+`report_market_revision: 1`; API pricing responses expose this value. Existing
+commercial and rush-pricing revision checks remain in force. Follow-up and
+rush upgrades re-resolve the stored property's location. Reports and ledger
+metadata retain property country and account currency.
 
-Full internal administrators can use **Billing → Billing administration →
-Pricing catalog → Manage regional billing**, or GET/PUT
-`/v1/firstmeasure/admin/prices/commercial`. PUT requires CSRF, the current
-revision and the complete config. Saves are serialized, reject stale revisions
-and retain previous values/actor metadata. Existing supported currencies cannot
-be removed or have their minor-unit precision changed.
+The map's Google address components now retain country instead of discarding
+it. These components are useful UI metadata, while server geocoding remains
+authoritative for charging.
 
-Report prices are the base report price × market multiplier × the fixed
-`report_multiplier` for that currency. This currency multiplier sets a fixed
-price, not a live exchange rate. USD/EUR start at 1. Future currencies can use a
-different factor and appropriate minor digits. Subscription products can use
-explicit `regional_prices` in each version of the private catalog:
+## Continuous operations
 
-```json
-{
-  "international": {
-    "EUR": {"monthly_cents": 6000, "rates": []},
-    "JPY": {"monthly_cents": 8000, "rates": []}
-  }
-}
-```
+The evening closure banner and time-of-day rush restrictions are removed.
+Roof and full-house ordering remain available 24/7. Existing SLA turnaround,
+workload estimates, QA requirements and release scheduling remain; none is an
+"office closed" gate. Existing held deliveries are not bulk-replayed.
 
-Historical `*_cents` fields mean currency minor units; `*_dollars` fields in
-FirstMeasure mean credit/billing-currency major units for compatibility. JPY
-8000 minor units is ¥8,000 when configured with zero minor digits. Rate values
-in FirstMeasure are rounded to the currency precision, capped at two decimals
-to match the existing credit ledger; a three-decimal currency uses increments of 0.01 credit. Subscription metered rate values
-are millionths of that price's currency. Regional overrides retain the same
-meters as the base product. USD/EUR prices without overrides use the market
-multiplier; additional currencies require explicit subscription prices. Publish
-those prices before making a currency available to new organizations.
+## Accounting continuity and protections
 
-Accepted subscription snapshots contain resolved currency, precision, base
-charge and usage rates. Catalog edits and multiplier changes do not reprice
-existing subscriptions. Stripe price identities include resolved commercial
-terms, so the same catalog version cannot reuse a different currency's Stripe
-price. Mixed-currency invoices/subscriptions are rejected.
+A commercial profile is assigned at signup and protected from customer global
+writes. Travel, browser language and the billboard header never reassign it.
+Existing prepaid funds and accepted subscriptions are not silently converted or
+repriced. Development was audited before rollout: no saved international
+profiles required currency migration. Production was not changed; before a
+future production rollout, audit legacy international profiles/balances and
+agree any migration explicitly. Unprofiled legacy accounts retain USD.
 
-FirstMeasure quote/charge calculations use request-scoped authenticated org
-context. The published exterior quote action also establishes this context for
-background callers. The portal loads pricing before allowing ordering screens
-to render. Price configuration changes require an open ordering page to reload;
-charge requests carry `commercial_pricing_revision`. Public API clients obtain
-it from `/v1/public/firstmeasure/pricing` → `commerce.pricing_revision` and send
-it when ordering. Existing revision-zero clients retain compatibility until
-the first commercial policy update.
+Order units follow explicit order choice, then branch defaults, then company
+defaults when localization is enabled. Saved orders retain their units. Feature
+flags continue to govern customization. All installed report locales are
+accepted consistently at both ordering APIs.
 
-## Stripe and conversion
-
-Fixed-currency payments charge the exact USD/EUR amount. FirstMeasure checkout,
-automatic top-ups, subscriptions and usage invoices retain their integration
-currency. Payment settlement validates amount/currency before adding credits.
-Idempotency protects repeated fulfillment, and ledger entries retain currency,
-minor units, credit display and provider presentment details where available.
-
-USD-backed credit and subscription Checkouts request Stripe Adaptive Pricing.
-Availability depends on the Stripe account, integration and customer/payment
-method. The integration amount remains USD; any converted presentment amount
-is separate. Automatic off-session FirstMeasure top-ups and usage invoices
-charge their billing currency; the card issuer may convert them. No homegrown
-FX engine or merchant yen balance is required.
-
-The application shows an approximate local equivalent for unsupported local
-currencies where an ECB reference rate is available. Rates are fetched from a
-fixed ECB endpoint, cached hourly and discarded after seven days. Missing rates
-omit the estimate. Estimates never determine the amount charged and cannot
-promise the eventual card-issuer or Stripe rate.
-
-Statements label each cash payment/invoice in its stored currency, keep credit
-movements separate, group cash totals by currency and include currency in CSV.
-No payment, deployment or Stripe Dashboard change is performed by this work.
+Payment fulfillment still validates amount/currency and replay protection;
+accepted subscription prices remain snapshotted. Geographic hints at signup
+are not verified residency: edge headers must be overwritten by trusted
+infrastructure. Property-country verification protects report pricing without
+asserting where the account owner resides.
 
 ## Verification
 
-Run from `public/v1`:
-
-```powershell
-npm run check
-node --experimental-sqlite --import tsx --test --test-force-exit tests/regional-commerce.test.ts tests/regional-commerce-browser.test.mjs
-```
-
-The tests exercise country persistence, locale/unit defaults, customer mutation
-denial, concurrent price isolation, roof/rush/add-on/exterior prices, EUR/USD
-checkout and automatic top-ups, settlement mismatch/replay handling, Stripe
-subscription price separation, future currency configuration and browser
-formatting/mobile layouts. Payment tests use deterministic provider fixtures;
-they do not charge cards. Screenshots are written to `output/regional-billing-ui`.
-
-## Login billboard and signup continuity (October 5, 2026)
-
-The login iframe embeds `https://1m8.ai/billboards/login`, or
-`https://eu.1m8.ai/billboards/login` for the same EU country set used by EUR
-pricing. `public/v1/commerce/region-data.json` is the shared source of EU
-membership and the IANA zone-to-country map for PHP/browser presentation and
-the Node signup resolver. The UK, Switzerland and Norway are not in that EU set;
-they still receive international pricing and metric defaults under existing
-commercial policy. EU marketing here means EU membership, not all of Europe.
-
-An HTTP request header `X-FirstMate-Region: EU` (case-insensitive value; `EUROPE`
-also accepted) forces only the EU billboard. Otherwise country headers take
-precedence (`CF-IPCountry`, `X-Vercel-IP-Country`, `X-AppEngine-Country`), then
-browser time zone, then browser locale region. Unknown visitors receive the
-main billboard. The header is not an account-country or pricing override.
-Password and Google registration from the main login now submit the same
-`signup_locale` and `signup_time_zone` hints as the landing signup widget.
-The main form also accepts international +country-code phones without truncating
-them to ten digits. Signup's North American phone fallback remains unchanged.
-
-The iframe fills its responsive area with zero border/padding, rounded clipping,
-and `scrolling="no"`. Desktop is 16:10; at viewport widths up to 760px it becomes
-4:1. The website owns content fit, padding and any internal overflow containers;
-cross-origin app code cannot rewrite its document styles. Both external URLs
-returned 404 during implementation, so website publication is still required.
-
-### Verified defaults and protection boundaries
-
-The default residential roof policy is US/Canada 7 USD; EU 14 EUR;
-UK/Japan 14 USD-backed credits unless another currency is explicitly configured.
-These are code-default examples, not a read of current production price settings.
-Every non-US signup defaults to metric, including Canada. The new tests also
-check the actual FirstMeasure order-preference resolver after signup.
-Order preferences prioritize explicit order choices, then branch defaults,
-then organization defaults when report localization is enabled; saved orders
-retain their chosen units. Feature flags can limit customization.
-
-Commercial profiles are assigned once and customer global-document writes
-cannot replace them. Login/travel/language changes do not reprice an organization.
-Legacy organizations without a profile retain US/USD/imperial defaults; this
-release does not migrate them. Authenticated prices use organization context;
-policy revisions reject stale ordering prices, accepted subscriptions retain
-snapshotted prices, and payment fulfillment checks currency/amount and idempotency.
-
-Remaining policy work before treating geography as fraud protection:
-
-- Confirm the edge overwrites geolocation headers. Browser time zone/locale and
-  externally supplied country headers are hints, not verified residence.
-- Define confirmed organization-country collection, conflicting-signal handling,
-  and whether verified billing/tax/payment country should constrain eligibility.
-- Define an audited administrative country/currency migration process including
-  balances and subscriptions; never silently reassign profiles at login.
-- Review legacy organizations and region-specific acquisition offers. The
-  separate referral hero still contains a fixed $7 offer; it is outside the
-  website billboard and has not been generalized by this change.
-
-[Development deployment and verification](../../deploy/digitalocean/development-login-billboard-20261005.md).
+Run `npm run check` in `public/v1`. Focused tests include
+`property-market-pricing.test.ts`, `property-market-orders.test.ts`,
+`regional-commerce.test.ts`, `report-localization.test.ts`,
+`firstmeasure-expedite.test.ts`, `expedite-workload.test.ts`, and
+`exteriors-order.test.ts`. Payment and geocoder tests use provider fixtures;
+no real card charges or customer messages are needed.

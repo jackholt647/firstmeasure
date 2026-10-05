@@ -1,3 +1,4 @@
+import { withReportPropertyMarket } from "../commerce/property-market.js";
 import { listVisibleNotifications } from "./notifications/view.js";
 import { effectiveNavigationPreferences } from './navigation-defaults.js';
 import { developmentReportsAllowed, pickDevelopmentReport, copyDevelopmentReport } from '../firstmeasure/development_reports.js';
@@ -11612,6 +11613,14 @@ function assertPortalOwnsFirstMeasureProject(manifest: JsonObject, orgId: string
 }
 
 async function portalExpediteQueuedProject(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
+  const projectId = cleanText(body.project_id || body.folder || body.measurement_project_id);
+  if (!projectId) throw badRequest("missing_project_id", "Project id is required.");
+  const { manifest } = await firstMeasureProjectDetail(app, projectId);
+  assertPortalOwnsFirstMeasureProject(manifest, orgId, actor);
+  return withReportPropertyMarket(manifest, () => portalExpediteQueuedProjectForMarket(app, orgId, actor, body));
+}
+
+async function portalExpediteQueuedProjectForMarket(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
   assertReportPricingRevision(body);
   await assertPortalFirstMeasureFlag(orgId, "report_expedite_options", "Report expediting is not enabled for this organization.");
   const projectId = cleanText(body.project_id || body.folder || body.measurement_project_id);
@@ -11873,6 +11882,14 @@ async function portalCancelQueuedProject(app: FastifyInstance, orgId: string, ac
 }
 
 async function portalSubmitReportReworkRequest(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
+  const projectId = cleanText(body.project_id || body.folder || body.measurement_project_id);
+  if (!projectId) throw badRequest("missing_project_id", "Project id is required.");
+  const { manifest } = await firstMeasureProjectDetail(app, projectId);
+  assertPortalOwnsFirstMeasureProject(manifest, orgId, actor);
+  return withReportPropertyMarket(manifest, () => portalSubmitReportReworkRequestForMarket(app, orgId, actor, body));
+}
+
+async function portalSubmitReportReworkRequestForMarket(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
   await assertPortalFirstMeasureFlag(orgId, "report_followup", "Report follow-up requests are not enabled for this organization.");
   const projectId = cleanText(body.project_id || body.folder || body.measurement_project_id);
   if (!projectId) throw badRequest("missing_project_id", "Project id is required.");
@@ -12224,6 +12241,7 @@ function normalizedPortalQueuePayload(body: JsonObject, actor: ReturnType<typeof
     include_weather_report: parseBooleanField(body.include_weather_report, false),
     amount_charged: amount,
     report_original_amount: charge.gross_amount,
+    report_currency: currentProfile().currency,
     report_discount_amount: charge.free_expedite_discount,
     report_expedite_coupon_applied: charge.free_expedite_applied,
     charge_token: `node_${Date.now()}_${stableHash(`${orgId}:${actor.email}:${Date.now()}`).slice(0, 10)}`,
@@ -12272,6 +12290,10 @@ function normalizedPortalQueuePayload(body: JsonObject, actor: ReturnType<typeof
 }
 
 async function portalQueueProject(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
+  return withReportPropertyMarket(body, country => portalQueueProjectForMarket(app, orgId, actor, { ...body, report_property_country: country }));
+}
+
+async function portalQueueProjectForMarket(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
   const exterior = body.measurement_scope === "full_house";
   if (body.measurement_scope && !exterior && body.measurement_scope !== "roof") throw badRequest("invalid_scope","Unknown report scope.");
   const exteriorOrder = exterior ? await validateExteriorOrder(orgId, body, normalizeReportRequestPins(body.pins).length) : null;
@@ -12319,6 +12341,8 @@ async function portalQueueProject(app: FastifyInstance, orgId: string, actor: Re
     reason: "order_submitted",
     meta: {
       address: cleanText(body.address),
+      property_country: cleanText(body.report_property_country),
+      currency: currentProfile().currency,
       project_type: projectType,
       report_mode: reportMode,
       report_expedite_option: cleanText(body.report_expedite_option),

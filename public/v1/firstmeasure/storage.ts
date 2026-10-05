@@ -272,6 +272,8 @@ export async function createProject(input: JsonObject & { address: string }, opt
     project_type: String(input.project_type ?? "residential"),
     address: String(input.address),
     components: asRecord(input.components),
+    report_property_country: String(input.report_property_country || ""),
+    report_currency: String(input.report_currency || ""),
     lat: toNullableNumber(input.lat),
     lng: toNullableNumber(input.lng),
     pins: Array.isArray(input.pins) ? (input.pins as Array<{ lat: number; lng: number }>) : [],

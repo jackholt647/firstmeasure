@@ -31,7 +31,7 @@ test("signup assigns organization prices, currency and localization once; custom
   try{
     for(const [country,currency,display,price,locale,units] of [
       ["US","USD","currency",7,"en-US","imperial"],["CA","USD","currency",7,"en-US","metric"],
-      ["GB","USD","credits",14,"en-GB","metric"],["FR","EUR","currency",14,"fr-FR","metric"],["JP","USD","credits",14,"ja-JP","metric"]
+      ["GB","EUR","currency",20,"en-GB","metric"],["FR","EUR","currency",20,"fr-FR","metric"],["JP","EUR","currency",20,"ja-JP","metric"]
     ] as const){
       const c=client(country);accounts.set(country,c);
       const registration=await c.request("POST","/v1/platform/auth/register",{email:country.toLowerCase()+"@regional.example.test",password:"regional-password-123",phone:country==="GB"?"+447700900001":"+120255501"+String(accounts.size).padStart(2,"0"),company:"Regional fixture",global:{commercial_profile:{currency:"JPY",tier:"domestic"}}});
@@ -60,7 +60,8 @@ test("regional report pricing is isolated across concurrent requests, including 
   const {exteriorQuote}=await import("../firstmeasure/exteriors.js");
   const input={project_type:"commercial",report_mode:"both",report_expedite_option:"rush_under_1",include_weather_report:true,pins:[{},{}]};
   const values=await Promise.all(Array.from({length:24},(_,i)=>profile.withOrganizationCommerce(accounts.get(i%2?"FR":"US").org,async()=>{await new Promise(r=>setTimeout(r,i%4));return [firstMeasureReportAmount(input),exteriorQuote(2).options[2]!.amount];})));
-  values.forEach((value,i)=>assert.deepEqual(value,values[0]!.map(n=>n*(i%2?2:1))));
+  values.forEach((value,i)=>{assert.equal(value[0],values[i%2]![0]);assert.equal(value[1],values[0]![1]!*(i%2?2:1));});
+  assert.ok(values[1]![0]! > values[0]![0]!);
 });
 
 test("credit checkout locks integration currency, preserves presentment details and rejects mismatched settlement",async()=>{
@@ -82,8 +83,8 @@ test("credit checkout locks integration currency, preserves presentment details 
     for(const country of ["FR","JP"]){
       const c=accounts.get(country),created=await c.request("POST","/v1/platform/portal-action",{action:"stripe_create_checkout",qty:50});assert.equal(created.success,true,JSON.stringify(created));
       const fields=calls.filter(c=>c.url==="/v1/checkout/sessions").at(-1).fields;
-      assert.equal(fields.get("line_items[0][price_data][currency]"),country==="FR"?"eur":"usd");
-      assert.equal(fields.get("adaptive_pricing[enabled]"),country==="FR"?"false":"true");
+      assert.equal(fields.get("line_items[0][price_data][currency]"),"eur");
+      assert.equal(fields.get("adaptive_pricing[enabled]"),"false");
       const session=sessions.get(created.session.id),currency=session.currency;session.currency="gbp";
       assert.equal((await c.request("POST","/v1/platform/portal-action",{action:"stripe_fulfill_session",session_id:session.id})).success,false);
       session.currency=currency;
@@ -106,12 +107,12 @@ test("subscriptions use fixed EUR or USD prices, isolate Stripe price IDs and pi
   try{
     for(const country of ["US","FR","JP"]){
       const c=accounts.get(country);await caps.saveCapabilityValues(c.org,{"platform.expanded_access":true,"apps.assistant":true});
-      const q=await sub.quoteSubscription(c.org,p.id);assert.equal(q.price.currency,country==="FR"?"EUR":"USD");assert.equal(q.price.monthly_cents,country==="US"?3000:6000);
+      const q=await sub.quoteSubscription(c.org,p.id);assert.equal(q.price.currency,country==="US"?"USD":"EUR");assert.equal(q.price.monthly_cents,country==="US"?3000:6000);
       assert.equal(q.price.regional_prices,undefined);await sub.acceptSubscription(c.org,q.id,"fixture");
       const saved=(await billing.records<any>(c.org,"subscription"))[0];assert.equal(saved.price.currency,q.price.currency);assert.equal(saved.price.monthly_cents,q.price.monthly_cents);
       const invoices=await billing.records<any>(c.org,"stripe-invoice");assert.equal(invoices[0].currency,q.price.currency);
     }
-    assert.equal(fixture.calls.filter(c=>c.route==="prices"&&c.fields.has("unit_amount")).length,3);
+    assert.equal(fixture.calls.filter(c=>c.route==="prices"&&c.fields.has("unit_amount")).length,2);
     assert.equal(fixture.calls.filter(c=>c.route==="checkout/sessions").find(c=>c.fields.get("metadata[organization_id]")===accounts.get("FR").org)!.fields.get("adaptive_pricing[enabled]"),"false");
   }finally{fixture.restore();}
 });
@@ -123,7 +124,8 @@ test("future currencies require explicit subscription prices and commercial revi
   assert.equal(regions.detectSignupCountry({}, {signup_locale:"en-US",signup_time_zone:"Africa/Lagos"}).country,"NG");
   assert.equal(regions.regionLanguage("SN",["en-US","en-GB","fr-FR"]),"fr-FR");
   const policy=structuredClone(profile.DEFAULT_COMMERCIAL_POLICY);policy.currencies.JPY={minor_digits:0,report_multiplier:150};
-  const jp=profile.profileForCountry("JP","fixture",policy);assert.equal(jp.currency,"JPY");assert.equal(jp.credit_display,"currency");
+  const signup=profile.profileForCountry("JP","fixture",policy);assert.equal(signup.currency,"EUR");
+  const jp={...signup,currency:"JPY",minor_digits:0}; // Existing explicitly assigned currencies retain their accounting contract.
   const p=(await billing.catalog())[0]!;assert.throws(()=>prices.resolveRegionalPrice(p,jp,policy),{code:"billing_currency_price_missing"});
   const fixed=prices.resolveRegionalPrice({...p,regional_prices:{international:{JPY:{monthly_cents:8000,rates:p.rates}}}},jp,policy);assert.equal(fixed.monthly_cents,8000);assert.equal(fixed.minor_digits,0);
   profile.commerceContext.run({profile:jp,policy,revision:2},()=>{assert.throws(()=>profile.assertCommercialRevision({commercial_pricing_revision:1}),{code:"pricing_changed"});profile.assertCommercialRevision({commercial_pricing_revision:2});assert.equal(profile.creditMinorAmount(7),7);});
@@ -137,7 +139,7 @@ test("only internal administrators can revise policy; stale orders fail and acce
   const policy=await us.request("GET",endpoint);policy.config.multipliers.international=3;
   const saved=await us.request("PUT",endpoint,{revision:policy.revision,config:policy.config});assert.ok(saved.revision>policy.revision);
   assert.equal((await us.raw("PUT",endpoint,{revision:policy.revision,config:policy.config})).statusCode,409);
-  const view=await fr.request("GET",`/v1/platform/organizations/${fr.org}/commerce`);assert.equal(view.report_prices.residential,21);
+  const view=await fr.request("GET",`/v1/platform/organizations/${fr.org}/commerce`);assert.equal(view.report_prices.residential,20);
   await profile.withOrganizationCommerce(fr.org,()=>assert.throws(()=>profile.assertCommercialRevision({commercial_pricing_revision:0}),{code:"pricing_changed"}));
   const billing=await import("../platform-billing/storage.js");
   const subscription=(await billing.records<any>(fr.org,"subscription"))[0];assert.equal(subscription.price.monthly_cents,6000);assert.equal(subscription.price.currency,"EUR");

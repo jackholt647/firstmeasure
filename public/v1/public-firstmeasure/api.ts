@@ -1,4 +1,7 @@
-import { reportPrice, customerCommercialView, assertCommercialRevision } from "../commerce/profile.js";
+import { SUPPORTED_LOCALES } from "../platform/localization/languages.js";
+import { withReportPropertyMarket } from "../commerce/property-market.js";
+import { assertReportPricingRevision } from "../firstmeasure/pricing.js";
+import { reportPrice, reportGutterPrice, currentProfile, customerCommercialView, assertCommercialRevision } from "../commerce/profile.js";
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
@@ -43,7 +46,7 @@ const orderReportSchema = z.object({
   project_type: z.enum(["residential", "commercial", "multifamily"]).optional(),
   report_mode: z.enum(["full", "instant", "both"]).optional(),
   measurement_system: z.enum(["imperial", "metric"]).optional(),
-  report_language: z.enum(["en-US", "en-GB"]).optional(),
+  report_language: z.enum(SUPPORTED_LOCALES).optional(),
   include_gutter_measurements: z.boolean().optional(),
   include_weather_report: z.boolean().optional(),
   weather_report_tier: z.string().optional(),
@@ -131,6 +134,7 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
     requirePublicFirstMeasureScope(ctx, "firstmeasure:reports:create");
     const query = asObject(request.query);
     const features = await publicFirstMeasureFeatureFlags(ctx.orgId);
+    return withReportPropertyMarket(query, country => {
     const quote = buildReportExpediteOptions({
       projectType: query.project_type,
       structureCount: query.structure_count ?? query.structures ?? query.pin_count
@@ -148,12 +152,14 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
       },
       feature_flags: features,
       commerce: customerCommercialView(),
+      property_country: country,
+      report_market_revision: 1,
       options: quote.options.filter((option) => !option.expedited || features.report_expedite_options),
       add_ons: {
         gutters: {
           enabled: features.gutter_reports,
           request_field: "include_gutter_measurements",
-          unit_price: reportPrice(2),
+          unit_price: reportGutterPrice(),
           unit: "per_structure"
         },
         weather_report: {
@@ -166,6 +172,7 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
         }
       }
     };
+    }, false);
   });
 
   app.get("/balance", async (request) => {
@@ -239,7 +246,8 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
       };
     }
 
-    assertCommercialRevision(body);
+    return await withReportPropertyMarket(body, async country => {
+    assertReportPricingRevision(body);
     const amount = firstMeasurePublicReportAmount({
       project_type: body.project_type,
       report_mode: body.report_mode,
@@ -294,6 +302,8 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
         charge_token: chargeToken,
         external_id: body.external_id ?? null,
         address: body.address,
+        property_country: country,
+        currency: currentProfile().currency,
         project_type: body.project_type ?? "residential",
         measurement_system: body.measurement_system,
         report_language: body.report_language,
@@ -302,7 +312,7 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
       }
     });
 
-    const internalPayload = buildInternalOrderPayload(ctx, body, amount, chargeToken, features);
+    const internalPayload = { ...buildInternalOrderPayload(ctx, body, amount, chargeToken, features), report_property_country: country, report_currency: currentProfile().currency };
     const hasStructurePins = Array.isArray(body.pins) && body.pins.length > 0;
     const route = body.report_mode === "instant"
       ? "/instants"
@@ -392,6 +402,7 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
           auto_topup: asObject(charge).auto_topup ?? null
         }
       };
+    });
     } finally {
       await releaseOrderLock();
     }

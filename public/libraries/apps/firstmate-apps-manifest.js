@@ -292,7 +292,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261005-report-opening-v1'), versionedBundle('project-request/app.js', '20261005-report-opening-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261005-report-opening-v1'), versionedBundle('project-request/app.js', '20261005-address-market-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -313,7 +313,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-map/app.js', '20261002-overview-workflow-v1')]
+      bundles: [versionedBundle('project-map/app.js', '20261005-address-market-v1')]
     },
     {
       id: 'project.customer_portal',

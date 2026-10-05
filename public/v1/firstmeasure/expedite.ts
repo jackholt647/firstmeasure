@@ -1,4 +1,4 @@
-import { reportPrice } from "../commerce/profile.js";
+import { reportBasePrice, reportRushPrice, customerCommercialView } from "../commerce/profile.js";
 import { currentExpeditePricing, pricingContext } from "./pricing_config.js";
 export type ReportExpediteProjectType = "residential" | "commercial" | "multifamily";
 
@@ -145,9 +145,9 @@ export function reportExpediteBaseUnitPrice(projectType: unknown, optionKey: unk
   const type = normalizeReportExpediteProjectType(projectType);
   const standardBase = type === "commercial" || type === "multifamily" ? 12 : 7;
   const pricing = reportExpeditePricingForWait(optionKey, waitMinutes);
-  return reportPrice(type === "commercial" || type === "multifamily"
-    ? roundCurrency(standardBase * (pricing.residentialPrice / 7))
-    : pricing.residentialPrice);
+  const domesticSurcharge = type === "commercial" || type === "multifamily"
+    ? roundCurrency(standardBase * (pricing.rushDelta / 7)) : pricing.rushDelta;
+  return roundCurrency(reportBasePrice(standardBase) + reportRushPrice(domesticSurcharge));
 }
 
 function addMinutes(date: Date, minutes: number) {
@@ -297,8 +297,8 @@ export function buildReportExpediteOptions(input: {
       production_deadline_at: productionDeadline ? productionDeadline.toISOString() : null,
       estimated_wait_minutes: option.key === "standard_3_6" ? standardWait.wait + additionalMinutes : null,
       busy_label: option.key === "standard_3_6" ? standardWait.busyLabel : "",
-      residential_price: reportPrice(pricing.residentialPrice),
-      rush_delta: reportPrice(pricing.rushDelta),
+      residential_price: roundCurrency(reportBasePrice(7) + reportRushPrice(pricing.rushDelta)),
+      rush_delta: reportRushPrice(pricing.rushDelta),
       unit_price: reportExpediteBaseUnitPrice(projectType, option.key, standardWait.wait),
       expedited: option.expedited
     };
@@ -307,6 +307,8 @@ export function buildReportExpediteOptions(input: {
     ok: true,
     success: true,
     algorithm: "wait_linked_v1",
+    report_market_revision: 1,
+    report_prices: customerCommercialView().report_prices,
     pricing_revision: pricingContext.getStore()?.revision ?? 0,
     generated_at: generatedAt,
     project_type: projectType,

@@ -4,14 +4,14 @@ $initialReferralCode = $publicRegistrationEnabled ? strtoupper(trim((string)($_G
 $hasReferralInvite = $initialReferralCode !== '';
 // Marketing geography only; this does not assign an account's commercial region.
 $loginRegionData = json_decode(file_get_contents(__DIR__ . '/../v1/commerce/region-data.json'), true, 512, JSON_THROW_ON_ERROR);
-$loginEuropeanCountries = $loginRegionData['eu_countries'];
+$loginDomesticCountries = $loginRegionData['domestic_countries'];
 $loginRegionHeader = strtoupper(trim((string)($_SERVER['HTTP_X_FIRSTMATE_REGION'] ?? '')));
 $loginBillboardRegion = in_array($loginRegionHeader, ['EU', 'EUROPE'], true) ? 'eu' : 'detect';
 if ($loginBillboardRegion === 'detect') {
     foreach (['HTTP_CF_IPCOUNTRY', 'HTTP_X_VERCEL_IP_COUNTRY', 'HTTP_X_APPENGINE_COUNTRY'] as $countryHeader) {
         $country = strtoupper(trim((string)($_SERVER[$countryHeader] ?? '')));
         if (preg_match('/^[A-Z]{2}$/', $country) && !in_array($country, ['XX', 'ZZ', 'T1'], true)) {
-            $loginBillboardRegion = in_array($country, $loginEuropeanCountries, true) ? 'eu' : 'default';
+            $loginBillboardRegion = in_array($country, $loginDomesticCountries, true) ? 'default' : 'eu';
             break;
         }
     }
@@ -592,13 +592,13 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             let european = false;
             let timeZone = '';
             try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
-            // Use the same IANA country map and EU membership as signup pricing.
+            // Use the same IANA country map and US/Canada market boundary as signup pricing.
             const zoneCountries = <?= json_encode($loginRegionData['time_zone_countries']) ?>;
             let country = zoneCountries[timeZone] || '';
             if (!country) {
                 try { country = new Intl.Locale(navigator.language).region || ''; } catch (_) {}
             }
-            european = <?= json_encode($loginEuropeanCountries) ?>.includes(country);
+            european = !!country && !<?= json_encode($loginDomesticCountries) ?>.includes(country);
             if (european) document.querySelector('.login-marketing-billboard').src = 'https://eu.1m8.ai/billboards/login';
         })();
     </script>

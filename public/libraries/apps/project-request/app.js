@@ -138,6 +138,10 @@ window.PlatformCommerce.onReady(async function(){
   let reportExpediteOptionsSlot = -1;
   let reportExpediteOptionsLoading = false;
   let reportExpediteOptionsAuthoritative = false;
+  let reportExpeditePropertyKey = "";
+  let reportPropertyPrices = null;
+  function reportDisplayedBasePrice(type){ return reportExpeditePropertyKey === reportPropertyKey() && Number.isFinite(Number(reportPropertyPrices?.[type])) ? Number(reportPropertyPrices[type]) : (TYPE_META[type]?.price ?? PRICE_RESIDENTIAL); }
+  function reportPropertyKey(){ return JSON.stringify([$("#rAddress")?.value || "", $("#rLat")?.value || "", $("#rLng")?.value || ""]); }
   let reportExpediteMinuteTimer = null;
   let firstReportCheckoutEligibility = {
     orgId: '',
@@ -3264,9 +3268,9 @@ window.PlatformCommerce.onReady(async function(){
     reportExpediteOptionsAuthoritative = false;
   }
   function reportExpeditePricingReady(type = selectedType, structureCount = reportExpediteStructureCount(type)){
-    if (!reportExpediteOptionsEnabled()) return true;
     const currentSlot = Math.floor(Date.now() / 600000);
     return reportExpediteOptionsAuthoritative
+      && reportExpeditePropertyKey === reportPropertyKey()
       && !reportExpediteOptionsLoading
       && reportExpediteOptionsProjectType === type
       && reportExpediteOptionsStructureCount === structureCount
@@ -3284,18 +3288,18 @@ window.PlatformCommerce.onReady(async function(){
       || null;
   }
   function selectedReportExpediteOption(){
-    if (!reportExpediteOptionsEnabled()) return null;
+    if (!reportExpediteOptionsEnabled()) return defaultReportExpediteOption();
     if (reportOrderingClosed()) return defaultReportExpediteOption();
     return reportExpediteOption() || defaultReportExpediteOption();
   }
   function proportionalReportExpediteUnitPrice(option, type = selectedType){
-    const base = TYPE_META[type]?.price ?? PRICE_RESIDENTIAL;
+    const base = reportDisplayedBasePrice(type);
     if (!option) return base;
     const residential = Number(option.residentialPrice ?? option.residential_price ?? (PRICE_RESIDENTIAL + (Number(option.rushDelta ?? option.rush_delta ?? 0) || 0))) || PRICE_RESIDENTIAL;
     return Math.round((isPerStructureType(type) ? base * (residential / PRICE_RESIDENTIAL) : residential) * 100) / 100;
   }
   function reportBaseUnitPrice(type = selectedType){
-    const base = TYPE_META[type]?.price ?? PRICE_RESIDENTIAL;
+    const base = reportDisplayedBasePrice(type);
     const option = selectedReportExpediteOption();
     if (!option) return base;
     return reportExpediteUnitPrice(option, type);
@@ -3403,6 +3407,7 @@ window.PlatformCommerce.onReady(async function(){
   }
   function currentOriginalPrice(){
     if (!hasSelectedAddons()) return 0;
+    if (addressSelected) loadReportExpediteOptions();
     const expediteOption = reportExpediteOptionsEnabled() ? selectedReportExpediteOption() : null;
     if (expediteOption) return reportExpediteNetTotalPrice(expediteOption, selectedType);
     if (!selectedType) return reportBaseUnitPrice('residential');
@@ -5782,7 +5787,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function buildTypeButtons(){
-    const pricingLabels = { residential: fmtCredit(PRICE_RESIDENTIAL)+' flat rate', commercial: fmtCredit(PRICE_COMMERCIAL)+' / structure', multifamily: fmtCredit(PRICE_MULTIFAMILY)+' / structure' };
+    const pricingLabels = { residential: fmtCredit(reportDisplayedBasePrice('residential'))+' flat rate', commercial: fmtCredit(reportDisplayedBasePrice('commercial'))+' / structure', multifamily: fmtCredit(reportDisplayedBasePrice('multifamily'))+' / structure' };
     return Object.entries(TYPE_META).map(([key, meta]) => `
       <button type="button" class="r-type-btn" data-type="${key}">
         <div class="r-type-icon"><i class="fas ${meta.icon}"></i></div>
@@ -5920,7 +5925,7 @@ window.PlatformCommerce.onReady(async function(){
   function reportExpediteCouponDiscount(option, type = selectedType){
     if (!option?.expedited || freeExpediteUses() <= 0) return 0;
     const normalizedType = type || 'residential';
-    const standardUnit = TYPE_META[normalizedType]?.price ?? PRICE_RESIDENTIAL;
+    const standardUnit = reportExpediteUnitPrice(defaultReportExpediteOption(), normalizedType);
     const unit = reportExpediteUnitPrice(option, normalizedType);
     const unitDelta = Math.max(0, Math.round((unit - standardUnit) * 100) / 100);
     const count = isPerStructureType(normalizedType) ? Math.max(1, pinCount()) : 1;
@@ -5943,7 +5948,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function reportExpediteAddOnAmount(option, type = selectedType){
     if (!option) return 0;
-    const base = TYPE_META[type]?.price ?? PRICE_RESIDENTIAL;
+    const base = reportDisplayedBasePrice(type);
     const unit = Number(option.unit_price ?? reportExpediteUnitPrice(option, type || 'residential'));
     return Math.max(0, Math.round((unit - base) * 100) / 100);
   }
@@ -6129,7 +6134,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function selectedReportExpeditePricingPending(){
     const option = reportExpediteOptionsEnabled() ? selectedReportExpediteOption() : null;
-    return !!(option?.expedited && !reportExpeditePricingReady());
+    return !!(hasSelectedAddons() && !reportExpeditePricingReady());
   }
 
   function normalizeReportExpediteKey(key){
@@ -6189,15 +6194,24 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function loadReportExpediteOptions(force = false){
-    if (!reportExpediteOptionsEnabled() || !selectedType || !fmJson) return;
+    if (!selectedType || !fmJson || !addressSelected) return;
     const currentSlot = Math.floor(Date.now() / 600000);
     const structureCount = reportExpediteStructureCount(selectedType);
-    if (!force && reportExpediteOptionsProjectType === selectedType && reportExpediteOptionsStructureCount === structureCount && reportExpediteOptionsSlot === currentSlot && reportExpediteOptions.length) return;
+    const propertyKey = reportPropertyKey();
+    if (!force && reportExpeditePropertyKey === propertyKey && reportExpediteOptionsProjectType === selectedType && reportExpediteOptionsStructureCount === structureCount && reportExpediteOptionsSlot === currentSlot && reportExpediteOptions.length) return;
     if (reportExpediteOptionsLoading) return;
     reportExpediteOptionsLoading = true;
     reportExpediteOptionsAuthoritative = false;
-    fmJson(`report-expedite-options?project_type=${encodeURIComponent(selectedType)}&structure_count=${encodeURIComponent(String(structureCount))}`)
+    const quotedType = selectedType;
+    fmJson(`report-expedite-options?address=${encodeURIComponent($("#rAddress")?.value || "")}&lat=${encodeURIComponent($("#rLat")?.value || "")}&lng=${encodeURIComponent($("#rLng")?.value || "")}&project_type=${encodeURIComponent(selectedType)}&structure_count=${encodeURIComponent(String(structureCount))}`)
       .then((data) => {
+        if (propertyKey !== reportPropertyKey() || quotedType !== selectedType) return;
+        reportExpeditePropertyKey = propertyKey;
+        reportPropertyPrices = data.report_prices || null;
+        document.querySelectorAll('.r-type-btn[data-type] .r-type-price').forEach(label => {
+          const type = label.closest('[data-type]').dataset.type;
+          label.textContent = fmtCredit(reportDisplayedBasePrice(type)) + (type === 'residential' ? ' flat rate' : ' / structure');
+        });
         const options = normalizeReportExpediteOptionsResponse(data, selectedType, structureCount);
         if (options.length) {
           reportExpediteOptions = options;
@@ -6210,7 +6224,9 @@ window.PlatformCommerce.onReady(async function(){
         }
       })
       .catch((error) => {
-        console.warn('Report expedite options unavailable; using fallback options.', error);
+        if (propertyKey !== reportPropertyKey() || quotedType !== selectedType) return;
+        reportExpeditePropertyKey = propertyKey;
+        console.warn('Report prices unavailable; ordering waits for a verified quote.', error);
         const options = buildLocalReportExpediteOptions(selectedType, new Date(), structureCount);
         if (options.length) {
           reportExpediteOptions = options;
@@ -6288,8 +6304,9 @@ window.PlatformCommerce.onReady(async function(){
       report_expedite_unit_price: String(reportExpediteUnitPrice(option, selectedType)),
       report_expedite_total_price: String(reportExpediteTotalPrice(option, selectedType)),
       report_expedite_net_total_price: String(reportExpediteNetTotalPrice(option, selectedType)),
-      report_expedite_rush_delta: String(Math.max(0, Math.round((reportExpediteUnitPrice(option, selectedType) - (TYPE_META[selectedType]?.price ?? PRICE_RESIDENTIAL)) * 100) / 100)),
+      report_expedite_rush_delta: String(Math.max(0, Math.round((reportExpediteUnitPrice(option, selectedType) - reportDisplayedBasePrice(selectedType)) * 100) / 100)),
       report_pricing_revision: String(option.pricing_revision ?? 0),
+      report_market_revision: "1",
       report_expedite_structure_count: String(reportExpediteStructureCount(selectedType)),
       report_expedite_additional_structure_minutes: String(Number(option.additionalStructureMinutes ?? option.additional_structure_minutes ?? 0) || 0),
       report_expedite_coupon_available: reportExpediteCouponDiscount(option, selectedType) > 0 ? '1' : '0',
@@ -9698,13 +9715,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function getAfterHoursMessage(){
-    const now = new Date();
-    const pacificStr = now.toLocaleString((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), { timeZone: 'America/Los_Angeles' });
-    const pacific = new Date(pacificStr);
-    const hour = pacific.getHours();
-    if (hour >= 20) {
-      return 'We are currently closed for the evening. Roof reports placed now will be processed first thing tomorrow morning.';
-    }
+    // Reports and rush ordering operate around the clock.
     return null;
   }
 

@@ -1,3 +1,4 @@
+import { SUPPORTED_LOCALES } from "../platform/localization/languages.js";
 import { z } from "zod";
 
 import { PAGE_KEYS } from "./constants.js";
@@ -89,6 +90,8 @@ export const createProjectSchema = z.object({
   exterior_references: z.array(z.record(z.unknown())).optional(),
   report_pricing_revision: z.coerce.number().optional(),
   exteriors_base_amount: z.number().nonnegative().optional(),
+  report_property_country: z.string().optional(),
+  report_currency: z.enum(["USD", "EUR"]).optional(),
   id: optionalString,
   status: optionalString,
   project_type: z.enum(["residential", "commercial", "multifamily"]).optional(),
@@ -98,7 +101,7 @@ export const createProjectSchema = z.object({
   lng: z.number().optional(),
   pins: z.array(pinSchema).optional(),
   measurement_system: z.enum(["imperial", "metric"]).optional(),
-  report_language: z.enum(["en-US", "en-GB"]).optional(),
+  report_language: z.enum(SUPPORTED_LOCALES).optional(),
   include_gutter_measurements: z.boolean().optional(),
   include_weather_report: z.boolean().optional(),
   weather_report_tier: optionalString,

@@ -959,6 +959,7 @@
         out.state_short = item.short_name;
       }
       if (item.types?.includes('postal_code')) out.zip = item.long_name;
+      if (item.types?.includes('country')) out.country = item.short_name;
     });
     return out;
   }

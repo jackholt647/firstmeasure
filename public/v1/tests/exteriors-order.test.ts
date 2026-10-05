@@ -7,8 +7,10 @@ import test from 'node:test';
 test('Full House ordering validates flags, references, prices and paid queue artifacts',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'fm-exteriors-'));
  const keys=path.join(root,'keys.json');await writeFile(keys,JSON.stringify({application:{internal_api_secret:'isolated-exterior-test'}}));
- Object.assign(process.env,{FIRSTMATE_ENV:'test',NODE_ENV:'test',FIRSTMEASURE_DATABASE_MODE:'sqlite',DATABASE_URL:'',PROVIDER_KEYS_PATH:keys,FIRSTMEASURE_JOB_WORKERS:'0',PLATFORM_HEARTBEAT_DISABLED:'1',EMAIL_OUTBOUND_DISABLED:'1',STATS_SCHEDULER_DISABLED:'1',WORK_SCHEDULER_DISABLED:'1',FIRSTMEASURE_INDEX_DB_PATH:path.join(root,'index.sqlite')});
+ Object.assign(process.env,{FIRSTMATE_ENV:'test',NODE_ENV:'test',FIRSTMEASURE_DATABASE_MODE:'sqlite',DATABASE_URL:'',PROVIDER_KEYS_PATH:keys,GOOGLE_MAPS_API_KEY:'exterior-country-fixture',FIRSTMEASURE_JOB_WORKERS:'0',PLATFORM_HEARTBEAT_DISABLED:'1',EMAIL_OUTBOUND_DISABLED:'1',STATS_SCHEDULER_DISABLED:'1',WORK_SCHEDULER_DISABLED:'1',FIRSTMEASURE_INDEX_DB_PATH:path.join(root,'index.sqlite')});
  for(const name of ['FIRSTMEASURE','PLATFORM','INTERNAL','CRM','PRICEBOOK','MESSAGING','CHANNELS','CALLS','CANVASSING','WEATHER','CODE_REPORT'])process.env[name+'_STORAGE_ROOT']=path.join(root,name.toLowerCase());
+ const originalFetch=globalThis.fetch;
+ globalThis.fetch=(async(input:any)=>new Response(JSON.stringify(String(input).includes('/geocode/')?{status:'OK',results:[{address_components:[{types:['country'],short_name:'US'}]}]}:{}),{status:String(input).includes('/geocode/')?200:503})) as typeof fetch;
  const {buildApp}=await import('../src/app.js');
  const {saveCapabilityValues}=await import('../platform/capabilities.js');
  const {saveGlobal,readGlobal}=await import('../platform/storage.js');
@@ -44,8 +46,8 @@ test('Full House ordering validates flags, references, prices and paid queue art
  assert.equal((await validateExteriorOrder(orgId,{...body,report_expedite_option:'exteriors_standard',exterior_references:withRetake},1)).references.at(-1)?.angle,'front');
  await assert.rejects(()=>validateExteriorOrder(orgId,{...body,exterior_references:[...refs,{...withRetake.at(-1),angle:'invalid'}]},1));
  await pricingContext.run({config:{...DEFAULT_EXPEDITE_PRICING,exteriors_priority_fee:0},revision:quote.json().pricing_revision,now:new Date('2026-09-20T04:00:00Z')},async()=>{
-  assert.equal(exteriorQuote().ordering_closed,true);
-  await assert.rejects(()=>validateExteriorOrder(orgId,body,1),(error:any)=>error.code==='exteriors_closed','closed hours reject expedited orders even when their fee is zero');
+  assert.equal(exteriorQuote().ordering_closed,false);
+  assert.equal((await validateExteriorOrder(orgId,body,1)).option.key,'exteriors_priority','rush remains available after 8pm');
   assert.equal((await validateExteriorOrder(orgId,{...body,report_expedite_option:'exteriors_standard'},1)).option.key,'exteriors_standard');
  });
  for(const invalid of [{exterior_references:'[]'},{exterior_references:JSON.stringify(refs.slice(1))},{exterior_references:JSON.stringify(refs.map(r=>({...r,media_id:refs[0]!.media_id})))},{report_pricing_revision:999},{project_type:'commercial'},{exterior_references:'{broken'},{exterior_references:JSON.stringify(refs.map((r,i)=>i===0?{...r,media_id:'media_not_owned_by_this_org'}:r))}]){const res=await action('queue',{...body,...invalid});assert.ok(res.statusCode>=400,res.body);assert.equal((await readGlobal(orgId)).data.credits_balance,100,'invalid order not charged');}
@@ -70,5 +72,5 @@ test('Full House ordering validates flags, references, prices and paid queue art
  assert.ok(await readArtifact(videoOrder.json().folder,'customer-reference-0.mp4'));assert.equal((await readGlobal(orgId)).data.credits_balance,75);
  const direct=await app.inject({method:'POST',url:'/v1/firstmeasure/projects/queue',payload:{...body,pins:JSON.parse(body.pins),report_pricing_revision:0,exterior_references:refs}});assert.ok([401,403].includes(direct.statusCode),'direct public queue cannot bypass charging');
  const roof=await action('queue',{address:'456 Fictional Roof Lane',project_type:'residential',pins:body.pins,report_pricing_revision:String(quote.json().pricing_revision)});assert.equal(roof.json().success,true,roof.body);assert.equal((await readManifest(roof.json().folder)).amount_charged,7);
- }finally{await app.close();await(await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();await rm(root,{recursive:true,force:true,maxRetries:5});}
+ }finally{globalThis.fetch=originalFetch;await app.close();await(await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();await rm(root,{recursive:true,force:true,maxRetries:5});}
 });
