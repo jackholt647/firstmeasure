@@ -1,5 +1,8 @@
 # FirstMeasure: local development and production deployment
 
+October 4 multi-day appointments: [Duration shortcuts and start/end calendars](deploy/digitalocean/development-appointment-ranges-20261005.md) records the crew-aware range picker, responsive verification and development rollout.
+
+
 October 4 appointment UI: [Compact booking and Settings-only administration](deploy/digitalocean/development-appointment-ui-20261004.md) records the responsive redesign, focused browser checks and verified development rollout.
 
 
