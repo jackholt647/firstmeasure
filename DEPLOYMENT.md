@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 5 Channels: [Unread badges, Edit Sections alignment and Messages alerts](deploy/digitalocean/development-channels-linear-20261005.md) records PLA-24, PLA-31 and PLA-32, isolated API/browser verification and the four-role development rollout.
+
 October 5 Instant Full Org: [Roofing estimate test pack and native materials integration](deploy/digitalocean/development-instant-roofing-20261005.md) records four document styles/workflows, member navigation defaults, live signing verification and the development PDF runtime repair.
 
 October 5 material UI: [Original color-coded material grid](deploy/digitalocean/development-native-materials-20261005.md) records removal of the replacement panel and restoration of native editing and price-book controls.
