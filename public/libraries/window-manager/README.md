@@ -21,7 +21,7 @@ const windowController = FirstMateWindows.attach({
   label: 'Inspector window',
   mode: 'floating',                // floating | docked | full | minimized
   width: 640, height: 520, dockWidth: 420,
-  mobileFullDock: true,             // Optional: dock fills a phone workspace
+  mobileFullscreen: true,           // Default: phone viewport is full-screen, Close only
   minWidth: 320, minHeight: 280,
   topInset: () => document.getElementById('platformTopbar')?.offsetHeight || 0,
   onChange: ({mode, pinned, reason}) => {
@@ -43,7 +43,12 @@ Clicking a minimized title bar, pressing Enter or Space on its title, or using
 Restore returns to the previous mode, including its saved floating geometry or
 dock width. Right-click and Alt+Space still open the placement menu.
 
-The right-side controls are:
+On phone viewports (outer portal width at most 760px), all placements become full-screen
+with only a padded Close control. Menus, move/resize gestures and minimize/maximize
+are disabled. Set `mobileFullscreen: false` to explicitly opt out for a specialized
+window. Narrow desktop iframes keep desktop controls.
+
+The desktop right-side controls are:
 
 | Current mode | Controls, left to right |
 | --- | --- |

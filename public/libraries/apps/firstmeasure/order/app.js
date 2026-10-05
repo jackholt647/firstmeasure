@@ -87,7 +87,7 @@ ${String(expanded ? `    <section class="r-step is-open" id="rStepCustomer" data
     <div class="r-customer-portal-link" id="rCustomerPortalLinkMount"></div>
 
     <section class="r-step is-open" id="rStepAddress" data-status="active">
-      <div class="r-step-shell"><div class="r-step-inner"><div class="r-step-body"><div class="r-group"><label>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1f6129f59f143b","Property Address") ?? "Property Address")}</label><input class="r-inp" id="rAddress" placeholder="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_417e1dad6a313e","Start typing an address or click the map...") ?? "Start typing an address or click the map...")}" autocomplete="off" required></div></div></div></div>
+      <div class="r-step-shell"><div class="r-step-inner"><div class="r-step-body"><div class="r-group"><label>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1f6129f59f143b","Property Address") ?? "Property Address")}</label><input class="r-inp" id="rAddress" aria-label="Property address" placeholder="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_417e1dad6a313e","Start typing an address or click the map...") ?? "Start typing an address or click the map...")}" autocomplete="off" required></div></div></div></div>
     </section>
 
     <section class="r-step is-hidden" id="rStepType" data-status="locked">

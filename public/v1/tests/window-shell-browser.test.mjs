@@ -125,3 +125,37 @@ test('retained project windows accept pending and layout-only reopen requests',a
     assert.equal(await page.evaluate(()=>calls.at(-1).layout.tray),null);
   }finally{await browser.close();}
 });
+
+
+test('Overview form stacks at narrow widths, retains its map, and hides redundant labels and lone tabs',async()=>{
+ const browser=await launch();
+ try{
+  const page=await browser.newPage({viewport:{width:1100,height:900}});
+  const app=await readFile(new URL('../../libraries/apps/project-request/app.js',import.meta.url),'utf8');
+  const start=app.indexOf('  const css = `')+'  const css = `'.length;
+  const css=app.slice(start,app.indexOf('\n  `;',start)).replace(/@import[^;]+;/,'');
+  await page.setContent(`<div class="r-overlay active"><section class="r-win"><div class="r-right"><header class="r-window-bar"><span class="r-window-identity">Project</span><nav class="r-tabbar single-tab"><button data-tab="map">Map</button></nav></header><div class="r-preview"><div class="r-preview-stage"><div class="r-preview-panel active" data-panel="map"><div class="r-tab-content"><div class="r-overview-details"><form class="r-form"><div class="r-scroll"><h3 class="r-mobile-customer-heading">Customer information</h3><div class="r-contact-card primary"><div class="r-mobile-customer-label">Customer Info</div><input aria-label="Name" value="Draft customer"></div><section id="rStepAddress"><div class="r-group"><label>Property Address</label><input id="rAddress" value="Draft address"></div></section></div></form></div><div class="r-tab-main"><div id="rMap" style="height:100%;background:#abc"></div></div></div></div></div></div></div></section></div>`);
+  await page.addStyleTag({content:css});
+  for(const file of ['window-manager/window-shell.js','window-manager/project-layout.js'])await load(page,file);
+  await page.evaluate(()=>{
+   FirstMateProjectLayout.mount({overlay:document.querySelector('.r-overlay'),getProject:()=>null,getTab:()=> 'map',setTab:()=>{}});
+   FirstMateWindowShell.mount({element:document.querySelector('.r-win'),header:document.querySelector('header'),identity:document.querySelector('.r-window-identity'),tabs:document.querySelector('.r-tabbar'),headerRows:2});
+  });
+  assert.equal(await page.locator('.r-tabbar').isVisible(),false);
+  assert.equal(await page.locator('.r-mobile-customer-label').isVisible(),false);
+  assert.equal(await page.locator('.r-mobile-customer-heading').isVisible(),false);
+  assert.equal(await page.locator('#rStepAddress label').isVisible(),false);
+  for(const width of [780,740,650,500,390]){
+   await page.setViewportSize({width,height:900});await page.waitForTimeout(350);
+   const details=await page.locator('.r-overview-details').boundingBox(),content=await page.locator('.r-tab-content').boundingBox(),map=await page.locator('#rMap').boundingBox();
+   assert.ok(Math.abs(details.width-content.width)<2,'form spans the available content width at '+width);
+   assert.ok(map.height>=320,'visible map at '+width);
+   assert.ok(map.y>=details.y+details.height-1,'map follows form at '+width);
+   assert.equal(await page.locator('#rAddress').inputValue(),'Draft address');
+  }
+  await page.evaluate(()=>{document.querySelector('.r-overlay').classList.add('mobile-order','mobile-order-location');document.querySelector('header').dataset.windowMobile='true';});
+  assert.ok((await page.locator('#rMap').boundingBox()).height>=320);
+  await page.evaluate(()=>{const tabs=document.querySelector('.r-tabbar');tabs.classList.remove('single-tab');const button=document.createElement('button');button.textContent='Photos';tabs.append(button);});
+  assert.equal(await page.locator('.r-tabbar').isVisible(),true);
+ }finally{await browser.close();}
+});

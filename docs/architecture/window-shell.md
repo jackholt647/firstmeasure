@@ -4,12 +4,19 @@ Project and Contact windows use `FirstMateWindows` for placement, docking,
 minimization and close controls, and `FirstMateWindowShell` for their content
 layout declaration and tab styling.
 
-On mobile viewports (760px and narrower), both entity windows use fullscreen
-for every expanded placement. Only fullscreen, minimize/restore and close controls
-are shown; docking menus and drag/resize gestures are disabled. Restoring a
-minimized desktop window on mobile also expands fullscreen. The shared manager
-opts these windows in with `mobileFullscreen: true`, using the outer portal
-viewport even when project controls live in an iframe.
+On mobile viewports (760px and narrower), all shared windows default to full-screen
+with only a padded Close button. This covers the portal top bar. Docking, moving,
+resizing, minimizing and maximizing are unavailable, including when restoring a
+desktop placement. The manager uses the outer portal viewport even when the
+controls live in a narrow iframe. Apps may explicitly opt out with
+`mobileFullscreen: false`; omitting the option enables the mobile default.
+
+Project headers place the title at top left and Close at top right, with multiple
+tabs below. A lone tab is hidden. The legacy floating report Close is suppressed
+when shared chrome owns the window. Form layout responds separately to available
+content width: narrow desktop docks stack a full-width form above the map without
+switching to phone ordering. Mobile location entry reserves visible map space;
+later ordering steps use the form. Overview keeps one contact/address heading.
 
 ## Opening a layout
 

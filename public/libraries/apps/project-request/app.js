@@ -874,6 +874,8 @@ window.PlatformCommerce.onReady(async function(){
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card+.r-contact-card{border-top:1px solid #e4e7ec;padding-top:14px}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card::before{content:'Contact';grid-column:1 / -1;font-size:11px;font-weight:700;color:#667085;margin-bottom:4px}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card.primary::before{content:'Primary Contact'}
+    :is(.r-project-identity-popover,.r-overview-details) :is(.r-mobile-customer-label,.r-mobile-customer-heading){display:none!important}
+    :is(.r-project-identity-popover,.r-overview-details) :is(#rStepAddress,[data-identity-source-id="rStepAddress"]) .r-group>label{display:none}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card{display:block}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card::before{display:block;min-height:26px;padding-right:64px}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card .r-inline{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center}
@@ -2102,7 +2104,7 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.entitlement-tab-icons .r-tab{padding:0 10px;font-size:0}
       .r-overlay.entitlement-tab-icons .r-tab i{font-size:15px;margin:0}
     }
-    @media (max-width:720px){
+    @media (max-width:760px){
       .r-overlay{align-items:stretch}
       .r-win{width:var(--fm-visual-vw,100vw);height:var(--fm-visual-vh,100dvh);max-height:none;border-radius:0}
       /* Existing projects are a bottom-up workspace tray instead of a hard
@@ -2133,7 +2135,7 @@ window.PlatformCommerce.onReady(async function(){
       .r-contact-card .r-inline .r-group,.r-contact-card .r-contact-email-row .r-group{min-width:0}
       .r-contact-email-row.has-add{display:grid}
       .r-contact-menu-btn,.r-contact-primary{width:30px;height:30px;min-width:30px;border-radius:9px;font-size:11px}
-      .r-mobile-customer-label{display:flex;grid-column:1/-1}
+      .r-mobile-customer-label{display:none}
       .r-contact-list.has-multiple .r-contact-card{grid-template-columns:minmax(0,1fr) auto;padding:7px}
       .r-contact-list.has-multiple .r-contact-card.has-inline-add{grid-template-columns:minmax(0,1fr) auto}
       .r-contact-list.has-multiple + .r-contact-add{margin-top:2px}
@@ -2489,9 +2491,9 @@ window.PlatformCommerce.onReady(async function(){
     // A narrow desktop dock is not a phone viewport. Match the outer portal,
     // as the shared window manager does for its desktop controls.
     if (projectWindowBridge) {
-      try { return !!window.top.matchMedia?.('(max-width: 720px)')?.matches; } catch {}
+      try { return !!window.top.matchMedia?.('(max-width: 760px)')?.matches; } catch {}
     }
-    return !!window.matchMedia?.('(max-width: 720px)')?.matches;
+    return !!window.matchMedia?.('(max-width: 760px)')?.matches;
   }
 
   function shouldUseMobileOrderPagination(){
@@ -2963,7 +2965,10 @@ window.PlatformCommerce.onReady(async function(){
     });
     injectCSS('project-window', `
       .r-overlay.window-managed .r-win{flex-direction:row;animation:none}
-      .r-overlay.window-managed #rFullscreenToggle{display:none!important}
+      .r-overlay.window-managed #rFullscreenToggle,.r-overlay.window-managed #rMobileClose{display:none!important}
+      .r-overlay.window-managed .r-window-bar[data-window-mobile=true] #rProjectIdentityTrigger{max-width:100%;flex:1}
+      .r-overlay.window-managed .r-window-bar[data-window-mobile=true] #rWindowProjectTitle{font-size:18px}
+      .r-overlay.window-managed .r-window-bar[data-window-mobile=true] .r-project-tags{display:none}
       @media(min-width:1081px){.r-overlay.window-managed .r-right{margin-top:0}}
       @media(min-width:761px){.r-overlay.window-managed[data-window-mode="modal"] .r-win{border:0;border-radius:14px;box-shadow:0 36px 120px rgba(15,23,42,.28)}}
       .r-overlay.window-managed .r-window-bar{position:relative;min-height:48px;height:48px;display:flex;align-items:stretch;background:#fff;z-index:75;touch-action:none;user-select:none;cursor:default}

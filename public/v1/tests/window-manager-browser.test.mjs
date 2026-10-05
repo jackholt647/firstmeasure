@@ -64,7 +64,7 @@ test('docked header detaches under the pointer and expanded windows return to a 
  }finally{await browser.close();}
 });
 
-test('mobile project and contact windows stay fullscreen through placement and restore',async()=>{
+test('mobile windows default to fullscreen close-only chrome through every placement',async()=>{
  const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  try{
   const page=await browser.newPage({viewport:{width:390,height:844}});
@@ -77,17 +77,17 @@ test('mobile project and contact windows stay fullscreen through placement and r
     if(name==='project'){const frame=document.createElement('iframe');el.append(frame);doc=frame.contentDocument;}
     const header=doc.createElement('header'),title=doc.createElement('span'),input=doc.createElement('input');
     title.textContent=name;header.append(title);input.value='Unsaved draft';(name==='project'?doc.body:el).append(header,input);
-    window.entity=FirstMateWindows.attach({element:el,header,title,host:document.querySelector('main'),contentTarget:document.querySelector('#panels'),name,mode:'modal',presentationModes:true,mobileFullscreen:true,allowFullscreen:name!=='project',topInset:()=>50});
+    window.entity=FirstMateWindows.attach({element:el,header,title,host:document.querySelector('main'),contentTarget:document.querySelector('#panels'),name,mode:'modal',presentationModes:true,allowFullscreen:name!=='project',topInset:()=>50});
    },name);
    const ui=name==='project'?page.frameLocator('iframe'):page;
    assert.equal(await page.evaluate(()=>entity.state.mode),'fullscreen');
    assert.deepEqual(await page.locator('section').boundingBox(),{x:0,y:0,width:390,height:844});
-   assert.deepEqual(await ui.locator('[data-window-action]:visible').evaluateAll(nodes=>nodes.map(n=>n.dataset.windowAction).sort()),['close','maximize','minimize']);
+   assert.deepEqual(await ui.locator('[data-window-action]:visible').evaluateAll(nodes=>nodes.map(n=>n.dataset.windowAction).sort()),['close']);
    for(const mode of ['floating','docked','full','modal']){
     await page.evaluate(mode=>entity.setMode(mode),mode);assert.equal(await page.evaluate(()=>entity.state.mode),'fullscreen');
    }
    await ui.locator('header span').click({button:'right'});assert.equal(await page.locator('.fm-window-menu').count(),0);
-   await ui.locator('[data-window-action=minimize]').click();assert.equal(await page.evaluate(()=>entity.state.mode),'minimized');
+   await page.evaluate(()=>entity.setMode('minimized'));assert.equal(await page.evaluate(()=>entity.state.mode),'fullscreen');
    await page.evaluate(()=>entity.restore());assert.equal(await page.evaluate(()=>entity.state.mode),'fullscreen');
    assert.equal(await ui.locator('input').inputValue(),'Unsaved draft');
    await page.setViewportSize({width:1200,height:900});await page.evaluate(()=>entity.dock('right'));assert.equal(await page.evaluate(()=>entity.state.mode),'docked');
@@ -98,5 +98,17 @@ test('mobile project and contact windows stay fullscreen through placement and r
    await ui.locator('[data-window-action=close]').click();assert.equal(await page.evaluate(()=>entity.state.visible),false);
    await page.evaluate(()=>entity.destroy());
   }
+ }finally{await browser.close();}
+});
+
+ test('mobile window behavior can be explicitly overridden',async()=>{
+ const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:390,height:844}});
+  await page.setContent('<main style="height:800px"><section><header>Call</header></section></main>');
+  await page.addScriptTag({content:await readFile(new URL('../../libraries/window-manager/window-manager.js',import.meta.url),'utf8')});
+  await page.evaluate(()=>window.controller=FirstMateWindows.attach({element:document.querySelector('section'),header:document.querySelector('header'),host:document.querySelector('main'),mobileFullscreen:false,mode:'floating'}));
+  assert.equal(await page.evaluate(()=>controller.state.mode),'floating');
+  assert.deepEqual(await page.locator('[data-window-action]:visible').evaluateAll(nodes=>nodes.map(n=>n.dataset.windowAction).sort()),['close','maximize','minimize','place']);
  }finally{await browser.close();}
 });

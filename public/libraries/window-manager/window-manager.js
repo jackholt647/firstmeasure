@@ -30,6 +30,11 @@
 .fm-window-controls button:hover{background:#66708520}.fm-window-controls button[data-window-action=close]:hover{background:#d92d20;color:#fff}
 .fm-window[data-window=minimized]{border-radius:7px}.fm-window[data-window=minimized] .fm-window-header{height:30px;min-height:30px;padding:0 6px}.fm-window[data-window=minimized] .fm-window-controls button{height:28px!important;min-height:28px!important;width:24px!important}.fm-window[data-window=minimized] .fm-window-controls button:not([data-window-action=minimize]):not([data-window-action=close]):not([data-minimized-visible]){display:none!important}
 .fm-window[data-window=minimized] .fm-window-minimized-identity{display:flex;align-items:center;gap:7px;min-width:0;font-size:12px;font-weight:400;line-height:normal}.fm-window[data-window=minimized] .fm-window-minimized-identity>i{display:grid;place-items:center;flex:none;width:20px;height:20px;padding:0;border-radius:0;background:none;color:var(--primary,#d93025);font-size:15px}.fm-window[data-window=minimized] .fm-window-minimized-identity strong{font:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fm-window[data-window-mobile=true]{border:0!important;border-radius:0!important;transition:none!important}
+.fm-window[data-window-mobile=true] .fm-window-resize{display:none!important}
+.fm-window-controls[data-window-mobile=true]{align-items:center;padding:8px;gap:0!important;height:60px!important}
+.fm-window-controls[data-window-mobile=true] button[data-window-action=close]{width:44px!important;height:44px!important;min-height:44px!important;margin:0;border:1px solid #e4e7ec!important;border-radius:14px!important;background:#fff;font-size:18px}
+.fm-window-header[data-window-mobile=true]{min-height:60px;padding:0 0 0 16px}
 .fm-window-content{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .fm-window[data-window=minimized] .fm-window-content,.fm-window[data-window=minimized] [data-window-secondary]{display:none!important}
 .fm-window-resize{display:none;position:absolute;z-index:10;touch-action:none}.fm-window[data-window=floating] .fm-window-resize{display:block}
@@ -164,7 +169,10 @@
     let header = options.header, title = options.title;
     if (!element || !header || !options.host) throw new Error('Window requires an element, header and host');
     const host = options.host;
-    const mobileFullscreen = () => options.mobileFullscreen === true && root.matchMedia('(max-width: 760px)').matches;
+    const mobileFullscreen = () => {
+      if (options.mobileFullscreen === false) return false;
+      try { return root.top.matchMedia('(max-width: 760px)').matches; } catch { return root.matchMedia('(max-width: 760px)').matches; }
+    };
     let headerDocument = header.ownerDocument;
     function outerPoint(event){const frame=headerDocument!==document ? headerDocument.defaultView.frameElement?.getBoundingClientRect() : null;return {x:event.clientX+(frame?.left||0),y:event.clientY+(frame?.top||0)};}
     if (headerDocument !== document) {
@@ -187,7 +195,7 @@
       win.rect.width=Math.min(width,Math.max(Math.min(win.minWidth,width),Math.min(win.rect.width,width*.72)));
       win.rect.height=Math.min(height,Math.max(Math.min(win.minHeight,height),Math.min(win.rect.height,height*.60)));
     }
-    if (mobileFullscreen() && win.mode !== 'minimized') win.mode = 'fullscreen';
+    if (mobileFullscreen()) win.mode = 'fullscreen';
     fitFloatingSize();
     win.rect.left=Math.max(0,host.clientWidth-win.rect.width-24);
     windows.add(win); element.classList.add('fm-window'); if (!options.customChrome) header.classList.add('fm-window-header'); title?.classList.add('fm-window-title'); if (options.titleMenu === false) title?.classList.add('fm-window-title-plain'); options.body?.classList.add('fm-window-content');
@@ -210,11 +218,12 @@
       element.dataset.window = win.mode; element.dataset.pinned=String(win.pinned);
       if (win.mode !== 'docked') element.querySelectorAll('.is-dock-divider').forEach(grip=>grip.classList.remove('is-dock-divider'));
       const mobile = mobileFullscreen();
+      element.dataset.windowMobile = header.dataset.windowMobile = controls.dataset.windowMobile = String(mobile);
       const dock = true;
       title?.classList.toggle('fm-window-title-plain', mobile || options.titleMenu === false);
       controls.style.setProperty('display', mobile ? 'flex' : '', mobile ? 'important' : '');
       for (const [action, button] of Object.entries(buttons)) {
-        button.style.setProperty('display', mobile && !['minimize','maximize','close'].includes(action) ? 'none' : '', mobile ? 'important' : '');
+        button.style.setProperty('display', mobile && action !== 'close' ? 'none' : '', mobile ? 'important' : '');
       }
       const labels = {place:`${dock ? 'Dock' : 'Float'} ${name}`,minimize:`${win.mode === 'minimized' ? 'Restore' : 'Minimize'} ${name}`,maximize:`${win.mode === 'full' ? 'Float' : 'Maximize'} ${name}`,close:`Close ${name}`,modal:`Show ${name} as a modal`,floating:`Float ${name}`,fullscreen:`Fill entire screen with ${name}`,pin:`${win.pinned ? 'Unpin' : 'Pin'} ${name}`};
       labels.place=`Dock ${name} to the ${win.mode==='docked' && win.dockSide==='right' ? 'left' : 'right'} (right-click for placement)`;
@@ -242,8 +251,8 @@
     }
     function notify(reason){ options.onChange?.({mode:win.mode,dockSide:win.dockSide,pinned:win.pinned,reason}); }
     function setMode(mode,{silent=false}={}){
-      if (mobileFullscreen() && modes.includes(mode) && mode !== 'minimized') mode = 'fullscreen';
-      if (!modes.includes(mode) || (options.compactCall && !['floating','docked','minimized'].includes(mode)) || (mode==='fullscreen' && options.allowFullscreen===false && !mobileFullscreen())) return;
+      if (mobileFullscreen() && modes.includes(mode)) mode = 'fullscreen';
+      if (!modes.includes(mode) || (options.compactCall && !mobileFullscreen() && !['floating','docked','minimized'].includes(mode)) || (mode==='fullscreen' && options.allowFullscreen===false && !mobileFullscreen())) return;
       if (mode !== win.mode) {
         options.onBeforeModeChange?.({mode,previous:win.mode});
         if (mode === 'minimized') win.previous = win.mode;
@@ -367,7 +376,7 @@
         else{if(['top','bottom'].includes(win.dockSide))win.dockHeight=win.host.clientHeight-win.topInset()-a.height;else win.dockWidth=win.contentTarget?.clientWidth || win.host.clientWidth-a.width;dock(['top','bottom'].includes(win.dockSide) ? (win.dockSide==='top' ? 'bottom':'top') : win.dockSide.replace(/left|right/g,part=>part==='left' ? 'right':'left'));}
       });
       grip.addEventListener('keydown',event=>{
-        if(!event.key.startsWith('Arrow'))return;event.preventDefault();const dx=event.key==='ArrowLeft'?-16:event.key==='ArrowRight'?16:0,dy=event.key==='ArrowUp'?-16:event.key==='ArrowDown'?16:0;
+        if(mobileFullscreen() || !event.key.startsWith('Arrow'))return;event.preventDefault();const dx=event.key==='ArrowLeft'?-16:event.key==='ArrowRight'?16:0,dy=event.key==='ArrowUp'?-16:event.key==='ArrowDown'?16:0;
         if(win.mode==='docked'){if(['top','bottom'].includes(win.dockSide))win.dockHeight=Math.max(120,win.dockHeight+(win.dockSide==='top' ? dy : -dy));else win.dockWidth=Math.max(win.minWidth,win.dockWidth+(win.dockSide.endsWith('left') ? dx : -dx));}
         else {if(edge.includes('w')){const w=Math.max(win.minWidth,win.rect.width-dx);win.rect.left+=win.rect.width-w;win.rect.width=w;}if(edge.includes('e'))win.rect.width+=dx;if(edge.includes('n')){const h=Math.max(win.minHeight,win.rect.height-dy);win.rect.top+=win.rect.height-h;win.rect.height=h;}if(edge.includes('s'))win.rect.height+=dy;}
         layout(win.host);
@@ -376,7 +385,7 @@
     const refreshViewport=()=>{
       if (mobileFullscreen()) {
         endGesture?.(); closeMenu();
-        if (win.mode !== 'minimized' && win.mode !== 'fullscreen') { setMode('fullscreen'); return; }
+        if (win.mode !== 'fullscreen') { setMode('fullscreen'); return; }
       }
       chrome(); layout(win.host);
     }; window.addEventListener('resize',refreshViewport);
