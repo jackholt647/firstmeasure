@@ -189,3 +189,10 @@ test('Settings owns preset editing and preserves server concurrency errors',asyn
   await page.evaluate(()=>window.conflict=false);await page.locator('[data-delete-preset]').click();await page.getByText('Preset deleted.',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.saved.at(-1).catalog.presets.length),0);
  }finally{await browser.close();}
 });
+test('Settings disables preset navigation while its editor is loading',async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{const page=await browser.newPage();await page.route('http://localhost/**',r=>r.fulfill({body:'<div id="settings"></div>',contentType:'text/html'}));await page.goto('http://localhost/');for(const content of [configuration,settings])await page.addScriptTag({content});
+ await page.evaluate(()=>{let calls=0;const data={can_manage:true,revision:1,resources:[],catalog:{departments:[],groups:[],presets:[{id:'existing',label:'Existing preset',configuration:{title:'Existing appointment'}}]}};window.PlatformAPI={appointments:{catalog:async()=>{if(++calls===2)await new Promise(resolve=>window.finishLoading=resolve);return structuredClone(data);}}};window.mounting=FirstMateAppointmentSettings.mount(document.querySelector('#settings'),'org');});
+ await page.waitForFunction(()=>window.finishLoading);assert.equal(await page.locator('[data-new-preset]').isDisabled(),true);await page.evaluate(async()=>{window.finishLoading();await window.mounting;});await page.locator('[data-new-preset]').click();await page.waitForFunction(()=>!document.querySelector('[data-new-preset]').disabled);assert.equal(await page.locator('[data-preset-label]').inputValue(),'');assert.equal(await page.locator('[data-title]').inputValue(),'Appointment');
+ }finally{await browser.close();}
+});
