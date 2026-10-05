@@ -2,6 +2,8 @@
  * Project modal Materials tab.
  */
 (function(){
+  let materialsAPI;
+  const calculusAdapterUrl = new URL('./calculus-native.js?v=20261005', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
   const util = Portal?.util || {};
@@ -277,7 +279,7 @@
       && operation.projectId === projectId();
   }
   function apiReady(){
-    return !!(window.MaterialsAPI?.projects && orgId() && projectId());
+    return !!((materialsAPI || window.MaterialsAPI)?.projects && orgId() && projectId());
   }
   function pricebook(){
     return window.FirstMatePricebook || window.Portal?.modules?.pricebook || null;
@@ -1708,7 +1710,7 @@
 
   async function initializeMaterialListsFromScope(options = {}){
     const loadContext = options.loadContext;
-    if (!loadContextIsCurrent(loadContext) || !apiReady() || !window.MaterialsAPI?.projects?.initializeFromScope) return null;
+    if (!loadContextIsCurrent(loadContext) || !apiReady() || !(materialsAPI || window.MaterialsAPI)?.projects?.initializeFromScope) return null;
     const requestOrgId = loadContext?.orgId || orgId();
     const requestProjectId = loadContext?.projectId || projectId();
     const requestBranchId = loadContext?.branchId || branchId();
@@ -1723,7 +1725,7 @@
       source: 'materials_tab'
     };
     try {
-      const result = await window.MaterialsAPI.projects.initializeFromScope(requestOrgId, requestProjectId, payload);
+      const result = await (materialsAPI || window.MaterialsAPI).projects.initializeFromScope(requestOrgId, requestProjectId, payload);
       if (!loadContextIsCurrent(loadContext)) return null;
       const lists = Array.isArray(result?.material_lists) ? result.material_lists : Array.isArray(result?.lists) ? result.lists : null;
       if (lists) {
@@ -1777,8 +1779,9 @@
     render();
     try {
       if (!apiReady()) throw new Error('materials_api_unavailable');
+      if (!materialsAPI) materialsAPI = (await import(calculusAdapterUrl)).nativeCalculusAPI(window.MaterialsAPI, projectId);
       const ancillary = Promise.allSettled([loadPricebookItems(loadContext), loadWorkResources(loadContext), requestMeasurementHydration()]);
-      const result = await window.MaterialsAPI.projects.list(loadContext.orgId, loadContext.projectId);
+      const result = await (materialsAPI || window.MaterialsAPI).projects.list(loadContext.orgId, loadContext.projectId);
       if (!loadContextIsCurrent(loadContext)) return;
       applyMaterialLists(Array.isArray(result.material_lists) ? result.material_lists : []);
       state.loading = false;
@@ -1824,7 +1827,7 @@
       },
       metadata: { source: 'materials_tab', primary: true, role: 'primary_materials' }
     };
-    const result = await window.MaterialsAPI.projects.create(orgId(), projectId(), payload);
+    const result = await (materialsAPI || window.MaterialsAPI).projects.create(orgId(), projectId(), payload);
     return result.material_list || null;
   }
 
@@ -1842,14 +1845,14 @@
       && loadContextIsCurrent(loadContext)
     );
     const [versionsResult, ordersResult] = await Promise.all([
-      window.MaterialsAPI.lists.versions(requestOrgId, requestListId).catch(() => ({ versions: [] })),
-      window.MaterialsAPI.lists.orders(requestOrgId, requestListId).catch(() => ({ orders: [] }))
+      (materialsAPI || window.MaterialsAPI).lists.versions(requestOrgId, requestListId).catch(() => ({ versions: [] })),
+      (materialsAPI || window.MaterialsAPI).lists.orders(requestOrgId, requestListId).catch(() => ({ orders: [] }))
     ]);
     if (!requestIsCurrent()) return;
     const nextVersions = Array.isArray(versionsResult.versions) ? versionsResult.versions : [];
     const nextOrders = Array.isArray(ordersResult.orders) ? ordersResult.orders : [];
     const deliveryPairs = await Promise.all(nextOrders.map((order) => {
-      return window.MaterialsAPI.orders.deliveries(requestOrgId, order.id)
+      return (materialsAPI || window.MaterialsAPI).orders.deliveries(requestOrgId, order.id)
         .then((result) => [order.id, Array.isArray(result.deliveries) ? result.deliveries : []])
         .catch(() => [order.id, []]);
     }));
@@ -1933,7 +1936,7 @@
   async function patchScopeResourceList(listId, patch, operation = captureProjectOperation(listId)){
     const list = materialListById(listId);
     if (!list || !apiReady() || !projectOperationIsCurrent(operation)) return null;
-    const result = await window.MaterialsAPI.lists.patch(operation.orgId, operation.listId, {
+    const result = await (materialsAPI || window.MaterialsAPI).lists.patch(operation.orgId, operation.listId, {
       expected_revision: Number(list.revision || 0) || undefined,
       ...patch
     });
@@ -2100,7 +2103,7 @@
     state.creatingList = true;
     form.querySelectorAll('button,input,select').forEach((control) => { control.disabled = true; });
     try {
-      const result = await window.MaterialsAPI.projects.create(orgId(), projectId(), {
+      const result = await (materialsAPI || window.MaterialsAPI).projects.create(orgId(), projectId(), {
         title,
         resource_type: type,
         terminology: { singular: terms.singular, plural: terms.plural, list: terms.list },
@@ -2170,12 +2173,12 @@
   async function ensureScheduleEventForList(list, source = 'scope_tab'){
     let currentList = materialListById(list?.id) || list;
     let event = linkedScheduleEvent(currentList);
-    if (!currentList || !apiReady() || !window.MaterialsAPI?.lists?.scheduleEvent) return { list: currentList, event };
+    if (!currentList || !apiReady() || !(materialsAPI || window.MaterialsAPI)?.lists?.scheduleEvent) return { list: currentList, event };
     const type = resourceType(currentList);
     const terms = resourceTerms(type, currentList);
     const workResourceRef = type === 'labor' ? assignmentWorkResourceRef(currentList) : null;
     const schedule = currentList.schedule || {};
-    const result = await window.MaterialsAPI.lists.scheduleEvent(orgId(), currentList.id, {
+    const result = await (materialsAPI || window.MaterialsAPI).lists.scheduleEvent(orgId(), currentList.id, {
       project_id: projectId(),
       branch_id: branchId(),
       event: {
@@ -2242,7 +2245,7 @@
       timingMark('persistVersion:end', { reason: payload?.reason || '', local: true, items: listItems(nextList).length }, timingStart);
       return localResult;
     }
-    const result = await window.MaterialsAPI.lists.createVersion(orgId(), targetList.id, {
+    const result = await (materialsAPI || window.MaterialsAPI).lists.createVersion(orgId(), targetList.id, {
       expected_revision: targetList.revision,
       ...payload
     });
@@ -2329,7 +2332,7 @@
   }
 
   async function regenerateMaterialListsFromScope(){
-    if (!apiReady() || !window.MaterialsAPI?.projects?.initializeFromScope) {
+    if (!apiReady() || !(materialsAPI || window.MaterialsAPI)?.projects?.initializeFromScope) {
       showToast((globalThis.PlatformLanguage?.text("materials","m_d9e2e6ecf3e384","Scope regeneration unavailable") ?? "Scope regeneration unavailable"), (globalThis.PlatformLanguage?.text("materials","m_6ae9948e2fd11a","Materials API is not ready for this project.") ?? "Materials API is not ready for this project."), false);
       return;
     }
@@ -2360,7 +2363,7 @@
         throw new Error('No resource lists were generated. Choose a project scope with material, labor, or equipment list definitions in the Scope builder, then regenerate. A FirstMeasure report supplies measurements; the scope defines the lists.');
       }
       if (!projectOperationIsCurrent(operation)) return;
-      const refreshed = await window.MaterialsAPI.projects.list(operation.orgId, operation.projectId);
+      const refreshed = await (materialsAPI || window.MaterialsAPI).projects.list(operation.orgId, operation.projectId);
       if (!projectOperationIsCurrent(operation)) return;
       applyMaterialLists(Array.isArray(refreshed.material_lists) ? refreshed.material_lists : []);
       await loadActiveListDetails();
@@ -2415,7 +2418,7 @@
           }
         }
       });
-      const refreshed = await window.MaterialsAPI.projects.list(orgId(), projectId());
+      const refreshed = await (materialsAPI || window.MaterialsAPI).projects.list(orgId(), projectId());
       applyMaterialLists(Array.isArray(refreshed.material_lists) ? refreshed.material_lists : []);
       await loadExpenseProjection();
       render({ preserveScroll: true });
@@ -3096,7 +3099,7 @@
             schedule: { ...(list.schedule || {}), locked: list.schedule?.lock_on_order !== false }
           });
         } else {
-          const result = await window.MaterialsAPI.lists.createOrder(orgId(), list.id, {
+          const result = await (materialsAPI || window.MaterialsAPI).lists.createOrder(orgId(), list.id, {
             expected_revision: list.revision,
             ...payload
           });
@@ -3131,7 +3134,7 @@
         state.deliveriesByOrderId[orderId] = [{ id: uid('local_delivery'), status: 'delivered', actual_delivered_at: deliveredAt }];
         state.orders = state.orders.map((order) => order.id === orderId ? { ...order, delivery_status: 'delivered' } : order);
       } else {
-        await window.MaterialsAPI.orders.recordDelivery(orgId(), orderId, {
+        await (materialsAPI || window.MaterialsAPI).orders.recordDelivery(orgId(), orderId, {
           status: 'delivered',
           actual_delivered_at: deliveredAt
         });
@@ -4538,12 +4541,12 @@
     const eventParts = eventDateParts(linkedScheduleEvent(list));
     const schedulePending = resourceSchedulePending(list);
     const incomplete = resourceListIncomplete(list);
-    const status = type === 'material'
+    const status = list.metadata?.calculus_pending ? 'Ready to generate from signed document' : type === 'material'
       ? (!ordered ? 'Not ordered' : (schedulePending ? 'Not scheduled' : 'Ordered'))
       : (resourceScheduleEnabled(list) ? (eventParts.date ? `Scheduled ${eventParts.date}` : 'Not scheduled') : 'Ready');
-    const controls = type === 'labor' ? renderLaborListControls(list) : renderListActionControls(list, type, ordered);
+    const controls = list.metadata?.calculus_pending ? `<div class="mt-list-secondary"><button type="button" data-mt-generate="${escapeHtml(id)}">Generate materials</button></div>` : type === 'labor'  ? renderLaborListControls(list) : renderListActionControls(list, type, ordered);
     return `<div class="mt-list-wrap${controls ? ' with-controls' : ''}" data-mt-list-wrap="${escapeHtml(id)}"><div class="mt-list-card ${state.activeListId === id ? 'active' : ''} ${incomplete ? 'incomplete' : 'complete'}" style="--list-color:${escapeHtml(color)}" data-mt-list-select="${escapeHtml(id)}" role="button" tabindex="0" aria-current="${state.activeListId === id ? 'true' : 'false'}">
-      <span class="mt-list-card-copy"><strong>${escapeHtml(list.title || terms.list)}</strong><span><i class="fas ${type === 'material' && ordered ? 'fa-lock' : terms.icon}"></i>${escapeHtml(status)}</span></span>
+      <span class="mt-list-card-copy"><strong>${escapeHtml(list.title || terms.list)}</strong><span><i class="fas ${type === 'material' && ordered ? 'fa-lock' : terms.icon}"></i>${escapeHtml(status)}</span>${list.metadata?.source_document ? `<span>From ${escapeHtml(list.metadata.source_document)}</span>` : ''}${(list.metadata?.calculation_warnings || []).map(message=>`<span class="mt-small">${escapeHtml(message)}</span>`).join('')}</span>
       <span class="mt-list-card-actions"><button type="button" class="mt-list-eye ${visible ? 'visible' : ''}" style="--list-color:${escapeHtml(color)}" data-mt-list-visibility="${escapeHtml(id)}" title="${visible ? 'Hide' : 'Show'} ${escapeHtml(list.title || terms.list)}" aria-pressed="${visible ? 'true' : 'false'}"><i class="fas fa-eye${visible ? '' : '-slash'}"></i></button></span>
     </div>${controls}</div>`;
   }
@@ -4778,6 +4781,16 @@
         activate();
       });
     });
+    root.querySelectorAll('[data-mt-generate]').forEach(button => button.addEventListener('click', async event => {
+      event.stopPropagation(); button.disabled = true;
+      try {
+        const result = await materialsAPI.calculus.generate(button.dataset.mtGenerate);
+        updateMaterialListState(result.material_list);
+        renderLeft(); syncMaterialsGrid(); syncTopBar();
+        showToast('Materials generated', 'Review the quantities and any missing measurement warnings before ordering.', true);
+      } catch(error) { showToast('Could not generate materials', error.message, false); }
+      finally { button.disabled = false; }
+    }));
     root.querySelectorAll('[data-mt-list-visibility]').forEach((button) => {
       button.addEventListener('click', (event) => {
         event.stopPropagation();

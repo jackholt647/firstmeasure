@@ -18,9 +18,9 @@ const object = (v: unknown): JsonObject => v && typeof v === "object" && !Array.
 const identity = (prefix: string, value: unknown) => `${prefix}_${contentHash(value).slice(0, 32)}`;
 type Line = Requirement & { id: string; order_quantity: number; order_unit: string; lineage: string[] };
 type Evaluation = { id: string; base_revision: number; inputs: JsonObject; lines: Requirement[]; warnings: string[]; evidence: JsonObject; at: string; definition_hash: string };
-type SetRecord = { id: string; title: string; definition: CalculusDefinition; document: JsonObject; origin: JsonObject; revision: number; lines: Line[]; evaluations: Evaluation[]; history: JsonObject[]; applied_evaluation?: string };
+type SetRecord = { id: string; title: string; presentation?: JsonObject; definition: CalculusDefinition; document: JsonObject; origin: JsonObject; revision: number; lines: Line[]; evaluations: Evaluation[]; history: JsonObject[]; applied_evaluation?: string };
 type Allocation = { id: string; set_id: string; line_id: string; line: Line; quantity: number; cancelled: number; received: number; returned: number; unit_cost?: number; currency: string };
-type Order = { id: string; supplier: string; reference: string; at: string; lines: Allocation[] };
+type Order = { presentation?: JsonObject; id: string; supplier: string; reference: string; at: string; lines: Allocation[] };
 type Delivery = { id: string; title: string; date: string; allocations: string[] };
 export type MaterialsLedger = { revision: number; project_id: string; sets: SetRecord[]; orders: Order[]; deliveries: Delivery[]; events: JsonObject[]; receipts: Record<string, { hash: string; result: JsonObject }> };
 const empty = (project: string): MaterialsLedger => ({ revision: 0, project_id: project, sets: [], orders: [], deliveries: [], events: [], receipts: {} });
@@ -160,6 +160,16 @@ export async function materialsCommand(ctx: PublicationContext, project: string,
 }
 async function execute(ctx: PublicationContext, ledger: MaterialsLedger, command: CalculusCommand, at: string): Promise<JsonObject> {
   const input = command.input; const key = command.key;
+  if (command.operation === 'configure') {
+    const parsed = z.object({set_id:z.string(),set_revision:z.number().int().nonnegative(),title:z.string().min(1).max(200).optional(),presentation:z.record(z.unknown()).optional()}).strict().parse(input);
+    const set = findSet(ledger,parsed.set_id);
+    if(set.revision !== parsed.set_revision) throw conflict('material_set_revision','The material set changed. Refresh and try again.');
+    const previous = {title:set.title,presentation:set.presentation};
+    if(parsed.title)set.title=parsed.title;
+    if(parsed.presentation)set.presentation={...set.presentation,...parsed.presentation};
+    set.revision++;
+    return {set_id:set.id,previous,set_revision:set.revision};
+  }
   if (command.operation === "create") {
     const definition = validateCalculus(input.definition);
     const id = identity("set", key);
@@ -198,7 +208,7 @@ async function execute(ctx: PublicationContext, ledger: MaterialsLedger, command
   }
   if (command.operation === "amend") return amend(ledger, findSet(ledger, input.set_id), input, key, at);
   if (command.operation === "order") {
-    const parsed = z.object({ supplier: z.string().min(1).max(300), reference: z.string().max(300).default(""), lines: z.array(z.object({ set_id: z.string(), line_id: z.string(), quantity: z.number().finite().positive().max(1e12), unit_cost: z.number().finite().nonnegative().max(1e12).optional() }).strict()).min(1).max(1000) }).strict().parse(input);
+    const parsed = z.object({ presentation: z.record(z.unknown()).optional(), supplier: z.string().min(1).max(300), reference: z.string().max(300).default(""), lines: z.array(z.object({ set_id: z.string(), line_id: z.string(), quantity: z.number().finite().positive().max(1e12), unit_cost: z.number().finite().nonnegative().max(1e12).optional() }).strict()).min(1).max(1000) }).strict().parse(input);
     const seen = new Set<string>();
     const lines = parsed.lines.map((item, index): Allocation => {
       const set = findSet(ledger, item.set_id); const line = set.lines.find(l => l.id === item.line_id);
@@ -208,7 +218,7 @@ async function execute(ctx: PublicationContext, ledger: MaterialsLedger, command
       const unitCost = item.unit_cost ?? line.unit_cost;
       return { id: identity("allocation", [key, index]), set_id: set.id, line_id: line.id, line: jsonClone(line), quantity: item.quantity, cancelled: 0, received: 0, returned: 0, ...(unitCost !== undefined ? { unit_cost: unitCost } : {}), currency: line.currency };
     });
-    const order = { id: identity("order", key), supplier: parsed.supplier, reference: parsed.reference, at, lines };
+    const order = { presentation: parsed.presentation, id: identity("order", key), supplier: parsed.supplier, reference: parsed.reference, at, lines };
     ledger.orders.push(order); return { order_id: order.id };
   }
   if (command.operation === "delivery") {

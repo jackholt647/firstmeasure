@@ -684,9 +684,9 @@ function materialEventOrderState(list: JsonObject) {
   return ORDERED_STATUSES.has(cleanText(list.status)) ? "ordered" : "unordered";
 }
 
-export async function ensureMaterialListScheduleEvent(orgId: string, listId: string, input: JsonObject = {}) {
+export async function ensureMaterialListScheduleEvent(orgId: string, listId: string, input: JsonObject = {}, projectedList?: JsonObject) {
   await requireMaterialsFlag(orgId);
-  const listDoc = await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId);
+  const listDoc = projectedList ? { data: projectedList, id: listId, metadata: {} } : await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId);
   const list = documentView(listDoc);
   const projectId = cleanText(list.project_id);
   if (!projectId) throw badRequest("material_list_project_missing", "The material list is not linked to a project.");
@@ -947,7 +947,7 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
     },
     updated_at: now
   };
-  if (!semanticallyEqualStored(list, nextListData)) {
+  if (!projectedList && !semanticallyEqualStored(list, nextListData)) {
     await upsertDocument(orgId, MATERIAL_LIST_COLLECTION, {
       id: listId,
       data: nextListData,

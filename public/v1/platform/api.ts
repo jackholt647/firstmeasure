@@ -1,3 +1,4 @@
+import { effectiveNavigationPreferences } from './navigation-defaults.js';
 import { developmentReportsAllowed, pickDevelopmentReport, copyDevelopmentReport } from '../firstmeasure/development_reports.js';
 import { registerContactRoutes } from "../contacts/api.js";
 import { resolveContact } from "../contacts/service.js";
@@ -958,7 +959,7 @@ app.get("/auth/google/config", async () => ({
 
   app.get("/me/preferences", async (request) => {
     const ctx = await requirePlatformAuth(request, { application: false });
-    const preferences = asObject(ctx.identity.preferences);
+    const preferences = effectiveNavigationPreferences(ctx.organization, ctx.identity.preferences);
     return {
       ok: true,
       preferences: {
@@ -984,7 +985,7 @@ app.get("/auth/google/config", async () => ({
   app.patch("/me/preferences", async (request) => {
     const ctx = await requirePlatformAuth(request, { application: false, csrf: true });
     const patch = userPreferencesSchema.parse(request.body ?? {});
-    const current = asObject(ctx.identity.preferences);
+    const current = effectiveNavigationPreferences(ctx.organization, ctx.identity.preferences);
     if (patch.interface_locale !== undefined && patch.interface_locale !== (current.interface_locale ?? null) && !await isAppFlagEnabled(ctx.orgId, "firstmeasure", "report_localization")) throw forbidden("localization_disabled", "Language customization is not enabled for this organization.");
     const preferences = {
       ...current,

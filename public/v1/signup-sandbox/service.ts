@@ -438,6 +438,9 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
   for (const [path, value] of Object.entries(asObject(workflowDefaults.settings))) {
     if (value !== USER_CHOICE) setDeepPath(globalData, path, value);
   }
+  if (workflowId === 'swf_instant_full_org') {
+    globalData.roofing_setup = { template: 'roofing', completed: true, services: ['roofing', 'gutters', 'siding'], job_types: ['roof_replacement', 'roof_repair', 'gutter_replacement', 'siding'], test_document_pack: 1 };
+  }
   const organization = await createOrganization({
     name: orgName,
     metadata: {
@@ -506,6 +509,7 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
   // Instant development organizations start ready to test using the existing
   // shared transport. Other workflows still exercise their onboarding stages.
   if (env.dataEnvironment === 'development' && workflowId === 'swf_instant_full_org') {
+    await (await import('./roofing-documents.js')).seedInstantRoofingDocuments(String(organization.id), ctx);
     try {
       await completeDevelopmentOnboarding(ctx);
     } catch (error) {

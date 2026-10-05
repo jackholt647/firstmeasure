@@ -1,4 +1,5 @@
 import { routeNeedsExpandedPlatform } from "./rollout_routes.js";
+import { effectiveNavigationPreferences } from './navigation-defaults.js';
 
 import { findIdentityByIdentifier, readAuthSession } from "./storage.js";
 
@@ -374,7 +375,7 @@ export function publicAuthContext(ctx: PlatformAuthContext) {
     authenticated: true,
     platform_expanded_access: ctx.capabilities?.effectiveByKey["platform.expanded_access"] === true,
     platform_assistant_access: ctx.capabilities?.effectiveByKey["apps.assistant"] === true,
-    identity: publicIdentity(ctx.identity),
+    identity: publicIdentity({ ...ctx.identity, preferences: effectiveNavigationPreferences(ctx.organization, ctx.identity.preferences) }),
     organization: ctx.organization,
     user: sanitizeUser(ctx.userDocument, ctx.accessProfile),
     membership: {

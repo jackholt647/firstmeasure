@@ -50,6 +50,7 @@ test('existing lists render before slow catalog calls and refresh does not gener
     applyMaterialLists: lists => { state.lists = lists; }, render: () => events.push(state.lists.length), renderLeft() {},
     initializeMaterialListsFromScope: () => { throw Error('must not regenerate existing lists'); },
     loadActiveListDetails: async () => {}, loadExpenseProjection: async () => {}, listItems: () => [] };
+  ctx.materialsAPI = ctx.window.MaterialsAPI;
   vm.createContext(ctx); vm.runInContext(fn('loadData'), ctx);
   const loading = ctx.loadData();
   await new Promise(resolve => setImmediate(resolve));
@@ -62,6 +63,7 @@ test('explicit regeneration surfaces permission errors instead of treating them 
   const ctx = { state: { lists: [] }, loadContextIsCurrent: () => true, apiReady: () => true,
     orgId: () => 'org', projectId: () => 'project', branchId: () => 'branch', scopeForMaterials: () => ({}),
     window: { MaterialsAPI: { projects: { initializeFromScope: async () => { throw Object.assign(Error('denied'), { status: 403 }); } } } } };
+  ctx.materialsAPI = ctx.window.MaterialsAPI;
   vm.createContext(ctx); vm.runInContext(fn('initializeMaterialListsFromScope'), ctx);
   assert.equal(await ctx.initializeMaterialListsFromScope(), null);
   await assert.rejects(ctx.initializeMaterialListsFromScope({ force: true }), /denied/);
