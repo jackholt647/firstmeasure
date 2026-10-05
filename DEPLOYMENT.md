@@ -1,4 +1,6 @@
 # FirstMeasure: local development and production deployment
+October 5 Connections UI: [Full-height assistant and visible hover buttons](deploy/digitalocean/development-connections-layout-20261005.md) records independent scrolling, compact spacing, native browser checks and verified development rollout.
+
 October 5 Connections: [External connections and shared agent setup](deploy/digitalocean/development-external-connections-20261005.md) records secure credentials, shared publications, Instant Full Org verification and the four-role development rollout.
 
 
