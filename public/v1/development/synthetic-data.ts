@@ -6,7 +6,7 @@ import { hasPermission, type PlatformAuthContext } from '../platform/auth.js';
 import { readOrganization, readDocument, listDocuments, upsertDocument, type JsonObject } from '../platform/storage.js';
 import { sandboxStore, sandboxError } from '../signup-sandbox/storage.js';
 import { isCapabilityEnabled } from '../platform/capabilities.js';
-import { sampleId, seedCustomers, seedProjects, seedEquipment, seedChannels } from './fixtures.js';
+import { currentSyntheticBatch, withSyntheticBatch, sampleId, seedCustomers, seedProjects, seedEquipment, seedChannels } from './fixtures.js';
 
 export const COMPANIES = [{ id: 'roofing', label: 'Roofing & exteriors' }];
 export const CATEGORIES = [
@@ -20,7 +20,7 @@ export const CATEGORIES = [
  { id: 'communication', label: 'Communication', description: 'Sample inbox messages and channel replies', icon: 'fa-comments' }
 ];
 const selection = z.object(Object.fromEntries(CATEGORIES.map(c => [c.id, z.boolean().default(true)]))).strict();
-const inputSchema = z.object({ company: z.literal('roofing').default('roofing'), categories: selection }).strict();
+const inputSchema = z.object({ company: z.literal('roofing').default('roofing'), categories: selection, amount: z.number().int().min(1).max(10).default(1), request_id: z.string().uuid().optional() }).strict();
 const metadata = { synthetic: true, source: 'development_tools', version: 1 };
 export async function requireDevelopmentOrganization(ctx: PlatformAuthContext) {
  if (env.isProduction || env.dataEnvironment !== 'development') throw sandboxError(404, 'not_found', 'Not found.');
@@ -41,7 +41,9 @@ async function insert(org: string, collection: string, id: string, data: JsonObj
 const projectKeys = ['maple','cedar','harbor','willow'];
 async function projects(org: string) {
  const found = await Promise.all(projectKeys.map(key=>maybe(org,'projects',sampleId(org,`project:${key}`))));
- return found.filter((p):p is NonNullable<typeof p>=>!!p);
+ const matches=found.filter((p):p is NonNullable<typeof p>=>!!p);
+ if(matches.length || !currentSyntheticBatch())return matches;
+ return (await listDocuments(org,'projects')).filter(p=>(p.metadata as JsonObject)?.source==='signup_sandbox_samples' && (p.data as JsonObject)?.workflow_state==='project').slice(0,4);
 }
 async function measurements(ctx: PlatformAuthContext) {
  const { userPublicationContext } = await import('../platform/publication/context.js');
@@ -120,9 +122,11 @@ export async function generateSyntheticData(ctx: PlatformAuthContext, raw: unkno
  const leaseId='development_synthetic_data_lease';const prior=await maybe(ctx.orgId,'onboarding_events',leaseId);
  if(Number((prior?.data as JsonObject)?.expires)>Date.now())throw sandboxError(409,'generation_running','Synthetic data is already being added. Try again shortly.');
  const lease=await upsertDocument(ctx.orgId,'onboarding_events',{id:leaseId,expected_revision:prior?.revision,data:{token:randomUUID(),expires:Date.now()+600000},metadata},{replace:true,createOnly:!prior});
- const results:Record<string,unknown>={};
+ const results:Record<string,any>={};
+ const addCounts=(a:any,b:any):any=>typeof b==='number'?(Number(a)||0)+b:b&&typeof b==='object'?Object.fromEntries(Object.entries(b).map(([k,v])=>[k,addCounts(a?.[k],v)])):b;
  try {
-  const run=async(key:string,fn:()=>Promise<unknown>)=>{if(!selected[key])return;try{results[key]={status:'complete',...await fn() as JsonObject};}catch(e:any){results[key]={status:'failed',error:String(e.message||'Generation failed')};}};
+  for(let batch=0;batch<parsed.data.amount;batch++)await withSyntheticBatch(parsed.data.request_id ? `${parsed.data.request_id}:${batch}` : batch?`amount:${batch}`:'',async()=>{
+  const run=async(key:string,fn:()=>Promise<unknown>)=>{if(!selected[key])return;try{const value=await fn() as JsonObject;const previous=results[key];results[key]={...addCounts(previous,value),status:previous?.status==='failed'?'failed':'complete',...(previous?.error?{error:previous.error}:{})};}catch(e:any){results[key]={...results[key],status:'failed',error:String(e.message||'Generation failed')};}};
   await run('contacts',()=>seedCustomers(ctx.orgId));
   await run('projects',async()=>{
    const existing=new Set((await projects(ctx.orgId)).map(p=>p.id));
@@ -141,6 +145,7 @@ export async function generateSyntheticData(ctx: PlatformAuthContext, raw: unkno
   await run('document_types',()=>documents(ctx));
   await run('channels',()=>seedChannels(ctx.orgId,false));
   await run('communication',async()=>{const r=await communication(ctx); if(selected.channels) return {...r,channels:await seedChannels(ctx.orgId,true)};return r;});
-  return {organization_id:ctx.orgId,results};
+  });
+  return {organization_id:ctx.orgId,amount:parsed.data.amount,results};
  }finally {await upsertDocument(ctx.orgId,'onboarding_events',{id:leaseId,expected_revision:lease.revision,data:{expires:0},metadata},{replace:true});}
 }

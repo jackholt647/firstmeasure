@@ -3,8 +3,8 @@
 The portal code icon is mounted only after the sandbox lookup and the authenticated
 `GET /v1/signup-sandbox/development` eligibility check succeed. The browser library
 lives at `public/libraries/development-tools`; the existing dev bar lazy-loads it
-independently of whether the bottom test-run bar is dismissed. It uses the shared
-FirstMate window manager. No generator is loaded by production boot.
+independently of whether the bottom test-run bar is dismissed. It is a single top-right anchored dropdown with button toggle, outside-click,
+close-button and Escape dismissal. No generator is loaded by production boot.
 
 `synthetic-data.ts` owns the category/company catalog, strict request schema,
 authorization, durable organization lease, and orchestration. `fixtures.ts` holds
@@ -44,3 +44,9 @@ source code, organization IDs, provider recipients or unbounded counts.
 
 Tests: `tests/development-tools.test.ts` and `tests/signup-sandbox-samples.test.ts`.
 Browser verification scripts and screenshots: `output/development-tools-20261005`.
+
+Amount selects 1, 3, 5 or 10 fixture batches per click. The UI sends a UUID request_id;
+request-scoped AsyncLocalStorage namespaces every fixture ID and channel key. A
+retry keeps that UUID; a successful click clears it so the next click adds new data.
+Templates remain shared. API amounts must be integers from 1 to 10; calls without
+a request_id retain the original additive/idempotent fixture behavior.

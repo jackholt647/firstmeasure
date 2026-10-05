@@ -1,3 +1,7 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+const batches = new AsyncLocalStorage<string>();
+export const currentSyntheticBatch = () => batches.getStore() || '';
+export const withSyntheticBatch = <T>(key: string, run: () => Promise<T>) => batches.run(key, run);
 import { createHash } from "node:crypto";
 import { env } from "../src/config/env.js";
 import { readOrganization, readDocument, listDocuments, upsertDocument } from "../platform/storage.js";
@@ -8,7 +12,7 @@ import { getEquipmentDatabase, listCategories, listTypes, listUnits, listYards, 
 import { sandboxStore, sandboxError, type JsonObject } from "../signup-sandbox/storage.js";
 
 export function sampleId(orgId: string, key: string) {
-  return `sample_${createHash("sha256").update(`${orgId}:${key}`).digest("hex").slice(0, 24)}`;
+  return `sample_${createHash("sha256").update(`${orgId}:${currentSyntheticBatch() ? currentSyntheticBatch()+":" : ""}${key}`).digest("hex").slice(0, 24)}`;
 }
 
 async function existingDocument(orgId: string, collection: string, id: string) {
@@ -128,10 +132,10 @@ export async function seedChannels(orgId: string, includeMessages = true) {
       ["project-planning", "Project planning examples", ["The next sample project is ready for a site visit.", "I have drafted the plan and added a walkthrough.", "Let’s review the access details together."]]
     ] as const;
     for (const [key, topic, texts] of specs) {
-      const seedKey = `signup_samples:${key}`;
+      const seedKey = `signup_samples:${currentSyntheticBatch()}:${key}`.replace("signup_samples::", "signup_samples:");
       let channel = existing.find(row => row.settings.sample_data_key === seedKey);
       if (!channel) {
-        channel = await channels.createChannelRecord({ organization_id: orgId, type: "public", name: `sample-${key}`, topic: `${topic} — synthetic test data`, created_by: String(owner.id), settings: { sample_data_key: seedKey } });
+        channel = await channels.createChannelRecord({ organization_id: orgId, type: "public", name: `sample-${key}${currentSyntheticBatch() ? "-"+sampleId(orgId,key).slice(-8) : ""}`, topic: `${topic} — synthetic test data`, created_by: String(owner.id), settings: { sample_data_key: seedKey } });
         await channels.upsertChannelMember({ organization_id: orgId, channel_id: channel.id, user_id: String(owner.id), role: "owner" });
         for (const [person] of people) await channels.upsertChannelMember({ organization_id: orgId, channel_id: channel.id, user_id: sampleId(orgId, `channel-person:${person}`), role: "member" });
         created++;
