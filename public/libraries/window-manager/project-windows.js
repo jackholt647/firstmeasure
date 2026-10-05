@@ -4,6 +4,7 @@
   'use strict';
   if (root.FirstMateProjectWindows) return;
   const records = new Map();
+  const contactsModuleUrl = document.currentScript?.src ? new URL('../apps/contacts/modal.js?v=20261005-contact-handoff-v1', document.currentScript.src).href : '/libraries/apps/contacts/modal.js?v=20261005-contact-handoff-v1';
   let active = null;
   // Reload continuity belongs to this browser tab, not to the saved project.
   const orderSessionKey = 'fm-project-order-reload-v1';
@@ -363,5 +364,13 @@
   }
   function update(token, data){const record=records.get(token);if(!record)return;if(data.projectId)record.projectId=data.projectId;if(data.title){record.frame.setAttribute('aria-label',data.title);record.element.setAttribute('aria-label',data.title);const label=record.minimizedBar?.querySelector('span');if(label)label.textContent=data.title;const loadingTitle=record.loading.querySelector('.fm-project-loading-title');if(loadingTitle && !loadingTitle.querySelector('strong'))loadingTitle.textContent=data.title;}}
   function headerState(token,child){return accepts(token,child) ? root.Portal?.modules?.request?.headerState?.() : null;}
-  root.FirstMateProjectWindows={headerState,open,close,closed,ready,attach,accepts,update,takeProjectRead,get active(){return active;},get size(){return records.size;}};
+  async function openContact(token,child,contact,options={}){
+    if(!accepts(token,child))throw Error('Unknown project window');
+    if(!root.Portal?.modules?.contacts?.open)await import(contactsModuleUrl);
+    if(!accepts(token,child))return;
+    if(!root.Portal?.modules?.contacts?.open)throw Error('Contacts could not be opened.');
+    await root.Portal.modules.contacts.open(contact,options);
+    if(accepts(token,child))close(token);
+  }
+  root.FirstMateProjectWindows={openContact,headerState,open,close,closed,ready,attach,accepts,update,takeProjectRead,get active(){return active;},get size(){return records.size;}};
 })(window);

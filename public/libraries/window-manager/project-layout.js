@@ -165,5 +165,5 @@ html.project-content-pane .r-overlay.project-layout-prototype .r-contact-context
     const item=children.get(token);if(!item||!accepts(token,child))throw Error('Unknown project pane');
     return {state:{mode:'full'},setVisible(visible){if(visible&&!item.closed){clearTimeout(item.timer);item.status.hidden=true;}},setMode(){},restore(){},focus(){},destroy(){}};
   }
-  root.FirstMateProjectLayout={config,mount,accepts,ready,attach,update(){},tabChanged(token,child,tab){const item=children.get(token);if(!item?.ready||!accepts(token,child)||!tab||item.tab===tab)return;item.tab=tab;item.changed();},closed(token){children.get(token)?.remove();}};
+  root.FirstMateProjectLayout={config,mount,accepts,ready,attach,async openContact(token,child,contact,options){if(!accepts(token,child))throw Error('Unknown project pane');await root.Portal.modules.request.openContact(contact,options);},update(){},tabChanged(token,child,tab){const item=children.get(token);if(!item?.ready||!accepts(token,child)||!tab||item.tab===tab)return;item.tab=tab;item.changed();},closed(token){children.get(token)?.remove();}};
 })(window);

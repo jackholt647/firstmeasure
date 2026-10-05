@@ -2,8 +2,9 @@
  * Staged request workflow with optional roof-report ordering.
  */
 (function(){
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261005-report-opening-v1', document.currentScript.src);
-  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20261005-mobile-map-v1', document.currentScript.src);
+  const contactsModuleUrl = new URL('../contacts/modal.js?v=20261005-contact-handoff-v1', document.currentScript.src);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261005-contact-handoff-v1', document.currentScript.src);
+  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20261005-contact-handoff-v1', document.currentScript.src);
   const shellUrl = new URL('../../window-manager/window-shell.js?v=20261005-mobile-chrome-v1', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
 window.PlatformCommerce.onReady(async function(){
@@ -3623,18 +3624,29 @@ window.PlatformCommerce.onReady(async function(){
     return window.Portal.ProjectStore.save(payload);
   }
 
-  function openContactFromCard(card){
+  async function openContact(contact,options={}){
+    if(projectWindowBridge){
+      await projectWindowBridge.openContact(projectWindowToken,window,contact,options);
+      return;
+    }
+    if(!window.Portal?.modules?.contacts?.open)await import(contactsModuleUrl.href);
+    if(!window.Portal?.modules?.contacts?.open)throw Error('Contacts could not be opened.');
+    await window.Portal.modules.contacts.open(contact,options);
+    close({skipHistory:true});
+  }
+
+  async function openContactFromCard(card){
     if (!contactsEnabled()) return;
     const contact = contactFromCard(card);
     const contactContext = activeContactContext;
     const currentContextId = projectText(contactContext?.contact?.id, contactContext?.contact?.contact_id);
     if (currentContextId && projectText(contact.id, contact.contact_id) === currentContextId) {
-      close({ skipHistory:true });
-      window.Portal?.modules?.contacts?.open?.(contactContext.contact, { projects: contactContext.projects || [] });
+      try { await openContact(contactContext.contact, { projects: contactContext.projects || [] }); }
+      catch(error){ showToast(error.message || 'Could not open contact.'); }
       return;
     }
-    close({ skipHistory:true });
-    window.Portal?.modules?.contacts?.open?.(contact, { projects: activeBaseProject ? [activeBaseProject] : [] });
+    try { await openContact(contact, { projects: activeBaseProject ? [activeBaseProject] : [] }); }
+    catch(error){ showToast(error.message || 'Could not open contact.'); }
   }
 
   function removeContactCard(card){
@@ -9909,14 +9921,12 @@ window.PlatformCommerce.onReady(async function(){
       if (form?.requestSubmit) form.requestSubmit(submit);
       else submit.click();
     }, { signal: projectFormListeners.signal });
-    $('#rContactContextBar')?.addEventListener('click', (event) => {
+    $('#rContactContextBar')?.addEventListener('click', async (event) => {
       const overview = event.target.closest('[data-contact-context-overview]');
       if (overview) {
         const context = activeContactContext;
-        close({ skipHistory:true });
-        if (context && window.Portal?.modules?.contacts?.open) {
-          window.Portal.modules.contacts.open(context.contact || {}, { projects: context.projects || [] });
-        }
+        if(context)try { await openContact(context.contact || {}, { projects: context.projects || [] }); }
+        catch(error){ showToast(error.message || 'Could not open contact.'); }
         return;
       }
       const tab = event.target.closest('[data-contact-project-id]');
@@ -11901,7 +11911,7 @@ window.PlatformCommerce.onReady(async function(){
     });
   }
 
-  window.Portal.modules.request = { retainedProjectWindows:true, orderSession, open, openProject, openDocumentDraft, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors,
+  window.Portal.modules.request = { retainedProjectWindows:true, orderSession, open, openProject, openContact, openDocumentDraft, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors,
     projectDisplayTitle, formatProjectContactNames, openingHeader:openingProjectHeader, headerState:projectHeaderState,
     prepareHeader:()=>Promise.all([loadBranchProjectConfig(),loadProjectTagBoards()]),
     openingTabs:openingProjectTabs
