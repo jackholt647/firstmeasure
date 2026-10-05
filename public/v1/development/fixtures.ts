@@ -76,7 +76,8 @@ export async function seedCustomers(orgId: string) {
   for (const [key, name, address] of customerSpecs) {
     const contactId = sampleId(orgId, `customer:${key}`);
     const recordId = sampleId(orgId, `customer-record:${key}`);
-    const contact = { id: contactId, contact_id: contactId, name: `${name} (Sample)`, email: `${key}@example.test`, address, default_address: address, primary: true };
+    const emailKey = currentSyntheticBatch() ? `${key}.${contactId.slice(-12)}` : key;
+    const contact = { id: contactId, contact_id: contactId, name: `${name} (Sample)`, email: `${emailKey}@example.test`, address, default_address: address, primary: true };
     // Contacts use the same standalone contact-only records as the real New Contact flow.
     if (await createSampleDocument(orgId, "projects", recordId, {
       title: contact.name, project_title: contact.name, branch_id: "default", project_type: "residential",

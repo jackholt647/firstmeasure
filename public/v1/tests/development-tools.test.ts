@@ -62,6 +62,9 @@ test('development fixtures enforce isolation, independent toggles and additive r
  const scaled=await tools.generateSyntheticData(ctx,{company:'roofing',categories:{},amount:2,request_id:crypto.randomUUID()});
  assert.ok(Object.values(scaled.results).every((r:any)=>r.status==='complete'),JSON.stringify(scaled));
  assert.equal(scaled.results.projects.created,8);assert.equal(scaled.results.material_lists.created,8);assert.equal(scaled.results.document_types.drafts,8);assert.equal(scaled.results.channels.created,8);
+ const contacts=(await storage.listDocuments(ctx.orgId,'projects')).filter(p=>p.data?.workflow_state==='contact_only');
+ assert.equal(contacts.length,15);
+ assert.equal(new Set(contacts.map(p=>(p.data?.contacts as any[])[0].email)).size,15,'Batch contacts must remain distinct in the email-grouped Contacts UI');
  const {env}=await import('../src/config/env.js');const original=env.dataEnvironment;(env as any).dataEnvironment='production';
  await assert.rejects(tools.requireDevelopmentOrganization(ctx),/Not found/);(env as any).dataEnvironment=original;
  console.log(JSON.stringify({ok:true,categories:8,independent:true,repeatSafe:true}));
