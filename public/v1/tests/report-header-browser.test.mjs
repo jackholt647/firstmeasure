@@ -36,6 +36,8 @@ test('report header uses four or five equal tabs and retains selection across pr
  assert.equal(await page.locator('#rMeasureTabs .active').getAttribute('data-tab'),'summary');
  await page.evaluate(()=>{context.tabs=context.tabs.filter(t=>t.id!=='docs');context.ordered=false;renderReportNavigation();});
  assert.equal(await page.locator('.flat-report-navigation').count(),0);
+ assert.deepEqual(await page.evaluate(()=>reportHeaderTabs([{id:'map'},{id:'measurements'}],[...measurementTabs(),{id:'model'},{id:'xml'}],true).map(t=>t.id)),['customer','standard','summary','project:map']);
+ assert.equal(await page.evaluate(()=>reportHeaderTabs([{id:'map'},{id:'measurements'}],[...measurementTabs(),{id:'weather'}],true)),null);
  await page.close();
  }}finally{await browser.close();}
 });
