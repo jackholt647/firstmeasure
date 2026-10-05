@@ -1,0 +1,9 @@
+# Capture/upload theme completion — October 5, 2026
+
+Runtime source: `1bbac2b8427d81064777b2d3c39887e898f02b54`.
+
+Completed organization theming for additional-media drop zones (including hover), capture upload tiles, selected media borders/badges, miniature-house backgrounds and remaining green-tinted media surfaces. Neutral camera/preview surfaces now use neutral slate. The fallback video poster resolves the current primary color into its encoded SVG, since an image cannot inherit CSS variables from its host. The door is a 70% mix of the themed roof shade with black, making it darker than the roof for each palette. Recording/error/warning colors retain their semantics.
+
+Added full-structure-theme browser coverage for blue/purple themes and live theme changes across 390x600, 412x915, 390x1800 and 700x500. Checks cover the intro, upload controls, drop-zone/background tints, SVG walker, encoded play poster and per-channel door/roof darkness. All four cases passed locally and against served JavaScript. Screenshot review confirmed the purple roof/door and upload section. These are synthetic UI fixtures using actual runtime styles/functions, without uploading media or modifying customer records. Evidence: `output/capture-theme-complete-20261005/`.
+
+One frontend file overlaid on each development role; all ultimately based on `e1abe2674f95640df6e0b54974fbdfce9fc74280`. Concurrent activation was detected and the pool baseline re-audited before staging. Compatibility preserves its existing r-left selectors, verified as the entire before/live difference before the overlapping CSS merge was resolved. Final per-role release, file hash, readiness/isolation and public served asset/readiness checks passed. Production and worker unchanged. Rollback uses each role's previous path in the manifest. Existing conversation authorization covers development activation.
