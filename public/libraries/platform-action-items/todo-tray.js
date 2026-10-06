@@ -10,7 +10,8 @@
   const style=document.createElement('style');style.textContent=`
     .fm-todo-tray{display:flex;flex-direction:column;min-height:0;background:var(--panel,#fff);color:var(--text,#202124);border:1px solid var(--border,#dadce0);border-radius:var(--radius-lg,12px);box-shadow:var(--shadow,0 10px 30px #00000014);overflow:hidden}
     .fm-todo-tray[hidden]{display:none!important}.fm-todo-tray>.fm-window-header{flex:none;padding:10px 12px;border-bottom:1px solid var(--border,#dadce0)}
-    .fm-todo-title{display:flex;align-items:center;gap:8px;flex:1;min-width:0;font-weight:600;font-size:13px}.fm-todo-body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}.fm-todo-body>.pai-today-list{flex:1;min-height:0}
+    .fm-todo-tray [data-window-action=minimize]{display:none!important}
+    .fm-todo-title{display:flex;align-items:center;gap:8px;flex:1;min-width:0;font-weight:600;font-size:13px}.fm-todo-body{flex:1;min-height:0;padding:12px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column}.fm-todo-body>.pai-today-list{flex:1;min-height:0}
   `;document.head.append(style);
   function buttons(){return document.querySelectorAll('#platformTodoBtn,#mobilePlatformMoreTodos');}
   function setVisible(value){visible=value;win?.setVisible(value);buttons().forEach(button=>button.setAttribute('aria-expanded',String(value)));}

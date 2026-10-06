@@ -18,9 +18,11 @@ test('header to-dos work without a left column, retain the list across placement
     await page.getByText('Call Jane',{exact:true}).waitFor();
     assert.equal(await page.locator('.fm-todo-tray').getAttribute('data-window'),'docked');
     assert.equal(await page.evaluate(()=>reads[0].query.projectId||''),'');
-    await page.locator('.fm-todo-tray [data-window-action=minimize]').click();
-    assert.equal(await page.locator('.fm-todo-tray').getAttribute('data-window'),'minimized');
-    await page.locator('.fm-todo-title').click();
+    assert.equal(await page.locator('.fm-todo-tray [data-window-action=minimize]').isVisible(),false);
+    assert.equal(await page.locator('.fm-todo-body').evaluate(element=>getComputedStyle(element).padding),'12px');
+    await page.locator('.fm-todo-tray [data-window-action=close]').click();
+    assert.equal(await page.locator('.fm-todo-tray').isVisible(),false);
+    await page.getByRole('button',{name:'To Do',exact:true}).first().click();
     assert.equal(await page.getByText('Call Jane',{exact:true}).count(),1);
     await page.evaluate(()=>{flag=false;window.dispatchEvent(new Event('fm:capabilities:updated'));});
     assert.equal(await page.locator('#platformTodoSlot').isVisible(),false);assert.equal(await page.locator('.fm-todo-tray').isVisible(),false);
