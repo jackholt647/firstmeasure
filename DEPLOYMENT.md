@@ -758,3 +758,5 @@ Worker `/var/cache/firstmeasure/production-pdf-runtime-validation.json` records 
 The `watch-firstmeasure-pre-sync` automation was paused after scan success. That completed watcher is not an ongoing production incident monitor. If monitoring is requested, define its checks, schedule, and notifications explicitly.
 
 For subsequent deployments, update this guide or a linked release record with release/template IDs, configuration changes, verification, and outstanding work. Do not record secrets or customer data.
+
+October 6 assistant widgets: [Widget-owned cards and floating close controls](deploy/digitalocean/development-assistant-widget-chrome-20261006.md) records the shared presentation change and browser/development verification.

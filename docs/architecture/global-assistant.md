@@ -383,3 +383,7 @@ conversation, and shown through the `forms.preview` and `forms.submissions`
 widgets. The form editor's AI tab uses `PlatformAssistant.mountSurface` in a
 private `form:<id>` conversation; its context names the form and states that the
 preview is already beside the chat. See [forms](forms.md).
+
+## Widget-owned presentation (October 6)
+
+Assistant panel hosts provide layout without a visible card, padding, duplicate title or timestamp. Registered widgets own their visual card and header. The host supplies an accessible X outside the content by default in side and inline views, reserving a narrow close gutter on small screens. Inline dismissal leaves a chip that reopens the panel; dashboard close uses the existing dashboard removal. Text, tables and charts own their visualization card and title. Inline Expand is hidden when widget content already fits its preview.
