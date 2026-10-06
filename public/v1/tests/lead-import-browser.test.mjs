@@ -11,6 +11,7 @@ test('lead history filters sources, pages outcomes, opens projects and reviews u
   await page.route('http://leads.test/**',async route=>{
    const url=new URL(route.request().url());let data;
    if(url.pathname.endsWith('/connections'))data={connections:[{id:'lead-source',name:'Google leads',leadSource:true,enabled:true},{id:'photos',name:'Photos',leadSource:false}]};
+   else if(url.pathname.endsWith('/connections/lead-source'))data={connection:{id:'lead-source',name:'Google leads',enabled:true,revision:1},definition:{name:'Google leads',operations:[],resources:[]},automations:[],uses:[],resources:[],runs:[],summary:null};
    else if(url.pathname.endsWith('/review')){reviews.push(route.request().postDataJSON());data={state:'dismissed'};}
    else if(url.pathname.endsWith('/deliveries'))data={items:url.searchParams.has('after')?[{id:'second',state:'rejected',source_id:'email:default',external_id:'second',updated_at:new Date().toISOString(),attempts:1}]:[{id:'first',state:reviews.length?'dismissed':'uncertain',source_id:'connection:'+('a'.repeat(100)),external_id:'lead-'+('x'.repeat(150)),project_id:'project-1',updated_at:new Date().toISOString(),attempts:2}],next:url.searchParams.has('after')?null:'cursor'};
    else return route.fulfill({contentType:'text/html',body:'<style>body{margin:0}#root{height:100dvh}</style><main id="root"></main>'});
@@ -29,9 +30,14 @@ test('lead history filters sources, pages outcomes, opens projects and reviews u
   await page.setViewportSize({width:390,height:844});
   await page.getByRole('button',{name:'Sources & deliveries'}).click();
   assert.equal(await page.getByRole('button',{name:'Photos'}).count(),0);
+  await page.getByRole('button',{name:/Google leads.*Active/}).click();
+  await page.getByRole('heading',{name:'Google leads',exact:true}).waitFor();assert.equal(await page.locator('[data-lead-home]').isVisible(),false);
+  await page.getByRole('button',{name:'← Lead import',exact:true}).click();assert.equal(await page.locator('[data-lead-home]').isVisible(),true);
+  assert.equal(await page.getByLabel('Message assistant').count(),1,'source details do not duplicate the assistant');
   await page.getByRole('button',{name:'Open project'}).click();assert.equal(await page.evaluate(()=>window.openedProject),'project-1');
   await page.getByRole('button',{name:'Load more'}).click();await page.getByText('rejected',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Review',exact:true}).click();
+  assert.ok((await page.getByRole('button',{name:'Save review'}).boundingBox()).width<180,'review actions stay compact');
   await page.getByLabel('Outcome').selectOption('dismissed');await page.getByLabel('Review note').fill('Checked the retained project; discard this delivery.');
   await page.getByRole('button',{name:'Save review'}).click();await page.getByText('dismissed',{exact:true}).waitFor();
   assert.equal(reviews[0].decision,'dismissed');
