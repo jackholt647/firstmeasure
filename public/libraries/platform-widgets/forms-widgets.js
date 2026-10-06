@@ -126,7 +126,8 @@
         title();
         if (changed) { definition = next.definition; name = next.name; await show(); }
       } catch (error) {
-        if (alive && !embed) target.innerHTML = `<div class="ffw-note">${esc(error.message || 'This form could not be loaded.')}</div>`;
+        if(alive){embed?.destroy();embed=null;form=null;root.querySelector('[data-title]').textContent='Live preview';}
+        if (alive) target.innerHTML = `<div class="ffw-note">${esc(error.message || 'This form could not be loaded.')}</div>`;
       }
     }
     // A followed draft is edited elsewhere (the assistant, another tab), so check for a newer save while on screen.
@@ -168,17 +169,17 @@
       const peak = Math.max(1, ...data.daily.map((entry) => Math.max(entry.views, entry.submissions)));
       const reached = Math.max(1, ...data.steps.map((step) => step.reached));
       const tracked = totals.views > 0;
-      host.innerHTML = `
+      const html = `
         <div class="ffs-head"><h4>${options.heading === false ? '' : esc(data.form.name)}</h4><button type="button" class="ffw-btn" data-refresh><i aria-hidden="true" class="fas fa-rotate"></i> Refresh</button></div>
         <div class="ffs-tiles">
-          <div class="ffs-tile"><small>Views</small><strong>${number(totals.views)}</strong><span>times the form was opened</span></div>
-          <div class="ffs-tile"><small>Started</small><strong>${number(totals.starts)}</strong><span>${percent(totals.start_rate)} of views</span></div>
-          <div class="ffs-tile"><small>Submitted</small><strong>${number(totals.submissions)}</strong><span>${percent(totals.completion_rate)} of those who started</span></div>
-          ${data.estimates ? `<div class="ffs-tile"><small>Average estimate</small><strong style="font-size:16px">${esc(money({ low: data.estimates.average_low, high: data.estimates.average_high, currency: data.estimates.currency }))}</strong><span>across ${number(data.estimates.count)} estimates</span></div>` : ''}
-          ${data.appointments ? `<div class="ffs-tile"><small>Appointments</small><strong>${number(data.appointments.booked)}</strong><span>booked${data.appointments.requested ? `, ${number(data.appointments.requested)} to confirm` : ''}</span></div>` : ''}
+          <div class="ffs-tile" data-id="metric-0"><small>Views</small><strong>${number(totals.views)}</strong><span>times the form was opened</span></div>
+          <div class="ffs-tile" data-id="metric-1"><small>Started</small><strong>${number(totals.starts)}</strong><span>${percent(totals.start_rate)} of views</span></div>
+          <div class="ffs-tile" data-id="metric-2"><small>Submitted</small><strong>${number(totals.submissions)}</strong><span>${percent(totals.completion_rate)} of those who started</span></div>
+          ${data.estimates ? `<div class="ffs-tile" data-id="metric-3"><small>Average estimate</small><strong style="font-size:16px">${esc(money({ low: data.estimates.average_low, high: data.estimates.average_high, currency: data.estimates.currency }))}</strong><span>across ${number(data.estimates.count)} estimates</span></div>` : ''}
+          ${data.appointments ? `<div class="ffs-tile" data-id="metric-4"><small>Appointments</small><strong>${number(data.appointments.booked)}</strong><span>booked${data.appointments.requested ? `, ${number(data.appointments.requested)} to confirm` : ''}</span></div>` : ''}
         </div>
         <div><h5>Last ${data.period_days} days</h5>
-          <div class="ffs-days" role="img" aria-label="Daily views and submissions">${data.daily.map((entry) => `<i title="${esc(entry.day)}: ${entry.views} views, ${entry.submissions} submitted" style="height:${Math.max(3, Math.round(Math.max(entry.views, entry.submissions) / peak * 100))}%"><b style="height:${Math.max(entry.views, entry.submissions) ? Math.round(entry.submissions / Math.max(entry.views, entry.submissions) * 100) : 0}%"></b></i>`).join('')}</div>
+          <div class="ffs-days" role="img" aria-label="Daily views and submissions">${data.daily.map((entry) => `<i data-id="day-${esc(entry.day)}" title="${esc(entry.day)}: ${entry.views} views, ${entry.submissions} submitted" style="height:${Math.max(3, Math.round(Math.max(entry.views, entry.submissions) / peak * 100))}%"><b style="height:${Math.max(entry.views, entry.submissions) ? Math.round(entry.submissions / Math.max(entry.views, entry.submissions) * 100) : 0}%"></b></i>`).join('')}</div>
           <div class="ffs-axis"><span>${esc(data.daily[0]?.day || '')}</span><span>Today</span></div>
           <div class="ffs-legend"><span><i></i>Views</span><span><i class="s"></i>Submitted</span></div>
         </div>
@@ -186,15 +187,16 @@
         ${data.questions.length ? `<div><h5>How people answer</h5><div class="ffs-grid">${data.questions.map((question) => `<div class="ffs-q"><b>${esc(question.label)}</b>${question.options
           ? bars(question.options, Math.max(1, question.answered))
           : `<small>${question.answered ? `Average ${number(question.average)}${question.unit ? ` ${esc(question.unit)}` : ''} \u00b7 from ${number(question.min)} to ${number(question.max)}` : 'No answers yet'}</small>`}</div>`).join('')}</div></div>` : ''}
-        <div><h5>Recent submissions</h5>${data.recent.length ? `<div class="ffs-scroll"><table class="ffs-table"><thead><tr><th>Received</th><th>Contact</th><th>Details</th><th></th></tr></thead><tbody>${data.recent.map((row) => `<tr>
+        <div><h5>Recent submissions</h5>${data.recent.length ? `<div class="ffs-scroll"><table class="ffs-table"><thead><tr><th>Received</th><th>Contact</th><th>Details</th><th></th></tr></thead><tbody>${data.recent.map((row) => `<tr data-id="submission-${esc(row.id||row.created_at)}">
           <td>${esc(new Date(row.created_at).toLocaleDateString())}<small>${esc(new Date(row.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}</small></td>
           <td><b>${esc(row.contact?.name || 'No name')}</b><small>${esc([row.contact?.phone, row.contact?.email].filter(Boolean).join(' \u00b7 '))}</small>${row.address ? `<small>${esc(row.address)}</small>` : ''}</td>
           <td>${row.estimate ? `<b>${esc(money(row.estimate))}</b>` : ''}${row.appointment ? `<small>${esc(row.appointment.status === 'booked' ? 'Booked' : 'Requested')}: ${esc(row.appointment.label)}</small>` : ''}${(row.summary || []).slice(0, 4).map((entry) => `<small>${esc(entry.label)}: ${esc(entry.value)}</small>`).join('')}</td>
           <td>${row.project_id && options.openProject ? `<button type="button" class="ffw-btn" data-project="${esc(row.project_id)}">Open lead</button>` : ''}</td>
         </tr>`).join('')}</tbody></table></div>` : `<div class="ffw-note" style="padding:14px 0;text-align:left">${data.form.status === 'draft' ? 'Publish and share the form to start collecting responses.' : 'No submissions yet. Each one appears here and as a new lead.'}</div>`}</div>
         ${tracked ? '' : '<div class="ffw-note" style="padding:0;text-align:left;font-weight:500;font-size:12px">Views and starts are counted from when the form is next opened by a visitor.</div>'}`;
+      if(global.FirstMateWidgets?.reconcile)global.FirstMateWidgets.reconcile(host,html,'.ffs-tile,.ffs-days>i,.ffs-table tbody tr');else host.innerHTML=html;
       host.querySelector('[data-refresh]').addEventListener('click', load);
-      host.querySelectorAll('[data-project]').forEach((button) => button.addEventListener('click', () => options.openProject(button.dataset.project)));
+      host.querySelectorAll('[data-project]').forEach((button) => button.onclick=() => options.openProject(button.dataset.project));
     }
     async function load(){
       try {
@@ -215,12 +217,13 @@
     let current = null;
     const open = (formId) => { current?.destroy(); current = mountOne(root, { orgId, formId }); };
     if (clean(config.form_id)) open(clean(config.form_id));
-    else {
+    else showPicker(data);
+    function showPicker(data){
       const forms = data?.forms || [];
       root.innerHTML = forms.length ? `<div class="ffw"><div class="ffw-pick">${forms.map((form) => `<button type="button" data-form="${esc(form.id)}"><b>${esc(form.name)}</b><span class="ffw-pill ${(STATUS[form.status] || STATUS.draft)[1]}">${(STATUS[form.status] || STATUS.draft)[0]}</span></button>`).join('')}</div></div>` : '<div class="ffw"><div class="ffw-note">There are no forms yet.</div></div>';
       root.querySelectorAll('[data-form]').forEach((button) => button.addEventListener('click', () => open(button.dataset.form)));
     }
-    return { destroy(){ current?.destroy(); root.innerHTML = ''; } };
+    return { async refresh({loadData}={}){if(current){await current.ready;return current.refresh?.();}if(loadData)showPicker(await loadData());}, destroy(){ current?.destroy(); root.innerHTML = ''; } };
   }
 
   function registerRenderers(){

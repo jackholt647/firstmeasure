@@ -897,6 +897,32 @@
 
   // ── Layout: dashboard split ──────────────────────────────────────────────
 
+  function widgetUiContext(){
+    const displayed_widgets=[];
+    for(const el of els?.drawer?.querySelectorAll('fm-platform-widget')||[]){
+      if(!el.instanceId||!el.getClientRects().length||el.closest('[hidden],[inert]'))continue;
+      try{const widget=JSON.parse(el.getAttribute('reference'));displayed_widgets.push({instance_id:el.instanceId,panel_id:el.closest('[data-panel-id]')?.dataset.panelId,widget:{id:widget.id,version:widget.version||'1',target:widget.target,config:widget.config||{}}});}catch{}
+    }
+    return {...surface.getContext?.(),displayed_widgets:displayed_widgets.slice(0,32)};
+  }
+  const refreshedWidgets=new Set();
+  function refreshPresentedWidgets(){
+    for(const message of state.messages)for(const render of array(object(message.data).renders)){
+      if(render.type!=='widget_refresh')continue;
+      const key=clean(message.id)+':'+render.instance_id;if(refreshedWidgets.has(key))continue;
+      refreshedWidgets.add(key);
+      const el=[...els.drawer.querySelectorAll('fm-platform-widget')].find(el=>el.instanceId===render.instance_id);
+      if(el)void el.refresh();
+    }
+  }
+  function replaceMessages(html){
+    const key=el=>(el.closest('[data-panel-id]')?.dataset.panelId||'legacy')+':'+el.getAttribute('reference');
+    const mounted=new Map();for(const el of els.msgs.querySelectorAll('fm-platform-widget')){const k=key(el);if(!mounted.has(k))mounted.set(k,[]);mounted.get(k).push(el);}
+    const template=document.createElement('template');template.innerHTML=html;
+    for(const el of template.content.querySelectorAll('fm-platform-widget')){const prior=mounted.get(key(el))?.shift();if(prior)el.replaceWith(prior);}
+    els.msgs.replaceChildren(template.content);
+  }
+
   function widgetRenders(){
     return state.messages.flatMap(message => array(object(message.data).renders)).filter(render => render.type === 'platform_widget' && render.widget);
   }
@@ -1194,7 +1220,7 @@
     if (state.pending && !voiceCall) {
       parts.push(`<div class="fma-pending"><i class="fas fa-wand-magic-sparkles"></i><span>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_186fc46dfb3cc0","Working") ?? "Working")}<span class="dots"><span>.</span><span>.</span><span>.</span></span></span></div>`);
     }
-    els.msgs.innerHTML = parts.join('');
+    replaceMessages(parts.join(''));
     for(const host of els.msgs.querySelectorAll('[data-connection-credential]')) {
       const mount=()=>window.FirstMateConnections?.mountCredential(host,orgId(),host.dataset.connectionCredential);
       if(window.FirstMateConnections) mount();
@@ -1206,6 +1232,7 @@
     fitPanels(els.msgs);
     syncVisualsToggle();
     scheduleBoardRender();
+    refreshPresentedWidgets();
     if (options.keepScroll) els.msgs.scrollTop = previousScroll;
     else if (state.view === 'agent' && !options.animateLast) els.msgs.scrollTop = 0;
     else scrollToBottom();
@@ -1712,7 +1739,7 @@
       try {
         const attachments = [];
         for (const file of typed?.files || []) attachments.push((await window.AssistantAPI.upload(call.orgId,call.threadId,file)).attachment.media_id);
-        const result = await window.AssistantAPI.send(call.orgId, call.threadId, {message,intent:'voice',attachments,ui_context:surface.getContext?.()}, {signal:AbortSignal.timeout(AGENT_TIMEOUT_MS)});
+        const result = await window.AssistantAPI.send(call.orgId, call.threadId, {message,intent:'voice',attachments,ui_context:widgetUiContext()}, {signal:AbortSignal.timeout(AGENT_TIMEOUT_MS)});
         for(const action of array(result.actions))if(action.kind==='project_tray')runNavigationAction(action);
         if (state.threadId === call.threadId) {
           const data = await window.AssistantAPI.thread(call.orgId, call.threadId);
@@ -2250,7 +2277,7 @@
         attachments.push(uploaded.attachment);
       }
       const result = await window.AssistantAPI.send(orgId(), threadId, {
-        ui_context:surface.getContext?.(),
+        ui_context:widgetUiContext(),
         message:text || 'Please review the attached files.',
         ...(channelRecap ? {intent:'channel_recap'} : {}),
         attachments:attachments.map((attachment) => attachment.media_id),

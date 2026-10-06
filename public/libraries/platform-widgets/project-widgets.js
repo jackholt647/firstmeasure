@@ -4,19 +4,23 @@
  const element=(tag,cls,text)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(text!=null)el.textContent=String(text);return el;};
  function fragment(root,id,context,config){const render=context.fragments?.[id];if(!render)return false;const node=render(config||{});root.append(node);return true;}
  function card(root,title){const card=element('section','fm-widget-card');card.append(element('h3','',title));root.append(card);return card;}
- W.attachRenderer('scope.measurements','1',(root,{data,context})=>{
+ function liveData(id,selector,render){return (root,options)=>{
+   render(root,options);if(options.context.fragments?.[id])return;
+   let alive=true,generation=0;return {async refresh({loadData}){const token=++generation,data=await loadData();if(!alive||token!==generation)return;const next=document.createElement('div');render(next,{...options,data});W.reconcile(root,next.innerHTML,selector);},destroy(){alive=false;generation++;}};
+ };}
+ W.attachRenderer('scope.measurements','1',liveData('scope.measurements','.fm-widget-value',(root,{data,context})=>{
   if(fragment(root,'scope.measurements',context))return;
   const host=card(root,'Measurements'),values=element('div','fm-widget-values');host.append(values);
-  for(const row of data?.rows||[]){const field=element('div','fm-widget-value');field.append(element('span','',row.label),element('strong','',((typeof row.value==='number'||typeof row.value==='string'&&row.value.trim()!=='')&&Number.isFinite(Number(row.value))?Number(row.value).toLocaleString([], {minimumFractionDigits:1,maximumFractionDigits:1}):String(row.value))+(row.unit?' '+row.unit:'')));values.append(field);}
+  for(const row of data?.rows||[]){const field=element('div','fm-widget-value');field.dataset.id=row.key||row.label;field.append(element('span','',row.label),element('strong','',((typeof row.value==='number'||typeof row.value==='string'&&row.value.trim()!=='')&&Number.isFinite(Number(row.value))?Number(row.value).toLocaleString([], {minimumFractionDigits:1,maximumFractionDigits:1}):String(row.value))+(row.unit?' '+row.unit:'')));values.append(field);}
   if(!values.children.length)host.append(element('p','fm-widget-status','No measurements are available yet.'));
- });
- W.attachRenderer('scope.lists','1',(root,{data,config,context})=>{
+ }));
+ W.attachRenderer('scope.lists','1',liveData('scope.lists','article',(root,{data,config,context})=>{
   if(fragment(root,'scope.lists',context,config))return;
   const host=card(root,config.resourceType==='labor'?'Labor lists':config.resourceType==='material'?'Material lists':'Lists'),list=element('div','fm-widget-list');host.append(list);
   const rows=(data?.lists||[]).filter(row=>(!config.resourceType||config.resourceType==='all'||config.resourceType===row.resourceType)&&(!config.listId||row.id===config.listId));
-  for(const row of rows){const item=element('article');item.append(element('strong','',row.title),element('small','',row.resourceType+' · '+row.status));for(const line of row.items||[])item.append(element('div','',line.title+' · '+line.quantity+' '+line.unit));list.append(item);}
+  for(const row of rows){const item=element('article');item.dataset.id=row.id;item.append(element('strong','',row.title),element('small','',row.resourceType+' · '+row.status));for(const line of row.items||[])item.append(element('div','',line.title+' · '+line.quantity+' '+line.unit));list.append(item);}
   if(!rows.length)host.append(element('p','fm-widget-status','No lists are available yet.'));
- });
+ }));
  W.attachRenderer('reports.photo','1',(root,{data,config})=>{
   const media=(config.mediaKind==='aerial'?(data?.media||[]).filter(m=>m.label==='Aerial view'):data?.media)?.[config.mediaIndex||0];if(!media){root.append(element('div','fm-widget-status','No report image is available yet.'));return;}
   const url=String(media.url||'');if(!/^data:image\/(jpeg|png|webp);base64,/i.test(url)&&new URL(url,location.href).origin!==location.origin)throw Error('This media source is unavailable');

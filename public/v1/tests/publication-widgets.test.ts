@@ -52,7 +52,17 @@ test('widget reads and discovery enforce permissions, exact versions and project
   }
   await show.execute(run,{id:'todos.list',version:'1',target:personal,config:{filter:'open'}});
   assert.equal((run.renders.at(-1).widgets[0] as any).widget.target.scope,'organization');
-  run.settings.data_scope.projects=false;
+  const visible=platformAgentTools.find(t=>t.name==='platform_visible_widgets')!,refresh=platformAgentTools.find(t=>t.name==='platform_refresh_widget')!;
+  run.input={ui_context:{displayed_widgets:[{instance_id:'visible-todos',widget:{id:'todos.list',version:'1',target:personal,config:{filter:'open'}}}]}};
+  assert.equal(((await visible.execute(run,{})) as any).widgets.length,1);
+  const count=run.renders.length;
+  await show.execute(run,{id:'todos.list',version:'1',target:personal,config:{filter:'open'}});
+  assert.equal(run.renders.length,count+1);assert.equal(run.renders.at(-1).type,'widget_refresh');
+  await refresh.execute(run,{instance_id:'visible-todos'});assert.equal(run.renders.length,count+1,'Refresh commands deduplicate per instance');
+  await show.execute(run,{id:'todos.list',version:'1',target:personal,config:{filter:'open'},new_instance:true});assert.equal(run.renders.at(-1).type,'panel');
+  run.input={ui_context:{displayed_widgets:[]}};await assert.rejects(Promise.resolve().then(()=>refresh.execute(run,{instance_id:'visible-todos'})));
+  run.input={ui_context:{displayed_widgets:[{instance_id:'denied',widget:{id:'todos.list',version:'1',target:personal,config:{}}}]}};
+  run.settings.data_scope.projects=false;assert.equal(((await visible.execute(run,{})) as any).widgets.length,0);await assert.rejects(Promise.resolve().then(()=>refresh.execute(run,{instance_id:'denied'})));
   assert.equal(((await discover.execute(run,{query:'to-do'})) as any).widgets.length,0);
   assert.equal(((await discover.execute(run,{query:'todos.list to-do task list'})) as any).widgets.length,0);
   await assert.rejects(Promise.resolve().then(()=>show.execute(run,{id:'todos.list',version:'1',target:personal,config:{}})));

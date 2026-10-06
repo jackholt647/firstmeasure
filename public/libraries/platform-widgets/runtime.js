@@ -44,6 +44,22 @@
     const content=document.createElement('div');content.style.cssText='height:100%;min-width:0';root.append(content);
     const observer=new ResizeObserver(()=>{if(alive&&visible){instance?.resize?.({width:root.clientWidth,height:root.clientHeight});context.onSize?.({width:root.clientWidth,height:root.scrollHeight});}});observer.observe(root);
     function clear(){instance?.destroy?.();instance=null;children.forEach(c=>c.destroy());children=[];content.replaceChildren();}
+    async function loadData(){
+      const source=definition?.sources?.[0],target=ref.target||context.target;
+      if(!source)return context.data?.[ref.id];
+      const result=await (context.read||((source,target)=>global.PlatformAPI.publication.read(target.organizationId,{...source,target})))(source,target);
+      if(result.status!=='ready')throw Error(result.message||'This widget is unavailable.');
+      return result.value;
+    }
+    async function refresh(next=context){
+      context=next;await handle.ready;if(!alive)return;
+      try{
+        if(children.length)return await Promise.all(children.map(child=>child.refresh(context)));
+        if(instance?.refresh)return await instance.refresh({loadData,context,reference:clone(ref)});
+        if(instance?.serialize)ref.state=instance.serialize();
+        return await update();
+      }catch(error){if(alive){clear();status(content,error.message||'Unable to refresh this widget.');}}
+    }
     async function update(next=context){
       context=next;const generation=++revision;
       try{
@@ -70,7 +86,7 @@
         if(!alive||generation!==revision){result?.destroy?.();return;}instance=result;instance?.setVisible?.(visible);
       }catch(error){if(alive&&generation===revision){clear();status(content,error.message||'Unable to display this widget.');}}
     }
-    const handle={ready:null,update,async configure(next){await ready;validate(definition||definitions.get(key(ref.id,ref.version||'1')),next);Object.keys(config).forEach(k=>delete config[k]);Object.assign(config,clone(next));ref.config=config;return update();},setVisible(value){visible=!!value;instance?.setVisible?.(visible);children.forEach(c=>c.setVisible(visible));},serialize(){return {...clone(ref),...(instance?.serialize?{state:instance.serialize()}:{})};},destroy(){if(!alive)return;alive=false;revision++;observer.disconnect();clear();root.replaceChildren();root.classList.remove('fm-widget');delete root.dataset.sizing;}};
+    const handle={ready:null,update,refresh,async configure(next){await ready;validate(definition||definitions.get(key(ref.id,ref.version||'1')),next);Object.keys(config).forEach(k=>delete config[k]);Object.assign(config,clone(next));ref.config=config;return update();},setVisible(value){visible=!!value;instance?.setVisible?.(visible);children.forEach(c=>c.setVisible(visible));},serialize(){return {...clone(ref),...(instance?.serialize?{state:instance.serialize()}:{})};},destroy(){if(!alive)return;alive=false;revision++;observer.disconnect();clear();root.replaceChildren();root.classList.remove('fm-widget');delete root.dataset.sizing;}};
     handle.ready=update();return handle;
   }
   function library(root,{items=[],selected,layout='auto',context={},onSelect}={}){
@@ -85,7 +101,7 @@
     }
     items.forEach((item,index)=>{const b=document.createElement('button');b.type='button';b.textContent=item.title||item.id;b.id=prefix+'-'+index+'-tab';b.setAttribute('role','tab');b.setAttribute('aria-controls',prefix+'-'+index);b.onclick=()=>select(item.key);b.onkeydown=e=>{const step=e.key==='ArrowRight'||e.key==='ArrowDown'?1:e.key==='ArrowLeft'||e.key==='ArrowUp'?-1:0;if(step){e.preventDefault();const next=items[(index+step+items.length)%items.length];select(next.key);buttons.get(next.key).focus();}};selector.append(b);buttons.set(item.key,b);});
     const observer=new ResizeObserver(()=>{shell.dataset.layout=layout==='stacked'||layout==='auto'&&shell.clientWidth<1200?'stacked':'wide';});observer.observe(shell);shell.dataset.layout=layout==='wide'?'wide':'stacked';select(current);
-    return {select,update(next,options={}){context=next;for(const [k,entry] of mounted){const item=items.find(i=>i.key===k);if(!options.ids||options.ids.includes(item.id))entry.widget.update(sharedContext());}},serialize(){return {selected:current,layout,items:items.map(item=>mounted.get(item.key)?.widget.serialize()||clone(item))};},destroy(){alive=false;observer.disconnect();for(const entry of mounted.values())entry.widget.destroy();root.replaceChildren();},setVisible(value){for(const [k,entry]of mounted)entry.widget.setVisible(value&&k===current);}};
+    return {select,update(next,options={}){context=next;for(const [k,entry] of mounted){const item=items.find(i=>i.key===k);if(!options.ids||options.ids.includes(item.id))entry.widget.refresh(sharedContext());}},serialize(){return {selected:current,layout,items:items.map(item=>mounted.get(item.key)?.widget.serialize()||clone(item))};},destroy(){alive=false;observer.disconnect();for(const entry of mounted.values())entry.widget.destroy();root.replaceChildren();},setVisible(value){for(const [k,entry]of mounted)entry.widget.setVisible(value&&k===current);}};
   }
   function attachRenderer(id,version,render){renderers.set(key(id,version),render);}
   // Adapter for the existing document registry: it retains its own pagination contract.
@@ -108,11 +124,25 @@
   global.document.addEventListener('click',event=>{const button=event.target.closest?.('.fm-widget-expand');if(!button)return;const card=button.closest('.fm-widget-presentation');const expanded=card.dataset.expanded!=='true';card.dataset.expanded=String(expanded);button.setAttribute('aria-expanded',String(expanded));button.textContent=expanded?'Collapse widget':'Expand widget';});
   if(!customElements.get('fm-platform-widget'))customElements.define('fm-platform-widget',class extends HTMLElement{
     static get observedAttributes(){return ['reference','surface'];}
-    connectedCallback(){this.refresh();let seen=false,wasVisible=false;this.visibility=new IntersectionObserver(entries=>{const visible=entries.some(e=>e.isIntersecting);this.handle?.setVisible(visible);if(seen&&visible&&!wasVisible)this.refresh();seen=true;wasVisible=visible;});this.visibility.observe(this);}
-    disconnectedCallback(){this.visibility?.disconnect();this.handle?.destroy();this.handle=null;}
-    attributeChangedCallback(){if(this.isConnected)this.refresh();}
-    refresh(){this.handle?.destroy();try{const ref=JSON.parse(this.getAttribute('reference')||'{}');const org=global.__APP?.userOrgId;if(org&&ref.target?.organizationId&&ref.target.organizationId!==org)throw Error('This widget belongs to another organization.');this.handle=mount(this,ref,{surface:this.getAttribute('surface')||'assistant',onSize:()=>{const card=this.closest('.fm-widget-presentation'),preview=card?.querySelector('.fm-widget-preview'),button=card?.querySelector('.fm-widget-expand');if(button&&preview)button.hidden=card.dataset.expanded!=='true'&&preview.scrollHeight<=preview.clientHeight+1;}});}catch(error){status(this,error.message);}}
+    connectedCallback(){this.instanceId ||= (global.crypto?.randomUUID?.()||'widget-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));this.dataset.instanceId=this.instanceId;if(this.visibility)return;if(!this.handle)this.refresh();let seen=false,wasVisible=false;this.visibility=new IntersectionObserver(entries=>{const visible=entries.some(e=>e.isIntersecting);this.handle?.setVisible(visible);if(seen&&visible&&!wasVisible)this.refresh();seen=true;wasVisible=visible;});this.visibility.observe(this);}
+    disconnectedCallback(){queueMicrotask(()=>{if(this.isConnected)return;this.visibility?.disconnect();this.visibility=null;this.handle?.destroy();this.handle=null;});}
+    attributeChangedCallback(){if(this.isConnected){this.handle?.destroy();this.handle=null;this.refresh();}}
+    refresh(){if(this.handle)return this.handle.refresh();try{const ref=JSON.parse(this.getAttribute('reference')||'{}');const org=global.__APP?.userOrgId;if(org&&ref.target?.organizationId&&ref.target.organizationId!==org)throw Error('This widget belongs to another organization.');this.handle=mount(this,ref,{surface:this.getAttribute('surface')||'assistant',onSize:()=>{const card=this.closest('.fm-widget-presentation'),preview=card?.querySelector('.fm-widget-preview'),button=card?.querySelector('.fm-widget-expand');if(button&&preview)button.hidden=card.dataset.expanded!=='true'&&preview.scrollHeight<=preview.clientHeight+1;}});}catch(error){status(this,error.message);}}
   });
-  global.FirstMateWidgets={presentationHtml,ready,register,attachRenderer,mount,library,registerDocumentWidget,list:async()=>{await ready;return [...definitions.values()].map(clone);},describe:async(id,version='1')=>{await ready;const def=definitions.get(key(id,version));return def?clone(def):null;}};
+  function reconcile(root,html,selector){
+    const reduced=global.matchMedia?.('(prefers-reduced-motion: reduce)').matches,old=new Map([...root.querySelectorAll(selector)].map(el=>[el.dataset.id,{el,top:el.getBoundingClientRect().top,html:el.outerHTML}]));
+    const template=document.createElement('template');template.innerHTML=html;
+    for(const next of template.content.querySelectorAll(selector)){
+      const prior=old.get(next.dataset.id);if(prior?.html===next.outerHTML)next.replaceWith(prior.el);
+    }
+    root.replaceChildren(template.content);
+    if(reduced)return;
+    for(const el of root.querySelectorAll(selector)){
+      const prior=old.get(el.dataset.id),offset=prior?prior.top-el.getBoundingClientRect().top:12;
+      if(!prior||offset)el.animate?.([{opacity:prior?1:0,transform:`translateY(${offset}px)`},{opacity:1,transform:'translateY(0)'}],{duration:260,easing:'cubic-bezier(.2,.8,.2,1)'});
+      else if(prior.html!==el.outerHTML)el.animate?.([{backgroundColor:'#eef4ff'},{backgroundColor:'transparent'}],{duration:450});
+    }
+  }
+  global.FirstMateWidgets={reconcile,presentationHtml,ready,register,attachRenderer,mount,library,registerDocumentWidget,list:async()=>{await ready;return [...definitions.values()].map(clone);},describe:async(id,version='1')=>{await ready;const def=definitions.get(key(id,version));return def?clone(def):null;}};
   global.FirstMateProjectTrays?.registerWidgets?.();
 })(window);
