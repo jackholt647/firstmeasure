@@ -23,7 +23,7 @@ import {
   projectPayeeSetSchema
 } from "./schemas.js";
 import { generatePayrollArtifact, PAYROLL_EXPORT_CATALOG } from "./exports.js";
-import { syncContractorPayrollPayables, syncPaidContractorPayrollDisbursements } from "./contractor_disbursements.js";
+import { createPayrollRun, updatePayrollRunItem, actOnPayrollRun, payrollDashboard } from "./operations.js";
 import { payrollEarnings } from "./earnings.js";
 import {
   approvePayrollTimesheet,
@@ -143,12 +143,7 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     await requirePayrollRead(request, orgId);
     const query = queryObject(request);
-    return {
-      ok: true,
-      ...(await upcomingPayroll(orgId, query)),
-      policies: (await listPayrollPolicies(orgId)),
-      history: (await listPayrollBatches(orgId, { ...query, limit: Number(query.history_limit || 100) }))
-    };
+    return { ok: true, ...await payrollDashboard(orgId, query) };
   });
 
   app.get("/organizations/:orgId/earnings/me", async (request) => {
@@ -404,13 +399,9 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
   app.post("/organizations/:orgId/batches", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
     const context = await requirePayrollMutation(request, orgId);
-    const batch = (await createPayrollBatch(orgId, payrollBatchCreateSchema.parse(request.body ?? {}), cleanText(asObject(context).userId || asObject(context).user_id)));
-    const contractorPayables = await syncContractorPayrollPayables(orgId, batch, context).catch((error) => {
-      app.log.warn({ error, batch_id: batch.id }, "Could not synchronize contractor payroll payables");
-      return [];
-    });
+    const result = await createPayrollRun(context, payrollBatchCreateSchema.parse(request.body ?? {}));
     reply.code(201);
-    return { ok: true, batch, contractor_payables: contractorPayables };
+    return { ok: true, ...result };
   });
 
   app.get("/organizations/:orgId/batches/:batchId", async (request) => {
@@ -422,34 +413,13 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
   app.patch("/organizations/:orgId/batches/:batchId/items/:itemId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const context = await requirePayrollMutation(request, orgId);
-    const batch = (await patchPayrollBatchItem(orgId, getParam(request.params, "batchId"), getParam(request.params, "itemId"), payrollBatchItemPatchSchema.parse(request.body ?? {})));
-    await import("../payments/reimbursements.js").then(({ syncPaidPayrollReimbursements }) => syncPaidPayrollReimbursements(orgId, batch, context));
-    const contractorDisbursements = await syncPaidContractorPayrollDisbursements(orgId, batch, context).catch((error) => {
-      app.log.warn({ error, batch_id: batch.id }, "Could not synchronize contractor payroll disbursements");
-      return [];
-    });
-    return { ok: true, batch, contractor_disbursements: contractorDisbursements };
+    return { ok: true, ...await updatePayrollRunItem(context, getParam(request.params, "batchId"), getParam(request.params, "itemId"), payrollBatchItemPatchSchema.parse(request.body ?? {})) };
   });
 
   app.post("/organizations/:orgId/batches/:batchId/actions", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const context = await requirePayrollMutation(request, orgId);
-    const body = payrollBatchActionSchema.parse(request.body ?? {});
-    const namedApprovers = body.action === "submit_approval" ? await Promise.all((body.approvers || []).map(async (entry) => {
-      const user = await hydratedWorkforceUser(orgId, entry.user_id);
-      return { user_id: entry.user_id, name: cleanText(user.name || user.email || entry.name || entry.user_id) };
-    })) : body.approvers;
-    const batch = (await applyPayrollBatchAction(orgId, getParam(request.params, "batchId"), {
-      ...body,
-      approvers: namedApprovers,
-      actor: { user_id: cleanText(asObject(context).userId || asObject(context).user_id), name: cleanText(asObject(asObject(context).user).name || asObject(asObject(context).user).email) }
-    }));
-    await import("../payments/reimbursements.js").then(({ syncPaidPayrollReimbursements }) => syncPaidPayrollReimbursements(orgId, batch, context));
-    const contractorDisbursements = await syncPaidContractorPayrollDisbursements(orgId, batch, context).catch((error) => {
-      app.log.warn({ error, batch_id: batch.id }, "Could not synchronize contractor payroll disbursements");
-      return [];
-    });
-    return { ok: true, batch, contractor_disbursements: contractorDisbursements };
+    return { ok: true, ...await actOnPayrollRun(context, getParam(request.params, "batchId"), payrollBatchActionSchema.parse(request.body ?? {})) };
   });
 
   app.get("/organizations/:orgId/exports/catalog", async (request) => {

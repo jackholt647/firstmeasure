@@ -48,14 +48,14 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   manage_project_data: { actions: ["datasets.save", "datasets.select", "firstmeasure.measurements.import"] },
   view_reports: { actions: ["referrals.customer.ensure"], data: ["firstmeasure.status", "firstmeasure.measurements", "project-widgets.report"] },
   order_reports: { actions: ["firstmeasure.exteriors.quote"] },
-  manage_payroll: { actions: ["payroll.upcoming.read"], data: ["payroll.records"] },
+  manage_payroll: { actions: ["payroll.directory.read", "payroll.upcoming.read", "payroll.dashboard.read", "payroll.ledger.list", "payroll.ledger.read", "payroll.schedules.list", "payroll.schedule.read", "payroll.policies.list", "payroll.configuration.read", "payroll.projectPayees.read", "payroll.batches.list", "payroll.batch.read", "payroll.earnings.read", "payroll.timesheets.list", "payroll.contractors.list", "payroll.exports.catalog", "payroll.artifacts.list", "payroll.artifact.read", "payroll.policy.resolve", "payroll.schedule.create", "payroll.schedule.update", "payroll.schedule.archive", "payroll.policy.save", "payroll.policy.remove", "payroll.projectPayees.set", "payroll.commission.post", "payroll.commission.override", "payroll.commissions.reconcile", "payroll.ledger.post", "payroll.projection.accrue", "payroll.ledger.reverse", "payroll.batch.create", "payroll.batch.item.update", "payroll.batch.action", "payroll.timesheet.correct", "payroll.timesheet.approve", "payroll.timesheet.reject", "payroll.artifact.generate"], data: ["payroll.directory", "payroll.records", "payroll.entry", "payroll.schedules", "payroll.schedule", "payroll.policies", "payroll.configuration", "payroll.project_payees", "payroll.upcoming", "payroll.dashboard", "payroll.batches", "payroll.batch", "payroll.earnings", "payroll.timesheets", "payroll.contractors", "payroll.export_catalog", "payroll.artifacts", "payroll.artifact"] },
   "equipment.view": { actions: ["equipment.fleet.list", "equipment.unit.history"], data: ["equipment.records"] },
   "equipment.service": { actions: ["equipment.maintenance.cancel", "equipment.maintenance.complete", "equipment.maintenance.open", "equipment.meter.record", "equipment.unit.checkIn", "equipment.unit.checkOut"] },
-  manage_company_users: { actions: ["workforce.users.list"], data: ["workforce.records"] },
-  manage_company_settings: { actions:["work.configuration.save", "workforce.departments.save", "custom-fields.organization.write", "contacts.settings.save"], data: ["scopes.records", "forms.catalog"] },
+  manage_company_users: { actions: ["payroll.contractor.worker.update", "workforce.users.list"], data: ["workforce.records"] },
+  manage_company_settings: { actions:["payroll.contractor.company.update", "work.configuration.save", "workforce.departments.save", "custom-fields.organization.write", "contacts.settings.save"], data: ["scopes.records", "forms.catalog"] },
   manage_training: { actions: ["scheduling.appointment.configure", "training.course.progress"] },
   // Membership and per-subject checks are the permission for these exports.
-  "": { actions: ["work.todos.userState", "workforce.departments.read", "workforce.departments.assign","channels.feed.thread", "channels.feed.resolve", "channels.feed.comment", "channels.feed.react", "channels.list", "channels.messages.list", "channels.message.react", "channels.note.create", "channels.note.share", "channels.note.pin", "channels.note.edit", "channels.note.delete", "channels.note.restore", "training.courses.mine"], data: ["workforce-departments.catalog", "channels.records", "training.records", "notification-rules.value"] }
+  "": { actions: ["payroll.earnings.me", "work.todos.userState", "workforce.departments.read", "workforce.departments.assign","channels.feed.thread", "channels.feed.resolve", "channels.feed.comment", "channels.feed.react", "channels.list", "channels.messages.list", "channels.message.react", "channels.note.create", "channels.note.share", "channels.note.pin", "channels.note.edit", "channels.note.delete", "channels.note.restore", "training.courses.mine"], data: ["payroll.my_earnings", "workforce-departments.catalog", "channels.records", "training.records", "notification-rules.value"] }
 };
 
 function index(kind: "actions" | "data") {
@@ -71,6 +71,6 @@ function index(kind: "actions" | "data") {
 
 const actionPermissions = index("actions");
 const dataPermissions = index("data");
-export function publishedActionPermission(id: string): string | undefined { return actionPermissions.get(id); }
-export function publishedDataPermission(id: string): string | undefined { return dataPermissions.get(id); }
+export function publishedActionPermission(id: string): string | undefined { const permission=actionPermissions.get(id); if(id==="payroll.contractor.worker.update")return "manage_company_users|manage_company_settings"; return id.startsWith("payroll.") && permission==="manage_payroll" ? "manage_payroll|manage_company_settings" : permission; }
+export function publishedDataPermission(id: string): string | undefined { const permission=dataPermissions.get(id); return id.startsWith("payroll.") && permission==="manage_payroll" ? "manage_payroll|manage_company_settings" : permission; }
 export function publishedPermissionBundles() { return bundles; }

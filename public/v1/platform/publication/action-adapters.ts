@@ -134,7 +134,6 @@ export function registerDomainActions() {
     return (await import("../../documents/signing/service.js")).signingStatus(c.organizationId,String((document.delivery as Input)?.current_snapshot_id || ""));
   } });
 
-  publish({ id: "payroll.upcoming.read", description: "Read upcoming payroll for authorized payroll managers.", permission: "manage_payroll|manage_company_settings", capabilities: ["apps.payroll"], effect: "read", execute: async c => (await import("../../payroll/service.js")).upcomingPayroll(c.organizationId) });
   publish({ id: "workforce.users.list", description: "Read the workforce user directory.", permission: "manage_company_users|manage_company_user_permissions|manage_company_settings", effect: "read", execute: async c => (await import("../../workforce/service.js")).listWorkforceUsers(c.organizationId) });
 
   publish({ id: "training.courses.mine", description: "Read courses assigned to the authenticated learner.", permission: "", capabilities: ["apps.training"], effect: "read", execute: async c => {

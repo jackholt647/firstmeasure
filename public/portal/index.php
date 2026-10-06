@@ -2193,6 +2193,7 @@ session_write_close();
   <script src="../libraries/platform-widgets/scope-data.js?v=<?= portalAssetVersion('../libraries/platform-widgets/scope-data.js') ?>"></script>
   <script src="../libraries/platform-widgets/runtime.js?v=<?= portalAssetVersion('../libraries/platform-widgets/runtime.js') ?>"></script>
   <script src="../libraries/platform-widgets/todo-widgets.js?v=<?= portalAssetVersion('../libraries/platform-widgets/todo-widgets.js') ?>"></script>
+  <script src="../libraries/platform-widgets/payroll-widgets.js?v=<?= portalAssetVersion('../libraries/platform-widgets/payroll-widgets.js') ?>"></script>
   <script src="../libraries/platform-widgets/project-widgets.js?v=<?= portalAssetVersion('../libraries/platform-widgets/project-widgets.js') ?>"></script>
   <script src="../libraries/app-runtime/firstmate-embeddable-apps.js?v=<?= portalAssetVersion('../libraries/app-runtime/firstmate-embeddable-apps.js') ?>"></script>
   <script src="../libraries/app-runtime/app-chrome.js?v=<?= portalAssetVersion('../libraries/app-runtime/app-chrome.js') ?>"></script>

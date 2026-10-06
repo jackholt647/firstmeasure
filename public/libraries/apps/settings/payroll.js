@@ -618,13 +618,8 @@
     async function loadDirectory(){
       const platform = root.PlatformAPI;
       const subjects = [{ type:'organization', id:orgId, label:(globalThis.PlatformLanguage?.text("settings","m_4072ee4e7867cd","Company default") ?? "Company default"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_1b29e22b1e5092","Fallback for every payee and earning type") ?? "Fallback for every payee and earning type") }];
-      if (!platform?.workforce) return { subjects, warning:'Workforce directories are unavailable. Company-default policies can still be managed.' };
-      const [accessResult, usersResult, groupsResult, connectionsResult] = await Promise.allSettled([
-        platform.workforce.accessCatalog?.(orgId),
-        platform.workforce.users?.(orgId, branchId, { includeDisabled:false }),
-        platform.workforce.resourceGroups?.(orgId, branchId, { includeArchived:false }),
-        platform.connections?.list?.(orgId, { branchId, includeArchived:false })
-      ]);
+      const directory=(await platform.publication.invoke(orgId,'payroll.directory.read',{scope:'organization',organizationId:orgId},{})).value;
+      const accessResult={status:'fulfilled',value:{roles:directory.roles}},usersResult={status:'fulfilled',value:{users:directory.users}},groupsResult={status:'fulfilled',value:{resource_groups:directory.resource_groups}},connectionsResult={status:'fulfilled',value:{connections:directory.connections}};
       if (accessResult.status === 'fulfilled') {
         rows(accessResult.value, 'roles', 'access_roles').filter((role) => role.status !== 'archived').forEach((role) => subjects.push({ type:'access_role', id:text(role.id, role.role_id), label:text(role.name, role.id), subtitle:`Access role · ${array(role.application_ids).join(' + ') || text(role.application_id, 'workforce')}` }));
       }

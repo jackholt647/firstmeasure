@@ -529,8 +529,8 @@ export async function listPayrollLedgerEntries(orgId: string, options: JsonObjec
       JOIN payroll_batches b2 ON b2.id=a2.batch_id WHERE a2.ledger_entry_id=l.id AND b2.status<>'void'), 0)) <> 0`);
   }
   const limit = Math.max(1, Math.min(5000, Math.floor(Number(options.limit || 500))));
-  params.push(limit);
-  return (await getPayrollDatabase().prepare(`${ledgerSelect()} WHERE ${conditions.join(" AND ")} ORDER BY l.eligible_at ASC, l.created_at ASC LIMIT ?`)
+  params.push(limit, Math.max(0, Math.floor(Number(options.offset || 0))));
+  return (await getPayrollDatabase().prepare(`${ledgerSelect()} WHERE ${conditions.join(" AND ")} ORDER BY l.eligible_at ASC, l.created_at ASC, l.id ASC LIMIT ? OFFSET ?`)
     .all(...params)).map(ledgerEntryView);
 }
 
@@ -779,8 +779,8 @@ export async function listPayrollBatches(orgId: string, options: JsonObject = {}
   if (cleanText(options.from)) { conditions.push("pay_date>=?"); params.push(cleanText(options.from)); }
   if (cleanText(options.through)) { conditions.push("pay_date<=?"); params.push(cleanText(options.through)); }
   const limit = Math.max(1, Math.min(500, Math.floor(Number(options.limit || 100))));
-  params.push(limit);
-  const rows = (await getPayrollDatabase().prepare(`SELECT * FROM payroll_batches WHERE ${conditions.join(" AND ")} ORDER BY pay_date DESC, created_at DESC LIMIT ?`).all(...params));
+  params.push(limit, Math.max(0, Math.floor(Number(options.offset || 0))));
+  const rows = (await getPayrollDatabase().prepare(`SELECT * FROM payroll_batches WHERE ${conditions.join(" AND ")} ORDER BY pay_date DESC, created_at DESC, id DESC LIMIT ? OFFSET ?`).all(...params));
   return (await Promise.all(rows.map(async (row) => (await readPayrollBatch(orgId, cleanText(asObject(row).id))))));
 }
 
@@ -832,8 +832,8 @@ export async function listPayrollArtifacts(orgId: string, options: JsonObject = 
   if (cleanText(options.artifact_type)) { conditions.push("artifact_type=?"); params.push(cleanText(options.artifact_type)); }
   if (cleanText(options.report_type)) { conditions.push("report_type=?"); params.push(cleanText(options.report_type)); }
   const limit = Math.max(1, Math.min(500, Math.floor(Number(options.limit || 100))));
-  params.push(limit);
-  return (await getPayrollDatabase().prepare(`SELECT * FROM payroll_artifacts WHERE ${conditions.join(" AND ")} ORDER BY created_at DESC LIMIT ?`)
+  params.push(limit, Math.max(0, Math.floor(Number(options.offset || 0))));
+  return (await getPayrollDatabase().prepare(`SELECT * FROM payroll_artifacts WHERE ${conditions.join(" AND ")} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
     .all(...params)).map((row) => payrollArtifactView(row));
 }
 

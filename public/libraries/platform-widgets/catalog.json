@@ -291,5 +291,524 @@
       "work.todos.patch",
       "work.todos.transition"
     ]
+  },
+  {
+    "id": "payroll.upcoming",
+    "version": "1",
+    "title": "Upcoming payroll",
+    "description": "Earned and projected compensation by pay date, schedule and payee. Create and manage payroll runs.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "fill",
+      "minWidth": 280,
+      "minHeight": 320,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "dashboard"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "payroll.timesheets",
+    "version": "1",
+    "title": "Payroll timesheets",
+    "description": "Review, correct, approve and reject crew hours.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "fill",
+      "minWidth": 280,
+      "minHeight": 320,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "timesheets"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "payroll.contractors",
+    "version": "1",
+    "title": "Payroll contractors",
+    "description": "Individual and external organization contractors and their payment terms.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "fill",
+      "minWidth": 280,
+      "minHeight": 320,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "contractors"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "payroll.exports",
+    "version": "1",
+    "title": "Payroll reports",
+    "description": "Prepare CSV and document PDF reports and download saved payroll artifacts.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "fill",
+      "minWidth": 280,
+      "minHeight": 320,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "export_catalog"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "payroll.history",
+    "version": "1",
+    "title": "Payroll history",
+    "description": "Run history, approvals, per-payee payment status and earning allocations.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "fill",
+      "minWidth": 280,
+      "minHeight": 320,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "batches"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "payroll.settings",
+    "version": "1",
+    "title": "Payroll settings",
+    "description": "Configure pay schedules and policies for groups, users and connected organizations.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "fill",
+      "minWidth": 280,
+      "minHeight": 320,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "configuration"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "payroll.ledger",
+    "version": "1",
+    "title": "Payroll ledger",
+    "description": "Earnings, balances, eligibility dates and source evidence.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 280,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "records"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "payroll.commissions",
+    "version": "1",
+    "title": "Payroll commissions",
+    "description": "Projected and accrued commissions and remaining balances.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 280,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "records"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "payroll.earnings",
+    "version": "1",
+    "title": "Payee earnings",
+    "description": "Amounts owed, projected and paid to a selected user or external organization, with project breakdown and payment history.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 280,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        },
+        "payee_id": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "payee_type": {
+          "type": "string",
+          "enum": [
+            "organization_user",
+            "organization_connection"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "records"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "payroll.my_earnings",
+    "version": "1",
+    "title": "My earnings",
+    "description": "Personal earnings, amounts owed, project breakdown and payment history for the current user.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 280,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "my_earnings"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "payroll.project_payees",
+    "version": "1",
+    "title": "Project payroll payees",
+    "description": "Named project commission roles and recipient users or connected organizations.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 280,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "project_payees"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "payroll.batch",
+    "version": "1",
+    "title": "Payroll run detail",
+    "description": "A selected payroll batch with per-payee status, gross pay, deductions, net amount and references.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 280,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        },
+        "batch_id": {
+          "type": "string",
+          "maxLength": 180
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "batches"
+      }
+    ],
+    "actions": []
   }
 ]

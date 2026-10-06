@@ -1,5 +1,5 @@
 import { badRequest, conflict } from "../platform/errors.js";
-import { readDocument } from "../platform/storage.js";
+import { readDocument, listDocuments } from "../platform/storage.js";
 import { resolveHourlyCompensation } from "../workforce/access.js";
 import {
   listCrewTimeShifts,
@@ -79,7 +79,7 @@ export async function listPayrollTimesheets(orgId: string, options: JsonObject =
     const shift = asObject(shiftValue);
     return !cleanText(options.approval_status) || cleanText(shift.approval_status) === cleanText(options.approval_status);
   });
-  const users = await listWorkforceUsers(orgId, { include_disabled: true });
+  const users = (await listDocuments(orgId, 'users')).map(row => ({ id: row.id, ...asObject(row.data) }));
   const usersById = new Map(users.map((user) => [cleanText(user.id), user]));
   const projectIds = [...new Set(shifts.map((shift) => cleanText(asObject(shift).project_id)).filter(Boolean))];
   const projects = new Map<string, JsonObject>();

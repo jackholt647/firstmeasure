@@ -216,8 +216,8 @@
       selectedExportBatchId:'',
       exportFrom:addDaysKey(today, -30),
       exportThrough:today,
-      timesheetFrom:addDaysKey(today, -14),
-      timesheetThrough:today,
+      timesheetFrom:clean(context.params?.from) || addDaysKey(today, -14),
+      timesheetThrough:clean(context.params?.through) || today,
       error:null,
       loading:true,
       busyKey:'',
@@ -589,7 +589,7 @@
     function appHeader(){
       return window.AppChrome.header({title:context.params?.standalone ? ({upcoming:'Upcoming payroll',timesheets:'Timesheets',contractors:'Contractors',exports:'Payroll exports',history:'Batch history',settings:'Payroll settings'})[context.params.standalone] : 'Payroll',icon:'fa-money-check-dollar',
         tabs:context.params?.standalone?'':window.AppChrome.tabs('payroll',state.view,'data-view',context).replaceAll('data-view=', 'data-action="view" data-view='),
-        actions:context.params?.standalone?'<button type="button" class="fmp-btn" data-app-layout-open="payroll" aria-label="Payroll app layout"><i class="fas fa-gear"></i></button>':''});
+        actions:context.params?.standalone&&!context.params?.widget?'<button type="button" class="fmp-btn" data-app-layout-open="payroll" aria-label="Payroll app layout"><i class="fas fa-gear"></i></button>':''});
     }
     function render(){
       if(!state.view){root.innerHTML=`<div class="fmp-shell">${appHeader()}<p>No accessible apps in this group.</p></div>`;return;}
@@ -638,7 +638,7 @@
         const exportView = state.view === 'exports';
         const result = timesheetView
           ? await window.PayrollAPI?.timesheets?.list?.(state.orgId, { from:state.timesheetFrom, through:state.timesheetThrough, limit:500 })
-          : contractorView ? await Promise.all([window.PlatformAPI.workforce.users(state.orgId, clean(state.context.branchId || 'default')), window.PlatformAPI.connections.list(state.orgId, { branchId:clean(state.context.branchId || 'default') })])
+          : contractorView ? (await window.PlatformAPI.publication.invoke(state.orgId,'payroll.contractors.list',{scope:'organization',organizationId:state.orgId},{})).value
           : exportView ? await Promise.all([window.PayrollAPI.artifacts.catalog(state.orgId), window.PayrollAPI.artifacts.list(state.orgId, { limit:250 }), state.data ? Promise.resolve(state.data) : window.PayrollAPI.dashboard(state.orgId, { from:state.from, through:state.through, include_projected:state.includeProjected, history_limit:150 })])
           : (context.params?.smoke
             ? createSmokeData(state)
@@ -646,7 +646,7 @@
         if (!result) throw new Error('PayrollAPI is unavailable. Load payroll-api.js before the payroll app bundle.');
         if (state.destroyed || token !== state.loadToken) return;
         if (timesheetView) state.timesheetData = result;
-        else if (contractorView) state.contractorData = { users:array(result[0]?.users || result[0]), connections:array(result[1]?.connections || result[1]?.organization_connections || result[1]) };
+        else if (contractorView) state.contractorData = result;
         else if (exportView) { state.exportData={ catalog:array(result[0]?.exports || result[0]?.catalog || result[0]), artifacts:array(result[1]?.artifacts || result[1]) }; state.data=result[2]; const batches=array(result[2]?.history); if (!batches.some((batch) => clean(batch.id) === clean(state.selectedExportBatchId))) state.selectedExportBatchId=clean(batches[0]?.id); if (!batches.length) state.exportMode='date_range'; }
         else state.data = result;
         state.loadedAt = Date.now();
@@ -655,6 +655,7 @@
       } catch (error) {
         if (state.destroyed || token !== state.loadToken) return;
         state.error = error;
+        state.data=null;state.timesheetData=null;state.contractorData=null;state.exportData=null;
       } finally {
         if (!state.destroyed && token === state.loadToken) {
           state.loading = false;
@@ -746,11 +747,11 @@
       }
       if (action === 'save-worker-payee') {
         const userId=clean(button.dataset.userId); const classification=clean(root.querySelector(`[data-contractor-classification="${CSS.escape(userId)}"]`)?.value); const basis=clean(root.querySelector(`[data-contractor-basis="${CSS.escape(userId)}"]`)?.value); const netDays=number(root.querySelector(`[data-contractor-days="${CSS.escape(userId)}"]`)?.value);
-        await perform(`worker:${userId}`, () => window.PlatformAPI.workforce.saveUserProfile(state.orgId, userId, { worker_classification:classification, payment_terms:{ basis, net_days:basis === 'net_days' ? netDays : 0 } }), 'Worker payment record saved', classification === 'employee' ? 'This person will be paid as an employee.' : 'This person will be paid as an independent contractor.'); return;
+        await perform(`worker:${userId}`, () => window.PlatformAPI.publication.invoke(state.orgId,'payroll.contractor.worker.update',{scope:'organization',organizationId:state.orgId,id:userId},{worker_classification:classification,payment_terms:{basis,net_days:basis==='net_days'?netDays:0}},{idempotencyKey:'payroll-worker-'+window.crypto.randomUUID()}), 'Worker payment record saved', classification === 'employee' ? 'This person will be paid as an employee.' : 'This person will be paid as an independent contractor.'); return;
       }
       if (action === 'save-company-payee') {
         const connectionId=clean(button.dataset.connectionId); const connection=array(state.contractorData?.connections).find((item) => clean(item.id) === connectionId); const basis=clean(root.querySelector(`[data-connection-basis="${CSS.escape(connectionId)}"]`)?.value); const netDays=number(root.querySelector(`[data-connection-days="${CSS.escape(connectionId)}"]`)?.value);
-        await perform(`company:${connectionId}`, () => window.PlatformAPI.connections.update(state.orgId, connectionId, { expected_revision:number(connection?.revision) || undefined, payment_terms:{ basis, net_days:basis === 'net_days' ? netDays : 0 } }), 'Subcontractor payment terms saved', basis === 'net_days' ? `Due net ${netDays}.` : 'Uses its assigned payment cycle.'); return;
+        await perform(`company:${connectionId}`, () => window.PlatformAPI.publication.invoke(state.orgId,'payroll.contractor.company.update',{scope:'organization',organizationId:state.orgId,id:connectionId},{expected_revision:number(connection?.revision),payment_terms:{basis,net_days:basis==='net_days'?netDays:0}},{idempotencyKey:'payroll-company-'+window.crypto.randomUUID()}), 'Subcontractor payment terms saved', basis === 'net_days' ? `Due net ${netDays}.` : 'Uses its assigned payment cycle.'); return;
       }
       if (action === 'create-export' || action === 'create-all-exports') {
         const batchId=clean(root.querySelector('#fmpExportBatch')?.value || state.selectedExportBatchId);
@@ -910,7 +911,7 @@
     });
     const onLayout=()=>{if(context.params?.standalone||state.view==='settings')return;state.view=window.AppChrome.resolve('payroll',window.Portal?.navigation?.read?.().payrollView,context);render();if(state.view!=='settings')void load({silent:true});};
     window.addEventListener('fm:app-placements:updated',onLayout);
-    let active=true;
+    let active=!context.params?.widget;
     const refreshTimer=setInterval(()=>{if(active && !document.hidden && !state.loading && state.view!=='settings' && !root.contains(document.activeElement))void load({silent:true});},30000);
     render();
     if (state.view !== 'settings') load();
@@ -935,9 +936,30 @@
         const nextOrgId = clean(nextContext.orgId || nextContext.currentUser?.organization_id || state.orgId);
         if (nextOrgId && nextOrgId !== state.orgId) { state.orgId = nextOrgId; state.data = null; load(); }
       },
+      serialize(){return {from:state.from,through:state.through,include_projected:state.includeProjected};},
       refresh(){ return load(); }
     };
   }
+
+  // Tabs and detached sub-apps use the same leaf widgets as agent panels.
+  function createWidgetApp(context={}){
+    if(!window.FirstMateWidgets)return createApp(context);
+    const root=context.roots?.main||context.root;if(!root)return {destroy(){}};
+    let alive=true,widget,view=context.params?.standalone||window.AppChrome.resolve('payroll',window.Portal?.navigation?.read?.().payrollView,context);
+    function render(){
+      const orgId=clean(context.orgId||window.__APP?.userOrgId||window.__APP?.orgId);
+      if(!alive)return;widget?.destroy();
+      root.innerHTML=`<div style="height:100%;display:flex;flex-direction:column;min-height:0">${context.params?.standalone?'':window.AppChrome.header({title:'Payroll',icon:'fa-money-check-dollar',tabs:window.AppChrome.tabs('payroll',view,'data-payroll-view',context)})}<div data-payroll-widget-host style="flex:1;min-height:0;overflow:auto"></div></div>`;
+      if(!view)return;
+      widget=window.FirstMateWidgets.mount(root.querySelector('[data-payroll-widget-host]'),{id:'payroll.'+view,version:'1',target:{scope:'organization',organizationId:orgId},config:{...(context.params?.from?{from:context.params.from}:{}),...(context.params?.through?{through:context.params.through}:{}),...(context.params?.include_projected!==undefined?{include_projected:context.params.include_projected}:{})}},{...context,surface:'dashboard'});
+    }
+    const click=event=>{const button=event.target.closest('[data-payroll-view]');if(!button||!root.contains(button))return;view=button.dataset.payrollView;render();window.Portal?.navigation?.navigate?.({tab:'payroll',payrollView:view},{source:'payroll-widgets',ownedKeys:['payrollView']});};
+    const unregister=window.Portal?.navigation?.registerHandler?.('payroll-widgets:'+ (context.instanceId||'main'),{priority:400,apply:route=>{if(context.params?.standalone||route.tab!=='payroll')return;const next=window.AppChrome.resolve('payroll',route.payrollView,context);if(next!==view){view=next;render();}}});
+    const layout=()=>{if(context.params?.standalone)return;view=window.AppChrome.resolve('payroll',window.Portal?.navigation?.read?.().payrollView,context);render();};
+    root.addEventListener('click',click);window.addEventListener('fm:app-placements:updated',layout);render();
+    return {destroy(){alive=false;widget?.destroy();unregister?.();root.removeEventListener('click',click);window.removeEventListener('fm:app-placements:updated',layout);root.replaceChildren();},setActive(value){widget?.setVisible(value);},refresh(){return widget?.update();},update(next){context={...context,...next};render();}};
+  }
+  window.FirstMatePayroll={mountView:createApp};
 
   runtime.registerApp({
     id:'portal.payroll',
@@ -955,9 +977,9 @@
       applicationsAny:['management'],
       permissionsAny:['manage_payroll', 'manage_company_settings']
     },
-    mount:createApp
+    mount:createWidgetApp
   });
   window.AppChrome.registerGroup({id:'payroll',parent:'portal.payroll',title:'Payroll',icon:'fa-money-check-dollar',default:'upcoming',
     members:[['upcoming','Upcoming payroll'],['timesheets','Timesheets'],['contractors','Contractors'],['exports','Payroll exports'],['history','Batch history'],['settings','Payroll settings']].map(([id,title])=>({id,title})),
-    mount:(view,context)=>createApp({...context,params:{...context.params,standalone:view}})});
+    mount:(view,context)=>createWidgetApp({...context,params:{...context.params,standalone:view}})});
 })();

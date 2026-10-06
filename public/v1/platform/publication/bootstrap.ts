@@ -1,3 +1,4 @@
+import { registerPayrollPublication } from '../../payroll/publication.js';
 import { registerTodoPublication } from "../../work/publication.js";
 import { registerDepartmentPublication } from '../../workforce/department-publication.js';
 import { registerWidgetProviders } from '../widgets/catalog.js';
@@ -29,6 +30,7 @@ export function initializePublication() {
   registerFormsPublication();
   registerLeadPublication();
   registerDomainActions();
+  registerPayrollPublication();
   registerTodoPublication();
   registerDepartmentPublication();
   registerDatasetActions();

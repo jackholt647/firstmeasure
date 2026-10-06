@@ -76,6 +76,8 @@
   }
 
   async function request(path, options = {}){
+    const publication=root.PlatformAPI?.publication;
+    if(publication?.invoke && /^\/organizations\//.test(path))return publishedRequest(path,options);
     const originalBody = options.body;
     const body = originalBody == null || originalBody instanceof FormData || typeof originalBody === 'string'
       ? originalBody
@@ -99,6 +101,47 @@
       throw error;
     }
     return data;
+  }
+
+  // Keep the browser contract while using the same typed operations as agents/modules.
+  async function publishedRequest(path,options){
+    const parsed=new URL(path,'https://payroll.invalid'),parts=parsed.pathname.split('/').filter(Boolean).map(decodeURIComponent),orgId=parts[1],p=parts.slice(2),method=(options.method||'GET').toUpperCase();
+    const target={scope:'organization',organizationId:orgId};let action,input={...object(options.body)},wrap=value=>({ok:true,...value});
+    const query={};for(const [key,value]of parsed.searchParams){if(key==='payee')continue;query[key]=['include_projected','include_archived','open_only'].includes(key)?['1','true'].includes(value):['limit','history_limit','entry_limit','payment_limit','expected_revision'].includes(key)?Number(value):value;}
+    if(p[0]==='dashboard'){action='payroll.dashboard.read';input=query;}
+    else if(p[0]==='upcoming'){action='payroll.upcoming.read';input=query;}
+    else if(p[0]==='earnings'){
+      action=p[1]==='me'?'payroll.earnings.me':'payroll.earnings.read';input=query;
+      if(p[1]==='payees')input.payees=[{type:p[2],id:p[3]}];
+      else if(p[1]!=='me')input.payees=parsed.searchParams.getAll('payee').map(value=>{const at=value.indexOf(':');return {type:value.slice(0,at),id:value.slice(at+1)};});
+      wrap=value=>({ok:true,...value,...(p[1]==='me'?{earnings:value.earnings[0]}:{})});
+    }else if(p[0]==='schedules'){
+      if(p[1])target.id=p[1];action=method==='POST'?'payroll.schedule.create':method==='PATCH'?'payroll.schedule.update':method==='DELETE'?'payroll.schedule.archive':p[1]?'payroll.schedule.read':'payroll.schedules.list';if(method==='GET'||method==='DELETE')input=query;
+      wrap=value=>({ok:true,[p[1]||method==='POST'?'schedule':'schedules']:value});
+    }else if(p[0]==='policies'){
+      if(p[1]==='effective'){action='payroll.policy.resolve';input={payee:{type:p[2],id:p[3],...(query.worker_type?{worker_type:query.worker_type}:{}),...(query.access_role_ids?{access_role_ids:query.access_role_ids.split(',')}:{}),...(query.resource_group_ids?{resource_group_ids:query.resource_group_ids.split(',')}: {})},earning_kind:query.earning_kind};}
+      else if(method==='PUT'){action='payroll.policy.save';input={subject_type:p[1],subject_id:p[2],values:input};}
+      else if(method==='DELETE'){action='payroll.policy.remove';input={subject_type:p[1],subject_id:p[2],earning_kind:query.earning_kind};}
+      else{action='payroll.policies.list';input={};}wrap=value=>({ok:true,[method==='GET'&&!p[1]?'policies':'policy']:value});
+    }else if(p[0]==='projects'){
+      target.scope='project';target.projectId=p[1];
+      action=p[2]==='payees'?(method==='GET'?'payroll.projectPayees.read':'payroll.projectPayees.set'):p[2]==='commission-events'?'payroll.commission.post':'payroll.commission.override';
+      if(p[3])target.id=p[3];if(method==='GET')input={};wrap=value=>({ok:true,...(p[2]==='payees'?{[method==='GET'?'payee_roles':'payee_role']:value}:value)});
+    }else if(p[0]==='ledger'||p[0]==='projections'){
+      if(p[1])target.id=p[1];action=p[2]==='reverse'?'payroll.ledger.reverse':p[2]==='accrue'?'payroll.projection.accrue':method==='POST'?'payroll.ledger.post':p[1]?'payroll.ledger.read':'payroll.ledger.list';
+      if(method==='GET')input=query;else if(action==='payroll.ledger.post')input={entries:Array.isArray(input.entries)?input.entries:[{...input,...(p[0]==='projections'?{state:'projected'}:{})}]};
+      wrap=value=>({ok:true,...(p[0]==='projections'&&!p[1]?{projection:value[0]}:Array.isArray(value)?{entries:value}:{entry:value})});
+    }else if(p[0]==='batches'){
+      if(p[1])target.id=p[1];action=p[2]==='items'?'payroll.batch.item.update':p[2]==='actions'?'payroll.batch.action':method==='POST'?'payroll.batch.create':p[1]?'payroll.batch.read':'payroll.batches.list';if(p[2]==='items')input.item_id=p[3];if(method==='GET')input=query;wrap=value=>({ok:true,...(method==='GET'?{[p[1]?'batch':'batches']:value}:value)});
+    }else if(p[0]==='timesheets'){
+      if(p[1])target.id=p[1];action=p[2]==='approve'?'payroll.timesheet.approve':p[2]==='reject'?'payroll.timesheet.reject':method==='PATCH'?'payroll.timesheet.correct':'payroll.timesheets.list';if(method==='GET')input=query;wrap=value=>({ok:true,...(p[1]?{timesheet:value}:value)});
+    }else if(p[0]==='exports'){action='payroll.exports.catalog';input={};wrap=value=>({ok:true,exports:value});}
+    else if(p[0]==='artifacts'){action=method==='POST'?'payroll.artifact.generate':'payroll.artifacts.list';if(method==='GET')input=query;wrap=value=>({ok:true,[method==='POST'?'artifact':'artifacts']:value});}
+    if(!action)throw Error('This payroll operation is unavailable.');
+    const result=await root.PlatformAPI.publication.invoke(orgId,action,target,input,{...(method!=='GET'?{idempotencyKey:'payroll-'+root.crypto.randomUUID()}:{})});
+    if(result.receipt&&result.receipt.status!=='succeeded')throw Error(result.message||'The payroll operation did not complete.');
+    if(method!=='GET')root.dispatchEvent(new Event('fm:payroll:updated'));
+    return wrap(result.value);
   }
 
   function orgPath(orgId, suffix = ''){

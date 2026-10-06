@@ -28,7 +28,7 @@ export const applicationPublication = {
   invoices: { providers: ["payments"], domains: ["payments"] },
   financials: { providers: ["financials"], domains: ["payments"] },
   stats: { providers: ["stats"], domains: ["stats"], note: "Saved views, schema and queries are read-only; warehouse refresh is an explicit action." },
-  payroll: { providers: ["payroll"], domains: ["payroll"] },
+  payroll: { providers: ["payroll"], domains: ["payroll"], note: "Typed payroll ledger, schedules, policies, earnings, runs, timesheets, contractors and artifacts; subject-scoped self earnings; shared native view widgets and explicit domain mutations. Reads never reconcile scope commissions. Downloads retain authenticated binary HTTP delivery." },
   chat: { providers: ["chat"], domains: ["chat"] },
   channels: { providers: ["channels"], domains: ["channels"], note:"Project trays reuse Channels records and its subject authorization; note creation, sharing, pinning, editing, deletion and restoration are published operations. The feature flag changes rendering, not storage." },
   canvassing: { providers: ["canvassing"], domains: ["canvassing"] },
