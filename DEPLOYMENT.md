@@ -760,3 +760,5 @@ The `watch-firstmeasure-pre-sync` automation was paused after scan success. That
 For subsequent deployments, update this guide or a linked release record with release/template IDs, configuration changes, verification, and outstanding work. Do not record secrets or customer data.
 
 October 6 assistant widgets: [Widget-owned cards and floating close controls](deploy/digitalocean/development-assistant-widget-chrome-20261006.md) records the shared presentation change and browser/development verification.
+
+October 6 widget refresh: [Visible instances, custom refresh and reload fallback](deploy/digitalocean/development-widget-refresh-20261006.md) records agent refresh tools, duplicate prevention, animated widgets and development validation.

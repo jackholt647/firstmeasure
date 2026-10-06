@@ -44,6 +44,14 @@ test('visible inventory targets retained instances, custom refresh animates todo
   await page.evaluate(async()=>{window.previewElement=document.querySelector('#preview [data-form]');formRevision++;formData.recent.push({id:'submission',created_at:'2026-10-06T12:00:00Z',contact:{name:'New lead'},summary:[]});formData.totals.submissions=1;await previewHandle.refresh();await submissionsHandle.refresh();});
   await page.getByText('New lead',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>previewElement===document.querySelector('#preview [data-form]')),true);assert.ok(await page.evaluate(()=>previewUpdates>0));assert.ok(await page.evaluate(()=>animations.includes('submission-submission')));
   await page.evaluate(async()=>{FormsAPI.get=async()=>{throw Error('Access revoked');};await previewHandle.refresh();});assert.equal(await page.getByText('Embedded form',{exact:true}).count(),0);await page.locator('#preview').getByText('Access revoked').waitFor();
+  await page.addScriptTag({url:'/libraries/platform-widgets/payroll-widgets.js'});
+  await page.evaluate(async()=>{
+   window.payrollMounts=0;window.payrollRefreshes=0;
+   window.FirstMatePayroll={mountView:({root})=>{payrollMounts++;root.textContent='Upcoming payroll';return {refresh(){payrollRefreshes++;},destroy(){},setActive(){}};}};
+   PlatformAPI.publication.read=async()=>({status:'ready',value:[]});
+   for(const id of ['payroll.upcoming','payroll.ledger']){const root=document.createElement('div');root.dataset.testPayroll=id;document.body.append(root);const handle=FirstMateWidgets.mount(root,{id,version:'1',target:{scope:'organization',organizationId:'org'}},{surface:'assistant'});await handle.ready;root.querySelector('input')?.setAttribute('value','retained');await handle.refresh();}
+  });
+  assert.deepEqual(await page.evaluate(()=>({mounts:payrollMounts,refreshes:payrollRefreshes})),{mounts:1,refreshes:1});assert.equal(await page.locator('[data-test-payroll="payroll.ledger"] input').inputValue(),'retained');
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
