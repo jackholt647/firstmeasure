@@ -37,7 +37,25 @@
     }
   }
 
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  /**
+   * A 502/503/504 means the request never reached an application server (a node is
+   * restarting behind the load balancer), so it is safe to send again. Calls that
+   * create something pass `retry: false`.
+   */
   async function request(path, options = {}){
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await send(path, options);
+      } catch (error) {
+        if (![502, 503, 504].includes(error.status) || options.retry === false || attempt >= 3) throw error;
+        await wait(900 * (attempt + 1));
+      }
+    }
+  }
+
+  async function send(path, options = {}){
     const method = cleanText(options.method || 'GET').toUpperCase();
     const headers = { Accept: 'application/json', ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}) };
     const csrf = csrfToken();
@@ -53,7 +71,7 @@
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch(e) {}
     if (!res.ok || data?.ok === false) {
-      const error = new Error(cleanText(data?.message || data?.error) || `Forms request failed (${res.status})`);
+      const error = new Error(cleanText(data?.message || data?.error) || ([502, 503, 504].includes(res.status) ? 'The server is restarting. Please try again in a moment.' : `Forms request failed (${res.status})`));
       error.status = res.status;
       error.code = cleanText(data?.error);
       error.data = data;
@@ -72,13 +90,16 @@
     context: (orgId) => request(`${org(orgId)}/context`),
     list: (orgId) => request(`${org(orgId)}/forms`).then((data) => data.forms || []),
     get: (orgId, formId) => request(`${org(orgId)}/forms/${enc(formId)}`).then((data) => data.form),
-    create: (orgId, input = {}) => request(`${org(orgId)}/forms`, { method: 'POST', body: input }).then((data) => data.form),
+    create: (orgId, input = {}) => request(`${org(orgId)}/forms`, { method: 'POST', body: input, retry: false }).then((data) => data.form),
     update: (orgId, formId, patch = {}) => request(`${org(orgId)}/forms/${enc(formId)}`, { method: 'PATCH', body: patch }).then((data) => data.form),
     publish: (orgId, formId, expectedRevision) => request(`${org(orgId)}/forms/${enc(formId)}/publish`, { method: 'POST', body: expectedRevision ? { expected_revision: expectedRevision } : {} }).then((data) => data.form),
-    duplicate: (orgId, formId) => request(`${org(orgId)}/forms/${enc(formId)}/duplicate`, { method: 'POST', body: {} }).then((data) => data.form),
+    duplicate: (orgId, formId) => request(`${org(orgId)}/forms/${enc(formId)}/duplicate`, { method: 'POST', body: {}, retry: false }).then((data) => data.form),
     remove: (orgId, formId) => request(`${org(orgId)}/forms/${enc(formId)}`, { method: 'DELETE' }),
     rotateKey: (orgId, formId) => request(`${org(orgId)}/forms/${enc(formId)}/rotate-key`, { method: 'POST', body: {} }).then((data) => data.form),
     submissions: (orgId, formId) => request(`${org(orgId)}/forms/${enc(formId)}/submissions`).then((data) => data.submissions || []),
+    insights: (orgId, formId) => request(`${org(orgId)}/forms/${enc(formId)}/insights`),
+    /** The private assistant conversation about one form (the editor's AI tab). */
+    conversation: (orgId, formId) => request(`${org(orgId)}/forms/${enc(formId)}/conversation`, { method: 'POST', body: {} }),
     /** Transport the embed uses to run an unsaved draft inside the editor. */
     preview: {
       measurement: (orgId, input) => request(`${org(orgId)}/preview/measurement`, { method: 'POST', body: input }),

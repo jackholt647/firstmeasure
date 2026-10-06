@@ -62,7 +62,9 @@ source before treating earlier checkout findings as current facts.
 Read [forms](docs/architecture/forms.md) before changing website forms, their
 public runtime, pricing or booking. A form is steps of blocks published as a
 workflow document module; there are no form types. Add capability as a block
-kind or a template, never as a mode. Form calculations run evaluate-only in the
+kind or a template, never as a mode. There is no forms agent: the shared
+assistant edits forms with its `forms_*` tools and the editor's AI tab is that
+assistant in a `form:<id>` conversation. Form calculations run evaluate-only in the
 module sandbox with no data or action bindings; do not widen that for anonymous
 requests without a publication-layer design. Appointment blocks book through the
 appointments domain writer using an appointment type; do not compute slots or

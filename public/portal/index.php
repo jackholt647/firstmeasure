@@ -2317,6 +2317,7 @@ session_write_close();
   <script src="../libraries/apps/settings/feedback.js?v=<?= portalAssetVersion('../libraries/apps/settings/feedback.js') ?>"></script>
   <script src="../libraries/apps/settings/equipment.js?v=<?= portalAssetVersion('../libraries/apps/settings/equipment.js') ?>"></script>
   <script src="../libraries/apps/settings/live_chat.js?v=<?= portalAssetVersion('../libraries/apps/settings/live_chat.js') ?>"></script>
+  <script src="../libraries/platform-widgets/forms-widgets.js?v=<?= portalAssetVersion('../libraries/platform-widgets/forms-widgets.js') ?>"></script>
   <script src="../libraries/apps/settings/forms.js?v=<?= portalAssetVersion('../libraries/apps/settings/forms.js') ?>"></script>
   <script src="../libraries/apps/settings/comms.js?v=<?= portalAssetVersion('../libraries/apps/settings/comms.js') ?>"></script>
   <script src="../libraries/apps/settings/channels.js?v=<?= portalAssetVersion('../libraries/apps/settings/channels.js') ?>"></script>

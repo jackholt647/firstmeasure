@@ -92,7 +92,7 @@ async function newContext(viewport = { width: 1280, height: 900 }): Promise<Brow
       .fm-settings-subtab.active{background:#fff;color:#101828;box-shadow:0 1px 4px rgba(16,24,40,.13)}
     </style>${process.env.FORMS_SCREENSHOT_DIR ? '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">' : ""}</head><body><div id="host"></div>
     <script>window.__APP={formsApiBase:"${origin}/v1/forms"};window.toasts=[];</script>
-    <script src="/libraries/forms-api/forms-api.js"></script><script src="/libraries/agents-api/agents-api.js"></script><script src="/libraries/doc-agent/doc-agent.js"></script><script src="/libraries/apps/settings/forms.js"></script></body></html>` }));
+    <script src="/libraries/forms-api/forms-api.js"></script><script src="/libraries/platform-widgets/forms-widgets.js"></script><script src="/libraries/apps/settings/forms.js"></script></body></html>` }));
   return context;
 }
 
@@ -202,7 +202,7 @@ test("A visitor books an appointment on a phone and the roofing form degrades gr
     await page.getByText("Choose a day and time.").waitFor();
     await page.locator(".fmle-slot").first().click();
     await page.getByText(/^Selected: /).waitFor();
-    assert.equal(await page.evaluate("getComputedStyle(document.querySelector('script[data-form]').previousElementSibling.shadowRoot.querySelector('.fmle-slot.active')).backgroundColor"), "rgb(37, 99, 235)", "the calendar uses the form's accent color");
+    assert.equal(await page.evaluate("getComputedStyle(document.querySelector('script[data-form]').previousElementSibling.shadowRoot.querySelector('.fmle-slot.active')).backgroundColor"), await page.evaluate("getComputedStyle(document.querySelector('script[data-form]').previousElementSibling.shadowRoot.querySelector('.ff-btn.primary')).backgroundColor"), "the calendar uses the form's accent color");
     await shot(page, "embed-appointment-phone");
     await page.getByRole("button", { name: "Book appointment" }).click();
     await page.getByRole("heading", { name: "You are booked" }).waitFor({ timeout: 20_000 });
@@ -258,12 +258,29 @@ test("An administrator builds, previews, publishes and shares a form in the edit
     assert.match(await page.evaluate("window.routedForm"), /^form_/);
     const preview = page.locator("[data-preview]");
     await preview.getByRole("heading", { name: "Get an instant estimate" }).waitFor();
-    assert.equal(await page.evaluate("document.querySelector('[data-preview]').shadowRoot.querySelector('.ff').style.getPropertyValue('--ff-primary')"), "#0f766e", "company colors reach the preview");
+    assert.equal(await page.evaluate("document.querySelector('[data-preview] [data-form]').shadowRoot.querySelector('.ff').style.getPropertyValue('--ff-primary')"), "#0f766e", "company colors reach the preview");
+    assert.ok(await page.evaluate("!!(document.querySelector('[data-save]').compareDocumentPosition(document.querySelector('[data-status]')) & Node.DOCUMENT_POSITION_FOLLOWING)"), "the save status sits before the status pill");
 
-    // Design edits show up in the live preview and autosave.
-    await page.getByRole("tab", { name: "Design" }).click();
+    // Wording lives in Build as blocks; edits show up in the live preview and autosave.
+    assert.deepEqual(await page.getByRole("tab").allInnerTexts().then((tabs) => tabs.map((tab) => tab.trim())), ["Build", "Style", "Pricing", "Settings", "Submissions"]);
+    await page.getByRole("button", { name: /Introduction/ }).click();
     await page.getByLabel("Headline", { exact: true }).fill("Fence estimate in 30 seconds");
     await preview.getByRole("heading", { name: "Fence estimate in 30 seconds" }).waitFor();
+    await page.getByText("All changes saved").waitFor();
+
+    // Style: colors are always visible; changing one gives the form its own palette, and it can be reverted.
+    await page.getByRole("tab", { name: "Style" }).click();
+    const ffStyle = (property: string) => page.evaluate(`document.querySelector('[data-preview] [data-form]').shadowRoot.querySelector('.ff').style.getPropertyValue('${property}')`);
+    assert.equal(await page.getByRole("button", { name: "Revert to company colors" }).count(), 0);
+    await page.locator("[data-path='presentation.style.primary_color'][data-hex]").fill("#7c3aed");
+    await page.locator("[data-path='presentation.style.primary_color'][data-hex]").press("Tab");
+    await page.getByRole("button", { name: "Revert to company colors" }).waitFor();
+    assert.equal(await ffStyle("--ff-primary"), "#7c3aed");
+    await page.locator("[data-path='presentation.style.header']").selectOption("band");
+    assert.equal(await page.evaluate("document.querySelector('[data-preview] [data-form]').shadowRoot.querySelector('.ff').dataset.header"), "band");
+    await shot(page, "editor-style");
+    await page.getByRole("button", { name: "Revert to company colors" }).click();
+    assert.equal(await ffStyle("--ff-primary"), "#0f766e");
     await page.getByText("All changes saved").waitFor();
 
     // Build: add a conditional question and see it in the preview.
@@ -298,14 +315,15 @@ test("An administrator builds, previews, publishes and shares a form in the edit
     assert.match(await preview.locator(".ff-option").first().innerText(), /\$1,000/);
     assert.equal((await org.call("GET", `/v1/platform/organizations/${org.orgId}/projects`)).documents.length, 0);
 
-    // Publish, then the share tab offers the embed code and link.
+    // Publish, then Settings offers the embed code and link.
     await page.getByRole("button", { name: "Publish", exact: true }).click();
     await page.getByRole("heading", { name: "Embed on any website" }).waitFor();
     await page.locator("[data-status] .fms-pill").getByText("Live").waitFor();
     const snippet = await page.locator("[data-copy-source=embed]").inputValue();
     const key = /data-form="([^"]+)"/.exec(snippet)?.[1] || "";
     assert.ok(key, snippet);
-    await shot(page, "editor-share");
+    await shot(page, "editor-settings");
+    assert.equal(await page.getByRole("tab", { name: "Settings" }).getAttribute("class").then((value) => /active/.test(value || "")), true);
     assert.equal(await page.getByRole("button", { name: "Published" }).isDisabled(), true);
 
     // The published form is what a visitor gets; the hosted link works too.
@@ -313,6 +331,12 @@ test("An administrator builds, previews, publishes and shares a form in the edit
     await visitor.goto(`${origin}/libraries/forms-embed/form.html?k=${encodeURIComponent(key)}`);
     await visitor.getByRole("heading", { name: "Fence estimate in 30 seconds" }).waitFor();
     await visitor.close();
+
+    // Submissions is the same widget the assistant can show in a conversation.
+    await page.getByRole("tab", { name: "Submissions" }).click();
+    await page.getByText("times the form was opened").waitFor();
+    await page.getByText("Publish and share the form to start collecting responses.").waitFor({ state: "detached" }).catch(() => undefined);
+    await shot(page, "editor-submissions");
 
     // Back to the library: the form is listed as live.
     await page.getByRole("button", { name: "Forms" }).click();
@@ -323,26 +347,25 @@ test("An administrator builds, previews, publishes and shares a form in the edit
   } finally { await context.close(); }
 });
 
-test("The assistant tab sends the open draft to the form builder agent and applies what it stages", { skip }, async () => {
+test("The AI tab is the shared assistant in a conversation about the form, and the editor follows what it saves", { skip }, async () => {
   const org = await registerOrg();
+  const { saveCapabilityValues } = await import("../platform/capabilities.js");
+  await saveCapabilityValues(org.orgId, { "apps.assistant": true });
   const form = (await org.call("POST", `/v1/forms/organizations/${org.orgId}/forms`, { template: "contact", name: "Assistant form" })).form;
-  const staged = structuredClone(form.definition);
-  staged.presentation.headline = "Built by the assistant";
-  staged.steps[0].items.push({ ...structuredClone(staged.steps[0].items.find((item: any) => item.kind === "paragraph")), id: "budget", kind: "select", param: "budget", label: "What is your budget?", options: [{ value: "low", label: "Under $5,000", description: "", image_url: "" }, { value: "high", label: "$5,000 or more", description: "", image_url: "" }] });
   const context = await newContext({ width: 1440, height: 950 });
   try {
     await context.addCookies(org.cookies.map((cookie) => ({ ...cookie, url: origin })));
-    // The model call is the only thing replaced; threads and the agent registration are real.
-    let sent: any = null;
-    await context.route(`${origin}/v1/agents/**/messages`, (route) => {
-      sent = route.request().postDataJSON();
-      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, status: "success", user_message: { id: "u1", role: "user", content: sent.message }, assistant_message: { id: "a1", role: "assistant", content: "I added a budget question and a new headline." }, actions: [{ type: "form.set_definition", definition: staged }], changes: [], renders: [], reverted: [] }) });
-    });
     const page = await context.newPage();
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(`${origin}/t/settings`);
-    await page.evaluate(`window.FirstMateFormsSettings.mount(document.getElementById("host"), {
+    // The assistant renderer itself is the portal's shared one; this stands in for it and records how the editor mounts it.
+    await page.evaluate(`window.PlatformAssistant = { mountSurface: function (container, options) {
+      window.ai = options;
+      container.innerHTML = '<div data-shared-assistant>Shared assistant</div>';
+      return { ready: options.loadContext().then(function (loaded) { window.aiThread = loaded.main_thread; }), destroy: function () { window.aiDestroyed = true; } };
+    } };
+    window.FirstMateFormsSettings.mount(document.getElementById("host"), {
       orgId: ${JSON.stringify(org.orgId)},
       initialFormId: ${JSON.stringify(form.id)},
       branding: { primary: "#0f766e", logo: "" },
@@ -351,23 +374,33 @@ test("The assistant tab sends the open draft to the form builder agent and appli
     }); undefined`);
     const preview = page.locator("[data-preview]");
     await preview.getByRole("heading", { name: "Tell us how we can help" }).waitFor();
-    await page.getByRole("tab", { name: "Assistant" }).click();
-    await page.getByText("Describe the form you need").waitFor();
-    await shot(page, "editor-assistant");
-    await page.locator("[data-da-input]").fill("Ask for their budget and make the headline friendlier");
-    await page.locator("[data-da-send]").click();
-    await preview.getByRole("heading", { name: "Built by the assistant" }).waitFor();
-    await preview.getByText("What is your budget?").waitFor();
-    await page.getByText("I added a budget question and a new headline.").waitFor();
-    assert.equal(sent.input.subject.name, "Assistant form");
-    assert.equal(sent.input.definition.steps[0].items.length, form.definition.steps[0].items.length, "the agent receives the draft as it is in the editor");
+    assert.deepEqual(await page.getByRole("tab").allInnerTexts().then((tabs) => tabs.map((tab) => tab.trim())), ["AI", "Build", "Style", "Pricing", "Settings", "Submissions"]);
+    assert.match((await page.getByRole("tab", { name: "AI" }).getAttribute("class")) || "", /active/, "a form opens on the AI tab");
+    await page.locator("[data-shared-assistant]").waitFor();
+    await page.waitForFunction("window.aiThread && window.aiThread.subject_id");
+    assert.equal(await page.evaluate("window.aiThread.subject_id"), `form:${form.id}`);
+    assert.equal(await page.evaluate("window.aiThread.agent_id"), "assistant");
+    assert.deepEqual(await page.evaluate("window.ai.getContext()"), { surface: "forms", formId: form.id, formName: "Assistant form" });
+    await shot(page, "editor-ai");
 
+    // An assistant turn saves the draft through the forms tools; when it finishes, the editor and preview follow.
+    const current = (await org.call("GET", `/v1/forms/organizations/${org.orgId}/forms/${form.id}`)).form;
+    current.definition.presentation.headline = "Built by the assistant";
+    await page.evaluate("window.ai.onState({ pending: true })");
+    await org.call("PATCH", `/v1/forms/organizations/${org.orgId}/forms/${form.id}`, { definition: current.definition, name: "Renamed by the assistant" });
+    await page.evaluate("window.ai.onState({ pending: false })");
+    await preview.getByRole("heading", { name: "Built by the assistant" }).waitFor();
+    assert.equal(await page.getByLabel("Form name").inputValue(), "Renamed by the assistant");
+    await page.getByRole("tab", { name: "Build" }).click();
+    await page.getByRole("button", { name: /Introduction/ }).getByText("Built by the assistant").waitFor();
+    assert.equal(await page.evaluate("window.aiDestroyed"), true, "leaving the tab releases the assistant surface");
+
+    // Manual edits made afterwards save on top of the assistant's version rather than overwriting it.
+    await page.getByRole("button", { name: /Introduction/ }).click();
+    await page.getByLabel("Opening line").fill("Edited by hand");
     await page.getByText("All changes saved").waitFor();
     const saved = (await org.call("GET", `/v1/forms/organizations/${org.orgId}/forms/${form.id}`)).form;
-    assert.equal(saved.definition.presentation.headline, "Built by the assistant");
-    assert.equal(saved.status, "draft", "the assistant never publishes");
-    await page.getByRole("tab", { name: "Build" }).click();
-    await page.locator(".fms-block-row").getByText("What is your budget?").waitFor();
+    assert.deepEqual([saved.definition.presentation.headline, saved.definition.presentation.subheadline], ["Built by the assistant", "Edited by hand"]);
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });

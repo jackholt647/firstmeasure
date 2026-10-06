@@ -18,7 +18,7 @@
     const k=key(def.id,def.version);if(definitions.has(k))throw Error('Duplicate widget: '+k);
     definitions.set(k,Object.freeze(clone(def)));if(renderer)renderers.set(k,renderer);
   }
-  const ready=fetch(new URL('catalog.json?v=20261002-platform-widgets',base),{credentials:'same-origin'}).then(r=>{if(!r.ok)throw Error('Widget catalog unavailable');return r.json();}).then(rows=>rows.forEach(def=>register(def)));
+  const ready=fetch(new URL('catalog.json?v=20261006-form-widgets',base),{credentials:'same-origin'}).then(r=>{if(!r.ok)throw Error('Widget catalog unavailable');return r.json();}).then(rows=>rows.forEach(def=>register(def)));
   ready.catch(()=>{});
   function styles(){
     if(document.getElementById('fm-widget-styles'))return;
@@ -58,7 +58,7 @@
         const source=definition.sources[0];let data=context.data?.[ref.id];
         if(data===undefined&&source){
           const target=ref.target||context.target;
-          if(!target?.organizationId||!target?.projectId)throw Error('Choose a project to display this widget');
+          if(!target?.organizationId||(target.scope!=='organization'&&!target?.projectId))throw Error('Choose a project to display this widget');
           const result=await (context.read||((source,target)=>global.PlatformAPI.publication.read(target.organizationId,{...source,target})))(source,target);
           if(!alive||generation!==revision)return;
           if(result.status!=='ready'){clear();status(content,result.message||({missing:'No data is available yet.',pending:'This report is not ready yet.',denied:'You do not have access to this widget.'}[result.status]||'Unable to load this widget.'));return;}

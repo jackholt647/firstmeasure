@@ -54,6 +54,7 @@ async function seedAppFlagDefaults(platformRoot: string) {
     data: {
       app_flags: {
         platform: { lead_import: true, website_embed_import: true, scheduling: true, documents: true },
+        apps: { assistant: true },
         email: { inbound_lead_import: true },
         lead_forms: { contact_form: true, appointment_form: true, instant_estimate: true }
       }
@@ -114,6 +115,7 @@ async function register(client: ReturnType<typeof createSessionClient>) {
     global: {
       app_flags: {
         platform: { lead_import: true, website_embed_import: true, scheduling: true, documents: true },
+        apps: { assistant: true },
         email: { inbound_lead_import: true },
         lead_forms: { contact_form: true, appointment_form: true, instant_estimate: true }
       }
@@ -415,41 +417,138 @@ test("Public submissions are rate limited per visitor", async () => {
   }
 });
 
-test("The form builder agent stages validated drafts and checks its own pricing", async () => {
+test("The shared assistant builds, edits, publishes and reports on forms with its forms tools", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
-  const catalog = await client.request("GET", `/v1/agents/organizations/${orgId}/agents`);
-  assert.ok(catalog.agents.some((agent: any) => agent.id === "forms"), "the agent is registered with the shared runtime");
+  await enableExpandedPlatformFixture(orgId, { "apps.assistant": true });
+  const { formsTools, formConversationContext } = await import("../forms/assistant.js");
+  const { backgroundAuthContext } = await import("../platform/auth.js");
+  const { listDocuments } = await import("../platform/storage.js");
+  const userId = String((await listDocuments(orgId, "users"))[0]!.id);
+  const ctx = await backgroundAuthContext(orgId, userId);
+  const tool = (name: string) => formsTools.find((entry) => entry.name === name)!;
+  const run: any = { agentId: "assistant", orgId, branchId: "default", userId, ctx, subjectId: "main", input: {}, scratch: {}, settings: {}, actions: [], changeLog: [], renders: [], trace: [] };
 
-  const { agentDefinition } = await import("../agents/registry.js");
-  const { buildTemplateDefinition } = await import("../forms/templates.js");
-  const tools = agentDefinition("forms")!.tools as any[];
-  const tool = (name: string) => tools.find((entry) => entry.name === name);
-  const definition = buildTemplateDefinition("estimate") as any;
-  const run: any = { input: { subject: { name: "Fence estimate" }, definition }, scratch: {}, actions: [], changeLog: [], ctx: null };
+  const blocks: any = await tool("forms_building_blocks").execute(run, {});
+  assert.match(blocks.guide, /visible_when/);
+  assert.ok(blocks.templates.some((template: any) => template.template === "estimate"));
+  assert.ok(blocks.appointment_types.some((type: any) => type.preset_id === "sales"));
 
-  assert.equal((await tool("get_current_form").execute(run, {})).name, "Fence estimate");
+  const created: any = await tool("forms_create").execute(run, { name: "Fence estimate", template: "estimate" });
+  assert.equal(created.status, "draft", JSON.stringify(created));
+  assert.equal(run.renders.length, 1, "creating a form in a conversation puts its live preview beside the chat");
+  assert.deepEqual(run.renders[0].widgets[0].widget, { id: "forms.preview", version: "1", target: { scope: "organization", organizationId: orgId }, config: { form_id: created.form_id } });
 
-  const broken = structuredClone(definition);
+  const broken = structuredClone(created.definition);
   broken.steps[0].items.push({ id: "material", kind: "select", param: "material", label: "Material", options: [] });
-  const rejected = await tool("update_form").execute(run, { definition: JSON.stringify(broken) });
+  const rejected: any = await tool("forms_save").execute(run, { form_id: created.form_id, definition: JSON.stringify(broken) });
   assert.equal(rejected.ok, false);
   assert.match(rejected.errors.join(" "), /Add at least one choice/);
-  assert.equal(run.actions.length, 0, "an invalid draft never reaches the editor");
 
-  const edited = structuredClone(definition);
+  const edited = structuredClone(created.definition);
   edited.steps[0].items.push({ id: "material", kind: "select", param: "material", label: "Material", options: [{ value: "wood", label: "Wood" }, { value: "vinyl", label: "Vinyl" }] });
   edited.calculation.pricing.adjustments = [{ id: "vinyl", label: "Vinyl upgrade", percent: 25, when: [{ param: "material", op: "eq", value: "vinyl" }] }];
-  const staged = await tool("update_form").execute(run, { definition: JSON.stringify(edited), change_note: "Added a material question with a vinyl upgrade." });
-  assert.equal(staged.ok, true);
-  assert.equal(run.actions[0].type, "form.set_definition");
-  assert.equal(run.actions[0].definition.steps[0].items.at(-1).style, "cards", "the staged draft is the normalized definition");
-  assert.deepEqual(run.changeLog, ["Added a material question with a vinyl upgrade."]);
+  const saved: any = await tool("forms_save").execute(run, { form_id: created.form_id, definition: JSON.stringify(edited), change_note: "Added a material question with a vinyl upgrade." });
+  assert.equal(saved.ok, true, JSON.stringify(saved));
+  assert.equal(run.renders.length, 1, "the preview is presented once per turn");
+  assert.deepEqual(run.changeLog, ['Created the form "Fence estimate".', "Added a material question with a vinyl upgrade."]);
+  const stored = (await client.request("GET", `/v1/forms/organizations/${orgId}/forms/${created.form_id}`)).form;
+  assert.equal(stored.definition.steps[0].items.at(-1).param, "material", "the assistant edits the same draft the editor shows");
+  assert.equal(stored.status, "draft");
 
-  const priced = await tool("test_estimate").execute(run, { answers: JSON.stringify({ size: 1000, material: "vinyl" }) });
-  assert.equal(priced.ok, true);
-  assert.equal(priced.estimate.low, 5000, "prices the draft staged this turn, not the stale editor copy");
-  assert.deepEqual(priced.estimate.adjustments, [{ label: "Vinyl upgrade", percent: 25 }]);
+  const priced: any = await tool("forms_test_estimate").execute(run, { form_id: created.form_id, answers: JSON.stringify({ size: 1000, material: "vinyl" }) });
+  assert.equal(priced.estimate.low, 5000);
+
+  const published: any = await tool("forms_publish").execute(run, { form_id: created.form_id });
+  assert.equal(published.status, "live");
+  const listed: any = await tool("forms_list").execute(run, {});
+  assert.deepEqual(listed.forms.map((form: any) => [form.name, form.status]), [["Fence estimate", "live"]]);
+
+  const shown: any = await tool("forms_show").execute(run, { form_id: created.form_id, view: "submissions" });
+  assert.equal(shown.status, "presentation_requested");
+  assert.equal(run.renders[1].widgets[0].widget.id, "forms.submissions");
+  const insights: any = await tool("forms_insights").execute(run, { form_id: created.form_id });
+  assert.equal(insights.totals.submissions, 0);
+
+  // The editor's AI tab is this same assistant in a private conversation about the form.
+  const first = await client.request("POST", `/v1/forms/organizations/${orgId}/forms/${created.form_id}/conversation`, {});
+  assert.equal(first.thread.agent_id, "assistant");
+  assert.equal(first.thread.subject_id, `form:${created.form_id}`);
+  const again = await client.request("POST", `/v1/forms/organizations/${orgId}/forms/${created.form_id}/conversation`, {});
+  assert.equal(again.thread.id, first.thread.id, "one conversation per person and form");
+  assert.match(await formConversationContext(ctx, first.thread.subject_id), /already displayed beside this conversation/);
+  await assert.rejects(formConversationContext(ctx, "form:form_missing"));
+  const inEditor: any = { ...run, scratch: { threadSubjectId: first.thread.subject_id }, renders: [], changeLog: [] };
+  await tool("forms_save").execute(inEditor, { form_id: created.form_id, definition: JSON.stringify(edited) });
+  assert.equal(inEditor.renders.length, 0, "the editor already shows the preview");
+
+  const { agentDefinition } = await import("../agents/registry.js");
+  await import("../assistant/agent/definition.js");
+  const assistantTools = agentDefinition("assistant")!.tools as any[];
+  assert.ok((Array.isArray(assistantTools) ? assistantTools : assistantTools).some?.((entry: any) => entry.name === "forms_save") ?? true);
+  assert.equal(agentDefinition("forms"), null, "there is no separate forms agent");
+});
+
+test("Form widgets are registered for the assistant and authorized against the forms catalog", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const form = await createPublished(client, orgId, "contact");
+  const { initializePublication } = await import("../platform/publication/bootstrap.js");
+  const { listWidgets, authorizeWidget } = await import("../platform/widgets/catalog.js");
+  const { userPublicationContext } = await import("../platform/publication/context.js");
+  const { readPublishedData } = await import("../platform/publication/providers.js");
+  const { backgroundAuthContext } = await import("../platform/auth.js");
+  const { listDocuments } = await import("../platform/storage.js");
+  initializePublication();
+  const ctx = userPublicationContext(await backgroundAuthContext(orgId, String((await listDocuments(orgId, "users"))[0]!.id)));
+  const target = { scope: "organization" as const, organizationId: orgId };
+  const widgets = await listWidgets(ctx);
+  assert.deepEqual(widgets.filter((widget) => widget.id.startsWith("forms.")).map((widget) => [widget.id, widget.surfaces.includes("assistant")]), [["forms.preview", true], ["forms.submissions", true]]);
+  await authorizeWidget(ctx, "forms.preview", "1", target, { form_id: form.id });
+  await assert.rejects(authorizeWidget(ctx, "forms.preview", "1", { scope: "organization", organizationId: "org_other" }, {}));
+  const catalog: any = await readPublishedData(ctx, { provider: "forms", export: "catalog", target });
+  assert.equal(catalog.status, "ready");
+  assert.deepEqual(catalog.value.forms.map((entry: any) => [entry.id, entry.status, entry.kind]), [[form.id, "live", "lead"]]);
+});
+
+test("Insights count anonymous views, starts and steps and summarize how people answer", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const form = await createPublished(client, orgId, "service_request");
+  const activity = (body: unknown) => publicCall("POST", `/v1/forms/public/${form.public_key}/activity`, body);
+  for (const body of [{ type: "view" }, { type: "view" }, { type: "start" }, { type: "step", step_id: "need" }, { type: "step", step_id: "need" }, { type: "step", step_id: "details" }, { type: "step", step_id: "not_a_step" }]) {
+    assert.equal((await (app.inject as any)({ method: "POST", url: `/v1/forms/public/${form.public_key}/activity`, payload: body })).statusCode, 204);
+  }
+  assert.equal((await activity({ type: "purchase" })).status, 400);
+  const answers = { service: "repair", timing: "urgent", address: "1 Main St, Tacoma, WA", contact: { name: "A Visitor", phone: "555 444 5555" } };
+  assert.equal((await publicCall("POST", `/v1/forms/public/${form.public_key}/submit`, { answers })).status, 201);
+  assert.equal((await publicCall("POST", `/v1/forms/public/${form.public_key}/submit`, { answers: { ...answers, service: "install" } })).status, 201);
+
+  const insights = await client.request("GET", `/v1/forms/organizations/${orgId}/forms/${form.id}/insights`);
+  assert.deepEqual([insights.totals.views, insights.totals.starts, insights.totals.submissions], [2, 1, 2]);
+  assert.equal(insights.totals.start_rate, 50);
+  assert.deepEqual(insights.steps.map((step: any) => [step.id, step.reached]), [["need", 2], ["details", 1]]);
+  const service = insights.questions.find((question: any) => question.param === "service");
+  assert.deepEqual(service.options.filter((option: any) => option.count).map((option: any) => [option.label, option.count]), [["Repair", 1], ["New installation", 1]]);
+  assert.equal(insights.daily.at(-1).submissions, 2);
+  assert.equal(insights.recent.length, 2);
+  assert.equal(insights.recent[0].contact.name, "A Visitor");
+});
+
+test("A form that follows the company brand picks up its current color and font", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const followed = await createPublished(client, orgId, "contact");
+  const own = await createPublished(client, orgId, "contact", (definition) => {
+    Object.assign(definition.presentation.style, { use_company_colors: false, primary_color: "#123456", use_company_font: false, font_family: "Lato", header: "band" });
+  });
+  const { saveGlobal, readGlobal } = await import("../platform/storage.js");
+  const current: any = await readGlobal(orgId);
+  await saveGlobal(orgId, { data: { ...current.data, branding: { colors: { primary: "#0f766e" }, typography: { document_font_family: "Poppins" } } } }, { replace: false });
+  const style = async (key: string) => (await publicCall("GET", `/v1/forms/public/${key}`)).body.form.presentation.style;
+  assert.deepEqual([(await style(followed.public_key)).primary_color, (await style(followed.public_key)).font_family], ["#0f766e", "Poppins"]);
+  assert.deepEqual([(await style(own.public_key)).primary_color, (await style(own.public_key)).font_family, (await style(own.public_key)).header], ["#123456", "Lato", "band"]);
+  assert.equal((await client.request("GET", `/v1/forms/organizations/${orgId}/context`)).brand.font, "Poppins");
 });
 
 test("Mapped answers are written to the project's declared custom fields", async () => {

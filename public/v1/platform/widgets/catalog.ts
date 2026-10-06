@@ -25,7 +25,7 @@ export async function listWidgets(ctx:PublicationContext,target?:TargetRef){
  const result:WidgetDefinition[]=[];
  for(const def of definitions){try{for(const source of widgetSources(def)){
   if(target)await authorizeSource(ctx,{...source,target});
-  else {const access=describeDataProvider(source.provider)?.exports[source.export]?.access;if(!access)throw Error('Missing widget source');await authorizePublication(ctx,{scope:'project',organizationId:ctx.organizationId,projectId:'$project'},access as AccessPolicy,`${source.provider}.${source.export}`);}
+  else {const access=describeDataProvider(source.provider)?.exports[source.export]?.access;if(!access)throw Error('Missing widget source');await authorizePublication(ctx,(access as AccessPolicy).scopes.includes('project')?{scope:'project',organizationId:ctx.organizationId,projectId:'$project'}:{scope:'organization',organizationId:ctx.organizationId},access as AccessPolicy,`${source.provider}.${source.export}`);}
  }result.push(structuredClone(def));}catch{/* Discovery is never an authority grant. */}}
  return result;
 }

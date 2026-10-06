@@ -24,6 +24,11 @@ Agents discover permitted definitions with `platform_widgets` and request displa
 
 Existing document widgets enter the registry through an adapter. Documents retain their existing bindings, pagination, live/frozen snapshots and replay authorization; a widget registry entry does not replace those contracts. These document definitions are available on document/dashboard surfaces, not automatically published as agent tools.
 
+Widgets are not only project-scoped. A widget whose sources are organization
+scope (for example `forms.preview` and `forms.submissions`, authorized against
+`forms.catalog`) takes `target: { scope: "organization", organizationId }` and
+identifies its record through configuration.
+
 ## Adding a widget
 
 1. Declare identity, owner, version, configuration, sizing and supported surfaces; expose typed domain data/actions through publication when needed.

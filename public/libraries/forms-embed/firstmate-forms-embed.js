@@ -98,7 +98,9 @@
       load: () => call(baseUrl, base).then((data) => data.form),
       availability: (item, date, address) => call(baseUrl, `${base}/availability?${new URLSearchParams({ item_id: item.id, date, ...(address ? { address } : {}) })}`),
       measure: (item, address) => call(baseUrl, `${base}/measurement`, { method: 'POST', body: { item_id: item.id, address } }),
-      submit: (payload) => call(baseUrl, `${base}/submit`, { method: 'POST', body: payload })
+      submit: (payload) => call(baseUrl, `${base}/submit`, { method: 'POST', body: payload }),
+      // Anonymous counts of views, starts and steps reached. Best effort; never blocks the visitor.
+      activity: (type, stepId) => { try { fetch(`${baseUrl.replace(/\/+$/, '')}/${base}/activity`, { method: 'POST', keepalive: true, credentials: 'omit', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, ...(stepId ? { step_id: stepId } : {}) }) }).catch(() => {}); } catch {} }
     };
   }
 
@@ -118,7 +120,8 @@
     });
   }
   function ensureFont(font){
-    const spec = FONT_URLS[font];
+    // Company fonts are not limited to the built-in list; anything else is requested by family name.
+    const spec = FONT_URLS[font] || (/^[A-Za-z0-9 ]{1,80}$/.test(font) ? `${font.replace(/ /g, '+')}:wght@400;500;600;700;800` : '');
     if (!spec || document.querySelector(`link[data-fm-form-font="${CSS.escape(font)}"]`)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
@@ -143,6 +146,14 @@
 .ff.wide{max-width:920px}
 .ff[data-corners=square]{--ff-radius:0px;--ff-field-radius:0px}
 .ff[data-corners=round]{--ff-radius:20px;--ff-field-radius:14px}
+.ff[data-header=band] .ff-head{margin:-28px -28px 22px;padding:26px 28px;background:var(--ff-primary);color:var(--ff-on-primary)}
+.ff[data-header=band] .ff-head h2,.ff[data-header=band] .ff-head .ff-sub{color:inherit}
+.ff[data-header=band] .ff-head .ff-sub{opacity:.88}
+.ff[data-header=band] .ff-logo{background:#fff;border-radius:8px;padding:6px 8px}
+.ff[data-header=centered] .ff-head{align-items:center;text-align:center}
+.ff[data-header=centered] .ff-logo{align-self:center}
+.ff-step{animation:ff-in .22s ease}
+@keyframes ff-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .ff-progress{height:4px;background:var(--ff-line)}
 .ff-progress i{display:block;height:100%;background:var(--ff-primary);transition:width .25s ease}
 .ff-dots{display:flex;gap:6px;justify-content:center;padding:16px 24px 0}
@@ -234,7 +245,7 @@
 .ff-preview-tag{display:inline-block;justify-self:start;padding:3px 9px;border-radius:99px;background:#fef3c7;color:#92400e;font-size:11.5px;font-weight:700}
 .ff-state{padding:40px 28px;text-align:center;color:var(--ff-muted);font-weight:600}
 @container (max-width:560px){
-  .ff-body{padding:22px 18px 6px}.ff-foot{padding:18px 18px 20px}.ff-fine{padding:0 18px 20px}.ff-banner{margin:0 18px 14px}.ff-done{padding:28px 18px 26px}
+  .ff-body{padding:22px 18px 6px}.ff[data-header=band] .ff-head{margin:-22px -18px 18px;padding:20px 18px}.ff-foot{padding:18px 18px 20px}.ff-fine{padding:0 18px 20px}.ff-banner{margin:0 18px 14px}.ff-done{padding:28px 18px 26px}
   .ff h2{font-size:22px}.ff h3{font-size:18px}.ff-grid,.ff-choices.cards,.ff-facts{grid-template-columns:1fr}.ff-range{font-size:28px}
 }
 @media (prefers-reduced-motion:reduce){.ff *{transition:none!important;animation:none!important}}
@@ -256,6 +267,8 @@
     const wrap = shadow.querySelector('.ff');
     const transport = options.transport || liveTransport(clean(options.baseUrl || script?.dataset?.baseUrl) || defaultBaseUrl(), key);
     const emit = (name, detail) => mount.dispatchEvent(new CustomEvent(`fm-form:${name}`, { detail, bubbles: true }));
+    const tracked = new Set();
+    const track = (type, stepId) => { const key = `${type}:${stepId || ''}`; if (preview || tracked.has(key)) return; tracked.add(key); transport.activity?.(type, stepId); };
 
     const state = { form: null, answers: {}, measurements: {}, errors: {}, step: 0, busy: false, banner: '', result: null, submissionId: '' };
     let picker = null;
@@ -302,6 +315,7 @@
       if (/^#[0-9a-f]{6}$/i.test(clean(style.text_color))) wrap.style.setProperty('--ff-text', style.text_color);
       if (/^#[0-9a-f]{6}$/i.test(clean(style.background_color))) wrap.style.setProperty('--ff-bg', style.background_color);
       wrap.dataset.corners = style.corners || 'soft';
+      wrap.dataset.header = style.header || 'plain';
       const font = clean(style.font_family) || 'Inter';
       ensureFont(font);
       wrap.style.fontFamily = `${JSON.stringify(font)},system-ui,-apple-system,"Segoe UI",Arial,sans-serif`;
@@ -489,10 +503,12 @@
           ${last && presentation.fine_print ? `<div class="ff-fine">${esc(presentation.fine_print)}</div>` : ''}
         </form>`;
       bind(steps);
+      for (const step of isPaged ? [steps[state.step]] : steps) track('step', step.id);
       if (focusTitle) wrap.querySelector('[data-step-title]')?.focus({ preventScroll: true });
     }
 
     function setAnswer(item, value){
+      track('start');
       if (value === undefined || value === '' || (Array.isArray(value) && !value.length)) delete state.answers[item.param];
       else state.answers[item.param] = value;
       if (state.errors[item.id]) { delete state.errors[item.id]; return true; }
@@ -753,6 +769,7 @@
       controller.ready = transport.load().then((form) => {
         if (destroyed) return controller;
         start(form);
+        track('view');
         emit('ready', { name: form.name });
         return controller;
       }).catch((error) => {

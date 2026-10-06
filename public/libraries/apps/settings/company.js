@@ -14179,7 +14179,7 @@
           orgId,
           branchId,
           initialFormId: routed.settingsEntity.replace(/^form:/, ''),
-          branding: { primary: clampHex(getComputedStyle(document.documentElement).getPropertyValue('--primary-readable').trim() || getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(), DEFAULT_PRIMARY), logo },
+          branding: { primary: clampHex(getComputedStyle(document.documentElement).getPropertyValue('--primary-readable').trim() || getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(), DEFAULT_PRIMARY), logo, font: String(state.font_family || '').trim() },
           roles: accessRoles,
           showToast,
           confirm: (message, options) => window.PlatformUI?.confirm ? window.PlatformUI.confirm(message, options) : Promise.resolve(window.confirm(message)),

@@ -11,8 +11,9 @@ measurement sources) that an organization edits like anything else.
 
 Code: [`public/v1/forms`](../../public/v1/forms/README.md) (API),
 `public/libraries/forms-embed` (public renderer), `public/libraries/forms-api`
-(authenticated client), `public/libraries/apps/settings/forms.js` (library and
-editor, under Settings → Forms and Leads).
+(authenticated client), `public/libraries/platform-widgets/forms-widgets.js`
+(the preview and submissions widgets), `public/libraries/apps/settings/forms.js`
+(library and editor, under Settings → Forms and Leads).
 
 ## Model
 
@@ -161,16 +162,60 @@ confirmation is returned and never fail the submission.
 
 ## Authoring
 
-The editor autosaves the draft, and renders the real public embed beside it as a
-live preview running the unsaved draft through authenticated preview routes
+The editor's tabs are AI, Build, Style, Pricing, Settings and Submissions. Build
+holds every block, including the form-level wording (introduction, buttons, the
+thank-you screen). Style holds only look: colors, font, header, corners, flow.
+Settings holds what happens on submission and, once published, the embed code
+and share link. The draft autosaves.
+
+Beside the tabs sits the **form preview widget**: the real public embed running
+the unsaved draft through authenticated preview routes
 (`/v1/forms/organizations/:orgId/preview/*`). Submitting in the preview prices
 the answers and creates nothing.
 
-The **Form Builder agent** (`forms/agent.ts`, agent id `forms`) follows the
-document designer's contract: the editor sends the open draft with each message,
-the agent stages a complete validated replacement with `update_form`, and the
-editor applies it to the draft. It can check its own pricing with
-`test_estimate`. It cannot save or publish.
+## Widgets and the assistant
+
+Two registered platform widgets (`forms-widgets.js`, declared in the widget
+catalog, authorized against the `forms.catalog` publication export):
+
+- `forms.preview` — the live, clickable preview of a form's draft. It follows
+  the saved draft, so it refreshes when the form is edited anywhere.
+- `forms.submissions` — views, starts, completion, the step funnel, how each
+  question is answered, average estimates, bookings and recent submissions.
+
+The editor mounts these same renderers for its preview and its Submissions tab.
+
+There is no separate forms agent. `forms/assistant.ts` gives the shared
+FirstMate assistant forms tools (`forms_list`, `forms_building_blocks`,
+`forms_get`, `forms_create`, `forms_save`, `forms_test_estimate`,
+`forms_publish`, `forms_insights`, `forms_show`), so a form can be built or
+changed from any conversation; the assistant places the preview or submissions
+widget beside the chat. `forms_save` validates a complete definition and saves
+the draft; only `forms_publish` changes what visitors see.
+
+The editor's **AI tab** is that same assistant, mounted with
+`PlatformAssistant.mountSurface` in a private conversation whose subject is
+`form:<id>` (`POST /v1/forms/organizations/:orgId/forms/:formId/conversation`).
+The subject adds the form as context and tells the assistant the preview is
+already on screen. The editor saves before the conversation starts and re-reads
+the form after each turn.
+
+## Brand
+
+A form follows the company brand until someone gives it its own: accent color
+(`use_company_colors`), font (`use_company_font`) and logo. Followed values are
+resolved from the organization's branding when the public form is read, so a
+rebrand reaches published forms without republishing.
+
+## Activity
+
+The embed reports anonymous counts — a view, a start (first answer) and each
+step reached — to `POST /v1/forms/public/:key/activity`. They are stored per
+form per day in `form_activity` and combined with submissions by
+`forms/insights.ts`. No visitor identity is recorded before submission.
+
+Instant Full Org development sandboxes are seeded once with three published
+forms (contact, roof estimate, appointment booking).
 
 ## Capabilities
 

@@ -1,10 +1,11 @@
 /* Forms settings: the forms library and the form editor.
  *
- * A form is steps of blocks. The editor edits the draft definition, autosaves
- * it through FormsAPI, and renders the real public embed beside it as a live
- * preview \u2014 the preview is the same renderer visitors get, running the unsaved
- * draft through the authenticated preview transport. Publishing snapshots the
- * draft as a document module version; see v1/forms/README.md.
+ * A form is steps of blocks. The editor edits the draft definition and autosaves
+ * it through FormsAPI. Beside it sits the form preview widget (the real public
+ * embed running the unsaved draft), and its AI tab is the shared FirstMate
+ * assistant in a private conversation about this form: the same assistant, tools
+ * and widgets as anywhere else in the portal, with the preview pinned alongside.
+ * Publishing snapshots the draft as a document module version; see v1/forms/README.md.
  */
 (function(root){
   'use strict';
@@ -89,10 +90,25 @@
       .fms-code-box{display:flex;gap:8px;align-items:stretch}.fms-code-box textarea,.fms-code-box input{flex:1;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px}
       .fms-table{width:100%;border-collapse:collapse;font-size:12.5px}.fms-table th{font-size:10.5px;font-weight:900;letter-spacing:.05em;text-transform:uppercase;color:#667085;text-align:left;padding:8px 10px;border-bottom:1px solid #e4e7ec}.fms-table td{padding:10px;border-bottom:1px solid #f0f2f5;vertical-align:top}
       .fms-table td small{display:block;color:#667085;margin-top:2px}
-      .fms-assistant{height:100%;min-height:460px;border:1px solid #e4e7ec;border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+      .fms-pane.fms-fill{overflow:hidden;padding:0 0 2px;display:flex}
+      .fms-ai{flex:1;min-width:0;min-height:460px;border:1px solid #e4e7ec;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;background:#fff;position:relative}
+      .fms-side{min-height:0;min-width:0}
+      .fms-reveal{display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows .24s cubic-bezier(.2,.8,.2,1),opacity .2s ease}
+      .fms-reveal>div{overflow:hidden;min-height:0}
+      .fms-reveal[data-reveal=pending],.fms-reveal[data-reveal=out]{grid-template-rows:0fr;opacity:0}
+      .fms-chev{color:#98a2b3;font-size:11px;transition:transform .22s ease}.fms-block.open .fms-chev{transform:rotate(180deg)}
+      .fms-block{transition:border-color .18s ease,box-shadow .18s ease}.fms-block-row:hover .k{background:#e4e7ec}
+      .fms-block-row .k{transition:background .15s ease}
+      @keyframes fms-rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+      .fms-pane.fms-enter>*{animation:fms-rise .22s ease both}.fms-pane.fms-enter>*:nth-child(2){animation-delay:.03s}.fms-pane.fms-enter>*:nth-child(3){animation-delay:.06s}.fms-pane.fms-enter>*:nth-child(n+4){animation-delay:.09s}
+      .fms-palette,.fms-list>.fms-row,.fms-templates>.fms-template{animation:fms-rise .2s ease both}
+      .fms-row,.fms-template,.fms-btn{transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease,background .15s ease,filter .15s ease}
+      .fms-template:hover:not([disabled]),.fms-row:hover{transform:translateY(-1px)}
+      .fms-dialog[open]{animation:fms-rise .2s ease both}
+      @media (prefers-reduced-motion:reduce){.fms-root *,.fms-dialog{animation:none!important;transition:none!important}}
       a.fms-btn{text-decoration:none}
       .fms-color{display:flex;gap:8px;align-items:center}.fms-color input[type=color]{width:36px;height:36px;border:1px solid #d0d5dd;border-radius:9px;padding:2px;background:#fff}
-      @media(max-width:1200px){.fms-cols{grid-template-columns:1fr}.fms-preview{min-height:560px}.fms-root,.fms-editor{height:auto}.fms-pane{overflow:visible}}
+      @media(max-width:1200px){.fms-cols{grid-template-columns:1fr}.fms-side{height:640px}.fms-ai{height:560px;flex:none;width:100%}.fms-root,.fms-editor{height:auto}.fms-pane{overflow:visible}}
       @media(max-width:640px){.fms-row{grid-template-columns:44px minmax(0,1fr)}.fms-row-stat{display:none}.fms-two,.fms-three,.fms-cond{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
@@ -120,33 +136,21 @@
     if (minutes < 43200) return `${Math.round(minutes / 1440)}d ago`;
     return new Date(iso).toLocaleDateString();
   };
-  let embedLoading = null;
-  function ensureEmbed(){
-    if (root.FirstMateForms) return Promise.resolve();
-    return embedLoading ||= new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = new URL('/libraries/forms-embed/firstmate-forms-embed.js', location.href).href;
-      script.dataset.auto = 'false';
-      script.onload = resolve;
-      script.onerror = () => { embedLoading = null; script.remove(); reject(new Error('Could not load the form preview.')); };
-      document.head.append(script);
-    });
-  }
-
   function mount(host, ctx){
     injectCss();
     controllers.get(host)?.destroy();
     const api = root.FormsAPI;
     const orgId = ctx.orgId;
     const toast = (title, body, ok = true) => ctx.showToast?.(title, body, ok);
-    const state = { context: null, forms: [], view: 'library', form: null, draft: null, name: '', tab: 'build', openItem: '', palette: '', save: 'saved', saveError: '', issues: [], device: 'desktop', submissions: null };
+    const state = { context: null, forms: [], view: 'library', form: null, draft: null, name: '', tab: 'build', openItem: '', animate: '', palette: '', save: 'saved', saveError: '', issues: [] };
     let saveTimer = 0;
     let saving = null;
     let dirty = false;
     let preview = null;
     let assistant = null;
+    let submissions = null;
     let destroyed = false;
-    const assistantAvailable = () => !!(root.FMDocAgentPanel?.create && root.AgentsAPI);
+    const assistantAvailable = () => !!root.PlatformAssistant?.mountSurface;
     const autoKeys = new Set();
     host.innerHTML = '<div class="fms-root"><div class="fms-loading">Loading forms\u2026</div></div>';
     const rootEl = host.firstElementChild;
@@ -155,12 +159,15 @@
     const formKind = (form) => form.features?.appointment ? ['fa-calendar-check', 'Appointment booking'] : form.features?.estimate ? ['fa-calculator', 'Instant estimate'] : ['fa-address-card', 'Lead form'];
     const items = () => state.draft.steps.flatMap((step) => step.items);
 
-    /** Company colors and logo are resolved here so the public form needs no portal context. */
+    const companyFont = () => [ctx.branding?.font, state.context?.brand?.font].map(clean).find((value) => /^[A-Za-z0-9 ]+$/.test(value)) || 'Inter';
+    const companyColor = () => [ctx.branding?.primary, state.context?.brand?.primary].map(clean).find((value) => /^#[0-9a-f]{6}$/i.test(value)) || '';
+    /** What is saved and previewed: the draft with the company's current brand applied wherever the form follows it. */
     function effectiveDraft(){
       const draft = clone(state.draft);
       const style = draft.presentation.style;
-      if (style.use_company_colors && /^#[0-9a-f]{6}$/i.test(clean(ctx.branding?.primary))) style.primary_color = ctx.branding.primary;
-      style.logo_url = style.logo_enabled ? clean(ctx.branding?.logo) : '';
+      if (style.use_company_colors && companyColor()) style.primary_color = companyColor();
+      if (style.use_company_font !== false) style.font_family = companyFont();
+      style.logo_url = style.logo_enabled ? clean(ctx.branding?.logo) || clean(state.context?.brand?.logo) : '';
       return draft;
     }
 
@@ -174,7 +181,7 @@
       }
       const ai = assistantAvailable() ? `<div class="fms-group-title">Describe it</div><div class="fms-templates">
         <button type="button" class="fms-template" data-act="create" data-template="blank" data-assistant>
-          <i aria-hidden="true" class="ico fas fa-wand-magic-sparkles"></i><b>Build with the assistant</b><span>Tell the assistant what your business needs to ask and how you price. It builds the form while you watch.</span>
+          <i aria-hidden="true" class="ico fas fa-wand-magic-sparkles"></i><b>Build with AI</b><span>Describe what your business needs to ask and how you price. The AI builds the form while you watch.</span>
         </button></div>` : '';
       return ai + groups.map((group) => `<div class="fms-group-title">${esc(group.name)}</div><div class="fms-templates">${group.templates.map((template) => `
         <button type="button" class="fms-template" data-act="create" data-template="${esc(template.id)}" ${template.available ? '' : 'disabled title="Not enabled for this organization"'}>
@@ -186,6 +193,7 @@
       state.view = 'library';
       preview?.destroy(); preview = null;
       assistant?.destroy(); assistant = null;
+      submissions?.destroy(); submissions = null;
       const rows = state.forms.map((form) => {
         const [icon, kind] = formKind(form);
         const [label, tone] = STATUS[form.status] || STATUS.draft;
@@ -227,7 +235,7 @@
       try {
         const form = await api.create(orgId, { template: templateId });
         state.forms.unshift(form);
-        openEditor(form, withAssistant ? 'assistant' : 'build');
+        openEditor(form, withAssistant ? 'ai' : '');
       } catch (error) { toast('Could not create form', error.message, false); }
     }
 
@@ -290,97 +298,125 @@
     }
 
     // --- Editor: shell -------------------------------------------------------
-    function openEditor(form, tab = 'build'){
+    function openEditor(form, tab = ''){
       state.view = 'editor';
       state.form = form;
       state.draft = clone(form.definition);
       state.name = form.name;
-      state.tab = tab;
+      state.tab = tab || (assistantAvailable() ? 'ai' : 'build');
       state.openItem = '';
+      state.animate = '';
       state.palette = '';
       state.issues = [];
-      state.submissions = null;
       dirty = false;
       ctx.onNavigate?.(form.id);
       rootEl.innerHTML = `<div class="fms-editor">
         <div class="fms-bar">
           <button type="button" class="fms-btn small" data-act="back"><i aria-hidden="true" class="fas fa-arrow-left"></i> Forms</button>
           <input class="fms-name" data-name value="${esc(state.name)}" aria-label="Form name" maxlength="120">
-          <span data-status></span>
           <span class="fms-save" data-save>All changes saved</span>
+          <span data-status></span>
           <button type="button" class="fms-btn primary" data-act="publish">Publish</button>
         </div>
         <div class="fm-settings-subtabs" role="tablist" data-tabs></div>
         <div class="fms-cols">
           <div class="fms-pane" data-pane></div>
-          <div class="fms-preview">
-            <div class="fms-preview-bar"><span><i aria-hidden="true" class="fas fa-eye"></i> Live preview</span>
-              <span style="display:flex;gap:8px;align-items:center"><span class="fms-seg" data-device><button type="button" data-device-mode="desktop" class="on">Desktop</button><button type="button" data-device-mode="phone">Phone</button></span>
-              <button type="button" class="fms-btn small" data-act="restart"><i aria-hidden="true" class="fas fa-rotate-left"></i> Restart</button></span></div>
-            <div class="fms-preview-stage" data-stage><div data-preview></div></div>
-          </div>
+          <div class="fms-side" data-preview></div>
         </div>
       </div>`;
       refreshStatus();
       setSave('saved');
+      // The company brand is part of what gets published, so store it even if nothing else is edited.
+      // Done before the first tab renders, so the AI tab starts from a fully saved draft.
+      if (JSON.stringify(effectiveDraft()) !== JSON.stringify(form.definition)) touch();
       renderTabs();
       renderTab();
-      void startPreview();
-      // Company colors and logo are part of what gets published, so store them even if nothing else is edited.
-      if (JSON.stringify(effectiveDraft()) !== JSON.stringify(form.definition)) touch();
-    }
-    async function startPreview(){
-      const target = rootEl.querySelector('[data-preview]');
-      try { await ensureEmbed(); } catch (error) { if (target) target.innerHTML = `<div class="fms-note">${esc(error.message)}</div>`; return; }
-      if (destroyed || state.view !== 'editor' || !target?.isConnected) return;
-      preview = root.FirstMateForms.render({
-        definition: effectiveDraft(),
-        name: state.name,
-        target,
-        transport: {
-          availability: (item, date, address) => api.preview.availability(orgId, { item: { preset_id: item.preset_id, min_notice_hours: item.min_notice_hours, horizon_days: item.horizon_days }, date, address }),
-          measure: (item, address) => api.preview.measurement(orgId, { source: item.source, address, tint: effectiveDraft().presentation.style.primary_color }),
-          submit: (payload) => api.preview.submit(orgId, { definition: effectiveDraft(), answers: payload.answers, measurements: payload.measurements })
-        }
-      });
+      // The same preview widget the assistant shows in a conversation, driven here by the open draft.
+      const side = rootEl.querySelector('[data-preview]');
+      if (root.FirstMateFormsWidgets) preview = root.FirstMateFormsWidgets.mountPreview(side, { orgId, definition: effectiveDraft(), name: state.name });
+      else side.innerHTML = '<div class="fms-loading">The preview is unavailable in this session.</div>';
     }
     function renderTabs(){
-      const tabs = [...(assistantAvailable() ? [['assistant', 'Assistant', 'fa-wand-magic-sparkles']] : []), ['build', 'Build', 'fa-layer-group'], ['pricing', 'Pricing', 'fa-calculator'], ['design', 'Design', 'fa-palette'], ['settings', 'Settings', 'fa-sliders'], ['share', 'Share', 'fa-share-nodes'], ['submissions', `Submissions${state.form.submissions?.count ? ` (${state.form.submissions.count})` : ''}`, 'fa-inbox']]
+      const count = state.form.submissions?.count;
+      const tabs = [...(assistantAvailable() ? [['ai', 'AI', 'fa-wand-magic-sparkles']] : []), ['build', 'Build', 'fa-layer-group'], ['style', 'Style', 'fa-palette'], ['pricing', 'Pricing', 'fa-calculator'], ['settings', 'Settings', 'fa-sliders'], ['submissions', `Submissions${count ? ` (${count})` : ''}`, 'fa-inbox']]
         .filter(([id]) => id !== 'pricing' || state.context.capabilities.instant_estimate || state.draft.calculation);
       rootEl.querySelector('[data-tabs]').innerHTML = tabs.map(([id, label, icon]) => `<button type="button" role="tab" class="fm-settings-subtab ${state.tab === id ? 'active' : ''}" data-tab="${id}"><i aria-hidden="true" class="fas ${icon}"></i> ${esc(label)}</button>`).join('');
     }
-    function renderTab(){
+    function renderTab(entering = false){
       const pane = rootEl.querySelector('[data-pane]');
       if (!pane) return;
-      if (state.tab === 'assistant' && assistantAvailable()) return renderAssistant(pane);
+      pane.classList.toggle('fms-fill', state.tab === 'ai' && assistantAvailable());
+      if (state.tab === 'ai' && assistantAvailable()) return void renderAssistant(pane);
       assistant?.destroy(); assistant = null;
+      if (state.tab === 'submissions' && root.FirstMateFormsWidgets) return renderSubmissions(pane);
+      submissions?.destroy(); submissions = null;
       const scroll = pane.scrollTop;
       const issues = state.issues.length ? `<div class="fms-issues"><b>Finish these before publishing</b><ul>${state.issues.map((issue) => `<li>${esc(issue.message)}</li>`).join('')}</ul></div>` : '';
-      pane.innerHTML = issues + ({ build: buildTab, pricing: pricingTab, design: designTab, settings: settingsTab, share: shareTab, submissions: submissionsTab }[state.tab] || buildTab)();
-      pane.scrollTop = scroll;
+      pane.innerHTML = issues + ({ build: buildTab, style: styleTab, pricing: pricingTab, settings: settingsTab }[state.tab] || buildTab)();
+      pane.scrollTop = entering ? 0 : scroll;
+      if (entering) { pane.classList.remove('fms-enter'); void pane.offsetWidth; pane.classList.add('fms-enter'); }
+      // A block opened by this render starts collapsed and eases open on the next frame.
+      const opening = pane.querySelector('[data-reveal=pending]');
+      state.animate = '';
+      if (opening) requestAnimationFrame(() => requestAnimationFrame(() => { opening.dataset.reveal = 'in'; }));
     }
 
-    /** The form builder agent edits the open draft; its staged definition is applied like any other edit. */
-    function renderAssistant(pane){
-      if (assistant && pane.contains(assistant.el)) return;
-      pane.innerHTML = '<div class="fms-assistant" data-assistant-host></div>';
-      assistant = root.FMDocAgentPanel.create(pane.firstElementChild, {
-        agentId: 'forms',
+    /** The submissions widget: the same view the assistant can place in a conversation. */
+    function renderSubmissions(pane){
+      if (submissions && pane.querySelector('[data-submissions]')) return;
+      pane.innerHTML = '<div data-submissions></div>';
+      submissions = root.FirstMateFormsWidgets.mountSubmissions(pane.firstElementChild, { orgId, formId: state.form.id, heading: false, openProject: ctx.openProject });
+    }
+
+    /**
+     * The AI tab is the shared assistant, in a private conversation about this form. It edits the
+     * saved draft with the same tools it has everywhere, so the editor saves first and re-reads after.
+     */
+    async function renderAssistant(pane){
+      if (assistant && pane.querySelector('[data-ai]')) return;
+      submissions?.destroy(); submissions = null;
+      pane.innerHTML = '<div class="fms-ai" data-ai></div>';
+      const hostEl = pane.firstElementChild;
+      const formId = state.form.id;
+      await flush();
+      if (destroyed || state.view !== 'editor' || state.tab !== 'ai' || state.form.id !== formId || !hostEl.isConnected || assistant) return;
+      let wasPending = false;
+      assistant = root.PlatformAssistant.mountSurface(hostEl, {
         orgId,
-        subjectId: state.form.id,
-        title: 'Form assistant',
         welcome: 'Describe the form you need, or what to change. I build it here and you can try it in the preview.',
-        suggestions: ['Ask what service they need and how soon, then get their contact details', 'Add an instant estimate priced per square foot', 'Make this shorter and friendlier'],
-        getInput: () => ({ subject: { id: state.form.id, name: state.name, status: state.form.status }, definition: effectiveDraft() }),
-        onAction: (action) => {
-          if (action.type !== 'form.set_definition' || !action.definition?.steps) return;
-          state.draft = clone(action.definition);
-          state.openItem = '';
-          state.issues = [];
-          renderTabs();
-          touch();
+        suggestions: ['Ask what service they need and how soon, then get their contact details.', 'Add an instant estimate priced per square foot.', 'Make this form shorter and friendlier.'],
+        getContext: () => ({ surface: 'forms', formId, formName: state.name }),
+        loadContext: async () => {
+          const { thread } = await api.conversation(orgId, formId);
+          return { main_thread: thread, threads: [thread], agents: [], dashboard: [] };
+        },
+        onState: ({ pending }) => {
+          if (wasPending && !pending) void syncFromServer();
+          wasPending = !!pending;
         }
       });
+      assistant.ready?.catch((error) => { if (hostEl.isConnected) hostEl.innerHTML = `<div class="fms-loading">${esc(error.message || 'The assistant is unavailable.')}</div>`; });
+    }
+    /** After an assistant turn: pick up whatever it saved, unless a manual edit is still on its way out. */
+    async function syncFromServer(){
+      while (saving) await saving.catch(() => undefined);
+      if (dirty) return;
+      try {
+        const fresh = await api.get(orgId, state.form.id);
+        if (destroyed || state.view !== 'editor' || fresh.id !== state.form.id || fresh.revision === state.form.revision || dirty) return;
+        state.form = fresh;
+        state.draft = clone(fresh.definition);
+        state.name = fresh.name;
+        const index = state.forms.findIndex((form) => form.id === fresh.id);
+        if (index >= 0) state.forms[index] = fresh;
+        const nameInput = rootEl.querySelector('[data-name]');
+        if (nameInput && document.activeElement !== nameInput) nameInput.value = fresh.name;
+        state.issues = [];
+        preview?.update(effectiveDraft(), state.name);
+        refreshStatus();
+        setSave('saved');
+        renderTabs();
+      } catch (error) { /* the next turn or edit will reconcile */ }
     }
 
     // --- Field builders ------------------------------------------------------
@@ -484,9 +520,27 @@
         return `<button type="button" data-act="item-add" data-step="${stepIndex}" data-kind="${esc(block.kind)}" ${!block.available || taken ? `disabled title="${taken ? 'A form can have one of these' : 'Not enabled for this organization'}"` : ''}><i aria-hidden="true" class="fas ${esc(block.icon)}"></i>${esc(block.label)}</button>`;
       }).join('')}`).join('')}</div>`;
     }
+    /** Wording that belongs to the form as a whole lives in Build, as blocks like any other. */
+    const WORDING = {
+      '@intro': ['fa-heading', 'Introduction', () => state.draft.presentation.headline || 'Headline and opening line', () => `${field('Headline', input('presentation.headline'))}${field('Opening line', area('presentation.subheadline'))}${state.draft.presentation.layout === 'steps' && state.draft.steps.length > 1 ? field('First button', input('presentation.start_label', 'placeholder="Uses the Next label"'), 'What the button on the first step says.') : ''}`],
+      '@buttons': ['fa-hand-pointer', 'Buttons and fine print', () => `${state.draft.presentation.submit_label || 'Submit'}${state.draft.presentation.fine_print ? ' \u00b7 fine print' : ''}`, () => `<div class="fms-three">${field('Next', input('presentation.next_label'))}${field('Back', input('presentation.back_label'))}${field('Submit', input('presentation.submit_label'))}</div>${field('Fine print', area('presentation.fine_print'), 'Shown under the submit button.')}`],
+      '@done': ['fa-circle-check', 'After submitting', () => state.draft.presentation.success.title || 'Thank-you message', () => `<div class="fms-note">${state.draft.calculation ? 'The estimate appears between the title and the message.' : 'What visitors see once the form is sent.'}</div>${field('Title', input('presentation.success.title'))}${field('Message', area('presentation.success.body'))}<div class="fms-two">${field('Button label', input('presentation.success.cta_label', 'placeholder="Optional"'))}${field('Button link', input('presentation.success.cta_url', 'placeholder="https://\u2026"'))}</div>`]
+    };
+    const reveal = (id, html) => `<div class="fms-reveal" data-reveal="${state.animate === id ? 'pending' : 'in'}"><div>${html}</div></div>`;
+    function wordingBlock(id){
+      const [icon, title, summary, editor] = WORDING[id];
+      const open = state.openItem === id;
+      return `<div class="fms-block ${open ? 'open' : ''}">
+        <div class="fms-block-row" role="button" tabindex="0" data-act="item-toggle" data-id="${id}">
+          <i aria-hidden="true" class="k fas ${icon}"></i><span class="t"><b>${title}</b><small>${esc(summary())}</small></span>
+          <i aria-hidden="true" class="fas fa-chevron-down fms-chev"></i>
+        </div>
+        ${open ? reveal(id, `<div class="fms-block-edit">${editor()}</div>`) : ''}
+      </div>`;
+    }
     function buildTab(){
       const steps = state.draft.steps;
-      return steps.map((step, stepIndex) => `<div class="fms-card" data-step-card="${esc(step.id)}">
+      return `<div class="fms-card"><div class="fms-card-body">${wordingBlock('@intro')}</div></div>` + steps.map((step, stepIndex) => `<div class="fms-card" data-step-card="${esc(step.id)}">
         <div class="fms-card-head"><span class="n">${stepIndex + 1}</span>
           <input data-path="steps.${stepIndex}.title" data-step-focus="${esc(step.id)}" value="${esc(step.title)}" placeholder="Step title (optional)">
           <button type="button" class="fms-icon-btn" data-act="step-move" data-step="${stepIndex}" data-dir="-1" ${stepIndex === 0 ? 'disabled' : ''} title="Move up"><i aria-hidden="true" class="fas fa-arrow-up"></i></button>
@@ -503,14 +557,15 @@
                 <i aria-hidden="true" class="k fas ${esc(meta.icon)}"></i><span class="t"><b>${esc(title)}</b><small>${esc(blockSummary(item))}${item.required ? ' \u00b7 Required' : ''}${item.visible_when?.length ? ' \u00b7 Conditional' : ''}</small></span>
                 <button type="button" class="fms-icon-btn" data-act="item-move" data-step="${stepIndex}" data-index="${itemIndex}" data-dir="-1" ${itemIndex === 0 && stepIndex === 0 ? 'disabled' : ''} title="Move up"><i aria-hidden="true" class="fas fa-arrow-up"></i></button>
                 <button type="button" class="fms-icon-btn" data-act="item-move" data-step="${stepIndex}" data-index="${itemIndex}" data-dir="1" ${itemIndex === step.items.length - 1 && stepIndex === steps.length - 1 ? 'disabled' : ''} title="Move down"><i aria-hidden="true" class="fas fa-arrow-down"></i></button>
-                <i aria-hidden="true" class="fas fa-chevron-${open ? 'up' : 'down'}" style="color:#98a2b3;font-size:11px"></i>
+                <i aria-hidden="true" class="fas fa-chevron-down fms-chev"></i>
               </div>
-              ${open ? blockEditor(item, `steps.${stepIndex}.items.${itemIndex}`, stepIndex) : ''}
+              ${open ? reveal(item.id, blockEditor(item, `steps.${stepIndex}.items.${itemIndex}`, stepIndex)) : ''}
             </div>`;
           }).join('') || '<div class="fms-note">This step is empty. Add a block below.</div>'}
           ${state.palette === step.id ? palette(stepIndex) : `<div class="fms-add"><button type="button" class="fms-btn small" data-act="palette" data-step-id="${esc(step.id)}"><i aria-hidden="true" class="fas fa-plus"></i> Add block</button></div>`}
         </div>
-      </div>`).join('') + `<button type="button" class="fms-btn" data-act="step-add"><i aria-hidden="true" class="fas fa-plus"></i> Add step</button>`;
+      </div>`).join('') + `<div style="margin-bottom:12px"><button type="button" class="fms-btn" data-act="step-add"><i aria-hidden="true" class="fas fa-plus"></i> Add step</button></div>
+      <div class="fms-card"><div class="fms-card-body">${wordingBlock('@buttons')}${wordingBlock('@done')}</div></div>`;
     }
     function newItem(kind){
       const meta = kindMeta(kind);
@@ -572,32 +627,31 @@
         </div>`;
     }
 
-    // --- Design, settings, share, submissions --------------------------------
-    function designTab(){
+    // --- Style, settings -------------------------------------------------------
+    function styleTab(){
       const style = state.draft.presentation.style;
-      const color = (path, label) => field(label, `<span class="fms-color"><input type="color" data-path="${path}" value="${esc(getPath(state.draft, path))}"><input class="fms-in" data-path="${path}" data-hex value="${esc(getPath(state.draft, path))}" maxlength="7"></span>`);
-      return `<div class="fms-section"><h4>Wording</h4>
-          ${field('Headline', input('presentation.headline'))}${field('Subheadline', area('presentation.subheadline'))}
-          <div class="fms-three">${field('Next button', input('presentation.next_label'))}${field('Back button', input('presentation.back_label'))}${field('Submit button', input('presentation.submit_label'))}</div>
-          ${field('Fine print', area('presentation.fine_print'), 'Shown under the submit button.')}
+      const shown = effectiveDraft().presentation.style;
+      const color = (path, label, value) => field(label, `<span class="fms-color"><input type="color" data-path="${path}" data-brand-color value="${esc(value)}"><input class="fms-in" data-path="${path}" data-hex data-brand-color value="${esc(value)}" maxlength="7"></span>`);
+      const ownFont = style.use_company_font === false;
+      return `<div class="fms-section"><h4>Colors</h4><p>${style.use_company_colors ? 'These are your company colors. Change any of them to give this form its own.' : 'This form has its own colors.'}</p>
+          <div class="fms-three">${color('presentation.style.primary_color', 'Accent', shown.primary_color)}${color('presentation.style.text_color', 'Text', style.text_color)}${color('presentation.style.background_color', 'Background', style.background_color)}</div>
+          ${style.use_company_colors ? '' : '<div><button type="button" class="fms-btn small" data-act="brand-colors"><i aria-hidden="true" class="fas fa-rotate-left"></i> Revert to company colors</button></div>'}
         </div>
-        <div class="fms-section"><h4>Layout</h4>
-          <div class="fms-two">${field('Flow', select('presentation.layout', [['steps', 'One step at a time'], ['page', 'Everything on one page']], true))}${state.draft.presentation.layout === 'steps' ? field('Progress', select('presentation.progress', [['bar', 'Progress bar'], ['dots', 'Dots'], ['none', 'Hidden']])) : '<span></span>'}</div>
+        <div class="fms-section"><h4>Font</h4>
+          ${field('Font', `<select class="fms-in" data-font><option value="" ${ownFont ? '' : 'selected'}>Company font (${esc(companyFont())})</option>${state.context.fonts.map((font) => `<option value="${esc(font)}" ${ownFont && style.font_family === font ? 'selected' : ''}>${esc(font)}</option>`).join('')}${ownFont && !state.context.fonts.includes(style.font_family) ? `<option value="${esc(style.font_family)}" selected>${esc(style.font_family)}</option>` : ''}</select>`)}
         </div>
-        <div class="fms-section"><h4>Look</h4>
-          ${check('presentation.style.use_company_colors', 'Use company colors', true)}${check('presentation.style.logo_enabled', 'Show company logo')}
-          ${style.use_company_colors ? '' : `<div class="fms-two">${color('presentation.style.primary_color', 'Accent color')}${color('presentation.style.text_color', 'Text color')}</div>`}
-          <div class="fms-three">${field('Background', `<span class="fms-color"><input type="color" data-path="presentation.style.background_color" value="${esc(style.background_color)}"></span>`)}${field('Font', select('presentation.style.font_family', state.context.fonts.map((font) => [font, font])))}${field('Corners', select('presentation.style.corners', [['soft', 'Soft'], ['round', 'Round'], ['square', 'Square']]))}</div>
+        <div class="fms-section"><h4>Header and shape</h4>
+          <div class="fms-two">${field('Header', select('presentation.style.header', [['plain', 'Simple'], ['band', 'Color band'], ['centered', 'Centered']]))}${field('Corners', select('presentation.style.corners', [['soft', 'Soft'], ['round', 'Round'], ['square', 'Square']]))}</div>
+          ${check('presentation.style.logo_enabled', 'Show company logo')}
         </div>
-        <div class="fms-section"><h4>After submitting</h4><p>${state.draft.calculation ? 'The estimate appears between the title and message.' : 'What visitors see once the form is sent.'}</p>
-          ${field('Title', input('presentation.success.title'))}${field('Message', area('presentation.success.body'))}
-          <div class="fms-two">${field('Button label', input('presentation.success.cta_label', 'placeholder="Optional"'))}${field('Button link', input('presentation.success.cta_url', 'placeholder="https://\u2026"'))}</div>
+        <div class="fms-section"><h4>Flow</h4>
+          <div class="fms-two">${field('Steps', select('presentation.layout', [['steps', 'One step at a time'], ['page', 'Everything on one page']], true))}${state.draft.presentation.layout === 'steps' ? field('Progress', select('presentation.progress', [['bar', 'Progress bar'], ['dots', 'Dots'], ['none', 'Hidden']])) : '<span></span>'}</div>
         </div>`;
     }
     function settingsTab(){
       const settings = state.draft.settings;
       const roles = (ctx.roles || []).length ? ctx.roles : [{ id: 'inside_sales', label: 'Inside Sales' }, { id: 'sales_appointments', label: 'Sales Appointments' }];
-      return `<div class="fms-section"><h4>When someone submits</h4><p>Every submission creates a lead with the answers attached${state.draft.calculation ? ', the estimate' : ''}${items().some((item) => item.kind === 'appointment') ? ' and a booked appointment' : ''}.</p>
+      return shareSection() + `<div class="fms-section"><h4>When someone submits</h4><p>Every submission creates a lead with the answers attached${state.draft.calculation ? ', the estimate' : ''}${items().some((item) => item.kind === 'appointment') ? ' and a booked appointment' : ''}.</p>
           <div class="fms-field"><span>Notify these roles</span><div class="fms-add">${roles.map((role) => `<label class="fms-check"><input type="checkbox" data-role="${esc(role.id)}" ${settings.notify_role_ids.includes(role.id) ? 'checked' : ''}>${esc(role.label)}</label>`).join('')}</div></div>
         </div>
         <div class="fms-section"><h4>Confirmation email</h4><p>Sent to the visitor when they give an email address. Includes the estimate and appointment time when the form has them.</p>
@@ -609,13 +663,11 @@
     }
     const embedSrc = () => `${location.origin}/libraries/forms-embed/firstmate-forms-embed.js`;
     const shareLink = () => `${location.origin}/libraries/forms-embed/form.html?k=${encodeURIComponent(state.form.public_key)}`;
-    function shareTab(){
-      if (!state.form.published) {
-        return `<div class="fms-section"><h4>Publish to share</h4><p>Publishing makes the form available and gives you an embed code and a shareable link. You can keep editing afterwards; visitors only see changes once you publish them.</p><div><button type="button" class="fms-btn primary" data-act="publish">Publish form</button></div></div>`;
-      }
+    function shareSection(){
+      if (!state.form.published) return '<div class="fms-section"><h4>Embed and share</h4><p>Publish this form to get its embed code and a shareable link. You can keep editing afterwards; visitors only see changes once you publish them.</p></div>';
       const snippet = `<script src="${embedSrc()}" data-form="${state.form.public_key}"></script>`;
       return `${state.form.status === 'paused' ? '<div class="fms-issues"><b>This form is paused</b>Visitors see a notice that it is not accepting responses.</div>' : ''}
-        ${state.form.has_unpublished_changes || dirty ? '<div class="fms-section"><h4>You have unpublished changes</h4><p>Visitors still see the last published version.</p><div><button type="button" class="fms-btn primary" data-act="publish">Publish changes</button></div></div>' : ''}
+        ${state.form.has_unpublished_changes || dirty ? '<div class="fms-issues" style="color:#b54708;border-color:#fedf89;background:#fffcf5"><b>You have unpublished changes</b>Visitors still see the last published version until you publish.</div>' : ''}
         <div class="fms-section"><h4>Embed on any website</h4><p>Paste this where the form should appear. It adapts to the space it is given and never needs updating when you republish.</p>
           <div class="fms-code-box"><textarea class="fms-in" rows="3" readonly data-copy-source="embed">${esc(snippet)}</textarea><button type="button" class="fms-btn" data-act="copy" data-copy="embed"><i aria-hidden="true" class="fas fa-copy"></i> Copy</button></div></div>
         <div class="fms-section"><h4>Share a link</h4><p>A hosted page for texts, emails, social posts and QR codes.</p>
@@ -624,20 +676,6 @@
         <div class="fms-section"><h4>Availability</h4>
           <div class="fms-add"><button type="button" class="fms-btn small" data-act="pause">${state.form.status === 'paused' ? '<i aria-hidden="true" class="fas fa-play"></i> Resume form' : '<i aria-hidden="true" class="fas fa-pause"></i> Pause form'}</button><button type="button" class="fms-btn small danger" data-act="rotate"><i aria-hidden="true" class="fas fa-key"></i> Reset embed code</button></div>
           <div class="fms-note">Resetting the embed code immediately turns off every existing embed and link for this form.</div></div>`;
-    }
-    function submissionsTab(){
-      if (!state.submissions) {
-        api.submissions(orgId, state.form.id).then((rows) => { state.submissions = rows; if (state.tab === 'submissions') renderTab(); }).catch((error) => { state.submissions = []; toast('Could not load submissions', error.message, false); });
-        return '<div class="fms-loading">Loading submissions\u2026</div>';
-      }
-      if (!state.submissions.length) return `<div class="fms-section"><h4>No submissions yet</h4><p>${state.form.published ? 'Share the form to start collecting responses. Each one appears here and as a new lead.' : 'Publish and share the form to start collecting responses.'}</p></div>`;
-      const money = (estimate) => { try { const format = new Intl.NumberFormat(undefined, { style: 'currency', currency: estimate.currency || 'USD', maximumFractionDigits: 0 }); return `${format.format(estimate.low)} \u2013 ${format.format(estimate.high)}`; } catch { return ''; } };
-      return `<div class="fms-section" style="padding:6px 6px 2px"><table class="fms-table"><thead><tr><th>Received</th><th>Contact</th><th>Details</th><th></th></tr></thead><tbody>${state.submissions.map((row) => `<tr>
-        <td>${esc(new Date(row.created_at).toLocaleDateString())}<small>${esc(new Date(row.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}</small></td>
-        <td><b>${esc(row.contact?.name || 'No name')}</b><small>${esc([row.contact?.phone, row.contact?.email].filter(Boolean).join(' \u00b7 '))}</small>${row.address ? `<small>${esc(row.address)}</small>` : ''}</td>
-        <td>${row.estimate ? `<b>${esc(money(row.estimate))}</b>` : ''}${row.appointment ? `<small>${esc(row.appointment.status === 'booked' ? 'Booked' : 'Requested')}: ${esc(row.appointment.label)}</small>` : ''}${(row.summary || []).slice(0, 4).map((entry) => `<small>${esc(entry.label)}: ${esc(entry.value)}</small>`).join('')}</td>
-        <td>${row.project_id && ctx.openProject ? `<button type="button" class="fms-btn small" data-act="open-project" data-id="${esc(row.project_id)}">Open lead</button>` : ''}</td>
-      </tr>`).join('')}</tbody></table></div>`;
     }
 
     // --- Events --------------------------------------------------------------
@@ -654,7 +692,7 @@
         refreshStatus();
         setSave('saved');
         toast(wasLive ? 'Changes published' : 'Form published', wasLive ? 'Visitors now see the latest version.' : 'Grab the embed code or link from the Share tab.', true);
-        if (!wasLive) state.tab = 'share';
+        if (!wasLive) state.tab = 'settings';
         renderTabs();
         renderTab();
       } catch (error) {
@@ -676,7 +714,6 @@
         case 'open': return openEditor(state.forms.find((form) => form.id === target.dataset.id));
         case 'back': await flush(); ctx.onNavigate?.(''); return load();
         case 'publish': return publish();
-        case 'restart': return preview?.reset();
         case 'duplicate': {
           await flush();
           try { const copy = await api.duplicate(orgId, target.dataset.id); state.forms.unshift(copy); toast('Form duplicated', copy.name, true); openEditor(copy); }
@@ -712,10 +749,29 @@
         case 'open-project': return ctx.openProject?.(target.dataset.id);
         case 'palette': state.palette = target.dataset.stepId; return renderTab();
         case 'item-toggle': {
-          state.openItem = state.openItem === target.dataset.id ? '' : target.dataset.id;
+          const closing = state.openItem === target.dataset.id;
           state.palette = '';
+          if (closing) {
+            // Ease the editor shut before it leaves the page.
+            const block = target.closest('.fms-block');
+            const open = block?.querySelector('[data-reveal]');
+            if (open) { open.dataset.reveal = 'out'; block.classList.remove('open'); await new Promise((resolve) => setTimeout(resolve, 200)); }
+            if (state.openItem !== target.dataset.id) return;
+            state.openItem = '';
+            return renderTab();
+          }
+          state.openItem = target.dataset.id;
+          state.animate = target.dataset.id;
           renderTab();
-          return preview?.goToStep(target.dataset.stepId);
+          if (target.dataset.stepId) preview?.goToStep(target.dataset.stepId);
+          return;
+        }
+        case 'brand-colors': {
+          const style = draft.presentation.style;
+          style.use_company_colors = true;
+          style.text_color = '#111827';
+          style.background_color = '#ffffff';
+          return touch({ structure: true });
         }
         case 'item-add': {
           const item = newItem(target.dataset.kind);
@@ -790,13 +846,7 @@
     }
     function onClick(event){
       const tab = event.target.closest('[data-tab]');
-      if (tab) { if (tab.dataset.tab === state.tab) return; state.tab = tab.dataset.tab; state.palette = ''; if (state.tab === 'submissions') state.submissions = null; renderTabs(); return renderTab(); }
-      const device = event.target.closest('[data-device-mode]');
-      if (device) {
-        state.device = device.dataset.deviceMode;
-        rootEl.querySelectorAll('[data-device-mode]').forEach((button) => button.classList.toggle('on', button === device));
-        return rootEl.querySelector('[data-stage]').classList.toggle('phone', state.device === 'phone');
-      }
+      if (tab) { if (tab.dataset.tab === state.tab) return; state.tab = tab.dataset.tab; state.palette = ''; renderTabs(); return renderTab(true); }
       const target = event.target.closest('[data-act]');
       if (!target || target.disabled || !rootEl.contains(target)) return;
       // Controls inside a row act on their own; the row itself opens.
@@ -813,6 +863,13 @@
       // repainting under a click the user has just made in it.
       if (el.matches('[data-name]')) { if (state.name === el.value) return; state.name = el.value; return touch(); }
       if (state.view !== 'editor') return;
+      if (el.dataset.font !== undefined) {
+        if (event.type !== 'change') return;
+        const style = state.draft.presentation.style;
+        style.use_company_font = !el.value;
+        if (el.value) style.font_family = el.value;
+        return touch();
+      }
       if (el.dataset.role) {
         const roles = new Set(state.draft.settings.notify_role_ids);
         if (roles.has(el.dataset.role) === el.checked) return;
@@ -874,8 +931,15 @@
       }
       // Number fields with no value fall back to the schema default rather than failing validation.
       if (value === undefined && !/\.(min|max)$/.test(path)) value = 0;
-      const rerender = el.dataset.rerender !== undefined && event.type === 'change';
+      const rerender = (el.dataset.rerender !== undefined || el.dataset.brandColor !== undefined) && event.type === 'change';
       if (getPath(state.draft, path) === value && !rerender) return;
+      if (el.dataset.brandColor !== undefined) {
+        // The first change to any color gives the form its own palette, starting from what is on screen.
+        const style = state.draft.presentation.style;
+        if (style.use_company_colors) { style.primary_color = companyColor() || style.primary_color; style.use_company_colors = false; }
+        const twin = el.parentElement.querySelector(el.type === 'color' ? '[data-hex]' : '[type=color]');
+        if (twin) twin.value = value;
+      }
       setPath(state.draft, path, value);
       if (el.dataset.optionLabel !== undefined) {
         // Choice values follow their labels until something references them.
@@ -947,6 +1011,7 @@
         if (dirty) void flush();
         preview?.destroy();
         assistant?.destroy();
+        submissions?.destroy();
         root.removeEventListener('beforeunload', beforeUnload);
         controllers.delete(host);
       }

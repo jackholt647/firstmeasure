@@ -52,7 +52,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   "equipment.view": { actions: ["equipment.fleet.list", "equipment.unit.history"], data: ["equipment.records"] },
   "equipment.service": { actions: ["equipment.maintenance.cancel", "equipment.maintenance.complete", "equipment.maintenance.open", "equipment.meter.record", "equipment.unit.checkIn", "equipment.unit.checkOut"] },
   manage_company_users: { actions: ["workforce.users.list"], data: ["workforce.records"] },
-  manage_company_settings: { actions:["workforce.departments.save", "custom-fields.organization.write", "contacts.settings.save"], data: ["scopes.records"] },
+  manage_company_settings: { actions:["workforce.departments.save", "custom-fields.organization.write", "contacts.settings.save"], data: ["scopes.records", "forms.catalog"] },
   manage_training: { actions: ["scheduling.appointment.configure", "training.course.progress"] },
   // Membership and per-subject checks are the permission for these exports.
   "": { actions: ["workforce.departments.read", "workforce.departments.assign","channels.feed.thread", "channels.feed.resolve", "channels.feed.comment", "channels.feed.react", "channels.list", "channels.messages.list", "channels.message.react", "channels.note.create", "channels.note.share", "channels.note.pin", "channels.note.edit", "channels.note.delete", "channels.note.restore", "training.courses.mine"], data: ["workforce-departments.catalog", "channels.records", "training.records", "notification-rules.value"] }

@@ -26,11 +26,13 @@ before changing how forms are modelled, priced, booked or exposed publicly.
 | `sources.ts` | Measurement source registry and signed measurement tokens |
 | `solar.ts` | Google Solar roof measurement and imagery (also used by weather reports) |
 | `service.ts` | Authoring, publishing, the public runtime, submission pipeline |
-| `agent.ts` | The Form Builder agent |
+| `assistant.ts` | Forms tools, instructions and form-conversation context for the shared assistant |
+| `insights.ts` | Anonymous activity counts and the submissions summary |
+| `publication.ts` | The `forms.catalog` export the form widgets are authorized against |
 | `api.ts` | Routes and public rate limits |
 
-Storage: organization collections `forms` (draft, published snapshot, embed key)
-and `form_submissions`.
+Storage: organization collections `forms` (draft, published snapshot, embed key),
+`form_submissions` and `form_activity` (per-form daily counts).
 
 ## Routes
 
@@ -40,7 +42,9 @@ Authenticated (`manage_company_settings`, CSRF on writes), under
 - `GET /context` — templates, block kinds, appointment types, measurement sources.
 - `GET|POST /forms`, `GET|PATCH|DELETE /forms/:formId`.
 - `POST /forms/:formId/publish`, `/duplicate`, `/rotate-key`.
-- `GET /forms/:formId/submissions`.
+- `GET /forms/:formId/submissions`, `GET /forms/:formId/insights`.
+- `POST /forms/:formId/conversation` — the caller's assistant conversation about
+  this form (the editor's AI tab).
 - `POST /preview/measurement`, `/preview/availability`, `/preview/submit` — run
   an unsaved draft for the editor's live preview. Nothing is created.
 
@@ -49,6 +53,7 @@ Public, rate limited, no credentials:
 - `GET /public/:formKey`
 - `GET /public/:formKey/availability?item_id=&date=YYYY-MM-DD&address=`
 - `POST /public/:formKey/measurement` `{ item_id, address }`
+- `POST /public/:formKey/activity` `{ type: view|start|step, step_id? }`
 - `POST /public/:formKey/submit` `{ answers, measurements, submission_id, page_url, referrer }`
 
 `PATCH` saves a draft against the structural schema so work in progress can be

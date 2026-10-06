@@ -12,6 +12,7 @@ import { registerCustomFieldPublication } from "../../custom_fields/publication.
 
 import { registerContactPublication } from "../../contacts/publication.js";
 import { registerCollaborationPublication } from "../../collaboration/publication.js";
+import { registerFormsPublication } from "../../forms/publication.js";
 
 let initialized = false;
 /** All execution hosts use this same catalog. No browser can register server handlers. */
@@ -23,6 +24,7 @@ export function initializePublication() {
   registerCustomFieldPublication();
   registerContactPublication();
   registerCollaborationPublication();
+  registerFormsPublication();
   registerDomainActions();
   registerDepartmentPublication();
   registerDatasetActions();

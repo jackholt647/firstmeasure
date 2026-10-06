@@ -4,11 +4,12 @@ import { ZodError, z } from "zod";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { PlatformError } from "../platform/errors.js";
 import type { JsonObject } from "../platform/storage.js";
-import "./agent.js";
+import { ensureFormConversation } from "./assistant.js";
 import {
   createForm,
   deleteForm,
   duplicateForm,
+  formInsights,
   formsContext,
   getForm,
   listFormSubmissions,
@@ -19,6 +20,7 @@ import {
   publicForm,
   publicMeasurement,
   publishForm,
+  recordPublicActivity,
   rotateFormKey,
   submitPublicForm,
   testForm,
@@ -113,6 +115,9 @@ export const registerFormsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, form: await duplicateForm(await auth(request), param(request, "formId")) };
   });
   app.post("/organizations/:orgId/forms/:formId/rotate-key", async (request) => ({ ok: true, form: await rotateFormKey(await auth(request), param(request, "formId")) }));
+  app.get("/organizations/:orgId/forms/:formId/insights", async (request) => ({ ok: true, ...(await formInsights(await auth(request), param(request, "formId"))) }));
+  // The editor's AI tab is the shared assistant in a private conversation about this form.
+  app.post("/organizations/:orgId/forms/:formId/conversation", async (request) => ({ ok: true, thread: await ensureFormConversation(await auth(request), param(request, "formId")) }));
   app.get("/organizations/:orgId/forms/:formId/submissions", async (request) => ({ ok: true, submissions: await listFormSubmissions(await auth(request), param(request, "formId")) }));
 
   // Editor preview transport: the embed renders the unsaved draft against these.
@@ -143,6 +148,13 @@ export const registerFormsApi: FastifyPluginAsync = async (app) => {
     rateLimit(`measureday:${visitor(request)}`, 40, 24 * 3600_000);
     rateLimit(`measureform:${param(request, "formKey")}`, 120, 60_000);
     return publicMeasurement(param(request, "formKey"), body.parse(request.body ?? {}));
+  });
+  app.post("/public/:formKey/activity", async (request, reply) => {
+    rateLimit(`activity:${visitor(request)}`, 60, 60_000);
+    const input = z.object({ type: z.enum(["view", "start", "step"]), step_id: z.string().max(80).optional() }).parse(request.body ?? {});
+    await recordPublicActivity(param(request, "formKey"), input).catch(() => undefined);
+    reply.code(204);
+    return null;
   });
   app.post("/public/:formKey/submit", async (request, reply) => {
     rateLimit(`submit:${visitor(request)}`, 6, 60_000);

@@ -181,5 +181,73 @@
         "key": "measurements"
       }
     ]
+  },
+  {
+    "id": "forms.preview",
+    "version": "1",
+    "title": "Form preview",
+    "description": "Live, clickable preview of a website form's current draft. Refreshes when the form is edited. Set form_id to the form to show.",
+    "app": "settings",
+    "surfaces": [
+      "assistant",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "fill",
+      "minWidth": 320,
+      "minHeight": 480,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "form_id": {
+          "type": "string",
+          "maxLength": 80
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "forms",
+        "export": "catalog"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "forms.submissions",
+    "version": "1",
+    "title": "Form submissions",
+    "description": "Who is reaching a website form and how they fill it in: views, starts, completion, step funnel, answer breakdowns and recent submissions. Set form_id to the form to show.",
+    "app": "settings",
+    "surfaces": [
+      "assistant",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 320,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "form_id": {
+          "type": "string",
+          "maxLength": 80
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "forms",
+        "export": "catalog"
+      }
+    ],
+    "actions": []
   }
 ]

@@ -114,8 +114,11 @@ export const presentationSchema = z.object({
     primary_color: hex.default("#2563eb"),
     text_color: hex.default("#111827"),
     background_color: hex.default("#ffffff"),
-    font_family: z.enum(FORM_FONTS).default("Inter"),
+    /** While true the form follows the company's brand font; choosing a font turns it off. */
+    use_company_font: z.boolean().default(true),
+    font_family: z.string().trim().max(80).regex(/^[A-Za-z0-9 ]*$/).default("Inter"),
     corners: z.enum(["soft", "round", "square"]).default("soft"),
+    header: z.enum(["plain", "band", "centered"]).default("plain"),
     logo_enabled: z.boolean().default(true),
     logo_url: text(2000).default("")
   }).strict().default({}),

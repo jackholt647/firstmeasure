@@ -375,3 +375,11 @@ immediately on hang-up; the audio context closes after the short ending tone.
 The outer portal owns project assistant controllers, including their microphone, peer connection and audio context. Their existing renderer mounts in the project's document, so changing trays or minimizing a project changes presentation without stopping the call. Voice automatically pins the same renderer in a 100px bottom-right surface when the Agent tray is hidden; text conversations can be pinned manually. The current project, tab, tray and minimized state travel as bounded navigation metadata, never as instructions or authorization. The existing navigation presentation tool can show only a tray currently declared by the project surface.
 
 Closing a project with an active call offers End voice agent or Transfer to global voice agent. Ending uses the normal microphone cleanup and hang-up cue. Transfer preserves the same thread and live connection, moves its renderer to the outer assistant window, and changes the owned thread subject from `project:<id>` to `transferred-project:<id>` through a CSRF- and ownership-checked endpoint. The transferred subject supplies global context with explicit provenance and no default project; later project opens get a new project-scoped conversation. Transfer is rejected while an agent action is working. The originating project iframe may then be removed without terminating the transferred call.
+
+## Forms
+
+Website forms are built and edited with the assistant's `forms_*` tools from any
+conversation, and shown through the `forms.preview` and `forms.submissions`
+widgets. The form editor's AI tab uses `PlatformAssistant.mountSurface` in a
+private `form:<id>` conversation; its context names the form and states that the
+preview is already beside the chat. See [forms](forms.md).

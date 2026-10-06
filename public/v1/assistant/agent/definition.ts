@@ -1,5 +1,6 @@
 import { terminologyAssistantTools } from './terminology.js';
 import { connectionTools, connectionInstructions, connectionContext } from '../../integrations/assistant.js';
+import { formsTools, formsInstructions, formConversationContext } from '../../forms/assistant.js';
 import { projectConversationContext } from '../project-context.js';
 import { channelConversationContext } from '../channel-context.js';
 import { notificationAssistantInstructions, notificationAssistantTools } from './notifications.js';
@@ -155,6 +156,7 @@ async function currentLocalTime(run: AgentRun) {
 
 const TOOLS: AgentTool[] = [
   ...connectionTools,
+  ...formsTools,
   {
     name:'open_scheduling_widget',
     description:'Open the shared appointment booking calendar so the user can choose a project, available day and time, and confirm a new appointment.',
@@ -691,6 +693,7 @@ registerAgent({
   },
   async prepare(run) {
     run.scratch.connectionContext = await connectionContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
+    run.scratch.formContext = await formConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.projectContext = await projectConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.channelContext = await channelConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     const capabilities = await effectiveCapabilities(run.orgId).catch(() => null);
@@ -724,6 +727,8 @@ registerAgent({
 ${buildAssistantManifest()}
 ${connectionInstructions}
 ${run.scratch.connectionContext || ''}
+${formsInstructions}
+${run.scratch.formContext || ''}
 ${notificationAssistantInstructions}
 ${run.subjectId === "notifications" ? "The user is in Notification settings. Help them configure notifications through this conversation." : ""}
 ${run.scratch.channelContext || ""}

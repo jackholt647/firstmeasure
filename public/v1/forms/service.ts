@@ -4,6 +4,7 @@ import { appointmentConfigurationSchema, bookPlannedAppointment, previewAppointm
 import { VERSIONS, getRecord as getModuleRecord } from "../documents/modules/storage.js";
 import { runModuleCode } from "../documents/modules/runtime.js";
 import { createModuleInstance, evaluateModuleInstance, freezeModuleInstance, storeModuleVersion } from "../documents/modules/service.js";
+import { organizationBranding } from "../documents/theme-defaults.js";
 import { escapeEmailHtml } from "../email/outbound.js";
 import { sendOrganizationTransactionalEmail } from "../email/organization_outbound.js";
 import { createPlatformLead } from "../platform/api.js";
@@ -14,14 +15,16 @@ import { PlatformError, badRequest, conflict, forbidden, notFound } from "../pla
 import { invokeAction } from "../platform/publication/actions.js";
 import { systemPublicationContext } from "../platform/publication/context.js";
 import { contentHash, validateJson } from "../platform/publication/validation.js";
-import { readDocument, type JsonObject } from "../platform/storage.js";
+import { readDocument, readOrganization, type JsonObject } from "../platform/storage.js";
+import { env } from "../src/config/env.js";
 import { resolveOrganizationTimezone } from "../platform/timezone.js";
 import { emitWorkEvent } from "../work/engine.js";
 import { collectAnswers, summarizeAnswers } from "./answers.js";
 import { calculationSource, compileFormModule, formInputSchema } from "./compile.js";
 import { FORM_BLOCKS, FORM_FONTS, estimateOutputSchema, formDefinitionSchema, formDraftSchema, formItems, type FormDefinition, type FormItem } from "./contracts.js";
+import { buildInsights, recordActivity, type ActivityEvent } from "./insights.js";
 import { listMeasurementSources, measurementSource, signMeasurement, verifyMeasurement } from "./sources.js";
-import { FORMS, SUBMISSIONS, findRecord, listRecords, newFormId, newPublicKey, parsePublicKey, readFormRecord, removeRecord, saveRecord, type StoredRecord } from "./storage.js";
+import { ACTIVITY, FORMS, SUBMISSIONS, findRecord, listRecords, newFormId, newPublicKey, parsePublicKey, readFormRecord, removeRecord, saveRecord, type StoredRecord } from "./storage.js";
 import { buildTemplateDefinition, formTemplate, listFormTemplates } from "./templates.js";
 
 const obj = (value: unknown): JsonObject => value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
@@ -143,6 +146,33 @@ async function runCalculation(source: string, answers: JsonObject) {
 }
 
 // ---------------------------------------------------------------------------
+// Company brand
+// ---------------------------------------------------------------------------
+
+/** The company's current brand, so forms that follow it never go stale after a rebrand. */
+async function companyBrand(orgId: string, branchId: string) {
+  const branding = obj(await organizationBranding(orgId, branchId).catch(() => ({})));
+  const colors = obj(branding.colors);
+  const primary = [colors.primary, colors.accent].map(str).find((value) => /^#[0-9a-fA-F]{6}$/.test(value)) || "";
+  const font = str(obj(branding.typography).document_font_family);
+  const logo = [branding.logo, branding.logo_url, branding.logoUrl].map(str).find((value) => /^https:\/\//i.test(value) || value.startsWith("/v1/")) || "";
+  return { primary, font: /^[A-Za-z0-9 ]{1,80}$/.test(font) ? font : "", logo: logo.startsWith("/") ? `${env.publicBaseUrl}${logo}` : logo };
+}
+
+function withBrand(presentation: FormDefinition["presentation"], brand: Awaited<ReturnType<typeof companyBrand>>): FormDefinition["presentation"] {
+  const style = presentation.style;
+  return {
+    ...presentation,
+    style: {
+      ...style,
+      ...(style.use_company_colors && brand.primary ? { primary_color: brand.primary } : {}),
+      ...(style.use_company_font && brand.font ? { font_family: brand.font } : {}),
+      ...(style.logo_enabled && !style.logo_url && brand.logo ? { logo_url: brand.logo } : {})
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Authoring
 // ---------------------------------------------------------------------------
 
@@ -202,12 +232,14 @@ export async function formsContext(auth: PlatformAuthContext) {
     blocks: Object.entries(FORM_BLOCKS).map(([kind, block]) => ({ kind, ...block, available: !("capability" in block) || flags[block.capability] === true })),
     measurement_sources: listMeasurementSources(),
     appointment_types: presets.map(({ configuration: _configuration, ...preset }) => preset),
-    fonts: FORM_FONTS
+    fonts: FORM_FONTS,
+    brand: await companyBrand(auth.orgId, branchOf(auth))
   };
 }
 
 export async function listForms(auth: PlatformAuthContext) {
   await requireFormsEnabled(auth.orgId);
+  await seedSandboxForms(auth);
   const [records, stats] = await Promise.all([listRecords(auth.orgId, FORMS), submissionStats(auth.orgId)]);
   return records
     .filter((record) => str(record.branch_id || "default") === branchOf(auth))
@@ -320,6 +352,48 @@ export async function rotateFormKey(auth: PlatformAuthContext, formId: string) {
   return formView(saved as FormRecord);
 }
 
+/** Views, starts, completion, step funnel, answer breakdowns and recent submissions for one form. */
+export async function formInsights(auth: PlatformAuthContext, formId: string) {
+  await requireFormsEnabled(auth.orgId);
+  const record = await ownedForm(auth, formId);
+  const insights = await buildInsights(auth.orgId, record.id, formDraftSchema.parse(record.published?.definition || record.definition));
+  return { form: { id: record.id, name: record.name, status: !record.published ? "draft" : record.enabled === false ? "paused" : "live" }, ...insights };
+}
+
+/**
+ * Instant development organizations start with the three forms a typical company
+ * wants, already published. Seeded once; deleting them does not bring them back.
+ */
+async function seedSandboxForms(auth: PlatformAuthContext) {
+  if (env.dataEnvironment !== "development") return;
+  const organization = obj(await readOrganization(auth.orgId).catch(() => ({})));
+  if (obj(organization.metadata).sandbox_workflow_id !== "swf_instant_full_org") return;
+  if (await findRecord(auth.orgId, ACTIVITY, "sandbox_seed")) return;
+  await saveRecord(auth.orgId, ACTIVITY, "sandbox_seed", { form_id: "", seeded_at: now() });
+  if ((await listRecords(auth.orgId, FORMS)).length) return;
+  const flags = await enabledFormFlags(auth.orgId);
+  const preset = flags.appointment_form ? (await appointmentPresets(auth).catch(() => [])).find((entry) => entry.bookable_online) : null;
+  const seeds: Array<[string, string, boolean]> = [
+    ["contact", "Contact us", flags.contact_form === true],
+    ["roofing_instant_estimate", "Instant roof estimate", flags.instant_estimate === true],
+    ["appointment", "Book an appointment", !!preset]
+  ];
+  for (const [template, name, enabled] of seeds) {
+    if (!enabled) continue;
+    try {
+      const form = await createForm(auth, { template, name });
+      if (template === "appointment") {
+        const picker = formItems(form.definition).find((item) => item.kind === "appointment");
+        if (picker && preset) picker.preset_id = preset.id;
+        await updateForm(auth, form.id, { definition: form.definition });
+      }
+      await publishForm(auth, form.id);
+    } catch (error) {
+      console.warn(`[forms] sandbox seed ${template} failed:`, error instanceof Error ? error.message : error);
+    }
+  }
+}
+
 export async function listFormSubmissions(auth: PlatformAuthContext, formId: string) {
   await requireFormsEnabled(auth.orgId);
   const record = await ownedForm(auth, formId);
@@ -412,15 +486,22 @@ function publicItem(item: FormItem) {
   return rest;
 }
 
+/** Anonymous counts of how far visitors get. Never fails a visitor's request. */
+export async function recordPublicActivity(publicKey: string, event: ActivityEvent) {
+  const form = await liveForm(publicKey);
+  if (event.type === "step" && !form.definition.steps.some((step) => step.id === event.step_id)) return;
+  await recordActivity(form.orgId, form.record.id, event).catch(() => undefined);
+}
+
 export async function publicForm(publicKey: string) {
-  const { record, published, definition } = await liveForm(publicKey);
+  const { record, published, definition, orgId, branchId } = await liveForm(publicKey);
   return {
     ok: true,
     form: {
       key: publicKey,
       name: published.name || record.name,
       version: published.version,
-      presentation: definition.presentation,
+      presentation: withBrand(definition.presentation, await companyBrand(orgId, branchId)),
       steps: definition.steps.map((step) => ({ ...step, items: step.items.map(publicItem) })),
       features: formFeatures(definition)
     }

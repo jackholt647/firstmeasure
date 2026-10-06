@@ -5,6 +5,7 @@ import { deleteDocument, listDocuments, readDocument, upsertDocument, type JsonO
 
 export const FORMS = "forms";
 export const SUBMISSIONS = "form_submissions";
+export const ACTIVITY = "form_activity";
 
 export type StoredRecord = JsonObject & { id: string; revision: number };
 
