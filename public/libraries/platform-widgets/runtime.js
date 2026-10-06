@@ -102,7 +102,7 @@
       if(r.type!=='panel')return '';
       const children=(Array.isArray(r.widgets)?r.widgets:[]).slice(0,6).filter(w=>w.type==='platform_widget'&&w.widget);
       if(!children.length)return '';
-      return `<section class="fm-chat-panel" data-chat-panel-id="${escape(r.id||'')}"><header><h3>${escape(r.title||'Panel')}</h3></header>${children.map(widgetHtml).join('')}</section>`;
+      return `<section class="fm-chat-panel" data-chat-panel-id="${escape(r.id||'')}" aria-label="${escape(r.title||'Panel')}">${children.map(widgetHtml).join('')}</section>`;
     }).join('');
   }
   global.document.addEventListener('click',event=>{const button=event.target.closest?.('.fm-widget-expand');if(!button)return;const card=button.closest('.fm-widget-presentation');const expanded=card.dataset.expanded!=='true';card.dataset.expanded=String(expanded);button.setAttribute('aria-expanded',String(expanded));button.textContent=expanded?'Collapse widget':'Expand widget';});
@@ -111,7 +111,7 @@
     connectedCallback(){this.refresh();let seen=false,wasVisible=false;this.visibility=new IntersectionObserver(entries=>{const visible=entries.some(e=>e.isIntersecting);this.handle?.setVisible(visible);if(seen&&visible&&!wasVisible)this.refresh();seen=true;wasVisible=visible;});this.visibility.observe(this);}
     disconnectedCallback(){this.visibility?.disconnect();this.handle?.destroy();this.handle=null;}
     attributeChangedCallback(){if(this.isConnected)this.refresh();}
-    refresh(){this.handle?.destroy();try{const ref=JSON.parse(this.getAttribute('reference')||'{}');const org=global.__APP?.userOrgId;if(org&&ref.target?.organizationId&&ref.target.organizationId!==org)throw Error('This widget belongs to another organization.');this.handle=mount(this,ref,{surface:this.getAttribute('surface')||'assistant'});}catch(error){status(this,error.message);}}
+    refresh(){this.handle?.destroy();try{const ref=JSON.parse(this.getAttribute('reference')||'{}');const org=global.__APP?.userOrgId;if(org&&ref.target?.organizationId&&ref.target.organizationId!==org)throw Error('This widget belongs to another organization.');this.handle=mount(this,ref,{surface:this.getAttribute('surface')||'assistant',onSize:()=>{const card=this.closest('.fm-widget-presentation'),preview=card?.querySelector('.fm-widget-preview'),button=card?.querySelector('.fm-widget-expand');if(button&&preview)button.hidden=card.dataset.expanded!=='true'&&preview.scrollHeight<=preview.clientHeight+1;}});}catch(error){status(this,error.message);}}
   });
   global.FirstMateWidgets={presentationHtml,ready,register,attachRenderer,mount,library,registerDocumentWidget,list:async()=>{await ready;return [...definitions.values()].map(clone);},describe:async(id,version='1')=>{await ready;const def=definitions.get(key(id,version));return def?clone(def):null;}};
   global.FirstMateProjectTrays?.registerWidgets?.();

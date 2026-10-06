@@ -333,7 +333,7 @@
     try {
       return array(panel.widgets).map((widget,index) => {
         if (widget.type === 'platform_widget') return window.FirstMateWidgets?.presentationHtml?.([widget],{side:!options.inline}) || '<p class="fma-empty">Widget renderer unavailable.</p>';
-        return `<section data-panel-visualization="${index}">${widget.title && widget.title !== panel.title ? `<h4>${esc(widget.title)}</h4>` : ''}<div data-visualization-body>${visualizationHtml(widget,width)}</div></section>`;
+        return `<section class="fma-visualization" data-panel-visualization="${index}"><h4>${esc(widget.title || panel.title)}</h4>${widget.subtitle ? `<p class="fma-visualization-subtitle">${esc(widget.subtitle)}</p>` : ''}<div data-visualization-body>${visualizationHtml(widget,width)}</div></section>`;
       }).join('');
     } catch (error) {
       console.warn('[assistant] panel render failed', error);
@@ -360,9 +360,8 @@
   function panelCardHtml(panel, options = {}){
     panel = chatPanel(panel);
     if (panel.id) panelRegistry.set(clean(panel.id), panel);
-    const meta = [clean(panel.subtitle), clean(options.source), options.time ? relativeTime(options.time) : ''].filter(Boolean).join(' · ');
     return `<article class="fma-panel${options.inline ? ' inline' : ''}"${options.itemId ? ` data-board-item="${esc(options.itemId)}"` : ''}>
-      <header><div><h3>${esc(panel.title)}</h3>${meta ? `<p>${esc(meta)}</p>` : ''}</div>${options.itemId ? `<button type="button" class="fma-icon-btn ghost" data-board-close="${esc(options.itemId)}" title="Close" aria-label="Close ${esc(panel.title)}"><i class="fas fa-xmark" aria-hidden="true"></i></button>` : ''}</header>
+      <button type="button" class="fma-icon-btn fma-floating-close" ${options.itemId ? `data-board-close="${esc(options.itemId)}"` : `data-panel-dismiss="${esc(panel.id)}"`} title="Close" aria-label="Close ${esc(panel.title)}"><span aria-hidden="true">&#215;</span></button>
       <div class="fma-panel-body" data-panel-id="${esc(panel.id)}" data-rendered-width="${options.width || 360}">${panelBodyHtml(panel, options.width || 360, options)}</div>
     </article>`;
   }
@@ -475,13 +474,14 @@
       .fma-split:hover:before,.fma-split.dragging:before,.fma-split:focus-visible:before{background:var(--primary-readable,var(--primary,#175cd3));opacity:.55;}
       .fma-split:focus-visible{outline:none;}
       .fma-drawer[data-board=open] .fma-split{display:none;}
-      .fma-panel{background:#fff;border:1px solid #e4e7ec;border-radius:14px;padding:14px 16px 16px;box-shadow:0 1px 2px #1018280a;display:flex;flex-direction:column;gap:10px;min-width:0;}
-      .fma-panel.inline{align-self:stretch;max-width:92%;padding:12px 12px 14px;}
-      .fma-panel header{display:flex;align-items:flex-start;gap:8px;}
-      .fma-panel header div{flex:1;min-width:0;}
-      .fma-panel h3{margin:0;font-size:14px;font-weight:800;color:#101828;}
-      .fma-panel header p{margin:2px 0 0;font-size:12px;color:#667085;}
-      .fma-panel-body{min-width:0;overflow:hidden;}
+      .fma-panel{position:relative;background:transparent;border:0;padding:0;box-shadow:none;display:flex;flex-direction:column;gap:10px;min-width:0;}
+      .fma-panel.inline{align-self:stretch;max-width:calc(100% - 32px);padding:0;}
+      .fma-panel>.fma-floating-close{position:absolute;right:-28px;top:0;z-index:2;width:24px;height:24px;min-width:24px;min-height:24px;border-radius:7px;background:#fff;border:1px solid #e4e7ec;box-shadow:0 1px 3px #10182812;color:#667085;}
+      .fma-panel .fm-widget-presentation{margin:0;}
+      .fma-panel-body{min-width:0;overflow:visible;display:flex;flex-direction:column;gap:12px;}
+      .fma-visualization{background:#fff;border:1px solid #e4e7ec;border-radius:14px;padding:14px 16px 16px;box-shadow:0 1px 2px #1018280a;min-width:0;}
+      .fma-visualization>h4{margin:0 0 10px;font-size:14px;font-weight:600;color:#101828;}
+      .fma-visualization-subtitle{margin:0 0 10px;font-size:12px;color:#667085;}
       .fma-panel.flash{animation:fmaFlash 1.2s ease;}
       @keyframes fmaFlash{0%,100%{box-shadow:0 1px 2px #1018280a}30%{box-shadow:0 0 0 3px rgba(var(--primary-rgb,23,92,211),.35)}}
       .fma-chart{display:block;overflow:visible;}
@@ -824,13 +824,19 @@
     // One toggle shows or hides visuals: the dashboard column in the full view, chart cards in the conversation otherwise.
     els.visualsToggle.addEventListener('click', () => setBoardHidden(!state.boardHidden));
     els.boardItems.addEventListener('click', async (event) => {
-      const button = event.target.closest('[data-board-close]');
+      const button = event.target.closest('[data-board-close],[data-panel-dismiss]');
       if (!button) return;
+      if (button.dataset.panelDismiss) {
+        dismissedPanels.add(button.dataset.panelDismiss);closedInlinePanels.add(button.dataset.panelDismiss);
+        syncLayout();renderMessages({keepScroll:true});return;
+      }
       const itemId = button.dataset.boardClose;
       const closed = state.dashboard.find(item => clean(item.id) === itemId);
       if (closed) dismissedPanels.add(clean(chatPanel(closed.panel || closed.artifact).id));
+      if (closed) closedInlinePanels.add(clean(chatPanel(closed.panel || closed.artifact).id));
       state.dashboard = state.dashboard.filter((item) => clean(item.id) !== itemId);
       syncLayout();
+      renderMessages({keepScroll:true});
       try { state.dashboard = array((await window.AssistantAPI.dashboard.remove(orgId(), itemId)).dashboard); syncLayout(); }
       catch (error) { console.warn('[assistant] could not close panel', error); }
     });
@@ -896,6 +902,7 @@
   }
 
   const dismissedPanels = new Set();
+  const closedInlinePanels = new Set();
   function boardPanels(){
     const items = state.dashboard.map(item => ({...item,panel:chatPanel(item.panel || item.artifact)}));
     if (!projectId) return items;
@@ -1074,7 +1081,7 @@
     if (panels.length) {
       const onBoard = els?.drawer?.dataset.board === 'open';
       const width = Math.max(220, Math.min(560, Math.floor(((els?.msgs?.clientWidth || 400) - 28) * 0.92 - 30)));
-      html += panels.map((panel) => onBoard
+      html += panels.map((panel) => onBoard || closedInlinePanels.has(clean(panel.id))
         ? `<button type="button" class="fma-panel-chip${anim}" data-focus-panel="${esc(panel.id)}"><i class="fas fa-chart-column" aria-hidden="true"></i>${esc(panel.title)}</button>`
         : panelCardHtml(panel, { inline:true, width })).join('');
     }
@@ -1201,6 +1208,8 @@
   }
 
   function onMessagesClick(event){
+    const dismiss=event.target.closest('[data-panel-dismiss]');
+    if(dismiss){closedInlinePanels.add(dismiss.dataset.panelDismiss);renderMessages({keepScroll:true});return;}
     const widget = event.target.closest('[data-focus-widget]');
     if (widget) {
       const target = [...els.boardItems.querySelectorAll('fm-platform-widget')].find(el => el.getAttribute('reference') === widget.dataset.focusWidget);
@@ -1212,6 +1221,7 @@
     if (source) { void openAgent(source.dataset.openAgent); return; }
     const focus = event.target.closest('[data-focus-panel]');
     if (focus) {
+      closedInlinePanels.delete(focus.dataset.focusPanel);
       const item = state.dashboard.find((entry) => clean(chatPanel(entry.panel || entry.artifact).id) === focus.dataset.focusPanel);
       const card = item && els.boardItems.querySelector(`[data-board-item="${CSS.escape(clean(item.id))}"]`);
       if (card) { card.scrollIntoView({ behavior:'smooth', block:'nearest' }); card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash'); return; }
