@@ -827,7 +827,7 @@
       const button = event.target.closest('[data-board-close],[data-panel-dismiss]');
       if (!button) return;
       if (button.dataset.panelDismiss) {
-        dismissedPanels.add(button.dataset.panelDismiss);closedInlinePanels.add(button.dataset.panelDismiss);
+        dismissedPanels.add(button.dataset.panelDismiss);closedInlinePanels.add(button.dataset.panelDismiss);reopenedPanels.delete(button.dataset.panelDismiss);
         syncLayout();renderMessages({keepScroll:true});return;
       }
       const itemId = button.dataset.boardClose;
@@ -903,10 +903,15 @@
 
   const dismissedPanels = new Set();
   const closedInlinePanels = new Set();
+  const reopenedPanels = new Map();
   function boardPanels(){
     const items = state.dashboard.map(item => ({...item,panel:chatPanel(item.panel || item.artifact)}));
-    if (!projectId) return items;
     const ids = new Set(items.map(item => clean(item.panel.id)));
+    for (const [id,panel] of reopenedPanels) {
+      if (ids.has(id) || dismissedPanels.has(id)) continue;
+      ids.add(id);items.push({panel});
+    }
+    if (!projectId) return items;
     for (const message of state.messages) for (const panel of panelsOf(message)) {
       if (ids.has(clean(panel.id)) || dismissedPanels.has(clean(panel.id))) continue;
       ids.add(clean(panel.id)); items.push({panel,updated_at:message.created_at});
@@ -1209,7 +1214,7 @@
 
   function onMessagesClick(event){
     const dismiss=event.target.closest('[data-panel-dismiss]');
-    if(dismiss){closedInlinePanels.add(dismiss.dataset.panelDismiss);renderMessages({keepScroll:true});return;}
+    if(dismiss){closedInlinePanels.add(dismiss.dataset.panelDismiss);reopenedPanels.delete(dismiss.dataset.panelDismiss);renderMessages({keepScroll:true});return;}
     const widget = event.target.closest('[data-focus-widget]');
     if (widget) {
       const target = [...els.boardItems.querySelectorAll('fm-platform-widget')].find(el => el.getAttribute('reference') === widget.dataset.focusWidget);
@@ -1221,13 +1226,16 @@
     if (source) { void openAgent(source.dataset.openAgent); return; }
     const focus = event.target.closest('[data-focus-panel]');
     if (focus) {
-      closedInlinePanels.delete(focus.dataset.focusPanel);
-      const item = state.dashboard.find((entry) => clean(chatPanel(entry.panel || entry.artifact).id) === focus.dataset.focusPanel);
-      const card = item && els.boardItems.querySelector(`[data-board-item="${CSS.escape(clean(item.id))}"]`);
-      if (card) { card.scrollIntoView({ behavior:'smooth', block:'nearest' }); card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash'); return; }
-      // Closed on the dashboard: show it in the conversation instead.
-      const panel = panelRegistry.get(focus.dataset.focusPanel) || state.messages.flatMap(panelsOf).find((entry) => clean(entry.id) === focus.dataset.focusPanel);
-      if (panel) { focus.outerHTML = panelCardHtml(panel, { inline:true }); fitPanels(els.msgs); }
+      const id = focus.dataset.focusPanel;
+      const item = state.dashboard.find((entry) => clean(chatPanel(entry.panel || entry.artifact).id) === id);
+      const panel = panelRegistry.get(id) || (item && chatPanel(item.panel || item.artifact)) || state.messages.flatMap(panelsOf).find((entry) => clean(entry.id) === id);
+      if (!panel) return;
+      closedInlinePanels.delete(id);dismissedPanels.delete(id);
+      // Restore presentation membership so panel view also works after dashboard removal.
+      reopenedPanels.set(id,panel);
+      syncLayout();renderMessages({keepScroll:true});
+      const card = els.boardItems.querySelector(`[data-panel-id="${CSS.escape(id)}"]`)?.closest('.fma-panel');
+      if (card) { card.scrollIntoView({behavior:'smooth',block:'nearest'});card.classList.remove('flash');void card.offsetWidth;card.classList.add('flash'); }
       return;
     }
     const agentAction = event.target.closest('[data-agent-action]');

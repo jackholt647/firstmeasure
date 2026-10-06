@@ -26,6 +26,15 @@ test('widget owns its card and header; shared close floats outside and inline di
   await page.setViewportSize({width:390,height:844});await page.locator('[data-fma=msgs] .ftw').waitFor();assert.ok(await page.locator('[data-fma=msgs]').evaluate(e=>e.scrollWidth<=e.clientWidth+1));
   assert.equal(await page.locator('[data-fma=msgs] .fm-widget-expand').isVisible(),false);
   await page.screenshot({path:new URL('../../../output/assistant-widget-chrome-20261006/mobile.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1')});
-  await page.setViewportSize({width:1440,height:950});await page.getByRole('button',{name:'Open panel view',exact:true}).click();await page.locator('[data-fma=boardItems]').getByRole('button',{name:'Close To-do list',exact:true}).click();assert.equal(await page.locator('[data-fma=boardItems] .ftw').count(),0);assert.equal(await page.locator('[data-fma=msgs] .ftw').count(),0);assert.deepEqual(errors,[]);
+  await page.setViewportSize({width:1440,height:950});await page.getByRole('button',{name:'Open panel view',exact:true}).click();await page.locator('[data-fma=boardItems]').getByRole('button',{name:'Close To-do list',exact:true}).click();assert.equal(await page.locator('[data-fma=boardItems] .ftw').count(),0);assert.equal(await page.locator('[data-fma=msgs] .ftw').count(),0);// A removed dashboard panel must reopen beside chat when panel view is enabled.
+  await page.locator('[data-fma=msgs] [data-focus-panel=todo_panel]').click();await page.locator('[data-fma=boardItems] .ftw').waitFor();assert.equal(await page.locator('[data-fma=msgs] .ftw').count(),0);
+  await page.getByRole('button',{name:'Close panel view',exact:true}).click();await page.locator('[data-fma=msgs] .ftw').waitFor();
+  await page.getByRole('button',{name:'Open panel view',exact:true}).click();await page.locator('[data-fma=boardItems] .ftw').waitFor();assert.equal(await page.locator('[data-fma=msgs] .ftw').count(),0);
+  // Reopening while panel view is disabled stays inline, then moves when enabled.
+  await page.locator('[data-fma=boardItems]').getByRole('button',{name:'Close To-do list',exact:true}).click();
+  await page.getByRole('button',{name:'Close panel view',exact:true}).click();
+  await page.locator('[data-fma=msgs] [data-focus-panel=todo_panel]').click();await page.locator('[data-fma=msgs] .ftw').waitFor();assert.equal(await page.locator('[data-fma=boardItems] .ftw').count(),0);
+  await page.getByRole('button',{name:'Open panel view',exact:true}).click();await page.locator('[data-fma=boardItems] .ftw').waitFor();assert.equal(await page.locator('[data-fma=msgs] .ftw').count(),0);
+  assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
