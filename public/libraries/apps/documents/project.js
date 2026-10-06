@@ -442,24 +442,31 @@
           unit: 'scope'
         });
       }
-      const pieceId = firstText(piece.id, `piece_${templateId}_${index}`);
-      root.scope_piece_id = pieceId;
-      root.scope_template_id = templateId;
-      root.display_name = firstText(piece.name, root.display_name, root.name, 'Project piece');
-      root.name = root.display_name;
-      if (firstText(piece.color)) root.scope_color = cleanText(piece.color);
-      // Namespace choice groups per piece so two pieces never share a group
-      // (same rule proposalBuilderApplyPieceMetadata applies).
-      const prefixGroups = (item) => {
-        const sel = objectValue(item.selection);
-        if (firstText(sel.group_id) && !String(sel.group_id).includes(':')) {
-          item.selection = { ...sel, group_id: `${pieceId}:${sel.group_id}` };
-        }
-        arrayValue(item.children).forEach((child) => prefixGroups(objectValue(child)));
-      };
-      prefixGroups(objectValue(root));
-      return root;
+      return applyScopePieceMetadata(root, piece, index);
     }).filter(Boolean);
+  }
+
+  /** Stamp a generated root with the piece it came from (display name,
+   *  template refs) and namespace its choice groups per piece so two pieces
+   *  never share a group — the rule proposalBuilderApplyPieceMetadata applies. */
+  function applyScopePieceMetadata(root, piece, index){
+    if (!root || typeof root !== 'object' || !firstText(root.id)) return null;
+    const templateId = firstText(piece.template_id, piece.id);
+    const pieceId = firstText(piece.id, `piece_${templateId}_${index}`);
+    root.scope_piece_id = pieceId;
+    root.scope_template_id = templateId;
+    root.display_name = firstText(piece.name, root.display_name, root.name, 'Project piece');
+    root.name = root.display_name;
+    if (firstText(piece.color)) root.scope_color = cleanText(piece.color);
+    const prefixGroups = (item) => {
+      const sel = objectValue(item.selection);
+      if (firstText(sel.group_id) && !String(sel.group_id).includes(':')) {
+        item.selection = { ...sel, group_id: `${pieceId}:${sel.group_id}` };
+      }
+      arrayValue(item.children).forEach((child) => prefixGroups(objectValue(child)));
+    };
+    prefixGroups(objectValue(root));
+    return root;
   }
 
   // ----------------------------------------------------- lifecycle helpers
@@ -1885,9 +1892,7 @@
         projectMeasurements: async () => {
           const projectId = firstText(state.doc?.project_id, project()?.id);
           if (!projectId) return { values: {}, source: '' };
-          const response = await fetch(`/v1/publication/organizations/${encodeURIComponent(orgId())}/projects/${encodeURIComponent(projectId)}/measurements`, { credentials: 'same-origin', headers: { accept: 'application/json' } });
-          if (!response.ok) throw new Error(`Measurements request failed (${response.status})`);
-          const result = objectValue(await response.json());
+          const result = objectValue(await window.PlatformAPI.publication.measurements(orgId(), projectId));
           const values = {};
           Object.entries(objectValue(objectValue(result.value).measurements)).forEach(([key, entry]) => {
             const value = Number(objectValue(entry).value);
@@ -1899,9 +1904,29 @@
         // Native line-items generation (line_items_review + measurement-key
         // derivation): the legacy module's exported generation, pricebook
         // hydrated first so formulas resolve (see generateScopeItemsForSelection).
+        // Pieces the server can price (pricebook.scope.generate) are built
+        // there from the organization price book; the rest still use the
+        // legacy module's exported generation, pricebook hydrated first.
         generateScopeItems: async (selection, measurements) => {
-          try { await Promise.resolve(pricebookModule()?.loadState?.()); } catch (e) { /* formulas fall back */ }
-          return generateScopeItemsForSelection(selection, measurements);
+          const pieces = arrayValue(selection).map(objectValue).filter((piece) => firstText(piece.template_id, piece.id));
+          let legacyReady = false;
+          const roots = [];
+          for (const [index, piece] of pieces.entries()) {
+            const templateId = firstText(piece.template_id, piece.id);
+            let generated = null;
+            try {
+              const result = await window.PlatformAPI.publication.invoke(orgId(), 'pricebook.scope.generate', { scope: 'organization', organizationId: orgId() }, { templateId, measurements: objectValue(measurements) });
+              generated = applyScopePieceMetadata(objectValue(result.value), piece, index);
+            } catch (error) {
+              if (cleanText(error?.code || error?.data?.error) !== 'scope_generation_unsupported') console.warn('Server scope generation failed — using the legacy generator', error);
+            }
+            if (!generated) {
+              if (!legacyReady) { try { await Promise.resolve(pricebookModule()?.loadState?.()); } catch (e) { /* formulas fall back */ } legacyReady = true; }
+              generated = generateScopeItemsForSelection([piece], measurements)[0] || null;
+            }
+            if (generated) roots.push(generated);
+          }
+          return roots;
         },
         pricebook: {
           pick: () => new Promise((resolve) => openPricebookPicker({ onDone: (items) => resolve(items) })),

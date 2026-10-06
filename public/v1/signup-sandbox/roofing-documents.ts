@@ -1,7 +1,7 @@
 import type { PlatformAuthContext } from '../platform/auth.js';
 import { ensureDefaultDocumentAssets, lineItemBlocks, lineItemStyles, proposalLineItemComponents, startFlowTemplate } from '../documents/seeds.js';
 import { createDocumentTemplate, createDocumentWorkflow, publishDocumentTemplate, publishDocumentWorkflow, readDocumentTemplate, readDocumentWorkflow } from '../documents/storage.js';
-import { addFlowPage, flowColumn, flowLogo, flowSpacer, flowText, flowWidget, type RunSpec } from '../documents/template-kit.js';
+import { addFlowPage, flowColumn, flowLogo, flowRow, flowSpacer, flowText, flowWidget, type RunSpec } from '../documents/template-kit.js';
 import { getOrganizationPricebook } from '../pricebook/storage.js';
 import type { JsonObject } from '../platform/storage.js';
 
@@ -93,7 +93,19 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
     scope_pieces: { type: 'list', items: { type: 'object' }, label: 'Project work', ...(mode === 'detailed' ? { default: [{ id: 'piece_roof_replacement', template_id: 'roof_replacement', name: 'Roof Replacement' }] } : {}) },
     measurement_requirements: { type: 'list', items: { type: 'string' } },
     measurements: { type: 'measurements', label: 'Measurements' },
-    ...(mode === 'detailed' ? { show_line_prices: { type: 'boolean', label: 'Print each line price', default: true } } : {})
+    ...(mode === 'detailed' ? {
+      show_line_prices: { type: 'boolean', label: 'Print each line price', default: true },
+      payment_schedule: { type: 'payment_schedule', label: 'Payment terms', default: [
+        { id: 'deposit', label: 'Deposit', kind: 'percent', percent: 30, payment_kind: 'deposit', due_rule: 'on_signature' },
+        { id: 'final', label: 'Final payment', kind: 'percent', percent: 70, payment_kind: 'final', due_rule: 'project_completion' }
+      ] },
+      // Workflow bookkeeping: which measurements the lines were generated
+      // from, whether the customer has options to pick, and whether a
+      // deposit falls due at signing (they gate the customer's steps).
+      scope_generated_from: { type: 'string' },
+      customer_choice_count: { type: 'number', default: 0 },
+      deposit_at_signing: { type: 'boolean', default: true }
+    } : {})
   };
   const { doc, theme } = startFlowTemplate(spec.theme, 'proposal');
   const body = (runs: RunSpec[], sizePt = 11) => flowText(runs, { font: { family: 'var(--fm-body-font)', size_pt: sizePt, color: 'var(--fm-text)' } });
@@ -128,20 +140,38 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
     body([{ text: 'Structure: ' }, { text: '', bind: 'params.structure' }, { text: '   Color: ' }, { text: '', bind: 'params.color' }]),
     body([{ text: 'Site review: confirm access, decking condition, flashing, ventilation and disposal arrangements. Hidden damage and additional work require a separately approved change. Schedule and payment terms must be agreed before work starts.' }]),
     body([{ text: 'Approval accepts the scope and price shown in this estimate. The material list supports fulfillment; changes to that list do not change this signed estimate.' }]),
+    ...(mode === 'detailed' ? [
+      flowSpacer(6),
+      flowText([{ text: 'Payment terms' }], { style_ref: 'h2' }),
+      flowWidget('doc.payment_schedule@1', { source: 'params.payment_schedule' })
+    ] : []),
     flowSpacer(16),
-    flowWidget('doc.signature@1', { output: 'sig_customer', label: 'Customer approval', signer: 'customer' }, { w: 360, h: 100 }),
+    ...(mode === 'detailed'
+      ? [flowRow([
+          flowWidget('doc.signature@1', { output: 'sig_customer', label: 'Customer approval', signer: 'customer' }, { grow: 1, h: 100 }),
+          flowWidget('doc.pay_now@1', { label: 'Deposit due' }, { w: 190, h: 100 })
+        ], { gap: 24 })]
+      : [flowWidget('doc.signature@1', { output: 'sig_customer', label: 'Customer approval', signer: 'customer' }, { w: 360, h: 100 })]),
     flowSpacer(16),
     note('Sample agreement for development testing. Replace sample terms with your organization’s approved terms before customer use.')
   ]);
   doc.components = proposalLineItemComponents(); doc.styles = lineItemStyles(); doc.params = params;
-  doc.outputs={sig_customer:{type:'signature',required:true,signer:'customer'}};
+  doc.outputs = mode === 'detailed'
+    ? {
+        // Customer picks in the proposal's choice groups; recording them
+        // moves the selection onto params.scope_items, so the price follows.
+        selections: { type: 'select', applies: 'scope_selections', label: 'Your options' },
+        sig_customer: { type: 'signature', required: true, signer: 'customer' },
+        deposit_payment: { type: 'payment', obligation: 'deposit', required_for: 'completed' }
+      }
+    : { sig_customer: { type: 'signature', required: true, signer: 'customer' } };
   doc.computed={subtotal_cents:'sum(params.scope_items[].amount_cents)',tax_cents:'0',total_cents:'computed.subtotal_cents'};
   doc.program={enabled:false,deliverables:[roofingCalculus(mode)]};
   return doc;
 }
 
 /** Bump when the estimate layouts or their workflows change; existing packs republish. */
-export const INSTANT_ROOFING_PACK = 3;
+export const INSTANT_ROOFING_PACK = 4;
 
 /** Roof measurements the itemized proposal prices from, in the order a roofer reads a report. */
 export const ROOF_MEASUREMENT_FIELDS = [
@@ -188,13 +218,21 @@ export async function seedInstantRoofingDocuments(orgId:string, ctx:PlatformAuth
         {kind:'measurements',writes:'params.measurements',label:'Roof measurements',required:true,fields:ROOF_MEASUREMENT_FIELDS,prefill:'project.measurements'},
         paramItem('structure')]},
       {id:'items',title:'Scope & price',description:'Quantities are calculated from the roof measurements and priced from your price book.',audience:['internal'],items:[{kind:'line_items_review',writes:'params.scope_items',required:true,label:'Line items'}]},
-      {id:'review',title:'Review & send',audience:['internal'],items:[{kind:'review',label:'Before you send'}],preview:{template_ref:id,live:true}}
+      {id:'terms',title:'Payment terms',description:'How the job is paid. The milestone due on signature is the deposit the customer pays when they approve.',audience:['internal'],items:[{kind:'payment_schedule',writes:'params.payment_schedule',label:'Payment schedule',required:true}]},
+      {id:'review',title:'Review & send',audience:['internal'],items:[{kind:'review',label:'Before you send'}],preview:{template_ref:id,live:true}},
+      // The customer's side, in the portal: choose, approve, pay the deposit.
+      {id:'choose',title:'Choose your options',audience:['customer'],when:'{{coalesce(params.customer_choice_count, 0) > 0}}',items:[{kind:'choice_group',writes:'outputs.selections',options_from:'scope_items',label:'Your options',description:'Pick the products you want. The proposal total updates with each choice.'}]},
+      {id:'sign',title:'Approve',audience:['customer'],items:[{kind:'signature',writes:'outputs.sig_customer',required:true,label:'Approve this proposal',description:'Sign to accept the scope, the options you selected and the price shown.'}]},
+      {id:'pay',title:'Pay deposit',audience:['customer'],when:'{{params.deposit_at_signing == true}}',items:[{kind:'payment',writes:'outputs.deposit_payment',required:true,label:'Deposit',config:{amount_label:'Deposit due'}}]}
     ]:[
       {id:'scope',title:'Define the work',audience:['internal'],items:fields.map(paramItem)},
       {id:'review',title:'Review estimate',audience:['internal'],items:[{kind:'review',label:'Review before sending'}],preview:{template_ref:id,live:true}}
     ];
     const workflowDefinition={schema_version:1,name:spec.title,contract:{params:definition.params,outputs:definition.outputs},steps};
-    const metadata={instant_roofing_pack:INSTANT_ROOFING_PACK};
+    const metadata={instant_roofing_pack:INSTANT_ROOFING_PACK,
+      // The itemized proposal has customer steps, so the portal offers the
+      // workflow alongside the document.
+      ...(spec.key==='detailed'?{customer_presentation:{tab:{id:'proposals',label:'Proposals',icon:'fa-file-signature',order:50},mode:'hybrid',workflow_cta:'Choose options & approve'}}:{})};
     const existingWorkflow=await readDocumentWorkflow(orgId,workflow).catch(missing);
     if (existingWorkflow) await publishDocumentWorkflow(orgId,workflow,{definition:workflowDefinition,expected_version:Number(existingWorkflow.current_version||0),metadata},ctx);
     else await createDocumentWorkflow(orgId,{id:workflow,name:spec.title,description:spec.description,status:'active',definition:workflowDefinition,metadata},ctx);

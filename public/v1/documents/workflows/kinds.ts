@@ -145,6 +145,9 @@ registerWorkflowItemKind("choice_group", { schema: selectItemSchema, writes: "ou
 // config so wave-2 seeds can publish workflows containing it.
 registerWorkflowItemKind("content_blocks", { schema: baseItemSchema, writes: "params" });
 registerWorkflowItemKind("line_item_editor", { schema: baseItemSchema, writes: "params" });
+// Payment terms as milestones (percent of the total or a fixed amount, with a
+// due rule). Writes the payment_schedule param receivables are minted from.
+registerWorkflowItemKind("payment_schedule", { schema: baseItemSchema, writes: "params" });
 registerWorkflowItemKind("review", { schema: reviewItemSchema, writes: "none" });
 // Server-executed on step completion: mints a document from config
 // ({template_id?/document_type?, title?, copy_params?, workflow_id?})

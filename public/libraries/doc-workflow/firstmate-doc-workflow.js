@@ -318,6 +318,10 @@
       const entries = Object.keys(obj(value));
       return entries.length ? `${entries.length} measurement${entries.length === 1 ? '' : 's'}` : '—';
     }
+    if (kind === 'payment_schedule') {
+      const rows = arr(value).map(obj);
+      return rows.length ? rows.map((row) => `${firstText(row.label, 'Payment')} ${Number(row.amount_cents) > 0 ? moneyFromCents(row.amount_cents) : `${Number(row.percent) || 0}%`}`).join(' · ') : '—';
+    }
     if (kind === 'content_blocks') {
       const count = arr(value).length;
       return count ? `${count} content block${count === 1 ? '' : 's'}` : '—';
@@ -548,6 +552,7 @@
           const gid = cleanText(sel.group_id);
           if (!groups.has(gid)) groups.set(gid, []);
           groups.get(gid).push(item);
+          if (!groupTitles.has(gid)) groupTitles.set(gid, { title: firstNonEmpty(sel.group_title, prettyKey(gid.split(':').pop().replace(/_(profile|group|choice)$/i, ''))), behavior: 'single' });
         } else if (customer && cleanText(sel.mode) === 'optional') {
           optionals.push(item);
         }
@@ -578,15 +583,23 @@
         if (!gid && selections[cleanText(item.id)] !== undefined) return selections[cleanText(item.id)] === true;
         return sel.selected === true;
       };
-      const priceTag = (item) => {
-        const price = Number(item.unit_price || item.base_price || 0) * (Number(item.quantity) || 1);
-        return price > 0 ? `<em>+ ${esc(moneyFromDollars(price))}</em>` : '';
+      const lineAmount = (item) => Math.max(0, Number(item.quantity || 0) || 0) * (Number(item.unit_price || item.base_price || 0) || 0);
+      // In a choice group the customer is choosing between alternatives, so
+      // each card shows the difference from the option currently selected;
+      // optional add-ons show what they add.
+      const priceTag = (item, gid) => {
+        if (!gid) { const price = lineAmount(item); return price > 0 ? `<em>+ ${esc(moneyFromDollars(price))}</em>` : ''; }
+        const current = arr(groups.get(gid)).find((other) => isSelected(other));
+        if (!current || current === item) return isSelected(item) ? '<em>Selected</em>' : '';
+        const delta = lineAmount(item) - lineAmount(current);
+        if (Math.abs(delta) < 0.005) return '<em>Same price</em>';
+        return `<em>${delta > 0 ? '+' : '−'} ${esc(moneyFromDollars(Math.abs(delta)))}</em>`;
       };
       const optionCard = (item, gid) => `
         <button type="button" class="fmdw-choice-card ${isSelected(item) ? 'active' : ''}" data-fmdw-scg-option="${esc(cleanText(item.id))}" data-fmdw-scg-group="${esc(gid)}" ${ctx.readonly ? 'disabled' : ''}>
           <strong>${esc(firstNonEmpty(item.display_name, item.name, 'Option'))}</strong>
           ${cleanText(item.description) ? `<span>${esc(cleanText(item.description))}</span>` : ''}
-          ${priceTag(item)}
+          ${priceTag(item, gid)}
           ${isSelected(item) ? '<i class="fas fa-circle-check"></i>' : ''}
         </button>`;
       const sections = [];
@@ -1370,7 +1383,10 @@
     let items = arr(ctx.value()).map(normalizeScopeItem);
     let generating = false;
     let generateNote = '';
-    const commit = () => ctx.write(clone(items));
+    const commit = () => {
+      ctx.write(clone(items));
+      ctx.writePath('params.customer_choice_count', customerChoiceCount());
+    };
     const selection = () => arr(getPath(ctx.scope(), cleanText(ctx.item.selection_from) || 'params.scope_pieces'));
     const measurements = () => obj(getPath(ctx.scope(), 'params.measurements'));
     const stampOf = (value) => JSON.stringify(Object.keys(obj(value)).sort().map((key) => [key, obj(value)[key]]));
@@ -1428,7 +1444,13 @@
     };
     const isOptional = (item) => cleanText(obj(item.selection).mode) === 'optional';
     const customerPicks = (item) => arr(obj(item.selection).selectable_by).map(cleanText).includes('customer');
-    const groupTitle = (groupId) => prettyKey(cleanText(groupId).split(':').pop().replace(/_(profile|group|choice)$/i, ''));
+    const groupTitle = (groupId, options) => firstText(obj(obj(arr(options)[0]).selection).group_title, prettyKey(cleanText(groupId).split(':').pop().replace(/_(profile|group|choice)$/i, '')));
+    /** How many decisions the customer is offered (choice groups + optional
+     *  lines); later steps show the customer's choosing step only when > 0. */
+    function customerChoiceCount(){
+      const { groups, optionals } = collectScopeChoiceGroups(items);
+      return [...groups.values()].filter((options) => options.length > 1).length + optionals.length;
+    }
 
     function attachThumbHtml(item){
       const entry = obj(arr(item.media)[0]);
@@ -1484,9 +1506,9 @@
           out.push(`
             <div class="fmdw-lir-choice">
               <div class="fmdw-lir-choice-head">
-                <strong>${esc(groupTitle(groupId))}</strong>
+                <strong>${esc(groupTitle(groupId, options))}</strong>
                 <span class="fmdw-li-flag choice">${options.some(customerPicks) ? 'Customer can choose' : 'Choose one'}</span>
-                <small>The selected option is the one this proposal prices and prints.</small>
+                <small>${options.some(customerPicks) ? 'The selected option is your recommendation: the proposal prices it, and the customer can switch before approving.' : 'The selected option is the one this proposal prices and prints.'}</small>
               </div>
               ${options.map((option) => rowHtml(option, 'choice') + nestedHtml(option)).join('')}
             </div>`);
@@ -1632,6 +1654,161 @@
     // Auto-generate on entry when nothing has been generated yet.
     if (!countScopeItems(items)) generate();
     return { validate: () => (ctx.item.required && !countScopeItems(arr(ctx.value())) ? 'Generate or add at least one line item.' : null) };
+  });
+
+  // -------------------------------------------------------- payment schedule
+  // Payment terms as milestones: each is a percent of the document total or a
+  // fixed amount, with when it falls due. Writes the payment_schedule param
+  // the document's schedule and pay widgets, and the receivables minted at
+  // signing, all read. The milestone due on signature is the deposit.
+  const SCHEDULE_DUE_OPTIONS = [
+    { value: 'on_signature', label: 'On signature' },
+    { value: 'project_completion', label: 'On completion' },
+    { value: 'on_invoice', label: 'When invoiced' },
+    { value: 'on_date', label: 'Specific date' }
+  ];
+  function normalizeScheduleRow(row, index){
+    const source = obj(row);
+    const kind = cleanText(source.kind) === 'fixed' || Number(source.amount_cents) > 0 ? 'fixed' : 'percent';
+    return {
+      ...source,
+      id: firstText(source.id, uid('sched')),
+      label: firstText(source.label, source.title, index === 0 ? 'Deposit' : 'Payment'),
+      kind,
+      percent: Number(source.percent ?? (Number(source.percent_bps) ? Number(source.percent_bps) / 100 : 0)) || 0,
+      amount_cents: Math.round(Number(source.amount_cents) || 0),
+      due_rule: firstText(source.due_rule, source.due, 'on_signature'),
+      due_date: cleanText(source.due_date).slice(0, 10)
+    };
+  }
+  registerKind('payment_schedule', (el, ctx) => {
+    let rows = arr(ctx.value()).map(normalizeScheduleRow);
+    // Percent rows resolve against the scope total the workflow is pricing.
+    const basisCents = () => Math.round(scopeItemsTotal(arr(getPath(ctx.scope(), cleanText(ctx.item.total_from) || 'params.scope_items'))) * 100);
+    const rowCents = (row) => (row.kind === 'fixed' ? row.amount_cents : Math.round(basisCents() * row.percent / 100));
+    const commit = () => {
+      // payment_kind tells receivables which milestone is the deposit.
+      const out = rows.map((row, index) => {
+        const next = { ...row };
+        if (!cleanText(next.payment_kind) || ['deposit', 'final', 'progress'].includes(cleanText(next.payment_kind))) {
+          next.payment_kind = next.due_rule === 'on_signature' ? 'deposit' : (index === rows.length - 1 ? 'final' : 'progress');
+        }
+        if (next.kind === 'percent') delete next.amount_cents; else delete next.percent;
+        if (next.due_rule !== 'on_date') delete next.due_date;
+        return next;
+      });
+      ctx.write(out.length ? out : null);
+      // Later steps ask for a deposit only when one falls due at signing.
+      ctx.writePath('params.deposit_at_signing', rows.some((row) => row.due_rule === 'on_signature' && (row.kind === 'fixed' ? row.amount_cents > 0 : row.percent > 0)));
+      ctx.requestPreview();
+    };
+    const preset = (parts) => {
+      rows = parts.map(([label, percent, due], index) => normalizeScheduleRow({ id: index === 0 ? 'deposit' : (index === parts.length - 1 ? 'final' : `milestone_${index}`), label, kind: 'percent', percent, due_rule: due }, index));
+      commit();
+      render();
+    };
+    function summaryHtml(){
+      const basis = basisCents();
+      const scheduled = rows.reduce((sum, row) => sum + rowCents(row), 0);
+      const deposit = rows.filter((row) => row.due_rule === 'on_signature').reduce((sum, row) => sum + rowCents(row), 0);
+      const gap = basis - scheduled;
+      // Percent rows round to the cent one by one; a cent or two of drift is not a gap.
+      const shown = Math.abs(gap) <= rows.length ? basis : scheduled;
+      const parts = [`<span>Due at signing <b>${esc(moneyFromCents(deposit))}</b></span>`, `<span>Scheduled <b>${esc(moneyFromCents(shown))}</b> of ${esc(moneyFromCents(basis))}</span>`];
+      const warning = !rows.length ? '' : (Math.abs(gap) > rows.length
+        ? `<p class="fmdw-meas-note"><i class="fas fa-triangle-exclamation"></i> ${gap > 0 ? `${esc(moneyFromCents(gap))} of the total is not scheduled.` : `The schedule is ${esc(moneyFromCents(-gap))} over the total.`}</p>`
+        : '');
+      return `<div class="fmdw-sched-summary">${parts.join('')}</div>${warning}`;
+    }
+    const render = () => {
+      el.innerHTML = `
+        <div class="fmdw-field">
+          <span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>
+          ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
+          <div class="fmdw-card fmdw-sched">
+            ${rows.length ? rows.map((row, index) => `
+              <div class="fmdw-sched-row" data-fmdw-sched="${index}">
+                <input type="text" class="fmdw-sched-label" data-fmdw-sched-label value="${esc(row.label)}" placeholder="Milestone" ${ctx.readonly ? 'disabled' : ''}>
+                <span class="fmdw-sched-amount">
+                  <select data-fmdw-sched-kind ${ctx.readonly ? 'disabled' : ''} title="Percent of the total, or a fixed amount">
+                    <option value="percent" ${row.kind === 'percent' ? 'selected' : ''}>%</option>
+                    <option value="fixed" ${row.kind === 'fixed' ? 'selected' : ''}>$</option>
+                  </select>
+                  <input type="number" min="0" step="${row.kind === 'percent' ? '0.5' : '0.01'}" ${row.kind === 'percent' ? 'max="100"' : ''} data-fmdw-sched-value value="${esc(row.kind === 'percent' ? row.percent : (row.amount_cents / 100).toFixed(2))}" ${ctx.readonly ? 'disabled' : ''}>
+                </span>
+                <select class="fmdw-sched-due" data-fmdw-sched-due ${ctx.readonly ? 'disabled' : ''}>
+                  ${SCHEDULE_DUE_OPTIONS.map((option) => `<option value="${esc(option.value)}" ${row.due_rule === option.value ? 'selected' : ''}>${esc(option.label)}</option>`).join('')}
+                </select>
+                ${row.due_rule === 'on_date' ? `<input type="date" data-fmdw-sched-date value="${esc(row.due_date)}" ${ctx.readonly ? 'disabled' : ''}>` : ''}
+                <b class="fmdw-sched-cents" data-fmdw-sched-cents>${esc(moneyFromCents(rowCents(row)))}</b>
+                ${ctx.readonly ? '' : `<button type="button" class="fmdw-icon-btn danger" data-fmdw-sched-remove title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>`}
+              </div>`).join('') : `<p class="fmdw-hint" style="margin:0">No payment terms yet. Pick a starting point or add milestones.</p>`}
+            <div data-fmdw-sched-summary>${rows.length ? summaryHtml() : ''}</div>
+            ${ctx.readonly ? '' : `
+              <div class="fmdw-row-actions">
+                <button type="button" class="fmdw-btn" data-fmdw-sched-add><i class="fas fa-plus"></i> Add milestone</button>
+                <button type="button" class="fmdw-btn ghost" data-fmdw-sched-preset="30-70">30% deposit / 70% on completion</button>
+                <button type="button" class="fmdw-btn ghost" data-fmdw-sched-preset="50-50">50 / 50</button>
+                <button type="button" class="fmdw-btn ghost" data-fmdw-sched-preset="100">Paid in full on completion</button>
+              </div>`}
+          </div>
+          <span class="fmdw-field-error" data-fmdw-error hidden></span>
+        </div>`;
+      const refreshAmounts = () => {
+        el.querySelectorAll('[data-fmdw-sched]').forEach((rowEl) => {
+          const row = rows[Number(rowEl.dataset.fmdwSched)];
+          const cents = rowEl.querySelector('[data-fmdw-sched-cents]');
+          if (row && cents) cents.textContent = moneyFromCents(rowCents(row));
+        });
+        const summary = el.querySelector('[data-fmdw-sched-summary]');
+        if (summary) summary.innerHTML = rows.length ? summaryHtml() : '';
+      };
+      el.querySelectorAll('[data-fmdw-sched]').forEach((rowEl) => {
+        const index = Number(rowEl.dataset.fmdwSched);
+        const row = rows[index];
+        if (!row) return;
+        rowEl.querySelector('[data-fmdw-sched-label]')?.addEventListener('change', (event) => { row.label = cleanText(event.target.value) || row.label; commit(); });
+        rowEl.querySelector('[data-fmdw-sched-kind]')?.addEventListener('change', (event) => {
+          // Keep the same money when switching between percent and dollars.
+          const cents = rowCents(row);
+          row.kind = event.target.value === 'fixed' ? 'fixed' : 'percent';
+          if (row.kind === 'fixed') row.amount_cents = cents;
+          else row.percent = basisCents() > 0 ? Math.round(cents / basisCents() * 1000) / 10 : 0;
+          commit();
+          render();
+        });
+        rowEl.querySelector('[data-fmdw-sched-value]')?.addEventListener('change', (event) => {
+          if (row.kind === 'percent') row.percent = Math.min(100, Math.max(0, Number(event.target.value) || 0));
+          else row.amount_cents = Math.max(0, Math.round(Number(event.target.value || 0) * 100));
+          commit();
+          refreshAmounts();
+        });
+        rowEl.querySelector('[data-fmdw-sched-due]')?.addEventListener('change', (event) => { row.due_rule = event.target.value; commit(); render(); });
+        rowEl.querySelector('[data-fmdw-sched-date]')?.addEventListener('change', (event) => { row.due_date = cleanText(event.target.value); commit(); });
+        rowEl.querySelector('[data-fmdw-sched-remove]')?.addEventListener('click', () => { rows.splice(index, 1); commit(); render(); });
+      });
+      el.querySelector('[data-fmdw-sched-add]')?.addEventListener('click', () => {
+        const scheduled = rows.filter((row) => row.kind === 'percent').reduce((sum, row) => sum + row.percent, 0);
+        rows.push(normalizeScheduleRow({ label: rows.length ? 'Payment' : 'Deposit', kind: 'percent', percent: Math.max(0, 100 - scheduled), due_rule: rows.length ? 'project_completion' : 'on_signature' }, rows.length));
+        commit();
+        render();
+      });
+      el.querySelectorAll('[data-fmdw-sched-preset]').forEach((button) => button.addEventListener('click', () => {
+        const key = button.dataset.fmdwSchedPreset;
+        if (key === '30-70') preset([['Deposit', 30, 'on_signature'], ['Final payment', 70, 'project_completion']]);
+        else if (key === '50-50') preset([['Deposit', 50, 'on_signature'], ['Final payment', 50, 'project_completion']]);
+        else preset([['Payment in full', 100, 'project_completion']]);
+      }));
+    };
+    render();
+    return {
+      validate: () => {
+        if (ctx.item.required && !rows.length) return 'Add the payment terms to continue.';
+        const basis = basisCents();
+        const scheduled = rows.reduce((sum, row) => sum + rowCents(row), 0);
+        return rows.length && basis > 0 && scheduled - basis > rows.length ? 'The payment schedule adds up to more than the total.' : null;
+      }
+    };
   });
 
   // ----------------------------------------------------------------- review
@@ -2076,7 +2253,7 @@
         const holder = document.createElement('div');
         const itemTransition = obj(obj(item.presentation).transition);
         // Lists and grids need the full row; simple fields pair up.
-        const wide = ['measurements', 'line_items_review', 'line_item_editor', 'review', 'content_blocks', 'piece_select', 'piece_picker', 'choice_group'].includes(cleanText(item.kind));
+        const wide = ['measurements', 'payment_schedule', 'line_items_review', 'line_item_editor', 'review', 'content_blocks', 'piece_select', 'piece_picker', 'choice_group'].includes(cleanText(item.kind));
         holder.className = `fmdw-item ${wide ? 'fmdw-item-wide' : ''} fmdw-enter-${firstText(itemTransition.type, 'fade').replace(/[^a-z-]/gi, '')}`;
         holder.style.setProperty('--fmdw-enter-ms', `${Math.max(0, Number(itemTransition.duration_ms || 180))}ms`);
         if (item.disabled === true) {
@@ -2601,6 +2778,22 @@
   .fmdw-lir-nums{grid-row:2;grid-column:1 / -1;justify-content:flex-end}
   .fmdw-lir-row.pick .fmdw-lir-nums{grid-column:2 / -1}
   .fmdw-lir-actions{grid-row:1;grid-column:-2}
+}
+/* payment schedule */
+.fmdw-sched{container-type:inline-size}
+.fmdw-sched-row{display:grid;grid-template-columns:minmax(0,1.3fr) auto minmax(0,1fr) auto auto;align-items:center;gap:8px;min-width:0}
+.fmdw-sched-row:has([data-fmdw-sched-date]){grid-template-columns:minmax(0,1.3fr) auto minmax(0,1fr) auto auto auto}
+.fmdw-sched-row input,.fmdw-sched-row select{min-width:0;height:34px;padding:0 9px;font-size:12px;border-radius:9px}
+.fmdw-sched-amount{display:flex;align-items:center;gap:4px}
+.fmdw-sched-amount select{width:52px}
+.fmdw-sched-amount input{width:84px;text-align:right}
+.fmdw-sched-cents{min-width:88px;text-align:right;font-size:12.5px;font-weight:1000;font-variant-numeric:tabular-nums}
+.fmdw-sched-summary{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11.5px;font-weight:850;color:var(--fmdw-muted)}
+.fmdw-sched-summary b{color:var(--fmdw-ink);font-weight:1000;font-variant-numeric:tabular-nums}
+@container (max-width:560px){
+  .fmdw-sched-row,.fmdw-sched-row:has([data-fmdw-sched-date]){grid-template-columns:minmax(0,1fr) auto auto;padding-bottom:8px;border-bottom:1px solid #f0f2f7}
+  .fmdw-sched-label{grid-column:1 / -2}
+  .fmdw-sched-due{grid-column:1}
 }
 /* review */
 .fmdw-review-total{flex-direction:row;align-items:baseline;justify-content:space-between;gap:12px}

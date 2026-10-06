@@ -31,7 +31,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   view_websites: { actions: ["websites.sites.list"], data: ["websites.record"] },
   manage_websites: { actions: ["websites.page.discard"] },
   publish_websites: { actions: ["websites.page.publish"] },
-  view_pricebook: { actions: ["pricebook.catalog.validate", "pricebook.item.resolve"], data: ["pricebook.items", "materials-inputs.products"] },
+  view_pricebook: { actions: ["pricebook.catalog.validate", "pricebook.item.resolve", "pricebook.scope.generate"], data: ["pricebook.items", "materials-inputs.products"] },
   view_feedback: { actions: ["feedback.project.summary"], data: ["feedback.record"] },
   request_feedback: { actions: ["feedback.project.request"] },
   view_canvassing: { actions: ["canvassing.pins.list"], data: ["canvassing.records"] },
