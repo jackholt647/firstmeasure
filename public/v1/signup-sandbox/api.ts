@@ -89,6 +89,10 @@ export const registerSignupSandboxApi: FastifyPluginAsync = async (app) => {
     const tools = await import("../development/synthetic-data.js");
     return { ok: true, ...(await tools.generateSyntheticData(ctx, request.body)) };
   });
+  app.get("/development/software-layers", async (request) => {
+    const ctx = await requirePlatformAuth(request, { permission: "manage_company_settings" });
+    return (await import("../development/software-layers.js")).softwareLayers(ctx, request.query);
+  });
 
   app.get("/state", async () => {
     await ensureSeedData();

@@ -1,3 +1,4 @@
+import { mountSoftwareLayers } from './software-layers.js?v=20261006';
 let mounted = false;
 export async function mount() {
  if (mounted || window.top !== window) return;
@@ -6,14 +7,14 @@ export async function mount() {
  const anchor = document.getElementById('platformAssistantSlot');
  if (!anchor) return;
  mounted = true;
- const style = document.createElement('link');style.rel='stylesheet';style.href='/libraries/development-tools/development-tools.css?v=20261005-amount';document.head.append(style);
+ const style = document.createElement('link');style.rel='stylesheet';style.href='/libraries/development-tools/development-tools.css?v=20261006-layers';document.head.append(style);
  const slot=document.createElement('div');slot.className='fm-dev-slot';
  slot.innerHTML='<button type="button" class="ptb-bell" aria-label="Development tools" aria-haspopup="dialog" aria-expanded="false" data-dev-open><i class="fas fa-code" aria-hidden="true"></i></button>';
  anchor.before(slot);
  const button=slot.querySelector('[data-dev-open]');
  let frame,busy=false,requestId,activeAnchor=button,suppressHover=false,hoverTimer;
  const isOpen=()=>!!frame&&!frame.hidden;
- function position(){if(!isOpen())return;const mobile=window.matchMedia('(max-width:820px)').matches;const bar=document.querySelector(mobile?'.mobile-topbar':'#platformTopbar');const bounds=bar?.getBoundingClientRect()||activeAnchor.getBoundingClientRect();frame.style.top=Math.max(8,bounds.bottom+8)+'px';frame.style.right='12px';frame.style.maxHeight=Math.max(160,window.innerHeight-bounds.bottom-24)+'px';}
+ function position(){if(!isOpen())return;if(frame.classList.contains('fm-dev-fullscreen')){frame.style.top='8px';frame.style.right='8px';frame.style.maxHeight='calc(100dvh - 16px)';return;}const mobile=window.matchMedia('(max-width:820px)').matches;const bar=document.querySelector(mobile?'.mobile-topbar':'#platformTopbar');const bounds=bar?.getBoundingClientRect()||activeAnchor.getBoundingClientRect();frame.style.top=Math.max(8,bounds.bottom+8)+'px';frame.style.right='12px';frame.style.maxHeight=Math.max(160,window.innerHeight-bounds.bottom-24)+'px';}
  function close(){clearTimeout(hoverTimer);if(frame)frame.hidden=true;suppressHover=true;slot.classList.remove('fm-dev-open');button.setAttribute('aria-expanded','false');}
  function toggle(){if(isOpen())close();else open();}
  document.addEventListener('pointerdown',event=>{if(isOpen()&&!frame.contains(event.target)&&!slot.contains(event.target)&&!event.target.closest('[data-dev-mobile]'))close();});
@@ -23,7 +24,8 @@ export async function mount() {
   slot.classList.add('fm-dev-open');button.setAttribute('aria-expanded','true');
   if(frame){frame.hidden=false;position();return;}
   frame=document.createElement('section');frame.className='fm-dev-window';frame.setAttribute('role','dialog');frame.setAttribute('aria-label','Development tools');
-  const header=document.createElement('header');header.innerHTML='<i class="fas fa-code fm-dev-mark" aria-hidden="true"></i><strong>Development</strong><button type="button" class="fm-dev-close" aria-label="Close development tools"><i class="fas fa-xmark" aria-hidden="true"></i></button>';header.querySelector('button').onclick=close;
+  const header=document.createElement('header');header.innerHTML='<i class="fas fa-code fm-dev-mark" aria-hidden="true"></i><strong>Development</strong><button type="button" class="fm-dev-expand" aria-label="Expand development tools" aria-pressed="false"><i class="fas fa-expand" aria-hidden="true"></i></button><button type="button" class="fm-dev-close" aria-label="Close development tools"><i class="fas fa-xmark" aria-hidden="true"></i></button>';header.querySelector('.fm-dev-close').onclick=close;
+  header.querySelector('.fm-dev-expand').onclick=()=>{const expanded=frame.classList.toggle('fm-dev-fullscreen');header.querySelector('.fm-dev-expand').setAttribute('aria-pressed',String(expanded));header.querySelector('.fm-dev-expand').setAttribute('aria-label',expanded?'Restore development dropdown':'Expand development tools');position();};
   const body=document.createElement('div');body.className='fm-dev-body';
   body.innerHTML='<div class="fm-dev-fields"><label class="fm-dev-company">Company type<select data-dev-company></select></label><label class="fm-dev-company">Amount<select data-dev-amount><option value="1">1×</option><option value="3">3×</option><option value="5">5×</option><option value="10">10×</option></select></label></div><details class="fm-dev-section" open><summary><span><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i> Synthetic data</span><small data-dev-count></small></summary><div data-dev-categories></div></details><div class="fm-dev-results" role="status" aria-live="polite" hidden></div><div class="fm-dev-footer"><button type="button" class="fm-dev-generate" data-dev-generate><i class="fas fa-plus" aria-hidden="true"></i> Add synthetic data</button></div>';
   for(const company of catalog.companies){const option=document.createElement('option');option.value=company.id;option.textContent=company.label;body.querySelector('select').append(option);}
@@ -55,7 +57,10 @@ export async function mount() {
    } catch(error){report.textContent=error.message||'Could not add sample data. You can retry safely.';}
    finally {busy=false;body.querySelectorAll('input,select').forEach(el=>el.disabled=false);generate.textContent='Add synthetic data';update();report.scrollIntoView({block:'nearest',behavior:'smooth'});}
   };
-  frame.append(header,body);document.body.append(frame);position();
+  const tabs=document.createElement('nav');tabs.className='fm-dev-tabs';tabs.setAttribute('aria-label','Development views');tabs.innerHTML='<button type="button" aria-pressed="true" data-dev-tab="synthetic">Synthetic data</button><button type="button" aria-pressed="false" data-dev-tab="layers">Software layers</button>';
+  const layers=document.createElement('div');layers.className='fm-dev-body fm-dev-layers';layers.hidden=true;let layersMounted=false;
+  tabs.onclick=event=>{const tab=event.target.closest('[data-dev-tab]');if(!tab)return;const software=tab.dataset.devTab==='layers';body.hidden=software;layers.hidden=!software;tabs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===tab)));if(software&&!layersMounted){layersMounted=true;mountSoftwareLayers(layers,api);}};
+  frame.append(header,tabs,body,layers);document.body.append(frame);position();
 
  }
  button.onclick=()=>{clearTimeout(hoverTimer);activeAnchor=button;toggle();};
