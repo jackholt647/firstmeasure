@@ -69,7 +69,7 @@ export const connectorSchema = z
           })
           .strict(),
       )
-      .min(1)
+      .min(0)
       .max(60),
     resources: z
       .array(
@@ -96,9 +96,19 @@ export const connectorSchema = z
       .max(40)
       .default([]),
     notes: z.string().max(12000).default(""),
+    leadImport:z.object({
+      mode:z.enum(["webhook","resource"]),resource:key.optional(),branchId:z.string().min(1).max(120).default("default"),
+      externalIdPath:z.string().max(300).default("id"),provider:z.string().max(160).default(""),
+      code:z.string().max(64000).default("const {id,...lead}=inputs.record; return {outputs:{lead}};"),
+      notificationRoleIds:z.array(z.string().max(120)).max(50).optional(),
+    }).strict().optional(),
     webhook: z
       .object({
         secretField: key,
+        verification:z.enum(["hmac_sha256","header_token","body_token"]).default("hmac_sha256"),
+        tokenPath:z.string().max(300).default("google_key"),
+        defaultEvent:z.string().regex(/^[a-zA-Z0-9_.-]+$/).optional(),
+        testPath:z.string().max(300).default("is_test"),
         signatureHeader: z
           .string()
           .regex(/^[a-zA-Z0-9-]+$/)
@@ -118,6 +128,10 @@ export const connectorSchema = z
 export type Connector = z.infer<typeof connectorSchema>;
 export function parseConnector(raw: unknown): Connector {
   const c = connectorSchema.parse(raw);
+  if(!c.operations.length&&!c.webhook)throw new Error("Declare an operation or webhook.");
+  if(c.leadImport?.mode==="webhook"&&!c.webhook)throw new Error("Webhook lead intake requires a webhook.");
+  if(c.leadImport?.mode==="resource"&&!c.resources.some(r=>r.id===c.leadImport?.resource&&r.mode==="sync"))throw new Error("Polling lead intake requires a synchronized resource.");
+  if(c.webhook?.defaultEvent&&!c.webhook.allowedEvents.includes(c.webhook.defaultEvent))throw new Error("The default webhook event must be allowed.");
   for (const entries of [c.operations, c.resources])
     if (new Set(entries.map((e) => e.id)).size !== entries.length)
       throw new Error("Identifiers must be unique.");

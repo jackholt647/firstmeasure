@@ -11,7 +11,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   use_external_shares:{data:["collaboration.resource","collaboration.resources"],actions:["collaboration.project.update","collaboration.note.create","collaboration.message.post","collaboration.work.update","collaboration.schedule.update"]},
   manage_external_sharing:{actions:["collaboration.share.revoke"]},
   view_projects: { actions: ["projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["materials-inputs.measurements", "custom-fields-project.contract", "custom-fields-project.values", "custom-fields-organization.contract", "custom-fields-organization.values", "projects.record", "work.records", "organization.profile", "referrals.eligibility"] },
-  manage_projects: { actions: ["materials.calculus.command", "custom-fields.project.write", "custom-fields.contact.write","projects.lead.create", "work.node.patch", "work.node.transition"] },
+  manage_projects: { data: ["lead-import.deliveries"], actions: ["leads.import", "materials.calculus.command", "custom-fields.project.write", "custom-fields.contact.write","projects.lead.create", "work.node.patch", "work.node.transition"] },
   view_contacts: { data: ["custom-fields-contact.contract", "custom-fields-contact.values","customers.record", "contacts.settings", "contacts.options"] },
   view_schedule: { actions: ["scheduling.availability", "scheduling.appointment.catalog", "scheduling.appointment.preview"], data: ["calendar.record"] },
   manage_schedule: { actions: ["scheduling.appointment.create", "scheduling.appointment.book", "scheduling.slot.hold", "scheduling.confirmation.set", "scheduling.reschedule.review"] },

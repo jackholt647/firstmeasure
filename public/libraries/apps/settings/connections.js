@@ -48,7 +48,7 @@
     if (document.getElementById("fm-connections-style")) return;
     const style = document.createElement("style");
     style.id = "fm-connections-style";
-    style.textContent = `
+    style.textContent = `.ic-root [data-lead-history],.ic-root .ic-row{overflow-wrap:anywhere;min-width:0}.ic-root form[data-review-form]{display:grid;gap:8px}
     .ic-root{--ic-line:#e4e7ec;color:#182230;font:14px/1.5 system-ui,sans-serif;width:100%;height:100%;min-height:0;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr);max-width:none;margin:0}.ic-root *{box-sizing:border-box}.ic-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.ic-root h2{font-size:24px;letter-spacing:-.6px;margin:0}.ic-root h3{font-size:17px;margin:0 0 6px}.ic-muted{color:#667085}.ic-root p{margin:5px 0 14px}.ic-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ic-root button,.ic-credentials button{font:inherit;border:1px solid #d0d5dd;border-radius:9px;padding:9px 14px;background:white;color:#344054;cursor:pointer}.ic-root button:hover,.ic-credentials button:hover{background:#f8fafc}.ic-root button:disabled,.ic-credentials button:disabled{opacity:.55;cursor:wait}.ic-root .ic-primary,.ic-credentials .ic-primary{background:var(--primary,#175cd3);border-color:transparent;color:white}.ic-root button:focus-visible,.ic-root input:focus-visible,.ic-credentials input:focus-visible{outline:3px solid #84adff;outline-offset:2px}.ic-root input,.ic-root textarea,.ic-root select,.ic-credentials input{font:inherit;width:100%;padding:10px 12px;border:1px solid #d0d5dd;border-radius:8px;background:white;color:#182230}.ic-root textarea{min-height:160px;resize:vertical}.ic-root label,.ic-credentials label{display:grid;gap:5px;margin:12px 0}.ic-search{max-width:420px;margin-bottom:20px}.ic-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}.ic-card{border:1px solid var(--ic-line);border-radius:14px;padding:20px;background:white;text-align:left;box-shadow:0 2px 4px #10182804}.ic-grid button.ic-card{padding:20px;text-align:left}.ic-brand{display:flex;align-items:center;gap:12px;margin-bottom:14px}.ic-logo{height:44px;width:44px;border-radius:11px;background:#eef4ff;color:#3538cd;display:grid;place-items:center;font-size:20px;font-weight:700;object-fit:contain;padding:5px}.ic-badge{display:inline-block;border-radius:20px;padding:3px 9px;font-size:12px;background:#f2f4f7;color:#475467}.ic-badge.active{background:#ecfdf3;color:#027a48}.ic-badge.failed,.ic-error{background:#fef3f2;color:#b42318}.ic-status{padding:8px 0}.ic-status:empty{display:none}.ic-error{padding:12px;border-radius:8px}.ic-empty{padding:32px 20px;text-align:center;border:1px dashed #d0d5dd;border-radius:16px;background:#fafbfc}.ic-empty .ic-logo{margin:0 auto 16px;height:60px;width:60px;font-size:26px}.ic-tabs{display:flex;gap:5px;border-bottom:1px solid var(--ic-line);margin:24px 0 20px;overflow:auto}.ic-tabs button{border:0;border-radius:0;white-space:nowrap}.ic-tabs button[aria-selected=true]{color:var(--primary,#175cd3);border-bottom:2px solid var(--primary,#175cd3);font-weight:650}.ic-row{display:flex;justify-content:space-between;gap:15px;padding:15px 0;border-bottom:1px solid var(--ic-line)}.ic-row:last-child{border:0}.ic-row input[type=checkbox]{width:18px;height:18px}.ic-main{min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;padding:16px}.ic-workspace{grid-template-columns:minmax(300px,1fr) minmax(360px,46%)}.ic-chat{height:100%;min-height:0;position:relative;border-left:1px solid var(--ic-line);overflow:hidden;background:white}.ic-chat:empty{display:none}.ic-root details{margin:12px 0}.ic-root summary{cursor:pointer;color:#475467}.ic-root pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:350px;overflow:auto;background:#f8fafc;padding:14px;border-radius:8px}.ic-credentials{border:1px solid #d0d5dd;border-radius:12px;padding:18px;background:#fff;color:#182230;font:14px/1.5 system-ui;max-width:520px;margin:12px 0}.ic-credentials h3{margin:0 0 6px}.ic-credentials [role=status]{margin-top:10px}.ic-credentials .ic-destination{overflow-wrap:anywhere;color:#475467}.ic-library{margin-top:18px}.ic-root .ic-small{font-size:12px}.ic-upload{max-width:350px}
     .ic-root .ic-primary:hover,.ic-root .ic-primary:active,.ic-credentials .ic-primary:hover,.ic-credentials .ic-primary:active{background:var(--primary,#175cd3);color:white;filter:brightness(.9)}
     #tab_company_settings:has(#csPaneConnections.active),.cs-wrap:has(#csPaneConnections.active),.cs-layout:has(#csPaneConnections.active),.cs-main:has(#csPaneConnections.active){height:100%;min-height:0;overflow:hidden;box-sizing:border-box}
@@ -97,7 +97,7 @@
       container.textContent = error.message;
     }
   }
-  async function mount(root, { orgId } = {}) {
+  async function mount(root, { orgId, leadSetup = false, connectionId = "" } = {}) {
     styles();
     root.classList.add("ic-root");
     root.dataset.settingsAutosave = "off";
@@ -266,6 +266,7 @@
           summary,
         } = current;
       const ask = (prompt) => setup(c.id, prompt);
+      if (d.leadImport) { area.insertAdjacentHTML("beforebegin", `<div class="ic-card" data-intake-summary><h3>Lead intake</h3><p>${esc(d.leadImport.mode === "webhook" ? "Webhook delivery" : "API polling")} · ${esc(d.leadImport.provider || d.name)} · ${esc(d.leadImport.branchId)}</p>${current.webhookUrl ? `<label>Webhook URL<input readonly value="${esc(new URL(current.webhookUrl,location.origin).href)}"></label>` : ""}<p>Activating this draft enables lead creation. Pausing stops intake.</p></div>`); }
       if (tab === "overview") {
         const uses = current.uses || automations;
         const valid =
@@ -352,9 +353,11 @@
           );
       } else if (tab === "activity") {
         area.innerHTML = `<div class="ic-card"><h3>Recent runs</h3>${runs.map((r) => `<div class="ic-row"><div><strong>${esc(r.title || d.operations.find((o) => o.id === r.operation)?.title || r.kind)}</strong><p class="ic-muted">${esc(new Date(r.createdAt).toLocaleString())}</p>${r.message ? `<p>${esc(r.message)}</p>` : ""}</div><span class="ic-badge ${r.state === "succeeded" ? "active" : r.state === "running" ? "" : "failed"}">${esc(r.state)}</span></div>`).join("") || '<p class="ic-muted">No requests yet. Start with a read-only test.</p>'}</div>`;
+        if(d.leadImport)area.insertAdjacentHTML("beforeend",`<div class="ic-card"><h3>Lead deliveries</h3>${(current.leadDeliveries||[]).map(r=>`<div class="ic-row"><div><strong>${esc(r.state)}</strong> · ${esc(r.external_id)}<p>${esc(r.reason||"")}</p><span>${esc(r.attempts)} attempts · ${esc(r.project_id||"")}</span></div></div>`).join("")||"<p>No lead deliveries yet.</p>"}</div>`);
       } else if (tab === "access") {
         area.innerHTML = `<div class="ic-card"><h3>Available operations</h3><p class="ic-muted">Choose what this connection can do. Write operations can change the external service.</p>${d.operations.map((o) => `<label class="ic-row" style="display:flex"><div><strong>${esc(o.title)}</strong><p class="ic-muted">${esc(o.description)}</p><span class="ic-badge">${o.effect === "read" ? "Read data" : "Change external data"}</span></div><input type="checkbox" data-operation="${esc(o.id)}" ${c.enabledOperations.includes(o.id) ? "checked" : ""}></label>`).join("")}<button class="ic-primary" data-enable>${c.activeVersion !== c.draftVersion ? "Activate reviewed draft" : "Save access & enable"}</button><p class="ic-small ic-muted">Owner and authorized company administrators manage this connection. Individual grants can be configured with the assistant.</p><button data-grants>Manage individual access with assistant</button></div>`;
         area.querySelector("[data-enable]").onclick = guarded(async () => {
+          if(d.leadImport && !await (window.PlatformUI?.confirm?.("Enable this connection to create projects from incoming leads?",{title:"Enable lead intake",okLabel:"Enable"}) || Promise.resolve(window.confirm("Enable this connection to create projects from incoming leads?"))))return;
           const operations = [
             ...area.querySelectorAll("[data-operation]:checked"),
           ].map((x) => x.dataset.operation);
@@ -478,7 +481,9 @@
         });
       }
     }
-    await refresh();
+    if(leadSetup)await setup("setup","Help me connect a lead source. Find its official delivery protocol, configure webhook or API polling and a lead mapping, preview a redacted sample, and explain the provider-side setup before enabling intake.");
+    else if(connectionId)await detail(connectionId);
+    else await refresh();
     return {
       destroy() {
         disposed = true;
@@ -487,5 +492,39 @@
       refresh,
     };
   }
-  window.FirstMateConnections = { mount, mountCredential, request };
+  async function mountLeadSources(root,{orgId,branchId="default"}={}){
+    styles();root.classList.add("ic-root");
+    root.innerHTML='<h3>Other lead sources</h3><p>Connect a lead provider through a webhook or its API.</p><button type="button" data-connect>Connect a lead source</button><button type="button" data-history-refresh>Refresh deliveries</button><div data-lead-sources></div><h3>Recent deliveries</h3><div data-lead-history role="status"></div><div data-lead-setup></div>';
+    let next="",items=[],generation=0;
+    async function refresh(more=false){
+      const n=++generation,area=root.querySelector('[data-lead-history]');
+      try{
+        const response=await fetch(`/v1/email/organizations/${enc(orgId)}/branch/${enc(branchId)}/lead-import/deliveries?limit=25${more&&next?'&after='+enc(next):''}`,{credentials:"include"});
+        const data=await response.json();if(!response.ok)throw new Error(data.message||'Could not load deliveries.');
+        if(n!==generation||!area.isConnected)return;
+        items=more?[...items,...data.items]:data.items;next=data.next;
+        area.innerHTML=items.map(r=>`<div class="ic-row"><div><strong>${esc(r.state)}</strong> · ${esc(r.external_id)}<p class="ic-muted">${esc(r.source_id)} · ${esc(new Date(r.updated_at).toLocaleString())} · ${esc(r.attempts)} delivery attempts${r.reason?'<br>'+esc(r.reason):''}</p></div>${r.project_id?`<button type="button" data-project="${esc(r.project_id)}">Open project</button>`:''}${r.state==='uncertain'?`<button type="button" data-review="${esc(r.id)}">Review</button>`:''}</div>`).join('')||'<p>No deliveries yet.</p>';
+        if(next)area.insertAdjacentHTML('beforeend','<button type="button" data-more>Load more</button>');
+        area.querySelector('[data-more]')?.addEventListener('click',()=>refresh(true));
+        area.querySelectorAll('[data-project]').forEach(b=>b.onclick=()=>window.FirstMateProjectWindows?.open(b.dataset.project));
+        area.querySelectorAll('[data-review]').forEach(b=>b.onclick=async()=>{
+          const row=b.closest('.ic-row');
+          if(row.querySelector('[data-review-form]'))return;
+          row.insertAdjacentHTML('beforeend','<form data-review-form><label>Outcome<select name="decision"><option value="imported">Project and workflow verified</option><option value="dismissed">Dismiss delivery</option></select></label><label>Review note<input name="note" required maxlength="1000"></label><button type="submit">Save review</button><button type="button" data-cancel>Cancel</button></form>');
+          const form=row.querySelector('[data-review-form]');form.querySelector('[data-cancel]').onclick=()=>form.remove();
+          form.onsubmit=async event=>{event.preventDefault();const values=Object.fromEntries(new FormData(form));
+            try{const session=String(window.__APP?.platformSessionCookieName||'fm_platform_session'),cookie=document.cookie.split('; ').find(v=>v.startsWith(session+'_csrf='));const response=await fetch(`/v1/email/organizations/${enc(orgId)}/lead-deliveries/${enc(b.dataset.review)}/review`,{method:'POST',credentials:'include',headers:{'content-type':'application/json','x-platform-csrf':decodeURIComponent(cookie?.slice(cookie.indexOf('=')+1)||'')},body:JSON.stringify(values)});if(!response.ok)throw new Error((await response.json()).message||'Review failed.');await refresh();}catch(error){area.textContent=error.message;}
+          };
+        });
+      }catch(error){if(area.isConnected)area.textContent=error.message;}
+    }
+    root.querySelector('[data-history-refresh]').onclick=()=>refresh();
+    root.querySelector('[data-connect]').onclick=async()=>{const target=root.querySelector('[data-lead-setup]');target.style.minHeight='650px';await mount(target,{orgId,leadSetup:true});};
+    if(window.PlatformAPI?.appFlags?.has?.('platform','connections')){
+      request(orgId,'/connections').then(data=>{root.querySelector('[data-lead-sources]').innerHTML=data.connections.filter(c=>c.leadSource).map(c=>`<button type="button" data-source="${esc(c.id)}">${esc(c.name)} · ${c.enabled?'Active':'Paused / draft'}</button>`).join('');root.querySelectorAll('[data-source]').forEach(b=>b.onclick=()=>mount(root.querySelector('[data-lead-setup]'),{orgId,connectionId:b.dataset.source}));}).catch(()=>{});
+    }else {root.querySelector('[data-connect]').disabled=true;root.querySelector('[data-lead-sources]').textContent='Enable Connections to connect a lead source.';}
+    await refresh();
+  }
+  window.FirstMateConnections = { mount, mountCredential, mountLeadSources, request };
 })();
+

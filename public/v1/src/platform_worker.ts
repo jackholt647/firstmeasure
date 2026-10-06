@@ -31,6 +31,7 @@ sms.startSmsDeliveryWorker();
 
 const jobs: Array<{ name: string; interval: number; run: () => Promise<unknown> }> = [
   { name: 'integration-sync', interval: 5000, run: async () => (await import('../integrations/jobs.js')).integrationSyncTick() },
+  { name: 'integration-leads', interval: 5000, run: async () => (await import('../integrations/jobs.js')).integrationLeadTick() },
   { name: 'integrations', interval: 5000, run: async () => (await import('../integrations/jobs.js')).integrationTick() },
   { name: 'integration-descriptions', interval: 60000, run: async () => (await import('../integrations/summaries.js')).summaryTick() },
   { name: "collaboration-events", interval: 5000, run: async () => { const events=await import("../collaboration/events.js");events.registerCollaborationEvents();await events.drainCollaborationEvents(); } },

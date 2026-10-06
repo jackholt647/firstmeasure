@@ -4,6 +4,10 @@ import { manage, connection, definition, saveConnection } from "./service.js";
 import { contentHash } from "../platform/publication/validation.js";
 import { z } from "zod";
 const builtins = [
+  {id:"google-ads-leads",name:"Google Ads leads",aliases:["google leads","lead form webhook"],domain:"ads.google.com",connector:null,status:"guidance",verifiedAt:null,
+   instructions:"Use Google's official lead-form webhook JSON contract. Body-token verification at google_key, eventIdPath lead_id, defaultEvent lead.received, allowedEvents [lead.received]. Collect the key only in the secure form. Map user_column_data by column_id to contacts/address; preserve campaign/form IDs. Ignore is_test deliveries. Preview a redacted sample before activating webhook-only lead intake. Configure the public URL and matching key in the advertiser's lead form; do not claim Google-side setup is complete without verification.",documentation:["https://developers.google.com/google-ads/webhook/docs/implementation"],logo:null},
+  {id:"custom-lead-source",name:"Custom lead source",aliases:["lead aggregator","lead import","leads","webhook","polling"],domain:"",connector:null,status:"guidance",verifiedAt:null,
+   instructions:"Determine the provider's official delivery/authentication contract and stable lead identity. Prefer a signed webhook or authenticated API polling through Connections. Configure leadImport mapping and preview a redacted sample. Use API resources with stable IDs and pagination for polling. Header/body tokens and HMAC-SHA256 are supported; unsupported signature or verification-handshake protocols require a host adapter, not tenant code. Register subscriptions only through declared authorized provider operations or explain the provider-side step. Never collect secrets in chat.",documentation:[],logo:null},
   {
     id: "companycam",
     name: "CompanyCam",

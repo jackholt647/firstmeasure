@@ -93,6 +93,7 @@ export async function listConnections(ctx: PlatformAuthContext):Promise<Obj[]> {
       results.push({
         ...c,
         hasCredentials: await hasCredentials(ctx.orgId, c.id),
+        leadSource:!!(await definition(ctx.orgId,c,c.draftVersion)).leadImport,
       });
     } catch {}
   }
@@ -183,6 +184,7 @@ export async function activate(
   if (c.revision !== expected)
     throw conflict("integration_revision", "Connection changed; reload it.");
   const d = await definition(ctx.orgId, c, c.draftVersion);
+  if(d.leadImport)await (await import('./lead-intake.js')).authorizeLeadImport(ctx,d.leadImport.branchId);
   if (enabledOperations.some((o) => !d.operations.some((x) => x.id === o)))
     throw badRequest("connection_grants", "Unknown operation.");
   for (const [user, grant] of Object.entries(grants)) {

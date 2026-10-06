@@ -667,9 +667,24 @@ export function startIntegrationScheduler() {
       .finally(() => (summarizing = false));
   }, 60000);
   summaries.unref();
+  let importing=false;
+  const leadTimer=setInterval(()=>{if(importing)return;importing=true;void runPlatformTask("integration-leads",5000,integrationLeadTick).catch(()=>undefined).finally(()=>{importing=false;});},5000);
+  leadTimer.unref();
+
   return () => {
     clearInterval(timer);
     clearInterval(summaries);
     clearInterval(syncTimer);
+    clearInterval(leadTimer);
   };
+}
+
+export async function integrationLeadTick(){
+ const rows=await db().prepare("SELECT organization_id,id FROM integration_objects WHERE kind='connection' ORDER BY organization_id,id").all();
+ const cursor=await read("__system__","scheduler","lead-intake"),index=rows.findIndex(r=>`${r.organization_id}:${r.id}`>(cursor?.after||""));
+ const ordered=index<0?rows:[...rows.slice(index),...rows.slice(0,index)];
+ for(const row of ordered.slice(0,3)){
+  await (await import('./lead-intake.js')).importConnectionResourceLeads(String(row.organization_id),String(row.id)).catch(()=>undefined);
+  await save("__system__","scheduler","lead-intake",{after:`${row.organization_id}:${row.id}`});
+ }
 }

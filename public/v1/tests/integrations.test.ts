@@ -1261,3 +1261,33 @@ test("disabled Connections blocks HTTP, published operations and signed webhook 
     await assert.rejects(webhook.receiveWebhook(org,c.id,"{}",{}),{code:"webhook_unavailable"});
   } finally {await saveCapabilityValues(org,{"platform.connections":true});}
 });
+
+test("webhook-only lead connectors accept provider body keys, preview without effects, skip test leads and deduplicate",async()=>{
+ const {saveCapabilityValues}=await import("../platform/capabilities.js");await saveCapabilityValues(org,{"platform.lead_import":true});
+ const service=await import("../integrations/service.js"),vault=await import("../integrations/credentials.js"),intake=await import("../leads/intake.js");
+ const raw={name:"Google-style lead source",baseUrl:origin,auth:{kind:"none"},credentialFields:[{key:"webhookSecret",label:"Webhook key"}],operations:[],webhook:{verification:"body_token",secretField:"webhookSecret",tokenPath:"google_key",eventIdPath:"lead_id",defaultEvent:"lead.received",allowedEvents:["lead.received"]},leadImport:{mode:"webhook",externalIdPath:"lead_id",code:"return {outputs:{lead:{contacts:[{name:inputs.record.name,email:inputs.record.email}],provider_fields:{campaign:inputs.record.campaign}}}};"}};
+ let account=await service.saveConnection(ctx,{definition:raw});const def=await service.definition(org,account,account.draftVersion);
+ await vault.storeCredentials(org,account.id,def,{webhookSecret:"google-style-test-key"});
+ const preview=await (await import("../integrations/lead-intake.js")).mapConnectionLead(def,{lead_id:"g1",name:"Customer",email:"customer@example.test",campaign:"preview"});assert.equal(preview.skip,false);
+ assert.equal((await intake.leadDeliveries(org,{connectionId:account.id})).items.length,0);
+ account=await service.activate(ctx,account.id,account.revision,[]);
+ const endpoint=`/v1/integrations/webhooks/${org}/${account.id}`,payload={lead_id:"g1",google_key:"google-style-test-key",name:"Customer",email:"customer@example.test",campaign:"ads-1"};
+ const send=(body:any)=>app.inject({method:"POST",url:endpoint,payload:body});
+ assert.equal((await send({...payload,google_key:"wrong"})).statusCode,403);
+ assert.equal((await send({...payload,is_test:true})).json().test,true);
+ assert.equal((await intake.leadDeliveries(org,{connectionId:account.id})).items.length,0);
+ for(let n=0;n<3;n++){const r=await send(payload);assert.equal(r.statusCode,200,r.body);}
+ const deliveries=await intake.leadDeliveries(org,{connectionId:account.id});assert.equal(deliveries.items.length,1);assert.equal(deliveries.items[0]!.attempts,3);
+ const project=await (await import("../platform/storage.js")).readDocument(org,"projects",String(deliveries.items[0]!.project_id));assert.equal(project.data.lead_source.provider_fields.campaign,"ads-1");assert.equal(project.data.address,"");assert.ok(!JSON.stringify(project).includes("google-style-test-key"));
+ await saveCapabilityValues(org,{"platform.lead_import":false});assert.equal((await send({...payload,lead_id:"g2"})).statusCode,403);
+ await saveCapabilityValues(org,{"platform.lead_import":true});account=await service.pause(ctx,account.id,account.revision);assert.equal((await send({...payload,lead_id:"g2"})).statusCode,403);
+});
+
+test("complete API snapshots feed lead intake once per source record across polling revisions",async()=>{
+ const service=await import("../integrations/service.js"),vault=await import("../integrations/credentials.js"),jobs=await import("../integrations/jobs.js"),lead=await import("../integrations/lead-intake.js"),intake=await import("../leads/intake.js");
+ let account=await service.saveConnection(ctx,{definition:{...d,name:"Polled leads",leadImport:{mode:"resource",resource:"records",code:"return {outputs:{lead:{contacts:[{name:inputs.record.id,email:'poll@example.test'}],provider_fields:{original:inputs.record}}}};"}}});
+ const def=await service.definition(org,account,account.draftVersion);await vault.storeCredentials(org,account.id,def,{token});account=await service.activate(ctx,account.id,account.revision,["records"]);
+ await jobs.syncResource(ctx,account.id,"records");await lead.importConnectionResourceLeads(org,account.id);
+ const first=await intake.leadDeliveries(org,{connectionId:account.id});assert.equal(first.items.length,rows.length);assert.ok(first.items.every(r=>r.state==="imported"));
+ await jobs.syncResource(ctx,account.id,"records");await lead.importConnectionResourceLeads(org,account.id);const second=await intake.leadDeliveries(org,{connectionId:account.id});assert.deepEqual(second.items.map(r=>r.project_id).sort(),first.items.map(r=>r.project_id).sort());
+});

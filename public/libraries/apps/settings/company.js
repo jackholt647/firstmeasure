@@ -2036,7 +2036,7 @@
       appointmentForm,
       instantEstimate,
       forms,
-      any: email || website || forms || canvassing
+      any: leadImport || email || website || forms || canvassing
     };
   }
   function appFlagsLoaded(){
@@ -13102,7 +13102,7 @@
     async function renderConnectionsSettings(){
       const host=panel.querySelector('#csPaneConnections');if(!host||host.dataset.connectionsMounted)return;
       host.dataset.connectionsMounted='1';host.textContent='Loading connections…';
-      try {if(!window.FirstMateConnections)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/apps/settings/connections.js';script.onload=resolve;script.onerror=reject;document.head.append(script);});
+      try {if(!window.FirstMateConnections)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/apps/settings/connections.js?v=20261006-lead-intake';script.onload=resolve;script.onerror=reject;document.head.append(script);});
         await window.FirstMateConnections.mount(host,{orgId:currentOrgId()});
       }catch(error){host.textContent=error.message||'Could not load connections.';delete host.dataset.connectionsMounted;}
     }
@@ -14136,7 +14136,7 @@
       const branchId = String(window.Portal?.branchModules?.currentBranchId?.() || window.__APP?.userBranchId || 'default').trim() || 'default';
       const flags = leadImportFlagState();
       const showForms = !!flags.forms && !!window.FirstMateFormsSettings?.mount;
-      const showEmail = !!flags.email && !!window.EmailAPI?.leadImport;
+      const showEmail = !!appFlag('platform','lead_import') && !!window.EmailAPI?.leadImport;
       if (!orgId || (!showForms && !showEmail)) {
         leadPane.innerHTML = `<div class="li-muted">${(globalThis.PlatformLanguage?.htmlText("settings","m_7bd18b4fc6179c","Lead import settings are unavailable.") ?? "Lead import settings are unavailable.")}</div>`;
         return;
@@ -14190,6 +14190,7 @@
       if (!panelEmail) return;
 
       const loadLeadSettings = async () => {
+        if(!flags.email){leadSettings={enabled:false};return leadSettings;}
         leadSettings = (await window.EmailAPI.leadImport.get(orgId, branchId))?.settings || {};
         return leadSettings;
       };
@@ -14214,7 +14215,7 @@
         if (!panelEmail) return;
         const email = leadSettings?.inbound_email || 'Unavailable';
         panelEmail.innerHTML = `
-          <div class="cs-row">
+          <div class="cs-row" ${flags.email ? '' : 'hidden'}>
             <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_e75166ba736127","Unique Lead Inbox") ?? "Unique Lead Inbox")}</div>
             <div class="li-emailBox">
               <div class="li-emailCopyBox">
@@ -14229,7 +14230,10 @@
             </div>
             <div class="li-muted" id="liStatus">${String(leadSettings?.enabled === false ? 'Email lead import is disabled.' : '')}</div>
           </div>
+          <div data-lead-sources-panel></div>
         `;
+        const sourceHost=panelEmail.querySelector('[data-lead-sources-panel]');
+        (async()=>{if(!window.FirstMateConnections)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/apps/settings/connections.js?v=20261006-lead-intake';script.onload=resolve;script.onerror=reject;document.head.append(script);});if(sourceHost.isConnected)await window.FirstMateConnections.mountLeadSources(sourceHost,{orgId,branchId});})().catch(error=>{sourceHost.textContent=error.message;});
         $('#liCopyEmail', panelEmail)?.addEventListener('click', async () => {
           const button = $('#liCopyEmail', panelEmail);
           try {

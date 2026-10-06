@@ -45,6 +45,8 @@ export const authIdentity = (c: Connector) =>
         origin: new URL(c.baseUrl).origin,
         auth: c.auth,
         fields: c.credentialFields,
+        // Only new verification protocols opt into this discriminator; retain existing HMAC credential identities.
+        ...(c.webhook && c.webhook.verification !== "hmac_sha256" ? {webhook:{verification:c.webhook.verification,secretField:c.webhook.secretField,signatureHeader:c.webhook.signatureHeader,tokenPath:c.webhook.tokenPath}} : {}),
       }),
     )
     .digest("hex");

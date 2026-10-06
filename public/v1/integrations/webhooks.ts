@@ -25,30 +25,27 @@ export async function receiveWebhook(
     config = d.webhook;
   if (!config) throw forbidden("webhook_unavailable", "Webhook unavailable.");
   const credential = await secrets(org, key, d);
+  let payload: Obj;
+  try { payload = object(JSON.parse(body)); } catch { throw badRequest("webhook_payload", "Expected a JSON event."); }
   const supplied = String(
     headers[config.signatureHeader.toLowerCase()] || "",
   ).replace(/^sha256=/, "");
-  const expected = createHmac(
+  const expected = config.verification === "hmac_sha256" ? createHmac(
     "sha256",
     String(credential[config.secretField] || ""),
   )
     .update(body)
-    .digest();
-  const signature = Buffer.from(supplied, "hex");
+    .digest() : Buffer.from(String(credential[config.secretField]||""));
+  const token = config.verification === "body_token" ? at(payload,config.tokenPath) : headers[config.signatureHeader.toLowerCase()];
+  const signature = config.verification === "hmac_sha256" ? Buffer.from(supplied, "hex") : Buffer.from(typeof token==="string"?token:"");
   if (
     !credential[config.secretField] ||
     signature.length !== expected.length ||
     !timingSafeEqual(signature, expected)
   )
     throw forbidden("webhook_signature", "Webhook signature is invalid.");
-  let payload: Obj;
-  try {
-    payload = object(JSON.parse(body));
-  } catch {
-    throw badRequest("webhook_payload", "Expected a JSON event.");
-  }
   const eventId = at(payload, config.eventIdPath),
-    type = at(payload, config.eventTypePath);
+    type = at(payload, config.eventTypePath) || config.defaultEvent;
   if (
     typeof eventId !== "string" ||
     !eventId ||
@@ -60,7 +57,14 @@ export async function receiveWebhook(
       "Unknown event type or missing event ID.",
     );
   // Authenticate the connection's current author before publishing any business event.
-  await backgroundAuthContext(org, c.owner);
+  const auth = await backgroundAuthContext(org, c.owner);
+  const safePayload=redact(payload,credential);
+  if(d.leadImport?.mode==="webhook"){
+    if(at(payload,config.testPath)===true)return {accepted:true,test:true};
+    // Import precedes the event acknowledgement. A redelivery recovers event publication without repeating lead effects.
+    const intake=await (await import('./lead-intake.js')).receiveConnectionLead(auth,key,d,safePayload,String(eventId));
+    if(!intake.accepted)return intake;
+  }
   const projectId = config.projectIdPath
     ? String(at(payload, config.projectIdPath) || "")
     : "";
@@ -74,7 +78,7 @@ export async function receiveWebhook(
     branch_id: "default",
     project_id: projectId,
     type: `external.${key}.${type}`,
-    payload: redact(payload, credential),
+    payload: safePayload,
     context: { connection_id: key },
     idempotency_key: eventKey,
   });

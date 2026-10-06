@@ -1,5 +1,6 @@
 import { terminologyAssistantTools } from './terminology.js';
 import { connectionTools, connectionInstructions, connectionContext } from '../../integrations/assistant.js';
+import { leadTools } from '../../leads/assistant.js';
 import { formsTools, formsInstructions, formConversationContext } from '../../forms/assistant.js';
 import { projectConversationContext } from '../project-context.js';
 import { channelConversationContext } from '../channel-context.js';
@@ -156,6 +157,7 @@ async function currentLocalTime(run: AgentRun) {
 
 const TOOLS: AgentTool[] = [
   ...connectionTools,
+  ...leadTools,
   ...formsTools,
   {
     name:'open_scheduling_widget',

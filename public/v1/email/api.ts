@@ -7,7 +7,7 @@ import "./instructions.js";
 import { sendPlatformTransactionalEmail } from "./outbound.js";
 import { ensureOrgEmailInbox } from "./engine.js";
 import { inboundEmailSchema, processInboundEmail, type InboundEmailInput } from "./inbound.js";
-import { createPlatformLead } from "../platform/api.js";
+import { importLead, leadDeliveries, leadStore, recordLeadRejection, reviewLeadDelivery } from "../leads/intake.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { badRequest, forbidden, notFound, PlatformError, unauthorized } from "../platform/errors.js";
@@ -123,6 +123,9 @@ async function readBranchModuleDataOrNull(orgId: string, branchId: string, modul
 }
 
 export async function ensureLeadImportSettings(orgId: string, branchId = DEFAULT_BRANCH_ID) {
+  return leadStore().transaction(()=>ensureLeadImportSettingsUnlocked(orgId,branchId),`lead-inbox:${orgId}:${branchId}`);
+}
+async function ensureLeadImportSettingsUnlocked(orgId:string,branchId:string){
   let existing: JsonObject | null = null;
   try {
     existing = await readBranchModule(orgId, branchId, LEAD_IMPORT_MODULE_ID);
@@ -160,6 +163,35 @@ export async function ensureLeadImportSettings(orgId: string, branchId = DEFAULT
     metadata: { kind: "branch_lead_import", source: "email_api" }
   }, { replace: true });
   return { module, data };
+}
+
+export async function saveLeadImportSettings(orgId:string,branchId:string,raw:unknown){
+  if(!await hasAnyLeadImportFlag(orgId))throw forbidden("app_flag_disabled","Lead import is disabled.");
+  return leadStore().transaction(async()=>{
+    const body = z.object({enabled:z.boolean().optional(),regenerate:z.boolean().optional(),notification_target_role_ids:z.array(z.string().max(120)).max(50).optional()}).strict().parse(raw);
+    if ((body.regenerate === true || body.enabled !== undefined || body.notification_target_role_ids !== undefined) && !(await isAppFlagEnabled(orgId, "email", "inbound_lead_import"))) {
+      throw forbidden("app_flag_disabled", "Email lead import is not enabled for this organization.");
+    }
+    const { data: current } = await ensureLeadImportSettingsUnlocked(orgId, branchId);
+    const next = {
+      ...current,
+      enabled: body.enabled === undefined ? current.enabled : body.enabled !== false,
+      notification_target_role_ids: Array.isArray(body.notification_target_role_ids) ? body.notification_target_role_ids : current.notification_target_role_ids,
+      updated_at: nowIso()
+    };
+    if (body.regenerate === true) {
+      const generated = assignedEmail(orgId, branchId);
+      next.inbound_email = generated.email;
+      next.local_part = generated.localPart;
+      next.domain = generated.domain;
+      next.legacy_inbound_emails = [];
+    }
+    const module = await saveBranchModule(orgId, branchId, LEAD_IMPORT_MODULE_ID, {
+      data: next,
+      metadata: { kind: "branch_lead_import", source: "email_api" }
+    }, { replace: true });
+    return { ok: true, settings: next, module };
+  },`lead-inbox:${orgId}:${branchId}`);
 }
 
 function headersObject(headers: unknown) {
@@ -387,7 +419,7 @@ function normalizeLeadExtraction(raw: Record<string, unknown>, payload: JsonObje
     };
   }).filter((contact) => contact.name || contact.email || contact.phones.length)
     .sort((a, b) => `${a.name}|${a.email}`.localeCompare(`${b.name}|${b.email}`));
-  const contacts = fallbackContacts.length ? fallbackContacts : modelContacts;
+  const contacts = modelContacts.length ? modelContacts : fallbackContacts;
   const parts = asObject(raw.address_parts);
   const street = usableStreet(cleanLeadAddress(parts.street_line_1));
   const city = cleanText(parts.city).replace(/\s+/g, " ");
@@ -400,8 +432,10 @@ function normalizeLeadExtraction(raw: Record<string, unknown>, payload: JsonObje
   const fallbackAddressValue = usableStreet(cleanLeadAddress(fallback.address));
   const tentativeAddress = fallbackAddressValue || addressFromParts || rawAddress;
   const contactSignal = contacts.some((contact) => contact.email || contact.phones.length);
-  const leadWords = /\b(roof|roofing|service request|phone lead|webform lead|lead id|homeowner|property type|job type|project details|campaign name)\b/i.test(inboundEmailText(payload));
-  const isLead = Boolean(leadWords && (tentativeAddress || contactSignal));
+  const emailText = inboundEmailText(payload);
+  const leadWords = /\b(roof|roofing|service request|phone lead|webform lead|lead id|homeowner|property type|job type|project details|campaign name|quote|estimate|repair|replace|replacement|install|installation|renovat|remodel|service|request|inquiry|enquiry|interested|need|looking for)\b/i.test(emailText);
+  const nonLead = /\b(invoice|newsletter|unsubscribe|payment receipt|meeting summary|account statement)\b/i.test(emailText);
+  const isLead = Boolean((raw.extraction_method === "openai" ? raw.is_lead === true : leadWords && !nonLead) && (tentativeAddress || contactSignal));
   const address = isLead ? tentativeAddress : "";
   const provider = isLead ? normalizeProviderName(cleanText(raw.provider) || cleanText(fallback.provider)) : "";
   const summary = cleanText(payload.Subject) || cleanText(raw.summary);
@@ -424,7 +458,7 @@ function fallbackLeadExtraction(payload: JsonObject) {
   const text = inboundEmailText(payload);
   const from = normalizeEmail(payload.From || asObject(payload.FromFull).Email);
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const fields = { ...keyValueFields(lines), ...inlineKeyValueFields(text) };
+  const fields = { ...inlineKeyValueFields(text), ...keyValueFields(lines) };
   const labeledPhones = uniqueStringList([fields.primarynumber, fields.phone, fields.workphone].map(normalizePhone));
   const phones = labeledPhones.length
     ? labeledPhones
@@ -522,9 +556,9 @@ async function extractLead(payload: JsonObject) {
           {
             role: "system",
             content: [
-              "You standardize inbound roofing lead-provider emails for FirstMate.",
+              "You standardize inbound customer lead-provider emails for FirstMate across all industries and services.",
               "Return schema-valid JSON only.",
-              "Set is_lead=false for invoices, newsletters, platform notifications, meeting summaries, generic marketing, or any email that is not a customer service/roofing lead. When false, address must be '', contacts must be [], fields may preserve useful diagnostics, and rejection_reason must explain why.",
+              "Set is_lead=false for invoices, newsletters, platform notifications, meeting summaries, generic marketing, or any email that is not a customer inquiry or service lead. When false, address must be '', contacts must be [], fields may preserve useful diagnostics, and rejection_reason must explain why.",
               "Set is_lead=true for webform leads, phone leads, service requests, quote requests, and marketplace roofing leads even if the address is missing.",
               "Address rules: address and address_parts are only the customer/job-site/property address. Strip labels like 'Address:', 'StreetAddress:', 'Address of site:', 'Property Location:', markdown asterisks, map URLs, and provider boilerplate. Fill address_parts.street_line_1, city, state, and postal_code separately when known. If street/city/state/zip are available, address should be 'Street, City, ST ZIP'. Fix ordinal spacing such as '3 rd' -> '3rd'. Do not include customer names, labels, phone numbers, or URLs in address. If no site address exists, use '' and empty address_parts strings.",
               "Contact rules: contacts are customer/homeowner/caller contacts only. Do not use provider support emails, account managers, dashboard links, billing contacts, or sender addresses unless the sender is clearly the customer. Normalize US phones as +1XXXXXXXXXX when possible. Avoid duplicate phones.",
@@ -595,16 +629,21 @@ async function processLeadPayload(payload: JsonObject) {
   if (!recipients.length) return null;
   const assignment = await findLeadAssignment(recipients);
   if (!assignment) return null;
+  const externalId = cleanText(payload.MessageID || payload.MessageId) || createHash("sha256").update(JSON.stringify([payload.From,payload.Subject,payload.TextBody,payload.HtmlBody])).digest("hex");
+  const identity = {source_id:`email:${assignment.branchId}`,external_id:externalId,branch_id:assignment.branchId};
   const extracted = asObject(await extractLead(payload));
   if (extracted.is_lead === false) {
-    return { accepted: false, reason: "not_a_lead", assignment: { org_id: assignment.orgId, branch_id: assignment.branchId } };
+    return { ...await recordLeadRejection(assignment.orgId,identity,"not_a_lead"), assignment: { org_id: assignment.orgId, branch_id: assignment.branchId } };
   }
   if (!normalizeContacts(extracted, payload).length && !cleanText(extracted.address)) {
     throw badRequest("lead_missing_contact_data", "The email matched a lead address but did not contain contact or address data.");
   }
-  const created = await createProjectFromLead(assignment, payload, extracted);
+  const created = await createProjectFromLead(assignment, payload, extracted, externalId);
   return {
-    accepted: true,
+    accepted: created.accepted,
+    duplicate: created.duplicate,
+    delivery_id: created.delivery_id,
+    state: created.state,
     assignment: { org_id: assignment.orgId, branch_id: assignment.branchId, inbound_email: assignment.email },
     extraction: extracted,
     project: created.project,
@@ -628,17 +667,18 @@ function normalizeContacts(extracted: JsonObject, payload: JsonObject) {
       phones: asArray(contact.phones).map((phone) => cleanText(phone)).filter(Boolean)
     };
   }).filter((contact) => contact.name || contact.email || contact.phones.length);
-  if (!contacts.length && fromEmail) contacts.push({ name: cleanText(asObject(payload.FromFull).Name || payload.FromName), email: fromEmail, phones: [] });
   return contacts;
 }
 
-async function createProjectFromLead(assignment: LeadImportAssignment, payload: JsonObject, extracted: JsonObject) {
+async function createProjectFromLead(assignment: LeadImportAssignment, payload: JsonObject, extracted: JsonObject, externalId:string) {
   const contacts = normalizeContacts(extracted, payload);
   const address = cleanText(extracted.address);
   const targetRoleIds = Array.isArray(assignment.data.notification_target_role_ids)
     ? assignment.data.notification_target_role_ids.map((role) => cleanText(role)).filter(Boolean)
     : DEFAULT_NOTIFICATION_ROLES;
-  return await createPlatformLead(assignment.orgId, {
+  return await importLead(assignment.orgId, {
+    source_id:`email:${assignment.branchId}`,
+    external_id:externalId,
     branch_id: assignment.branchId,
     source_kind: "email_lead",
     address,
@@ -646,7 +686,6 @@ async function createProjectFromLead(assignment: LeadImportAssignment, payload: 
     summary: cleanText(extracted.summary),
     contacts,
     provider: cleanText(extracted.provider),
-    confidence: Number(extracted.confidence || 0),
     provider_fields: asObject(extracted.fields),
     lead_source: {
       kind: "email",
@@ -669,24 +708,19 @@ async function createProjectFromLead(assignment: LeadImportAssignment, payload: 
         headers: payload.Headers || []
       }
     },
-    metadata: {
-      postmark_message_id: cleanText(payload.MessageID || payload.MessageId)
-    },
-    notification: {
-      source: "email_lead_import",
-      target_role_ids: targetRoleIds,
-      context: {
-        inbound_email: assignment.email
-      }
-    }
+    notification_target_role_ids:targetRoleIds
   });
 }
 
 function verifyInboundWebhook(request: { headers: Record<string, unknown>; query: unknown }) {
   const configured = cleanText(env.emailInboundWebhookToken);
-  if (!configured) return;
+  if (!configured) {
+    if (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "development") return;
+    throw unauthorized("webhook_not_configured", "Inbound email authentication is not configured.");
+  }
   const query = asObject(request.query);
-  const provided = cleanText(request.headers["x-email-webhook-token"] || request.headers["x-postmark-token"] || query.token);
+  const bearer = cleanText(request.headers.authorization).match(/^Bearer\s+(.+)$/i)?.[1];
+  const provided = cleanText(request.headers["x-email-webhook-token"] || request.headers["x-postmark-token"] || bearer || query.token);
   if (provided !== configured) throw unauthorized("invalid_webhook_token", "Invalid inbound email webhook token.");
 }
 
@@ -744,33 +778,25 @@ export const registerEmailApi: FastifyPluginAsync = async (app) => {
     return { ok: true, settings: data, module };
   });
 
+  app.get("/organizations/:orgId/branch/:branchId/lead-import/deliveries", async request=>{
+    const orgId=getParam(request.params,"orgId"),branchId=getParam(request.params,"branchId");
+    await requirePlatformAuth(request,{orgId,permission:"manage_company_settings|manage_projects"});
+    if(!await isAppFlagEnabled(orgId,"platform","lead_import"))throw forbidden("app_flag_disabled","Lead import is disabled.");
+    const page=z.object({after:z.string().max(150).optional(),limit:z.coerce.number().int().min(1).max(100).optional()}).parse(request.query);
+    return {ok:true,...await leadDeliveries(orgId,{branchId,...page})};
+  });
+  app.post("/organizations/:orgId/lead-deliveries/:id/review",async request=>{
+    const orgId=getParam(request.params,"orgId");
+    const auth=await requirePlatformAuth(request,{orgId,csrf:true,permission:"manage_projects"});
+    return {ok:true,...await reviewLeadDelivery(orgId,getParam(request.params,"id"),auth.userId,request.body)};
+  });
+
   app.patch("/organizations/:orgId/branch/:branchId/lead-import", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const branchId = getParam(request.params, "branchId") || DEFAULT_BRANCH_ID;
     await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
     if (!(await hasAnyLeadImportFlag(orgId))) throw forbidden("app_flag_disabled", "Lead import is not enabled for this organization.");
-    const body = objectBodySchema.parse(request.body ?? {});
-    if ((body.regenerate === true || body.enabled !== undefined || body.notification_target_role_ids !== undefined) && !(await isAppFlagEnabled(orgId, "email", "inbound_lead_import"))) {
-      throw forbidden("app_flag_disabled", "Email lead import is not enabled for this organization.");
-    }
-    const { data: current } = await ensureLeadImportSettings(orgId, branchId);
-    const next = {
-      ...current,
-      enabled: body.enabled === undefined ? current.enabled : body.enabled !== false,
-      notification_target_role_ids: Array.isArray(body.notification_target_role_ids) ? body.notification_target_role_ids : current.notification_target_role_ids,
-      updated_at: nowIso()
-    };
-    if (body.regenerate === true) {
-      const generated = assignedEmail(orgId, branchId);
-      next.inbound_email = generated.email;
-      next.local_part = generated.localPart;
-      next.domain = generated.domain;
-    }
-    const module = await saveBranchModule(orgId, branchId, LEAD_IMPORT_MODULE_ID, {
-      data: next,
-      metadata: { kind: "branch_lead_import", source: "email_api" }
-    }, { replace: true });
-    return { ok: true, settings: next, module };
+    return saveLeadImportSettings(orgId,branchId,request.body);
   });
 
   // The organization's FirstMate Mail inbox (provisions on first read).
