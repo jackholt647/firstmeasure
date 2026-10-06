@@ -4254,6 +4254,7 @@ function canonicalActionItemData(node: Record<string, unknown>, userState: Recor
     workflow_status: workflowStatus,
     is_future: workflowStatus === "blocked",
     priority: cleanText(metadata.priority || "normal"),
+    work_priority: Number(node.priority || 0),
     issued_at: cleanText(node.created_at),
     assigned_user_ids: normalizeLooseStringArray(node.assigned_user_ids),
     assigned_role_ids: normalizeLooseStringArray(node.assigned_role_ids),
@@ -4270,7 +4271,7 @@ function canonicalActionItemData(node: Record<string, unknown>, userState: Recor
   };
 }
 
-async function canonicalActionItemForUser(orgId: string, nodeId: string, ctx: Record<string, unknown>) {
+export async function canonicalActionItemForUser(orgId: string, nodeId: string, ctx: Record<string, unknown>) {
   const node = (await readNodeRecord(orgId, nodeId));
   if (!node) throw notFound("action_item_not_found", "This to-do was not found.");
   const userDoc = await readDocument(orgId, "users", cleanText(ctx.userId));
@@ -4412,7 +4413,7 @@ async function patchCanonicalActionItem(orgId: string, nodeId: string, patch: Re
   return canonicalActionItemData(asObject(node));
 }
 
-async function setUserActionItemState(orgId: string, userId: string, actionItemId: string, patch: Record<string, unknown>) {
+export async function setUserActionItemState(orgId: string, userId: string, actionItemId: string, patch: Record<string, unknown>) {
   const userDoc = await readDocument(orgId, "users", userId);
   const data = asObject(userDoc.data);
   const states = asObject(data.action_item_state);
@@ -4420,9 +4421,9 @@ async function setUserActionItemState(orgId: string, userId: string, actionItemI
   const now = new Date().toISOString();
   const next = {
     ...current,
-    seen_at: patch.seen || patch.seen_at ? cleanText(patch.seen_at || current.seen_at || now) : current.seen_at,
-    hidden_at: patch.hidden || patch.hidden_at ? cleanText(patch.hidden_at || current.hidden_at || now) : current.hidden_at,
-    dismissed_at: patch.dismissed || patch.dismissed_at ? cleanText(patch.dismissed_at || current.dismissed_at || now) : current.dismissed_at,
+    seen_at: patch.seen === false ? "" : patch.seen || patch.seen_at ? cleanText(patch.seen_at || current.seen_at || now) : current.seen_at,
+    hidden_at: patch.hidden === false ? "" : patch.hidden || patch.hidden_at ? cleanText(patch.hidden_at || current.hidden_at || now) : current.hidden_at,
+    dismissed_at: patch.dismissed === false ? "" : patch.dismissed || patch.dismissed_at ? cleanText(patch.dismissed_at || current.dismissed_at || now) : current.dismissed_at,
     pinned: patch.pinned === undefined ? current.pinned === true : patch.pinned === true,
     snoozed_until: Object.prototype.hasOwnProperty.call(patch, "snoozed_until") || Object.prototype.hasOwnProperty.call(patch, "snoozedUntil")
       ? cleanText(patch.snoozed_until || patch.snoozedUntil)

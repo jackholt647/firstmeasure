@@ -10,8 +10,8 @@
 const bundles: Record<string, { actions?: readonly string[]; data?: readonly string[] }> = {
   use_external_shares:{data:["collaboration.resource","collaboration.resources"],actions:["collaboration.project.update","collaboration.note.create","collaboration.message.post","collaboration.work.update","collaboration.schedule.update"]},
   manage_external_sharing:{actions:["collaboration.share.revoke"]},
-  view_projects: { actions: ["projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["materials-inputs.measurements", "custom-fields-project.contract", "custom-fields-project.values", "custom-fields-organization.contract", "custom-fields-organization.values", "projects.record", "work.records", "organization.profile", "referrals.eligibility"] },
-  manage_projects: { data: ["lead-import.deliveries"], actions: ["leads.import", "materials.calculus.command", "custom-fields.project.write", "custom-fields.contact.write","projects.lead.create", "work.node.patch", "work.node.transition"] },
+  view_projects: { actions: ["work.todos.list", "work.todos.read", "work.todos.history", "work.configuration.read", "projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["materials-inputs.measurements", "custom-fields-project.contract", "custom-fields-project.values", "custom-fields-organization.contract", "custom-fields-organization.values", "projects.record", "work.records", "todos.items", "organization.profile", "referrals.eligibility"] },
+  manage_projects: { data: ["lead-import.deliveries"], actions: ["work.todos.create", "work.todos.patch", "work.todos.transition", "work.followUps.outcome", "leads.import", "materials.calculus.command", "custom-fields.project.write", "custom-fields.contact.write","projects.lead.create", "work.node.patch", "work.node.transition"] },
   view_contacts: { data: ["custom-fields-contact.contract", "custom-fields-contact.values","customers.record", "contacts.settings", "contacts.options"] },
   view_schedule: { actions: ["scheduling.availability", "scheduling.appointment.catalog", "scheduling.appointment.preview"], data: ["calendar.record"] },
   manage_schedule: { actions: ["scheduling.appointment.create", "scheduling.appointment.book", "scheduling.slot.hold", "scheduling.confirmation.set", "scheduling.reschedule.review"] },
@@ -52,10 +52,10 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   "equipment.view": { actions: ["equipment.fleet.list", "equipment.unit.history"], data: ["equipment.records"] },
   "equipment.service": { actions: ["equipment.maintenance.cancel", "equipment.maintenance.complete", "equipment.maintenance.open", "equipment.meter.record", "equipment.unit.checkIn", "equipment.unit.checkOut"] },
   manage_company_users: { actions: ["workforce.users.list"], data: ["workforce.records"] },
-  manage_company_settings: { actions:["workforce.departments.save", "custom-fields.organization.write", "contacts.settings.save"], data: ["scopes.records", "forms.catalog"] },
+  manage_company_settings: { actions:["work.configuration.save", "workforce.departments.save", "custom-fields.organization.write", "contacts.settings.save"], data: ["scopes.records", "forms.catalog"] },
   manage_training: { actions: ["scheduling.appointment.configure", "training.course.progress"] },
   // Membership and per-subject checks are the permission for these exports.
-  "": { actions: ["workforce.departments.read", "workforce.departments.assign","channels.feed.thread", "channels.feed.resolve", "channels.feed.comment", "channels.feed.react", "channels.list", "channels.messages.list", "channels.message.react", "channels.note.create", "channels.note.share", "channels.note.pin", "channels.note.edit", "channels.note.delete", "channels.note.restore", "training.courses.mine"], data: ["workforce-departments.catalog", "channels.records", "training.records", "notification-rules.value"] }
+  "": { actions: ["work.todos.userState", "workforce.departments.read", "workforce.departments.assign","channels.feed.thread", "channels.feed.resolve", "channels.feed.comment", "channels.feed.react", "channels.list", "channels.messages.list", "channels.message.react", "channels.note.create", "channels.note.share", "channels.note.pin", "channels.note.edit", "channels.note.delete", "channels.note.restore", "training.courses.mine"], data: ["workforce-departments.catalog", "channels.records", "training.records", "notification-rules.value"] }
 };
 
 function index(kind: "actions" | "data") {

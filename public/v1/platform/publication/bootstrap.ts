@@ -1,3 +1,4 @@
+import { registerTodoPublication } from "../../work/publication.js";
 import { registerDepartmentPublication } from '../../workforce/department-publication.js';
 import { registerWidgetProviders } from '../widgets/catalog.js';
 import { registerMaterialsCalculusPublication } from '../../materials/calculus-publication.js';
@@ -28,6 +29,7 @@ export function initializePublication() {
   registerFormsPublication();
   registerLeadPublication();
   registerDomainActions();
+  registerTodoPublication();
   registerDepartmentPublication();
   registerDatasetActions();
   registerModuleDataProvider();

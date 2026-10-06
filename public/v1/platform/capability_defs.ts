@@ -1125,6 +1125,14 @@ const definitions: CapabilityDefinition[] = [
     default: true
   },
   {
+    key: "topbar.todos",
+    kind: "feature",
+    parent: "platform.top_bar",
+    label: "To Do Menu",
+    description: "Show the global to-do list in a dockable header tray, independently of the left column.",
+    default: true
+  },
+  {
     key: "topbar.notifications",
     kind: "setting",
     parent: "platform.top_bar",

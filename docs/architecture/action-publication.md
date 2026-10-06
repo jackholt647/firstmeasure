@@ -161,3 +161,10 @@ and `workforce.departments.read`, `.save`, `.assign`. Their organization-scoped
 contracts reuse workforce department schemas, revision checks, and subject-specific
 administrative permissions. Scheduling preset writes consume the organization
 catalog and cannot redefine it. See the [workforce guide](../../public/v1/workforce/README.md#organization-departments).
+
+## To-do publication
+
+See [to-dos and agent publication](todos.md) for the complete personal/project
+list, creation, editing, lifecycle, follow-up outcomes, display state, history
+and branch-configuration operations. They share Work domain services and retain
+current human and resource authorization.

@@ -2241,6 +2241,7 @@ session_write_close();
   <?php endif; ?>
   <script src="../libraries/apps/settings/search.js?v=<?= portalAssetVersion('../libraries/apps/settings/search.js') ?>"></script>
   <script src="scripts/topbar-artifacts.js?v=<?= portalAssetVersion('scripts/topbar-artifacts.js') ?>"></script>
+  <script src="../libraries/platform-action-items/todo-tray.js?v=<?= portalAssetVersion('../libraries/platform-action-items/todo-tray.js') ?>"></script>
   <script src="scripts/topbar.js?v=<?= portalAssetVersion('scripts/topbar.js') ?>"></script>
   <?php if ($platformAssistantAssets): ?>
   <script src="../libraries/platform-assistant/platform-assistant.js?v=<?= portalAssetVersion('../libraries/platform-assistant/platform-assistant.js') ?>"></script>
