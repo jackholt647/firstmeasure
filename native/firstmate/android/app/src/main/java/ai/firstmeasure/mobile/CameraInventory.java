@@ -19,20 +19,25 @@ final class CameraInventory {
     }
     final List<Route> routes=new ArrayList<>();
     final Map<String,String> failures=new LinkedHashMap<>();
+    final Map<String,String> exclusions=new LinkedHashMap<>();
+    static boolean supportsPreview(boolean backwardCompatible,int privateSizes,int yuvSizes){return backwardCompatible||privateSizes>0||yuvSizes>0;}
     static CameraInventory discover(Source source,int facing,String defaultId) throws Exception {
         CameraInventory result=new CameraInventory();
         Device standard=source.read(defaultId);
         for(String id:source.ids()){
             Device logical;
             try{logical=source.read(id);}catch(Exception e){result.failures.put(id,"characteristics_unavailable");continue;}
-            if(logical.facing!=facing||!logical.colorCamera)continue;
-            add(result,logical,null,logical,standard);
+            if(logical.facing!=facing){result.exclusions.put(id,"different_facing");continue;}
+            if(logical.colorCamera)add(result,logical,null,logical,standard);
+            else result.exclusions.put(id,"no_advertised_preview_output");
             // Physical children need not be independently openable or have video profiles.
             for(String child:logical.children){
                 if(child.equals(id))continue;
                 try{
                     Device physical=source.read(child);
-                    if(physical.facing==facing&&physical.colorCamera)add(result,logical,child,physical,standard);
+                    if(physical.facing!=facing)result.exclusions.put(id+"/"+child,"different_facing");
+                    else if(!physical.colorCamera)result.exclusions.put(id+"/"+child,"no_advertised_preview_output");
+                    else add(result,logical,child,physical,standard);
                 }catch(Exception e){result.failures.put(id+"/"+child,"physical_characteristics_unavailable");}
             }
         }

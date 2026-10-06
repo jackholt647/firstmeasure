@@ -48,6 +48,8 @@ final class NativeCameraController {
     private CompletableFuture<Void> firstFrame;
     private int bindingEpoch;
     private boolean canSwitch;
+    private JSONObject inventorySnapshot=new JSONObject();
+    private final Map<String,String> discoveryExclusions=new LinkedHashMap<>();
 
     private int selected;
     private boolean videoMode;
@@ -89,7 +91,9 @@ final class NativeCameraController {
                 Map<String,CameraInfo> topLevel=new LinkedHashMap<>();
                 for(CameraInfo info:available)topLevel.put(Camera2CameraInfo.from(info).getCameraId(),info);
                 String standard=Camera2CameraInfo.from(available.get(0)).getCameraId();
-                CameraInventory inventory=CameraInventory.discover(new AndroidCameraInventory(activity.getSystemService(CameraManager.class)),facing,standard);
+                AndroidCameraInventory source=new AndroidCameraInventory(activity.getSystemService(CameraManager.class));
+                CameraInventory inventory;try{inventory=CameraInventory.discover(source,facing,standard);}finally{inventorySnapshot=source.snapshot();inventorySnapshot.put("cameraXIds",new JSONArray(topLevel.keySet()));}
+                discoveryExclusions.clear();discoveryExclusions.putAll(inventory.exclusions);
                 discoveryFailures.putAll(inventory.failures);
                 for(CameraInventory.Route route:inventory.routes){
                     CameraInfo parent=topLevel.get(route.logicalId);
@@ -98,7 +102,7 @@ final class NativeCameraController {
                     // It records through its logical parent, so never filter it by that.
                     if(videoMode&&Recorder.getVideoCapabilities(parent).getSupportedQualities(DynamicRange.SDR).isEmpty()){discoveryFailures.put(route.key(),"parent_has_no_video_quality");continue;}
                     ZoomState z=parent.getZoomState().getValue();
-                    if(z==null)continue;
+                    if(z==null){discoveryFailures.put(route.key(),"parent_zoom_state_unavailable");continue;}
                     double min=route.physicalId==null?z.getMinZoomRatio():1;
                     double max=Math.min(route.range.localMax,z.getMaxZoomRatio());
                     choices.add(parent);routes.add(route);ranges.add(new CameraZoomRange(route.range.intrinsic,min,max));
@@ -223,6 +227,7 @@ final class NativeCameraController {
                 .put("capture",observations.getOrDefault(r.key(),new JSONObject())));
         }
         return new JSONObject().put("appVersion",BuildConfig.VERSION_NAME).put("androidApi",Build.VERSION.SDK_INT).put("mode",videoMode?"video":"photo")
+            .put("inventory",inventorySnapshot).put("discoveryExclusions",new JSONObject(discoveryExclusions))
             .put("selected",routes.isEmpty()?JSONObject.NULL:routes.get(selected).key()).put("routes",list).put("discoveryFailures",new JSONObject(discoveryFailures));
     }
     private JSONObject state() throws Exception {

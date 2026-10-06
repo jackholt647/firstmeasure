@@ -21,4 +21,16 @@ public class CameraInventoryTest {
   var source=new CameraInventory.Source(){public List<String> ids(){return List.of("main");}public CameraInventory.Device read(String id){return device(id,1,List.of(),1,10);}};
   var inventory=CameraInventory.discover(source,1,"main");assertEquals(1,inventory.routes.size());assertEquals(1,inventory.routes.get(0).range.min,0);
  }
+
+ @Test public void previewStreamsDoNotRequireStandaloneBackwardCompatibleFlag(){
+  assertTrue(CameraInventory.supportsPreview(false,3,0));assertTrue(CameraInventory.supportsPreview(false,0,2));
+  assertFalse(CameraInventory.supportsPreview(false,0,0));assertTrue(CameraInventory.supportsPreview(true,0,0));
+ }
+ @Test public void excludedParentDoesNotHideItsPhysicalChildren() throws Exception {
+  var parent=new CameraInventory.Device("main",1,List.of("wide"),1,1,10,false);
+  var wide=device("wide",1,List.of(),.5,8);
+  var source=new CameraInventory.Source(){public List<String> ids(){return List.of("main","front");}public CameraInventory.Device read(String id){return id.equals("main")?parent:id.equals("wide")?wide:device("front",0,List.of(),1,4);}};
+  var inventory=CameraInventory.discover(source,1,"main");assertEquals(1,inventory.routes.size());assertEquals("wide",inventory.routes.get(0).physicalId);
+  assertEquals("no_advertised_preview_output",inventory.exclusions.get("main"));assertEquals("different_facing",inventory.exclusions.get("front"));
+ }
 }

@@ -20,6 +20,9 @@ public class NativeCameraTest {
             JSONObject photoState=open(scenario,camera[0],"photo");
             JSONObject diagnostics=photoState.getJSONObject("diagnostics");
             assertTrue(diagnostics.getJSONArray("routes").length()>0);
+            assertTrue(diagnostics.getJSONObject("inventory").getJSONArray("enumeratedIds").length()>0);
+            assertTrue(diagnostics.getJSONObject("inventory").getJSONArray("devices").length()>0);
+            assertTrue(diagnostics.getJSONObject("inventory").getJSONArray("devices").getJSONObject(0).has("physicalIds"));
             boolean streaming=false;for(int i=0;i<diagnostics.getJSONArray("routes").length();i++)streaming|=diagnostics.getJSONArray("routes").getJSONObject(i).getJSONObject("capture").optBoolean("streaming");
             assertTrue("Open must wait for real camera capture results",streaming);
             assertTrue(photoState.getDouble("min")>0);assertTrue(photoState.getDouble("max")>=photoState.getDouble("min"));

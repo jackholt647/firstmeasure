@@ -20,7 +20,13 @@ This is an online app. It does not promise offline report editing, queued backgr
 
 ## Android
 
-Version 1.0.6 discovers Camera2 logical cameras **and physical children** (including
+Version 1.0.7 includes unfiltered CameraManager enumeration/characteristics and explicit
+exclusion reasons in camera diagnostics. Preview stream support is accepted even
+without BACKWARD_COMPATIBLE, and a filtered parent no longer hides its children.
+This corrects a diagnostic blind spot in 1.0.6; the reported device's ultrawide
+remains unverified until its raw inventory is observed.
+
+Version 1.0.6 introduced discovery of Camera2 logical cameras **and physical children** (including
 children absent from the top-level camera list). It binds a physical output ID
 through Camera2Interop for the whole preview/photo/video session. One zoom control
 selects the appropriate route by sensor-relative focal length; no phone-model
