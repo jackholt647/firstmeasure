@@ -16,14 +16,14 @@ export function mountSoftwareLayers(root,api){
   const rows=data.items.filter(item=>(layer==='all'||item.layer===layer)&&(scope==='all'||item.declarationScope===scope)&&(!search||JSON.stringify(item).toLowerCase().includes(search))).sort((a,b)=>['global','organization','project'].indexOf(a.declarationScope)-['global','organization','project'].indexOf(b.declarationScope)||a.layer.localeCompare(b.layer)||a.id.localeCompare(b.id));
   list.replaceChildren();status.textContent=`${rows.length} of ${data.items.length} declarations`;
   const groups=new Map();
-  for(const item of rows){const key=item.declarationScope+' · '+item.layer;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(item);}
+  for(const item of rows){const key=item.declarationScope+' \u00b7 '+item.layer;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(item);}
   for(const [key,items]of groups){
    list.append(element('h3',key,'fm-dev-layer-heading'));
    const tree={children:new Map(),items:[]};
    for(const item of items){let node=tree;for(const part of item.id.split('.')){if(!node.children.has(part))node.children.set(part,{children:new Map(),items:[]});node=node.children.get(part);}node.items.push(item);}
    const count=node=>node.items.length+[...node.children.values()].reduce((total,child)=>total+count(child),0);
    const declaration=item=>{
-    const row=element('details',undefined,'fm-dev-layer-row');const summary=element('summary');const label=element('span');label.append(element('strong',item.id),element('small',item.origin+(item.version?' · v'+item.version:'')));summary.append(label,element('span','Used in: '+item.scopes.join(', '),'fm-dev-layer-badge'));row.append(summary);
+    const row=element('details',undefined,'fm-dev-layer-row');const summary=element('summary');const label=element('span');label.append(element('strong',item.id),element('small',item.origin+(item.version?' \u00b7 v'+item.version:'')));summary.append(label,element('span','Used in: '+item.scopes.join(', '),'fm-dev-layer-badge'));row.append(summary);
     let rendered=false;row.addEventListener('toggle',()=>{if(!row.open||rendered)return;rendered=true;const content=element('div',undefined,'fm-dev-layer-contract');for(const [name,value]of Object.entries(item.details||{}))content.append(jsonTree(value,name));row.append(content);});return row;
    };
    const branch=(node,path)=>{

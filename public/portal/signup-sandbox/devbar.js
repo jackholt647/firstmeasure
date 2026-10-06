@@ -446,7 +446,7 @@
             if (payload && payload.ok && payload.instance) {
                 if (!barHidden) render(payload.instance);
                 if (document.getElementById('platformAssistantSlot') && window.top === window) {
-                    import('/libraries/development-tools/development-tools.js?v=20261006-tree3').then(module => module.mount()).catch(() => {});
+                    import('/libraries/development-tools/development-tools.js?v=20261006-tree4').then(module => module.mount()).catch(() => {});
                 }
             }
         })

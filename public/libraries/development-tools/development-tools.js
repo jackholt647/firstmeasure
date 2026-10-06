@@ -1,4 +1,4 @@
-import { mountSoftwareLayers } from './software-layers.js?v=20261006-tree3';
+import { mountSoftwareLayers } from './software-layers.js?v=20261006-tree4';
 let mounted = false;
 export async function mount() {
  if (mounted || window.top !== window) return;
@@ -7,7 +7,7 @@ export async function mount() {
  const anchor = document.getElementById('platformAssistantSlot');
  if (!anchor) return;
  mounted = true;
- const style = document.createElement('link');style.rel='stylesheet';style.href='/libraries/development-tools/development-tools.css?v=20261006-tree3-layers';document.head.append(style);
+ const style = document.createElement('link');style.rel='stylesheet';style.href='/libraries/development-tools/development-tools.css?v=20261006-tree4-layers';document.head.append(style);
  const slot=document.createElement('div');slot.className='fm-dev-slot';
  slot.innerHTML='<button type="button" class="ptb-bell" aria-label="Development tools" aria-haspopup="dialog" aria-expanded="false" data-dev-open><i class="fas fa-code" aria-hidden="true"></i></button>';
  anchor.before(slot);
