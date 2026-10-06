@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 6 automations: [One authoring contract](deploy/digitalocean/development-automation-contracts-20261006.md) records typed actions, shared conditions, sequences, multi-action rules, agent dry runs, pushing template changes to running instances, validation and the four-role development rollout.
+
 October 6 document templates: [Margin-fitted template regions](deploy/digitalocean/development-document-templates-20261006.md) records the rebuilt seeded layouts, the Docs tab workflow and theme fixes, validation and the four-role development rollout.
 
 October 6 payroll: [Data, actions and shared widgets](deploy/digitalocean/development-payroll-publication-20261006.md) records the 19 typed exports, 41 operations, 12 widgets, permission and browser validation, and the verified four-role development rollout.
