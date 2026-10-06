@@ -17,7 +17,7 @@ test('lead history filters sources, pages outcomes, opens projects and reviews u
    await route.fulfill({contentType:'application/json',body:JSON.stringify(data)});
   });
   await page.goto('http://leads.test/');
-  await page.evaluate(()=>{window.PlatformAPI={appFlags:{has:()=>true}};window.FirstMateProjectWindows={open:id=>window.openedProject=id};});
+  await page.evaluate(()=>{window.PlatformAPI={appFlags:{has:()=>true}};window.FirstMateProjectWindows={open:project=>window.openedProject=project.id};});
   await page.addScriptTag({content:await readFile(new URL('../../libraries/apps/settings/connections.js',import.meta.url),'utf8')});
   await page.evaluate(()=>window.FirstMateConnections.mountLeadSources(document.querySelector('#root'),{orgId:'org'}));
   await page.getByRole('button',{name:'Google leads · Active'}).waitFor();

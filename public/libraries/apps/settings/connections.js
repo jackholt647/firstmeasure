@@ -506,7 +506,7 @@
         area.innerHTML=items.map(r=>`<div class="ic-row"><div><strong>${esc(r.state)}</strong> · ${esc(r.external_id)}<p class="ic-muted">${esc(r.source_id)} · ${esc(new Date(r.updated_at).toLocaleString())} · ${esc(r.attempts)} delivery attempts${r.reason?'<br>'+esc(r.reason):''}</p></div>${r.project_id?`<button type="button" data-project="${esc(r.project_id)}">Open project</button>`:''}${r.state==='uncertain'?`<button type="button" data-review="${esc(r.id)}">Review</button>`:''}</div>`).join('')||'<p>No deliveries yet.</p>';
         if(next)area.insertAdjacentHTML('beforeend','<button type="button" data-more>Load more</button>');
         area.querySelector('[data-more]')?.addEventListener('click',()=>refresh(true));
-        area.querySelectorAll('[data-project]').forEach(b=>b.onclick=()=>window.FirstMateProjectWindows?.open(b.dataset.project));
+        area.querySelectorAll('[data-project]').forEach(b=>b.onclick=()=>window.FirstMateProjectWindows?.open({id:b.dataset.project}));
         area.querySelectorAll('[data-review]').forEach(b=>b.onclick=async()=>{
           const row=b.closest('.ic-row');
           if(row.querySelector('[data-review-form]'))return;
