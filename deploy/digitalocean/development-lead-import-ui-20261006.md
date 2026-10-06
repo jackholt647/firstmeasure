@@ -23,3 +23,13 @@ The frontend-only overlay contains Connections UI, Company Settings and its cach
 All three frontend roles were activated. A concurrent development release retained this final overlay on web and compatibility, so verification compared current owned hashes rather than forcing an older release identity. All nine role/file checks pass, along with runtime identity, readiness and development outbound isolation. Verified current releases are `f722fd6579fe567583fe3d7232195990683543e6` on web and compatibility and `fbb237f39b3dfac8d097acf580be3c9e0c624dbd` on the web pool.
 
 Public requests to all three frontend assets return HTTP 200 with reviewed role hashes. Public `/v1/health/ready` is healthy and development-isolated. A transient HTTP 503 during concurrent activation cleared before final verification. The existing autoscale-image limitation remains; this rollout updates the current web hosts without provisioning or image changes.
+
+## Native chat styling correction
+
+User review exposed styling collisions missed by the original fixture: broad Connections button/input rules reached into the shared assistant, explicit welcome overrides changed its alignment, and the fixture omitted the real Company Settings inbox styles.
+
+Source `4e8ecc79764eecac4c84ca69d8e6dc28a70cb4f1` excludes the shared chat subtree from host control/typography rules and removes all lead-specific welcome/suggestion styling. The subtitle is removed. Inbox guidance is an existing platform information tooltip; source and delivery guidance also moves to information controls. The inbox uses a single address row without the redundant outer card, with 16 pixels of space before the next divider.
+
+All three browser tests pass. The lead fixture now uses the actual Company Settings stylesheet and inbox template, the real assistant, fonts and icons. It compares native button, composer, welcome and suggestion styling against an unmodified assistant; verifies mouse and keyboard tooltip opening and Escape dismissal; measures divider spacing; and retains the delivery/source interaction checks. Desktop and 390-pixel phone renders were personally inspected in Chrome with the real fonts and icons; drafting and attachment-menu opening were exercised without sending a message.
+
+All three current frontend hosts are active on the correction. All nine owned role/file hashes match, readiness and development isolation pass, and the public assets return HTTP 200 with reviewed hashes. No worker, mail routing or production change occurred. Evidence is under `output/lead-ui-css-20261006/`.
