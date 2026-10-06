@@ -2227,7 +2227,12 @@
       /** Workflow id declared by the picked template or the catalog type. */
       function createWorkflowHint(){
         const catalogType = arrayValue(catalog.types).find((t) => firstText(t.id, t.type) === wizard.type) || {};
+        // Templates pin their workflow in metadata; one that opts out of the
+        // type's default opens straight in the editor.
+        const templateMeta = objectValue(wizard.template?.metadata);
+        if (templateMeta.disable_default_workflow === true) return '';
         return firstText(
+          templateMeta.default_workflow_id,
           wizard.template?.workflow_id,
           wizard.template?.default_workflow_id,
           objectValue(wizard.template?.definition).workflow_id,
@@ -3084,9 +3089,19 @@
         menu.close();
         try {
           await flushAutosave();
-          const res = await api().documents.patch(orgId(), state.doc.id, { theme_ref: themeId ? { theme_id: themeId } : null });
+          // A page style brings its own margins: re-fit the document's page
+          // regions to it, the way the editor's Page setup dialog does.
+          const working = await instanceWorkingDefinition();
+          const targetId = themeId || (working.fromTemplate ? firstText(objectValue((await templateDefinition({ id: state.doc.template_ref.template_id, current_version: state.doc.template_ref.version }))?.theme_ref).theme_id) : '');
+          const target = themes.find((theme) => firstText(theme.id, theme.theme_id) === targetId);
+          const marginOps = working.fromTemplate && target && window.FMDocModel?.pageSetupOverrides
+            ? window.FMDocModel.pageSetupOverrides(working.definition, objectValue(target.definition))
+            : [];
+          const overrides = marginOps.length ? collapseOps([...arrayValue(state.doc.overrides), ...marginOps]) : null;
+          const res = await api().documents.patch(orgId(), state.doc.id, { theme_ref: themeId ? { theme_id: themeId } : null, ...(overrides ? { overrides } : {}) });
           const updated = objectValue(res.document || res.doc);
           if (updated.id) state.doc = { ...state.doc, ...updated };
+          if (overrides) state.baseOverrides = overrides.map((op) => clone(op));
           showToast((globalThis.PlatformLanguage?.text("documents","m_5d7c7ad6033624","Documents") ?? "Documents"), themeId ? 'Theme applied.' : 'Reverted to the template theme.', true);
           await refreshResolvedEditor();
           // The workflow live preview re-resolves on its own writes only —

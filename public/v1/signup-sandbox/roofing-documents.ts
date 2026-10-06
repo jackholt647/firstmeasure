@@ -1,7 +1,7 @@
 import type { PlatformAuthContext } from '../platform/auth.js';
-import { FMDocModel } from '../documents/schemas.js';
-import { ensureDefaultDocumentAssets, TEMPLATE_SEEDS } from '../documents/seeds.js';
-import { createDocumentTemplate, createDocumentWorkflow, readDocumentTemplate } from '../documents/storage.js';
+import { ensureDefaultDocumentAssets, lineItemBlocks, lineItemStyles, proposalLineItemComponents, startFlowTemplate } from '../documents/seeds.js';
+import { createDocumentTemplate, createDocumentWorkflow, publishDocumentTemplate, publishDocumentWorkflow, readDocumentTemplate, readDocumentWorkflow } from '../documents/storage.js';
+import { addFlowPage, flowColumn, flowLogo, flowSpacer, flowText, flowWidget, type RunSpec } from '../documents/template-kit.js';
 import { getOrganizationPricebook } from '../pricebook/storage.js';
 import type { JsonObject } from '../platform/storage.js';
 
@@ -92,60 +92,85 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
     measurement_requirements: { type: 'list', items: { type: 'string' } },
     measurements: { type: 'measurements', label: 'Measurements' }
   };
-  const doc = obj(FMDocModel.createDocument({kind:'document', first_page_role:'body', theme_ref:{theme_id:spec.theme}, metadata:{document_type:'proposal'}}));
-  const text = (y:number, h:number, runs:JsonObject[], size=11) => FMDocModel.createNode('text',{frame:{x:44,y,w:524,h},props:{blocks:[{id:FMDocModel.generateId('blk'),type:'paragraph',runs}]},style:{font:{family:'Inter',size_pt:size,color:'#172b4d'}}});
-  const page = obj((doc.pages as JsonObject[])[0]);
-  const standard=TEMPLATE_SEEDS.find(s=>s.id==='tpl_proposal_default')!.definition();
-  doc.components=standard.components;doc.styles=standard.styles;
-  const flowNode=(type:string,props:JsonObject,h:number)=>({...FMDocModel.createNode(type,{frame:{x:0,y:0,w:524,h},props}),anchor:'flow'});
-  const pricing=FMDocModel.createNode('frame',{frame:{x:44,y:310,w:524,h:345,layout:'flow'},props:{flow:{direction:'column',gap:8},overflow:'paginate'},children:[
-    flowNode('component_ref',{component:'li_header',input:{}},22),
-    flowNode('repeater',{source:'{{coalesce(params.scope_rows, params.scope_items)}}',component:'li_row',as:'row',layout:{direction:'column',columns:1,gap_pt:4},break_rules:{repeat_header:true,header_component:'li_header'},empty_text:'Choose price-book items in the estimate workflow.'},40),
-    flowNode('component_ref',{component:'li_totals',input:{}},76)
-  ]});
-  page.name = 'Estimate';
-  page.children = [text(68,26,[{text:'',bind:'org.name'}],12),text(104,65,[{text:spec.title}],25),
-    text(185,44,[{text:'Prepared for ',bind:"coalesce(customer.name, 'Customer')"},{text:' · '},{text:'',bind:"coalesce(project.title, params.structure)"}]),
-    text(240,65,[{text:spec.description}]),
-    ...(mode==='detailed'?[pricing]:[
-      text(332,45,[{text:gutter?'Gutter length: ':'Roof area: '},{text:'',bind:gutter?'params.gutter_feet':'params.roof_squares'},{text:gutter?' linear feet':' squares'}],17),
-      text(389,40,[{text:gutter?'Finish: ':'Roofing system: GAF Timberline HDZ · '},{text:'',bind:'params.color'}],14),
-      text(440,45,mode==='package'?[{text:'Package includes field shingles, underlayment, perimeter materials and agreed ventilation.'}]:[{text:gutter?'Price per foot: ':'Price per square: '},{text:'',bind:'params.rate_cents | money'}]),
-      FMDocModel.createNode('shape',{frame:{x:44,y:520,w:524,h:95},style:{fill:{type:'solid',color:'#f1f5f9'}},props:{shape:'rect'}}),
-      text(544,48,[{text:'Estimate total: '},{text:'',bind:'computed.total_cents | money'}],23)
-    ]),
-    text(673,38,[{text:'Development sample • Confirm the scope and quantities before approval. Prices are sample selling prices, not supplier quotes.'}],9)];
-  const terms = obj(FMDocModel.createPage('signature',{name:'Scope & approval'}));
-  terms.children = [text(70,40,[{text:'Scope & approval'}],24),
-    text(130,65,[{text:gutter ? 'Install the agreed seamless gutter length and selected finish. Downspouts and other accessories require explicit scope confirmation.' : 'Replace roofing on the identified structure using the selected HDZ system, underlayment, perimeter materials and agreed ventilation. The itemized proposal, when selected, governs its listed products and quantities.'}]),
-    text(215,55,[{text:'Structure: '},{text:'',bind:'params.structure'},{text:'   Color: '},{text:'',bind:'params.color'}]),
-    text(290,95,[{text:'Site review: confirm access, decking condition, flashing, ventilation and disposal arrangements. Hidden damage and additional work require a separately approved change. Schedule and payment terms must be agreed before work starts.'}]),
-    text(418,65,[{text:'Approval accepts the scope and price shown in this estimate. The material list supports fulfillment; changes to that list do not change this signed estimate.'}]),
-    FMDocModel.createNode('widget',{frame:{x:44,y:530,w:440,h:100},props:{widget:'doc.signature@1',config:{output:'sig_customer',label:'Customer approval',signer:'customer'}}}),
-    text(675,40,[{text:'Sample agreement for development testing. Replace sample terms with your organization’s approved terms before customer use.'}],9)];
-  doc.pages = [page,terms]; doc.params=params;
+  const { doc, theme } = startFlowTemplate(spec.theme, 'proposal');
+  const body = (runs: RunSpec[], sizePt = 11) => flowText(runs, { font: { family: 'var(--fm-body-font)', size_pt: sizePt, color: 'var(--fm-text)' } });
+  const note = (text: string) => flowText([{ text }], { style_ref: 'caption' });
+  const priced = mode === 'detailed'
+    ? lineItemBlocks('{{coalesce(params.scope_rows, params.scope_items)}}', 'Choose price-book items in the estimate workflow.')
+    : [
+        body([{ text: gutter ? 'Gutter length: ' : 'Roof area: ' }, { text: '', bind: gutter ? 'params.gutter_feet' : 'params.roof_squares' }, { text: gutter ? ' linear feet' : ' squares' }], 17),
+        body([{ text: gutter ? 'Finish: ' : 'Roofing system: GAF Timberline HDZ · ' }, { text: '', bind: 'params.color' }], 14),
+        body(mode === 'package'
+          ? [{ text: 'Package includes field shingles, underlayment, perimeter materials and agreed ventilation.' }]
+          : [{ text: gutter ? 'Price per foot: ' : 'Price per square: ' }, { text: '', bind: 'params.rate_cents | money' }]),
+        flowSpacer(10),
+        flowColumn([
+          flowText([{ text: 'Estimate total: ' }, { text: '', bind: 'computed.total_cents | money' }], { font: { family: 'var(--fm-display-font)', size_pt: 23, weight: 800, color: 'var(--fm-text)' } })
+        ], { padding: [22, 20, 22, 20], fill: 'color-mix(in srgb, var(--fm-primary) 6%, var(--fm-color-paper))' })
+      ];
+  addFlowPage(doc, theme, 'body', 'Estimate', [
+    flowLogo(),
+    flowText([{ text: '', bind: "coalesce(org.name, '')" }], { font: { family: 'var(--fm-body-font)', size_pt: 12, weight: 700, color: 'var(--fm-color-muted)' } }),
+    flowText([{ text: spec.title }], { style_ref: 'h1' }),
+    body([{ text: 'Prepared for ' }, { text: '', bind: "coalesce(customer.name, 'Customer')" }, { text: ' · ' }, { text: '', bind: 'coalesce(project.title, params.structure)' }]),
+    body([{ text: spec.description }]),
+    flowSpacer(10),
+    ...priced,
+    flowSpacer(12),
+    note('Development sample • Confirm the scope and quantities before approval. Prices are sample selling prices, not supplier quotes.')
+  ], { gap: mode === 'detailed' ? 4 : 10 });
+  addFlowPage(doc, theme, 'signature', 'Scope & approval', [
+    flowText([{ text: 'Scope & approval' }], { style_ref: 'h2' }),
+    body([{ text: gutter ? 'Install the agreed seamless gutter length and selected finish. Downspouts and other accessories require explicit scope confirmation.' : 'Replace roofing on the identified structure using the selected HDZ system, underlayment, perimeter materials and agreed ventilation. The itemized proposal, when selected, governs its listed products and quantities.' }]),
+    body([{ text: 'Structure: ' }, { text: '', bind: 'params.structure' }, { text: '   Color: ' }, { text: '', bind: 'params.color' }]),
+    body([{ text: 'Site review: confirm access, decking condition, flashing, ventilation and disposal arrangements. Hidden damage and additional work require a separately approved change. Schedule and payment terms must be agreed before work starts.' }]),
+    body([{ text: 'Approval accepts the scope and price shown in this estimate. The material list supports fulfillment; changes to that list do not change this signed estimate.' }]),
+    flowSpacer(16),
+    flowWidget('doc.signature@1', { output: 'sig_customer', label: 'Customer approval', signer: 'customer' }, { w: 360, h: 100 }),
+    flowSpacer(16),
+    note('Sample agreement for development testing. Replace sample terms with your organization’s approved terms before customer use.')
+  ]);
+  doc.components = proposalLineItemComponents(); doc.styles = lineItemStyles(); doc.params = params;
   doc.outputs={sig_customer:{type:'signature',required:true,signer:'customer'}};
   doc.computed={subtotal_cents:'sum(params.scope_items[].amount_cents)',tax_cents:'0',total_cents:'computed.subtotal_cents'};
   doc.program={enabled:false,deliverables:[roofingCalculus(mode)]};
   return doc;
 }
 
-export async function seedInstantRoofingDocuments(orgId:string, ctx:PlatformAuthContext) {
+/** Bump when the estimate layouts or their workflows change; existing packs republish. */
+export const INSTANT_ROOFING_PACK = 2;
+
+/**
+ * Create the Instant roofing estimate templates and workflows, and republish
+ * the ones an earlier pack revision created. With create:false only existing
+ * packs are upgraded, so organizations that never had the pack stay without it.
+ */
+export async function seedInstantRoofingDocuments(orgId:string, ctx:PlatformAuthContext|null, options:{create?:boolean}={}) {
+  const create = options.create !== false;
   const catalog = await getOrganizationPricebook(orgId);
-  await ensureDefaultDocumentAssets(orgId,ctx);
+  if (create) await ensureDefaultDocumentAssets(orgId,ctx);
   const price = (id:string) => Number(catalog.catalog.items.find(x=>x.id===id)?.unitPrice || 0);
-  if (!price('gaf_hd') || !price('gutter_replace')) throw new Error('Roofing test pack requires the shared roofing price book.');
+  if (!price('gaf_hd') || !price('gutter_replace')) {
+    if (!create) return;
+    throw new Error('Roofing test pack requires the shared roofing price book.');
+  }
+  const missing = (e:any) => { if (e.statusCode===404) return null; throw e; };
   for (const spec of ROOFING_ESTIMATES) {
     const id=`tpl_instant_roofing_${spec.key}`, workflow=`wfl_instant_roofing_${spec.key}`;
-    const existing=await readDocumentTemplate(orgId,id).catch((e:any)=>{if(e.statusCode===404)return null;throw e;});
-    if(existing)continue;
+    const existing=await readDocumentTemplate(orgId,id).catch(missing);
+    if (existing ? Number(obj(existing.metadata).instant_roofing_pack || 0) >= INSTANT_ROOFING_PACK : !create) continue;
     const definition=roofingEstimateDefinition(spec.key,{roof:price('gaf_hd'),gutter:price('gutter_replace')});
     const fields=spec.key==='gutters'?['structure','gutter_feet','color','rate_cents']:['structure','roof_squares','waste_percent','color','ridge_vent',...(spec.key==='package'?['package_cents']:spec.key==='quick'?['rate_cents']:[])];
-    await createDocumentWorkflow(orgId,{id:workflow,name:spec.title,description:spec.description,status:'active',definition:{schema_version:1,name:spec.title,contract:{params:definition.params,outputs:definition.outputs},steps:[
+    const workflowDefinition={schema_version:1,name:spec.title,contract:{params:definition.params,outputs:definition.outputs},steps:[
       {id:'scope',title:'Define the work',audience:['internal'],items:fields.map(key=>({kind:obj(obj(definition.params)[key]).type==='string'?'text':obj(obj(definition.params)[key]).type,writes:`params.${key}`,label:obj(obj(definition.params)[key]).label,required:true}))},
       ...(spec.key==='detailed'?[{id:'pieces',title:'Choose work',audience:['internal'],items:[{kind:'piece_select',writes:'params.scope_pieces',label:'Roofing work',required:true}]},{id:'measure',title:'Measurements',audience:['internal'],items:[{kind:'measurements',writes:'params.measurements',fields_from:'measurement_requirements',prefill:'project.measurements'}]},{id:'items',title:'Review price-book scope',audience:['internal'],items:[{kind:'line_items_review',writes:'params.scope_items',required:true,label:'Materials and services'}]}]:[]),
       {id:'review',title:'Review estimate',audience:['internal'],items:[{kind:'review',label:'Review before sending'}],preview:{template_ref:id,live:true}}
-    ]},metadata:{instant_roofing_pack:1}},ctx);
-    await createDocumentTemplate(orgId,{id,name:spec.title,document_type:'proposal',description:spec.description,status:'active',definition,metadata:{default:false,default_workflow_id:workflow,instant_roofing_pack:1}},ctx);
+    ]};
+    const metadata={instant_roofing_pack:INSTANT_ROOFING_PACK};
+    const existingWorkflow=await readDocumentWorkflow(orgId,workflow).catch(missing);
+    if (existingWorkflow) await publishDocumentWorkflow(orgId,workflow,{definition:workflowDefinition,expected_version:Number(existingWorkflow.current_version||0),metadata},ctx);
+    else await createDocumentWorkflow(orgId,{id:workflow,name:spec.title,description:spec.description,status:'active',definition:workflowDefinition,metadata},ctx);
+    if (existing) await publishDocumentTemplate(orgId,id,{definition,expected_version:Number(existing.current_version||0),metadata},ctx);
+    else await createDocumentTemplate(orgId,{id,name:spec.title,document_type:'proposal',description:spec.description,status:'active',definition,metadata:{default:false,default_workflow_id:workflow,...metadata}},ctx);
   }
 }

@@ -1815,6 +1815,63 @@
     return fallback;
   }
 
+  /**
+   * The margins a page style asks for on pages of `role`: the matching page
+   * master's content_inset, then the theme's page-margin tokens. Margins are
+   * authored document data (region frames + chain defaults); this only tells
+   * a caller what to author when a style is chosen.
+   */
+  function themePageMargins(theme, role) {
+    const master = pageMasterForRole(theme, role || "body") || {};
+    const inset = master.content_inset || {};
+    const spacing = (theme && theme.tokens && theme.tokens.spacing) || {};
+    const all = Number(spacing.page_margin_pt);
+    const side = (name) => {
+      for (const value of [inset[name], spacing["page_margin_" + name + "_pt"], all]) {
+        if (value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value))) return Math.max(0, Number(value));
+      }
+      return 72;
+    };
+    return { top: side("top"), right: side("right"), bottom: side("bottom"), left: side("left") };
+  }
+
+  /** Frame box of a header/body/footer page region for the given margins. */
+  function pageRegionBox(region, margins, paper) {
+    const width = Math.max(72, paper.w_pt - margins.left - margins.right);
+    const name = String(region || "");
+    if (name.indexOf("header") === 0) return { x: margins.left, y: Math.max(12, margins.top / 3), w: width, h: Math.max(24, margins.top / 2 - 6) };
+    if (name.indexOf("footer") === 0) return { x: margins.left, y: paper.h_pt - Math.max(42, margins.bottom * 0.75), w: width, h: Math.max(24, margins.bottom / 2 - 6) };
+    return { x: margins.left, y: margins.top, w: width, h: Math.max(72, paper.h_pt - margins.top - margins.bottom) };
+  }
+
+  /**
+   * Override ops that re-fit a document's page regions to a page style, so
+   * choosing a style outside the editor's Page setup dialog moves content the
+   * same way that dialog does. Documents without page regions get no ops.
+   */
+  function pageSetupOverrides(doc, theme) {
+    const ops = [];
+    if (!doc || doc.kind === "view" || !Array.isArray(doc.pages)) return ops;
+    const paper = paperDimensions(doc);
+    for (const page of doc.pages) {
+      const margins = themePageMargins(theme, page.role || "body");
+      const visit = (nodes) => {
+        for (const node of nodes || []) {
+          const region = node && node.type === "frame" && node.props && node.props.page_region;
+          if (region) ops.push({ op: "node.set", node_id: node.id, prop: "frame", value: Object.assign({}, node.frame || {}, pageRegionBox(region, margins, paper)) });
+          else visit(node && node.children);
+        }
+      };
+      visit(page.children);
+    }
+    if (!ops.length) return ops;
+    const bodyMargins = themePageMargins(theme, "body");
+    for (const id of Object.keys(doc.chains || {})) {
+      ops.push({ op: "doc.set", prop: "chains." + id + ".page_defaults.margins_pt", value: bodyMargins });
+    }
+    return ops;
+  }
+
   // ---------------------------------------------------------------------------
   // Params & outputs
   // ---------------------------------------------------------------------------
@@ -2255,6 +2312,9 @@
     resolveThemeTokens,
     themeCssText,
     pageMasterForRole,
+    themePageMargins,
+    pageRegionBox,
+    pageSetupOverrides,
 
     paramDefaultValue,
     missingRequiredParams,

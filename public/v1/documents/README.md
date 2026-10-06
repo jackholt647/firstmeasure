@@ -23,8 +23,18 @@ and validation — nothing in this module reimplements it.
 | `pdf.ts` | Playwright pipeline generalized from `proposals/pdf.ts` (`renderDocumentPdf({ html, paper })`, waits for `window.__fmdocReady`) + pdf-lib fallback |
 | `render.ts` | `buildRenderHarnessHtml` — inlines doc-model/doc-renderer/doc-widgets sources + payload JSON, boots `FMDocRenderer` in static mode; clear error if the renderer libraries are not built yet |
 | `ingestion.ts` | v1 upload pipeline: media store → `source:"uploaded"` instance in `needs_review`; `registerDocumentExtractor` hook (LLM pass not wired yet), filename/type heuristic fallback |
-| `seeds.ts` | `ensureDefaultDocumentAssets(orgId)` — seeds Margin/Triangles/Clean themes (page-master chrome ports the legacy PROPOSAL_THEMES CSS) + proposal/invoice/change-order templates; upgrades by `preset_revision` like scope templates |
+| `seeds.ts` | `ensureDefaultDocumentAssets(orgId)` — seeds the Margin/Triangles/Clean page styles and the preset templates and workflows; unedited presets upgrade by `preset_revision`, and ids in `RETIRED_TEMPLATE_IDS` are archived |
+| `template-kit.ts` | Builders for seeded templates: each page is one `page_region: "body"` flow frame fitted to the page style's margins (`FMDocModel.themePageMargins`), with content stacked inside it. Rows share width through `frame.grow`. Never author page coordinates in a seeded template |
 | `api.ts` | `registerDocumentsApi(app)` — all routes below; proposals-style auth (`requirePlatformAuth`, CSRF), `view_projects` for reads/instance writes, `manage_company_settings` for template/theme writes; public routes token-only |
+
+## Page styles and margins
+
+Authored coordinates are final: the renderer never moves content into a
+theme's safe area. Margins are document data, held by the page-region frames.
+Seeded templates start fitted to their own style; choosing another style
+re-fits the regions with `FMDocModel.pageSetupOverrides(doc, theme)` (the Docs
+tab Theme menu) or the editor's Page setup dialog. `tpl_one_page_legal` is the
+one preset still laid out in absolute coordinates.
 
 ## Routes
 

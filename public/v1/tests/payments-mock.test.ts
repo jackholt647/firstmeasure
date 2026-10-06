@@ -784,7 +784,8 @@ async function applyDocumentCapabilities(client: ReturnType<typeof createSession
 async function paymentDocument(client: ReturnType<typeof createSessionClient>, orgId: string, projectId: string, title: string) {
   const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
     document_type: "proposal",
-    template_id: "tpl_roofing_signature_payment",
+    template_id: "tpl_proposal_default",
+    workflow_id: null,
     title,
     params: {
       customer: { name: "Molly Mock", email: "molly-mock@example.test" },

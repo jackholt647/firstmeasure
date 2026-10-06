@@ -168,7 +168,8 @@ function findWidgetNode(definition, widgetPrefix) {
 async function seedPaymentDocument(client, orgId, projectId, title) {
   const created = await client.req("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
     document_type: "proposal",
-    template_id: "tpl_roofing_signature_payment",
+    template_id: "tpl_proposal_default",
+    workflow_id: null,
     title,
     params: {
       customer: { name: "Pat Payer", email: `pat-doc-${suffix}@example.test` },
@@ -179,7 +180,7 @@ async function seedPaymentDocument(client, orgId, projectId, title) {
       tax_percent: 0
     }
   });
-  const template = (await client.req("GET", `/v1/documents/organizations/${orgId}/templates/tpl_roofing_signature_payment`)).template;
+  const template = (await client.req("GET", `/v1/documents/organizations/${orgId}/templates/tpl_proposal_default`)).template;
   const payNode = findWidgetNode(template.definition, "doc.pay_now");
   if (!payNode) throw new Error("roofing template has no pay_now widget node");
   await client.req("PATCH", `/v1/documents/organizations/${orgId}/documents/${created.document.id}`, {

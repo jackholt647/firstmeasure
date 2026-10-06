@@ -3,6 +3,7 @@ import type { PlatformAuthContext } from "../platform/auth.js";
 import { FMDocModel } from "./schemas.js";
 import { repairIncorrectCompanyAccent, themeDefinitionWithOrganizationDefaults } from "./theme-defaults.js";
 import {
+  archiveDocumentTemplate,
   createDocumentTemplate,
   createDocumentTheme,
   createDocumentWorkflow,
@@ -16,6 +17,23 @@ import {
   readDocumentWorkflow
 } from "./storage.js";
 import { uploadTemplateDefinition } from "./extraction.js";
+import {
+  addFlowPage,
+  componentColumn,
+  componentRow,
+  flowBlocks,
+  flowColumn,
+  flowComponent,
+  flowImage,
+  flowLogo,
+  flowRepeater,
+  flowRow,
+  flowSpacer,
+  flowText,
+  flowWidget,
+  labeledText,
+  type RunSpec
+} from "./template-kit.js";
 
 /**
  * Seeded presets: three themes porting the legacy proposal CSS themes
@@ -26,7 +44,7 @@ import { uploadTemplateDefinition } from "./extraction.js";
  * "Roofing proposal intake". Presets upgrade by preset_revision, copying the
  * scope-template pattern (scopes/storage.ts ensureDefaultScopeTemplates).
  */
-export const DOCUMENT_PRESET_REVISION = 29;
+export const DOCUMENT_PRESET_REVISION = 30;
 
 function defaultProposalPaymentSchedule(): JsonObject[] {
   return [
@@ -37,8 +55,6 @@ function defaultProposalPaymentSchedule(): JsonObject[] {
 
 const PAGE_W = 612;
 const PAGE_H = 792;
-const DESIGN_LEFT = 40;
-const DESIGN_WIDTH = PAGE_W - (DESIGN_LEFT * 2);
 
 function asObject(value: unknown): JsonObject {
   return value && typeof value === "object" && !Array.isArray(value) ? { ...(value as JsonObject) } : {};
@@ -70,8 +86,6 @@ function shapePolygon(frame: Frame, points: Array<{ x: number; y: number }>, fil
     props: { shape: "polygon", points }
   });
 }
-
-type RunSpec = { text?: string; bind?: string; font?: JsonObject; color?: string; weight?: number };
 
 /**
  * options.style_ref applies a NAMED block style (doc.styles → theme
@@ -114,29 +128,11 @@ function textBlocksNode(frame: Frame, blocks: Array<{ runs: RunSpec[]; style_ref
   });
 }
 
-function componentRefNode(component: string, frame: Frame, extra: JsonObject = {}) {
-  return FMDocModel.createNode("component_ref", {
-    frame,
-    props: { component, input: {}, ...asObject(extra.props) }
-  });
-}
-
 function widgetNode(ref: string, config: JsonObject, frame: Frame) {
   return FMDocModel.createNode("widget", {
     frame,
     props: { widget: ref, config }
   });
-}
-
-function imageNode(frame: Frame, bindPath: string, extra: JsonObject = {}) {
-  const node = FMDocModel.createNode("image", { frame, props: { fit: "cover", ...asObject(extra.props) } });
-  // The `if` guard checks the media ref's media_id/url first so an empty
-  // object (cleared picker) hides the frame instead of rendering a broken box.
-  (node as JsonObject).bind = {
-    props: { "props.media": `{{${bindPath}}}` },
-    if: `not_empty(coalesce(${bindPath}.media_id, ${bindPath}.url, ${bindPath}))`
-  };
-  return node;
 }
 
 /**
@@ -296,65 +292,84 @@ function cleanThemeDefinition(): JsonObject {
 /**
  * Line-item components for the proposal pricing page (spec §3.4: widgets do
  * behavior, components do layout). li_row renders one scope item bound to
- * {{item.*}}; li_header is the column header the repeater re-renders per
- * page segment via break_rules.repeat_header; li_totals binds the doc's
- * computed subtotal/tax/total.
+ * {{item.*}}; li_header is the column header; li_totals binds the doc's
+ * computed subtotal/tax/total. Each is a row flow whose name column grows, so
+ * the table follows whatever width the page margins leave it.
  */
-function proposalLineItemComponents(): JsonObject {
-  const headerText = (x: number, w: number, label: string, align = "left") => textNode({ x, y: 4, w, h: 14 }, [{ text: label }], {
+const LI_QTY_WIDTH = 72;
+const LI_AMOUNT_WIDTH = 96;
+
+export function proposalLineItemComponents(): JsonObject {
+  const headerText = (label: string, align: string, size: { w?: number; grow?: number }) => flowText([{ text: label }], {
     align,
-    font: { family: "var(--fm-body-font)", size_pt: 8.5, weight: 800, color: "#ffffff", transform: "uppercase" }
+    font: { family: "var(--fm-body-font)", size_pt: 8.5, weight: 800, color: "#ffffff", transform: "uppercase" },
+    ...size
   });
-  const liHeader = FMDocModel.createNode("frame", {
-    frame: { x: 0, y: 0, w: DESIGN_WIDTH, h: 22 },
-    style: { fill: { type: "solid", color: "var(--fm-primary)" } },
-    props: { flow: { direction: "row", gap: 0, padding: [4, 8, 4, 8] } },
-    children: [
-      headerText(8, 314, "Item"),
-      headerText(322, 90, "Qty", "center"),
-      headerText(412, 112, "Amount", "right")
-    ]
-  });
-  const liRow = FMDocModel.createNode("frame", {
-    frame: { x: 0, y: 0, w: DESIGN_WIDTH, h: 34 },
-    props: { flow: { direction: "row", gap: 0, padding: [6, 8, 6, 8] } },
-    children: [
-      textBlocksNode({ x: 8, y: 6, w: 314, h: 26 }, [
-        // scope_rows are the flat projection: children get an indent label,
-        // parents keep the rolled-up amount (see flattenScopeRows).
-        { runs: [{ bind: "concat(coalesce(item.indent_label, ''), coalesce(item.display_name, item.name))" }], style_ref: "li_name" },
-        { runs: [{ bind: "coalesce(item.description, '')" }], style_ref: "li_meta" },
-        // Conditional-pricing badge chip ("Pay by bank", "3% card fee",
-        // "Sign within 7 days") — empty for ordinary rows.
-        { runs: [{ bind: "coalesce(item.badge, '')" }], style_ref: "li_badge" }
-      ]),
-      textNode({ x: 322, y: 6, w: 90, h: 22 }, [
-        { bind: "item.quantity | qty(item.unit)" }
-      ], { style_ref: "body", align: "center" }),
-      textNode({ x: 412, y: 6, w: 112, h: 22 }, [
-        { bind: "coalesce(item.show_amount, true) ? (item.amount_cents | money) : 'Included'" }
-      ], { style_ref: "li_amount", align: "right" })
-    ]
-  });
-  const liTotals = FMDocModel.createNode("frame", {
-    frame: { x: 0, y: 0, w: DESIGN_WIDTH, h: 90 },
-    props: { flow: { direction: "column", gap: 2, padding: [8, 8, 4, 8] } },
-    children: [
-      textBlocksNode({ x: 212, y: 8, w: 312, h: 76 }, [
-        { runs: [{ text: "Subtotal   " }, { bind: "computed.subtotal_cents | money" }], style_ref: "body", align: "right" },
-        // Conditional pricing adjustments (ACH/card/early-signing rows) —
-        // blank when nothing applies under the current checkout state.
-        { runs: [{ bind: "coalesce(computed.adjustments_cents, 0) != 0 ? concat('Adjustments   ', (computed.adjustments_cents | money)) : ''" }], style_ref: "body", align: "right" },
-        { runs: [{ text: "Tax (" }, { bind: "coalesce(params.tax_percent, 0)" }, { text: "%)   " }, { bind: "computed.tax_cents | money" }], style_ref: "body", align: "right" },
-        { runs: [{ text: "Total   " }, { bind: "computed.total_cents | money" }], style_ref: "li_total", align: "right" }
-      ])
-    ]
-  });
+  const liHeader = componentRow([
+    headerText("Item", "left", { grow: 1 }),
+    headerText("Qty", "center", { w: LI_QTY_WIDTH }),
+    headerText("Amount", "right", { w: LI_AMOUNT_WIDTH })
+  ], { gap: 8, padding: [5, 8, 5, 8], fill: "var(--fm-primary)", align: "center" });
+  const liRow = componentRow([
+    flowBlocks([
+      // scope_rows are the flat projection: children get an indent label,
+      // parents keep the rolled-up amount (see flattenScopeRows).
+      { runs: [{ bind: "concat(coalesce(item.indent_label, ''), coalesce(item.display_name, item.name))" }], style_ref: "li_name" },
+      { runs: [{ bind: "coalesce(item.description, '')" }], style_ref: "li_meta" },
+      // Conditional-pricing badge chip ("Pay by bank", "3% card fee",
+      // "Sign within 7 days") — empty for ordinary rows.
+      { runs: [{ bind: "coalesce(item.badge, '')" }], style_ref: "li_badge" }
+    ], { grow: 1 }),
+    flowText([{ bind: "item.quantity | qty(item.unit)" }], { style_ref: "body", align: "center", w: LI_QTY_WIDTH }),
+    flowText([
+      { bind: "coalesce(item.show_amount, true) ? (item.amount_cents | money) : 'Included'" }
+    ], { style_ref: "li_amount", align: "right", w: LI_AMOUNT_WIDTH })
+  ], { gap: 8, padding: [6, 8, 6, 8] });
+  const liTotals = componentColumn([
+    flowBlocks([
+      { runs: [{ text: "Subtotal   " }, { bind: "computed.subtotal_cents | money" }], style_ref: "body", align: "right" },
+      // Conditional pricing adjustments (ACH/card/early-signing rows) —
+      // blank when nothing applies under the current checkout state.
+      { runs: [{ bind: "coalesce(computed.adjustments_cents, 0) != 0 ? concat('Adjustments   ', (computed.adjustments_cents | money)) : ''" }], style_ref: "body", align: "right" },
+      { runs: [{ text: "Tax (" }, { bind: "coalesce(params.tax_percent, 0)" }, { text: "%)   " }, { bind: "computed.tax_cents | money" }], style_ref: "body", align: "right" },
+      { runs: [{ text: "Total   " }, { bind: "computed.total_cents | money" }], style_ref: "li_total", align: "right" }
+    ])
+  ], { padding: [8, 8, 4, 8] });
   return {
     li_header: { params: {}, root: liHeader },
     li_row: { params: { item: { type: "pricebook_line" } }, root: liRow },
     li_totals: { params: {}, root: liTotals }
   };
+}
+
+/** Named styles the line-item components reference. */
+export function lineItemStyles(): JsonObject {
+  return {
+    li_name: { family: "var(--fm-body-font)", size_pt: 10.5, weight: 700, color: "var(--fm-text)" },
+    li_meta: { family: "var(--fm-body-font)", size_pt: 8.5, weight: 400, color: "var(--fm-color-muted)" },
+    li_amount: { family: "var(--fm-body-font)", size_pt: 10.5, weight: 700, color: "var(--fm-text)" },
+    li_total: { family: "var(--fm-display-font)", size_pt: 13, weight: 800, color: "var(--fm-text)" }
+  };
+}
+
+/** Header + rows + totals of a line-item table, as blocks of a page body. */
+export function lineItemBlocks(source: string, emptyText: string, tail: JsonObject[] = [flowComponent("li_totals")]): JsonObject[] {
+  return [
+    flowComponent("li_header"),
+    flowRepeater({
+      // scope_rows = the server's flat, depth-annotated projection of the
+      // scope tree (one instance per row, children indented, parents carry
+      // the rolled-up amount). Binding the raw tree here renders exactly one
+      // row per top-level assembly.
+      source,
+      component: "li_row",
+      as: "row",
+      layout: { direction: "column", columns: 1, gap_pt: 2 },
+      break_rules: { repeat_header: true, header_component: "li_header", min_rows_per_segment: 2, keep_with_next: [] },
+      empty_text: emptyText
+    }),
+    ...tail
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -373,53 +388,42 @@ function proposalLineItemComponents(): JsonObject {
 // ---------------------------------------------------------------------------
 
 function mediaTextRowChildren(mirror: boolean): JsonObject[] {
-  const mediaX = mirror ? 352 : 0;
-  const textX = mirror ? 0 : 196;
-  const inlineImage = FMDocModel.createNode("image", {
-    frame: { x: mediaX, y: 4, w: 180, h: 120 },
-    props: { fit: "cover", alt: "Project detail" }
-  }) as JsonObject;
+  const inlineImage = flowImage("block.media", { w: 180, h: 120 }, { alt: "Project detail" });
   inlineImage.bind = {
     props: { "props.media": "{{block.media}}" },
     if: "not_empty(coalesce(block.media.media_id, block.media.url, '')) && coalesce(block.display, 'inline') != 'popup' && !not_empty(coalesce(block.video.url, block.video, ''))"
   };
-  const popup = widgetNode("doc.media_popup@1", {
+  const popup = flowWidget("doc.media_popup@1", {
     media: "{{block.media}}",
     video_url: "{{coalesce(block.video.url, block.video, '')}}",
     caption: "{{coalesce(block.title, '')}}",
     thumb_size_pt: 132
-  }, { x: mediaX, y: 4, w: 180, h: 120 }) as JsonObject;
+  }, { w: 180, h: 120 });
   popup.bind = {
     if: "(coalesce(block.display, 'inline') == 'popup' || not_empty(coalesce(block.video.url, block.video, ''))) && (not_empty(coalesce(block.media.media_id, block.media.url, '')) || not_empty(coalesce(block.video.url, block.video, '')))"
   };
-  const text = textBlocksNode({ x: textX, y: 4, w: 336, h: 120 }, [
+  const text = mediaTextRowText();
+  return mirror ? [text, inlineImage, popup] : [inlineImage, popup, text];
+}
+
+function mediaTextRowText(): JsonObject {
+  return flowBlocks([
     { runs: [{ bind: "coalesce(block.title, '')" }], style_ref: "cb_title" },
     { runs: [{ bind: "coalesce(block.body, '')" }], style_ref: "cb_body" }
-  ]);
-  return [inlineImage, popup, text];
+  ], { grow: 1 });
 }
 
 function mediaTextRowComponent(): JsonObject {
   return {
     media_text_row: {
       params: { block: { type: "object" } },
-      root: FMDocModel.createNode("frame", {
-        frame: { x: 0, y: 0, w: DESIGN_WIDTH, h: 128 },
-        children: mediaTextRowChildren(false)
-      }),
+      root: componentRow(mediaTextRowChildren(false), { gap: 16 }),
       // deepMerge replaces arrays wholesale, so each variant carries its FULL
       // children set; media_left is the root layout (empty patch).
       variants: {
         media_left: {},
         media_right: { children: mediaTextRowChildren(true) },
-        text_only: {
-          children: [
-            textBlocksNode({ x: 0, y: 4, w: DESIGN_WIDTH, h: 120 }, [
-              { runs: [{ bind: "coalesce(block.title, '')" }], style_ref: "cb_title" },
-              { runs: [{ bind: "coalesce(block.body, '')" }], style_ref: "cb_body" }
-            ])
-          ]
-        }
+        text_only: { children: [mediaTextRowText()] }
       }
     }
   };
@@ -435,28 +439,19 @@ function contentBlockStyles(): JsonObject {
 }
 
 /**
- * Flow frame with the content-blocks repeater (details pages). "auto" rows
- * alternate media_left/media_right by index; per-row layout overrides.
+ * Content-blocks repeater (details pages). "auto" rows alternate
+ * media_left/media_right by index; per-row layout overrides.
  */
-function contentBlocksFlow(source: string, frame: Frame): JsonObject {
-  const repeater = FMDocModel.createNode("repeater", {
-    frame: { x: 0, y: 0, w: DESIGN_WIDTH, h: 480 },
-    props: {
-      source,
-      component: "media_text_row",
-      as: "block",
-      layout: { direction: "column", columns: 1, gap_pt: 16 },
-      variant_by_index: ["media_left", "media_right"],
-      break_rules: { repeat_header: false, min_rows_per_segment: 1, keep_with_next: [] },
-      empty_text: "No project details added yet."
-    }
-  }) as JsonObject;
-  repeater.anchor = "flow";
-  return FMDocModel.createNode("frame", {
-    frame: { ...frame, layout: "flow" },
-    props: { flow: { direction: "column", gap: 10, padding: [0, 0, 0, 0] }, overflow: "paginate" },
-    children: [repeater]
-  }) as JsonObject;
+function contentBlocksRepeater(source: string): JsonObject {
+  return flowRepeater({
+    source,
+    component: "media_text_row",
+    as: "block",
+    layout: { direction: "column", columns: 1, gap_pt: 16 },
+    variant_by_index: ["media_left", "media_right"],
+    break_rules: { repeat_header: false, min_rows_per_segment: 1, keep_with_next: [] },
+    empty_text: "No project details added yet."
+  });
 }
 
 /**
@@ -504,153 +499,120 @@ function defaultPricingAdjustments(): JsonObject[] {
 
 /** Flow-anchored repeater rendering the enriched adjustment rows via li_row. */
 function pricingAdjustmentsRepeater(): JsonObject {
-  const repeater = FMDocModel.createNode("repeater", {
-    frame: { x: 0, y: 0, w: DESIGN_WIDTH, h: 40 },
-    props: {
-      // params.pricing_rows is the server enrichment's flat projection
-      // (excluded rows dropped); raw pricing_adjustments is the pre-resolve
-      // fallback so the template previews sensibly.
-      source: "{{coalesce(params.pricing_rows, params.pricing_adjustments)}}",
-      component: "li_row",
-      as: "row",
-      layout: { direction: "column", columns: 1, gap_pt: 2 },
-      empty_text: ""
-    }
-  }) as JsonObject;
-  repeater.anchor = "flow";
-  return repeater;
+  return flowRepeater({
+    // params.pricing_rows is the server enrichment's flat projection
+    // (excluded rows dropped); raw pricing_adjustments is the pre-resolve
+    // fallback so the template previews sensibly.
+    source: "{{coalesce(params.pricing_rows, params.pricing_adjustments)}}",
+    component: "li_row",
+    as: "row",
+    layout: { direction: "column", columns: 1, gap_pt: 2 },
+    empty_text: ""
+  });
 }
 
-/** Shared proposal cover children (standard + three-option templates). */
-function proposalCoverChildren(kicker: string): JsonObject[] {
+/** A seeded theme's definition, for fitting template pages to its margins. */
+export function seedThemeDefinition(themeId: string): JsonObject {
+  const seed = THEME_SEEDS.find((theme) => theme.id === themeId);
+  return seed ? seed.definition() : {};
+}
+
+/** Empty document on a seeded page style; add pages with addFlowPage. */
+export function startFlowTemplate(themeId: string, documentType: string, options: { orientation?: string; paper?: string } = {}) {
+  const doc = asObject(FMDocModel.createDocument({
+    kind: "document",
+    first_page_role: "body",
+    theme_ref: { theme_id: themeId },
+    metadata: { document_type: documentType },
+    ...options
+  }));
+  return { doc, theme: seedThemeDefinition(themeId) };
+}
+
+function mutedFont(sizePt = 10.5): JsonObject {
+  return { family: "var(--fm-body-font)", size_pt: sizePt, color: "var(--fm-color-muted)" };
+}
+
+/** Shared proposal cover blocks (standard + three-option templates). */
+function proposalCoverBlocks(kicker: string): JsonObject[] {
   return [
-    // Theme-neutral design coordinates. Page masters map this conventional
-    // 40pt box into their own safe area when rendered.
-    orgLogoNode({ x: DESIGN_LEFT, y: 28, w: 190, h: 40 }),
-    textNode({ x: DESIGN_LEFT, y: 90, w: DESIGN_WIDTH, h: 24 }, [{ text: kicker }], {
+    flowLogo({ w: 190, h: 40 }),
+    flowSpacer(10),
+    flowText([{ text: kicker }], {
       font: { family: "var(--fm-display-font)", size_pt: 11, weight: 800, color: "var(--fm-color-muted)", transform: "uppercase" }
     }),
-    textNode({ x: DESIGN_LEFT, y: 118, w: DESIGN_WIDTH, h: 72 }, [
+    flowText([
       { text: "Proposal", bind: "coalesce(params.project.title, project.title, 'Proposal')" }
     ], { style_ref: "h1" }),
-    imageNode({ x: DESIGN_LEFT, y: 210, w: DESIGN_WIDTH, h: 250 }, "params.hero_photo"),
-    textNode({ x: DESIGN_LEFT, y: 490, w: 256, h: 60 }, [
-      { text: "Prepared for\n", font: { size_pt: 8.5, weight: 800, color: "var(--fm-color-muted)", transform: "uppercase" } },
+    flowImage("params.hero_photo", { h: 250 }),
+    flowSpacer(10),
+    flowRow([
       // params.customer when the doc was created with an explicit customer,
       // else the top-level customer entity (primary project contact).
-      { text: "", bind: "coalesce(params.customer.name, customer.name, 'Customer')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 12, weight: 700 } }),
-    textNode({ x: 316, y: 490, w: 256, h: 60 }, [
-      { text: "Prepared by\n", font: { size_pt: 8.5, weight: 800, color: "var(--fm-color-muted)", transform: "uppercase" } },
-      { text: "", bind: "coalesce(org.name, 'Our Company')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 12, weight: 700 } }),
-    textNode({ x: DESIGN_LEFT, y: 560, w: DESIGN_WIDTH, h: 40 }, [
+      labeledText("Prepared for", [{ text: "", bind: "coalesce(params.customer.name, customer.name, 'Customer')" }], { grow: 1, size_pt: 12 }),
+      labeledText("Prepared by", [{ text: "", bind: "coalesce(org.name, 'Our Company')" }], { grow: 1, size_pt: 12 })
+    ], { gap: 20 }),
+    flowText([
       { text: "", bind: "coalesce(params.project.address, project.address, '')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 11, color: "var(--fm-color-muted)" } })
+    ], { font: mutedFont(11) })
   ];
 }
 
-/** Shared proposal signature-page children. */
-function proposalSignaturePageChildren(): JsonObject[] {
+/** Shared proposal signature-page blocks. */
+function proposalSignatureBlocks(): JsonObject[] {
   return [
-    textNode({ x: DESIGN_LEFT, y: 60, w: DESIGN_WIDTH, h: 28 }, [{ text: "Agreement" }], { style_ref: "h2" }),
-    textNode({ x: DESIGN_LEFT, y: 96, w: DESIGN_WIDTH, h: 48 }, [
+    flowText([{ text: "Agreement" }], { style_ref: "h2" }),
+    flowText([
       { text: "By signing below you accept this proposal and authorize the work described in the scope pages." }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 10.5, color: "var(--fm-color-muted)" } }),
-    widgetNode("doc.payment_schedule@1", { source: "params.payment_schedule" }, { x: DESIGN_LEFT, y: 160, w: DESIGN_WIDTH, h: 170 }),
-    widgetNode("doc.signature@1", { output: "sig_customer", label: "Customer Signature", signer: "customer" }, { x: DESIGN_LEFT, y: 370, w: 360, h: 90 }),
-    widgetNode("doc.pay_now@1", { label: "Deposit due" }, { x: DESIGN_LEFT, y: 490, w: 360, h: 90 }),
-    widgetNode("doc.qr@1", { label: "Review and sign online" }, { x: 452, y: 470, w: 120, h: 130 })
+    ], { font: mutedFont() }),
+    flowWidget("doc.payment_schedule@1", { source: "params.payment_schedule" }),
+    flowSpacer(8),
+    flowRow([
+      flowColumn([
+        flowWidget("doc.signature@1", { output: "sig_customer", label: "Customer Signature", signer: "customer" }, { h: 90 }),
+        flowWidget("doc.pay_now@1", { label: "Deposit due" }, { h: 90 })
+      ], { grow: 1, gap: 20 }),
+      flowWidget("doc.qr@1", { label: "Review and sign online" }, { w: 120, h: 130 })
+    ], { gap: 24 })
   ];
 }
 
 function proposalTemplateDefinition(): JsonObject {
-  const doc = asObject(FMDocModel.createDocument({
-    kind: "document",
-    first_page_role: "cover",
-    theme_ref: { theme_id: "thm_margin" },
-    metadata: { document_type: "proposal" }
-  }));
-  const cover = asObject((doc.pages as JsonObject[])[0]);
-  cover.role = "cover";
-  cover.name = "Cover";
-  cover.children = proposalCoverChildren("PROJECT PROPOSAL");
+  const { doc, theme } = startFlowTemplate("thm_margin", "proposal");
+  addFlowPage(doc, theme, "cover", "Cover", proposalCoverBlocks("PROJECT PROPOSAL"));
 
   // Project details (spec §10.1): workflow-editable content blocks — media +
   // text rows alternating left/right, popup media via the doc.media_popup
   // widget chip inside media_text_row.
-  const details = asObject(FMDocModel.createPage("body", { name: "Project details" }));
-  details.children = [
-    textNode({ x: DESIGN_LEFT, y: 60, w: DESIGN_WIDTH, h: 28 }, [{ text: "Project details" }], { style_ref: "h2" }),
-    contentBlocksFlow("{{params.content_blocks}}", { x: DESIGN_LEFT, y: 100, w: DESIGN_WIDTH, h: 560 })
-  ];
+  addFlowPage(doc, theme, "body", "Project details", [
+    flowText([{ text: "Project details" }], { style_ref: "h2" }),
+    contentBlocksRepeater("{{params.content_blocks}}")
+  ]);
 
-  // Pricing page (v2): the doc.line_items WIDGET is replaced by a repeater
-  // over li_row component instances inside a paginating flow frame. The
-  // column header is a flow-anchored li_header component_ref ABOVE the
-  // repeater; break_rules.repeat_header re-renders it per page segment
-  // (header_component per the renderer contract). Totals stay a component_ref
-  // bound to doc.computed subtotal/tax/total.
-  const pricing = asObject(FMDocModel.createPage("pricing", { name: "Pricing" }));
-  const lineItemsRepeater = FMDocModel.createNode("repeater", {
-    frame: { x: 0, y: 0, w: DESIGN_WIDTH, h: 320 },
-    props: {
-      // scope_rows = the server's flat, depth-annotated projection of the
-      // scope tree (one instance per row, children indented, parents carry
-      // the rolled-up amount). Binding the raw tree here renders exactly one
-      // row per top-level assembly.
-      source: "{{coalesce(params.scope_rows, params.scope_items)}}",
-      component: "li_row",
-      as: "row",
-      layout: { direction: "column", columns: 1, gap_pt: 2 },
-      break_rules: { repeat_header: true, header_component: "li_header", min_rows_per_segment: 2, keep_with_next: [] },
-      empty_text: "No scope items selected yet."
-    }
-  });
-  lineItemsRepeater.anchor = "flow";
-  const pricingHeaderRef = componentRefNode("li_header", { x: 0, y: 0, w: DESIGN_WIDTH, h: 22 });
-  const pricingTotalsRef = componentRefNode("li_totals", { x: 0, y: 0, w: DESIGN_WIDTH, h: 76 });
-  // Flow participation is anchor-driven in the v2 renderer — without these,
-  // the header/repeater/totals stack absolutely at y=0 and overlap.
-  (pricingHeaderRef as JsonObject).anchor = "flow";
-  (pricingTotalsRef as JsonObject).anchor = "flow";
-  const pricingFlow = FMDocModel.createNode("frame", {
-    // layout:"flow" is what makes the renderer stack children as a flex
-    // column — props.flow alone configures HOW a flow lays out, not WHETHER
-    // the frame flows (leaving layout at the default "absolute" stacked the
-    // header/repeater/totals all at y=0).
-    frame: { x: DESIGN_LEFT, y: 100, w: DESIGN_WIDTH, h: 560, layout: "flow" },
-    props: { flow: { direction: "column", gap: 6, padding: [0, 0, 0, 0] }, overflow: "paginate" },
-    // Conditional pricing adjustments render between the scope rows and the
-    // totals (spec §10.4 seeded examples).
-    children: [pricingHeaderRef, lineItemsRepeater, pricingAdjustmentsRepeater(), pricingTotalsRef]
-  });
-  pricing.children = [
-    textNode({ x: DESIGN_LEFT, y: 60, w: DESIGN_WIDTH, h: 28 }, [{ text: "Scope & Pricing" }], { style_ref: "h2" }),
-    pricingFlow
-  ];
+  // Pricing page: li_header, a repeater over li_row instances, the
+  // conditional pricing adjustments (spec §10.4) and li_totals are blocks of
+  // the paginating body, so a long scope continues onto further pages.
+  addFlowPage(doc, theme, "pricing", "Pricing", [
+    flowText([{ text: "Scope & Pricing" }], { style_ref: "h2" }),
+    flowSpacer(4),
+    ...lineItemBlocks("{{coalesce(params.scope_rows, params.scope_items)}}", "No scope items selected yet.", [
+      pricingAdjustmentsRepeater(),
+      flowComponent("li_totals")
+    ])
+  ], { gap: 4 });
 
-  const signature = asObject(FMDocModel.createPage("signature", { name: "Sign & Pay" }));
-  signature.children = proposalSignaturePageChildren();
+  addFlowPage(doc, theme, "signature", "Sign & Pay", proposalSignatureBlocks());
 
-  const finePrint = asObject(FMDocModel.createPage("fine_print", { name: "Terms" }));
-  finePrint.children = [
-    textNode({ x: DESIGN_LEFT, y: 60, w: DESIGN_WIDTH, h: 24 }, [{ text: "Terms & Conditions" }], { style_ref: "h2" }),
-    textNode({ x: DESIGN_LEFT, y: 96, w: DESIGN_WIDTH, h: 600 }, [
+  addFlowPage(doc, theme, "fine_print", "Terms", [
+    flowText([{ text: "Terms & Conditions" }], { style_ref: "h2" }),
+    flowText([
       { text: "This proposal is valid for 30 days from the date issued. Work will be scheduled after the signed agreement and deposit are received. Any changes to the scope of work require a written change order. Manufacturer warranties apply to materials; workmanship is warranted per the agreement terms. Payment is due per the payment schedule on the signature page." }
     ], { style_ref: "legal" })
-  ];
+  ]);
 
-  doc.pages = [cover, details, pricing, signature, finePrint];
-  // v2: named styles the pricing components reference (theme type_styles carry
+  // Named styles the pricing components reference (theme type_styles carry
   // h1/h2/body/caption/legal; these are the doc-level additions).
-  doc.styles = {
-    li_name: { family: "var(--fm-body-font)", size_pt: 10.5, weight: 700, color: "var(--fm-text)" },
-    li_meta: { family: "var(--fm-body-font)", size_pt: 8.5, weight: 400, color: "var(--fm-color-muted)" },
-    li_amount: { family: "var(--fm-body-font)", size_pt: 10.5, weight: 700, color: "var(--fm-text)" },
-    li_total: { family: "var(--fm-display-font)", size_pt: 13, weight: 800, color: "var(--fm-text)" },
-    ...contentBlockStyles()
-  };
+  doc.styles = { ...lineItemStyles(), ...contentBlockStyles() };
   doc.components = { ...proposalLineItemComponents(), ...mediaTextRowComponent() };
   // Pricing math the totals component and portal read; rows carry cents after
   // server enrichment (service.ts enrichLineItemParams). Adjustments are the
@@ -687,40 +649,33 @@ function proposalTemplateDefinition(): JsonObject {
 }
 
 function invoiceTemplateDefinition(): JsonObject {
-  const doc = asObject(FMDocModel.createDocument({
-    kind: "document",
-    first_page_role: "body",
-    theme_ref: { theme_id: "thm_clean" },
-    metadata: { document_type: "invoice" }
-  }));
-  const page = asObject((doc.pages as JsonObject[])[0]);
-  page.name = "Invoice";
-  page.children = [
-    // Clean theme: logo lives inside the 52pt header bar.
-    orgLogoNode({ x: 44, y: 10, w: 150, h: 32 }),
-    textNode({ x: 44, y: 80, w: 320, h: 30 }, [
+  const { doc, theme } = startFlowTemplate("thm_clean", "invoice");
+  addFlowPage(doc, theme, "body", "Invoice", [
+    flowLogo({ w: 150, h: 32 }),
+    flowText([
       { text: "Invoice " },
       { text: "", bind: "coalesce(params.invoice_number, '')" }
     ], { font: { family: "var(--fm-display-font)", size_pt: 20, weight: 800 } }),
-    textNode({ x: 44, y: 116, w: 320, h: 52 }, [
-      { text: "Billed to\n", font: { size_pt: 8.5, weight: 800, color: "var(--fm-color-muted)", transform: "uppercase" } },
-      { text: "", bind: "coalesce(params.customer.name, customer.name, 'Customer')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 11, weight: 700 } }),
-    textNode({ x: 404, y: 116, w: 164, h: 52 }, [
-      { text: "Due\n", font: { size_pt: 8.5, weight: 800, color: "var(--fm-color-muted)", transform: "uppercase" } },
-      { text: "", bind: "params.due_date | date" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 11, weight: 700 }, align: "right" }),
-    widgetNode("doc.line_items@1", {
+    flowRow([
+      labeledText("Billed to", [{ text: "", bind: "coalesce(params.customer.name, customer.name, 'Customer')" }], { grow: 1 }),
+      labeledText("Due", [{ text: "", bind: "params.due_date | date" }], { w: 164, align: "right" })
+    ]),
+    flowSpacer(6),
+    flowWidget("doc.line_items@1", {
       source: "params.line_items",
       show_prices: true,
       depth: 1,
       columns: ["name", "description", "qty", "unit_price", "amount"]
-    }, { x: 44, y: 190, w: 524, h: 330 }),
-    widgetNode("doc.payment_schedule@1", { source: "params.payment_schedule" }, { x: 44, y: 540, w: 330, h: 120 }),
-    widgetNode("doc.pay_now@1", { label: "Amount due", source: "params.amount_due_cents" }, { x: 404, y: 540, w: 164, h: 90 }),
-    widgetNode("doc.qr@1", { label: "Pay online" }, { x: 404, y: 644, w: 100, h: 104 })
-  ];
-  doc.pages = [page];
+    }),
+    flowSpacer(6),
+    flowRow([
+      flowWidget("doc.payment_schedule@1", { source: "params.payment_schedule" }, { grow: 1 }),
+      flowColumn([
+        flowWidget("doc.pay_now@1", { label: "Amount due", source: "params.amount_due_cents" }, { h: 90 }),
+        flowWidget("doc.qr@1", { label: "Pay online" }, { w: 100, h: 104 })
+      ], { w: 164, gap: 14 })
+    ], { gap: 24 })
+  ]);
   doc.params = {
     project: { type: "entity", entity: "project" },
     customer: { type: "entity", entity: "contact" },
@@ -738,42 +693,33 @@ function invoiceTemplateDefinition(): JsonObject {
 }
 
 function changeOrderTemplateDefinition(): JsonObject {
-  const doc = asObject(FMDocModel.createDocument({
-    kind: "document",
-    first_page_role: "body",
-    theme_ref: { theme_id: "thm_margin" },
-    metadata: { document_type: "change_order" }
-  }));
-  const page = asObject((doc.pages as JsonObject[])[0]);
-  page.name = "Change Order";
-  page.children = [
-    // Margin theme: logo top-left beside the brand rail.
-    orgLogoNode({ x: 96, y: 24, w: 170, h: 36 }),
-    textNode({ x: 96, y: 70, w: 460, h: 30 }, [{ text: "Change Order" }], { style_ref: "h1" }),
-    textNode({ x: 96, y: 108, w: 460, h: 44 }, [
+  const { doc, theme } = startFlowTemplate("thm_margin", "change_order");
+  addFlowPage(doc, theme, "body", "Change Order", [
+    flowLogo(),
+    flowText([{ text: "Change Order" }], { style_ref: "h1" }),
+    flowText([
       { text: "", bind: "coalesce(params.project.title, project.title, '')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 11, color: "var(--fm-color-muted)" } }),
-    textNode({ x: 96, y: 156, w: 460, h: 70 }, [
-      { text: "Reason for change\n", font: { size_pt: 8.5, weight: 800, color: "var(--fm-color-muted)", transform: "uppercase" } },
-      { text: "", bind: "coalesce(params.reason, '')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 10.5 } }),
-    widgetNode("doc.line_items@1", {
+    ], { font: mutedFont(11) }),
+    labeledText("Reason for change", [{ text: "", bind: "coalesce(params.reason, '')" }], { size_pt: 10.5 }),
+    flowSpacer(6),
+    flowWidget("doc.line_items@1", {
       source: "params.scope_items",
       show_prices: true,
       depth: 1
-    }, { x: 96, y: 240, w: 460, h: 280 })
-  ];
-  const signPage = asObject(FMDocModel.createPage("signature", { name: "Approval" }));
-  signPage.children = [
-    textNode({ x: 96, y: 70, w: 460, h: 26 }, [{ text: "Approval" }], { style_ref: "h2" }),
-    textNode({ x: 96, y: 104, w: 460, h: 44 }, [
+    })
+  ]);
+  addFlowPage(doc, theme, "signature", "Approval", [
+    flowText([{ text: "Approval" }], { style_ref: "h2" }),
+    flowText([
       { text: "Signing this change order approves the added scope and pricing above as an amendment to the original agreement." }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 10, color: "var(--fm-color-muted)" } }),
-    widgetNode("doc.payment_schedule@1", { source: "params.payment_schedule" }, { x: 96, y: 170, w: 460, h: 140 }),
-    widgetNode("doc.signature@1", { output: "sig_customer", label: "Customer Signature", signer: "customer" }, { x: 96, y: 340, w: 300, h: 90 }),
-    widgetNode("doc.qr@1", { label: "Approve online" }, { x: 436, y: 330, w: 120, h: 130 })
-  ];
-  doc.pages = [page, signPage];
+    ], { font: mutedFont(10) }),
+    flowWidget("doc.payment_schedule@1", { source: "params.payment_schedule" }),
+    flowSpacer(8),
+    flowRow([
+      flowWidget("doc.signature@1", { output: "sig_customer", label: "Customer Signature", signer: "customer" }, { grow: 1, h: 90 }),
+      flowWidget("doc.qr@1", { label: "Approve online" }, { w: 120, h: 130 })
+    ], { gap: 24 })
+  ]);
   doc.params = {
     project: { type: "entity", entity: "project" },
     customer: { type: "entity", entity: "contact" },
@@ -799,39 +745,32 @@ function changeOrderTemplateDefinition(): JsonObject {
  * at the next invoice) instead of demanding payment at selection time.
  */
 function kitchenSelectionsTemplateDefinition(): JsonObject {
-  const doc = asObject(FMDocModel.createDocument({
-    kind: "document",
-    first_page_role: "body",
-    theme_ref: { theme_id: "thm_clean" },
-    metadata: { document_type: "change_order" }
-  }));
-  const page = asObject((doc.pages as JsonObject[])[0]);
-  page.name = "Material Selections";
-  page.children = [
-    orgLogoNode({ x: 96, y: 24, w: 170, h: 36 }),
-    textNode({ x: 96, y: 70, w: 460, h: 30 }, [{ text: "Material Selections" }], { style_ref: "h1" }),
-    textNode({ x: 96, y: 108, w: 460, h: 30 }, [
+  const { doc, theme } = startFlowTemplate("thm_clean", "change_order");
+  addFlowPage(doc, theme, "body", "Material Selections", [
+    flowLogo(),
+    flowText([{ text: "Material Selections" }], { style_ref: "h1" }),
+    flowText([
       { text: "", bind: "coalesce(params.project.title, project.title, '')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 11, color: "var(--fm-color-muted)" } }),
-    textNode({ x: 96, y: 144, w: 460, h: 52 }, [
+    ], { font: mutedFont(11) }),
+    flowText([
       { text: "Standard options are covered in full by your allowances. Upgrade prices below are the amount added to your project total; they are billed on your next invoice." }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 10, color: "var(--fm-color-muted)" } }),
-    widgetNode("doc.line_items@1", {
+    ], { font: mutedFont(10) }),
+    flowSpacer(6),
+    flowWidget("doc.line_items@1", {
       source: "params.scope_items",
       show_prices: true,
       depth: 2
-    }, { x: 96, y: 210, w: 460, h: 340 })
-  ];
-  const signPage = asObject(FMDocModel.createPage("signature", { name: "Approval" }));
-  signPage.children = [
-    textNode({ x: 96, y: 70, w: 460, h: 26 }, [{ text: "Selection Approval" }], { style_ref: "h2" }),
-    textNode({ x: 96, y: 104, w: 460, h: 44 }, [
+    })
+  ]);
+  addFlowPage(doc, theme, "signature", "Approval", [
+    flowText([{ text: "Selection Approval" }], { style_ref: "h2" }),
+    flowText([
       { text: "Signing approves the selected materials. Any upgrade total above is added to the project's payment schedule as a selections adjustment." }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 10, color: "var(--fm-color-muted)" } }),
-    widgetNode("doc.payment_schedule@1", { source: "params.payment_schedule" }, { x: 96, y: 170, w: 460, h: 120 }),
-    widgetNode("doc.signature@1", { output: "sig_customer", label: "Customer Signature", signer: "customer" }, { x: 96, y: 320, w: 300, h: 90 })
-  ];
-  doc.pages = [page, signPage];
+    ], { font: mutedFont(10) }),
+    flowWidget("doc.payment_schedule@1", { source: "params.payment_schedule" }),
+    flowSpacer(8),
+    flowWidget("doc.signature@1", { output: "sig_customer", label: "Customer Signature", signer: "customer" }, { w: 300, h: 90 })
+  ]);
   doc.params = {
     project: { type: "entity", entity: "project" },
     customer: { type: "entity", entity: "contact" },
@@ -935,37 +874,29 @@ function kitchenSelectionsWorkflowDefinition(): JsonObject {
 // ---------------------------------------------------------------------------
 
 function moneyReportTemplateDefinition(): JsonObject {
-  const doc = asObject(FMDocModel.createDocument({
-    kind: "document",
-    first_page_role: "body",
-    theme_ref: { theme_id: "thm_clean" },
-    metadata: { document_type: "report" }
-  }));
-  const page = asObject((doc.pages as JsonObject[])[0]);
-  page.name = "Job Cost";
-  page.children = [
-    orgLogoNode({ x: 44, y: 10, w: 150, h: 32 }),
-    textNode({ x: 44, y: 80, w: 420, h: 30 }, [
+  const { doc, theme } = startFlowTemplate("thm_clean", "report");
+  addFlowPage(doc, theme, "body", "Job Cost", [
+    flowLogo({ w: 150, h: 32 }),
+    flowText([
       { text: "", bind: "coalesce(params.report_title, 'Job Cost Report')" }
     ], { font: { family: "var(--fm-display-font)", size_pt: 20, weight: 800 } }),
-    textNode({ x: 44, y: 114, w: 420, h: 40 }, [
+    flowText([
       { text: "", bind: "coalesce(params.project.title, project.title, '')" },
       { text: "\n", font: { size_pt: 4 } },
       { text: "", bind: "coalesce(params.project.address, project.address, '')", font: { size_pt: 9, color: "var(--fm-color-muted)" } }
     ], { font: { family: "var(--fm-body-font)", size_pt: 11, weight: 700 } }),
-    widgetNode("doc.money_metrics@1", {}, { x: 44, y: 170, w: 524, h: 150 }),
-    textNode({ x: 44, y: 340, w: 420, h: 22 }, [{ text: "Expenses — projected vs. actual" }], { style_ref: "h2" }),
-    widgetNode("doc.expense_breakdown@1", {}, { x: 44, y: 368, w: 524, h: 330 })
-  ];
-  const paymentsPage = asObject(FMDocModel.createPage("body", { name: "Payments" }));
-  paymentsPage.children = [
-    textNode({ x: 44, y: 70, w: 420, h: 22 }, [{ text: "Payment history" }], { style_ref: "h2" }),
-    widgetNode("doc.payment_history@1", {}, { x: 44, y: 100, w: 524, h: 520 }),
-    textNode({ x: 44, y: 640, w: 524, h: 60 }, [
+    flowWidget("doc.money_metrics@1", {}),
+    flowSpacer(6),
+    flowText([{ text: "Expenses — projected vs. actual" }], { style_ref: "h2" }),
+    flowWidget("doc.expense_breakdown@1", {})
+  ]);
+  addFlowPage(doc, theme, "body", "Payments", [
+    flowText([{ text: "Payment history" }], { style_ref: "h2" }),
+    flowWidget("doc.payment_history@1", {}),
+    flowText([
       { text: "", bind: "coalesce(params.notes, '')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 9.5, color: "var(--fm-color-muted)" } })
-  ];
-  doc.pages = [page, paymentsPage];
+    ], { font: mutedFont(9.5) })
+  ]);
   doc.params = {
     project: { type: "entity", entity: "project" },
     report_title: { type: "string" },
@@ -978,28 +909,20 @@ function moneyReportTemplateDefinition(): JsonObject {
 }
 
 function payrollReportTemplateDefinition(): JsonObject {
-  const doc = asObject(FMDocModel.createDocument({
-    kind: "document",
-    first_page_role: "body",
-    orientation: "landscape",
-    theme_ref: { theme_id: "thm_clean" },
-    metadata: { document_type: "payroll_report" }
-  }));
-  const page = asObject((doc.pages as JsonObject[])[0]);
-  page.name = "Payroll Report";
-  page.children = [
-    orgLogoNode({ x: 44, y: 10, w: 150, h: 32 }),
-    textNode({ x: 44, y: 80, w: 704, h: 30 }, [
+  const { doc, theme } = startFlowTemplate("thm_clean", "payroll_report", { orientation: "landscape" });
+  addFlowPage(doc, theme, "body", "Payroll Report", [
+    flowLogo({ w: 150, h: 32 }),
+    flowText([
       { text: "", bind: "coalesce(params.report_title, 'Payroll Report')" }
     ], { font: { family: "var(--fm-display-font)", size_pt: 20, weight: 800 } }),
-    textNode({ x: 44, y: 116, w: 704, h: 42 }, [
+    flowText([
       { text: "", bind: "coalesce(params.coverage_label, '')" },
       { text: "\nGenerated ", font: { size_pt: 8, color: "var(--fm-color-muted)" } },
       { text: "", bind: "params.generated_at | date", font: { size_pt: 8, color: "var(--fm-color-muted)" } }
     ], { font: { family: "var(--fm-body-font)", size_pt: 10, weight: 700 } }),
-    widgetNode("doc.report_table@1", { columns: "params.columns", rows: "params.rows" }, { x: 44, y: 174, w: 704, h: 380 })
-  ];
-  doc.pages = [page];
+    flowSpacer(4),
+    flowWidget("doc.report_table@1", { columns: "params.columns", rows: "params.rows" })
+  ]);
   doc.params = {
     report_title: { type: "string", required: true },
     coverage_label: { type: "string" },
@@ -1012,37 +935,31 @@ function payrollReportTemplateDefinition(): JsonObject {
 }
 
 function paymentReceiptTemplateDefinition(): JsonObject {
-  const doc = asObject(FMDocModel.createDocument({
-    kind: "document",
-    first_page_role: "body",
-    theme_ref: { theme_id: "thm_clean" },
-    metadata: { document_type: "payment_receipt" }
-  }));
-  const page = asObject((doc.pages as JsonObject[])[0]);
-  page.name = "Payment Receipt";
-  page.children = [
-    orgLogoNode({ x: 44, y: 10, w: 150, h: 32 }),
-    textNode({ x: 44, y: 88, w: 360, h: 34 }, [{ text: "Payment Receipt" }], {
-      font: { family: "var(--fm-display-font)", size_pt: 22, weight: 800 }
-    }),
-    textNode({ x: 404, y: 88, w: 164, h: 44 }, [
-      { text: "Receipt\n", font: { size_pt: 8, weight: 800, color: "var(--fm-color-muted)", transform: "uppercase" } },
-      { text: "", bind: "coalesce(params.receipt_number, '')" }
-    ], { align: "right", font: { family: "var(--fm-body-font)", size_pt: 10, weight: 700 } }),
-    textBlocksNode({ x: 44, y: 170, w: 524, h: 245 }, [
-      { runs: [{ text: "Received from\n", font: { size_pt: 8, weight: 800, color: "var(--fm-color-muted)" } }, { text: "", bind: "coalesce(params.customer.name, customer.name, 'Customer')" }] },
-      { runs: [{ text: "Project\n", font: { size_pt: 8, weight: 800, color: "var(--fm-color-muted)" } }, { text: "", bind: "coalesce(params.project.title, project.title, params.project.address, project.address, '')" }] },
-      { runs: [{ text: "Payment date\n", font: { size_pt: 8, weight: 800, color: "var(--fm-color-muted)" } }, { text: "", bind: "params.payment_date | date" }] },
-      { runs: [{ text: "Payment method\n", font: { size_pt: 8, weight: 800, color: "var(--fm-color-muted)" } }, { text: "", bind: "coalesce(params.payment_method, 'Payment')" }] }
+  const { doc, theme } = startFlowTemplate("thm_clean", "payment_receipt");
+  const label = (text: string): RunSpec => ({ text: `${text}\n`, font: { size_pt: 8, weight: 800, color: "var(--fm-color-muted)" } });
+  addFlowPage(doc, theme, "body", "Payment Receipt", [
+    flowLogo({ w: 150, h: 32 }),
+    flowRow([
+      flowText([{ text: "Payment Receipt" }], { grow: 1, font: { family: "var(--fm-display-font)", size_pt: 22, weight: 800 } }),
+      flowText([label("Receipt"), { text: "", bind: "coalesce(params.receipt_number, '')" }], {
+        w: 164, align: "right", font: { family: "var(--fm-body-font)", size_pt: 10, weight: 700 }
+      })
+    ]),
+    flowSpacer(16),
+    flowBlocks([
+      { runs: [label("Received from"), { text: "", bind: "coalesce(params.customer.name, customer.name, 'Customer')" }] },
+      { runs: [label("Project"), { text: "", bind: "coalesce(params.project.title, project.title, params.project.address, project.address, '')" }] },
+      { runs: [label("Payment date"), { text: "", bind: "params.payment_date | date" }] },
+      { runs: [label("Payment method"), { text: "", bind: "coalesce(params.payment_method, 'Payment')" }] }
     ], { font: { family: "var(--fm-body-font)", size_pt: 11, weight: 700 } }),
-    textNode({ x: 44, y: 450, w: 524, h: 90 }, [
+    flowSpacer(24),
+    flowText([
       { text: "Amount received\n", font: { size_pt: 9, weight: 800, color: "var(--fm-color-muted)" } },
       { text: "", bind: "params.amount_cents | money", font: { size_pt: 28, weight: 800, color: "var(--fm-color-primary)" } },
       { text: "\n", font: { size_pt: 5 } },
       { text: "", bind: "coalesce(params.status, 'Paid')", font: { size_pt: 10, weight: 800 } }
     ], { align: "right", font: { family: "var(--fm-display-font)" } })
-  ];
-  doc.pages = [page];
+  ]);
   doc.params = {
     project: { type: "entity", entity: "project" },
     customer: { type: "entity", entity: "contact" },
@@ -1315,42 +1232,35 @@ function onePageLegalTemplateDefinition(): JsonObject {
 // ---------------------------------------------------------------------------
 
 function optionSummaryComponents(): JsonObject {
-  const miniRow = textNode({ x: 0, y: 0, w: 128, h: 11 }, [
+  const miniRow = flowText([
     { bind: "concat(coalesce(item.indent_label, ''), coalesce(item.display_name, item.name))" }
   ], { style_ref: "li_meta" });
-  const miniRepeater = FMDocModel.createNode("repeater", {
-    frame: { x: 10, y: 88, w: 128, h: 144 },
-    props: {
+  delete miniRow.anchor;
+  const selectedBadge = flowText([{ text: "✓ Selected" }], {
+    font: { family: "var(--fm-body-font)", size_pt: 8.5, weight: 800, color: "#047857" }
+  });
+  // outputs.option_choice may be the raw id string or the widget's
+  // { option_id } object — coalesce handles both.
+  selectedBadge.bind = { if: "coalesce(outputs.option_choice.option_id, outputs.option_choice, '') == option.id" };
+  const card = componentColumn([
+    flowText([{ bind: "coalesce(option.label, 'Option')" }], {
+      font: { family: "var(--fm-display-font)", size_pt: 12, weight: 800, color: "var(--fm-text)" }
+    }),
+    flowText([{ bind: "coalesce(option.total_cents, 0) | money" }], {
+      font: { family: "var(--fm-display-font)", size_pt: 14, weight: 800, color: "var(--fm-primary)" }
+    }),
+    flowText([{ bind: "coalesce(option.summary, '')" }], {
+      font: { family: "var(--fm-body-font)", size_pt: 7.8, color: "var(--fm-color-muted)" }
+    }),
+    flowRepeater({
       source: "{{coalesce(option.rows, option.items)}}",
       component: "li_mini",
       as: "item",
       layout: { direction: "column", columns: 1, gap_pt: 2 },
       empty_text: ""
-    }
-  });
-  const selectedBadge = textNode({ x: 10, y: 240, w: 126, h: 14 }, [{ text: "✓ Selected" }], {
-    font: { family: "var(--fm-body-font)", size_pt: 8.5, weight: 800, color: "#047857" }
-  }) as JsonObject;
-  // outputs.option_choice may be the raw id string or the widget's
-  // { option_id } object — coalesce handles both.
-  selectedBadge.bind = { if: "coalesce(outputs.option_choice.option_id, outputs.option_choice, '') == option.id" };
-  const card = FMDocModel.createNode("frame", {
-    frame: { x: 0, y: 0, w: 146, h: 262 },
-    style: { fill: { type: "solid", color: "color-mix(in srgb, var(--fm-primary) 4%, var(--fm-color-paper))" } },
-    children: [
-      textNode({ x: 10, y: 10, w: 126, h: 18 }, [{ bind: "coalesce(option.label, 'Option')" }], {
-        font: { family: "var(--fm-display-font)", size_pt: 12, weight: 800, color: "var(--fm-text)" }
-      }),
-      textNode({ x: 10, y: 30, w: 126, h: 20 }, [{ bind: "coalesce(option.total_cents, 0) | money" }], {
-        font: { family: "var(--fm-display-font)", size_pt: 14, weight: 800, color: "var(--fm-primary)" }
-      }),
-      textNode({ x: 10, y: 54, w: 126, h: 30 }, [{ bind: "coalesce(option.summary, '')" }], {
-        font: { family: "var(--fm-body-font)", size_pt: 7.8, color: "var(--fm-color-muted)" }
-      }),
-      miniRepeater,
-      selectedBadge
-    ]
-  });
+    }),
+    selectedBadge
+  ], { gap: 5, padding: [10, 10, 10, 10], fill: "color-mix(in srgb, var(--fm-primary) 4%, var(--fm-color-paper))" });
   return {
     li_mini: { params: { item: { type: "object" } }, root: miniRow },
     option_summary_card: { params: { option: { type: "object" } }, root: card }
@@ -1358,114 +1268,65 @@ function optionSummaryComponents(): JsonObject {
 }
 
 function threeOptionProposalTemplateDefinition(): JsonObject {
-  const doc = asObject(FMDocModel.createDocument({
-    kind: "document",
-    first_page_role: "cover",
-    theme_ref: { theme_id: "thm_margin" },
-    metadata: { document_type: "proposal" }
-  }));
-
-  const cover = asObject((doc.pages as JsonObject[])[0]);
-  cover.role = "cover";
-  cover.name = "Cover";
-  cover.children = proposalCoverChildren("GOOD · BETTER · BEST PROPOSAL");
+  const { doc, theme } = startFlowTemplate("thm_margin", "proposal");
+  addFlowPage(doc, theme, "cover", "Cover", proposalCoverBlocks("GOOD · BETTER · BEST PROPOSAL"));
 
   // One DETAIL page per option (page repeat over the enriched options).
-  const detail = asObject(FMDocModel.createPage("pricing", { name: "Option detail" }));
-  detail.repeat = { for: "{{params.proposal_options}}", as: "option" };
-  const detailHeaderRef = componentRefNode("li_header", { x: 0, y: 0, w: DESIGN_WIDTH, h: 22 }) as JsonObject;
-  detailHeaderRef.anchor = "flow";
-  const detailRepeater = FMDocModel.createNode("repeater", {
-    frame: { x: 0, y: 0, w: DESIGN_WIDTH, h: 320 },
-    props: {
-      source: "{{coalesce(option.rows, option.items)}}",
-      component: "li_row",
-      as: "row",
-      layout: { direction: "column", columns: 1, gap_pt: 2 },
-      break_rules: { repeat_header: true, header_component: "li_header", min_rows_per_segment: 2, keep_with_next: [] },
-      empty_text: "No line items in this option yet."
-    }
-  }) as JsonObject;
-  detailRepeater.anchor = "flow";
-  const detailTotal = textNode({ x: 0, y: 0, w: DESIGN_WIDTH, h: 24 }, [
-    { text: "Option total   " },
-    { bind: "coalesce(option.total_cents, 0) | money" }
-  ], { style_ref: "li_total", align: "right" }) as JsonObject;
-  detailTotal.anchor = "flow";
   // Optional per-option media strip (option.content_blocks) reuses the
-  // media_text_row component; absent lists resolve to zero rows.
-  const detailMedia = FMDocModel.createNode("repeater", {
-    frame: { x: 0, y: 0, w: DESIGN_WIDTH, h: 140 },
-    props: {
-      source: "{{option.content_blocks}}",
-      component: "media_text_row",
-      as: "block",
-      layout: { direction: "column", columns: 1, gap_pt: 14 },
-      variant_by_index: ["media_left", "media_right"],
-      empty_text: ""
-    }
-  }) as JsonObject;
-  detailMedia.anchor = "flow";
-  // Prune the node entirely for options without media — an empty repeater in
-  // a paginating flow otherwise reserves its frame height and can spill a
-  // blank continuation page.
-  detailMedia.bind = { if: "count(option.content_blocks) > 0" };
-  const detailFlow = FMDocModel.createNode("frame", {
-    frame: { x: DESIGN_LEFT, y: 136, w: DESIGN_WIDTH, h: 520, layout: "flow" },
-    props: { flow: { direction: "column", gap: 6, padding: [0, 0, 0, 0] }, overflow: "paginate" },
-    children: [detailHeaderRef, detailRepeater, detailTotal, detailMedia]
+  // media_text_row component; the node is pruned for options without media
+  // so an empty repeater never spills a blank continuation page.
+  const detailMedia = flowRepeater({
+    source: "{{option.content_blocks}}",
+    component: "media_text_row",
+    as: "block",
+    layout: { direction: "column", columns: 1, gap_pt: 14 },
+    variant_by_index: ["media_left", "media_right"],
+    empty_text: ""
   });
-  detail.children = [
-    textNode({ x: DESIGN_LEFT, y: 56, w: DESIGN_WIDTH, h: 30 }, [{ bind: "coalesce(option.label, 'Option')" }], { style_ref: "h2" }),
-    textNode({ x: DESIGN_LEFT, y: 92, w: DESIGN_WIDTH, h: 36 }, [{ bind: "coalesce(option.summary, '')" }], {
-      font: { family: "var(--fm-body-font)", size_pt: 10, color: "var(--fm-color-muted)" }
-    }),
-    detailFlow
-  ];
+  detailMedia.bind = { if: "count(option.content_blocks) > 0" };
+  addFlowPage(doc, theme, "pricing", "Option detail", [
+    flowText([{ bind: "coalesce(option.label, 'Option')" }], { style_ref: "h2" }),
+    flowText([{ bind: "coalesce(option.summary, '')" }], { font: mutedFont(10) }),
+    flowSpacer(4),
+    ...lineItemBlocks("{{coalesce(option.rows, option.items)}}", "No line items in this option yet.", [
+      flowText([
+        { text: "Option total   " },
+        { bind: "coalesce(option.total_cents, 0) | money" }
+      ], { style_ref: "li_total", align: "right" }),
+      detailMedia
+    ])
+  ], { gap: 4, repeat: { for: "{{params.proposal_options}}", as: "option" } });
 
   // SUMMARY page: 3-column compare cards + the selectable choice group.
-  const summary = asObject(FMDocModel.createPage("pricing", { name: "Compare options" }));
-  const cardsRepeater = FMDocModel.createNode("repeater", {
-    frame: { x: DESIGN_LEFT, y: 120, w: DESIGN_WIDTH, h: 280 },
-    props: {
+  addFlowPage(doc, theme, "pricing", "Compare options", [
+    flowText([{ text: "Compare your options" }], { style_ref: "h2" }),
+    flowText([
+      { text: "Every option includes full tear-off, cleanup and our workmanship warranty." }
+    ], { font: mutedFont(9.5) }),
+    flowRepeater({
       source: "{{params.proposal_options}}",
       component: "option_summary_card",
       as: "option",
       layout: { direction: "column", columns: 3, gap_pt: 10 },
       empty_text: "Options appear here once the workflow builds them."
-    }
-  });
-  summary.children = [
-    textNode({ x: DESIGN_LEFT, y: 56, w: DESIGN_WIDTH, h: 28 }, [{ text: "Compare your options" }], { style_ref: "h2" }),
-    textNode({ x: DESIGN_LEFT, y: 88, w: DESIGN_WIDTH, h: 24 }, [
-      { text: "Every option includes full tear-off, cleanup and our workmanship warranty." }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 9.5, color: "var(--fm-color-muted)" } }),
-    cardsRepeater,
+    }),
     // Interactive pick — writes outputs.option_choice; the server derives
     // params.scope_items from the chosen option (solidify). Config options
     // feed straight from the enriched params.proposal_options (id/label/
     // description/price_cents aliases are set during enrichment).
-    widgetNode("doc.choice_group@1", {
+    flowWidget("doc.choice_group@1", {
       title: "Choose your package",
       output_key: "option_choice",
       options: "{{params.proposal_options}}"
-    }, { x: DESIGN_LEFT, y: 420, w: DESIGN_WIDTH, h: 190 }),
-    textNode({ x: DESIGN_LEFT, y: 620, w: DESIGN_WIDTH, h: 24 }, [
+    }),
+    flowText([
       { text: "Pick a package above — your selection becomes the contract scope and total." }
     ], { style_ref: "caption" })
-  ];
+  ]);
 
-  const signature = asObject(FMDocModel.createPage("signature", { name: "Sign & Pay" }));
-  signature.children = proposalSignaturePageChildren();
+  addFlowPage(doc, theme, "signature", "Sign & Pay", proposalSignatureBlocks());
 
-  doc.pages = [cover, detail, summary, signature];
-  doc.styles = {
-    li_name: { family: "var(--fm-body-font)", size_pt: 10.5, weight: 700, color: "var(--fm-text)" },
-    li_meta: { family: "var(--fm-body-font)", size_pt: 8.5, weight: 400, color: "var(--fm-color-muted)" },
-    li_amount: { family: "var(--fm-body-font)", size_pt: 10.5, weight: 700, color: "var(--fm-text)" },
-    li_total: { family: "var(--fm-display-font)", size_pt: 13, weight: 800, color: "var(--fm-text)" },
-    ...contentBlockStyles()
-  };
+  doc.styles = { ...lineItemStyles(), ...contentBlockStyles() };
   doc.components = { ...proposalLineItemComponents(), ...mediaTextRowComponent(), ...optionSummaryComponents() };
   // Totals read the SOLIDIFIED scope (outputs.option_choice write-through
   // derives params.scope_items from the chosen option).
@@ -1505,41 +1366,38 @@ function threeOptionProposalTemplateDefinition(): JsonObject {
 }
 
 function roofingCompletionCertificateTemplateDefinition(): JsonObject {
-  const doc = asObject(FMDocModel.createDocument({
-    kind: "document",
-    first_page_role: "body",
-    theme_ref: { theme_id: "thm_clean" },
-    metadata: { document_type: "completion_certificate" }
-  }));
-  const page = asObject(FMDocModel.createPage("body", { name: "Completion certificate" }));
-  page.children = [
-    orgLogoNode({ x: 44, y: 10, w: 150, h: 32 }),
-    textNode({ x: 44, y: 78, w: 524, h: 38 }, [{ text: "Roofing Project Completion Certificate" }], { style_ref: "h1" }),
-    textNode({ x: 44, y: 126, w: 340, h: 72 }, [
-      { text: "Project\n", font: { size_pt: 8.5, weight: 800, color: "var(--fm-color-muted)", transform: "uppercase" } },
-      { text: "", bind: "coalesce(project.title, params.project.title, 'Roofing project')" },
-      { text: "\n" },
-      { text: "", bind: "coalesce(project.address, params.project.address, '')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 11, weight: 700 } }),
-    textNode({ x: 404, y: 126, w: 164, h: 54 }, [
-      { text: "Completed\n", font: { size_pt: 8.5, weight: 800, color: "var(--fm-color-muted)", transform: "uppercase" } },
-      { text: "", bind: "params.completed_at | date" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 11, weight: 700 }, align: "right" }),
-    textNode({ x: 44, y: 218, w: 524, h: 26 }, [{ text: "Work completed" }], { style_ref: "h2" }),
-    textNode({ x: 44, y: 254, w: 524, h: 116 }, [
+  const { doc, theme } = startFlowTemplate("thm_clean", "completion_certificate");
+  addFlowPage(doc, theme, "body", "Completion certificate", [
+    flowLogo({ w: 150, h: 32 }),
+    flowText([{ text: "Roofing Project Completion Certificate" }], { style_ref: "h1" }),
+    flowRow([
+      labeledText("Project", [
+        { text: "", bind: "coalesce(project.title, params.project.title, 'Roofing project')" },
+        { text: "\n" },
+        { text: "", bind: "coalesce(project.address, params.project.address, '')" }
+      ], { grow: 1 }),
+      labeledText("Completed", [{ text: "", bind: "params.completed_at | date" }], { w: 164, align: "right" })
+    ]),
+    flowSpacer(8),
+    flowText([{ text: "Work completed" }], { style_ref: "h2" }),
+    flowText([
       { text: "", bind: "coalesce(params.work_summary, 'Roofing work was completed in accordance with the approved scope and change orders.')" }
     ], { font: { family: "var(--fm-body-font)", size_pt: 10.5 } }),
-    textNode({ x: 44, y: 390, w: 524, h: 76 }, [
+    flowSpacer(8),
+    flowText([
       { text: "Warranty\n", font: { size_pt: 9, weight: 800 } },
       { text: "", bind: "coalesce(params.warranty_summary, 'Manufacturer and workmanship warranties apply according to the signed agreement.')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 10, color: "var(--fm-color-muted)" } }),
-    widgetNode("doc.signature@1", { output: "sig_customer", label: "Customer completion sign-off", signer: "customer" }, { x: 44, y: 500, w: 330, h: 100 }),
-    widgetNode("doc.pay_now@1", { output: "final_payment", label: "Final payment", source: "params.final_payment_cents" }, { x: 404, y: 500, w: 164, h: 92 }),
-    textNode({ x: 44, y: 628, w: 524, h: 72 }, [
+    ], { font: mutedFont(10) }),
+    flowSpacer(16),
+    flowRow([
+      flowWidget("doc.signature@1", { output: "sig_customer", label: "Customer completion sign-off", signer: "customer" }, { grow: 1, h: 100 }),
+      flowWidget("doc.pay_now@1", { output: "final_payment", label: "Final payment", source: "params.final_payment_cents" }, { w: 164, h: 92 })
+    ], { gap: 24 }),
+    flowSpacer(12),
+    flowText([
       { text: "Your signature confirms that the work described above has been presented as complete. It does not waive warranty rights or unresolved written punch-list items." }
     ], { style_ref: "legal" })
-  ];
-  doc.pages = [page];
+  ]);
   doc.params = {
     project: { type: "entity", entity: "project" },
     customer: { type: "entity", entity: "contact" },
@@ -1557,40 +1415,34 @@ function roofingCompletionCertificateTemplateDefinition(): JsonObject {
 }
 
 function sameDayServiceAgreementTemplateDefinition(): JsonObject {
-  const doc = asObject(FMDocModel.createDocument({
-    kind: "document",
-    first_page_role: "body",
-    theme_ref: { theme_id: "thm_clean" },
-    metadata: { document_type: "contract" }
-  }));
-  const page = asObject(FMDocModel.createPage("body", { name: "Service authorization" }));
-  page.children = [
-    orgLogoNode({ x: 44, y: 10, w: 150, h: 32 }),
-    textNode({ x: 44, y: 76, w: 524, h: 34 }, [{ text: "Same-Day Service Authorization" }], { style_ref: "h1" }),
-    textNode({ x: 44, y: 120, w: 340, h: 64 }, [
-      { text: "Customer\n", font: { size_pt: 8.5, weight: 800, color: "var(--fm-color-muted)", transform: "uppercase" } },
-      { text: "", bind: "coalesce(customer.name, params.customer.name, 'Customer')" },
-      { text: "\n" },
-      { text: "", bind: "coalesce(project.address, params.project.address, '')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 10.5, weight: 700 } }),
-    textNode({ x: 404, y: 120, w: 164, h: 64 }, [
-      { text: "Service\n", font: { size_pt: 8.5, weight: 800, color: "var(--fm-color-muted)", transform: "uppercase" } },
-      { text: "", bind: "coalesce(params.service_category, 'Same-day service install')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 10.5, weight: 700 }, align: "right" }),
-    textNode({ x: 44, y: 194, w: 524, h: 48 }, [
+  const { doc, theme } = startFlowTemplate("thm_clean", "contract");
+  addFlowPage(doc, theme, "body", "Service authorization", [
+    flowLogo({ w: 150, h: 32 }),
+    flowText([{ text: "Same-Day Service Authorization" }], { style_ref: "h1" }),
+    flowRow([
+      labeledText("Customer", [
+        { text: "", bind: "coalesce(customer.name, params.customer.name, 'Customer')" },
+        { text: "\n" },
+        { text: "", bind: "coalesce(project.address, params.project.address, '')" }
+      ], { grow: 1, size_pt: 10.5 }),
+      labeledText("Service", [{ text: "", bind: "coalesce(params.service_category, 'Same-day service install')" }], { w: 164, align: "right", size_pt: 10.5 })
+    ]),
+    flowText([
       { text: "Diagnosis & proposed work\n", font: { size_pt: 9, weight: 800 } },
       { text: "", bind: "coalesce(params.diagnosis, 'Service work described below will be completed today.')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 9.5, color: "var(--fm-color-muted)" } }),
-    widgetNode("doc.line_items@1", { source: "params.scope_items", show_prices: true, depth: 1, columns: ["name", "description", "qty", "unit_price", "amount"] }, { x: 44, y: 250, w: 524, h: 230 }),
-    textNode({ x: 344, y: 488, w: 224, h: 48 }, [
+    ], { font: mutedFont(9.5) }),
+    flowWidget("doc.line_items@1", { source: "params.scope_items", show_prices: true, depth: 1, columns: ["name", "description", "qty", "unit_price", "amount"] }),
+    flowText([
       { text: "Authorized total   ", font: { size_pt: 9, weight: 800, color: "var(--fm-color-muted)" } },
       { text: "", bind: "computed.total_cents | money", font: { size_pt: 16, weight: 900 } }
     ], { font: { family: "var(--fm-display-font)" }, align: "right" }),
-    textNode({ x: 44, y: 546, w: 524, h: 55 }, [{ text: "By signing, the customer authorizes the listed materials and labor at the quoted rates and directs the technician to begin work today. Additional work requires approval. Payment is due before work begins unless otherwise agreed in writing." }], { style_ref: "legal" }),
-    widgetNode("doc.pay_now@1", { output: "payment", output_key: "payment", label: "Payment", amount_label: "Amount due", source: "computed.total_cents", button_label: "Pay" }, { x: 44, y: 620, w: 180, h: 108 }),
-    widgetNode("doc.signature@1", { output: "sig_customer", label: "Customer authorization", signer: "customer" }, { x: 248, y: 620, w: 320, h: 108 })
-  ];
-  doc.pages = [page];
+    flowText([{ text: "By signing, the customer authorizes the listed materials and labor at the quoted rates and directs the technician to begin work today. Additional work requires approval. Payment is due before work begins unless otherwise agreed in writing." }], { style_ref: "legal" }),
+    flowSpacer(8),
+    flowRow([
+      flowWidget("doc.pay_now@1", { output: "payment", output_key: "payment", label: "Payment", amount_label: "Amount due", source: "computed.total_cents", button_label: "Pay" }, { w: 180, h: 108 }),
+      flowWidget("doc.signature@1", { output: "sig_customer", label: "Customer authorization", signer: "customer" }, { grow: 1, h: 108 })
+    ], { gap: 24 })
+  ]);
   doc.computed = { total_cents: "sum(params.scope_items[].amount_cents)" };
   doc.params = {
     project: { type: "entity", entity: "project" },
@@ -2216,42 +2068,6 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     metadata: { default: false, default_workflow_id: "wfl_three_option_proposal" }
   },
   {
-    id: "tpl_roofing_selection_to_document",
-    name: "Roofing Selection Workflow + Agreement",
-    document_type: "proposal",
-    description: "Customer selects a Good/Better/Best roofing package, then reviews the generated agreement, signs and pays.",
-    definition: threeOptionProposalTemplateDefinition,
-    metadata: {
-      default: false,
-      default_workflow_id: "wfl_three_option_proposal",
-      customer_presentation: { tab: { id: "proposals", label: "Proposals", icon: "fa-file-signature", order: 50 }, mode: "hybrid", workflow_cta: "Choose your roofing system" }
-    }
-  },
-  {
-    id: "tpl_roofing_signature_payment",
-    name: "Roofing Agreement — Sign & Pay",
-    document_type: "proposal",
-    description: "Document-first roofing agreement with a required customer signature and deposit payment.",
-    definition: proposalTemplateDefinition,
-    metadata: {
-      default: false,
-      disable_default_workflow: true,
-      customer_presentation: { tab: { id: "documents", label: "Documents", icon: "fa-file-lines", order: 60 }, mode: "document", document_cta: "Review, sign & pay" }
-    }
-  },
-  {
-    id: "tpl_roofing_good_better_best_document",
-    name: "Roofing Good / Better / Best — Document",
-    document_type: "proposal",
-    description: "Document-only Good/Better/Best roofing proposal with choices, signature and deposit embedded in the document.",
-    definition: threeOptionProposalTemplateDefinition,
-    metadata: {
-      default: false,
-      disable_default_workflow: true,
-      customer_presentation: { tab: { id: "documents", label: "Documents", icon: "fa-file-lines", order: 60 }, mode: "document", document_cta: "Review, choose, sign & pay" }
-    }
-  },
-  {
     id: "tpl_roofing_good_better_best_workflow",
     name: "Roofing Good / Better / Best — Workflow",
     document_type: "proposal",
@@ -2330,6 +2146,18 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
       customer_presentation: { tab: { id: "documents", label: "Documents", icon: "fa-file-lines", order: 60 }, mode: "hybrid", workflow_cta: "Review service estimate" }
     }
   }
+];
+
+/**
+ * Presets that are no longer seeded: aliases that re-published the standard
+ * and three-option proposals under other names. Unedited copies are archived
+ * so they leave the template picker; documents already created from them
+ * keep resolving their pinned version.
+ */
+export const RETIRED_TEMPLATE_IDS = [
+  "tpl_roofing_selection_to_document",
+  "tpl_roofing_signature_payment",
+  "tpl_roofing_good_better_best_document"
 ];
 
 export const WORKFLOW_SEEDS: WorkflowSeed[] = [
@@ -2478,6 +2306,18 @@ export async function ensureDefaultDocumentAssets(orgId: string, ctx: PlatformAu
           metadata: { ...presetMetadata(seed.id), ...asObject(seed.metadata) }
         }, ctx, { systemPreset: true }).catch(() => null);
       }
+    }
+    for (const id of RETIRED_TEMPLATE_IDS) {
+      const existing = await readDocumentTemplate(orgId, id).catch(() => null);
+      if (existing && asObject(existing.metadata).preset === true && cleanText(existing.status) !== "archived") {
+        await archiveDocumentTemplate(orgId, id, ctx).catch(() => null);
+      }
+    }
+    // Instant roofing estimates are seeded with the signup sandbox; orgs that
+    // already have them follow the pack revision here.
+    if (await readDocumentTemplate(orgId, "tpl_instant_roofing_quick").catch(() => null)) {
+      const { seedInstantRoofingDocuments } = await import("../signup-sandbox/roofing-documents.js");
+      await seedInstantRoofingDocuments(orgId, ctx, { create: false }).catch(() => null);
     }
     ensured.set(key, Date.now());
   } finally {

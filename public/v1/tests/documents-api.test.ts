@@ -258,12 +258,12 @@ test("presets seed on first list: three themes and three showcase templates that
 
   const templates = await client.request("GET", `/v1/documents/organizations/${orgId}/templates`);
   const templateIds = templates.templates.map((template: any) => template.id);
-  for (const id of ["tpl_proposal_default", "tpl_invoice_default", "tpl_change_order_default", "tpl_one_page_legal", "tpl_three_option_proposal", "tpl_roofing_selection_to_document", "tpl_roofing_signature_payment", "tpl_roofing_good_better_best_document", "tpl_roofing_good_better_best_workflow", "tpl_roofing_completion_certificate"]) {
+  for (const id of ["tpl_proposal_default", "tpl_invoice_default", "tpl_change_order_default", "tpl_one_page_legal", "tpl_three_option_proposal", "tpl_roofing_good_better_best_workflow", "tpl_roofing_completion_certificate"]) {
     assert.ok(templateIds.includes(id), `seeded template ${id} is present`);
   }
 
   const { FMDocModel } = await import("../documents/schemas.js");
-  for (const id of ["tpl_proposal_default", "tpl_invoice_default", "tpl_change_order_default", "tpl_one_page_legal", "tpl_three_option_proposal", "tpl_roofing_selection_to_document", "tpl_roofing_signature_payment", "tpl_roofing_good_better_best_document", "tpl_roofing_good_better_best_workflow", "tpl_roofing_completion_certificate"]) {
+  for (const id of ["tpl_proposal_default", "tpl_invoice_default", "tpl_change_order_default", "tpl_one_page_legal", "tpl_three_option_proposal", "tpl_roofing_good_better_best_workflow", "tpl_roofing_completion_certificate"]) {
     const detail = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/${id}`);
     assert.ok(detail.template.definition, `${id} has a published definition`);
     const result = FMDocModel.validateDocument(detail.template.definition);
@@ -271,13 +271,30 @@ test("presets seed on first list: three themes and three showcase templates that
     assert.ok(Number(detail.template.current_version) >= 1, `${id} has current_version >= 1`);
   }
 
-  const roofingAgreement = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_roofing_signature_payment`);
-  const coverNodes = roofingAgreement.template.definition.pages[0].children;
-  const coverHero = coverNodes.find((node: any) => node.type === "image" && Number(node.frame?.w) > 500);
+  for (const id of ["tpl_roofing_selection_to_document", "tpl_roofing_signature_payment", "tpl_roofing_good_better_best_document"]) {
+    assert.ok(!templateIds.includes(id), `retired preset ${id} is no longer seeded`);
+  }
+
+  // Seeded pages hold one body region fitted to the page style's margins;
+  // content inside it carries no page coordinates.
+  const proposalPreset = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_proposal_default`);
+  for (const page of proposalPreset.template.definition.pages) {
+    assert.equal(page.children.length, 1, `${page.name} has a single body region`);
+    const region = page.children[0];
+    assert.equal(region.props.page_region, "body");
+    assert.deepEqual(
+      { x: region.frame.x, w: region.frame.w },
+      { x: 104, w: 460 },
+      "proposal pages sit inside the Margin style's safe area"
+    );
+    assert.ok(region.children.every((node: any) => node.frame.x === 0 && node.frame.y === 0), `${page.name} content flows inside the region`);
+  }
+  const cleanTheme = (await client.request("GET", `/v1/documents/organizations/${orgId}/themes/thm_clean`)).theme.definition;
+  const refit: any = FMDocModel.applyOverrides(proposalPreset.template.definition, FMDocModel.pageSetupOverrides(proposalPreset.template.definition, cleanTheme)).document;
   assert.deepEqual(
-    { x: coverHero?.frame?.x, w: coverHero?.frame?.w },
-    { x: 40, w: 532 },
-    "proposal presets use neutral page bounds so the selected theme owns the margins"
+    { x: refit.pages[1].children[0].frame.x, y: refit.pages[1].children[0].frame.y, w: refit.pages[1].children[0].frame.w },
+    { x: 48, y: 80, w: 516 },
+    "choosing another page style re-fits the body region to its margins"
   );
 
   const catalog = await client.request("GET", `/v1/documents/organizations/${orgId}/catalog`);
@@ -495,7 +512,8 @@ test("roofing sign-and-pay template applies its percentage schedule to preview a
 
   const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
     document_type: "proposal",
-    template_id: "tpl_roofing_signature_payment",
+    template_id: "tpl_proposal_default",
+    workflow_id: null,
     title: "Percentage Schedule Agreement",
     params: {
       customer: { name: "Schedule Customer", email: "schedule@example.test" },
@@ -614,7 +632,7 @@ test("document lifecycle: create → resolve (bindings + widget data) → overri
 
   // --- instance overrides survive a template republish ----------------------
   const templateDetail = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_proposal_default`);
-  const coverNodes = templateDetail.template.definition.pages[0].children as any[];
+  const coverNodes = templateDetail.template.definition.pages[0].children[0].children as any[];
   const textNode = coverNodes.find((node) => node.type === "text");
   assert.ok(textNode, "cover page has a text node to override");
   await client.request("PATCH", `/v1/documents/organizations/${orgId}/documents/${documentId}`, {
@@ -1335,15 +1353,6 @@ test("showcase seeds: legal, proposal, and completion templates validate; workfl
   assert.ok(detailPage, "three-option template page-repeats over the options");
   assert.equal(detailPage.repeat.as, "option");
 
-  const hybrid = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_roofing_selection_to_document`);
-  assert.equal(hybrid.template.metadata.customer_presentation.mode, "hybrid");
-  assert.equal(hybrid.template.metadata.customer_presentation.tab.id, "proposals");
-  const signPay = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_roofing_signature_payment`);
-  assert.equal(signPay.template.metadata.disable_default_workflow, true);
-  assert.equal(signPay.template.metadata.customer_presentation.mode, "document");
-  const documentOnly = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_roofing_good_better_best_document`);
-  assert.equal(documentOnly.template.metadata.customer_presentation.mode, "document");
-  assert.equal(documentOnly.template.metadata.disable_default_workflow, true);
   const workflowOnly = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_roofing_good_better_best_workflow`);
   assert.equal(workflowOnly.template.metadata.customer_presentation.mode, "workflow");
   assert.equal(workflowOnly.template.metadata.default_workflow_id, "wfl_roofing_customer_workflow");
@@ -1353,7 +1362,7 @@ test("showcase seeds: legal, proposal, and completion templates validate; workfl
   assert.equal(completion.template.metadata.customer_presentation.mode, "document");
   assert.equal(completion.template.metadata.disable_default_workflow, true);
   assert.ok(FMDocModel.validateDocument(completion.template.definition).ok, "completion certificate validates");
-  assert.ok(completion.template.definition.pages[0].children.length >= 8, "completion certificate seed contains its certificate content");
+  assert.ok(completion.template.definition.pages[0].children[0].children.length >= 8, "completion certificate seed contains its certificate content");
   assert.ok(JSON.stringify(completion.template.definition).includes("params.final_payment_cents"), "completion pay-now card binds the final balance");
 
   // Republishing the seeded workflow definitions through the API proves every

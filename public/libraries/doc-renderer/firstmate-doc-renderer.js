@@ -905,8 +905,15 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
         if (offsetX) elm.style.left = pt(offsetX);
         if (offsetY) elm.style.top = pt(offsetY);
       }
+      // frame.grow shares a row flow's leftover width (flex-grow), so columns
+      // follow the page margins instead of a fixed point width.
+      const grow = !responsiveView && Number(f.grow) > 0 ? Number(f.grow) : 0;
+      if (grow) {
+        elm.style.flex = grow + " 1 0";
+        elm.style.minWidth = "0";
+      }
       if (typeof f.h === "number" && f.h > 0) elm.style.height = pt(f.h);
-      if (typeof f.w === "number" && f.w > 0) {
+      if (!grow && typeof f.w === "number" && f.w > 0) {
         elm.style.width = responsiveWidthPercent !== null && !(rctx && rctx.viewSectionChild)
           ? "min(" + pt(f.w) + ", " + responsiveWidthPercent + "%)"
           : pt(f.w);

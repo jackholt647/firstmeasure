@@ -2057,7 +2057,9 @@
     }
     function previewFitScale(definition){
       const dims = root.FMDocModel?.paperDimensions?.(definition) || { w_pt: 612 };
-      const available = Math.max(240, (el.previewStage?.clientWidth || 266) - 26);
+      // Stage padding is 14px a side; leave a little slack so a fitted page
+      // never triggers a horizontal scrollbar.
+      const available = Math.max(240, (el.previewStage?.clientWidth || 266) - 32);
       return Math.min(1, available / (dims.w_pt * (96 / 72)));
     }
     function previewScale(definition){
