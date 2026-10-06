@@ -1,4 +1,6 @@
 # FirstMeasure: local development and production deployment
+October 6 Company information: [Language and measurements](deploy/digitalocean/development-company-language-20261006.md) records the in-card selectors, preserved defaults, browser verification and development rollout.
+
 October 5 forms: [Block-based forms on document modules](deploy/digitalocean/development-forms-20261005.md) records the forms library, editor and public embed, the four-role development rollout alongside other sessions, and what remains to exercise.
 
 October 5 FirstMeasure defaults: [Settings and module visibility](deploy/digitalocean/development-firstmeasure-settings-defaults-20261005.md) records disabled signup modules, Channels-dependent translation, personal sidebar controls and development verification.
