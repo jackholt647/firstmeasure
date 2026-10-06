@@ -82,3 +82,8 @@ The catalog declares its provider so discovery and presentation honor the
 assistant's project-data restriction. The browser uses current session and CSRF
 authorization for each read/write. Legacy table panels remain immutable chat
 snapshots and are not automatically rewritten as live task widgets.
+
+Widget discovery matches normalized search words across the catalog id, title,
+description and app, including to-do/to do/todo spellings and task/list plurals.
+It does not require the agent's complete multiword query to occur as one literal
+substring. Permission and agent-scope filtering still precede presentation.

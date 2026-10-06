@@ -50,3 +50,27 @@ progress and stopped; the independent activation and final verification passed.
 Public probes expecting only the task release were superseded by verification
 of actual current files and readiness after the web advanced to `c92852b2`.
 Development is activated; production was not changed.
+
+## Fresh-org discovery fix
+
+The reported Instant Full Org failure was reproduced using that org's current
+principal. Its tool trace searched `todos.list to-do task list` and then
+`task list personal to-dos`. Both returned no widgets because discovery used one
+literal substring. A `todo` search returned `todos.list`, and presentation was
+authorized, establishing that the org's permissions and catalog were intact.
+
+`f89d0a8a3919b94232d3f9cacfdb1f6a97ebe63a` normalizes widget search words across
+id/title/description/app, including common to-do spellings and task/list plurals.
+Every word must match; permissions and agent restrictions are preserved. Tests
+cover the two actual failed searches, alternative spellings and restricted-agent
+denial. The widget integration test and `npm run check` pass.
+
+Task evidence is under `output/todo-widget-search-20261006/`. The org check
+executes only read-only discovery and presentation authorization against a
+temporary in-memory run; it does not create tasks or alter conversation history.
+All four development roles activated `f89d0a8a` and passed source/compiled-file
+hashes, readiness and isolation checks. Public readiness returned the new
+release. Replaying both exact failed searches against the original org's current
+principal now returns `todos.list`; presentation is authorized. Evidence is in
+`verified-deployment.json` and `original-org-discovery.json`. No signup defaults,
+permissions, tasks or saved chat messages were changed.
