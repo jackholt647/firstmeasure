@@ -193,7 +193,7 @@ public class MainActivity extends ComponentActivity {
             JSONObject payload=call.optJSONObject("payload");if(payload==null)payload=new JSONObject();
             if(raw.length()>32768&&!call.getString("method").equals("saveFile"))throw new Exception("Request too large");
             String method=call.getString("method");
-            if(method.startsWith("camera")&&!method.equals("cameraOpen")&&!method.equals("cameraRead")&&!method.equals("cameraRelease")&&!payload.optString("session").equals(nativeCameraSession)){respond(reply,id,null,"camera_closed");return;}
+            if(method.startsWith("camera")&&!method.equals("cameraOpen")&&!method.equals("cameraRead")&&!method.equals("cameraRelease")&&!method.equals("cameraDiagnostics")&&!payload.optString("session").equals(nativeCameraSession)){respond(reply,id,null,"camera_closed");return;}
             switch(call.getString("method")){
                 case "cameraOpen": {
                     if(pendingNativeCamera!=null)throw new Exception("Camera permission pending");
@@ -205,6 +205,7 @@ public class MainActivity extends ComponentActivity {
                     else{pendingNativeCamera=open;pendingNativeReply=done;nativeCameraPermission.launch(android.Manifest.permission.CAMERA);}
                     break;
                 }
+                case "cameraDiagnostics":respond(reply,id,nativeCamera.diagnostics(),null);break;
                 case "cameraBounds":nativeCamera.bounds(payload,web.getWidth());respond(reply,id,true,null);break;
                 case "cameraZoom": {final String requestId=id;nativeCamera.zoom(payload.getDouble("value"),(value,error)->respond(reply,requestId,value,error));break;}
                 case "cameraPhoto": {final String requestId=id;nativeCamera.photo((value,error)->respond(reply,requestId,value,error));break;}
@@ -219,7 +220,7 @@ public class MainActivity extends ComponentActivity {
                     getPreferences(MODE_PRIVATE).edit().putString("auth_state",authState).putString("auth_verifier",authVerifier).putLong("auth_expires",System.currentTimeMillis()+600000).apply();
                     String challenge=android.util.Base64.encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(authVerifier.getBytes(java.nio.charset.StandardCharsets.UTF_8)),android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|android.util.Base64.NO_PADDING);
                     startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(BuildConfig.PORTAL_ORIGIN+"/v1/mobile/auth/browser?challenge="+challenge+"&state="+authState)));respond(reply,id,true,null);break;
-                case "info": respond(reply,id,new JSONObject().put("bridgeVersion",1).put("platform","android").put("version",BuildConfig.VERSION_NAME).put("environment",BuildConfig.FLAVOR).put("capabilities",new org.json.JSONArray(List.of("files","camera","liveCamera","nativeCameraZoom","share","download","haptic","settings","push"))),null);break;
+                case "info": respond(reply,id,new JSONObject().put("bridgeVersion",1).put("platform","android").put("version",BuildConfig.VERSION_NAME).put("environment",BuildConfig.FLAVOR).put("capabilities",new org.json.JSONArray(List.of("files","camera","liveCamera","nativeCameraZoom","physicalCameraZoom","share","download","haptic","settings","push"))),null);break;
                 case "pushStatus": respond(reply,id,new JSONObject().put("available",pushAvailable()).put("granted",pushPermissionGranted()),null);break;
                 case "pushRegister":
                     if (!pushAvailable()) { respond(reply,id,null,"push_unavailable"); break; }

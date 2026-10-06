@@ -18,6 +18,10 @@ public class NativeCameraTest {
             NativeCameraController[] camera={null};
             scenario.onActivity(a->{FrameLayout host=new FrameLayout(a);a.setContentView(host);camera[0]=new NativeCameraController(a,host);});
             JSONObject photoState=open(scenario,camera[0],"photo");
+            JSONObject diagnostics=photoState.getJSONObject("diagnostics");
+            assertTrue(diagnostics.getJSONArray("routes").length()>0);
+            boolean streaming=false;for(int i=0;i<diagnostics.getJSONArray("routes").length();i++)streaming|=diagnostics.getJSONArray("routes").getJSONObject(i).getJSONObject("capture").optBoolean("streaming");
+            assertTrue("Open must wait for real camera capture results",streaming);
             assertTrue(photoState.getDouble("min")>0);assertTrue(photoState.getDouble("max")>=photoState.getDouble("min"));
             CountDownLatch zoomed=new CountDownLatch(1);String[] failure={null};
             scenario.onActivity(a->camera[0].zoom(photoState.optDouble("max"),(value,error)->{failure[0]=error;zoomed.countDown();}));

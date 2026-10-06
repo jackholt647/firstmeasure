@@ -344,7 +344,7 @@ test('native camera keeps FirstMate controls and uses device zoom range without 
   window.nativeCalls=[];window.nativeZoom=1;
   const api={
    open:async options=>{nativeCalls.push(['open',options]);return {min:.5,max:30,value:1,canSwitch:true};},
-   bounds:async b=>{nativeCalls.push(['bounds',b]);},zoom:async value=>{nativeZoom=value;return {value};},close:async()=>{nativeCalls.push(['close']);},
+   bounds:async b=>{nativeCalls.push(['bounds',b]);},zoom:async value=>{nativeZoom=value;return value===.5?{min:1,max:30,value:1,warning:"Requested camera could not be opened"}:{value};},close:async()=>{nativeCalls.push(['close']);},
    record:()=>new Promise(resolve=>window.endNativeTake=()=>resolve({duration:2100,mime:'video/mp4',name:'native.mp4'})),
    stopRecording:async()=>endNativeTake(),pause:async()=>{},file:async info=>new File([new Uint8Array(8192)],info.name,{type:info.mime})
   };
@@ -359,6 +359,15 @@ test('native camera keeps FirstMate controls and uses device zoom range without 
  assert.equal(await page.locator('[data-camera-zoom]').getAttribute('max'),'30');
  assert.equal(await page.locator('[data-camera-lens]').count(),0);
  await page.click('[data-zoom="30"]');await page.waitForFunction(()=>nativeZoom===30);
+ await page.click('[data-zoom="0.5"]');await page.waitForFunction(()=>document.querySelector('[data-camera-zoom]').min==='1');
+ assert.equal(await page.locator('[data-camera-zoom-value]').textContent(),'1x','failed lens restores actual zoom');
+ assert.equal(await page.locator('[data-zoom="0.5"]').count(),0,'unavailable lens is not offered again');
+ assert.equal(await page.locator('[data-camera-diagnostics]').count(),0,'ordinary clients have no debug control');
+ await page.evaluate(()=>{PhoneFeatures.info=()=>({platform:'android',environment:'development',capabilities:['liveCamera','nativeCameraZoom','physicalCameraZoom']});PhoneFeatures.camera.diagnostics=async()=>({routes:[{physicalId:'wide',min:.5}]});PhoneFeatures.share=async data=>window.sharedCameraDiagnostics=data;});
+ await page.click('[data-zoom="2"]');await page.waitForFunction(()=>document.querySelector('[data-camera-diagnostics]'));
+ assert.equal(await page.evaluate(()=>window.sharedCameraDiagnostics),undefined);
+ await page.click('[data-camera-diagnostics]');await page.waitForFunction(()=>window.sharedCameraDiagnostics);
+ assert.equal(await page.evaluate(()=>JSON.parse(sharedCameraDiagnostics.text).routes[0].physicalId),'wide');
  assert.equal(await page.locator('video').evaluate(e=>e.style.visibility),'hidden');
  assert.equal(await page.evaluate(()=>cameraCalls),1,'native path never requests another WebView stream');
  await page.click('[data-rec-toggle]');await page.click('[data-rec-toggle]');

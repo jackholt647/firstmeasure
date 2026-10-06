@@ -20,17 +20,23 @@ This is an online app. It does not promise offline report editing, queued backgr
 
 ## Android
 
-Version 1.0.5 corrects native preview composition: only the preview rectangle is
-transparent, the modal surround remains opaque, and overlapping background apps
-are suppressed until capture closes. The native camera bridge introduced in 1.0.4
-keeps the existing web controls above CameraX preview and native photo/video capture.
-Zoom now discovers every CameraX-exposed camera of the selected facing, normalizes
-its reported range by sensor-relative focal length (intrinsic zoom as fallback), and automatically routes the common zoom
-control between cameras. Persistent recording retains one output across rebinds.
-Logical cameras still handle their own supported physical-lens transitions.
-No model-specific table or manual lens picker is used. Manufacturer-private lenses
-outside public camera APIs are not advertised. Older hosts and browsers retain the
-existing WebView capture path.
+Version 1.0.6 discovers Camera2 logical cameras **and physical children** (including
+children absent from the top-level camera list). It binds a physical output ID
+through Camera2Interop for the whole preview/photo/video session. One zoom control
+selects the appropriate route by sensor-relative focal length; no phone-model
+list or manual lens picker is used. Video quality prefers a stream size shared
+by the discovered cameras so persistent recording can cross lens boundaries.
+Preview/JPEG sizes are intersected with the physical sensor's supported sizes.
+Opening waits for real capture results; failed lens transitions restore the last
+working camera. Development builds expose an explicit camera-diagnostics share
+button showing discovered IDs/ranges, stream metadata, and failures, without
+photos, account data, or automatic transmission.
+
+The 1.0.5 opaque modal surround/background isolation fix remains in place.
+Manufacturer-private lenses outside public camera APIs cannot be advertised.
+Automated inventory tests exercise hidden ultrawide/telephoto children; emulator
+capture tests do not establish any physical phone's actual 0.5x–30x support.
+Older native hosts and browsers retain their existing capture path.
 
 Camera bridge operations are main-frame/origin restricted and scoped to an opaque
 capture-session ID. A stale window cannot close or adjust a newer camera session.

@@ -64,6 +64,11 @@
       surface.addEventListener('touchmove',e=>{if(pinch&&cameraZoom&&e.touches.length===2){e.preventDefault();setCameraZoom(pinch.zoom*distance(e)/Math.max(1,pinch.distance));}},{passive:false});
       for(const type of ['touchend','touchcancel'])surface.addEventListener(type,e=>{if(e.touches.length<2)pinch=null;});
     }
+    let phone;try{phone=window.top.PhoneFeatures||window.PhoneFeatures;}catch{phone=window.PhoneFeatures;}
+    if(phone?.info?.()?.environment==='development'&&phone.info().capabilities?.includes('physicalCameraZoom')&&!bar.querySelector('[data-camera-diagnostics]')){
+      const details=document.createElement('button');details.type='button';details.dataset.cameraDiagnostics='';details.setAttribute('aria-label','Share camera diagnostics');details.title='Share camera diagnostics';details.innerHTML='<i class="fas fa-circle-info" aria-hidden="true"></i>';
+      details.onclick=async()=>{try{await phone.share({title:'FirstMate camera diagnostics',text:JSON.stringify(await phone.camera.diagnostics(),null,2)});}catch{cameraMessage='Camera diagnostics could not be shared.';updateCapture();}};bar.append(details);
+    }
     bar.hidden=!mobileCamera();
     node.querySelector('.ext-camera').classList.toggle('has-camera-controls',!bar.hidden);
     const flip=bar.querySelector('[data-camera-switch]');flip.disabled=!cameraStream||cameraStarting||recording()||cameraDevices.length<2;
@@ -157,7 +162,7 @@
     try{
       const info=await api.open({mode,facing:cameraFacing,bounds:nativeBounds(surface)});
       observer=new ResizeObserver(resize);observer.observe(surface);window.addEventListener('resize',resize);window.addEventListener('scroll',resize,true);
-      const track={stop:release,getSettings:()=>({zoom:info.value,facingMode:cameraFacing}),applyConstraints:async c=>{const state=await api.zoom(c.advanced[0].zoom);info.value=state.value;}};
+      const track={stop:release,getSettings:()=>({zoom:info.value,facingMode:cameraFacing}),applyConstraints:async c=>{const state=await api.zoom(c.advanced[0].zoom);Object.assign(info,state);if(cameraStream?.native?.api===api){Object.assign(cameraStream.native.zoom,{min:info.min,max:info.max,value:info.value});if(cameraZoom)Object.assign(cameraZoom,cameraStream.native.zoom);cameraMessage=state.warning||'';}}};
       return {native:{api,zoom:{min:info.min,max:info.max,value:info.value},canSwitch:info.canSwitch},getTracks:()=>[track],getVideoTracks:()=>[track]};
     }catch(error){release();throw error;}
   }

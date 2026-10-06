@@ -60,6 +60,7 @@
     event.preventDefault();fetch(link.href).then(r=>r.blob()).then(blob=>saveFile(blob,link.download||'download')).catch(error=>root.dispatchEvent(new CustomEvent('fm:phone:error',{detail:{message:error.message}})));
   },true);
   const camera=Object.freeze({
+    diagnostics:()=>request('cameraDiagnostics'),
     session(){
       const session=crypto.randomUUID(),call=(method,payload={})=>request(method,{...payload,session});
       return Object.freeze({open:options=>call('cameraOpen',options),bounds:bounds=>call('cameraBounds',bounds),zoom:value=>call('cameraZoom',{value}),photo:()=>call('cameraPhoto'),record:()=>call('cameraRecord'),stopRecording:()=>call('cameraRecordStop'),pause:paused=>call('cameraRecordPause',{paused}),close:()=>call('cameraClose'),file:capture=>camera.file(capture)});

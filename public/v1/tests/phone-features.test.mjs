@@ -52,3 +52,10 @@ test('app download stays hidden until an organization explicitly enables it',()=
     }
   }
 });
+
+test('hardware diagnostics are requested explicitly without opening a camera or sharing automatically',async()=>{
+ const f=fixture(true);f.reply(f.sent[0].id,{bridgeVersion:1,platform:'android',capabilities:['physicalCameraZoom']});await f.api.ready;
+ const pending=f.api.camera.diagnostics();assert.equal(f.sent.at(-1).method,'cameraDiagnostics');
+ f.reply(f.sent.at(-1).id,{routes:[{logicalId:'0',physicalId:'2',min:.5,max:4}]});assert.equal((await pending).routes[0].min,.5);
+ assert.equal(f.sent.some(c=>c.method==='cameraOpen'||c.method==='share'),false);
+});
