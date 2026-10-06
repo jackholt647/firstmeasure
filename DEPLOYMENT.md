@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 6 automation fixes: [Documents-signed proposals and list templates](deploy/digitalocean/development-automation-fixes-20261006.md) records the sales-pipeline signature fix, list positions in action templates, repaired notification tests, and a rollout that reached web, pool and compatibility but not the worker, whose disk is full.
+
 October 6 automations: [One authoring contract](deploy/digitalocean/development-automation-contracts-20261006.md) records typed actions, shared conditions, sequences, multi-action rules, agent dry runs, pushing template changes to running instances, validation and the four-role development rollout.
 
 October 6 document templates: [Margin-fitted template regions](deploy/digitalocean/development-document-templates-20261006.md) records the rebuilt seeded layouts, the Docs tab workflow and theme fixes, validation and the four-role development rollout.
