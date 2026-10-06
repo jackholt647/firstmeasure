@@ -16,8 +16,7 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.Executor;
 
-/** In-app native preview/capture. Zoom stays on the logical camera so Android
- * selects physical lenses without replacing the recording stream. */
+/** Native capture with one normalized zoom scale across exposed rear cameras. */
 final class NativeCameraController {
     interface Reply { void complete(Object result, String error); }
     private final ComponentActivity activity;
@@ -28,6 +27,12 @@ final class NativeCameraController {
     private ImageCapture photos;
     private VideoCapture<Recorder> videos;
     private Recording recording;
+    private Preview previewUseCase;
+    private final List<CameraInfo> choices = new ArrayList<>();
+    private final List<CameraZoomRange> ranges = new ArrayList<>();
+    private int selected;
+    private boolean videoMode;
+
     private int generation;
     private final Map<String,File> files = new HashMap<>();
 
@@ -57,40 +62,53 @@ final class NativeCameraController {
                 provider=future.get();
                 int facing="user".equals(p.optString("facing"))?CameraSelector.LENS_FACING_FRONT:CameraSelector.LENS_FACING_BACK;
                 CameraSelector selector=new CameraSelector.Builder().requireLensFacing(facing).build();
-                // Prefer the logical camera advertising the broadest zoom range.
-                // No model names or presumed focal-length multipliers are used.
-                List<CameraInfo> available=selector.filter(provider.getAvailableCameraInfos());
-                if(available.isEmpty())throw new Exception("Camera unavailable");
-                CameraInfo best=available.get(0);double score=range(best);
-                for(CameraInfo info:available){double r=range(info);if(r>score){score=r;best=info;}}
-                final CameraInfo chosen=best;
-                selector=new CameraSelector.Builder().addCameraFilter(infos->{List<CameraInfo> selected=new ArrayList<>();for(CameraInfo info:infos)if(info==chosen)selected.add(info);return selected;}).build();
-                Preview useCase=new Preview.Builder().build();useCase.setSurfaceProvider(preview.getSurfaceProvider());
-                if("video".equals(p.optString("mode"))){
-                    Recorder recorder=new Recorder.Builder().setQualitySelector(QualitySelector.fromOrderedList(Arrays.asList(Quality.FHD,Quality.HD,Quality.SD),FallbackStrategy.lowerQualityOrHigherThan(Quality.SD))).build();
-                    videos=VideoCapture.withOutput(recorder);camera=provider.bindToLifecycle(activity,selector,useCase,videos);
-                }else{
-                    photos=new ImageCapture.Builder().setTargetResolution(new android.util.Size(2560,1920)).setJpegQuality(85).setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build();
-                    camera=provider.bindToLifecycle(activity,selector,useCase,photos);
+                videoMode="video".equals(p.optString("mode"));
+                choices.clear();ranges.clear();
+                for(CameraInfo info:selector.filter(provider.getAvailableCameraInfos())){
+                    if(videoMode&&Recorder.getVideoCapabilities(info).getSupportedQualities(DynamicRange.SDR).isEmpty())continue;
+                    ZoomState z=info.getZoomState().getValue();
+                    if(z==null)continue;
+                    choices.add(info);ranges.add(new CameraZoomRange(info.getIntrinsicZoomRatio(),z.getMinZoomRatio(),z.getMaxZoomRatio()));
                 }
+                if(choices.isEmpty())throw new Exception("Camera unavailable");
+                previewUseCase=new Preview.Builder().build();previewUseCase.setSurfaceProvider(preview.getSurfaceProvider());
+                if(videoMode){
+                    Recorder recorder=new Recorder.Builder().setQualitySelector(QualitySelector.fromOrderedList(Arrays.asList(Quality.FHD,Quality.HD,Quality.SD),FallbackStrategy.lowerQualityOrHigherThan(Quality.SD))).build();
+                    videos=VideoCapture.withOutput(recorder);
+                }else photos=new ImageCapture.Builder().setTargetResolution(new android.util.Size(2560,1920)).setJpegQuality(85).setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build();
+                bind(CameraZoomRange.select(ranges,1));
                 preview.setVisibility(View.VISIBLE);
                 boolean flip=provider.hasCamera(new CameraSelector.Builder().requireLensFacing(facing==CameraSelector.LENS_FACING_BACK?CameraSelector.LENS_FACING_FRONT:CameraSelector.LENS_FACING_BACK).build());
                 JSONObject result=state();result.put("canSwitch",flip);reply.complete(result,null);
             }catch(Exception e){close();reply.complete(null,"camera_unavailable");}
         },main);
     }
-    private static double range(CameraInfo info){ZoomState z=info.getZoomState().getValue();return z==null?0:z.getMaxZoomRatio()/z.getMinZoomRatio();}
+    private void bind(int index){
+        provider.unbindAll();camera=null;
+        CameraSelector selector=choices.get(index).getCameraSelector();
+        camera=videoMode?provider.bindToLifecycle(activity,selector,previewUseCase,videos):provider.bindToLifecycle(activity,selector,previewUseCase,photos);
+        selected=index;
+    }
     private JSONObject state() throws Exception {
         ZoomState z=camera.getCameraInfo().getZoomState().getValue();
         if(z==null)throw new Exception("Zoom unavailable");
-        return new JSONObject().put("min",z.getMinZoomRatio()).put("max",z.getMaxZoomRatio()).put("value",z.getZoomRatio());
+        double min=ranges.stream().mapToDouble(r->r.min).min().orElse(1),max=ranges.stream().mapToDouble(r->r.max).max().orElse(1);
+        return new JSONObject().put("min",min).put("max",max).put("value",z.getZoomRatio()*ranges.get(selected).intrinsic);
     }
     void zoom(double value, Reply reply){
-        if(camera==null||!Double.isFinite(value)){reply.complete(null,"camera_closed");return;}
-        ZoomState z=camera.getCameraInfo().getZoomState().getValue();
-        if(z==null){reply.complete(null,"zoom_unavailable");return;}
-        var pending=camera.getCameraControl().setZoomRatio((float)Math.max(z.getMinZoomRatio(),Math.min(z.getMaxZoomRatio(),value)));
-        pending.addListener(()->{try{pending.get();reply.complete(state(),null);}catch(Exception e){reply.complete(null,"zoom_failed");}},main);
+        if(camera==null||!Double.isFinite(value)||value<=0){reply.complete(null,"camera_closed");return;}
+        int previous=selected,next=CameraZoomRange.select(ranges,value),epoch=generation;
+        try{
+            // A persistent recording keeps the same output while VideoCapture is
+            // rebound. Front/rear switching remains a separate, idle-only control.
+            if(next!=selected)bind(next);
+            CameraZoomRange range=ranges.get(selected);
+            var pending=camera.getCameraControl().setZoomRatio((float)range.local(value));
+            pending.addListener(()->{try{pending.get();if(epoch!=generation)throw new Exception("closed");reply.complete(state(),null);}catch(Exception e){reply.complete(null,"zoom_failed");}},main);
+        }catch(Exception e){
+            try{if(selected!=previous||camera==null)bind(previous);}catch(Exception ignored){}
+            reply.complete(null,"zoom_failed");
+        }
     }
     private File output(String extension) throws IOException {File dir=new File(activity.getCacheDir(),"native-camera");dir.mkdirs();return File.createTempFile("capture-",extension,dir);}
     private JSONObject saved(File file,String mime,long duration) throws Exception {
@@ -105,11 +123,12 @@ final class NativeCameraController {
             public void onError(ImageCaptureException e){file.delete();reply.complete(null,"capture_failed");}
         });}catch(Exception e){reply.complete(null,"capture_failed");}
     }
+    @androidx.annotation.OptIn(markerClass = ExperimentalPersistentRecording.class)
     void record(Reply reply){
         if(videos==null||recording!=null){reply.complete(null,"camera_busy");return;}
         try {
             File file=output(".mp4");
-            recording=videos.getOutput().prepareRecording(activity,new FileOutputOptions.Builder(file).setFileSizeLimit(120L*1024*1024).setDurationLimitMillis(150000).build()).start(main,event->{
+            recording=videos.getOutput().prepareRecording(activity,new FileOutputOptions.Builder(file).setFileSizeLimit(120L*1024*1024).setDurationLimitMillis(150000).build()).asPersistentRecording().start(main,event->{
                 if(event instanceof VideoRecordEvent.Finalize){
                     recording=null;VideoRecordEvent.Finalize end=(VideoRecordEvent.Finalize)event;
                     long duration=end.getRecordingStats().getRecordedDurationNanos()/1000000;

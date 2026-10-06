@@ -25,7 +25,7 @@
     .ext-camera-controls{animation:extCameraControlsIn .24s ease-out;position:absolute;bottom:10px;left:12px;right:12px;z-index:3;display:flex;align-items:center;gap:10px;color:white;background:#101828a8;border-radius:24px;padding:5px 10px}.ext-camera-controls[hidden],.ext-camera-controls [hidden]{display:none!important}.ext-camera-controls button{border:0;border-radius:50%;background:transparent;color:inherit;min-width:38px;min-height:38px;padding:4px;font:inherit;font-size:13px;cursor:pointer}.ext-camera-controls button:disabled{opacity:.4}.ext-camera-controls [data-camera-switch]{font-size:20px;flex:none}.ext-camera-zoom{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.ext-camera-controls [data-zoom-presets]{display:flex;justify-content:space-evenly;overflow-x:auto}.ext-camera-controls [aria-pressed=true]{background:var(--primary,#d93025);color:white}.ext-camera-controls input{width:100%;margin:0;height:18px;accent-color:var(--primary,#d93025)}.ext-camera-controls output{min-width:32px;font-size:12px;text-align:right}.ext-camera.has-camera-controls{touch-action:none}.ext-camera.has-camera-controls .ext-photo-dock{bottom:calc(20px + var(--camera-controls-height,68px));touch-action:pan-x}.ext-camera.has-camera-controls .ext-camera-status{bottom:180px}
   `);
   P.util.injectCSS('exterior-camera-controls-motion',`@keyframes extCameraControlsIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@media(prefers-reduced-motion:reduce){.ext-camera-controls{animation:none}}`);
-  let guideNode=null, guideIndex=0, photoSummary=false, cameraStream=null, cameraEpoch=0, cameraStarting=false, cameraFallback=false, cameraNeedsUpdate=false, cameraMessage='', capturing=false;
+  let guideNode=null, guideIndex=0, photoSummary=false, cameraStream=null, nativeCameraCleanup=null, cameraEpoch=0, cameraStarting=false, cameraFallback=false, cameraNeedsUpdate=false, cameraMessage='', capturing=false;
   // Orbital video is the default capture; the eight guided photos are the fallback.
   let captureMode='video', videoStage='intro', photoIntroSeen=false, recNode=null;
   let recorder=null, recTake=null, recElapsed=0, recResumedAt=0, recTimer=null, wakeLock=null, videoPreview=null;
@@ -107,7 +107,7 @@
     await startCamera(true);
     if(cameraFallback&&cameraNode()?.isConnected&&page===1&&!workspaceSuspended){cameraFacing=previous;cameraFallback=false;await startCamera();}
   }
-  function stopCamera(){stopRecording();cameraEpoch++;cameraStarting=false;cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;cameraZoom=null;zoomPending=null;for(const node of [guideNode,recNode])if(node?.querySelector('video'))node.querySelector('video').srcObject=null;}
+  function stopCamera(){stopRecording();nativeCameraCleanup?.();cameraEpoch++;cameraStarting=false;cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;cameraZoom=null;zoomPending=null;for(const node of [guideNode,recNode])if(node?.querySelector('video'))node.querySelector('video').srcObject=null;}
   function resetGuide(){photoToast?.remove();if(photoToastTimer)clearTimeout(photoToastTimer);closeVideoPreview();stopCamera();guideNode?.remove();guideNode=null;recNode?.remove();recNode=null;guideIndex=0;photoSummary=false;cameraMessage='';cameraFallback=false;cameraNeedsUpdate=false;captureMode='video';videoStage='intro';photoIntroSeen=false;}
   function houseModel(){return `<div class="ext-model-scene" role="img" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_e4b02dd6cf2314","House angle guide") ?? "House angle guide")}"><div class="ext-model"><div class="ext-ground"></div><div class="ext-wall front"><i></i><b></b><i></i></div><div class="ext-wall back"><i></i><i></i></div><div class="ext-wall left"><i></i><i></i></div><div class="ext-wall right"><i></i><i></i></div><div class="ext-gable front"></div><div class="ext-gable back"></div><div class="ext-roof left"></div><div class="ext-roof right"></div><div class="ext-path">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_76f61845dd2aea","STREET") ?? "STREET")}</div></div></div>`;}
   function nativeBounds(surface){
@@ -118,12 +118,42 @@
   async function openNativeCamera(api,mode){
     api=api.session();
     const surface=cameraNode().querySelector('.ext-camera'),restores=[];
+    // Keep the page opaque everywhere except the native preview rectangle.
+    // Transparent ancestors alone expose sibling apps underneath the project.
+    const layers=[],hidden=new Map();
     let node=surface,owner=window;
-    while(node){const old=node.style.getPropertyValue('background'),priority=node.style.getPropertyPriority('background');restores.push(()=>old?nodeRef.style.setProperty('background',old,priority):nodeRef.style.removeProperty('background'));const nodeRef=node;node.style.setProperty('background','transparent','important');if(node.parentElement){node=node.parentElement;}else if(owner!==owner.top){node=owner.frameElement;owner=owner.parent;}else break;}
+    while(node){
+      const ref=node,old=ref.style.getPropertyValue('background'),priority=ref.style.getPropertyPriority('background');
+      restores.push(()=>old?ref.style.setProperty('background',old,priority):ref.style.removeProperty('background'));
+      layers.push({node:ref,owner});
+      if(node.parentElement)node=node.parentElement;
+      else if(owner!==owner.top){node=owner.frameElement;owner=owner.parent;}else break;
+    }
+    const paint=()=>{
+      let box=surface.getBoundingClientRect(),owner=window;
+      for(const layer of layers){
+        while(owner!==layer.owner){const b=owner.frameElement.getBoundingClientRect();box={left:box.left+b.left,top:box.top+b.top,right:box.right+b.left,bottom:box.bottom+b.top};owner=owner.parent;}
+        const el=layer.node,b=el.getBoundingClientRect();
+        if(el===surface)el.style.setProperty('background','transparent','important');
+        else {
+          const x=Math.max(0,box.left-b.left),y=Math.max(0,box.top-b.top),right=Math.max(0,box.right-b.left),bottom=Math.max(0,box.bottom-b.top);
+          el.style.setProperty('background',`linear-gradient(white,white) left top / 100% ${y}px no-repeat,linear-gradient(white,white) left ${bottom}px / 100% 100% no-repeat,linear-gradient(white,white) left top / ${x}px 100% no-repeat,linear-gradient(white,white) ${right}px top / 100% 100% no-repeat transparent`,'important');
+        }
+        for(const sibling of el.parentElement?.children||[]){
+          if(sibling===el||['STYLE','SCRIPT','LINK','HEAD'].includes(sibling.tagName))continue;
+          const r=sibling.getBoundingClientRect();
+          if(r.width&&r.height&&r.left<box.right&&r.right>box.left&&r.top<box.bottom&&r.bottom>box.top){
+            if(!hidden.has(sibling))hidden.set(sibling,['visibility','opacity'].map(key=>[key,sibling.style.getPropertyValue(key),sibling.style.getPropertyPriority(key)]));
+            sibling.style.setProperty('visibility','hidden','important');sibling.style.setProperty('opacity','0','important');
+          }
+        }
+      }
+    };
     const preview=surface.querySelector('video'),oldVisibility=preview.style.visibility;preview.style.visibility='hidden';
     let closed=false,observer;
-    const release=()=>{if(closed)return;closed=true;observer?.disconnect();window.removeEventListener('resize',resize);window.removeEventListener('scroll',resize,true);preview.style.visibility=oldVisibility;restores.reverse().forEach(fn=>fn());void api.close().catch(()=>{});};
-    const resize=()=>{if(!closed&&surface.isConnected)void api.bounds(nativeBounds(surface)).catch(()=>{});};
+    const release=()=>{if(closed)return;closed=true;if(nativeCameraCleanup===release)nativeCameraCleanup=null;observer?.disconnect();window.removeEventListener('resize',resize);window.removeEventListener('scroll',resize,true);preview.style.visibility=oldVisibility;restores.reverse().forEach(fn=>fn());for(const [el,properties] of hidden)for(const [key,value,priority] of properties)value?el.style.setProperty(key,value,priority):el.style.removeProperty(key);void api.close().catch(()=>{});};
+    const resize=()=>{if(!closed&&surface.isConnected){paint();void api.bounds(nativeBounds(surface)).catch(()=>{});}};
+    nativeCameraCleanup=release;paint();
     try{
       const info=await api.open({mode,facing:cameraFacing,bounds:nativeBounds(surface)});
       observer=new ResizeObserver(resize);observer.observe(surface);window.addEventListener('resize',resize);window.addEventListener('scroll',resize,true);

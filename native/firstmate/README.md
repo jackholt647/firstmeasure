@@ -20,13 +20,17 @@ This is an online app. It does not promise offline report editing, queued backgr
 
 ## Android
 
-Version 1.0.4 adds the `nativeCameraZoom` bridge capability. Exterior ordering keeps
-its web controls above an embedded CameraX preview and records/photos through the
-native camera. The selected logical camera supplies its minimum/maximum zoom;
-Android handles physical-lens transitions within that range. No phone-model table
-or manual lens picker is used. Manufacturer-private lenses and processing outside
-Android's public camera API are not advertised. Older native hosts and browsers
-retain the existing WebView capture path.
+Version 1.0.5 corrects native preview composition: only the preview rectangle is
+transparent, the modal surround remains opaque, and overlapping background apps
+are suppressed until capture closes. The native camera bridge introduced in 1.0.4
+keeps the existing web controls above CameraX preview and native photo/video capture.
+Zoom now discovers every CameraX-exposed camera of the selected facing, normalizes
+its reported range by its intrinsic zoom, and automatically routes the common zoom
+control between cameras. Persistent recording retains one output across rebinds.
+Logical cameras still handle their own supported physical-lens transitions.
+No model-specific table or manual lens picker is used. Manufacturer-private lenses
+outside public camera APIs are not advertised. Older hosts and browsers retain the
+existing WebView capture path.
 
 Camera bridge operations are main-frame/origin restricted and scoped to an opaque
 capture-session ID. A stale window cannot close or adjust a newer camera session.

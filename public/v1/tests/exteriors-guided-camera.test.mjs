@@ -339,6 +339,8 @@ test('digital video zoom records cropped frames and releases the canvas stream',
 test('native camera keeps FirstMate controls and uses device zoom range without a lens picker',async t=>{
  const page=await setup(t,{controls:true});await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
  await page.evaluate(()=>{
+  const behind=document.createElement('section');behind.id='projectsBehind';behind.textContent='My Projects';behind.style.cssText='position:fixed;inset:0;background:red;visibility:visible';document.body.prepend(behind);
+  document.querySelector('#rOverlay').style.cssText='position:relative;background:white';
   window.nativeCalls=[];window.nativeZoom=1;
   const api={
    open:async options=>{nativeCalls.push(['open',options]);return {min:.5,max:30,value:1,canSwitch:true};},
@@ -350,6 +352,9 @@ test('native camera keeps FirstMate controls and uses device zoom range without 
   Portal.test.useVideo();Portal.ExteriorOrder.render();
  });
  await page.waitForFunction(()=>Portal.test.getStream()?.native);
+ assert.equal(await page.locator('#projectsBehind').evaluate(el=>getComputedStyle(el).visibility),'hidden','project list cannot bleed through native preview');
+ assert.equal(await page.locator('.r-top').isVisible(),true,'project header stays visible');
+ assert.notEqual(await page.locator('#rOverlay').evaluate(el=>getComputedStyle(el).backgroundImage),'none','modal retains an opaque surround');
  assert.equal(await page.locator('[data-camera-zoom]').getAttribute('min'),'0.5');
  assert.equal(await page.locator('[data-camera-zoom]').getAttribute('max'),'30');
  assert.equal(await page.locator('[data-camera-lens]').count(),0);
@@ -361,4 +366,29 @@ test('native camera keeps FirstMate controls and uses device zoom range without 
  await page.evaluate(()=>Portal.test.stopCamera());
  assert.equal(await page.locator('video').evaluate(e=>e.style.visibility),'');
  assert.ok(await page.evaluate(()=>nativeCalls.some(c=>c[0]==='close')));
+ assert.equal(await page.locator('#projectsBehind').evaluate(el=>getComputedStyle(el).visibility),'visible');
+ assert.equal(await page.locator('#rOverlay').evaluate(el=>el.style.background),'white');
+});
+
+
+test('native preview isolates an iframe modal from projects and retains its opaque surround during permission',async t=>{
+ const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});t.after(()=>browser.close());
+ const page=await browser.newPage({viewport:{width:390,height:844}});
+ await page.route('https://nested.test/**',route=>route.fulfill({contentType:'text/html',body:route.request().url().endsWith('/frame')?
+  '<html><style>body{margin:0;background:white}header,footer{height:80px;background:white}#capture{background:white}.ext-camera{height:500px;background:black;position:relative}video{height:100%;width:100%}button{position:absolute;bottom:10px;left:10px}</style><body><header>Project address</header><section id="capture"><h2>Record a video</h2><div class="ext-camera"><video></video><button>Upload</button></div><footer>Record</footer></section></body></html>':
+  '<html><style>body{margin:0;background:white}#projects{position:fixed;inset:0;background:red}#shell{position:fixed;inset:0;background:white}iframe{height:100%;width:100%;border:0}</style><body><main id="projects">My Projects</main><section id="shell"><iframe src="/frame"></iframe></section></body></html>'}));
+ await page.goto('https://nested.test/');const frame=page.frames().find(f=>f.url().endsWith('/frame'));await frame.waitForSelector('.ext-camera');
+ const helper=source.slice(source.indexOf('  function nativeBounds('),source.indexOf('  async function captureNativePhoto('));
+ await frame.evaluate('(()=>{let nativeCameraCleanup=null;'+helper+';window.testOpen=openNativeCamera;window.cameraNode=()=>document.querySelector("#capture");window.cameraFacing="environment";})()');
+ await frame.evaluate(()=>{window.api={open:()=>new Promise(resolve=>window.grant=()=>resolve({min:1,max:10,value:1})),close:async()=>{},bounds:async()=>{}};window.opened=testOpen({session:()=>api},'video').then(stream=>window.stream=stream);});
+ assert.equal(await page.locator('#projects').isVisible(),false);
+ assert.equal(await frame.locator('header').isVisible(),true);assert.equal(await frame.locator('footer').isVisible(),true);assert.equal(await frame.locator('button').isVisible(),true);
+ await page.screenshot({path:process.env.TEMP+'/native-camera-nested-permission.png',omitBackground:true});
+ await frame.evaluate(async()=>{grant();await opened;});
+ await page.setViewportSize({width:412,height:900});
+ await frame.evaluate(()=>window.dispatchEvent(new Event('resize')));
+ assert.equal(await page.locator('#projects').isVisible(),false);
+ await frame.evaluate(()=>stream.getTracks()[0].stop());
+ assert.equal(await page.locator('#projects').isVisible(),true);
+ assert.equal(await page.locator('#shell').evaluate(e=>e.style.background),'');
 });
