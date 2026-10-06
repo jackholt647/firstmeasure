@@ -1,5 +1,8 @@
 # FirstMeasure: local development and production deployment
 
+October 6 agent to-dos: [Live interactive task widget](deploy/digitalocean/development-todo-widget-20261006.md) records the registered chat widget, color cues, completion/editing, permission checks and development verification.
+
+
 October 6 lead import: [Durable intake and agent-managed lead sources](deploy/digitalocean/development-lead-import-20261006.md) records unique inbox fixes, Connections webhooks/API polling, delivery review, public signed fixtures and the four-role development verification.
 
 

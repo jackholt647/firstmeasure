@@ -28,7 +28,8 @@ test('registered live to-do widget supports completion, edits, filters, denial a
   await page.screenshot({path:new URL('../../../output/todo-widget-20261006/mobile.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1')});
   await page.locator('.ftw').screenshot({path:new URL('../../../output/todo-widget-20261006/mobile-widget.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1')});
   await page.evaluate(()=>denied=true);await page.getByRole('checkbox',{name:'Complete Test global to-do item'}).click();await page.getByRole('alert').getByText('Not permitted').waitFor();assert.equal(await page.getByRole('checkbox',{name:'Complete Test global to-do item'}).getAttribute('aria-checked'),'false');
-  await page.getByRole('button',{name:'Refresh to-dos'}).click();await page.getByText('Access revoked').waitFor();assert.equal(await page.locator('.ftw-row').count(),0);
+  await page.getByRole('button',{name:'Test global to-do item',exact:true}).click();assert.equal(await page.locator('.ftw-editor').isVisible(),true);
+  await page.getByRole('button',{name:'Refresh to-dos'}).click();await page.getByText('Access revoked').waitFor();assert.equal(await page.locator('.ftw-row').count(),0);assert.equal(await page.locator('.ftw-editor').isVisible(),false);assert.equal(await page.locator('.ftw-editor').innerHTML(),'');
   await page.evaluate(()=>handle.destroy());assert.equal(await page.locator('#host').innerHTML(),'');assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
