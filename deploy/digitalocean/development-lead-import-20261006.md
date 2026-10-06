@@ -105,3 +105,7 @@ uncertain delivery. Review its retained project and workflow first.
 
 Ignored local evidence: `output/lead-import-audit/` and
 `output/lead-import-dev-20261006/`.
+
+## UI follow-up
+
+[Lead import workspace polish](development-lead-import-ui-20261006.md) records the full-height shared assistant, compact inbox and delivery controls, narrow-screen view switching, browser checks and frontend-only development rollout.
