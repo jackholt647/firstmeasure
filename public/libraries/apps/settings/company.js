@@ -14282,6 +14282,11 @@
                   <label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_e17c4838e115e8","Company name") ?? "Company name")}</span><input id="csName" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_c23a205ed97c61","Your company name") ?? "Your company name")}"></label>
                   <label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4d7b96eb4bf8b4","Company email") ?? "Company email")}</span><input id="csCompanyEmail" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_4665fb43c24164","billing@company.com") ?? "billing@company.com")}" inputmode="email" autocomplete="email"></label>
                   <label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_674849f6668e86","Company phone") ?? "Company phone")}</span><input id="csCompanyPhone" placeholder="(555) 123-4567" inputmode="tel" autocomplete="tel"></label>
+${String(window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'report_localization') ? `
+                  <div class="company-localization-grid wide">
+                <label class="cs-field"><span>${escapeHtml(window.PlatformLanguage.text('settings','company_language_label','Company language'))}</span><select id="csReportLanguage">${languageOptions(state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale)}</select></label>
+                <label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ae873abaa56707","Measurements") ?? "Measurements")}</span><select id="csMeasurementSystem"><option value="imperial">${(globalThis.PlatformLanguage?.htmlText("settings","m_455c24bfeb9092","Imperial (feet and squares)") ?? "Imperial (feet and squares)")}</option><option value="metric">${(globalThis.PlatformLanguage?.htmlText("settings","m_ef3e6a234d5a73","Metric (metres and square metres)") ?? "Metric (metres and square metres)")}</option></select></label>
+                  </div>` : '')}
 ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                     <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_6e9ebf535758d8","Business address") ?? "Business address")}</span>
                     <div class="address">
@@ -14297,14 +14302,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                 </div>
               </div>
             </section>
-            ${String(window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'report_localization') ? `
-            <section class="company-settings-card" aria-labelledby="csLocalizationHeading">
-              <div class="company-settings-card-head"><strong id="csLocalizationHeading">${escapeHtml(window.PlatformLanguage.text('settings','company_language_heading','Company language and measurements'))}</strong><i class="fas fa-circle-info company-settings-card-help" tabindex="0" role="button" aria-label="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help_label','About company language and measurements'))}" data-fm-tooltip="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help','Sets the defaults for new company documents, PDFs and FirstMeasure reports. Personal interface and message translation choices stay in My Settings. Message translation uses the company language unless you choose another target. Existing issued documents and ordered reports retain their saved language and units; authored content is not automatically translated.'))}" title="${escapeHtml(window.PlatformLanguage.text('settings','company_language_help','Sets the defaults for new company documents, PDFs and FirstMeasure reports. Personal interface and message translation choices stay in My Settings. Message translation uses the company language unless you choose another target. Existing issued documents and ordered reports retain their saved language and units; authored content is not automatically translated.'))}"></i></div>
-              <div class="company-settings-card-body company-localization-grid">
-                <label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_ae873abaa56707","Measurements") ?? "Measurements")}</span><select id="csMeasurementSystem"><option value="imperial">${(globalThis.PlatformLanguage?.htmlText("settings","m_455c24bfeb9092","Imperial (feet and squares)") ?? "Imperial (feet and squares)")}</option><option value="metric">${(globalThis.PlatformLanguage?.htmlText("settings","m_ef3e6a234d5a73","Metric (metres and square metres)") ?? "Metric (metres and square metres)")}</option></select></label>
-                <label class="cs-field"><span>${escapeHtml(window.PlatformLanguage.text('settings','company_language_label','Company language'))}</span><select id="csReportLanguage">${languageOptions(state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale)}</select></label>
-              </div>
-            </section>` : '')}
+
             <div class="company-brand-heading">${(globalThis.PlatformLanguage?.htmlText("settings","m_38e15f7a2dd540","Brand Kit") ?? "Brand Kit")}</div>
             ${window.PlatformBrandKit.markup({ prefix:'cs', extendedPalette, advancedLogos })}
             </div>
