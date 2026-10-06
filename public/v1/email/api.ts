@@ -598,7 +598,7 @@ async function findLeadAssignment(recipients: string[]): Promise<LeadImportAssig
         const email = normalizeEmail(data.inbound_email);
         const aliases = asArray(data.legacy_inbound_emails).map(normalizeEmail).filter(Boolean);
         if (data.enabled === false || !email || ![email, ...aliases].some((address) => recipientSet.has(address))) continue;
-        if (!(await isAppFlagEnabled(orgId, "email", "inbound_lead_import"))) continue;
+        if (!(await isAppFlagEnabled(orgId, "platform", "lead_import")) || !(await isAppFlagEnabled(orgId, "email", "inbound_lead_import"))) continue;
         return { orgId, branchId, module, data, email, localPart: email.split("@")[0] || "" };
       } catch {
         // Missing lead import module for this branch is normal.
@@ -788,6 +788,7 @@ export const registerEmailApi: FastifyPluginAsync = async (app) => {
   app.post("/organizations/:orgId/lead-deliveries/:id/review",async request=>{
     const orgId=getParam(request.params,"orgId");
     const auth=await requirePlatformAuth(request,{orgId,csrf:true,permission:"manage_projects"});
+    if(!await isAppFlagEnabled(orgId,"platform","lead_import"))throw forbidden("app_flag_disabled","Lead import is disabled.");
     return {ok:true,...await reviewLeadDelivery(orgId,getParam(request.params,"id"),auth.userId,request.body)};
   });
 
