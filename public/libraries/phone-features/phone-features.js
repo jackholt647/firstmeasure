@@ -13,7 +13,7 @@
     const bridge=transport();if(!bridge)return Promise.reject(Object.assign(new Error('This feature requires the mobile app.'),{code:'unsupported'}));
     const id=String(++sequence);
     return new Promise((resolve,reject)=>{
-      const timer=setTimeout(()=>{pending.delete(id);reject(Object.assign(new Error('The phone action timed out.'),{code:'timeout'}));},30000);
+      const timer=setTimeout(()=>{pending.delete(id);reject(Object.assign(new Error('The phone action timed out.'),{code:'timeout'}));},method==='cameraRecord'?180000:method==='cameraOpen'?120000:30000);
       pending.set(id,{resolve,reject,timer});
       try{bridge.postMessage(JSON.stringify({version:1,id,method,payload}));}catch(error){clearTimeout(timer);pending.delete(id);reject(error);}
     });
@@ -59,7 +59,23 @@
     const link=event.target?.closest?.('a[download]');if(!link||!link.href.startsWith('blob:'))return;
     event.preventDefault();fetch(link.href).then(r=>r.blob()).then(blob=>saveFile(blob,link.download||'download')).catch(error=>root.dispatchEvent(new CustomEvent('fm:phone:error',{detail:{message:error.message}})));
   },true);
-  root.PhoneFeatures=Object.freeze({version:1,ready,isNative:()=>!!transport(),info:()=>info,pickFiles,capturePhoto:()=>pickFiles({source:'camera'}),share,download,saveFile,
+  const camera=Object.freeze({
+    session(){
+      const session=crypto.randomUUID(),call=(method,payload={})=>request(method,{...payload,session});
+      return Object.freeze({open:options=>call('cameraOpen',options),bounds:bounds=>call('cameraBounds',bounds),zoom:value=>call('cameraZoom',{value}),photo:()=>call('cameraPhoto'),record:()=>call('cameraRecord'),stopRecording:()=>call('cameraRecordStop'),pause:paused=>call('cameraRecordPause',{paused}),close:()=>call('cameraClose'),file:capture=>camera.file(capture)});
+    },
+    open:options=>request('cameraOpen',options),bounds:bounds=>request('cameraBounds',bounds),zoom:value=>request('cameraZoom',{value}),
+    photo:()=>request('cameraPhoto'),record:()=>request('cameraRecord'),stopRecording:()=>request('cameraRecordStop'),pause:paused=>request('cameraRecordPause',{paused}),close:()=>request('cameraClose'),
+    async file(capture){
+      if(!capture||!Number.isSafeInteger(capture.size)||capture.size<1||capture.size>150*1024*1024)throw new Error('Invalid camera capture');
+      const parts=[];let offset=0;
+      try{
+        while(offset<capture.size){const reply=await request('cameraRead',{token:capture.token,offset});const bytes=Uint8Array.from(atob(reply.data),c=>c.charCodeAt(0));if(!bytes.length||bytes.length>256*1024||offset+bytes.length>capture.size)throw new Error('Invalid camera data');parts.push(bytes);offset+=bytes.length;}
+        return new File(parts,capture.name,{type:capture.mime});
+      }finally{await request('cameraRelease',{token:capture.token}).catch(()=>{});}
+    }
+  });
+  root.PhoneFeatures=Object.freeze({version:1,ready,isNative:()=>!!transport(),info:()=>info,pickFiles,capturePhoto:()=>pickFiles({source:'camera'}),share,download,saveFile,camera,
     haptic:()=>transport()?request('haptic'):Promise.resolve(),openSettings:()=>request('settings'),authenticate:()=>request('authenticate'),
     pushStatus:()=>request('pushStatus'),pushRegister:()=>request('pushRegister'),pushUnregister:()=>request('pushUnregister')});
 })(window);

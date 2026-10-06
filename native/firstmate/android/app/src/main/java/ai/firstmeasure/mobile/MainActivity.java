@@ -31,6 +31,15 @@ import java.util.concurrent.*;
 public class MainActivity extends ComponentActivity {
     private WebView web;
     private LinearLayout root;
+    private NativeCameraController nativeCamera;
+    private String nativeCameraSession="";
+    private Runnable pendingNativeCamera;
+    private NativeCameraController.Reply pendingNativeReply;
+    private final ActivityResultLauncher<String> nativeCameraPermission=registerForActivityResult(new ActivityResultContracts.RequestPermission(),granted->{
+        Runnable open=pendingNativeCamera;NativeCameraController.Reply reply=pendingNativeReply;pendingNativeCamera=null;pendingNativeReply=null;
+        if(open==null)return;
+        if(granted&&this.policy.trusted(web.getUrl()))open.run();else reply.complete(null,"camera_permission_denied");
+    });
     private final OriginPolicy policy = new OriginPolicy(BuildConfig.PORTAL_ORIGIN);
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private ValueCallback<Uri[]> fileCallback;
@@ -83,7 +92,9 @@ public class MainActivity extends ComponentActivity {
             androidx.core.graphics.Insets i=insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
             view.setPadding(i.left,i.top,i.right,i.bottom); return insets;
         });
-        web=new WebView(this); web.setId(View.generateViewId()); root.addView(web,new LinearLayout.LayoutParams(-1,0,1));
+        FrameLayout cameraHost=new FrameLayout(this);cameraHost.setBackgroundColor(android.graphics.Color.WHITE);root.addView(cameraHost,new LinearLayout.LayoutParams(-1,0,1));
+        nativeCamera=new NativeCameraController(this,cameraHost);
+        web=new WebView(this); web.setId(View.generateViewId());web.setBackgroundColor(android.graphics.Color.TRANSPARENT);cameraHost.addView(web,new FrameLayout.LayoutParams(-1,-1));
         WebSettings settings=web.getSettings(); settings.setJavaScriptEnabled(true); settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(false); settings.setAllowContentAccess(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
@@ -99,6 +110,7 @@ public class MainActivity extends ComponentActivity {
             handle(message.getData(),reply);
         });
         web.setWebViewClient(new WebViewClient(){
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon){nativeCameraSession="";nativeCamera.close();}
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){
                 if(!request.isForMainFrame()) return !"https".equals(request.getUrl().getScheme());
                 return navigate(request.getUrl().toString());
@@ -180,13 +192,34 @@ public class MainActivity extends ComponentActivity {
             if(id.length()>64||call.getInt("version")!=1)throw new Exception("Unsupported bridge version");
             JSONObject payload=call.optJSONObject("payload");if(payload==null)payload=new JSONObject();
             if(raw.length()>32768&&!call.getString("method").equals("saveFile"))throw new Exception("Request too large");
+            String method=call.getString("method");
+            if(method.startsWith("camera")&&!method.equals("cameraOpen")&&!method.equals("cameraRead")&&!method.equals("cameraRelease")&&!payload.optString("session").equals(nativeCameraSession)){respond(reply,id,null,"camera_closed");return;}
             switch(call.getString("method")){
+                case "cameraOpen": {
+                    if(pendingNativeCamera!=null)throw new Exception("Camera permission pending");
+                    String session=payload.getString("session");if(!session.matches("[a-fA-F0-9-]{36}"))throw new Exception("Invalid camera session");nativeCameraSession=session;
+                    final JSONObject options=payload;final String requestId=id;
+                    NativeCameraController.Reply done=(value,error)->respond(reply,requestId,value,error);
+                    Runnable open=()->{try{if(!session.equals(nativeCameraSession)){done.complete(null,"camera_closed");return;}nativeCamera.bounds(options.getJSONObject("bounds"),web.getWidth());nativeCamera.open(options,done);}catch(Exception e){done.complete(null,"camera_unavailable");}};
+                    if(androidx.core.content.ContextCompat.checkSelfPermission(this,android.Manifest.permission.CAMERA)==android.content.pm.PackageManager.PERMISSION_GRANTED)open.run();
+                    else{pendingNativeCamera=open;pendingNativeReply=done;nativeCameraPermission.launch(android.Manifest.permission.CAMERA);}
+                    break;
+                }
+                case "cameraBounds":nativeCamera.bounds(payload,web.getWidth());respond(reply,id,true,null);break;
+                case "cameraZoom": {final String requestId=id;nativeCamera.zoom(payload.getDouble("value"),(value,error)->respond(reply,requestId,value,error));break;}
+                case "cameraPhoto": {final String requestId=id;nativeCamera.photo((value,error)->respond(reply,requestId,value,error));break;}
+                case "cameraRecord": {final String requestId=id;nativeCamera.record((value,error)->respond(reply,requestId,value,error));break;}
+                case "cameraRecordStop":nativeCamera.stopRecording();respond(reply,id,true,null);break;
+                case "cameraRecordPause":nativeCamera.pause(payload.optBoolean("paused"));respond(reply,id,true,null);break;
+                case "cameraClose":nativeCameraSession="";nativeCamera.close();respond(reply,id,true,null);break;
+                case "cameraRead":respond(reply,id,nativeCamera.read(payload.getString("token"),payload.getInt("offset")),null);break;
+                case "cameraRelease":nativeCamera.release(payload.getString("token"));respond(reply,id,true,null);break;
                 case "authenticate":
                     authVerifier=nonce();authState=nonce();
                     getPreferences(MODE_PRIVATE).edit().putString("auth_state",authState).putString("auth_verifier",authVerifier).putLong("auth_expires",System.currentTimeMillis()+600000).apply();
                     String challenge=android.util.Base64.encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(authVerifier.getBytes(java.nio.charset.StandardCharsets.UTF_8)),android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|android.util.Base64.NO_PADDING);
                     startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(BuildConfig.PORTAL_ORIGIN+"/v1/mobile/auth/browser?challenge="+challenge+"&state="+authState)));respond(reply,id,true,null);break;
-                case "info": respond(reply,id,new JSONObject().put("bridgeVersion",1).put("platform","android").put("version",BuildConfig.VERSION_NAME).put("environment",BuildConfig.FLAVOR).put("capabilities",new org.json.JSONArray(List.of("files","camera","liveCamera","share","download","haptic","settings","push"))),null);break;
+                case "info": respond(reply,id,new JSONObject().put("bridgeVersion",1).put("platform","android").put("version",BuildConfig.VERSION_NAME).put("environment",BuildConfig.FLAVOR).put("capabilities",new org.json.JSONArray(List.of("files","camera","liveCamera","nativeCameraZoom","share","download","haptic","settings","push"))),null);break;
                 case "pushStatus": respond(reply,id,new JSONObject().put("available",pushAvailable()).put("granted",pushPermissionGranted()),null);break;
                 case "pushRegister":
                     if (!pushAvailable()) { respond(reply,id,null,"push_unavailable"); break; }
@@ -290,7 +323,7 @@ public class MainActivity extends ComponentActivity {
     }
     private void showMessage(String message){if(!isFinishing())Toast.makeText(this,message,Toast.LENGTH_LONG).show();}
     @Override protected void onSaveInstanceState(Bundle out){super.onSaveInstanceState(out);web.saveState(out);}
-    @Override protected void onPause(){super.onPause();if(web!=null)web.onPause();CookieManager.getInstance().flush();}
+    @Override protected void onPause(){super.onPause();if(nativeCamera!=null)nativeCamera.stopRecording();if(web!=null)web.onPause();CookieManager.getInstance().flush();}
     @Override protected void onResume(){super.onResume();if(web!=null)web.onResume();}
-    @Override protected void onDestroy(){completePicker(null);if(web!=null){web.stopLoading();web.destroy();}io.shutdownNow();super.onDestroy();}
+    @Override protected void onDestroy(){completePicker(null);if(nativeCamera!=null)nativeCamera.destroy();if(web!=null){web.stopLoading();web.destroy();}io.shutdownNow();super.onDestroy();}
 }

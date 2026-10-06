@@ -335,3 +335,30 @@ test('digital video zoom records cropped frames and releases the canvas stream',
  await page.evaluate(()=>Portal.test.stopCamera());
  await page.waitForFunction(()=>recordedStream.getTracks().every(t=>t.readyState==='ended'));
 });
+
+test('native camera keeps FirstMate controls and uses device zoom range without a lens picker',async t=>{
+ const page=await setup(t,{controls:true});await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
+ await page.evaluate(()=>{
+  window.nativeCalls=[];window.nativeZoom=1;
+  const api={
+   open:async options=>{nativeCalls.push(['open',options]);return {min:.5,max:30,value:1,canSwitch:true};},
+   bounds:async b=>{nativeCalls.push(['bounds',b]);},zoom:async value=>{nativeZoom=value;return {value};},close:async()=>{nativeCalls.push(['close']);},
+   record:()=>new Promise(resolve=>window.endNativeTake=()=>resolve({duration:2100,mime:'video/mp4',name:'native.mp4'})),
+   stopRecording:async()=>endNativeTake(),pause:async()=>{},file:async info=>new File([new Uint8Array(8192)],info.name,{type:info.mime})
+  };
+  window.PhoneFeatures={isNative:()=>true,info:()=>({platform:'android',capabilities:['liveCamera','nativeCameraZoom']}),camera:{session:()=>api}};
+  Portal.test.useVideo();Portal.ExteriorOrder.render();
+ });
+ await page.waitForFunction(()=>Portal.test.getStream()?.native);
+ assert.equal(await page.locator('[data-camera-zoom]').getAttribute('min'),'0.5');
+ assert.equal(await page.locator('[data-camera-zoom]').getAttribute('max'),'30');
+ assert.equal(await page.locator('[data-camera-lens]').count(),0);
+ await page.click('[data-zoom="30"]');await page.waitForFunction(()=>nativeZoom===30);
+ assert.equal(await page.locator('video').evaluate(e=>e.style.visibility),'hidden');
+ assert.equal(await page.evaluate(()=>cameraCalls),1,'native path never requests another WebView stream');
+ await page.click('[data-rec-toggle]');await page.click('[data-rec-toggle]');
+ await page.waitForFunction(()=>[...Portal.test.files.values()].some(f=>f.kind==='video'&&f.duration===2.1));
+ await page.evaluate(()=>Portal.test.stopCamera());
+ assert.equal(await page.locator('video').evaluate(e=>e.style.visibility),'');
+ assert.ok(await page.evaluate(()=>nativeCalls.some(c=>c[0]==='close')));
+});

@@ -20,6 +20,21 @@ This is an online app. It does not promise offline report editing, queued backgr
 
 ## Android
 
+Version 1.0.4 adds the `nativeCameraZoom` bridge capability. Exterior ordering keeps
+its web controls above an embedded CameraX preview and records/photos through the
+native camera. The selected logical camera supplies its minimum/maximum zoom;
+Android handles physical-lens transitions within that range. No phone-model table
+or manual lens picker is used. Manufacturer-private lenses and processing outside
+Android's public camera API are not advertised. Older native hosts and browsers
+retain the existing WebView capture path.
+
+Camera bridge operations are main-frame/origin restricted and scoped to an opaque
+capture-session ID. A stale window cannot close or adjust a newer camera session.
+Captured files remain private and transfer in bounded chunks using opaque tokens;
+the adapter releases the file after reading it. Backgrounding stops recording;
+the CameraX lifecycle releases camera access when the host stops. Both native and
+web paths use the existing report upload and authorization flow.
+
 Install JDK 17, Android SDK platform 36, platform-tools, and an API 35 Google APIs x86_64 emulator image. Set `JAVA_HOME` and `ANDROID_HOME`. The checked-in Gradle wrapper downloads Gradle 8.13.
 
 ```

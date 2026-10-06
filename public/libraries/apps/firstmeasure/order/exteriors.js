@@ -72,7 +72,7 @@
     {
       const {min,max,step,value}=cameraZoom||{min:1,max:3,step:.1,value:1},input=bar.querySelector('input');input.disabled=!cameraStream||!cameraZoom;input.min=min;input.max=max;input.step=step;input.value=value;
       output.textContent=zoomLabel(value);
-      const presets=[...new Set([min,...[.5,1,2,3,5,10].filter(v=>v>=min&&v<=max)])].sort((a,b)=>a-b);
+      const presets=[...new Set([min,max,...[.5,1,2,3,5,10,20].filter(v=>v>=min&&v<=max)])].sort((a,b)=>a-b);
       const host=bar.querySelector('[data-zoom-presets]'),key=presets.join(',');
       if(host.dataset.range!==key){host.dataset.range=key;host.innerHTML=presets.map(v=>'<button type="button" data-zoom="'+v+'" aria-label="Zoom '+zoomLabel(v)+'">'+zoomLabel(v)+'</button>').join('');}
       for(const b of host.children){b.disabled=!cameraStream||!cameraZoom;b.setAttribute('aria-pressed',String(Math.abs(Number(b.dataset.zoom)-value)<step/2+.001));}
@@ -94,6 +94,7 @@
     }}finally{zoomApplying=false;updateCameraControls(cameraNode());}
   }
   async function configureCameraControls(stream){
+    if(stream.native){cameraZoom={...stream.native.zoom,step:.01};cameraDevices=stream.native.canSwitch?[{},{}]:[{}];updateCameraControls(cameraNode());return;}
     const track=stream.getVideoTracks()[0],caps=track.getCapabilities?.()||{},settings=track.getSettings?.()||{};
     cameraFacing=settings.facingMode||cameraFacing;
     cameraZoom=caps.zoom&&Number.isFinite(caps.zoom.min)&&caps.zoom.max>caps.zoom.min?{min:caps.zoom.min,max:caps.zoom.max,step:caps.zoom.step||.1,value:settings.zoom??caps.zoom.min}:mobileCamera()?{min:1,max:3,step:.1,value:1,digital:true}:null;
@@ -109,6 +110,44 @@
   function stopCamera(){stopRecording();cameraEpoch++;cameraStarting=false;cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;cameraZoom=null;zoomPending=null;for(const node of [guideNode,recNode])if(node?.querySelector('video'))node.querySelector('video').srcObject=null;}
   function resetGuide(){photoToast?.remove();if(photoToastTimer)clearTimeout(photoToastTimer);closeVideoPreview();stopCamera();guideNode?.remove();guideNode=null;recNode?.remove();recNode=null;guideIndex=0;photoSummary=false;cameraMessage='';cameraFallback=false;cameraNeedsUpdate=false;captureMode='video';videoStage='intro';photoIntroSeen=false;}
   function houseModel(){return `<div class="ext-model-scene" role="img" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_e4b02dd6cf2314","House angle guide") ?? "House angle guide")}"><div class="ext-model"><div class="ext-ground"></div><div class="ext-wall front"><i></i><b></b><i></i></div><div class="ext-wall back"><i></i><i></i></div><div class="ext-wall left"><i></i><i></i></div><div class="ext-wall right"><i></i><i></i></div><div class="ext-gable front"></div><div class="ext-gable back"></div><div class="ext-roof left"></div><div class="ext-roof right"></div><div class="ext-path">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_76f61845dd2aea","STREET") ?? "STREET")}</div></div></div>`;}
+  function nativeBounds(surface){
+    let box=surface.getBoundingClientRect(),x=box.x,y=box.y,owner=window;
+    while(owner!==owner.top){const frame=owner.frameElement;if(!frame)break;const outer=frame.getBoundingClientRect();x+=outer.x;y+=outer.y;owner=owner.parent;}
+    return {x,y,width:box.width,height:box.height,viewportWidth:owner.innerWidth};
+  }
+  async function openNativeCamera(api,mode){
+    api=api.session();
+    const surface=cameraNode().querySelector('.ext-camera'),restores=[];
+    let node=surface,owner=window;
+    while(node){const old=node.style.getPropertyValue('background'),priority=node.style.getPropertyPriority('background');restores.push(()=>old?nodeRef.style.setProperty('background',old,priority):nodeRef.style.removeProperty('background'));const nodeRef=node;node.style.setProperty('background','transparent','important');if(node.parentElement){node=node.parentElement;}else if(owner!==owner.top){node=owner.frameElement;owner=owner.parent;}else break;}
+    const preview=surface.querySelector('video'),oldVisibility=preview.style.visibility;preview.style.visibility='hidden';
+    let closed=false,observer;
+    const release=()=>{if(closed)return;closed=true;observer?.disconnect();window.removeEventListener('resize',resize);window.removeEventListener('scroll',resize,true);preview.style.visibility=oldVisibility;restores.reverse().forEach(fn=>fn());void api.close().catch(()=>{});};
+    const resize=()=>{if(!closed&&surface.isConnected)void api.bounds(nativeBounds(surface)).catch(()=>{});};
+    try{
+      const info=await api.open({mode,facing:cameraFacing,bounds:nativeBounds(surface)});
+      observer=new ResizeObserver(resize);observer.observe(surface);window.addEventListener('resize',resize);window.addEventListener('scroll',resize,true);
+      const track={stop:release,getSettings:()=>({zoom:info.value,facingMode:cameraFacing}),applyConstraints:async c=>{const state=await api.zoom(c.advanced[0].zoom);info.value=state.value;}};
+      return {native:{api,zoom:{min:info.min,max:info.max,value:info.value},canSwitch:info.canSwitch},getTracks:()=>[track],getVideoTracks:()=>[track]};
+    }catch(error){release();throw error;}
+  }
+  async function captureNativePhoto(key){
+    if(capturing||files.size>=100)return;
+    const epoch=generation,api=cameraStream.native.api;capturing=true;
+    try{const capture=await api.photo(),file=await api.file(capture);if(epoch===generation)await upload(file,key,true);}
+    catch(e){cameraMessage='Photo could not be captured. Please try again.';updateCapture();}
+    finally{capturing=false;}
+  }
+  class NativeRecorder {
+    constructor(stream){this.api=stream.native.api;this.state='inactive';this.mimeType='video/mp4';}
+    start(){
+      this.state='recording';
+      this.api.record().then(capture=>{this.captureDuration=capture.duration;return this.api.file(capture);}).then(file=>{cameraMessage='';this.ondataavailable?.({data:file});}).catch(()=>{cameraMessage='Recording could not be saved. Please try again.';}).finally(()=>{this.state='inactive';this.onstop?.();});
+    }
+    stop(){if(this.state==='inactive'||this.stopping)return;this.stopping=true;this.state='stopping';cameraMessage='Saving segment…';updateCapture();void this.api.stopRecording().catch(()=>{});}
+    pause(){this.state='paused';void this.api.pause(true).catch(()=>{});}
+    resume(){this.state='recording';void this.api.pause(false).catch(()=>{});}
+  }
   async function startCamera(switching=false){
     if(cameraStream||cameraStarting||cameraFallback||photoSummary||page!==1||!ctx?.mobileOrder||!cameraStage())return;
     const video=captureMode==='video',noun=video?'videos':'photos';
@@ -124,6 +163,11 @@
       if(epoch!==cameraEpoch||page!==1||photoSummary||workspaceSuspended)return;
       cameraNeedsUpdate=!!(native&&info?.platform==='android'&&info?.capabilities&&!info.capabilities.includes('liveCamera'));
       if(cameraNeedsUpdate){cameraFallback=true;cameraMessage=`Update FirstMate from Settings → App download for the live camera. You can still take or upload ${noun} below.`;return;}
+      if(info?.capabilities?.includes('nativeCameraZoom')&&phone.camera){
+        const stream=await openNativeCamera(phone.camera,video?'video':'photo');
+        if(epoch!==cameraEpoch||page!==1||workspaceSuspended||!cameraStage()){stream.getTracks().forEach(t=>t.stop());return;}
+        cameraStream=stream;cameraFallback=false;cameraMessage='';await configureCameraControls(stream);return;
+      }
       if(!navigator.mediaDevices?.getUserMedia||(video&&typeof MediaRecorder!=='function')){cameraFallback=true;cameraMessage='Live camera is unavailable here. Use the camera button or Upload below.';return;}
       const stream=await navigator.mediaDevices.getUserMedia({video:video?{facingMode:switching?{exact:cameraFacing}:{ideal:cameraFacing},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}}:{facingMode:switching?{exact:cameraFacing}:{ideal:cameraFacing},width:{ideal:2560},height:{ideal:1920}},audio:false});
       if(epoch!==cameraEpoch||page!==1||photoSummary||workspaceSuspended||!cameraStage()||video!==(captureMode==='video')){stream.getTracks().forEach(track=>track.stop());return;}
@@ -153,6 +197,7 @@
   function captureGuided(){
     if(capturing)return;const key=guideKey(),epoch=generation;
     if(!cameraStream){if(cameraFallback)pickGuided(key,true);else void startCamera();return;}
+    if(cameraStream.native){void captureNativePhoto(key);return;}
     const video=guideNode.querySelector('video');if(!video.videoWidth)return;
     if(files.size>=100){error='You can upload up to 100 photos per order.';render();return;}
     capturing=true;
@@ -255,20 +300,21 @@
     const timer=setInterval(()=>{if(video.readyState>=2)drawCameraFrame(canvas,video);},1000/30);
     return {stream,release(){clearInterval(timer);stream.getTracks().forEach(t=>t.stop());}};
   }
-  function framePoster(video){try{if(!video?.videoWidth)return '';const canvas=document.createElement('canvas');canvas.width=192;canvas.height=Math.max(1,Math.round(192*video.videoHeight/video.videoWidth));drawCameraFrame(canvas,video);return canvas.toDataURL('image/jpeg',.8);}catch(e){return '';}}
+  function framePoster(video){try{if(!video?.videoWidth)return '';const canvas=document.createElement('canvas');canvas.width=192;canvas.height=Math.max(1,Math.round(192*video.videoHeight/video.videoWidth));if(video===cameraNode()?.querySelector('video'))drawCameraFrame(canvas,video);else canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',.8);}catch(e){return '';}}
   async function holdWake(){try{wakeLock=await navigator.wakeLock?.request('screen');}catch(e){wakeLock=null;}}
   function releaseWake(){wakeLock?.release?.().catch(()=>{});wakeLock=null;}
   function startRecording(){
     if(recording()||!cameraStream)return;
     if(files.size>=100){error='You can upload up to 100 files per order.';render();return;}
     const epoch=generation,index=structure,type=recorderType();let active,source;
-    try{source=recordingSource(recNode?.querySelector('video'));active=new MediaRecorder(source.stream,{...(type?{mimeType:type}:{}),videoBitsPerSecond:VIDEO_BITRATE});}
+    try{source=recordingSource(recNode?.querySelector('video'));active=new (source.stream.native?NativeRecorder:MediaRecorder)(source.stream,{...(type?{mimeType:type}:{}),videoBitsPerSecond:VIDEO_BITRATE});}
     catch(e){source?.release();cameraMessage='Recording is unavailable here. Upload a video instead.';updateRecorder();return;}
     const chunks=[],take={duration:0,again:false,poster:framePoster(recNode?.querySelector('video'))};
     recorder=active;recTake=take;recElapsed=0;recResumedAt=Date.now();
     active.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
     active.onstop=()=>{
       source.release();
+      take.duration=active.captureDuration??take.duration;
       if(recorder===active){recorder=null;clearInterval(recTimer);recTimer=null;releaseWake();}
       if(epoch!==generation)return;
       const blob=new Blob(chunks,{type:(active.mimeType||type||'video/webm').split(';')[0]});
@@ -290,7 +336,7 @@
     const entry={name,kind:'video',type,duration:take.duration/1000,thumbnail:take.poster,sequence:++captureSequence,uploaded_at:new Date().toISOString(),file:new File([blob],name,{type}),url:URL.createObjectURL(blob)};
     files.set(index+':video-'+crypto.randomUUID(),entry);
     if(blob.size>VIDEO_MAX_BYTES){entry.error='This segment is too large to upload. Remove it and record a shorter one.';entry.file=null;render();return;}
-    render();void send(entry);
+    if(!entry.thumbnail)videoThumb(entry);render();void send(entry);
   }
   function toggleRecording(){
     if(recording()){stopRecording();return;}
@@ -342,7 +388,7 @@
     recNode.querySelector('[data-rec-hint]').textContent=live||!cameraStream?'':takes.length?'Record another segment to continue the circle, or review when you have gone all the way around.':'Start at the front. Walk one full circle, keeping the whole house in frame.';
     recNode.querySelector('.ext-camera').classList.toggle('live',!!cameraStream);updateCameraControls(recNode);
     recNode.querySelector('.ext-camera-status').textContent=cameraMessage;
-    const toggle=recNode.querySelector('[data-rec-toggle]');toggle.disabled=cameraStarting;toggle.setAttribute('aria-label',live?'Stop recording':'Start recording');
+    const toggle=recNode.querySelector('[data-rec-toggle]');toggle.disabled=cameraStarting||recorder?.state==='stopping';toggle.setAttribute('aria-label',live?'Stop recording':'Start recording');
     recNode.querySelector('[data-rec-badge]').hidden=!live;updateRecorderClock();
     recNode.querySelector('[data-guide-retry-camera]').hidden=!!cameraStream||cameraStarting||cameraNeedsUpdate;
     recNode.querySelector('[data-rec-upload]').disabled=live;
