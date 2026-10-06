@@ -1,5 +1,5 @@
 import { MAX_PANELS_PER_TURN, panelEnvelope, panelsFrom } from "./panels.js";
-import { listWidgets, authorizeWidget, widgetSources } from '../platform/widgets/catalog.js';
+import { listWidgets, authorizeWidget, widgetSources, widgetMatchesQuery } from '../platform/widgets/catalog.js';
 /** Shared, permission-filtered publication tools for every human-initiated agent. */
 import type { AgentRun, AgentTool } from "./types.js";
 import { asObject, cleanText, type JsonObject } from "./util.js";
@@ -100,7 +100,7 @@ export const platformAgentTools: AgentTool[] = [
   {
     name:'platform_widgets',description:'Discover reusable widgets and their typed data sources, configuration, sizes and supported surfaces. Filter by a business concept or app.',
     parameters:{type:'object',properties:{query:string},additionalProperties:false},
-    async execute(run,args){initializePublication();const query=cleanText(args.query).toLowerCase();const widgets=await listWidgets(await context(run));return {widgets:widgets.filter(def=>widgetSources(def).every(source=>allowedByAgent(run,`${source.provider}.${source.export}`))&&(!query||`${def.id} ${def.title} ${def.description} ${def.app}`.toLowerCase().includes(query)))} as unknown as JsonObject;}
+    async execute(run,args){initializePublication();const query=cleanText(args.query);const widgets=await listWidgets(await context(run));return {widgets:widgets.filter(def=>widgetSources(def).every(source=>allowedByAgent(run,`${source.provider}.${source.export}`))&&widgetMatchesQuery(def,query))} as unknown as JsonObject;}
   },
   {
     name:'platform_show_widget',description:'Display a registered widget for an authorized project. Use platform_widgets first. The widget is placed inside a chat panel. Only presentation is queued; data is freshly authorized when the user opens it.',

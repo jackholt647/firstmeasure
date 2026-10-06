@@ -17,6 +17,13 @@ export type WidgetDefinition={id:string;version:string;title:string;description:
 const definitions=JSON.parse(readFileSync(path.join(widgetRoot,'catalog.json'),'utf8')) as WidgetDefinition[];
 export function widgetDefinition(id:string,version='1'){const def=definitions.find(d=>d.id===id&&d.version===version);if(!def)throw badRequest('widget_unknown','This widget version is unavailable.');return structuredClone(def);}
 export function widgetSources(def:WidgetDefinition):{provider:string;export:string}[]{return [...def.sources,...(def.children||[]).flatMap(child=>widgetSources(widgetDefinition(child.id,child.version)))];}
+/** Search concept words across fields, including common spelling/plural variants. */
+export function widgetMatchesQuery(def:WidgetDefinition,query:string){
+ const normalize=(value:string)=>value.toLowerCase().replace(/\bto[\s-]*dos?\b/g,'todo').replace(/[^a-z0-9]+/g,' ').replace(/\b(tasks|lists|projects|measurements|widgets)\b/g,word=>word.slice(0,-1));
+ const terms=[...new Set(normalize(query).split(/\s+/).filter(Boolean))];
+ const text=normalize(`${def.id} ${def.title} ${def.description} ${def.app}`);
+ return terms.every(term=>text.includes(term));
+}
 export async function authorizeWidget(ctx:PublicationContext,id:string,version:string,target:TargetRef,config:Obj={}){
  const def=widgetDefinition(id,version);validateJson(def.configSchema,config,'widget configuration');
  for(const source of widgetSources(def))await authorizeSource(ctx,{...source,target});return def;
