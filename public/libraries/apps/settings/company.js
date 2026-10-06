@@ -2735,6 +2735,7 @@
       .cs-card{background:transparent;border:0;border-radius:0;box-shadow:none;padding:0;margin:0;min-width:0}
       .cs-main>.cs-card{background:#fff;border:1px solid #e4e7ec;border-radius:16px;box-shadow:0 10px 28px rgba(15,23,42,.055);padding:18px}
       .cs-pane{ display:none; } .cs-pane.active{ display:block; }
+      .cs-pane:not(.active){display:none!important}
       .embedded-tab-only .cs-heading,.embedded-tab-only .cs-sidebar{display:none}.embedded-tab-only .cs-layout{grid-template-columns:minmax(0,1fr);grid-template-areas:'subtabs' 'content'}.embedded-tab-only .cs-layout.no-subtabs .cs-main{grid-row:1/3}
       @media(min-width:1101px){
         #tab_company_settings{height:100%;min-height:0;overflow:hidden}
