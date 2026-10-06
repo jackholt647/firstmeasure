@@ -222,7 +222,7 @@
       .fm-contact-overlay{position:fixed;inset:0;z-index:2147483100;background:rgba(11,16,24,.58);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .22s ease}
       .fm-contact-overlay.active{display:flex;opacity:1}
       #fmContactGallery[hidden],#fmContactProjects[hidden],#fmContactNewProject[hidden],#fmContactProjectCount[hidden]{display:none!important}#fmContactCustomFields{display:contents}.fm-contact-fields{align-content:start;grid-auto-rows:max-content}.fm-contact-profile{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:16px}.fm-contact-profile-image{width:100px;height:100px;object-fit:cover;border-radius:10px}.fm-contact-tabs{display:flex;gap:8px;padding:0 18px;margin-bottom:12px}#fmContactGallery{min-width:0;overflow:auto;flex:1;padding:0 18px 18px}
-      .fm-contact-win{width:min(1480px,94vw);height:min(940px,90vh);background:#fff;border-radius:14px;box-shadow:0 36px 120px rgba(15,23,42,.28);overflow:hidden;display:flex;flex-direction:column;position:relative}
+      .fm-contact-win{width:min(1480px,94vw);height:min(940px,90vh);background:#fff;box-shadow:0 36px 120px rgba(15,23,42,.28);overflow:hidden;display:flex;flex-direction:column;position:relative}
       .fm-contact-window-header{height:48px;min-height:48px;display:flex;align-items:center;border-bottom:1px solid rgba(15,23,42,.10);background:#fff;flex:0 0 auto}
       .fm-contact-window-identity{display:flex;align-items:center;gap:9px;min-width:0;flex:1;padding:0 16px;color:#101828;font-size:13px;font-weight:1000}
       .fm-contact-window-identity i,.fm-contact-title-icon{color:var(--primary-readable,var(--primary,#d93025));flex:0 0 auto}
