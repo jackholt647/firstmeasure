@@ -59,9 +59,9 @@
   `;
     style.textContent += `
     /* Lead intake uses the same bounded workspace as Connections. */
-    #tab_company_settings:has(#liPanelEmail.active),.cs-wrap:has(#liPanelEmail.active),.cs-layout:has(#liPanelEmail.active),.cs-main:has(#liPanelEmail.active){height:100%;min-height:0;overflow:hidden;box-sizing:border-box}
-    .cs-main>.cs-card:has(#liPanelEmail.active){height:100%;min-height:0;overflow:hidden;padding:0}
-    #csPaneForms:has(#liPanelEmail.active){display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden}
+    #tab_company_settings:has(#csPaneForms.active #liPanelEmail.active),.cs-wrap:has(#csPaneForms.active #liPanelEmail.active),.cs-layout:has(#csPaneForms.active #liPanelEmail.active),.cs-main:has(#csPaneForms.active #liPanelEmail.active){height:100%;min-height:0;overflow:hidden;box-sizing:border-box}
+    .cs-main>.cs-card:has(#csPaneForms.active #liPanelEmail.active){height:100%;min-height:0;overflow:hidden;padding:0}
+    #csPaneForms.active:has(#liPanelEmail.active){display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden}
     #liPanelEmail.active{display:flex;flex:1;height:auto;min-height:0;overflow:hidden}
     #liPanelEmail>[data-lead-sources-panel]{flex:1;min-height:0;min-width:0}
     .il-root{display:flex;flex-direction:column}.il-home{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,44%);flex:1;min-height:0;overflow:hidden}

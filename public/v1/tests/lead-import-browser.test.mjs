@@ -69,6 +69,7 @@ test('lead workspace fits the settings shell with the real shared assistant and 
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:'../../output/lead-ui-20261006/screenshots/real-inbox-mobile.png'});
   await page.getByRole('button',{name:'Assistant',exact:true}).click();await page.screenshot({path:'../../output/lead-ui-20261006/screenshots/real-assistant-mobile.png'});
   assert.ok(await page.locator('.ic-chat [data-fma=input]').isVisible());assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await page.evaluate(()=>document.querySelector('#csPaneForms').classList.remove('active'));assert.equal(await page.locator('#csPaneForms').isVisible(),false,'leaving Leads hides its workspace');
   await page.evaluate(()=>window.controller.destroy());assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
