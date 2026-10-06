@@ -12,7 +12,7 @@ The inventory includes:
 - Document types and scope artifact categories, labeled by their separate owning registries.
 - Dataset type contracts and published document/workflow modules.
 
-Declaration scope (global registry, organization-installed definition, or selected-project custom field) is distinct from supported target scopes. Entries group by declaration scope and layer, then sort by identity. Search includes nested contract fields. Schema trees render children only when expanded.
+Declaration scope (global registry, organization-installed definition, or selected-project custom field) is distinct from supported target scopes. Entries group by declaration scope and layer, then form an expandable hierarchy from dotted namespaces. Children stay collapsed until their parent opens; declaration contracts and their nested schemas expand independently. Search includes nested contract fields. Schema trees render children only when expanded.
 
 Organization custom fields use the session branch; a selected project uses its owning branch and adds its field schema. External connection entries use actual source/action authorization, so foreign organizations, revoked grants and inactive versions are excluded even when cached in the shared process registry. Private module exports and custom fields without read access are excluded.
 

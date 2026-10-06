@@ -1,0 +1,15 @@
+# Software layers namespace tree and typography â€” October 6, 2026
+
+Tree commit: `62fa4a10ae1ebe0b9e13e545fcc42001d69b9042`. App-font follow-up: `9c6f733e5d75177ffc73696a42a9f59a4d370579`. Final verified release: `46dcb35aa5d5d7145065ac153fa71b2f3bbb3bc8`.
+
+Software declarations now form an actual expandable namespace hierarchy inside their scope/layer group. A collapsed `doc` contains `doc.audio`, `doc.video` and other declared children. Deeper dotted identifiers form deeper branches. Children are created only when their parent opens; declaration contracts and schemas remain independently expandable. Search filters the hierarchy while preserving parent paths rather than flattening matched leaves.
+
+The panel resolves its font from the visible desktop/mobile application header whenever it opens or resizes. Its controls and schema tree inherit that font. The hosted page body uses a different font from the shell, so inheriting only from the body was insufficient. Invalid font shorthand rules were replaced with explicit font size/weight and inherited font family; the schema panel no longer forces monospace. Asset versions force reload of the corrected scripts and stylesheet.
+
+The focused browser regression verifies collapsed namespace visibility, child and grandchild expansion, nested schema inspection, font-family equality with the host app, filtering, fullscreen, mobile bounds and the preserved Synthetic data tab. Deployment is an immutable four-asset overlay over audited development serving-role baselines; backend services, data contracts and business records are unchanged.
+
+Evidence is under `output/development-layer-tree-20261006/`. Web staging initially refused insufficient disk headroom. The inactive rotated `/var/log/syslog.1` was compressed to `/var/log/syslog.1.software-layers.gz` after checking open file references; decompression SHA-256 and original metadata were verified before replacing the uncompressed copy. Its content remains recoverable. This recovered about 248 MB without discarding release history or application data.
+
+Rollback requires inspecting subsequent rollouts, restoring each role's manifest previous path and restarting its development service with PHP-FPM reload and readiness verification. Production is outside this rollout; the existing historical development autoscale-image limitation remains.
+
+Final activation and exact asset hashes verified on all three development serving roles. The hosted browser check passed collapsed `doc` namespace / child expansion, nested contracts, scope filtering, fullscreen/restore, desktop/mobile bounds, Synthetic data continuity and exact font-family equality with the app header (`Montserrat-Regular, sans-serif`). Replacement-character checks passed for rendered namespace labels. Verification companies were removed. Final evidence is under `output/development-layer-final-20261006/`. A brief public 503 occurred during the last web-node handoff; repeated public readiness subsequently passed on the final release before the remaining compatibility activation.
