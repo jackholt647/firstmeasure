@@ -1,6 +1,9 @@
 package ai.firstmeasure.mobile;
 
 import android.graphics.Color;
+import android.hardware.camera2.CameraCharacteristics;
+import androidx.camera.camera2.interop.Camera2CameraInfo;
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop;
 import android.graphics.Outline;
 import android.view.View;
 import android.view.ViewOutlineProvider;
@@ -64,11 +67,13 @@ final class NativeCameraController {
                 CameraSelector selector=new CameraSelector.Builder().requireLensFacing(facing).build();
                 videoMode="video".equals(p.optString("mode"));
                 choices.clear();ranges.clear();
-                for(CameraInfo info:selector.filter(provider.getAvailableCameraInfos())){
+                List<CameraInfo> available=selector.filter(provider.getAvailableCameraInfos());
+                CameraInfo standard=available.isEmpty()?null:available.get(0);
+                for(CameraInfo info:available){
                     if(videoMode&&Recorder.getVideoCapabilities(info).getSupportedQualities(DynamicRange.SDR).isEmpty())continue;
                     ZoomState z=info.getZoomState().getValue();
                     if(z==null)continue;
-                    choices.add(info);ranges.add(new CameraZoomRange(info.getIntrinsicZoomRatio(),z.getMinZoomRatio(),z.getMaxZoomRatio()));
+                    choices.add(info);ranges.add(new CameraZoomRange(intrinsic(info,standard),z.getMinZoomRatio(),z.getMaxZoomRatio()));
                 }
                 if(choices.isEmpty())throw new Exception("Camera unavailable");
                 previewUseCase=new Preview.Builder().build();previewUseCase.setSurfaceProvider(preview.getSurfaceProvider());
@@ -82,6 +87,23 @@ final class NativeCameraController {
                 JSONObject result=state();result.put("canSwitch",flip);reply.complete(result,null);
             }catch(Exception e){close();reply.complete(null,"camera_unavailable");}
         },main);
+    }
+    @androidx.annotation.OptIn(markerClass = ExperimentalCamera2Interop.class)
+    private static double focalScale(CameraInfo info){
+        Camera2CameraInfo details=Camera2CameraInfo.from(info);
+        float[] lengths=details.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+        android.util.SizeF sensor=details.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE);
+        android.util.Size pixels=details.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE);
+        android.graphics.Rect active=details.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+        if(lengths==null||lengths.length==0||sensor==null||sensor.getWidth()<=0)return Double.NaN;
+        double width=sensor.getWidth();
+        if(pixels!=null&&active!=null&&pixels.getWidth()>0)width*=((double)active.width())/pixels.getWidth();
+        return lengths[0]/width;
+    }
+    private static double intrinsic(CameraInfo info,CameraInfo standard){
+        if(info==standard)return 1;
+        try{double ratio=focalScale(info)/focalScale(standard);if(Double.isFinite(ratio)&&ratio>0)return ratio;}catch(Exception ignored){}
+        return info.getIntrinsicZoomRatio();
     }
     private void bind(int index){
         provider.unbindAll();camera=null;

@@ -72,7 +72,7 @@
     {
       const {min,max,step,value}=cameraZoom||{min:1,max:3,step:.1,value:1},input=bar.querySelector('input');input.disabled=!cameraStream||!cameraZoom;input.min=min;input.max=max;input.step=step;input.value=value;
       output.textContent=zoomLabel(value);
-      const presets=[...new Set([min,max,...[.5,1,2,3,5,10,20].filter(v=>v>=min&&v<=max)])].sort((a,b)=>a-b);
+      const presets=[min,max,...[.5,1,2,3,5,10,20].filter(v=>v>=min&&v<=max)].filter((v,i,all)=>all.findIndex(other=>zoomLabel(other)===zoomLabel(v))===i).sort((a,b)=>a-b);
       const host=bar.querySelector('[data-zoom-presets]'),key=presets.join(',');
       if(host.dataset.range!==key){host.dataset.range=key;host.innerHTML=presets.map(v=>'<button type="button" data-zoom="'+v+'" aria-label="Zoom '+zoomLabel(v)+'">'+zoomLabel(v)+'</button>').join('');}
       for(const b of host.children){b.disabled=!cameraStream||!cameraZoom;b.setAttribute('aria-pressed',String(Math.abs(Number(b.dataset.zoom)-value)<step/2+.001));}

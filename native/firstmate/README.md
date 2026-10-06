@@ -25,7 +25,7 @@ transparent, the modal surround remains opaque, and overlapping background apps
 are suppressed until capture closes. The native camera bridge introduced in 1.0.4
 keeps the existing web controls above CameraX preview and native photo/video capture.
 Zoom now discovers every CameraX-exposed camera of the selected facing, normalizes
-its reported range by its intrinsic zoom, and automatically routes the common zoom
+its reported range by sensor-relative focal length (intrinsic zoom as fallback), and automatically routes the common zoom
 control between cameras. Persistent recording retains one output across rebinds.
 Logical cameras still handle their own supported physical-lens transitions.
 No model-specific table or manual lens picker is used. Manufacturer-private lenses
