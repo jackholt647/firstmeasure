@@ -3,7 +3,8 @@
   'use strict';
   if(global.FirstMateWidgets)return;
   const base=new URL('./',document.currentScript.src),definitions=new Map(),renderers=new Map();
-  const clone=v=>JSON.parse(JSON.stringify(v));
+  const clone=v=>JSON.parse(JSON.stringify(v)),mounted=new Map();
+  const instanceId=()=>global.crypto?.randomUUID?.()||'widget-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
   const key=(id,version='1')=>id+'@'+version;
   function validate(def,config){
     const schema=def.configSchema||{properties:{},additionalProperties:false};
@@ -39,7 +40,7 @@
   }
   function status(root,message){root.replaceChildren();const el=document.createElement('div');el.className='fm-widget-status';el.setAttribute('role','status');el.textContent=message;root.append(el);}
   function mount(root,reference,context={}){
-    styles();const ref=clone(reference),config=ref.config||{};let alive=true,revision=0,instance,children=[],visible=true,definition;
+    styles();const id=root.dataset.instanceId||instanceId();root.dataset.instanceId=id;const ref=clone(reference),config=ref.config||{};let alive=true,revision=0,instance,children=[],visible=true,definition;
     root.classList.add('fm-widget');
     const content=document.createElement('div');content.style.cssText='height:100%;min-width:0';root.append(content);
     const observer=new ResizeObserver(()=>{if(alive&&visible){instance?.resize?.({width:root.clientWidth,height:root.clientHeight});context.onSize?.({width:root.clientWidth,height:root.scrollHeight});}});observer.observe(root);
@@ -86,8 +87,8 @@
         if(!alive||generation!==revision){result?.destroy?.();return;}instance=result;instance?.setVisible?.(visible);
       }catch(error){if(alive&&generation===revision){clear();status(content,error.message||'Unable to display this widget.');}}
     }
-    const handle={ready:null,update,refresh,async configure(next){await ready;validate(definition||definitions.get(key(ref.id,ref.version||'1')),next);Object.keys(config).forEach(k=>delete config[k]);Object.assign(config,clone(next));ref.config=config;return update();},setVisible(value){visible=!!value;instance?.setVisible?.(visible);children.forEach(c=>c.setVisible(visible));},serialize(){return {...clone(ref),...(instance?.serialize?{state:instance.serialize()}:{})};},destroy(){if(!alive)return;alive=false;revision++;observer.disconnect();clear();root.replaceChildren();root.classList.remove('fm-widget');delete root.dataset.sizing;}};
-    handle.ready=update();return handle;
+    const handle={ready:null,update,refresh,async configure(next){await ready;validate(definition||definitions.get(key(ref.id,ref.version||'1')),next);Object.keys(config).forEach(k=>delete config[k]);Object.assign(config,clone(next));ref.config=config;return update();},setVisible(value){visible=!!value;instance?.setVisible?.(visible);children.forEach(c=>c.setVisible(visible));},serialize(){return {...clone(ref),...(instance?.serialize?{state:instance.serialize()}:{})};},destroy(){if(!alive)return;alive=false;mounted.delete(id);revision++;observer.disconnect();clear();root.replaceChildren();root.classList.remove('fm-widget');delete root.dataset.sizing;}};
+    mounted.set(id,{root,handle,reference:()=>({...clone(ref),target:ref.target||context.target})});handle.ready=update();return handle;
   }
   function library(root,{items=[],selected,layout='auto',context={},onSelect}={}){
     styles();root.replaceChildren();const shell=document.createElement('div');shell.className='fm-widget-library';const stage=document.createElement('div'),selector=document.createElement('div');stage.className='fm-widget-stage';selector.className='fm-widget-selector';selector.setAttribute('role','tablist');selector.setAttribute('aria-label','Views');shell.append(selector,stage);root.append(shell);
@@ -124,7 +125,7 @@
   global.document.addEventListener('click',event=>{const button=event.target.closest?.('.fm-widget-expand');if(!button)return;const card=button.closest('.fm-widget-presentation');const expanded=card.dataset.expanded!=='true';card.dataset.expanded=String(expanded);button.setAttribute('aria-expanded',String(expanded));button.textContent=expanded?'Collapse widget':'Expand widget';});
   if(!customElements.get('fm-platform-widget'))customElements.define('fm-platform-widget',class extends HTMLElement{
     static get observedAttributes(){return ['reference','surface'];}
-    connectedCallback(){this.instanceId ||= (global.crypto?.randomUUID?.()||'widget-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));this.dataset.instanceId=this.instanceId;if(this.visibility)return;if(!this.handle)this.refresh();let seen=false,wasVisible=false;this.visibility=new IntersectionObserver(entries=>{const visible=entries.some(e=>e.isIntersecting);this.handle?.setVisible(visible);if(seen&&visible&&!wasVisible)this.refresh();seen=true;wasVisible=visible;});this.visibility.observe(this);}
+    connectedCallback(){this.instanceId ||= this.dataset.instanceId||instanceId();this.dataset.instanceId=this.instanceId;if(this.visibility)return;if(!this.handle)this.refresh();let seen=false,wasVisible=false;this.visibility=new IntersectionObserver(entries=>{const visible=entries.some(e=>e.isIntersecting);this.handle?.setVisible(visible);if(seen&&visible&&!wasVisible)this.refresh();seen=true;wasVisible=visible;});this.visibility.observe(this);}
     disconnectedCallback(){queueMicrotask(()=>{if(this.isConnected)return;this.visibility?.disconnect();this.visibility=null;this.handle?.destroy();this.handle=null;});}
     attributeChangedCallback(){if(this.isConnected){this.handle?.destroy();this.handle=null;this.refresh();}}
     refresh(){if(this.handle)return this.handle.refresh();try{const ref=JSON.parse(this.getAttribute('reference')||'{}');const org=global.__APP?.userOrgId;if(org&&ref.target?.organizationId&&ref.target.organizationId!==org)throw Error('This widget belongs to another organization.');this.handle=mount(this,ref,{surface:this.getAttribute('surface')||'assistant',onSize:()=>{const card=this.closest('.fm-widget-presentation'),preview=card?.querySelector('.fm-widget-preview'),button=card?.querySelector('.fm-widget-expand');if(button&&preview)button.hidden=card.dataset.expanded!=='true'&&preview.scrollHeight<=preview.clientHeight+1;}});}catch(error){status(this,error.message);}}
@@ -143,6 +144,8 @@
       else if(prior.html!==el.outerHTML)el.animate?.([{backgroundColor:'#eef4ff'},{backgroundColor:'transparent'}],{duration:450});
     }
   }
-  global.FirstMateWidgets={reconcile,presentationHtml,ready,register,attachRenderer,mount,library,registerDocumentWidget,list:async()=>{await ready;return [...definitions.values()].map(clone);},describe:async(id,version='1')=>{await ready;const def=definitions.get(key(id,version));return def?clone(def):null;}};
+  function visibleInstances(){return [...mounted].filter(([,entry])=>entry.root.isConnected&&entry.root.getClientRects().length&&!entry.root.closest('[hidden],[inert]')).map(([instance_id,entry])=>{const ref=entry.reference();return {instance_id,panel_id:entry.root.closest('[data-panel-id]')?.dataset.panelId,widget:{id:ref.id,version:ref.version||'1',target:ref.target,config:ref.config||{}}};});}
+  function refreshInstance(id){return mounted.get(id)?.handle.refresh();}
+  global.FirstMateWidgets={visibleInstances,refreshInstance,reconcile,presentationHtml,ready,register,attachRenderer,mount,library,registerDocumentWidget,list:async()=>{await ready;return [...definitions.values()].map(clone);},describe:async(id,version='1')=>{await ready;const def=definitions.get(key(id,version));return def?clone(def):null;}};
   global.FirstMateProjectTrays?.registerWidgets?.();
 })(window);

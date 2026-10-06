@@ -898,11 +898,7 @@
   // ── Layout: dashboard split ──────────────────────────────────────────────
 
   function widgetUiContext(){
-    const displayed_widgets=[];
-    for(const el of els?.drawer?.querySelectorAll('fm-platform-widget')||[]){
-      if(!el.instanceId||!el.getClientRects().length||el.closest('[hidden],[inert]'))continue;
-      try{const widget=JSON.parse(el.getAttribute('reference'));displayed_widgets.push({instance_id:el.instanceId,panel_id:el.closest('[data-panel-id]')?.dataset.panelId,widget:{id:widget.id,version:widget.version||'1',target:widget.target,config:widget.config||{}}});}catch{}
-    }
+    const displayed_widgets=window.FirstMateWidgets?.visibleInstances?.()||[];
     return {...surface.getContext?.(),displayed_widgets:displayed_widgets.slice(0,32)};
   }
   const refreshedWidgets=new Set();
@@ -911,8 +907,7 @@
       if(render.type!=='widget_refresh')continue;
       const key=clean(message.id)+':'+render.instance_id;if(refreshedWidgets.has(key))continue;
       refreshedWidgets.add(key);
-      const el=[...els.drawer.querySelectorAll('fm-platform-widget')].find(el=>el.instanceId===render.instance_id);
-      if(el)void el.refresh();
+      if(window.FirstMateWidgets?.visibleInstances?.().some(entry=>entry.instance_id===render.instance_id))void window.FirstMateWidgets.refreshInstance(render.instance_id);
     }
   }
   function replaceMessages(html){

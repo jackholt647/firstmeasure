@@ -32,6 +32,7 @@ test('visible inventory targets retained instances, custom refresh animates todo
    FirstMateWidgets.register(def('test.soft'),root=>{root.textContent='Soft';return {refresh(){custom++;root.textContent='Updated';}};});
    const a=document.createElement('div'),b=document.createElement('div');document.body.append(a,b);window.hard=FirstMateWidgets.mount(a,{id:'test.hard',version:'1'},{surface:'assistant'});window.soft=FirstMateWidgets.mount(b,{id:'test.soft',version:'1'},{surface:'assistant'});await Promise.all([hard.ready,soft.ready]);await hard.refresh();await soft.refresh();
   });
+  assert.ok(await page.evaluate(()=>FirstMateWidgets.visibleInstances().some(entry=>entry.widget.id==='test.hard')));assert.ok(await page.evaluate(()=>FirstMateWidgets.visibleInstances().some(entry=>entry.widget.id==='test.soft')));
   assert.deepEqual(await page.evaluate(()=>({mounted,destroyed,custom,state:hard.serialize().state})),{mounted:2,destroyed:1,custom:1,state:{selected:'saved'}});await page.addScriptTag({url:'/libraries/platform-widgets/forms-widgets.js'});
   await page.evaluate(async()=>{
    window.formRevision=1;window.previewUpdates=0;window.formData={form:{name:'Test form',status:'published'},totals:{views:2,starts:1,submissions:0,start_rate:50,completion_rate:0},daily:[{day:'2026-10-06',views:2,submissions:0}],steps:[],questions:[],recent:[],period_days:1};

@@ -9,7 +9,7 @@
    const instance=global.FirstMatePayroll.mountView({...context,root,roots:{main:root},orgId:reference.target.organizationId,instanceId:'payroll-widget-'+global.crypto.randomUUID(),params:{...state,...config,standalone:view,widget:true}});
    instance.setActive?.(visible);
    const updated=()=>{if(visible)instance.refresh?.();};global.addEventListener('fm:payroll:updated',updated);
-   return {setVisible(value){visible=value;instance.setActive?.(value);},serialize(){return instance.serialize?.()||{};},destroy(){global.removeEventListener('fm:payroll:updated',updated);instance.destroy();}};
+   return {refresh:()=>instance.refresh(),setVisible(value){visible=value;instance.setActive?.(value);},serialize(){return instance.serialize?.()||{};},destroy(){global.removeEventListener('fm:payroll:updated',updated);instance.destroy();}};
  });
  const extra={ledger:'records',commissions:'records',earnings:'earnings',my_earnings:'my_earnings',project_payees:'project_payees',batch:'batch'};
  for(const [name,exportName]of Object.entries(extra))global.FirstMateWidgets.attachRenderer('payroll.'+name,'1',(root,{config,reference,state,visible})=>{
@@ -37,6 +37,6 @@
    }catch(error){if(alive&&token===generation){rows=[];body.replaceChildren();status.textContent=error.message||'Payroll is unavailable.';}}}
    input.oninput=()=>{search=input.value;draw();};root.querySelector('[data-refresh]').onclick=refresh;
    const updated=()=>{if(visible)void refresh();};global.addEventListener('fm:payroll:updated',updated);const timer=setInterval(()=>{if(visible&&!document.hidden)void refresh();},30000);void refresh();
-   return {setVisible(value){const previous=visible;visible=value;if(value&&!previous)void refresh();},serialize(){return {search};},destroy(){alive=false;generation++;clearInterval(timer);global.removeEventListener('fm:payroll:updated',updated);root.replaceChildren();}};
+   return {refresh,setVisible(value){const previous=visible;visible=value;if(value&&!previous)void refresh();},serialize(){return {search};},destroy(){alive=false;generation++;clearInterval(timer);global.removeEventListener('fm:payroll:updated',updated);root.replaceChildren();}};
  });
 })(window);
