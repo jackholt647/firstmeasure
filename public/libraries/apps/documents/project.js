@@ -1880,6 +1880,22 @@
         api: { signing: { organizationId: orgId(), documentId: state.doc?.id } },
         // Native step-1 vocabulary (piece_select cards).
         pieceCatalog: () => loadPieceCatalog(),
+        // The project's selected measurement dataset (FirstMeasure report or
+        // an import), flattened to { key: number } for the measurements item.
+        projectMeasurements: async () => {
+          const projectId = firstText(state.doc?.project_id, project()?.id);
+          if (!projectId) return { values: {}, source: '' };
+          const response = await fetch(`/v1/publication/organizations/${encodeURIComponent(orgId())}/projects/${encodeURIComponent(projectId)}/measurements`, { credentials: 'same-origin', headers: { accept: 'application/json' } });
+          if (!response.ok) throw new Error(`Measurements request failed (${response.status})`);
+          const result = objectValue(await response.json());
+          const values = {};
+          Object.entries(objectValue(objectValue(result.value).measurements)).forEach(([key, entry]) => {
+            const value = Number(objectValue(entry).value);
+            if (Number.isFinite(value)) values[key] = value;
+          });
+          const producer = cleanText(objectValue(result.provenance).producer);
+          return { values, source: producer === 'firstmeasure' ? 'the FirstMeasure report on this project' : 'this project\'s measurements' };
+        },
         // Native line-items generation (line_items_review + measurement-key
         // derivation): the legacy module's exported generation, pricebook
         // hydrated first so formulas resolve (see generateScopeItemsForSelection).
@@ -2666,25 +2682,27 @@
                 ? `<strong class="fmdx-doc-title-input" style="border-color:transparent">${esc(firstText(doc.title, 'Document'))}</strong>`
                 : `<input class="fmdx-doc-title-input" data-fmdx-title value="${esc(firstText(doc.title, 'Untitled document'))}" spellcheck="false">`)}
               ${String(statusChip(doc.status))}
+              <span class="fmdx-top-total" title="${(globalThis.PlatformLanguage?.htmlText("documents","m_9403c7637d4905","Total") ?? "Total")}"><b data-card-total>—</b></span>
               <span class="fmdx-save-state" data-fmdx-save-state></span>
               <div class="fmdx-mode-toggle" data-fmdx-mode-toggle hidden>
-                <button type="button" data-fmdx-mode="workflow"><i class="fas fa-list-check"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6d5cbceb09ad8e"," Workflow") ?? " Workflow")}</button>
-                <button type="button" data-fmdx-mode="editor"><i class="fas fa-pen-ruler"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_cf117560db33b2"," Editor") ?? " Editor")}</button>
+                <button type="button" data-fmdx-mode="workflow" title="Workflow"><i class="fas fa-list-check"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6d5cbceb09ad8e"," Workflow") ?? " Workflow")}</button>
+                <button type="button" data-fmdx-mode="editor" title="Editor"><i class="fas fa-pen-ruler"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_cf117560db33b2"," Editor") ?? " Editor")}</button>
               </div>
               <div style="margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
-                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn ${state.dataPanelOpen ? 'active' : ''}" data-fmdx-data-toggle><i class="fas fa-database"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_afc71019d2978d"," Data") ?? " Data")}</button>`)}
-                ${String(readOnly || !capabilityEnabled('documents.agent') ? '' : `<button type="button" class="fmdx-btn" data-fmdx-agent-btn><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6132f8a9f6606d"," Agent") ?? " Agent")}</button>`)}
-                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn" data-fmdx-theme><i class="fas fa-palette"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_3f7a6d0c7b9c29"," Theme") ?? " Theme")}</button>`)}
-                <button type="button" class="fmdx-btn" data-fmdx-history><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_b78c21a6c3a083"," History") ?? " History")}</button>
-                <button type="button" class="fmdx-btn" data-fmdx-preview><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_a48897118cb076"," Preview") ?? " Preview")}</button>
-                <button type="button" class="fmdx-btn" data-fmdx-pdf><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_ff8d3e1189f812"," PDF") ?? " PDF")}</button>
+                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn ${state.dataPanelOpen ? 'active' : ''}" data-fmdx-data-toggle title="Data"><i class="fas fa-database"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_afc71019d2978d"," Data") ?? " Data")}</button>`)}
+                ${String(readOnly || !capabilityEnabled('documents.agent') ? '' : `<button type="button" class="fmdx-btn" data-fmdx-agent-btn title="Agent"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6132f8a9f6606d"," Agent") ?? " Agent")}</button>`)}
+                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn" data-fmdx-theme title="Theme"><i class="fas fa-palette"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_3f7a6d0c7b9c29"," Theme") ?? " Theme")}</button>`)}
+                <button type="button" class="fmdx-btn" data-fmdx-history title="History"><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_b78c21a6c3a083"," History") ?? " History")}</button>
+                <button type="button" class="fmdx-btn" data-fmdx-preview title="Preview"><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_a48897118cb076"," Preview") ?? " Preview")}</button>
+                <button type="button" class="fmdx-btn" data-fmdx-pdf title="PDF"><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_ff8d3e1189f812"," PDF") ?? " PDF")}</button>
+                <button type="button" class="fmdx-btn fmdx-btn-more" data-fmdx-more title="More actions"><i class="fas fa-ellipsis"></i></button>
                 ${String(readOnly && isAmendableStatus(doc.status)
                   ? `<button type="button" class="fmdx-btn primary" data-fmdx-amend><i class="fas fa-file-medical"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_4986fc99e268e8"," Amend → Change Order") ?? " Amend → Change Order")}</button>`
                   : `<button type="button" class="fmdx-btn primary" data-fmdx-send><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c66c415b0e5570"," Send") ?? " Send")}</button>`)}
               </div>
             </header>
             ${String(readOnly ? `<div class="fmdx-locked-banner"><i class="fas fa-lock"></i>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("documents","m_a919d34f0dcde5",` This document is ${v0} and locked. ${v1}`,{v0,v1}) ?? ` This document is ${v0} and locked. ${v1}`)(esc(statusLabel.toLowerCase()),isAmendableStatus(doc.status) ? 'Amend it with a change order to make revisions.' : 'It can no longer be edited.')}</div>` : '')}
-            <div class="fmdx-doc-card-row" data-fmdx-doc-card-row>
+            <div class="fmdx-doc-card-row" data-fmdx-doc-card-row hidden>
               <div class="fmdx-doc-card" data-fmdx-doc-card></div>
             </div>
             <div class="fmdx-editor-main" data-fmdx-editor-body>
@@ -2732,6 +2750,7 @@
         openThemeMenu(anchor);
       });
       root.querySelector('[data-fmdx-history]')?.addEventListener('click', (event) => openHistoryMenu(event.currentTarget));
+      root.querySelector('[data-fmdx-more]')?.addEventListener('click', (event) => openMoreMenu(event.currentTarget));
       root.querySelector('[data-fmdx-preview]')?.addEventListener('click', async () => {
         await flushAllWrites();
         openPreview(state.doc);
@@ -2831,55 +2850,35 @@
     }
 
     function updateDocCardTotal(){
-      const el = root.querySelector('[data-fmdx-doc-card] [data-card-total]');
-      if (!el) { renderDocCard(); return; }
+      const el = root.querySelector('[data-fmdx-editor-screen] [data-card-total]');
+      if (!el) return;
       const total = docCardTotalCents();
       el.textContent = total ? moneyFromCents(total) : '—';
     }
 
+    /** Variant chips for multi-option proposals. The document's title, status
+     *  and total live in the top bar; this row only exists while there are
+     *  variants to jump between. */
     function renderDocCard(){
       const row = root.querySelector('[data-fmdx-doc-card-row]');
       const card = root.querySelector('[data-fmdx-doc-card]');
       if (!row || !card || !state.doc) return;
       const doc = state.doc;
       const readOnly = isReadOnlyStatus(doc.status);
-      const meta = typeMeta(doc.document_type, state.catalog?.types);
       const params = objectValue(doc.params);
       const isProposal = cleanText(doc.document_type).toLowerCase() === 'proposal';
       const multi = isProposal && isMultiOptionDoc(doc, params);
       const filled = multi ? variantSlots(params).filter((slot) => slot.items.length) : [];
-      const total = docCardTotalCents();
-      card.innerHTML = `
-        <div class="fmdx-doc-card-id">
-          <span class="fmdx-doc-card-icon" style="--fmdx-doc-color:${String(esc(meta.color))}"><i class="fas ${String(esc(meta.icon))}"></i></span>
-          <div class="fmdx-doc-card-title">
-            <strong title="${String(esc(firstText(doc.title, meta.label)))}">${String(esc(firstText(doc.title, meta.label)))}</strong>
-            <span class="fmdx-doc-card-sub">${String(esc(meta.label))}</span>
-          </div>
-          ${String(statusChip(doc.status))}
-        </div>
-        <div class="fmdx-doc-card-total"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_9403c7637d4905","Total") ?? "Total")}</span><b data-card-total>${String(total ? esc(moneyFromCents(total)) : '—')}</b></div>
-        ${String(filled.length ? `
+      row.hidden = !filled.length;
+      card.innerHTML = filled.length ? `
           <div class="fmdx-doc-card-variants">
             ${filled.map((slot) => `
               <span class="fmdx-variant-chip ${readOnly ? 'static' : ''}" data-variant-chip="${esc(slot.slot)}">
                 <button type="button" class="jump" data-variant-jump="${esc(slot.slot)}" ${readOnly ? 'disabled' : ''} title="${readOnly ? esc(slot.label) : `Open ${esc(slot.label)} · double-click to rename`}">${esc(slot.label)}</button>
                 ${!readOnly && slot.slot !== 'a' ? `<button type="button" class="x" data-variant-remove="${esc(slot.slot)}" title="${((v1) => globalThis.PlatformLanguage?.htmlText("documents","m_ade5cd0266b010",`Remove ${v1}`,{v1}) ?? `Remove ${v1}`)(esc(slot.label))}"><i class="fas fa-xmark"></i></button>` : ''}
               </span>`).join('')}
-          </div>` : '')}
-        <div class="fmdx-doc-card-actions">
-          ${String(!readOnly && isProposal ? `<button type="button" class="fmdx-btn tiny" data-card-add-variant title="${multi ? 'Add another option to this proposal' : 'Turn this into a multi-option (Good/Better/Best) proposal'}"><i class="fas fa-code-branch"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_95299bfa43bab3"," Add variant") ?? " Add variant")}</button>` : '')}
-          <button type="button" class="fmdx-btn tiny" data-card-duplicate title="${(globalThis.PlatformLanguage?.htmlText("documents","m_eab1f6b49f7769","Create a draft copy of this document") ?? "Create a draft copy of this document")}"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_7eec37dfa2be3f"," Duplicate") ?? " Duplicate")}</button>
-        </div>`;
-      card.querySelector('[data-card-duplicate]')?.addEventListener('click', async (event) => {
-        const button = event.currentTarget;
-        button.disabled = true;
-        try {
-          await flushAllWrites();
-          await duplicateDoc(state.doc, button);
-        } finally { button.disabled = false; }
-      });
-      card.querySelector('[data-card-add-variant]')?.addEventListener('click', (event) => addVariant(event.currentTarget));
+          </div>` : '';
+      updateDocCardTotal();
       card.querySelectorAll('[data-variant-jump]').forEach((button) => {
         button.addEventListener('click', () => jumpToVariant(button.dataset.variantJump));
         button.addEventListener('dblclick', () => renameVariant(button.dataset.variantJump));
@@ -3111,6 +3110,28 @@
           showToast((globalThis.PlatformLanguage?.text("documents","m_5d7c7ad6033624","Documents") ?? "Documents"), errorMessage(error, 'Could not change the theme.'), false);
         }
       }));
+    }
+
+    /** Less-used document actions, kept out of the top bar. */
+    function openMoreMenu(anchor){
+      const doc = state.doc || {};
+      const readOnly = isReadOnlyStatus(doc.status);
+      const isProposal = cleanText(doc.document_type).toLowerCase() === 'proposal';
+      const multi = isProposal && isMultiOptionDoc(doc, objectValue(doc.params));
+      const menu = openMenu(anchor, `
+        ${!readOnly && isProposal ? `<button type="button" class="fmdx-menu-item" data-more-variant title="${multi ? 'Add another option to this proposal' : 'Turn this into a multi-option (Good/Better/Best) proposal'}"><i class="fas fa-code-branch"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_95299bfa43bab3"," Add variant") ?? " Add variant")}</button>` : ''}
+        <button type="button" class="fmdx-menu-item" data-more-duplicate title="${(globalThis.PlatformLanguage?.htmlText("documents","m_eab1f6b49f7769","Create a draft copy of this document") ?? "Create a draft copy of this document")}"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_7eec37dfa2be3f"," Duplicate") ?? " Duplicate")}</button>`);
+      menu.el.querySelector('[data-more-variant]')?.addEventListener('click', (event) => {
+        const button = event.currentTarget;
+        menu.close();
+        addVariant(button);
+      });
+      menu.el.querySelector('[data-more-duplicate]')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        menu.close();
+        await flushAllWrites();
+        await duplicateDoc(state.doc, button);
+      });
     }
 
     function openHistoryMenu(anchor){

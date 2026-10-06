@@ -1326,6 +1326,10 @@ function collectPricedProjection(nodes: PricedRowNode[]) {
       children: undefined,
       depth: node.depth,
       show_amount: !includedChild,
+      // Line-item components pick a layout by row role: a parent heads its
+      // group, children indent under it. indent_label remains for documents
+      // pinned to template versions that still print it.
+      variant: node.depth > 0 ? "child" : (node.children.length ? "group" : ""),
       indent_label: node.depth > 0 ? "    · " : ""
     });
     node.children.forEach(project);

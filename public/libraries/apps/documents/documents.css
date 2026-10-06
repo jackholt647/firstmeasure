@@ -135,6 +135,23 @@
 .fmdx-editor-top .fmdx-doc-title-input:hover{border-color:#e4e7ec}
 .fmdx-editor-top .fmdx-doc-title-input:focus{outline:none;border-color:var(--fmdx-primary,#d93025);background:#fff}
 .fmdx-save-state{font-size:10.5px;font-weight:900;color:#98a2b3;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.fmdx-top-total b{font-size:14px;font-weight:1000;color:var(--fmdx-ink,#111827);white-space:nowrap;font-variant-numeric:tabular-nums}
+/* One header row: when the screen is narrow, actions keep their icon and
+   drop the label (each button carries a title). */
+.fmdx-editor-screen{container-type:inline-size;container-name:fmdx-screen}
+@container fmdx-screen (max-width:1240px){
+  .fmdx-editor-top .fmdx-btn.fmdx-btn:not(.primary){font-size:0;gap:0;padding:0;width:36px}
+  .fmdx-editor-top .fmdx-btn.fmdx-btn:not(.primary) i{font-size:13px}
+  .fmdx-editor-top .fmdx-mode-toggle button{font-size:0;gap:0}
+  .fmdx-editor-top .fmdx-mode-toggle button i{font-size:12px}
+  .fmdx-editor-top .fmdx-save-state{font-size:0;gap:0}
+  .fmdx-editor-top .fmdx-save-state i{font-size:11px}
+}
+@container fmdx-screen (max-width:760px){
+  .fmdx-editor-top .fmdx-btn.fmdx-btn.primary{font-size:0;gap:0;padding:0;width:38px}
+  .fmdx-editor-top .fmdx-btn.fmdx-btn.primary i{font-size:13px}
+  .fmdx-editor-top .fmdx-doc-title-input{max-width:150px}
+}
 /* [Workflow | Editor] segmented mode toggle (unified document top bar) */
 .fmdx-mode-toggle{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:11px;background:#f2f4f8;padding:3px;flex:none}
 .fmdx-mode-toggle[hidden]{display:none}
@@ -424,7 +441,8 @@
    left edge, visually continuous with the runtime's .fmdw-rail below it
    (same width, white surface, matching right border). */
 .fmdx-doc-card-row{flex:none;display:flex;align-items:stretch;background:var(--fmdx-bg,#f8fafc);border-bottom:1px solid var(--fmdx-line,#e4e7ec)}
-.fmdx-doc-card{flex:1;min-width:0;display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:#fff;padding:9px 14px}
+.fmdx-doc-card{flex:1;min-width:0;display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:#fff;padding:6px 14px}
+.fmdx-doc-card-row[hidden]{display:none}
 .fmdx-doc-card-id{display:flex;align-items:center;gap:9px;min-width:0;flex:1}
 .fmdx-doc-card-icon{width:30px;height:30px;flex:none;border-radius:9px;display:grid;place-items:center;font-size:12px;background:color-mix(in srgb,var(--fmdx-doc-color,#d93025) 12%,#fff);color:var(--fmdx-doc-color,#d93025)}
 .fmdx-doc-card-title{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}

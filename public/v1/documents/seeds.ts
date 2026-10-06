@@ -44,7 +44,7 @@ import {
  * "Roofing proposal intake". Presets upgrade by preset_revision, copying the
  * scope-template pattern (scopes/storage.ts ensureDefaultScopeTemplates).
  */
-export const DOCUMENT_PRESET_REVISION = 30;
+export const DOCUMENT_PRESET_REVISION = 31;
 
 function defaultProposalPaymentSchedule(): JsonObject[] {
   return [
@@ -314,30 +314,38 @@ export function proposalLineItemComponents(): JsonObject {
     flowBlocks([
       // scope_rows are the flat projection: children get an indent label,
       // parents keep the rolled-up amount (see flattenScopeRows).
-      { runs: [{ bind: "concat(coalesce(item.indent_label, ''), coalesce(item.display_name, item.name))" }], style_ref: "li_name" },
-      { runs: [{ bind: "coalesce(item.description, '')" }], style_ref: "li_meta" },
+      { runs: [{ bind: "coalesce(item.display_name, item.name)" }], style_ref: "li_name" },
+      { runs: [{ bind: "coalesce(item.description, '')" }], style_ref: "li_meta", collapse_empty: true },
       // Conditional-pricing badge chip ("Pay by bank", "3% card fee",
       // "Sign within 7 days") — empty for ordinary rows.
-      { runs: [{ bind: "coalesce(item.badge, '')" }], style_ref: "li_badge" }
+      { runs: [{ bind: "coalesce(item.badge, '')" }], style_ref: "li_badge", collapse_empty: true }
     ], { grow: 1 }),
     flowText([{ bind: "item.quantity | qty(item.unit)" }], { style_ref: "body", align: "center", w: LI_QTY_WIDTH }),
     flowText([
-      { bind: "coalesce(item.show_amount, true) ? (item.amount_cents | money) : 'Included'" }
+      // A package proposal prints "Included" under its parent's price; an
+      // itemized one (params.show_line_prices) prints every line's amount.
+      { bind: "(coalesce(item.show_amount, true) || coalesce(params.show_line_prices, false)) ? (item.amount_cents | money) : 'Included'" }
     ], { style_ref: "li_amount", align: "right", w: LI_AMOUNT_WIDTH })
   ], { gap: 8, padding: [6, 8, 6, 8] });
+  // Row roles from the flat projection (service.ts collectPricedProjection):
+  // children indent as a block, so a name and its description stay aligned.
+  const liRowVariants = {
+    child: { props: { flow: { padding: [4, 8, 4, 24] } } },
+    group: { props: { flow: { padding: [8, 8, 4, 8] } } }
+  };
   const liTotals = componentColumn([
     flowBlocks([
       { runs: [{ text: "Subtotal   " }, { bind: "computed.subtotal_cents | money" }], style_ref: "body", align: "right" },
       // Conditional pricing adjustments (ACH/card/early-signing rows) —
       // blank when nothing applies under the current checkout state.
-      { runs: [{ bind: "coalesce(computed.adjustments_cents, 0) != 0 ? concat('Adjustments   ', (computed.adjustments_cents | money)) : ''" }], style_ref: "body", align: "right" },
+      { runs: [{ bind: "coalesce(computed.adjustments_cents, 0) != 0 ? concat('Adjustments   ', (computed.adjustments_cents | money)) : ''" }], style_ref: "body", align: "right", collapse_empty: true },
       { runs: [{ text: "Tax (" }, { bind: "coalesce(params.tax_percent, 0)" }, { text: "%)   " }, { bind: "computed.tax_cents | money" }], style_ref: "body", align: "right" },
       { runs: [{ text: "Total   " }, { bind: "computed.total_cents | money" }], style_ref: "li_total", align: "right" }
     ])
   ], { padding: [8, 8, 4, 8] });
   return {
     li_header: { params: {}, root: liHeader },
-    li_row: { params: { item: { type: "pricebook_line" } }, root: liRow },
+    li_row: { params: { item: { type: "pricebook_line" } }, root: liRow, variants: liRowVariants },
     li_totals: { params: {}, root: liTotals }
   };
 }
@@ -1233,7 +1241,7 @@ function onePageLegalTemplateDefinition(): JsonObject {
 
 function optionSummaryComponents(): JsonObject {
   const miniRow = flowText([
-    { bind: "concat(coalesce(item.indent_label, ''), coalesce(item.display_name, item.name))" }
+    { bind: "coalesce(item.display_name, item.name)" }
   ], { style_ref: "li_meta" });
   delete miniRow.anchor;
   const selectedBadge = flowText([{ text: "✓ Selected" }], {

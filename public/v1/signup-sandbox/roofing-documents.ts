@@ -88,9 +88,12 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
     rate_cents: { type: 'currency', label: gutter ? 'Price per foot' : 'Price per square', default: Math.round((gutter ? rates.gutter : rates.roof) * 100) },
     package_cents: { type: 'currency', label: 'Package price', default: 2000000 },
     scope_items: { type: 'list', items: { type: 'pricebook_line' }, label: 'Accepted scope', default: mode === 'detailed' ? [] : [{ id: 'accepted_work', name: gutter ? 'Seamless gutter installation' : mode === 'package' ? 'Summer HDZ roof package' : 'HDZ roof replacement', quantity: 1, unit: 'job', pricing: { formula: mode === 'package' ? 'params.package_cents' : gutter ? 'round(params.gutter_feet * params.rate_cents)' : 'round(params.roof_squares * params.rate_cents)' } }] },
-    scope_pieces: { type: 'list', items: { type: 'object' }, label: 'Project work' },
+    // The itemized proposal IS a roof replacement: its scope piece is fixed,
+    // so the workflow never asks which kind of project this is.
+    scope_pieces: { type: 'list', items: { type: 'object' }, label: 'Project work', ...(mode === 'detailed' ? { default: [{ id: 'piece_roof_replacement', template_id: 'roof_replacement', name: 'Roof Replacement' }] } : {}) },
     measurement_requirements: { type: 'list', items: { type: 'string' } },
-    measurements: { type: 'measurements', label: 'Measurements' }
+    measurements: { type: 'measurements', label: 'Measurements' },
+    ...(mode === 'detailed' ? { show_line_prices: { type: 'boolean', label: 'Print each line price', default: true } } : {})
   };
   const { doc, theme } = startFlowTemplate(spec.theme, 'proposal');
   const body = (runs: RunSpec[], sizePt = 11) => flowText(runs, { font: { family: 'var(--fm-body-font)', size_pt: sizePt, color: 'var(--fm-text)' } });
@@ -138,7 +141,23 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
 }
 
 /** Bump when the estimate layouts or their workflows change; existing packs republish. */
-export const INSTANT_ROOFING_PACK = 2;
+export const INSTANT_ROOFING_PACK = 3;
+
+/** Roof measurements the itemized proposal prices from, in the order a roofer reads a report. */
+export const ROOF_MEASUREMENT_FIELDS = [
+  { key: 'roofSquares', label: 'Roof area', unit: 'sq' },
+  { key: 'wastePercent', label: 'Waste', unit: '%', default: 10 },
+  { key: 'eavesLf', label: 'Eaves', unit: 'ft' },
+  { key: 'rakesLf', label: 'Rakes', unit: 'ft' },
+  { key: 'ridgesLf', label: 'Ridges', unit: 'ft' },
+  { key: 'hipsLf', label: 'Hips', unit: 'ft' },
+  { key: 'valleyLf', label: 'Valleys', unit: 'ft' },
+  { key: 'sideWallLf', label: 'Sidewalls', unit: 'ft' },
+  { key: 'headWallLf', label: 'Headwalls', unit: 'ft' },
+  { key: 'pipeBootsEa', label: 'Pipe boots', unit: 'ea', default: 0 },
+  { key: 'skylightsEa', label: 'Skylights', unit: 'ea', default: 0 },
+  { key: 'chimneysEa', label: 'Chimneys', unit: 'ea', default: 0 }
+];
 
 /**
  * Create the Instant roofing estimate templates and workflows, and republish
@@ -161,11 +180,20 @@ export async function seedInstantRoofingDocuments(orgId:string, ctx:PlatformAuth
     if (existing ? Number(obj(existing.metadata).instant_roofing_pack || 0) >= INSTANT_ROOFING_PACK : !create) continue;
     const definition=roofingEstimateDefinition(spec.key,{roof:price('gaf_hd'),gutter:price('gutter_replace')});
     const fields=spec.key==='gutters'?['structure','gutter_feet','color','rate_cents']:['structure','roof_squares','waste_percent','color','ridge_vent',...(spec.key==='package'?['package_cents']:spec.key==='quick'?['rate_cents']:[])];
-    const workflowDefinition={schema_version:1,name:spec.title,contract:{params:definition.params,outputs:definition.outputs},steps:[
-      {id:'scope',title:'Define the work',audience:['internal'],items:fields.map(key=>({kind:obj(obj(definition.params)[key]).type==='string'?'text':obj(obj(definition.params)[key]).type,writes:`params.${key}`,label:obj(obj(definition.params)[key]).label,required:true}))},
-      ...(spec.key==='detailed'?[{id:'pieces',title:'Choose work',audience:['internal'],items:[{kind:'piece_select',writes:'params.scope_pieces',label:'Roofing work',required:true}]},{id:'measure',title:'Measurements',audience:['internal'],items:[{kind:'measurements',writes:'params.measurements',fields_from:'measurement_requirements',prefill:'project.measurements'}]},{id:'items',title:'Review price-book scope',audience:['internal'],items:[{kind:'line_items_review',writes:'params.scope_items',required:true,label:'Materials and services'}]}]:[]),
+    const paramItem=(key:string)=>({kind:obj(obj(definition.params)[key]).type==='string'?'text':obj(obj(definition.params)[key]).type,writes:`params.${key}`,label:obj(obj(definition.params)[key]).label,required:true});
+    // Itemized: measure the roof (from the project's report), price the scope
+    // from the price book, send. The other estimates price from a few inputs.
+    const steps=spec.key==='detailed'?[
+      {id:'measure',title:'Roof',description:'Measurements come from the report on this project. Correct anything that looks off; every quantity on the proposal follows from these.',audience:['internal'],items:[
+        {kind:'measurements',writes:'params.measurements',label:'Roof measurements',required:true,fields:ROOF_MEASUREMENT_FIELDS,prefill:'project.measurements'},
+        paramItem('structure')]},
+      {id:'items',title:'Scope & price',description:'Quantities are calculated from the roof measurements and priced from your price book.',audience:['internal'],items:[{kind:'line_items_review',writes:'params.scope_items',required:true,label:'Line items'}]},
+      {id:'review',title:'Review & send',audience:['internal'],items:[{kind:'review',label:'Before you send'}],preview:{template_ref:id,live:true}}
+    ]:[
+      {id:'scope',title:'Define the work',audience:['internal'],items:fields.map(paramItem)},
       {id:'review',title:'Review estimate',audience:['internal'],items:[{kind:'review',label:'Review before sending'}],preview:{template_ref:id,live:true}}
-    ]};
+    ];
+    const workflowDefinition={schema_version:1,name:spec.title,contract:{params:definition.params,outputs:definition.outputs},steps};
     const metadata={instant_roofing_pack:INSTANT_ROOFING_PACK};
     const existingWorkflow=await readDocumentWorkflow(orgId,workflow).catch(missing);
     if (existingWorkflow) await publishDocumentWorkflow(orgId,workflow,{definition:workflowDefinition,expected_version:Number(existingWorkflow.current_version||0),metadata},ctx);

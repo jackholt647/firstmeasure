@@ -1184,6 +1184,10 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
     let listCounters = [];
     let savedCounters = [];
     for (const block of blocks) {
+      // collapse_empty: a block whose bindings resolved to nothing takes no
+      // line (optional descriptions, badges). Unresolved templates still show
+      // it, so the block stays editable in the designer.
+      if (block.collapse_empty && (block.runs || []).every((run) => !run.bind && !String(run.text || ""))) continue;
       const blockEl = h("div", "fmdoc-block fmdoc-block--" + (block.type || "paragraph"));
       if (block.id) blockEl.setAttribute("data-block-id", String(block.id));
       if (block.type === "heading") blockEl.setAttribute("data-level", String(block.level || 1));

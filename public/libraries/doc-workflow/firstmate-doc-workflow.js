@@ -212,16 +212,25 @@
       children: arr(source.children).map(normalizeScopeItem)
     };
   }
+  /** Mirrors proposals/scope.ts: fixed lines always count; choice and
+   *  optional lines count only while selected. "Included" hides a line's
+   *  price on a package proposal but the line still adds to the total. */
+  function scopeItemSelected(item){
+    const selection = obj(obj(item).selection);
+    if (cleanText(selection.mode || 'fixed') === 'fixed') return true;
+    return selection.selected === true;
+  }
+  function scopeItemOwnAmount(item){
+    const line = obj(item);
+    if (!scopeItemSelected(line) || line.price_driving === false) return 0;
+    return Math.max(0, Number(line.quantity || 0) || 0) * (Number(line.unit_price || 0) || 0);
+  }
+  function scopeItemAmount(item){
+    if (!scopeItemSelected(item)) return 0;
+    return scopeItemOwnAmount(item) + arr(obj(item).children).reduce((sum, child) => sum + scopeItemAmount(child), 0);
+  }
   function scopeItemsTotal(items){
-    let total = 0;
-    const walk = (list) => arr(list).forEach((item) => {
-      if (item.included !== true && item.price_driving !== false && obj(item.selection).selected !== false) {
-        total += (Number(item.quantity || 0) || 0) * (Number(item.unit_price || 0) || 0);
-      }
-      walk(item.children);
-    });
-    walk(items);
-    return total;
+    return arr(items).reduce((sum, item) => sum + scopeItemAmount(item), 0);
   }
   function countScopeItems(items){
     let count = 0;
@@ -643,61 +652,93 @@
 
   // ------------------------------------------------------------ measurements
   registerKind('measurements', (el, ctx) => {
+    const services = obj(ctx.services);
+    // item.fields names the measurements to ask for, in order; otherwise the
+    // scope decides (fields_from). item.prefill is the project value to start
+    // from: a scope expression, plus services.projectMeasurements() when the
+    // host can read the project's selected measurement dataset.
+    const explicitFields = arr(ctx.item.fields).map(obj).filter((field) => cleanText(field.key));
+    const round = (value) => Math.round((Number(value) || 0) * 100) / 100;
+    const hasValue = (value) => !(value === undefined || value === null || value === '');
+    let report = { status: typeof services.projectMeasurements === 'function' && cleanText(ctx.item.prefill) ? 'loading' : 'none', values: {}, source: '' };
+
+    function fields(){
+      if (explicitFields.length) return explicitFields.map((field) => ({ ...field, label: firstText(field.label, measurementLabelFor(field.key)) }));
+      const fieldsFrom = cleanText(ctx.item.fields_from || ctx.item.fieldsFrom);
+      let keys = [];
+      if (fieldsFrom === 'scope_items_formulas') keys = scopeMeasurementKeys(arr(getPath(ctx.scope(), 'params.scope_items')));
+      else if (fieldsFrom === 'measurement_requirements' || fieldsFrom === 'piece_selection') keys = requiredMeasurementKeys(ctx.scope());
+      return keys.map((key) => ({ key, label: measurementLabelFor(key) }));
+    }
+    function expressionPrefill(){
+      const expr = cleanText(ctx.item.prefill);
+      if (!expr) return {};
+      return obj(expr.includes('{{') || /[()]/.test(expr) ? evalExpr(expr, ctx.scope()) : getPath(ctx.scope(), expr));
+    }
+    function projectValues(){
+      const out = {};
+      Object.entries({ ...expressionPrefill(), ...obj(report.values) }).forEach(([key, value]) => {
+        if (typeof value === 'number' && Number.isFinite(value)) out[key] = round(value);
+        else if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) out[key] = round(value);
+      });
+      return out;
+    }
+    /** Start from the project's values; fields the report does not measure
+     *  take their declared default. Hand-entered values survive unless the
+     *  user asks to reload. */
+    function applyProject(overwrite){
+      const next = overwrite ? {} : obj(clone(ctx.value()));
+      Object.entries(projectValues()).forEach(([key, value]) => { if (overwrite || !hasValue(next[key])) next[key] = value; });
+      fields().forEach((field) => { if (!hasValue(next[field.key]) && hasValue(field.default)) next[field.key] = Number(field.default) || 0; });
+      ctx.write(Object.keys(next).length ? next : null);
+    }
+
     const render = () => {
       const current = obj(ctx.value());
-      // fields_from: "scope_items_formulas" — the scope's pricing formulas
-      // decide which measurements are needed (mirrors the app's Data panel).
-      // fields_from: "measurement_requirements" — the SELECTED pieces decide
-      // (piece_select derives the keys before any items are generated), so
-      // measurements are asked exactly once, pre-generation.
-      let neededKeys = [];
-      const fieldsFrom = cleanText(ctx.item.fields_from || ctx.item.fieldsFrom);
-      if (fieldsFrom === 'scope_items_formulas') {
-        const scope = ctx.scope();
-        const scopeItems = arr(getPath(scope, 'params.scope_items'));
-        neededKeys = scopeMeasurementKeys(scopeItems);
-      } else if (fieldsFrom === 'measurement_requirements' || fieldsFrom === 'piece_selection') {
-        neededKeys = requiredMeasurementKeys(ctx.scope());
-      }
-      const prefillExpr = cleanText(ctx.item.prefill);
-      const prefillValue = prefillExpr ? obj(prefillExpr.includes('{{') || /[()]/.test(prefillExpr)
-        ? evalExpr(prefillExpr, ctx.scope())
-        : getPath(ctx.scope(), prefillExpr)) : {};
-      const hasPrefill = Object.keys(prefillValue).length > 0;
-      // First open with an empty value: load the prefill automatically.
-      if (isEmptyValue(ctx.value()) && hasPrefill && !ctx.readonly) {
-        ctx.write(clone(prefillValue));
-        return render();
-      }
-      const otherEntries = Object.entries(current).filter(([key]) => !neededKeys.includes(key));
-      const missing = neededKeys.filter((key) => current[key] === undefined || current[key] === null || current[key] === '');
+      const list = fields();
+      const fromProject = projectValues();
+      const hasProject = Object.keys(fromProject).length > 0;
+      const keys = list.map((field) => field.key);
+      const extra = Object.entries(current).filter(([key, value]) => !keys.includes(key) && hasValue(value) && typeof value !== 'object');
+      const missing = list.filter((field) => !hasValue(current[field.key]));
+      const sourceLine = report.status === 'loading'
+        ? `<p class="fmdw-hint fmdw-meas-source"><i class="fas fa-circle-notch fa-spin"></i> Reading this project's measurements…</p>`
+        : hasProject
+          ? `<p class="fmdw-hint fmdw-meas-source ok"><i class="fas fa-ruler-combined"></i> From ${esc(firstText(report.source, 'this project'))}. Edit any value to override it for this document.</p>`
+          : (cleanText(ctx.item.prefill) ? `<p class="fmdw-hint fmdw-meas-source"><i class="fas fa-circle-info"></i> ${esc(report.status === 'error' ? 'This project\'s measurements could not be read. Enter them by hand.' : 'This project has no measurement report yet. Enter the measurements by hand.')}</p>` : '');
       el.innerHTML = `
         <div class="fmdw-field">
           <span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>
           ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
           <div class="fmdw-card">
-            ${neededKeys.length ? `
-              <p class="fmdw-hint" style="margin:0"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_bcbe13786c818e"," These measurements drive this document's pricing:") ?? " These measurements drive this document's pricing:")}</p>
+            ${sourceLine}
+            ${list.length ? `
               <div class="fmdw-meas-grid">
-                ${String(neededKeys.map((key) => {
-                  const filled = !(current[key] === undefined || current[key] === null || current[key] === '');
+                ${list.map((field) => {
+                  const filled = hasValue(current[field.key]);
+                  const edited = filled && hasValue(fromProject[field.key]) && Number(current[field.key]) !== Number(fromProject[field.key]);
                   return `
-                    <label class="fmdw-meas-field ${filled ? '' : 'needed'}">
-                      <span>${esc(measurementLabelFor(key))}</span>
-                      <input type="number" step="any" min="0" data-fmdw-meas="${esc(key)}" ${ctx.readonly ? 'disabled' : ''} value="${filled ? esc(Number(current[key])) : ''}" placeholder="—">
+                    <label class="fmdw-meas-field ${filled ? '' : 'needed'} ${edited ? 'edited' : ''}" ${edited ? `title="Report value: ${esc(fromProject[field.key])}"` : ''}>
+                      <span>${esc(field.label)}${edited ? ' <em>edited</em>' : ''}</span>
+                      <span class="fmdw-meas-input">
+                        <input type="number" step="any" min="0" data-fmdw-meas="${esc(field.key)}" ${ctx.readonly ? 'disabled' : ''} value="${filled ? esc(Number(current[field.key])) : ''}" placeholder="—">
+                        ${cleanText(field.unit) ? `<i>${esc(field.unit)}</i>` : ''}
+                      </span>
                     </label>`;
-                }).join(''))}
+                }).join('')}
               </div>
-              ${String(missing.length ? `<p class="fmdw-meas-note"><i class="fas fa-triangle-exclamation"></i>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("doc-workflow","m_5d86a0fb6c1652",` ${v0} measurement${v1} still needed`,{v0,v1}) ?? ` ${v0} measurement${v1} still needed`)(missing.length,missing.length === 1 ? '' : 's')}</p>` : '')}` : ''}
-            ${otherEntries.length ? `
-              <div class="fmdw-stat-grid">
-                ${otherEntries.slice(0, 12).map(([key, value]) => `<span class="fmdw-stat"><i>${esc(prettyKey(key))}</i><b>${esc(typeof value === 'object' ? `${Object.keys(obj(value)).length || arr(value).length} entries` : String(value))}</b></span>`).join('')}
-                ${otherEntries.length > 12 ? `<span class="fmdw-stat"><i>${((v0) => globalThis.PlatformLanguage?.htmlText("doc-workflow","m_1d44c767357f4a",`+${v0} more`,{v0}) ?? `+${v0} more`)(otherEntries.length - 12)}</i><b></b></span>` : ''}
-              </div>` : (neededKeys.length ? '' : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_08781c4c9e5c9b","No measurements yet.") ?? "No measurements yet.")}</p>`)}
+              ${missing.length ? `<p class="fmdw-meas-note"><i class="fas fa-triangle-exclamation"></i> ${missing.length} measurement${missing.length === 1 ? '' : 's'} still needed</p>` : ''}` : (extra.length ? '' : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_08781c4c9e5c9b","No measurements yet.") ?? "No measurements yet.")}</p>`)}
+            ${extra.length ? `
+              <details class="fmdw-meas-extra">
+                <summary>${extra.length} more value${extra.length === 1 ? '' : 's'} from the report</summary>
+                <div class="fmdw-stat-grid">
+                  ${extra.map(([key, value]) => `<span class="fmdw-stat"><i>${esc(measurementLabelFor(key))}</i><b>${esc(String(value))}</b></span>`).join('')}
+                </div>
+              </details>` : ''}
             ${ctx.readonly ? '' : `
               <div class="fmdw-row-actions">
-                <button type="button" class="fmdw-btn ghost" data-fmdw-meas-reload ${String(hasPrefill ? '' : 'disabled')}><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_641beeb7a2ff91"," Load from project") ?? " Load from project")}</button>
-                ${String(Object.keys(current).length ? `<button type="button" class="fmdw-btn ghost" data-fmdw-meas-clear><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_687e1653230514"," Clear") ?? " Clear")}</button>` : '')}
+                <button type="button" class="fmdw-btn ghost" data-fmdw-meas-reload ${hasProject ? '' : 'disabled'} title="${hasProject ? 'Replace every value with the project\'s measurements' : 'This project has no measurements to load'}"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_641beeb7a2ff91"," Load from project") ?? " Load from project")}</button>
+                ${Object.keys(current).length ? `<button type="button" class="fmdw-btn ghost" data-fmdw-meas-clear><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_687e1653230514"," Clear") ?? " Clear")}</button>` : ''}
               </div>`}
           </div>
           <span class="fmdw-field-error" data-fmdw-error hidden></span>
@@ -709,16 +750,36 @@
         else next[key] = Number(input.value) || 0;
         ctx.write(Object.keys(next).length ? next : null);
         // NO re-render here: change fires on Tab/blur, and rebuilding the DOM
-        // mid-Tab destroys focus order. Update the needed-highlight in place;
-        // the full field list re-renders on step entry.
-        const wrap = input.closest('.fmdw-meas-field, .fmdw-field-row, label') || input;
-        wrap.classList?.toggle('missing', cleanText(input.value) === '');
+        // mid-Tab destroys focus order. Update the highlight in place; the
+        // full field list re-renders on step entry.
+        const wrap = input.closest('.fmdw-meas-field') || input;
+        wrap.classList?.toggle('needed', cleanText(input.value) === '');
       }));
-      el.querySelector('[data-fmdw-meas-reload]')?.addEventListener('click', () => { ctx.write(clone(prefillValue)); render(); });
+      el.querySelector('[data-fmdw-meas-reload]')?.addEventListener('click', () => { applyProject(true); render(); });
       el.querySelector('[data-fmdw-meas-clear]')?.addEventListener('click', () => { ctx.write(null); render(); });
     };
+
+    // First open with nothing entered: start from the project automatically.
+    if (isEmptyValue(ctx.value()) && !ctx.readonly && Object.keys(projectValues()).length) applyProject(false);
     render();
-    return { validate: () => requiredError(ctx) };
+    if (report.status === 'loading') {
+      Promise.resolve().then(() => services.projectMeasurements()).then((result) => {
+        const values = obj(obj(result).values);
+        report = { status: Object.keys(values).length ? 'ready' : 'missing', values, source: cleanText(obj(result).source) };
+      }).catch(() => { report = { status: 'error', values: {}, source: '' }; }).then(() => {
+        if (!el.isConnected) return;
+        if (isEmptyValue(ctx.value()) && !ctx.readonly && Object.keys(projectValues()).length) applyProject(false);
+        render();
+      });
+    }
+    return {
+      validate: () => {
+        const error = requiredError(ctx);
+        if (error || !ctx.item.required) return error;
+        const first = fields()[0];
+        return first && !(Number(obj(ctx.value())[first.key]) > 0) ? `Enter the ${String(first.label).toLowerCase()} to continue.` : null;
+      }
+    };
   });
 
   // ------------------------------------------------------------ media picker
@@ -1297,13 +1358,13 @@
   registerKind('piece_picker', renderPieceSelectKind);
 
   // ------------------------------------------------------- line items review
-  // Native generated-line-items list. On entry with an empty value it runs
-  // the SAME generation the legacy proposal flow performs (piece scope
-  // template + pricebook + measurements → root_items) via
-  // services.generateScopeItems(selection, measurements), then lists EVERY
-  // row: customer-optional rows flagged distinctly from fixed ones, inline
-  // qty/unit-price edits recomputing totals, remove/add, plus a Regenerate
-  // affordance. Writes the scope-item tree (params.scope_items).
+  // Generated line items, priced from the price book. On entry with an empty
+  // value it runs services.generateScopeItems(selection, measurements), then
+  // shows the scope the way it prices: each root is a group with its
+  // subtotal; alternatives of one choice group sit together with the priced
+  // option marked; optional lines carry a checkbox. Amounts use the same rule
+  // as the server (scopeItemAmount), so the total here is the document total.
+  // Writes the scope-item tree (params.scope_items).
   registerKind('line_items_review', (el, ctx) => {
     const services = obj(ctx.services);
     let items = arr(ctx.value()).map(normalizeScopeItem);
@@ -1311,16 +1372,24 @@
     let generateNote = '';
     const commit = () => ctx.write(clone(items));
     const selection = () => arr(getPath(ctx.scope(), cleanText(ctx.item.selection_from) || 'params.scope_pieces'));
+    const measurements = () => obj(getPath(ctx.scope(), 'params.measurements'));
+    const stampOf = (value) => JSON.stringify(Object.keys(obj(value)).sort().map((key) => [key, obj(value)[key]]));
+    // Lines were generated from one set of measurements; a later change to
+    // them leaves the quantities behind until the user regenerates.
+    const stale = () => {
+      const stamp = cleanText(getPath(ctx.scope(), 'params.scope_generated_from'));
+      return !!stamp && countScopeItems(items) > 0 && stamp !== stampOf(measurements());
+    };
 
     async function generate(){
       if (generating || ctx.readonly) return;
       if (typeof services.generateScopeItems !== 'function') {
-        generateNote = 'Automatic generation is not available in this session — add rows manually or use the pricebook.';
+        generateNote = 'Automatic generation is not available in this session — add lines by hand or from the price book.';
         render();
         return;
       }
       if (!selection().length) {
-        generateNote = 'Pick at least one project type on the first step to generate line items.';
+        generateNote = 'This document has no scope to generate from — add lines by hand or from the price book.';
         render();
         return;
       }
@@ -1328,34 +1397,39 @@
       generateNote = '';
       render();
       try {
-        const measurements = obj(getPath(ctx.scope(), 'params.measurements'));
-        const roots = arr(await services.generateScopeItems(clone(selection()), clone(measurements))).map(normalizeScopeItem);
+        const used = clone(measurements());
+        const roots = arr(await services.generateScopeItems(clone(selection()), clone(used))).map(normalizeScopeItem);
         if (roots.length) {
           items = roots;
           commit();
+          ctx.writePath('params.scope_generated_from', stampOf(used));
           ctx.requestPreview();
         } else {
-          generateNote = 'Generation produced no line items — add rows manually or use the pricebook.';
+          generateNote = 'Generation produced no lines — add them by hand or from the price book.';
         }
       } catch (e) {
-        generateNote = 'Could not generate line items — add rows manually or use the pricebook.';
+        generateNote = 'Could not generate lines — add them by hand or from the price book.';
       }
       generating = false;
       if (el.isConnected) render();
     }
 
-    function flagFor(item){
+    const findItem = (list, id, parent = null) => {
+      for (const item of arr(list)) {
+        if (item.id === id) return { item, list, parent };
+        const found = findItem(item.children, id, item);
+        if (found) return found;
+      }
+      return null;
+    };
+    const choiceGroupOf = (item) => {
       const sel = obj(item.selection);
-      const by = arr(sel.selectable_by).map(cleanText);
-      const mode = cleanText(sel.mode);
-      if (mode === 'optional' && by.includes('customer')) return `<span class="fmdw-li-flag optional">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_d02510a1664f87","Customer optional") ?? "Customer optional")}</span>`;
-      if (mode === 'choice') return `<span class="fmdw-li-flag choice">${by.includes('customer') ? 'Customer choice' : 'Choice'}</span>`;
-      if (item.included === true) return `<span class="fmdw-li-flag included">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f02be43cb91cd2","Included") ?? "Included")}</span>`;
-      return '';
-    }
+      return cleanText(sel.mode) === 'choice' ? cleanText(sel.group_id) : '';
+    };
+    const isOptional = (item) => cleanText(obj(item.selection).mode) === 'optional';
+    const customerPicks = (item) => arr(obj(item.selection).selectable_by).map(cleanText).includes('customer');
+    const groupTitle = (groupId) => prettyKey(cleanText(groupId).split(':').pop().replace(/_(profile|group|choice)$/i, ''));
 
-    // Attached-media indicator: first image thumb, or a play glyph when only
-    // a video is attached (see openMediaAttach for the item shape).
     function attachThumbHtml(item){
       const entry = obj(arr(item.media)[0]);
       const hasVideo = !!firstText(obj(item.video).url);
@@ -1368,74 +1442,147 @@
       if (mediaId || hasVideo) return `<span class="fmdw-li-thumb video" title="${esc(hasVideo ? 'Attached video' : 'Attached photo')}"><i class="fas ${hasVideo ? 'fa-circle-play' : 'fa-image'}"></i></span>`;
       return '';
     }
-    function hasAttachment(item){
-      return arr(item.media).length > 0 || !!firstText(obj(item.video).url);
+    const hasAttachment = (item) => arr(item.media).length > 0 || !!firstText(obj(item.video).url);
+
+    /** One editable line. `pick` adds the radio/checkbox that decides whether
+     *  the line is priced. */
+    function rowHtml(item, pick){
+      const on = scopeItemSelected(item);
+      const control = pick === 'choice'
+        ? `<input type="radio" name="fmdw-lir-${esc(choiceGroupOf(item))}" data-fmdw-lir-choose ${on ? 'checked' : ''} ${ctx.readonly ? 'disabled' : ''} title="Price and print this option">`
+        : (pick === 'optional' ? `<input type="checkbox" data-fmdw-lir-toggle ${on ? 'checked' : ''} ${ctx.readonly ? 'disabled' : ''} title="Include this line">` : '');
+      return `
+        <div class="fmdw-lir-row ${on ? '' : 'off'} ${control ? 'pick' : ''}" data-fmdw-lir="${esc(item.id)}">
+          ${control ? `<span class="fmdw-lir-pick">${control}</span>` : ''}
+          <div class="fmdw-lir-name">
+            <span class="fmdw-lir-name-line">${attachThumbHtml(item)}<strong>${esc(firstText(item.display_name, item.name, 'Line item'))}</strong>${pick === 'optional' ? `<span class="fmdw-li-flag optional">Optional</span>` : ''}</span>
+            ${item.description ? `<small>${esc(item.description)}</small>` : ''}
+          </div>
+          <div class="fmdw-lir-nums">
+            <label class="fmdw-lir-num" title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c689ddee2f502","Quantity") ?? "Quantity")}"><input type="number" step="any" min="0" data-fmdw-lir-qty value="${esc(item.quantity)}" ${ctx.readonly ? 'disabled' : ''}><i>${esc(item.unit || 'ea')}</i></label>
+            <span class="fmdw-lir-x">×</span>
+            <label class="fmdw-lir-num price" title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c68827ddeaf565","Unit price ($)") ?? "Unit price ($)")}"><i>$</i><input type="number" step="0.01" min="0" data-fmdw-lir-price value="${esc(Number(item.unit_price || 0).toFixed(2))}" ${ctx.readonly ? 'disabled' : ''}></label>
+            <b class="fmdw-lir-amount" data-fmdw-lir-amount="${esc(item.id)}">${esc(moneyFromDollars(scopeItemOwnAmount(item)))}</b>
+          </div>
+          ${ctx.readonly ? '' : `<div class="fmdw-lir-actions">
+            <button type="button" class="fmdw-icon-btn ${hasAttachment(item) ? 'has-media' : ''}" data-fmdw-lir-attach title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_74c8aa88118d1c","Attach photo or video") ?? "Attach photo or video")}"><i class="fas fa-camera"></i></button>
+            <button type="button" class="fmdw-icon-btn danger" data-fmdw-lir-remove title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>
+          </div>`}
+        </div>`;
+    }
+
+    /** Children in order, with each choice group rendered once, together. */
+    function childrenHtml(children){
+      const out = [];
+      const done = new Set();
+      arr(children).forEach((child) => {
+        const groupId = choiceGroupOf(child);
+        if (groupId) {
+          if (done.has(groupId)) return;
+          done.add(groupId);
+          const options = arr(children).filter((other) => choiceGroupOf(other) === groupId);
+          out.push(`
+            <div class="fmdw-lir-choice">
+              <div class="fmdw-lir-choice-head">
+                <strong>${esc(groupTitle(groupId))}</strong>
+                <span class="fmdw-li-flag choice">${options.some(customerPicks) ? 'Customer can choose' : 'Choose one'}</span>
+                <small>The selected option is the one this proposal prices and prints.</small>
+              </div>
+              ${options.map((option) => rowHtml(option, 'choice') + nestedHtml(option)).join('')}
+            </div>`);
+          return;
+        }
+        out.push(rowHtml(child, isOptional(child) ? 'optional' : '') + nestedHtml(child));
+      });
+      return out.join('');
+    }
+    const nestedHtml = (item) => (arr(item.children).length ? `<div class="fmdw-lir-nested">${childrenHtml(item.children)}</div>` : '');
+
+    function rootHtml(item){
+      if (!arr(item.children).length) return rowHtml(item, isOptional(item) ? 'optional' : '');
+      return `
+        <section class="fmdw-lir-group" data-fmdw-lir-group="${esc(item.id)}">
+          <header class="fmdw-lir-group-head">
+            <div class="fmdw-lir-name"><strong>${esc(firstText(item.display_name, item.name, 'Scope'))}</strong>${item.description ? `<small>${esc(item.description)}</small>` : ''}</div>
+            <b data-fmdw-lir-subtotal="${esc(item.id)}">${esc(moneyFromDollars(scopeItemAmount(item)))}</b>
+            ${ctx.readonly ? '' : `<button type="button" class="fmdw-icon-btn danger" data-fmdw-lir-remove-group="${esc(item.id)}" title="Remove this whole group"><i class="fas fa-xmark"></i></button>`}
+          </header>
+          ${Number(item.unit_price || 0) > 0 ? rowHtml({ ...item, display_name: 'Base price', description: '', children: [] }, '') : ''}
+          ${childrenHtml(item.children)}
+        </section>`;
+    }
+
+    /** Numeric edits update amounts in place so focus and scroll survive. */
+    function refreshAmounts(){
+      el.querySelectorAll('[data-fmdw-lir-amount]').forEach((node) => {
+        const found = findItem(items, node.dataset.fmdwLirAmount);
+        if (found) node.textContent = moneyFromDollars(scopeItemOwnAmount(found.item));
+      });
+      el.querySelectorAll('[data-fmdw-lir-subtotal]').forEach((node) => {
+        const found = findItem(items, node.dataset.fmdwLirSubtotal);
+        if (found) node.textContent = moneyFromDollars(scopeItemAmount(found.item));
+      });
+      const total = el.querySelector('[data-fmdw-lir-total]');
+      if (total) total.textContent = moneyFromDollars(scopeItemsTotal(items));
     }
 
     const render = () => {
-      const rows = [];
-      const pushRow = (item, depth) => {
-        rows.push(`
-          <div class="fmdw-li-row ${String(depth ? 'child' : '')}" data-fmdw-lir="${String(esc(item.id))}">
-            <div class="fmdw-li-name">
-              <span class="fmdw-li-name-line">
-                ${String(attachThumbHtml(item))}
-                <strong>${String(esc(firstText(item.display_name, item.name, 'Line item')))}</strong>
-                ${String(flagFor(item))}
-              </span>
-              ${String(item.description ? `<small>${esc(item.description)}</small>` : '')}
-            </div>
-            <input class="fmdw-li-qty" type="number" step="any" min="0" data-fmdw-lir-qty value="${String(esc(item.quantity))}" ${String(ctx.readonly ? 'disabled' : '')} title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c689ddee2f502","Quantity") ?? "Quantity")}">
-            <span class="fmdw-li-unit">${String(esc(item.unit || 'ea'))}</span>
-            <input class="fmdw-li-price" type="number" step="0.01" min="0" data-fmdw-lir-price value="${String(esc(Number(item.unit_price || 0).toFixed(2)))}" ${String(ctx.readonly ? 'disabled' : '')} title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c68827ddeaf565","Unit price ($)") ?? "Unit price ($)")}">
-            ${String(ctx.readonly ? '' : `<button type="button" class="fmdw-icon-btn ${hasAttachment(item) ? 'has-media' : ''}" data-fmdw-lir-attach title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_74c8aa88118d1c","Attach photo or video") ?? "Attach photo or video")}"><i class="fas fa-camera"></i></button>`)}
-            ${String(ctx.readonly ? '' : `<button type="button" class="fmdw-icon-btn danger" data-fmdw-lir-remove title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>`)}
-          </div>`);
-        arr(item.children).forEach((child) => pushRow(child, depth + 1));
-      };
-      items.forEach((item) => pushRow(item, 0));
+      const count = countScopeItems(items);
       el.innerHTML = `
         <div class="fmdw-field">
           <span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>
           ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
-          <div class="fmdw-card">
+          <div class="fmdw-lir">
             ${ctx.readonly ? '' : `
-              <div class="fmdw-row-actions" style="margin-bottom:2px">
-                <button type="button" class="fmdw-btn ${String(rows.length ? '' : 'primary')}" data-fmdw-lir-generate ${String(generating ? 'disabled' : '')}>
-                  <i class="fas ${String(generating ? 'fa-circle-notch fa-spin' : 'fa-rotate')}"></i> ${String(generating ? 'Generating…' : (rows.length ? 'Regenerate' : 'Generate line items'))}
+              <div class="fmdw-lir-bar">
+                <button type="button" class="fmdw-btn ${count ? '' : 'primary'}" data-fmdw-lir-generate ${generating ? 'disabled' : ''}>
+                  <i class="fas ${generating ? 'fa-circle-notch fa-spin' : 'fa-rotate'}"></i> ${generating ? 'Generating…' : (count ? 'Regenerate' : 'Generate lines')}
                 </button>
-                ${String(services.pricebook && typeof services.pricebook.pick === 'function' ? `<button type="button" class="fmdw-btn" data-fmdw-lir-pricebook><i class="fas fa-book-open"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c38fcf1b64a2ea"," Pricebook") ?? " Pricebook")}</button>` : '')}
-                <button type="button" class="fmdw-btn" data-fmdw-lir-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8e13db264d4c9f"," Add row") ?? " Add row")}</button>
+                ${services.pricebook && typeof services.pricebook.pick === 'function' ? `<button type="button" class="fmdw-btn" data-fmdw-lir-pricebook><i class="fas fa-book-open"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c38fcf1b64a2ea"," Pricebook") ?? " Pricebook")}</button>` : ''}
+                <button type="button" class="fmdw-btn" data-fmdw-lir-add><i class="fas fa-plus"></i> Add line</button>
               </div>`}
+            ${stale() ? `<p class="fmdw-lir-stale"><i class="fas fa-triangle-exclamation"></i> The roof measurements changed after these lines were generated. Regenerate to recalculate the quantities; edits made here will be replaced.</p>` : ''}
             ${generateNote ? `<p class="fmdw-hint"><i class="fas fa-circle-info"></i> ${esc(generateNote)}</p>` : ''}
-            <div class="fmdw-li-list">
-              ${rows.length ? rows.join('') : (generating ? `<p class="fmdw-hint"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_2b766d3ceb94da"," Generating line items…") ?? " Generating line items…")}</p>` : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_0b854052709977","No line items yet.") ?? "No line items yet.")}</p>`)}
+            <div class="fmdw-lir-list">
+              ${count ? items.map(rootHtml).join('') : (generating ? `<p class="fmdw-hint"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_2b766d3ceb94da"," Generating line items…") ?? " Generating line items…")}</p>` : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_0b854052709977","No line items yet.") ?? "No line items yet.")}</p>`)}
             </div>
-            ${rows.length ? `<div class="fmdw-li-total"><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9403c7637d4905","Total") ?? "Total")}</span><b data-fmdw-lir-total>${String(esc(moneyFromDollars(scopeItemsTotal(items))))}</b></div>` : ''}
+            ${count ? `<div class="fmdw-lir-total"><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9403c7637d4905","Total") ?? "Total")}</span><b data-fmdw-lir-total>${esc(moneyFromDollars(scopeItemsTotal(items)))}</b></div>` : ''}
           </div>
           <span class="fmdw-field-error" data-fmdw-error hidden></span>
         </div>`;
-      const findItem = (list, id) => {
-        for (const item of arr(list)) {
-          if (item.id === id) return { item, list };
-          const found = findItem(item.children, id);
-          if (found) return found;
-        }
-        return null;
-      };
       el.querySelectorAll('[data-fmdw-lir]').forEach((row) => {
         const id = row.dataset.fmdwLir;
-        row.querySelector('[data-fmdw-lir-qty]')?.addEventListener('change', (event) => {
+        const edit = (apply) => {
           const found = findItem(items, id);
-          if (found) { found.item.quantity = String(Math.max(0, Number(event.target.value || 0))); commit(); render(); ctx.requestPreview(); }
+          if (!found) return;
+          apply(found);
+          commit();
+          ctx.requestPreview();
+        };
+        row.querySelector('[data-fmdw-lir-qty]')?.addEventListener('change', (event) => {
+          edit((found) => { found.item.quantity = String(Math.max(0, Number(event.target.value || 0))); });
+          refreshAmounts();
         });
         row.querySelector('[data-fmdw-lir-price]')?.addEventListener('change', (event) => {
-          const found = findItem(items, id);
-          if (found) { found.item.unit_price = Math.max(0, Number(event.target.value || 0)); commit(); render(); ctx.requestPreview(); }
+          edit((found) => { found.item.unit_price = Math.max(0, Number(event.target.value || 0)); });
+          refreshAmounts();
+        });
+        row.querySelector('[data-fmdw-lir-choose]')?.addEventListener('change', () => {
+          edit((found) => {
+            const groupId = choiceGroupOf(found.item);
+            arr(found.list).filter((other) => choiceGroupOf(other) === groupId).forEach((other) => {
+              other.selection = { ...obj(other.selection), selected: other === found.item };
+            });
+          });
+          render();
+        });
+        row.querySelector('[data-fmdw-lir-toggle]')?.addEventListener('change', (event) => {
+          edit((found) => { found.item.selection = { ...obj(found.item.selection), selected: event.target.checked }; });
+          render();
         });
         row.querySelector('[data-fmdw-lir-remove]')?.addEventListener('click', () => {
-          const found = findItem(items, id);
-          if (found) { found.list.splice(found.list.indexOf(found.item), 1); commit(); render(); ctx.requestPreview(); }
+          edit((found) => { found.list.splice(found.list.indexOf(found.item), 1); });
+          render();
         });
         row.querySelector('[data-fmdw-lir-attach]')?.addEventListener('click', (event) => {
           const found = findItem(items, id);
@@ -1455,11 +1602,23 @@
           });
         });
       });
-      el.querySelector('[data-fmdw-lir-generate]')?.addEventListener('click', () => generate());
+      el.querySelectorAll('[data-fmdw-lir-remove-group]').forEach((button) => button.addEventListener('click', () => {
+        const found = findItem(items, button.dataset.fmdwLirRemoveGroup);
+        if (!found || !root.confirm(`Remove "${firstText(found.item.display_name, found.item.name)}" and every line under it?`)) return;
+        found.list.splice(found.list.indexOf(found.item), 1);
+        commit();
+        render();
+        ctx.requestPreview();
+      }));
+      el.querySelector('[data-fmdw-lir-generate]')?.addEventListener('click', () => {
+        if (countScopeItems(items) && !root.confirm('Regenerate every line from the roof measurements and price book? Edits made here will be replaced.')) return;
+        generate();
+      });
       el.querySelector('[data-fmdw-lir-add]')?.addEventListener('click', () => {
         items.push(makeScopeItem({ name: 'New line item', display_name: 'New line item' }));
         commit();
         render();
+        ctx.requestPreview();
       });
       el.querySelector('[data-fmdw-lir-pricebook]')?.addEventListener('click', async () => {
         try {
@@ -1476,27 +1635,54 @@
   });
 
   // ----------------------------------------------------------------- review
+  // What the sender should know before this goes out: the total, anything
+  // that looks unfinished, then the answers the workflow collected.
   registerKind('review', (el, ctx) => {
     const workflow = ctx.workflow;
     const rows = [];
+    const checks = [];
+    let total = null;
     arr(workflow.steps).forEach((step) => {
       arr(obj(step).items).forEach((item) => {
         const kind = cleanText(obj(item).kind);
         if (kind === 'review') return;
         const writes = cleanText(obj(item).writes);
         if (!writes) return;
+        const value = getPath(ctx.scope(), writes);
         const hiddenHere = !stepVisibleFor(obj(step), ctx.audience, workflow) || !itemVisibleFor(obj(item), ctx.audience);
-        rows.push({
-          label: itemLabel(obj(item)),
-          value: formatValue(obj(item), getPath(ctx.scope(), writes)),
-          hidden: hiddenHere
-        });
+        if (kind === 'line_items_review' || kind === 'line_item_editor') {
+          total = (total || 0) + scopeItemsTotal(value);
+          let zeroQuantity = 0;
+          let unpriced = 0;
+          const groups = new Set();
+          const walk = (list) => arr(list).forEach((raw) => {
+            const line = obj(raw);
+            const selection = obj(line.selection);
+            if (cleanText(selection.mode) === 'choice' && cleanText(selection.group_id)) groups.add(cleanText(selection.group_id));
+            if (!scopeItemSelected(line)) return;
+            const leaf = !arr(line.children).length;
+            if (leaf && !(Number(line.quantity) > 0)) zeroQuantity += 1;
+            else if (leaf && line.price_driving !== false && !(Number(line.unit_price) > 0)) unpriced += 1;
+            walk(line.children);
+          });
+          walk(value);
+          if (zeroQuantity) checks.push(`${zeroQuantity} line${zeroQuantity === 1 ? ' has' : 's have'} a quantity of 0. ${zeroQuantity === 1 ? 'It prints on the proposal and adds' : 'They print on the proposal and add'} nothing to the price — remove ${zeroQuantity === 1 ? 'it' : 'them'} or enter a quantity.`);
+          if (unpriced) checks.push(`${unpriced} line${unpriced === 1 ? ' has' : 's have'} no unit price.`);
+          if (groups.size) checks.push(`${groups.size} choice group${groups.size === 1 ? '' : 's'}: the proposal prices and prints the option selected in each.`);
+        }
+        if (isEmptyValue(value) && typeof value !== 'number' && typeof value !== 'boolean') {
+          if (obj(item).required && !hiddenHere) checks.push(`${itemLabel(obj(item))} is not filled in.`);
+          return;
+        }
+        rows.push({ label: itemLabel(obj(item)), value: formatValue(obj(item), value), hidden: hiddenHere });
       });
     });
     el.innerHTML = `
       <div class="fmdw-field">
         <span class="fmdw-field-label">${esc(itemLabel(ctx.item) === 'Field' ? 'Review' : itemLabel(ctx.item))}</span>
         ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
+        ${total === null ? '' : `<div class="fmdw-card fmdw-review-total"><span>Scope total</span><b>${esc(moneyFromDollars(total))}</b></div>`}
+        ${checks.length ? `<div class="fmdw-card fmdw-review-checks">${checks.map((text) => `<p><i class="fas fa-triangle-exclamation"></i> ${esc(text)}</p>`).join('')}</div>` : ''}
         <div class="fmdw-card fmdw-review">
           ${rows.length ? rows.map((row) => `
             <div class="fmdw-review-row ${row.hidden ? 'muted' : ''}">
@@ -1798,10 +1984,12 @@
           <footer class="fmdw-foot">
             <button type="button" class="fmdw-btn" data-fmdw-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c5b830c019950"," Previous") ?? " Previous")}</button>
             <span class="fmdw-foot-note" data-fmdw-foot-note></span>
+            ${String(preview ? `<button type="button" class="fmdw-btn ghost fmdw-preview-toggle" data-fmdw-preview-toggle title="Show or hide the live preview"><i class="fas fa-eye"></i><span> Preview</span></button>` : '')}
             <button type="button" class="fmdw-btn primary" data-fmdw-continue>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_854c72abba5166","Continue ") ?? "Continue ")}<i class="fas fa-arrow-right"></i></button>
           </footer>
         </section>
         ${String(preview ? `
+        <div class="fmdw-resizer" data-fmdw-resizer title="Drag to resize the preview" role="separator" aria-orientation="vertical"></div>
         <aside class="fmdw-preview" data-fmdw-preview>
           <div class="fmdw-preview-head" data-fmdw-preview-head>
             <strong><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_a979f59edfcd90"," Live preview") ?? " Live preview")}</strong>
@@ -1810,6 +1998,7 @@
               <button type="button" class="fmdw-zoom-pct" data-fmdw-zoom-fit title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_b4e9fa5595e7cf","Fit width") ?? "Fit width")}" data-fmdw-zoom-pct>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_2d8510904d5879","Fit") ?? "Fit")}</button>
               <button type="button" class="fmdw-icon-btn" data-fmdw-zoom-in title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_a593d968057ce9","Zoom in") ?? "Zoom in")}"><i class="fas fa-magnifying-glass-plus"></i></button>
               <button type="button" class="fmdw-icon-btn" data-fmdw-preview-refresh title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_acf1841e689f24","Refresh preview") ?? "Refresh preview")}"><i class="fas fa-rotate"></i></button>
+              <button type="button" class="fmdw-icon-btn" data-fmdw-preview-hide title="Hide the preview"><i class="fas fa-xmark"></i></button>
             </div>
           </div>
           <div class="fmdw-preview-stage" data-fmdw-preview-stage>
@@ -1886,7 +2075,9 @@
       const renderItem = (item, parent) => {
         const holder = document.createElement('div');
         const itemTransition = obj(obj(item.presentation).transition);
-        holder.className = `fmdw-item fmdw-enter-${firstText(itemTransition.type, 'fade').replace(/[^a-z-]/gi, '')}`;
+        // Lists and grids need the full row; simple fields pair up.
+        const wide = ['measurements', 'line_items_review', 'line_item_editor', 'review', 'content_blocks', 'piece_select', 'piece_picker', 'choice_group'].includes(cleanText(item.kind));
+        holder.className = `fmdw-item ${wide ? 'fmdw-item-wide' : ''} fmdw-enter-${firstText(itemTransition.type, 'fade').replace(/[^a-z-]/gi, '')}`;
         holder.style.setProperty('--fmdw-enter-ms', `${Math.max(0, Number(itemTransition.duration_ms || 180))}ms`);
         if (item.disabled === true) {
           holder.classList.add('fmdw-capability-disabled');
@@ -2038,8 +2229,11 @@
       st.previewBusy = true;
       el.preview?.classList.add('loading');
       try {
+        // The host reads totals off this resolve, so it runs even while the
+        // pane is hidden; only the page render is skipped.
         const resolved = obj(await preview.resolve());
         if (st.destroyed) return;
+        if (el.root.classList.contains('preview-hidden')) { st.lastResolved = resolved; return; }
         renderPreview(resolved);
       } catch (error) {
         if (!st.destroyed) renderPreviewUnavailable();
@@ -2125,8 +2319,92 @@
       applyPreviewZoom();
     });
 
+    // ------------------------------------------------- preview pane layout
+    // The preview can be hidden and its width dragged; both choices persist
+    // per browser. Below NARROW_PX the pane cannot fit beside the form, so it
+    // hides until the window is wider.
+    const PREVIEW_PREF_KEY = 'fmdw:preview';
+    const NARROW_PX = 780;
+    const COMPACT_RAIL_PX = 980;
+    const previewPref = (() => {
+      try { return obj(JSON.parse(root.localStorage?.getItem(PREVIEW_PREF_KEY) || '{}')); } catch (e) { return {}; }
+    })();
+    function savePreviewPref(){
+      try { root.localStorage?.setItem(PREVIEW_PREF_KEY, JSON.stringify(previewPref)); } catch (e) { /* storage unavailable */ }
+    }
+    function previewVisible(){
+      return !!preview && previewPref.hidden !== true && !el.root.classList.contains('narrow');
+    }
+    function applyPreviewLayout(){
+      if (!preview || st.destroyed) return;
+      const wasVisible = !el.root.classList.contains('preview-hidden');
+      const width = el.root.clientWidth || 0;
+      el.root.classList.toggle('narrow', width > 0 && width < NARROW_PX);
+      el.root.classList.toggle('compact-rail', width > 0 && width < COMPACT_RAIL_PX);
+      const visible = previewVisible();
+      el.root.classList.toggle('preview-hidden', !visible);
+      if (Number(previewPref.width) > 0) {
+        const max = Math.max(280, width - (el.root.querySelector('.fmdw-rail')?.offsetWidth || 0) - 340);
+        el.root.style.setProperty('--fmdw-preview-w', `${Math.round(Math.min(Math.max(280, Number(previewPref.width)), max))}px`);
+      }
+      const toggle = el.root.querySelector('[data-fmdw-preview-toggle]');
+      if (toggle) {
+        toggle.classList.toggle('active', visible);
+        toggle.disabled = el.root.classList.contains('narrow');
+        toggle.title = toggle.disabled ? 'Widen this window to show the live preview' : (visible ? 'Hide the live preview' : 'Show the live preview');
+      }
+      // Coming back into view: the document may have changed while hidden.
+      if (visible && !wasVisible) { if (st.lastResolved) renderPreview(st.lastResolved); else refreshPreview(); }
+      else if (visible && !(st.previewZoom > 0)) applyPreviewZoom();
+    }
+    el.root.querySelector('[data-fmdw-preview-toggle]')?.addEventListener('click', () => {
+      previewPref.hidden = previewPref.hidden !== true;
+      savePreviewPref();
+      applyPreviewLayout();
+    });
+    el.root.querySelector('[data-fmdw-preview-hide]')?.addEventListener('click', () => {
+      previewPref.hidden = true;
+      savePreviewPref();
+      applyPreviewLayout();
+    });
+    const resizer = el.root.querySelector('[data-fmdw-resizer]');
+    resizer?.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = el.preview.offsetWidth;
+      resizer.setPointerCapture?.(event.pointerId);
+      el.root.classList.add('resizing');
+      const move = (moveEvent) => {
+        previewPref.width = startWidth + (startX - moveEvent.clientX);
+        applyPreviewLayout();
+      };
+      const stop = () => {
+        resizer.removeEventListener('pointermove', move);
+        resizer.removeEventListener('pointerup', stop);
+        resizer.removeEventListener('pointercancel', stop);
+        el.root.classList.remove('resizing');
+        savePreviewPref();
+        applyPreviewLayout();
+      };
+      resizer.addEventListener('pointermove', move);
+      resizer.addEventListener('pointerup', stop);
+      resizer.addEventListener('pointercancel', stop);
+    });
+    resizer?.addEventListener('dblclick', () => {
+      delete previewPref.width;
+      el.root.style.removeProperty('--fmdw-preview-w');
+      savePreviewPref();
+      applyPreviewLayout();
+    });
+    let layoutObserver = null;
+    if (typeof root.ResizeObserver === 'function') {
+      layoutObserver = new root.ResizeObserver(() => applyPreviewLayout());
+      layoutObserver.observe(el.root);
+    }
+
     // ----------------------------------------------------------------- boot
     renderStep();
+    applyPreviewLayout();
     if (preview) refreshPreview();
 
     const handle = {
@@ -2134,6 +2412,7 @@
         if (st.destroyed) return;
         st.destroyed = true;
         clearTimeout(st.previewTimer);
+        try { layoutObserver?.disconnect(); } catch (e) {}
         destroyItemHandles();
         try { st.previewHandle?.destroy?.(); } catch (e) {}
         container.innerHTML = '';
@@ -2194,7 +2473,7 @@
 .fmdw-step-head p{margin:6px 0 0;font-size:12.5px;font-weight:800;color:var(--fmdw-muted);line-height:1.5}
 .fmdw-items{flex:1;min-height:0;overflow:auto;padding:14px 22px 18px;display:flex;flex-direction:column;gap:14px}
 .fmdw-section{border:1px solid var(--fmdw-line);border-radius:14px;background:#fff;padding:16px;display:flex;flex-direction:column;gap:12px;transform-origin:top center}
-.fmdw-section>h3{margin:0;font-size:14px;font-weight:1000}.fmdw-section>p{margin:-6px 0 0;color:var(--fmdw-muted);font-size:11.5px;font-weight:750}.fmdw-section-items{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.fmdw-section-items>.fmdw-item:only-child{grid-column:1/-1}
+.fmdw-section>h3{margin:0;font-size:14px;font-weight:1000}.fmdw-section>p{margin:-6px 0 0;color:var(--fmdw-muted);font-size:11.5px;font-weight:750}.fmdw-section-items{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.fmdw-section-items>.fmdw-item:only-child,.fmdw-section-items>.fmdw-item-wide{grid-column:1/-1}
 .fmdw-enter-fade{animation:fmdw-enter-fade var(--fmdw-enter-ms,180ms) ease both}.fmdw-enter-grow{animation:fmdw-enter-grow var(--fmdw-enter-ms,220ms) ease both}.fmdw-enter-slide{animation:fmdw-enter-slide var(--fmdw-enter-ms,220ms) ease both}
 @keyframes fmdw-enter-fade{from{opacity:0}to{opacity:1}}@keyframes fmdw-enter-grow{from{opacity:0;transform:scaleY(.04)}to{opacity:1;transform:scaleY(1)}}@keyframes fmdw-enter-slide{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 .fmdw-item.invalid .fmdw-card,.fmdw-item.invalid input,.fmdw-item.invalid select,.fmdw-item.invalid textarea{border-color:#e5484d}
@@ -2262,11 +2541,73 @@
 .fmdw-choice-tick{position:absolute;top:9px;right:9px;width:20px;height:20px;border-radius:99px;background:var(--fmdw-primary);color:var(--fmdw-on-primary);display:none;place-items:center;font-size:9px}
 .fmdw-choice-card.active .fmdw-choice-tick{display:grid}
 /* measurements */
-.fmdw-meas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px}
+.fmdw-meas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:9px 12px}
 .fmdw-meas-field{display:flex;flex-direction:column;gap:4px}
 .fmdw-meas-field span{font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:var(--fmdw-muted)}
 .fmdw-meas-field.needed input{border-color:#e8b93c;background:#fffdf4}
 .fmdw-meas-note{margin:0;font-size:11px;font-weight:900;color:#b58a00}
+.fmdw-meas-source{margin:0}
+.fmdw-meas-source.ok{color:#067647}
+.fmdw-meas-input{display:flex;align-items:center;gap:6px}
+.fmdw-meas-input input{min-width:0;flex:1}
+.fmdw-meas-input i{flex:none;font-style:normal;font-size:10.5px;font-weight:900;color:var(--fmdw-muted);min-width:16px;text-transform:none}
+.fmdw-meas-field span em{font-style:normal;font-weight:900;color:#b58a00;text-transform:none;letter-spacing:0}
+.fmdw-meas-field.edited input{border-color:#e8b93c}
+.fmdw-meas-extra summary{cursor:pointer;font-size:11px;font-weight:900;color:var(--fmdw-muted)}
+.fmdw-meas-extra .fmdw-stat-grid{margin-top:8px}
+/* line items review */
+.fmdw-lir{container-type:inline-size;display:flex;flex-direction:column;gap:10px;min-width:0}
+.fmdw-lir-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fmdw-lir-stale{margin:0;border:1px solid #f0d58a;background:#fffbea;color:#7a5b00;border-radius:10px;padding:9px 11px;font-size:11.5px;font-weight:850;line-height:1.45}
+.fmdw-lir-list{display:flex;flex-direction:column;gap:10px;min-width:0}
+.fmdw-lir-group{border:1px solid var(--fmdw-line);border-radius:13px;background:#fff;overflow:hidden;min-width:0}
+.fmdw-lir-group-head{display:flex;align-items:center;gap:10px;padding:11px 12px;background:#fafbfe;border-bottom:1px solid var(--fmdw-line)}
+.fmdw-lir-group-head b{flex:none;font-size:14px;font-weight:1000}
+.fmdw-lir-group-head .fmdw-lir-name strong{font-size:13.5px}
+.fmdw-lir-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:6px 10px;padding:9px 12px;border-top:1px solid #f0f2f7;min-width:0}
+.fmdw-lir-row.pick{grid-template-columns:auto minmax(0,1fr) auto auto}
+.fmdw-lir-list>.fmdw-lir-row{border:1px solid var(--fmdw-line);border-radius:13px;background:#fff}
+.fmdw-lir-group-head+.fmdw-lir-row{border-top:0}
+.fmdw-lir-row.off{background:#fafbfc}
+.fmdw-lir-row.off .fmdw-lir-name strong,.fmdw-lir-row.off .fmdw-lir-amount{color:#98a2b3}
+.fmdw-lir-row.off .fmdw-lir-amount{text-decoration:line-through}
+.fmdw-lir-pick{display:grid;place-items:center}
+.fmdw-lir-pick input{width:16px;height:16px;margin:0;accent-color:var(--fmdw-primary);cursor:pointer}
+.fmdw-lir-name{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.fmdw-lir-name-line{display:flex;align-items:center;gap:7px;min-width:0;flex-wrap:wrap}
+.fmdw-lir-name strong{font-size:12.5px;font-weight:1000;line-height:1.3;overflow-wrap:anywhere}
+.fmdw-lir-name small{font-size:10.5px;font-weight:800;color:var(--fmdw-muted);line-height:1.35}
+.fmdw-lir-nums{display:flex;align-items:center;gap:6px;min-width:0}
+.fmdw-lir-num{display:flex;align-items:center;gap:4px;border:1px solid var(--fmdw-line);border-radius:8px;background:#fff;padding:0 7px;height:30px}
+.fmdw-lir-num:focus-within{border-color:var(--fmdw-primary)}
+.fmdw-lir-num input{width:54px;border:0 !important;outline:0;background:transparent;padding:0 !important;font:inherit;font-size:12px;font-weight:900;text-align:right;box-shadow:none !important;-moz-appearance:textfield}
+.fmdw-lir-num.price input{width:62px}
+.fmdw-lir-num input::-webkit-outer-spin-button,.fmdw-lir-num input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.fmdw-lir-num i{font-style:normal;font-size:10.5px;font-weight:900;color:var(--fmdw-muted)}
+.fmdw-lir-x{font-size:11px;color:#98a2b3}
+.fmdw-lir-amount{min-width:78px;text-align:right;font-size:12.5px;font-weight:1000;font-variant-numeric:tabular-nums}
+.fmdw-lir-actions{display:flex;align-items:center;gap:5px}
+.fmdw-lir-nested{padding-left:18px;border-top:1px solid #f0f2f7}
+.fmdw-lir-choice{border-top:1px solid var(--fmdw-line);background:#f7f9ff}
+.fmdw-lir-choice-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px 6px}
+.fmdw-lir-choice-head strong{font-size:11.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:#344054}
+.fmdw-lir-choice-head small{flex-basis:100%;font-size:10.5px;font-weight:800;color:var(--fmdw-muted)}
+.fmdw-lir-choice .fmdw-lir-row{border-top:1px solid #e6ebf7;background:transparent}
+.fmdw-lir-total{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:4px 12px;font-size:12px;font-weight:900;color:var(--fmdw-muted)}
+.fmdw-lir-total b{font-size:17px;font-weight:1000;color:var(--fmdw-ink);font-variant-numeric:tabular-nums}
+@container (max-width:540px){
+  .fmdw-lir-row{grid-template-columns:minmax(0,1fr) auto}
+  .fmdw-lir-row.pick{grid-template-columns:auto minmax(0,1fr) auto}
+  .fmdw-lir-nums{grid-row:2;grid-column:1 / -1;justify-content:flex-end}
+  .fmdw-lir-row.pick .fmdw-lir-nums{grid-column:2 / -1}
+  .fmdw-lir-actions{grid-row:1;grid-column:-2}
+}
+/* review */
+.fmdw-review-total{flex-direction:row;align-items:baseline;justify-content:space-between;gap:12px}
+.fmdw-review-total span{font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:var(--fmdw-muted)}
+.fmdw-review-total b{font-size:22px;font-weight:1000;font-variant-numeric:tabular-nums}
+.fmdw-review-checks{gap:8px;border-color:#f0d58a;background:#fffbea}
+.fmdw-review-checks p{margin:0;font-size:11.5px;font-weight:850;line-height:1.45;color:#7a5b00}
 .fmdw-stat-grid{display:flex;flex-wrap:wrap;gap:7px}
 .fmdw-stat{display:inline-flex;flex-direction:column;gap:1px;border:1px solid var(--fmdw-line);border-radius:9px;padding:6px 9px;background:#fafbfe}
 .fmdw-stat i{font-style:normal;font-size:9px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:var(--fmdw-muted)}
@@ -2365,7 +2706,23 @@
 /* widgets */
 .fmdw-widget-host{min-height:60px}
 /* preview pane — same flex basis as the step content (~50/50 after the rail) */
-.fmdw-preview{flex:1 1 0;min-width:0;border-left:1px solid var(--fmdw-line);background:#eef1f5;display:flex;flex-direction:column}
+.fmdw-preview{flex:0 0 var(--fmdw-preview-w,44%);min-width:0;background:#eef1f5;display:flex;flex-direction:column}
+.fmdw-resizer{flex:none;width:7px;margin:0 -3px;z-index:2;cursor:col-resize;position:relative;touch-action:none}
+.fmdw-resizer::after{content:'';position:absolute;top:0;bottom:0;left:3px;width:1px;background:var(--fmdw-line)}
+.fmdw-resizer:hover::after,.fmdw.resizing .fmdw-resizer::after{left:2px;width:3px;background:var(--fmdw-primary)}
+.fmdw.resizing{user-select:none;cursor:col-resize}
+.fmdw.resizing .fmdw-preview-stage{pointer-events:none}
+.fmdw.preview-hidden .fmdw-preview,.fmdw.preview-hidden .fmdw-resizer{display:none}
+.fmdw-preview-toggle.active{border-color:var(--fmdw-primary);color:var(--fmdw-primary)}
+/* compact rail: numbered dots only, titles on hover */
+.fmdw.compact-rail .fmdw-rail{width:58px}
+.fmdw.compact-rail .fmdw-rail-head{display:none}
+.fmdw.compact-rail .fmdw-step{justify-content:center;padding:9px 0}
+.fmdw.compact-rail .fmdw-step-title{display:none}
+.fmdw.compact-rail .fmdw-step-head{padding:14px 14px 2px}
+.fmdw.compact-rail .fmdw-items{padding:12px 14px 16px}
+.fmdw.compact-rail .fmdw-foot{padding:10px 14px}
+.fmdw.narrow .fmdw-preview-toggle span{display:none}
 .fmdw-preview-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--fmdw-line);background:#fff}
 .fmdw-preview-zoom{display:flex;align-items:center;gap:5px}
 .fmdw-scg-group{display:flex;flex-direction:column;gap:8px;margin-top:10px}
@@ -2379,6 +2736,7 @@
 .fmdw-preview-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;color:#98a2b3;font-size:12px;font-weight:850;text-align:center;padding:22px}
 .fmdw-preview-empty i{font-size:26px}
 @keyframes fmdw-spin{to{transform:rotate(360deg)}}
+.fmdw-btn[hidden]{display:none}
 /* portal theme */
 .fmdw.fmdw-portal{--fmdw-bg:#f6f8fb}
 .fmdw.fmdw-portal .fmdw-rail-head strong{color:var(--fmdw-primary)}
@@ -2392,10 +2750,10 @@
 .fmdw-overlay-body{flex:1;min-height:0;display:flex}
 .fmdw-overlay-body>*{flex:1;min-width:0}
 /* responsive */
-@media(max-width:1080px){.fmdw.has-preview .fmdw-preview{display:none}}
 @media(max-width:760px){
   .fmdw{flex-direction:column}
-  .fmdw-rail{width:100%;max-width:100%;min-width:0;max-height:none;overflow:hidden;border-right:0;border-bottom:1px solid var(--fmdw-line)}
+  .fmdw-rail,.fmdw.compact-rail .fmdw-rail{width:100%;max-width:100%;min-width:0;max-height:none;overflow:hidden;border-right:0;border-bottom:1px solid var(--fmdw-line)}
+  .fmdw.compact-rail .fmdw-step{padding:9px 10px}
   .fmdw-steps{flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:8px;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
   .fmdw-step{flex:none}
   .fmdw-step-title{max-width:120px}

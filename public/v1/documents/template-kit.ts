@@ -10,7 +10,7 @@ import { FMDocModel } from "./schemas.js";
  */
 
 export type RunSpec = { text?: string; bind?: string; font?: JsonObject; color?: string; weight?: number };
-export type BlockSpec = { runs: RunSpec[]; style_ref?: string; align?: string };
+export type BlockSpec = { runs: RunSpec[]; style_ref?: string; align?: string; collapse_empty?: boolean };
 type FlowSize = { w?: number; h?: number | "auto"; grow?: number };
 
 function asObject(value: unknown): JsonObject {
@@ -56,6 +56,7 @@ export function flowBlocks(blocks: BlockSpec[], options: { font?: JsonObject; al
         type: "paragraph",
         align: block.align || options.align || "left",
         ...(block.style_ref ? { style_ref: block.style_ref } : {}),
+        ...(block.collapse_empty ? { collapse_empty: true } : {}),
         runs: runList(block.runs)
       }))
     }
