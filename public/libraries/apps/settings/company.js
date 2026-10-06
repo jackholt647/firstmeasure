@@ -1402,7 +1402,7 @@
         },
         branding: {
           ...(branch.branding || {}),
-          typography: { ...(branch.branding?.typography || {}), document_font_family: font_family || 'Montserrat', body_font_family:font_family || 'Montserrat', ...(title_font !== undefined ? {display_font_family:title_font,heading_font_family:title_font} : {}) },
+          typography: { ...(branch.branding?.typography || {}), ...(font_family !== undefined ? { document_font_family:font_family || 'Montserrat', body_font_family:font_family || 'Montserrat' } : {}), ...(title_font !== undefined ? {display_font_family:title_font,heading_font_family:title_font} : {}) },
           logo: existingBranchLogo && existingBranchLogo !== DEFAULT_LOGO ? existingBranchLogo : companyLogoForSave(),
           logo_display: normalizeLogoDisplay(logo_display),
           colors: {
@@ -1435,7 +1435,7 @@
           companyName: name ?? styleData.companyName ?? '',
           branding: {
             ...(styleData.branding || {}),
-            typography: { ...(styleData.branding?.typography || {}), document_font_family: font_family || 'Montserrat', body_font_family:font_family || 'Montserrat', ...(title_font !== undefined ? {display_font_family:title_font,heading_font_family:title_font} : {}) },
+            typography: { ...(styleData.branding?.typography || {}), ...(font_family !== undefined ? { document_font_family:font_family || 'Montserrat', body_font_family:font_family || 'Montserrat' } : {}), ...(title_font !== undefined ? {display_font_family:title_font,heading_font_family:title_font} : {}) },
             logo_display: normalizeLogoDisplay(logo_display),
             colors: {
               ...(styleData.branding?.colors || {}),
@@ -2178,6 +2178,7 @@
     const canForms = canCompany && (leadFlags.forms || leadFlags.email);
     const canPricebook = canCompany && appFlag('platform', 'pricebook');
     const canProposalSettings = canCompany && appFlag('platform', 'proposals');
+    const companyFontsEnabled = appFlag('platform', 'documents');
     const canDocuments = canCompany && appFlag('platform', 'project_docs') && appBelongsInSettings('documents.studio');
     const canConfiguration = canCompany && appFlag('platform', 'configuration');
     const canScheduling = canCompany && appFlag('platform', 'scheduling') && appBelongsInSettings('portal.scheduling');
@@ -14304,7 +14305,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             </section>
 
             <div class="company-brand-heading">${(globalThis.PlatformLanguage?.htmlText("settings","m_38e15f7a2dd540","Brand Kit") ?? "Brand Kit")}</div>
-            ${window.PlatformBrandKit.markup({ prefix:'cs', extendedPalette, advancedLogos })}
+            ${window.PlatformBrandKit.markup({ prefix:'cs', extendedPalette, advancedLogos, showFonts:companyFontsEnabled })}
             </div>
             ${String(reportsEnabled ? `<aside class="company-document-preview">
               <div class="company-document-preview-head"><span><i class="fas fa-file-lines"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4ca221574beb0d"," Report preview") ?? " Report preview")}</span></div>
@@ -16058,7 +16059,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         brandSaveTimer = window.setTimeout(() => {
           const snapshot = {
             name:state.name, primary:state.primary, secondary:state.secondary,
-            palette:[...state.palette], font_family:state.font_family || 'Montserrat', title_font:state.title_font || '',
+            palette:[...state.palette], ...(companyFontsEnabled ? { font_family:state.font_family || 'Montserrat', title_font:state.title_font || '' } : {}),
             logo_display:{ ...state.logo_display },
             company_email:state.company_email, company_phone:state.company_phone,
             company_address:state.company_address, company_business_address:state.company_business_address,
@@ -16274,7 +16275,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         const toSaveName = String(csName.value || '').trim();
         state.primary = csPrimary.value;
         state.secondary = csSecondary.value;
-        state.font_family = $('#csBrandFont', paneCompany)?.value || 'Montserrat';
+        if (companyFontsEnabled) state.font_family = $('#csBrandFont', paneCompany)?.value || state.font_family || 'Montserrat';
         state.company_email = String(csCompanyEmail?.value || '').trim();
         state.company_phone = String(csCompanyPhone?.value || '').trim();
         state.company_business_address = readBusinessAddressInputs();
@@ -16285,7 +16286,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           name: toSaveName,
           primary: state.primary,
           secondary: state.secondary,
-          font_family: state.font_family, title_font:state.title_font || '',
+          ...(companyFontsEnabled ? { font_family:state.font_family, title_font:state.title_font || '' } : {}),
           ...(extendedPalette ? { palette: state.palette } : {}),
           ...(advancedLogos ? { logo_display: state.logo_display } : {}),
           company_email: state.company_email,
