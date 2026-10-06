@@ -13,7 +13,7 @@
 .fm-entity-window .fm-shell-header .fm-window-controls{height:32px!important;gap:0!important}
 .fm-entity-window .fm-shell-header .fm-window-controls button{width:30px!important;height:32px!important;min-height:32px!important;border:0!important;border-radius:6px}
 .fm-shell-tabs{display:flex!important;align-items:stretch;gap:0!important;padding:0!important;margin:0!important;min-height:32px;overflow:auto;border-bottom:1px solid #e4e7ec;background:#fff}
-.fm-entity-window .fm-shell-tabs.single-tab,.fm-entity-window .fm-shell-tabs[hidden]{display:none!important}
+.fm-entity-window .fm-shell-tabs.single-tab,.fm-entity-window .fm-shell-tabs[hidden],.fm-entity-window .fm-shell-tabs:empty,.fm-entity-window .fm-project-tray-tabs:empty{display:none!important}
 .fm-shell-tabs>button{box-sizing:border-box;flex:none;height:32px!important;min-height:32px!important;padding:4px 12px!important;border:0!important;border-radius:0!important;background:transparent!important;color:#667085;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer}
 .fm-shell-tabs[data-tab-style=underline]>button:is([aria-selected=true],[data-pane-open=true]){color:var(--primary-readable,var(--primary,#d93025))!important;box-shadow:inset 0 -3px 0 var(--primary,#d93025)!important}
 .fm-shell-tabs[data-tab-style=pills]{gap:4px!important;padding:3px!important}
@@ -34,7 +34,7 @@
 .fm-entity-window[data-window=minimized]>.fm-shell-header{height:30px!important;min-height:30px!important}
 .fm-shell-toolbar{display:flex;flex:none;min-width:0;background:#fff;border-bottom:1px solid #e4e7ec}
 .fm-shell-toolbar>.fm-shell-tabs{flex:1;min-width:0;border-bottom:0}
-.fm-entity-window .fm-shell-header[data-header-rows="2"]{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto auto;grid-template-rows:36px 32px;height:68px!important;min-height:68px!important;padding:0;box-sizing:content-box}
+.fm-entity-window .fm-shell-header[data-header-rows="2"]{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto auto;grid-template-rows:36px auto;height:auto!important;min-height:36px!important;padding:0;box-sizing:content-box}
 .fm-shell-header[data-header-rows="2"]>.fm-shell-identity{grid-row:1;grid-column:1 / -1;padding:0 224px 0 16px}
 .fm-shell-header[data-header-rows="2"]>.r-window-bar-actions{position:absolute;top:0;right:0;width:auto;border:0}
 .fm-shell-header[data-header-rows="2"]>.fm-shell-tabs{grid-row:2;grid-column:1;min-width:0;min-height:0;height:32px;box-sizing:border-box;border-bottom:0!important;overflow:hidden}

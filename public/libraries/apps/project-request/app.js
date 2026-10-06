@@ -916,6 +916,8 @@ window.PlatformCommerce.onReady(async function(){
     .r-overview-details #rStepCustomer>.r-step-shell>.r-step-inner>.r-step-body{gap:14px}
     .r-overview-details #rStepCustomer>.r-step-shell>.r-step-inner>.r-step-body>.r-group{margin:0}
     .r-overview-details .r-contact-list{gap:14px}
+    .r-overlay:has(.r-window-bar[data-window-mobile=false]) .r-overview-details .r-contact-card::before{min-height:16px;margin-bottom:8px}
+    .r-overlay:has(.r-window-bar[data-window-mobile=false]):not(.firstmeasure-unordered-overview) .r-overview-details:has(.r-contact-card) #rStepAddress{border-top:0!important;padding-top:20px!important}
     .r-overlay :is(.r-project-identity-popover,.r-overview-details) .r-contact-list .r-contact-card{padding-left:0;padding-right:0}
     .r-overlay :is(.r-project-identity-popover,.r-overview-details) .r-contact-card .r-inp{box-sizing:border-box;height:32px;min-height:32px;padding:5px 8px;line-height:20px;font-size:12px;font-weight:600}
     .r-overview-details:has(.r-overview-initial-actions:not([hidden])) #rOrderMeasurements{display:none!important}
