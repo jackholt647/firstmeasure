@@ -31,3 +31,22 @@ Activate each role's previous release recorded in
 procedure; verify current state first. Presets already upgraded stay at
 revision 30 and remain valid for the earlier renderer except that row columns
 lose their shared-width sizing.
+
+## Followup: itemized roofing workflow
+
+Release `5069ecd3ba17c58b84ad24b48d36e895b28c9e62`, same four roles, development
+only. The itemized roofing proposal's workflow is now three steps: roof
+measurements read from the project's selected measurement dataset, a priced
+scope review, and a review step. Its scope piece is fixed to roof replacement.
+Line-item rows indent by role instead of a printed bullet, empty optional text
+lines collapse, and the itemized template prints each line's amount. The
+workflow screen gained a hideable, resizable live preview and a single header
+row. Preset revision 31 and Instant roofing pack 3 upgrade existing assets;
+documents created earlier keep their pinned versions.
+
+Document API, versions and Instant roofing suites: 36 passed. The workflow was
+exercised in a local browser harness with stand-in services at three widths;
+it was not exercised in a hosted browser session. Scope lines are still
+generated in the browser by the legacy proposals module, which rounds
+measurements to whole numbers. Rollback: the previous release per role is in
+`output/document-workflow-20261006/manifest.json`.
