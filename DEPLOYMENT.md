@@ -1,4 +1,7 @@
 # FirstMeasure: local development and production deployment
+
+October 6 to-dos: [Agent publications and header tray](deploy/digitalocean/development-todos-20261006.md) records the published Work operations, independently configurable global To Do menu, validation and development rollout.
+
 October 6 forms assistant: [Forms assistant, widgets and style](deploy/digitalocean/development-forms-assistant-20261006.md) records the shared-assistant AI tab, the form preview and submissions widgets, form activity, the four-role development rollout and what remains to exercise.
 
 October 6 Company information: [Language and measurements](deploy/digitalocean/development-company-language-20261006.md) records the in-card selectors, preserved defaults, browser verification and development rollout.

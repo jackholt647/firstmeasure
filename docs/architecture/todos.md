@@ -12,8 +12,9 @@ the authenticated caller's assignment view; `includeAll` deliberately requests
 all assignments with the existing `view_projects` management permission. Project
 and branch filters, completed/canceled/future/hidden filters, contact, kind, status
 and due-date filters are discoverable. Records include title, description, dates,
-priority, assignments, parent/dependency identities, notes, follow-up data and the
-caller's display state. Internal automation context is not exported. Bounded
+priority, assignments, parent identity, notes, follow-up data and the
+caller's display state. Read `work.plan.read` with the plan identity for dependency and workflow structure.
+Internal automation context is not exported. Bounded
 pages use cursors tied to the caller, source and current result. Frozen reads
 recheck the caller and current record visibility.
 
@@ -36,7 +37,9 @@ hidden or dismissed to false clears that personal mark.
 Read operations require `view_projects`; domain edits and follow-up outcomes
 require `manage_projects`. Branch configuration writes require
 `manage_company_settings`. Personal state requires authenticated record visibility.
-These permissions do not extend human or autonomous agent authority. Autonomous
+The assistant's project-data scope restriction also covers `todos.items`; disabling
+project data denies its discovery and reads. These permissions do not extend
+human or autonomous agent authority. Autonomous
 system grants without a human principal do not inherit this personal surface;
 `work.createTodo.v1` remains available to the trusted Work engine.
 
