@@ -40,7 +40,7 @@
       if(!alive||busy)return;const revision=++generation;
       root.querySelector('.ftw-refresh').disabled=true;
       try{const result=await global.PlatformAPI.publication.read(org,source);if(!alive||revision!==generation)return;if(result.status!=='ready')throw Error(result.message||'Unable to load to-dos.');items=Array.isArray(result.value)?result.value:[];showError('');draw();}
-      catch(e){if(alive&&revision===generation){items=[];draw();showError(e.message||'Unable to load to-dos.');}}finally{if(alive&&revision===generation)root.querySelector('.ftw-refresh').disabled=false;}
+      catch(e){if(alive&&revision===generation){items=[];editing=null;editor.hidden=true;editor.replaceChildren();draw();list.querySelector('.ftw-state').textContent='To-dos are unavailable. Try refreshing.';showError(e.message||'Unable to load to-dos.');}}finally{if(alive&&revision===generation)root.querySelector('.ftw-refresh').disabled=false;}
     }
     async function mutate(item,action,input){
       if(busy)return false;busy=true;let saved=false;showError('');draw();editor.querySelectorAll('button').forEach(b=>b.disabled=true);

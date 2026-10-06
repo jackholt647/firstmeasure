@@ -17,6 +17,7 @@ test('registered live to-do widget supports completion, edits, filters, denial a
   await page.getByRole('button',{name:'Send roof estimate',exact:true}).waitFor();assert.equal(await page.locator('.ftw-row[data-tone=overdue]').count(),1);assert.equal(await page.getByText('Urgent',{exact:true}).count(),1);
   await mkdir(new URL('../../../output/todo-widget-20261006/',import.meta.url),{recursive:true});
   await page.screenshot({path:new URL('../../../output/todo-widget-20261006/desktop.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1')});
+  await page.locator('.ftw').screenshot({path:new URL('../../../output/todo-widget-20261006/desktop-widget.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1')});
   await page.getByRole('checkbox',{name:'Complete Test global to-do item'}).click();await page.waitForFunction(()=>calls.length===1);assert.equal((await page.evaluate(()=>calls[0])).action,'work.todos.transition');
   await page.getByRole('button',{name:'Completed',exact:true}).click();await page.getByRole('button',{name:'Test global to-do item',exact:true}).waitFor();
   await page.getByRole('checkbox',{name:'Reopen Test global to-do item'}).click();await page.waitForFunction(()=>calls.length===2);assert.equal(await page.evaluate(()=>calls[1].input.allow_reopen),true);
@@ -25,6 +26,7 @@ test('registered live to-do widget supports completion, edits, filters, denial a
   await page.getByLabel('Search to-dos').fill('global');assert.equal(await page.locator('.ftw-row').count(),1);await page.getByLabel('Search to-dos').fill('');
   await page.setViewportSize({width:390,height:844});await page.locator('body').evaluate(e=>e.style.margin='12px');const box=await page.locator('.ftw').boundingBox();assert.ok(box.x+box.width<=390);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:new URL('../../../output/todo-widget-20261006/mobile.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1')});
+  await page.locator('.ftw').screenshot({path:new URL('../../../output/todo-widget-20261006/mobile-widget.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1')});
   await page.evaluate(()=>denied=true);await page.getByRole('checkbox',{name:'Complete Test global to-do item'}).click();await page.getByRole('alert').getByText('Not permitted').waitFor();assert.equal(await page.getByRole('checkbox',{name:'Complete Test global to-do item'}).getAttribute('aria-checked'),'false');
   await page.getByRole('button',{name:'Refresh to-dos'}).click();await page.getByText('Access revoked').waitFor();assert.equal(await page.locator('.ftw-row').count(),0);
   await page.evaluate(()=>handle.destroy());assert.equal(await page.locator('#host').innerHTML(),'');assert.deepEqual(errors,[]);
