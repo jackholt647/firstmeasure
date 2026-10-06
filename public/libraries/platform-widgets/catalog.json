@@ -332,7 +332,11 @@
         "export": "dashboard"
       }
     ],
-    "actions": []
+    "actions": [
+      "payroll.batch.create",
+      "payroll.batch.item.update",
+      "payroll.batch.action"
+    ]
   },
   {
     "id": "payroll.timesheets",
@@ -374,7 +378,11 @@
         "export": "timesheets"
       }
     ],
-    "actions": []
+    "actions": [
+      "payroll.timesheet.correct",
+      "payroll.timesheet.approve",
+      "payroll.timesheet.reject"
+    ]
   },
   {
     "id": "payroll.contractors",
@@ -416,7 +424,10 @@
         "export": "contractors"
       }
     ],
-    "actions": []
+    "actions": [
+      "payroll.contractor.worker.update",
+      "payroll.contractor.company.update"
+    ]
   },
   {
     "id": "payroll.exports",
@@ -458,7 +469,9 @@
         "export": "export_catalog"
       }
     ],
-    "actions": []
+    "actions": [
+      "payroll.artifact.generate"
+    ]
   },
   {
     "id": "payroll.history",
@@ -500,7 +513,10 @@
         "export": "batches"
       }
     ],
-    "actions": []
+    "actions": [
+      "payroll.batch.item.update",
+      "payroll.batch.action"
+    ]
   },
   {
     "id": "payroll.settings",
@@ -542,7 +558,13 @@
         "export": "configuration"
       }
     ],
-    "actions": []
+    "actions": [
+      "payroll.schedule.create",
+      "payroll.schedule.update",
+      "payroll.schedule.archive",
+      "payroll.policy.save",
+      "payroll.policy.remove"
+    ]
   },
   {
     "id": "payroll.ledger",

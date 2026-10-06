@@ -60,7 +60,7 @@ test('payroll publications expose complete records, safe reads, pagination, subj
   await run('payroll.batch.action',{action:'paid'},batch.batch.id,'paid-run');
   const artifact:any=(await run('payroll.artifact.generate',{type:'payroll_register',format:'csv',batch_id:batch.batch.id})).value;assert.ok(artifact.download_url);assert.equal(artifact.content,undefined);
   assert.equal((await readPublishedData(ctx,{provider:'payroll',export:'artifact',target:{...target,id:artifact.id}})).status,'ready');
-  const widgets=(await listWidgets(ctx,target)).filter(w=>w.app==='payroll');assert.equal(widgets.length,11);
+  const widgets=(await listWidgets(ctx,target)).filter(w=>w.app==='payroll');assert.equal(widgets.length,11);assert.equal((await listWidgets(ctx)).filter(w=>w.app==='payroll').length,12);
   await authorizeWidget(ctx,'payroll.upcoming','1',target,{include_projected:false});await authorizeWidget(ctx,'payroll.project_payees','1',project,{});await assert.rejects(authorizeWidget(ctx,'payroll.upcoming','99',target,{}));
   const denied=userPublicationContext({...auth,role:'member',permissions:{manage_payroll:false,manage_company_settings:false}});assert.equal((await readPublishedData(denied,{provider:'payroll',export:'records',target})).status,'denied');assert.deepEqual((await listWidgets(denied,target)).filter(w=>w.app==='payroll').map(w=>w.id),['payroll.my_earnings']);
   assert.ok(listActions().filter(a=>a.domain==='payroll'&&a.executionKinds.includes('agent')).length>=40);

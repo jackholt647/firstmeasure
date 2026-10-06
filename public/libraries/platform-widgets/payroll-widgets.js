@@ -6,7 +6,7 @@
  const money=(v,c='USD')=>{try{return new Intl.NumberFormat(undefined,{style:'currency',currency:c}).format(Number(v||0)/100);}catch{return `${Number(v||0)/100} ${c}`;}};
  for(const view of views)global.FirstMateWidgets.attachRenderer('payroll.'+view,'1',async(root,{config,context,reference,state,visible})=>{
    if(!global.FirstMatePayroll?.mountView)throw Error('The payroll view bundle is unavailable.');
-   const instance=global.FirstMatePayroll.mountView({...context,root,roots:{main:root},orgId:reference.target.organizationId,instanceId:'payroll-widget-'+global.crypto.randomUUID(),params:{...state,...config,standalone:view,widget:true}});
+   const instance=global.FirstMatePayroll.mountView({...context,root,roots:{main:root},orgId:reference.target.organizationId,instanceId:'payroll-widget-'+global.crypto.randomUUID(),params:{...config,...state,standalone:view,widget:true}});
    instance.setActive?.(visible);
    const updated=()=>{if(visible)instance.refresh?.();};global.addEventListener('fm:payroll:updated',updated);
    return {refresh:()=>instance.refresh(),setVisible(value){visible=value;instance.setActive?.(value);},serialize(){return instance.serialize?.()||{};},destroy(){global.removeEventListener('fm:payroll:updated',updated);instance.destroy();}};
