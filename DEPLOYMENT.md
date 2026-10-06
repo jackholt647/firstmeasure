@@ -1,5 +1,8 @@
 # FirstMeasure: local development and production deployment
 
+October 6 lead import: [Durable intake and agent-managed lead sources](deploy/digitalocean/development-lead-import-20261006.md) records unique inbox fixes, Connections webhooks/API polling, delivery review, public signed fixtures and the four-role development verification.
+
+
 October 6 to-dos: [Agent publications and header tray](deploy/digitalocean/development-todos-20261006.md) records the published Work operations, independently configurable global To Do menu, validation and development rollout.
 
 October 6 forms assistant: [Forms assistant, widgets and style](deploy/digitalocean/development-forms-assistant-20261006.md) records the shared-assistant AI tab, the form preview and submissions widgets, form activity, the four-role development rollout and what remains to exercise.

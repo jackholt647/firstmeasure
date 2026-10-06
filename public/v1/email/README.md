@@ -52,7 +52,8 @@ OpenAI extraction:
 
 Webhook security:
 
-- If `EMAIL_INBOUND_WEBHOOK_TOKEN` is set, the webhook requires `X-Email-Webhook-Token`, `X-Postmark-Token`, or `?token=...`.
+- Hosted inbound requests require `EMAIL_INBOUND_WEBHOOK_TOKEN`. The Cloudflare worker uses `Authorization: Bearer`; existing `X-Email-Webhook-Token`, `X-Postmark-Token`, and query-token integrations remain compatible. Missing configuration fails closed outside local test/development mode.
+- Lead delivery receipts, retry protection, Connections imports and recovery are documented in [lead import](../../../docs/architecture/lead-import.md).
 - Do not expose this token or the OpenAI key to browser libraries.
 
 Outbound email:
