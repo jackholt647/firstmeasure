@@ -13103,7 +13103,7 @@
     async function renderConnectionsSettings(){
       const host=panel.querySelector('#csPaneConnections');if(!host||host.dataset.connectionsMounted)return;
       host.dataset.connectionsMounted='1';host.textContent='Loading connections…';
-      try {if(!window.FirstMateConnections)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/apps/settings/connections.js?v=20261006-lead-intake';script.onload=resolve;script.onerror=reject;document.head.append(script);});
+      try {if(!window.FirstMateConnections)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/apps/settings/connections.js?v=20261006-lead-ui';script.onload=resolve;script.onerror=reject;document.head.append(script);});
         await window.FirstMateConnections.mount(host,{orgId:currentOrgId()});
       }catch(error){host.textContent=error.message||'Could not load connections.';delete host.dataset.connectionsMounted;}
     }
@@ -14133,6 +14133,7 @@
     async function renderForms(){
       const leadPane = paneForms;
       if (!leadPane) return;
+      leadPane._leadSourcesController?.destroy();
       const orgId = String(window.__APP?.userOrgId || '').trim();
       const branchId = String(window.Portal?.branchModules?.currentBranchId?.() || window.__APP?.userBranchId || 'default').trim() || 'default';
       const flags = leadImportFlagState();
@@ -14212,7 +14213,9 @@
           button.classList.remove('li-inline-feedback');
         }, delay);
       };
+      let leadSourcesController=null;
       const renderEmail = () => {
+        leadSourcesController?.destroy();
         if (!panelEmail) return;
         const email = leadSettings?.inbound_email || 'Unavailable';
         panelEmail.innerHTML = `
@@ -14234,7 +14237,7 @@
           <div data-lead-sources-panel></div>
         `;
         const sourceHost=panelEmail.querySelector('[data-lead-sources-panel]');
-        (async()=>{if(!window.FirstMateConnections)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/apps/settings/connections.js?v=20261006-lead-intake';script.onload=resolve;script.onerror=reject;document.head.append(script);});if(sourceHost.isConnected)await window.FirstMateConnections.mountLeadSources(sourceHost,{orgId,branchId});})().catch(error=>{sourceHost.textContent=error.message;});
+        (async()=>{if(!window.FirstMateConnections)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/apps/settings/connections.js?v=20261006-lead-ui';script.onload=resolve;script.onerror=reject;document.head.append(script);});if(sourceHost.isConnected){leadSourcesController=await window.FirstMateConnections.mountLeadSources(sourceHost,{orgId,branchId,inboxElement:panelEmail.querySelector('.cs-row')});if(!sourceHost.isConnected)leadSourcesController.destroy();else leadPane._leadSourcesController=leadSourcesController;}})().catch(error=>{sourceHost.textContent=error.message;});
         $('#liCopyEmail', panelEmail)?.addEventListener('click', async () => {
           const button = $('#liCopyEmail', panelEmail);
           try {
