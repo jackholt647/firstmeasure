@@ -18,7 +18,8 @@ category and a JSON Schema for its binding `input`. `x-control` on a property
 names the editor widget (`template_text`, `role_ids`, `scope_template`, `code`,
 …) and is ignored at run time. Text inputs accept `{{template}}` interpolation,
 so numeric inputs are typed `["number","string"]`. `internal: true` marks setup
-actions that run from defaults and are not offered in a picker.
+actions that run from defaults and are not offered in a picker. Templates walk
+lists by position, so `{{project.contacts.0.phone}}` is the first contact's phone.
 
 Adding an automation means registering the handler and adding its catalog entry.
 `tests/automation-contracts.test.ts` fails when a registered action has no entry,
@@ -74,6 +75,11 @@ A hook does not answer another domain's event that shares its suffix, and
 neither spelling hides the other: both lists run, hook entries first, deduplicated
 by binding id. Saving a template rewrites `work.node.completed`-style keys to the
 hook, so stored definitions have one spelling per event.
+
+A saved `proposal.signed` subscription matches a signed proposal from either
+path: the retired proposal link, or a proposal signed through Documents
+(`document.signed` with `document_type: "proposal"` or a `proposal` tag). That is
+what moves the sales pipeline's signature step.
 
 ## Sequences
 

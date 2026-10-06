@@ -57,9 +57,18 @@ export function conditionMatches(conditions: JsonObject, context: JsonObject) {
   return evaluateConditions(conditions, context);
 }
 
-/** Saved legacy subscriptions remain readable; only document.signed is emitted. */
+/**
+ * `proposal.signed` subscriptions remain readable; only document.signed is
+ * emitted. They match a signed proposal from either path: the retired proposal
+ * link (`document_source: "proposals"`) or a proposal signed through Documents
+ * (`document_type: "proposal"` or a `proposal` tag).
+ */
 export function matchesWorkEvent(subscription: string, event: JsonObject) {
-  return subscription === event.type || (subscription === "proposal.signed" && event.type === "document.signed" && asObject(event.payload).document_source === "proposals");
+  if (subscription === event.type) return true;
+  if (subscription !== "proposal.signed" || event.type !== "document.signed") return false;
+  const payload = asObject(event.payload);
+  return payload.document_source === "proposals" || payload.document_type === "proposal"
+    || asArray(payload.document_tags).map(cleanText).includes("proposal");
 }
 
 function eventTargetsNode(event: JsonObject, node: JsonObject) {

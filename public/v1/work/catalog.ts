@@ -65,14 +65,14 @@ export function automationCatalog(options: { includeInternal?: boolean } = {}) {
     sequence: {
       description: "Ordered steps on a work item. Each step waits after the previous one, then runs its actions. The sequence ends when the work item is completed, skipped or canceled.",
       example: { start: "ready", steps: [
-        { id: "text_now", actions: [{ automation: "communications.sendSms.v1", input: { text: "Thanks for reaching out!" } }] },
-        { id: "email_in_two_days", wait: { days: 2 }, actions: [{ automation: "communications.sendEmail.v1", input: { subject: "Still interested?", text: "Just checking in." } }] }
+        { id: "text_now", actions: [{ automation: "communications.sendSms.v1", input: { to: "{{project.contacts.0.phone}}", text: "Thanks for reaching out!" } }] },
+        { id: "email_in_two_days", wait: { days: 2 }, actions: [{ automation: "communications.sendEmail.v1", input: { to: "{{project.contacts.0.email}}", subject: "Still interested?", text: "Just checking in." } }] }
       ] }
     },
     organization_rule: {
       description: "Runs for every project. One trigger (event, or schedule.cron), optional conditions, and one or more actions run in order.",
       example: { id: "deposit_thanks", title: "Thank the customer for a deposit", event: "payment.received", conditions: { "payload.payment_kind": "deposit" }, actions: [
-        { id: "text", automation: "communications.sendSms.v1", input: { text: "We received your deposit. Thank you!" } },
+        { id: "text", automation: "communications.sendSms.v1", input: { to: "{{project.contacts.0.phone}}", text: "We received your deposit. Thank you!" } },
         { id: "todo", automation: "work.createTodo.v1", input: { title: "Order materials", assigned_role_ids: ["production"] } }
       ] }
     },

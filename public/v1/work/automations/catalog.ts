@@ -48,12 +48,12 @@ const deliver = choice("Delivery", "How the customer receives it.", ["portal", "
 
 export const ACTION_CATALOG: Record<string, ActionCatalogEntry> = {
   "communications.sendSms.v1": { title: "Send a text message", category: "communication", input_schema: schema({
-    to: template("To", "Destination phone number."),
+    to: template("To", "Destination phone number, usually {{project.contacts.0.phone}}."),
     text: longText("Message", "The text to send."),
     recipients
   }, ["text"]) },
   "communications.sendEmail.v1": { title: "Send an email", category: "communication", input_schema: schema({
-    to: template("To", "Destination email address."),
+    to: template("To", "Destination email address, usually {{project.contacts.0.email}}."),
     subject: template("Subject", "Subject line."),
     text: longText("Message", "Plain-text body."),
     html: longText("HTML body", "Optional HTML version of the body."),

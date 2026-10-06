@@ -89,7 +89,8 @@ async function register(client: ReturnType<typeof createSessionClient>) {
     company: "Work Test Org",
     organization_id: `org_work_${suffix}`
   });
-  await enableExpandedPlatformFixture(data.organization.id);
+  // Notifications is an opt-in app; automation-created notifications are only delivered when it is on.
+  await enableExpandedPlatformFixture(data.organization.id, { "apps.notifications": true });
   return { orgId: data.organization.id as string };
 }
 

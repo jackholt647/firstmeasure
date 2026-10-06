@@ -66,7 +66,7 @@ async function contextValue(context: WorkAutomationContext, path: string): Promi
   // {{pricebook.default.manifest.title}}, {{branch.scheduling....}}, ...).
   if (Object.prototype.hasOwnProperty.call(source, segments[0] ?? "")) {
     return segments.reduce<unknown>((value, key) => (
-      value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject)[key] : undefined
+      value && typeof value === "object" && Object.hasOwn(value,key) ? (value as JsonObject)[key] : undefined
     ), source);
   }
   return await context.data.resolve(segments);

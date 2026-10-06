@@ -435,3 +435,43 @@ test("template edits reach running instances only when pushed, and a push keeps 
   assert.equal(third.template.definition.apply_to_instances, undefined);
   assert.ok(third.instances.updated >= 1);
 });
+
+test("action inputs resolve list positions in templates", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const projectId = "project_list_index";
+  await createProject(client, orgId, projectId, { contacts: [{ name: "Jane", phone: "+15555550111" }, { name: "Sam", phone: "+15555550112" }] });
+  await client.request("PUT", `/v1/work/organizations/${orgId}/branches/default/automation-rules`, {
+    rules: [{ id: "copy_contact", event: "test.copy_contact", actions: [
+      { id: "copy", automation: "project.patch.v1", input: { values: { first_phone: "{{project.contacts.0.phone}}", second_name: "{{project.contacts.1.name}}", missing: "[{{project.contacts.5.phone}}]" } } }
+    ] }]
+  });
+  await client.request("POST", `/v1/work/organizations/${orgId}/events/emit`, { event: "test.copy_contact", project_id: projectId, payload: {} });
+  const project = await readProject(client, orgId, projectId);
+  assert.equal(project.first_phone, "+15555550111");
+  assert.equal(project.second_name, "Sam");
+  assert.equal(project.missing, "[]");
+});
+
+test("a proposal signed through Documents advances the sales pipeline like any signed proposal", async () => {
+  const { matchesWorkEvent } = await import("../work/engine.js");
+  assert.equal(matchesWorkEvent("proposal.signed", { type: "document.signed", payload: { document_source: "proposals" } }), true);
+  assert.equal(matchesWorkEvent("proposal.signed", { type: "document.signed", payload: { document_type: "proposal" } }), true);
+  assert.equal(matchesWorkEvent("proposal.signed", { type: "document.signed", payload: { document_type: "contract", document_tags: ["proposal"] } }), true);
+  assert.equal(matchesWorkEvent("proposal.signed", { type: "document.signed", payload: { document_type: "change_order", document_tags: ["change"] } }), false);
+  assert.equal(matchesWorkEvent("proposal.signed", { type: "document.sent", payload: { document_type: "proposal" } }), false);
+
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const projectId = "project_documents_signature";
+  await createProject(client, orgId, projectId);
+  const { listNodeRecords } = await import("../work/storage.js");
+  const step = async () => (await listNodeRecords(orgId, { project_id: projectId })).find((node) => node.template_node_id === "sign_sales_proposal");
+  assert.ok(await step(), "new projects enter the sales pipeline");
+  assert.notEqual((await step())!.status, "completed");
+  // A change order is not a proposal: the pipeline does not move.
+  await client.request("POST", `/v1/work/organizations/${orgId}/events/emit`, { event: "document.signed", project_id: projectId, payload: { document_id: "doc_change", document_type: "automation_contract_test", document_tags: ["change"] } });
+  assert.notEqual((await step())!.status, "completed");
+  await client.request("POST", `/v1/work/organizations/${orgId}/events/emit`, { event: "document.signed", project_id: projectId, payload: { document_id: "doc_proposal", document_type: "automation_contract_test", document_tags: ["proposal"] } });
+  assert.equal((await step())!.status, "completed");
+});
