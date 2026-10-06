@@ -22,8 +22,9 @@
   `);
   // Keep the guide DOM (especially the video) alive across upload/status renders.
   P.util.injectCSS('exterior-camera-controls',`
-    .ext-camera-controls{position:absolute;bottom:10px;left:12px;right:12px;z-index:3;display:flex;align-items:center;gap:10px;color:white;background:#101828a8;border-radius:24px;padding:5px 10px}.ext-camera-controls[hidden],.ext-camera-controls [hidden]{display:none!important}.ext-camera-controls button{border:0;border-radius:50%;background:transparent;color:inherit;min-width:38px;min-height:38px;padding:4px;font:inherit;font-size:13px;cursor:pointer}.ext-camera-controls button:disabled{opacity:.4}.ext-camera-controls [data-camera-switch]{font-size:20px;flex:none}.ext-camera-zoom{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.ext-camera-controls [data-zoom-presets]{display:flex;justify-content:space-evenly;overflow-x:auto}.ext-camera-controls [aria-pressed=true]{background:var(--primary,#d93025);color:white}.ext-camera-controls input{width:100%;margin:0;height:18px;accent-color:var(--primary,#d93025)}.ext-camera-controls output{min-width:32px;font-size:12px;text-align:right}.ext-camera.has-camera-controls{touch-action:none}.ext-camera.has-camera-controls .ext-photo-dock{bottom:90px;touch-action:pan-x}.ext-camera.has-camera-controls .ext-camera-status{bottom:180px}
+    .ext-camera-controls{animation:extCameraControlsIn .24s ease-out;position:absolute;bottom:10px;left:12px;right:12px;z-index:3;display:flex;align-items:center;gap:10px;color:white;background:#101828a8;border-radius:24px;padding:5px 10px}.ext-camera-controls[hidden],.ext-camera-controls [hidden]{display:none!important}.ext-camera-controls button{border:0;border-radius:50%;background:transparent;color:inherit;min-width:38px;min-height:38px;padding:4px;font:inherit;font-size:13px;cursor:pointer}.ext-camera-controls button:disabled{opacity:.4}.ext-camera-controls [data-camera-switch]{font-size:20px;flex:none}.ext-camera-zoom{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.ext-camera-controls [data-zoom-presets]{display:flex;justify-content:space-evenly;overflow-x:auto}.ext-camera-controls [aria-pressed=true]{background:var(--primary,#d93025);color:white}.ext-camera-controls input{width:100%;margin:0;height:18px;accent-color:var(--primary,#d93025)}.ext-camera-controls output{min-width:32px;font-size:12px;text-align:right}.ext-camera.has-camera-controls{touch-action:none}.ext-camera.has-camera-controls .ext-photo-dock{bottom:calc(20px + var(--camera-controls-height,68px));touch-action:pan-x}.ext-camera.has-camera-controls .ext-camera-status{bottom:180px}
   `);
+  P.util.injectCSS('exterior-camera-controls-motion',`@keyframes extCameraControlsIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@media(prefers-reduced-motion:reduce){.ext-camera-controls{animation:none}}`);
   let guideNode=null, guideIndex=0, photoSummary=false, cameraStream=null, cameraEpoch=0, cameraStarting=false, cameraFallback=false, cameraNeedsUpdate=false, cameraMessage='', capturing=false;
   // Orbital video is the default capture; the eight guided photos are the fallback.
   let captureMode='video', videoStage='intro', photoIntroSeen=false, recNode=null;
@@ -63,24 +64,28 @@
       surface.addEventListener('touchmove',e=>{if(pinch&&cameraZoom&&e.touches.length===2){e.preventDefault();setCameraZoom(pinch.zoom*distance(e)/Math.max(1,pinch.distance));}},{passive:false});
       for(const type of ['touchend','touchcancel'])surface.addEventListener(type,e=>{if(e.touches.length<2)pinch=null;});
     }
-    bar.hidden=!mobileCamera()||!cameraStream;
+    bar.hidden=!mobileCamera();
     node.querySelector('.ext-camera').classList.toggle('has-camera-controls',!bar.hidden);
-    const flip=bar.querySelector('[data-camera-switch]');flip.disabled=cameraStarting||recording()||cameraDevices.length<2;
+    const flip=bar.querySelector('[data-camera-switch]');flip.disabled=!cameraStream||cameraStarting||recording()||cameraDevices.length<2;
     flip.title=recording()?'Stop recording to switch cameras':'Switch camera';
-    const group=bar.querySelector('.ext-camera-zoom'),output=bar.querySelector('output');group.hidden=!cameraZoom;output.hidden=!cameraZoom;
-    if(cameraZoom){
-      const {min,max,step,value}=cameraZoom,input=bar.querySelector('input');input.min=min;input.max=max;input.step=step;input.value=value;
+    const group=bar.querySelector('.ext-camera-zoom'),output=bar.querySelector('output');group.hidden=false;output.hidden=false;
+    {
+      const {min,max,step,value}=cameraZoom||{min:1,max:3,step:.1,value:1},input=bar.querySelector('input');input.disabled=!cameraStream||!cameraZoom;input.min=min;input.max=max;input.step=step;input.value=value;
       output.textContent=zoomLabel(value);
       const presets=[...new Set([min,...[.5,1,2,3,5,10].filter(v=>v>=min&&v<=max)])].sort((a,b)=>a-b);
       const host=bar.querySelector('[data-zoom-presets]'),key=presets.join(',');
       if(host.dataset.range!==key){host.dataset.range=key;host.innerHTML=presets.map(v=>'<button type="button" data-zoom="'+v+'" aria-label="Zoom '+zoomLabel(v)+'">'+zoomLabel(v)+'</button>').join('');}
-      for(const b of host.children)b.setAttribute('aria-pressed',String(Math.abs(Number(b.dataset.zoom)-value)<step/2+.001));
+      for(const b of host.children){b.disabled=!cameraStream||!cameraZoom;b.setAttribute('aria-pressed',String(Math.abs(Number(b.dataset.zoom)-value)<step/2+.001));}
+      group.setAttribute('aria-label',cameraZoom?.digital?'Digital camera zoom':'Camera zoom');
+      const surface=node.querySelector('.ext-camera');surface.style.setProperty('--camera-controls-height',bar.offsetHeight+'px');
+      const preview=surface.querySelector('video');if(preview)preview.style.transform=cameraZoom?.digital?'scale('+value+')':'';
     }
   }
   async function setCameraZoom(value){
     if(!cameraZoom||!cameraStream)return;
     const {min,max,step}=cameraZoom;
     cameraZoom.value=Math.max(min,Math.min(max,min+Math.round((value-min)/step)*step));zoomPending=cameraZoom.value;updateCameraControls(cameraNode());
+    if(cameraZoom.digital){zoomPending=null;return;}
     if(zoomApplying)return;zoomApplying=true;
     try{while(zoomPending!==null&&cameraStream&&cameraZoom){
       const desired=zoomPending,track=cameraStream.getVideoTracks()[0];zoomPending=null;
@@ -91,7 +96,7 @@
   async function configureCameraControls(stream){
     const track=stream.getVideoTracks()[0],caps=track.getCapabilities?.()||{},settings=track.getSettings?.()||{};
     cameraFacing=settings.facingMode||cameraFacing;
-    cameraZoom=caps.zoom&&Number.isFinite(caps.zoom.min)&&caps.zoom.max>caps.zoom.min?{min:caps.zoom.min,max:caps.zoom.max,step:caps.zoom.step||.1,value:settings.zoom??caps.zoom.min}:null;
+    cameraZoom=caps.zoom&&Number.isFinite(caps.zoom.min)&&caps.zoom.max>caps.zoom.min?{min:caps.zoom.min,max:caps.zoom.max,step:caps.zoom.step||.1,value:settings.zoom??caps.zoom.min}:mobileCamera()?{min:1,max:3,step:.1,value:1,digital:true}:null;
     updateCameraControls(cameraNode());
     try{const devices=await navigator.mediaDevices.enumerateDevices();if(stream===cameraStream){cameraDevices=devices.filter(d=>d.kind==='videoinput');updateCameraControls(cameraNode());}}catch{if(stream===cameraStream){cameraDevices=[];updateCameraControls(cameraNode());}}
   }
@@ -152,7 +157,7 @@
     if(files.size>=100){error='You can upload up to 100 photos per order.';render();return;}
     capturing=true;
     try{
-      const canvas=document.createElement('canvas'),scale=Math.min(1,2560/video.videoWidth);canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+      const canvas=document.createElement('canvas'),scale=Math.min(1,2560/video.videoWidth);canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);drawCameraFrame(canvas,video);
       const thumb=document.createElement('canvas');thumb.width=192;thumb.height=Math.max(1,Math.round(192*canvas.height/canvas.width));thumb.getContext('2d').drawImage(canvas,0,0,thumb.width,thumb.height);
       const entry={name:`${key.replace(':','-')}-${Date.now()}.jpg`,thumbnail:thumb.toDataURL('image/jpeg',.8),encoding:true,sequence:++captureSequence,uploaded_at:new Date().toISOString()};
       placeGuidedEntry(key,entry);error='';render();animateCapture(entry);
@@ -237,19 +242,33 @@
   const recording=()=>!!recorder&&recorder.state!=='inactive';
   const recordedMs=()=>recElapsed+(recorder?.state==='recording'?Date.now()-recResumedAt:0);
   function recorderType(){for(const type of ['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'])if(MediaRecorder.isTypeSupported?.(type))return type;return '';}
-  function framePoster(video){try{if(!video?.videoWidth)return '';const canvas=document.createElement('canvas');canvas.width=192;canvas.height=Math.max(1,Math.round(192*video.videoHeight/video.videoWidth));canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',.8);}catch(e){return '';}}
+  function drawCameraFrame(canvas,video){
+    const zoom=cameraZoom?.digital?cameraZoom.value:1,w=video.videoWidth/zoom,h=video.videoHeight/zoom;
+    canvas.getContext('2d').drawImage(video,(video.videoWidth-w)/2,(video.videoHeight-h)/2,w,h,0,0,canvas.width,canvas.height);
+  }
+  function recordingSource(video){
+    if(!cameraZoom?.digital)return {stream:cameraStream,release(){}};
+    if(!video?.videoWidth)throw Error('Camera is not ready');
+    const canvas=document.createElement('canvas'),scale=Math.min(1,1920/Math.max(video.videoWidth,video.videoHeight));
+    canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
+    drawCameraFrame(canvas,video);const stream=canvas.captureStream(30);
+    const timer=setInterval(()=>{if(video.readyState>=2)drawCameraFrame(canvas,video);},1000/30);
+    return {stream,release(){clearInterval(timer);stream.getTracks().forEach(t=>t.stop());}};
+  }
+  function framePoster(video){try{if(!video?.videoWidth)return '';const canvas=document.createElement('canvas');canvas.width=192;canvas.height=Math.max(1,Math.round(192*video.videoHeight/video.videoWidth));drawCameraFrame(canvas,video);return canvas.toDataURL('image/jpeg',.8);}catch(e){return '';}}
   async function holdWake(){try{wakeLock=await navigator.wakeLock?.request('screen');}catch(e){wakeLock=null;}}
   function releaseWake(){wakeLock?.release?.().catch(()=>{});wakeLock=null;}
   function startRecording(){
     if(recording()||!cameraStream)return;
     if(files.size>=100){error='You can upload up to 100 files per order.';render();return;}
-    const epoch=generation,index=structure,type=recorderType();let active;
-    try{active=new MediaRecorder(cameraStream,{...(type?{mimeType:type}:{}),videoBitsPerSecond:VIDEO_BITRATE});}
-    catch(e){cameraMessage='Recording is unavailable here. Upload a video instead.';updateRecorder();return;}
+    const epoch=generation,index=structure,type=recorderType();let active,source;
+    try{source=recordingSource(recNode?.querySelector('video'));active=new MediaRecorder(source.stream,{...(type?{mimeType:type}:{}),videoBitsPerSecond:VIDEO_BITRATE});}
+    catch(e){source?.release();cameraMessage='Recording is unavailable here. Upload a video instead.';updateRecorder();return;}
     const chunks=[],take={duration:0,again:false,poster:framePoster(recNode?.querySelector('video'))};
     recorder=active;recTake=take;recElapsed=0;recResumedAt=Date.now();
     active.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
     active.onstop=()=>{
+      source.release();
       if(recorder===active){recorder=null;clearInterval(recTimer);recTimer=null;releaseWake();}
       if(epoch!==generation)return;
       const blob=new Blob(chunks,{type:(active.mimeType||type||'video/webm').split(';')[0]});

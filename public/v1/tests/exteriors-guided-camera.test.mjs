@@ -263,7 +263,7 @@ test('mobile controls use supported zoom, pinch, switch camera and sit below upl
  await page.locator('[data-camera-zoom]').fill('1');await page.waitForFunction(()=>zoomCalls.at(-1)===1);
  await page.evaluate(()=>{const surface=document.querySelector('.ext-camera'),event=(type,x)=>{const touches=x===null?[]:[new Touch({identifier:1,target:surface,clientX:10,clientY:100}),new Touch({identifier:2,target:surface,clientX:x,clientY:100})];surface.dispatchEvent(new TouchEvent(type,{touches,bubbles:true,cancelable:true}));};event('touchstart',110);event('touchmove',210);event('touchend',null);});
  await page.waitForFunction(()=>zoomCalls.at(-1)===2);
- const geometry=await page.evaluate(()=>({dock:document.querySelector('.ext-photo-dock').getBoundingClientRect().bottom,bar:document.querySelector('.ext-camera-controls').getBoundingClientRect().top}));assert.ok(geometry.dock<=geometry.bar,JSON.stringify(geometry));
+ const geometry=await page.evaluate(()=>({dock:document.querySelector('.ext-photo-dock').getBoundingClientRect().bottom,bar:document.querySelector('.ext-camera-controls').getBoundingClientRect().top}));assert.ok(Math.abs(geometry.bar-geometry.dock-10)<2,JSON.stringify(geometry));
  if(process.env.CAMERA_EVIDENCE)await page.screenshot({path:process.env.CAMERA_EVIDENCE});
  await page.evaluate(()=>window.oldTrack=Portal.test.getStream().getVideoTracks()[0]);
  await page.click('[data-camera-switch]');await page.waitForFunction(()=>cameraCalls===2&&Portal.test.getStream()?.getVideoTracks()[0]!==oldTrack);
@@ -277,6 +277,9 @@ test('mobile controls use supported zoom, pinch, switch camera and sit below upl
 test('permission visibility change does not discard the first accepted camera stream',async t=>{
  const page=await setup(t,{controls:true,native:'delayed',permissionPending:true});
  assert.equal(await page.evaluate(()=>cameraCalls),1);
+ assert.equal(await page.locator('.ext-camera-controls').isVisible(),true);
+ assert.equal(await page.locator('[data-camera-zoom]').isDisabled(),true);
+ assert.equal(await page.locator('.ext-camera-controls').evaluate(e=>getComputedStyle(e).animationName),'extCameraControlsIn');
  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));acceptCamera();});
  await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
  assert.equal(await page.evaluate(()=>cameraCalls),1);assert.equal(await page.locator('[data-guide-retry-camera]').isVisible(),false);
@@ -299,11 +302,36 @@ test('video has the same lens controls; recording locks switch but retains live 
  await page.evaluate(()=>Portal.test.stopCamera());
 });
 
-test('unsupported zoom is hidden, and rejected zoom restores the real track setting',async t=>{
+test('missing hardware zoom uses digital capture, and rejected hardware zoom restores its setting',async t=>{
  const page=await setup(t,{controls:true});await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
  await page.evaluate(()=>{Portal.test.getStream().getVideoTracks()[0].applyConstraints=async()=>{throw Error('unsupported');};});
  await page.click('[data-zoom="2"]');await page.waitForFunction(()=>document.querySelector('[data-camera-zoom-value]').textContent==='1x');
  await page.evaluate(async()=>{const stream=Portal.test.getStream();stream.getVideoTracks()[0].getCapabilities=()=>({});await Portal.test.configureCameraControls(stream);});
- assert.equal(await page.locator('.ext-camera-zoom').isVisible(),false);
+ assert.equal(await page.locator('.ext-camera-zoom').isVisible(),true);
+ await page.click('[data-zoom="2"]');
+ assert.equal(await page.locator('video').evaluate(e=>e.style.transform),'scale(2)');
+ await page.evaluate(()=>{window.crops=[];const draw=CanvasRenderingContext2D.prototype.drawImage;CanvasRenderingContext2D.prototype.drawImage=function(...args){if(args.length===9)crops.push(args.slice(1,5));return draw.apply(this,args);};});
+ await page.click('[data-guide-capture]');
+ await page.waitForFunction(()=>crops.length>0);
+ assert.ok(await page.evaluate(()=>crops.some(([x,y,w,h])=>x>0&&y>0&&w>0&&h>0)));
  assert.equal(await page.locator('[data-camera-switch]').isEnabled(),true);
+});
+
+test('digital video zoom records cropped frames and releases the canvas stream',async t=>{
+ const page=await setup(t,{controls:true});
+ await page.waitForFunction(()=>document.querySelector('video')?.videoWidth>0);
+ await page.evaluate(()=>{Portal.test.useVideo();Portal.ExteriorOrder.render();});
+ await page.waitForFunction(()=>document.querySelector('[data-rec-toggle]')&&!document.querySelector('[data-camera-switch]').disabled);
+ await page.evaluate(async()=>{
+  const stream=Portal.test.getStream();stream.getVideoTracks()[0].getCapabilities=()=>({});await Portal.test.configureCameraControls(stream);
+  const Recorder=MediaRecorder;window.MediaRecorder=class extends Recorder{constructor(s,o){super(s,o);window.recordedStream=s;}};
+  window.crops=[];const draw=CanvasRenderingContext2D.prototype.drawImage;
+  CanvasRenderingContext2D.prototype.drawImage=function(...args){if(args.length===9)crops.push(args.slice(1,5));return draw.apply(this,args);};
+ });
+ await page.click('[data-rec-toggle]');
+ await page.click('[data-zoom="2"]');
+ await page.waitForFunction(()=>crops.some(([x,y])=>x>0&&y>0));
+ assert.equal(await page.evaluate(()=>recordedStream===Portal.test.getStream()),false);
+ await page.evaluate(()=>Portal.test.stopCamera());
+ await page.waitForFunction(()=>recordedStream.getTracks().every(t=>t.readyState==='ended'));
 });
