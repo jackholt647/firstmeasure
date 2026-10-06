@@ -13103,7 +13103,7 @@
     async function renderConnectionsSettings(){
       const host=panel.querySelector('#csPaneConnections');if(!host||host.dataset.connectionsMounted)return;
       host.dataset.connectionsMounted='1';host.textContent='Loading connections…';
-      try {if(!window.FirstMateConnections)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/apps/settings/connections.js?v=20261006-lead-ui-v2';script.onload=resolve;script.onerror=reject;document.head.append(script);});
+      try {if(!window.FirstMateConnections)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/apps/settings/connections.js?v=20261006-lead-chat-native-v1';script.onload=resolve;script.onerror=reject;document.head.append(script);});
         await window.FirstMateConnections.mount(host,{orgId:currentOrgId()});
       }catch(error){host.textContent=error.message||'Could not load connections.';delete host.dataset.connectionsMounted;}
     }
@@ -14220,13 +14220,10 @@
         const email = leadSettings?.inbound_email || 'Unavailable';
         panelEmail.innerHTML = `
           <div class="cs-row" ${flags.email ? '' : 'hidden'}>
-            <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_e75166ba736127","Unique Lead Inbox") ?? "Unique Lead Inbox")}</div>
-            <div class="li-emailBox">
-              <div class="li-emailCopyBox">
+            <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_e75166ba736127","Unique Lead Inbox") ?? "Unique Lead Inbox")} <span class="fm-ui-help" tabindex="0" role="button" aria-label="About the unique lead inbox" data-fm-tooltip="${escapeHtml(globalThis.PlatformLanguage?.text("settings","m_b7c6e6fdcb1dc0","Give this unique inbox to lead providers. Any provider email sent here is imported as a new lead for this branch.") ?? "Give this unique inbox to lead providers. Any provider email sent here is imported as a new lead for this branch.")}">i</span></div>
+            <div class="li-emailCopyBox">
                 <div class="li-emailText" id="liInboundEmail">${String(escapeHtml(email))}</div>
-                <button class="li-copyIcon" id="liCopyEmail" type="button" data-fm-tooltip="Copy lead inbox email"><i class="fas fa-copy"></i></button>
-              </div>
-              <div class="li-muted">${(globalThis.PlatformLanguage?.htmlText("settings","m_b7c6e6fdcb1dc0","Give this unique inbox to lead providers. Any provider email sent here is imported as a new lead for this branch.") ?? "Give this unique inbox to lead providers. Any provider email sent here is imported as a new lead for this branch.")}</div>
+                <button class="li-copyIcon" id="liCopyEmail" type="button" aria-label="Copy lead inbox email" data-fm-tooltip="Copy lead inbox email"><i class="fas fa-copy"></i></button>
             </div>
             <div class="li-actions">
               <button class="cs-btn ghost" id="liRefresh" type="button"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4f524800833039"," Refresh") ?? " Refresh")}</button>
@@ -14237,7 +14234,7 @@
           <div data-lead-sources-panel></div>
         `;
         const sourceHost=panelEmail.querySelector('[data-lead-sources-panel]');
-        (async()=>{if(!window.FirstMateConnections)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/apps/settings/connections.js?v=20261006-lead-ui-v2';script.onload=resolve;script.onerror=reject;document.head.append(script);});if(sourceHost.isConnected){leadSourcesController=await window.FirstMateConnections.mountLeadSources(sourceHost,{orgId,branchId,inboxElement:panelEmail.querySelector('.cs-row')});if(!sourceHost.isConnected)leadSourcesController.destroy();else leadPane._leadSourcesController=leadSourcesController;}})().catch(error=>{sourceHost.textContent=error.message;});
+        (async()=>{if(!window.FirstMateConnections)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/apps/settings/connections.js?v=20261006-lead-chat-native-v1';script.onload=resolve;script.onerror=reject;document.head.append(script);});if(sourceHost.isConnected){leadSourcesController=await window.FirstMateConnections.mountLeadSources(sourceHost,{orgId,branchId,inboxElement:panelEmail.querySelector('.cs-row')});if(!sourceHost.isConnected)leadSourcesController.destroy();else leadPane._leadSourcesController=leadSourcesController;}})().catch(error=>{sourceHost.textContent=error.message;});
         $('#liCopyEmail', panelEmail)?.addEventListener('click', async () => {
           const button = $('#liCopyEmail', panelEmail);
           try {
