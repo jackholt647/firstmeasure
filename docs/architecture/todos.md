@@ -61,4 +61,24 @@ new identity. Only an open tray refreshes on focus, task edits and a 30-second
 interval. It does not create a second task store or an agent-specific tool list.
 
 Validation: `tests/todo-publication.test.ts`, `tests/todo-tray-browser.test.mjs`,
-`tests/project-todo-tray.test.mjs`, `npm run test:publication`, `npm run check`.
+`tests/project-todo-tray.test.mjs`, `npm run test:publication`, `npm run check`,
+and the registered `todos.list` widget's `tests/todo-widgets-browser.test.mjs`.
+
+## Agent to-do widget
+
+`todos.list` version 1 is a registered content-sized widget for assistant,
+project and dashboard surfaces. An organization target displays the caller's
+cross-project tasks; a project target displays that project's tasks. The compact
+renderer in `platform-widgets/todo-widgets.js` reads `todos.items` afresh and uses
+receipt-backed `work.todos.patch` and `work.todos.transition` for user edits.
+It displays overdue/today/upcoming colors with text labels, priority badges,
+project context, search and open/completed/all filters. Clicking a title opens
+the title/description/due-date/priority editor; completion controls also reopen
+tasks. Errors retain failed edits without falsely reporting success, and a denied
+refresh removes prior task rows. Mount teardown removes refresh listeners.
+
+Shared agent instructions prefer this widget to static visualization tables.
+The catalog declares its provider so discovery and presentation honor the
+assistant's project-data restriction. The browser uses current session and CSRF
+authorization for each read/write. Legacy table panels remain immutable chat
+snapshots and are not automatically rewritten as live task widgets.

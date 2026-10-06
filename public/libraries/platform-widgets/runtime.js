@@ -18,7 +18,7 @@
     const k=key(def.id,def.version);if(definitions.has(k))throw Error('Duplicate widget: '+k);
     definitions.set(k,Object.freeze(clone(def)));if(renderer)renderers.set(k,renderer);
   }
-  const ready=fetch(new URL('catalog.json?v=20261006-form-widgets',base),{credentials:'same-origin'}).then(r=>{if(!r.ok)throw Error('Widget catalog unavailable');return r.json();}).then(rows=>rows.forEach(def=>register(def)));
+  const ready=fetch(new URL('catalog.json?v=20261006-todo-widget',base),{credentials:'same-origin'}).then(r=>{if(!r.ok)throw Error('Widget catalog unavailable');return r.json();}).then(rows=>rows.forEach(def=>register(def)));
   ready.catch(()=>{});
   function styles(){
     if(document.getElementById('fm-widget-styles'))return;

@@ -249,5 +249,47 @@
       }
     ],
     "actions": []
+  },
+  {
+    "id": "todos.list",
+    "version": "1",
+    "title": "To-do list",
+    "description": "Live interactive personal to-dos across projects or project tasks, with due-date color, priority, search, completion and inline editing. Use this widget to show to-dos instead of a static table.",
+    "app": "checklists",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180,
+      "minHeight": 160,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "filter": {
+          "type": "string",
+          "enum": [
+            "open",
+            "completed",
+            "all"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "todos",
+        "export": "items"
+      }
+    ],
+    "actions": [
+      "work.todos.patch",
+      "work.todos.transition"
+    ]
   }
 ]

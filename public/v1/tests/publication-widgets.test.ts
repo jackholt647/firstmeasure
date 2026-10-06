@@ -43,6 +43,15 @@ test('widget reads and discovery enforce permissions, exact versions and project
   assert.equal(run.renders.length,2,'A denied child must not publish a partial panel');
   run.settings.data_scope.projects=true;
   await assert.rejects(Promise.resolve().then(()=>show.execute({...run,ctx:null},{id:'scope.lists',version:'1',target,config:{}})));
+  const personal={scope:'organization',organizationId:'org_widgets'};
+  const todoWidgets:any=await discover.execute(run,{query:'to-do'});
+  assert.ok(todoWidgets.widgets.some((def:any)=>def.id==='todos.list'));
+  await show.execute(run,{id:'todos.list',version:'1',target:personal,config:{filter:'open'}});
+  assert.equal((run.renders.at(-1).widgets[0] as any).widget.target.scope,'organization');
+  run.settings.data_scope.projects=false;
+  assert.equal(((await discover.execute(run,{query:'to-do'})) as any).widgets.length,0);
+  await assert.rejects(Promise.resolve().then(()=>show.execute(run,{id:'todos.list',version:'1',target:personal,config:{}})));
+  run.settings.data_scope.projects=true;
   auth.permissions.view_materials=false;assert.deepEqual((await w.listWidgets(ctx,target)).map(d=>d.id),['reports.roof','reports.photo']);assert.equal((await p.readPublishedData(ctx,{provider:'project-widgets',export:'measurements',target})).status,'denied');
   auth.permissions.view_reports=false;await assert.rejects(w.authorizeWidget(ctx,'reports.roof','1',target));assert.equal((await w.listWidgets(ctx,target)).length,0);
  }finally{await (await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();await rm(root,{recursive:true,force:true}).catch(()=>{});}

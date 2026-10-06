@@ -76,7 +76,7 @@ test("publication API shares auth, CSRF, typed dataset actions and project isola
   const restrictedRun={...agentRun,agentId:"assistant",settings:{data_scope:{projects:false}}};
   const restrictedSearch=await agentTool("platform_search").execute(restrictedRun,{query:"todos",kind:"data"});
   assert.equal((restrictedSearch as any).matches.length,0);
-  await assert.rejects(agentTool("platform_read").execute(restrictedRun,{source:todoSource}),{code:"agent_data_denied"});
+  await assert.rejects(Promise.resolve().then(()=>agentTool("platform_read").execute(restrictedRun,{source:todoSource})),{code:"agent_data_denied"});
   const found=await agentTool("platform_search").execute(agentRun,{query:"datasets.save",kind:"action"});
   assert.ok((found as any).matches.some((item:any)=>item.id==="datasets.save"));
   const described=await agentTool("platform_describe").execute(agentRun,{kind:"action",id:"datasets.save"});

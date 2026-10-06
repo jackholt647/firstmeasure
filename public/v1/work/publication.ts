@@ -32,7 +32,7 @@ async function item(ctx:PublicationContext,target:TargetRef) {
 }
 // Public task fields only; internal automation bindings and execution context stay private.
 const properties:Record<string,unknown> = {
-  ...Object.fromEntries(["id","plan_id","project_id","branch_id","parent_id","title","body","description","status","workflow_status","kind","due_at","created_at","updated_at","completed_at"].map(key=>[key,{type:["string","null"]}])),
+  ...Object.fromEntries(["id","plan_id","project_id","project_title","branch_id","parent_id","title","body","description","status","workflow_status","kind","due_at","created_at","updated_at","completed_at"].map(key=>[key,{type:["string","null"]}])),
   ...Object.fromEntries(["assigned_user_ids","assigned_role_ids","assigned_resource_group_ids","depends_on","project_ids"].map(key=>[key,{type:"array",items:{type:"string"}}])),
   priority:{type:["string","number"]}, assignment_policy:{type:"object"}, notes:{type:"array",items:{type:"object"}}, contact_refs:{type:"array",items:{type:"object"}}, user_state:{type:"object"}, follow_up:{type:"object"}, type_tags:{type:"array",items:{type:"string"}}
 };
