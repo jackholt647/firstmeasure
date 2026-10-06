@@ -1278,7 +1278,7 @@ test("webhook-only lead connectors accept provider body keys, preview without ef
  assert.equal((await intake.leadDeliveries(org,{connectionId:account.id})).items.length,0);
  for(let n=0;n<3;n++){const r=await send(payload);assert.equal(r.statusCode,200,r.body);}
  const deliveries=await intake.leadDeliveries(org,{connectionId:account.id});assert.equal(deliveries.items.length,1);assert.equal(deliveries.items[0]!.attempts,3);
- const project=await (await import("../platform/storage.js")).readDocument(org,"projects",String(deliveries.items[0]!.project_id));assert.equal(project.data.lead_source.provider_fields.campaign,"ads-1");assert.equal(project.data.address,"");assert.ok(!JSON.stringify(project).includes("google-style-test-key"));
+ const project=await (await import("../platform/storage.js")).readDocument(org,"projects",String(deliveries.items[0]!.project_id));assert.equal((project.data.lead_source as any).provider_fields.campaign,"ads-1");assert.equal(project.data.address,"");assert.ok(!JSON.stringify(project).includes("google-style-test-key"));
  await saveCapabilityValues(org,{"platform.lead_import":false});assert.equal((await send({...payload,lead_id:"g2"})).statusCode,403);
  await saveCapabilityValues(org,{"platform.lead_import":true});account=await service.pause(ctx,account.id,account.revision);assert.equal((await send({...payload,lead_id:"g2"})).statusCode,403);
 });
