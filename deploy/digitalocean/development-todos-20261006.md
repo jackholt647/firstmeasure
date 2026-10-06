@@ -75,3 +75,14 @@ Follow-up evidence: `output/todos-agent-scope-20261006/verified-deployment.json`
 and `verified-main-and-public.json`. The verification exercises deployed file
 integrity and readiness; agent/tool behavior is covered by local integration
 tests, rather than a live LLM session.
+
+## Tray refinement
+
+`4826af146f3431aeb1a63228c7b5ccc7699d30cd` adds 12px content padding and hides
+the tray minimize button. Close hides the tray; the persistent To Do header
+control reopens it with its list retained. The existing Chrome test passes
+including close/reopen, padding, no minimize control, mobile sizing and the
+feature flag. All three serving development roles passed readiness, isolation
+and deployed asset hashes. Public health and tray source were verified. This
+is a browser-only overlay; the worker runtime is unchanged. Evidence is under
+`output/todo-tray-padding-20261006/`.

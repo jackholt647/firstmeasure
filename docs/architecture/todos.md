@@ -54,8 +54,9 @@ that fabricates appointment completion.
 it closes the tray and hides the header/mobile controls; the left-column setting
 is independent. `platform-action-items/todo-tray.js` mounts the same shared list
 inside the standard dockable window manager, initially at the right. It supports
-placement, minimization, restoring, mobile sizing, project context, completed and
-future sections. Navigation retains the list; branch changes rebuild it with the
+placement, mobile sizing, project context, completed and future sections. The
+content has 12px padding; Close hides the tray and its header control reopens it,
+so the minimize button is hidden. Navigation retains the list; branch changes rebuild it with the
 new identity. Only an open tray refreshes on focus, task edits and a 30-second
 interval. It does not create a second task store or an agent-specific tool list.
 
