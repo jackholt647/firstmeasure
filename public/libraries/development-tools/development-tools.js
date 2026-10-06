@@ -1,4 +1,4 @@
-import { mountSoftwareLayers } from './software-layers.js?v=20261006-tree2';
+import { mountSoftwareLayers } from './software-layers.js?v=20261006-tree3';
 let mounted = false;
 export async function mount() {
  if (mounted || window.top !== window) return;
@@ -7,14 +7,14 @@ export async function mount() {
  const anchor = document.getElementById('platformAssistantSlot');
  if (!anchor) return;
  mounted = true;
- const style = document.createElement('link');style.rel='stylesheet';style.href='/libraries/development-tools/development-tools.css?v=20261006-tree2-layers';document.head.append(style);
+ const style = document.createElement('link');style.rel='stylesheet';style.href='/libraries/development-tools/development-tools.css?v=20261006-tree3-layers';document.head.append(style);
  const slot=document.createElement('div');slot.className='fm-dev-slot';
  slot.innerHTML='<button type="button" class="ptb-bell" aria-label="Development tools" aria-haspopup="dialog" aria-expanded="false" data-dev-open><i class="fas fa-code" aria-hidden="true"></i></button>';
  anchor.before(slot);
  const button=slot.querySelector('[data-dev-open]');
  let frame,busy=false,requestId,activeAnchor=button,suppressHover=false,hoverTimer;
  const isOpen=()=>!!frame&&!frame.hidden;
- function position(){if(!isOpen())return;if(frame.classList.contains('fm-dev-fullscreen')){frame.style.top='8px';frame.style.right='8px';frame.style.maxHeight='calc(100dvh - 16px)';return;}const mobile=window.matchMedia('(max-width:820px)').matches;const bar=document.querySelector(mobile?'.mobile-topbar':'#platformTopbar');const bounds=bar?.getBoundingClientRect()||activeAnchor.getBoundingClientRect();frame.style.top=Math.max(8,bounds.bottom+8)+'px';frame.style.right='12px';frame.style.maxHeight=Math.max(160,window.innerHeight-bounds.bottom-24)+'px';}
+ function position(){if(!isOpen())return;const fontHost=document.querySelector(window.matchMedia('(max-width:820px)').matches?'.mobile-topbar':'#platformTopbar')||anchor;frame.style.fontFamily=getComputedStyle(fontHost).fontFamily;if(frame.classList.contains('fm-dev-fullscreen')){frame.style.top='8px';frame.style.right='8px';frame.style.maxHeight='calc(100dvh - 16px)';return;}const mobile=window.matchMedia('(max-width:820px)').matches;const bar=document.querySelector(mobile?'.mobile-topbar':'#platformTopbar');const bounds=bar?.getBoundingClientRect()||activeAnchor.getBoundingClientRect();frame.style.top=Math.max(8,bounds.bottom+8)+'px';frame.style.right='12px';frame.style.maxHeight=Math.max(160,window.innerHeight-bounds.bottom-24)+'px';}
  function close(){clearTimeout(hoverTimer);if(frame)frame.hidden=true;suppressHover=true;slot.classList.remove('fm-dev-open');button.setAttribute('aria-expanded','false');}
  function toggle(){if(isOpen())close();else open();}
  document.addEventListener('pointerdown',event=>{if(isOpen()&&!frame.contains(event.target)&&!slot.contains(event.target)&&!event.target.closest('[data-dev-mobile]'))close();});
