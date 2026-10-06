@@ -69,6 +69,14 @@ test("publication API shares auth, CSRF, typed dataset actions and project isola
   const {platformAgentTools}=await import("../agents/platform_tools.js");
   const agentRun={agentId:"stats",orgId,branchId:"default",userId:owner.id,ctx:await backgroundAuthContext(orgId,owner.id),settings:{},scratch:{}} as any;
   const agentTool=(name:string)=>platformAgentTools.find(tool=>tool.name===name)!;
+  const todoSource={provider:"todos",export:"items",target:{scope:"organization",organizationId:orgId}};
+  const todoFound=await agentTool("platform_search").execute(agentRun,{query:"work.todos",kind:"action"});
+  assert.ok((todoFound as any).matches.some((item:any)=>item.id==="work.todos.create"));
+  assert.ok((todoFound as any).matches.some((item:any)=>item.id==="work.todos.patch"));
+  const restrictedRun={...agentRun,agentId:"assistant",settings:{data_scope:{projects:false}}};
+  const restrictedSearch=await agentTool("platform_search").execute(restrictedRun,{query:"todos",kind:"data"});
+  assert.equal((restrictedSearch as any).matches.length,0);
+  await assert.rejects(agentTool("platform_read").execute(restrictedRun,{source:todoSource}),{code:"agent_data_denied"});
   const found=await agentTool("platform_search").execute(agentRun,{query:"datasets.save",kind:"action"});
   assert.ok((found as any).matches.some((item:any)=>item.id==="datasets.save"));
   const described=await agentTool("platform_describe").execute(agentRun,{kind:"action",id:"datasets.save"});
