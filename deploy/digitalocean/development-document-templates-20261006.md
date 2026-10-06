@@ -1,0 +1,33 @@
+# Document templates on margin-fitted regions — October 6, 2026
+
+Development only. Production was not activated.
+
+Source commit `aad0ff4c25d5f64647dba50259c23d3bbfb6d421`, deployed as release
+`3b661c1b66129b971ed8759e6a7fbb470960de8b` (the branch head at rollout, which
+contains it) to worker, compatibility, web and pool, one role at a time.
+
+Seeded document templates, except the one-page legal agreement, and the four
+Instant roofing estimates now hold each page's content in one body region
+fitted to the page style's margins. The Docs tab Theme menu re-fits those
+regions when the style changes. The New Document dialog reads a template's
+pinned workflow from its metadata. Preset revision 30 upgrades unedited
+presets on the next template read; Instant roofing pack 2 republishes existing
+packs. Three alias presets are archived. Documents created earlier keep their
+pinned template version. See `public/v1/documents/README.md`.
+
+## Verification
+
+`npm run check` passed. Document API, versions, Instant roofing and paper-upload
+suites: 33 passed. All 17 seeded layouts were rendered under the three page
+styles through the PDF harness with no content outside the page. After
+activation each role's 13 files matched the payload and reported ready with
+development isolation; the public health endpoint returned the release id.
+The Docs tab was not exercised in a hosted browser session.
+
+## Rollback
+
+Activate each role's previous release recorded in
+`output/document-templates-20261006/manifest.json` using the normal development
+procedure; verify current state first. Presets already upgraded stay at
+revision 30 and remain valid for the earlier renderer except that row columns
+lose their shared-width sizing.

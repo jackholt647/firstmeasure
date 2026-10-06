@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 6 document templates: [Margin-fitted template regions](deploy/digitalocean/development-document-templates-20261006.md) records the rebuilt seeded layouts, the Docs tab workflow and theme fixes, validation and the four-role development rollout.
+
 October 6 payroll: [Data, actions and shared widgets](deploy/digitalocean/development-payroll-publication-20261006.md) records the 19 typed exports, 41 operations, 12 widgets, permission and browser validation, and the verified four-role development rollout.
 
 October 6 agent to-dos: [Live interactive task widget](deploy/digitalocean/development-todo-widget-20261006.md) records the registered chat widget, color cues, completion/editing, permission checks and development verification.
