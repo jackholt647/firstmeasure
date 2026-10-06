@@ -19,6 +19,8 @@ The scope library is a canonical catalog separate from installed scope instances
 - **Data context providers** (`public/v1/work/context.ts`): automation inputs interpolate any registered namespace — `{{organization.name}}`, `{{users.by_role.sales_appointments.0.email}}`, `{{pricebook.default.catalog...}}`, `{{branch.<moduleId>...}}`, `{{scopes.list...}}`, `{{money.obligations...}}`, `{{work.active_instances...}}`, or project media such as `{{media.by_tag.before_photos.0.media_id}}` — lazily loaded and cached per event. New subsystems register a provider to become scriptable.
 - **No blessed subsystems**: custom-field schema contribution, materials, checklists, and commission setup run as default `onStarted` bindings (`customFields.initializeFromScope.v1`, `materials.initializeFromScope.v1`, `checklists.initializeFromScope.v1`, `payroll.reconcileScopeCommissions.v1`) injected from template content; deposit-time reconciliation is a preset binding (`scopes.reconcileProjectResources.v1`); receivables are a default org rule. Templates override any default by declaring a binding with the same id.
 
+- **Authoring contract**: typed action inputs, the shared condition operators, the one-event meaning of binding keys, `sequence` steps, multi-action organization rules, dry runs and pushing a template change to running instances are documented in [automation authoring](../../../docs/architecture/automation-authoring.md).
+
 ## Intake routing and transitions
 
 - New projects are routed into an entry scope by the intake router (`router.ts`), configured per branch in the `intake_routing` module. The module stores a guaranteed `default_template_id` fallback, optional ordered field formulas in `rules`, and the data-driven scope `buckets` used by Project Scopes settings. Formula conditions match dot-paths on the project document (for example `lead_source.kind`). Setting the fallback to a production template creates a production-only intake flow. The default buckets are Sales Scopes and Production Scopes, but organizations can rename, replace, and reassign them.
@@ -32,8 +34,9 @@ Settings → Project Scopes → a scope → Automations uses the read-only
 endpoint (`manage_company_settings`). It combines the saved scope definition,
 runtime setup defaults, compiled commission bindings, organization rules, and
 registered event/action documentation. It includes hidden and unused entries,
-conditions, inputs, timers, and transition destinations. Lifecycle aliases on
-non-work events are shown with their explicit plan/node targeting requirement.
+conditions, inputs, timers, and transition destinations. A lifecycle hook is
+listed only under its own work event; sequences appear as their compiled timers
+and actions.
 This is a configuration explorer, separate from the agent inventory and from
 execution history; browsing it does not execute functions. The previous agent
 automation interface remains in Assistant.

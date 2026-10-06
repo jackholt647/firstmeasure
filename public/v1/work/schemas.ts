@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { workSequenceSchema, workTimerSchema } from "./sequences.js";
+
 export const WORK_SCHEMA_VERSION = 1;
 
 export const jsonObjectSchema = z.object({}).passthrough();
@@ -109,6 +111,11 @@ export const workNodeDefinitionSchema: z.ZodType<any> = z.lazy(() => jsonObjectS
   due_offset_minutes: z.number().int().optional(),
   automation_bindings: workAutomationBindingsSchema.optional(),
   external_triggers: z.array(workExternalTriggerSchema).optional(),
+  // One-shot timers relative to a node timestamp; they fire `work.node.timer`.
+  timers: z.array(workTimerSchema).max(200).optional(),
+  // "Do this, wait, then do that": compiled to timers and bindings when the
+  // plan is created. See ./sequences.ts.
+  sequence: workSequenceSchema.optional(),
   metadata: jsonObjectSchema.optional(),
   children: z.array(workNodeDefinitionSchema).optional()
 }).passthrough());

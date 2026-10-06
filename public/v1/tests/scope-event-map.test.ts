@@ -53,16 +53,27 @@ test("every bundled scope is inspectable and configured custom events stay visib
   assert.equal(map.events.find((e) => e.name === "custom.arrived")!.connections.length, 1);
 });
 
-test("raw lifecycle bindings explain alias precedence instead of claiming they run", () => {
+test("a raw lifecycle event key and its hook are the same event and both run", () => {
   const map = buildScopeEventMap({ work_plan:{ automation_bindings:{ onStarted:[], "work.plan.started":[{ automation:"notification.create.v1" }] } } });
   const entry = map.events.find((e) => e.name === "work.plan.started")!.connections[0]!;
-  assert.equal(entry.enabled, false);
-  assert.match(String(entry.note), /precedence/);
+  assert.equal(entry.enabled, true);
 });
 
-test("lifecycle aliases expose potential external events with explicit target requirements", () => {
+test("a lifecycle hook is not listed on another domain's event that shares its suffix", () => {
   const map = buildScopeEventMap({ work_plan:{ root_nodes:[{ id:"followup", title:"Follow up", automation_bindings:{ onCompleted:[{ automation:"notification.create.v1" }] } }] } });
-  const connection = map.events.find((e) => e.name === "call.completed")!.connections[0]!;
-  assert.match(String(connection.when), /explicitly targets/);
-  assert.match(String(connection.note), /same project alone does not run/);
+  assert.equal(map.events.find((e) => e.name === "call.completed")!.connections.length, 0);
+  assert.equal(map.events.find((e) => e.name === "work.node.completed")!.connections.length, 1);
+});
+
+test("a sequence appears as its compiled timers and read-only actions", () => {
+  const map = buildScopeEventMap({ work_plan:{ root_nodes:[{ id:"cadence", title:"Cadence", sequence:{ steps:[
+    { id:"now", actions:[{ automation:"communications.sendSms.v1", input:{ text:"hi" } }] },
+    { id:"later", wait:{ days:1 }, actions:[{ automation:"communications.sendEmail.v1", input:{ subject:"s" } }] }
+  ] } }] } });
+  const timerEvent = map.events.find((e) => e.name === "work.node.timer")!;
+  assert.ok(timerEvent.connections.some((c) => c.kind === "timer"));
+  const action = timerEvent.connections.find((c) => c.kind === "action")!;
+  assert.equal(action.source_path, null);
+  assert.match(String(action.note), /sequence/);
+  assert.equal(map.events.find((e) => e.name === "work.node.ready")!.connections.length, 1);
 });

@@ -41,19 +41,38 @@ of work nodes plus the automations around them.
 1. external_triggers on a node: {event, transition (completed|skipped|...),
    conditions, explainer, customer_visible} — a platform event moves the node.
 2. automation_bindings on a node or the work_plan: keyed by lifecycle hook
-   (onReady/onStarted/onCompleted/onSkipped/onCanceled/onTimer) or by a raw
-   event name; each entry {id, automation, input, conditions, explainer,
-   customer_visible, enabled}. The automation id must be one of the registered
-   automations listed below. Inputs support {{path}} interpolation over the
-   execution context AND the data providers.
+   (onReady/onStarted/onCompleted/onSkipped/onCanceled/onDue/onTimer) or by a
+   full event name; each entry {id, automation, input, conditions, explainer,
+   customer_visible, enabled}. A hook means that node's (or the scope's) own
+   lifecycle event and nothing else: onCompleted on a node is
+   work.node.completed for that node. A full event name runs only when that
+   event explicitly targets the node or scope. The automation id must be one
+   of the registered automations listed below. Inputs support {{path}}
+   interpolation over the execution context AND the data providers.
 3. timers on a node: {id, anchor: created|ready|started|due, offset_minutes,
    explainer} — fires the node's onTimer bindings once the time elapses.
+4. sequence on a node — the way to write "do this, wait, then do that"
+   (follow-up cadences, drip messages, reminders):
+   {start: "ready"|"started", steps: [{id, wait: {minutes|hours|days|weeks},
+   conditions, explainer, actions: [{automation, input, conditions}]}]}.
+   Each step waits after the previous one, then runs its actions in order.
+   The sequence stops when the node is completed, skipped or canceled, so add
+   an external trigger (for example communication.received) to stop a cadence
+   when the customer replies. Prefer a sequence to hand-written timers.
 
-Conditions are dot-path equality objects evaluated over
-{event, payload, context, project, plan, node} — e.g.
-{"payload.payment_kind": "deposit"} or {"project.claims.welcome_call": ""}.
-Values may be arrays ("any of"). project.claim.v1 provides atomic
-cross-instance coordination via project.claims.
+## Conditions (one contract everywhere: bindings, external triggers,
+## sequence steps, organization rules and intake routing)
+Evaluated over {event, payload, context, project, plan, node}. Two forms:
+- Map: {"payload.payment_kind": "deposit", "project.claims.welcome_call": ""}
+  — every entry must match; a list means any of; "" means missing or empty.
+- Group: {match: "all"|"any", rules: [{field, operator, value}, ...nested groups]}
+  with operators equals, not_equals, in, not_in, contains, not_contains,
+  starts_with, ends_with, is_present, is_missing, greater_than,
+  greater_or_equal, less_than, less_or_equal, before, after. before/after
+  take an ISO date, "now", or a relative time such as "now-3d" or "now+2h".
+project.claim.v1 provides atomic cross-instance coordination via
+project.claims. get_automation_catalog returns the operators, the fields each
+event carries, and every action's typed input schema.
 
 ## Customer-facing rules (IMPORTANT)
 - Customers NEVER see raw JSON, event names, automation ids, or node ids.
@@ -74,8 +93,16 @@ cross-instance coordination via project.claims.
   where pre-pipeline behavior belongs — queueing the first call, notifying
   people, texting an auto-reply to the lead, tagging by source.
 - Organization automation rules (branch module automation_rules): org-wide
-  {event|schedule.cron, conditions, automation, input} evaluated on EVERY
-  event before scope bindings.
+  {event|schedule.cron, conditions, actions: [{id, automation, input,
+  conditions}]} evaluated on EVERY event before scope bindings. A rule's
+  actions run in order, each with its own optional conditions. (A single
+  {automation, input} on the rule itself is still accepted.)
+- Testing: dry_run_automations replays events, status changes and time
+  against a draft or saved definition and reports what would happen without
+  doing it.
+- Versions: saving a template affects projects that start it afterwards.
+  Projects already running it keep their version until the change is pushed
+  with apply_scope_instance_update.
 - Default instantiation bindings are injected automatically from template
   content: customFields.initializeFromScope.v1,
   materials.initializeFromScope.v1, checklists.initializeFromScope.v1,

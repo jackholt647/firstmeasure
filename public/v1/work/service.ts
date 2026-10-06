@@ -1,3 +1,5 @@
+import { normalizeWorkPlanBindingKeys } from "./bindings.js";
+import { compileSequences } from "./sequences.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import { badRequest, notFound, conflict } from "../platform/errors.js";
@@ -126,7 +128,10 @@ async function validateWorkNodeAssignment(orgId: string, branchId: string, nodeV
 }
 
 export async function createWorkPlan(inputValue: JsonObject) {
-  const input = createWorkPlanSchema.parse(inputValue);
+  const parsed = createWorkPlanSchema.parse(inputValue);
+  // Stored plans hold only what the engine runs: sequences are expanded to
+  // timers and bindings, and binding keys use one spelling per event.
+  const input = normalizeWorkPlanBindingKeys({ ...parsed, root_nodes: compileSequences(parsed.root_nodes) }) as typeof parsed;
   validateDefinitionIds(input.root_nodes);
   const orgId = cleanText(inputValue.organization_id);
   if (!orgId) throw badRequest("missing_organization_id", "An organization id is required.");

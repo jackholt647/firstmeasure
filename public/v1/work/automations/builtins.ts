@@ -72,6 +72,11 @@ async function contextValue(context: WorkAutomationContext, path: string): Promi
   return await context.data.resolve(segments);
 }
 
+/** Interpolates {{templates}} in a binding input exactly as execution does. Reads only. */
+export function resolveAutomationInput(value: unknown, context: WorkAutomationContext) {
+  return resolveValue(value, context);
+}
+
 async function resolveValue(value: unknown, context: WorkAutomationContext): Promise<unknown> {
   if (typeof value === "string") {
     const matches = [...value.matchAll(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g)];

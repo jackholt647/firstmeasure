@@ -629,3 +629,26 @@ export async function startWorkPlansForSignedProposal(orgId: string, proposalId:
   }
   return { plans: results, count: results.length };
 }
+
+// The work-plan content a scope definition produces when it is instantiated:
+// plan-level bindings (the template's own, compiled commission bindings for
+// signed proposals, and the default setup bindings) plus the node tree. Used to
+// bring running instances onto a newer template version; see ./instances.ts.
+export function composeScopeWorkPlan(definitionValue: JsonObject, options: { signedProposal?: boolean } = {}) {
+  const definition = asObject(definitionValue);
+  const blueprint = asObject(definition.work_plan);
+  if (!options.signedProposal) {
+    return {
+      automation_bindings: mergeAutomationBindings(blueprint.automation_bindings, defaultInstantiationBindings(definition)),
+      root_nodes: asArray(blueprint.root_nodes).map(asObject)
+    };
+  }
+  const commissionBindings = compileScopeCommissionBindings(definition);
+  return {
+    automation_bindings: mergeAutomationBindings(
+      mergeAutomationBindings(blueprint.automation_bindings, commissionBindings.plan),
+      defaultInstantiationBindings(definition)
+    ),
+    root_nodes: attachCommissionNodeBindings(blueprint.root_nodes, commissionBindings.nodes)
+  };
+}

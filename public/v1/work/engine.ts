@@ -18,7 +18,9 @@ import {
 } from "./storage.js";
 import { workAutomation, type WorkAutomationContext } from "./registry.js";
 import { createWorkDataResolver, registerBuiltinContextProviders, type WorkContextScope } from "./context.js";
-import { readAutomationRules } from "./rules.js";
+import { expandAutomationRules, readAutomationRules } from "./rules.js";
+import { evaluateConditions } from "./conditions.js";
+import { bindingExecutionId, bindingsForEvent } from "./bindings.js";
 const deferredEvents=new AsyncLocalStorage<boolean>();
 /** Record events during domain transactions; dispatch only after their commit. */
 export function withDeferredWorkEvents<T>(operation:()=>Promise<T>){return deferredEvents.run(true,operation);}
@@ -47,27 +49,12 @@ function asArray(value: unknown) {
   return Array.isArray(value) ? value : [];
 }
 
-function hookForEvent(type: string) {
-  const suffix = type.split(".").pop() || type;
-  return `on${suffix.replace(/(^|_)([a-z])/g, (_match, _prefix, letter) => String(letter).toUpperCase())}`;
-}
-
-function contextPath(context: JsonObject, path: string) {
-  return path.split(".").reduce<unknown>((value, key) => (
-    value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject)[key] : undefined
-  ), context);
-}
-
-// Conditions are dot-path equality checks over the full condition context:
-// event, payload, context, project, plan, and node. Arrays mean "any of".
-// An empty-string expectation matches missing/empty values, so
-// { "project.claims.welcome_call": "" } reads as "not yet claimed".
+// Conditions are evaluated over the full condition context: event, payload,
+// context, project, plan, and node. The contract — the original equality map
+// ({ "project.claims.welcome_call": "" } reads as "not yet claimed") and
+// operator groups — lives in ./conditions.ts and is shared by every surface.
 export function conditionMatches(conditions: JsonObject, context: JsonObject) {
-  return Object.entries(conditions).every(([path, expected]) => {
-    const actual = contextPath(context, path) ?? contextPath(context, `payload.${path}`);
-    if (Array.isArray(expected)) return expected.map(cleanText).includes(cleanText(actual));
-    return cleanText(actual) === cleanText(expected);
-  });
+  return evaluateConditions(conditions, context);
 }
 
 /** Saved legacy subscriptions remain readable; only document.signed is emitted. */
@@ -95,9 +82,11 @@ async function projectForEvent(event: JsonObject, plan: JsonObject): Promise<Jso
 }
 
 function automationBindingsForEvent(event: JsonObject, plan: JsonObject, node: JsonObject) {
-  const hook = hookForEvent(cleanText(event.type));
-  const bindings = cleanText(event.node_id) ? asObject(node.automation_bindings) : asObject(plan.automation_bindings);
-  return asArray(bindings[hook] || bindings[cleanText(event.type)]).map(asObject);
+  // A lifecycle hook means this container's own work event and nothing else;
+  // see ./bindings.ts.
+  return cleanText(event.node_id)
+    ? bindingsForEvent(node.automation_bindings, cleanText(event.type), "node")
+    : bindingsForEvent(plan.automation_bindings, cleanText(event.type), "plan");
 }
 
 async function applyExternalTriggers(event: JsonObject, project: JsonObject) {
@@ -239,7 +228,8 @@ async function executeEvent(event: JsonObject) {
   //    set. Evaluated first so org policy supersedes scope behavior.
   const { rules } = await readAutomationRules(orgId, branchId).catch(() => ({ rules: [] as JsonObject[] }));
   const type = cleanText(event.type);
-  for (const rule of rules) {
+  // A rule may carry several actions; each runs as its own execution, in order.
+  for (const rule of expandAutomationRules(rules)) {
     if (rule.enabled === false || !cleanText(rule.automation)) continue;
     if (!matchesWorkEvent(cleanText(rule.event), event)) continue;
     const conditionContext = { event, payload: asObject(event.payload), context: asObject(event.context), project, plan, node };
@@ -265,7 +255,7 @@ async function executeEvent(event: JsonObject) {
     if (binding.enabled === false) continue;
     const conditionContext = { event, payload: asObject(event.payload), context: asObject(event.context), project, plan, node };
     if (!conditionMatches(asObject(binding.conditions), conditionContext)) continue;
-    const bindingId = cleanText(binding.id) || `${hookForEvent(type)}:${index}:${cleanText(binding.automation)}`;
+    const bindingId = bindingExecutionId(binding, type, index);
     const result = await executeBinding(event, { binding, bindingId, plan, node }, project);
     if (result.executed && index < bindings.length - 1) project = await projectForEvent(event, plan);
   }

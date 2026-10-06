@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { badRequest, conflict, notFound, PlatformError } from "../platform/errors.js";
 import { getWorkDatabase, type JsonObject } from "../work/storage.js";
+import { normalizeWorkPlanBindingKeys } from "../work/bindings.js";
 import { scopeTemplateDefinitionSchema, type ScopeTemplateDefinition } from "./schemas.js";
 import { DEFAULT_SCOPE_TEMPLATES } from "./presets/index.js";
 
@@ -313,6 +314,12 @@ export async function listScopeTemplateVersions(orgId: string, branchId: string,
 
 export async function saveScopeTemplate(orgId: string, branchId: string, inputValue: JsonObject, options: { systemPreset?: boolean; publicationAuthorId?: string } = {}) {
   const parsedDefinition = scopeTemplateDefinitionSchema.parse(inputValue);
+  // One spelling per event: lifecycle bindings are stored under their hook.
+  parsedDefinition.work_plan = normalizeWorkPlanBindingKeys(parsedDefinition.work_plan);
+  const conditionIssues = (await import("./dry-run.js")).reviewScopeAutomations(parsedDefinition).filter((issue) => issue.kind === "condition");
+  if (conditionIssues.length) {
+    throw badRequest("scope_template_conditions", `${conditionIssues[0]!.where}: ${conditionIssues[0]!.message}`, { issues: conditionIssues });
+  }
   const { validateScopeProgram } = await import("../work/automations/code.js");
   const validatePrograms = (owner: JsonObject) => {
     for (const entries of Object.values(asObject(owner.automation_bindings))) {

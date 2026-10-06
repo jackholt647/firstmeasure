@@ -1,3 +1,4 @@
+import { CONDITION_OPERATORS, evaluateConditions } from "../work/conditions.js";
 import { PlatformError } from "../platform/errors.js";
 import { readBranchModule, saveBranchModule, type JsonObject } from "../platform/storage.js";
 import { listScopeTemplates, readScopeTemplate } from "./storage.js";
@@ -36,7 +37,7 @@ function conditionsMatchProject(conditions: JsonObject, project: JsonObject) {
 
 function normalizeClause(value: unknown, index: number) {
   const clause = asObject(value);
-  const operator = ["equals", "not_equals", "contains", "in", "is_present", "is_missing"].includes(cleanText(clause.operator))
+  const operator = CONDITION_OPERATORS.some((entry) => entry.id === cleanText(clause.operator))
     ? cleanText(clause.operator)
     : "equals";
   return {
@@ -52,16 +53,9 @@ function formulaMatchesProject(value: unknown, project: JsonObject) {
   const clauses = asArray(formula.conditions).map(normalizeClause).filter((clause) => clause.field);
   if (!clauses.length) return false;
   const matches = clauses.map((clause) => {
-    const actual = contextPath(project, clause.field);
-    const actualText = cleanText(actual).toLowerCase();
-    const expectedValues = (Array.isArray(clause.value) ? clause.value : cleanText(clause.value).split(","))
-      .map((entry) => cleanText(entry).toLowerCase()).filter(Boolean);
-    if (clause.operator === "is_present") return actual !== undefined && actual !== null && cleanText(actual) !== "";
-    if (clause.operator === "is_missing") return actual === undefined || actual === null || cleanText(actual) === "";
-    if (clause.operator === "not_equals") return !expectedValues.includes(actualText);
-    if (clause.operator === "contains") return expectedValues.some((expected) => actualText.includes(expected));
-    if (clause.operator === "in") return expectedValues.includes(actualText);
-    return expectedValues.includes(actualText);
+    // Routing shares the automation condition contract; project fields are
+    // matched case-insensitively and a comma-separated value is a list.
+    return evaluateConditions(clause, project, { caseInsensitive: true, commaLists: true, payloadFallback: false });
   });
   return cleanText(formula.match).toLowerCase() === "any" ? matches.some(Boolean) : matches.every(Boolean);
 }

@@ -2,6 +2,7 @@ import type { JsonObject } from "./storage.js";
 import type { WorkDataResolver } from "./context.js";
 import { publishWorkAutomation } from "../platform/publication/work-actions.js";
 import type { Effect, JsonSchema } from "../platform/publication/contracts.js";
+import { actionCatalogEntry } from "./automations/catalog.js";
 
 export type WorkAutomationServices = {
   patchProject: (patch: JsonObject) => Promise<JsonObject>;
@@ -66,6 +67,19 @@ export function listWorkAutomations() {
 }
 
 export function listWorkAutomationDefinitions() {
-  return [...handlers.keys()].sort().map((id) => ({ id, ...(metadata.get(id) || {}) }));
+  // Each definition carries its authoring contract (title, category and a
+  // typed input schema) from automations/catalog.ts alongside the handler's
+  // own documentation.
+  return [...handlers.keys()].sort().map((id) => {
+    const meta = metadata.get(id) || {};
+    const entry = actionCatalogEntry(id);
+    return {
+      id, ...meta,
+      title: entry?.title || "",
+      category: entry?.category || id.split(".")[0] || "",
+      internal: entry?.internal === true,
+      input_schema: entry?.input_schema || meta.inputSchema || { type: "object", additionalProperties: true }
+    };
+  });
 }
 

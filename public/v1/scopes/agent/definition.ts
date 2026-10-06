@@ -24,6 +24,14 @@ import { normalizeCommonCore } from "../../agents/settings.js";
 import type { AgentRun, AgentTool } from "../../agents/types.js";
 import { asArray, asObject, cleanText, truncateJson, type JsonObject } from "../../agents/util.js";
 import { buildPlatformManifest } from "./manifest.js";
+import { automationCatalog } from "../../work/catalog.js";
+import { dryRunAutomations } from "../dry-run.js";
+import { updateScopeInstances } from "../instances.js";
+
+function parseJsonArgument(value: unknown, name: string): { value?: unknown; error?: string } {
+  if (typeof value !== "string") return { value };
+  try { return { value: JSON.parse(value) }; } catch (error) { return { error: `${name} is not valid JSON: ${String(error)}` }; }
+}
 
 // The current auth gate for the Automations settings surface: every write
 // tool requires the calling user to hold it, exactly like the HTTP routes.
@@ -309,13 +317,105 @@ const TOOLS: AgentTool[] = [
       const errors: string[] = [];
       registerBuiltinWorkAutomations();
       for (const rule of asArray(rules)) {
-        const automationId = cleanText(asObject(rule).automation);
-        if (automationId && !hasWorkAutomation(automationId)) errors.push(`Unknown automation '${automationId}'.`);
+        for (const action of [asObject(rule), ...asArray(asObject(rule).actions).map(asObject)]) {
+          const automationId = cleanText(action.automation);
+          if (automationId && !hasWorkAutomation(automationId)) errors.push(`Unknown automation '${automationId}'.`);
+        }
       }
       if (errors.length) return { ok: false, errors };
-      const saved = await saveAutomationRules(run.orgId, run.branchId, { rules });
+      let saved;
+      try {
+        saved = await saveAutomationRules(run.orgId, run.branchId, { rules });
+      } catch (error) {
+        const issues = asArray(asObject(asObject(error).details).issues).map(String);
+        if (!issues.length) throw error;
+        return { ok: false, errors: issues };
+      }
       run.changeLog.push("Updated organization automation rules.");
       return { ok: true, revision: saved.revision, rules: saved.rules };
+    }
+  },
+  {
+    name: "get_automation_catalog",
+    description: "The authoring reference: every action with its typed input schema, every event with the fields conditions can test, the condition operators, lifecycle hooks, and the sequence and organization-rule shapes. Read the relevant section before writing an automation you have not written before.",
+    parameters: { type: "object", properties: {
+      section: { type: "string", enum: ["all", "actions", "events", "conditions", "hooks", "sequence", "organization_rule"], description: "Limit the reply to one section. Defaults to all." },
+      search: { type: "string", description: "Only events/actions whose name, title or description contains this text." }
+    }, additionalProperties: false },
+    async execute(_run, args) {
+      const catalog = automationCatalog({ includeInternal: true }) as unknown as JsonObject;
+      const search = cleanText(args.search).toLowerCase();
+      const filtered: JsonObject = { ...catalog };
+      if (search) for (const key of ["events", "actions"]) {
+        filtered[key] = asArray(catalog[key]).filter((entry) => {
+          const item = asObject(entry);
+          return [item.name, item.id, item.title, item.label, item.description].map(cleanText).join(" ").toLowerCase().includes(search);
+        });
+      }
+      const section = cleanText(args.section) || "all";
+      return section === "all" ? filtered : { [section]: filtered[section] };
+    }
+  },
+  {
+    name: "dry_run_automations",
+    description: "Test automations without running them: replay events, manual status changes and the passing of time against a scope definition (saved or a draft you have not saved yet) and/or organization rules, and get back exactly which conditions matched, which work items moved, and which actions would run with their resolved inputs. Nothing is sent, created or saved. Use it to check your work before saving and before telling the customer a change is done.",
+    parameters: { type: "object", properties: {
+      template_id: { type: "string", description: "Simulate a new instance of this saved template. Defaults to the template in focus when no definition, plan_id or rules are given." },
+      definition: { type: "string", description: "A complete draft definition as a JSON string, to test before saving." },
+      plan_id: { type: "string", description: "Simulate against the current state of one running scope instance instead of a new one." },
+      project_id: { type: "string", description: "Use this project's real data for conditions and {{templates}}." },
+      project: { type: "object", additionalProperties: true, description: "Sample project fields, layered over the real project when project_id is given." },
+      rules: { type: "string", description: "Draft organization rules as a JSON array string. Omit to use the saved rules." },
+      include_organization_rules: { type: "boolean", description: "Set false to leave organization rules out." },
+      signed_proposal: { type: "boolean", description: "Simulate an instance created by a signed proposal (adds commission automations)." },
+      steps: { type: "array", description: "What happens, in order. Each step is one of: {event, payload?, node_id?} · {transition: {node_id, status}} · {advance: {minutes|hours|days|weeks}}.", items: { type: "object", additionalProperties: true } }
+    }, required: ["steps"], additionalProperties: false },
+    async execute(run, args) {
+      const definition = parseJsonArgument(args.definition, "definition");
+      const rules = parseJsonArgument(args.rules, "rules");
+      if (definition.error || rules.error) return { ok: false, errors: [definition.error, rules.error].filter(Boolean) };
+      const useFocus = !definition.value && !cleanText(args.plan_id) && !cleanText(args.template_id) && rules.value === undefined;
+      try {
+        return await dryRunAutomations(run.orgId, run.branchId, {
+          ...(definition.value ? { definition: definition.value } : {}),
+          ...(rules.value !== undefined ? { rules: rules.value } : {}),
+          template_id: cleanText(args.template_id) || (useFocus ? focusTemplateId(run) : ""),
+          plan_id: cleanText(args.plan_id), project_id: cleanText(args.project_id), project: asObject(args.project),
+          ...(args.include_organization_rules === false ? { include_organization_rules: false } : {}),
+          signed_proposal: args.signed_proposal === true,
+          steps: asArray(args.steps)
+        }) as unknown as JsonObject;
+      } catch (error) {
+        return { ok: false, errors: [String(asObject(error).message || error)] };
+      }
+    }
+  },
+  {
+    name: "preview_scope_instance_update",
+    description: "Saving a template changes only projects that start it afterwards. This lists the projects already running the template on an older version and exactly what would change on each if the update were pushed to them. Read-only.",
+    parameters: { type: "object", properties: { template_id: { type: "string", description: "Template id; defaults to the template in focus." } }, additionalProperties: false },
+    async execute(run, args) {
+      return await updateScopeInstances(run.orgId, run.branchId, cleanText(args.template_id) || focusTemplateId(run), { mode: "preview" });
+    }
+  },
+  {
+    name: "apply_scope_instance_update",
+    description: "Push the template's current version to projects already running it. Only do this when the customer has said the change should reach existing projects/leads; if they have not said, ask. Work items keep their status and history; new work items are added; removed work items are kept unless removed_work is 'skip'.",
+    parameters: { type: "object", properties: {
+      template_id: { type: "string", description: "Template id; defaults to the template in focus." },
+      plan_ids: { type: "array", items: { type: "string" }, description: "Only these scope instances. Omit for every open instance." },
+      project_ids: { type: "array", items: { type: "string" }, description: "Only instances on these projects." },
+      removed_work: { type: "string", enum: ["keep", "skip"], description: "What to do with open work items the new version no longer has. Default keep." }
+    }, additionalProperties: false },
+    permission: WRITE_PERMISSION,
+    async execute(run, args) {
+      const templateId = cleanText(args.template_id) || focusTemplateId(run);
+      const result = await updateScopeInstances(run.orgId, run.branchId, templateId, {
+        mode: "apply", plan_ids: asArray(args.plan_ids).map(cleanText), project_ids: asArray(args.project_ids).map(cleanText),
+        removed_work: cleanText(args.removed_work) === "skip" ? "skip" : "keep", actor_user_id: run.userId
+      });
+      if (result.updated) run.changeLog.push(`Applied the current version of ${templateId} to ${result.updated} existing project${result.updated === 1 ? "" : "s"}.`);
+      return result;
     }
   },
   {
@@ -483,6 +583,8 @@ ${inventorySummary || "(none visible yet)"}
 - If the customer has not supplied enough business detail to make a safe automation decision, ask one focused plain-language question instead of guessing. A no-change clarification turn is a successful result.
 - Boards can be enabled, disabled, moved to trash, and restored with manage_scope_template. Trash is reversible; never describe it as permanent deletion.
 - When you add or change an automation, ALWAYS give it a clear customer-facing explainer (and keep internal machinery hidden by leaving explainers off or setting customer_visible false).
+- Test before you save: run dry_run_automations with your draft definition (or draft rules) and the events that should set it off, and check the right actions would run with the right inputs. Re-run after fixing anything. Never tell the customer an automation works unless a dry run showed it.
+- A saved template change applies to projects that start it from now on. Projects already on the board keep the previous version unless you push the change with apply_scope_instance_update. If the customer has not said whether existing projects/leads should change too, ask them in plain language; use preview_scope_instance_update to see who would be affected.
 - Validation errors from save_scope_template tell you exactly what to fix — iterate until the save succeeds. If you cannot succeed after a few attempts, call report_result with status "failed" (your saves will be reverted) and explain simply.
 - ALWAYS finish by calling report_result, then give the customer a short, friendly reply in plain language: what you changed or found, no jargon, no JSON, no event or node names.
 - Answer questions about how their automations and apps behave using the manifest and live data — you can read everything.

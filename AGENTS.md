@@ -97,6 +97,18 @@ The concurrently maintained FirstMeasure editor under `public/measure/internal`
 is outside this architecture change. Preserve its work and stage only the files
 owned by the current task when preparing commits or release artifacts.
 
+## Automations
+
+Read [automation authoring](docs/architecture/automation-authoring.md) before
+changing scope automations, organization rules, conditions or the Automations
+Agent's tools. Conditions have one contract in `work/conditions.ts`; do not add
+a second matcher. A registered automation needs a typed entry in
+`work/automations/catalog.ts`. Express waits as a node `sequence`, which
+compiles to timers and bindings; do not add sequencing to the engine. A template
+save affects new instances only; reaching running ones is the explicit push in
+`scopes/instances.ts`. Dry run is for agents and tests and is not a product UI
+feature. Run `tests/automation-contracts.test.ts` for changes to these contracts.
+
 ## Project window content ownership
 
 Read [project content layout](docs/architecture/project-content-layout.md) before changing project modal tabs or sidebars. Overview owns the project-details column inside its tab content. Other apps own their own content rails. There is no configurable shared modal left region or left-column override API; do not recreate one.

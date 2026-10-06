@@ -10,6 +10,15 @@ import { registerScopeAgentRoutes } from "./agent/api.js";
 import { readIntakeRouting, saveIntakeRouting } from "./router.js";
 import { registerBuiltinWorkAutomations } from "../work/automations/builtins.js";
 import { buildScopeArtifactMap, patchScopeArtifact, createScopeArtifact } from "./artifacts.js";
+import { automationCatalog } from "../work/catalog.js";
+import { dryRunAutomations } from "./dry-run.js";
+import { updateScopeInstances } from "./instances.js";
+
+const instanceUpdateSchema = z.object({
+  plan_ids: z.array(z.string().trim().min(1)).max(1000).optional(),
+  project_ids: z.array(z.string().trim().min(1)).max(1000).optional(),
+  removed_work: z.enum(["keep", "skip"]).optional()
+}).strict();
 
 const objectSchema = z.object({}).passthrough();
 const patchScopeFlagsSchema = z.object({
@@ -103,8 +112,49 @@ export const registerScopesApi: FastifyPluginAsync = async (app) => {
   app.put("/organizations/:orgId/branches/:branchId/templates/:templateId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const author = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
-    const body = saveScopeTemplateSchema.parse({ ...objectSchema.parse(request.body ?? {}), id: getParam(request.params, "templateId") });
-    return { ok: true, template: (await saveScopeTemplate(orgId, getParam(request.params, "branchId") || "default", body, { publicationAuthorId: author.userId })) };
+    // Saving creates a new version for future instances. `apply_to_instances:
+    // "open"` additionally pushes it to instances already running.
+    const { apply_to_instances: applyToInstances, removed_work: removedWork, ...definition } = objectSchema.parse(request.body ?? {});
+    const push = z.object({ apply_to_instances: z.enum(["none", "open"]).optional(), removed_work: z.enum(["keep", "skip"]).optional() })
+      .parse({ apply_to_instances: applyToInstances, removed_work: removedWork });
+    const branchId = getParam(request.params, "branchId") || "default";
+    const body = saveScopeTemplateSchema.parse({ ...definition, id: getParam(request.params, "templateId") });
+    const template = await saveScopeTemplate(orgId, branchId, body, { publicationAuthorId: author.userId });
+    if (push.apply_to_instances !== "open") return { ok: true, template };
+    const instances = await updateScopeInstances(orgId, branchId, body.id, { mode: "apply", removed_work: push.removed_work, actor_user_id: author.userId });
+    return { ok: true, template, instances };
+  });
+
+  // Running instances keep the template version they started on. These two
+  // routes preview and apply moving them to the current version.
+  app.get("/organizations/:orgId/branches/:branchId/templates/:templateId/instances", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, permission: "manage_company_settings" });
+    return { ok: true, ...(await updateScopeInstances(orgId, getParam(request.params, "branchId") || "default", getParam(request.params, "templateId"), { mode: "preview" })) };
+  });
+
+  app.post("/organizations/:orgId/branches/:branchId/templates/:templateId/instances/update", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const author = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    const body = instanceUpdateSchema.parse(request.body ?? {});
+    return { ok: true, ...(await updateScopeInstances(orgId, getParam(request.params, "branchId") || "default", getParam(request.params, "templateId"), { ...body, mode: "apply", actor_user_id: author.userId })) };
+  });
+
+  // Authoring catalog: events, condition fields and operators, actions with
+  // typed inputs, hooks and the sequence shape.
+  app.get("/organizations/:orgId/automation-catalog", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, permission: "manage_company_settings" });
+    const query = objectSchema.parse(request.query ?? {});
+    return { ok: true, catalog: automationCatalog({ includeInternal: ["1", "true", "yes"].includes(String(query.include_internal ?? "").toLowerCase()) }) };
+  });
+
+  // Dry run: replays events against a definition and reports what would
+  // happen. Nothing is executed or saved. Not surfaced in the product UI.
+  app.post("/organizations/:orgId/branches/:branchId/automation-dry-run", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    return { ok: true, result: await dryRunAutomations(orgId, getParam(request.params, "branchId") || "default", objectSchema.parse(request.body ?? {})) };
   });
 
   app.delete("/organizations/:orgId/branches/:branchId/templates/:templateId", async (request) => {

@@ -2,19 +2,23 @@ import type { JsonObject } from "../platform/storage.js";
 import { compileScopeCommissionBindings } from "../payroll/commission_rules.js";
 import { listWorkEventDefinitions, workEventNotification } from "../work/events.js";
 import { listWorkAutomationDefinitions } from "../work/registry.js";
+import { eventForBindingKey } from "../work/bindings.js";
+import { expandAutomationRules } from "../work/rules.js";
+import { compileDefinitionSequences } from "../work/sequences.js";
 import { defaultInstantiationBindings } from "./service.js";
 
 const object = (value: unknown): JsonObject => value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
 const array = (value: unknown): JsonObject[] => Array.isArray(value) ? value.map(object) : [];
 const text = (value: unknown) => String(value ?? "").trim();
 export const eventWords = (value: unknown) => text(value).replace(/^work\.plan\./, "scope.").replace(/^work\.node\./, "work_item.").replace(/\.v\d+$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[._-]+/g, " ").replace(/^./, (letter) => letter.toUpperCase());
-const eventForHook = (hook: string, plan: boolean) => hook.startsWith("on")
-  ? `work.${plan ? "plan" : "node"}.${hook.slice(2).replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase()}` : hook;
+const eventForHook = (hook: string, plan: boolean) => eventForBindingKey(hook, plan ? "plan" : "node");
 const hookTiming: Record<string, string> = { onCreated:"is created", onReady:"becomes ready", onStarted:"starts", onCompleted:"completes", onSkipped:"is skipped", onCanceled:"is canceled", onBlocked:"becomes blocked", onDue:"becomes due", onTimer:"reaches its timer" };
 
 // A read-only projection of definitions. No handlers are executed and no
 // agent-visible explainer/visibility filter is applied here.
-export function buildScopeEventMap(definition: JsonObject, organizationRules: JsonObject[] = []) {
+export function buildScopeEventMap(definitionValue: JsonObject, organizationRules: JsonObject[] = []) {
+  // Sequences are shown as the timers and actions they compile to.
+  const definition = compileDefinitionSequences(definitionValue);
   const catalog = listWorkEventDefinitions();
   const actions = listWorkAutomationDefinitions().map((action) => ({ ...action, label: eventWords(action.id) }));
   const actionById = new Map(actions.map((action) => [action.id, action]));
@@ -23,17 +27,8 @@ export function buildScopeEventMap(definition: JsonObject, organizationRules: Js
     if (!event) return;
     if (!events.has(event)) events.set(event, { name:event, label:eventWords(event), description:"Custom event referenced by this scope.", visibility:"system", notification:workEventNotification(event), connections:[] });
     connection.canonical_id = connection.id;
+    // A lifecycle hook listens for exactly one event (see work/bindings.ts).
     events.get(event)!.connections.push(connection);
-    // Lifecycle aliases also match non-work events with the same suffix,
-    // but only when the emitter explicitly supplies this plan/node target.
-    if (connection.kind === "action" && text(connection.hook).startsWith("on")) {
-      for (const candidate of catalog) {
-        if (candidate.name.startsWith("work.") || candidate.name.split(".").pop() !== event.split(".").pop()) continue;
-        events.get(candidate.name)!.connections.push({ ...connection, id:`${connection.id}:${candidate.name}`, potential:true,
-          when:`Only when this event explicitly targets ${connection.location}`,
-          note:`Matches the ${connection.hook} lifecycle alias. An event on the same project alone does not run this binding. ${connection.note || ""}` });
-      }
-    }
   };
   const commissions = compileScopeCommissionBindings(definition);
   const visit = (container: JsonObject, path: string[], isPlan: boolean, pointer: (string | number)[]) => {
@@ -53,20 +48,18 @@ export function buildScopeEventMap(definition: JsonObject, organizationRules: Js
         if (id) seen.add(id);
         const automation = text(binding.automation);
         const meta = actionById.get(automation);
-        // The engine prefers a lifecycle alias over a raw event binding.
         const event = eventForHook(hook, isPlan);
-        const alias = `on${event.split(".").pop()!.replace(/(^|_)([a-z])/g, (_m, _p, c) => c.toUpperCase())}`;
-        const shadowed = !hook.startsWith("on") && [configured, generated, defaults].some((group) => Array.isArray(object(group)[alias]));
+        const fromSequence = binding.compiled_from === "sequence";
         add(event, {
           id:`${location}:${hook}:${source}:${id || index}`, kind:"action", source, node_id:nodeId, location,
           label:text(binding.explainer) || meta?.label || eventWords(automation),
           description:meta?.description || (meta ? "No description is registered. Inspect its parameters for the configured behavior." : "This action is referenced by the scope but has no registered handler."),
           when:hook.startsWith("on") ? `When ${isPlan ? "the scope" : `“${title}”`} ${hookTiming[hook] || eventWords(hook.replace(/^on/, "")).toLowerCase()}` : `When this event targets ${isPlan ? "this scope instance" : `“${title}”`}`,
-          automation, hook, registered:!!meta, enabled:binding.enabled !== false && !shadowed,
+          automation, hook, registered:!!meta, enabled:binding.enabled !== false,
           conditions:object(binding.conditions), input:object(binding.input), input_help:meta?.input || {},
           continue_on_error:binding.continue_on_error === true,
-          note:shadowed ? "The lifecycle hook takes precedence over this raw event binding." : source === "Commission rule" ? "Compiled from commission settings; attached for signed-proposal scopes and during commission reconciliation." : "",
-          source_path:source === "Scope" ? [...pointer, "automation_bindings", hook, index] : null,
+          note:fromSequence ? `Step “${text(binding.sequence_step)}” of this work item's sequence; edit the sequence to change it.` : source === "Commission rule" ? "Compiled from commission settings; attached for signed-proposal scopes and during commission reconciliation." : "",
+          source_path:source === "Scope" && !fromSequence ? [...pointer, "automation_bindings", hook, index] : null,
           raw:binding
         });
       }
@@ -92,7 +85,8 @@ export function buildScopeEventMap(definition: JsonObject, organizationRules: Js
     array(container[childKey]).forEach((child, index) => visit(child, [...path, title], false, [...pointer, childKey, index]));
   };
   visit(object(definition.work_plan), [], true, ["work_plan"]);
-  for (const [index, rule] of organizationRules.entries()) {
+  // A rule with several actions contributes one connection per action.
+  for (const [index, rule] of expandAutomationRules(organizationRules).entries()) {
     const automation = text(rule.automation);
     const meta = actionById.get(automation);
     add(text(rule.event) || (object(rule.schedule).cron ? "time.cron" : ""), {

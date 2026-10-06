@@ -13,9 +13,18 @@
 //     conditions: { "payload.payment_kind": "deposit", "project.lifecycle.status": "open" },
 //     automation: "notification.create.v1",
 //     input: { ... }                        // template-interpolated like any binding
+//     actions: [                            // further actions, run in order
+//       { id: "text_customer", automation: "communications.sendSms.v1", input: { ... }, conditions: { ... } }
+//     ]
 //   }
+//
+// A rule runs its single `automation` (when set) and then each of `actions`.
+// Every action is its own idempotent execution; an action's `conditions` are
+// checked in addition to the rule's, against project state as left by the
+// actions before it.
 
 import { PlatformError } from "../platform/errors.js";
+import { allConditions, validateConditions } from "./conditions.js";
 import { readBranchModule, saveBranchModule, type JsonObject } from "../platform/storage.js";
 
 export const AUTOMATION_RULES_MODULE_ID = "automation_rules";
@@ -119,6 +128,43 @@ export function ruleIsCustomerVisible(rule: JsonObject) {
   return !!cleanText(rule.explainer || rule.title);
 }
 
+function normalizeAction(value: unknown, index: number): JsonObject {
+  const action = asObject(value);
+  return {
+    id: cleanText(action.id) || `action_${index + 1}`,
+    enabled: action.enabled !== false,
+    ...(cleanText(action.title) ? { title: cleanText(action.title) } : {}),
+    ...(cleanText(action.explainer) ? { explainer: cleanText(action.explainer) } : {}),
+    automation: cleanText(action.automation),
+    input: asObject(action.input),
+    conditions: asObject(action.conditions),
+    continue_on_error: action.continue_on_error === true
+  };
+}
+
+/**
+ * One executable entry per action. A rule's single `automation` keeps the
+ * rule's own id as its execution identity; listed actions use `<rule>:<action>`.
+ */
+export function expandAutomationRules(rules: JsonObject[]): JsonObject[] {
+  return rules.flatMap((rule) => {
+    // Rule-level settings this module does not interpret ride along on every entry.
+    const { actions: _actions, automation: _automation, input: _input, conditions: _conditions, ...shared } = rule;
+    const single = cleanText(rule.automation)
+      ? [{ ...shared, id: cleanText(rule.id), rule_id: cleanText(rule.id), enabled: rule.enabled !== false, conditions: asObject(rule.conditions),
+          automation: rule.automation, input: asObject(rule.input), continue_on_error: rule.continue_on_error === true }]
+      : [];
+    const listed = asArray(rule.actions).map(asObject).filter((action) => cleanText(action.automation)).map((action) => ({
+      ...shared, ...action, id: `${cleanText(rule.id)}:${cleanText(action.id)}`, rule_id: cleanText(rule.id), action_id: cleanText(action.id),
+      enabled: rule.enabled !== false && action.enabled !== false,
+      conditions: allConditions(rule.conditions, action.conditions),
+      input: asObject(action.input), continue_on_error: action.continue_on_error === true,
+      title: cleanText(rule.title), explainer: cleanText(action.explainer || rule.explainer)
+    }));
+    return [...single, ...listed];
+  });
+}
+
 function normalizeRule(value: unknown, index: number): JsonObject {
   const rule = asObject(value);
   const id = cleanText(rule.id) || `automation_rule_${index + 1}`;
@@ -140,8 +186,29 @@ function normalizeRule(value: unknown, index: number): JsonObject {
       : asObject(rule.conditions),
     automation: cleanText(rule.automation),
     input: asObject(rule.input),
+    ...(asArray(rule.actions).length ? { actions: asArray(rule.actions).map(normalizeAction) } : {}),
     continue_on_error: rule.continue_on_error === true
   };
+}
+
+function assertRulesValid(rules: JsonObject[]) {
+  const issues: string[] = [];
+  const ruleIds = new Set<string>();
+  for (const rule of rules) {
+    const id = cleanText(rule.id);
+    if (ruleIds.has(id)) issues.push(`Rule id "${id}" is used more than once.`);
+    ruleIds.add(id);
+    issues.push(...validateConditions(rule.conditions, `rule "${id}" conditions`));
+    const actionIds = new Set<string>();
+    for (const action of asArray(rule.actions).map(asObject)) {
+      const actionId = cleanText(action.id);
+      if (actionIds.has(actionId)) issues.push(`Rule "${id}" uses action id "${actionId}" more than once.`);
+      actionIds.add(actionId);
+      if (!cleanText(action.automation)) issues.push(`Rule "${id}" action "${actionId}" needs an automation.`);
+      issues.push(...validateConditions(action.conditions, `rule "${id}" action "${actionId}" conditions`));
+    }
+  }
+  if (issues.length) throw new PlatformError("automation_rules_invalid", 400, issues[0]!, { issues });
 }
 
 export async function readAutomationRules(orgId: string, branchId = "default") {
@@ -165,6 +232,7 @@ export async function readAutomationRules(orgId: string, branchId = "default") {
 export async function saveAutomationRules(orgId: string, branchId: string, value: unknown) {
   const input = asObject(value);
   const rules = asArray(asObject(input.data || input).rules).map(normalizeRule);
+  assertRulesValid(rules);
   const module = await saveBranchModule(orgId, branchId || "default", AUTOMATION_RULES_MODULE_ID, {
     expected_revision: input.expected_revision,
     data: { schema_version: 1, rules },
