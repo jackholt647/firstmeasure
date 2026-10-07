@@ -1996,14 +1996,10 @@
           edit((found) => { found.list.splice(found.list.indexOf(found.item), 1); });
           render();
         });
-        // The colors and options of a line float over the lines below, and a
-        // click in them patches this row: nothing else moves or re-renders.
+        // Opening a line's colors grows the line (the lines below move down);
+        // a click inside patches this row only, so nothing else re-renders.
         const setVariantsOpen = (open) => {
-          if (open) {
-            el.querySelectorAll('[data-fmdw-var-wrap].open').forEach((other) => { if (!row.contains(other)) other.closest('[data-fmdw-lir]')?.querySelector('[data-fmdw-lir-variants]')?.click(); });
-            openVariants.add(id);
-          } else openVariants.delete(id);
-          row.classList.toggle('variants-open', open);
+          if (open) openVariants.add(id); else openVariants.delete(id);
           row.querySelector('[data-fmdw-lir-variants]')?.classList.toggle('open', open);
           row.querySelector('[data-fmdw-var-wrap]')?.classList.toggle('open', open);
         };
@@ -2068,7 +2064,6 @@
           });
         };
         bindVariants();
-        if (openVariants.has(id)) row.classList.add('variants-open');
         row.querySelector('[data-fmdw-lir-attach]')?.addEventListener('click', (event) => {
           const found = findItem(items, id);
           if (!found) return;
@@ -3353,8 +3348,10 @@
    above), so revealing it re-centres the text without changing the row's
    height: nothing below moves. */
 .fmdw-lir-name strong{line-height:15px}
-.fmdw-lir-desc{max-height:0;opacity:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:10.5px;font-weight:800;color:var(--fmdw-muted);line-height:14px;transition:max-height .14s ease,opacity .14s ease}
-.fmdw-lir-row:hover .fmdw-lir-desc,.fmdw-lir-row:focus-within .fmdw-lir-desc{max-height:14px;opacity:1}
+.fmdw-lir-desc{height:14px;opacity:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:10.5px;font-weight:800;color:var(--fmdw-muted);line-height:14px;transition:opacity .14s ease}
+.fmdw-lir-name:has(.fmdw-lir-desc) .fmdw-lir-name-line{transform:translateY(7px);transition:transform .14s ease}
+.fmdw-lir-row:hover .fmdw-lir-desc,.fmdw-lir-row:focus-within .fmdw-lir-desc{opacity:1}
+.fmdw-lir-row:hover .fmdw-lir-name-line,.fmdw-lir-row:focus-within .fmdw-lir-name-line{transform:none}
 .fmdw-lir-mod{flex:none;width:16px;height:16px;border-radius:50%;display:inline-grid;place-items:center;font-size:8.5px;font-weight:1000;font-style:normal;line-height:1;background:#fff3dc;color:#8a6100;border:1px solid #f0d58a;cursor:help}
 .fmdw-lir-mod.off{background:#f2f4f7;color:#98a2b3;border-color:#e4e7ec;text-decoration:line-through}
 .fmdw-lir-nums{display:flex;align-items:center;gap:6px;min-width:0}
@@ -3381,12 +3378,10 @@
 .fmdw-lir-variant-chip.open>.fas{transform:rotate(180deg)}
 .fmdw-lir-variant-chip:hover,.fmdw-lir-variant-chip.open{border-color:var(--fmdw-primary);color:var(--fmdw-primary)}
 .fmdw-var-sw{flex:none;width:14px;height:14px;border-radius:50%;border:1px solid rgba(16,24,40,.18)}
-.fmdw-lir-row{position:relative}
-.fmdw-lir-row.variants-open{z-index:30;border-bottom-left-radius:0;border-bottom-right-radius:0;border-color:#cdd3e0}
-.fmdw-lir-variants-wrap{position:absolute;left:-1px;right:-1px;top:100%;z-index:30;background:#fff;border:1px solid #cdd3e0;border-top:0;border-radius:0 0 11px 11px;box-shadow:0 14px 28px rgba(16,24,40,.14);display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden;pointer-events:none;transition:grid-template-rows .2s cubic-bezier(.3,.8,.3,1),opacity .16s ease,visibility 0s .2s}
-.fmdw-lir-variants-wrap.open{grid-template-rows:1fr;opacity:1;visibility:visible;pointer-events:auto;transition:grid-template-rows .2s cubic-bezier(.3,.8,.3,1),opacity .16s ease}
+.fmdw-lir-variants-wrap{grid-column:1 / -1;display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .22s cubic-bezier(.3,.8,.3,1),opacity .18s ease}
+.fmdw-lir-variants-wrap.open{grid-template-rows:1fr;opacity:1}
 .fmdw-lir-variants-clip{min-height:0;overflow:hidden}
-.fmdw-lir-variants{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 26px;border-top:1px solid #f0f2f7;padding:10px 12px 11px}
+.fmdw-lir-variants{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 26px;border-top:1px solid #f0f2f7;margin-top:7px;padding:10px 2px 4px}
 .fmdw-var-dim{flex:0 1 auto;min-width:0;max-width:100%;display:flex;flex-direction:column;gap:7px}
 .fmdw-var-head{display:flex;align-items:center;gap:7px;white-space:nowrap}
 .fmdw-var-head strong{font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#475467}
