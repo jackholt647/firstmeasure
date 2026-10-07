@@ -442,4 +442,15 @@ test("published actions and HTTP routes share the service's contract", async () 
   const producedOverHttp = await client.request("POST", `${base}/presentations/${created.id}/contract`, { expectedRevision: picked.json().presentation.revision });
   assert.equal(producedOverHttp.document.id, document.id);
   assert.equal((await client.request("GET", `${base}/presentations/${created.id}/changes`)).changes.at(-1).type, "contract_produced");
+  // The presentation editor's round trip: read the module's current definition, publish it back with an edited layout.
+  const current = (await client.request("GET", `${base}/modules/${moduleId}`)).module;
+  assert.equal(current.definition.kind, "presentation"); assert.equal(Array.isArray(current.definition.renderer.pages), true);
+  const first = current.definition.renderer.pages[0], animated = first.children[0].id;
+  const layout = { ...current.definition.renderer, pages: [{ ...first, transition: { type: "fade", duration_ms: 400 }, steps: [{ id: "s1", name: "Title", actions: [{ node: animated, effect: "rise" }] }] }, ...current.definition.renderer.pages.slice(1)] };
+  const republished = await client.raw("POST", `${base}/presentation-modules`, { moduleId, definition: { ...current.definition, renderer: layout } });
+  assert.equal(republished.statusCode, 201); assert.equal(republished.json().module.id, moduleId); assert.notEqual(republished.json().module.version, current.version);
+  const reread = (await client.request("GET", `${base}/modules/${moduleId}`)).module;
+  assert.equal(reread.version, republished.json().module.version);
+  assert.deepEqual(reread.definition.renderer.pages[0].transition, { type: "fade", duration_ms: 400 }); assert.deepEqual(reread.definition.renderer.pages[0].steps[0].actions, [{ node: animated, effect: "rise" }]);
+  assert.deepEqual((await client.request("GET", `${base}/modules/${moduleId}?version=${current.version}`)).module.definition.renderer.pages[0].steps, first.steps, "the earlier version is kept as it was");
 });

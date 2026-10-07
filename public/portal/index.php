@@ -2215,6 +2215,8 @@ session_write_close();
   <script src="../libraries/doc-language/firstmate-doc-language.js?v=<?= portalAssetVersion('../libraries/doc-language/firstmate-doc-language.js') ?>"></script>
   <script src="../libraries/doc-editor/firstmate-doc-editor.js?v=<?= portalAssetVersion('../libraries/doc-editor/firstmate-doc-editor.js') ?>"></script>
   <script src="../libraries/visual-editor/firstmate-visual-editor.js?v=<?= portalAssetVersion('../libraries/visual-editor/firstmate-visual-editor.js') ?>"></script>
+  <script src="../libraries/doc-present/firstmate-presentation-editor.js?v=<?= portalAssetVersion('../libraries/doc-present/firstmate-presentation-editor.js') ?>"></script>
+  <script src="../libraries/apps/documents/presentation-editor.js?v=<?= portalAssetVersion('../libraries/apps/documents/presentation-editor.js') ?>"></script>
   <script src="../libraries/doc-workflow/firstmate-workflow-editor.js?v=<?= portalAssetVersion('../libraries/doc-workflow/firstmate-workflow-editor.js') ?>"></script>
   <script src="../libraries/web-widgets/firstmate-web-widgets.js?v=<?= portalAssetVersion('../libraries/web-widgets/firstmate-web-widgets.js') ?>"></script>
   <script src="../libraries/portal-widgets/firstmate-portal-widgets.js?v=<?= portalAssetVersion('../libraries/portal-widgets/firstmate-portal-widgets.js') ?>"></script>

@@ -1570,11 +1570,16 @@
   const EDITOR_CSS_V12 = "\n/* ---------- v12: selectable structural tabs ---------- */\n" +
     ".fmde-mode-doc .fmde-docedit .fmdoc-indent-marker{display:inline-block;width:18pt;white-space:pre}\n";
 
+  const EDITOR_CSS_V13 = "\n/* ---------- v13: single-page canvas, assembly parts, host toolbar buttons ---------- */\n" +
+    ".fmde-single-page .fmde-stage{justify-content:center;gap:0;padding:28px 36px}.fmde-single-page .fmde-stage .fmdoc-page:not([data-fmde-current]){display:none!important}.fmde-single-page .fmde-stage .fmdoc-page{margin:0!important;border-radius:4px}\n" +
+    ".fmde-selbox.fmde-selbox-part{--fmde-selection-color:#7a5af8!important;--fmde-selection-halo:rgba(255,255,255,.8)!important}.fmde-partchip{position:absolute;left:calc(-1.5 * var(--fmde-px,1px));top:100%;margin-top:calc(4 * var(--fmde-px,1px));display:inline-flex;align-items:center;gap:calc(4 * var(--fmde-px,1px));height:calc(18 * var(--fmde-px,1px));padding:0 calc(7 * var(--fmde-px,1px));border-radius:calc(5 * var(--fmde-px,1px));background:#7a5af8;color:#fff;font:700 calc(10 * var(--fmde-px,1px))/1 Inter,ui-sans-serif,system-ui,sans-serif;letter-spacing:.01em;white-space:nowrap;pointer-events:none;z-index:3}.fmde-partchip svg{width:calc(10 * var(--fmde-px,1px));height:calc(10 * var(--fmde-px,1px))}\n" +
+    ".fmde-tb-host-buttons{gap:8px!important;padding-right:0!important;border-right:none!important}.fmde-host-btn{height:32px;padding:0 13px;border:1px solid var(--fmde-border);border-radius:8px;background:#fff}.fmde-host-btn.primary{border-color:var(--fmde-accent);background:var(--fmde-accent);color:var(--fmde-on-accent,#fff)}.fmde-host-btn.primary:hover:not(:disabled){background:var(--fmde-accent);filter:brightness(.94)}.fmde-host-btn:disabled{opacity:.45}\n";
+
   function ensureEditorStyles(doc) {
     if (!doc || !doc.head || doc.getElementById(EDITOR_STYLE_ELEMENT_ID)) return;
     const style = doc.createElement("style");
     style.id = EDITOR_STYLE_ELEMENT_ID;
-    style.textContent = EDITOR_CSS + EDITOR_CSS_V3 + EDITOR_CSS_V5 + EDITOR_CSS_V6 + EDITOR_CSS_V7 + EDITOR_CSS_V8 + EDITOR_CSS_V9 + EDITOR_CSS_V10 + EDITOR_CSS_V11 + EDITOR_CSS_V12;
+    style.textContent = EDITOR_CSS + EDITOR_CSS_V3 + EDITOR_CSS_V5 + EDITOR_CSS_V6 + EDITOR_CSS_V7 + EDITOR_CSS_V8 + EDITOR_CSS_V9 + EDITOR_CSS_V10 + EDITOR_CSS_V13 + EDITOR_CSS_V11 + EDITOR_CSS_V12;
     doc.head.appendChild(style);
   }
 
@@ -2206,6 +2211,7 @@
         (state.profile === "inline" ? " fmde-chromeless" : "") +
         (state.profile === "fill" ? " fmde-minimal" : "") +
         (state.sidePanels.length ? " fmde-has-panels" : "") +
+        (singlePage() ? " fmde-single-page" : "") +
         (previewAgent ? " fmde-preview-agent" : "") +
         (state.commentsVisible ? "" : " fmde-comments-hidden") +
         (state.printLayout ? "" : " fmde-print-layout-off") +
@@ -2691,6 +2697,7 @@
       }
       rebuildNodeIndex();
       syncOverlays();
+      emit("render");
       // Chain layout (line splits, auto pages) happens asynchronously inside
       // the renderer's finalize pass — the doc-mode projection and any chain
       // chrome must wait for it.
@@ -2742,6 +2749,8 @@
       // Pagination and caret decoration can change the stage height after the
       // synchronous update. Reapply once more against the final page stack.
       restorePendingCanvasScroll(true);
+      applySinglePage();
+      emit("render");
     }
 
     function renderDocAddPageControl() {
@@ -3020,8 +3029,40 @@
       return Array.prototype.slice.call(dom.stage.querySelectorAll(".fmdoc-page"));
     }
 
+    /** opts.singlePage (slides): the canvas shows only the current page. */
+    function singlePage() {
+      return opts.singlePage === true && !isViewDoc();
+    }
+
+    function applySinglePage() {
+      if (!singlePage()) return;
+      for (const pageEl of pageElements()) {
+        const id = rawNodeId(pageEl.getAttribute("data-page-id") || "").replace(/__cont\d+$/, "");
+        pageEl.toggleAttribute("data-fmde-current", id === state.currentPageId);
+      }
+      // The renderer sized its footprint for every page; re-measure it.
+      if (state.renderHandle && typeof state.renderHandle.setScale === "function" && !state.renderError) state.renderHandle.setScale(state.zoom);
+    }
+
+    /** Show one page (single-page canvases) and make it the insert target. */
+    function showPage(pageId) {
+      if (!M.findPage(state.doc, pageId)) return state.currentPageId;
+      if (state.textEditing) commitTextEdit();
+      const changed = state.currentPageId !== pageId;
+      state.currentPageId = pageId;
+      state.selectedPageId = null;
+      if (state.selection.length) setSelection([]);
+      syncOverlays();
+      if (singlePage() && state.fitMode) setZoom(state.fitMode);
+      renderRailBody();
+      renderInspector();
+      if (changed) emit("page", pageId);
+      return pageId;
+    }
+
     function syncOverlays() {
       cancelCropSession(); // the crop UI lives in an overlay being rebuilt
+      applySinglePage();
       for (const entry of state.pageEntries) {
         if (entry.overlay && entry.overlay.parentNode) entry.overlay.parentNode.removeChild(entry.overlay);
       }
@@ -3892,6 +3933,22 @@
       const outline = selectionOutline(node);
       boxEl.style.setProperty("--fmde-selection-color", outline.color);
       boxEl.style.setProperty("--fmde-selection-halo", outline.halo);
+      // A piece of a widget reads differently from an ordinary element.
+      if (node && M.nodePart && M.nodePart(node)) boxEl.classList.add("fmde-selbox-part");
+    }
+
+    /** A node that is a piece of an assembly: its role label and whether the widget needs it. */
+    function partInfo(node) {
+      const part = M.nodePart ? M.nodePart(node) : null;
+      if (!part) return null;
+      const entry = (state.doc.assemblies || {})[part.assembly] || {};
+      const type = root.FMDocParts && root.FMDocParts.get ? root.FMDocParts.get(entry.type) : null;
+      return {
+        assembly: part.assembly, role: part.role, key: part.key,
+        widget: entry.name || (type && type.title) || "Widget",
+        label: (type && type.roles && type.roles[part.role]) || String(part.role).replace(/[._]+/g, " "),
+        required: !!M.partRemovalBlock(state.doc, [node.id])
+      };
     }
 
     /** The website root paints the whole canvas, including header/footer
@@ -3965,6 +4022,10 @@
             }
           });
           applySelectionOutline(boxEl, node);
+          const part = single && node ? partInfo(node) : null;
+          if (part) {
+            boxEl.appendChild(el("span", { class: "fmde-partchip" + (part.required ? " required" : ""), "data-fmde-part-role": part.role, html: (part.required ? iconSvg("lock") : "") + "<span>" + esc(part.label + (part.required ? " \u00b7 required" : "")) + "</span>" }));
+          }
           if (single && node) {
             if (nodeResizable(node)) {
               const resizeDirections = isStructuralSection(item.id) ? ["n", "s", "e", "w"] : HANDLE_DIRS;
@@ -4058,7 +4119,7 @@
       if (next.length) state.selectedPageId = null;
       // Selecting something on the canvas pulls the tabbed tray back to
       // Inspect so the node's controls are what the user sees.
-      if (changed && next.length && state.sidePanels.length && state.mode === "visual" && state.activeInspTab !== "inspect") {
+      if (changed && next.length && state.sidePanels.length && state.mode === "visual" && state.activeInspTab !== "inspect" && opts.keepSidePanelOnSelect !== true) {
         state.activeInspTab = "inspect";
       }
       const selectedInfo = next.length === 1 ? state.nodeIndex.get(next[0]) : null;
@@ -4169,6 +4230,8 @@
       // canvas width.
       if (arguments.length === 0 || value === undefined) return state.zoom;
       if (Number.isFinite(state.zoomLock)) value = state.zoomLock;
+      // One page at a time is fitted whole, not just to the width.
+      if (singlePage() && value === "fit-width") value = "fit-page";
       syncStageViewport();
       if (value === "fit-width" || value === "fit-page" || value === "fit") {
         const mode = value === "fit" ? "fit-page" : value;
@@ -10692,7 +10755,25 @@
       addHostPageActionsGroup();
       addVersionHistoryGroup();
       addProfileGroup();
+      addHostButtons();
       updateToolbarState();
+    }
+
+    /** opts.toolbarActions: [{ id, label, icon?, title?, primary?, onClick }] at the right end of the visual bar. */
+    function addHostButtons() {
+      const actions = Array.isArray(opts.toolbarActions) ? opts.toolbarActions.filter(function (action) { return action && action.id && typeof action.onClick === "function"; }) : [];
+      if (!actions.length) return;
+      const hostGroup = el("div", { class: "fmde-tb-group fmde-tb-host-buttons" });
+      for (const action of actions) {
+        const button = el("button", {
+          type: "button", class: "fmde-btn fmde-btn-labeled fmde-host-btn" + (action.primary ? " primary" : ""),
+          html: (action.icon ? iconSvg(action.icon) : "") + "<span>" + esc(action.label || action.id) + "</span>",
+          title: action.title || action.label || "", "data-fmde-action": String(action.id)
+        });
+        button.addEventListener("click", function () { action.onClick(button); });
+        hostGroup.appendChild(button);
+      }
+      dom.toolbar.appendChild(hostGroup);
     }
 
     // ---- doc-mode toolbar (word-processor controls) -----------------------------
@@ -13703,6 +13784,23 @@
       else if (state.selection.length === 1) renderNodeInspector(target, state.selection[0]);
       else if (state.selectedPageId) renderPageInspector(target, state.selectedPageId);
       else renderDocumentInspector(target);
+      // A host may add to, or replace, what Inspect shows for this selection
+      // (a slide's settings, a button's action) with the editor's own controls.
+      if (typeof opts.inspectorSections === "function") {
+        const info = state.selection.length === 1 ? state.nodeIndex.get(state.selection[0]) : null;
+        try {
+          opts.inspectorSections({
+            target: target,
+            kind: state.selection.length > 1 ? "multi" : info ? "node" : state.selectedPageId ? "page" : "document",
+            node: info ? info.node : null,
+            part: info ? partInfo(info.node) : null,
+            pageId: state.selectedPageId || (info && info.pageId) || state.currentPageId,
+            apply: function (commands, label) { return commitGuarded(Array.isArray(commands) ? commands : [commands], label || "inspect"); },
+            refresh: renderInspector,
+            ui: { el: el, sectionBox: sectionBox, fieldRow: fieldRow, selectField: selectField, textInputField: textInputField, numberInput: numberInput, toggleField: toggleField, colorField: colorField }
+          });
+        } catch (err) { if (root && root.console) root.console.error("[FMDocEditor] inspectorSections failed", err); }
+      }
       positionPopover();
     }
 
@@ -14419,6 +14517,9 @@
       isDirty: function () { return state.dirty; },
       // Tabbed right tray (host side panels): activate a tab by id ("inspect"
       // or a panel id) — expands the tray if it was collapsed.
+      // Single-page canvases (opts.singlePage): which page shows, and switching it.
+      showPage: showPage,
+      currentPage: function () { return state.currentPageId; },
       openSidePanel: function (id) {
         if (!state.sidePanels.length) return;
         state.activeInspTab = String(id || "inspect");

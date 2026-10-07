@@ -1,0 +1,65 @@
+<!doctype html>
+<!-- Presentation editor harness: the roofing deck in FMPresentationEditor with sample prices. Open through the local stack:
+     /libraries/doc-present/dev-presentation-editor.html  (?slide=choose_shingles opens that slide, ?primary=%23d93025 sets the brand color,
+     ?host=1 opens it the way the Docs screen does, through FMPresentationEditorHost with a stand-in for the module API) -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Presentation editor</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>html,body{margin:0;height:100%;font-family:Inter,"Segoe UI",system-ui,sans-serif}#host{width:100vw;height:100vh}</style>
+</head>
+<body>
+<div id="host"></div>
+<script src="../doc-model/firstmate-doc-model.js"></script>
+<script src="../doc-renderer/firstmate-doc-renderer.js"></script>
+<script src="../doc-widgets/firstmate-doc-widgets.js"></script>
+<script data-fm-color-picker src="../color-picker/firstmate-color-picker.js"></script>
+<script src="../doc-parts/firstmate-doc-parts.js"></script>
+<script src="firstmate-doc-present.js"></script>
+<script src="templates/roofing-presentation.js"></script>
+<script src="../doc-editor/firstmate-doc-editor.js"></script>
+<script src="../visual-editor/firstmate-visual-editor.js"></script>
+<script src="firstmate-presentation-editor.js"></script>
+<script src="../apps/documents/presentation-editor.js"></script>
+<script>
+(function () {
+  const query = new URLSearchParams(location.search);
+  const primary = query.get('primary') || '#1f6feb';
+  const rgb = primary.replace('#', '').match(/../g).map((part) => parseInt(part, 16)).join(', ');
+  document.documentElement.style.setProperty('--primary', primary);
+  document.documentElement.style.setProperty('--primary-rgb', rgb);
+  const logo = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 144"><path d="M20 96 72 40l52 56" fill="none" stroke="' + primary + '" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/><text x="150" y="86" font-family="Segoe UI,Arial" font-weight="800" font-size="46" fill="#8fa3bd">Summit Roofing</text></svg>');
+  window.saved = [];
+  const scope = { org: { name: 'Summit Roofing Co.', logo_url: logo }, customer: { name: 'the Alvarez family' }, params: {}, outputs: {} };
+  if (query.get('host')) {
+    // A stand-in for /v1/document-modules: one presentation module, versions counted.
+    const stored = { moduleId: 'preset_presentation_roofing', version: 'v1', definition: { name: 'Roof presentation', kind: 'presentation', renderer: FMRoofingPresentation.build(), presentation: { pricing: 'scope' } } };
+    window.requests = [];
+    window.closed = FMPresentationEditorHost.open({
+      orgId: 'org_dev', moduleId: stored.moduleId, scope,
+      request: async (path, method = 'GET', body) => {
+        window.requests.push({ path, method, body });
+        if (method === 'GET' && path === '/modules/' + stored.moduleId) return { module: JSON.parse(JSON.stringify(stored)) };
+        if (method === 'POST' && path === '/presentation-modules') { stored.definition = body.definition; stored.version = 'v' + (Number(stored.version.slice(1)) + 1); return { module: { id: stored.moduleId, name: stored.definition.name, kind: 'presentation', version: stored.version } }; }
+        throw new Error('Unexpected request: ' + method + ' ' + path);
+      }
+    }).then((result) => { window.closedWith = result; return result; });
+    return;
+  }
+  window.editor = FMPresentationEditor.mount(document.getElementById('host'), {
+    document: FMRoofingPresentation.build(),
+    themeContext: { overrides: { '--fm-primary': primary } },
+    scope,
+    sampleState: FMRoofingPresentation.priceSample(FMRoofingPresentation.sampleState()),
+    priceSample: FMRoofingPresentation.priceSample,
+    chrome: { brand: null, toast: (message, ok) => { window.lastToast = { message, ok }; } },
+    onAction: (name) => { window.lastAction = name; },
+    onSave: (document) => { window.saved.push(document); }
+  });
+  if (query.get('slide')) window.editor.showSlide(query.get('slide'));
+})();
+</script>
+</body>
+</html>

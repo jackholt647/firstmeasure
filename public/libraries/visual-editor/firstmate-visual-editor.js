@@ -1746,6 +1746,18 @@
   text-align: center;
 }
 .fmwe-ch-pagecard.active .label { color: var(--fmwe-primary); }
+.fmwe-ch-pagecard.dragging { opacity: .45; }
+.fmwe-ch-pagecard.drop-before::before, .fmwe-ch-pagecard.drop-after::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  height: 68px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--fmwe-primary);
+}
+.fmwe-ch-pagecard.drop-before::before { left: -6px; }
+.fmwe-ch-pagecard.drop-after::after { right: -6px; }
 .fmwe-ch-page-more {
   position: absolute;
   top: 4px;
@@ -2076,7 +2088,10 @@
    *   banner: '<html>' | { html },              // optional host banner above the canvas
    *   templates: { groups(helpers) -> [{id,label,description,entries}] },   // default: built-in section registry
    *   elements: { widgets(helpers) -> [items] },                            // host-specific items appended to the shared Widgets tab/group
-   *   pages: 'document' | { list(), current(), select(id), add?(), grid?() } | null,
+   *   pages: 'document' | { list(), current(), select(id), add?(afterId, { anchor }), grid?(),
+   *            move?(id, targetId, after), decorate?(cardEl, page) } | null,
+   *                                             // move enables drag-to-reorder in the strip; decorate lets a host add to a card
+   *   collection: { singular, plural },         // what the pages are called (default Page/Pages, Section/Sections for web)
    *   device: true|false,                       // enables handle.setDevice/getDevice (mobile 390pt / desktop)
    *   addSection: true|false|'auto',            // 'auto' (default): only when the mounted doc kind === 'view'
    *   markup: { persist?(items, session) } | null,   // null removes the tab; default persists into a page-level markup_overlay node
@@ -2421,8 +2436,8 @@
     }
 
     const collectionIsSections = contentKind === 'web';
-    const collectionNoun = collectionIsSections ? 'Section' : 'Page';
-    const collectionPlural = collectionIsSections ? 'Sections' : 'Pages';
+    const collectionNoun = firstText(objectValue(chromeOpts.collection).singular, collectionIsSections ? 'Section' : 'Page');
+    const collectionPlural = firstText(objectValue(chromeOpts.collection).plural, collectionIsSections ? 'Sections' : 'Pages');
     let pagesApi = collectionIsSections ? chromeOpts.sections : chromeOpts.pages;
     if (collectionIsSections && (pagesApi === undefined || pagesApi === 'document')) pagesApi = documentSectionsAdapter();
     else if (!collectionIsSections && (pagesApi === 'document' || (pagesApi === undefined && contentKind === 'document'))) pagesApi = documentPagesAdapter();
@@ -2910,7 +2925,9 @@
       const panel = root.querySelector('[data-ch-panel]');
       const body = root.querySelector('[data-ch-panel-body]');
       if (!panel || !body) return;
-      destroyChromeThumbs();
+      // Only the panel's own thumbnails: the pages strip keeps its renders.
+      state.chromeThumbHandles.forEach((handle) => { try { handle?.destroy?.(); } catch (e) { /* noop */ } });
+      state.chromeThumbHandles = [];
       // Markup opens the slim canvas dock, never the wide panel.
       const panelOpen = !!state.chromeTab && state.chromeTab !== 'markup';
       panel.classList.toggle('hidden', !panelOpen);
@@ -4865,9 +4882,16 @@
         const page = pages.find((entry) => cleanText(entry.id) === cleanText(button.dataset.chPageMore));
         if (page) openPageMenu(page, button);
       }));
-      strip.querySelector('[data-ch-page-new]')?.addEventListener('click', () => {
-        try { pagesApi.add(); } catch (e) { /* host handles */ }
+      strip.querySelector('[data-ch-page-new]')?.addEventListener('click', (event) => {
+        try { pagesApi.add(undefined, { anchor: event.currentTarget }); } catch (e) { /* host handles */ }
       });
+      if (typeof pagesApi.move === 'function') wirePageReorder(strip);
+      if (typeof pagesApi.decorate === 'function') {
+        strip.querySelectorAll('[data-ch-page-card]').forEach((el) => {
+          const page = pages.find((entry) => cleanText(entry.id) === cleanText(el.dataset.chPageCard));
+          try { if (page) pagesApi.decorate(el, page); } catch (e) { /* host handles */ }
+        });
+      }
       updatePagesLabel();
       if (!global.FMDocRenderer?.render) return;
       requestAnimationFrame(() => {
@@ -4876,6 +4900,8 @@
           const page = pages.find((p) => cleanText(p.id) === thumbStage.dataset.chPageThumb);
           const definition = objectValue(objectValue(page).definition);
           if (!isViewDefinition(definition)) return;
+          // Two strip renders in one frame both land here; the stage is drawn once.
+          if (thumbStage.childElementCount) return;
           const width = thumbStage.clientWidth || 100;
           const height = thumbStage.clientHeight || 100;
           const metrics = pageThumbnailMetrics(page);
@@ -4896,6 +4922,38 @@
               scale
             }));
           } catch (e) { /* neutral card */ }
+        });
+      });
+    }
+
+    /** Drag a card onto another to move it before or after (adapters with move()). */
+    function wirePageReorder(strip){
+      let dragId = '';
+      const clear = () => strip.querySelectorAll('.drop-before, .drop-after').forEach((el) => el.classList.remove('drop-before', 'drop-after'));
+      strip.querySelectorAll('[data-ch-page-card]').forEach((card) => {
+        card.draggable = true;
+        card.addEventListener('dragstart', (event) => {
+          dragId = card.dataset.chPageCard;
+          card.classList.add('dragging');
+          try { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', dragId); } catch (e) { /* noop */ }
+        });
+        card.addEventListener('dragend', () => { dragId = ''; card.classList.remove('dragging'); clear(); });
+        card.addEventListener('dragover', (event) => {
+          if (!dragId || dragId === card.dataset.chPageCard) return;
+          event.preventDefault();
+          const rect = card.getBoundingClientRect();
+          const after = event.clientX > rect.left + rect.width / 2;
+          clear();
+          card.classList.add(after ? 'drop-after' : 'drop-before');
+        });
+        card.addEventListener('drop', (event) => {
+          if (!dragId || dragId === card.dataset.chPageCard) return;
+          event.preventDefault();
+          const after = card.classList.contains('drop-after');
+          const moved = dragId;
+          dragId = '';
+          clear();
+          try { pagesApi.move(moved, card.dataset.chPageCard, after); } catch (e) { /* host handles */ }
         });
       });
     }
