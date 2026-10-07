@@ -5772,7 +5772,7 @@
     const rowTags = `${groupedByStage ? '' : stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>` : ''}`;
     const reportStatus = statusBadgeClasses(p);
     const cells={
-      status:`<div class="v-lcell" data-col="status">${reportStatus ? `<span class="v-statuspill ${reportStatus.pill}">${statusBadgeContent(reportStatus, true)}</span>` : '\u2014'}</div>`,
+      status:`<div class="v-lcell" data-col="status">${reportStatus ? `<span class="v-statuspill ${reportStatus.pill}">${statusBadgeContent(reportStatus, true)}</span>` : '&mdash;'}</div>`,
       address:`<div class="v-lcell" data-col="address" style="min-width:0;"><div class="v-laddr"><div class="v-laddr1">${escapeHtml(a1)}</div><div class="v-laddr2">${escapeHtml(a2)}</div>${rowTags ? `<div class="v-meta-tags">${rowTags}</div>` : ''}</div></div>`,
       resident:`<div class="v-lcell" data-col="resident" style="min-width:0;"><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.name || '\u2014')}</div></div>`
     };
@@ -5979,7 +5979,7 @@
           if (pill.innerHTML !== html) pill.innerHTML = html;
         } else if (pill && !s) {
           const statusCell = row.querySelector('[data-col="status"]');
-          if (statusCell) statusCell.textContent = '\u2014'; else pill.remove();
+          if (statusCell) statusCell.textContent = String.fromCharCode(8212); else pill.remove();
         } else if (!pill && s) {
           const target = row.querySelector('[data-col="status"]') || row.querySelector('.v-lcell');
           if (target?.dataset.col === 'status') target.innerHTML = `<span class="v-statuspill ${s.pill}">${statusBadgeContent(s, true)}</span>`;
