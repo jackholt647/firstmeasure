@@ -1,6 +1,6 @@
 # FirstMeasure: local development and production deployment
 
-October 7 Feed follow-up: [Notes, member portraits, and project photos](deploy/digitalocean/development-feed-notes-project-media-20261007.md) records the Pioneer Puffin media repair, Feed layout changes, and verified development rollout.
+October 7 Feed follow-up: [List photo previews and long notes](deploy/digitalocean/development-feed-list-media-20261007.md) records the latest verified development rollout. [Notes, member portraits, and project photos](deploy/digitalocean/development-feed-notes-project-media-20261007.md) records the earlier Pioneer Puffin media repair and Feed changes.
 
 October 7 development availability: [Object-storage readiness timeout mitigation](deploy/digitalocean/incident-20261007-development-503.md) records the captured intermittent 503, effective timeout/cache overrides, unchanged application release and development-only verification.
 

@@ -12,7 +12,8 @@ This map points to the FirstMeasure files used for the Pioneer Puffin feed and s
 | Feed browser test | [`public/v1/tests/feed-browser.test.mjs`](../public/v1/tests/feed-browser.test.mjs) |
 | Deployment overview | [`DEPLOYMENT.md`](../DEPLOYMENT.md) |
 | Latest dev deployment record | [`deploy/digitalocean/development-feed-notes-project-media-20261007.md`](../deploy/digitalocean/development-feed-notes-project-media-20261007.md) |
+| Current list preview rollout record | [`deploy/digitalocean/development-feed-list-media-20261007.md`](../deploy/digitalocean/development-feed-list-media-20261007.md) |
 
 The dev feed is at <https://dev.1m8.ai/portal/?tab=photos_feed&feedDensity=list>. Replace `list` with `small`, `large`, `mosaic`, or `posts` to inspect other layouts. The readiness endpoint is <https://dev.1m8.ai/v1/health/ready>.
 
-The latest verified feed code release on all three dev frontend roles is `24b3d7542d4e9c85097dce264865b2f3177b3cda`. This map is documentation only and does not require a dev deployment.
+The latest verified feed code release on all three dev frontend roles is `9609d398a459f4debf62afc252ffc6990e8f810e`. This map is documentation only and does not require a dev deployment.
