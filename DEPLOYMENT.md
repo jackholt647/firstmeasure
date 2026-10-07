@@ -782,3 +782,5 @@ For subsequent deployments, update this guide or a linked release record with re
 October 6 assistant widgets: [Widget-owned cards and floating close controls](deploy/digitalocean/development-assistant-widget-chrome-20261006.md) records the shared presentation change and browser/development verification.
 
 October 6 widget refresh: [Visible instances, custom refresh and reload fallback](deploy/digitalocean/development-widget-refresh-20261006.md) records agent refresh tools, duplicate prevention, animated widgets and development validation.
+
+October 7 organization structure: [Departments and division-scoped access](deploy/digitalocean/development-departments-20261007.md) records release `57ab1bb4`, the cross-app permission and filtering integrations, isolated-source validation, and the four-role development rollout.
