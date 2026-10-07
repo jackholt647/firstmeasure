@@ -1,4 +1,5 @@
 import type { PlatformAuthContext } from "../auth.js";
+import type { DepartmentResource } from '../../workforce/department-access.js';
 
 /** Public, serializable contracts. Domain objects and credentials never cross this boundary. */
 export type JsonSchema = Record<string, unknown>;
@@ -47,6 +48,10 @@ export type AccessPolicy = {
   systemKinds?: readonly ExecutionKind[];
   /** Resource/subject access checks in addition to organization and feature permissions. */
   authorize?: (ctx: PublicationContext, target: TargetRef) => Promise<void> | void;
+  /** Server-owned record lookup. Never classify a resource using caller-supplied filter IDs. */
+  departmentResource?: (ctx: PublicationContext, target: TargetRef) => Promise<DepartmentResource> | DepartmentResource;
+  /** For collections: authorize/domain execution MUST apply scoped permission checks per returned record. */
+  scopedPermissions?: boolean;
 };
 
 export type SourceRef = {

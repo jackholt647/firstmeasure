@@ -1,3 +1,4 @@
+import { hasResourcePermission, matchesDepartmentFilter } from "../../workforce/department-access.js";
 /** Domain services remain the authority for business invariants; no HTTP proxy or generic DB writes. */
 import { registerAction, type ActionDefinition } from "./actions.js";
 import type { PublicationContext, TargetRef, JsonSchema } from "./contracts.js";
@@ -17,6 +18,28 @@ function project(target: TargetRef) { if (!target.projectId) throw badRequest("a
 function values(input: Input) { return (input.values || {}) as Input; }
 async function authorizeDomainTarget(action: string, ctx: PublicationContext, target: TargetRef) {
   const principal = auth(ctx);
+  if(target.id&&(action==='scheduling.confirmation.set'||action==='scheduling.reschedule.review'))await (await import('../../appointments/department-access.js')).readAuthorizedAppointment(principal,project(target),target.id);
+
+  if(target.id&&action.startsWith('equipment.')){
+    const access=await import('../../equipment/access.js');
+    const permission=action==='equipment.unit.history'||action.startsWith('equipment.unit.check')?access.EQUIPMENT_VIEW:access.EQUIPMENT_SERVICE;
+    if(action.startsWith('equipment.maintenance.'))await access.authorizeEquipmentWorkOrder(principal,target.id,permission);
+    else await access.authorizeEquipmentUnit(principal,target.id,permission);
+  }
+
+  if (target.id && (action.startsWith("work.node.") || action.startsWith("work.plan."))) {
+    const store = await import("../../work/storage.js");
+    const resource = action.startsWith("work.node.") ? await store.readNodeRecord(ctx.organizationId, target.id) : await store.readPlanRecord(ctx.organizationId, target.id);
+    if (resource && !hasResourcePermission(principal, action.endsWith(".read") ? "view_projects" : "manage_projects", resource)) throw forbidden("work_department_denied", "This work is outside your department access.");
+  }
+  if (target.id && action.startsWith("documents.")) {
+    const service = await import("../../documents/service.js");
+    service.requireDocumentDepartmentAccess(principal, await service.readDocumentInstance(ctx.organizationId, target.id), action.endsWith(".issue") || action.endsWith(".send") ? "issue_documents" : "view_projects");
+  }
+  if (target.id && action.startsWith("canvassing.")) {
+    const pin = await (await import("../../canvassing/service.js")).readPin(ctx.organizationId, target.branchId || ctx.branchId || "default", target.id);
+    if (!matchesDepartmentFilter(principal, pin)) throw forbidden("canvassing_department_denied", "This pin is outside your department view.");
+  }
   if (action.startsWith("comms.project.")) await (await import("../../comms/calls/service.js")).projectContext(principal,project(target));
   if (action.startsWith("canvassing.")) {
     await (await import("../../canvassing/service.js")).requireCanvassingAppFlag(ctx.organizationId);
@@ -86,7 +109,7 @@ function publish(def: DomainAction) {
     validateInput: contract?.validateInput,
     outputSchema: jsonValueSchema, effect, executionKinds: ["api", "module", "agent", "work"],
     idempotency: effect === "read" || effect === "compute" ? "none" : "required",
-    policy: { scopes: def.scopes || ["organization"], applications: def.applications ?? (fieldAccessible ? ["management", "field"] : ["management"]), permissions: def.permission ? [def.permission] : [], capabilities: def.capabilities || [], authorize: (ctx,target) => authorizeDomainTarget(def.id,ctx,target) },
+    policy: { scopedPermissions: /^(equipment\.|work\.(node|plan)\.|documents\.|scheduling\.(appointment\.(catalog|preview|create)|slot\.|confirmation\.|reschedule\.))/.test(def.id), scopes: def.scopes || ["organization"], applications: def.applications ?? (fieldAccessible ? ["management", "field"] : ["management"]), permissions: def.permission ? [def.permission] : [], capabilities: def.capabilities || [], authorize: (ctx,target) => authorizeDomainTarget(def.id,ctx,target) },
     execute: async (ctx, target, input, execution) => JSON.parse(JSON.stringify((await def.execute(ctx, target, input, execution)) ?? null))
   });
 }
@@ -97,7 +120,7 @@ export function registerDomainActions() {
   const manage = "manage_projects";
   const equipmentView = "equipment.view|equipment.manage|equipment.service|manage_company_settings";
   const equipmentService = "equipment.manage|equipment.service|manage_company_settings";
-  publish({ id: "equipment.fleet.list", description: "List the organization equipment fleet.", permission: equipmentView, capabilities: ["apps.equipment"], effect: "read", execute: async c => (await import("../../equipment/service.js")).fleetUnits(c.organizationId) });
+  publish({ id: "equipment.fleet.list", description: "List the organization equipment fleet.", permission: equipmentView, capabilities: ["apps.equipment"], effect: "read", execute: async c => (await import("../../equipment/access.js")).filterEquipmentUnits(auth(c),await (await import("../../equipment/service.js")).fleetUnits(c.organizationId)) });
   publish({ id: "equipment.unit.history", description: "Read equipment meter and maintenance history.", permission: equipmentView, capabilities: ["apps.equipment"], effect: "read", execute: async (c,t) => (await import("../../equipment/service.js")).unitHistory(c.organizationId,id(t)) });
   publish({ id: "equipment.meter.record", description: "Record a meter reading for the target equipment unit.", permission: equipmentService, capabilities: ["apps.equipment"], properties: { values: object }, required: ["values"], execute: async (c,t,i) => {
     const schema = await import("../../equipment/schemas.js");
@@ -105,16 +128,16 @@ export function registerDomainActions() {
   } });
   publish({ id: "equipment.unit.checkOut", description: "Check out a unit to the authenticated user.", permission: equipmentView, capabilities: ["equipment.custody"], properties: { values: object }, execute: async (c,t,i) => (await import("../../equipment/service.js")).checkOutUnit(c.organizationId,id(t),values(i),auth(c).userId) });
   publish({ id: "equipment.unit.checkIn", description: "Return the target equipment unit.", permission: equipmentView, capabilities: ["equipment.custody"], execute: async (c,t) => (await import("../../equipment/service.js")).checkInUnit(c.organizationId,id(t)) });
-  publish({ id: "equipment.maintenance.open", description: "Open a validated maintenance work order.", permission: equipmentService, capabilities: ["equipment.maintenance"], properties: { values: object }, required: ["values"], execute: async (c,_t,i) => (await import("../../equipment/service.js")).openWorkOrder(c.organizationId,(await import("../../equipment/schemas.js")).createWorkOrderSchema.parse(values(i))) });
+  publish({ id: "equipment.maintenance.open", description: "Open a validated maintenance work order.", permission: equipmentService, capabilities: ["equipment.maintenance"], properties: { values: object }, required: ["values"], execute: async (c,_t,i) => {const input=(await import("../../equipment/schemas.js")).createWorkOrderSchema.parse(values(i));await (await import("../../equipment/access.js")).authorizeEquipmentUnit(auth(c),input.unit_id,equipmentService);return (await import("../../equipment/service.js")).openWorkOrder(c.organizationId,input);} });
   publish({ id: "equipment.maintenance.complete", description: "Complete the target maintenance work order.", permission: equipmentService, capabilities: ["equipment.maintenance"], properties: { values: object }, required: ["values"], execute: async (c,t,i) => (await import("../../equipment/service.js")).completeWorkOrder(c.organizationId,id(t),(await import("../../equipment/schemas.js")).completeWorkOrderSchema.parse(values(i)),auth(c).userId) });
   publish({ id: "equipment.maintenance.cancel", description: "Cancel the target maintenance work order.", permission: equipmentService, capabilities: ["equipment.maintenance"], execute: async (c,t) => (await import("../../equipment/service.js")).cancelWorkOrder(c.organizationId,id(t)) });
 
-  publish({ id: "work.plan.read", description: "Read a work plan tree.", permission: view, effect: "read", execute: async (c,t) => (await import("../../work/service.js")).workPlanTree(c.organizationId,id(t)) });
+  publish({ id: "work.plan.read", description: "Read a work plan tree.", permission: view, effect: "read", execute: async (c,t) => (await import("../../work/service.js")).workPlanTree(c.organizationId,id(t),auth(c)) });
   publish({ id: "work.node.transition", description: "Transition a work node with its existing dependency and lifecycle checks.", permission: manage, properties: { values: object }, required: ["values"], execute: async (c,t,i) => {
     const input = (await import("../../work/schemas.js")).transitionWorkNodeSchema.parse(values(i));
     return (await import("../../work/service.js")).transitionWorkNode(c.organizationId,id(t),input.status,{...input,actor_user_id:auth(c).userId,actor_email:String(auth(c).identity.email || "")});
   } });
-  publish({ id: "work.node.patch", description: "Update the editable work node fields.", permission: manage, properties: { values: object }, required: ["values"], execute: async (c,t,i) => (await import("../../work/service.js")).patchWorkNode(c.organizationId,id(t),(await import("../../work/schemas.js")).patchWorkNodeSchema.parse(values(i))) });
+  publish({ id: "work.node.patch", description: "Update the editable work node fields.", permission: manage, properties: { values: object }, required: ["values"], execute: async (c,t,i) => { const patch=(await import("../../work/schemas.js")).patchWorkNodeSchema.parse(values(i)); const current=await (await import("../../work/storage.js")).readNodeRecord(c.organizationId,id(t)); if(!hasResourcePermission(auth(c),"manage_projects",{...current,...patch}))throw forbidden("work_department_denied","The destination department is outside your access."); return (await import("../../work/service.js")).patchWorkNode(c.organizationId,id(t),patch); } });
   publish({ id: "work.project.projection", description: "Read a project's current work projection.", permission: view, scopes: ["project"], effect: "read", execute: async (c,t) => (await import("../../work/service.js")).projectWorkProjection(c.organizationId,project(t)) });
 
   publish({ id: "materials.project.lists", description: "Read material lists for a project.", permission: view, scopes: ["project"], effect: "read", execute: async (c,t) => (await import("../../materials/storage.js")).listProjectMaterialLists(c.organizationId,project(t)) });
@@ -124,7 +147,7 @@ export function registerDomainActions() {
   publish({ id: "documents.instance.read", description: "Read the target document instance through the document service.", permission: view, effect: "read", execute: async (c,t) => (await import("../../documents/service.js")).documentWorkflowDetail(c.organizationId,id(t)) });
   publish({ id: "documents.workflow.update", description: "Update document workflow state with document service lifecycle validation.", permission: view, properties: { values: object }, required: ["values"], execute: async (c,t,i) => (await import("../../documents/service.js")).updateDocumentWorkflowState(c.organizationId,id(t),values(i),auth(c)) });
   publish({ id: "documents.instance.issue", description: "Issue an existing document instance.", permission: "issue_documents", properties: { values: object }, execute: async (c,t,i) => (await import("../../documents/service.js")).issueDocument(c.organizationId,id(t),values(i),auth(c)) });
-  publish({ id: "documents.instance.create", capabilities: ["platform.documents"], description: "Create a draft document from a published template and workflow.", permission: "manage_documents", scopes: ["project"], properties: { values: object }, required: ["values"], execute: async (c,t,i) => (await import("../../documents/service.js")).createDocumentInstance(c.organizationId,project(t),values(i),auth(c)) });
+  publish({ id: "documents.instance.create", capabilities: ["platform.documents"], description: "Create a draft document from a published template and workflow.", permission: "manage_documents", scopes: ["project"], properties: { values: object }, required: ["values"], execute: async (c,t,i) => (await import("../../documents/service.js")).createDocumentInstance(c.organizationId,project(t),values(i),auth(c),{departmentPermission:"manage_documents"}) });
   publish({ id: "documents.instance.send", capabilities: ["platform.documents"], description: "Validate signer assignments and send individual signing invitations. Does not sign for anyone.", permission: "issue_documents", effect: "external", properties: { recipients: { type: "array", items: object }, consent_contact: string, message: { type: "string" }, include_pdf: { type: "boolean" }, prepare_pdf: { type: "boolean" }, include_portal: { type: "boolean" } }, execute: async (c,t,i) => {
     const result = await (await import("../../documents/service.js")).sendDocument(c.organizationId,id(t),i,auth(c));
     return { document_id: result.document.id, snapshot_id: result.snapshot.id, signing_package_id: result.signing?.package_id, emailed: result.emailed, texted: result.texted };
@@ -175,14 +198,16 @@ export function registerDomainActions() {
 
   publish({ id:"canvassing.pins.list",description:"Read pins in the execution branch after checking canvassing settings.",permission:"",capabilities:["canvassing.app"],effect:"read",execute:async c=>{
     const service=await import("../../canvassing/service.js");
-    return service.listPins(c.organizationId,c.branchId || "default");
+    return (await service.listPins(c.organizationId,c.branchId || "default")).filter(pin=>matchesDepartmentFilter(auth(c),pin));
   } });
   publish({ id:"canvassing.pin.save",description:"Create or update a canvassing pin, retaining actor and event provenance.",permission:"",capabilities:["canvassing.app"],properties:{values:object},required:["values"],execute:async(c,t,i)=>{
     const service=await import("../../canvassing/service.js");
     const branch=c.branchId || "default";
     await service.ensureCanvassingEnabled(c.organizationId,branch);
-    const body={...values(i),...(t.id?{id:t.id}:{})};
+    const body:Input={...values(i),...(t.id?{id:t.id}:{})};
     if(!t.id && body.id) throw badRequest("action_target_id_required","Existing pin ids must be supplied as target ids.");
+    const current=t.id?await service.readPin(c.organizationId,branch,t.id):{};
+    if(!matchesDepartmentFilter(auth(c),{...current,...body}))throw forbidden("canvassing_department_denied","This pin is outside your department view.");
     const pin=await service.savePin(c.organizationId,branch,body,service.actorFromContext(auth(c) as unknown as Input));
     if(!t.id) await (await import("../../work/engine.js")).emitWorkEvent({organization_id:c.organizationId,branch_id:branch,type:"canvassing.pin.created",idempotency_key:`canvassing.pin.created:${pin.id}`,payload:{pin_id:pin.id,address:pin.address,status_id:pin.status_id},context:{actor_user_id:auth(c).userId}});
     return pin;
@@ -224,7 +249,7 @@ export function registerDomainActions() {
   publish({id:"scheduling.appointment.preview",description:"Calculate availability for staffing, recurrence and arrival window requirements.",permission:"manage_schedule|view_projects",capabilities:["scheduling.appointment_slots"],scopes:["organization","project"],effect:"read",properties:{values:object},required:["values"],execute:async(c,t,i)=>{const p=await import("../../appointments/planning.js");return p.previewAppointment(auth(c),p.previewSchema.parse({...values(i),...(t.projectId?{project_id:t.projectId}:{})}));}});
   publish({id:"scheduling.appointment.create",description:"Book a configured appointment or finite recurring series using freshly checked staffing availability.",permission:"manage_schedule",capabilities:["scheduling.appointment_slots"],scopes:["organization","project"],properties:{values:object},required:["values"],execute:async(c,t,i)=>{const p=await import("../../appointments/planning.js");return p.bookPlannedAppointment(auth(c),p.plannedBookingSchema.parse({...values(i),...(t.projectId?{project_id:t.projectId}:{})}));}});
   publish({ id:"scheduling.appointment.book",description:"Book a new sales appointment with an optional project using current availability. Reuses the supplied event ID on retries.",permission:"manage_schedule|manage_projects",capabilities:["scheduling.appointment_slots"],scopes:["organization","project"],properties:{event_id:{type:"string",pattern:"^appointment_[a-zA-Z0-9-]{16,80}$"},start_at:{type:"string",format:"date-time"}},required:["event_id","start_at"],execute:async(c,t,i)=>(await import("../../appointments/availability.js")).bookStaffAppointment(auth(c),{project_id:t.scope === "project" ? project(t) : undefined,event_id:String(i.event_id),start_at:String(i.start_at)}) });
-  publish({ id:"scheduling.slot.hold",description:"Hold an available appointment slot for the target project.",permission:"manage_schedule|manage_projects",capabilities:["scheduling.appointment_slots"],scopes:["project"],properties:{values:object},required:["values"],execute:async(c,t,i)=>(await import("../../appointments/availability.js")).holdAppointmentSlot(c.organizationId,c.branchId || "default",{...values(i),project_id:project(t)}) });
+  publish({ id:"scheduling.slot.hold",description:"Hold an available appointment slot for the target project.",permission:"manage_schedule|manage_projects",capabilities:["scheduling.appointment_slots"],scopes:["project"],properties:{values:object},required:["values"],execute:async(c,t,i)=>{const input={...values(i),project_id:project(t)};const access=await import('../../appointments/department-access.js');if(values(i).event_id)await access.readAuthorizedAppointment(auth(c),project(t),String(values(i).event_id));else access.assertAppointmentDepartmentPermission(auth(c),{});return (await import("../../appointments/availability.js")).holdAppointmentSlot(c.organizationId,c.branchId || "default",input);} });
   publish({ id:"scheduling.confirmation.set",description:"Confirm, decline or reset a project's appointment confirmation.",permission:"manage_schedule|manage_projects",scopes:["project"],properties:{outcome:{type:"string",enum:["confirmed","declined","reset"]}},required:["outcome"],execute:async(c,t,i)=>(await import("../../appointments/service.js")).setAppointmentConfirmation(c.organizationId,project(t),id(t),i.outcome as "confirmed"|"declined"|"reset",{user_id:auth(c).userId}) });
   publish({ id:"scheduling.reschedule.review",description:"Approve or decline a customer's rescheduling request.",permission:"manage_schedule|manage_projects",capabilities:["scheduling.customer_rescheduling"],scopes:["project"],properties:{decision:{type:"string",enum:["approved","declined"]},note:{type:"string",maxLength:2000}},required:["decision"],execute:async(c,t,i)=>(await import("../../appointments/availability.js")).reviewAppointmentReschedule(c.organizationId,project(t),id(t),i.decision as "approved"|"declined",{actor:auth(c).userId,branch_id:c.branchId || "default",note:String(i.note || "")}) });
 

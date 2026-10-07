@@ -1050,12 +1050,14 @@
       const body = dialog.el.querySelector('[data-assign-body]');
       const renderAssignments = async () => {
         let rows = [];
-        try { rows = arr((await api().manage.assignments(orgId(context), { subjectKind: 'course', subjectId })).assignments); }
+        let departments = [], organizationWide = true, departmentLabel = 'Department';
+        try { const result=await api().manage.assignments(orgId(context), { subjectKind: 'course', subjectId }); rows=arr(result.assignments); departments=arr(result.departments); organizationWide=result.organization_wide!==false; departmentLabel=clean(result.department_label)||'Department'; }
         catch (error) { body.innerHTML = `<div class="sty-state">${esc(statusError(error))}</div>`; return; }
         assignmentsCache = null;
         const targetLabel = (assignment) => {
           const kind = clean(assignment.target_kind);
           if (kind === 'everyone') return '<i class="fas fa-globe" style="margin-right:7px;color:#3b6ef6"></i>Everyone in the company';
+          if (kind === 'department') return `<i class="fas fa-people-group" style="margin-right:7px;color:#8b5cf6"></i>${esc(departments.find(entry=>entry.id===assignment.target_id)?.label || assignment.target_id)} <span class="sty-hint">Current and future ${esc(departmentLabel)} members</span>`;
           if (kind === 'role') return `<i class="fas fa-people-group" style="margin-right:7px;color:#8b5cf6"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("training","m_45f6cdc49194fd",`Role: ${v0} `,{v0}) ?? `Role: ${v0} `)(esc(roleName(assignment.target_id)))}<span class="sty-hint">${(globalThis.PlatformLanguage?.htmlText("training","m_d3a96e8fe9e955","(auto-assigns new people with this role)") ?? "(auto-assigns new people with this role)")}</span>`;
           return `<i class="fas fa-user" style="margin-right:7px;color:#10b981"></i>${esc(userName(assignment.target_id))}`;
         };
@@ -1067,6 +1069,7 @@
                 <option value="everyone">${(globalThis.PlatformLanguage?.htmlText("training","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</option>
                 <option value="role">${(globalThis.PlatformLanguage?.htmlText("training","m_664f4fcb2d98d2","A role (auto-assigns new hires)") ?? "A role (auto-assigns new hires)")}</option>
                 <option value="user">${(globalThis.PlatformLanguage?.htmlText("training","m_1a0c18366790ea","A specific person") ?? "A specific person")}</option>
+                ${departments.length ? `<option value="department">${esc(departmentLabel)} (includes group members)</option>` : ''}
               </select></label>
               <label class="sty-field" data-assign-target-wrap hidden>${(globalThis.PlatformLanguage?.htmlText("training","m_1d72d3bf6c7947","Target") ?? "Target")}<select data-assign-target></select></label>
             </div>
@@ -1074,6 +1077,7 @@
             <p class="sty-hint">${(globalThis.PlatformLanguage?.htmlText("training","m_7f8059c12d5f41","Role assignments make a course automatic — e.g. a safety course for every crew member, or Sales 101 for every salesperson. New hires with the role get it with zero setup. The course's decks and quizzes ride along automatically.") ?? "Role assignments make a course automatic — e.g. a safety course for every crew member, or Sales 101 for every salesperson. New hires with the role get it with zero setup. The course's decks and quizzes ride along automatically.")}</p>
           </div></div>`;
         const kindSelect = body.querySelector('[data-assign-kind]');
+        if (!organizationWide) { kindSelect.querySelector('[value="everyone"]')?.remove(); kindSelect.querySelector('[value="role"]')?.remove(); if (departments.length) kindSelect.value='department'; }
         const targetWrap = body.querySelector('[data-assign-target-wrap]');
         const targetSelect = body.querySelector('[data-assign-target]');
         const refreshTargets = () => {
@@ -1081,6 +1085,7 @@
           targetWrap.hidden = kind === 'everyone';
           if (kind === 'role') targetSelect.innerHTML = (rolesCache || []).map((role) => `<option value="${esc(role.id)}">${esc(role.name)}</option>`).join('') || `<option value="">${(globalThis.PlatformLanguage?.htmlText("training","m_78d09dc3043e9f","No roles found") ?? "No roles found")}</option>`;
           if (kind === 'user') targetSelect.innerHTML = (usersCache || []).map((user) => `<option value="${esc(user.id)}">${esc(user.name)}</option>`).join('') || `<option value="">${(globalThis.PlatformLanguage?.htmlText("training","m_01f6ba3a9805ec","No people found") ?? "No people found")}</option>`;
+          if (kind === 'department') targetSelect.innerHTML = departments.map(entry=>`<option value="${esc(entry.id)}">${esc(entry.label)}</option>`).join('');
         };
         kindSelect.addEventListener('change', refreshTargets);
         refreshTargets();

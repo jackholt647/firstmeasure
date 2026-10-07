@@ -2,10 +2,12 @@ import { completeDevelopmentOnboarding } from './development.js';
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
 import { requirePlatformAuth, hasPermission, type PlatformAuthContext } from "../../platform/auth.js";
+import {canUseScopedPermission,hasResourcePermission,relevantDepartmentContext,matchesDepartmentFilter} from '../../workforce/department-access.js';
+import {callListDepartmentFilter,callDepartmentResource} from './service.js';
 import { PlatformError, forbidden, badRequest, conflict } from "../../platform/errors.js";
 import { createFollowUpTodo } from "../../work/followups.js";
 import { readNodeRecord } from '../../work/storage.js';
-import { ensureCallList, upsertCallListEntry, removeCallListEntry } from "../../internal/crm/call_lists.js";
+import { ensureCallList, upsertCallListEntry, removeCallListEntry,readCallList } from "../../internal/crm/call_lists.js";
 import { verifyTelnyxWebhook } from "../../messaging/telnyx_webhooks.js";
 import { voiceSettings, updateVoiceSettings } from "./settings.js";
 import { phoneContacts, createCall, saveDraft, saveWrapUp, requireCallAccess, queues, readEntry, followUps, changeFollowUp, scripts, saveScript, people, projectContext, callContext, manageCalls } from "./service.js";
@@ -21,8 +23,8 @@ import { text, object, type Json } from "./storage.js";
 
 const param=(req:FastifyRequest,key:string)=>text(object(req.params)[key]);
 const query=(req:FastifyRequest)=>object(req.query);
-async function auth(req:FastifyRequest,write=false,admin=false){return requirePlatformAuth(req,{orgId:param(req,"orgId"),csrf:write, capability:"apps.comms",
-  permission:admin?"manage_communications|manage_company_settings":write?"make_calls|send_comms|send_communications|manage_projects|manage_company_settings":"view_comms|view_projects|manage_projects|manage_company_settings"});}
+async function auth(req:FastifyRequest,write=false,admin=false){const ctx=await requirePlatformAuth(req,{orgId:param(req,"orgId"),csrf:write,capability:'apps.comms',...(admin?{permission:'manage_communications|manage_company_settings'}:{})});
+  if(!canUseScopedPermission(ctx,write?'make_calls|send_comms|send_communications|manage_projects|manage_communications|manage_company_settings':'view_comms|view_projects|manage_projects|manage_communications|manage_company_settings'))throw forbidden('call_access_denied','You do not have access to customer calls.');return ctx;}
 const body=(req:FastifyRequest)=>object(req.body);
 const boundedId=z.string().min(8).max(180);
 
@@ -40,7 +42,7 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   app.get("/organizations/:orgId/calls",async req=>{
     const ctx=await auth(req);const filter=query(req);
     if(text(filter.project_id))await projectContext(ctx,text(filter.project_id));
-    return {ok:true,...(await s.listCalls(ctx.orgId,{...filter,active:filter.active==="true",...(!manageCalls(ctx)?{branch_id:ctx.branchId||"default"}:{})}))};
+    return {ok:true,department_context:relevantDepartmentContext(ctx),...(await s.listCalls(ctx.orgId,callListDepartmentFilter(ctx,{...filter,active:filter.active==="true"})))};
   });
   app.post("/organizations/:orgId/conversation-workflow",async req=>({ok:true,workflow:await changeConversationWorkflow(await auth(req,true),body(req))}));
   app.get('/organizations/:orgId/call-context',async req=>({ok:true,...await callContext(await auth(req),query(req))}));
@@ -73,12 +75,12 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   app.post("/organizations/:orgId/calls/:callId/wrap-up",async req=>({ok:true,...await saveWrapUp(await auth(req,true),param(req,"callId"),body(req))}));
   app.post("/organizations/:orgId/calls/:callId/actions",async req=>{
     const ctx=await auth(req,true);const action=text(body(req).action);
-    if(action.startsWith("record_")||action==="consent")if(!hasPermission(ctx,"record_calls|manage_communications|manage_company_settings"))throw forbidden("recording_forbidden","You do not have permission to record calls.");
+    if(action.startsWith("record_")||action==="consent")if(!hasResourcePermission(ctx,"record_calls|manage_communications|manage_company_settings",callDepartmentResource(requireCallAccess(ctx,await s.readCall(ctx.orgId,param(req,"callId"))))))throw forbidden("recording_forbidden","You do not have permission to record calls.");
     return {ok:true,...(await callAction(ctx,param(req,"callId"),body(req)))};
   });
   app.get("/organizations/:orgId/calls/:callId/artifacts",async req=>{
     const ctx=await auth(req);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,"callId"))));
-    if(!hasPermission(ctx,"view_call_recordings|manage_communications|manage_company_settings"))throw forbidden("recording_access_denied","You do not have access to recordings and transcripts.");
+    if(!hasResourcePermission(ctx,"view_call_recordings|manage_communications|manage_company_settings",callDepartmentResource(call)))throw forbidden("recording_access_denied","You do not have access to recordings and transcripts.");
     return {ok:true,artifacts:(await s.artifacts(ctx.orgId,call.id)).filter(a=>text(a.expires_at)>s.now()).map(a=>({...a,data:{...object(a.data),file_path:undefined,download_url:undefined,provider_urls:undefined}}))};
   });
   app.post("/organizations/:orgId/calls/:callId/link",async req=>{
@@ -89,7 +91,7 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   });
   app.get("/organizations/:orgId/calls/:callId/artifacts/:artifactId/media",async(req,reply)=>{
     const ctx=await auth(req);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,"callId"))));
-    if(!hasPermission(ctx,"view_call_recordings|manage_communications|manage_company_settings"))throw forbidden("recording_access_denied","You do not have access to this recording.");
+    if(!hasResourcePermission(ctx,"view_call_recordings|manage_communications|manage_company_settings",callDepartmentResource(call)))throw forbidden("recording_access_denied","You do not have access to this recording.");
     (await s.appendEvent(ctx.orgId,call.id,"communication.call.recording_accessed",{artifact_id:param(req,"artifactId"),actor_user_id:ctx.userId}));
     return streamRecording(req,reply,ctx.orgId,call.id,param(req,"artifactId"));
   });
@@ -97,11 +99,14 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
     const ctx=await auth(req,true,true);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,"callId"))));
     await deleteArtifact(ctx.orgId,call.id,param(req,"artifactId"),ctx.userId);return {ok:true};
   });
-  app.get("/organizations/:orgId/call-lists/queue",async req=>queues(await auth(req)));
+  app.get("/organizations/:orgId/call-lists/queue",async req=>queues(await auth(req),text(query(req).department_id)));
   app.post("/organizations/:orgId/call-lists",async req=>{
-    const ctx=await auth(req,true,true);const input=z.object({key:z.string().min(1).max(100),title:z.string().min(1).max(180),description:z.string().max(2000).optional(),status:z.enum(["active","archived"]).optional(),
+    const ctx=await auth(req,true);const input=z.object({department_ids:z.array(z.string().min(1).max(120)).max(200).optional(),key:z.string().min(1).max(100),title:z.string().min(1).max(180),description:z.string().max(2000).optional(),status:z.enum(["active","archived"]).optional(),
       assigned_user_ids:z.array(z.string().max(180)).max(100).optional(),assigned_role_ids:z.array(z.string().max(100)).max(100).optional(),settings:z.record(z.string(),z.unknown()).optional()}).parse(body(req));
-    return {ok:true,call_list:await ensureCallList(ctx.orgId,{...input,actor_email:text(ctx.identity.email)})};
+    const previous=await readCallList(ctx.orgId,input.key),department_ids=input.department_ids||s.strings(previous?.metadata.department_ids);
+    if(department_ids.some(id=>!ctx.organizationStructure?.catalog.departments.some(d=>d.id===id&&d.status==='active')))throw badRequest('unknown_department','Choose an active department.');
+    if(!hasResourcePermission(ctx,'manage_communications|manage_company_settings',{department_ids})||previous&&!hasResourcePermission(ctx,'manage_communications|manage_company_settings',previous.metadata))throw forbidden('call_list_denied','You cannot manage this call list.');
+    return {ok:true,call_list:await ensureCallList(ctx.orgId,{...input,metadata:{...previous?.metadata,department_ids},actor_email:text(ctx.identity.email)})};
   });
   app.post("/organizations/:orgId/call-lists/:listKey/entries",async req=>{
     const ctx=await auth(req,true);const input=z.object({project_id:z.string().max(180).default(""),contact_id:z.string().max(180).default(""),name:z.string().max(250),phone:z.string().max(40),title:z.string().max(500),due_at:z.string().max(100).default(""),operation_id:boundedId}).parse(body(req));
@@ -121,16 +126,18 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   app.delete("/organizations/:orgId/call-list-entries/:entryId",async req=>{
     const ctx=await auth(req,true,true);await readEntry(ctx,param(req,"entryId"));return (await removeCallListEntry(ctx.orgId,{entry_id:param(req,"entryId")}));
   });
-  app.get("/organizations/:orgId/follow-ups",async req=>({ok:true,tasks:(await followUps(await auth(req),query(req)))}));
+  app.get("/organizations/:orgId/follow-ups",async req=>{const ctx=await auth(req);return {ok:true,department_context:relevantDepartmentContext(ctx),tasks:await followUps(ctx,query(req))};});
   app.post("/organizations/:orgId/follow-ups",async req=>{
-    const ctx=await auth(req,true);const input=z.object({operation_id:boundedId,project_id:z.string().max(180).default(""),contact_id:z.string().max(180).default(""),phone:z.string().max(40).default(""),title:z.string().min(1).max(500),due_at:z.string().min(1).max(100),channel:z.enum(["call","email","sms"]).default("call"),timezone:z.string().max(100).default("")}).parse(body(req));
+    const ctx=await auth(req,true);const input=z.object({department_ids:z.array(z.string().min(1).max(120)).max(200).optional(),operation_id:boundedId,project_id:z.string().max(180).default(""),contact_id:z.string().max(180).default(""),phone:z.string().max(40).default(""),title:z.string().min(1).max(500),due_at:z.string().min(1).max(100),channel:z.enum(["call","email","sms"]).default("call"),timezone:z.string().max(100).default("")}).parse(body(req));
     if(!Number.isFinite(Date.parse(input.due_at)))throw badRequest("due_date_invalid","Choose a valid due date.");await projectContext(ctx,input.project_id);
-    const result=await createFollowUpTodo(ctx.orgId,{...input,id:s.id("fu",`${ctx.orgId}:${ctx.userId}:${input.operation_id}`),source_key:`comms:${ctx.userId}:${input.operation_id}`,branch_id:ctx.branchId||"default",assigned_user_ids:[ctx.userId],metadata:{follow_up:{contact_id:input.contact_id,phone:input.phone,timezone:input.timezone||(await voiceSettings(ctx.orgId)).timezone,completion_policy:"explicit"}}});
+    const context=relevantDepartmentContext(ctx),department_ids=input.department_ids||context.member_department_ids;
+    if(department_ids.some(id=>!context.department_ids.includes(id))||!hasResourcePermission(ctx,'make_calls|manage_projects|manage_communications|manage_company_settings',{department_ids,branch_id:ctx.branchId}))throw forbidden('follow_up_department_denied','Choose a department you can work in.');
+    const result=await createFollowUpTodo(ctx.orgId,{...input,id:s.id("fu",`${ctx.orgId}:${ctx.userId}:${input.operation_id}`),source_key:`comms:${ctx.userId}:${input.operation_id}`,branch_id:ctx.branchId||"default",department_ids,assigned_user_ids:[ctx.userId],metadata:{follow_up:{contact_id:input.contact_id,phone:input.phone,timezone:input.timezone||(await voiceSettings(ctx.orgId)).timezone,completion_policy:"explicit"}}});
     return {ok:true,task:result.node};
   });
   app.post("/organizations/:orgId/follow-ups/:nodeId/actions",async req=>({ok:true,task:await changeFollowUp(await auth(req,true),param(req,"nodeId"),body(req))}));
-  app.get("/organizations/:orgId/call-scripts",async req=>{const ctx=await auth(req);return {ok:true,scripts:(await scripts(ctx.orgId,query(req).published==='true'))};});
-  app.post("/organizations/:orgId/call-scripts",async req=>({ok:true,script:(await saveScript(await auth(req,true,true),body(req)))}));
+  app.get("/organizations/:orgId/call-scripts",async req=>{const ctx=await auth(req);return {ok:true,can_manage_departments:canUseScopedPermission(ctx,'manage_communications|manage_company_settings'),department_context:relevantDepartmentContext(ctx),scripts:(await scripts(ctx.orgId,query(req).published==='true')).filter(row=>matchesDepartmentFilter(ctx,object(object(row).data),text(query(req).department_id))&&hasResourcePermission(ctx,'view_comms|manage_communications|manage_company_settings',object(object(row).data)))};});
+  app.post("/organizations/:orgId/call-scripts",async req=>({ok:true,script:(await saveScript(await auth(req,true),body(req)))}));
   app.get("/organizations/:orgId/voice/status",async req=>({ok:true,...(await voiceStatus(await auth(req)))}));
   app.put('/organizations/:orgId/voice/default-number',async req=>{
     const ctx=await auth(req,true),phone=z.string().max(40).parse(body(req).phone_number);
@@ -165,8 +172,8 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   });
   app.post("/organizations/:orgId/voice/diagnostics/start",async req=>({ok:true,...(await startDiagnostic(await auth(req,true),boundedId.parse(body(req).device_id)))}));
   app.get("/organizations/:orgId/voice/center",async req=>{
-    const ctx=await auth(req);const calls=(await s.listCalls(ctx.orgId,{active:true,...(!manageCalls(ctx)?{branch_id:ctx.branchId||"default"}:{})}));
-    return {ok:true,...calls,agents:(await s.resources(ctx.orgId,"endpoint")).map(e=>({user_id:e.user_id,name:e.name,availability:text(e.heartbeat_at)<new Date(Date.now()-45_000).toISOString()?"offline":e.availability}))};
+    const ctx=await auth(req);const filters=callListDepartmentFilter(ctx,{...query(req),active:true});const calls=await s.listCalls(ctx.orgId,filters);
+    return {ok:true,...calls,department_context:relevantDepartmentContext(ctx),agents:(await s.resources(ctx.orgId,"endpoint")).filter(e=>!Array.isArray(filters._department_ids)||ctx.organizationStructure?.users.find(u=>u.id===e.user_id)?.department_ids.some(id=>(filters._department_ids as string[]).includes(id))).map(e=>({user_id:e.user_id,name:e.name,availability:text(e.heartbeat_at)<new Date(Date.now()-45_000).toISOString()?"offline":e.availability}))};
   });
   // Isolated parser: signatures must be checked against the original bytes, never reserialized JSON.
   await app.register(async webhook=>{

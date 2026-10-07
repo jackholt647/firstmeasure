@@ -288,6 +288,7 @@ function normalizePin(input: JsonObject, existing: JsonObject | null, settings: 
     id: cleanText(current.id || input.id || generatedId("pin")),
     organization_id: cleanText(current.organization_id || input.organization_id),
     branch_id: cleanText(current.branch_id || input.branch_id || DEFAULT_BRANCH_ID),
+    department_ids: Array.isArray(input.department_ids) ? [...new Set(input.department_ids.map(cleanText).filter(Boolean))] : (current.department_ids || []),
     coordinates,
     status_id: statusId,
     status_label: labelForStatus(settings, statusId),

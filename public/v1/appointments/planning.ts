@@ -1,10 +1,13 @@
+import {assertAppointmentDepartmentPermission,SCHEDULE_VIEW} from './department-access.js';
+import {hasResourcePermission,matchesDepartmentFilter} from '../workforce/department-access.js';
+import {resolveOrganizationStructure,departmentIdsForSubject} from '../workforce/organization-structure.js';
 import {readOrganizationDepartments} from '../workforce/departments.js';
 import {env} from '../src/config/env.js';
 import {defaultAppointmentCatalog,instantFullAppointmentCatalog} from './defaults.js';
 import {z} from 'zod';
 import {createHash} from 'node:crypto';
 import {readBranchModule,saveBranchModule,readDocument,readGlobal,readOrganization,upsertDocument,type JsonObject} from '../platform/storage.js';
-import {hasPermission,type PlatformAuthContext} from '../platform/auth.js';
+import {hasPermission,relevantDepartmentContext,type PlatformAuthContext} from '../platform/auth.js';
 import {badRequest,conflict,forbidden} from '../platform/errors.js';
 import {withProjectDocumentLock} from '../platform/project_document_mutation.js';
 import {appointmentAvailability,subjectMemberIds} from './availability.js';
@@ -49,10 +52,12 @@ export async function readAppointmentCatalog(ctx:PlatformAuthContext){
   const isInstant=env.dataEnvironment==='development'&&object(org.metadata).sandbox_workflow_id==='swf_instant_full_org';
   const fallback=isInstant?instantFullAppointmentCatalog():defaults();
   const branchCatalog=stored?appointmentCatalogSchema.parse(stored):fallback;
-  const organizationDepartments=await readOrganizationDepartments(ctx.orgId);
-  const catalog={...branchCatalog,departments:organizationDepartments.departments,groups:organizationDepartments.groups};
+  const structure=await resolveOrganizationStructure(ctx.orgId),organizationDepartments=structure.catalog;
+  const departmentIds=new Set(organizationDepartments.departments.filter(d=>d.status==='active').map(d=>d.id));
+  const presets=stored?branchCatalog.presets:branchCatalog.presets.map(p=>({...p,configuration:{...p.configuration,department_ids:p.configuration.department_ids.filter(id=>departmentIds.has(id)),requirements:p.configuration.requirements.map(r=>r.department_id&&!departmentIds.has(r.department_id)?{...r,department_id:undefined}:r)}}));
+  const catalog={...branchCatalog,presets,departments:organizationDepartments.departments,groups:organizationDepartments.groups};
   const resources=await resolveAssignableSubjects(ctx.orgId,ctx.branchId||'default',{allow_unassigned:true,rules:[]});
-  return {catalog,company_office:await companyOffice(ctx.orgId,ctx.branchId||'default'),revision:Number(branch?.revision||0),can_manage:hasPermission(ctx,'manage_company_settings'),resources:resources.subjects.map((r:JsonObject)=>({id:r.id,key:key(r),name:r.name||r.label||r.id,subject_type:r.subject_type,role_ids:r.role_ids,group_kind_id:r.group_kind_id,member_user_ids:subjectMemberIds(r)}))};
+  return {catalog,department_context:relevantDepartmentContext({...ctx,organizationStructure:structure}),company_office:await companyOffice(ctx.orgId,ctx.branchId||'default'),revision:Number(branch?.revision||0),can_manage:hasPermission(ctx,'manage_company_settings'),resources:resources.subjects.map((r:JsonObject)=>({id:r.id,key:key(r),name:r.name||r.label||r.id,subject_type:r.subject_type,role_ids:r.role_ids,group_kind_id:r.group_kind_id,department_ids:departmentIdsForSubject(structure,String(r.subject_type),String(r.id)),member_user_ids:subjectMemberIds(r)})).filter(r=>hasResourcePermission({...ctx,organizationStructure:structure},SCHEDULE_VIEW,{department_ids:r.department_ids,branch_id:ctx.branchId})&&matchesDepartmentFilter({...ctx,organizationStructure:structure},{department_ids:r.department_ids}))};
 }
 export async function saveAppointmentCatalog(ctx:PlatformAuthContext,input:unknown){
   if(!hasPermission(ctx,'manage_company_settings'))throw forbidden('appointment_catalog_denied','Company settings permission is required.');
@@ -75,7 +80,8 @@ function departmentPool(resources:JsonObject[],department:ReturnType<typeof defa
   if(department.role_ids.length)rules.push({subject_types:['organization_user'],role_ids:department.role_ids});
   if(department.group_kind_ids.length)rules.push({subject_types:['resource_group'],group_kind_ids:department.group_kind_ids});
   const matched=rules.length?filterAssignableSubjects(resources,{rules,allow_unassigned:false}):[];
-  return resources.filter(r=>department.subject_keys.includes(key(r))||matched.some(m=>key(m)===key(r)));
+  if(department.status==='archived')return [];
+  return resources.filter(r=>Array.isArray(r.department_ids)?r.department_ids.includes(department.id):department.subject_keys.includes(key(r))||matched.some(m=>key(m)===key(r)));
 }
 export function selectAppointmentResources(config:AppointmentConfiguration,departments:ReturnType<typeof defaults>['departments'],resources:JsonObject[],available:Set<string>){
   const chosen=new Map<string,JsonObject>();
@@ -84,6 +90,7 @@ export function selectAppointmentResources(config:AppointmentConfiguration,depar
     if(requirement.department_id&&!dep)throw badRequest('unknown_department','A selected department no longer exists.');
     let pool=dep?departmentPool(resources,dep):resources;
     pool=pool.filter(r=>['organization_user','resource_group'].includes(String(r.subject_type))&&(requirement.subject_type==='any'||r.subject_type===requirement.subject_type));
+    if(requirement.subject_type==='any'){const seen=new Set<string>();pool=pool.filter(r=>{const ids=r.subject_type==='organization_user'?[String(r.id)]:Array.isArray(r.member_user_ids)?r.member_user_ids.map(String):[];if(ids.some(id=>seen.has(id)))return false;ids.forEach(id=>seen.add(id));return true;});}
     const count=requirement.mode==='all'?pool.length:requirement.mode==='percent'?Math.ceil(pool.length*requirement.percent/100):requirement.mode==='specific'?requirement.subject_keys.length:requirement.count;
     if(!count)return null;
     const candidates=pool.filter(r=>available.has(key(r))&&(requirement.mode!=='specific'||requirement.subject_keys.includes(key(r))));
@@ -92,8 +99,10 @@ export function selectAppointmentResources(config:AppointmentConfiguration,depar
       const members=Array.isArray(r.member_user_ids)?r.member_user_ids as string[]:[];
       return members.length>0&&members.filter(id=>available.has(`organization_user:${id}`)).length>=Math.ceil(members.length*requirement.crew_member_percent/100);
     });
-    if(usable.length<count)return null;
-    for(const resource of usable.slice(0,count)){
+    const distinct:JsonObject[]=[];const covered=new Set<string>();
+    for(const resource of usable){const memberIds=resource.subject_type==='organization_user'?[String(resource.id)]:Array.isArray(resource.member_user_ids)?resource.member_user_ids.map(String):[];if(memberIds.some(id=>covered.has(id)))continue;distinct.push(resource);memberIds.forEach(id=>covered.add(id));}
+    if(distinct.length<count)return null;
+    for(const resource of distinct.slice(0,count)){
       chosen.set(key(resource),resource);
       if(resource.subject_type==='resource_group'&&requirement.crew_member_percent){
         const members=(resource.member_user_ids as string[]).filter(id=>available.has(`organization_user:${id}`)).slice(0,Math.ceil((resource.member_user_ids as string[]).length*requirement.crew_member_percent/100));
@@ -106,8 +115,10 @@ export function selectAppointmentResources(config:AppointmentConfiguration,depar
 function dayKey(date:Date,zone:string){const p=zonedParts(date,zone);return `${p.year}-${String(p.month).padStart(2,'0')}-${String(p.day).padStart(2,'0')}`;}
 async function projectAccess(ctx:PlatformAuthContext,projectId?:string){if(!projectId)return;const doc=await readDocument(ctx.orgId,'projects',projectId);if((String(object(doc.data).branch_id||'default'))!==(ctx.branchId||'default'))throw forbidden('appointment_branch_mismatch','Choose a project in your current branch.');}
 export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<typeof previewSchema>){
+  assertAppointmentDepartmentPermission(ctx,input.configuration,SCHEDULE_VIEW);
   await projectAccess(ctx,input.project_id);
-  const {catalog,resources}=await readAppointmentCatalog(ctx),config=input.configuration;
+  const bundle=await readAppointmentCatalog(ctx),catalog=bundle.catalog,config=input.configuration;
+  const resources=bundle.resources.filter(r=>hasResourcePermission(ctx,hasResourcePermission(ctx,'manage_schedule',config)?'manage_schedule':SCHEDULE_VIEW,{department_ids:r.department_ids,branch_id:ctx.branchId}));
   if(config.department_ids.some(id=>!catalog.departments.some(d=>d.id===id)))throw badRequest('unknown_department','A selected department no longer exists.');
   if(config.requirements.some(r=>r.department_id&&!config.department_ids.includes(r.department_id)))throw badRequest('department_requirement','Staffing departments must also be selected for this appointment.');
   const zone=await resolveOrganizationTimezone(ctx.orgId,ctx.branchId||'default');
@@ -168,7 +179,7 @@ export async function previewAppointment(ctx:PlatformAuthContext,input:z.infer<t
   return {ok:true,timezone:zone,slots};
 }
 export async function bookPlannedAppointment(ctx:PlatformAuthContext,input:z.infer<typeof plannedBookingSchema>){
-  if(!hasPermission(ctx,'manage_schedule'))throw forbidden('schedule_permission_required','Schedule management permission is required.');
+  assertAppointmentDepartmentPermission(ctx,input.configuration,'manage_schedule');
   const work=()=>withProjectDocumentLock(ctx.orgId,'\u0000appointment_bookings',async()=>{
     await projectAccess(ctx,input.project_id);
     const fingerprint=createHash('sha256').update(JSON.stringify(input)).digest('hex');
@@ -190,7 +201,7 @@ export async function bookPlannedAppointment(ctx:PlatformAuthContext,input:z.inf
       result={ok:true,event,series:created.series};
     }else{
       const api=await import('../platform/api.js');
-      result=input.project_id?await api.saveProjectScheduleEvent(ctx.orgId,input.project_id,ctx,{branch_id:ctx.branchId||'default',event}):{ok:true,event,document:await api.saveCalendarEventDocument(ctx.orgId,input.event_id,{data:event,metadata:{kind:'calendar_event'}},true)};
+      result=input.project_id?await api.saveProjectScheduleEvent(ctx.orgId,input.project_id,ctx,{branch_id:ctx.branchId||'default',event}):{ok:true,event,document:await api.saveCalendarEventDocument(ctx.orgId,input.event_id,{data:event,metadata:{kind:'calendar_event'}},true,ctx)};
     }
     await upsertDocument(ctx.orgId,'appointment_bookings',{id:input.event_id,data:{fingerprint,actor:ctx.userId,result,status:'saved'}},{replace:true});
     return result;

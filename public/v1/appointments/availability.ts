@@ -526,7 +526,7 @@ export async function bookStaffAppointment(ctx: import('../platform/auth.js').Pl
         status:'scheduled', branch_id:branchId, customer_visible:true, booking_actor:ctx.userId
       }, held.hold.resource_key, asArray(asObject(held.slot).candidates).map(asObject));
       if (projectId) return await saveProjectScheduleEvent(ctx.orgId, projectId, ctx, { branch_id:branchId, event });
-      const document = await saveCalendarEventDocument(ctx.orgId, input.event_id, {data:event, metadata:{kind:'calendar_event',branch_id:branchId}}, true);
+      const document = await saveCalendarEventDocument(ctx.orgId, input.event_id, {data:event, metadata:{kind:'calendar_event',branch_id:branchId}}, true,ctx);
       return {ok:true, event:document.data, document};
     } finally { await deleteSlotHold(held.hold.id); }
   }));

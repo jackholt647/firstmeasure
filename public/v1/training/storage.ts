@@ -3,7 +3,7 @@ import path from "node:path";
 import { openSqlStore, ensureSqlColumn, type SqlStore } from "../platform/sql_store.js";
 
 import { env } from "../src/config/env.js";
-import { conflict, notFound } from "../platform/errors.js";
+import { conflict, notFound, badRequest } from "../platform/errors.js";
 
 export type JsonObject = Record<string, unknown>;
 
@@ -462,6 +462,10 @@ export async function listAssignments(orgId: string, options: { subjectKind?: st
 }
 
 export async function createAssignment(orgId: string, input: JsonObject) {
+  if (input.target_kind === 'department') {
+    const structure = await (await import('../workforce/organization-structure.js')).resolveOrganizationStructure(orgId);
+    if (!structure.catalog.departments.some(entry=>entry.id===input.target_id && entry.status!=='archived')) throw badRequest('training_department_invalid','Choose an active department in this organization.');
+  }
   return (await getTrainingDatabase().transaction(async () => {
   const db = getTrainingDatabase();
   const id = newId("assign");

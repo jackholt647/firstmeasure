@@ -1,4 +1,6 @@
 import { badRequest, forbidden } from "../platform/errors.js";
+import { resolveOrganizationStructure } from '../workforce/organization-structure.js';
+import { hasResourcePermission, type PlatformAuthContext } from '../platform/auth.js';
 import { SEED_COURSES, SEED_DECKS, SEED_QUIZZES } from "./presets.js";
 import {
   getTrainingDatabase,
@@ -198,6 +200,7 @@ export async function ensureTrainingSeed(orgId: string) {
 export type ViewerIdentity = {
   userId: string;
   roleIds: string[];
+  departmentIds?: string[];
 };
 
 function assignmentMatches(assignment: JsonObject, viewer: ViewerIdentity) {
@@ -206,12 +209,18 @@ function assignmentMatches(assignment: JsonObject, viewer: ViewerIdentity) {
   if (targetKind === "everyone") return true;
   if (targetKind === "user") return targetId === viewer.userId;
   if (targetKind === "role") return viewer.roleIds.includes(targetId);
+  if (targetKind === 'department') return viewer.departmentIds?.includes(targetId) === true;
   return false;
 }
 
 async function assignedSubjects(orgId: string, viewer: ViewerIdentity, subjectKind: string) {
   const matches = new Map<string, JsonObject[]>();
-  for (const assignment of (await listAssignments(orgId, { subjectKind }))) {
+  const assignments = await listAssignments(orgId, { subjectKind });
+  if (assignments.some(assignment=>assignment.target_kind==='department')) {
+    const structure=await resolveOrganizationStructure(orgId);
+    viewer={...viewer,departmentIds:structure.users.find(user=>user.id===viewer.userId)?.department_ids || []};
+  }
+  for (const assignment of assignments) {
     if (!assignmentMatches(assignment, viewer)) continue;
     const subjectId = cleanText(assignment.subject_id);
     const list = matches.get(subjectId) || [];
@@ -554,7 +563,7 @@ export async function recordStandaloneAttempt(orgId: string, viewer: ViewerIdent
 
 /* Manager reporting ------------------------------------------------------------ */
 
-export async function courseProgressReport(orgId: string, courseId: string) {
+export async function courseProgressReport(orgId: string, courseId: string, actor?: PlatformAuthContext) {
   const course = (await readCourse(orgId, courseId));
   const lessons = asArray(course.lessons).map(asObject);
   const lessonIds = lessons.map((lesson) => cleanText(lesson.id));
@@ -578,7 +587,7 @@ export async function courseProgressReport(orgId: string, courseId: string) {
     course_title: cleanText(course.title),
     lesson_ids: lessonIds,
     lessons: lessons.map((lesson) => ({ id: cleanText(lesson.id), title: cleanText(lesson.title), unlock: asObject(lesson.unlock) })),
-    users: [...users].map((userId) => {
+    users: [...users].filter(userId=>!actor || hasResourcePermission(actor,'manage_training|manage_company_settings',{department_ids:actor.organizationStructure?.users.find(user=>user.id===userId)?.department_ids || []})).map((userId) => {
       const rows = (byUser.get(userId) || []).filter((row) => lessonIds.includes(cleanText(row.lesson_id)));
       return {
         user_id: userId,

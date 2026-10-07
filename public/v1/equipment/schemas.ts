@@ -67,6 +67,7 @@ export const saveUnitSchema = z.object({
   id: z.string().trim().max(120).optional(),
   type_id: z.string().trim().max(120).optional(),
   branch_id: z.string().trim().max(120).optional(),
+  department_id: z.string().trim().max(120).optional(),
   name: z.string().trim().min(1).max(240),
   identifier: z.string().trim().max(160).optional(),
   serial_number: z.string().trim().max(200).optional(),

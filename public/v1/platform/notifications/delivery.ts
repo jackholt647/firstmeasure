@@ -1,3 +1,5 @@
+import { matchesDepartmentNotificationTarget } from "./department-targets.js";
+import { resolveOrganizationStructure, departmentIdsForUser } from "../../workforce/organization-structure.js";
 import { observePersonalNotification, effectiveRules, preferencesForNote, fullLockForNote } from './configuration.js';
 import { randomUUID } from 'node:crypto';
 import { readDocument, listDocuments, upsertDocument } from '../storage.js';
@@ -18,6 +20,7 @@ async function authorizedEvent(org:string,user:string,event:Json,note:Json){
   if(!(await effectiveRules(org,user)).some(rule=>rule.id===id&&rule.enabled))return false;
  }
  const auth=await backgroundAuthContext(org,user);
+ if(strings(note.target_department_ids).length && !matchesDepartmentNotificationTarget(note,user,strings(auth.user.roles),auth.organizationStructure?.users.find(member=>member.id===user)?.department_ids || []))return false;
  if(auth.branchId&&auth.branchId!==String(note.branch_id||'default'))return false;
  const definition=builtInEventDefinitions().find(d=>d.event===event.type);
  if(definition&&!hasPermission(auth,definition.permission))return false;
@@ -43,10 +46,11 @@ export function notificationEvent(event:Json):Json {
 export async function persistNotificationOccurrence(org:string,note:Json,event:Json={}) {
  const targetUsers=new Set(strings(note.target_user_ids)),targetRoles=new Set(strings(note.target_role_ids));
  const audience:string[]=[];
+ const structure = strings(note.target_department_ids).length ? await resolveOrganizationStructure(org) : null;
  for(const row of await listDocuments(org,'users')){
   const user=obj(row.data);if(user.disabled===true||user.deleted===true)continue;
   const roles=strings(user.roles);if(!roles.length&&['owner','admin','super_admin'].includes(String(user.role)))roles.push('inside_sales','sales_appointments');
-  if(targetUsers.has(row.id)||roles.some(r=>targetRoles.has(r))||note.broadcast===true)audience.push(row.id);
+  if(matchesDepartmentNotificationTarget(note,row.id,roles,structure ? departmentIdsForUser(structure,row.id) : []))audience.push(row.id);
  }
  const id=identity(org,note.id);
  await notificationStore().prepare('INSERT INTO notification_occurrences(id,organization_id,note_json,event_json,audience_json) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').run(id,org,JSON.stringify(note),JSON.stringify(event),JSON.stringify(audience));

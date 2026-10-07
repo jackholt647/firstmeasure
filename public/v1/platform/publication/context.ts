@@ -1,4 +1,4 @@
-import { can, hasPermission, type PlatformAuthContext } from "../auth.js";
+import { can, hasPermission, canUseScopedPermission, hasResourcePermission, type PlatformAuthContext } from "../auth.js";
 import { isCapabilityEnabled } from "../capabilities.js";
 import { forbidden, badRequest } from "../errors.js";
 import type { AccessPolicy, ExecutionKind, PublicationContext, SystemGrant, TargetRef } from "./contracts.js";
@@ -31,7 +31,13 @@ export async function authorizePublication(ctx: PublicationContext, target: Targ
       return !policy.applicationPermission || policy.applicationPermission.split("|").some(permission =>
         entry.permissions[permission.trim()] === true || (entry.permissions[permission.trim()] !== false && entry.permissions["*"] === true));
     })) throw forbidden("publication_application_denied", "This user does not have access to the required application.");
-    for (const permission of policy.permissions) if (!hasPermission(ctx.auth, permission)) throw forbidden("publication_permission_denied", "This operation is not permitted for this user.");
+    const resource = policy.departmentResource ? await policy.departmentResource(ctx, target) : null;
+    if (policy.scopedPermissions && !policy.authorize && !policy.departmentResource) throw forbidden('publication_scope_authorizer_required', 'Scoped operations require a domain authorizer.');
+    for (const permission of policy.permissions) {
+      const permitted = resource ? hasResourcePermission(ctx.auth, permission, resource)
+        : policy.scopedPermissions ? canUseScopedPermission(ctx.auth, permission) : hasPermission(ctx.auth, permission);
+      if (!permitted) throw forbidden("publication_permission_denied", "This operation is not permitted for this user.");
+    }
     for (const capability of policy.capabilities || []) if (!(await can(ctx.auth, capability))) throw forbidden("publication_capability_denied", "This feature is not available.");
   } else {
     const grant = ctx.system;
@@ -40,4 +46,9 @@ export async function authorizePublication(ctx: PublicationContext, target: Targ
     for (const capability of policy.capabilities || []) if (!(await isCapabilityEnabled(ctx.organizationId, capability))) throw forbidden("publication_capability_denied", "This feature is not available.");
   }
   await policy.authorize?.(ctx, target);
+}
+
+/** Catalog discovery has no selected resource. This never authorizes data or an action. */
+export async function authorizePublicationDiscovery(ctx: PublicationContext, target: TargetRef, policy: AccessPolicy, operation: string) {
+  return authorizePublication(ctx, target, { ...policy, departmentResource: undefined, scopedPermissions: policy.scopedPermissions || !!policy.departmentResource, authorize: () => {} }, operation);
 }

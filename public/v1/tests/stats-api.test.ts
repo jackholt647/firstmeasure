@@ -142,6 +142,26 @@ async function seedOrganization(orgId: string) {
   }
 }
 
+test('stats department attribution follows current credited-user membership and division groups follow branches', async () => {
+  const client=createSessionClient(); const {orgId}=await register(client);
+  await seedOrganization(orgId);
+  const {upsertDocument}=await import('../platform/storage.js');
+  await upsertDocument(orgId,'users',{id:'user_rep_1',data:{name:'Sales rep',status:'active'}});
+  await upsertDocument(orgId,'branch',{id:'north',data:{name:'North'}});
+  const current=await client.request('GET',`/v1/workforce/organizations/${orgId}/departments`);
+  const save={revision:current.revision,legacy_token:current.legacy_token,departments:[...current.departments,{id:'inside',label:'Inside Sales',subject_keys:['organization_user:user_rep_1']}],groups:current.groups,divisions:[{id:'region',label:'Region'},{id:'north',label:'North',parent_id:'region',branch_id:'north'}]};
+  const saved=await client.request('PUT',`/v1/workforce/organizations/${orgId}/departments`,save);
+  await client.request('POST',`/v1/stats/organizations/${orgId}/sync`);
+  const query={queries:{departments:{source:'projects',agg:'count',group_by:'owner_department_id'},region:{source:'projects',agg:'count',filters:[{field:'division_id',op:'eq',value:'region'}]}}};
+  const first=await client.request('POST',`/v1/stats/organizations/${orgId}/query`,query);
+  assert.equal(first.results.departments.rows.find((row:any)=>row.group==='inside')?.value,1);
+  assert.equal(first.results.region.rows[0].value,1);
+  await client.request('PATCH',`/v1/workforce/organizations/${orgId}/departments/assignments`,{kind:'user',id:'user_rep_1',department_ids:[],revision:saved.revision});
+  const after=await client.request('POST',`/v1/stats/organizations/${orgId}/query`,query);
+  assert.equal(after.results.departments.rows.find((row:any)=>row.group==='inside')?.value,0);
+  assert.equal(after.results.departments.cached,false,'Membership changes invalidate query cache without project mutations.');
+});
+
 test("stats warehouse backfills, answers DSL queries, and serves cached results", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);

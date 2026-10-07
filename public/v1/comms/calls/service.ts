@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { hasPermission, type PlatformAuthContext } from "../../platform/auth.js";
+import {hasResourcePermission,canUseScopedPermission,relevantDepartmentContext,matchesDepartmentFilter,scopedPermissionBranchIds,resourcePermissionRules} from '../../workforce/department-access.js';
 import { badRequest, conflict, forbidden, notFound } from "../../platform/errors.js";
 import { listDocuments, readDocument } from "../../platform/storage.js";
 import { callListQueue, ensureCallListDatabase, recordCallListDisposition } from "../../internal/crm/call_lists.js";
@@ -16,10 +17,28 @@ import * as store from "./storage.js";
 import { text, object, strings, type Json, type CustomerCall } from "./storage.js";
 
 export const manageCalls=(ctx:PlatformAuthContext)=>hasPermission(ctx,"manage_communications|manage_company_settings");
+export const callDepartmentResource=(call:CustomerCall)=>({organization_id:call.organization_id,branch_id:call.branch_id,department_ids:strings(call.metadata.department_ids)});
+export const callViewPermission='view_comms|view_projects|manage_projects|manage_communications|manage_company_settings';
+export function callListDepartmentFilter(ctx:PlatformAuthContext,filter:Json={},permission=callViewPermission){
+  const context=relevantDepartmentContext(ctx),selected=text(filter.department_id);
+  if(selected&&selected!=='all'&&!context.department_ids.includes(selected))throw forbidden('department_denied','This department is not available.');
+  const catalog=ctx.organizationStructure?.catalog.departments||[];
+  const permitted=catalog.filter(d=>d.status==='active'&&hasResourcePermission(ctx,permission,{department_id:d.id})).map(d=>d.id);
+  const visible=selected&&selected!=='all'?[selected]:context.enabled&&!context.organization_wide?context.department_ids:permitted;
+  const global=hasPermission(ctx,permission);
+  const {_department_ids:_ignored,_include_shared:_ignoredShared,_scoped_branch_ids:_ignoredBranches,_allowed_branch_ids:_ignoredAllowed,_access_rules:_ignoredRules,branch_id:_branch,...safe}=filter;
+  const branches=scopedPermissionBranchIds(ctx,permission),branch=text(_branch);
+  const allowedBranches=[...new Set([ctx.branchId||'default',...branches])];
+  if(branch&&!manageCalls(ctx)&&!allowedBranches.includes(branch))throw forbidden('call_branch_forbidden','This branch is not available.');
+  return {...safe,_access_rules:resourcePermissionRules(ctx,permission),...(branch?{branch_id:branch}:{}),...(!manageCalls(ctx)?{_allowed_branch_ids:allowedBranches}:{}),_scoped_branch_ids:selected&&selected!=='all'?[]:branches,...(catalog.length||!global?{_department_ids:visible.filter(id=>permitted.includes(id))}:{}),_include_shared:global};
+}
 export function requireCallAccess(ctx:PlatformAuthContext,call:CustomerCall,write=false){
   if(call.organization_id!==ctx.orgId)throw notFound("call_not_found","This call is unavailable.");
-  if(!manageCalls(ctx)&&call.branch_id!==(ctx.branchId||"default"))throw forbidden("call_branch_forbidden","This call belongs to another branch.");
-  if(write&&call.owner_user_id&&call.owner_user_id!==ctx.userId&&!manageCalls(ctx))throw forbidden("call_owner_required","Only the call owner or a communications manager can change this call.");
+  const resource=callDepartmentResource(call),manager=hasResourcePermission(ctx,'manage_communications|manage_company_settings',resource);
+  if(!hasResourcePermission(ctx,callViewPermission,resource))throw forbidden('call_department_forbidden','You do not have access to this call.');
+  if(!manager&&!scopedPermissionBranchIds(ctx,callViewPermission).includes(call.branch_id)&&call.branch_id!==(ctx.branchId||"default"))throw forbidden("call_branch_forbidden","This call belongs to another branch.");
+  if(write&&!hasResourcePermission(ctx,'make_calls|send_comms|send_communications|manage_projects|manage_communications|manage_company_settings',resource))throw forbidden('call_department_forbidden','You cannot change this call.');
+  if(write&&call.owner_user_id&&call.owner_user_id!==ctx.userId&&!manager)throw forbidden("call_owner_required","Only the call owner or a communications manager can change this call.");
   return call;
 }
 export async function projectContext(ctx:PlatformAuthContext,projectId:string):Promise<(Json & {id:string})|null>{
@@ -37,12 +56,13 @@ export async function callContext(ctx:PlatformAuthContext,filter:Json={}){
     .filter(p=>!query||`${p.title} ${p.contacts.map(c=>c.name).join(' ')}`.toLowerCase().includes(query)).slice(0,30);
   return {projects};
 }
-export function callListViewer(ctx:PlatformAuthContext){return {user_id:ctx.userId,user_ids:[ctx.userId],role_ids:[ctx.role,...strings(ctx.user.role_ids)],branch_id:ctx.branchId||"default",include_all:manageCalls(ctx)};}
+export function callListViewer(ctx:PlatformAuthContext){return {user_id:ctx.userId,user_ids:[ctx.userId],role_ids:[ctx.role,...strings(ctx.user.role_ids)],department_ids:relevantDepartmentContext(ctx).department_ids,branch_id:ctx.branchId||"default",include_all:manageCalls(ctx)};}
 export interface QueueTask extends Json {id:string;project_id:string;work_node_id:string;phone:string;name:string;title:string;updated_at:string;blocked_reason:string;ready:boolean;}
-export async function queues(ctx:PlatformAuthContext){
+export async function queues(ctx:PlatformAuthContext,departmentId=""){
   const result=await callListQueue(ctx.orgId,callListViewer(ctx));
-  return {...result,columns:(await Promise.all(result.columns.map(async list=>({...list,tasks:(await Promise.all(list.tasks.filter(task=>manageCalls(ctx)||text(object(task.project).branch_id||"default")===(ctx.branchId||"default")).map(async task=>{
-    const calls=(await store.listCalls(ctx.orgId,{entry_id:task.id,limit:1}));const phone=text(task.phone);let reason="";
+  result.columns=result.columns.filter(list=>matchesDepartmentFilter(ctx,object(list.metadata),departmentId)&&hasResourcePermission(ctx,callViewPermission,object(list.metadata)));
+  return {...result,can_manage_departments:canUseScopedPermission(ctx,'manage_communications|manage_company_settings'),department_context:relevantDepartmentContext(ctx),columns:(await Promise.all(result.columns.map(async list=>({...list,tasks:(await Promise.all(list.tasks.filter(task=>manageCalls(ctx)||text(object(task.project).branch_id||"default")===(ctx.branchId||"default")).map(async task=>{
+    const calls=(await store.listCalls(ctx.orgId,callListDepartmentFilter(ctx,{entry_id:task.id,limit:1})));const phone=text(task.phone);let reason="";
     if(!phone)reason="Missing phone number";
     else{try{if((await store.resource(ctx.orgId,"suppression",normalizePhone(phone))))reason="Do not call";}catch{reason="Invalid phone number";}}
     if(!reason&&text(task.due_at).includes("T")&&Date.parse(text(task.due_at))>Date.now())reason="Not due yet";
@@ -58,6 +78,7 @@ export async function readEntry(ctx:PlatformAuthContext,entryId:string){
   return {entry,column:column!};
 }
 export const createCallSchema=z.object({
+  department_ids:z.array(z.string().min(1).max(120)).max(200).optional(),
   operation_id:z.string().min(8).max(180),mode:z.enum(["external","browser"]).default("external"),direction:z.enum(["outbound","inbound"]).default("outbound"),
   project_id:z.string().max(180).default(""),contact_id:z.string().max(180).default(""),entry_id:z.string().max(180).default(""),
   customer_number:z.string().max(40).default(""),customer_name:z.string().max(250).default(""),business_number:z.string().max(40).default(""),
@@ -67,6 +88,10 @@ export const createCallSchema=z.object({
 });
 export async function createCall(ctx:PlatformAuthContext,input:unknown){
   const body=createCallSchema.parse(input);const callId=store.id("call",`${ctx.orgId}:${ctx.userId}:${body.operation_id}`);
+  const allowed=relevantDepartmentContext(ctx).department_ids;
+  if(body.department_ids?.some(id=>!allowed.includes(id)))throw forbidden('call_department_forbidden','Choose a department you can work in.');
+  const departments=body.department_ids||ctx.organizationStructure?.users.find(u=>u.id===ctx.userId)?.department_ids||[];
+  if(!hasResourcePermission(ctx,'make_calls|send_comms|send_communications|manage_projects|manage_communications|manage_company_settings',{department_ids:departments,branch_id:ctx.branchId}))throw forbidden('call_department_forbidden','You cannot place calls for this department.');
   // Fast retry path before queue state can change underneath an accepted request.
   const existing=object((await store.database().prepare("SELECT id,payload_hash FROM customer_call_operations WHERE id=?").get(store.id("cop",`${ctx.orgId}:create:${body.operation_id}`))));
   if(existing.id){const op=(await store.operation(ctx.orgId,"create",body.operation_id,callId,{...body,actor:ctx.userId}));const accepted=(await store.readCall(ctx.orgId,text(op.response.call_id)||callId));return requireCallAccess(ctx,accepted,true);}
@@ -77,8 +102,8 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
   if(body.contact_id&&!contacts.some(c=>text(c.id||c.contact_id)===body.contact_id)){
     const contact=await readDocument(ctx.orgId,'contacts',body.contact_id);if(!manageCalls(ctx)&&text(object(contact.data).branch_id||'default')!==(ctx.branchId||'default'))throw forbidden('contact_branch_forbidden','This contact belongs to another branch.');
   }
-  for(const nodeId of body.source_node_ids){const node=(await readNodeRecord(ctx.orgId,nodeId));
-    if(!node||text(node.project_id)!==projectId||(!manageCalls(ctx)&&(text(node.branch_id||'default')!==(ctx.branchId||'default')||(strings(node.assigned_user_ids).length&&!strings(node.assigned_user_ids).includes(ctx.userId)))))throw forbidden('source_work_forbidden','This task cannot be attached to your call.');
+  for(const nodeId of [...new Set([...body.source_node_ids,...strings(linked?.entry.work_node_ids),...(linked?.entry.work_node_id?[linked.entry.work_node_id]:[])])]){const node=(await readNodeRecord(ctx.orgId,nodeId));
+    if(!node||!hasResourcePermission(ctx,'make_calls|manage_projects|manage_communications|manage_company_settings',node)||text(node.project_id)!==projectId||(!hasResourcePermission(ctx,'manage_communications|manage_company_settings',node)&&(text(node.branch_id||'default')!==(ctx.branchId||'default')||(strings(node.assigned_user_ids).length&&!strings(node.assigned_user_ids).includes(ctx.userId)))))throw forbidden('source_work_forbidden','This task cannot be attached to your call.');
   }
   const contact=contacts.find(c=>body.contact_id&&text(c.id||c.contact_id)===body.contact_id)||contacts.find(c=>c.primary===true)||contacts[0]||{};
   const phone=normalizePhone(body.customer_number||linked?.entry.phone||contact.phone||contact.phone_number||contact.mobile);
@@ -120,10 +145,11 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
     if(body.entry_id)(await store.claimResource(ctx.orgId,`entry:${body.entry_id}`,ctx.userId,callId));
     (await store.claimResource(ctx.orgId,`phone:${phone}`,ctx.userId,callId));
     const script=body.script_id?(await publishedScript(ctx.orgId,body.script_id)):null;
+    if(script&&!hasResourcePermission(ctx,callViewPermission,object(script.data)))throw forbidden('script_department_denied','This script is unavailable.');
     const call=(await store.insertCall({id:callId,organization_id:ctx.orgId,branch_id:text(project?.branch_id)||ctx.branchId||"default",project_id:projectId,
       contact_id:body.contact_id||text(contact.id||contact.contact_id),owner_user_id:ctx.userId,mode:body.mode,direction:body.direction,
       customer_number:phone,customer_name:body.customer_name||linked?.entry.name||text(contact.name)||phone,business_number:text(line?.phone_number),entry_id:body.entry_id,
-      state:body.mode==="browser"?"agent_connecting":"created",metadata:{purpose:body.purpose||linked?.entry.title||"Customer call",entity:body.entity,
+      state:body.mode==="browser"?"agent_connecting":"created",metadata:{...(body.department_ids?{department_ids:body.department_ids}:{}),purpose:body.purpose||linked?.entry.title||"Customer call",entity:body.entity,
         script:script||{},list_settings:linked?.column.settings||{},device_id:body.device_id,source_node_ids:[...new Set([...body.source_node_ids,...(linked?(strings(linked.entry.work_node_ids).length?strings(linked.entry.work_node_ids):linked.entry.work_node_id?[linked.entry.work_node_id]:[]):[])])],entry_updated_at:linked?.entry.updated_at,
         policy:{recording_enabled:settings.recording_enabled,transcription_enabled:settings.transcription_enabled,disclosure:settings.disclosure,retention_days:settings.recording_retention_days},
         consent:{state:"not_requested"},actor_email:text(ctx.identity.email),actor_name:text(ctx.user.name||ctx.identity.name)}}));
@@ -142,6 +168,7 @@ export const draftSchema=z.object({revision:z.number().int().positive(),notes:z.
 export async function saveDraft(ctx:PlatformAuthContext,callId:string,input:unknown){
   const body=draftSchema.parse(input);const call=requireCallAccess(ctx,(await store.readCall(ctx.orgId,callId)),true);
   const script=body.script_id?(await publishedScript(ctx.orgId,body.script_id)):call.metadata.script;
+  if(body.script_id&&!hasResourcePermission(ctx,callViewPermission,object(object(script).data)))throw forbidden('script_department_denied','This script is unavailable.');
   return (await store.patchCall(ctx.orgId,callId,{notes:body.notes,metadata:{...call.metadata,script,script_answers:body.script_answers||call.metadata.script_answers}},body.revision));
 }
 export const wrapUpSchema=z.object({operation_id:z.string().min(8).max(180),revision:z.number().int().positive(),
@@ -167,9 +194,9 @@ export async function saveWrapUp(ctx:PlatformAuthContext,callId:string,input:unk
   if(call.mode==="browser"&&!store.terminal.has(call.state))throw conflict("call_still_active","End the phone call before saving its outcome.");
   if(body.next_action==="follow_up"&&(!body.due_at||!Number.isFinite(Date.parse(body.due_at))))throw badRequest("follow_up_due_required","Choose a due date for this follow-up.");
   if(body.timezone){try{new Intl.DateTimeFormat("en",{timeZone:body.timezone});}catch{throw badRequest("timezone_invalid","Choose a valid timezone.");}}
-  if(body.assigned_user_id&&body.assigned_user_id!==ctx.userId&&!manageCalls(ctx))throw forbidden("assignment_forbidden","A manager must assign callbacks to other staff.");
+  if(body.assigned_user_id&&body.assigned_user_id!==ctx.userId&&!hasResourcePermission(ctx,'manage_communications|manage_company_settings',callDepartmentResource(call)))throw forbidden("assignment_forbidden","A manager must assign callbacks to other staff.");
   if(body.assigned_user_id)await readDocument(ctx.orgId,"users",body.assigned_user_id);
-  for(const nodeId of body.source_node_ids){const node=(await readNodeRecord(ctx.orgId,nodeId));if(!node||text(node.project_id)!==call.project_id||!strings(call.metadata.source_node_ids).includes(nodeId))throw badRequest("source_work_mismatch","Choose an obligation linked to this call.");}
+  for(const nodeId of body.source_node_ids){const node=(await readNodeRecord(ctx.orgId,nodeId));if(!node||!hasResourcePermission(ctx,'make_calls|manage_projects|manage_communications|manage_company_settings',node)||text(node.project_id)!==call.project_id||!strings(call.metadata.source_node_ids).includes(nodeId))throw badRequest("source_work_mismatch","Choose an obligation linked to this call.");}
   if(body.next_action==="scheduled"){
     const project=await projectContext(ctx,call.project_id);const events=Array.isArray(project?.events)?project.events.map(object):[];
     if(!body.appointment_id||!events.some(e=>text(e.id)===body.appointment_id&&!['canceled','deleted'].includes(text(e.status))))throw conflict("appointment_required","Select the appointment booked for this call.");
@@ -202,7 +229,7 @@ export async function applyWrapUpEffects(orgId:string,callId:string,payload:Json
   }
   if(payload.next_action==="follow_up"&&!checkpoint().follow_up){
     const result=await createFollowUpTodo(orgId,{id:store.id("fu",call.id),source_key:`communication-call:${call.id}:follow-up`,project_id:call.project_id,branch_id:call.branch_id,
-      due_at:payload.due_at,channel:payload.channel,title:text(payload.title)||`Follow up with ${call.customer_name}`,body:call.notes,assigned_user_ids:[text(payload.assigned_user_id)||text(payload.actor_user_id)],
+      department_ids:strings(call.metadata.department_ids),due_at:payload.due_at,channel:payload.channel,title:text(payload.title)||`Follow up with ${call.customer_name}`,body:call.notes,assigned_user_ids:[text(payload.assigned_user_id)||text(payload.actor_user_id)],
       metadata:{follow_up:{...object(payload.policy),call_id:call.id,contact_id:call.contact_id,phone:call.customer_number,timezone:text(payload.timezone)||(await voiceSettings(orgId)).timezone,purpose:text(call.metadata.purpose),completion_policy:"explicit"}}});
     (await done("follow_up",text(object(result.node).id)));
   }
@@ -225,7 +252,7 @@ export async function applyWrapUpEffects(orgId:string,callId:string,payload:Json
   }
   if(!checkpoint().event){
     await emitWorkEvent({organization_id:orgId,branch_id:call.branch_id,project_id:call.project_id,type:"call.completed",idempotency_key:`call.completed:${call.id}`,
-      payload:{call_id:call.id,disposition:payload.disposition,outcome:payload.next_action,phone:call.customer_number},context:{actor_user_id:payload.actor_user_id}});(await done("event"));
+      payload:{department_ids:strings(call.metadata.department_ids),call_id:call.id,disposition:payload.disposition,outcome:payload.next_action,phone:call.customer_number},context:{actor_user_id:payload.actor_user_id}});(await done("event"));
   }
   (await store.transaction(async ()=>{
     const updated=(await store.patchCall(orgId,call.id,{wrap_up_state:"saved"}));(await store.finishOperation(orgId,text(payload.operation_id),{call_id:updated.id,follow_up_id:checkpoint().follow_up}));
@@ -235,14 +262,16 @@ export async function applyWrapUpEffects(orgId:string,callId:string,payload:Json
 
 export async function followUps(ctx:PlatformAuthContext,filters:Json={}){
   return (await listNodeRecords(ctx.orgId,{open_only:filters.include_completed!==true,actionable:true})).filter(isFollowUpWorkNode).filter(node=>
-    (manageCalls(ctx)||text(node.branch_id||"default")===(ctx.branchId||"default"))&&(!text(filters.project_id)||node.project_id===filters.project_id)&&
+    (hasResourcePermission(ctx,"manage_communications|manage_company_settings",node)||text(node.branch_id||"default")===(ctx.branchId||"default"))&&(!text(filters.project_id)||node.project_id===filters.project_id)&&
+    matchesDepartmentFilter(ctx,node,text(filters.department_id))&&hasResourcePermission(ctx,callViewPermission,node)&&
     (!text(filters.channel)||object(object(node.metadata).follow_up).channel===filters.channel)&&
     (filters.owner!=="mine"||strings(node.assigned_user_ids).includes(ctx.userId))
   );
 }
 export async function changeFollowUp(ctx:PlatformAuthContext,nodeId:string,input:Json){
   const node=(await readNodeRecord(ctx.orgId,nodeId));if(!node||!isFollowUpWorkNode(node)||(!manageCalls(ctx)&&text(node.branch_id||'default')!==(ctx.branchId||'default')))throw notFound("follow_up_unavailable","This follow-up is unavailable.");
-  if(!manageCalls(ctx)&&strings(node.assigned_user_ids).length&&!strings(node.assigned_user_ids).includes(ctx.userId))throw forbidden("follow_up_owner_required","Only the assigned user or a manager can change this task.");
+  if(!hasResourcePermission(ctx,callViewPermission,node))throw forbidden('follow_up_department_denied','This follow-up is not available.');
+  if(!hasResourcePermission(ctx,'manage_communications|manage_company_settings',node)&&strings(node.assigned_user_ids).length&&!strings(node.assigned_user_ids).includes(ctx.userId))throw forbidden("follow_up_owner_required","Only the assigned user or a manager can change this task.");
   if((input.action==='complete'&&node.status==='completed')||(input.action==='cancel'&&node.status==='canceled'))return node;
   if(input.action==="complete"||input.action==="cancel")return transitionWorkNode(ctx.orgId,nodeId,input.action==="complete"?"completed":"canceled",{reason:"communication_follow_up",follow_up_outcome:"explicit",actor_user_id:ctx.userId});
   if(input.action==="snooze"){
@@ -265,11 +294,17 @@ export async function scripts(orgId:string,publishedOnly=false){
   return (await Promise.all(rows.filter(row=>object(row).status!=='archived').map(async row=>{try{return [(await publishedScript(orgId,text(object(row).id)))];}catch{return [];}}))).flat();
 }
 export const scriptSchema=z.object({id:z.string().max(180).optional(),title:z.string().trim().min(1).max(250),status:z.enum(["draft","published","archived"]),
+  department_ids:z.array(z.string().min(1).max(120)).max(200).default([]),
   sections:z.array(z.object({title:z.string().max(250),body:z.string().max(10000)})).min(1).max(30),questions:z.array(z.string().max(500)).max(50).default([])});
 export async function saveScript(ctx:PlatformAuthContext,input:unknown){
-  const body=scriptSchema.parse(input);return (await store.transaction(async db=>{const scriptId=body.id||store.id("script");const row=object((await db.prepare("SELECT max(version) AS version FROM customer_call_scripts WHERE organization_id=? AND id=?").get(ctx.orgId,scriptId)));
+  const body=scriptSchema.parse(input);
+  if(body.department_ids.some(id=>!ctx.organizationStructure?.catalog.departments.some(d=>d.id===id&&d.status==='active')))throw badRequest('unknown_department','Choose an active department.');
+  if(!hasResourcePermission(ctx,'manage_communications|manage_company_settings',body))throw forbidden('script_department_denied','You cannot manage scripts for this department.');
+  const previous=body.id?(await scripts(ctx.orgId)).find(row=>text(object(row).id)===body.id):null;
+  if(previous&&!hasResourcePermission(ctx,'manage_communications|manage_company_settings',object(object(previous).data)))throw forbidden('script_department_denied','You cannot change this script.');
+  return (await store.transaction(async db=>{const scriptId=body.id||store.id("script");const row=object((await db.prepare("SELECT max(version) AS version FROM customer_call_scripts WHERE organization_id=? AND id=?").get(ctx.orgId,scriptId)));
     const version=Number(row.version||0)+1;(await db.prepare("INSERT INTO customer_call_scripts(organization_id,id,version,title,status,data_json,created_at,author_id) VALUES(?,?,?,?,?,?,?,?)")
-      .run(ctx.orgId,scriptId,version,body.title,body.status,JSON.stringify({sections:body.sections,questions:body.questions}),store.now(),ctx.userId));return {id:scriptId,version,...body};}));
+      .run(ctx.orgId,scriptId,version,body.title,body.status,JSON.stringify({department_ids:body.department_ids,sections:body.sections,questions:body.questions}),store.now(),ctx.userId));return {id:scriptId,version,...body};}));
 }
 export async function people(ctx:PlatformAuthContext){
   return (await listDocuments(ctx.orgId,"users")).map(d=>({id:d.id,...object(d.data)} as Json)).filter(d=>!d.disabled).map(d=>({id:text(d.id),name:text(d.name||d.email),branch_id:text(d.branch_id||"default")}));

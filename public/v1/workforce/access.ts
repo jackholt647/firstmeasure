@@ -2,6 +2,9 @@ import { randomBytes } from "node:crypto";
 
 import { badRequest, conflict, notFound } from "../platform/errors.js";
 import { getWorkforceDatabase, readCompensationProfile } from "./storage.js";
+import { resolveOrganizationStructure, type OrganizationStructure } from './organization-structure.js';
+import { resolveScopedAccessGrants, type ScopedAccessGrant } from './department-access.js';
+import { capabilityDefinitions } from '../platform/capabilities.js';
 
 export type JsonObject = Record<string, unknown>;
 export type AccessDevice = "desktop" | "mobile";
@@ -135,10 +138,10 @@ export type EffectiveAppEntitlement = AccessCatalogEntry & {
   application_enabled: boolean;
   permission_allowed: boolean;
   device_allowed: boolean;
-  source: "catalog_default" | "role_default" | "user_override";
+  source: "catalog_default" | "role_default" | "department_default" | "group_default" | "user_override";
   sources: {
     application: string;
-    visibility: "catalog_default" | "role_default" | "user_override";
+    visibility: "catalog_default" | "role_default" | "department_default" | "group_default" | "user_override";
     role_ids: string[];
   };
   params: JsonObject;
@@ -169,6 +172,9 @@ export type ResolvedAccessProfile = {
   app_catalog: EffectiveAppEntitlement[];
   allowed_app_ids: string[];
   user_revision: number;
+  scoped_access_grants?: ScopedAccessGrant[];
+  organization_structure?: OrganizationStructure;
+  app_restrictions?: string[];
 };
 
 const PROJECT_LAYOUT: JsonObject = {
@@ -1859,9 +1865,18 @@ async function effectiveEntitlements(
   applicationSources: Record<string, string>,
   effectivePermissions: PermissionMap,
   user: JsonObject,
-  device?: AccessDevice
+  device?: AccessDevice,
+  membershipDefaults: Array<{ source: 'department_default' | 'group_default'; defaults: JsonObject }> = [],
+  scopedGrants: ScopedAccessGrant[] = []
 ) {
-  return (await Promise.all(accessCatalog().map(async (catalog): Promise<EffectiveAppEntitlement> => {
+  const catalogEntries = accessCatalog();
+  for (const id of [...new Set(membershipDefaults.flatMap(layer=>Object.keys(layer.defaults)))]) {
+    if(catalogEntries.some(entry=>entry.id===id))continue;
+    const runtimeId=id.replace(/^(portal|project|apps|settings)\./,'');
+    const definition=capabilityDefinitions().find(node=>node.runtime_app_id===runtimeId||node.key===id||node.key===`apps.${runtimeId}`);
+    catalogEntries.push({id,runtime_app_id:definition?.runtime_app_id||runtimeId,application_id:MANAGEMENT_APPLICATION_ID,title:definition?.label||runtimeId,description:definition?.description||'',icon:definition?.icon||'fa-table-cells-large',surface:id.startsWith('project.')?'project_modal':'portal_tab',kind:id.startsWith('project.')?'project_modal_app':'portal_tab',portal_tab_id:runtimeId,order:999,devices:['desktop','mobile'],required_permissions:[],permission_mode:'all',default_params:{},parameter_permissions:{},layout:{},default_enabled:true});
+  }
+  return (await Promise.all(catalogEntries.map(async (catalog): Promise<EffectiveAppEntitlement> => {
     const application = applications[catalog.application_id] || {
       enabled: false,
       role_id: "",
@@ -1893,6 +1908,18 @@ async function effectiveEntitlements(
       enabled = anyRoleEnabled;
       source = "role_default";
     }
+    let restricted = false;
+    const membershipEntries = membershipDefaults.map(layer => ({ ...layer, entry: asObject(layer.defaults[catalog.id]) })).filter(layer => Object.keys(layer.entry).length);
+    const explicitEntries = membershipEntries.filter(layer => ['show', 'hide'].includes(String(layer.entry.visibility)));
+    if (explicitEntries.length) {
+      enabled = explicitEntries.some(layer => layer.entry.visibility === 'show');
+      source = explicitEntries.at(-1)!.source;
+    }
+    for (const layer of membershipEntries) {
+      restricted ||= layer.entry.enforcement === 'restricted' && layer.entry.visibility === 'hide';
+      params = mergeJson(params, asObject(layer.entry.params));
+      layout = mergeJson(layout, asObject(layer.entry.layout));
+    }
     const override = application.app_overrides[catalog.id];
     if (override) {
       enabled = override.enabled;
@@ -1900,6 +1927,7 @@ async function effectiveEntitlements(
       params = mergeJson(params, override.params);
       layout = mergeJson(layout, override.layout);
     }
+    if (restricted) enabled = false;
     for (const [param, permission] of Object.entries(catalog.parameter_permissions)) {
       params[param] = hasPermission(effectivePermissions, permission);
     }
@@ -1909,7 +1937,9 @@ async function effectiveEntitlements(
       params.time_clock_enabled = params.time_clock_enabled === true
         && (await hasHourlyCompensation(orgId, cleanText(user.id || user.user_id)));
     }
-    const permissionChecks = catalog.required_permissions.map((permission) => hasPermission(effectivePermissions, permission));
+    // Scoped grants reveal a navigation entry, never a global permission or parameter flag.
+    const permissionChecks = catalog.required_permissions.map((permission) => hasPermission(effectivePermissions, permission)
+      || (effectivePermissions[permission] !== false && scopedGrants.some(grant => grant.permissions[permission] === true)));
     const permissionAllowed = catalog.required_permissions.length === 0
       || (catalog.permission_mode === "any" ? permissionChecks.some(Boolean) : permissionChecks.every(Boolean));
     const applicationEnabled = application.enabled === true;
@@ -1917,6 +1947,7 @@ async function effectiveEntitlements(
     const allowed = enabled && applicationEnabled && permissionAllowed && deviceAllowed;
     const reasons: string[] = [];
     if (!enabled) reasons.push("app_not_selected");
+    if (restricted) reasons.push('department_app_restricted');
     if (!applicationEnabled) reasons.push("application_disabled");
     if (!permissionAllowed) reasons.push("permission_denied");
     if (!deviceAllowed) reasons.push("device_ineligible");
@@ -1956,6 +1987,9 @@ export async function resolveAccessProfile(
   const orgId = (await ensureAccessDefaults(orgIdValue));
   const user = unwrappedUserData(userDataValue);
   const allRoles = (await listAccessRoles(orgId, { include_archived: true }));
+  const organizationStructure = await resolveOrganizationStructure(orgId);
+  const scopedGrants = resolveScopedAccessGrants(user.scoped_access_assignments, allRoles, organizationStructure);
+  const scopedRoles = allRoles.filter(role => scopedGrants.some(grant => grant.role_id === role.id));
   const activeRoles = allRoles.filter((role) => role.status === "active");
   const rolesById = new Map(activeRoles.map((role) => [role.id, role]));
   const assignment = assignedRoleIds(user);
@@ -2009,7 +2043,7 @@ export async function resolveAccessProfile(
   for (const applicationId of applicationIds) {
     const applicationRoles = roles.filter((role) => role.application_ids.includes(applicationId));
     const entry = rawAccess.entries[applicationId] || {};
-    const enabled = resolveApplicationEnabled(assignment.explicit, entry, applicationRoles.length > 0, applicationId);
+    const enabled = resolveApplicationEnabled(assignment.explicit, entry, applicationRoles.length > 0 || scopedRoles.some(role => role.application_ids.includes(applicationId)), applicationId);
     const permissions = {
       ...unionRolePermissions(applicationRoles),
       ...normalizePermissionMap(entry.permissions ?? entry.permission_items ?? entry.items),
@@ -2037,7 +2071,17 @@ export async function resolveAccessProfile(
   for (const [permission, allowed] of Object.entries(globalPermissionOverrides)) effectivePermissions[permission] = allowed;
 
   Object.assign(effectivePermissions, notificationAccessPermissions(effectivePermissions, user, roles));
-  const entitlements = (await effectiveEntitlements(orgId, roles, applications, applicationSources, effectivePermissions, user, options.device));
+  const member = organizationStructure.users.find(entry => entry.id === cleanText(user.id || user.user_id));
+  const membershipDefaults: Array<{ source: 'department_default' | 'group_default'; defaults: JsonObject }> = organizationStructure.catalog.departments
+    .filter(department => member?.department_ids.includes(department.id))
+    .map(department => ({ source: 'department_default', defaults: asObject(department.app_defaults) }));
+  if (member) {
+    const groups = await getWorkforceDatabase().prepare(`SELECT g.attributes_json FROM resource_groups g JOIN resource_group_memberships m ON m.organization_id = g.organization_id AND m.group_id = g.id WHERE g.organization_id = ? AND g.status = 'active' AND m.user_id = ? AND m.status = 'active' ORDER BY g.id`).all(orgId, member.id);
+    for (const row of groups) {
+      try { membershipDefaults.push({ source: 'group_default', defaults: asObject(asObject(JSON.parse(String(asObject(row).attributes_json || '{}'))).app_defaults) }); } catch { /* Invalid historical metadata conveys no defaults. */ }
+    }
+  }
+  const entitlements = (await effectiveEntitlements(orgId, [...roles, ...scopedRoles], applications, applicationSources, effectivePermissions, user, options.device, membershipDefaults, scopedGrants));
   const byId = Object.fromEntries(entitlements.map((entitlement) => [entitlement.id, entitlement]));
   return {
     schema_version: ACCESS_SCHEMA_VERSION,
@@ -2053,7 +2097,10 @@ export async function resolveAccessProfile(
     app_entitlements_by_id: byId,
     app_catalog: entitlements,
     allowed_app_ids: entitlements.filter((entitlement) => entitlement.allowed).map((entitlement) => entitlement.id),
-    user_revision: Number(user.revision || 0)
+    user_revision: Number(user.revision || 0),
+    scoped_access_grants: scopedGrants,
+    app_restrictions: [...new Set(membershipDefaults.flatMap(layer=>Object.entries(layer.defaults).filter(([,value])=>asObject(value).visibility==='hide'&&asObject(value).enforcement==='restricted').map(([id])=>id)))],
+    organization_structure: organizationStructure
   };
 }
 

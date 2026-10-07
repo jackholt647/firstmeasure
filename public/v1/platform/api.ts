@@ -1,3 +1,5 @@
+import {assertAppointmentDepartmentPermission,validateAppointmentDepartments,canViewAppointmentDepartment} from '../appointments/department-access.js';
+import { matchesDepartmentFilter as matchesWorkDepartmentFilter, relevantDepartmentContext as workDepartmentContext } from "../workforce/department-access.js";
 import { withReportPropertyMarket } from "../commerce/property-market.js";
 import { listVisibleNotifications } from "./notifications/view.js";
 import { effectiveNavigationPreferences } from './navigation-defaults.js';
@@ -1880,7 +1882,7 @@ app.get("/auth/google/config", async () => ({
   app.post("/organizations/:orgId/projects/:projectId/events", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const projectId = getParam(request.params, "projectId");
-    const actor = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission("projects") });
+    const actor = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_schedule|manage_projects",allowScopedPermission:true });
     const body = objectBodySchema.parse(request.body ?? {});
     return saveProjectScheduleEvent(orgId,projectId,actor,body,error=>request.log?.warn?.({err:error},"appointment confirmation sync failed"));
   });
@@ -2822,18 +2824,16 @@ app.get("/auth/google/config", async () => ({
     const orgId = getParam(request.params, "orgId");
     const collection = getParam(request.params, "collection");
     assertCanonicalPlatformCollection(collection);
-    await requirePlatformAuth(request, { orgId, permission: collectionReadPermission(collection) });
-    return {
-      ok: true,
-      documents: await listDocuments(orgId, collection)
-    };
+    const ctx=await requirePlatformAuth(request, { orgId, permission: collectionReadPermission(collection),allowScopedPermission:collection==='calendar_events' });
+    const documents=await listDocuments(orgId,collection);
+    return {ok:true,documents:collection==='calendar_events'?documents.filter(d=>canViewAppointmentDepartment(ctx,d.data)):documents};
   });
 
   app.post("/organizations/:orgId/:collection", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
     const collection = getParam(request.params, "collection");
     assertCanonicalPlatformCollection(collection);
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "create") });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "create"),allowScopedPermission:collection==="calendar_events" });
     const parsedBody = objectBodySchema.parse(request.body ?? {});
     const body = collection === "calendar_events"
       ? await prepareCalendarEventWrite(orgId, cleanText(parsedBody.id || asObject(parsedBody.data).id), parsedBody, true)
@@ -2847,7 +2847,7 @@ app.get("/auth/google/config", async () => ({
       : collection === "projects"
         ? await upsertProjectDocumentPreservingEvents(orgId, cleanText(body.id || asObject(body.data).id), body, true)
       : collection === "calendar_events"
-        ? await saveCalendarEventDocument(orgId, cleanText(parsedBody.id || asObject(parsedBody.data).id), parsedBody, true)
+        ? await saveCalendarEventDocument(orgId, cleanText(parsedBody.id || asObject(parsedBody.data).id), parsedBody, true,ctx)
       : await upsertDocument(
         orgId,
         collection,
@@ -2892,22 +2892,17 @@ app.get("/auth/google/config", async () => ({
     const orgId = getParam(request.params, "orgId");
     const collection = getParam(request.params, "collection");
     assertCanonicalPlatformCollection(collection);
-    await requirePlatformAuth(request, { orgId, permission: collectionReadPermission(collection) });
-    return {
-      ok: true,
-      document: await readDocument(
-        orgId,
-        collection,
-        getParam(request.params, "documentId")
-      )
-    };
+    const ctx=await requirePlatformAuth(request,{orgId,permission:collectionReadPermission(collection),allowScopedPermission:collection==='calendar_events'});
+    const document=await readDocument(orgId,collection,getParam(request.params,'documentId'));
+    if(collection==='calendar_events'&&!canViewAppointmentDepartment(ctx,document.data))throw forbidden('department_permission_denied','This appointment is unavailable.');
+    return {ok:true,document};
   });
 
   app.put("/organizations/:orgId/:collection/:documentId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const collection = getParam(request.params, "collection");
     assertCanonicalPlatformCollection(collection);
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "replace") });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "replace"),allowScopedPermission:collection==="calendar_events" });
     const parsedBody = objectBodySchema.parse(request.body ?? {});
     const body = collection === "calendar_events"
       ? await prepareCalendarEventWrite(orgId, getParam(request.params, "documentId"), parsedBody, true)
@@ -2928,7 +2923,7 @@ app.get("/auth/google/config", async () => ({
       : collection === "projects"
         ? await upsertProjectDocumentPreservingEvents(orgId, documentId, body, true)
       : collection === "calendar_events"
-        ? await saveCalendarEventDocument(orgId, documentId, parsedBody, true)
+        ? await saveCalendarEventDocument(orgId, documentId, parsedBody, true,ctx)
       : await upsertDocument(
         orgId,
         collection,
@@ -2979,7 +2974,7 @@ app.get("/auth/google/config", async () => ({
     // Every member may save their own personal preferences (scheduling view
     // settings etc.) on their organization user record; nothing else on it.
     const ownPreferencePatch = collection === "users" && platformOrgUserPreferencesOnlyPatch(parsedBody);
-    let ctx = await requirePlatformAuth(request, { orgId, csrf: true, ...(ownPreferencePatch ? {} : { permission: collectionWritePermission(collection, "update") }) });
+    let ctx = await requirePlatformAuth(request, { orgId, csrf: true, ...(ownPreferencePatch ? {} : { permission: collectionWritePermission(collection, "update"),allowScopedPermission:collection==="calendar_events" }) });
     if (ownPreferencePatch && documentId !== ctx.userId) {
       ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "update") });
     }
@@ -3003,7 +2998,7 @@ app.get("/auth/google/config", async () => ({
       : collection === "projects"
         ? await upsertProjectDocumentPreservingEvents(orgId, documentId, body, false, { requireExisting: true })
       : collection === "calendar_events"
-        ? await saveCalendarEventDocument(orgId, documentId, parsedBody, false)
+        ? await saveCalendarEventDocument(orgId, documentId, parsedBody, false,ctx)
       : await upsertDocument(
         orgId,
         collection,
@@ -3035,7 +3030,7 @@ app.get("/auth/google/config", async () => ({
     const orgId = getParam(request.params, "orgId");
     const collection = getParam(request.params, "collection");
     assertCanonicalPlatformCollection(collection);
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "delete") });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: collectionWritePermission(collection, "delete"),allowScopedPermission:collection==="calendar_events" });
     const documentId = getParam(request.params, "documentId");
     const existingProject = collection === "projects"
       ? await readDocument(orgId, "projects", documentId).catch(() => null)
@@ -3043,6 +3038,7 @@ app.get("/auth/google/config", async () => ({
     const existingCalendarEvent = collection === "calendar_events"
       ? await readDocument(orgId, "calendar_events", documentId).catch(() => null)
       : null;
+    if(existingCalendarEvent)assertAppointmentDepartmentPermission(ctx,existingCalendarEvent.data,"manage_schedule");
     if (collection === "users" && documentId === ctx.userId) {
       throw forbidden("self_user_delete_forbidden", "You cannot delete your own organization user record.");
     }
@@ -3989,6 +3985,7 @@ function normalizeNotification(input: Record<string, unknown>) {
     manual_dismissible: input.manual_dismissible !== false && input.manualDismissible !== false,
     target_user_ids: targetUserIds,
     target_role_ids: targetRoleIds,
+    target_department_ids: normalizeStringArray(input.target_department_ids),
     branch_id: String(input.branch_id || input.branchId || "default"),
     expires_at: String(input.expires_at || input.expiresAt || ""),
     source: String(input.source || "platform"),
@@ -4256,6 +4253,7 @@ function canonicalActionItemData(node: Record<string, unknown>, userState: Recor
     priority: cleanText(metadata.priority || "normal"),
     work_priority: Number(node.priority || 0),
     issued_at: cleanText(node.created_at),
+    department_ids: normalizeLooseStringArray(node.department_ids),
     assigned_user_ids: normalizeLooseStringArray(node.assigned_user_ids),
     assigned_role_ids: normalizeLooseStringArray(node.assigned_role_ids),
     assigned_resource_group_ids: normalizeLooseStringArray(node.assigned_resource_group_ids),
@@ -4277,6 +4275,7 @@ export async function canonicalActionItemForUser(orgId: string, nodeId: string, 
   const userDoc = await readDocument(orgId, "users", cleanText(ctx.userId));
   const states = asObject(asObject(userDoc.data).action_item_state);
   const item = canonicalActionItemData(node, asObject(states[nodeId]));
+  if (!matchesWorkDepartmentFilter(ctx as unknown as import("./auth.js").PlatformAuthContext, node)) throw forbidden("work_department_denied", "This work is outside your department view.");
   const roles = new Set(userRoleIds({ id: ctx.userId, ...asObject(ctx.user) }));
   const resourceGroupIds = await activeResourceGroupIdsForUser(orgId, cleanText(ctx.userId));
   if (!userCanSeeActionItem(item, cleanText(ctx.userId), roles, resourceGroupIds) && !actionItemIsManagedByUser(item, ctx)) {
@@ -4299,7 +4298,7 @@ export async function listCanonicalActionItems(orgId: string, ctx: Record<string
     include_unassigned: true,
     include_completed: options.includeCompleted === true || options.includeCanceled === true,
     include_future: options.includeFuture === true
-  })).map((node) => canonicalActionItemData(node, asObject(states[cleanText(node.id)])));
+  })).filter(node => matchesWorkDepartmentFilter(ctx as unknown as import("./auth.js").PlatformAuthContext, node, cleanText(options.department_id))).map((node) => canonicalActionItemData(node, asObject(states[cleanText(node.id)])));
   const projectIds = [...new Set(items.flatMap((item) => normalizeLooseStringArray(item.project_ids)).filter(Boolean))];
   const projectLabels = new Map<string, Record<string, string>>();
   await Promise.all(projectIds.map(async (projectId) => {
@@ -4352,6 +4351,7 @@ export async function createCanonicalActionItem(orgId: string, input: Record<str
     source_type: "manual_todo",
     source_id: cleanText(item.id),
     source_key: `action_item:${cleanText(item.id)}`,
+    department_ids: input.department_ids ?? workDepartmentContext(ctx as unknown as import("./auth.js").PlatformAuthContext).member_department_ids,
     title: cleanText(item.title || "To-do"),
     root_nodes: [{
       id: "task",
@@ -4911,7 +4911,7 @@ async function prepareCalendarEventWrite(orgId: string, documentId: string, body
  * the equipment conflict check run against the stored copy that the write is
  * conditional on (retried on a concurrent write). PATCH merges into the
  * stored data here so stale shadow fields already stored are dropped too. */
-export async function saveCalendarEventDocument(orgId: string, documentId: string, parsedBody: JsonObject, replace: boolean) {
+export async function saveCalendarEventDocument(orgId: string, documentId: string, parsedBody: JsonObject, replace: boolean, actor?:import("./auth.js").PlatformAuthContext) {
   const id = cleanText(documentId);
   const attempt = async (existing: JsonObject | null) => {
     const body = await prepareCalendarEventWrite(orgId, id, parsedBody, replace, { document: existing });
@@ -4920,6 +4920,7 @@ export async function saveCalendarEventDocument(orgId: string, documentId: strin
     const data = hasData
       ? stripClientOnlyEventFields(replace || !existingData ? { ...asObject(body.data) } : { ...existingData, ...asObject(body.data) })
       : (replace || !existingData ? {} : existingData);
+    if(actor){if(existingData)assertAppointmentDepartmentPermission(actor,existingData,"manage_schedule");validateAppointmentDepartments(actor,data);assertAppointmentDepartmentPermission(actor,data,"manage_schedule");}
     const checkEquipment = hasData && !isEquipmentOwnCalendarEvent(data);
     const metadata = replace || !existing ? asObject(body.metadata) : { ...asObject(existing.metadata), ...asObject(body.metadata) };
     // R4-EQ-5: check and write under the organization's booking lock when
@@ -5591,6 +5592,7 @@ function withoutRemovedUserTypeFields(value: unknown) {
 
 async function createPlatformOrgUser(orgId: string, body: Record<string, unknown>) {
   const dataInput = withoutRemovedUserTypeFields(body.data && typeof body.data === "object" ? body.data : body);
+  if ('scoped_access_assignments' in dataInput) throw badRequest('scoped_access_profile_required', 'Assign scoped roles through the workforce user profile endpoint.');
   const email = cleanEmail(dataInput.email);
   const userId = normalizeDocumentId(body.id || dataInput.id, `user_${stableHash(email).slice(0, 16)}`);
   let identityId = String(dataInput.identity_id || "");
@@ -5677,6 +5679,7 @@ async function createPlatformOrgUser(orgId: string, body: Record<string, unknown
 
 async function upsertPlatformOrgUserDocument(orgId: string, documentId: string, body: JsonObject, replace: boolean) {
   const dataInput = withoutRemovedUserTypeFields(body.data && typeof body.data === "object" ? body.data : body);
+  if ('scoped_access_assignments' in dataInput) throw badRequest('scoped_access_profile_required', 'Assign scoped roles through the workforce user profile endpoint.');
   const metadata = asObject(body.metadata);
   const current = replace ? null : await readDocument(orgId, "users", documentId).catch(() => null);
   const data = {
@@ -12570,6 +12573,9 @@ export async function saveProjectScheduleEvent(orgId:string,projectId:string,act
     const events = Array.isArray(currentData.events) ? [...currentData.events] : [];
     const existingIndex = requestedEventId ? events.findIndex((item) => cleanText(asObject(item).id) === requestedEventId) : -1;
     const existingEvent = existingIndex >= 0 ? stripClientOnlyEventFields(asObject(events[existingIndex])) : {};
+    if(existingIndex>=0)assertAppointmentDepartmentPermission(actor,existingEvent);
+    validateAppointmentDepartments(actor,{...existingEvent,...eventInput});
+    assertAppointmentDepartmentPermission(actor,{...existingEvent,...eventInput});
     assertEventRevisionCurrent(expectedRevision, existingIndex >= 0 ? existingEvent : null, { event_id: requestedEventId, project_id: projectId });
     const event: JsonObject = normalizeProjectEvent({ ...existingEvent, ...eventInput }, currentData, {
       existing: existingIndex >= 0 ? existingEvent : null,

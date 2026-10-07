@@ -365,6 +365,7 @@ export const CHECKLIST_ITEM_TYPES = ["todo", "rating"] as const;
 export const CHECKLIST_RATINGS = ["good", "neutral", "bad"] as const;
 
 export type ProjectChecklistDefinition = {
+  department_ids?: string[];
   id?: string;
   key?: string;
   title: string;
@@ -446,6 +447,7 @@ function checklistView(rowValue: unknown) {
     icon: cleanText(row.icon),
     sort_order: Number(row.sort_order || 0),
     created_by_user_id: cleanText(row.created_by_user_id),
+    department_ids: asArray(metadata.department_ids).map(cleanText).filter(Boolean),
     assignment_policy: asObject(metadata.assignment_policy),
     assigned_user_ids: asArray(metadata.assigned_user_ids).map(cleanText).filter(Boolean),
     assigned_role_ids: asArray(metadata.assigned_role_ids).map(cleanText).filter(Boolean),
@@ -504,6 +506,7 @@ async function insertChecklist(
   const id = cleanText(definition.id) || `checklist_${randomUUID()}`;
   const metadata = {
     ...asObject(definition.metadata),
+    ...(definition.department_ids ? { department_ids: definition.department_ids } : {}),
     ...(definition.assignment_policy ? { assignment_policy: asObject(definition.assignment_policy) } : {}),
     ...(definition.assigned_user_ids ? { assigned_user_ids: definition.assigned_user_ids.map(cleanText).filter(Boolean) } : {}),
     ...(definition.assigned_role_ids ? { assigned_role_ids: definition.assigned_role_ids.map(cleanText).filter(Boolean) } : {}),
@@ -648,6 +651,7 @@ export async function createProjectChecklist(orgId: string, projectId: string, i
     source: "manual",
     items: Array.isArray(input.items) ? input.items.map(asObject) : [],
     metadata: asObject(input.metadata),
+    department_ids: asArray(input.department_ids).map(cleanText).filter(Boolean),
     assignment_policy: asObject(input.assignment_policy),
     assigned_user_ids: asArray(input.assigned_user_ids).map(cleanText).filter(Boolean),
     assigned_role_ids: asArray(input.assigned_role_ids).map(cleanText).filter(Boolean),
@@ -704,6 +708,7 @@ export async function patchProjectChecklist(orgId: string, projectId: string, ch
   const metadata = {
     ...current.metadata,
     ...(has("metadata") ? asObject(input.metadata) : {}),
+    ...(has("department_ids") ? { department_ids: asArray(input.department_ids).map(cleanText).filter(Boolean) } : {}),
     ...(has("assignment_policy") ? { assignment_policy: asObject(input.assignment_policy) } : {}),
     ...(has("assigned_user_ids") ? { assigned_user_ids: asArray(input.assigned_user_ids).map(cleanText).filter(Boolean) } : {}),
     ...(has("assigned_role_ids") ? { assigned_role_ids: asArray(input.assigned_role_ids).map(cleanText).filter(Boolean) } : {}),
@@ -959,6 +964,7 @@ export async function initializeProjectChecklistsFromScope(
   if (!configured.length) return null;
   const definitions = configured.map((entry, index) => ({
     ...entry,
+    department_ids: entry.department_ids ?? definition.department_ids ?? [],
     // Template-local checklist ids ("safety") must not become row primary
     // keys — derive a per-project id so the same scope can instantiate on
     // many projects.

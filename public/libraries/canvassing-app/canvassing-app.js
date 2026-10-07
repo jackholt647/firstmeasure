@@ -169,7 +169,8 @@
     }
 
     async loadData(){
-      const result = await this.canvassingApi.pins.list(this.orgId(), this.branchId());
+      const result = await this.canvassingApi.pins.list(this.orgId(), this.branchId(), { department_id:this.state.departmentId });
+      this.state.departmentContext = result.department_context || {};
       this.state.pins = result.pins || [];
       this.state.settings = result.settings || {};
     }
@@ -181,6 +182,7 @@
           <header class="fmc-top">
             <div class="fmc-brand"><div class="mark"><i class="fas fa-map-location-dot"></i></div><div>${String(escapeHtml(this.title))}</div></div>
             <nav class="fmc-tabs">
+              ${this.state.departmentContext?.show_selector ? `<select aria-label="${escapeHtml(this.state.departmentContext.department_label || 'Department')}" data-fmc-department><option value="">${escapeHtml('All available ' + (this.state.departmentContext.departments_label || 'departments'))}</option>${(this.state.departmentContext.departments || []).map(d=>`<option value="${escapeHtml(d.id)}" ${this.state.departmentId === d.id ? 'selected' : ''}>${escapeHtml(d.label)}</option>`).join('')}</select>` : ''}
               <button class="${String(this.state.view === 'map' ? 'active' : '')}" data-fmc-tab="map"><i class="fas fa-map"></i> <span>${(globalThis.PlatformLanguage?.htmlText("canvassing-app","m_9afd0eccc8e530","Map") ?? "Map")}</span></button>
               ${String(managerButton)}
               <button class="ghost" data-fmc-action="logout"><i class="fas fa-right-from-bracket"></i></button>
@@ -190,6 +192,7 @@
         </main>
       `;
       this.root.querySelector('[data-fmc-tab="map"]').addEventListener('click', () => { this.state.view = 'map'; this.renderMain(); });
+      this.root.querySelector('[data-fmc-department]')?.addEventListener('change', async event => { this.state.departmentId = event.target.value; await this.loadData(); this.renderMain(); });
       this.root.querySelector('[data-fmc-tab="manager"]')?.addEventListener('click', () => { this.state.view = 'manager'; this.renderMain(); });
       this.root.querySelector('[data-fmc-action="logout"]')?.addEventListener('click', () => this.onLogout && this.onLogout());
       this.renderMain();
@@ -282,6 +285,7 @@
       const sheet = this.root.querySelector('[data-fmc-sheet]');
       return {
         ...(this.state.currentPin?.id ? { id: this.state.currentPin.id } : {}),
+        ...(!this.state.currentPin?.id && this.state.departmentId ? { department_ids:[this.state.departmentId] } : {}),
         coordinates: { lat: Number(sheet.dataset.lat), lng: Number(sheet.dataset.lng) },
         status_id: sheet.querySelector('[data-fmc-field="status"]').value,
         address: sheet.querySelector('[data-fmc-field="address"]').value,

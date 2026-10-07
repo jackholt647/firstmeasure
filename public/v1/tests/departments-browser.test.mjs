@@ -108,3 +108,26 @@ test('department search opens the Users sub-tab with either user UI and retains 
     }
   } finally {await browser.close();}
 });
+
+test('organizational unit and department policy editors preserve hierarchy and fit narrow screens',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.route('http://localhost/**',route=>route.fulfill({body:'<main id="host"></main>',contentType:'text/html'}));await page.goto('http://localhost/');
+    await page.evaluate(()=>{window.FirstMateAppsManifest={apps:[{id:'feedback',title:'Feedback'}]};window.state={revision:1,departments:[],groups:[],divisions:[],users:[],resource_groups:[],connections:[],roles:[],group_kinds:[],branches:[],can_manage:true,can_assign:{}};window.PlatformAPI={workforce:{departments:async()=>structuredClone(window.state),saveDepartments:async(org,payload)=>{Object.assign(window.state,payload,{revision:window.state.revision+1});return structuredClone(window.state);}}};});
+    await page.addScriptTag({content:source});await page.evaluate(()=>window.FirstMateDepartments.mount(document.querySelector('#host'),'org'));
+    await page.getByRole('button',{name:'Organizational units',exact:true}).click();await page.locator('[data-unit-name]').fill('Pennsylvania');await page.locator('[data-unit-kind]').fill('Region');await page.locator('[data-unit-save]').click();
+    await page.waitForFunction(()=>window.state.divisions.length===1);
+    const regionId=await page.evaluate(()=>window.state.divisions[0].id);
+    await page.getByRole('button',{name:'+ Create unit',exact:true}).click();await page.locator('[data-unit-name]').fill('Scranton');await page.locator('[data-unit-kind]').fill('Branch');await page.locator('[data-unit-parent]').selectOption(regionId);await page.locator('[data-unit-save]').click();await page.waitForFunction(()=>window.state.divisions.length===2);
+    const branchId=await page.evaluate(()=>window.state.divisions[1].id);
+    await page.getByRole('button',{name:'Departments',exact:true}).click();await page.locator('[data-dp-name]').fill('Inside Sales');await page.locator('[data-dp-division]').selectOption(branchId);await page.locator('[data-dp-app-add]').click();await page.locator('[data-app-id]').selectOption('feedback');await page.locator('[data-app-visibility]').selectOption('hide');await page.locator('[data-app-enforcement]').selectOption('restricted');await page.locator('[data-dp-save]').click();await page.getByText('Department saved.',{exact:true}).waitFor();
+    const result=await page.evaluate(()=>window.state);assert.equal(result.departments[0].division_id,branchId);assert.deepEqual(result.departments[0].app_defaults.feedback,{visibility:'hide',enforcement:'restricted'});assert.equal(result.divisions[1].parent_id,regionId);
+    await page.locator('details summary').click();await page.locator('[data-dp-singular]').fill('Practice');await page.locator('[data-dp-plural]').fill('Practices');await page.locator('[data-dp-save]').click();
+    await page.getByRole('heading',{name:'Organization Practices',exact:true}).waitFor();
+    assert.equal(await page.getByRole('button',{name:'+ Create Practice',exact:true}).count(),1);
+    assert.equal(await page.getByRole('button',{name:'Save Practice',exact:true}).count(),1);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);assert.deepEqual(errors,[]);
+    if(process.env.DEPARTMENT_SCREENSHOTS){await mkdir('../../output/departments-ui',{recursive:true});await page.screenshot({path:'../../output/departments-ui/hierarchy-mobile.png',fullPage:true});}
+  }finally{await browser.close();}
+});

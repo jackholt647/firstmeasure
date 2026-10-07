@@ -160,8 +160,8 @@
   };
 
   const pins = {
-    list(orgId, branchId = 'default'){
-      return request(branchPath(orgId, branchId, '/pins')).catch((error) => {
+    list(orgId, branchId = 'default', filters = {}){
+      return request(branchPath(orgId, branchId, '/pins') + (filters.department_id ? '?department_id=' + encodeURIComponent(filters.department_id) : '')).catch((error) => {
         if (missingFallback(error)) return { ok: true, pins: [], settings: defaultSettings(), missing: true };
         throw error;
       });

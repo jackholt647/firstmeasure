@@ -1,3 +1,4 @@
+import { canAccessDepartmentResource, hasResourcePermission, matchesDepartmentFilter, relevantDepartmentContext } from "../workforce/department-access.js";
 import { readDocumentDeliveryDefaults } from "./settings.js";
 import { registerDocumentTagRoutes } from "./tag-catalog.js";
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
@@ -191,7 +192,14 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", async (request) => {
     const orgId = getParam(request.params, "orgId");
     if (!orgId) return;
-    await requirePlatformAuth(request, { orgId, capability: DOCUMENT_CAPABILITIES.app });
+    const ctx = await requirePlatformAuth(request, { orgId, capability: DOCUMENT_CAPABILITIES.app });
+    const documentId = getParam(request.params, "documentId");
+    const templateId = getParam(request.params, "templateId");
+    const workflowId = getParam(request.params, "workflowId");
+    if (templateId || workflowId) await ensureDefaultDocumentAssets(orgId);
+    const resource = documentId ? await readDocumentInstance(orgId, documentId) : templateId ? await readDocumentTemplate(orgId, templateId) : workflowId ? await readDocumentWorkflow(orgId, workflowId) : null;
+    if (resource && (!canAccessDepartmentResource(ctx, resource, "view_projects") || !hasResourcePermission(ctx, "view_projects", resource))) throw forbidden("document_department_denied", "This document is outside your department access.");
+    if (resource && request.method === "PATCH" && !hasResourcePermission(ctx, "view_projects", {...resource, ...asObject(request.body)})) throw forbidden("document_department_denied", "The destination department is outside your access.");
   });
 
   app.setErrorHandler((error, _request, reply) => {
@@ -243,15 +251,16 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/templates", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     await ensureDefaultDocumentAssets(orgId);
     const query = asObject(request.query);
     const capabilityState = await documentCapabilityState(orgId);
+    const departmentCtx = await requirePlatformAuth(request, { orgId });
     const templates = (await listDocumentTemplates(orgId, {
       document_type: cleanText(query.document_type) || undefined,
       status: cleanText(query.status) || undefined
-    })).filter((template) => documentTypeEnabled(capabilityState, template.document_type));
-    return { ok: true, templates, count: templates.length };
+    })).filter((template) => documentTypeEnabled(capabilityState, template.document_type) && canAccessDepartmentResource(departmentCtx, template, "view_projects") && hasResourcePermission(departmentCtx, "view_projects", template) && matchesDepartmentFilter(departmentCtx, template, cleanText(query.department_id)));
+    return { ok: true, templates, count: templates.length, department_context: relevantDepartmentContext(departmentCtx) };
   });
 
   app.post("/organizations/:orgId/templates", async (request, reply) => {
@@ -285,7 +294,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/templates/:templateId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     await ensureDefaultDocumentAssets(orgId);
     const template = await readDocumentTemplate(orgId, getParam(request.params, "templateId"));
     const current = Number(template.current_version || 0);
@@ -310,14 +319,14 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/templates/:templateId/versions", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const versions = await listDocumentTemplateVersions(orgId, getParam(request.params, "templateId"));
     return { ok: true, versions, count: versions.length };
   });
 
   app.get("/organizations/:orgId/templates/:templateId/versions/:version", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const version = await readDocumentTemplateVersion(orgId, getParam(request.params, "templateId"), Number(getParam(request.params, "version")) || undefined);
     if (!version) throw badRequest("document_template_version_not_found", "That template version was not found.");
     return { ok: true, version };
@@ -341,7 +350,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/themes", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     await ensureDefaultDocumentAssets(orgId);
     const query = asObject(request.query);
     const themes = await themesWithCurrentDefinitions(orgId, await listDocumentThemes(orgId, { status: cleanText(query.status) || undefined }));
@@ -362,7 +371,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/themes/:themeId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     await ensureDefaultDocumentAssets(orgId);
     const theme = await readDocumentTheme(orgId, getParam(request.params, "themeId"));
     const current = Number(theme.current_version || 0);
@@ -387,14 +396,14 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/themes/:themeId/versions", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const versions = await listDocumentThemeVersions(orgId, getParam(request.params, "themeId"));
     return { ok: true, versions, count: versions.length };
   });
 
   app.get("/organizations/:orgId/themes/:themeId/versions/:version", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const version = await readDocumentThemeVersion(orgId, getParam(request.params, "themeId"), Number(getParam(request.params, "version")) || undefined);
     if (!version) throw badRequest("document_theme_version_not_found", "That theme version was not found.");
     return { ok: true, version };
@@ -415,10 +424,11 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/workflows", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     await ensureDefaultDocumentAssets(orgId);
     const query = asObject(request.query);
-    const workflows = await listDocumentWorkflows(orgId, { status: cleanText(query.status) || undefined });
+    const departmentCtx = await requirePlatformAuth(request, { orgId });
+    const workflows = (await listDocumentWorkflows(orgId, { status: cleanText(query.status) || undefined })).filter(row => canAccessDepartmentResource(departmentCtx, row) && hasResourcePermission(departmentCtx, "view_projects", row) && matchesDepartmentFilter(departmentCtx, row, cleanText(query.department_id)));
     return { ok: true, workflows, count: workflows.length };
   });
 
@@ -433,7 +443,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/workflows/:workflowId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     await ensureDefaultDocumentAssets(orgId);
     const workflow = await readDocumentWorkflow(orgId, getParam(request.params, "workflowId"));
     const current = Number(workflow.current_version || 0);
@@ -458,14 +468,14 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/workflows/:workflowId/versions", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const versions = await listDocumentWorkflowVersions(orgId, getParam(request.params, "workflowId"));
     return { ok: true, versions, count: versions.length };
   });
 
   app.get("/organizations/:orgId/workflows/:workflowId/versions/:version", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const version = await readDocumentWorkflowVersion(orgId, getParam(request.params, "workflowId"), Number(getParam(request.params, "version")) || undefined);
     if (!version) throw badRequest("document_workflow_version_not_found", "That workflow version was not found.");
     return { ok: true, version };
@@ -486,7 +496,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/folders", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     await ensureDefaultDocumentFolders(orgId);
     const query = asObject(request.query);
     const folders = await listDocumentFolders(orgId, { status: cleanText(query.status) || undefined });
@@ -526,7 +536,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/folders/:folderId/items", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const items = await listDocumentFolderItems(orgId, getParam(request.params, "folderId"), {
       status: cleanText(asObject(request.query).status) || undefined
     });
@@ -545,14 +555,14 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/folders/:folderId/items/:itemId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const item = await readDocumentFolderItem(orgId, getParam(request.params, "itemId"));
     return { ok: true, item };
   });
 
   app.get("/organizations/:orgId/folders/:folderId/items/:itemId/versions", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const versions = await listDocumentFolderItemVersions(orgId, getParam(request.params, "itemId"));
     return { ok: true, versions, count: versions.length };
   });
@@ -576,7 +586,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/folders/:folderId/items/:itemId/pdf", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const rendered = await generateFolderItemPdf(orgId, getParam(request.params, "itemId"));
     return sendPdf(reply, { contentType: "application/pdf", fileName: rendered.fileName, bytes: rendered.bytes });
   });
@@ -587,18 +597,19 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/settings", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const branchId = cleanText(asObject(request.query).branch_id) || "default";
     return { ok: true, settings: await readDocumentDeliveryDefaults(orgId, branchId) };
   });
 
   app.get("/organizations/:orgId/catalog", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const capabilityState = await documentCapabilityState(orgId);
     await ensureDefaultDocumentAssets(orgId);
     const themes = await themesWithCurrentDefinitions(orgId, await listDocumentThemes(orgId));
-    const workflows = await listDocumentWorkflows(orgId);
+    const departmentCtx = await requirePlatformAuth(request, { orgId });
+    const workflows = (await listDocumentWorkflows(orgId)).filter(row => canAccessDepartmentResource(departmentCtx, row) && hasResourcePermission(departmentCtx, "view_projects", row));
     const resolverMeta = new Map(listDocumentWidgetResolvers().map((entry) => [cleanText(entry.id), entry]));
     return {
       ok: true,
@@ -645,16 +656,17 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/projects/:projectId/documents", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
-    const documents = await listProjectDocuments(orgId, getParam(request.params, "projectId"));
-    return { ok: true, documents, count: documents.length };
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
+    const departmentCtx = await requirePlatformAuth(request, { orgId });
+    const documents = (await listProjectDocuments(orgId, getParam(request.params, "projectId"))).filter(document => canAccessDepartmentResource(departmentCtx, document, "view_projects") && hasResourcePermission(departmentCtx, "view_projects", document) && matchesDepartmentFilter(departmentCtx, document, cleanText(asObject(request.query).department_id)));
+    return { ok: true, documents, count: documents.length, department_context: relevantDepartmentContext(departmentCtx) };
   });
 
   app.post("/organizations/:orgId/projects/:projectId/documents", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = createDocumentInstanceSchema.parse(request.body ?? {});
-    const result = await createDocumentInstance(orgId, getParam(request.params, "projectId"), body, ctx);
+    const result = await createDocumentInstance(orgId, getParam(request.params, "projectId"), body, ctx, { departmentPermission:"view_projects" });
     reply.code(201);
     return { ok: true, document: result.document, missing_params: result.missing_params };
   });
@@ -663,32 +675,33 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
    *  Powers the My Projects "Drafts" view. */
   app.get("/organizations/:orgId/documents", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
-    const documents = await listProjectDocuments(orgId, "");
-    return { ok: true, documents, count: documents.length };
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
+    const departmentCtx = await requirePlatformAuth(request, { orgId });
+    const documents = (await listProjectDocuments(orgId, "")).filter(document => canAccessDepartmentResource(departmentCtx, document, "view_projects") && hasResourcePermission(departmentCtx, "view_projects", document) && matchesDepartmentFilter(departmentCtx, document, cleanText(asObject(request.query).department_id)));
+    return { ok: true, documents, count: documents.length, department_context: relevantDepartmentContext(departmentCtx) };
   });
 
   /** Standalone create (doc-first flows): no project yet. Attach one later via
    *  PATCH /documents/:id { project_id } while the document is unattached. */
   app.post("/organizations/:orgId/documents", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = createDocumentInstanceSchema.parse(request.body ?? {});
-    const result = await createDocumentInstance(orgId, "", body, ctx);
+    const result = await createDocumentInstance(orgId, "", body, ctx, { departmentPermission:"view_projects" });
     reply.code(201);
     return { ok: true, document: result.document, missing_params: result.missing_params };
   });
 
   app.get("/organizations/:orgId/documents/:documentId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const document = await readDocumentInstance(orgId, getParam(request.params, "documentId"));
     return { ok: true, document };
   });
 
   app.patch("/organizations/:orgId/documents/:documentId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = patchDocumentInstanceSchema.parse(request.body ?? {});
     const document = await patchDocumentInstance(orgId, getParam(request.params, "documentId"), body, ctx);
     return { ok: true, document };
@@ -696,7 +709,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.delete("/organizations/:orgId/documents/:documentId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const document = await voidDocumentInstance(orgId, getParam(request.params, "documentId"), ctx);
     return { ok: true, document };
   });
@@ -706,7 +719,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
    *  document.voided. The item remains visible as canceled in timelines. */
   app.post("/organizations/:orgId/documents/:documentId/void", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = voidDocumentInstanceSchema.parse(request.body ?? {});
     const document = await voidDocumentInstance(orgId, getParam(request.params, "documentId"), ctx, body);
     return { ok: true, document };
@@ -715,7 +728,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   /** Live resolution for the editor/preview: overrides+bindings+widgets+theme. */
   app.post("/organizations/:orgId/documents/:documentId/resolve", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = resolveDocumentSchema.parse(request.body ?? {});
     const document = await readDocumentInstance(orgId, getParam(request.params, "documentId"));
     const resolved = await resolveDocumentInstance(orgId, document, {
@@ -742,7 +755,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   /** Workflow definition + navigation state for the internal fill stepper. */
   app.get("/organizations/:orgId/documents/:documentId/workflow", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const detail = await documentWorkflowDetail(orgId, getParam(request.params, "documentId"));
     return {
       ok: true,
@@ -760,7 +773,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
    */
   app.post("/organizations/:orgId/documents/:documentId/workflow/state", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = workflowStateUpdateSchema.parse(request.body ?? {});
     const result = await updateDocumentWorkflowState(orgId, getParam(request.params, "documentId"), body, ctx);
     return { ok: true, state: result.state, document: result.document };
@@ -768,7 +781,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/documents/:documentId/issue", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = issueDocumentSchema.parse(request.body ?? {});
     const result = await issueDocument(orgId, getParam(request.params, "documentId"), body, ctx);
     return { ok: true, document: result.document, missing_params: result.missing_params };
@@ -776,7 +789,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/documents/:documentId/send", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = sendDocumentSchema.parse(request.body ?? {});
     const result = await sendDocument(orgId, getParam(request.params, "documentId"), body, ctx);
     return { ok: true, document: result.document, snapshot: result.snapshot, portal_url: result.portal_url, emailed: result.emailed, texted: result.texted, signing: result.signing };
@@ -784,14 +797,14 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/documents/:documentId/snapshots", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const snapshots = await listDocumentSnapshots(orgId, getParam(request.params, "documentId"));
     return { ok: true, snapshots, count: snapshots.length };
   });
 
   app.post("/organizations/:orgId/documents/:documentId/snapshots", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = createDocumentSnapshotSchema.parse(request.body ?? {});
     const snapshot = await createSnapshot(orgId, getParam(request.params, "documentId"), body, ctx);
     reply.code(201);
@@ -800,14 +813,14 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/documents/:documentId/events", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const events = await listDocumentEvents(orgId, getParam(request.params, "documentId"));
     return { ok: true, events, count: events.length };
   });
 
   app.post("/organizations/:orgId/documents/:documentId/pdf", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = generateDocumentPdfSchema.parse(request.body ?? {});
     const result = await generateDocumentPdf(orgId, getParam(request.params, "documentId"), body, ctx);
     return {
@@ -822,7 +835,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/documents/:documentId/pdf", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const query = asObject(request.query);
     const file = await readDocumentPdfFile(orgId, getParam(request.params, "documentId"), cleanText(query.media_id), cleanText(query.snapshot_id));
     return sendPdf(reply, file);
@@ -831,7 +844,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   /** Internal fill — record an output value on behalf of the org user. */
   app.post("/organizations/:orgId/documents/:documentId/outputs/:key", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = recordOutputSchema.parse(request.body ?? {});
     const result = await recordDocumentOutput(
       orgId,
@@ -851,7 +864,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/documents/ingest", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", capability: DOCUMENT_CAPABILITIES.ingestion });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true, capability: DOCUMENT_CAPABILITIES.ingestion });
     const body = ingestDocumentSchema.parse(request.body ?? {});
     let bytes: Buffer;
     try {
@@ -876,7 +889,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   /** Field-definition + value edits for uploaded (paper) documents. */
   app.post("/organizations/:orgId/documents/:documentId/upload-fields", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", capability: DOCUMENT_CAPABILITIES.ingestion });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true, capability: DOCUMENT_CAPABILITIES.ingestion });
     const body = uploadFieldsSchema.parse(request.body ?? {});
     const document = await updateUploadedDocumentFields(orgId, getParam(request.params, "documentId"), body, ctx);
     return { ok: true, document };
@@ -889,7 +902,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
    */
   app.post("/organizations/:orgId/documents/:documentId/confirm-upload", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", capability: DOCUMENT_CAPABILITIES.ingestion });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true, capability: DOCUMENT_CAPABILITIES.ingestion });
     const body = confirmUploadSchema.parse(request.body ?? {});
     const document = await confirmUploadedDocument(orgId, getParam(request.params, "documentId"), body, ctx);
     return { ok: true, document };

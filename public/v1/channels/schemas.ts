@@ -26,7 +26,8 @@ export const createChannelSchema = z.object({
   type: z.enum(["public", "private", "dm", "group_dm"]).default("public"),
   name: z.string().trim().max(80).default(""),
   topic: z.string().trim().max(500).default(""),
-  member_user_ids: z.array(z.string().trim().min(1)).default([])
+  member_user_ids: z.array(z.string().trim().min(1)).default([]),
+  department_ids: z.array(z.string().trim().min(1)).max(200).default([])
 });
 
 export const updateChannelSchema = z.object({
@@ -36,7 +37,8 @@ export const updateChannelSchema = z.object({
 });
 
 export const addMembersSchema = z.object({
-  user_ids: z.array(z.string().trim().min(1)).min(1)
+  user_ids: z.array(z.string().trim().min(1)).default([]),
+  department_ids: z.array(z.string().trim().min(1)).max(200).default([])
 });
 
 export const memberPatchSchema = z.object({

@@ -870,3 +870,25 @@ test("equipment: existing advanced flags resolve to the fixed Simple feature set
     assert.equal(state.raw[key], enabled, `visible ${key}`);
   }
 });
+
+test('department-owned equipment filters fleet and enforces target grants and transfers',async()=>{
+  const owner=createSessionClient();const {orgId}=await registerOwner(owner);await enableEquipment(owner,orgId);
+  const store=await import('../platform/storage.js');
+  const {departmentCatalogSchema}=await import('../workforce/department-contracts.js');
+  const catalog=departmentCatalogSchema.parse({groups:[],departments:[{id:'sales',label:'Sales'},{id:'production',label:'Production'}]});
+  await store.upsertDocument(orgId,'organization_departments',{id:'catalog',data:catalog});
+  const base=`/v1/equipment/organizations/${orgId}`;
+  const sales=(await owner.request('POST',base+'/units',{name:'Sales car',department_id:'sales'})).unit;
+  const production=(await owner.request('POST',base+'/units',{name:'Production truck',department_id:'production'})).unit;
+  assert.equal((await owner.request('GET',base+'/units?department_id=sales')).units.length,1);
+  assert.equal((await owner.request('GET',base+'/units/'+sales.id)).unit.department_id,'sales');
+  assert.equal((await owner.raw('PATCH',base+'/units/'+sales.id,{department_id:'foreign'})).statusCode,400);
+  const access=await import('../equipment/access.js');const {buildOrganizationStructure}=await import('../workforce/organization-structure.js');
+  const ctx={orgId,userId:'manager',permissions:{},organizationStructure:buildOrganizationStructure(catalog,[{id:'manager'}],[]),scopedAccessGrants:[{scope:{kind:'department',id:'sales'},permissions:{'equipment.view':true,'equipment.manage':true}}]} as any;
+  assert.equal((await access.authorizeEquipmentUnit(ctx,sales.id)).id,sales.id);
+  await assert.rejects(access.authorizeEquipmentUnit(ctx,production.id),(e:any)=>e.statusCode===403);
+  await assert.rejects(access.authorizeEquipmentOwner(ctx,{department_id:'production'},sales),(e:any)=>e.statusCode===403);
+  await assert.rejects(access.authorizeEquipmentOwner(ctx,{department_id:''},sales),(e:any)=>e.statusCode===403);
+  assert.deepEqual(access.filterEquipmentUnits(ctx,[sales,production]).map(u=>u.id),[sales.id]);
+  const allowed=await access.visibleEquipmentUnitIds(ctx);assert.equal(allowed.has(sales.id),true);assert.equal(allowed.has(production.id),false);
+});

@@ -6,7 +6,7 @@ import { asObject, cleanText, type JsonObject } from "./util.js";
 import { backgroundAuthContext } from "../platform/auth.js";
 import { forbidden, badRequest } from "../platform/errors.js";
 import { initializePublication } from "../platform/publication/bootstrap.js";
-import { authorizePublication, userPublicationContext } from "../platform/publication/context.js";
+import { authorizePublication, authorizePublicationDiscovery, userPublicationContext } from "../platform/publication/context.js";
 import type { AccessPolicy, DataBinding, SourceRef, TargetRef } from "../platform/publication/contracts.js";
 import { listActions, describeAction, invokeAction } from "../platform/publication/actions.js";
 import { listDataProviders, describeDataProvider, readPublishedData, listPublishedData } from "../platform/publication/providers.js";
@@ -79,7 +79,8 @@ async function discover(run: AgentRun, policy: AccessPolicy, scopes: readonly Ta
     try {
       // Discovery checks grants, not ownership of a resource that has not yet
       // been selected. Reads and invocations use the full policy.
-      await authorizePublication(ctx, candidate, { ...policy, authorize: operation.startsWith('external.') ? policy.authorize : undefined }, operation);
+      if (operation.startsWith('external.')) await authorizePublication(ctx,candidate,policy,operation);
+      else await authorizePublicationDiscovery(ctx,candidate,policy,operation);
       return true;
     } catch { /* Another supported scope may be available. */ }
   }

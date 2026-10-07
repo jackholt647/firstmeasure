@@ -1,3 +1,4 @@
+import { matchesDepartmentFilter, relevantDepartmentContext } from "../workforce/department-access.js";
 import type { FastifyPluginAsync } from "fastify";
 import { ZodError, z } from "zod";
 
@@ -65,9 +66,10 @@ export const registerScopesApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/branches/:branchId/templates", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
-    const templates = (await listScopeTemplates(orgId, getParam(request.params, "branchId") || "default", objectSchema.parse(request.query ?? {})));
-    return { ok: true, templates, count: templates.length };
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    const query = objectSchema.parse(request.query ?? {});
+    const templates = (await listScopeTemplates(orgId, getParam(request.params, "branchId") || "default", query)).filter(template => matchesDepartmentFilter(ctx, objectSchema.parse(template.definition), getParam(query, "department_id")));
+    return { ok: true, templates, count: templates.length, department_context: relevantDepartmentContext(ctx) };
   });
 
   app.get("/organizations/:orgId/branches/:branchId/library", async (request) => {

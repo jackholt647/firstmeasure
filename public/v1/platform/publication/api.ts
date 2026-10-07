@@ -2,7 +2,7 @@ import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requirePlatformAuth } from "../auth.js";
 import { PlatformError } from "../errors.js";
-import { authorizePublication, userPublicationContext } from "./context.js";
+import { authorizePublication, authorizePublicationDiscovery, userPublicationContext } from "./context.js";
 import { listDataProviders, readPublishedData, listPublishedData } from "./providers.js";
 import { listActions, invokeAction } from "./actions.js";
 import { listDatasetTypes } from "./datasets.js";
@@ -34,7 +34,7 @@ export const registerPublicationApi: FastifyPluginAsync = async app => {
     return userPublicationContext(auth, { ...(target?.projectId ? { projectId: target.projectId } : {}), mode: command ? "command" : "evaluate" });
   }
   async function discoverable(ctx: PublicationContext, target: TargetRef, policy: AccessPolicy, operation: string) {
-    try { await authorizePublication(ctx, target, policy, operation); return true; }
+    try { if(operation.startsWith('external.'))await authorizePublication(ctx,target,policy,operation);else await authorizePublicationDiscovery(ctx, target, policy, operation); return true; }
     catch (error) { if (error instanceof PlatformError && [400, 403, 404].includes(error.statusCode)) return false; throw error; }
   }
   app.get("/organizations/:orgId/catalog", async request => {

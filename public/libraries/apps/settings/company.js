@@ -1167,7 +1167,7 @@
     if (!data || !data.success) return { ok:false, error: data?.error || 'Update failed' };
     return { ok:true, user: data.user || null };
   }
-  async function userSaveWorkforceProfile({ userId, applicationAccess, accessRoleIds, permissionOverrides, appAccessOverrides, assignmentTagIds, compensationProfile = null }){
+  async function userSaveWorkforceProfile({ userId, applicationAccess, accessRoleIds, scopedAccessAssignments, permissionOverrides, appAccessOverrides, assignmentTagIds, compensationProfile = null }){
     const orgId = currentOrgId();
     if (!orgId || !userId || !window.PlatformAPI?.workforce?.saveUserProfile) {
       return { ok:false, error:'Workforce profile API is unavailable.' };
@@ -1175,6 +1175,7 @@
     const result = await window.PlatformAPI.workforce.saveUserProfile(orgId, userId, {
       ...(applicationAccess !== undefined ? { application_access:normalizeApplicationAccess(applicationAccess) } : {}),
       ...(accessRoleIds !== undefined ? { access_role_ids:workforceUniqueIds(accessRoleIds) } : {}),
+      ...(scopedAccessAssignments !== undefined ? { scoped_access_assignments:scopedAccessAssignments } : {}),
       ...(permissionOverrides !== undefined ? { permission_overrides:workforceObject(permissionOverrides) } : {}),
       ...(appAccessOverrides !== undefined ? { app_access_overrides:workforceObject(appAccessOverrides) } : {}),
       ...(assignmentTagIds !== undefined ? { assignment_tag_ids:workforceUniqueIds(assignmentTagIds) } : {}),
@@ -10712,6 +10713,10 @@
         paneScopeTemplates.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_7f1ebb67080316","Project Scopes API is unavailable.") ?? "Project Scopes API is unavailable.")}</div>`;
         return;
       }
+      const scopeDepartmentResult = await window.PlatformAPI?.workforce?.departments?.(orgId).catch(() => null);
+      const scopeDepartmentLabel = scopeDepartmentResult?.catalog?.terminology?.department?.plural || 'Departments';
+      const scopeDepartments = (scopeDepartmentResult?.catalog?.departments || []).filter(department => department.status !== 'archived');
+      const departmentChecks = (ids, attr) => scopeDepartments.map(department => `<label style="display:flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" ${attr} value="${escapeHtml(department.id)}" ${(ids || []).includes(department.id) ? 'checked' : ''}>${escapeHtml(department.label)}</label>`).join('');
       let templates = [];
       let libraryTemplates = [];
       let selectedId = readSettingsRoute().settingsEntity.replace(/^scope:/, '');
@@ -11215,6 +11220,7 @@
           <div class="scope-editor-layout automation"><main class="scope-editor-main">${String(editorSection === 'details' ? `<div id="scope-editor-panel-details" role="tabpanel" aria-labelledby="scope-editor-tab-details" data-scope-details class="scope-basics">
             <div class="scope-editor-grid">
               <label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_92e98ae6a8fe9b","Scope name") ?? "Scope name")}<input data-scope-field="name" value="${escapeHtml(definition.name || '')}"></label>
+              ${scopeDepartments.length > 1 ? `<fieldset class="wide scope-icon-field"><legend>${escapeHtml(scopeDepartmentLabel)}</legend><p class="scope-editor-card-intro">Responsible ${escapeHtml(scopeDepartmentLabel.toLowerCase())} for this workflow. Leave unselected for shared work. Stage choices can override this default.</p>${departmentChecks(definition.work_plan?.department_ids ?? definition.department_ids, 'data-scope-department')}</fieldset><fieldset class="wide scope-icon-field"><legend>Stage ${escapeHtml(scopeDepartmentLabel.toLowerCase())}</legend>${(definition.work_plan?.root_nodes || []).flatMap(root => root.children || []).filter(node => String(node.terminology_key || '').endsWith('stage')).map(node => `<details><summary>${escapeHtml(node.title)}</summary><label style="display:flex;gap:8px"><input type="checkbox" data-stage-department-inherit="${escapeHtml(node.id)}" ${node.department_ids === undefined ? 'checked' : ''}>Use workflow ${escapeHtml(scopeDepartmentLabel.toLowerCase())}</label>${departmentChecks(node.department_ids ?? definition.work_plan?.department_ids ?? definition.department_ids, `data-stage-department="${escapeHtml(node.id)}"`)}</details>`).join('')}</fieldset>` : ''}
               <label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_931f0950e047a8","Short description") ?? "Short description")}<input data-scope-field="description" value="${escapeHtml(definition.description || '')}"></label>
               <label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_d85a941de2dd2c","Instructions & notes") ?? "Instructions & notes")}<textarea data-scope-field="details" rows="4">${escapeHtml(definition.details || '')}</textarea></label>
               <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_db7002926d9977","Color") ?? "Color")}<span class="scope-color-field"><input type="color" value="${escapeHtml(safeColor(definition.color))}" data-scope-color><input data-scope-field="color" value="${escapeHtml(definition.color || '')}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_2d60b0c7f80b48","Scope color") ?? "Scope color")}"></span></label>
@@ -11253,7 +11259,7 @@
         artifactHandle = null;
         const artifactHost = paneScopeTemplates.querySelector('[data-scope-artifacts-host]');
         if (artifactHost && window.FirstMateScopeArtifacts?.mount) artifactHandle = window.FirstMateScopeArtifacts.mount(artifactHost, {
-          orgId, branchId, templateId:template.id, type:editorSection, dirty,
+          orgId, branchId, departments:scopeDepartments, departmentsLabel:scopeDepartmentLabel, templateId:template.id, type:editorSection, dirty,
           selected:window.Portal?.navigation?.read?.().scopeArtifact || '',
           filter:window.Portal?.navigation?.read?.().scopeArtifactFilter || 'all',
           onNavigate:navigateArtifact,
@@ -11289,6 +11295,21 @@
           editorSection = ['boards', 'scheduling', 'developer', 'automations', 'todos', 'checklists', 'documents', 'materials', 'events', 'notifications', 'communications', 'resources', 'fields', 'calls', 'transitions', 'workflows', 'portal', 'payments', 'other', 'commissions', 'assistant'].includes(button.dataset.scopeEditorSection) ? button.dataset.scopeEditorSection : 'details';
           if (!window.Portal?.navigation?.applying) writeSettingsRoute({ sub:'project_scopes', settingsView:'editor', settingsEntity:`scope:${selectedId}`, scopeTemplateView:editorSection, scopeArtifact:null, scopeAutomation:null, scopeEventFocus:null }, { history:'push', source:'project-scope-section', ownedKeys:['scopeTemplateView','scopeArtifact','scopeAutomation','scopeEventFocus'] });
           drawEditor(statusText);
+        }));
+        paneScopeTemplates.querySelectorAll('[data-scope-department]').forEach(input => input.addEventListener('change', () => {
+          const ids = [...paneScopeTemplates.querySelectorAll('[data-scope-department]:checked')].map(el => el.value);
+          draftDefinition = { ...(draftDefinition || definition), department_ids:ids, work_plan:{ ...(draftDefinition || definition).work_plan, department_ids:ids } }; markDirty();
+        }));
+        paneScopeTemplates.querySelectorAll('[data-stage-department], [data-stage-department-inherit]').forEach(input => input.addEventListener('change', () => {
+          draftDefinition ||= structuredClone(definition);
+          const id = input.dataset.stageDepartment || input.dataset.stageDepartmentInherit;
+          const node = (draftDefinition.work_plan?.root_nodes || []).flatMap(root => root.children || []).find(node => node.id === id);
+          if (!node) return;
+          const inherit = [...paneScopeTemplates.querySelectorAll('[data-stage-department-inherit]')].find(el => el.dataset.stageDepartmentInherit === id);
+          if (input.dataset.stageDepartment) inherit.checked = false;
+          if (inherit.checked) delete node.department_ids;
+          else node.department_ids = [...paneScopeTemplates.querySelectorAll('[data-stage-department]:checked')].filter(el => el.dataset.stageDepartment === id).map(el => el.value);
+          markDirty();
         }));
         paneScopeTemplates.querySelectorAll('[data-scope-field]').forEach((input) => {
           const updateDraft = () => { draftDefinition = { ...(draftDefinition || definition), [input.dataset.scopeField]:input.value }; markDirty(); };
@@ -16188,11 +16209,36 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             </div>
           </section>` : ''}
           <div data-user-departments data-settings-autosave="off"></div>
+          <div data-user-scoped-access data-settings-autosave="off"></div>
           <div class="cs-note" id="cuEditStatus" style="margin-top:10px;"></div>
         `
       });
       m.el.querySelector('.cu-modal')?.classList.add('cu-access-modal');
       const userDepartmentEditor = departmentUi(m.el.querySelector('[data-user-departments]'),'user',u.id);
+      const scopedAssignments = JSON.parse(JSON.stringify(storedWorkforceUser.scoped_access_assignments || []));
+      let scopedAssignmentsChanged = false;
+      const scopedHost = m.el.querySelector('[data-user-scoped-access]');
+      if (canManagePerms && !isMe) window.PlatformAPI.workforce.departments(currentOrgId()).then(result => {
+        if (!scopedHost.isConnected) return;
+        const catalog = result.catalog || result;
+        const units = [...(catalog.departments || []).filter(d => d.status !== 'archived').map(d => ({...d,kind:'department'})), ...(catalog.divisions || []).filter(d => d.status !== 'archived').map(d => ({...d,kind:'division'}))];
+        if (!units.length) return;
+        const forbiddenKeys = new Set(['*','manage_billing','manage_company_settings','manage_company_users','manage_company_user_permissions','manage_report_settings','manage_notification_defaults','manage_integrations','manage_security','manage_roles','manage_organization','manage_capabilities']);
+        const roles = workforceActiveAccessRoles().filter(role => !Object.entries(role.permissions || {}).some(([key,value]) => value && forbiddenKeys.has(key)));
+        const draw = () => {
+          scopedHost.innerHTML = `<details class="cu-access-section" ${scopedAssignments.length ? 'open' : ''}><summary><i class="fas fa-user-shield"></i><strong>Scoped roles</strong><small>${escapeHtml(catalog.terminology?.department?.singular || 'Department')} or organizational unit</small></summary><div class="cu-access-body"><div class="cs-note">Organization roles above apply everywhere. These assignments apply only within the selected ${escapeHtml(catalog.terminology?.department?.singular || 'Department')} or unit.</div><div class="cu-access-list">${scopedAssignments.map((assignment,index) => `<div class="cu-access-item"><div class="cu-access-item-copy"><span><b>${escapeHtml(workforceAccessRoleForId(assignment.role_id)?.name || 'Custom permissions')}</b><span>${escapeHtml(units.find(unit => unit.kind === assignment.scope.kind && unit.id === assignment.scope.id)?.label || assignment.scope.id)}</span></span></div><button class="cs-btn ghost" type="button" data-scoped-remove="${index}" aria-label="Remove scoped role">Remove</button></div>`).join('')}</div><div class="cu-workforce-grid"><label class="cu-row"><span class="cu-lbl">Role</span><select class="cs-in" data-scoped-role><option value="">Choose a role</option>${roles.map(role => `<option value="${escapeHtml(role.id)}">${escapeHtml(role.name)}</option>`).join('')}</select></label><label class="cu-row"><span class="cu-lbl">Applies to</span><select class="cs-in" data-scoped-unit><option value="">Choose ${escapeHtml(catalog.terminology?.department?.singular || 'Department')} or unit</option>${units.map((unit,index) => `<option value="${index}">${escapeHtml(unit.label)} · ${escapeHtml(unit.kind === 'department' ? (catalog.terminology?.department?.singular || 'Department') : (unit.kind_label || 'Unit'))}</option>`).join('')}</select></label></div><button class="cs-btn ghost" type="button" data-scoped-add>Add scoped role</button><span class="cs-note" data-scoped-status role="status"></span></div></details>`;
+          scopedHost.querySelectorAll('[data-scoped-remove]').forEach(button => button.addEventListener('click', () => { scopedAssignments.splice(Number(button.dataset.scopedRemove),1); scopedAssignmentsChanged=true; draw(); }));
+          scopedHost.querySelector('[data-scoped-add]')?.addEventListener('click', () => {
+            const roleId = scopedHost.querySelector('[data-scoped-role]').value;
+            const unitIndex = scopedHost.querySelector('[data-scoped-unit]').value;
+            const unit = unitIndex === '' ? null : units[Number(unitIndex)];
+            if (!roleId || !unit) { scopedHost.querySelector('[data-scoped-status]').textContent=`Choose both a role and ${catalog.terminology?.department?.singular || 'Department'} or unit.`; return; }
+            if (!scopedAssignments.some(a => a.role_id===roleId && a.scope.kind===unit.kind && a.scope.id===unit.id)) { scopedAssignments.push({role_id:roleId,scope:{kind:unit.kind,id:unit.id}}); scopedAssignmentsChanged=true; }
+            draw();
+          });
+        };
+        draw();
+      }).catch(error => { if (scopedHost.isConnected) scopedHost.textContent = error?.message || 'Could not load scoped roles.'; });
       wireWorkforceTristates(m.el);
       const footer = document.createElement('div');
       footer.className = 'cu-mactions';
@@ -16248,6 +16294,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         try {
           const profileRet = await userSaveWorkforceProfile({
             userId:u.id,
+            ...(scopedAssignmentsChanged ? { scopedAccessAssignments:scopedAssignments } : {}),
             ...(canAddDelete ? { compensationProfile } : {}),
             applicationAccess,
             accessRoleIds,

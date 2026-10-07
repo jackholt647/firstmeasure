@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { SQLInputValue } from "node:sqlite";
 import type { SqlStore } from "../../platform/sql_store.js";
 import { getCommunicationsDatabase } from "../../messaging/communications_storage.js";
-import { conflict, notFound } from "../../platform/errors.js";
+import { badRequest, conflict, notFound } from "../../platform/errors.js";
 
 export type Json = Record<string, unknown>;
 export const text = (value: unknown) => String(value ?? "").trim();
@@ -42,8 +42,11 @@ export async function initializeCustomerCallsSchema(db: SqlStore) {
     CREATE INDEX IF NOT EXISTS customer_calls_history ON customer_calls(organization_id,created_at DESC,id DESC);
     CREATE INDEX IF NOT EXISTS customer_calls_project ON customer_calls(organization_id,project_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS customer_calls_contact ON customer_calls(organization_id,contact_id,created_at DESC);
+    CREATE INDEX IF NOT EXISTS customer_calls_owner_history ON customer_calls(organization_id,owner_user_id,created_at DESC,id DESC);
     CREATE INDEX IF NOT EXISTS customer_calls_entry ON customer_calls(organization_id,entry_id,created_at DESC,id DESC);
     CREATE INDEX IF NOT EXISTS customer_calls_active ON customer_calls(organization_id,state,owner_user_id);
+    CREATE TABLE IF NOT EXISTS customer_call_departments (organization_id TEXT NOT NULL,call_id TEXT NOT NULL REFERENCES customer_calls(id),department_id TEXT NOT NULL,PRIMARY KEY(organization_id,call_id,department_id));
+    CREATE INDEX IF NOT EXISTS customer_call_departments_scope ON customer_call_departments(organization_id,department_id,call_id);
     CREATE TABLE IF NOT EXISTS customer_call_legs (
       id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, call_id TEXT NOT NULL REFERENCES customer_calls(id),
       role TEXT NOT NULL, control_id TEXT UNIQUE, provider_leg_id TEXT NOT NULL DEFAULT '', session_id TEXT NOT NULL DEFAULT '',
@@ -120,6 +123,12 @@ export async function readCall(orgId: string, callId: string) {
   return call;
 }
 export async function insertCall(input: Partial<CustomerCall> & Pick<CustomerCall,"id"|"organization_id"|"branch_id"|"mode"|"direction">) {
+  // Provider/storage imports can precede platform provisioning. Such calls remain
+  // unclassified; a scoped grant never authorizes an unclassified call.
+  const structure=await (await import('../../workforce/organization-structure.js')).resolveOrganizationStructure(input.organization_id).catch(error=>{if(error.statusCode===404)return null;throw error;});
+  const departments=Object.hasOwn(input.metadata||{},'department_ids')?strings(input.metadata?.department_ids):(structure?.users.find(u=>u.id===input.owner_user_id)?.department_ids||[]);
+  if(departments.some(id=>!structure?.catalog.departments.some(d=>d.id===id&&d.status==='active')))throw badRequest('unknown_department','Call department is not available.');
+  input={...input,metadata:{...input.metadata,department_ids:departments}};
   return (await database().transaction(async () => {
   const at=now();
   (await database().prepare(`INSERT INTO customer_calls (id,organization_id,branch_id,project_id,contact_id,owner_user_id,mode,direction,state,
@@ -127,6 +136,7 @@ export async function insertCall(input: Partial<CustomerCall> & Pick<CustomerCal
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(input.id,input.organization_id,input.branch_id,text(input.project_id),text(input.contact_id),
     text(input.owner_user_id),input.mode,input.direction,input.state||"created",text(input.customer_number),text(input.business_number),
     text(input.customer_name),text(input.entry_id),input.created_at||at,at,JSON.stringify(input.metadata||{})));
+  for(const department of departments)await database().prepare('INSERT INTO customer_call_departments(organization_id,call_id,department_id) VALUES(?,?,?)').run(input.organization_id,input.id,department);
   return (await readCall(input.organization_id,input.id));
 
   }));
@@ -153,6 +163,32 @@ export async function listCalls(orgId: string, filter: Json = {}) {
   if(filter.include_diagnostics!==true)clauses.push("mode<>'diagnostic'");
   for(const key of ["project_id","contact_id","owner_user_id","direction","entry_id","mode","wrap_up_state"]) if(text(filter[key])){clauses.push(`${key}=?`);values.push(text(filter[key]));}
   if(text(filter.branch_id)){clauses.push("branch_id=?");values.push(text(filter.branch_id));}
+  if(Array.isArray(filter._allowed_branch_ids)){const branches=strings(filter._allowed_branch_ids);clauses.push(branches.length?`branch_id IN (${branches.map(()=>'?').join(',')})`:'0=1');values.push(...branches);}
+  if(Array.isArray(filter._department_ids)){
+    const departments=strings(filter._department_ids),branches=strings(filter._scoped_branch_ids);
+    const matches=departments.length?`EXISTS (SELECT 1 FROM customer_call_departments d WHERE d.organization_id=customer_calls.organization_id AND d.call_id=customer_calls.id AND d.department_id IN (${departments.map(()=>'?').join(',')}))`:'0=1';
+    const shared=filter._include_shared===true?' OR NOT EXISTS (SELECT 1 FROM customer_call_departments d WHERE d.organization_id=customer_calls.organization_id AND d.call_id=customer_calls.id)':'';
+    clauses.push(`(${matches}${shared}${branches.length?` OR branch_id IN (${branches.map(()=>'?').join(',')})`:''})`);
+    values.push(...departments,...branches);
+  }
+  if(Array.isArray(filter._access_rules)){
+    const rules=filter._access_rules.map(object).map(rule=>{
+      const departments=strings(rule.department_ids),branches=strings(rule.branch_ids),deniedDepartments=strings(rule.denied_department_ids),deniedBranches=strings(rule.denied_branch_ids);
+      const checks:string[]=[rule.global===true?'1=1':'0=1'];
+      if(departments.length){checks.push(`EXISTS (SELECT 1 FROM customer_call_departments d WHERE d.organization_id=customer_calls.organization_id AND d.call_id=customer_calls.id AND d.department_id IN (${departments.map(()=>'?').join(',')}))`);values.push(...departments);}
+      if(branches.length){checks.push(`branch_id IN (${branches.map(()=>'?').join(',')})`);values.push(...branches);}
+      let sql=`(${checks.join(' OR ')})`;
+      if(deniedDepartments.length){sql+=` AND NOT EXISTS (SELECT 1 FROM customer_call_departments d WHERE d.organization_id=customer_calls.organization_id AND d.call_id=customer_calls.id AND d.department_id IN (${deniedDepartments.map(()=>'?').join(',')}))`;values.push(...deniedDepartments);}
+      if(deniedBranches.length){sql+=` AND branch_id NOT IN (${deniedBranches.map(()=>'?').join(',')})`;values.push(...deniedBranches);}
+      return `(${sql})`;
+    });
+    clauses.push(rules.length?`(${rules.join(' OR ')})`:'0=1');
+  }
+  if(text(filter.state)){clauses.push("state=?");values.push(text(filter.state));}
+  for(const [key,operator] of [['created_after','>='],['created_before','<']] as const)if(text(filter[key])){
+    const at=Date.parse(text(filter[key]));if(!Number.isFinite(at))throw badRequest('call_date_invalid','Call date filters must be ISO timestamps.');
+    clauses.push(`created_at${operator}?`);values.push(new Date(at).toISOString());
+  }
   if(filter.active===true)clauses.push("state NOT IN ('ended','canceled','failed','busy','no_answer','rejected') AND mode<>'external'");
   if(text(filter.query)){clauses.push("(customer_name LIKE ? ESCAPE '\\' OR customer_number LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\')");const q=`%${text(filter.query).replace(/[\\%_]/g,"\\$&")}%`;values.push(q,q,q);}
   const count=Number(object((await database().prepare(`SELECT count(*) AS total FROM customer_calls WHERE ${clauses.join(" AND ")}`).get(...values))).total);

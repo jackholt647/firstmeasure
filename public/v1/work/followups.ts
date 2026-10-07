@@ -90,6 +90,7 @@ export async function createFollowUpTodo(orgIdValue: unknown, inputValue: JsonOb
     organization_id: orgId,
     branch_id: branchId,
     project_id: projectId,
+    department_ids: input.department_ids,
     source_type: "follow_up",
     source_id: id,
     source_key: sourceKey,

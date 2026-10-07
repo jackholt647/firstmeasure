@@ -197,6 +197,7 @@ async function createTodo(context: WorkAutomationContext, input: JsonObject) {
     organization_id: organizationId,
     branch_id: cleanText(context.plan.branch_id || context.event.branch_id || "default") || "default",
     project_id: projectId,
+    department_ids: resolved.department_ids ?? context.node?.department_ids ?? context.plan?.department_ids,
     source_type: "automation_todo",
     source_id: cleanText(context.event.id),
     source_key: `automation_todo:${context.idempotencyKey}`,
@@ -780,7 +781,7 @@ export function registerBuiltinWorkAutomations() {
   });
   registerWorkAutomation("notification.create.v1", createNotification, {
     description: "Creates a declared, individually configurable notification (or celebration) for users or roles. Scope code must supply notification_id from the scope notification declarations.",
-    input: { notification_id: "Declared notification ID for scope code; visual notification actions are discovered automatically.", id: "Stable id for dedupe.", title: "Headline.", body: "Body text.", target_role_ids: "Roles to notify.", target_user_ids: "Specific users.", kind: "passive | celebration.", celebration: "Celebration payload {size, reason, text}.", frontend_action: "Click-through action {kind, ...}." }
+    input: { notification_id: "Declared notification ID for scope code; visual notification actions are discovered automatically.", id: "Stable id for dedupe.", title: "Headline.", body: "Body text.", target_department_ids: "Departments whose current members receive this notification.", target_role_ids: "Roles to notify.", target_user_ids: "Specific users.", kind: "passive | celebration.", celebration: "Celebration payload {size, reason, text}.", frontend_action: "Click-through action {kind, ...}." }
   });
   registerWorkAutomation("communications.sendSms.v1", sendSms, {
     description: "Sends an SMS through the org's messaging service (respects consent and compliance).",
@@ -945,12 +946,13 @@ export async function createWorkNotification(orgId: string, branchId: string, pr
     customer_copy: asObject(input.customer_copy),
     delivery_methods: asArray(input.delivery_methods),
     // v1 saved bindings historically broadcast when no audience was supplied.
-    broadcast: input.broadcast === true || (input.broadcast === undefined && !asArray(input.target_user_ids).length && !asArray(input.target_role_ids).length),
+    broadcast: input.broadcast === true || (input.broadcast === undefined && !asArray(input.target_user_ids).length && !asArray(input.target_role_ids).length && !asArray(input.target_department_ids).length),
     push: input.push === true,
     passive: input.passive !== false,
     manual_dismissible: input.manual_dismissible !== false,
     target_user_ids: asArray(input.target_user_ids).map(cleanText).filter(Boolean),
     target_role_ids: asArray(input.target_role_ids).map(cleanText).filter(Boolean),
+    target_department_ids: asArray(input.target_department_ids).map(cleanText).filter(Boolean),
     branch_id: branchId || "default",
     source: cleanText(input.source || "work.automation"),
     category: cleanText(input.category || "tasks"),

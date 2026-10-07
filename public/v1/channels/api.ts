@@ -94,7 +94,8 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await auth(request, orgId);
     const users = await service.listDirectoryUsers(ctx);
-    return { ok: true, users, count: users.length };
+    const structure=await (await import('../workforce/organization-structure.js')).resolveOrganizationStructure(ctx.orgId);
+    return { ok: true, users, count: users.length,departments:structure.catalog.departments.filter(d=>d.status==='active').map(d=>({id:d.id,label:d.label})) };
   });
 
   app.get("/organizations/:orgId/channels", async (request) => {
@@ -167,7 +168,8 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await auth(request, orgId, { csrf: true });
     const body = addMembersSchema.parse(request.body ?? {});
-    const channel = await service.addChannelMembers(ctx, getParam(request.params, "channelId"), body.user_ids);
+    const departmentUsers=await (await import('./department-channels.js')).departmentMemberIds(ctx.orgId,body.department_ids);
+    const channel = await service.addChannelMembers(ctx, getParam(request.params, "channelId"), [...new Set([...body.user_ids,...departmentUsers])]);
     return { ok: true, channel };
   });
 

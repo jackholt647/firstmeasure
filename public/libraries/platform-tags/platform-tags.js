@@ -326,7 +326,7 @@
     const menu = ensureMenu();
     const selected = new Map();
     const oid = cleanText(options.orgId || orgId());
-    const allowed = user => options.source !== 'channels' || (user.id === 'agent_assistant' || user.id === 'broadcast:channel' || user.id === 'broadcast:here' || (!user.id.startsWith('channel:') && (options.memberIds?.() || []).includes(user.id)));
+    const allowed = user => options.source !== 'channels' || (user.id.startsWith('department:') || user.id === 'agent_assistant' || user.id === 'broadcast:channel' || user.id === 'broadcast:here' || (!user.id.startsWith('channel:') && (options.memberIds?.() || []).includes(user.id)));
     const candidates = () => users.filter(allowed);
     // Team-messaging surfaces also offer the AI agent(s) as mention targets.
     const includeAgents = options.includeAgents === true || options.source === 'channels';
@@ -334,10 +334,12 @@
       listUsers(oid).catch(() => []),
       includeAgents ? listAgentParticipants(oid) : Promise.resolve([]),
       options.source === 'channels' ? Promise.resolve({}) : (root.ChannelsAPI?.channels?.list ? root.ChannelsAPI.channels.list(oid) : fetch(`/v1/channels/organizations/${encodeURIComponent(oid)}/channels`,{credentials:'include'}).then(res=>res.ok?res.json():{})).catch(()=>({}))
-    ]).then(([list, agents, channels]) => {
+    ]).then(async ([list, agents, channels]) => {
+      const directory=await fetch(`/v1/channels/organizations/${encodeURIComponent(oid)}/directory`,{credentials:'include'}).then(r=>r.ok?r.json():{}).catch(()=>({}));
+      const departments=(directory.departments||[]).map(d=>normalizeUser({id:`department:${d.id}`,name:d.label,email:'Members with access to this conversation'}));
       const groups = (channels.channels || []).filter(channel=>!['dm','group_dm'].includes(channel.type)).map(channel=>normalizeUser({id:`channel:${channel.id}`,name:channel.name || channel.display_name,email:'Everyone in this channel'}));
       const broadcasts = options.source === 'channels' ? [normalizeUser({id:'broadcast:channel',name:'channel',email:'Everyone in this conversation'}),normalizeUser({id:'broadcast:here',name:'here',email:'Online members of this conversation'})] : [];
-      users = [...new Map([...broadcasts,...list,...agents,...groups].map(user => [user.id,user])).values()];
+      users = [...new Map([...broadcasts,...list,...agents,...groups,...departments].map(user => [user.id,user])).values()];
       if (options.source === 'channels' && !users.some(user => user.id === 'agent_assistant')) {
         users.push({...normalizeUser({id:'agent_assistant',name:'FirstMate Assistant'}),agent:true});
       }

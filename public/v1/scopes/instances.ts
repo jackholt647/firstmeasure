@@ -1,3 +1,4 @@
+import { inheritWorkDepartments } from "../work/department-inheritance.js";
 // Bringing running scope instances onto the current template version.
 //
 // A work plan is created from one immutable template version and keeps running
@@ -57,7 +58,7 @@ function flatten(rootNodes: unknown[]) {
 
 function compose(definition: JsonObject, plan: JsonObject) {
   const composed = composeScopeWorkPlan(definition, { signedProposal: text(plan.source_type) === "signed_proposal_scope" });
-  return normalizeWorkPlanBindingKeys({ automation_bindings: composed.automation_bindings, root_nodes: compileSequences(composed.root_nodes) });
+  return normalizeWorkPlanBindingKeys({ automation_bindings: composed.automation_bindings, root_nodes: compileSequences(inheritWorkDepartments(composed.root_nodes, asObject(definition.work_plan).department_ids ?? definition.department_ids)) });
 }
 
 function completionMode(definition: JsonObject) {
@@ -123,7 +124,8 @@ export async function updateScopeInstances(orgId: string, branchIdValue: string,
       const nextMetadata = { ...metadata };
       if (asArray(definition.timers).length) nextMetadata.timers = definition.timers; else delete nextMetadata.timers;
       const patch: JsonObject = {};
-      const fields: string[] = [];
+      if (!same(record.department_ids || [], definition.department_ids || [])) patch.department_ids = definition.department_ids || [];
+      const fields: string[] = patch.department_ids ? ["departments"] : [];
       if (!same(record.automation_bindings || {}, definition.automation_bindings || {})) { patch.automation_bindings = definition.automation_bindings || {}; fields.push("automations"); }
       if (!same(record.external_triggers || [], definition.external_triggers || [])) { patch.external_triggers = definition.external_triggers || []; fields.push("triggers"); }
       if (!same(metadata.timers || [], definition.timers || [])) { patch.metadata = nextMetadata; fields.push("timers"); }
@@ -164,6 +166,7 @@ export async function updateScopeInstances(orgId: string, branchIdValue: string,
       await createNodeRecord({
         id: nodeRecordId(planId, id), organization_id: orgId, branch_id: plan.branch_id || "default", plan_id: planId, project_id: plan.project_id,
         parent_id: entry.parent ? nodeRecordId(planId, entry.parent) : null, template_node_id: id, scope_piece_id: plan.scope_piece_id,
+        department_ids: definition.department_ids || [],
         terminology_key: definition.terminology_key, title: definition.title, description: definition.description,
         sort_order: definition.sort_order ?? entry.index, depth: entry.depth, status: "pending", completion_mode: completionMode(definition),
         actionable: definition.actionable === true, show_in_todo_list: definition.show_in_todo_list ?? definition.actionable === true,
@@ -180,6 +183,7 @@ export async function updateScopeInstances(orgId: string, branchIdValue: string,
     }
     const history = asArray(asObject(plan.metadata).template_updates);
     await updatePlanRecord(orgId, planId, {
+      department_ids: asObject(targetDefinition.work_plan).department_ids ?? targetDefinition.department_ids ?? [],
       automation_bindings: target.automation_bindings,
       metadata: { ...asObject(plan.metadata), scope_template_version_id: template.version_id,
         template_updates: [...history, { from_version: fromVersion, to_version: targetVersion, at: new Date().toISOString(), actor_user_id: text(options.actor_user_id), removed_work: removedWork }] }

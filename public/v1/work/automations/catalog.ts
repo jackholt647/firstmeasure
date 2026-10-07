@@ -64,7 +64,7 @@ export const ACTION_CATALOG: Record<string, ActionCatalogEntry> = {
     notification_id: { type: "string", title: "Declared notification", description: "Required from scope code: the id of a notification declared on the scope." },
     title: template("Title", "Headline."),
     body: longText("Message", "Body text."),
-    target_role_ids: roles, target_user_ids: users,
+    target_department_ids: { type:"array", items:{type:"string"}, description:"Current members of these departments." }, target_role_ids: roles, target_user_ids: users,
     kind: choice("Style", "A quiet notification or a celebration.", ["passive", "celebration"], "passive"),
     push: { type: "boolean", title: "Send push", description: "Also deliver as a push notification.", default: false },
     celebration: json("Celebration", "Celebration payload: {size, reason, text}."),
@@ -82,7 +82,7 @@ export const ACTION_CATALOG: Record<string, ActionCatalogEntry> = {
   "work.createTodo.v1": { title: "Create a to-do", category: "tasks", input_schema: schema({
     title: template("Title", "What needs doing."),
     message: longText("Details", "Description shown on the to-do."),
-    assigned_role_ids: roles, assigned_user_ids: users, assigned_resource_group_ids: groups,
+    department_ids: { type:"array", items:{type:"string"}, description:"Responsible departments; omitted inherits the current work item." }, assigned_role_ids: roles, assigned_user_ids: users, assigned_resource_group_ids: groups,
     priority: numeric("Priority", "0 (normal) to 9 (highest).", { minimum: 0, maximum: 9 }),
     due_offset_minutes: numeric("Due after (minutes)", "Minutes from creation until it is due.", { "x-control": "duration_minutes" }),
     metadata: json("Advanced", "kind, type_tags, frontend_action.")

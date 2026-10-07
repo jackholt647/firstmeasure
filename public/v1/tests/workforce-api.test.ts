@@ -97,6 +97,28 @@ async function registerOwner(client: ReturnType<typeof createSessionClient>) {
   };
 }
 
+test('department defaults preserve user preferences but explicit restrictions gate apps and scoped powers stay scoped',async()=>{
+  const owner=createSessionClient(); const {orgId}=await registerOwner(owner);
+  const created=await owner.request('POST',`/v1/platform/organizations/${orgId}/users`,{data:{name:'Scoped member',email:`scoped-${Date.now()}@example.test`,password:'test-only-member-pass',send_invite:false,status:'active'}});
+  const userId=created.document.id;
+  const catalog=await owner.request('GET',`/v1/workforce/organizations/${orgId}/departments`);
+  await owner.request('PUT',`/v1/workforce/organizations/${orgId}/departments`,{revision:catalog.revision,legacy_token:catalog.legacy_token,groups:catalog.groups,departments:[...catalog.departments,{id:'sales',label:'Sales',subject_keys:[`organization_user:${userId}`],app_defaults:{feedback:{visibility:'hide',enforcement:'restricted'},'portal.stats':{visibility:'hide',enforcement:'default'}}}],divisions:[]});
+  const role=await owner.request('POST',`/v1/workforce/organizations/${orgId}/access/roles`,{name:'Call supervisor',application_id:'management',permissions:{manage_communications:true,view_comms:true}});
+  const profile=await owner.request('PATCH',`/v1/workforce/organizations/${orgId}/users/${userId}/profile`,{access_role_ids:['viewer'],scoped_access_assignments:[{role_id:role.role.id,scope:{kind:'department',id:'sales'}}],app_access_overrides:{feedback:'show','portal.stats':'show'}});
+  assert.equal(profile.user.access_profile.effective_permissions.manage_communications,undefined);
+  assert.equal(profile.user.access_profile.scoped_access_grants[0].permissions.manage_communications,true);
+  assert.equal(profile.user.app_entitlements.find((entry:any)=>entry.id==='feedback').allowed,false);
+  assert.equal(profile.user.app_entitlements.find((entry:any)=>entry.id==='portal.stats').enabled,true);
+  assert.equal(profile.user.access_profile.organization_structure,undefined,'The full membership directory is not serialized as an access profile.');
+  const {backgroundAuthContext,hasAppEntitlement,hasResourcePermission}=await import('../platform/auth.js');
+  const auth=await backgroundAuthContext(orgId,userId);
+  assert.equal(hasAppEntitlement(auth,'feedback'),false);
+  assert.equal(hasResourcePermission(auth,'manage_communications',{department_id:'sales'}),true);
+  assert.equal(hasResourcePermission(auth,'manage_communications',{}),false);
+  const rejected=await owner.raw('PATCH',`/v1/workforce/organizations/${orgId}/users/${userId}/profile`,{scoped_access_assignments:[{permissions:{manage_company_settings:true},scope:{kind:'department',id:'sales'}}]});
+  assert.equal(rejected.statusCode,400);
+});
+
 test("workforce architecture keeps users canonical and unifies internal and external work resources", async (t) => {
   const owner = createSessionClient();
   const { orgId, userId } = await registerOwner(owner);

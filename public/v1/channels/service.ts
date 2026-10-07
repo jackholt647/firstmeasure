@@ -160,6 +160,7 @@ export function viewerAudienceGroups(ctx: PlatformAuthContext): string[] {
 }
 
 function messageVisibleTo(message: MessageRow, ctx: PlatformAuthContext, groups: string[]) {
+  if(!canAccessDepartmentResource(ctx,message.metadata))return false;
   if (message.metadata.feed_post === true || message.metadata.feed_comment === true) return feedMessageGranted(ctx, message);
   if (!message.audience.length) return true;
   if (message.author_id === ctx.userId) return true;
@@ -170,6 +171,9 @@ function messageVisibleTo(message: MessageRow, ctx: PlatformAuthContext, groups:
 
 // --- user directory -----------------------------------------------------------
 
+import {departmentMemberIds,departmentChannelMembers,effectiveChannelMembers} from './department-channels.js';
+import {resolveOrganizationStructure} from '../workforce/organization-structure.js';
+import {canAccessDepartmentResource,relevantDepartmentContext,hasResourcePermission} from '../workforce/department-access.js';
 type UserProfile = { id: string; name: string; email: string; avatar: string };
 
 const directoryCache = new Map<string, { at: number; users: Map<string, UserProfile> }>();
@@ -213,6 +217,7 @@ export function invalidateUserDirectory(orgId: string) {
 }
 
 export async function listDirectoryUsers(ctx: PlatformAuthContext) {
+  const structure=await resolveOrganizationStructure(ctx.orgId);
   const documents = await listDocuments(ctx.orgId, "users");
   const users = documents
     .map((document) => {
@@ -246,7 +251,7 @@ export async function listDirectoryUsers(ctx: PlatformAuthContext) {
     /* agent participation is best-effort */
   }
 
-  return users;
+  return users.map(user=>{const ids=structure.users.find(row=>row.id===user.id)?.department_ids||[];return {...user,department_ids:ids,departments:structure.catalog.departments.filter(d=>ids.includes(d.id)).map(d=>({id:d.id,label:d.label}))};});
 }
 
 // --- channel access -----------------------------------------------------------
@@ -269,10 +274,12 @@ export async function requireChannelAccess(ctx: PlatformAuthContext, channelId: 
   const channel = (await readChannelRecord(ctx.orgId, channelId));
   if (!channel) throw notFound("channel_not_found", "This channel does not exist.");
   const membership = (await readChannelMember(channel.id, ctx.userId));
+  const departmentMembers=await departmentChannelMembers(channel);
+  if(departmentMembers&&!departmentMembers.includes(ctx.userId))throw forbidden('channel_forbidden','You are not a member of this department channel.');
   if (channel.type === "feed" && !hasFeedGrant(ctx)) throw notFound("channel_not_found", "This channel does not exist.");
   if (requiresChannelMembership(channel)) {
     // Ordinary channels are member-only, including for organization admins.
-    if (!membership) throw forbidden("channel_forbidden", "You are not a member of this channel.");
+    if (!membership && !departmentMembers?.includes(ctx.userId)) throw forbidden("channel_forbidden", "You are not a member of this channel.");
   } else if (channel.type === "project") {
     if (!canAccessProjectChannels(ctx)) {
       throw forbidden("channel_forbidden", "You do not have access to project messages.");
@@ -288,6 +295,7 @@ export async function requireChannelAccess(ctx: PlatformAuthContext, channelId: 
 }
 
 export async function channelAdminAllowed(ctx: PlatformAuthContext, channel: ChannelRow) {
+  if(channel.settings.department_id)return hasResourcePermission(ctx,'manage_channels|manage_company_settings',{department_id:String(channel.settings.department_id)});
   if (channel.type === "feed") return false;
   if (channel.type === "project") return canManageChannels(ctx);
   const membership = (await readChannelMember(channel.id, ctx.userId));
@@ -551,8 +559,9 @@ export async function markPersonalInboxSeen(ctx: PlatformAuthContext) {
 // --- realtime helpers ---------------------------------------------------------
 
 async function realtimeTargets(channel: ChannelRow): Promise<string[] | null> {
+  const departments=await departmentChannelMembers(channel);if(departments)return departments;
   if (!requiresChannelMembership(channel)) return null;
-  return (await listChannelMembers(channel.id)).map((member) => member.user_id);
+  return (await effectiveChannelMembers(channel)).map((member) => member.user_id);
 }
 
 export async function realtimeChannelTargets(orgId: string, channelId: string): Promise<string[] | null> {
@@ -707,7 +716,7 @@ function hydrateMessage(
 // --- channel views ------------------------------------------------------------
 
 async function channelView(ctx: PlatformAuthContext, channel: ChannelRow, extras: JsonObject = {}): Promise<JsonObject> {
-  const members = (await listChannelMembers(channel.id));
+  const members = await effectiveChannelMembers(channel);
   const directory = await userDirectory(ctx.orgId);
   const isDm = channel.type === "dm" || channel.type === "group_dm";
   const memberProfiles = members.map((member) => ({
@@ -752,6 +761,7 @@ export async function listChannelsForUser(ctx: PlatformAuthContext, options: { i
   const membershipIds = new Set((await listMembershipChannelIds(ctx.orgId, ctx.userId)));
   const includeArchived = Boolean(options.includeArchived) && (canManageChannels(ctx) || hasPermission(ctx, "manage_company_settings"));
   const all = (await listChannelRecords(ctx.orgId, { includeArchived }));
+  for(const channel of all){const members=await departmentChannelMembers(channel);if(members){if(members.includes(ctx.userId))membershipIds.add(channel.id);else membershipIds.delete(channel.id);}}
   const canSeeProjects = canAccessProjectChannels(ctx);
   const visible = all.filter((channel) => {
     if (requiresChannelMembership(channel)) return membershipIds.has(channel.id);
@@ -855,13 +865,14 @@ export async function createChannel(ctx: PlatformAuthContext, input: {
   name: string;
   topic: string;
   member_user_ids: string[];
+  department_ids?: string[];
 }) {
   const isDm = input.type === "dm" || input.type === "group_dm";
   if (!isDm && !hasPermission(ctx, "create_channels|manage_channels")) {
     throw forbidden("permission_denied", "You do not have permission to create channels.");
   }
 
-  let memberIds = [...new Set([ctx.userId, ...input.member_user_ids.map(cleanText).filter(Boolean)])];
+  let memberIds = [...new Set([ctx.userId, ...input.member_user_ids.map(cleanText).filter(Boolean),...await departmentMemberIds(ctx.orgId,input.department_ids||[])])];
   // FirstMate is available by mention everywhere, not an invited participant.
   // Retain its backing membership only for a dedicated assistant DM.
   if (!isDm || memberIds.some(id => id !== ctx.userId && !id.startsWith("agent_"))) {
@@ -971,6 +982,8 @@ export async function updateChannel(ctx: PlatformAuthContext, channelId: string,
   const { channel } = await requireChannelAccess(ctx, channelId);
   if (!(await channelAdminAllowed(ctx, channel))) throw forbidden("permission_denied", "Only channel admins can update this channel.");
   if (channel.type === "dm" || channel.type === "group_dm") throw badRequest("dm_not_editable", "Direct messages cannot be renamed.");
+  if(patch.settings&&Object.hasOwn(patch.settings,'department_id')&&patch.settings.department_id!==channel.settings.department_id)throw badRequest('department_channel_owned','Department channels are managed in department settings.');
+  if(channel.settings.department_id&&patch.settings)patch.settings={...patch.settings,department_id:channel.settings.department_id};
   const name = patch.name !== undefined && channel.type !== "project"
     ? cleanText(patch.name).toLowerCase().replace(/[^a-z0-9_\- ]+/g, "").replace(/\s+/g, "-")
     : undefined;
@@ -1001,6 +1014,7 @@ export async function setChannelArchived(ctx: PlatformAuthContext, channelId: st
 
 export async function addChannelMembers(ctx: PlatformAuthContext, channelId: string, userIds: string[]) {
   let { channel } = await requireChannelAccess(ctx, channelId, { write: true });
+  if(channel.settings.department_id)throw badRequest('department_channel_owned','Manage this channel membership in department settings.');
   userIds = userIds.filter(id => id !== "agent_assistant");
   if (!userIds.length) return channelView(ctx, channel);
   if (channel.type === "dm" && userIds.some(id => !id.startsWith("agent_"))) throw badRequest("dm_fixed_membership", "Start a group conversation to add people to a direct message.");
@@ -1137,6 +1151,9 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   // Forward attribution is a server-authored snapshot of a message the sender
   // can read. Clients cannot inject a forged original author or hidden body.
   const metadata = { ...input.metadata };
+  const allowedDepartments=relevantDepartmentContext(ctx).department_ids;
+  if(Array.isArray(metadata.department_ids)&&metadata.department_ids.some(id=>!allowedDepartments.includes(String(id))))throw forbidden('department_denied','Choose a department available to you.');
+  if(!Array.isArray(metadata.department_ids))metadata.department_ids=ctx.organizationStructure?.users.find(u=>u.id===ctx.userId)?.department_ids||[];
   delete metadata.feed_post;
   delete metadata.feed_comment;
   delete metadata.feed_source;
@@ -1862,7 +1879,7 @@ export async function deliverAllDueScheduledMessages(scope?: { orgId: string; us
         if (!channel || channel.archived_at) throw new Error("The target channel is unavailable.");
         await requireChannelAccess(sender, channel.id, {post:true});
         const senderId = cleanText(scheduled.sender_user_id);
-        if (requiresChannelMembership(channel) && !(await listChannelMembers(channel.id)).some(member => member.user_id === senderId)) {
+        if (requiresChannelMembership(channel) && !(await effectiveChannelMembers(channel)).some(member => member.user_id === senderId)) {
           throw new Error("The sender no longer belongs to this channel.");
         }
         const text = cleanText(scheduled.text);
@@ -2186,7 +2203,7 @@ export async function inviteToHuddle(ctx: PlatformAuthContext, huddleId: string,
     throw forbidden('huddle_participant_required', 'Join this huddle before inviting people.');
   }
   const channel = (await requireChannelAccess(ctx, cleanText(room.channel_id))).channel;
-  const members = new Set((await listChannelMembers(channel.id)).map(member => member.user_id));
+  const members = new Set((await effectiveChannelMembers(channel)).map(member => member.user_id));
   const directory = await userDirectory(ctx.orgId);
   for (const userId of userIds) {
     if (!directory.has(userId) || !members.has(userId) || userId.startsWith('agent_') || participants.some(person => person.user_id === userId && person.role === 'removed')) {
@@ -2226,7 +2243,7 @@ export async function createHuddle(ctx: PlatformAuthContext, channelId: string, 
     room = (await calls.setRoomThread(ctx, cleanText(room.id), systemMessage.id));
     (await publishMessageEvent("channels.message.created", channel, systemMessage, null));
     (await collaboration.recordChannelEventAttention(channel, systemMessage, "huddle_started"));
-    await notifyHuddleInvites(ctx, channel, room, (await listChannelMembers(channelId)).map(member => member.user_id));
+    await notifyHuddleInvites(ctx, channel, room, (await effectiveChannelMembers(channel)).map(member => member.user_id));
   }
   (await publishRealtimeEvent({
     organization_id: ctx.orgId,
@@ -2503,7 +2520,7 @@ export async function resolveMentionUsers(ctx: PlatformAuthContext, mentions: Js
   const selected = [...mentions];
   const conversation = channelId ? (await requireChannelAccess(ctx, channelId)).channel : null;
   const restricted = conversation && conversation.type !== "project";
-  const members = restricted ? new Set((await listChannelMembers(channelId!)).map(member => member.user_id)) : null;
+  const members = restricted ? new Set((await effectiveChannelMembers(conversation!)).map(member => member.user_id)) : null;
   if (channelId) for (const name of ["channel", "here"]) {
     if (new RegExp(`(^|\\s)@${name}(?=$|[\\s.,!?;:])`, "i").test(text)) selected.push({id:`broadcast:${name}`});
   }
@@ -2511,6 +2528,13 @@ export async function resolveMentionUsers(ctx: PlatformAuthContext, mentions: Js
   const directory = await userDirectory(ctx.orgId);
   for (const mention of selected) {
     const id = cleanText(mention.id || mention.user_id);
+    if(id.startsWith('department:')){
+      for(const userId of await departmentMemberIds(ctx.orgId,[id.slice(11)])){
+        if(members&&!members.has(userId))continue;
+        const person=directory.get(userId);if(person)targets.set(userId,person);
+      }
+      continue;
+    }
     if (restricted && id.startsWith("channel:")) continue;
     if (id.startsWith("broadcast:") && !["broadcast:channel", "broadcast:here"].includes(id)) continue;
     if (!id.startsWith("channel:") && !id.startsWith("broadcast:")) {
@@ -2530,7 +2554,7 @@ export async function resolveMentionUsers(ctx: PlatformAuthContext, mentions: Js
       const { presenceRoster } = await import("../platform/presence.js");
       online = new Set((await presenceRoster(ctx.orgId, "online")).map(row => String(row.user_id)));
     }
-    for (const member of await listChannelMembers(targetChannelId)) {
+    for (const member of await effectiveChannelMembers(targetChannel)) {
       if (online && !online.has(member.user_id)) continue;
       if (members && !members.has(member.user_id)) continue;
       const person = directory.get(member.user_id);
@@ -2560,7 +2584,7 @@ export async function postChannelTagNotices(ctx: PlatformAuthContext, mentions: 
   for (const channel of channels) {
     const result = await postMessage(ctx, channel.id, {
       text:`${actor} tagged the channel in ${kind}.`,
-      mention_users:(await listChannelMembers(channel.id)).filter(member => !member.user_id.startsWith("agent_")).map(member => ({id:member.user_id})),
+      mention_users:(await effectiveChannelMembers(channel)).filter(member => !member.user_id.startsWith("agent_")).map(member => ({id:member.user_id})),
       client_msg_id:sourceId ? `channel-tag:${createHash("sha256").update(JSON.stringify([source,projectId,photoId,sourceId])).digest("hex")}` : undefined,
       metadata:{channel_tag:{source,project_id:projectId,photo_id:photoId,note_id:noteId,label:photoId ? "Open photo" : noteId ? "Open project note" : "Open project"}}
     });
@@ -2686,7 +2710,7 @@ async function notifyMessageSubscribers(ctx: { orgId: string; userId: string; br
   const mentioned = new Set(message.mention_users.map((user) => cleanText(user.id || user.user_id)).filter(Boolean));
   const threadTargets = await threadNotificationTargets(ctx.orgId, message);
   const replyEnabled = await channelReplyNotificationsEnabled(ctx.orgId, channel);
-  const candidates = new Set([...threadTargets, ...(await listChannelMembers(channel.id)).map(member => member.user_id)]);
+  const candidates = new Set([...threadTargets, ...(await effectiveChannelMembers(channel)).map(member => member.user_id)]);
   const branchTargets = new Map<string, { replies: string[]; messages: string[] }>();
   for (const userId of candidates) {
     if (!userId || userId === ctx.userId || mentioned.has(userId)) continue;

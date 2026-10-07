@@ -39,11 +39,11 @@ function expectedRevision(request: FastifyRequest) {
 }
 
 async function requireRead(request: FastifyRequest, orgId: string) {
-  return await requirePlatformAuth(request, { orgId, permission: "view_projects|manage_company_settings" });
+  return await requirePlatformAuth(request, { orgId, permission: "view_projects|manage_company_settings", appId:'connections' });
 }
 
 async function requireMutation(request: FastifyRequest, orgId: string) {
-  return await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+  return await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings", appId:'connections' });
 }
 
 async function settingsBundle(orgId: string, branchId: string) {

@@ -42,7 +42,7 @@ function resolve(ref:SourceRef) {
   return {provider,exported};
 }
 function descriptor(p:DataProvider) {
-  return {id:p.id,version:p.version,apps:[...p.apps],exports:Object.fromEntries(Object.entries(p.exports).map(([id,e])=>[id,{schema:e.schema,schemaVersion:e.schemaVersion,argsSchema:e.argsSchema||{type:"object",additionalProperties:false},description:e.description,units:e.units||{},historical:!!e.historical,listable:!!e.list,access:{scopes:e.access.scopes,permissions:e.access.permissions,capabilities:e.access.capabilities||[],applications:e.access.applications??["management"],...(e.access.applicationPermission?{applicationPermission:e.access.applicationPermission}: {})}}]))};
+  return {id:p.id,version:p.version,apps:[...p.apps],exports:Object.fromEntries(Object.entries(p.exports).map(([id,e])=>[id,{schema:e.schema,schemaVersion:e.schemaVersion,argsSchema:e.argsSchema||{type:"object",additionalProperties:false},description:e.description,units:e.units||{},historical:!!e.historical,listable:!!e.list,access:{scopes:e.access.scopes,permissions:e.access.permissions,...(e.access.scopedPermissions?{scopedPermissions:true}:{}),capabilities:e.access.capabilities||[],applications:e.access.applications??["management"],...(e.access.applicationPermission?{applicationPermission:e.access.applicationPermission}: {})}}]))};
 }
 export function listDataProviders(){return [...registry.values()].map(descriptor);}
 export function describeDataProvider(id:string,version?:string){version ||= externalDefaults.get(id);const p=[...registry.values()].filter(p=>p.id===id&&(!version||p.version===version)).at(-1);return p?descriptor(p):null;}

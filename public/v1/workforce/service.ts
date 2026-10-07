@@ -4,7 +4,10 @@ import {
   organizationConnectionAssignableProjection
 } from "../connections/storage.js";
 import { isCapabilityEnabled } from "../platform/capabilities.js";
-import { notFound } from "../platform/errors.js";
+import { notFound, forbidden } from "../platform/errors.js";
+import { hasPermission, type PlatformAuthContext } from '../platform/auth.js';
+import { validateScopedAccessAssignments, resolveScopedAccessGrants, hasResourcePermission } from './department-access.js';
+import { resolveOrganizationStructure } from './organization-structure.js';
 import { listDocuments, readDocument, upsertDocument } from "../platform/storage.js";
 import {
   assertAssignmentTagsExist,
@@ -15,7 +18,7 @@ import {
   resourceGroupAssignableProjection,
   saveCompensationProfile
 } from "./storage.js";
-import { resolveAccessProfile } from "./access.js";
+import { resolveAccessProfile, listAccessRoles } from "./access.js";
 import { filterAssignableSubjects, normalizeAssignmentPolicy } from "./assignability.js";
 
 function cleanText(value: unknown) {
@@ -100,11 +103,12 @@ async function hydratedWorkforceUserDocument(orgId: string, documentValue: unkno
     branch_id: cleanText(data.branch_id || "default"),
     application_access: asObject(data.application_access),
     access_role_ids: uniqueIds(data.access_role_ids),
+    scoped_access_assignments: Array.isArray(data.scoped_access_assignments) ? data.scoped_access_assignments : [],
     role_ids: uniqueIds([...(Array.isArray(data.roles) ? data.roles : []), ...(Array.isArray(data.access_role_ids) ? data.access_role_ids : [])]),
     assignment_tag_ids: uniqueIds(data.assignment_tag_ids || data.tag_ids),
     permission_overrides: permissionOverrides(data.permission_overrides),
     app_access_overrides: appAccessOverrides(data.app_access_overrides),
-    access_profile: accessProfile,
+    access_profile: (({ organization_structure: _private, ...profile }) => profile)(accessProfile),
     app_entitlements: accessProfile.app_entitlements,
     compensation_profile: (await readCompensationProfile(orgId, "organization_user", cleanText(document.id))),
     revision: Number(document.revision || 0),
@@ -129,7 +133,7 @@ export async function listWorkforceUsers(orgId: string, options: JsonObject = {}
     .sort((left, right) => cleanText(left.name || left.email).localeCompare(cleanText(right.name || right.email)));
 }
 
-export async function patchWorkforceUserProfile(orgId: string, userId: string, input: JsonObject) {
+export async function patchWorkforceUserProfile(orgId: string, userId: string, input: JsonObject, actor?: PlatformAuthContext) {
   const document = await readDocument(orgId, "users", userId).catch(() => null);
   if (!document) throw notFound("workforce_user_not_found", "Organization user was not found.");
   const current = asObject(document.data);
@@ -138,6 +142,18 @@ export async function patchWorkforceUserProfile(orgId: string, userId: string, i
     : null;
 
   const patch: JsonObject = {};
+  if (Object.prototype.hasOwnProperty.call(input, 'scoped_access_assignments')) {
+    if (!actor || actor.orgId !== orgId || !hasPermission(actor, 'manage_company_user_permissions')) throw forbidden('scoped_access_administration_denied', 'Organization permission administration is required to assign scoped roles.');
+    if (actor.userId === userId) throw forbidden('self_permission_change_forbidden', 'You cannot change your own scoped permissions.');
+    const [roles, structure] = await Promise.all([listAccessRoles(orgId, { include_archived: true }), resolveOrganizationStructure(orgId)]);
+    patch.scoped_access_assignments = validateScopedAccessAssignments(input.scoped_access_assignments, roles, structure);
+    for (const grant of resolveScopedAccessGrants(patch.scoped_access_assignments, roles, structure)) {
+      const target = grant.scope.kind === 'department' ? { department_id: grant.scope.id } : { division_id: grant.scope.id };
+      for (const [permission, allowed] of Object.entries(grant.permissions)) {
+        if (allowed && !hasResourcePermission(actor, permission, target)) throw forbidden('scoped_access_escalation_denied', 'You cannot grant capabilities beyond your own authority in this scope.');
+      }
+    }
+  }
   if (Object.prototype.hasOwnProperty.call(input, "application_access")) {
     patch.application_access = normalizeApplicationAccess(input.application_access, current.application_access);
   }

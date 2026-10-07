@@ -1,3 +1,5 @@
+import { matchesDepartmentNotificationTarget } from "./department-targets.js";
+import { resolveOrganizationStructure, departmentIdsForUser } from "../../workforce/organization-structure.js";
 import { readEventRecord } from "../../work/storage.js";
 // Shared recipient/effective-preference view. Reads do not materialize or replay occurrences.
 import type { PlatformAuthContext } from "../auth.js";
@@ -29,6 +31,7 @@ export async function listVisibleNotifications(orgId: string, userId: string, op
   const user = { id: userId, ...asObject(userDoc.data) };
   const states = asObject(asObject(userDoc.data).notification_state);
   const roles = new Set(userRoleIds(user));
+  const departmentIds = notificationDocs.some(row => normalizeStringArray(asObject(row.data).target_department_ids).length) ? departmentIdsForUser(await resolveOrganizationStructure(orgId),userId) : [];
   const rawPreferences = await effectivePreferences(orgId,userId,options.branchId||"default",asObject(userDoc.data).notification_preferences);
   const deliveryRecords = await recipientDeliveries(orgId, userId);
   const notifications = (await Promise.all(notificationDocs.map(async document => {
@@ -52,10 +55,12 @@ export async function listVisibleNotifications(orgId: string, userId: string, op
     .filter(({ data }) => options.ignorePreferences || data.delivery_version === 2 || notificationPreferenceEnabled(rawPreferences,data,"in_app"))
     .filter(({ data }) => !data.branch_id || String(data.branch_id) === String(options.branchId || "default"))
     .filter(({ data }) => {
-      if (data.delivery_version === 2) return true; // The durable recipient list is authoritative.
+      if (normalizeStringArray(data.target_department_ids).length && !matchesDepartmentNotificationTarget(data,userId,[...roles],departmentIds)) return false;
+      if (data.delivery_version === 2) return true; // Still recheck current department membership above.
       const targetUserIds = normalizeStringArray(data.target_user_ids);
       const targetRoleIds = normalizeStringArray(data.target_role_ids);
-      if (!targetUserIds.length && !targetRoleIds.length) return true;
+      if (normalizeStringArray(data.target_department_ids).some(id=>departmentIds.includes(id))) return true;
+      if (!targetUserIds.length && !targetRoleIds.length && !normalizeStringArray(data.target_department_ids).length) return true;
       if (targetUserIds.includes(userId)) return true;
       return targetRoleIds.some((roleId) => roles.has(roleId));
     })

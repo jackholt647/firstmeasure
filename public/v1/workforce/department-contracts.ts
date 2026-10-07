@@ -1,8 +1,12 @@
 import {z} from 'zod';
 const id=z.string().trim().min(1).max(120);
 const ids=z.array(id).max(200);
-export const departmentSchema=z.object({id,label:z.string().trim().min(1).max(100),color:z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#64748b'),group_id:z.string().max(120).default(''),subject_keys:ids.default([]),role_ids:ids.default([]),group_kind_ids:ids.default([])}).strict();
+const status=z.enum(['active','archived']).default('active');
+export const departmentAppDefaultSchema=z.object({visibility:z.enum(['inherit','show','hide']).default('inherit'),enforcement:z.enum(['default','restricted']).default('default'),params:z.record(z.unknown()).optional(),layout:z.record(z.unknown()).optional()}).strict();
+export const divisionSchema=z.object({id,label:z.string().trim().min(1).max(100),kind:z.string().trim().min(1).max(100).default('Division'),parent_id:z.string().max(120).default(''),branch_id:z.string().max(120).default(''),status,subject_keys:ids.default([])}).strict();
+export const departmentSchema=z.object({id,label:z.string().trim().min(1).max(100),color:z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#64748b'),group_id:z.string().max(120).default(''),division_id:z.string().max(120).default(''),status,default_channel:z.boolean().default(true),app_defaults:z.record(id,departmentAppDefaultSchema).default({}),subject_keys:ids.default([]),role_ids:ids.default([]),group_kind_ids:ids.default([])}).strict();
 export const groupSchema=z.object({id:z.string().min(1).max(120),label:z.string().min(1).max(100)}).strict();
-export const departmentCatalogSchema=z.object({departments:z.array(departmentSchema).max(200),groups:z.array(groupSchema).max(100)}).strict();
+export const departmentCatalogSchema=z.object({departments:z.array(departmentSchema).max(200),groups:z.array(groupSchema).max(100),divisions:z.array(divisionSchema).max(500).default([]),terminology:z.object({department:z.object({singular:z.string().trim().min(1).max(80),plural:z.string().trim().min(1).max(80)}).strict().default({singular:'Department',plural:'Departments'})}).strict().default({})}).strict();
 export const departmentSaveSchema=departmentCatalogSchema.extend({revision:z.number().int().nonnegative(),legacy_token:z.string().optional()}).strict();
-export const departmentAssignmentSchema=z.object({kind:z.enum(['user','role','group','group_kind']),id:z.string().min(1).max(180),department_ids:z.array(z.string().min(1).max(120)).max(200),revision:z.number().int().nonnegative(),legacy_token:z.string().optional()}).strict();
+export const departmentAssignmentSchema=z.object({kind:z.enum(['user','role','group','group_kind','connection']),id:z.string().min(1).max(180),department_ids:ids,revision:z.number().int().nonnegative(),legacy_token:z.string().optional()}).strict();
+export type DepartmentCatalog=z.infer<typeof departmentCatalogSchema>;

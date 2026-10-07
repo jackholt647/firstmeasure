@@ -1,3 +1,4 @@
+import { canUseScopedPermission, hasResourcePermission, matchesDepartmentFilter, canAccessDepartmentResource, relevantDepartmentContext } from "./department-access.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
@@ -281,7 +282,7 @@ async function requireCrewActor(
       assignment_tag_ids: asArray(group.assignment_tag_ids)
     }))
   };
-  if (permission && !hasCrewPermission(actor, permission)) {
+  if (permission && !hasCrewPermission(actor, permission) && !(permission.split("|").every(key => key.startsWith("crew.checklists.")) && canUseScopedPermission(ctx, permission))) {
     throw forbidden("crew_permission_denied", "This user does not have access to this Crew action.", { permission });
   }
   return actor;
@@ -388,6 +389,7 @@ async function assertChecklistAssignmentsAllowed(orgId: string, checklistValue: 
 }
 
 function todoVisibleToActor(node: JsonObject, actor: CrewActor) {
+  if (!matchesDepartmentFilter(actor.ctx, node)) return false;
   const users = asArray(node.assigned_user_ids).map(cleanText).filter(Boolean);
   const roles = asArray(node.assigned_role_ids).map(cleanText).filter(Boolean);
   const resourceGroups = asArray(node.assigned_resource_group_ids).map(cleanText).filter(Boolean);
@@ -482,26 +484,34 @@ function checklistAudiencesForActor(actor: CrewActor): string[] | null {
   return audiences;
 }
 
-function checklistCompletionAllowed(actor: CrewActor, checklist: { audience: string }) {
+function hasChecklistPermission(actor: CrewActor, permission: string, checklist: { department_ids?: unknown }) {
+  return permission.split("|").some(key => hasResourcePermission({ ...actor.ctx, permissions: { ...actor.ctx.permissions, [key]: hasCrewPermission(actor, key) } }, key, checklist));
+}
+
+function checklistCompletionAllowed(actor: CrewActor, checklist: { audience: string; department_ids?: unknown }) {
+  if (!hasChecklistPermission(actor, "crew.checklists.complete|crew.checklists.manage|crew.checklists.supervise", checklist)) return false;
+  if (!matchesDepartmentFilter(actor.ctx, checklist)) return false;
   if (checklistNeedsExplicitAssignment(checklist)) return false;
   if (actor.management) return true;
   if (checklistAssignment(checklist).configured) return checklistAssignmentMatchesActor(actor, checklist);
-  if (cleanText(checklist.audience) === "supervisor") return hasCrewPermission(actor, "crew.checklists.supervise");
-  return hasCrewPermission(actor, "crew.checklists.complete|crew.checklists.manage");
+  if (cleanText(checklist.audience) === "supervisor") return hasChecklistPermission(actor, "crew.checklists.supervise", checklist);
+  return hasChecklistPermission(actor, "crew.checklists.complete|crew.checklists.manage", checklist);
 }
 
-function checklistVisibleToActor(actor: CrewActor, checklist: { audience: string }) {
+function checklistVisibleToActor(actor: CrewActor, checklist: { audience: string; department_ids?: unknown }) {
+  if (!matchesDepartmentFilter(actor.ctx, checklist) || !hasChecklistPermission(actor, "crew.checklists.view|crew.checklists.complete|crew.checklists.manage|crew.checklists.supervise", checklist)) return false;
   if (actor.management) return true;
-  if (hasCrewPermission(actor, "crew.checklists.supervise")) return true;
+  if (hasChecklistPermission(actor, "crew.checklists.supervise", checklist)) return true;
   if (checklistAssignment(checklist).configured) return checklistAssignmentMatchesActor(actor, checklist);
-  if (cleanText(checklist.audience) === "supervisor") return hasCrewPermission(actor, "crew.checklists.supervise");
-  return hasCrewPermission(actor, "crew.checklists.view|crew.checklists.complete|crew.checklists.manage");
+  if (cleanText(checklist.audience) === "supervisor") return hasChecklistPermission(actor, "crew.checklists.supervise", checklist);
+  return hasChecklistPermission(actor, "crew.checklists.view|crew.checklists.complete|crew.checklists.manage", checklist);
 }
 
-function checklistEditAllowed(actor: CrewActor, checklist: { audience: string; crew_editable: boolean }) {
+function checklistEditAllowed(actor: CrewActor, checklist: { audience: string; crew_editable: boolean; department_ids?: unknown }) {
+  if (!matchesDepartmentFilter(actor.ctx, checklist)) return false;
+  if (!hasChecklistPermission(actor, "crew.checklists.manage", checklist)) return false;
   if (actor.management) return true;
-  if (!hasCrewPermission(actor, "crew.checklists.manage")) return false;
-  if (cleanText(checklist.audience) === "supervisor") return hasCrewPermission(actor, "crew.checklists.supervise");
+  if (cleanText(checklist.audience) === "supervisor") return hasChecklistPermission(actor, "crew.checklists.supervise", checklist);
   return checklist.crew_editable === true;
 }
 
@@ -551,6 +561,7 @@ async function checklistCollectionPayload(orgId: string, projectId: string, acto
       supervise: actor.management || hasCrewPermission(actor, "crew.checklists.supervise"),
       manage: actor.management || hasCrewPermission(actor, "crew.checklists.manage")
     },
+    department_context: relevantDepartmentContext(actor.ctx),
     checklists: checklists.map(enrich),
     deleted_checklists: deletedChecklists.map(enrich)
   };
@@ -1649,7 +1660,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
       include_unassigned: false,
       include_completed: cleanText(asObject(request.query).include_completed) === "1"
     }));
-    const accessible = await todosOnAccessibleProjects(orgId, todos as JsonObject[], actor);
+    const accessible = await todosOnAccessibleProjects(orgId, todos.filter(todo => todoVisibleToActor(todo, actor)) as JsonObject[], actor);
     const enriched = await enrichTodosWithProjects(orgId, accessible);
     return { ok: true, todos: enriched, count: enriched.length };
   });
@@ -1685,7 +1696,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
       resource_group_ids: [...actor.groupIds],
       include_unassigned: actor.management,
       include_completed: true
-    })).filter((todo) => ["ready", "active", "completed"].includes(cleanText((todo as JsonObject).status)));
+    })).filter((todo) => todoVisibleToActor(todo, actor) && ["ready", "active", "completed"].includes(cleanText((todo as JsonObject).status)));
     return { ok: true, todos, count: todos.length };
   });
 
@@ -1965,6 +1976,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     const projectId = getParam(request.params, "projectId");
     await assignedProject(orgId, projectId, actor);
     const documents = (await listProjectDocuments(orgId, projectId))
+      .filter((document) => canAccessDepartmentResource(actor.ctx, document) && matchesDepartmentFilter(actor.ctx, document))
       .filter((document) => Number(documentSignatureRequirement(document).pending_count || 0) > 0)
       .map((document) => ({ ...document, signature_requirement: documentSignatureRequirement(document) }));
     return { ok: true, documents, count: documents.length };
@@ -1976,6 +1988,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     const projectId = getParam(request.params, "projectId");
     await assignedProject(orgId, projectId, actor);
     const document = await readDocumentInstance(orgId, getParam(request.params, "documentId"));
+    if (!canAccessDepartmentResource(actor.ctx, document)) throw forbidden("document_department_denied", "This document is outside your department access.");
     if (cleanText(document.project_id) !== projectId) throw notFound("document_not_found", "Document was not found on this project.");
     const resolved = await resolveDocumentInstance(orgId, document, { target: "interactive" });
     const workflow = cleanText(asObject(document.workflow_ref).workflow_id)
@@ -1996,6 +2009,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     await assignedProject(orgId, projectId, actor);
     const documentId = getParam(request.params, "documentId");
     const current = await readDocumentInstance(orgId, documentId);
+    if (!canAccessDepartmentResource(actor.ctx, current)) throw forbidden("document_department_denied", "This document is outside your department access.");
     if (cleanText(current.project_id) !== projectId) throw notFound("document_not_found", "Document was not found on this project.");
     const body = requestBody(request);
     const params = asObject(body.params);
@@ -2017,6 +2031,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     await assignedProject(orgId, projectId, actor);
     const documentId = getParam(request.params, "documentId");
     const current = await readDocumentInstance(orgId, documentId);
+    if (!canAccessDepartmentResource(actor.ctx, current)) throw forbidden("document_department_denied", "This document is outside your department access.");
     if (cleanText(current.project_id) !== projectId) throw notFound("document_not_found", "Document was not found on this project.");
     const result = await updateDocumentWorkflowState(orgId, documentId, requestBody(request), actor.ctx);
     return { ok: true, ...result };
@@ -2030,6 +2045,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     const documentId = getParam(request.params, "documentId");
     const key = getParam(request.params, "key");
     const document = await readDocumentInstance(orgId, documentId);
+    if (!canAccessDepartmentResource(actor.ctx, document)) throw forbidden("document_department_denied", "This document is outside your department access.");
     if (cleanText(document.project_id) !== projectId) throw notFound("document_not_found", "Document was not found on this project.");
     const output = asObject(asObject(document.output_defs)[key]);
     if (cleanText(output.type) !== "signature") throw forbidden("crew_signature_output_only", "The field signature surface may only record signature outputs.");
@@ -2049,6 +2065,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     const actor = await requireCrewActor(request, orgId, "crew.signatures.present", true);
     await assignedProject(orgId, projectId, actor);
     const document = await readDocumentInstance(orgId, documentId);
+    if (!canAccessDepartmentResource(actor.ctx, document)) throw forbidden("document_department_denied", "This document is outside your department access.");
     if (cleanText(document.project_id) !== projectId) throw notFound("document_not_found", "Document was not found on this project.");
     const signing = await import("../documents/signing/service.js");
     const access = await signing.presentedSigningAccess(orgId, documentId, cleanText(requestBody(request).field), actor.ctx);
@@ -2059,6 +2076,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     const actor = await requireCrewActor(request, orgId, "crew.signatures.present");
     await assignedProject(orgId, projectId, actor);
     const document = await readDocumentInstance(orgId, documentId);
+    if (!canAccessDepartmentResource(actor.ctx, document)) throw forbidden("document_department_denied", "This document is outside your department access.");
     if (cleanText(document.project_id) !== projectId) throw notFound("document_not_found", "Document was not found on this project.");
     const file = await (await import("../documents/service.js")).readDocumentPdfFile(orgId, documentId);
     return reply.type("application/pdf").header("Cache-Control", "private, no-store").send(file.bytes);
@@ -2075,6 +2093,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     const documentId = getParam(request.params, "documentId");
     const key = getParam(request.params, "key");
     const document = await readDocumentInstance(orgId, documentId);
+    if (!canAccessDepartmentResource(actor.ctx, document)) throw forbidden("document_department_denied", "This document is outside your department access.");
     if (cleanText(document.project_id) !== projectId) throw notFound("document_not_found", "Document was not found on this project.");
     const output = asObject(asObject(document.output_defs)[key]);
     if (cleanText(output.type) !== "payment") throw badRequest("document_payment_output_required", "The selected document field is not a payment output.");
@@ -2179,6 +2198,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     await assignedProject(orgId, projectId, actor);
     const documentId = getParam(request.params, "documentId");
     const document = await readDocumentInstance(orgId, documentId);
+    if (!canAccessDepartmentResource(actor.ctx, document)) throw forbidden("document_department_denied", "This document is outside your department access.");
     if (cleanText(document.project_id) !== projectId) throw notFound("document_not_found", "Document was not found on this project.");
     const result = await sendDocument(orgId, documentId, { include_pdf: false, include_portal: true }, actor.ctx);
     return { ok: true, ...result };
@@ -2193,6 +2213,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     await assignedProject(orgId, projectId, actor);
     const documentId = getParam(request.params, "documentId");
     const current = await readDocumentInstance(orgId, documentId);
+    if (!canAccessDepartmentResource(actor.ctx, current)) throw forbidden("document_department_denied", "This document is outside your department access.");
     if (cleanText(current.project_id) !== projectId) throw notFound("document_not_found", "Document was not found on this project.");
     const body = requestBody(request);
     const document = await voidDocumentInstance(orgId, documentId, actor.ctx, {
@@ -2531,6 +2552,8 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     if (!actor.management && cleanText(body.audience) === "supervisor" && !hasCrewPermission(actor, "crew.checklists.supervise")) {
       throw forbidden("checklist_audience_forbidden", "This user cannot create supervisor checklists.");
     }
+    body.department_ids ??= relevantDepartmentContext(actor.ctx).member_department_ids;
+    if (!hasChecklistPermission(actor, "crew.checklists.manage", body) || !matchesDepartmentFilter(actor.ctx, body)) throw forbidden("checklist_department_denied", "This checklist is outside your department access.");
     await assertChecklistAssignmentsAllowed(orgId, body);
     const checklist = (await createProjectChecklist(orgId, projectId, body, actor.ctx.userId));
     reply.code(201);
@@ -2746,6 +2769,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     if (!actor.management && cleanText(body.audience) === "supervisor" && !hasCrewPermission(actor, "crew.checklists.supervise")) {
       throw forbidden("checklist_audience_forbidden", "This user cannot assign checklists to supervisors.");
     }
+    if (!matchesDepartmentFilter(actor.ctx, { ...current, ...body })) throw forbidden("checklist_department_denied", "The destination department is outside your department view.");
     await assertChecklistAssignmentsAllowed(orgId, { ...current, ...body });
     return { ok: true, checklist: (await patchProjectChecklist(orgId, projectId, checklistId, body)) };
   });

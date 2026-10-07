@@ -520,6 +520,7 @@ export async function instantiateScopeTemplateWorkPlan(orgId: string, optionsVal
   const blueprint = asObject(definition.work_plan);
   const workConfiguration = await readWorkConfiguration(orgId, branchId);
   const planResult = await createWorkPlan({
+    department_ids: blueprint.department_ids ?? definition.department_ids ?? [],
     organization_id: orgId,
     branch_id: branchId,
     project_id: projectId,
@@ -571,6 +572,7 @@ export async function startWorkPlansForSignedProposal(orgId: string, proposalId:
     const commissionBindings = compileScopeCommissionBindings(definition);
     const sectionName = cleanText(rawPiece.sectionName || rawPiece.section_name || rawPiece.name || definition.name || "Project Work");
     const planResult = await createWorkPlan({
+    department_ids: blueprint.department_ids ?? definition.department_ids ?? [],
       organization_id: orgId,
       branch_id: branchId,
       project_id: projectId,

@@ -1,3 +1,5 @@
+import { hasResourcePermission, relevantDepartmentContext } from "../workforce/department-access.js";
+import { forbidden } from "../platform/errors.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
 import { createWorkPlan, patchWorkNode } from "./service.js";
 import { createFollowUpTodo } from "./followups.js";
@@ -34,6 +36,8 @@ function normalizeTodoContactRefs(body: Record<string, unknown>) {
 }
 
 export async function createTodo(orgId: string, body: Record<string, unknown>, ctx: PlatformAuthContext) {
+    body = { ...body, department_ids: body.department_ids ?? relevantDepartmentContext(ctx).member_department_ids };
+    if (!hasResourcePermission(ctx, "manage_projects", body)) throw forbidden("work_department_denied", "This to-do is outside your department access.");
     const projectId = String(body.project_id || (Array.isArray(body.project_ids) ? body.project_ids[0] : "") || "").trim();
     const id = String(body.id || `manual_todo_${Date.now().toString(36)}`).trim();
     const contactRefs = normalizeTodoContactRefs(body);
@@ -51,6 +55,7 @@ export async function createTodo(orgId: string, body: Record<string, unknown>, c
       organization_id: orgId,
       branch_id: String(body.branch_id || ctx.branchId || "default"),
       project_id: projectId,
+      department_ids: body.department_ids,
       source_type: "manual_todo",
       source_id: id,
       source_key: `manual_todo:${id}`,

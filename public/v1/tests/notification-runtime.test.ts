@@ -85,7 +85,7 @@ async function register(client: ReturnType<typeof createSessionClient>) {
     company: "Automation Engine Test Co",
     organization_id: `org_engine_${suffix}`
   });
-  await enableExpandedPlatformFixture(data.organization.id);
+  await enableExpandedPlatformFixture(data.organization.id, {'apps.notifications':true});
   return { orgId: data.organization.id as string, userId: data.user?.id as string };
 }
 
@@ -178,7 +178,7 @@ test('a successful model repair is versioned and reused without another model ca
 
 test('document instances inherit multiple template tags and retain their own snapshot of labels',async()=>{
  const client=createSessionClient(),{orgId}=await register(client);await createProject(client,orgId,'document-tags');
- await enableExpandedPlatformFixture(orgId,{'platform.documents':true,'documents.templates_studio':true,'documents.advanced_definition_editing':true});
+ await enableExpandedPlatformFixture(orgId,{'apps.notifications':true,'platform.documents':true,'documents.templates_studio':true,'documents.advanced_definition_editing':true});
  const {FMDocModel}=await import('../documents/schemas.js');
  await client.request('POST',`/v1/documents/organizations/${orgId}/templates`,{id:'tag-template',name:'Roofing one page',document_type:'generic',tags:['Proposal','Estimate'],definition:FMDocModel.createDocument({first_page_role:'body'})});
  const created=await client.request('POST',`/v1/documents/organizations/${orgId}/projects/document-tags/documents`,{document_type:'generic',template_id:'tag-template',tags:['insurance']});
@@ -244,7 +244,7 @@ test('grouping keeps in-app members but only dispatches the first interrupt',asy
 test('guided registrations validate tags and grouping, preserve code on edits, and deletion fences repair and pending delivery',async()=>{
  const client=createSessionClient(),{orgId,userId}=await register(client);await createProject(client,orgId,'guided-project');
  const root=`/v1/platform/organizations/${orgId}`;
- await enableExpandedPlatformFixture(orgId,{'platform.documents':true});
+ await enableExpandedPlatformFixture(orgId,{'apps.notifications':true,'platform.documents':true});
  const {upsertDocument}=await import('../platform/storage.js');
  await upsertDocument(orgId,'document_tags',{id:'proposal',data:{tag_id:'proposal',label:'Proposal',archived:false}},{createOnly:true});
  const discovery=await client.request('GET',root+'/notification-rules');
@@ -330,7 +330,7 @@ test('subscription method toggles take effect on subsequent event materializatio
 
 test('guided document workflow filters match retained workflow IDs and reject document scope selectors',async()=>{
  const client=createSessionClient(),{orgId,userId}=await register(client);await createProject(client,orgId,'workflow-filter-project');
- await enableExpandedPlatformFixture(orgId,{'platform.documents':true});
+ await enableExpandedPlatformFixture(orgId,{'apps.notifications':true,'platform.documents':true});
  const root=`/v1/platform/organizations/${orgId}`;
  const {upsertDocument}=await import('../platform/storage.js');
  await upsertDocument(orgId,'document_workflows',{id:'roofing-workflow',data:{name:'Roofing workflow',status:'published',current_version:1}},{createOnly:true});

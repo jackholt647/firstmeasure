@@ -406,7 +406,7 @@
           window.EquipmentAPI.units(organizationId, {
             typeId: state.filters.typeId,
             status: state.filters.status,
-            query: state.filters.query
+            query: state.filters.query,departmentId:state.filters.departmentId
           }),
           state.types ? { types: state.types } : window.EquipmentAPI.types(organizationId),
           state.categories ? { categories: state.categories } : window.EquipmentAPI.categories(organizationId),
@@ -415,6 +415,7 @@
         if (destroyed) return;
         if (state.drawer && state.drawer.mode !== 'view') preserveDrawerDraft();
         state.units = arr(unitsResult.units);
+        if(unitsResult.department_context)state.departmentContext=unitsResult.department_context;
         state.types = arr(typesResult.types);
         state.categories = arr(categoriesResult.categories);
         state.yards = arr(yardsResult.yards);
@@ -494,6 +495,7 @@
         ]);
         if (destroyed) return;
         state.units = arr(unitsResult.units);
+        if(unitsResult.department_context)state.departmentContext=unitsResult.department_context;
         state.maintenance = {
           loading:false,
           due: arr(due.due_service),
@@ -733,6 +735,7 @@
         ]);
         if (destroyed) return;
         state.units = arr(unitsResult.units);
+        if(unitsResult.department_context)state.departmentContext=unitsResult.department_context;
         const projectEvents = Scheduling.eventsFromProjects ? Scheduling.eventsFromProjects(timelineProjects, config || {}) : [];
         const floatingEvents = arr(floatingResult?.documents || floatingResult?.events || floatingResult)
           .map((document) => Scheduling.normalizeEvent?.({ ...obj(document.data || document), id:clean(document.id || obj(document.data).id), floating_event:true }, config || {}))
@@ -872,6 +875,7 @@
         vin: read('vin'),
         color: read('color'),
         ownership,
+        department_id:container.querySelector('[data-eq-input="department_id"]')?read('department_id'):clean(currentUnit.department_id)||(state.departmentContext?.enabled&&state.departmentContext?.department_ids?.length===1?state.departmentContext.department_ids[0]:''),
         acquisition,
         ...(state.drawer?.mode === 'create' ? { status:'available' } : {}),
         operator_tag_overrides:driverRequirement(read('driver_requirement')),
@@ -1323,6 +1327,7 @@
       const unitTerm = terminology('equipment.equipment_units', 'Units');
       const filterOptions = `
         <div class="eq-filters">
+          ${state.departmentContext?.show_selector?`<select class="eq-filter" data-eq-filter="departmentId" aria-label="${esc(state.departmentContext.department_label||'Department')}"><option value="">${esc(state.departmentContext.departments_label||'Departments')}</option>${state.departmentContext.departments.map(d=>`<option value="${esc(d.id)}" ${state.filters.departmentId===d.id?'selected':''}>${esc(d.label)}</option>`).join('')}</select>`:''}
           <div class="eq-search"><i class="fas fa-magnifying-glass"></i><input type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_bf817b162b2c81","Search name, asset #, plate, VIN…") ?? "Search name, asset #, plate, VIN…")}" value="${String(esc(state.filters.query))}" data-eq-filter="query"></div>
           <select class="eq-filter" data-eq-filter="categoryId">
             <option value="">${(globalThis.PlatformLanguage?.htmlText("equipment","m_0abe1295afa55b","All categories") ?? "All categories")}</option>
@@ -1403,6 +1408,7 @@
             <div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_cb7c55478a40a3","Home facility") ?? "Home facility")}</label><div class="eq-inline-select"><select data-eq-input="yard_id">${String(yardOptions.map(([value,label]) => `<option value="${esc(value)}" ${selectedYardId === value ? 'selected' : ''}>${esc(label)}</option>`).join(''))}<option value="__new__">${(globalThis.PlatformLanguage?.htmlText("equipment","m_0f3537c9bb311a","+ Add new facility…") ?? "+ Add new facility…")}</option></select></div></div>
             ${String(drawer.mode === 'view' && facilityAccessInstructions ? `<div class="eq-field eq-readonly-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_feb926c42d3f6e","Facility access instructions") ?? "Facility access instructions")}</label><div class="eq-readonly-value" role="note"><i class="fas fa-lock"></i>${esc(facilityAccessInstructions)}</div></div>` : '')}
             ${String(field('Ownership', 'ownership', unit.ownership || 'owned', { select:OWNERSHIPS }))}
+            ${state.departmentContext?.show_selector?field(state.departmentContext.department_label||'Department','department_id',unit.department_id||'',{select:[['','Shared across '+(state.departmentContext.departments_label||'departments')],...(state.departmentContext.departments||[]).map(d=>[d.id,d.label])]}):''}
             ${String(field('Driver requirement', 'driver_requirement', driverRequirementId(unit), { select:DRIVER_REQUIREMENTS }))}
             ${drawer.mode !== 'create' ? `<section class="eq-unit-status" aria-label="Equipment status"><div class="eq-unit-status-row"><span>Status</span>${statusChip(unit.status)}</div>${clean(obj(unit.status_event).title) ? `<details class="eq-status-details"><summary>Schedule details</summary><div><span>Scheduled event</span><p>${esc(obj(unit.status_event).title)}</p></div></details>` : ''}</section>` : ''}
             ${String(vehicleType ? `<div class="eq-dynamic-panel"><div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_113d0683ef8084","Vehicle details") ?? "Vehicle details")}</div>${field('License plate', 'license_plate', unit.license_plate)}${field('Year', 'year', unit.year)}${field('Make', 'make', unit.make)}${field('Model', 'model', unit.model)}${field('VIN', 'vin', unit.vin)}</div>` : '')}

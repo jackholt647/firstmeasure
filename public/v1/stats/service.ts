@@ -3,6 +3,7 @@
 
 import { badRequest, notFound } from "../platform/errors.js";
 import { listDocuments } from "../platform/storage.js";
+import { resolveOrganizationStructure } from '../workforce/organization-structure.js';
 import { getWorkDatabase } from "../work/storage.js";
 import { describeStatsFields, validateMetricSpec, TIME_PRESETS } from "./metrics.js";
 import { METRIC_PRESETS, VIEW_PRESETS, viewPreset } from "./presets.js";
@@ -45,6 +46,7 @@ async function distinctColumn(orgId: string, column: string, where = "") {
 }
 
 export async function statsSchema(orgId: string) {
+  const structure = await resolveOrganizationStructure(orgId);
   const templates = (await getWorkDatabase()
     .prepare("SELECT id, name, color, icon, status FROM scope_templates WHERE organization_id = ? ORDER BY sort_order, name LIMIT 200")
     .all(orgId))
@@ -72,6 +74,8 @@ export async function statsSchema(orgId: string) {
     time_presets: [...TIME_PRESETS],
     templates,
     users,
+    departments: structure.catalog.departments.filter(entry => entry.status !== 'archived').map(({id,label})=>({id,label})),
+    divisions: structure.catalog.divisions.filter(entry=>entry.status!=='archived').map(({id,label,kind,parent_id})=>({id,label,kind,parent_id})),
     sources: (await distinctColumn(orgId, "source", "source <> ''")),
     stages: (await distinctColumn(orgId, "stage_title", "stage_title <> ''")),
     branches: (await distinctColumn(orgId, "branch_id")),

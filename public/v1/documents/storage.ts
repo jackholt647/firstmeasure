@@ -169,6 +169,8 @@ async function createAsset(orgId: string, asset: VersionedAssetOptions, input: J
     schema_version: DOCUMENT_SCHEMA_VERSION,
     id,
     kind: asset.kind,
+    department_ids: Array.isArray(input.department_ids) ? input.department_ids : [],
+    department_access: input.department_access === "restricted" ? "restricted" : "shared",
     organization_id: orgId,
     name: cleanText(input.name) || "Untitled",
     ...(asset.kind === "document_template" ? { document_type: cleanText(input.document_type || "generic") || "generic" } : {}),
@@ -205,6 +207,8 @@ async function patchAsset(orgId: string, asset: VersionedAssetOptions, assetId: 
   }
   const data: JsonObject = {
     ...current,
+    ...(Array.isArray(patch.department_ids) ? { department_ids: patch.department_ids } : {}),
+    ...(patch.department_access ? { department_access: patch.department_access } : {}),
     folder_id: Object.prototype.hasOwnProperty.call(patch, "folder_id") ? cleanText(patch.folder_id) || cleanText(current.folder_id) : current.folder_id,
     name: Object.prototype.hasOwnProperty.call(patch, "name") ? cleanText(patch.name) || cleanText(current.name) : current.name,
     description: Object.prototype.hasOwnProperty.call(patch, "description") ? cleanText(patch.description) : current.description,

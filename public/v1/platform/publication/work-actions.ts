@@ -15,10 +15,10 @@ const number = { type: ["number", "string"] }; // Work definitions allow templat
 /** Explicit legacy input contracts. Extra fields are retained for existing scope definitions. */
 const fields: Record<string, Record<string, JsonSchema>> = {
   "project.patch.v1": { values: object },
-  "notification.create.v1": { notification_id: text, id: text, title: text, body: text, target_role_ids: list, target_user_ids: list, kind: text, celebration: object, frontend_action: object },
+  "notification.create.v1": { notification_id: text, id: text, title: text, body: text, target_department_ids: list, target_role_ids: list, target_user_ids: list, kind: text, celebration: object, frontend_action: object },
   "communications.sendSms.v1": { to: text, text, recipients: list },
   "communications.sendEmail.v1": { to: text, subject: text, text, html: text, recipients: list },
-  "work.createTodo.v1": { title: text, message: text, assigned_role_ids: list, assigned_user_ids: list, assigned_resource_group_ids: list, priority: number, due_offset_minutes: number, metadata: object },
+  "work.createTodo.v1": { department_ids: list, title: text, message: text, assigned_role_ids: list, assigned_user_ids: list, assigned_resource_group_ids: list, priority: number, due_offset_minutes: number, metadata: object },
   "crm.callLists.add.v1": { list: object, title: text }, "crm.callLists.remove.v1": {},
   "scheduling.createRequirement.v1": { event_type_default_id: text, title: text, kind: text, resource_refs: list, resource_requirements: list },
   "scheduling.createRequirements.v1": { requirements: list },

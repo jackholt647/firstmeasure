@@ -18,7 +18,7 @@ export type ActionDefinition = {
   validateInput?: (input: Record<string, unknown>) => void;
   execute: (ctx: PublicationContext, target: TargetRef, input: Record<string, unknown>, execution: { receiptId: string; idempotencyKey?: string }) => Promise<unknown> | unknown;
 };
-export type ActionDescription = Omit<ActionDefinition, "execute" | "validateInput" | "policy"> & { policy: Omit<AccessPolicy, "authorize"> };
+export type ActionDescription = Omit<ActionDefinition, "execute" | "validateInput" | "policy"> & { policy: Omit<AccessPolicy, "authorize" | "departmentResource"> };
 const definitions = new Map<string, ActionDefinition>();
 const latest = new Map<string, string>();
 const fingerprints = new Map<string, string>();
@@ -39,7 +39,7 @@ function database() {
 }
 function describe(def: ActionDefinition): ActionDescription {
   const { execute: _execute, validateInput: _validateInput, policy, ...publicFields } = def;
-  const { authorize: _authorize, ...publicPolicy } = policy;
+  const { authorize: _authorize, departmentResource: _departmentResource, ...publicPolicy } = policy;
   return jsonClone({ ...publicFields, policy: publicPolicy });
 }
 export function registerAction(definition: ActionDefinition): void {
@@ -51,14 +51,14 @@ export function registerAction(definition: ActionDefinition): void {
   if (!definition.id || !definition.version || !definition.implementation) throw badRequest("action_identity_required", "An action needs an id, version and implementation identity.");
   if ((definition.effect === "write" || definition.effect === "external") && definition.idempotency === "none") throw badRequest("action_receipt_required", "Mutating actions require an execution receipt strategy.");
   const key = `${definition.id}@${definition.version}`;
-  const fingerprint = contentHash({ ...describe(definition), handler: definition.execute.toString(), validation: definition.validateInput?.toString() || "", authorization: definition.policy.authorize?.toString() || "" });
+  const fingerprint = contentHash({ ...describe(definition), handler: definition.execute.toString(), validation: definition.validateInput?.toString() || "", authorization: definition.policy.authorize?.toString() || "", departmentResource:definition.policy.departmentResource?.toString() || '' });
   if (definitions.has(key)) {
     if (fingerprints.get(key) !== fingerprint) throw conflict("action_version_immutable", "A registered action version cannot change implementation or contract.");
     return;
   }
   // Copy serializable contracts so later caller mutations cannot change a registered version.
   const description = describe(definition);
-  definitions.set(key, { ...description, policy: { ...description.policy, authorize: definition.policy.authorize }, execute: definition.execute, validateInput: definition.validateInput });
+  definitions.set(key, { ...description, policy: { ...description.policy, authorize: definition.policy.authorize, departmentResource:definition.policy.departmentResource }, execute: definition.execute, validateInput: definition.validateInput });
   fingerprints.set(key, fingerprint);
   latest.set(definition.id, definition.version);
 }

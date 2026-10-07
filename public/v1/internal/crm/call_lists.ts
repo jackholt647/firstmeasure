@@ -234,6 +234,11 @@ export async function ensureCallList(orgIdValue: unknown, inputValue: JsonObject
   }));
 }
 
+export async function readCallList(orgId:string,key:string){
+  await ensureCallListDatabase();
+  return withCallListDb(async db=>{const row=await db.prepare('SELECT * FROM crm_call_lists WHERE organization_id=? AND list_key=?').get(orgId,listKey(key));return row?normalizeList(row):null;});
+}
+
 export async function upsertCallListEntry(orgIdValue: unknown, listKeyValue: unknown, inputValue: JsonObject = {}) {
   const orgId = cleanText(orgIdValue);
   const input = asObject(inputValue);
@@ -301,6 +306,8 @@ export async function removeCallListEntry(orgIdValue: unknown, inputValue: JsonO
 
 function listVisibleTo(list: ReturnType<typeof normalizeList>, viewer: JsonObject) {
   if (viewer.include_all === true) return true;
+  const departments=stringArray(asObject(list.metadata).department_ids);
+  if(departments.length)return departments.some(id=>stringArray(viewer.department_ids).includes(id));
   const users = new Set(stringArray(viewer.user_ids || [viewer.user_id]));
   const roles = new Set(stringArray(viewer.role_ids));
   if (!list.assigned_user_ids.length && !list.assigned_role_ids.length) return true;

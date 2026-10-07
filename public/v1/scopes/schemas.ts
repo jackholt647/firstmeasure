@@ -271,6 +271,7 @@ export const scopeChecklistCustomerAccessSchema = jsonObjectSchema.extend({
 }).passthrough();
 
 export const scopeChecklistDefinitionSchema = jsonObjectSchema.extend({
+  department_ids: z.array(scopeDefinitionIdSchema).max(100).optional(),
   id: scopeDefinitionIdSchema,
   title: z.string().trim().min(1).max(300),
   description: z.string().optional(),
@@ -291,6 +292,7 @@ export const scopeChecklistDefinitionSchema = jsonObjectSchema.extend({
 export const scopeTemplateKindSchema = z.enum(["pipeline", "production"]);
 
 export const scopeTemplateDefinitionSchema = jsonObjectSchema.extend({
+  department_ids: z.array(scopeDefinitionIdSchema).max(100).optional(),
   notifications: z.array(z.object({id:z.string().trim().min(1).max(180),label:z.string().trim().min(1).max(180),description:z.string().max(1000).optional(),defaults:z.object({in_app:z.boolean().default(true),push:z.boolean().default(false)}).optional()})).max(500).refine(items=>new Set(items.map(i=>i.id)).size===items.length,"Notification IDs must be unique").optional(),
   schema_version: z.number().int().positive().optional(),
   id: scopeDefinitionIdSchema,
@@ -320,6 +322,7 @@ export const scopeTemplateDefinitionSchema = jsonObjectSchema.extend({
   commissions: scopeCommissionsDefinitionSchema.optional(),
   checklists: z.array(scopeChecklistDefinitionSchema).max(20).optional(),
   work_plan: jsonObjectSchema.extend({
+    department_ids: z.array(scopeDefinitionIdSchema).max(100).optional(),
     title: z.string().trim().max(500).optional(),
     terminology: jsonObjectSchema.optional(),
     automation_bindings: workAutomationBindingsSchema.optional(),

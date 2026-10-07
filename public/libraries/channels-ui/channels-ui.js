@@ -5355,6 +5355,7 @@
               name: cleanText(user.name || user.email) || 'Unknown',
               email: cleanText(user.email).toLowerCase(),
               disabled: user.disabled === true
+              ,department_ids:user.department_ids||[],departments:user.departments||[]
             }))
             .filter((user) => user.id && user.id !== currentUser.id && !user.disabled);
         }
@@ -5655,7 +5656,16 @@
       const list = el('div', 'fm-ch-people-results'); list.setAttribute('aria-label', 'People');
       picker.append(search, summary, chips, list);
       const normalize = text => cleanText(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase();
-      const entries = users.map(user => ({ user, search:normalize(`${user.name} ${user.email || ''}`) }));
+      const entries = users.map(user => ({ user, search:normalize(`${user.name} ${user.email || ''} ${(user.departments||[]).map(d=>d.label).join(' ')}`) }));
+      const departmentMap=new Map();
+      for(const user of users)for(const department of user.departments||[])departmentMap.set(department.id,department);
+      if(departmentMap.size>1){
+        const departmentSelect=el('select');departmentSelect.setAttribute('aria-label','Add people by department');
+        departmentSelect.append(new Option('Add a department…',''));
+        for(const department of departmentMap.values())departmentSelect.append(new Option(department.label,department.id));
+        departmentSelect.addEventListener('change',()=>{if(!departmentSelect.value)return;for(const user of users)if((user.department_ids||[]).includes(departmentSelect.value))selected.add(user.id);departmentSelect.value='';paint();});
+        picker.insertBefore(departmentSelect,summary);
+      }
       let limit = 50;
       const updateSelection = () => {
         chips.replaceChildren();

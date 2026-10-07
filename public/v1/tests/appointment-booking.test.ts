@@ -191,6 +191,7 @@ test('configured appointments preserve departments, delivery, staffing and recur
   const person=catalog.resources.find((r:any)=>r.subject_type==='organization_user');assert.ok(person);
   const departmentUrl=`/v1/workforce/organizations/${orgId}/departments`;
   const initialDepartments=await client.request('GET',departmentUrl);
+  catalog.catalog.departments.push({id:'sales',label:'Sales',subject_keys:[person.key]});
   catalog.catalog.departments.push({id:'consulting',label:'Consulting',subject_keys:[person.key],color:'#123456',group_id:'customer-services'});
   catalog.catalog.groups=[{id:'customer-services',label:'Customer services'}];
   await client.request('PUT',departmentUrl,{departments:catalog.catalog.departments,groups:catalog.catalog.groups,revision:initialDepartments.revision,legacy_token:initialDepartments.legacy_token});
@@ -262,7 +263,7 @@ test('organization departments preserve branch catalogs and support generic type
   const service=await import('../workforce/departments.js');
   const base=`/v1/workforce/organizations/${orgId}/departments`;
   const legacy=defaultAppointmentCatalog();
-  legacy.departments.push({id:'support',label:'Support',color:'#123456',group_id:'',subject_keys:[`organization_user:${userId}`],role_ids:[],group_kind_ids:[]});
+  legacy.departments.push({id:'support',label:'Support',color:'#123456',group_id:'',division_id:'',status:'active',default_channel:true,app_defaults:{},subject_keys:[`organization_user:${userId}`],role_ids:[],group_kind_ids:[]});
   await storage.upsertDocument(orgId,'branch',{id:'east',data:{name:'East'}});
   await storage.saveBranchModule(orgId,'east','scheduling',{data:{appointment_catalog:legacy}});
   const initial=await client.request('GET',base);
@@ -307,7 +308,33 @@ test('organization departments preserve branch catalogs and support generic type
   const result=await Promise.allSettled([service.saveDepartmentAssignment(ctx,{kind:'user',id:userId,department_ids:['sales'],revision:saved.revision}),service.saveDepartmentAssignment(ctx,{kind:'group',id:group.id,department_ids:['production'],revision:saved.revision})]);
   assert.equal(result.filter(r=>r.status==='fulfilled').length,1);
   assert.equal(result.filter(r=>r.status==='rejected').length,1);
+  const latest=await service.readOrganizationDepartments(orgId);
+  await assert.rejects(service.saveDepartmentSettings(ctx,{...latest,divisions:[{id:'a',label:'A',parent_id:'b'},{id:'b',label:'B',parent_id:'a'}]}),(e:any)=>e.code==='division_cycle');
+  await assert.rejects(service.saveDepartmentSettings(ctx,{...latest,divisions:[{id:'a',label:'A',parent_id:'missing'}]}),(e:any)=>e.code==='unknown_parent_division');
+  await assert.rejects(service.saveDepartmentSettings(ctx,{...latest,divisions:[{id:'a',label:'A',subject_keys:['organization_user:foreign']}]}),(e:any)=>e.code==='unknown_division_member');
   const outsider=createSessionClient();await registerOwner(outsider);
   assert.equal((await outsider.raw('GET',base)).statusCode,403);
   assert.ok((await client.raw('GET',`/v1/platform/organizations/${orgId}/organization_departments`)).statusCode>=400);
+});
+
+test('scoped scheduling checks both stored appointments and every destination department',async()=>{
+  const client=createSessionClient();const {orgId,userId}=await registerOwner(client);
+  const store=await import('../platform/storage.js');const {departmentCatalogSchema}=await import('../workforce/department-contracts.js');
+  const {buildOrganizationStructure}=await import('../workforce/organization-structure.js');
+  const {assertAppointmentDepartmentPermission}=await import('../appointments/department-access.js');
+  const catalog=departmentCatalogSchema.parse({groups:[],departments:[{id:'sales',label:'Sales',subject_keys:[`organization_user:${userId}`]},{id:'production',label:'Production'}]});
+  await store.upsertDocument(orgId,'organization_departments',{id:'catalog',data:catalog});
+  const ctx={orgId,userId,branchId:'default',role:'member',permissions:{},organizationStructure:buildOrganizationStructure(catalog,[{id:userId}],[]),scopedAccessGrants:[{scope:{kind:'department',id:'sales'},permissions:{manage_schedule:true}}]} as any;
+  assert.doesNotThrow(()=>assertAppointmentDepartmentPermission(ctx,{department_ids:['sales']}));
+  assert.throws(()=>assertAppointmentDepartmentPermission(ctx,{department_ids:['sales','production']}),/not permitted/);
+  assert.throws(()=>assertAppointmentDepartmentPermission(ctx,{}),/not permitted/);
+  const api=await import('../platform/api.js');
+  const when={start_at:'2027-01-10T15:00:00Z',end_at:'2027-01-10T16:00:00Z',branch_id:'default',type:'appointment',status:'scheduled'};
+  await store.upsertDocument(orgId,'calendar_events',{id:'production-existing',data:{...when,department_ids:['production']}});
+  await assert.rejects(api.saveCalendarEventDocument(orgId,'production-existing',{data:{...when,department_ids:['sales']}},true,ctx),(e:any)=>e.statusCode===403);
+  await store.upsertDocument(orgId,'calendar_events',{id:'sales-existing',data:{...when,department_ids:['sales']}});
+  await assert.rejects(api.saveCalendarEventDocument(orgId,'sales-existing',{data:{department_ids:['production']}},false,ctx),(e:any)=>e.statusCode===403);
+  await assert.rejects(api.saveCalendarEventDocument(orgId,'sales-existing',{data:{...when,department_ids:[]}},true,ctx),(e:any)=>e.statusCode===403);
+  const {readAppointmentCatalog}=await import('../appointments/planning.js');const bundle=await readAppointmentCatalog(ctx);
+  assert.equal(bundle.department_context.show_selector,false);assert.deepEqual(bundle.department_context.department_ids,['sales']);
 });

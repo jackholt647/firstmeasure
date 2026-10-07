@@ -226,6 +226,7 @@ async function initializeSchema(db: SqlStore) {
       updated_at TEXT NOT NULL
     );
   `));
+  await ensureSqlColumn(db, "equipment_units", "department_id", "TEXT NOT NULL DEFAULT ''");
   await ensureSqlColumn(db, "equipment_units", "color", "TEXT NOT NULL DEFAULT ''");
   await ensureSqlColumn(db, "equipment_types", "kind", "TEXT NOT NULL DEFAULT 'other'");
 }
@@ -298,6 +299,7 @@ export function unitView(row: unknown): JsonObject {
     organization_id: cleanText(value.organization_id),
     type_id: cleanText(value.type_id),
     branch_id: cleanText(value.branch_id || "default"),
+    department_id: cleanText(value.department_id),
     name: cleanText(value.name),
     identifier: cleanText(value.identifier),
     serial_number: cleanText(value.serial_number),
@@ -562,12 +564,12 @@ export async function saveUnit(orgId: string, input: JsonObject) {
   if (existing) {
     const current = Number(asObject(existing).revision || 1);
     if (expected && expected !== current) throw conflict("equipment_unit_revision_conflict", "The unit was changed elsewhere. Reload and try again.");
-    (await db.prepare(`UPDATE equipment_units SET type_id=?, branch_id=?, name=?, identifier=?, serial_number=?, license_plate=?, year=?, make=?, model=?, vin=?, color=?,
+    (await db.prepare(`UPDATE equipment_units SET type_id=?, branch_id=?, department_id=?, name=?, identifier=?, serial_number=?, license_plate=?, year=?, make=?, model=?, vin=?, color=?,
       ownership=?, contact_id=?, service_location_json=?, acquisition_json=?, status=?, condition_status_id=?, location_source=?, location_json=?,
       home_location_json=?, current_meter_json=?, rates_json=?, attributes_json=?, operator_tag_overrides_json=?, custody_json=?, photos_json=?,
       documents_json=?, tags_json=?, notes=?, revision=?, updated_at=?
       WHERE organization_id=? AND id=?`)
-      .run(cleanText(input.type_id), cleanText(input.branch_id || "default"), cleanText(input.name), cleanText(input.identifier),
+      .run(cleanText(input.type_id), cleanText(input.branch_id || "default"), cleanText(input.department_id), cleanText(input.name), cleanText(input.identifier),
         cleanText(input.serial_number), cleanText(input.license_plate), cleanText(input.year), cleanText(input.make), cleanText(input.model), cleanText(input.vin), cleanText(input.color),
         cleanText(input.ownership || "owned"), cleanText(input.contact_id), JSON.stringify(input.service_location ?? {}), JSON.stringify(input.acquisition ?? {}),
         cleanText(input.status || "available"), cleanText(input.condition_status_id), cleanText(input.location_source || "manual"), JSON.stringify(input.location ?? {}),
@@ -575,12 +577,12 @@ export async function saveUnit(orgId: string, input: JsonObject) {
         JSON.stringify(input.operator_tag_overrides ?? []), JSON.stringify(input.custody ?? {}), JSON.stringify(input.photos ?? []),
         JSON.stringify(input.documents ?? []), JSON.stringify(input.tags ?? []), cleanText(input.notes), current + 1, now, orgId, unitId));
   } else {
-    (await db.prepare(`INSERT INTO equipment_units (id, organization_id, type_id, branch_id, name, identifier, serial_number, license_plate, year, make, model, vin, color,
+    (await db.prepare(`INSERT INTO equipment_units (id, organization_id, type_id, branch_id, department_id, name, identifier, serial_number, license_plate, year, make, model, vin, color,
       ownership, contact_id, service_location_json, acquisition_json, status, condition_status_id, location_source, location_json, home_location_json,
       current_meter_json, rates_json, attributes_json, operator_tag_overrides_json, custody_json, photos_json, documents_json, tags_json, notes,
       revision, created_at, updated_at, archived_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, '')`)
-      .run(unitId, orgId, cleanText(input.type_id), cleanText(input.branch_id || "default"), cleanText(input.name), cleanText(input.identifier),
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, '')`)
+      .run(unitId, orgId, cleanText(input.type_id), cleanText(input.branch_id || "default"), cleanText(input.department_id), cleanText(input.name), cleanText(input.identifier),
         cleanText(input.serial_number), cleanText(input.license_plate), cleanText(input.year), cleanText(input.make), cleanText(input.model), cleanText(input.vin), cleanText(input.color),
         cleanText(input.ownership || "owned"), cleanText(input.contact_id), JSON.stringify(input.service_location ?? {}), JSON.stringify(input.acquisition ?? {}),
         cleanText(input.status || "available"), cleanText(input.condition_status_id), cleanText(input.location_source || "manual"), JSON.stringify(input.location ?? {}),

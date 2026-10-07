@@ -272,6 +272,7 @@ export function planFromRow(row: unknown): JsonObject {
   const value = rowObject(row);
   return {
     ...value,
+    department_ids: asObject(parseJson(value.metadata_json)).department_ids || [],
     template_version: Number(value.template_version || 0),
     terminology: parseJson(value.terminology_json),
     automation_bindings: parseJson(value.automation_bindings_json),
@@ -285,6 +286,7 @@ export function nodeFromRow(row: unknown): JsonObject {
   const metadata = parseJson(value.metadata_json);
   return {
     ...value,
+    department_ids: asObject(metadata).department_ids || [],
     sort_order: Number(value.sort_order || 0),
     depth: Number(value.depth || 0),
     actionable: Number(value.actionable || 0) === 1,
@@ -334,7 +336,7 @@ export async function createPlanRecord(input: JsonObject) {
       cleanText(input.source_version_id) || null, sourceKey || null, cleanText(input.template_id) || null,
       Number(input.template_version || 0) || null, cleanText(input.scope_piece_id) || null, cleanText(input.title) || "Work Plan",
       cleanText(input.status || "pending") || "pending", json(input.terminology), json(input.automation_bindings),
-      json(input.context), json(input.metadata), now, now
+      json(input.context), json({ ...asObject(input.metadata), ...(Array.isArray(input.department_ids) ? { department_ids: input.department_ids } : {}) }), now, now
     ));
   if (!Number(inserted.changes || 0)) {
     const existing = sourceKey
@@ -375,7 +377,7 @@ export async function updatePlanRecord(orgId: string, planId: string, patch: Jso
     context_json=?, metadata_json=?, started_at=?, completed_at=?, canceled_at=?, updated_at=? WHERE organization_id=? AND id=?`)
     .run(
       cleanText(next.status), cleanText(next.root_node_id) || null, json(next.terminology), json(next.automation_bindings),
-      json(next.context), json(next.metadata), cleanText(next.started_at) || null, cleanText(next.completed_at) || null,
+      json(next.context), json({ ...asObject(next.metadata), ...(Array.isArray(next.department_ids) ? { department_ids: next.department_ids } : {}) }), cleanText(next.started_at) || null, cleanText(next.completed_at) || null,
       cleanText(next.canceled_at) || null, cleanText(next.updated_at), orgId, planId
     ));
   const plan=await readPlanRecord(orgId,planId);
@@ -404,7 +406,7 @@ export async function createNodeRecord(input: JsonObject) {
       cleanText(input.completion_mode || "manual"), input.actionable === true ? 1 : 0, input.show_in_todo_list === true ? 1 : 0,
       Math.max(0, Math.round(Number(input.priority) || 0)),
       json(input.assigned_user_ids || []), json(input.assigned_role_ids || []), json(input.assigned_resource_group_ids || []), json(input.automation_bindings),
-      json(input.external_triggers || []), json(input.notes || []), json(input.metadata), cleanText(input.due_at) || null, now, now
+      json(input.external_triggers || []), json(input.notes || []), json({ ...asObject(input.metadata), ...(Array.isArray(input.department_ids) ? { department_ids: input.department_ids } : {}) }), cleanText(input.due_at) || null, now, now
     ));
   const node=await readNodeRecord(cleanText(input.organization_id),id);
   if(node)await (await import('../integrations/usage.js')).indexConnectionUses(cleanText(input.organization_id),`work-node:${id}`,node);
@@ -453,7 +455,7 @@ export async function updateNodeRecord(orgId: string, nodeId: string, patch: Jso
       next.actionable === true ? 1 : 0, next.show_in_todo_list === true ? 1 : 0,
       Math.max(0, Math.round(Number(next.priority) || 0)), json(next.assigned_user_ids || []),
       json(next.assigned_role_ids || []), json(next.assigned_resource_group_ids || []), json(next.automation_bindings), json(next.external_triggers || []),
-      json(next.notes || []), json(next.metadata), cleanText(next.due_at) || null, cleanText(next.ready_at) || null,
+      json(next.notes || []), json({ ...asObject(next.metadata), ...(Array.isArray(next.department_ids) ? { department_ids: next.department_ids } : {}) }), cleanText(next.due_at) || null, cleanText(next.ready_at) || null,
       cleanText(next.started_at) || null, cleanText(next.completed_at) || null, cleanText(next.skipped_at) || null,
       cleanText(next.canceled_at) || null, cleanText(next.updated_at), orgId, nodeId
     ));

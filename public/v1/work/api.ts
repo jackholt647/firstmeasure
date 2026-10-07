@@ -1,3 +1,5 @@
+import { hasResourcePermission, matchesDepartmentFilter, relevantDepartmentContext } from "../workforce/department-access.js";
+import { forbidden } from "../platform/errors.js";
 import { createTodo } from "./todos.js";
 import type { FastifyPluginAsync } from "fastify";
 import { ZodError, z } from "zod";
@@ -26,7 +28,7 @@ import {
   workPlanTree
 } from "./service.js";
 import { ensurePipelinePlanForProject } from "../scopes/router.js";
-import { listEventRecords, listExecutionRecords, listNodeRecords, readNodeRecord } from "./storage.js";
+import { listEventRecords, listExecutionRecords, listNodeRecords, readNodeRecord, readPlanRecord } from "./storage.js";
 
 const objectSchema = z.object({}).passthrough();
 
@@ -60,6 +62,17 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
     return reply.code(500).send({ ok: false, error: "internal_error", message: "An unexpected error occurred." });
   });
 
+  app.addHook("preHandler", async request => {
+    const orgId = getParam(request.params, "orgId");
+    if (!orgId) return;
+    const nodeId = getParam(request.params, "nodeId"), planId = getParam(request.params, "planId");
+    if (!nodeId && !planId) return;
+    const ctx = await requirePlatformAuth(request, { orgId });
+    const resource = nodeId ? await readNodeRecord(orgId, nodeId) : await readPlanRecord(orgId, planId);
+    const permission = request.method === "GET" ? "view_projects" : "manage_projects";
+    if (resource && !hasResourcePermission(ctx, permission, resource)) throw forbidden("work_department_denied", "This work is outside your department access.");
+    if (resource && request.method === "PATCH" && !hasResourcePermission(ctx, permission, { ...resource, ...asObject(request.body) })) throw forbidden("work_department_denied", "The destination department is outside your access.");
+  });
   registerBuiltinWorkAutomations();
   startWorkScheduler();
 
@@ -67,27 +80,29 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/projects/:projectId/plans", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const projectId = getParam(request.params, "projectId");
     const projectDocument = await readDocument(orgId, "projects", projectId).catch(() => null);
     if (projectDocument) await ensurePipelinePlanForProject(orgId, { id: projectId, ...objectSchema.parse(projectDocument.data) });
     const query = objectSchema.parse(request.query ?? {});
-    const plans: Record<string, unknown>[] = (await listWorkPlans(orgId, { ...query, project_id: projectId }));
+    const departmentCtx = await requirePlatformAuth(request, { orgId });
+    const plans: Record<string, unknown>[] = (await listWorkPlans(orgId, { ...query, project_id: projectId })).filter(plan => hasResourcePermission(departmentCtx, "view_projects", asObject(plan)) && matchesDepartmentFilter(departmentCtx, asObject(plan), cleanText(query.department_id)));
     return {
       ok: true,
-      plans: boolValue(query.include_tree) ? (await Promise.all(plans.map(async (plan) => (await workPlanTree(orgId, String(plan.id)))))) : plans,
+      plans: boolValue(query.include_tree) ? (await Promise.all(plans.map(async (plan) => (await workPlanTree(orgId, String(plan.id), departmentCtx))))) : plans,
       count: plans.length
     };
   });
 
   app.post("/organizations/:orgId/projects/:projectId/plans", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects", allowScopedPermission: true });
     const body = createWorkPlanSchema.parse({
       ...objectSchema.parse(request.body ?? {}),
       project_id: getParam(request.params, "projectId"),
       branch_id: String(objectSchema.parse(request.body ?? {}).branch_id || ctx.branchId || "default")
     });
+    if (!hasResourcePermission(ctx, "manage_projects", body)) throw forbidden("work_department_denied", "This work is outside your department access.");
     const result = await createWorkPlan({ ...body, organization_id: orgId });
     reply.code(result.created ? 201 : 200);
     return { ok: true, ...result };
@@ -95,8 +110,8 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/plans/:planId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
-    return { ok: true, plan: (await workPlanTree(orgId, getParam(request.params, "planId"))) };
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
+    return { ok: true, plan: (await workPlanTree(orgId, getParam(request.params, "planId"), await requirePlatformAuth(request, { orgId }))) };
   });
 
   app.put("/organizations/:orgId/plans/:planId/manual-stage", async (request) => {
@@ -104,7 +119,7 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request, {
       orgId,
       csrf: true,
-      permission: "manage_projects",
+      permission: "manage_projects", allowScopedPermission: true,
       capability: "platform.manual_project_stage_movement"
     });
     const body = setManualPlanStageSchema.parse(request.body ?? {});
@@ -119,32 +134,34 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/nodes", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const query = objectSchema.parse(request.query ?? {});
     const nodes = (await listNodeRecords(orgId, {
       ...query,
       actionable: boolValue(query.actionable),
       open_only: boolValue(query.open_only)
     }));
-    return { ok: true, nodes, count: nodes.length };
+    const departmentCtx = await requirePlatformAuth(request, { orgId });
+    const visible = nodes.filter(node => hasResourcePermission(departmentCtx, "view_projects", node) && matchesDepartmentFilter(departmentCtx, node, cleanText(query.department_id)));
+    return { ok: true, nodes: visible, count: visible.length };
   });
 
   app.get("/organizations/:orgId/nodes/:nodeId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     return { ok: true, node: (await readNodeRecord(orgId, getParam(request.params, "nodeId"))) };
   });
 
   app.patch("/organizations/:orgId/nodes/:nodeId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects", allowScopedPermission: true });
     const patch = patchWorkNodeSchema.parse(request.body ?? {});
     return { ok: true, node: await patchWorkNode(orgId, getParam(request.params, "nodeId"), patch) };
   });
 
   app.post("/organizations/:orgId/nodes/:nodeId/transition", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects", allowScopedPermission: true });
     const body = transitionWorkNodeSchema.parse(request.body ?? {});
     return {
       ok: true,
@@ -158,7 +175,7 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/todos", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const query = objectSchema.parse(request.query ?? {});
     // This is a management route (view_projects): a project-scoped query is
     // the office's project to-do list and always shows every assignment.
@@ -183,7 +200,7 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
       include_unassigned: boolValue(query.include_unassigned) || !!getParam(query, "project_id") || contactScoped,
       include_completed: boolValue(query.include_completed),
       include_future: boolValue(query.include_future)
-    }));
+    })).filter(node => hasResourcePermission(ctx, "view_projects", node) && matchesDepartmentFilter(ctx, node, cleanText(query.department_id)));
     const projectIds = [...new Set(todos.map((todo) => cleanText(todo.project_id)).filter(Boolean))];
     const projectLabels = new Map<string, { title: string; address: string }>();
     await Promise.all(projectIds.map(async (projectId) => {
@@ -199,12 +216,12 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
       const label = projectLabels.get(cleanText(todo.project_id));
       return label ? { ...todo, project_title: label.title, project_address: label.address } : todo;
     });
-    return { ok: true, todos: enrichedTodos, count: enrichedTodos.length };
+    return { ok: true, todos: enrichedTodos, count: enrichedTodos.length, department_context: relevantDepartmentContext(ctx) };
   });
 
   app.post("/organizations/:orgId/todos", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects", allowScopedPermission: true });
     const body = objectSchema.parse(request.body ?? {});
     const result = await createTodo(orgId, body, ctx);
     reply.code(result.created ? 201 : 200);
@@ -213,7 +230,7 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/follow-ups/:nodeId/outcome", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects", allowScopedPermission: true });
     const body = objectSchema.parse(request.body ?? {});
     return {
       ok: true,
@@ -233,9 +250,9 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/boards", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const auth = await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    const auth = await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const boards = await listWorkBoards(orgId, objectSchema.parse(request.query ?? {}), userPublicationContext(auth));
-    return { ok: true, boards, count: boards.length };
+    return { ok: true, boards, count: boards.length, department_context: relevantDepartmentContext(auth) };
   });
 
   app.get("/organizations/:orgId/branches/:branchId/config", async (request) => {

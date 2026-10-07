@@ -122,7 +122,7 @@ export const saveQuizSchema = z.object({
 export const createAssignmentSchema = z.object({
   subject_kind: z.enum(["course", "deck", "quiz"]),
   subject_id: id,
-  target_kind: z.enum(["user", "role", "everyone"]),
+  target_kind: z.enum(["user", "role", "everyone", "department"]),
   target_id: optionalText,
   /* Optional per-lesson unlock date overrides: { [lesson_id]: "YYYY-MM-DD" } */
   schedule: z.record(z.string()).default({})

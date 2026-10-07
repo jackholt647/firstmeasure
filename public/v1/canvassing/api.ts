@@ -1,3 +1,4 @@
+import { hasResourcePermission, canAccessDepartmentResource, matchesDepartmentFilter, relevantDepartmentContext } from "../workforce/department-access.js";
 import { randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -31,6 +32,14 @@ const CANVASSING_MODULE_ID = "canvassing";
 const DEFAULT_BRANCH_ID = "default";
 
 export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
+  app.addHook("preHandler", async request => {
+    const params = asObject(request.params), orgId = cleanText(params.orgId), pinId = cleanText(params.pinId);
+    if (!orgId || !pinId) return;
+    const ctx = await requirePlatformAuth(request, { orgId });
+    const pin = await readPin(orgId, cleanText(params.branchId) || DEFAULT_BRANCH_ID, pinId);
+    if (!matchesDepartmentFilter(ctx, pin) || !canAccessDepartmentResource(ctx, pin)) throw forbidden("canvassing_department_denied", "This pin is outside your department view.");
+    if (request.method !== "GET" && !matchesDepartmentFilter(ctx, { ...pin, ...asObject(request.body) })) throw forbidden("canvassing_department_denied", "The destination department is outside your department view.");
+  });
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {
       reply.code(400);
@@ -100,7 +109,8 @@ export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
     const branchId = cleanText(asObject(request.params).branchId) || DEFAULT_BRANCH_ID;
     await requirePlatformAuth(request, { orgId });
     const settings = (await ensureCanvassingEnabled(orgId, branchId)).settings;
-    return { ok: true, pins: await listPins(orgId, branchId), settings };
+    const ctx = await requirePlatformAuth(request, { orgId });
+    return { ok: true, pins: (await listPins(orgId, branchId)).filter(pin => matchesDepartmentFilter(ctx, pin, cleanText(asObject(request.query).department_id))), settings, department_context: relevantDepartmentContext(ctx) };
   });
 
   app.post("/organizations/:orgId/branch/:branchId/pins", async (request, reply) => {
@@ -108,7 +118,10 @@ export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
     const branchId = cleanText(asObject(request.params).branchId) || DEFAULT_BRANCH_ID;
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     await ensureCanvassingEnabled(orgId, branchId);
-    const pin = await savePin(orgId, branchId, objectBodySchema.parse(request.body ?? {}), actorFromContext(ctx as unknown as JsonObject));
+    const body = objectBodySchema.parse(request.body ?? {});
+    body.department_ids ??= relevantDepartmentContext(ctx).member_department_ids;
+    if (!matchesDepartmentFilter(ctx, body)) throw forbidden("canvassing_department_denied", "The department is outside your department view.");
+    const pin = await savePin(orgId, branchId, body, actorFromContext(ctx as unknown as JsonObject));
     // Org-scoped: pins are lightweight canvassing records, not projects.
     await emitWorkEvent({
       organization_id: orgId,

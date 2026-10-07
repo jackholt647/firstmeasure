@@ -1,3 +1,4 @@
+import { matchesDepartmentFilter, hasResourcePermission } from "../workforce/department-access.js";
 import { normalizeWorkPlanBindingKeys } from "./bindings.js";
 import { compileSequences } from "./sequences.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -150,7 +151,7 @@ export async function createWorkPlan(inputValue: JsonObject) {
     const createdPlan = (await createPlanRecord({ ...input, id: planId, organization_id: orgId, status: "pending" }));
     if (!createdPlan.plan) throw new Error("Work plan storage did not return the created plan.");
     if (createdPlan.created) {
-      const insert = async (definition: WorkNodeDefinition, parentId: string | null, depth: number, index: number) => {
+      const insert = async (definition: WorkNodeDefinition, parentId: string | null, depth: number, index: number, inheritedDepartments: unknown = input.department_ids) => {
         const nodeId = stableId("work_node", `${planId}:${definition.id}`);
         nodeIds.set(definition.id, nodeId);
         definitions.push(definition);
@@ -162,6 +163,7 @@ export async function createWorkPlan(inputValue: JsonObject) {
           project_id: input.project_id,
           parent_id: parentId,
           template_node_id: definition.id,
+          department_ids: definition.department_ids ?? inheritedDepartments ?? [],
           scope_piece_id: input.scope_piece_id,
           terminology_key: definition.terminology_key,
           title: definition.title,
@@ -191,7 +193,7 @@ export async function createWorkPlan(inputValue: JsonObject) {
               : {})
           }
         }));
-        for (const [childIndex, child] of asArray(definition.children).entries()) {(await insert(child as WorkNodeDefinition, nodeId, depth + 1, childIndex));}
+        for (const [childIndex, child] of asArray(definition.children).entries()) {(await insert(child as WorkNodeDefinition, nodeId, depth + 1, childIndex, definition.department_ids ?? inheritedDepartments));}
       };
       for (const [index, node] of input.root_nodes.entries()) {(await insert(node, null, 0, index));}
       for (const definition of definitions) {
@@ -474,13 +476,13 @@ export async function recalculateWorkPlan(orgId: string, planId: string) {
   return nextPlan;
 }
 
-export async function workPlanTree(orgId: string, planId: string) {
+export async function workPlanTree(orgId: string, planId: string, auth?: import("../platform/auth.js").PlatformAuthContext) {
   const plan = (await readPlanRecord(orgId, planId));
   if (!plan) throw notFound("work_plan_not_found", "Work plan was not found.");
-  const nodes = (await listNodeRecords(orgId, { plan_id: planId }));
+  const nodes = (await listNodeRecords(orgId, { plan_id: planId })).filter(node => !auth || hasResourcePermission(auth, "view_projects", node));
   const byParent = new Map<string, JsonObject[]>();
   for (const node of nodes) {
-    const key = cleanText(node.parent_id);
+    const key = nodes.some(candidate => candidate.id === node.parent_id) ? cleanText(node.parent_id) : "";
     if (!byParent.has(key)) byParent.set(key, []);
     byParent.get(key)?.push(node);
   }
@@ -489,7 +491,7 @@ export async function workPlanTree(orgId: string, planId: string) {
     dependencies: (await listDependenciesForNode(cleanText(node.id))),
     children: (await Promise.all((byParent.get(cleanText(node.id)) || []).map(build)))
   });
-  return { ...plan, status_counts: (await nodeStatusCounts(planId)), root_nodes: (await Promise.all((byParent.get("") || []).map(build))) };
+  return { ...plan, status_counts: auth ? Object.fromEntries([...new Set(nodes.map(node => cleanText(node.status)))].map(status => [status, nodes.filter(node => node.status === status).length])) : (await nodeStatusCounts(planId)), root_nodes: (await Promise.all((byParent.get("") || []).map(build))) };
 }
 
 export async function listWorkPlans(orgId: string, options: JsonObject = {}) {
@@ -875,6 +877,7 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}, ct
       }
       boards.set(templateId, {
         id: templateId,
+        department_ids: blueprint.department_ids ?? definition.department_ids ?? [],
         title: cleanText(template.name || definition.name || root.title || templateId.replace(/[_-]+/g, " ")),
         description: cleanText(template.description || definition.description),
         kind: cleanText(definition.kind || "production"),
@@ -928,6 +931,7 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}, ct
     if (!boards.has(boardId)) {
       boards.set(boardId, {
         id: boardId,
+        department_ids: plan.department_ids ?? [],
         title: cleanText(configuredBoard.title || root.title || plan.title || boardId.replace(/[_-]+/g, " ")),
         description: cleanText(configuredBoard.description),
         kind: configuredBoard.kind,
@@ -989,7 +993,7 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}, ct
         || [...stages].reverse().find((stage) => ["completed", "skipped"].includes(cleanText(stage.status)))
         || stages[0];
     const activeStage = cleanText(manualStage.stage_id)
-      ? { template_node_id: canonicalStageId(manualStage.stage_id), title: manualStage.stage_title, metadata: { color: manualStage.stage_color }, manual_override: true }
+      ? { department_ids: stages.find(stage => canonicalStageId(stage.template_node_id) === canonicalStageId(manualStage.stage_id))?.department_ids ?? plan.department_ids, template_node_id: canonicalStageId(manualStage.stage_id), title: manualStage.stage_title, metadata: { color: manualStage.stage_color }, manual_override: true }
       : planIsCanceled && canceledColumnId
       ? { template_node_id: canceledColumnId }
       : rawActiveStage
@@ -1023,6 +1027,7 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}, ct
     const card = {
       id: `${cleanText(plan.id)}:${cleanText(project.id || plan.project_id)}`,
       plan_id: plan.id,
+      department_ids: asObject(activeStage).department_ids ?? plan.department_ids ?? [],
       project_id: cleanText(project.id || plan.project_id),
       title: cleanText(project.title || project.customer_name || project.address || plan.title),
       address: cleanText(project.address),
@@ -1039,5 +1044,10 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}, ct
     board.cards = [...asArray(board.cards), card];
     boards.set(boardId, board);
   }
-  return [...boards.values()].sort((a, b) => cleanText(a.title).localeCompare(cleanText(b.title)));
+  const visibleBoards: JsonObject[] = [...boards.values()].map((board): JsonObject => {
+    const visible = (resource: JsonObject) => !ctx?.auth || (hasResourcePermission(ctx.auth, "view_projects", resource) && matchesDepartmentFilter(ctx.auth, resource, cleanText(options.department_id)));
+    const cards = asArray(board.cards).map(asObject).filter(visible);
+    return { ...board, cards, columns: asArray(board.columns).map(value => { const column = asObject(value); return { ...column, cards: asArray(column.cards).map(asObject).filter(visible) }; }) };
+  }).filter(board => asArray(board.cards).length || !ctx?.auth || matchesDepartmentFilter(ctx.auth, board, cleanText(options.department_id)));
+  return visibleBoards.sort((a, b) => cleanText(a.title).localeCompare(cleanText(b.title)));
 }

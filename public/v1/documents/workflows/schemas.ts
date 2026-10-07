@@ -128,6 +128,8 @@ const optionalIdSchema = z.string().trim().max(160).optional();
 const assetStatusSchema = z.enum(["draft", "active", "archived"]);
 
 export const createWorkflowSchema = jsonObject.extend({
+  department_ids: z.array(z.string().trim().min(1).max(160)).max(100).optional(),
+  department_access: z.enum(["shared", "restricted"]).optional(),
   id: optionalIdSchema,
   name: z.string().trim().min(1).max(200),
   description: z.string().trim().max(2000).optional(),
@@ -138,6 +140,8 @@ export const createWorkflowSchema = jsonObject.extend({
 }).passthrough();
 
 export const patchWorkflowSchema = jsonObject.extend({
+  department_ids: z.array(z.string().trim().min(1).max(160)).max(100).optional(),
+  department_access: z.enum(["shared", "restricted"]).optional(),
   expected_revision: z.number().int().positive().optional(),
   name: z.string().trim().min(1).max(200).optional(),
   description: z.string().trim().max(2000).optional(),

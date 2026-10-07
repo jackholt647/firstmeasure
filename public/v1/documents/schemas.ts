@@ -146,6 +146,8 @@ export const recipientSchema = jsonObjectSchema.extend({
 // --- templates ---------------------------------------------------------------
 
 export const createTemplateSchema = jsonObjectSchema.extend({
+  department_ids: z.array(idSchema).max(100).optional(),
+  department_access: z.enum(["shared", "restricted"]).optional(),
   id: optionalIdSchema,
   name: z.string().trim().min(1).max(200),
   document_type: z.string().trim().min(1).max(80),
@@ -170,6 +172,8 @@ export const templateFromExamplesSchema = jsonObjectSchema.extend({
 }).passthrough();
 
 export const patchTemplateSchema = jsonObjectSchema.extend({
+  department_ids: z.array(idSchema).max(100).optional(),
+  department_access: z.enum(["shared", "restricted"]).optional(),
   expected_revision: z.number().int().positive().optional(),
   name: z.string().trim().min(1).max(200).optional(),
   description: z.string().trim().max(2000).optional(),
@@ -250,6 +254,8 @@ const overrideOpSchema = jsonObjectSchema.extend({
 }).passthrough();
 
 export const createDocumentInstanceSchema = jsonObjectSchema.extend({
+  department_ids: z.array(idSchema).max(100).optional(),
+  department_access: z.enum(["shared", "restricted"]).optional(),
   id: optionalIdSchema,
   document_type: z.string().trim().min(1).max(80),
   // Explicit null opts out of the document type's default template.
@@ -280,6 +286,8 @@ export const patchWorkflowRefSchema = jsonObjectSchema.extend({
 }).passthrough();
 
 export const patchDocumentInstanceSchema = jsonObjectSchema.extend({
+  department_ids: z.array(idSchema).max(100).optional(),
+  department_access: z.enum(["shared", "restricted"]).optional(),
   expected_revision: z.number().int().positive().optional(),
   /** Attach a standalone document to a project (doc-first flows). Only valid
    *  while the document has no project yet. */

@@ -1,3 +1,4 @@
+import { canAccessDepartmentResource, hasResourcePermission } from "../workforce/department-access.js";
 import { readDocumentDeliveryDefaults, documentCustomerComplete } from "./settings.js";
 import { documentTags } from "./tags.js";
 import { companyDocumentLanguage } from "../platform/localization/documents.js";
@@ -631,12 +632,13 @@ async function resolveWorkflowForCreate(orgId: string, input: JsonObject, templa
   };
 }
 
-export async function createDocumentInstance(orgId: string, projectId: string, input: JsonObject, ctx: PlatformAuthContext, options: { createOnly?: boolean } = {}): Promise<{ document: JsonObject; missing_params: string[] }> {
+export async function createDocumentInstance(orgId: string, projectId: string, input: JsonObject, ctx: PlatformAuthContext, options: { createOnly?: boolean; departmentPermission?: string } = {}): Promise<{ document: JsonObject; missing_params: string[] }> {
   await ensureDefaultDocumentAssets(orgId).catch(() => null);
   const capabilityState = await documentCapabilityState(orgId);
   const typeDef = typeDefinitionFor(cleanText(input.document_type));
   requireDocumentTypeEnabled(capabilityState, typeDef.id);
   const { template, version } = await resolveTemplateForCreate(orgId, input, typeDef);
+  if (template) requireDocumentDepartmentAccess(ctx, template);
   const templateVersion = template && version ? await readDocumentTemplateVersion(orgId, cleanText(template.id), version) : null;
   const definition = filterDocumentDefinitionByCapabilities(asObject(asObject(templateVersion).definition), capabilityState);
   const paramDefs = filterParamDefinitionsByCapabilities({ ...typeDef.param_schema, ...asObject(definition.params) }, capabilityState);
@@ -670,6 +672,8 @@ export async function createDocumentInstance(orgId: string, projectId: string, i
     branch_id: cleanText(projectData.branch_id || ctx.branchId || "default") || "default",
     project_id: projectId,
     document_type: typeDef.id,
+    department_ids: input.department_ids ?? asObject(template).department_ids ?? [],
+    department_access: input.department_access ?? asObject(template).department_access ?? "shared",
     tags: documentTags([...asArray(asObject(template).tags), ...asArray(asObject(workflow).tags), ...asArray(input.tags)]),
     title: cleanText(input.title || asObject(template).name || projectData.title || typeDef.label) || typeDef.label,
     template_ref: template ? { template_id: cleanText(template.id), version } : null,
@@ -698,6 +702,7 @@ export async function createDocumentInstance(orgId: string, projectId: string, i
     created_at: now,
     updated_at: now
   };
+  requireDocumentDepartmentAccess(ctx, data, options.departmentPermission);
   const program = asObject(definition.program);
   let renderedModule: { id: string; publication: import("../platform/publication/contracts.js").PublicationContext } | undefined;
   if (program.enabled === true) {
@@ -800,6 +805,9 @@ export async function patchDocumentInstance(orgId: string, documentId: string, p
 }
 async function patchDocumentInstanceLocked(orgId: string, documentId: string, patch: JsonObject, ctx: PlatformAuthContext) {
   const current = await readDocumentInstance(orgId, documentId);
+  requireDocumentDepartmentAccess(ctx, current);
+  requireDocumentDepartmentAccess(ctx, { ...current, ...patch });
+  if (asObject(patch.template_ref).template_id) requireDocumentDepartmentAccess(ctx, await readDocumentTemplate(orgId, cleanText(asObject(patch.template_ref).template_id)));
   const expectedRevision = Number(patch.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(current.revision || 0)) {
     throw conflict("document_revision_conflict", "Document revision does not match.");
@@ -829,6 +837,8 @@ async function patchDocumentInstanceLocked(orgId: string, documentId: string, pa
   }
   const data: JsonObject = {
     ...current,
+    ...(patch.department_ids !== undefined ? { department_ids: patch.department_ids } : {}),
+    ...(patch.department_access !== undefined ? { department_access: patch.department_access } : {}),
     ...(patch.tags !== undefined ? { tags: documentTags(patch.tags) } : {}),
     ...attach,
     title: Object.prototype.hasOwnProperty.call(patch, "title") ? cleanText(patch.title) || cleanText(current.title) : current.title,
@@ -885,6 +895,7 @@ export async function voidDocumentInstance(
 async function voidDocumentInstanceLocked(orgId: string, documentId: string, ctx: PlatformAuthContext, input: JsonObject) {
   await revokeSigningPackages(orgId, documentId, "void");
   const current = await readDocumentInstance(orgId, documentId);
+  if (ctx) requireDocumentDepartmentAccess(ctx, current);
   const metadataDefaults = asObject(asObject(current.metadata).cancellation_defaults);
   const visibility = cleanText(input.customer_visibility)
     || cleanText(metadataDefaults.customer_visibility)
@@ -922,6 +933,7 @@ export async function updateUploadedDocumentFields(orgId: string, documentId: st
 async function updateUploadedDocumentFieldsLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   await assertSigningEditable(orgId, documentId);
   const current = await readDocumentInstance(orgId, documentId);
+  if (ctx) requireDocumentDepartmentAccess(ctx, current);
   if (isLockedSigned(current)) throw conflict("document_locked_signed", "Signed uploads cannot be edited.");
   if (cleanText(current.source) !== "uploaded") {
     throw badRequest("document_not_uploaded", "Only uploaded documents can edit their field definitions.");
@@ -953,6 +965,7 @@ export async function confirmUploadedDocument(orgId: string, documentId: string,
 }
 async function confirmUploadedDocumentLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   const current = await readDocumentInstance(orgId, documentId);
+  if (ctx) requireDocumentDepartmentAccess(ctx, current);
   if (cleanText(current.source) !== "uploaded") {
     throw badRequest("document_not_uploaded", "Only uploaded documents can be confirmed from review.");
   }
@@ -1024,6 +1037,7 @@ export async function issueDocument(orgId: string, documentId: string, input: Js
 async function issueDocumentLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   await assertSigningEditable(orgId, documentId);
   const current = await readDocumentInstance(orgId, documentId);
+  if (ctx) requireDocumentDepartmentAccess(ctx, current);
   const expectedRevision = Number(input.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(current.revision || 0)) {
     throw conflict("document_revision_conflict", "Document revision does not match.");
@@ -1787,6 +1801,7 @@ export async function createSnapshot(orgId: string, documentId: string, input: J
 async function createSnapshotLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext | null) {
   await assertSigningEditable(orgId, documentId);
   const document = await readDocumentInstance(orgId, documentId);
+  if (ctx) requireDocumentDepartmentAccess(ctx, document);
   const capabilityState = await documentCapabilityState(orgId);
   const expectedRevision = Number(input.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(document.revision || 0)) {
@@ -1884,6 +1899,7 @@ async function sendDocumentLocked(orgId: string, documentId: string, input: Json
     generate_pdf: input.include_pdf === true || input.prepare_pdf === true
   }, ctx);
   const document = await readDocumentInstance(orgId, documentId);
+  if (ctx) requireDocumentDepartmentAccess(ctx, document);
   const now = nowIso();
   const delivery = deliveryState(document.delivery);
   const signing = await issueSigningPackage(orgId, document, snapshot, recipients, input);
@@ -2009,6 +2025,7 @@ export async function generateDocumentPdf(orgId: string, documentId: string, inp
 }
 async function generateDocumentPdfLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext | null) {
   const document = await readDocumentInstance(orgId, documentId);
+  if (ctx) requireDocumentDepartmentAccess(ctx, document);
   const retainedPackage = await packageForSnapshot(orgId, cleanText(input.snapshot_id || deliveryState(document.delivery).current_snapshot_id));
   if (retainedPackage?.content_hash) {
     const retained = (await signingPdf(orgId, retainedPackage.snapshot_id))!;
@@ -2342,6 +2359,7 @@ export async function recordDocumentOutput(
   options: { snapshotId?: string; surface?: "public" | "internal" | "field"; publicToken?: string; imported?: boolean } = {}
 ) {
   const current = await readDocumentInstance(orgId, documentId);
+  if (ctx) requireDocumentDepartmentAccess(ctx, current);
   if (asObject(input.value).__signing) input = { ...input, ...asObject(asObject(input.value).__signing) };
   if (cleanText(asObject(asObject(current.output_defs)[key]).type) === "signature") {
     if (options.imported) throw forbidden("signature_import_protocol_required", "Import signed originals through the retained-upload review process.");
@@ -2822,6 +2840,7 @@ export async function updateDocumentWorkflowState(orgId: string, documentId: str
 }
 async function updateDocumentWorkflowStateLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   const document = await readDocumentInstance(orgId, documentId);
+  if (ctx) requireDocumentDepartmentAccess(ctx, document);
   const expectedRevision = Number(input.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(document.revision || 0)) {
     throw conflict("document_revision_conflict", "Document revision does not match.");
@@ -3043,3 +3062,9 @@ export async function publicDocumentWorkflow(publicToken: string) {
 }
 
 export { listProjectDocuments, readDocumentInstance };
+
+/** Department classification never grants access to the parent project or bypasses document lifecycle gates. */
+export function requireDocumentDepartmentAccess(ctx: PlatformAuthContext, resource: JsonObject, permission = "") {
+  if (ctx.userId === "system_automation") return;
+  if (!canAccessDepartmentResource(ctx, resource, permission || "view_projects|view_documents") || !hasResourcePermission(ctx, permission, resource)) throw forbidden("document_department_denied", "This document is outside your department access.");
+}

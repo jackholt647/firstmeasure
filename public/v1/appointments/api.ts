@@ -1,3 +1,4 @@
+import {readAuthorizedAppointment,assertAppointmentDepartmentPermission,SCHEDULE_VIEW} from './department-access.js';
 import {readAppointmentCatalog,saveAppointmentCatalog,previewAppointment,previewSchema,plannedBookingSchema,bookPlannedAppointment} from './planning.js';
 // Appointment confirmation API. Authenticated routes back the company settings
 // section, the schedule popup's confirmation panel, and manual resend/override;
@@ -7,7 +8,7 @@ import {readAppointmentCatalog,saveAppointmentCatalog,previewAppointment,preview
 import type { FastifyPluginAsync } from "fastify";
 import { ZodError, z } from "zod";
 
-import { requirePlatformAuth } from "../platform/auth.js";
+import { requirePlatformAuth as platformAuth } from "../platform/auth.js";
 import { PlatformError } from "../platform/errors.js";
 import {
   canViewConfirmations,
@@ -31,6 +32,22 @@ import {
   readSchedulingAvailabilitySettings,
   reviewAppointmentReschedule
 } from "./availability.js";
+
+async function requirePlatformAuth(request:Parameters<typeof platformAuth>[0],options:NonNullable<Parameters<typeof platformAuth>[1]>){
+  const url=request.url.split('?')[0]||'';
+  const classified=/\/(catalog|preview|book)$/.test(url)||/\/events\//.test(url)||/\/availability\/holds/.test(url);
+  const ctx=await platformAuth(request,{...options,allowScopedPermission:classified});
+  const eventId=getParam(request.params,'eventId'),projectId=getParam(request.params,'projectId');
+  if(eventId)await readAuthorizedAppointment(ctx,projectId,eventId,options.permission);
+  const body=asObject(request.body);
+  if(/\/availability\/holds$/.test(url)){
+    if(body.event_id)await readAuthorizedAppointment(ctx,String(body.project_id||''),String(body.event_id));
+    else assertAppointmentDepartmentPermission(ctx,{});
+  }
+  const holdId=getParam(request.params,'holdId');
+  if(holdId){const hold=await (await import('./storage.js')).readSlotHold(holdId);if(!hold||hold.organization_id!==ctx.orgId)throw new PlatformError('appointment_hold_expired',404,'This appointment hold is unavailable.');await readAuthorizedAppointment(ctx,hold.project_id,hold.event_id);}
+  return ctx;
+}
 
 const objectBodySchema = z.object({}).passthrough();
 

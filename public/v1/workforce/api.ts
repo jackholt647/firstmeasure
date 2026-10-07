@@ -217,7 +217,7 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] });
     return {
       ok: true,
-      access_profile: ctx.accessProfile,
+      access_profile: ctx.accessProfile ? (({organization_structure: _private, ...profile})=>profile)(ctx.accessProfile) : undefined,
       application_access: ctx.applicationAccess,
       app_entitlements: ctx.appEntitlements
     };
@@ -231,7 +231,7 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
     return {
       ok: true,
       user_id: getParam(request.params, "userId"),
-      access_profile: accessProfile,
+      access_profile: (({organization_structure: _private, ...profile})=>profile)(accessProfile),
       application_access: accessProfile.application_access,
       app_entitlements: accessProfile.app_entitlements
     };
@@ -366,7 +366,7 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
     const context = await requireUserProfileMutation(request, orgId);
     const body = workforceUserProfilePatchSchema.parse(request.body ?? {});
     assertUserProfilePatchScope(context, body);
-    const user = await patchWorkforceUserProfile(orgId, getParam(request.params, "userId"), body);
+    const user = await patchWorkforceUserProfile(orgId, getParam(request.params, "userId"), body, context);
     return { ok: true, user, profile: user };
   });
 

@@ -128,6 +128,7 @@
         include_archived:options.includeArchived,
         type_id:options.typeId,
         branch_id:options.branchId,
+        department_id:options.departmentId,
         status:options.status,
         ownership:options.ownership,
         contact_id:options.contactId,

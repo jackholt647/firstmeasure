@@ -104,6 +104,7 @@ export const workNodeDefinitionSchema: z.ZodType<any> = z.lazy(() => jsonObjectS
   priority: z.number().int().min(0).max(100).optional(),
   completion_mode: workCompletionModeSchema.optional(),
   depends_on: z.array(z.string().trim().min(1).max(180)).optional(),
+  department_ids: z.array(z.string().trim().min(1).max(180)).max(100).optional(),
   assigned_user_ids: z.array(z.string().trim().min(1)).optional(),
   assigned_role_ids: z.array(z.string().trim().min(1)).optional(),
   assigned_resource_group_ids: z.array(z.string().trim().min(1)).optional(),
@@ -121,6 +122,7 @@ export const workNodeDefinitionSchema: z.ZodType<any> = z.lazy(() => jsonObjectS
 }).passthrough());
 
 export const createWorkPlanSchema = jsonObjectSchema.extend({
+  department_ids: z.array(z.string().trim().min(1).max(180)).max(100).optional(),
   id: z.string().trim().min(1).max(180).optional(),
   branch_id: z.string().trim().max(180).optional(),
   project_id: z.string().trim().max(180).optional(),
@@ -144,6 +146,7 @@ export const patchWorkNodeSchema = jsonObjectSchema.extend({
   title: z.string().trim().min(1).max(500).optional(),
   description: z.string().optional(),
   status: workNodeStatusSchema.optional(),
+  department_ids: z.array(z.string().trim().min(1).max(180)).max(100).optional(),
   assigned_user_ids: z.array(z.string().trim().min(1)).optional(),
   assigned_role_ids: z.array(z.string().trim().min(1)).optional(),
   assigned_resource_group_ids: z.array(z.string().trim().min(1)).optional(),

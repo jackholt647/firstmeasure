@@ -1,8 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
 import { ZodError } from "zod";
 
-import { requirePlatformAuth, type PlatformAuthContext } from "../platform/auth.js";
-import { PlatformError } from "../platform/errors.js";
+import { requirePlatformAuth, hasResourcePermission, hasPermission, assertResourcePermission, type PlatformAuthContext } from "../platform/auth.js";
+import { PlatformError, forbidden, notFound } from "../platform/errors.js";
 import {
   completeLessonSchema,
   createAssignmentSchema,
@@ -71,8 +71,18 @@ async function requireViewer(request: Parameters<typeof requirePlatformAuth>[0],
   return requirePlatformAuth(request, { orgId, application: VIEWER_APPLICATIONS, capability: "apps.training" });
 }
 
-async function requireManager(request: Parameters<typeof requirePlatformAuth>[0], orgId: string, options: { csrf?: boolean } = {}) {
-  return requirePlatformAuth(request, { orgId, permission: MANAGE_PERMISSION, csrf: options.csrf === true, capability: "training.studio" });
+async function requireManager(request: Parameters<typeof requirePlatformAuth>[0], orgId: string, options: { csrf?: boolean; scoped?: boolean } = {}) {
+  return requirePlatformAuth(request, { orgId, permission: MANAGE_PERMISSION, allowScopedPermission:options.scoped === true || options.csrf !== true, csrf: options.csrf === true, capability: "training.studio" });
+}
+function canManageAssignment(ctx:PlatformAuthContext, assignment:Record<string,unknown>) {
+  if(assignment.target_kind==='department')return hasResourcePermission(ctx,MANAGE_PERMISSION,{department_id:assignment.target_id});
+  if(assignment.target_kind==='user')return hasResourcePermission(ctx,MANAGE_PERMISSION,{department_ids:ctx.organizationStructure?.users.find(user=>user.id===assignment.target_id)?.department_ids||[]});
+  return hasPermission(ctx,MANAGE_PERMISSION);
+}
+async function assertAssignment(ctx:PlatformAuthContext,id:string){
+  const assignment=(await listAssignments(ctx.orgId)).find(entry=>entry.id===id);
+  if(!assignment)throw notFound('training_assignment_not_found','Assignment was not found.');
+  if(!canManageAssignment(ctx,assignment))throw forbidden('training_department_denied','This assignment is outside your authorized departments.');
 }
 
 export const registerTrainingApi: FastifyPluginAsync = async (app) => {
@@ -262,31 +272,35 @@ export const registerTrainingApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/manage/assignments", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireManager(request, orgId);
+    const ctx=await requireManager(request, orgId);
     const assignments = (await listAssignments(orgId, {
       subjectKind: getParam(request.query, "subject_kind"),
       subjectId: getParam(request.query, "subject_id")
-    }));
-    return { ok: true, assignments, count: assignments.length };
+    })).filter(assignment=>canManageAssignment(ctx,assignment));
+    const departments=ctx.organizationStructure?.catalog.departments.filter(entry=>entry.status!=='archived'&&hasResourcePermission(ctx,MANAGE_PERMISSION,{department_id:entry.id})).map(({id,label})=>({id,label}))||[];
+    return { ok: true, assignments, count: assignments.length, departments, department_label:ctx.organizationStructure?.catalog.terminology?.department?.singular || 'Department', organization_wide:hasPermission(ctx,MANAGE_PERMISSION) };
   });
 
   app.post("/organizations/:orgId/manage/assignments", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requireManager(request, orgId, { csrf: true });
+    const ctx = await requireManager(request, orgId, { csrf: true, scoped:true });
     const body = createAssignmentSchema.parse(request.body ?? {});
+    if(!canManageAssignment(ctx,body))throw forbidden('training_department_denied','This assignment is outside your authorized departments.');
     return { ok: true, assignment: (await createAssignment(orgId, { ...body, created_by: ctx.userId })) };
   });
 
   app.patch("/organizations/:orgId/manage/assignments/:assignmentId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireManager(request, orgId, { csrf: true });
+    const ctx=await requireManager(request, orgId, { csrf: true, scoped:true });
+    await assertAssignment(ctx,getParam(request.params,'assignmentId'));
     const body = updateAssignmentSchema.parse(request.body ?? {});
     return { ok: true, assignment: (await updateAssignment(orgId, getParam(request.params, "assignmentId"), body)) };
   });
 
   app.delete("/organizations/:orgId/manage/assignments/:assignmentId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireManager(request, orgId, { csrf: true });
+    const ctx=await requireManager(request, orgId, { csrf: true, scoped:true });
+    await assertAssignment(ctx,getParam(request.params,'assignmentId'));
     return { ok: true, ...(await deleteAssignment(orgId, getParam(request.params, "assignmentId"))) };
   });
 
@@ -294,22 +308,24 @@ export const registerTrainingApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/manage/courses/:courseId/progress", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireManager(request, orgId);
-    return { ok: true, report: (await courseProgressReport(orgId, getParam(request.params, "courseId"))) };
+    const ctx=await requireManager(request, orgId);
+    return { ok: true, report: (await courseProgressReport(orgId, getParam(request.params, "courseId"),ctx)) };
   });
 
   app.post("/organizations/:orgId/manage/courses/:courseId/lessons/:lessonId/unlock", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requireManager(request, orgId, { csrf: true });
+    const ctx = await requireManager(request, orgId, { csrf: true, scoped:true });
     const body = manualUnlockSchema.parse(request.body ?? {});
+    assertResourcePermission(ctx,MANAGE_PERMISSION,{department_ids:ctx.organizationStructure?.users.find(user=>user.id===body.user_id)?.department_ids||[]});
     (await grantManualUnlock(orgId, getParam(request.params, "courseId"), getParam(request.params, "lessonId"), body.user_id, ctx.userId));
-    return { ok: true, report: (await courseProgressReport(orgId, getParam(request.params, "courseId"))) };
+    return { ok: true, report: (await courseProgressReport(orgId, getParam(request.params, "courseId"),ctx)) };
   });
 
   app.delete("/organizations/:orgId/manage/courses/:courseId/lessons/:lessonId/unlock/:userId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireManager(request, orgId, { csrf: true });
+    const ctx=await requireManager(request, orgId, { csrf: true, scoped:true });
+    assertResourcePermission(ctx,MANAGE_PERMISSION,{department_ids:ctx.organizationStructure?.users.find(user=>user.id===getParam(request.params,'userId'))?.department_ids||[]});
     (await revokeManualUnlock(orgId, getParam(request.params, "courseId"), getParam(request.params, "lessonId"), getParam(request.params, "userId")));
-    return { ok: true, report: (await courseProgressReport(orgId, getParam(request.params, "courseId"))) };
+    return { ok: true, report: (await courseProgressReport(orgId, getParam(request.params, "courseId"),ctx)) };
   });
 };

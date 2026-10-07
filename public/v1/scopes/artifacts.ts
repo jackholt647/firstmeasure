@@ -10,13 +10,13 @@ const str = (v: unknown) => String(v ?? "").trim();
 const key = (path: Pointer) => path.map(String).join("/");
 export const SCOPE_ARTIFACT_TYPES = ["todos", "checklists", "documents", "materials", "events", "notifications", "communications", "resources", "fields", "calls", "transitions", "workflows", "portal", "payments", "other"];
 const editable: Record<string, string[]> = {
-  todos:["title", "description", "message", "priority", "due_offset_minutes", "assigned_role_ids", "assigned_user_ids", "assigned_resource_group_ids", "depends_on", "show_in_todo_list"],
-  checklists:["title", "description", "kind", "audience", "crew_editable", "items", "customer_access", "assignment_policy"],
+  todos:["department_ids", "title", "description", "message", "priority", "due_offset_minutes", "assigned_role_ids", "assigned_user_ids", "assigned_resource_group_ids", "depends_on", "show_in_todo_list"],
+  checklists:["department_ids", "title", "description", "kind", "audience", "crew_editable", "items", "customer_access", "assignment_policy"],
   documents:["title", "template_id", "document_type", "workflow_id", "deliver", "params"],
   materials:["title", "color", "selector", "order_source_ids", "items"],
   resources:["title", "color", "items", "compensation", "controls", "selector"],
   events:["title", "event_type_default_id", "kind", "enabled", "rule", "depends_on", "confirmation", "customer_scheduling"],
-  notifications:["title", "body", "defaults", "kind", "target_role_ids", "target_user_ids", "celebration", "frontend_action"],
+  notifications:["target_department_ids", "title", "body", "defaults", "kind", "target_role_ids", "target_user_ids", "celebration", "frontend_action"],
   communications:["to", "subject", "text", "html", "recipients"],
   fields:["label", "description", "required", "enabled", "default_value", "default_from", "ui"],
   calls:["title", "list", "priority"], transitions:["template_id", "instance_key"], payments:[], other:[]
@@ -300,7 +300,7 @@ function validateArtifactValues(values:JsonObject) {
   for (const [field, value] of Object.entries(values)) {
     if (["title", "label"].includes(field) && (typeof value !== "string" || !value.trim() || value.length > 300)) throw badRequest("invalid_artifact_title", "Titles must contain 1–300 characters.");
     if (["priority", "due_offset_minutes"].includes(field) && (!Number.isInteger(value) || Number(value) < 0)) throw badRequest("invalid_artifact_number", `${eventWords(field)} must be a non-negative whole number.`);
-    if (["assigned_role_ids", "assigned_user_ids", "assigned_resource_group_ids", "target_role_ids", "target_user_ids", "depends_on", "order_source_ids", "items"].includes(field) && !Array.isArray(value)) throw badRequest("invalid_artifact_list", `${eventWords(field)} must be a list.`);
+    if (["department_ids", "target_department_ids", "assigned_role_ids", "assigned_user_ids", "assigned_resource_group_ids", "target_role_ids", "target_user_ids", "depends_on", "order_source_ids", "items"].includes(field) && !Array.isArray(value)) throw badRequest("invalid_artifact_list", `${eventWords(field)} must be a list.`);
     if (["enabled", "required", "show_in_todo_list", "crew_editable"].includes(field) && typeof value !== "boolean") throw badRequest("invalid_artifact_boolean", `${eventWords(field)} must be on or off.`);
     if (["params", "selector", "rule", "values", "ui", "default_from", "compensation", "controls", "customer_access", "customer_scheduling", "confirmation", "assignment_policy", "celebration", "defaults", "frontend_action", "list", "target", "config", "labels"].includes(field) && (!value || typeof value !== "object" || Array.isArray(value))) throw badRequest("invalid_artifact_object", `${eventWords(field)} must be a JSON object.`);
   }

@@ -1,3 +1,4 @@
+import { resolveOrganizationStructure, type OrganizationStructure } from '../workforce/organization-structure.js';
 // The stats metric DSL: a small, safe JSON query language that widgets and
 // the stats agent both speak. Specs validate against a field whitelist and
 // compile to parameterized SQL over the stats warehouse — no caller-supplied
@@ -49,6 +50,8 @@ function asArray(value: unknown) {
 // ── Field catalogs ─────────────────────────────────────────────────────────
 
 const PROJECT_FIELDS: FieldDef[] = [
+  { key:'owner_department_id', sql:'NULL', kind:'dimension', label:'Owner department', description:'Current departments of the credited owner/rep; a person in multiple departments contributes to each group. This does not assign the project to a department.' },
+  { key:'division_id', sql:'NULL', kind:'dimension', label:'Organizational unit', description:'Branch and ancestor units. Parent and child groups overlap.' },
   { key: "status", sql: "status", kind: "dimension", label: "Lifecycle status", description: "open, completed, canceled, or lost" },
   { key: "branch_id", sql: "branch_id", kind: "dimension", label: "Branch", description: "Branch the project belongs to" },
   { key: "source", sql: "source", kind: "dimension", label: "Lead source", description: "Where the project came from (website, referral, canvassing, ...)" },
@@ -84,6 +87,8 @@ const PROJECT_FIELDS: FieldDef[] = [
 ];
 
 const EVENT_FIELDS: FieldDef[] = [
+  { key:'actor_department_id', sql:'NULL', kind:'dimension', label:'Actor department', description:'Current department membership of the person performing the event; groups can overlap.' },
+  { key:'division_id', sql:'NULL', kind:'dimension', label:'Organizational unit', description:'Branch and ancestor units. Parent and child groups overlap.' },
   { key: "type", sql: "e.type", kind: "dimension", label: "Event type", description: "The activity/event type (e.g. project.created, node.completed)" },
   { key: "actor_user_id", sql: "e.actor_user_id", kind: "dimension", label: "Actor", description: "User who performed the action" },
   { key: "visibility", sql: "e.visibility", kind: "dimension", label: "Visibility", description: "activity (customer-meaningful) or system" },
@@ -260,7 +265,8 @@ function compileFilters(filters: unknown, source: string, where: string[], param
       case "in":
       case "not_in": {
         if (!values.length) throw badRequest("stats_filter_values_required", `Filter op '${op}' needs values.`);
-        const list = values.slice(0, 100);
+        if (values.length > 10000) throw badRequest('stats_filter_budget', 'Filter supports at most 10,000 values.');
+        const list = values;
         const placeholders = list.map(() => "?").join(", ");
         where.push(op === "in" ? `${column} IN (${placeholders})` : `(${column} IS NULL OR ${column} NOT IN (${placeholders}))`);
         params.push(...list);
@@ -477,7 +483,7 @@ function rowKey(row: MetricRow) {
   return `${row.bucket ?? ""}\u0000${row.group ?? ""}`;
 }
 
-export async function executeMetricSpec(orgId: string, specValue: unknown, now = new Date()): Promise<MetricRow[]> {
+export async function executeMetricSpec(orgId: string, specValue: unknown, now = new Date(), structure?: OrganizationStructure): Promise<MetricRow[]> {
   const spec = asObject(specValue);
   if (cleanText(spec.formula)) {
     const inputs = asObject(spec.inputs);
@@ -494,7 +500,7 @@ export async function executeMetricSpec(orgId: string, specValue: unknown, now =
       else if (signature !== shapeSignature) {
         throw badRequest("stats_formula_invalid", "Formula inputs must share the same group_by and time bucket.");
       }
-      inputRows.set(name, (await executeMetricSpec(orgId, inputSpec, now)));
+      inputRows.set(name, (await executeMetricSpec(orgId, inputSpec, now, structure)));
     }
     const keys = new Map<string, MetricRow>();
     for (const rows of inputRows.values()) {
@@ -519,6 +525,36 @@ export async function executeMetricSpec(orgId: string, specValue: unknown, now =
     }
     results.sort((a, b) => cleanText(a.bucket).localeCompare(cleanText(b.bucket)) || cleanText(a.group).localeCompare(cleanText(b.group)));
     return results;
+  }
+  const departmentField = spec.source === 'events' ? 'actor_department_id' : 'owner_department_id';
+  const virtualFields = [departmentField, 'division_id'];
+  if (virtualFields.includes(cleanText(spec.group_by)) || asArray(spec.filters).some(raw => virtualFields.includes(cleanText(asObject(raw).field)))) {
+    const units = structure || await resolveOrganizationStructure(orgId);
+    const base = { ...spec, filters: asArray(spec.filters).map(raw => {
+      const filter = asObject(raw), field = cleanText(filter.field);
+      if (!virtualFields.includes(field)) return filter;
+      const op = cleanText(filter.op || 'eq');
+      if (!['eq','in','neq','not_in'].includes(op)) throw badRequest('stats_department_filter', 'Department and unit filters support equals or in.');
+      const selected = (Array.isArray(filter.values) ? filter.values : [filter.value]).map(String);
+      let members: string[];
+      if (field === 'division_id') {
+        const descendants = units.catalog.divisions.filter(unit => unit.status !== 'archived' && selected.some(id => {
+          let current: typeof unit | undefined = unit; const seen = new Set<string>();
+          while (current && !seen.has(current.id)) { if (current.id === id) return true; seen.add(current.id); current=units.catalog.divisions.find(entry=>entry.id===current!.parent_id&&entry.status!=='archived'); } return false;
+        }));
+        members = [...new Set(descendants.map(unit=>unit.branch_id).filter(Boolean))];
+      } else members = units.users.filter(user=>user.department_ids.some(id=>selected.includes(id))).map(user=>user.id);
+      return { field:field==='division_id'?'branch_id':spec.source==='events'?'actor_user_id':'primary_user_id', op:['neq','not_in'].includes(op)?'not_in':'in', values:members.length?members:['__no_matching_members__'] };
+    }) };
+    const groupKey=cleanText(spec.group_by);
+    if (virtualFields.includes(groupKey)) {
+      const entries=(groupKey==='division_id'?units.catalog.divisions:units.catalog.departments).filter(entry=>entry.status!=='archived');
+      if(entries.length>500)throw badRequest('stats_group_budget','Use at most 500 organizational groups.');
+      const result: MetricRow[]=[];
+      for(const entry of entries) for(const row of await executeMetricSpec(orgId,{...base,group_by:undefined,filters:[...base.filters,{field:groupKey,op:'eq',value:entry.id}]},now,units)) result.push({...row,group:entry.id,group_label:entry.label});
+      return result.sort((a,b)=>cleanText(a.bucket).localeCompare(cleanText(b.bucket)) || (cleanText(spec.sort)==='group_asc'?cleanText(a.group_label).localeCompare(cleanText(b.group_label)):Number(b.value||0)-Number(a.value||0))).slice(0,MAX_RESULT_ROWS);
+    }
+    return executeMetricSpec(orgId,base,now,units);
   }
   return (await runCompiled(compileMetric(orgId, spec, now)));
 }
@@ -545,19 +581,21 @@ export async function executeStatsQueries(orgId: string, queries: JsonObject, op
   const state = (await ensureSyncState(orgId));
   const version = Number(state.data_version || 1);
   const results: JsonObject = {};
+  const structure = await resolveOrganizationStructure(orgId);
+  const organizationRevision = createHash('sha256').update(JSON.stringify(structure)).digest('base64url');
   const keys = Object.keys(queries).slice(0, 32);
   for (const key of keys) {
     const spec = asObject(queries[key]);
     const resolved = resolveResolvedSpec(spec, now);
     const cacheKey = createHash("sha256")
-      .update(`${orgId}\u0000${version}\u0000${JSON.stringify(resolved)}`)
+      .update(`${orgId}\u0000${version}\u0000${organizationRevision}\u0000${JSON.stringify(resolved)}`)
       .digest("base64url");
     const cached = (await readCachedQuery(cacheKey));
     if (cached && cached.payload) {
       results[key] = { rows: cached.payload, cached: true, computed_at: cached.computed_at };
       continue;
     }
-    const rows = (await executeMetricSpec(orgId, resolved, now));
+    const rows = (await executeMetricSpec(orgId, resolved, now, structure));
     (await writeCachedQuery(orgId, cacheKey, rows, options.ttlMs ?? DEFAULT_CACHE_TTL_MS));
     results[key] = { rows, cached: false, computed_at: now.toISOString() };
   }

@@ -71,6 +71,9 @@ import {
   type ApplicationAccess
 } from "./user_profile.js";
 import { notificationAccessPermissions, resolveAccessProfile, type ResolvedAccessProfile } from "../workforce/access.js";
+import { relevantDepartmentContext, resolveScopedAccessGrants, canUseScopedPermission, type ScopedAccessGrant, type OrganizationStructureAccess } from '../workforce/department-access.js';
+import { resolveOrganizationStructure } from '../workforce/organization-structure.js';
+export { hasResourcePermission, assertResourcePermission, canUseScopedPermission, relevantDepartmentContext, matchesDepartmentFilter, canAccessDepartmentResource } from '../workforce/department-access.js';
 import {
   createAuthSession,
   createAccountDevice,
@@ -108,6 +111,8 @@ export type PlatformAuthContext = {
   appEntitlements?: ResolvedAccessProfile["app_entitlements"];
   csrfToken: string;
   capabilities?: CapabilityResolution;
+  organizationStructure?: OrganizationStructureAccess;
+  scopedAccessGrants?: ScopedAccessGrant[];
 };
 
 type LoginInput = {
@@ -369,7 +374,7 @@ function sanitizeUser(userDoc: JsonObject, accessProfile?: ResolvedAccessProfile
 export function publicAuthContext(ctx: PlatformAuthContext) {
   const metadata = asObject(ctx.session.metadata);
   const impersonatedByEmail = cleanText(metadata.impersonated_by_email);
-  const accessProfile = ctx.accessProfile;
+  const accessProfile = ctx.accessProfile ? (({ organization_structure: _privateStructure, ...profile }) => profile)(ctx.accessProfile) : undefined;
   const appEntitlements = ctx.appEntitlements || accessProfile?.app_entitlements;
   return {
     authenticated: true,
@@ -377,7 +382,8 @@ export function publicAuthContext(ctx: PlatformAuthContext) {
     platform_assistant_access: ctx.capabilities?.effectiveByKey["apps.assistant"] === true,
     identity: publicIdentity({ ...ctx.identity, preferences: effectiveNavigationPreferences(ctx.organization, ctx.identity.preferences) }),
     organization: ctx.organization,
-    user: sanitizeUser(ctx.userDocument, ctx.accessProfile),
+    user: { ...sanitizeUser(ctx.userDocument, ctx.accessProfile), department_context: relevantDepartmentContext(ctx) },
+    department_context: relevantDepartmentContext(ctx),
     membership: {
       organization_id: ctx.orgId,
       user_id: ctx.userId,
@@ -601,6 +607,7 @@ export async function buildAuthContext(sessionId: string, session: JsonObject): 
   const accessProfile = capabilities.effectiveByKey["platform.expanded_access"] === true
     ? (await resolveAccessProfile(orgId, { ...userDocument, data: user }))
     : undefined;
+  const organizationStructure = accessProfile?.organization_structure || await resolveOrganizationStructure(orgId);
   return {
     sessionId,
     session,
@@ -616,6 +623,8 @@ export async function buildAuthContext(sessionId: string, session: JsonObject): 
     permissions: accessProfile?.effective_permissions || permissionState.permissions || asObject(session.permissions_snapshot),
     applicationAccess: accessProfile?.application_access || { management: { enabled: true, role_id: permissionState.level, permissions: permissionState.permissions || {} }, field: { enabled: false, role_id: "", permissions: {} } },
     accessProfile,
+    organizationStructure,
+    scopedAccessGrants: accessProfile?.scoped_access_grants || resolveScopedAccessGrants(user.scoped_access_assignments, [], organizationStructure),
     capabilities,
     appEntitlements: accessProfile?.app_entitlements,
     csrfToken: String(session.csrf_token || "")
@@ -678,10 +687,27 @@ export function hasPermission(ctx: PlatformAuthContext, permission?: string) {
 export async function can(ctx: PlatformAuthContext, capabilityKey: string) {
   const node = capabilityDefinition(capabilityKey);
   if (!node) return false;
+  if (!hasAppEntitlement(ctx, capabilityKey)) return false;
   const resolution = ctx.capabilities || await effectiveCapabilities(ctx.orgId, ctx.userId);
   if (resolution.effectiveByKey[node.key] !== true) return false;
+  const visited = new Set<string>();
+  let appNode: ReturnType<typeof capabilityDefinition> = node;
+  while (appNode && !visited.has(appNode.key)) {
+    visited.add(appNode.key);
+    if (appNode.kind === 'app' && !hasAppEntitlement(ctx, appNode.runtime_app_id || appNode.key.replace(/^apps\./, ''))) return false;
+    appNode = appNode.parent ? capabilityDefinition(appNode.parent) : null;
+  }
   if (node.kind === "permission") return hasPermission(ctx, node.permission_key);
   return true;
+}
+
+/** Defaults change navigation; only an explicit restricted app default denies backend use. */
+export function hasAppEntitlement(ctx: PlatformAuthContext, appId: string) {
+  const normalize=(id:string)=>id.replace(/^(portal|project|apps|settings|platform)\./,'');
+  if ((ctx.accessProfile?.app_restrictions || []).some(id=>normalize(id)===normalize(appId))) return false;
+  return !(ctx.appEntitlements || ctx.accessProfile?.app_entitlements || []).some(entry =>
+    (entry.runtime_app_id === appId || entry.id === appId || entry.portal_tab_id === appId)
+    && entry.reasons.includes('department_app_restricted'));
 }
 
 export async function requireCapability(ctx: PlatformAuthContext, capabilityKey: string) {
@@ -714,9 +740,13 @@ export async function requirePlatformAuth(
   options: {
     orgId?: string;
     permission?: string;
+    /** Entrance only: caller MUST authorize every target using hasResourcePermission. */
+    allowScopedPermission?: boolean;
     csrf?: boolean;
     application?: false | string | string[];
     applicationPermission?: string;
+    /** A runtime surface without a capability node (for example organization connections). */
+    appId?: string;
     /** Capability-registry key; enforced via can() after permission checks. */
     capability?: string;
   } = {}
@@ -736,9 +766,10 @@ export async function requirePlatformAuth(
   ))) {
     throw forbidden("application_access_denied", "This user does not have access to the requested application.");
   }
-  if (!hasPermission(ctx, options.permission)) {
+  if (!(options.allowScopedPermission ? canUseScopedPermission(ctx, options.permission) : hasPermission(ctx, options.permission))) {
     throw forbidden("permission_denied", "This session does not have permission to perform this action.");
   }
+  if(options.appId&&!hasAppEntitlement(ctx,options.appId))throw forbidden('application_access_denied','This application is restricted for your department.');
   if (routeNeedsExpandedPlatform(request.routeOptions.url || request.url.split("?")[0] || "", request.params)) {
     await requireCapability(ctx, "platform.expanded_access");
   }

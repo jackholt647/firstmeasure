@@ -96,7 +96,7 @@ async function registerOwner() {
     company: "Channels Test Org",
     organization_id: `org_channels_${suffix}`
   });
-  await enableExpandedPlatformFixture(registered.organization.id);
+  await enableExpandedPlatformFixture(registered.organization.id, {'apps.notifications':true});
   return { client, suffix, orgId: String(registered.organization.id), userId: String(registered.user.id) };
 }
 

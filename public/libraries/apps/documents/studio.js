@@ -708,6 +708,7 @@
         // request may publish its snapshot; an older response must never erase
         // folders returned by a newer one.
         if (loadToken !== state.listLoadToken || state.destroyed) return;
+        state.departmentContext = objectValue(tplRes.department_context);
         state.templates = arrayValue(tplRes.templates || tplRes.items).map(objectValue);
         if (themeRes) state.themes = arrayValue(themeRes.themes || themeRes.items).map(objectValue);
         else {
@@ -2595,6 +2596,8 @@
           <p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_40cc89e053e04d","Params are the data a document asks for when it’s issued — they drive bound text and widgets. Outputs are what it produces: signatures, payments, form values.") ?? "Params are the data a document asks for when it’s issued — they drive bound text and widgets. Outputs are what it produces: signatures, payments, form values.")}</p>
           <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_c1ae131a4dce26","Params") ?? "Params")}</p>
           <div data-schema-params style="display:flex;flex-direction:column;gap:8px"></div>
+          ${state.departmentContext?.show_selector ? `<p class="fmdx-section-label">${esc(state.departmentContext.departments_label || 'Departments')}</p><p class="fmdx-data-hint">Choose where this template is suggested. Leave all unchecked for shared use.</p>${arrayValue(state.departmentContext.departments).map(d => `<label class="fmdx-check"><input type="checkbox" data-template-department-id="${esc(d.id)}" ${arrayValue(state.template?.department_ids).includes(d.id) ? 'checked' : ''}> ${esc(d.label)}</label>`).join('')}<label class="fmdx-check"><input type="checkbox" data-template-department-restricted ${state.template?.department_access === 'restricted' ? 'checked' : ''}> Restrict access to these ${esc((state.departmentContext.departments_label || 'departments').toLowerCase())}</label>` : ''}
+
           ${String(templateScheduleDefaultsHtml())}
           <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_2fba86d9405c0d","Outputs") ?? "Outputs")}</p>
           <div data-schema-outputs style="display:flex;flex-direction:column;gap:8px"></div>
@@ -2638,6 +2641,11 @@
       // definition by currentTemplateDefinition() on save/publish.
       const markPolicyDirty = () => { state.dirty = true; setTemplateSaveState('Unsaved changes', 'dirty'); };
       side.querySelector('[data-policy-base]')?.addEventListener('change', (e) => { state.editPolicy.base_profile = e.target.value; markPolicyDirty(); });
+      side.querySelectorAll('[data-template-department-id], [data-template-department-restricted]').forEach(input => input.addEventListener('change', () => {
+        state.template.department_ids = [...side.querySelectorAll('[data-template-department-id]:checked')].map(el => el.dataset.templateDepartmentId);
+        state.template.department_access = side.querySelector('[data-template-department-restricted]')?.checked ? 'restricted' : 'shared';
+        markPolicyDirty();
+      }));
       side.querySelector('[data-policy-max]')?.addEventListener('change', (e) => { state.editPolicy.max_profile = e.target.value; markPolicyDirty(); });
       side.querySelector('[data-policy-unlock]')?.addEventListener('change', (e) => { state.editPolicy.unlock.allowed = e.target.checked; markPolicyDirty(); });
       side.querySelector('[data-policy-pages]')?.addEventListener('change', (e) => { state.editPolicy.features.page_manage = e.target.checked; markPolicyDirty(); });
@@ -2708,7 +2716,7 @@
       setTemplateSaveState('Saving…', 'saving');
       try {
         const definition = currentTemplateDefinition();
-        const res = await api().templates.patch(orgId(), state.template.id, { definition });
+        const res = await api().templates.patch(orgId(), state.template.id, { definition, department_ids:state.template.department_ids, department_access:state.template.department_access });
         const updated = objectValue(res.template || res);
         if (updated.id) state.template = { ...state.template, ...updated };
         state.definition = definition;
@@ -2728,6 +2736,7 @@
       if (button) { button.disabled = true; button.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Publishing…'; }
       try {
         const definition = currentTemplateDefinition();
+        await api().templates.patch(orgId(), state.template.id, { department_ids:state.template.department_ids, department_access:state.template.department_access });
         const res = await api().templates.publish(orgId(), state.template.id, {
           definition,
           expected_version: Number(state.template.current_version || 0)

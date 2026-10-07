@@ -12,6 +12,6 @@ export function registerDepartmentPublication(){
       if(!ctx.auth)throw forbidden('departments_denied','An authenticated department reader is required.');
       assertDepartmentRead(ctx.auth);
     }},
-    read:async ctx=>{const result=await readOrganizationDepartments(ctx.organizationId);return {value:{departments:result.departments,groups:result.groups},revision:result.revision?String(result.revision):result.legacy_token};}
+    read:async ctx=>{const result=await readOrganizationDepartments(ctx.organizationId);return {value:{departments:result.departments,groups:result.groups,divisions:result.divisions,terminology:result.terminology},revision:result.revision?String(result.revision):result.legacy_token};}
   }}});
 }

@@ -61,6 +61,7 @@ before(async () => {
   process.env.NODE_ENV = "test";
   process.env.PLATFORM_HEARTBEAT_DISABLED = "1";
   process.env.WORK_SCHEDULER_DISABLED = "1";
+  process.env.FIRSTMEASURE_JOB_WORKERS = '0';
   process.env.EMAIL_OUTBOUND_DISABLED = "1";
   process.env.OPENAI_API_KEY = "";
   process.env.PLATFORM_STORAGE_ROOT = path.join(storageRoot, "platform");
@@ -148,6 +149,29 @@ function passingResultFor(lesson: Json) {
     total_count: 3
   }));
 }
+
+test('department training assignments follow membership and managers cannot assign other departments',async()=>{
+  const owner=createSessionClient(); const {orgId,suffix}=await registerOwner(owner);
+  const crew=await createCrewUser(owner,orgId,suffix); const manager=await createSalesUser(owner,orgId,suffix);
+  const catalog=await owner.request('GET',`/v1/workforce/organizations/${orgId}/departments`);
+  const saved=await owner.request('PUT',`/v1/workforce/organizations/${orgId}/departments`,{revision:catalog.revision,legacy_token:catalog.legacy_token,groups:catalog.groups,divisions:[],departments:[...catalog.departments,{id:'production',label:'Production',subject_keys:[`organization_user:${crew.userId}`]},{id:'inside',label:'Inside Sales'}]});
+  const role=await owner.request('POST',`/v1/workforce/organizations/${orgId}/access/roles`,{name:'Department trainer',permissions:{manage_training:true},application_id:'management'});
+  await owner.request('PATCH',`/v1/workforce/organizations/${orgId}/users/${manager.userId}/profile`,{access_role_ids:[],scoped_access_assignments:[{role_id:role.role.id,scope:{kind:'department',id:'production'}}]});
+  const course=await owner.request('POST',`/v1/training/organizations/${orgId}/manage/courses`,{title:'Department induction',lessons:[]});
+  const request={subject_kind:'course',subject_id:course.course.id,target_kind:'department',target_id:'production'};
+  await manager.client.request('POST',`/v1/training/organizations/${orgId}/manage/assignments`,request);
+  const denied=await manager.client.raw('POST',`/v1/training/organizations/${orgId}/manage/assignments`,{...request,target_id:'inside'});
+  assert.equal(denied.statusCode,403);
+  const everyone=await manager.client.raw('POST',`/v1/training/organizations/${orgId}/manage/assignments`,{...request,target_kind:'everyone',target_id:''});
+  assert.equal(everyone.statusCode,403);
+  const before=await crew.client.request('GET',`/v1/training/organizations/${orgId}/me/courses`);
+  assert.ok(before.courses.some((entry:Json)=>entry.id===course.course.id));
+  await owner.request('PATCH',`/v1/workforce/organizations/${orgId}/departments/assignments`,{kind:'user',id:crew.userId,department_ids:[],revision:saved.revision});
+  const after=await crew.client.request('GET',`/v1/training/organizations/${orgId}/me/courses`);
+  assert.ok(!after.courses.some((entry:Json)=>entry.id===course.course.id));
+  const generic=await owner.raw('PATCH',`/v1/platform/organizations/${orgId}/users/${manager.userId}`,{data:{scoped_access_assignments:[{permissions:{'*':true},scope:{kind:'department',id:'production'}}]}});
+  assert.equal(generic.statusCode,400,'Generic profile writes cannot bypass validated scoped grants.');
+});
 
 test("training: seeding, viewer flow, gating, rewards, assignments, manual unlocks", async () => {
   const owner = createSessionClient();

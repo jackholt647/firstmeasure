@@ -1217,7 +1217,7 @@
           return [];
         }
       }));
-      return pages.flat();
+      return pages.flat().filter(note=>{const context=state.departmentContext||{},ids=note.metadata?.department_ids||[];if(!ids.length)return true;if(state.departmentId&&state.departmentId!=='all')return ids.includes(state.departmentId);return !context.enabled||context.organization_wide||ids.some(id=>(context.department_ids||[]).includes(id));});
     } catch (error) {
       console.warn('Could not list project notes for Feed', error);
       return [];
@@ -1586,7 +1586,8 @@
     render();
     try {
       await loadBranchProjectConfig();
-      const catalog = await window.ChannelsAPI.feed.catalog(oid);
+      const catalog = await window.ChannelsAPI.feed.catalog(oid,state.departmentId||'');
+      state.departmentContext=catalog.department_context||{};
       state.views = catalog.views;
       state.canComment = catalog.can_comment;
       state.canReact = catalog.can_react;
@@ -2064,7 +2065,7 @@
     const refs=[...state.items.map(item=>({kind:'media',id:photoIdentity(item.photo),project_id:cleanText(item.projectId)})),...state.documents.map(doc=>({kind:'document',id:cleanText(doc.id),project_id:cleanText(doc.project_id)})),...state.activity.map(event=>({kind:'activity',id:cleanText(event.id),project_id:activityProjectId(event)}))].filter(ref=>ref.id);
     const sources=new Map();
     for(let i=0;i<refs.length;i+=200){
-      const result=await window.ChannelsAPI.feed.authorize(orgId(),refs.slice(i,i+200));
+      const result=await window.ChannelsAPI.feed.authorize(orgId(),refs.slice(i,i+200),state.departmentId||'');
       for(const source of result.sources || []) sources.set(feedRefKey(source.ref),source);
     }
     state.authorizedSources=sources;
@@ -2349,6 +2350,7 @@
         <div class="pf-toolbar" data-app-header>
           <div class="pf-title"><i class="fas ${String(escapeHtml(state.icon || 'fa-layer-group'))}"></i><div><strong>${String(escapeHtml(state.title || (globalThis.PlatformLanguage?.text("photos","m_3eea4dfd8e947d","Feed") ?? "Feed")))}</strong><span>${String(escapeHtml(state.subtitle || `${visibleCount} item${visibleCount === 1 ? '' : 's'} shown`))}</span></div></div>
           <div class="pf-tools">
+            ${state.departmentContext?.show_selector?`<select class="pf-toolbar-action" data-feed-department aria-label="${escapeHtml(state.departmentContext.department_label||'Department')}"><option value="">All available ${escapeHtml((state.departmentContext.departments_label||'Departments').toLowerCase())}</option>${state.departmentContext.departments.map(d=>`<option value="${escapeHtml(d.id)}" ${state.departmentId===d.id?'selected':''}>${escapeHtml(d.label)}</option>`).join('')}</select>`:''}
             <label class="pf-search"><i class="fas fa-search"></i><input type="search" value="${String(escapeHtml(state.query))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("photos","m_3fb1d572340b7f","Search feed") ?? "Search feed")}"></label>
             <div class="pf-density">
               ${String([
@@ -2371,6 +2373,7 @@
     bind();
   }
   function bind(){
+    state.root?.querySelector('[data-feed-department]')?.addEventListener('change',event=>{state.departmentId=event.target.value;state.documentsLoaded=false;void load();});
     const rootEl = state.root;
     rootEl.querySelector('input[type="search"]')?.addEventListener('input', (event) => {
       state.query = event.target.value || '';

@@ -1141,6 +1141,8 @@
   let lastProjectsById = new Map();
   let viewMode = 'stages';
   let workBoards = [];
+  let workDepartmentContext = {};
+  let workDepartmentId = "";
   let activeWorkBoardId = '';
   let activeMobileStageId = '';
   let workBoardsLoaded = false;
@@ -5055,8 +5057,9 @@
     if (!orgId || !window.PlatformAPI?.work?.boards) return [];
     if (workBoardsLoaded && !options.refresh) return workBoards;
     if (workBoardsPromise && !options.refresh) return workBoardsPromise;
-    workBoardsPromise = window.PlatformAPI.work.boards(orgId, { includeCompleted:true }).then((result) => {
+    workBoardsPromise = window.PlatformAPI.work.boards(orgId, { includeCompleted:true, department_id:workDepartmentId }).then((result) => {
       if (!projectBoardsEnabled()) { workBoards = []; workBoardsLoaded = false; return []; }
+      workDepartmentContext = result?.department_context || {};
       workBoards = Array.isArray(result?.boards) ? result.boards : [];
       listColumnsBoardKey = '';
       workBoardsLoaded = true;
@@ -5220,10 +5223,18 @@
       if (summary) {
         summary.style.setProperty('--board-color', selected?.color || '#4f7cac');
         summary.classList.add('visible');
-        const summarySignature = JSON.stringify([viewMode, activeWorkBoardId, selected?.title || '', selected?.color || '', boardsByUsage.map((item) => [item.id, item.title, item.color, workBoardProjectCount(item)])]);
+        const summarySignature = JSON.stringify([viewMode, activeWorkBoardId, workDepartmentId, workDepartmentContext, selected?.title || '', selected?.color || '', boardsByUsage.map((item) => [item.id, item.title, item.color, workBoardProjectCount(item)])]);
         if (summary.__boardSignature !== summarySignature) {
           summary.innerHTML = `<button type="button" class="v-board-trigger" id="vWorkBoardTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="vWorkBoardMenu"><span class="v-board-trigger-label">${String(escapeHtml(activeWorkBoardId === 'all' ? (globalThis.PlatformLanguage?.text('projects','m_b66bef8d909043',"All boards") ?? "All boards") : (selected?.title || (globalThis.PlatformLanguage?.text("projects","m_48afb49c6f40c4","Board") ?? "Board"))))}</span><span class="v-board-trigger-icon" aria-hidden="true"><i class="fas fa-chevron-down"></i></span></button><div class="v-board-menu" id="vWorkBoardMenu" role="dialog" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_3588ddc91fd436","Switch work board") ?? "Switch work board")}" hidden>${String(workBoardMenuHtml(boardsByUsage, activeWorkBoardId))}</div>`;
           summary.__boardSignature = summarySignature;
+          if (workDepartmentContext.show_selector) {
+            const select = document.createElement('select'); select.className = 'v-board-trigger'; select.style.appearance = 'auto'; select.style.maxWidth = '50%'; select.setAttribute('aria-label', workDepartmentContext.department_label || 'Department');
+            for (const department of [{ id:'', label:'All available ' + (workDepartmentContext.departments_label || 'departments') }, ...(workDepartmentContext.departments || [])]) {
+              const option = document.createElement('option'); option.value = department.id; option.textContent = department.label; option.selected = department.id === workDepartmentId; select.appendChild(option);
+            }
+            select.addEventListener('change', () => { workDepartmentId = select.value; loadWorkBoards({refresh:true}); });
+            summary.prepend(select);
+          }
           const trigger = $('#vWorkBoardTrigger', panelEl);
           const menu = $('#vWorkBoardMenu', panelEl);
           const unusedToggle = $('#vUnusedBoardsToggle', panelEl);

@@ -1043,6 +1043,8 @@
       loadError: null,
       loaded: false,
       catalog: null,                  // { widgets, types, themes, fonts }
+      departmentContext: {},
+      departmentId: "",
       templates: null,                // cached templates list
       // editor state
       doc: null,                      // current instance record
@@ -1196,7 +1198,8 @@
       state.loading = true;
       if (options.silent !== true) render();
       try {
-        const res = await api().documents.listForProject(orgId(), projectId());
+        const res = await api().documents.listForProject(orgId(), projectId(), { department_id: state.departmentId });
+        state.departmentContext = objectValue(res.department_context);
         state.docs = arrayValue(res.documents || res.items).map((doc) => objectValue(doc));
         state.loadError = null;
         state.loaded = true;
@@ -1214,6 +1217,7 @@
       if (state.templates && !force) return state.templates;
       try {
         const res = await api().templates.list(orgId());
+        state.departmentContext = objectValue(res.department_context);
         state.templates = arrayValue(res.templates || res.items).map(objectValue);
       } catch (error) {
         state.templates = [];
@@ -1263,12 +1267,14 @@
               <span>${String(docs.length ? `${docs.length} document${docs.length === 1 ? '' : 's'} on this project` : 'Proposals, contracts, invoices & more')}</span>
             </div>
             <div class="fmdx-top-actions">
+              ${state.departmentContext.show_selector ? `<select class="fmdx-input" style="width:auto;max-width:180px" aria-label="${esc(state.departmentContext.department_label || 'Department')}" data-fmdx-department><option value="">${esc('All available ' + (state.departmentContext.departments_label || 'departments'))}</option>${arrayValue(state.departmentContext.departments).map(d => `<option value="${esc(d.id)}" ${state.departmentId === d.id ? 'selected' : ''}>${esc(d.label)}</option>`).join('')}</select>` : ''}
               ${String(capabilityEnabled('documents.ingestion') ? `<label class="fmdx-btn fmdx-upload-btn"><i class="fas fa-arrow-up-from-bracket"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_9ca9dace4f122f"," Upload") ?? " Upload")}<input type="file" data-fmdx-upload accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf,image/*" multiple></label>` : '')}
               <button type="button" class="fmdx-btn primary" data-fmdx-new><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_7754e23bbfc088"," New document") ?? " New document")}</button>
             </div>
           </header>
           <div class="fmdx-body" data-fmdx-list></div>
         </div>`;
+      root.querySelector('[data-fmdx-department]')?.addEventListener('change', event => { state.departmentId = event.target.value; loadDocs({ silent:true }); });
       const listEl = root.querySelector('[data-fmdx-list]');
       if (state.loading && !state.loaded) {
         listEl.innerHTML = `<div class="fmdx-state"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_34768a8382fa48","Loading documents") ?? "Loading documents")}</strong></div>`;
@@ -2230,7 +2236,7 @@
       const body = modal.el.querySelector('[data-create-body]');
       const [catalog, templates] = await Promise.all([loadCatalog(), loadTemplates(true)]);
       if (!modal.el.isConnected) return;
-      const wizard = { type: cleanText(prefill.document_type).toLowerCase(), template: null };
+      const wizard = { type: cleanText(prefill.document_type).toLowerCase(), template: null, departmentId: state.departmentId };
 
       function typesList(){
         const types = arrayValue(catalog.types);
@@ -2249,7 +2255,7 @@
             </button>`;
         }).join('');
         const typeTemplates = wizard.type
-          ? arrayValue(templates).filter((t) => cleanText(t.document_type) === wizard.type && cleanText(t.status).toLowerCase() !== 'archived')
+          ? arrayValue(templates).filter((t) => cleanText(t.document_type) === wizard.type && cleanText(t.status).toLowerCase() !== 'archived' && (!wizard.departmentId || !arrayValue(t.department_ids).length || arrayValue(t.department_ids).includes(wizard.departmentId)))
           : [];
         const templateCards = wizard.type ? `
           <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_587d96db750df7","Template") ?? "Template")}</p>
@@ -2276,10 +2282,12 @@
         body.innerHTML = `
           <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_61cd09102e4af8","Document type") ?? "Document type")}</p>
           <div class="fmdx-pick-grid" style="margin-bottom:14px">${String(typeCards)}</div>
+          ${state.departmentContext.show_selector ? `<label class="fmdx-field"><span>${esc(state.departmentContext.department_label || 'Department')}</span><select class="fmdx-input" data-template-department><option value="">${esc('All available ' + (state.departmentContext.departments_label || 'departments'))}</option>${arrayValue(state.departmentContext.departments).map(d => `<option value="${esc(d.id)}" ${wizard.departmentId === d.id ? 'selected' : ''}>${esc(d.label)}</option>`).join('')}</select></label>` : ''}
           ${String(templateCards)}
           <div class="fmdx-modal-foot">
             <button type="button" class="fmdx-btn primary" data-create-next ${String(wizard.type ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.htmlText("documents","m_854c72abba5166","Continue ") ?? "Continue ")}<i class="fas fa-arrow-right"></i></button>
           </div>`;
+        body.querySelector('[data-template-department]')?.addEventListener('change', event => { wizard.departmentId = event.target.value; wizard.template = null; renderStepOne(); });
         body.querySelectorAll('[data-pick-type]').forEach((btn) => btn.addEventListener('click', () => {
           wizard.type = btn.dataset.pickType;
           wizard.template = null;

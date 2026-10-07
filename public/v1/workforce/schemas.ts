@@ -77,10 +77,17 @@ const applicationAccessEntrySchema = jsonObjectSchema.extend({
   permissions: jsonObjectSchema.optional()
 }).passthrough();
 
+export const scopedAccessAssignmentSchema = z.object({
+  role_id: stableIdSchema.optional(),
+  permissions: z.record(z.boolean()).optional(),
+  scope: z.object({ kind: z.enum(['department', 'division']), id: stableIdSchema }).strict()
+}).strict();
+
 export const workforceUserProfilePatchSchema = jsonObjectSchema.extend({
   expected_revision: z.number().int().positive().optional(),
   application_access: z.record(applicationAccessEntrySchema).optional(),
   access_role_ids: z.array(stableIdSchema).optional(),
+  scoped_access_assignments: z.array(scopedAccessAssignmentSchema).max(200).optional(),
   permission_overrides: z.record(z.boolean()).optional(),
   app_access_overrides: z.record(z.union([
     z.enum(["inherit", "show", "hide"]),
@@ -97,6 +104,7 @@ export const workforceUserProfilePatchSchema = jsonObjectSchema.extend({
 }).refine((value) => (
   Object.prototype.hasOwnProperty.call(value, "application_access")
   || Object.prototype.hasOwnProperty.call(value, "access_role_ids")
+  || Object.prototype.hasOwnProperty.call(value, "scoped_access_assignments")
   || Object.prototype.hasOwnProperty.call(value, "permission_overrides")
   || Object.prototype.hasOwnProperty.call(value, "app_access_overrides")
   || Object.prototype.hasOwnProperty.call(value, "assignment_tag_ids")

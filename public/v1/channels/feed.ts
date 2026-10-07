@@ -10,6 +10,7 @@ import { grantFeedRoot } from "./feed-access.js";
 import * as store from "./storage.js";
 import * as channels from "./service.js";
 import { postMessageSchema, reactionSchema, editMessageSchema } from "./schemas.js";
+import {canAccessDepartmentResource,hasResourcePermission,matchesDepartmentFilter,relevantDepartmentContext} from '../workforce/department-access.js';
 
 type Obj = Record<string, any>;
 const obj = (v: unknown): Obj => v && typeof v === "object" && !Array.isArray(v) ? v : {};
@@ -54,7 +55,7 @@ export async function resolveFeedSource(ctx:PlatformAuthContext,ref:Ref) {
     }
     const meta=obj(data.metadata),owner=obj(data.owner);
     projectId=str(meta.project_id || (owner.type === "project" ? owner.id : "") || ref.project_id);
-    if (!Object.keys(data).length || data.deleted_at || data.trashed_at || !canReadReceiptMedia(data,ctx) || !hasPermission(ctx,"view_media")) throw notFound("feed_source_missing","This media is not available.");
+    if (!Object.keys(data).length || data.deleted_at || data.trashed_at || !canReadReceiptMedia(data,ctx) || !hasResourcePermission(ctx,"view_media",{...data,...obj(data.metadata)})) throw notFound("feed_source_missing","This media is not available.");
     // A non-project owner must not be rebound to a caller-selected project.
     if (owner.type && owner.type !== "project") throw notFound("feed_source_missing","This media is not a project feed artifact.");
     await projectAccess(ctx,projectId);
@@ -65,7 +66,7 @@ export async function resolveFeedSource(ctx:PlatformAuthContext,ref:Ref) {
     key=`media:${projectId}:${author}:${batch || bucket}`;
   } else if (ref.kind === "activity") {
     data=obj(await readEventRecord(ctx.orgId,ref.id));
-    if (!data.id || data.visibility !== "activity" || !hasPermission(ctx,permissionForType(str(data.type)))) throw notFound("feed_source_missing","This event is not available.");
+    if (!data.id || data.visibility !== "activity" || !hasResourcePermission(ctx,permissionForType(str(data.type)),{...data,...obj(data.payload)})) throw notFound("feed_source_missing","This event is not available.");
     projectId=str(data.project_id);await projectAccess(ctx,projectId);
     author=str(data.actor_user_id || obj(data.context).actor_user_id || "system");at=str(data.created_at);key=`activity:${data.id}`;
     // Recheck referenced document/media authority instead of relying on event access.
@@ -81,16 +82,22 @@ export async function resolveFeedSource(ctx:PlatformAuthContext,ref:Ref) {
       if (!hasPermission(ctx,"view_financials")) throw forbidden("feed_source_denied","Financial access is required.");
       data=obj(await (await import("../payments/expenses.js")).readReceipt(ctx.orgId,ref.id.slice(8)));
     } else {
-      data=obj((project?.documents || []).find((d:Obj)=>str(d.id || d.document_id || d.media_id)===ref.id));
+      // Canonical document classification overrides any embedded project preview.
+      const canonical = await (await import("../documents/storage.js")).readDocumentInstance(ctx.orgId,ref.id).catch(()=>null);
+      data=canonical ? obj(canonical) : obj((project?.documents || []).find((d:Obj)=>str(d.id || d.document_id || d.media_id)===ref.id));
       if (!Object.keys(data).length) data=obj((await readDocument(ctx.orgId,"documents",ref.id).catch(()=>readDocument(ctx.orgId,"proposals",ref.id))).data);
-      if (!hasPermission(ctx,/invoice|receipt/.test(str(data.document_type || data.type))?"view_financials":str(data.document_type || data.type).includes("proposal")?"view_proposals":"view_documents")) throw forbidden("feed_source_denied","Document access is required.");
+      if (!hasResourcePermission(ctx,/invoice|receipt/.test(str(data.document_type || data.type))?"view_financials":str(data.document_type || data.type).includes("proposal")?"view_proposals":"view_documents",data)) throw forbidden("feed_source_denied","Document access is required.");
     }
     projectId=str(data.project_id || ref.project_id);
     if (!Object.keys(data).length || data.deleted_at || projectId !== ref.project_id) throw notFound("feed_source_missing","This document is not available.");
     author=str(data.uploaded_by_user_id || data.created_by || data.uploaded_by || "system");
     at=str(data.uploaded_at || data.created_at || data.issued_at);key=`document:${projectId}:${ref.id}`;
   }
-  return {ref:{...ref,project_id:projectId},key,author,at};
+  const metadata=obj(data.metadata),payload=obj(data.payload);
+  const department_ids=Array.isArray(data.department_ids)?data.department_ids:Array.isArray(metadata.department_ids)?metadata.department_ids:Array.isArray(payload.department_ids)?payload.department_ids:ctx.organizationStructure?.users.find(u=>u.id===author)?.department_ids||[];
+  const resource={...data,department_ids,department_access:str(data.department_access||metadata.department_access)};
+  if(!canAccessDepartmentResource(ctx,resource,ref.kind==="media"?"view_media":ref.kind==="activity"?permissionForType(str(data.type)):"view_documents|view_proposals|view_financials"))throw notFound('feed_source_missing','This source is not available.');
+  return {ref:{...ref,project_id:projectId},key,author,at,department_ids};
 }
 async function authorizeRefs(ctx:PlatformAuthContext,refs:Ref[]) {
   const resolved=await Promise.all(refs.map(ref=>resolveFeedSource(ctx,ref)));
@@ -174,26 +181,29 @@ export function registerFeedRoutes(app:FastifyInstance) {
   };
   app.get(prefix+"/catalog",async request=>{
     const ctx=await auth(request);
+    const departmentId=str(obj(request.query).department_id);
+    const relevant=(source:{department_ids:string[]})=>matchesDepartmentFilter(ctx,source,departmentId);
     const allowedViews=views.filter(v=>feedPermission(ctx,`view_feed_${v}`));
     if (!allowedViews.length) throw forbidden("feed_views_denied","No feed views are available.");
     const [records,allMedia,events,directory]=await Promise.all([listDocuments(ctx.orgId,"projects"),listMedia(ctx.orgId),listEventRecords(ctx.orgId,{visibility:"activity",limit:500}),channels.userDirectory(ctx.orgId)]);
     const projects=[];
     for (const r of records) {try {
       const original=await projectAccess(ctx,r.id),p:Obj={id:r.id,title:original?.title,project_title:original?.project_title,address:original?.address,customer_name:original?.customer_name,contacts:original?.contacts,photos:[],documents:[]};
-      for(const photo of original?.photos || []){try{await resolveFeedSource(ctx,{kind:"media",id:str(photo.media_id || photo.id || photo.src),project_id:r.id});p.photos.push(photo);}catch{}}
-      for(const doc of original?.documents || []){try{await resolveFeedSource(ctx,{kind:"document",id:str(doc.id || doc.document_id || doc.media_id),project_id:r.id});p.documents.push(doc);}catch{}}
+      for(const photo of original?.photos || []){try{const source=await resolveFeedSource(ctx,{kind:"media",id:str(photo.media_id || photo.id || photo.src),project_id:r.id});if(relevant(source))p.photos.push({...photo,department_ids:source.department_ids});}catch{}}
+      for(const doc of original?.documents || []){try{const source=await resolveFeedSource(ctx,{kind:"document",id:str(doc.id || doc.document_id || doc.media_id),project_id:r.id});if(relevant(source))p.documents.push({...doc,department_ids:source.department_ids});}catch{}}
       projects.push({id:r.id,data:p});
     }catch{}}
     const projectIds=new Set(projects.map(p=>p.id));
-    const media=allMedia.filter(m=>{const d=obj(m),o=obj(d.owner);return hasPermission(ctx,"view_media") && canReadReceiptMedia(m,ctx) && projectIds.has(str(obj(d.metadata).project_id || (o.type==="project"?o.id:"")));});
-    const permittedEvents=[];
-    for (const event of events) {try {await resolveFeedSource(ctx,{kind:"activity",id:str(event.id),project_id:str(event.project_id)});permittedEvents.push(event);}catch{}}
-    return {ok:true,projects,media,events:permittedEvents,users:[...directory.values()],views:allowedViews,can_comment:feedPermission(ctx,"comment_feed"),can_react:feedPermission(ctx,"react_feed")};
+    const media=allMedia.filter(m=>{const d=obj(m),o=obj(d.owner);return hasResourcePermission(ctx,"view_media",{...d,...obj(d.metadata)}) && canReadReceiptMedia(m,ctx) && projectIds.has(str(obj(d.metadata).project_id || (o.type==="project"?o.id:"")));});
+    const permittedEvents=[],permittedMedia=[];
+    for(const item of media){try{const d=obj(item),o=obj(d.owner);const source=await resolveFeedSource(ctx,{kind:'media',id:str(d.id),project_id:str(obj(d.metadata).project_id||(o.type==='project'?o.id:''))});if(relevant(source))permittedMedia.push({...d,department_ids:source.department_ids});}catch{}}
+    for (const event of events) {try {const source=await resolveFeedSource(ctx,{kind:"activity",id:str(event.id),project_id:str(event.project_id)});if(relevant(source))permittedEvents.push({...event,department_ids:source.department_ids});}catch{}}
+    return {ok:true,projects,media:permittedMedia,events:permittedEvents,department_context:relevantDepartmentContext(ctx),users:[...directory.values()],views:allowedViews,can_comment:feedPermission(ctx,"comment_feed"),can_react:feedPermission(ctx,"react_feed")};
   });
   app.post(prefix+"/authorize",async request=>{
-    const ctx=await auth(request,true),body=z.object({refs:z.array(refSchema).max(3000)}).parse(request.body);
+    const ctx=await auth(request,true),body=z.object({refs:z.array(refSchema).max(3000),department_id:z.string().optional()}).parse(request.body);
     const sources=[];
-    for (const ref of body.refs) {try {sources.push(await resolveFeedSource(ctx,ref));}catch{}}
+    for (const ref of body.refs) {try {const source=await resolveFeedSource(ctx,ref);if(matchesDepartmentFilter(ctx,source,body.department_id))sources.push(source);}catch{}}
     return {ok:true,sources};
   });
   app.post(prefix+"/posts/lookup",async request=>{

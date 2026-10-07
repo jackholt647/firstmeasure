@@ -301,6 +301,7 @@
     let destroyed = false;
     let data = null;
     let focusChecklistId = '';
+    let departmentId = '';
     let preferredChecklistId = '';
     let scrollNewChecklistToTop = false;
     let resizeTimer = 0;
@@ -323,7 +324,7 @@
     const assignment = (id) => assignmentState[id] || (assignmentState[id] = { open:false, loading:false, loaded:false, eligibilityPickerOpen:false, personPickerOpen:false, subjects:[], catalog:[], roles:[], error:'' });
     const customerUi = (id) => customerState[id] || (customerState[id] = { open:false });
     const checklistUi = (id) => checklistState[id] || (checklistState[id] = { collapsed:false });
-    const checklists = () => arr(data?.checklists);
+    const checklists = () => arr(data?.checklists).filter(list => !departmentId || !arr(list.department_ids).length || arr(list.department_ids).includes(departmentId));
     const deletedChecklists = () => arr(data?.deleted_checklists);
     const orderedChecklists = () => checklists().map((checklist, index) => ({ checklist, index })).sort((left, right) => {
       if (left.checklist.id === preferredChecklistId) return -1;
@@ -519,7 +520,7 @@
       const visibleLists = deletedView ? deletedLists : lists;
       const scrollTop = root.querySelector('.fmcl-content')?.scrollTop || 0;
       root.innerHTML = `<div class="fmcl-shell"><div class="fmcl-page">
-        <header class="fmcl-head"><div class="fmcl-head-title"><i class="fas fa-list-check"></i><strong>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("checklists","m_4d94794c7ce022",`${v0} checklist${v1}`,{v0,v1}) ?? `${v0} checklist${v1}`)(lists.length,lists.length === 1 ? '' : 's')}</strong></div><div class="fmcl-head-actions"><button class="fmcl-btn primary" type="button" data-fmcl-new-toggle><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("checklists","m_00fcd79c65b45e"," New checklist") ?? " New checklist")}</button><button class="fmcl-btn new-audio" type="button" data-fmcl-new-audio title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_cf14f596affe83","New from Audio") ?? "New from Audio")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_cf14f596affe83","New from Audio") ?? "New from Audio")}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span></button></div></header>
+        <header class="fmcl-head"><div class="fmcl-head-title"><i class="fas fa-list-check"></i><strong>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("checklists","m_4d94794c7ce022",`${v0} checklist${v1}`,{v0,v1}) ?? `${v0} checklist${v1}`)(lists.length,lists.length === 1 ? '' : 's')}</strong></div><div class="fmcl-head-actions">${data?.department_context?.show_selector ? `<select class="fmcl-btn" aria-label="${esc(data.department_context.department_label || 'Department')}" data-fmcl-department><option value="">${esc('All available ' + (data.department_context.departments_label || 'departments'))}</option>${arr(data.department_context.departments).map(d => `<option value="${esc(d.id)}" ${d.id === departmentId ? 'selected' : ''}>${esc(d.label)}</option>`).join('')}</select>` : ''}<button class="fmcl-btn primary" type="button" data-fmcl-new-toggle><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("checklists","m_00fcd79c65b45e"," New checklist") ?? " New checklist")}</button><button class="fmcl-btn new-audio" type="button" data-fmcl-new-audio title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_cf14f596affe83","New from Audio") ?? "New from Audio")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_cf14f596affe83","New from Audio") ?? "New from Audio")}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span></button></div></header>
         <nav class="fmcl-tabs" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_93a4e0ee487531","Checklist views") ?? "Checklist views")}"><button class="fmcl-tab ${String(effectiveView === 'all' ? 'active' : '')}" type="button" data-fmcl-view="all"><i class="fas fa-border-all"></i><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_d47c4b894a4794","All checklists") ?? "All checklists")}</span></button>${String(lists.map((checklist) => `<button class="fmcl-tab ${effectiveView === checklist.id ? 'active' : ''}" type="button" data-fmcl-view="${esc(checklist.id)}" title="${esc(checklist.title)}"><i class="fas fa-list-check"></i><span>${esc(checklist.title)}</span></button>`).join(''))}<button class="fmcl-tab ${String(effectiveView === 'deleted' ? 'active' : '')}" type="button" data-fmcl-view="deleted"><i class="fas fa-trash-can"></i><span>${((v5) => globalThis.PlatformLanguage?.htmlText("checklists","m_97f3e87e187ab6",`Deleted${v5}`,{v5}) ?? `Deleted${v5}`)(deletedLists.length ? ` (${deletedLists.length})` : '')}</span></button></nav>
         <div class="fmcl-content">
           ${String(visibleLists.length ? `<div class="fmcl-grid ${selectedChecklist ? 'detail' : ''}"><div class="fmcl-masonry-source">${selectedChecklist ? checklistHtml(selectedChecklist, true, 0) : visibleLists.map((checklist, index) => checklistHtml(checklist, false, index, deletedView)).join('')}</div></div>` : stateHtml('empty', deletedView ? 'No deleted checklists.' : 'No checklists yet. Create the first one.'))}
@@ -627,6 +628,7 @@
     const bind = () => {
       root.querySelector('[data-fmcl-new-toggle]')?.addEventListener('click', () => void createBlankChecklist(false));
       root.querySelector('[data-fmcl-new-audio]')?.addEventListener('click', () => void createBlankChecklist(true));
+      root.querySelector('[data-fmcl-department]')?.addEventListener('change', event => { departmentId = event.target.value; activeView = 'all'; render(); });
       root.querySelectorAll('[data-fmcl-view]').forEach((button) => button.addEventListener('click', () => {
         const next = clean(button.dataset.fmclView) || 'all';
         if (next === activeView) return;
