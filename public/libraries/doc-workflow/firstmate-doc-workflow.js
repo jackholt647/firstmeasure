@@ -701,8 +701,20 @@
      *  user asks to reload. */
     function applyProject(overwrite){
       const next = overwrite ? {} : obj(clone(ctx.value()));
-      Object.entries(projectValues()).forEach(([key, value]) => { if (overwrite || !hasValue(next[key])) next[key] = value; });
-      fields().forEach((field) => { if (!hasValue(next[field.key]) && hasValue(field.default)) next[field.key] = Number(field.default) || 0; });
+      const fromProject = projectValues();
+      Object.entries(fromProject).forEach(([key, value]) => { if (overwrite || !hasValue(next[key])) next[key] = value; });
+      // A report lists only what the roof has: no hips means no hips entry,
+      // not an unknown. So once a report is loaded, anything it leaves out is
+      // zero. The first field is the one the document cannot do without, so
+      // it stays empty rather than becoming a silent zero.
+      const reported = Object.keys(fromProject).length > 0;
+      fields().forEach((field, index) => {
+        if (hasValue(next[field.key])) return;
+        if (hasValue(field.default)) next[field.key] = Number(field.default) || 0;
+        else if (reported && index > 0) next[field.key] = 0;
+      });
+      // Nothing to fill: leave the document untouched (no save, no re-resolve).
+      if (!overwrite && JSON.stringify(next) === JSON.stringify(obj(ctx.value()))) return;
       ctx.write(Object.keys(next).length ? next : null);
     }
 
@@ -772,8 +784,9 @@
       el.querySelector('[data-fmdw-meas-clear]')?.addEventListener('click', () => { ctx.write(null); render(); });
     };
 
-    // First open with nothing entered: start from the project automatically.
-    if (isEmptyValue(ctx.value()) && !ctx.readonly && Object.keys(projectValues()).length) applyProject(false);
+    // Start from the project automatically. Values already entered are kept;
+    // only what is still empty is filled in.
+    if (!ctx.readonly && Object.keys(projectValues()).length) applyProject(false);
     render();
     if (report.status === 'loading') {
       Promise.resolve().then(() => services.projectMeasurements()).then((result) => {
@@ -781,7 +794,7 @@
         report = { status: Object.keys(values).length ? 'ready' : 'missing', values, source: cleanText(obj(result).source) };
       }).catch(() => { report = { status: 'error', values: {}, source: '' }; }).then(() => {
         if (!el.isConnected) return;
-        if (isEmptyValue(ctx.value()) && !ctx.readonly && Object.keys(projectValues()).length) applyProject(false);
+        if (!ctx.readonly && Object.keys(projectValues()).length) applyProject(false);
         render();
       });
     }
