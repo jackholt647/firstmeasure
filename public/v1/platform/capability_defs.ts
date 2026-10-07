@@ -1566,6 +1566,11 @@ const definitions: CapabilityDefinition[] = [
   {key:'permission.make_calls',kind:'permission',parent:'apps.messaging',permission_key:'make_calls',access:'write',label:'Make Customer Calls',description:'Use call lists, log outcomes, and place customer calls through enabled voice service.'},
   {key:'permission.manage_communications',kind:'permission',parent:'apps.messaging',permission_key:'manage_communications',access:'write',label:'Manage Communications',description:'Manage shared call lists, scripts, assignments, voice routing, and call recovery.'},
   {key:'permission.record_calls',kind:'permission',parent:'apps.messaging',permission_key:'record_calls',access:'write',label:'Record Customer Calls',description:'Start consent-controlled recording on connected customer calls.'},
+  {key:'permission.listen_calls',kind:'permission',parent:'apps.messaging',permission_key:'listen_calls',access:'read',label:'Listen to Customer Calls',description:'Listen to permitted live customer calls without being heard.'},
+  {key:'permission.whisper_calls',kind:'permission',parent:'apps.messaging',permission_key:'whisper_calls',access:'write',label:'Whisper to Call Agents',description:'Privately coach the agent on a permitted live customer call.'},
+  {key:'permission.barge_calls',kind:'permission',parent:'apps.messaging',permission_key:'barge_calls',access:'write',label:'Join Customer Calls',description:'Join permitted live customer calls so all participants can hear you.'},
+  {key:'permission.takeover_calls',kind:'permission',parent:'apps.messaging',permission_key:'takeover_calls',access:'write',label:'Take Over Customer Calls',description:'Take ownership of a permitted live call and release the original agent.'},
+  {key:'permission.analyze_call_recordings',kind:'permission',parent:'apps.messaging',permission_key:'analyze_call_recordings',access:'write',label:'Analyze Call Recordings',description:'Generate AI notes and ask questions about permitted retained call transcripts.'},
   {key:'permission.view_call_recordings',kind:'permission',parent:'apps.messaging',permission_key:'view_call_recordings',access:'read',label:'View Customer Call Recordings',description:'Access permitted customer call recordings and transcripts.'},
   {
     key: "permission.create_channels",

@@ -1,3 +1,5 @@
+import { registerSupervisionPublication } from '../../comms/calls/supervision-publication.js';
+import { registerCallAnalysisPublication } from '../../comms/calls/analysis-publication.js';
 import { registerCallPublication } from '../../comms/calls/publication.js';
 import { registerPayrollPublication } from '../../payroll/publication.js';
 import { registerTodoPublication } from "../../work/publication.js";
@@ -22,6 +24,8 @@ let initialized = false;
 /** All execution hosts use this same catalog. No browser can register server handlers. */
 export function initializePublication() {
   registerCallPublication();
+  registerCallAnalysisPublication();
+  registerSupervisionPublication();
   if (initialized) return;
   registerBuiltinDataProviders();
   registerWidgetProviders();

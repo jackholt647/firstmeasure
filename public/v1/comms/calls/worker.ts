@@ -15,6 +15,7 @@ import { providerCommand } from "./voice.js";
 import { expireArtifacts } from "./media.js";
 import { maintainVoiceSessions } from "./recovery.js";
 import { recordVoiceCost } from './operations.js';
+import { executeSupervision, supervisionEvent, supervisionFailed, maintainSupervisionSessions } from './supervision.js';
 import * as s from "./storage.js";
 import { text, object, strings, type Json, type CustomerCall } from "./storage.js";
 
@@ -48,7 +49,7 @@ async function setCapture(call:CustomerCall,state:string,extra:Json={}){return (
 async function ensureConference(call:CustomerCall){
   const legs=(await s.legs(call.organization_id,call.id));const agent=legs.find(l=>l.role==="agent"&&l.state==="answered");const customer=legs.find(l=>l.role==="customer"&&l.state==="answered");
   if(!agent||!customer)return;
-  if(!text(call.metadata.conference_id))(await s.enqueue(call.organization_id,call.id,"provider",{path:"conference_create",payload:{call_control_id:agent.control_id,name:call.id,beep_enabled:"never",start_conference_on_create:true,max_participants:6,
+  if(!text(call.metadata.conference_id))(await s.enqueue(call.organization_id,call.id,"provider",{path:"conference_create",payload:{call_control_id:agent.control_id,name:call.id,beep_enabled:"never",start_conference_on_create:true,end_conference_on_exit:false,max_participants:6,
     duration_minutes:(await voiceSettings(call.organization_id)).max_call_minutes,client_state:Buffer.from(JSON.stringify({call_id:call.id})).toString("base64")}},`${call.id}:conference`));
   else (await providerCommand(call,text(customer.control_id),"conference_join",{},"join-customer"));
 }
@@ -94,7 +95,7 @@ export async function processVoiceEvent(body:Json){
   const current=call;const role=text(known?.role||state.role||(call.direction==="inbound"?"customer":""));
   if(controlId&&role){
     const legState=type==="call.hangup"?"ended":type==="call.answered"?"answered":text(known?.state)||"initiated";
-    (await s.saveLeg(call.organization_id,call.id,role,{...payload,...(state.operation_id?{operation_id:state.operation_id}:{}),state:legState},at));
+    (await s.saveLeg(call.organization_id,call.id,role,{...payload,...(state.operation_id?{operation_id:state.operation_id}:{}),...(state.supervision_id?{supervision_id:state.supervision_id}:{}),state:legState},at));
   }
   if(type==="call.recording.saved"){
     const recordingId=text(payload.recording_id);if(!recordingId)return;
@@ -111,6 +112,7 @@ export async function processVoiceEvent(body:Json){
     (await recordVoiceCost(call.organization_id,call.id,text(event.id),payload));
     (await s.appendEvent(call.organization_id,call.id,"communication.call.cost",{leg_id:payload.call_leg_id,total_cost:payload.total_cost,status:payload.status,cost_parts:payload.cost_parts},text(event.id)));return;
   }
+  if(await supervisionEvent(call,type,payload,state,known))return;
   if(s.terminal.has(call.state)){
     if(controlId&&["call.initiated","call.answered"].includes(type))(await providerCommand(call,controlId,"hangup",{},`late-leg:${controlId}`));
     return;
@@ -195,6 +197,7 @@ async function ingestRecording(orgId:string,callId:string,input:Json){
 async function executeProvider(job:Json,payload:Json){
   if(voiceMode()!=="live")throw conflict('voice_disabled',"Voice is disabled on this server");
   const orgId=text(job.organization_id),callId=text(job.call_id),action=text(payload.path);let call=(await s.readCall(orgId,callId));
+  if(action.startsWith('supervisor_'))return executeSupervision(job,payload);
   const commandId=text(job.id);const input={...object(payload.payload),command_id:commandId};
   if(['record_start','record_resume'].includes(action)&&!object(call.metadata.voicemail).started){
     const settings=(await voiceSettings(orgId));if(object(call.metadata.consent).state!=='granted'||!settings.recording_enabled||!settings.recording_policy_confirmed)return {canceled:true,reason:'Recording consent or policy changed'};
@@ -218,7 +221,7 @@ async function executeProvider(job:Json,payload:Json){
   }else if(action.startsWith("conference_")){
     const conferenceId=text(call.metadata.conference_id);if(!conferenceId)throw new Error("The call conference is not ready");
     const command=action.slice(11);const control=text(payload.control_id);
-    result=await voiceClient().conference(conferenceId,command,command==="join"?{call_control_id:control,beep_enabled:"never",end_conference_on_exit:false,command_id:commandId}:{call_control_ids:[control]});
+    result=await voiceClient().conference(conferenceId,command,command==="join"?{call_control_id:control,beep_enabled:"never",end_conference_on_exit:false,command_id:commandId}:{call_control_ids:[control],command_id:commandId});
     call=(await s.readCall(orgId,callId));
     const leg=(await s.legByControl(control));
     if(command==="join"&&leg?.role==="customer"){
@@ -248,6 +251,12 @@ export async function processOneJob(workerId:string,lane:'all'|'voice'|'backgrou
     else if(job.kind==="provider_reject"){if(voiceMode()==="live")await voiceClient().command(text(payload.control_id),"hangup",{command_id:job.id});}
     else if(job.kind==="wrap_up")await applyWrapUpEffects(orgId,callId,payload);
     else if(job.kind==="recording_ingest")await ingestRecording(orgId,callId,payload);
+    else if(job.kind==='analysis') {
+      // Long-form analysis can span multiple model calls; retain the durable job lease.
+      const heartbeat=setInterval(()=>{void s.database().prepare("UPDATE customer_call_jobs SET lease_until=? WHERE id=? AND lease_owner=? AND state='running'").run(new Date(Date.now()+90_000).toISOString(),text(job.id),workerId).catch(()=>{});},20_000);
+      try { result=await (await import('./analysis.js')).processCallAnalysisJob(await s.readCall(orgId,callId),payload); }
+      finally {clearInterval(heartbeat);}
+    }
     else if(job.kind==="missed_callback"){
       const call=(await s.readCall(orgId,callId));if(!call.connected_at)await createFollowUpTodo(orgId,{id:s.id("callback",callId),source_key:`missed-call:${callId}`,project_id:call.project_id,branch_id:call.branch_id,title:`Return ${call.customer_name}'s call`,due_at:s.now(),assigned_user_ids:call.owner_user_id?[call.owner_user_id]:[],metadata:{follow_up:{channel:"call",call_id:callId,phone:call.customer_number,contact_id:call.contact_id,completion_policy:"explicit"}}});
     }else throw new Error("Unknown customer-call job");
@@ -257,6 +266,7 @@ export async function processOneJob(workerId:string,lane:'all'|'voice'|'backgrou
     const retry=!ambiguous&&!(error instanceof PlatformError)&&job.kind!=="provider"&&job.attempts<8;
     (await s.finishJob(text(job.id),workerId,ambiguous?"uncertain":retry?"pending":"failed",{},job.kind==='provider'?(ambiguous?'Provider response is uncertain; reconcile before retrying.':error instanceof PlatformError?error.message:'Provider rejected this operation.'):error instanceof Error?error.message:"Call processing failed",Math.min(300_000,1000*2**job.attempts)));
     if(job.kind==="provider"&&callId){let call=(await s.readCall(orgId,callId));
+      if(text(payload.path).startsWith('supervisor_')) { await supervisionFailed(job,payload,ambiguous); return true; }
       if(!ambiguous&&payload.path==='dial'){
         if(payload.role==='consult'){
           const customer=(await s.legs(orgId,callId)).find(l=>l.role==='customer'&&l.state!=='ended');if(customer)(await providerCommand(call,text(customer.control_id),'conference_unhold',{},`failed-consult:${job.id}`));
@@ -321,7 +331,7 @@ export function startCallWorker(app:FastifyInstance){
       if(!background)background=(async()=>{for(let n=0;n<5&&!stopped;n++)if(!await processOneJob(`${workerId}:background`,'background'))break;})()
         .catch(()=>app.log.error('Customer call background processing failed')).finally(()=>{background=null;});
       if(!maintenance&&Date.now()-lastRetention>60000){
-        lastRetention=Date.now();maintenance=(async()=>{await maintainVoiceSessions();await expireArtifacts();})()
+        lastRetention=Date.now();maintenance=(async()=>{await maintainSupervisionSessions();await maintainVoiceSessions();await expireArtifacts();})()
           .catch(error=>app.log.error({message:error instanceof Error?error.message:'Voice maintenance failed'},'Customer call maintenance'))
           .finally(()=>{maintenance=null;});
       }

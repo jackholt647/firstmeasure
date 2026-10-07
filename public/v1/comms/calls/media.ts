@@ -1,3 +1,5 @@
+import { revokeCallAnalyses } from './analysis.js';
+import { expireAnalyses } from '../../agents/analysis-store.js';
 import { createReadStream } from "node:fs";
 import { stat, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -33,6 +35,7 @@ export async function deleteArtifact(orgId:string,callId:string,artifactId:strin
   const row=object((await s.database().prepare("SELECT * FROM customer_call_artifacts WHERE organization_id=? AND call_id=? AND id=?").get(orgId,callId,artifactId)));
   if(!row.id)return;const artifact={...row,data:object(JSON.parse(text(row.data_json)||'{}'))};
   const data=object(artifact.data);
+  await revokeCallAnalyses(orgId,callId);
   // Tombstone before I/O so late provider events cannot make deleted content visible again.
   (await s.database().prepare("UPDATE customer_call_artifacts SET state='deleted' WHERE organization_id=? AND id=?").run(orgId,artifactId));
   if(text(data.provider_recording_id))(await s.database().prepare("UPDATE customer_call_artifacts SET state='deleted',data_json='{}' WHERE organization_id=? AND call_id=? AND kind='transcript' AND json_extract(data_json,'$.recording_id')=?", "UPDATE customer_call_artifacts SET state='deleted',data_json='{}' WHERE organization_id=? AND call_id=? AND kind='transcript' AND data_json::jsonb #>> '{recording_id}'=?")
@@ -46,6 +49,7 @@ export async function deleteArtifact(orgId:string,callId:string,artifactId:strin
   (await s.appendEvent(orgId,callId,"communication.call.artifact_deleted",{artifact_id:artifactId,actor},`${artifactId}:deleted`));
 }
 export async function expireArtifacts(){
+  await expireAnalyses();
   const rows=(await s.database().prepare("SELECT organization_id,call_id,id FROM customer_call_artifacts WHERE (expires_at<=? AND state<>'deleted') OR (state='deleted' AND data_json<>'{}') LIMIT 30").all(s.now()));
   for(const row of rows)await deleteArtifact(text(object(row).organization_id),text(object(row).call_id),text(object(row).id));
 }

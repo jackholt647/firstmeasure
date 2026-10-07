@@ -110,3 +110,12 @@
 .fmcm-view>.app-tabs button{border:0;background:transparent}.fmcm-view>.app-tabs button[aria-current=page]{background:color-mix(in srgb,var(--primary,#d93025) 9%,white);color:var(--cm-readable)}
 
 .fmcm-empty>i{margin:0 auto 8px}
+
+/* Call assistance stays inside the existing phone surface. */
+.fmcp-dialer,.fmcp-supervision{padding:12px;border:1px solid var(--border,#e2e5eb);border-radius:8px;margin:12px 0;background:var(--panel,#fff)}
+.fmcp-dialer p{font-size:12px;line-height:1.5;margin:6px 0 10px;color:var(--muted,#667085)}
+.fmcp-supervision .fmcm-actions,.fmcp-analysis .fmcm-actions{flex-wrap:wrap;gap:6px}
+.fmcp-analysis textarea{min-height:75px}.fmcp-ai-note{border-top:1px solid var(--border,#e2e5eb);margin-top:12px;padding-top:10px}
+.fmcp-ai-note h4{margin:0;overflow-wrap:anywhere}.fmcp-ai-note .fmcp-transcript{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto}
+.fmcp-analysis input,.fmcp-analysis textarea{min-width:0;max-width:100%;box-sizing:border-box}
+.fmcm-list-card .fmcm-card-head{flex-wrap:wrap}

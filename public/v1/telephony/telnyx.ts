@@ -22,7 +22,7 @@ export class TelnyxVoiceClient {
   async readCall(controlId:string) {return this.data(`/calls/${encodeURIComponent(controlId)}`);}
   async createConference(payload:Json){return this.data("/conferences","POST",payload);}
   async conference(conferenceId:string,action:string,payload:Json){
-    if(!["join","leave","hold","unhold","mute","unmute","end"].includes(action))throw badRequest("conference_action_invalid","Unsupported conference action.");
+    if(!["join","leave","hold","unhold","mute","unmute","end","update"].includes(action))throw badRequest("conference_action_invalid","Unsupported conference action.");
     return this.data(`/conferences/${encodeURIComponent(conferenceId)}/actions/${action}`,"POST",payload);
   }
   async readNumber(providerId:string) {return this.data(`/phone_numbers/${encodeURIComponent(providerId)}`);}

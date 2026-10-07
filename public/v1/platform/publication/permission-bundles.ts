@@ -38,7 +38,12 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   manage_canvassing: { actions: ["canvassing.pin.save"] },
   view_media: { actions: ["media.item.read"], data: ["media.metadata", "media.library"] },
   manage_media: { actions: ["media.item.rename"] },
-  view_call_recordings: { data: ["customer-calls.transcripts", "customer-calls.recordings"] },
+  listen_calls: { actions: ["customer-calls.supervision.monitor"] },
+  whisper_calls: { actions: ["customer-calls.supervision.whisper"] },
+  barge_calls: { actions: ["customer-calls.supervision.barge"] },
+  takeover_calls: { actions: ["customer-calls.supervision.takeover"] },
+  analyze_call_recordings: { actions: ["customer-calls.analysis.generate", "customer-calls.analysis.ask"] },
+  view_call_recordings: { data: ["customer-calls.transcripts", "customer-calls.recordings", "customer-call-analysis.notes"] },
   view_comms: { actions: ["comms.project.feed"], data: ["comms.records", "customer-calls.record"] },
   send_communications: { actions: ["comms.project.sendSms", "comms.project.sendEmail"] },
   view_live_chat: { actions: ["chat.inbox"], data: ["chat.records"] },
@@ -56,7 +61,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   manage_company_settings: { actions:["payroll.contractor.company.update", "work.configuration.save", "workforce.departments.save", "custom-fields.organization.write", "contacts.settings.save"], data: ["scopes.records", "forms.catalog"] },
   manage_training: { actions: ["scheduling.appointment.configure", "training.course.progress"] },
   // Membership and per-subject checks are the permission for these exports.
-  "": { actions: ["payroll.earnings.me", "work.todos.userState", "workforce.departments.read", "workforce.departments.assign","channels.feed.thread", "channels.feed.resolve", "channels.feed.comment", "channels.feed.react", "channels.list", "channels.messages.list", "channels.message.react", "channels.note.create", "channels.note.share", "channels.note.pin", "channels.note.edit", "channels.note.delete", "channels.note.restore", "training.courses.mine"], data: ["payroll.my_earnings", "workforce-departments.catalog", "channels.records", "training.records", "notification-rules.value"] }
+  "": { actions: ["customer-calls.supervision.leave", "payroll.earnings.me", "work.todos.userState", "workforce.departments.read", "workforce.departments.assign","channels.feed.thread", "channels.feed.resolve", "channels.feed.comment", "channels.feed.react", "channels.list", "channels.messages.list", "channels.message.react", "channels.note.create", "channels.note.share", "channels.note.pin", "channels.note.edit", "channels.note.delete", "channels.note.restore", "training.courses.mine"], data: ["payroll.my_earnings", "workforce-departments.catalog", "channels.records", "training.records", "notification-rules.value"] }
 };
 
 function index(kind: "actions" | "data") {

@@ -18,7 +18,7 @@ export const applicationPublication = {
   "project-map": { providers: ["projects"], domains: ["projects"] },
   "customer-portal": { providers: ["customer-portal"], domains: ["customerPortal"] },
   "project-schedule": { providers: ["calendar"], domains: ["scheduling", "workforce"] },
-  comms: { providers: ["comms", "customer-calls"], domains: ["comms"], note: "Call records, retained transcripts and recording metadata enforce branch and department authority, including frozen replay." },
+  comms: { providers: ["comms", "customer-calls", "customer-call-analysis"], domains: ["comms"], note: "Call records, retained transcripts and recording metadata enforce branch and department authority, including frozen replay." },
   measurements: { providers: ["datasets", "firstmeasure", "project-widgets"], domains: ["datasets"] },
   checklists: { providers: ["work", "todos"], domains: ["work"] },
   scheduling: { providers: ["workforce-departments", "calendar"], domains: ["scheduling", "workforce"] },

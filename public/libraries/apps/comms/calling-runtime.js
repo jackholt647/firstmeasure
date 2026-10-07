@@ -31,13 +31,94 @@
   }
   const identityReady=ownIdentity();
   const callPath=suffix=>`calls/${encodeURIComponent(state.call.id)}${suffix||''}`;
-  function changed(){window.dispatchEvent(new CustomEvent('fm:customer-calls:changed',{detail:{call:state.call,registered:state.registered,available:state.available}}));}
+  function changed(){queueMicrotask(()=>void advanceDialer());window.dispatchEvent(new CustomEvent('fm:customer-calls:changed',{detail:{call:state.call,registered:state.registered,available:state.available}}));}
+  // A document-lifetime lock prevents two tabs from running a list for this caller.
+  // Each call still uses the server's atomic entry/phone claim and operation ID.
+  const dialer={active:false,listId:'',title:'',seen:new Set(),timer:0,deadline:0,working:false,generation:0,release:null,message:''};
+  function pauseDialer(message='Automatic dialing paused.'){
+    dialer.active=false;dialer.generation++;clearInterval(dialer.timer);dialer.timer=0;dialer.deadline=0;dialer.release?.();dialer.release=null;dialer.message=message;
+    state.panel?.querySelector('[data-dialer]')?.replaceWith(dialerElement());
+  }
+  function dialerMarkup(){return dialer.listId?`<section class="fmcp-dialer" data-dialer aria-label="Automatic dialing"><strong>${esc(dialer.title||'Call list')}</strong><p role="status">${esc(dialer.deadline?`Next call in ${Math.max(0,Math.ceil((dialer.deadline-Date.now())/1000))} seconds`:dialer.active?'Automatic dialing on · Finish the call and save any required outcome.':dialer.message)}</p>${dialer.active?'<button type="button" data-phone="pause-dialer">Pause automatic dialing</button>':'<button type="button" data-phone="resume-dialer">Resume automatic dialing</button>'}</section>`:'';}
+  function dialerElement(){const wrap=document.createElement('div');wrap.innerHTML=dialerMarkup();return wrap.firstElementChild||document.createElement('span');}
+  async function startDialer(list){
+    if(dialer.active)pauseDialer();
+    if(!navigator.locks)throw new Error('Automatic dialing needs a browser with Web Locks. You can still call contacts individually.');
+    const acquired=await new Promise((resolve,reject)=>{void navigator.locks.request(`firstmate-auto-dialer:${scope()}`,{ifAvailable:true},async lock=>{if(!lock){resolve(false);return;}await new Promise(release=>{dialer.release=release;resolve(true);});}).catch(reject);});
+    if(!acquired)throw new Error('Automatic dialing is already running in another tab. Pause it there first.');
+    if(dialer.listId!==list.id){dialer.seen=new Set();dialer.listId=list.id;}
+    dialer.title=list.title||dialer.title;dialer.departmentId=list.departmentId||'';dialer.active=true;dialer.message='';dialer.generation++;dialer.boundScope=scope();
+    if(state.call?.entry_id)dialer.seen.add(state.call.entry_id);
+    try{if(!state.status)await refreshStatus();}catch(error){pauseDialer(error.message);throw error;}
+    if(!state.status?.settings?.enabled){pauseDialer('Enable browser calling before starting automatic dialing.');throw new Error(dialer.message);}
+    await advanceDialer();if(state.panel&&!state.panel.hidden)render();
+  }
+  async function advanceDialer(){
+    if(!dialer.active||dialer.working||dialer.deadline||state.busy)return;
+    if(dialer.boundScope!==scope()||state.error||state.saveError){pauseDialer('Automatic dialing paused. Resolve the phone error before continuing.');return;}
+    const c=state.call;
+    if(c&&!terminal.has(c.state))return;
+    if(c?.state==='failed'||c?.metadata?.provider_error||(state.detail?.operations||[]).some(o=>['uncertain','failed'].includes(o.state))){pauseDialer('Automatic dialing paused. Review this call before continuing.');return;}
+    if(c&&(state.dirty||c.wrap_up_state==='processing_effects'||state.status?.settings?.require_disposition&&c.wrap_up_state!=='saved'))return;
+    dialer.working=true;const generation=dialer.generation;
+    try{
+      const result=await request(`call-lists/queue${dialer.departmentId?'?department_id='+encodeURIComponent(dialer.departmentId):''}`);
+      if(!dialer.active||generation!==dialer.generation)return;
+      const list=result.columns?.find(l=>l.id===dialer.listId),entry=list?.tasks?.find(e=>e.ready&&!dialer.seen.has(e.id));
+      if(!entry){pauseDialer('List complete. No more ready contacts.');return;}
+      if(await open({entry,entry_id:entry.id,project_id:entry.project_id})===false){pauseDialer('Finish the current call before resuming.');return;}
+      if(!dialer.active||generation!==dialer.generation)return;
+      dialer.deadline=Date.now()+(c?Math.max(5,Number(state.status?.settings?.wrap_up_seconds)||0):5)*1000;
+      render();dialer.timer=setInterval(()=>{
+        state.panel?.querySelector('[data-dialer]')?.replaceWith(dialerElement());
+        if(state.call){clearInterval(dialer.timer);dialer.timer=0;dialer.deadline=0;return;}
+        if(Date.now()<dialer.deadline)return;clearInterval(dialer.timer);dialer.timer=0;dialer.deadline=0;
+        if(!dialer.active||generation!==dialer.generation)return;
+        dialer.seen.add(entry.id);
+        void handle('start').then(()=>{if(!state.call){pauseDialer(state.deviceCheckRequired?'Run the audio check, then start this contact manually. Resume the list when ready.':'Automatic dialing paused. Check your phone before continuing.');}else if(state.call.state==='failed')pauseDialer('Call failed. Review it before continuing.');if(state.panel&&!state.panel.hidden)render();});
+      },250);
+    }catch(error){pauseDialer(error.message||'Automatic dialing paused.');state.error=error.message;if(state.panel&&!state.panel.hidden)render();}
+    finally{dialer.working=false;}
+  }
+  function callPermission(name){return state.detail?.permissions?.[name]??state.status?.permissions?.[name]??false;}
+  function supervisionMarkup(){
+    const s=state.detail?.supervision,p=s?.permissions||{},session=s?.session;
+    if(!state.call||state.call.owner_user_id===ui.user()||!['connected','held'].includes(state.call.state)||!Object.values(p).some(Boolean)&&!session)return '';
+    const joined=session&&!['ended','failed','taken_over'].includes(session.state),pending=joined&&!['active'].includes(session.state);
+    return `<section class="fmcp-supervision"><strong>Supervisor controls</strong><p class="fmcm-help">${esc(joined?`${label(session.mode)} · ${label(session.state)}`:'Listen privately, coach your teammate, or join the conversation.')}</p><div class="fmcm-actions">${[['monitor','Live listen'],['whisper','Whisper'],['barge','Barge'],['takeover','Take over']].filter(([mode])=>p[mode]).map(([mode,title])=>`<button type="button" data-phone="supervise" data-mode="${mode}" ${pending||session?.mode===mode?'disabled':''}>${title}</button>`).join('')}${joined?'<button type="button" data-phone="supervise" data-mode="leave">Leave supervision</button>':''}</div>${session?.state==='uncertain'?'<p class="fmcm-error">Connection status is uncertain. Review provider status before trying again.</p>':''}</section>`;
+  }
+  async function supervise(mode){
+    if(mode!=='leave')await connect();
+    const callId=state.call.id,result=await request(callPath('/supervision'),{operation_id:uid(),mode});
+    if(state.call?.id!==callId)return;
+    state.call=result.call||state.call;state.detail={...state.detail,supervision:result.supervision};schedulePoll();changed();
+  }
+  function analysisMarkup(){
+    if(!state.call||!callPermission('analyze')&&!callPermission('analysis_read'))return '';
+    const notes=state.analysis?.notes||[],canAnalyze=callPermission('analyze');
+    return `<details class="fmcp-script fmcp-analysis" ${state.analysisOpen?'open':''}><summary>AI notes &amp; questions</summary><p class="fmcm-help">Use the retained transcript to draft notes and answer questions. Review generated content before using it.</p><label class="fmcm-field" ${canAnalyze?'':'hidden'}>Instructions<textarea name="analysis_prompt" maxlength="4000" placeholder="Summarize decisions, concerns, and next steps.">${esc(state.analysisPrompt||'')}</textarea></label><div class="fmcm-actions"><button type="button" data-phone="analysis-generate" ${canAnalyze?'':'hidden'} ${state.analysisBusy?'disabled':''}>Generate notes</button><button type="button" data-phone="analysis-load" ${state.analysisBusy?'disabled':''}>View saved notes</button></div>${state.analysisBusy?'<p role="status">Preparing the request…</p>':''}${state.analysisError?`<p class="fmcm-error" role="alert">${esc(state.analysisError)}</p>`:''}${state.analysis&&!state.analysis.available?'<p class="fmcm-help">A retained transcript is needed. Enable transcription in Phone Setup and wait for processing to finish.</p>':''}${notes.map(n=>`<article class="fmcp-ai-note"><h4>${esc(n.question||'Call summary')}</h4><p class="fmcm-help">${esc(date(n.created_at))}</p><div class="fmcp-transcript">${esc(n.state==='failed'?(n.error||'Analysis failed. Try generating notes again.'):['pending','running'].includes(n.state)?'Reading the transcript…':n.text)}</div>${(n.citations||[]).length?`<p class="fmcm-help">Sources: ${n.citations.map(c=>esc(c.label)).join(' · ')}</p>`:''}${canAnalyze&&!n.question&&n.state==='ready'?`<button type="button" data-phone="analysis-append" data-note="${esc(n.id)}">Append to call notes</button>`:''}</article>`).join('')}<label class="fmcm-field" ${canAnalyze?'':'hidden'}>Ask about this call<input name="analysis_question" maxlength="2000" value="${esc(state.analysisQuestion||'')}" placeholder="What did we agree to do next?"></label><button type="button" data-phone="analysis-ask" ${canAnalyze?'':'hidden'} ${state.analysisBusy?'disabled':''}>Ask question</button></details>`;
+  }
+  async function analyze(kind,button){
+    state.analysisOpen=true;
+    if(kind==='append'){const note=state.analysis?.notes?.find(n=>n.id===button.dataset.note);if(note){state.notes=[state.notes,note.text].filter(Boolean).join('\n\n');state.dirty=true;persistLocal();await saveNotes();}return;}
+    const callId=state.call.id,base=`calls/${encodeURIComponent(callId)}/analysis`;
+    if(kind==='load'){const analysis=await request(base);if(state.call?.id===callId)state.analysis=analysis;return;}
+    if(kind==='ask'&&!state.analysisQuestion?.trim())throw new Error('Enter a question about the call.');
+    state.analysisBusy=true;state.analysisError='';render();
+    const payload={system_prompt:state.analysisPrompt||'',...(kind==='ask'?{question:state.analysisQuestion.trim()}:{})};
+    const fingerprint=JSON.stringify(payload);if(state.analysisRequest?.fingerprint!==fingerprint)state.analysisRequest={fingerprint,operation_id:uid()};
+    try{await request(base,{...payload,operation_id:state.analysisRequest.operation_id});if(state.call?.id!==callId)return;state.analysis=await request(base);state.analysisRequest=null;if(kind==='ask')state.analysisQuestion='';}
+    catch(error){if(state.call?.id===callId)state.analysisError=error.message;}
+    finally{if(state.call?.id===callId)state.analysisBusy=false;}
+  }
   function ensurePanel(){
     if(state.panel)return state.panel;
     const el=document.createElement('aside');el.className='fmcp';el.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("comms","m_f6ab2f58b94a8e","Customer call workspace") ?? "Customer call workspace"));el.hidden=true;document.body.append(el);state.panel=el;
     Portal.PhoneTray?.attach(el,{panel:()=>state.panel,action:handle,minimized:value=>{state.minimized=value;state.panel?.classList.toggle('minimized',value);}});
     el.addEventListener('click',event=>{const button=event.target.closest('[data-phone]');if(button)void handle(button.dataset.phone,button);});
     el.addEventListener('input',event=>{
+      if(event.target.name==='analysis_prompt')state.analysisPrompt=event.target.value;
+      if(event.target.name==='analysis_question')state.analysisQuestion=event.target.value;
       if(event.target.name==='due_at'){state.policyDate='';state.usePolicy=false;}
       if(event.target.name==='notes'){state.notes=event.target.value;state.dirty=true;persistLocal();scheduleSave();}
       if(event.target.dataset.question!==undefined){state.answers[event.target.dataset.question]=event.target.value;state.dirty=true;persistLocal();scheduleSave();}
@@ -59,11 +140,13 @@
   function render(){
     const focused=state.panel?.contains(document.activeElement)?document.activeElement:null;
     const focusName=focused?.name,focusQuestion=focused?.dataset?.question,caret=focused?.selectionStart,caretEnd=focused?.selectionEnd;
+    if(state.panel?.querySelector('.fmcp-analysis'))state.analysisOpen=state.panel.querySelector('.fmcp-analysis').open;
     const checked=new Set([...state.panel?.querySelectorAll('[data-source]:checked')||[]].map(e=>e.dataset.source));
     const el=ensurePanel(),c=state.call,p=state.prepared,values=readForm();el.hidden=false;el.classList.toggle('minimized',state.minimized);
     if(state.loadingCall){el.innerHTML=`<header class="fmcp-header"><strong style="flex:1" role="status">${(globalThis.PlatformLanguage?.htmlText("comms","m_8f38504a814a9d","Opening call…") ?? "Opening call…")}</strong><button data-phone="close" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_314202e0941af2","Close call workspace") ?? "Close call workspace")}">`+icon('xmark')+'</button></header>';return;}
     const consultation=c?.metadata?.transfer?.target_user_id===ui.user()&&c.owner_user_id!==ui.user()&&['dialing','consulting'].includes(c.metadata.transfer.state);
-    const observer=c?.owner_user_id&&c.owner_user_id!==ui.user()&&!state.status?.permissions?.manage;
+    const observer=c?.owner_user_id&&c.owner_user_id!==ui.user();
+    const supervising=state.detail?.supervision?.session&&!['ended','failed','taken_over'].includes(state.detail.supervision.session.state);
     const active=c?.mode==='browser'&&!terminal.has(c.state),saved=c?.wrap_up_state==='saved',processing=c?.wrap_up_state==='processing_effects';
     const connected=['connected','held'].includes(c?.state),incoming=state.sdkCall?.state==='ringing',script=c?.metadata?.script;
     const scriptData=script?.data||{};
@@ -76,10 +159,11 @@
       ${state.deviceCheckRequired&&!c?`<section data-phone-readiness role="status"><p class="fmcm-help">${esc(state.checkMessage||'Run the microphone and network check before calling on this device. Your call details will stay here.')}</p><button data-phone="diagnose" class="fmcm-primary">${state.busy?'Checking microphone and network…':'Run checks'}</button></section>`:''}
       ${state.deviceChecked&&state.checkMessage&&!c?`<p data-phone-check-success class="fmcm-help" role="status">${esc(state.checkMessage)} Click Start call when you are ready.</p>`:''}
       ${state.outcomeRequested&&c&&!saved?`<p class="fmcm-help" role="status">${active?'Ending the call…':'Choose the call outcome, then click Save outcome to finish.'}</p>`:''}
+      ${dialerMarkup()}${supervisionMarkup()}
       ${String(c?.metadata?.provider_error?`<p class="fmcm-error">${esc(c.metadata.provider_error.message)} <button data-phone="reconcile">${(globalThis.PlatformLanguage?.htmlText("comms","m_0594685d991928","Check provider status") ?? "Check provider status")}</button></p>`:'')}
       ${String((state.detail?.operations||[]).filter(job=>job.state==='failed'&&['wrap_up','recording_ingest','missed_callback'].includes(job.kind)).map(job=>`<p class="fmcm-error">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_c27c615bb5fb5f",`${v0} could not finish. Your call record is saved. `,{v0}) ?? `${v0} could not finish. Your call record is saved. `)(esc(label(job.kind)))}<button data-phone="retry-work" data-job="${esc(job.id)}">${(globalThis.PlatformLanguage?.htmlText("comms","m_6bf817428776f2","Retry saved work") ?? "Retry saved work")}</button></p>`).join(''))}
       ${String(c?`<div class="fmcp-controls">${incoming?`<button class="fmcm-primary" data-phone="answer">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_0675e6689d03c4",`${v0} Answer`,{v0}) ?? `${v0} Answer`)(icon('phone'))}</button><button data-phone="decline">${(globalThis.PlatformLanguage?.htmlText("comms","m_0bba16c1fd1444","Decline") ?? "Decline")}</button>`:''}
-      ${consultation?`<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_9dd0f47c454eb7","Consultation in progress. The customer is on hold with your teammate.") ?? "Consultation in progress. The customer is on hold with your teammate.")}</p><button data-phone="decline">${(globalThis.PlatformLanguage?.htmlText("comms","m_61a1d24eba2d59","Leave consultation") ?? "Leave consultation")}</button>`:active?`<button data-phone="mute" ${!state.sdkCall?'disabled':''}>${icon(state.muted?'microphone-slash':'microphone')} ${state.muted?'Unmute':'Mute'}</button><button data-phone="${c.state==='held'?'resume':'hold'}" ${!connected?'disabled':''}>${icon(c.state==='held'?'play':'pause')} ${c.state==='held'?'Resume':'Hold'}</button><button data-phone="keypad" ${!connected?'disabled':''}>${((v8) => globalThis.PlatformLanguage?.htmlText("comms","m_a5d2ced26e1d6f",`${v8} Keypad`,{v8}) ?? `${v8} Keypad`)(icon('grip'))}</button><button data-phone="transfer" ${!connected?'disabled':''}>${((v10) => globalThis.PlatformLanguage?.htmlText("comms","m_63420f2e9bb582",`${v10} Transfer`,{v10}) ?? `${v10} Transfer`)(icon('arrow-right-arrow-left'))}</button><button class="fmcm-danger" data-phone="hangup">${((v11) => globalThis.PlatformLanguage?.htmlText("comms","m_121a37c1f0d952",`${v11} End call`,{v11}) ?? `${v11} End call`)(icon('phone-slash'))}</button>`:''}
+      ${consultation?`<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_9dd0f47c454eb7","Consultation in progress. The customer is on hold with your teammate.") ?? "Consultation in progress. The customer is on hold with your teammate.")}</p><button data-phone="decline">${(globalThis.PlatformLanguage?.htmlText("comms","m_61a1d24eba2d59","Leave consultation") ?? "Leave consultation")}</button>`:active&&!observer?`<button data-phone="mute" ${!state.sdkCall?'disabled':''}>${icon(state.muted?'microphone-slash':'microphone')} ${state.muted?'Unmute':'Mute'}</button><button data-phone="${c.state==='held'?'resume':'hold'}" ${!connected?'disabled':''}>${icon(c.state==='held'?'play':'pause')} ${c.state==='held'?'Resume':'Hold'}</button><button data-phone="keypad" ${!connected?'disabled':''}>${((v8) => globalThis.PlatformLanguage?.htmlText("comms","m_a5d2ced26e1d6f",`${v8} Keypad`,{v8}) ?? `${v8} Keypad`)(icon('grip'))}</button><button data-phone="transfer" ${!connected?'disabled':''}>${((v10) => globalThis.PlatformLanguage?.htmlText("comms","m_63420f2e9bb582",`${v10} Transfer`,{v10}) ?? `${v10} Transfer`)(icon('arrow-right-arrow-left'))}</button><button class="fmcm-danger" data-phone="hangup">${((v11) => globalThis.PlatformLanguage?.htmlText("comms","m_121a37c1f0d952",`${v11} End call`,{v11}) ?? `${v11} End call`)(icon('phone-slash'))}</button>`:''}
       ${c.project_id?`<button data-phone="project">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_d29bbd8b50abe3",`${v0} Project`,{v0}) ?? `${v0} Project`)(icon('folder-open'))}</button><button data-phone="schedule">${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_1ba8da8140fc77",`${v1} Schedule`,{v1}) ?? `${v1} Schedule`)(icon('calendar-plus'))}</button><button data-phone="message">${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_b1ce44f713880b",`${v2} Message`,{v2}) ?? `${v2} Message`)(icon('comment'))}</button>`:`<button data-phone="link">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_d6f0ce6293e8d9",`${v0} Link project`,{v0}) ?? `${v0} Link project`)(icon('link'))}</button>`}
       ${connected&&(state.status?.settings?.recording_enabled||['recording','paused'].includes(capture))?`<button data-phone="record">${icon('circle-dot')} ${capture==='recording'?'Pause recording':capture==='paused'?'Resume recording':'Record with consent'}</button>${['recording','paused'].includes(capture)?`<button data-phone="record_stop">${(globalThis.PlatformLanguage?.htmlText("comms","m_71ef1099bbe0fc","Stop recording") ?? "Stop recording")}</button>`:''}`:''}</div>`:
       `${field('Phone number or contact','customer_number',values.customer_number??number,'text','required autocomplete="off"')}
@@ -93,17 +177,18 @@
       ${(c.metadata?.source_node_ids||[]).length?`<details class="fmcp-script" open><summary>${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_465e01a14d53fd",`Linked work (${v0})`,{v0}) ?? `Linked work (${v0})`)(c.metadata.source_node_ids.length)}</summary><p>${(globalThis.PlatformLanguage?.htmlText("comms","m_759c2a8bdbdc02","Select only the obligations this call resolves.") ?? "Select only the obligations this call resolves.")}</p>${c.metadata.source_node_ids.map(id=>`<label class="fmcm-check"><input type="checkbox" data-source="${esc(id)}">${esc(state.detail?.work?.find(node=>node.id===id)?.title||state.entry?.title||(globalThis.PlatformLanguage?.text("comms","m_5c4af3e82b50ff","Linked follow-up") ?? "Linked follow-up"))}</label>`).join('')}</details>`:''}`:'')}
       ${String(saved?`<p><span class="fmcm-pill good">${icon('check')} ${esc(label(c.result?.disposition))}</span> <span class="fmcm-help">${esc(date(c.ended_at))}</span></p>`:'')}
       ${String(processing?`<p class="fmcm-help" role="status">${(globalThis.PlatformLanguage?.htmlText("comms","m_aa5c78e69f24d8","Saving the outcome and updating linked work…") ?? "Saving the outcome and updating linked work…")}</p>`:'')}
-      ${String(c?`<div data-artifacts>${mediaMarkup()}</div>`:'')}</div>
+      ${String(c?`<div data-artifacts>${mediaMarkup()}</div>${analysisMarkup()}`:'')}</div>
       <footer class="fmcp-footer"><span class="fmcm-help">${String(c?`${c.direction==='inbound'?'Incoming':'Outgoing'} call`:'Communications')}</span><div class="fmcm-actions">${String(!c&&state.entry?`<button data-phone="skip">${(globalThis.PlatformLanguage?.htmlText("comms","m_80ad5d823ed757","Skip for now") ?? "Skip for now")}</button>`:'')}${String(c&&!active&&!saved&&!processing&&state.status?.settings?.require_disposition?`<button class="fmcm-primary" data-phone="wrap">${(globalThis.PlatformLanguage?.htmlText("comms","m_6b7aea73ef8d46","Save outcome") ?? "Save outcome")}</button>`:'')}${String(saved&&state.entry?`<button class="fmcm-primary" data-phone="next">${(globalThis.PlatformLanguage?.htmlText("comms","m_db479b7b19a749","Next contact") ?? "Next contact")}</button>`:'')}${String(c&&!active?`<button data-phone="artifacts">${(globalThis.PlatformLanguage?.htmlText("comms","m_f15ce71ba3db6f","Recording & transcript") ?? "Recording & transcript")}</button>`:'')}</div></footer>`;
-    el.querySelectorAll('[data-phone]').forEach(b=>{if(state.busy&&!['minimize','close'].includes(b.dataset.phone))b.disabled=true;});
-    if(observer){el.querySelectorAll('[name], [data-question], [data-source]').forEach(e=>e.disabled=true);el.querySelectorAll('[data-phone]').forEach(b=>{if(!['minimize','close','project','schedule','message','artifacts',...(consultation?['answer','decline']:[])].includes(b.dataset.phone))b.disabled=true;});}
-    if(!state.status?.permissions?.record)el.querySelectorAll('[data-phone^="record"]').forEach(b=>b.hidden=true);
-    if(!state.status?.permissions?.recordings)el.querySelectorAll('[data-phone="artifacts"]').forEach(b=>b.hidden=true);
+    el.querySelectorAll('[data-phone]').forEach(b=>{if(state.busy&&!['minimize','close','pause-dialer'].includes(b.dataset.phone))b.disabled=true;});
+    if(observer){el.querySelectorAll('[name], [data-question], [data-source]').forEach(e=>e.disabled=true);el.querySelectorAll('[data-phone]').forEach(b=>{if(!['minimize','close','project','schedule','message','artifacts','supervise','analysis-generate','analysis-load','analysis-ask',...(consultation||supervising?['answer','decline']:[])].includes(b.dataset.phone))b.disabled=true;});}
+    if(!callPermission('record'))el.querySelectorAll('[data-phone^="record"]').forEach(b=>b.hidden=true);
+    if(!callPermission('recordings'))el.querySelectorAll('[data-phone="artifacts"]').forEach(b=>b.hidden=true);
+    el.querySelectorAll('[name=analysis_prompt],[name=analysis_question]').forEach(e=>e.disabled=state.analysisBusy);
     if(state.busy)el.querySelectorAll('input,textarea,select').forEach(e=>e.disabled=true);
     if(state.saveError){const message=el.querySelector('[data-save-state]');if(message){message.textContent=(globalThis.PlatformLanguage?.text("comms","m_cb41039283b180","Notes are kept in this tab. ") ?? "Notes are kept in this tab. ");const retry=document.createElement('button');retry.dataset.phone='save-notes';retry.textContent=(globalThis.PlatformLanguage?.text("comms","m_5ede774dc3f22a","Retry saving") ?? "Retry saving");message.append(retry);}}
     el.querySelectorAll('[data-source]').forEach(e=>{e.checked=checked.has(e.dataset.source);});
     const focusTarget=focusQuestion!==undefined?el.querySelector(`[data-question="${CSS.escape(focusQuestion)}"]`):focusName?el.querySelector(`[name="${CSS.escape(focusName)}"]`):null;
-    if(state.busy)el.querySelectorAll('input,textarea,select,[data-phone]').forEach(e=>{if(!['minimize','close'].includes(e.dataset.phone))e.disabled=true;});
+    if(state.busy)el.querySelectorAll('input,textarea,select,[data-phone]').forEach(e=>{if(!['minimize','close','pause-dialer'].includes(e.dataset.phone))e.disabled=true;});
     if(!state.status)el.querySelector('[data-phone=start]')?.setAttribute('disabled','');
     Portal.PhoneTray?.update(state);
     if(focusTarget){focusTarget.focus({preventScroll:true});try{focusTarget.setSelectionRange(caret,caretEnd);}catch{}}
@@ -120,7 +205,7 @@
     clearTimeout(state.saveTimer);if(state.dirty&&state.call)await saveNotes();
     if(ticket!==state.openSequence)return false;
     if(state.panel)state.panel.innerHTML='';
-    state.error='';state.minimized=false;state.outcomeRequested=false;state.deviceCheckRequired=false;state.checkMessage='';state.entry=input.entry||null;state.prepared=input;state.notes='';state.answers={};state.contacts=[];state.appointments=[];state.media=null;state.followupOptions=null;state.policyDate='';state.usePolicy=false;state.wrapId='';state.wrapPayload=null;state.dirty=false;state.localId=uid();
+    state.error='';state.minimized=false;state.outcomeRequested=false;state.deviceCheckRequired=false;state.checkMessage='';state.entry=input.entry||null;state.prepared=input;state.notes='';state.answers={};state.contacts=[];state.appointments=[];state.media=null;state.analysis=null;state.analysisPrompt='';state.analysisQuestion='';state.analysisError='';state.analysisBusy=false;state.analysisRequest=null;state.analysisOpen=false;state.followupOptions=null;state.policyDate='';state.usePolicy=false;state.wrapId='';state.wrapPayload=null;state.dirty=false;state.localId=uid();
     if(input.call_id){
       // Synchronous shell during browser-history restoration.
       state.call=null;state.loadingCall=true;render();let detail;
@@ -142,6 +227,7 @@
     if(!state.call&&!state.prepared.customer_number&&!state.entry){const contact=state.contacts.find(c=>c.primary&&c.phone)||state.contacts.find(c=>c.phone);if(contact){Object.assign(state.prepared,{contact_id:contact.id,customer_name:contact.name,customer_number:contact.phone});const form=state.panel;if(form?.querySelector('[name=customer_number]')?.value===''){form.querySelector('[name=customer_name]').value=contact.name;form.querySelector('[name=customer_number]').value=contact.phone;}}}
   }
   async function start(){
+    if(dialer.active){clearInterval(dialer.timer);dialer.timer=0;dialer.deadline=0;if(state.entry?.id)dialer.seen.add(state.entry.id);}
     const values=readForm();if(!values.customer_number)throw new Error('Enter a phone number.');
     const dialed=values.customer_number.startsWith('+')?values.customer_number:`${values.country_code||'+1'}${values.customer_number.replace(/\D/g,'')}`;
     if(!/^\+[1-9]\d{7,14}$/.test(dialed))throw new Error('Choose a contact or enter a valid phone number.');
@@ -185,10 +271,12 @@
     const id=state.call.id;
     const result=await request(`calls/${encodeURIComponent(id)}`);if(state.call?.id!==id)return;
     if(result.call.owner_user_id===ui.user()&&!terminal.has(result.call.state)&&(!state.lastLease||Date.now()-state.lastLease>30000)){await request(`calls/${encodeURIComponent(id)}/lease`,{});state.lastLease=Date.now();}
-    const prior=state.call;state.call=result.call;state.detail=result;
+    const prior=state.call,priorPermissions=state.detail?.permissions;state.call=result.call;state.detail=result;
     if(!state.dirty){state.notes=state.call.notes||'';state.answers=state.call.metadata?.script_answers||{};}
     // Preserve the user's caret and unsaved form values; redraw only a call-state transition.
-    if(prior.state!==state.call.state||prior.wrap_up_state!==state.call.wrap_up_state||JSON.stringify(prior.metadata?.capture)!==JSON.stringify(state.call.metadata?.capture)||JSON.stringify(prior.metadata?.transfer)!==JSON.stringify(state.call.metadata?.transfer))render();
+    if(prior.state!==state.call.state||prior.wrap_up_state!==state.call.wrap_up_state||JSON.stringify(prior.metadata?.capture)!==JSON.stringify(state.call.metadata?.capture)||JSON.stringify(prior.metadata?.transfer)!==JSON.stringify(state.call.metadata?.transfer)||JSON.stringify(priorPermissions)!==JSON.stringify(state.detail?.permissions)||JSON.stringify(state.lastSupervision)!==JSON.stringify(state.detail?.supervision))render();
+    state.lastSupervision=state.detail?.supervision;
+    if((callPermission('analyze')||callPermission('analysis_read'))&&state.analysis&&(state.analysisOpen||state.analysis.notes?.some(n=>['pending','running'].includes(n.state)))){const analysis=await request(`calls/${encodeURIComponent(id)}/analysis`);if(state.call?.id!==id)return;state.analysis=analysis;render();}
     changed();updateTransferDialog();
   }
   function schedulePoll(){clearTimeout(state.poll);state.poll=setTimeout(async()=>{try{await poll();}catch(error){state.error=error.message;}finally{if(state.call)schedulePoll();}},document.hidden?10000:2000);}
@@ -248,11 +336,15 @@
     window.dispatchEvent(new CustomEvent('fm:customer-calls:next',{detail:{entry_id:entryId,skip}}));
   }
   async function handle(name,button){
+    if(name==='pause-dialer'){pauseDialer();render();return;}
+    if(name==='resume-dialer'){try{state.error='';await startDialer({id:dialer.listId,title:dialer.title,departmentId:dialer.departmentId});}catch(error){state.error=error.message;render();}return;}
     if(name==='new-call'){if(state.status?.settings?.require_disposition&&state.call?.wrap_up_state!=='saved')return;await saveNotes();state.call=null;await open();return;}
     if(name==='connect'){try{await connect();state.panel?.querySelector('[name=mode]')?.remove();render();}catch(error){state.error=error.message;render();}return;}
     if(name==='dismiss-check'&&!state.busy){state.deviceCheckRequired=false;state.checkMessage='';state.error='';render();return;}
     if(name==='minimize'){state.minimized=!state.minimized;render();return;}
     if(name==='close'){
+      if(dialer.active)pauseDialer();
+      if(state.detail?.supervision?.session&&!['ended','failed','taken_over'].includes(state.detail.supervision.session.state)){state.minimized=true;render();return;}
       if(state.busy&&!state.waitingToCall){state.minimized=false;render();return;}
       const c=state.call,observer=c?.owner_user_id&&c.owner_user_id!==ui.user()&&!state.status?.permissions?.manage;
       if(c&&!observer&&c.wrap_up_state!=='saved'&&(state.status?.settings?.require_disposition||!terminal.has(c.state)&&c.mode==='browser')){
@@ -264,9 +356,11 @@
       try{await saveNotes();}catch(error){state.error=error.message;render();return;}
       state.openSequence++;state.loadingCall=false;state.panel.hidden=true;state.call=null;state.entry=null;state.prepared={};void disconnect().catch(()=>{});clearTimeout(state.poll);Portal.navigation?.backOrClose?.(['customerCall','communicationsEntry'],{customerCall:null,communicationsEntry:null});return;
     }
-    if(state.busy)return;state.busy=true;state.error='';state.panel?.querySelectorAll('input,textarea,select,[data-phone]').forEach(e=>{if(!['minimize','close'].includes(e.dataset.phone))e.disabled=true;});
+    if(state.busy)return;state.busy=true;state.error='';state.panel?.querySelectorAll('input,textarea,select,[data-phone]').forEach(e=>{if(!['minimize','close','pause-dialer'].includes(e.dataset.phone))e.disabled=true;});
     try{
-      if(name==='start')await start();else if(name==='wrap')await wrap();else if(name==='save-notes')await saveNotes();else if(name==='skip'||name==='next')await next(name==='skip');
+      if(name==='supervise'){if(button.dataset.mode==='takeover'){dialog('Take over this call', '<p>You will become the caller. Your teammate will leave the call.</p>',async()=>{await supervise('takeover');render();},{submit:'Take over'});}else await supervise(button.dataset.mode);}
+      else if(name.startsWith('analysis-'))await analyze(name.slice(9),button);
+      else if(name==='start')await start();else if(name==='wrap')await wrap();else if(name==='save-notes')await saveNotes();else if(name==='skip'||name==='next')await next(name==='skip');
       else if(name==='diagnose'){
         state.checkMessage='Checking microphone and network…';render();
         const result=await diagnose({inline:!!Portal.PhoneTray});state.deviceChecked=['ready','degraded'].includes(result.result?.verdict);
@@ -286,8 +380,8 @@
       else if(name==='artifacts')await artifacts();
       else if(name==='delete-artifact')removeArtifact(button.dataset.artifact);
       else await action(name);
-    }catch(error){if(error.code==='device_check_required'){state.deviceChecked=false;state.deviceCheckRequired=true;state.checkMessage='';}else if(error.name!=='AbortError')state.error=error.message;}
-    finally{state.busy=false;if(state.panel&&!state.panel.hidden){render();if(name==='artifacts')state.panel.querySelector('[data-artifacts]')?.scrollIntoView({block:'nearest'});}}
+    }catch(error){if(dialer.active)pauseDialer('Automatic dialing paused. Review the phone error before continuing.');if(error.code==='device_check_required'){state.deviceChecked=false;state.deviceCheckRequired=true;state.checkMessage='';}else if(error.name!=='AbortError')state.error=error.message;}
+    finally{state.busy=false;queueMicrotask(()=>void advanceDialer());if(state.panel&&!state.panel.hidden){render();if(name==='artifacts')state.panel.querySelector('[data-artifacts]')?.scrollIntoView({block:'nearest'});}}
   }
   async function loadSDK(){
     if(window.TelnyxWebRTC?.TelnyxRTC)return;
@@ -332,7 +426,9 @@
         }
         if(['hangup','destroy'].includes(call.state)){state.sdkCall=null;state.muted=false;void poll().catch(()=>{});}else if(state.call)render();
       });
-      client.on('telnyx.error',error=>{if(!valid())return;state.error=error?.message||'Phone connection failed. Try your call again.';state.registered=false;state.available=false;connectionChanged();});
+      client.on('telnyx.error',error=>{if(!valid())return;if(dialer.active)pauseDialer('Phone disconnected. Automatic dialing paused.');state.error=error?.message||'Phone connection failed. Try your call again.';state.registered=false;state.available=false;connectionChanged();});
+      const dialerConnectionLost=()=>{if(!valid())return;if(dialer.active)pauseDialer('Phone disconnected. Automatic dialing paused.');state.error='Phone disconnected. Check your network connection.';state.registered=false;state.available=false;connectionChanged();};
+      client.on('telnyx.socket.close',dialerConnectionLost);client.on('telnyx.socket.error',dialerConnectionLost);
       await new Promise((resolve,reject)=>{
         const finish=error=>{clearTimeout(timeout);if(valid())state.cancelConnection=null;error?reject(error):resolve();};
         const timeout=setTimeout(()=>finish(new Error('Could not connect. Check your network and try your call again.')),20000);
@@ -439,20 +535,20 @@
     // The global phone survives app navigation, including an ended call awaiting its outcome.
   }});
   // Do not send a delayed server disconnect that could revoke the reloaded tab.
-  window.addEventListener('pagehide',()=>stopConnection());
+  window.addEventListener('pagehide',()=>{pauseDialer();stopConnection();});
   window.addEventListener('pageshow',event=>{if(event.persisted&&state.panel&&!state.panel.hidden)autoConnect();});
   window.addEventListener('beforeunload',event=>{if((state.call?.mode==='browser'&&!terminal.has(state.call.state))||state.dirty){event.preventDefault();event.returnValue='';}});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&state.panel&&!state.panel.hidden&&!document.querySelector('dialog[open]')){state.minimized=true;render();}});
   window.addEventListener('fm:platform-session:updated',()=>{
     if(!ui.org()||(state.boundScope&&state.boundScope!==scope())){
-      state.openSequence++;state.loadingCall=false;
+      pauseDialer();dialer.listId='';state.openSequence++;state.loadingCall=false;
       if(state.dirty)persistLocal();stopConnection();state.deviceChecked=false;state.deviceCheckRequired=false;state.client=null;state.sdkCall=null;state.registered=false;state.available=false;
       clearInterval(state.heartbeat);clearTimeout(state.poll);clearTimeout(state.tokenTimer);clearTimeout(state.saveTimer);
       if(state.panel)state.panel.hidden=true;state.call=null;state.status=null;Portal.PhoneTray?.reset?.();state.dirty=false;state.notes='';state.answers={};state.boundScope='';changed();
     }
     if(ui.org()&&ui.user())void Portal.navigation?.applyCurrent?.({source:'phone-session-ready',only:'customer-call-workspace'});
   });
-  Portal.CustomerPhone={open,connect,disconnect,availability,diagnose,devices,refreshStatus,saveNotes,get state(){return state;},get deviceId(){return deviceId;},
+  Portal.CustomerPhone={startDialer,pauseDialer,get dialer(){return dialer;},open,connect,disconnect,availability,diagnose,devices,refreshStatus,saveNotes,get state(){return state;},get deviceId(){return deviceId;},
     get diagnostic(){return state.diagnostic;},
     get connecting(){return state.connecting;},get status(){return state.status;},get connected(){return state.registered;},get available(){return state.available;},get currentCall(){return state.call;},get currentEntry(){return state.panel&&!state.panel.hidden?state.entry?.id:null;}};
   Portal.Communications=Portal.Communications||{};Portal.Communications.open=open;

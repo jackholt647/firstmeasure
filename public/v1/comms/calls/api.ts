@@ -1,3 +1,5 @@
+import { superviseCall, supervisionView } from './supervision.js';
+import { readCallAnalysis, generateCallAnalysis } from './analysis.js';
 import { completeDevelopmentOnboarding } from './development.js';
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
@@ -25,6 +27,13 @@ const param=(req:FastifyRequest,key:string)=>text(object(req.params)[key]);
 const query=(req:FastifyRequest)=>object(req.query);
 async function auth(req:FastifyRequest,write=false,admin=false){const ctx=await requirePlatformAuth(req,{orgId:param(req,"orgId"),csrf:write,capability:'apps.comms',...(admin?{permission:'manage_communications|manage_company_settings'}:{})});
   if(!canUseScopedPermission(ctx,write?'make_calls|send_comms|send_communications|manage_projects|manage_communications|manage_company_settings':'view_comms|view_projects|manage_projects|manage_communications|manage_company_settings'))throw forbidden('call_access_denied','You do not have access to customer calls.');return ctx;}
+// Endpoint lifecycle and supervisor actions need the caller's phone capability,
+// while each operation still authorizes its actual call and exact permission.
+async function phoneAuth(req:FastifyRequest){
+  const ctx=await requirePlatformAuth(req,{orgId:param(req,'orgId'),csrf:true,capability:'apps.comms'});
+  if(!canUseScopedPermission(ctx,'make_calls|send_comms|send_communications|manage_projects|manage_communications|manage_company_settings|listen_calls|whisper_calls|barge_calls|takeover_calls'))throw forbidden('call_access_denied','You do not have access to the phone.');
+  return ctx;
+}
 const body=(req:FastifyRequest)=>object(req.body);
 const boundedId=z.string().min(8).max(180);
 
@@ -63,7 +72,9 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   app.post("/organizations/:orgId/calls",async(req,reply)=>{const ctx=await auth(req,true);const call=await createCall(ctx,body(req));return reply.code(201).send({ok:true,call});});
   app.get("/organizations/:orgId/calls/:callId",async req=>{
     const ctx=await auth(req);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,"callId"))));
-    return {ok:true,call,work:(await Promise.all(s.strings(call.metadata.source_node_ids).map(async id=>(await readNodeRecord(ctx.orgId,id))))).filter(Boolean).map(node=>({id:node!.id,title:node!.title,status:node!.status})),legs:(await s.legs(ctx.orgId,call.id)).map(l=>({id:l.id,role:l.role,state:l.state})),events:(await s.callEvents(ctx.orgId,call.id)),operations:(await s.jobs(ctx.orgId,call.id))};
+    const artifacts=hasResourcePermission(ctx,"view_call_recordings|manage_communications|manage_company_settings",callDepartmentResource(call))
+      ?(await s.artifacts(ctx.orgId,call.id)).filter(a=>text(a.expires_at)>s.now()).map(a=>({id:a.id,kind:a.kind,state:a.state,expires_at:a.expires_at})):[];
+    return {ok:true,call,artifacts,permissions:{record:hasResourcePermission(ctx,'record_calls|manage_communications|manage_company_settings',callDepartmentResource(call)),recordings:hasResourcePermission(ctx,'view_call_recordings|manage_communications|manage_company_settings',callDepartmentResource(call)),analysis_read:hasResourcePermission(ctx,'view_call_recordings',callDepartmentResource(call)),analyze:hasResourcePermission(ctx,'analyze_call_recordings',callDepartmentResource(call))&&hasResourcePermission(ctx,'view_call_recordings',callDepartmentResource(call))},supervision:await supervisionView(ctx,call),work:(await Promise.all(s.strings(call.metadata.source_node_ids).map(async id=>(await readNodeRecord(ctx.orgId,id))))).filter(Boolean).map(node=>({id:node!.id,title:node!.title,status:node!.status})),legs:(await s.legs(ctx.orgId,call.id)).map(l=>({id:l.id,role:l.role,state:l.state})),events:(await s.callEvents(ctx.orgId,call.id)),operations:(await s.jobs(ctx.orgId,call.id))};
   });
   app.get('/organizations/:orgId/calls/:callId/follow-up-options',async req=>{const ctx=await auth(req);return {ok:true,...await followUpOptions(requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,'callId')))))};});
   app.patch("/organizations/:orgId/calls/:callId/draft",async req=>({ok:true,call:(await saveDraft(await auth(req,true),param(req,"callId"),body(req)))}));
@@ -73,8 +84,18 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
     return {ok:true};
   });
   app.post("/organizations/:orgId/calls/:callId/wrap-up",async req=>({ok:true,...await saveWrapUp(await auth(req,true),param(req,"callId"),body(req))}));
+  app.get('/organizations/:orgId/calls/:callId/supervision',async req=>{
+    const ctx=await auth(req),call=requireCallAccess(ctx,await s.readCall(ctx.orgId,param(req,'callId')));
+    return {ok:true,supervision:await supervisionView(ctx,call)};
+  });
+  app.post('/organizations/:orgId/calls/:callId/supervision',async req=>({ok:true,...await superviseCall(await phoneAuth(req),param(req,'callId'),body(req))}));
+  app.get('/organizations/:orgId/calls/:callId/analysis',async req=>({ok:true,...await readCallAnalysis(await auth(req),param(req,'callId'))}));
+  app.post('/organizations/:orgId/calls/:callId/analysis',async(req,reply)=>{
+    const ctx=await requirePlatformAuth(req,{orgId:param(req,'orgId'),csrf:true,capability:'apps.comms'});
+    return reply.code(202).send({ok:true,...await generateCallAnalysis(ctx,param(req,'callId'),body(req))});
+  });
   app.post("/organizations/:orgId/calls/:callId/actions",async req=>{
-    const ctx=await auth(req,true);const action=text(body(req).action);
+    const ctx=await phoneAuth(req);const action=text(body(req).action);
     if(action.startsWith("record_")||action==="consent")if(!hasResourcePermission(ctx,"record_calls|manage_communications|manage_company_settings",callDepartmentResource(requireCallAccess(ctx,await s.readCall(ctx.orgId,param(req,"callId"))))))throw forbidden("recording_forbidden","You do not have permission to record calls.");
     return {ok:true,...(await callAction(ctx,param(req,"callId"),body(req)))};
   });
@@ -160,20 +181,20 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   app.post("/organizations/:orgId/voice/numbers",async req=>({ok:true,...await bindNumber(await auth(req,true,true),body(req))}));
   app.delete("/organizations/:orgId/voice/numbers/:number",async req=>({ok:true,number:await disconnectNumber(await auth(req,true,true),param(req,"number"))}));
   app.post("/organizations/:orgId/voice/endpoint/token",async(req,reply)=>{
-    const ctx=await auth(req,true);const input=z.object({device_id:boundedId}).parse(body(req));reply.header("Cache-Control","no-store");return {ok:true,...await endpointToken(ctx,input.device_id)};
+    const ctx=await phoneAuth(req);const input=z.object({device_id:boundedId}).parse(body(req));reply.header("Cache-Control","no-store");return {ok:true,...await endpointToken(ctx,input.device_id)};
   });
   app.post("/organizations/:orgId/voice/endpoint/presence",async req=>{
-    const ctx=await auth(req,true);const input=z.object({device_id:boundedId,registered:z.boolean(),availability:z.enum(["available","unavailable"])}).parse(body(req));const result=(await presence(ctx,input));
+    const ctx=await phoneAuth(req);const input=z.object({device_id:boundedId,registered:z.boolean(),availability:z.enum(["available","unavailable"])}).parse(body(req));const result=(await presence(ctx,input));
     return {ok:true,availability:result.availability,offered_call_id:result.offered_call_id};
   });
-  app.post("/organizations/:orgId/voice/endpoint/disconnect",async req=>{const ctx=await auth(req,true);await disconnectEndpoint(ctx,boundedId.parse(body(req).device_id));return {ok:true};});
+  app.post("/organizations/:orgId/voice/endpoint/disconnect",async req=>{const ctx=await phoneAuth(req);await disconnectEndpoint(ctx,boundedId.parse(body(req).device_id));return {ok:true};});
   app.post("/organizations/:orgId/voice/diagnostics",async req=>{
-    const ctx=await auth(req,true);const input=z.object({device_id:boundedId,microphone:z.enum(["ready","denied","unavailable"]),connectivity:z.enum(["ready","blocked","inconclusive"]),provider_verdict:z.string().max(60),metrics:z.object({rtt_ms:z.number().nonnegative().max(60000),jitter_ms:z.number().nonnegative().max(60000),packet_loss_percent:z.number().min(0).max(100)}).optional()}).parse(body(req));return {ok:true,result:(await saveDiagnostic(ctx,input))};
+    const ctx=await phoneAuth(req);const input=z.object({device_id:boundedId,microphone:z.enum(["ready","denied","unavailable"]),connectivity:z.enum(["ready","blocked","inconclusive"]),provider_verdict:z.string().max(60),metrics:z.object({rtt_ms:z.number().nonnegative().max(60000),jitter_ms:z.number().nonnegative().max(60000),packet_loss_percent:z.number().min(0).max(100)}).optional()}).parse(body(req));return {ok:true,result:(await saveDiagnostic(ctx,input))};
   });
-  app.post("/organizations/:orgId/voice/diagnostics/start",async req=>({ok:true,...(await startDiagnostic(await auth(req,true),boundedId.parse(body(req).device_id)))}));
+  app.post("/organizations/:orgId/voice/diagnostics/start",async req=>({ok:true,...(await startDiagnostic(await phoneAuth(req),boundedId.parse(body(req).device_id)))}));
   app.get("/organizations/:orgId/voice/center",async req=>{
     const ctx=await auth(req);const filters=callListDepartmentFilter(ctx,{...query(req),active:true});const calls=await s.listCalls(ctx.orgId,filters);
-    return {ok:true,...calls,department_context:relevantDepartmentContext(ctx),agents:(await s.resources(ctx.orgId,"endpoint")).filter(e=>!Array.isArray(filters._department_ids)||ctx.organizationStructure?.users.find(u=>u.id===e.user_id)?.department_ids.some(id=>(filters._department_ids as string[]).includes(id))).map(e=>({user_id:e.user_id,name:e.name,availability:text(e.heartbeat_at)<new Date(Date.now()-45_000).toISOString()?"offline":e.availability}))};
+    return {ok:true,...calls,calls:await Promise.all(calls.calls.map(async call=>({...call,supervision:await supervisionView(ctx,call)}))),department_context:relevantDepartmentContext(ctx),agents:(await s.resources(ctx.orgId,"endpoint")).filter(e=>!Array.isArray(filters._department_ids)||ctx.organizationStructure?.users.find(u=>u.id===e.user_id)?.department_ids.some(id=>(filters._department_ids as string[]).includes(id))).map(e=>({user_id:e.user_id,name:e.name,availability:text(e.heartbeat_at)<new Date(Date.now()-45_000).toISOString()?"offline":e.availability}))};
   });
   // Isolated parser: signatures must be checked against the original bytes, never reserialized JSON.
   await app.register(async webhook=>{

@@ -1,13 +1,15 @@
 import { developmentCallStatus } from './development.js';
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { hasPermission, type PlatformAuthContext } from "../../platform/auth.js";
+import { type PlatformAuthContext } from "../../platform/auth.js";
 import { badRequest, conflict, forbidden } from "../../platform/errors.js";
 import { findPhoneNumberOwner, listSenderIdentities } from "../../messaging/communications_storage.js";
 import { TelnyxError } from '../../messaging/telnyx.js';
 import { voiceClient, voiceMode, voiceEnvironmentStatus, requireVoiceEnvironment } from "../../telephony/telnyx.js";
 import { voiceSettings, diagnosticVerdict, validateVoiceSettings, updateVoiceSettings } from "./settings.js";
-import { requireCallAccess, manageCalls } from "./service.js";
+import { requireCallAccess, manageCalls, callDepartmentResource } from "./service.js";
+import { canUseScopedPermission, hasResourcePermission } from '../../workforce/department-access.js';
+import { activeSupervisionCallId, supervisionCallControl, supervisionPermissions } from './supervision.js';
 import * as s from "./storage.js";
 import { text, object, type Json, type CustomerCall } from "./storage.js";
 
@@ -15,7 +17,7 @@ export async function voiceStatus(ctx:PlatformAuthContext){
   const settings=(await voiceSettings(ctx.orgId));const endpoint=(await s.resource(ctx.orgId,"endpoint",ctx.userId));
   const environment=voiceEnvironmentStatus();
   return {settings,branch_id:ctx.branchId||'default',development:await developmentCallStatus(ctx.orgId),environment:manageCalls(ctx)?environment:{mode:environment.mode,ready:environment.api_key_configured&&environment.webhook_key_configured&&environment.public_https},
-    permissions:{manage:manageCalls(ctx),record:hasPermission(ctx,'record_calls|manage_communications|manage_company_settings'),recordings:hasPermission(ctx,'view_call_recordings|manage_communications|manage_company_settings')},
+    permissions:{manage:manageCalls(ctx),record:canUseScopedPermission(ctx,'record_calls|manage_communications|manage_company_settings'),recordings:canUseScopedPermission(ctx,'view_call_recordings|manage_communications|manage_company_settings'),...Object.fromEntries(Object.entries(supervisionPermissions).map(([mode,permission])=>[mode,canUseScopedPermission(ctx,permission)]))},
     available_numbers:manageCalls(ctx)?(await s.database().prepare("SELECT phone_number FROM messaging_phone_number_ownership WHERE organization_id=? AND provider_phone_number_id<>''").all(ctx.orgId)).map(row=>text(object(row).phone_number)):[],
     resources:manageCalls(ctx)?[...(await s.resources(ctx.orgId,"application")),...(await s.resources(ctx.orgId,"connection")),...(await s.resources(ctx.orgId,"outbound_profile"))].map(r=>({id:r.id,kind:r.kind,status:r.status,provider_id:r.provider_id})):[],
     numbers:(await s.resources(ctx.orgId,"number")).map(n=>({id:n.id,phone_number:n.phone_number,label:n.label,status:n.status,branch_id:n.branch_id,assigned_user_id:n.assigned_user_id||''})),
@@ -115,7 +117,7 @@ async function createEndpointToken(ctx:PlatformAuthContext,deviceId:string){
   let endpoint=current;
   if(!endpoint?.provider_id||endpoint.session_id!==ctx.sessionId||Date.parse(text(endpoint.credential_expires_at))<Date.now()+settings.max_call_minutes*60000+300_000){
     if(current?.provider_id){
-      if((await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total)throw conflict('call_in_progress','Finish this call before renewing the phone credential.');
+      if((await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total||await activeSupervisionCallId(ctx.orgId,ctx.userId))throw conflict('call_in_progress','Finish this call before renewing the phone credential.');
       await voiceClient().revokeCredential(text(current.provider_id));
     }
     const credentialName=`FirstMate ${s.id('user',`${ctx.orgId}:${ctx.userId}:${ctx.sessionId}`)}`;
@@ -143,14 +145,15 @@ export async function presence(ctx:PlatformAuthContext,input:Json){
   if(!endpoint||endpoint.device_id!==input.device_id||endpoint.session_id!==ctx.sessionId)throw conflict("phone_owner_changed","This browser no longer owns your phone session.");
   if(text((await s.resource(ctx.orgId,'endpoint_lock',ctx.userId))?.expires_at)>s.now())return {...endpoint,registered:false,availability:'unavailable'};
   let offered=false;if(text(endpoint.offered_call_id)){try{const call=(await s.readCall(ctx.orgId,text(endpoint.offered_call_id)));offered=!s.terminal.has(call.state)&&text(object(call.metadata.transfer).target_user_id)===ctx.userId&&['dialing','consulting'].includes(text(object(call.metadata.transfer).state));}catch{}}
-  const active=offered||(await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total>0;
+  const supervisionCallId=await activeSupervisionCallId(ctx.orgId,ctx.userId);
+  const active=offered||!!supervisionCallId||(await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total>0;
   const availability=input.registered===true&&!active&&input.availability==="available"?"available":active?"busy":"unavailable";
-  return (await s.saveResource(ctx.orgId,"endpoint",ctx.userId,{...endpoint,offered_call_id:offered?endpoint.offered_call_id:'',registered:input.registered===true,availability,heartbeat_at:s.now()}));
+  return (await s.saveResource(ctx.orgId,"endpoint",ctx.userId,{...endpoint,offered_call_id:supervisionCallId||(offered?endpoint.offered_call_id:''),registered:input.registered===true,availability,heartbeat_at:s.now()}));
 }
 export async function disconnectEndpoint(ctx:PlatformAuthContext,deviceId:string){
   return withEndpointLease(ctx.orgId,ctx.userId,async()=>{
   const endpoint=(await s.resource(ctx.orgId,"endpoint",ctx.userId));if(!endpoint||endpoint.device_id!==deviceId||endpoint.session_id!==ctx.sessionId)return;
-  if((await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total)throw conflict("call_in_progress","End or transfer the active call before disconnecting your phone.");
+  if((await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total||await activeSupervisionCallId(ctx.orgId,ctx.userId))throw conflict("call_in_progress","End or leave the active call before disconnecting your phone.");
   (await s.saveResource(ctx.orgId,'endpoint',ctx.userId,{...endpoint,registered:false,availability:'unavailable'}));
   if(endpoint.provider_id)await voiceClient().revokeCredential(text(endpoint.provider_id));
   (await s.database().prepare("DELETE FROM customer_voice_resources WHERE organization_id=? AND kind='endpoint' AND id=?").run(ctx.orgId,ctx.userId));
@@ -167,7 +170,7 @@ export async function startDiagnostic(ctx:PlatformAuthContext,deviceId:string){
   if(!endpoint?.provider_id||!app?.provider_id||endpoint.session_id!==ctx.sessionId||endpoint.device_id!==deviceId||endpoint.registered!==true||text(endpoint.heartbeat_at)<new Date(Date.now()-45000).toISOString())throw conflict("phone_not_ready","Connect your browser phone first.");
   return (await s.transaction(async ()=>{
     const active=(await s.listCalls(ctx.orgId,{active:true,include_diagnostics:true}));
-    if(active.calls.some(c=>c.owner_user_id===ctx.userId))throw conflict("call_in_progress","Run the device check between calls.");
+    if(active.calls.some(c=>c.owner_user_id===ctx.userId)||await activeSupervisionCallId(ctx.orgId,ctx.userId))throw conflict("call_in_progress","Run the device check between calls.");
     const recent=Number(object((await s.database().prepare("SELECT count(*) AS n FROM customer_calls WHERE organization_id=? AND mode='diagnostic' AND created_at>?").get(ctx.orgId,new Date(Date.now()-86400000).toISOString()))).n);
     if(recent>=50)throw conflict("diagnostic_daily_limit","The organization has reached today's device-check limit.");
     const number=(await s.resources(ctx.orgId,"number")).find(n=>n.status==='active');if(!number)throw conflict("voice_number_required","Connect a business number first.");
@@ -184,12 +187,14 @@ export const callActionSchema=z.object({operation_id:z.string().min(8).max(180),
   digits:z.string().regex(/^[0-9*#wW]{1,32}$/).optional(),consent:z.enum(["granted","refused","withdrawn"]).optional(),target_user_id:z.string().max(180).optional(),transfer_mode:z.enum(["warm","cold"]).default("warm")});
 export async function callAction(ctx:PlatformAuthContext,callId:string,input:unknown){
   const body=callActionSchema.parse(input);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,callId)));
+  if(await supervisionCallControl(ctx,call,body))return {call:await s.readCall(ctx.orgId,callId)};
   const consultation=text(object(call.metadata.transfer).target_user_id)===ctx.userId&&call.owner_user_id!==ctx.userId&&['dialing','consulting'].includes(text(object(call.metadata.transfer).state));
   if(consultation&&['accept','decline','hangup'].includes(body.action)){
     const leg=(await s.legs(ctx.orgId,callId)).find(l=>l.role==='consult'&&l.state!=='ended');if(!leg)throw conflict('consult_not_ready','The consultation is still connecting.');
     (await s.transaction(async ()=>{const op=(await s.operation(ctx.orgId,'action',body.operation_id,call.id,{...body,actor:ctx.userId}));if(!op.existing){(await providerCommand(call,text(leg.control_id),body.action==='accept'?'answer':'hangup',{},op.id));(await s.finishOperation(ctx.orgId,op.id,{call_id:call.id}));}}));return {call};
   }
   requireCallAccess(ctx,call,true);
+  if((body.action.startsWith('record_')||body.action==='consent')&&!hasResourcePermission(ctx,'record_calls|manage_communications|manage_company_settings',callDepartmentResource(call)))throw forbidden('recording_forbidden','You do not have permission to record this call.');
   if(call.mode==='diagnostic'&&body.action!=='hangup')throw conflict("diagnostic_controls","Only ending the check is supported.");
   if(!['browser','diagnostic'].includes(call.mode))throw conflict("external_call_controls","External-phone calls do not have browser call controls.");
   if(s.terminal.has(call.state))return {call};
