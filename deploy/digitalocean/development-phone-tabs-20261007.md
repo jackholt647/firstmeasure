@@ -34,3 +34,11 @@ outbound safety enforced. The public phone script hash matched the tested file.
 Rollback: inspect any later release first, then restore each role's previous
 `current` symlink to `cb106be0...`, restart its development service, and verify
 readiness and the served asset. There was no schema migration or data rewrite.
+
+Follow-up release `bacae7582ea1936d0a38053d8b1e746402e8e570` removed the
+remaining Create follow-up option from the phone outcome panel and clarified
+the external-phone copy. The phone browser test passed again. A guarded
+frontend-only overlay activated on web, pool, and compatibility from `eba427aa`;
+all three passed local readiness. Public readiness returned 200 for `bacae758`
+and the served calling runtime matched the tested SHA-256 hash. For this final
+release, rollback first to `eba427aa` if no later release has superseded it.
