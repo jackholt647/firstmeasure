@@ -61,13 +61,26 @@ test('choosing options on the slides changes the price, and the review leads bac
   // The estimate shows what was chosen and the same total; "Change" returns to that slide.
   await page.evaluate(()=>player.goTo(8,'end',{animate:false}));
   await page.waitForTimeout(500);
+  // The total has cents and still fits its box.
+  assert.ok(await shown('[data-part-assembly="asm_total"][data-part-role="value"]').evaluate(el=>{const run=el.querySelector('span');return run.getBoundingClientRect().right<=el.getBoundingClientRect().right+1;}),'the amount is not cut off');
+  // Slides step on with the mouse: Next on a choice slide, and a drag.
+  await page.evaluate(()=>player.goTo(4,'end',{animate:false}));
+  await shown('[data-node-id="choose_shingles_next"]').click();
+  await page.waitForFunction(()=>player.position().page_id==='choose_underlayment');
+  await page.mouse.move(300,300);await page.mouse.down();await page.mouse.move(520,310,{steps:6});await page.mouse.up();
+  await page.waitForFunction(()=>player.position().page_id==='choose_shingles');
+  await page.evaluate(()=>player.goTo(8,'end',{animate:false}));
+  await page.waitForTimeout(300);
   assert.match(await shown('[data-part-assembly="asm_review"][data-part-role="review.value"]').first().innerText(),/GAF Timberline UHDZ/);
-  assert.equal((await shown('[data-part-assembly="asm_total"][data-part-role="value"]').innerText()).trim(),'$'+((await total())/100).toLocaleString('en-US'));
+  assert.equal((await shown('[data-part-assembly="asm_total"][data-part-role="value"]').innerText()).trim(),'$'+((await total())/100).toLocaleString('en-US',{minimumFractionDigits:2}));
   await shown('[data-part-assembly="asm_review"][data-part-role="review.edit"]').nth(1).click();
   assert.equal(await page.evaluate(()=>player.position().page_id),'choose_underlayment');
   // Buttons on slides are nodes with an action.
   await page.evaluate(()=>player.goTo(8,'end',{animate:false}));
-  await shown('[data-node-id="est_next"]').click();
+  // From the estimate: send it and skip the signature, or go and sign.
+  await shown('[data-node-id="est_send"]').click();
+  assert.equal(await page.evaluate(()=>window.lastAction),'send');
+  await shown('[data-node-id="est_sign"]').click();
   await page.waitForFunction(()=>player.position().page_id==='sign');
   await page.waitForTimeout(700);
   await shown('[data-node-id="sign_accept"]').click();

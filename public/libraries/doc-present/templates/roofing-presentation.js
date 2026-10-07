@@ -210,6 +210,8 @@
         line(id + '_lead', 'Leader', 356, layerY, 248, 1, [[0, 0.5], [1, 0.5]], ACCENT, 1.75),
         rect(id + '_lead_dot', 'Leader dot', 351, layerY - 4, 10, 10, ACCENT, { radius: 5 }),
         rect(id + '_panel', 'Options panel', 604, 0, 356, H, SOFT),
+        button(id + '_back', 'Back', 72, 478, 92, { type: 'back' }, false),
+        button(id + '_next', 'Next', 174, 478, 110, { type: 'next' }, true),
         assembly('choice_selection', 'stack', { id: 'asm_' + key, name: LAYERS[index].name + ' options', x: 632, y: 56, w: 300, h: 428, config: { source: { kind: 'group', id: groupId } } })
       ]), { transition: { type: 'morph', duration_ms: 800 }, steps: [
         { id: id + '_s1', name: 'Options', auto: true, actions: [{ node: id + '_lead_dot', effect: 'zoom_in', duration_ms: 300 }, { node: id + '_lead', effect: 'draw', duration_ms: 600 }] }
@@ -223,7 +225,9 @@
     slide('addons', 'Add-ons', SOFT, [
       kicker('add_k', 72, 56, 'While we are up there'),
       text('add_title', 'Title', 72, 80, 700, 44, 'Worth doing at the same time.', { size: 30, weight: 800 }),
-      assembly('choice_selection', 'panels', { id: 'asm_addons', name: 'Add-ons', x: 72, y: 150, w: 816, h: 330, config: { source: { kind: 'addons' }, keep_title: true } })
+      assembly('choice_selection', 'panels', { id: 'asm_addons', name: 'Add-ons', x: 72, y: 100, w: 816, h: 360, config: { source: { kind: 'addons' }, keep_title: true } }),
+      button('addons_back', 'Back', 72, 478, 92, { type: 'back' }, false),
+      button('addons_next', 'See my estimate', 174, 478, 170, { type: 'next' }, true)
     ], { transition: { type: 'push', direction: 'left', duration_ms: 600 } });
     // The panels preset comes with a heading; this slide has its own.
     M.walkNodes(doc, (node) => { const part = M.nodePart(node); if (part && part.assembly === 'asm_addons' && part.role === 'title') node.visible = false; });
@@ -240,7 +244,8 @@
         rect('est_rule', 'Rule', 28, 222, 232, 1, 'rgba(255,255,255,.16)'),
         assembly('price_display', 'inline', { id: 'asm_deposit', name: 'Deposit', x: 28, y: 240, w: 232, h: 26, config: { source: 'deposit' } }),
         assembly('price_display', 'inline', { id: 'asm_balance', name: 'Balance', x: 28, y: 274, w: 232, h: 26, config: { source: 'balance' } }),
-        button('est_next', 'Looks good', 28, 360, 232, { type: 'next' }, true)
+        button('est_sign', 'Sign now', 28, 322, 232, { type: 'goto', page: 'sign' }, true),
+        button('est_send', 'Send me the estimate', 28, 370, 232, { type: 'custom', name: 'send' }, false)
       ], { fill: NAVY, radius: 22, shadow: { x: 0, y: 18, blur: 44, color: 'rgba(14,26,43,.28)' } })
     ], { transition: { type: 'fade', duration_ms: 500 }, steps: [
       { id: 'est_in', name: 'Total', auto: true, actions: [{ node: 'est_card', effect: 'rise', duration_ms: 700 }] }
@@ -306,7 +311,7 @@
         option('ridge_vent', 'Ridge ventilation', 'Continuous ridge vent to keep the attic cool and dry.', 'linear-gradient(135deg,#d9c9a8,#a68f63)', 96000),
         option('skylight', 'Skylight re-flash', 'New flashing kits around both skylights.', 'linear-gradient(135deg,#bfe0f2,#6fa8cc)', 72000)
       ],
-      base_cents: 412000,
+      base_cents: 412030,
       totals: {}
     };
   }

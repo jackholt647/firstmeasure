@@ -1938,6 +1938,17 @@
         // Price book items that fit one choice group (line_items_review's
         // "Add option" search), priced from the same measurements.
         openFullPreview: async () => { await flushAllWrites(); openPreview(state.doc); },
+        // What the Review & send step offers: only what this workflow declares.
+        deliverables: async () => {
+          const options = await presentationOptions(state.doc?.id);
+          const offers = arrayValue(options.offers).length ? arrayValue(options.offers) : ['send_estimate'];
+          const presentable = canPresent(options);
+          return [
+            offers.includes('present') && presentable ? { id: 'present', label: 'Present', icon: 'fa-display', primary: options.default === 'present', title: 'Present this estimate to the customer', run: () => openPresentation() } : null,
+            offers.includes('send_estimate') ? { id: 'send_estimate', label: 'Send estimate', icon: 'fa-paper-plane', primary: options.default !== 'present' || !presentable, title: 'Send the estimate as it is', run: async () => { await flushAllWrites(); openSendModal(state.doc); } } : null,
+            offers.includes('send_presentation') && presentable ? { id: 'send_presentation', label: 'Send presentation', icon: 'fa-share-from-square', title: 'Email the customer a link to go through the presentation themselves', run: () => sendPresentation() } : null
+          ].filter(Boolean);
+        },
         scopeCandidates: async (templateId, group, measurements) => arrayValue((await window.PlatformAPI.publication.invoke(orgId(), 'pricebook.scope.candidates', { scope: 'organization', organizationId: orgId() }, { templateId, group, measurements: objectValue(measurements) })).value),
         // Pieces the server can price (pricebook.scope.generate) are built
         // there from the organization price book; the rest still use the
@@ -2109,7 +2120,7 @@
           },
           scope: { project: project() },
           onWrite: (path, value) => queueWorkflowWrite(path, value),
-          onStepState: (stepState) => persistWorkflowStepState(stepState),
+          onStepState: (stepState) => { persistWorkflowStepState(stepState); syncDeliverableButtons(objectValue(stepState).ready); },
           labels: { finish: 'Send' },
           // Finishing the workflow means the document is ready to go out —
           // open the Send flow directly (the editor stays one toggle away).
@@ -2760,7 +2771,7 @@
                 <button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-preview title="Preview"><i class="fas fa-eye"></i></button>
                 <button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-pdf title="PDF"><i class="fas fa-file-pdf"></i></button>
                 <button type="button" class="fmdx-btn fmdx-btn-more" data-fmdx-more title="More actions"><i class="fas fa-ellipsis"></i></button>
-                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn" data-fmdx-present title="Present this estimate to the customer" hidden><i class="fas fa-person-chalkboard"></i> Present</button>`)}
+                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn" data-fmdx-present title="Present this estimate to the customer" hidden><i class="fas fa-display"></i> Present</button>`)}
                 ${String(readOnly && isAmendableStatus(doc.status)
                   ? `<button type="button" class="fmdx-btn primary" data-fmdx-amend><i class="fas fa-file-medical"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_4986fc99e268e8"," Amend → Change Order") ?? " Amend → Change Order")}</button>`
                   : `<button type="button" class="fmdx-btn primary" data-fmdx-send><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c66c415b0e5570"," Send") ?? " Send")}</button>`)}
@@ -2837,9 +2848,11 @@
         presentButton.addEventListener('click', () => openPresentation());
         presentationOptions(doc.id).then((options) => {
           if (state.destroyed || state.doc?.id !== doc.id) return;
-          presentButton.hidden = !(arrayValue(options.offers).includes('present') && options.presentation && window.FMDocPresent && window.FMDocParts);
+          presentButton.hidden = !canPresent(options);
+          syncDeliverableButtons();
         });
       }
+      syncDeliverableButtons();
       root.querySelector('[data-fmdx-amend]')?.addEventListener('click', () => amendToChangeOrder(state.doc));
       const titleInput = root.querySelector('[data-fmdx-title]');
       titleInput?.addEventListener('change', async () => {
@@ -4196,6 +4209,44 @@
     }
 
     // ============================================================= present
+    const canPresent = (options) => arrayValue(objectValue(options).offers).includes('present') && !!objectValue(options).presentation && !!window.FMDocPresent && !!window.FMDocParts;
+    /**
+     * Send and Present in the header wait for the workflow: until it stands on
+     * its last step the deliverables are not ready, and the buttons say so.
+     * Outside a workflow there is nothing to wait for.
+     */
+    function syncDeliverableButtons(ready){
+      const host = state.root || document;
+      const inWorkflow = state.docView === 'workflow' && !!state.workflowHandle;
+      const isReady = !inWorkflow || (ready === undefined ? state.workflowHandle?.deliverablesReady?.() !== false : ready === true);
+      host.querySelectorAll('[data-fmdx-present],[data-fmdx-send]').forEach((button) => {
+        if (!button.dataset.readyTitle) button.dataset.readyTitle = button.getAttribute('title') || '';
+        button.disabled = !isReady;
+        button.setAttribute('title', isReady ? button.dataset.readyTitle : 'Finish the steps before Review & send first');
+      });
+    }
+    /** Email the customer a link to go through the presentation on their own. */
+    async function sendPresentation(){
+      const request = presentationRequest();
+      const documentId = cleanText(state.doc?.id);
+      if (!documentId) return;
+      if (!window.confirm('Email the customer a link to this presentation? They can make their own choices; you review them before a contract goes out.')) return;
+      try {
+        await flushAllWrites();
+        const read = (response) => objectValue(objectValue(response).presentation);
+        const open = arrayValue((await presentationOptions(documentId)).presentations).map(objectValue).find((entry) => entry.frozen !== true);
+        let current = open ? read(await request(`/presentations/${encodeURIComponent(open.id)}`)) : read(await request('/presentations', 'POST', { documentId }));
+        if (open) current = read(await request(`/presentations/${encodeURIComponent(open.id)}/evaluate`, 'POST', { expectedRevision: current.revision, refresh: true }));
+        const shared = objectValue(await request(`/presentations/${encodeURIComponent(current.id)}/shares`, 'POST', { expectedRevision: current.revision, access: 'choose', deliver: true }));
+        showToast('Presentation', shared.emailed ? 'The customer has been emailed a link.' : 'The link was created but no email went out \u2014 check the customer\u2019s email address.', !!shared.emailed);
+      } catch (error) { showToast('Presentation', errorMessage(error, 'The presentation could not be sent.'), false); }
+    }
+    /** The company's colors as the variables slides use, for a deck opened before the document's theme has resolved. */
+    function presentationColors(presentation){
+      const colors = { ...objectValue(objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding).colors), ...objectValue(objectValue(objectValue(presentation).org).colors) };
+      const primary = firstText(colors.primary, colors.brand, colors.accent);
+      return primary ? { '--fm-primary': primary, '--fm-color-primary': primary, ...(firstText(colors.secondary) ? { '--fm-accent': firstText(colors.secondary) } : {}) } : {};
+    }
     /** Calls the presentation routes of the document-modules API for this organization. */
     function presentationRequest(){
       const platform = window.PlatformAPI;
@@ -4253,7 +4304,8 @@
         document: current.layout,
         widgetData: objectValue(current.widgetData),
         orgId: orgId(),
-        themeContext: { branding: objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding), overrides: objectValue(state.resolved?.theme_vars) },
+        theme: objectValue(state.resolved?.theme),
+        themeContext: { branding: objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding), overrides: { ...presentationColors(current), ...objectValue(state.resolved?.theme_vars) } },
         mediaUrl: (ref, variant) => mediaBridge().url(ref, variant),
         live: {
           state: parts.stateFromPresentation(current),

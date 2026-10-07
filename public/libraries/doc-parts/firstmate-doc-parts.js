@@ -141,6 +141,21 @@
     if (target.textContent !== next) target.textContent = next;
     for (let i = 1; i < runs.length; i += 1) if (runs[i] !== target && runs[i].textContent) runs[i].textContent = '';
   }
+  /** Shrink a one-line part's text until it fits its box (an amount must never be cut off). */
+  function fitLine(el) {
+    if (!el || typeof el.getBoundingClientRect !== 'function') return;
+    const run = el.querySelector('p span, span') || el.querySelector('p');
+    if (!run) return;
+    run.style.whiteSpace = 'nowrap';
+    run.style.display = 'inline-block';
+    run.style.transform = '';
+    const box = el.getBoundingClientRect().width;
+    const need = run.getBoundingClientRect().width;
+    if (!box || !need || need <= box) return;
+    const align = getComputedStyle(run.parentElement || el).textAlign;
+    run.style.transformOrigin = align === 'right' || align === 'end' ? '100% 60%' : (align === 'center' ? '50% 60%' : '0 60%');
+    run.style.transform = `scale(${Math.max(0.4, box / need)})`;
+  }
   /** Count a money part to its new amount instead of snapping. */
   function setMoney(el, cents, options) {
     if (!el) return;
@@ -149,13 +164,13 @@
     el.__fmpartsCents = to;
     cancelAnimationFrame(el.__fmpartsFrame || 0);
     const reduced = !!root.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (from === undefined || from === to || reduced || typeof requestAnimationFrame !== 'function') { setText(el, money(to, options)); return; }
+    if (from === undefined || from === to || reduced || typeof requestAnimationFrame !== 'function') { setText(el, money(to, options)); fitLine(el); return; }
     const start = performance.now();
     const tick = (now) => {
       const t = Math.min(1, (now - start) / 420);
       const eased = 1 - Math.pow(1 - t, 3);
       setText(el, money(Math.round((from + (to - from) * eased) / 100) * 100, options));
-      if (t < 1) el.__fmpartsFrame = requestAnimationFrame(tick); else setText(el, money(to, options));
+      if (t < 1) el.__fmpartsFrame = requestAnimationFrame(tick); else { setText(el, money(to, options)); fitLine(el); }
     };
     el.__fmpartsFrame = requestAnimationFrame(tick);
   }
@@ -183,7 +198,7 @@
       return {
         id, entry: obj(assemblies()[id]), config: obj(obj(assemblies()[id]).config), state: () => state,
         parts: (role, key) => parts(id, role, key), keys: (role) => keysOf(id, role),
-        setText, setMoney, setImage, money, readonly: opts.readonly === true,
+        setText, setMoney, setImage, fitLine, money, readonly: opts.readonly === true,
         input, navigate: (target) => { try { opts.navigate?.(target); } catch (e) { /* host navigation */ } }
       };
     }
@@ -378,6 +393,7 @@
             const delta = (Number(option.price_cents) || 0) - (Number(chosen.price_cents) || 0);
             e.setText(el, option.selected ? 'Included' : money(delta, { sign: true }));
           } else e.setText(el, (multiple ? '+' : '') + money(option.price_cents));
+          e.fitLine(el);
         });
       });
     },
@@ -474,7 +490,7 @@
         each('review.row', () => {});
         each('review.label', (el) => e.setText(el, row.label));
         each('review.value', (el) => e.setText(el, row.value));
-        each('review.price', (el) => e.setText(el, money(row.price_cents)));
+        each('review.price', (el) => { e.setText(el, money(row.price_cents)); e.fitLine(el); });
         each('review.edit', (el) => { el.tabIndex = 0; el.setAttribute('role', 'button'); el.setAttribute('aria-label', 'Change ' + row.label); });
       });
     },
@@ -485,6 +501,15 @@
       return !!row;
     }
   });
+
+  /** True when a page's selections all have nothing to offer in this state (a slide to pass over). */
+  function pageIsEmpty(doc, pageId, state) {
+    const M = model();
+    const ids = new Set(M.assemblyParts(doc, null, []).filter((part) => part.page && part.page.id === pageId).map((part) => part.assembly));
+    const selections = Array.from(ids).map((id) => obj(obj(obj(doc).assemblies)[id])).filter((entry) => entry.type === 'choice_selection');
+    if (!selections.length) return false;
+    return selections.every((entry) => !optionsFor({ config: obj(entry.config), state: () => obj(state) }).options.length);
+  }
 
   /** The page that holds the selection for a review target ({ group } | { addons }). */
   function pageForTarget(doc, target) {
@@ -500,5 +525,5 @@
     return '';
   }
 
-  return { register, get, list, build, insert, attach, money, pageForTarget, stateFromPresentation, inputWrite };
+  return { register, get, list, build, insert, attach, money, pageForTarget, pageIsEmpty, stateFromPresentation, inputWrite };
 });

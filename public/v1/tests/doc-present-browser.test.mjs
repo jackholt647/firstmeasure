@@ -28,6 +28,7 @@ async function open(browser){
  return {page,errors};
 }
 const hidden=(page,id)=>page.evaluate(id=>document.querySelector(`[data-node-id="${id}"]`).hasAttribute('data-fmdp-hidden'),id);
+const settled=(page,id)=>page.waitForFunction(id=>Array.from(document.querySelectorAll('.fmdoc-page[data-fmdp-on]')).map(el=>el.dataset.pageId).join(',')===id,id);
 const visiblePage=page=>page.evaluate(()=>Array.from(document.querySelectorAll('.fmdoc-page[data-fmdp-on]')).map(el=>el.dataset.pageId).join(','));
 
 test('a presentation shows one slide, plays steps in order and moves between slides',async()=>{
@@ -43,19 +44,17 @@ test('a presentation shows one slide, plays steps in order and moves between sli
   await page.keyboard.press('ArrowRight');
   assert.equal(await hidden(page,'t3'),false);
   assert.equal(await page.evaluate(()=>document.querySelector('[data-node-id="t2"]').hasAttribute('data-fmdp-dim')),true,'a state effect stays');
-  await page.keyboard.press('ArrowRight');await page.waitForTimeout(350);
-  assert.equal(await visiblePage(page),'p2');
+  await page.keyboard.press('ArrowRight');await settled(page,'p2');
   await page.keyboard.press('ArrowRight');
   // Mid-morph the matched node is between its two places.
   await page.waitForTimeout(60);
   const mid=await page.evaluate(()=>document.querySelector('[data-node-id="d2"]').getBoundingClientRect().left);
-  await page.waitForTimeout(500);
+  await settled(page,'p3');
   const end=await page.evaluate(()=>document.querySelector('[data-node-id="d2"]').getBoundingClientRect().left);
   assert.ok(mid>end+20,'the matching node travels from its old place: '+mid+' -> '+end);
   assert.equal(await visiblePage(page),'p3');
-  await page.keyboard.press('ArrowLeft');await page.waitForTimeout(450);
-  await page.keyboard.press('ArrowLeft');await page.waitForTimeout(350);
-  assert.equal(await visiblePage(page),'p1');
+  await page.keyboard.press('ArrowLeft');await settled(page,'p2');
+  await page.keyboard.press('ArrowLeft');await settled(page,'p1');
   assert.deepEqual(await page.evaluate(()=>player.position()),{page:0,step:2,pages:3,steps:2,page_id:'p1'},'going back lands on the finished slide');
   await page.keyboard.press('ArrowLeft');
   assert.equal(await hidden(page,'t3'),true);

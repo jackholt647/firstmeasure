@@ -171,7 +171,7 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
 }
 
 /** Bump when the estimate layouts or their workflows change; existing packs republish. */
-export const INSTANT_ROOFING_PACK = 7;
+export const INSTANT_ROOFING_PACK = 8;
 
 /** Roof measurements the itemized proposal prices from, in the order a roofer reads a report. */
 export const ROOF_MEASUREMENT_FIELDS = [

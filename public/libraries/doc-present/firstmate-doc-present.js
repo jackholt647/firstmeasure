@@ -439,7 +439,7 @@
       // An advance during auto steps finishes them first.
       if (stepIndex < steps.length && steps[stepIndex].auto && stepIndex > 0) { stepIndex = rest(pageIndex, stepIndex); applyState(pageIndex, stepIndex); }
       if (stepIndex < steps.length) playStep();
-      else if (pageIndex < pages().length - 1) goTo(pageIndex + 1, 0);
+      else if (pageIndex < pages().length - 1) goTo(neighbor(pageIndex, 1), 0);
     }
     function back() {
       if (destroyed) return;
@@ -451,7 +451,14 @@
         stepIndex = rest(pageIndex, at);
         applyState(pageIndex, stepIndex);
         announce();
-      } else if (pageIndex > 0) goTo(pageIndex - 1, 'end');
+      } else if (pageIndex > 0) goTo(neighbor(pageIndex, -1), 'end');
+    }
+    /** A slide whose only purpose is a selection with nothing to offer is passed over. */
+    const skipped = (index) => !!root.FMDocParts?.pageIsEmpty?.(doc(), obj(pages()[index]).id, parts ? parts.state() : liveState);
+    function neighbor(from, direction) {
+      let index = from + direction;
+      while (index > 0 && index < pages().length - 1 && skipped(index)) index += direction;
+      return index;
     }
     /** Jump to the slide holding a selection ({ group } | { addons }) or a page id. */
     function navigate(target) {
@@ -499,17 +506,20 @@
         <span class="fmdp-sep"></span>
         <button type="button" class="fmdp-btn" data-fmdp="close" title="Close (Esc)" aria-label="Close">${ICON.close}</button>`;
       bottom.innerHTML = pages().map((page, index) => {
-        const count = stepCount(index);
-        const bars = Array.from({ length: count + 1 }, (_, step) => {
-          const done = index < at.page || (index === at.page && step < at.step);
-          const now = index === at.page && step === at.step;
-          return `<i data-fmdp-step="${step}" ${now ? 'data-now' : (done ? 'data-done' : '')}></i>`;
+        if (skipped(index)) return '';
+        // Steps that play by themselves are not places to stop.
+        const stops = Array.from(new Set(Array.from({ length: stepCount(index) + 1 }, (_, step) => rest(index, step))));
+        const here = index === at.page ? rest(index, at.step) : -1;
+        const bars = stops.map((step) => {
+          const done = index < at.page || (index === at.page && step < here);
+          return `<i data-fmdp-step="${step}" ${step === here ? 'data-now' : (done ? 'data-done' : '')}></i>`;
         }).join('');
         const label = escapeHtml(obj(page).name || `Slide ${index + 1}`);
-        return `<button type="button" class="fmdp-seg" data-fmdp-page="${index}" aria-label="${label}" ${index === at.page ? 'aria-current="step"' : ''}>${bars}<span class="fmdp-tip">${index + 1}. ${label}</span></button>`;
+        return `<button type="button" class="fmdp-seg" data-fmdp-page="${index}" aria-label="${label}" ${index === at.page ? 'aria-current="step"' : ''}>${bars}<span class="fmdp-tip">${label}</span></button>`;
       }).join('');
     }
     function onClick(event) {
+      if (suppressClick) { suppressClick = false; event.preventDefault(); event.stopPropagation(); return; }
       const button = event.target.closest?.('[data-fmdp],[data-fmdp-action],[data-fmdp-page]');
       if (!button) {
         // A node with props.action is a button on the slide.
@@ -545,18 +555,23 @@
     // Swipe: sideways advances (it means "the next thing", a step or a
     // slide); down from the top edge shows the controls.
     let swipe = null;
+    // The click that ends a mouse drag must not also press what is under it.
+    let suppressClick = false;
     function onPointerDown(event) {
+      suppressClick = false;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
-      swipe = { x: event.clientX, y: event.clientY, top: event.clientY - el.getBoundingClientRect().top < 48, touch: event.pointerType !== 'mouse', interactive: !!event.target.closest?.('button,a,input,textarea,select,video,audio,canvas,[data-fmdp-no-swipe],[role=button]') };
+      swipe = { x: event.clientX, y: event.clientY, top: event.clientY - el.getBoundingClientRect().top < 48, touch: event.pointerType !== 'mouse', interactive: !!event.target.closest?.('button,a,input,textarea,select,video,audio,canvas,[data-fmdp-no-swipe],[role=button],[role=radio],[role=checkbox],.fmdp-top,.fmdp-bottom') };
     }
     function onPointerUp(event) {
       const start = swipe;
       swipe = null;
-      if (!start || !start.touch) return;
+      if (!start) return;
       const dx = event.clientX - start.x;
       const dy = event.clientY - start.y;
-      if (start.top && dy > 36 && Math.abs(dy) > Math.abs(dx)) { revealControls(); return; }
-      if (start.interactive || Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+      if (start.touch && start.top && dy > 36 && Math.abs(dy) > Math.abs(dx)) { revealControls(); return; }
+      // A mouse drag has to be more deliberate than a finger.
+      if (start.interactive || Math.abs(dx) < (start.touch ? 56 : 90) || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+      suppressClick = !start.touch;
       if (dx < 0) next(); else back();
     }
     function fullscreen() {
@@ -568,7 +583,7 @@
       if (document.fullscreenElement) document.exitFullscreen?.();
       try { opts.onExit?.(position()); } catch (e) { /* host callback */ }
     }
-    el.addEventListener('click', onClick);
+    el.addEventListener('click', onClick, true);
     el.addEventListener('keydown', onKey);
     el.addEventListener('pointerdown', onPointerDown);
     el.addEventListener('pointerup', onPointerUp);
@@ -618,7 +633,14 @@
       settle();
       return Promise.resolve(handle.ready?.()).then(settle, settle);
     }
-    let ready = renderDocument().then(() => { announce(); });
+    let ready = renderDocument().then(() => {
+      announce();
+      const steps = pageSteps(pages()[pageIndex]);
+      if (stepIndex === 0 && steps[0] && steps[0].auto) {
+        if (reduced()) { stepIndex = rest(pageIndex, 0); applyState(pageIndex, stepIndex); announce(); }
+        else autoTimer = setTimeout(playStep, 350);
+      }
+    });
     if (opts.autofocus !== false) setTimeout(() => { if (!destroyed) el.focus({ preventScroll: true }); }, 0);
 
     return {

@@ -156,7 +156,8 @@ async function compute(organizationId: string, definition: Definition, projectId
     const raw = authoredView || definition.renderer;
     if (!raw) return null;
     const scope = { ...exportsFor(definition, { inputs, outputs }, audience), org };
-    return validateModuleView(FMDocModel.resolveBindings(validateModuleView(raw), { params: scope, outputs: scope, computed: scope }));
+    // Slides bind the way documents do: {{org.logo_url}}, {{customer.name}}, {{project.address}}.
+    return validateModuleView(FMDocModel.resolveBindings(validateModuleView(raw), { params: scope, outputs: scope, computed: scope, org, customer: object((scope as JsonObject).customer), project: object((scope as JsonObject).project) }));
   };
   const ready = !missing.length && (spec.pricing !== "scope" || list(inputs.scope_items).length > 0);
   return { outputs, view: resolve("internal"), customerView: resolve("customer"), missing, ready, items };
