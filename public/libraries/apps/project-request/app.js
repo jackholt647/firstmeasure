@@ -4665,7 +4665,13 @@ window.PlatformCommerce.onReady(async function(){
     if(!value){card.querySelector(`[data-field="${action==='email'?'email':'phone'}"]`)?.focus();return;}
     button.disabled=true;
     try{
-      if(action==='call')await prepareProjectContactCall(contact);
+      if(!appFeatureEnabled('apps','comms',false)){
+        const target=action==='email'
+          ? 'mailto:'+encodeURIComponent(contact.email)
+          : (action==='sms'?'sms:':'tel:')+contact.phone.replace(/[^+0-9*#,;]/g,'');
+        window.location.href=target;
+      }
+      else if(action==='call')await prepareProjectContactCall(contact);
       else {
         const app=projectModalApps().find(app=>app.id==='comms');
         if(!app || !validPreviewTabs().includes('comms'))throw new Error('Communications is not available for this project.');
@@ -4768,6 +4774,9 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function projectHeaderPillHtml(field, project, board){
+    // The opening placeholder uses this renderer before the project iframe loads.
+    // Apply the money capability here as well as in the completed header.
+    if (field === 'dollar_value' && !moneyEnabled()) return '';
     if (String(field || '').startsWith('custom_field:')) {
       const path = String(field).slice('custom_field:'.length);
       const runtime = window.FirstMateCustomFields;
