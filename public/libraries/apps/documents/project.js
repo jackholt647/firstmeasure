@@ -1980,7 +1980,8 @@
           url: (mediaId) => window.PlatformAPI?.media?.thumbnailUrl?.(orgId(), mediaId, 320) || '',
           // The shared media library (Portal.PhotoFeed picker), the same one
           // the document editor opens.
-          pick: () => mediaBridge().pick()
+          pick: () => mediaBridge().pick(),
+          ...(window.FirstMateWidgets?.mount && window.Portal?.PhotoFeed?.mountProjectMediaPicker ? { mount: (host, options) => mediaBridge().mount(host, options) } : {})
         },
         // generate_document cards: open the minted document in this screen.
         openDocument: async (documentId) => {
@@ -3298,6 +3299,38 @@
               },
               onClose: () => finish(null)
             });
+          });
+        },
+        /** The same library as pick(), mounted inside the caller's element as the media.picker widget. */
+        async mount(host, options){
+          const opts = objectValue(options);
+          const response = await window.PlatformAPI.media.list(oid);
+          const media = arrayValue(objectValue(response).media || objectValue(response).items).map(objectValue);
+          const idOf = (item) => firstText(objectValue(item).media_id, objectValue(item).id);
+          return window.FirstMateWidgets.mount(host, {
+            id: 'media.picker', version: '1',
+            config: { multiple: false, kind: 'image_video', prompt: (globalThis.PlatformLanguage?.text("documents","m_9dd0cc66d2569b","Choose an image or video from your media library.") ?? "Choose an image or video from your media library.") },
+            ...(opts.selected ? { state: { media_ids: [opts.selected] } } : {})
+          }, {
+            surface: 'project',
+            target: { scope: 'project', organizationId: oid, projectId: projectId() },
+            data: { 'media.picker': { items: media } },
+            onSize: () => opts.onResize?.(),
+            onUpload: async (files) => {
+              const uploaded = [];
+              for (const file of Array.from(files || [])) {
+                const result = await window.PlatformAPI.media.upload(oid, file, { ownerType: 'document', ownerId: firstText(state.doc?.id, projectId()), collection: 'documents' });
+                const item = objectValue(objectValue(result).media || result);
+                if (Object.keys(item).length) { media.unshift(item); uploaded.push(item); }
+              }
+              return { photos: uploaded, selectedIds: uploaded.map(idOf).filter(Boolean) };
+            },
+            onSelect: (value, detail) => {
+              const id = firstText(arrayValue(objectValue(value).media_ids)[0]);
+              if (!objectValue(detail).confirmed || !id) return;
+              const item = objectValue(media.find((entry) => idOf(entry) === id));
+              opts.onPick?.({ media_id: id, variant: 'original', content_type: firstText(item.content_type, item.mime_type, item.type), name: firstText(item.name, item.filename, item.label), url: firstText(item.url, item.src, item.original_url) });
+            }
           });
         },
         url(mediaRef, variant){

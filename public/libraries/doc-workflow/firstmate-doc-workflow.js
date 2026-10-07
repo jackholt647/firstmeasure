@@ -1101,10 +1101,58 @@
       caption: cleanText(current.caption || obj(item.video).caption),
       display: cleanText(item.display) === 'popup' ? 'popup' : 'inline'
     };
-    const canPick = typeof media.pick === 'function';
+    // A host that can mount the media library inline (the media.picker
+    // widget) shows it inside this popover; otherwise pick() opens it.
+    const canMount = typeof media.mount === 'function';
+    const canPick = canMount || typeof media.pick === 'function';
+    let library = null;
 
     const pop = document.createElement('div');
     pop.className = 'fmdw-attach-pop';
+    const usePicked = (value) => {
+      const picked = obj(value);
+      const id = firstText(picked.media_id, picked.id);
+      if (!id && !firstText(picked.url)) return false;
+      state.media_id = id;
+      state.preview_url = firstText(picked.thumb_url, id ? mediaUrl(id) : '', picked.url);
+      state.link = id ? '' : firstText(picked.url);
+      return true;
+    };
+    const closeLibrary = () => {
+      const open = library;
+      library = null;
+      Promise.resolve(open).then((handle) => handle?.destroy?.()).catch(() => {});
+      pop.classList.remove('library');
+    };
+    const showForm = () => {
+      closeLibrary();
+      renderPop();
+      placePopover(pop, anchor, 420);
+    };
+    const showLibrary = () => {
+      pop.classList.add('library');
+      pop.innerHTML = `
+        <div class="fmdw-attach-head">
+          <button type="button" class="fmdw-attach-x" data-fmdw-attach-back title="Back"><i class="fas fa-arrow-left"></i></button>
+          <span class="fmdw-attach-title"></span>
+          <button type="button" class="fmdw-attach-x" data-fmdw-attach-cancel title="Close"><i class="fas fa-xmark"></i></button>
+        </div>
+        <div class="fmdw-attach-library" data-fmdw-attach-library></div>`;
+      pop.querySelector('[data-fmdw-attach-back]').addEventListener('click', showForm);
+      pop.querySelector('[data-fmdw-attach-cancel]').addEventListener('click', () => close());
+      const host = pop.querySelector('[data-fmdw-attach-library]');
+      const place = () => { if (!closed && library) placePopover(pop, anchor, 640); };
+      place();
+      try {
+        library = media.mount(host, {
+          selected: state.media_id,
+          onPick: (picked) => { if (usePicked(picked)) showForm(); },
+          onResize: place
+        });
+        Promise.resolve(library).then(place).catch(() => showForm());
+      } catch (e) { showForm(); }
+      place();
+    };
     const renderPop = () => {
       const isVideo = !state.media_id && VIDEO_URL.test(state.link);
       const preview = state.media_id ? state.preview_url : (isVideo ? '' : state.link);
@@ -1142,16 +1190,12 @@
       pop.querySelector('.fmdw-attach-thumb img')?.addEventListener('error', (event) => { event.target.remove(); });
       pop.querySelectorAll('[data-fmdw-attach-pick]').forEach((button) => button.addEventListener('click', async () => {
         if (!canPick) return;
+        if (canMount) { showLibrary(); return; }
         picking = true;
         // The library is its own window; this popover steps aside for it.
         pop.style.visibility = 'hidden';
         try {
-          const picked = obj(await media.pick());
-          const id = firstText(picked.media_id, picked.id);
-          if (id || firstText(picked.url)) {
-            state.media_id = id;
-            state.preview_url = firstText(picked.thumb_url, id ? mediaUrl(id) : '', picked.url);
-            state.link = id ? '' : firstText(picked.url);
+          if (usePicked(await media.pick())) {
             renderPop();
             placePopover(pop, anchor, 420);
           }
@@ -1195,11 +1239,15 @@
 
     let picking = false;
     function onDocDown(event){
-      if (picking) return;
+      // The library may open its own menus and file dialog outside this
+      // popover; it closes with Back, the X or Escape.
+      if (picking || library) return;
       if (!pop.contains(event.target) && event.target !== anchor && !anchor.contains?.(event.target)) close();
     }
     function onKey(event){
-      if (event.key === 'Escape' && !picking) { event.stopPropagation(); close(); }
+      if (event.key !== 'Escape' || picking) return;
+      event.stopPropagation();
+      if (library) showForm(); else close();
     }
     let closed = false;
     function close(){
@@ -1207,6 +1255,7 @@
       closed = true;
       document.removeEventListener('mousedown', onDocDown, true);
       document.removeEventListener('keydown', onKey, true);
+      closeLibrary();
       pop.remove();
     }
 
@@ -3293,6 +3342,8 @@
 .fmdw-attach-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .fmdw-attach-actions [data-fmdw-attach-save]{margin-left:auto;min-width:92px}
 .fmdw-attach-placeholder{display:none}
+.fmdw-attach-pop.library .fmdw-attach-title{flex:1}
+.fmdw-attach-library{max-height:min(480px,calc(100vh - 110px));min-height:160px;overflow:auto;text-transform:none;letter-spacing:0}
 /* content blocks */
 .fmdw-cb-list{display:flex;flex-direction:column;gap:10px}
 .fmdw-cb-card{border:1px solid var(--fmdw-line);border-radius:14px;background:#fff;padding:12px;display:flex;flex-direction:column;gap:9px}
