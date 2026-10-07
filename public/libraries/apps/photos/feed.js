@@ -397,7 +397,7 @@
       'communication.sent':'sent a message',
       'communication.received':'received a customer message',
       'communication.auto_replied':'sent an automatic reply',
-      'media.uploaded':'uploaded media',
+      'media.uploaded':cleanText(activityPayload(event).content_type) && !/^(image|video)\//.test(cleanText(activityPayload(event).content_type)) ? 'uploaded a document' : 'uploaded media',
       'media.shared':'shared media with the customer',
       'project.created':'created a project',
       'project.contact.attached':'attached a contact',
@@ -2046,7 +2046,9 @@
     return state.posts.get(key);
   }
   function postAuthor(post){
-    const person=state.users.find(u=>cleanText(u.id || u.user_id)===cleanText(post.source?.author));
+    const documentUploader=post.kind==='document' ? firstText(post.document?.uploaded_by_user_id,objectValue(post.document?.metadata).uploaded_by_user_id) : '';
+    const person=state.users.find(u=>cleanText(u.id || u.user_id)===cleanText(post.source?.author))
+      || (documentUploader ? state.users.find(u=>cleanText(u.id || u.user_id)===documentUploader) : null);
     const up=post.kind==='media'?uploader(post.media):{};
     const profile=person?.profile && typeof person.profile==='object' ? person.profile : {};
     return {name:firstText(person?.name,person?.display_name,post.note?.author?.name,up.name,up.email,post.kind==='activity'?feedActor(post.event):'', 'Company update'),
@@ -2091,8 +2093,8 @@
       ? `${author.name} uploaded ${uploadCountLabel(photos)}`
       : post.kind==='note' ? `${author.name} added a note:`
       : post.kind==='activity' ? feedActivitySummary(post.event)
-      : post.pairedEvent ? feedActivitySummary(post.pairedEvent)
-      : `${author.name} added ${post.document?.type_label || 'a document'}${post.document?.title ? `: ${post.document.title}` : ''}`;
+      : post.pairedEvent && !['media.uploaded','document.ingested','receipt.uploaded'].includes(cleanText(post.pairedEvent.type)) ? feedActivitySummary(post.pairedEvent)
+      : `${author.name} uploaded ${post.document?.type_label || 'a document'}${post.document?.title ? `: ${post.document.title}` : ''}`;
     return `<article class="pf-feed-list-row">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy"><strong>${escapeHtml(action)}</strong>${post.kind==='note' ? feedNoteHtml(post.note) : ''}${feedListMediaHtml(photos,post.projectId)}<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId)}</div></div><time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedListTime(post.timestamp))}</time></article>`;
   }
   function avatarHtml(author){
