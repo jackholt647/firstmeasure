@@ -2138,6 +2138,14 @@
     { value: 'on_invoice', label: 'When invoiced' },
     { value: 'on_date', label: 'Specific date' }
   ];
+  // Starting points for a payment schedule. A workflow can supply its own as
+  // item.presets: [{ label, title?, parts: [{ label, percent, due_rule }] }].
+  const SCHEDULE_PRESETS = [
+    { label: '30 / 70', title: '30% deposit on signature, 70% on completion', parts: [{ label: 'Deposit', percent: 30, due_rule: 'on_signature' }, { label: 'Final payment', percent: 70, due_rule: 'project_completion' }] },
+    { label: '50 / 50', title: '50% deposit on signature, 50% on completion', parts: [{ label: 'Deposit', percent: 50, due_rule: 'on_signature' }, { label: 'Final payment', percent: 50, due_rule: 'project_completion' }] },
+    { label: '40 / 30 / 30', title: '40% deposit on signature, 30% when invoiced mid-job, 30% on completion', parts: [{ label: 'Deposit', percent: 40, due_rule: 'on_signature' }, { label: 'Progress payment', percent: 30, due_rule: 'on_invoice' }, { label: 'Final payment', percent: 30, due_rule: 'project_completion' }] },
+    { label: 'On completion', title: 'Paid in full on completion', parts: [{ label: 'Payment in full', percent: 100, due_rule: 'project_completion' }] }
+  ];
   function normalizeScheduleRow(row, index){
     const source = obj(row);
     const kind = cleanText(source.kind) === 'fixed' || Number(source.amount_cents) > 0 ? 'fixed' : 'percent';
@@ -2173,11 +2181,25 @@
       ctx.writePath('params.deposit_at_signing', rows.some((row) => row.due_rule === 'on_signature' && (row.kind === 'fixed' ? row.amount_cents > 0 : row.percent > 0)));
       ctx.requestPreview();
     };
+    const presets = (arr(ctx.item.presets).length ? arr(ctx.item.presets) : SCHEDULE_PRESETS).map(obj).filter((entry) => cleanText(entry.label) && arr(entry.parts).length);
     const preset = (parts) => {
-      rows = parts.map(([label, percent, due], index) => normalizeScheduleRow({ id: index === 0 ? 'deposit' : (index === parts.length - 1 ? 'final' : `milestone_${index}`), label, kind: 'percent', percent, due_rule: due }, index));
+      rows = arr(parts).map(obj).map((part, index, all) => normalizeScheduleRow({ id: index === 0 && part.due_rule === 'on_signature' ? 'deposit' : (index === all.length - 1 ? 'final' : `milestone_${index}`), label: part.label, kind: 'percent', percent: Number(part.percent) || 0, due_rule: firstText(part.due_rule, 'project_completion') }, index));
       commit();
       render();
     };
+    const gapCents = () => basisCents() - rows.reduce((sum, row) => sum + rowCents(row), 0);
+    /** Put the difference on the largest milestone, so the schedule adds up to the total. */
+    function balance(){
+      const gap = gapCents();
+      const basis = basisCents();
+      if (!rows.length || !gap || basis <= 0) return;
+      const largest = rows.reduce((best, row) => (rowCents(row) > rowCents(best) ? row : best), rows[0]);
+      const cents = Math.max(0, rowCents(largest) + gap);
+      if (largest.kind === 'fixed') largest.amount_cents = cents;
+      else largest.percent = Math.round(cents / basis * 10000) / 100;
+      commit();
+      render();
+    }
     function summaryHtml(){
       const basis = basisCents();
       const scheduled = rows.reduce((sum, row) => sum + rowCents(row), 0);
@@ -2187,7 +2209,7 @@
       const shown = Math.abs(gap) <= rows.length ? basis : scheduled;
       const parts = [`<span>Due at signing <b>${esc(moneyFromCents(deposit))}</b></span>`, `<span>Scheduled <b>${esc(moneyFromCents(shown))}</b> of ${esc(moneyFromCents(basis))}</span>`];
       const warning = !rows.length ? '' : (Math.abs(gap) > rows.length
-        ? `<p class="fmdw-meas-note"><i class="fas fa-triangle-exclamation"></i> ${gap > 0 ? `${esc(moneyFromCents(gap))} of the total is not scheduled.` : `The schedule is ${esc(moneyFromCents(-gap))} over the total.`}</p>`
+        ? `<p class="fmdw-meas-note fmdw-sched-gap"><i class="fas fa-triangle-exclamation"></i> <span>${gap > 0 ? `${esc(moneyFromCents(gap))} of the total is not scheduled.` : `The schedule is ${esc(moneyFromCents(-gap))} over the total.`}</span>${ctx.readonly ? '' : `<button type="button" class="fmdw-btn" data-fmdw-sched-balance title="${gap > 0 ? 'Add the remainder to the largest milestone' : 'Take the overage out of the largest milestone'}"><i class="fas fa-scale-balanced"></i> Balance</button>`}</p>`
         : '');
       return `<div class="fmdw-sched-summary">${parts.join('')}</div>${warning}`;
     }
@@ -2199,6 +2221,7 @@
           <div class="fmdw-card fmdw-sched">
             ${rows.length ? rows.map((row, index) => `
               <div class="fmdw-sched-row" data-fmdw-sched="${index}">
+                ${ctx.readonly ? '<span></span>' : `<button type="button" class="fmdw-sched-grip" data-fmdw-sched-grip title="Drag to reorder (or Alt + arrow keys)" aria-label="Reorder ${esc(row.label)}"><i class="fas fa-grip-vertical"></i></button>`}
                 <input type="text" class="fmdw-sched-label" data-fmdw-sched-label value="${esc(row.label)}" placeholder="Milestone" ${ctx.readonly ? 'disabled' : ''}>
                 <span class="fmdw-sched-amount">
                   <select data-fmdw-sched-kind ${ctx.readonly ? 'disabled' : ''} title="Percent of the total, or a fixed amount">
@@ -2218,9 +2241,7 @@
             ${ctx.readonly ? '' : `
               <div class="fmdw-row-actions">
                 <button type="button" class="fmdw-btn" data-fmdw-sched-add><i class="fas fa-plus"></i> Add milestone</button>
-                <button type="button" class="fmdw-btn ghost" data-fmdw-sched-preset="30-70">30% deposit / 70% on completion</button>
-                <button type="button" class="fmdw-btn ghost" data-fmdw-sched-preset="50-50">50 / 50</button>
-                <button type="button" class="fmdw-btn ghost" data-fmdw-sched-preset="100">Paid in full on completion</button>
+                <span class="fmdw-sched-presets">${presets.map((entry, index) => `<button type="button" class="fmdw-sched-pill" data-fmdw-sched-preset="${index}" title="${esc(firstText(entry.title, entry.label))}">${esc(entry.label)}</button>`).join('')}</span>
               </div>`}
           </div>
           <span class="fmdw-field-error" data-fmdw-error hidden></span>
@@ -2264,12 +2285,67 @@
         commit();
         render();
       });
-      el.querySelectorAll('[data-fmdw-sched-preset]').forEach((button) => button.addEventListener('click', () => {
-        const key = button.dataset.fmdwSchedPreset;
-        if (key === '30-70') preset([['Deposit', 30, 'on_signature'], ['Final payment', 70, 'project_completion']]);
-        else if (key === '50-50') preset([['Deposit', 50, 'on_signature'], ['Final payment', 50, 'project_completion']]);
-        else preset([['Payment in full', 100, 'project_completion']]);
-      }));
+      el.querySelectorAll('[data-fmdw-sched-preset]').forEach((button) => button.addEventListener('click', () => preset(obj(presets[Number(button.dataset.fmdwSchedPreset)]).parts)));
+      // The summary is redrawn on every amount edit, so its button is found from the card.
+      // Pressing it must not lose to the field being edited: leaving that
+      // field redraws the summary, and a click would land on nothing.
+      const card = el.querySelector('.fmdw-sched');
+      card?.addEventListener('pointerdown', (event) => {
+        if (!event.target.closest?.('[data-fmdw-sched-balance]')) return;
+        event.preventDefault();
+        if (el.contains(document.activeElement)) document.activeElement.blur();
+        balance();
+      });
+      card?.addEventListener('click', (event) => { if (event.target.closest?.('[data-fmdw-sched-balance]')) balance(); });
+      // Reorder: drag a row by its grip, or Alt + arrow keys on the grip.
+      const move = (from, to) => {
+        if (from === to || from < 0 || to < 0 || from >= rows.length || to >= rows.length) return;
+        rows.splice(to, 0, rows.splice(from, 1)[0]);
+        commit();
+        render();
+        el.querySelectorAll('[data-fmdw-sched-grip]')[to]?.focus();
+      };
+      let dragging = -1;
+      el.querySelectorAll('[data-fmdw-sched]').forEach((rowEl) => {
+        const index = Number(rowEl.dataset.fmdwSched);
+        const grip = rowEl.querySelector('[data-fmdw-sched-grip]');
+        if (!grip) return;
+        grip.addEventListener('pointerdown', () => { rowEl.draggable = true; });
+        grip.addEventListener('keydown', (event) => {
+          if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+          event.preventDefault();
+          move(index, index + (event.key === 'ArrowUp' ? -1 : 1));
+        });
+        rowEl.addEventListener('dragstart', (event) => {
+          dragging = index;
+          rowEl.classList.add('dragging');
+          try { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', String(index)); } catch (e) { /* older browsers */ }
+        });
+        rowEl.addEventListener('dragend', () => {
+          dragging = -1;
+          rowEl.draggable = false;
+          el.querySelectorAll('.fmdw-sched-row').forEach((other) => other.classList.remove('dragging', 'drop-before', 'drop-after'));
+        });
+        rowEl.addEventListener('dragover', (event) => {
+          if (dragging < 0 || dragging === index) return;
+          event.preventDefault();
+          const rect = rowEl.getBoundingClientRect();
+          const after = event.clientY > rect.top + rect.height / 2;
+          rowEl.classList.toggle('drop-after', after);
+          rowEl.classList.toggle('drop-before', !after);
+        });
+        rowEl.addEventListener('dragleave', () => rowEl.classList.remove('drop-before', 'drop-after'));
+        rowEl.addEventListener('drop', (event) => {
+          if (dragging < 0 || dragging === index) return;
+          event.preventDefault();
+          const after = rowEl.classList.contains('drop-after');
+          const from = dragging;
+          let to = index + (after ? 1 : 0);
+          if (from < to) to -= 1;
+          dragging = -1;
+          move(from, to);
+        });
+      });
     };
     render();
     return {
@@ -3369,8 +3445,21 @@
 .fmdw-mod-copy small{font-size:10.5px;font-weight:800;color:#667085;line-height:1.35}
 /* payment schedule */
 .fmdw-sched{container-type:inline-size}
-.fmdw-sched-row{display:grid;grid-template-columns:minmax(0,1.3fr) auto minmax(0,1fr) auto auto;align-items:center;gap:8px;min-width:0}
-.fmdw-sched-row:has([data-fmdw-sched-date]){grid-template-columns:minmax(0,1.3fr) auto minmax(0,1fr) auto auto auto}
+.fmdw-sched-row{position:relative;display:grid;grid-template-columns:auto minmax(0,1.3fr) auto minmax(0,1fr) auto auto;align-items:center;gap:8px;min-width:0}
+.fmdw-sched-row:has([data-fmdw-sched-date]){grid-template-columns:auto minmax(0,1.3fr) auto minmax(0,1fr) auto auto auto}
+.fmdw-sched-grip{border:0;background:transparent;color:#b3bac7;width:18px;height:34px;padding:0;cursor:grab;display:grid;place-items:center;font-size:12px;border-radius:6px;touch-action:none}
+.fmdw-sched-grip:hover,.fmdw-sched-grip:focus-visible{color:var(--fmdw-primary);background:#f2f4f7;outline:none}
+.fmdw-sched-grip:active{cursor:grabbing}
+.fmdw-sched-row.dragging{opacity:.45}
+.fmdw-sched-row.drop-before::before,.fmdw-sched-row.drop-after::after{content:"";position:absolute;left:0;right:0;height:2px;border-radius:2px;background:var(--fmdw-primary)}
+.fmdw-sched-row.drop-before::before{top:-5px}
+.fmdw-sched-row.drop-after::after{bottom:-5px}
+.fmdw-sched-presets{display:inline-flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.fmdw-sched-pill{border:1px solid var(--fmdw-line);background:#fff;color:#344054;border-radius:999px;height:30px;padding:0 13px;font:inherit;font-size:11.5px;font-weight:900;font-variant-numeric:tabular-nums;cursor:pointer;white-space:nowrap;transition:border-color .12s ease,color .12s ease,background .12s ease}
+.fmdw-sched-pill:hover,.fmdw-sched-pill:focus-visible{border-color:var(--fmdw-primary);color:var(--fmdw-primary);background:color-mix(in srgb,var(--fmdw-primary) 7%,#fff);outline:none}
+.fmdw-sched-gap{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fmdw-sched-gap span{flex:1 1 200px}
+.fmdw-sched-gap .fmdw-btn{min-height:30px;padding:0 11px;font-size:11px}
 .fmdw-sched-row input,.fmdw-sched-row select{min-width:0;height:34px;padding:0 9px;font-size:12px;border-radius:9px}
 .fmdw-sched-amount{display:flex;align-items:center;gap:4px}
 .fmdw-sched-amount select{width:52px}
@@ -3379,9 +3468,9 @@
 .fmdw-sched-summary{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11.5px;font-weight:850;color:var(--fmdw-muted)}
 .fmdw-sched-summary b{color:var(--fmdw-ink);font-weight:1000;font-variant-numeric:tabular-nums}
 @container (max-width:560px){
-  .fmdw-sched-row,.fmdw-sched-row:has([data-fmdw-sched-date]){grid-template-columns:minmax(0,1fr) auto auto;padding-bottom:8px;border-bottom:1px solid #f0f2f7}
-  .fmdw-sched-label{grid-column:1 / -2}
-  .fmdw-sched-due{grid-column:1}
+  .fmdw-sched-row,.fmdw-sched-row:has([data-fmdw-sched-date]){grid-template-columns:auto minmax(0,1fr) auto auto;padding-bottom:8px;border-bottom:1px solid #f0f2f7}
+  .fmdw-sched-label{grid-column:2 / -2}
+  .fmdw-sched-due{grid-column:1 / 3}
 }
 /* review */
 .fmdw-review-total{flex-direction:row;align-items:baseline;justify-content:space-between;gap:12px}
