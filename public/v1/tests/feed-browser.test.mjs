@@ -14,15 +14,15 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await page.evaluate(()=>{
    const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
    window.__APP={userOrgId:'org',userId:'sam'};
-   window.Portal={cfg:window.__APP,util:{escapeHtml:esc,injectCSS:(id,css)=>{const style=document.createElement('style');style.textContent=css;document.head.append(style);}},ui:{showToast:()=>{}},apps:{registerPortalApp:app=>window.feedApp=app},tabs:{renderTabs:()=>{}},appFlags:{has:()=>true,load:async()=>{}},navigation:{read:()=>({}),replace:()=>{}},routeState:{get:()=>({})}};
+   window.Portal={cfg:window.__APP,util:{escapeHtml:esc,injectCSS:(id,css)=>{const style=document.createElement('style');style.textContent=css;document.head.append(style);}},ui:{showToast:()=>{}},apps:{registerPortalApp:app=>window.feedApp=app},tabs:{renderTabs:()=>{}},appFlags:{has:()=>true,load:async()=>{}},navigation:{read:()=>({}),replace:()=>{}},routeState:{get:()=>({})},modules:{request:{openProject:async(project,options)=>{window.lastOpenedProject={project,options};}}}};
    const uploadedAt=new Date().toISOString();
    const photos=Array.from({length:20},(_,i)=>({id:'photo'+i,media_id:'photo'+i,src:'/photo.svg',thumb:'/photo.svg',uploaded_at:uploadedAt,uploaded_by_user_id:'sam',uploaded_by_name:'Sam Rivera',metadata:{upload_batch_id:'batch-today'}}));
    const projects=[{id:'project',data:{id:'project',title:'Oak Street renovation',address:'104 Oak Street',photos,documents:[{id:'contract',type:'contract',title:'Roof replacement agreement',total_cents:2450000,created_at:'2026-09-29T13:00:00Z'}]}}];
    const events=[...Array.from({length:5},(_,i)=>({id:'event'+i,type:'project.created',project_id:'project',actor_user_id:'sam',created_at:'2026-09-29T12:00:00Z',payload:{title:'Site visit confirmed'}})),{id:'fake-note',type:'note.created',project_id:'project',actor_user_id:'sam',created_at:uploadedAt,payload:{title:'Invented title',actor_name:'Wrong person',synthetic:true}},{id:'workflow-start',type:'work.plan.started',project_id:'project',created_at:uploadedAt}];
    window.PlatformAPI={projects:{list:async()=>({documents:projects})},users:{list:async()=>({documents:[{id:'sam',data:{name:'Sam Rivera',profile_photo_url:'/avatar.svg'}}]})},media:{thumbnailUrl:()=>'/photo.svg',markupThumbnailUrl:()=>'/missing-markup.svg',fileUrl:()=>'/photo.svg'},projectDocuments:{list:async()=>({documents:projects[0].data.documents})}};
-   window.FirstMateMarkup={openPhotoViewer:options=>{window.lastViewerOptions=options;return{close(){}};}};
+   window.FirstMateMarkup={openPhotoViewer:options=>{window.lastViewerOptions=options;window.viewerOpens=(window.viewerOpens||0)+1;return{close(){}};}};
    window.rootMessage={id:'root',reply_count:0,reactions:[],author:{id:'sam',name:'Sam Rivera'}};window.replies=[];
-   window.ChannelsAPI={feed:{catalog:async()=>({projects,media:[],events,users:[{id:'sam',name:'Sam Rivera',avatar:'/wrong.svg'}],views:['list','small','large','mosaic','posts'],can_comment:true,can_react:true}),authorize:async(_org,refs)=>({sources:refs.map(ref=>({ref,key:ref.kind==='media'?'media-batch':ref.id,author:'sam',at:uploadedAt}))}),lookup:async()=>({root:window.rootMessage,replies:window.replies}),resolve:async()=>({root:window.rootMessage,replies:window.replies}),thread:async()=>({root:window.rootMessage,replies:window.replies}),comment:async(_o,_id,body)=>{window.replies.push({...body,id:'comment',author:{name:'Sam Rivera'},created_at:new Date().toISOString(),can_edit:true,can_delete:true});window.rootMessage.reply_count++;return{};},react:async(_o,_id,emoji,on)=>{window.rootMessage.reactions=on?[{emoji,count:1,reacted:true}]:[];}},channels:{list:async()=>({channels:[{id:'project-channel',type:'project',project_id:'project'}]})},messages:{list:async()=>({messages:[{id:'note-1',text:'The flashing needs a closer look before installation. The crew should take photos of the north edge and confirm that the replacement material matches the existing trim. Keep the back entry clear while the work is underway, then return tomorrow for one final photo after the sealant has cured. This gives the homeowner a clear record of the repair and lets the office confirm that the area is ready for the final walkthrough.',created_at:uploadedAt,metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'}}]})}};
+   window.ChannelsAPI={feed:{catalog:async()=>({projects,media:[],events,users:[{id:'sam',name:'Sam Rivera',avatar:'/wrong.svg'}],views:['list','small','large','mosaic','posts'],can_comment:true,can_react:true}),authorize:async(_org,refs)=>({sources:refs.map(ref=>({ref,key:ref.kind==='media'?'media-batch':ref.id,author:'sam',at:uploadedAt}))}),lookup:async()=>({root:window.rootMessage,replies:window.replies}),resolve:async()=>({root:window.rootMessage,replies:window.replies}),thread:async()=>({root:window.rootMessage,replies:window.replies}),comment:async(_o,_id,body)=>{window.replies.push({...body,id:'comment',author:{name:'Sam Rivera'},created_at:new Date().toISOString(),can_edit:true,can_delete:true});window.rootMessage.reply_count++;return{};},react:async(_o,_id,emoji,on)=>{window.rootMessage.reactions=on?[{emoji,count:1,reacted:true}]:[];}},channels:{list:async()=>({channels:[{id:'project-channel',type:'project',project_id:'project'}]})},messages:{list:async()=>({messages:[{id:'note-1',text:'The flashing needs a closer look before installation. The crew should take photos of the north edge and confirm that the replacement material matches the existing trim. Keep the back entry clear while the work is underway, then return tomorrow for one final photo after the sealant has cured. This gives the homeowner a clear record of the repair and lets the office confirm that the area is ready for the final walkthrough.',created_at:uploadedAt,metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'}},{id:'note-2',text:'Done.',created_at:new Date(Date.parse(uploadedAt)-60000).toISOString(),metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'}},{id:'note-3',text:'Customer confirmed driveway access. Stage materials on the left side of the garage.',created_at:new Date(Date.parse(uploadedAt)-120000).toISOString(),metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'}}]})}};
   });
   for(const file of ['channels-ui/channels-ui.js','apps/photos/feed.js'])await page.addScriptTag({content:await readFile(new URL(`../../libraries/${file}`,import.meta.url),'utf8')});
   await page.waitForFunction(()=>window.feedApp);
@@ -36,7 +36,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await page.getByRole('button',{name:'Large tiles',exact:true}).click();assert.equal(await cols(),4);
   await page.getByRole('button',{name:'List',exact:true}).click();assert.equal(await cols(),1);
   const batchRow=page.locator('.pf-feed-list-row').first();
-  assert.equal(await page.locator('.pf-feed-list-row').count(),8);
+  assert.equal(await page.locator('.pf-feed-list-row').count(),10);
   assert.match(await batchRow.locator('strong').textContent(),/Sam Rivera uploaded 20 photos/);
   assert.equal(await batchRow.locator('.pf-actor-avatar img').getAttribute('src'),'/avatar.svg');
   assert.equal(await batchRow.locator('.pf-actor-badge i').count(),1);
@@ -49,12 +49,14 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await batchRow.locator('.pf-feed-list-media .pf-thumb').first().click();
   assert.equal(await page.evaluate(()=>window.lastViewerOptions.photos.length),20);
   assert.equal(await page.evaluate(()=>window.lastViewerOptions.index),0);
-  await batchRow.getByRole('button',{name:'See all 20 uploads in gallery'}).click();
-  assert.equal(await page.evaluate(()=>window.lastViewerOptions.photos.length),20);
+  await batchRow.getByRole('button',{name:'See all 20 uploads in project Photos'}).click();
+  await page.waitForFunction(()=>window.lastOpenedProject?.options.tab==='photos');
+  assert.equal(await page.evaluate(()=>window.lastOpenedProject.project.id),'project');
+  assert.equal(await page.evaluate(()=>window.viewerOpens),1);
   const layout=await page.evaluate(()=>{const header=document.querySelector('[data-app-header]').getBoundingClientRect(),scroller=document.querySelector('[data-feed-scroll]');scroller.scrollTop=scroller.scrollHeight;const content=scroller.getBoundingClientRect();return{headerBottom:header.bottom,contentTop:content.top,scrollTop:scroller.scrollTop};});
   assert.ok(layout.scrollTop>0,'the feed content scrolls inside its panel');
   assert.ok(layout.headerBottom<=layout.contentTop+1,'the header does not cover feed rows');
-  const noteRow=page.locator('.pf-feed-list-row').filter({hasText:'added a note:'});
+  const noteRow=page.locator('.pf-feed-list-row').filter({hasText:'The flashing needs a closer look'});
   assert.equal(await noteRow.count(),1);
   assert.match(await noteRow.textContent(),/Sam Rivera added a note:/);
   assert.equal(await noteRow.locator('.pf-actor-avatar img').getAttribute('src'),'/avatar.svg');
@@ -65,6 +67,11 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.match(await noteRow.locator('.pf-note-expanded').textContent(),/final walkthrough/);
   await noteRow.getByRole('button',{name:'Collapse note'}).click();
   await page.waitForFunction(()=>!document.querySelector('.pf-feed-list-row .pf-note.expanded'));
+  const shortNote=page.locator('.pf-feed-list-row').filter({hasText:'Done.'});
+  assert.equal(await shortNote.locator('.pf-note-plain').textContent(),'Done.');
+  assert.equal(await shortNote.locator('[data-feed-note-toggle]:visible').count(),0);
+  const responsiveNote=page.locator('.pf-feed-list-row').filter({hasText:'Customer confirmed driveway access'});
+  assert.equal(await responsiveNote.locator('[data-feed-note-toggle]:visible').count(),0);
   assert.equal(await page.getByText('Invented title',{exact:false}).count(),0);
   assert.equal(await page.getByText('work plan started',{exact:false}).count(),0);
   await mkdir(new URL('../../../output/feed/screenshots/',import.meta.url),{recursive:true});
@@ -98,6 +105,8 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
     const row=page.locator('.pf-feed-list-row').first();
     assert.equal(await row.locator('.pf-feed-list-media .pf-thumb:visible').count(),4);
     assert.equal(await row.locator('.pf-feed-list-more:visible').count(),1);
+    await page.waitForFunction(()=>[...document.querySelectorAll('.pf-feed-list-row')].find(row=>row.textContent.includes('Customer confirmed driveway access'))?.querySelector('.pf-note.expandable'));
+    assert.equal(await responsiveNote.locator('[data-feed-note-toggle]:visible').count(),1);
    }
   }
   assert.deepEqual(errors,[]);
