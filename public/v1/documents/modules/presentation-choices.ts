@@ -147,7 +147,14 @@ export type OfferedAlternative = { path: string; choices: ScopeChoices };
 export function offeredChoices(items: unknown[], choices: ScopeChoices) {
   const groups = new Map<string, JsonObject>(), optional: JsonObject[] = [], variants: JsonObject[] = [], alternatives: OfferedAlternative[] = [];
   // price_cents: what the line costs when chosen, by the proposal pricing math.
-  const line = (item: JsonObject) => ({ id: text(item.id), name: text(item.display_name || item.name), title: text(item.display_name || item.name), description: text(item.external_description || item.description), quantity: item.quantity ?? 1, unit: text(item.unit),
+  // The color a line is offered in, for drawing it when it has no photo.
+  const colorHex = (item: JsonObject) => {
+    const color = dimensionsOf(item).find(dimension => text(dimension.kind) === "color" || /colou?r/i.test(text(dimension.id)));
+    if (!color) return "";
+    const values = list(color.values).map(object), chosen = text(object(item.selected_variants)[text(color.id)]);
+    return text(object(values.find(value => text(value.id) === chosen) || values[0]).hex);
+  };
+  const line = (item: JsonObject) => ({ id: text(item.id), ...(colorHex(item) ? { color_hex: colorHex(item) } : {}), name: text(item.display_name || item.name), title: text(item.display_name || item.name), description: text(item.external_description || item.description), quantity: item.quantity ?? 1, unit: text(item.unit),
     price_cents: scopeItemPriceResult({ ...item, selection: { ...object(item.selection), selected: true } }).amount_cents, media_refs: list(item.media_refs).map(object), ...(text(item.image_url) ? { image_url: text(item.image_url) } : {}), offered: true });
   const withSelection = (patch: Record<string, string | boolean>): ScopeChoices => ({ selections: { ...choices.selections, ...patch }, variants: choices.variants });
   walk(items, item => {

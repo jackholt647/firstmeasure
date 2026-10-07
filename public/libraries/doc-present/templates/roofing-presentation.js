@@ -31,10 +31,10 @@
 
   // The four layers of the roof diagram, bottom to top.
   const LAYERS = [
-    { key: 'decking', name: 'Roof decking', note: 'The plywood your roof is built on.', top: '#d8b584', front: '#b98f58', side: '#a17a47' },
-    { key: 'leak_barrier', name: 'Ice & water barrier', note: 'Seals the edges and valleys where water backs up.', top: '#33455c', front: '#25344a', side: '#1c2939', eave: true },
-    { key: 'underlayment', name: 'Underlayment', note: 'A second skin under the shingles.', top: '#b9c4d0', front: '#93a1b0', side: '#7d8b9a' },
-    { key: 'shingles', name: 'Shingles', note: 'The part you see, and the first line of defense.', top: '#565c66', front: '#3d424a', side: '#30343b' }
+    { key: 'decking', name: 'Roof decking', note: 'The plywood your roof is built on.', texture: 'plywood', top: '#d8b584', front: '#b98f58', side: '#a17a47' },
+    { key: 'leak_barrier', name: 'Ice & water barrier', note: 'Seals the edges and valleys where water backs up.', texture: 'membrane', top: '#33455c', front: '#25344a', side: '#1c2939', eave: true },
+    { key: 'underlayment', name: 'Underlayment', note: 'A second skin under the shingles.', texture: 'felt', top: '#b9c4d0', front: '#93a1b0', side: '#7d8b9a' },
+    { key: 'shingles', name: 'Shingles', note: 'The part you see, and the first line of defense.', texture: 'shingle', top: '#565c66', front: '#3d424a', side: '#30343b' }
   ];
 
   function build(options) {
@@ -52,7 +52,8 @@
     // ------------------------------------------------------------ builders
     const frame = (x, y, w, h, z) => ({ x, y, w, h, layout: 'absolute', z: z || 0 });
     const rect = (id, name, x, y, w, h, fill, extra) => M.createNode('shape', Object.assign({ id, name, frame: frame(x, y, w, h), style: Object.assign({ fill: typeof fill === 'string' ? { type: 'solid', color: fill } : fill }, (extra && extra.style) || {}), props: Object.assign({ shape: 'rect', corner_radius: (extra && extra.radius) || 0 }, (extra && extra.props) || {}) }));
-    const poly = (name, x, y, w, h, points, fill) => M.createNode('shape', { name, frame: frame(x, y, w, h), style: { fill: { type: 'solid', color: fill } }, props: { shape: 'polygon', points: points.map(([px, py]) => ({ x: px, y: py })) } });
+    // `material` asks for a drawn texture (FMDocParts.applyTextures) over the flat color.
+    const poly = (name, x, y, w, h, points, fill, material) => M.createNode('shape', { name, frame: frame(x, y, w, h), style: { fill: { type: 'solid', color: fill } }, props: Object.assign({ shape: 'polygon', points: points.map(([px, py]) => ({ x: px, y: py })) }, material ? { texture: { kind: material, color: fill } } : {}) });
     const line = (id, name, x, y, w, h, points, color, width) => M.createNode('shape', { id, name, frame: frame(x, y, Math.max(w, 1), Math.max(h, 1)), style: { stroke: { color, width_pt: width || 1.5 } }, props: { shape: 'line', points: points.map(([px, py]) => ({ x: px, y: py })) } });
     function text(id, name, x, y, w, h, value, o) {
       const opt = o || {};
@@ -113,7 +114,7 @@
       const backLeft = [skew * d, 0.74 * (1 - d)];
       const backRight = [1 - skew * (1 - d), 0.74 * (1 - d)];
       const faces = [
-        poly('Top', 0, 0, w, h, [backLeft, backRight, [1 - skew, 0.74], [0, 0.74]], spec.top),
+        poly('Top', 0, 0, w, h, [backLeft, backRight, [1 - skew, 0.74], [0, 0.74]], spec.top, spec.texture),
         poly('Front', 0, 0, w, h, [[0, 0.74], [1 - skew, 0.74], [1 - skew, 1], [0, 1]], spec.front),
         poly('Side', 0, 0, w, h, [[1 - skew, 0.74], backRight, [backRight[0], backRight[1] + 0.26], [1 - skew, 1]], spec.side)
       ];
@@ -212,7 +213,8 @@
         rect(id + '_panel', 'Options panel', 604, 0, 356, H, SOFT),
         button(id + '_back', 'Back', 72, 478, 92, { type: 'back' }, false),
         button(id + '_next', 'Next', 174, 478, 110, { type: 'next' }, true),
-        assembly('choice_selection', 'stack', { id: 'asm_' + key, name: LAYERS[index].name + ' options', x: 632, y: 56, w: 300, h: 428, config: { source: { kind: 'group', id: groupId } } })
+        assembly('choice_selection', 'stack', { id: 'asm_' + key, name: LAYERS[index].name + ' options', x: 632, y: 56, w: 300, h: 428, config: { source: { kind: 'group', id: groupId } } }),
+        assembly('detail_panel', 'wide', { id: 'asm_' + key + '_detail', name: LAYERS[index].name + ' details', x: 72, y: 184, w: 500, h: 276, config: { source: { kind: 'group', id: groupId } } })
       ]), { transition: { type: 'morph', duration_ms: 800 }, steps: [
         { id: id + '_s1', name: 'Options', auto: true, actions: [{ node: id + '_lead_dot', effect: 'zoom_in', duration_ms: 300 }, { node: id + '_lead', effect: 'draw', duration_ms: 600 }] }
       ] });
@@ -236,8 +238,8 @@
     slide('estimate', 'Your estimate', '#ffffff', [
       kicker('est_k', 72, 56, 'Your estimate'),
       text('est_title', 'Title', 72, 80, 480, 44, 'The roof you just built.', { size: 30, weight: 800 }),
-      assembly('selection_review', 'rows', { id: 'asm_review', name: 'Your selections', x: 72, y: 150, w: 468, h: 250, count: 4 }),
-      text('est_note', 'Note', 72, 418, 468, 34, 'Includes tear-off, disposal, permits and cleanup. Change anything above and the price follows.', { size: 9.5, color: MUTED, line_height: 1.5 }),
+      assembly('estimate_compare', 'rows', { id: 'asm_compare', name: 'Your selections', x: 72, y: 146, w: 500, h: 268, count: 4, options: 3 }),
+      text('est_note', 'Note', 72, 430, 500, 34, 'Includes tear-off, disposal, permits and cleanup. Tap another option on any row and the price follows.', { size: 9.5, color: MUTED, line_height: 1.5 }),
       group('est_card', 'Total card', 600, 56, 288, 428, [
         logo('est_logo', 28, 28, 120, 40),
         assembly('price_display', 'large', { id: 'asm_total', name: 'Total', x: 28, y: 110, w: 232, h: 92, config: { source: 'total' } }),
@@ -246,7 +248,8 @@
         assembly('price_display', 'inline', { id: 'asm_balance', name: 'Balance', x: 28, y: 274, w: 232, h: 26, config: { source: 'balance' } }),
         button('est_sign', 'Sign now', 28, 322, 232, { type: 'goto', page: 'sign' }, true),
         button('est_send', 'Send me the estimate', 28, 370, 232, { type: 'custom', name: 'send' }, false)
-      ], { fill: NAVY, radius: 22, shadow: { x: 0, y: 18, blur: 44, color: 'rgba(14,26,43,.28)' } })
+      ], { fill: NAVY, radius: 22, shadow: { x: 0, y: 18, blur: 44, color: 'rgba(14,26,43,.28)' } }),
+      assembly('detail_panel', 'tall', { id: 'asm_estimate_detail', name: 'Option details', x: 600, y: 56, w: 288, h: 428, config: { source: { kind: 'any' } } })
     ], { transition: { type: 'fade', duration_ms: 500 }, steps: [
       { id: 'est_in', name: 'Total', auto: true, actions: [{ node: 'est_card', effect: 'rise', duration_ms: 700 }] }
     ] });
@@ -269,12 +272,19 @@
       assembly('price_display', 'large', { id: 'asm_sign_total', name: 'Total', x: 72, y: 346, w: 300, h: 92, config: { source: 'total' } }),
       group('sign_card', 'Signature card', 520, 56, 368, 428, [
         text('sign_card_title', 'Heading', 28, 26, 312, 22, 'Accept this estimate', { size: 15, weight: 800 }),
-        M.createNode('widget', { id: 'sign_widget', name: 'Signature', frame: frame(28, 62, 312, 150), props: { widget: 'doc.signature@1', config: { output_key: 'sig_customer', label: 'Customer signature' } } }),
+        text('sign_card_body', 'What happens', 28, 58, 312, 60, 'Your selections and today\u2019s price go onto the agreement. You sign it right here on this screen.', { size: 11, color: BODY, line_height: 1.55 }),
+        assembly('selection_review', 'rows', { id: 'asm_sign_review', name: 'Your selections', x: 28, y: 126, w: 312, h: 96, count: 3 }),
         button('sign_accept', 'Accept & sign', 28, 236, 312, { type: 'custom', name: 'sign' }, true),
         button('sign_send', 'Send it to me instead', 28, 288, 312, { type: 'custom', name: 'send' }, false),
         text('sign_change', 'Change', 28, 350, 312, 18, 'Change a selection', { size: 10.5, weight: 700, color: MUTED, align: 'center', action: { type: 'goto', page: 'estimate' } })
       ], { fill: '#ffffff', radius: 22, shadow: { x: 0, y: 18, blur: 44, color: 'rgba(0,0,0,.3)' } })
     ], { transition: { type: 'zoom', duration_ms: 600 } });
+    // A compact read-only recap on the signing card.
+    for (const page of doc.pages) M.walkNodes({ kind: 'document', pages: [page] }, (node) => {
+      const part = M.nodePart(node);
+      if (part && part.assembly === 'asm_sign_review' && (part.role === 'review.edit' || part.role === 'review.price')) node.visible = false;
+      if (part && part.assembly === 'asm_sign_review' && part.role === 'review.row') { node.style = Object.assign({}, node.style, { stroke: null, fill: { type: 'solid', color: '#f7f8fa' } }); }
+    });
     M.walkNodes(doc, (node) => {
       const part = M.nodePart(node);
       if (!part || part.assembly !== 'asm_sign_total' || node.type !== 'text') return;
@@ -287,23 +297,23 @@
 
   /** A stand-in live state, for previews and the editor before real prices exist. */
   function sampleState() {
-    const option = (id, title, description, swatch, price_cents, selected) => ({ id, title, description, swatch, price_cents, selected: !!selected });
+    const option = (id, title, description, color, price_cents, selected) => ({ id, title, description, color: /^#/.test(color) ? color : '', swatch: /^#/.test(color) ? '' : color, details: description + ' Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', price_cents, selected: !!selected });
     return {
       groups: [
         { id: 'shingle_profile', title: 'Shingles', options: [
-          option('gaf_ns', 'GAF Timberline NS', 'Natural Shadow. Clean, classic architectural look.', 'linear-gradient(135deg,#6b6f76,#3f4144)', 974400),
-          option('gaf_hd', 'GAF Timberline HDZ', 'High definition, with the widest nailing zone.', 'linear-gradient(135deg,#7a6b58,#4d4032)', 1089200, true),
-          option('gaf_uhdz', 'GAF Timberline UHDZ', 'Ultra-thick, with a bolder shadow line.', 'linear-gradient(135deg,#5f6a75,#2f3a45)', 1302000)
+          option('gaf_ns', 'GAF Timberline NS', 'Natural Shadow. Clean, classic architectural look.', '#4a4d52', 974400),
+          option('gaf_hd', 'GAF Timberline HDZ', 'High definition, with the widest nailing zone.', '#6f6354', 1089200, true),
+          option('gaf_uhdz', 'GAF Timberline UHDZ', 'Ultra-thick, with a bolder shadow line.', '#55606a', 1302000)
         ] },
         { id: 'underlayment_profile', title: 'Underlayment', options: [
-          option('underlayment', 'Synthetic underlayment', 'Light, strong and tear resistant.', 'linear-gradient(135deg,#cfd6de,#9aa7b5)', 142800, true),
-          option('gaf_feltbuster', 'GAF FeltBuster', 'High-traction synthetic felt.', 'linear-gradient(135deg,#bcc7d3,#8494a6)', 168000),
-          option('gaf_tiger_paw', 'GAF Tiger Paw', 'Premium, with moisture control.', 'linear-gradient(135deg,#aab8c7,#6f8094)', 226800)
+          option('underlayment', 'Synthetic underlayment', 'Light, strong and tear resistant.', '#c9d1da', 142800, true),
+          option('gaf_feltbuster', 'GAF FeltBuster', 'High-traction synthetic felt.', '#aebbc9', 168000),
+          option('gaf_tiger_paw', 'GAF Tiger Paw', 'Premium, with moisture control.', '#93a4b6', 226800)
         ] },
         { id: 'leak_barrier_profile', title: 'Ice & water barrier', options: [
-          option('ice_water', 'Ice & water shield', 'Self-sealing membrane at eaves and valleys.', 'linear-gradient(135deg,#465a75,#25344a)', 86400, true),
-          option('gaf_weatherwatch', 'GAF WeatherWatch', 'Mineral-surfaced leak barrier.', 'linear-gradient(135deg,#3d4f68,#1f2d40)', 104400),
-          option('owens_weatherlock', 'Owens Corning WeatherLock', 'Flexible, for complex roof lines.', 'linear-gradient(135deg,#55506b,#2d2a40)', 118800)
+          option('ice_water', 'Ice & water shield', 'Self-sealing membrane at eaves and valleys.', '#3a4a60', 86400, true),
+          option('gaf_weatherwatch', 'GAF WeatherWatch', 'Mineral-surfaced leak barrier.', '#2f3d52', 104400),
+          option('owens_weatherlock', 'Owens Corning WeatherLock', 'Flexible, for complex roof lines.', '#44405c', 118800)
         ] }
       ],
       addons: [

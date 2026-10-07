@@ -71,10 +71,31 @@ test('choosing options on the slides changes the price, and the review leads bac
   await page.waitForFunction(()=>player.position().page_id==='choose_shingles');
   await page.evaluate(()=>player.goTo(8,'end',{animate:false}));
   await page.waitForTimeout(300);
-  assert.match(await shown('[data-part-assembly="asm_review"][data-part-role="review.value"]').first().innerText(),/GAF Timberline UHDZ/);
+  // Every selection sits beside its alternatives; clicking one switches it on the spot.
+  const chips=shown('[data-part-assembly="asm_compare"][data-part-role="row.option"]');
+  assert.equal(await chips.nth(2).getAttribute('aria-checked'),'true','the shingle chosen earlier');
+  const beforeSwitch=await total();
+  await chips.nth(5).click();
+  await page.waitForFunction(()=>player.state().groups[1].options[2].selected);
+  assert.equal(await total(),beforeSwitch+226800-142800,'switching underlayment on the estimate slide moves the total');
+  // The i button opens that option's details over the total, and closes again.
+  const detail=shown('[data-part-assembly="asm_estimate_detail"][data-part-role="detail"]');
+  assert.equal(await detail.getAttribute('data-part-open'),null);
+  await shown('[data-part-assembly="asm_compare"][data-part-role="row.option.info"]').nth(5).click();
+  assert.equal(await detail.getAttribute('data-part-open'),'');
+  assert.match(await shown('[data-part-assembly="asm_estimate_detail"][data-part-role="detail.title"]').innerText(),/GAF Tiger Paw/);
+  assert.equal(await chips.nth(5).getAttribute('data-part-focus'),'','the row being looked at is marked');
+  await shown('[data-part-assembly="asm_estimate_detail"][data-part-role="detail.close"]').click();
+  assert.equal(await detail.getAttribute('data-part-open'),null);
+  await page.waitForTimeout(350);
   assert.equal((await shown('[data-part-assembly="asm_total"][data-part-role="value"]').innerText()).trim(),'$'+((await total())/100).toLocaleString('en-US',{minimumFractionDigits:2}));
-  await shown('[data-part-assembly="asm_review"][data-part-role="review.edit"]').nth(1).click();
+  // On a choice slide, Details opens beside the options without leaving the slide; a hidden slide's panel never shows through.
+  await page.evaluate(()=>player.goTo(5,'end',{animate:false}));
+  await shown('[data-part-assembly="asm_underlayment"][data-part-role="option.more"]').nth(1).click();
+  assert.equal(await shown('[data-part-assembly="asm_underlayment_detail"][data-part-role="detail"]').getAttribute('data-part-open'),'');
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('[data-part-assembly="asm_estimate_detail"][data-part-role="detail"]')).visibility),'hidden');
   assert.equal(await page.evaluate(()=>player.position().page_id),'choose_underlayment');
+  await page.keyboard.press('Escape');
   // Buttons on slides are nodes with an action.
   await page.evaluate(()=>player.goTo(8,'end',{animate:false}));
   // From the estimate: send it and skip the signature, or go and sign.
@@ -83,6 +104,7 @@ test('choosing options on the slides changes the price, and the review leads bac
   await shown('[data-node-id="est_sign"]').click();
   await page.waitForFunction(()=>player.position().page_id==='sign');
   await page.waitForTimeout(700);
+  assert.equal(await shown('[data-node-id="sign_widget"]').count(),0);
   await shown('[data-node-id="sign_accept"]').click();
   assert.equal(await page.evaluate(()=>window.lastAction),'sign');
   await shown('[data-node-id="sign_change"]').click();

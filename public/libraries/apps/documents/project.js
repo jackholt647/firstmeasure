@@ -4300,6 +4300,37 @@
           openSendModal(state.doc);
         } catch (error) { showToast('Present', errorMessage(error, 'The estimate was updated; reopen it to send.'), false); }
       };
+      /**
+       * Accept & sign: issue the agreement from what was chosen and open its
+       * signing page over the presentation, so the customer signs on this
+       * screen. Closing it returns to the Docs screen with the sent document.
+       */
+      let signing = false;
+      const sign = async () => {
+        if (signing) return;
+        signing = true;
+        let sent;
+        try {
+          await writes.catch(() => {});
+          sent = objectValue(await request(`/presentations/${encodeURIComponent(current.id)}/contract/send`, 'POST', { expectedRevision: current.revision, documentId }));
+        } catch (error) { signing = false; showToast('Present', errorMessage(error, 'The agreement could not be prepared for signing.'), false); return; }
+        const signer = objectValue(arrayValue(objectValue(sent.signTarget).signers).map(objectValue)[0]);
+        const url = firstText(signer.portalUrl, objectValue(sent.signing).portalUrl, sent.portalUrl);
+        const reopen = async () => {
+          close();
+          try {
+            const response = await api().documents.get(orgId(), documentId);
+            await openDocScreen(objectValue(response.document || response.doc || response));
+          } catch (error) { /* the list still shows it */ }
+        };
+        if (!url) { showToast('Present', 'The agreement was sent for signature.', true); reopen(); return; }
+        const sheet = document.createElement('div');
+        sheet.style.cssText = 'position:absolute;inset:0;z-index:40;background:#0b0d12;display:flex;flex-direction:column';
+        sheet.innerHTML = `<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;color:#e7eaf0;font:600 13px/1.2 inherit"><span><i class="fas fa-signature" style="margin-right:8px"></i>Sign the agreement</span><button type="button" data-sign-done style="border:0;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font:700 12px/1 inherit;padding:10px 16px;cursor:pointer">Done</button></div><iframe title="Sign the agreement" style="flex:1;border:0;background:#fff;width:100%"></iframe>`;
+        sheet.querySelector('iframe').src = url;
+        sheet.querySelector('[data-sign-done]').addEventListener('click', reopen);
+        overlay.appendChild(sheet);
+      };
       player = window.FMDocPresent.mount(overlay, {
         document: current.layout,
         widgetData: objectValue(current.widgetData),
@@ -4318,7 +4349,7 @@
           })),
           onError: (error) => showToast('Present', errorMessage(error, 'That choice could not be saved.'), false)
         },
-        onAction: (name) => { if (name === 'sign' || name === 'send') finish(); },
+        onAction: (name) => { if (name === 'sign') sign(); else if (name === 'send') finish(); },
         onExit: close
       });
       try { player.fullscreen(); } catch (e) { /* needs a user gesture; the top bar has the button */ }

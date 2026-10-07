@@ -45,6 +45,107 @@
     return (value < 0 ? '−' : (sign ? '+' : '')) + body;
   }
 
+  // ------------------------------------------------------------- textures
+  // Product photos are often missing; a drawn texture in the product's own
+  // color says "shingle" or "membrane" better than a grey box.
+  function shade(hex, amount) {
+    const match = /^#?([0-9a-f]{6})$/i.exec(text(hex));
+    if (!match) return text(hex) || '#888888';
+    const value = parseInt(match[1], 16);
+    const channel = (shift) => Math.max(0, Math.min(255, Math.round(((value >> shift) & 255) + amount * 255)));
+    return '#' + [16, 8, 0].map((shift) => channel(shift).toString(16).padStart(2, '0')).join('');
+  }
+  const TEXTURE_COLORS = {
+    shingle: ['#5b5f66', '#6b5b4a', '#47525e', '#7a6a55'],
+    felt: ['#c9d1da', '#b7c2ce', '#a5b3c2', '#d6dbe2'],
+    membrane: ['#3a4a60', '#2f3d52', '#44405c', '#34465a'],
+    plywood: ['#d8b584', '#cfa672', '#e0c092']
+  };
+  /** The texture a selection of this kind of product is drawn with. */
+  function textureKind(groupId) {
+    const id = text(groupId).toLowerCase();
+    if (/shingle|roof_cover|field/.test(id)) return 'shingle';
+    if (/underlay|felt/.test(id)) return 'felt';
+    if (/leak|ice|water|membrane|barrier/.test(id)) return 'membrane';
+    if (/deck|plywood|sheath/.test(id)) return 'plywood';
+    return '';
+  }
+  /** An SVG data URI: kind is shingle | felt | membrane | plywood. */
+  function texture(kind, color, index) {
+    const palette = TEXTURE_COLORS[kind];
+    if (!palette) return '';
+    const base = /^#?[0-9a-f]{6}$/i.test(text(color)) ? (text(color).startsWith('#') ? text(color) : '#' + text(color)) : palette[(Number(index) || 0) % palette.length];
+    const W = 240, H = 160;
+    // Deterministic variation: the same product always draws the same.
+    let seed = 7;
+    for (const ch of kind + base) seed = (seed * 31 + ch.charCodeAt(0)) % 9973;
+    const rand = () => { seed = (seed * 137 + 187) % 9973; return seed / 9973; };
+    let body = `<rect width="${W}" height="${H}" fill="${base}"/>`;
+    if (kind === 'shingle') {
+      for (let row = 0; row < 5; row += 1) {
+        const y = row * 32;
+        for (let x = -60 + (row % 2) * 30; x < W; x += 60) {
+          body += `<rect x="${x + 1}" y="${y}" width="58" height="32" fill="${shade(base, (rand() - 0.5) * 0.14)}"/>`;
+          for (let n = 0; n < 5; n += 1) body += `<rect x="${x + 4 + rand() * 50}" y="${y + 3 + rand() * 24}" width="${2 + rand() * 5}" height="1.2" fill="${shade(base, rand() > 0.5 ? 0.12 : -0.1)}" opacity=".55"/>`;
+        }
+        body += `<rect x="0" y="${y + 29}" width="${W}" height="3" fill="${shade(base, -0.2)}" opacity=".7"/><rect x="0" y="${y}" width="${W}" height="1.5" fill="${shade(base, 0.16)}" opacity=".5"/>`;
+      }
+    } else if (kind === 'felt') {
+      for (let x = -H; x < W; x += 9) body += `<path d="M${x} ${H} L${x + H} 0" stroke="${shade(base, -0.06)}" stroke-width="1"/><path d="M${x} 0 L${x + H} ${H}" stroke="${shade(base, 0.07)}" stroke-width="1"/>`;
+      for (let y = 40; y < H; y += 60) body += `<path d="M0 ${y} H${W}" stroke="${shade(base, -0.18)}" stroke-width="1.2" stroke-dasharray="10 7" opacity=".6"/>`;
+    } else if (kind === 'membrane') {
+      for (let n = 0; n < 420; n += 1) body += `<circle cx="${(rand() * W).toFixed(1)}" cy="${(rand() * H).toFixed(1)}" r="${(0.5 + rand() * 0.9).toFixed(2)}" fill="${shade(base, rand() > 0.5 ? 0.16 : -0.12)}" opacity=".7"/>`;
+      body += `<path d="M-20 ${H} L${W * 0.55} -20 L${W * 0.75} -20 L0 ${H + 40}Z" fill="#ffffff" opacity=".07"/>`;
+    } else {
+      for (let y = 6; y < H; y += 7) {
+        const wobble = rand() * 6;
+        body += `<path d="M0 ${y} C ${W * 0.25} ${y - wobble}, ${W * 0.5} ${y + wobble}, ${W} ${y - wobble / 2}" fill="none" stroke="${shade(base, -0.08 - rand() * 0.08)}" stroke-width="${(0.6 + rand()).toFixed(2)}" opacity=".7"/>`;
+      }
+      body += `<ellipse cx="${60 + rand() * 120}" cy="${40 + rand() * 80}" rx="14" ry="6" fill="none" stroke="${shade(base, -0.2)}" stroke-width="1.4" opacity=".6"/>`;
+    }
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice">${body}</svg>`);
+  }
+  const textureBackground = (kind, color, index) => { const uri = texture(kind, color, index); return uri ? `center / cover no-repeat url("${uri}")` : ''; };
+
+  /**
+   * Draw the material of every node that asks for one
+   * (node.props.texture = { kind, color }). The texture is made here, at view
+   * time, so a stored layout never carries an embedded image.
+   */
+  function applyTextures(rootEl, doc) {
+    const M = model();
+    if (!rootEl || !M || typeof document === 'undefined') return;
+    M.walkNodes(obj(doc), (node) => {
+      const want = obj(obj(node.props).texture);
+      if (!want.kind) return;
+      const uri = texture(text(want.kind), text(want.color));
+      if (!uri) return;
+      rootEl.querySelectorAll(`[data-node-id="${String(node.id).replace(/[^a-z0-9_-]/gi, '')}"]`).forEach((el) => {
+        const shape = el.querySelector('svg polygon, svg path, svg rect, svg ellipse');
+        if (!shape) { el.style.background = `center / cover no-repeat url("${uri}")`; return; }
+        const svg = shape.ownerSVGElement;
+        const id = 'fmtex-' + String(node.id).replace(/[^a-z0-9_-]/gi, '');
+        if (!svg.querySelector('#' + id)) {
+          const NS = 'http://www.w3.org/2000/svg';
+          const pattern = document.createElementNS(NS, 'pattern');
+          pattern.setAttribute('id', id);
+          pattern.setAttribute('patternContentUnits', 'objectBoundingBox');
+          pattern.setAttribute('width', '1');
+          pattern.setAttribute('height', '1');
+          const image = document.createElementNS(NS, 'image');
+          image.setAttribute('href', uri);
+          image.setAttribute('width', '1');
+          image.setAttribute('height', '1');
+          image.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+          pattern.appendChild(image);
+          svg.insertBefore(pattern, svg.firstChild);
+        }
+        shape.setAttribute('fill', `url(#${id})`);
+        shape.style.fill = `url(#${id})`;
+      });
+    });
+  }
+
   const types = new Map();
   /** def: { title, icon, required, presets: [{ id, label, size:{w,h}, build(h) }], attach(env) } */
   function register(id, def) { types.set(id, Object.assign({ id }, def)); }
@@ -122,6 +223,14 @@
 [data-part-role="review.edit"],[data-part-action]{cursor:pointer}
 [data-part-role="review.edit"]:hover{filter:brightness(1.08)}
 [data-part-busy]{pointer-events:none}
+[data-part-role="option"][data-part-focus],[data-part-role="row.option"][data-part-focus]{outline-color:color-mix(in srgb,var(--fm-primary,#2563eb) 55%,transparent);outline-style:dashed}
+[data-part-role="option.more"],[data-part-role="row.option.info"],[data-part-role="detail.close"]{cursor:pointer;transition:filter .15s ease,transform .15s ease}
+[data-part-role="option.more"]:hover,[data-part-role="row.option.info"]:hover,[data-part-role="detail.close"]:hover{filter:brightness(.94);transform:scale(1.05)}
+[data-part-role="row.option"]{cursor:pointer;outline:2px solid transparent;outline-offset:-1px;transition:outline-color .15s ease,background .15s ease,transform .15s ease}
+[data-part-role="row.option"]:hover{transform:translateY(-1px)}
+[data-part-role="row.option"][data-part-selected]{outline-color:var(--fm-primary,#2563eb);background:color-mix(in srgb,var(--fm-primary,#2563eb) 8%,#fff)!important}
+[data-part-role="detail"][data-part-live]{transition:opacity .22s ease,transform .26s cubic-bezier(.3,.8,.3,1);opacity:0;pointer-events:none;transform:translateY(12px) scale(.98)}
+[data-part-role="detail"][data-part-live][data-part-open]{opacity:1;pointer-events:auto;transform:none}
 @media (prefers-reduced-motion:reduce){[data-part-role="option"],[data-part-role="option.mark"]{transition:none}}
 `;
   function ensureStyles() {
@@ -190,6 +299,8 @@
     let opts = Object.assign({}, options || {});
     let state = obj(opts.state);
     let destroyed = false;
+    // What is being looked at closer ("See more"): view state, never saved.
+    let focus = null;
     const assemblies = () => obj(obj(opts.document).assemblies);
     const parts = (assemblyId, role, key) => Array.from(rootEl.querySelectorAll(`[data-part-assembly="${assemblyId}"][data-part-role="${role}"]`)).filter((el) => key === undefined || (el.getAttribute('data-part-key') || '') === String(key));
     const keysOf = (assemblyId, role) => Array.from(new Set(parts(assemblyId, role).map((el) => el.getAttribute('data-part-key') || ''))).sort((a, b) => Number(a) - Number(b) || a.localeCompare(b));
@@ -199,6 +310,9 @@
         id, entry: obj(assemblies()[id]), config: obj(obj(assemblies()[id]).config), state: () => state,
         parts: (role, key) => parts(id, role, key), keys: (role) => keysOf(id, role),
         setText, setMoney, setImage, fitLine, money, readonly: opts.readonly === true,
+        focus: () => focus,
+        /** Open the details of an option ({ group, option }), or close them (null). The same one again closes. */
+        setFocus(target) { focus = target && !(focus && focus.option === target.option && focus.group === target.group) ? target : null; render(); },
         input, navigate: (target) => { try { opts.navigate?.(target); } catch (e) { /* host navigation */ } }
       };
     }
@@ -234,16 +348,20 @@
       }
     }
     function onKey(event) {
-      if ((event.key !== 'Enter' && event.key !== ' ') || !event.target.matches?.('[data-part-role="option"],[data-part-role="review.edit"]')) return;
+      if (event.key === 'Escape' && focus) { focus = null; render(); event.stopPropagation(); return; }
+      if ((event.key !== 'Enter' && event.key !== ' ') || !event.target.matches?.('[data-part-role="option"],[data-part-role="review.edit"],[data-part-role="row.option"],[data-part-role="option.more"],[data-part-role="row.option.info"],[data-part-role="detail.close"]')) return;
       event.preventDefault();
       event.stopPropagation();
       event.target.click();
     }
     rootEl.addEventListener('click', onClick);
     rootEl.addEventListener('keydown', onKey);
+    applyTextures(rootEl, opts.document);
     render();
     return {
       state: () => state,
+      /** Close whatever details are open; true when something was. */
+      closeDetails() { if (!focus) return false; focus = null; render(); return true; },
       /** New state from outside (another device changed a choice), or the same assemblies in a re-rendered DOM. */
       update(next) {
         if (next && next.document) opts.document = next.document;
@@ -270,7 +388,7 @@
     const totals = obj(obj(p.pricing).totals);
     const option = (entry) => ({
       id: text(obj(entry).id), title: text(obj(entry).title || obj(entry).name), description: text(obj(entry).description),
-      image_url: text(obj(entry).image_url), swatch: text(obj(entry).swatch), price_cents: Number(obj(entry).price_cents) || 0,
+      image_url: text(obj(entry).image_url), swatch: text(obj(entry).swatch), color: text(obj(entry).color_hex), details: text(obj(entry).details), price_cents: Number(obj(entry).price_cents) || 0,
       delta_cents: Number(obj(entry).delta_cents) || 0, selected: obj(entry).selected === true
     });
     const deposit = arr(obj(p.pricing).schedule).filter((entry) => obj(entry).due_rule === 'on_signature').reduce((sum, entry) => sum + (Number(obj(entry).amount_cents) || 0), 0);
@@ -301,6 +419,32 @@
     return { multiple: false, group: text(source.id), title: text(group.title), options: arr(group.options) };
   }
 
+  /** Report a pick: one of a group, or an add-on on or off. */
+  function choose(e, source, option, presented) {
+    if (source.multiple) {
+      e.input({ type: 'addon', addon: option.id, selected: !option.selected, presented }, (state) => {
+        arr(state.addons).forEach((entry) => { if (entry.id === option.id) entry.selected = !option.selected; });
+        return state;
+      });
+    } else if (!option.selected) {
+      e.input({ type: 'choice', group: source.group, group_id: text(groupOf(e.state(), source.group).id), option: option.id, presented }, (state) => {
+        arr(groupOf(state, source.group).options).forEach((entry) => { entry.selected = entry.id === option.id; });
+        return state;
+      });
+    }
+  }
+  /** An option's picture: its photo, else a texture of its kind in its color. */
+  function optionBackground(option, kind, index) {
+    return text(option.swatch) || textureBackground(kind, option.color, index);
+  }
+  /** Every option on offer, with where it belongs: [{ option, group, kind, multiple, index }]. */
+  function allOptions(state) {
+    const out = [];
+    arr(obj(state).groups).forEach((group) => arr(obj(group).options).forEach((option, index) => out.push({ option, group: text(group.id), title: text(group.title), kind: textureKind(group.id), multiple: false, index })));
+    arr(obj(state).addons).forEach((option, index) => out.push({ option, group: 'addons', title: 'Add-ons', kind: '', multiple: true, index }));
+    return out;
+  }
+
   const OPTION_REQUIRED = [{ role: 'option', min: 1 }, { role: 'option.title', per: 'option' }, { role: 'option.price', per: 'option' }];
   const INK = '#101828';
   const MUTED = '#667085';
@@ -326,9 +470,12 @@
       const left = pad * 2 + swatch + 2;
       const wide = w - left - pad;
       children.push(h.text('Name', left, pad + 2, wide - 22, 18, 'Option name', { size: 12.5, weight: 700, color: INK, role: 'option.title', key }));
-      children.push(h.text('Description', left, pad + 24, wide, Math.max(14, ht - pad * 2 - 54), 'A short description of this option.', { size: 9, color: MUTED, line_height: 1.4, role: 'option.description', key }));
+      children.push(h.text('Description', left, pad + 24, wide, Math.max(14, ht - pad * 2 - 56), 'A short description of this option.', { size: 9, color: MUTED, line_height: 1.4, role: 'option.description', key }));
       children.push(h.text('Price', left, ht - pad - 24, wide, 24, '$0', { size: 16, weight: 800, color: INK, role: 'option.price', key }));
       children.push(h.box('Selected mark', w - pad - 16, pad + 2, 16, 16, { fill: 'var(--fm-primary)', radius: 8, role: 'option.mark', key }));
+      children.push(h.box('Details', w - pad - 58, ht - pad - 22, 58, 22, { fill: '#f2f4f7', radius: 11, role: 'option.more', key, children: [
+        h.text('Details label', 0, 4.5, 58, 13, 'Details', { size: 8.5, weight: 700, color: INK, align: 'center' })
+      ] }));
     }
     return h.box('Option ' + (Number(key) + 1), x, y, w, ht, {
       fill: '#ffffff', radius: layout === 'line' ? 9 : 14, stroke: '#e4e7ec', group: true, clip: layout === 'panel', role: 'option', key, children,
@@ -365,11 +512,12 @@
     required: OPTION_REQUIRED,
     roles: {
       title: 'Heading', option: 'Option', 'option.title': 'Option name', 'option.price': 'Option price',
-      'option.description': 'Option description', 'option.image': 'Option photo', 'option.mark': 'Selected mark'
+      'option.description': 'Option description', 'option.image': 'Option photo', 'option.mark': 'Selected mark', 'option.more': 'Details button'
     },
     presets: optionPresets(),
     render(e) {
-      const { options, title, multiple } = optionsFor(e);
+      const { options, title, multiple, group } = optionsFor(e);
+      const looking = (option) => !!e.focus() && e.focus().option === text(option.id);
       e.parts('title').forEach((el) => { if (title && e.config.keep_title !== true) e.setText(el, title); });
       const chosen = options.find((option) => obj(option).selected);
       e.keys('option').forEach((key, index) => {
@@ -378,6 +526,7 @@
         const each = (role, fn) => e.parts(role, key).forEach((el) => { el.toggleAttribute('data-part-empty', !has); if (has) fn(el); });
         each('option', (el) => {
           el.toggleAttribute('data-part-selected', !!option.selected);
+          el.toggleAttribute('data-part-focus', looking(option));
           el.setAttribute('role', multiple ? 'checkbox' : 'radio');
           el.setAttribute('aria-checked', option.selected ? 'true' : 'false');
           el.setAttribute('aria-label', `${text(option.title)}, ${money(option.price_cents)}`);
@@ -385,7 +534,8 @@
         });
         each('option.title', (el) => e.setText(el, option.title));
         each('option.description', (el) => e.setText(el, option.description));
-        each('option.image', (el) => e.setImage(el, option.image_url, option.swatch));
+        each('option.image', (el) => e.setImage(el, option.image_url, optionBackground(option, text(e.config.texture) || textureKind(group), index)));
+        each('option.more', (el) => { el.tabIndex = 0; el.setAttribute('role', 'button'); el.setAttribute('aria-label', 'More about ' + text(option.title)); el.setAttribute('aria-expanded', looking(option) ? 'true' : 'false'); });
         each('option.mark', (el) => el.toggleAttribute('data-part-selected', !!option.selected));
         // "difference": what choosing this one adds to or takes off the current price.
         each('option.price', (el) => {
@@ -398,23 +548,13 @@
       });
     },
     click(e, role, key) {
-      if (role !== 'option') return false;
-      const { options, multiple, group } = optionsFor(e);
+      if (role !== 'option' && role !== 'option.more') return false;
+      const source = optionsFor(e);
       const index = e.keys('option').indexOf(key);
-      const option = obj(options[index]);
+      const option = obj(source.options[index]);
       if (!text(option.id)) return false;
-      const presented = e.keys('option').map((_, i) => text(obj(options[i]).id)).filter(Boolean);
-      if (multiple) {
-        e.input({ type: 'addon', addon: option.id, selected: !option.selected, presented }, (state) => {
-          arr(state.addons).forEach((entry) => { if (entry.id === option.id) entry.selected = !option.selected; });
-          return state;
-        });
-      } else if (!option.selected) {
-        e.input({ type: 'choice', group, group_id: text(groupOf(e.state(), group).id), option: option.id, presented }, (state) => {
-          arr(groupOf(state, group).options).forEach((entry) => { entry.selected = entry.id === option.id; });
-          return state;
-        });
-      }
+      if (role === 'option.more') { e.setFocus({ group: source.group || 'addons', option: text(option.id) }); return true; }
+      choose(e, source, option, e.keys('option').map((_, i) => text(obj(source.options[i]).id)).filter(Boolean));
       return true;
     }
   });
@@ -502,6 +642,146 @@
     }
   });
 
+  // The details of whichever option is being looked at. It is laid out
+  // wherever the author wants it and shows only while something is open:
+  // config.source = { kind: "group", id } listens to one selection,
+  // { kind: "any" } to all of them.
+  register('detail_panel', {
+    title: 'Option details',
+    icon: 'fa-circle-info',
+    description: 'More about one option, opened from a Details button and closed again. Shows only while open.',
+    defaults: { source: { kind: 'any' } },
+    required: ['detail', { role: 'detail.title', per: 'detail' }],
+    roles: { detail: 'Panel', 'detail.title': 'Name', 'detail.kicker': 'Selection name', 'detail.body': 'Description', 'detail.image': 'Photo', 'detail.price': 'Price', 'detail.close': 'Close button' },
+    presets: [
+      { id: 'wide', label: 'Photo beside text', size: { w: 480, h: 250 }, build: (h, o) => {
+        const image = Math.round(o.w * 0.36);
+        return [h.box('Panel', 0, 0, o.w, o.h, { fill: '#ffffff', radius: 16, stroke: '#e4e7ec', clip: true, role: 'detail', shadow: { x: 0, y: 16, blur: 40, color: 'rgba(16,24,40,.18)' }, children: [
+          h.box('Photo', 0, 0, image, o.h, { fill: '#d9dde5', role: 'detail.image', clip: true }),
+          h.text('Selection', image + 22, 22, o.w - image - 70, 14, 'SELECTION', { size: 8, weight: 800, color: 'var(--fm-primary)', role: 'detail.kicker' }),
+          h.text('Name', image + 22, 40, o.w - image - 44, 28, 'Option name', { size: 19, weight: 800, color: INK, role: 'detail.title' }),
+          h.text('Description', image + 22, 76, o.w - image - 44, o.h - 136, 'What this option is, why someone would choose it, and how it differs from the others.', { size: 10.5, color: '#475467', line_height: 1.5, role: 'detail.body' }),
+          h.text('Price', image + 22, o.h - 48, o.w - image - 44, 28, '$0', { size: 19, weight: 800, color: INK, role: 'detail.price' }),
+          h.box('Close', o.w - 38, 12, 26, 26, { fill: '#f2f4f7', radius: 13, role: 'detail.close', children: [h.text('Close mark', 0, 5, 26, 16, '\u2715', { size: 10, weight: 700, color: INK, align: 'center' })] })
+        ] })];
+      } },
+      { id: 'tall', label: 'Photo above text', size: { w: 288, h: 428 }, build: (h, o) => {
+        const image = Math.round(o.h * 0.36);
+        return [h.box('Panel', 0, 0, o.w, o.h, { fill: '#ffffff', radius: 22, stroke: '#e4e7ec', clip: true, role: 'detail', shadow: { x: 0, y: 18, blur: 44, color: 'rgba(16,24,40,.22)' }, children: [
+          h.box('Photo', 0, 0, o.w, image, { fill: '#d9dde5', role: 'detail.image', clip: true }),
+          h.text('Selection', 26, image + 20, o.w - 52, 14, 'SELECTION', { size: 8, weight: 800, color: 'var(--fm-primary)', role: 'detail.kicker' }),
+          h.text('Name', 26, image + 38, o.w - 52, 48, 'Option name', { size: 18, weight: 800, color: INK, line_height: 1.15, role: 'detail.title' }),
+          h.text('Description', 26, image + 92, o.w - 52, o.h - image - 156, 'What this option is, why someone would choose it, and how it differs from the others.', { size: 10.5, color: '#475467', line_height: 1.5, role: 'detail.body' }),
+          h.text('Price', 26, o.h - 52, o.w - 52, 28, '$0', { size: 20, weight: 800, color: INK, role: 'detail.price' }),
+          h.box('Close', o.w - 40, 14, 26, 26, { fill: 'rgba(255,255,255,.92)', radius: 13, role: 'detail.close', children: [h.text('Close mark', 0, 5, 26, 16, '\u2715', { size: 10, weight: 700, color: INK, align: 'center' })] })
+        ] })];
+      } }
+    ],
+    render(e) {
+      const source = obj(e.config.source);
+      const looking = e.focus();
+      const match = looking && (source.kind !== 'group' || text(looking.group) === text(source.id) || text(looking.group).split(':').pop() === text(source.id))
+        ? allOptions(e.state()).find((entry) => text(entry.option.id) === looking.option && entry.group === looking.group) : null;
+      e.parts('detail').forEach((el) => {
+        el.setAttribute('data-part-live', '');
+        el.toggleAttribute('data-part-open', !!match);
+        el.setAttribute('aria-hidden', match ? 'false' : 'true');
+        // The group it was inserted in is only a holder: a closed panel must not catch clicks meant for what is under it.
+        const holder = el.parentElement;
+        if (holder && holder.matches('.fmdoc-frame') && !holder.hasAttribute('data-part-assembly')) holder.style.pointerEvents = 'none';
+      });
+      if (!match) return;
+      e.parts('detail.kicker').forEach((el) => e.setText(el, match.title.toUpperCase()));
+      e.parts('detail.title').forEach((el) => e.setText(el, match.option.title));
+      e.parts('detail.body').forEach((el) => e.setText(el, text(match.option.details) || text(match.option.description)));
+      e.parts('detail.price').forEach((el) => { e.setText(el, (match.multiple ? '+' : '') + money(match.option.price_cents)); e.fitLine(el); });
+      e.parts('detail.image').forEach((el) => e.setImage(el, match.option.image_url, optionBackground(match.option, match.kind, match.index)));
+      e.parts('detail.close').forEach((el) => { el.tabIndex = 0; el.setAttribute('role', 'button'); el.setAttribute('aria-label', 'Close details'); });
+    },
+    click(e, role) {
+      if (role !== 'detail.close') return false;
+      e.setFocus(null);
+      return true;
+    }
+  });
+
+  // The whole estimate as rows of alternatives: every selection side by side,
+  // changed on the spot. A row is one selection; its options show what each
+  // would add to or take off the price.
+  register('estimate_compare', {
+    title: 'Estimate comparison',
+    icon: 'fa-table-columns',
+    description: 'Every selection on one slide, with its alternatives beside it. Click one to switch and the price follows.',
+    defaults: {},
+    required: [{ role: 'row', min: 1 }, { role: 'row.option.title', per: 'row.option' }, { role: 'row.option.price', per: 'row.option' }],
+    roles: { row: 'Row', 'row.label': 'Selection name', 'row.option': 'Alternative', 'row.option.title': 'Alternative name', 'row.option.price': 'Price difference', 'row.option.info': 'Details button' },
+    presets: [
+      { id: 'rows', label: 'Rows of alternatives', size: { w: 500, h: 300 }, build(h, o) {
+        const rows = Math.max(1, Math.min(8, Number(o.count) || 4)), per = Math.max(2, Math.min(4, Number(o.options) || 3));
+        const gap = 8, each = (o.h - gap * (rows - 1)) / rows, label = 92, chipGap = 6, chip = (o.w - label - chipGap * (per - 1)) / per;
+        return Array.from({ length: rows }, (_, i) => h.box('Row ' + (i + 1), 0, i * (each + gap), o.w, each, { group: true, role: 'row', key: i, children: [
+          h.text('Selection', 0, (each - 14) / 2, label - 8, 14, 'Selection', { size: 9, weight: 800, color: MUTED, role: 'row.label', key: i })
+        ].concat(Array.from({ length: per }, (_, j) => h.box('Alternative ' + (j + 1), label + j * (chip + chipGap), 0, chip, each, { fill: '#ffffff', radius: 10, stroke: '#e4e7ec', group: true, role: 'row.option', key: i + '.' + j, children: [
+          h.text('Name', 10, Math.max(6, each / 2 - 17), chip - 34, 15, 'Alternative', { size: 9.5, weight: 700, color: INK, role: 'row.option.title', key: i + '.' + j }),
+          h.text('Difference', 10, Math.max(22, each / 2 + 1), chip - 20, 15, '$0', { size: 10.5, weight: 800, color: INK, role: 'row.option.price', key: i + '.' + j }),
+          h.box('Details', chip - 24, 6, 17, 17, { fill: '#f2f4f7', radius: 9, role: 'row.option.info', key: i + '.' + j, children: [h.text('Details mark', 0, 2.5, 17, 12, 'i', { size: 8.5, weight: 800, color: MUTED, align: 'center' })] })
+        ] }))) }));
+      } }
+    ],
+    rows(e) {
+      const state = e.state();
+      const rows = arr(state.groups).map((group) => ({ group: text(group.id), title: text(group.title), multiple: false, options: arr(group.options) }));
+      if (arr(state.addons).length) rows.push({ group: 'addons', title: 'Add-ons', multiple: true, options: arr(state.addons) });
+      return rows;
+    },
+    slot(key) { const [row, option] = text(key).split('.'); return { row: Number(row), option: option === undefined ? -1 : Number(option) }; },
+    render(e) {
+      const rows = this.rows(e);
+      const looking = e.focus();
+      e.keys('row').forEach((key, index) => {
+        const row = rows[index];
+        e.parts('row', key).forEach((el) => el.toggleAttribute('data-part-empty', !row));
+        e.parts('row.label', key).forEach((el) => { el.toggleAttribute('data-part-empty', !row); if (row) e.setText(el, row.title); });
+      });
+      const rowKeys = e.keys('row');
+      for (const role of ['row.option', 'row.option.title', 'row.option.price', 'row.option.info']) {
+        e.parts(role).forEach((el) => {
+          const at = this.slot(el.getAttribute('data-part-key'));
+          const row = rows[rowKeys.indexOf(String(at.row))];
+          const option = obj(row && row.options[at.option]);
+          const has = !!text(option.id);
+          el.toggleAttribute('data-part-empty', !has);
+          if (!has) return;
+          const chosen = row.multiple ? null : obj(row.options.find((entry) => obj(entry).selected));
+          if (role === 'row.option') {
+            el.toggleAttribute('data-part-selected', !!option.selected);
+            el.toggleAttribute('data-part-focus', !!looking && looking.option === text(option.id));
+            el.setAttribute('role', row.multiple ? 'checkbox' : 'radio');
+            el.setAttribute('aria-checked', option.selected ? 'true' : 'false');
+            el.setAttribute('aria-label', `${row.title}: ${text(option.title)}`);
+            if (!e.readonly) el.tabIndex = 0;
+          } else if (role === 'row.option.title') e.setText(el, option.title);
+          else if (role === 'row.option.price') {
+            if (row.multiple) e.setText(el, '+' + money(option.price_cents));
+            else if (option.selected) e.setText(el, money(option.price_cents));
+            else { const delta = (Number(option.price_cents) || 0) - (Number(chosen.price_cents) || 0); e.setText(el, delta ? money(delta, { sign: true }) : 'Same price'); }
+            e.fitLine(el);
+          } else { el.tabIndex = 0; el.setAttribute('role', 'button'); el.setAttribute('aria-label', 'More about ' + text(option.title)); }
+        });
+      }
+    },
+    click(e, role, key) {
+      if (role !== 'row.option' && role !== 'row.option.info') return false;
+      const at = this.slot(key);
+      const row = this.rows(e)[e.keys('row').indexOf(String(at.row))];
+      const option = obj(row && row.options[at.option]);
+      if (!text(option.id)) return false;
+      if (role === 'row.option.info') { e.setFocus({ group: row.group, option: text(option.id) }); return true; }
+      choose(e, { multiple: row.multiple, group: row.group }, option, row.options.map((entry) => text(obj(entry).id)).filter(Boolean));
+      return true;
+    }
+  });
+
   /** True when a page's selections all have nothing to offer in this state (a slide to pass over). */
   function pageIsEmpty(doc, pageId, state) {
     const M = model();
@@ -525,5 +805,5 @@
     return '';
   }
 
-  return { register, get, list, build, insert, attach, money, pageForTarget, pageIsEmpty, stateFromPresentation, inputWrite };
+  return { register, get, list, build, insert, attach, money, pageForTarget, pageIsEmpty, stateFromPresentation, inputWrite, texture, textureKind, applyTextures };
 });

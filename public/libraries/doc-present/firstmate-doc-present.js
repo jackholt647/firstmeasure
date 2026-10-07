@@ -421,6 +421,8 @@
       const wanted = clamp(step === 'end' ? steps.length : (Number(step) || 0), 0, steps.length);
       stop();
       const from = pageIndex;
+      // Details opened on one slide do not follow to the next.
+      if (target !== from) parts?.closeDetails();
       // Arriving at the start of a slide plays its opening auto steps; landing
       // anywhere else, or without animation, goes straight to the resting state.
       const opening = animate && wanted === 0 && steps[0] && steps[0].auto && !reduced();
@@ -550,6 +552,7 @@
       else if (key === 'Home') { event.preventDefault(); goTo(0, 0); }
       else if (key === 'End') { event.preventDefault(); goTo(pages().length - 1, 'end'); }
       else if (key === 'f' || key === 'F') fullscreen();
+      else if (key === 'Escape' && parts?.closeDetails()) event.preventDefault();
       else if (key === 'Escape' && !document.fullscreenElement) exit();
     }
     // Swipe: sideways advances (it means "the next thing", a step or a

@@ -26,7 +26,7 @@ function loadLibrary<T>(relative: string): T {
 }
 
 /** Raise when the deck in public/libraries/doc-present/templates/roofing-presentation.js changes. */
-export const ROOFING_PRESENTATION_REVISION = 2;
+export const ROOFING_PRESENTATION_REVISION = 3;
 
 /**
  * The roofing sales presentation's layout. The deck is authored once, in the
