@@ -1070,6 +1070,8 @@
       document.getElementById('uEmail').disabled = false;
 
       if (mode === 'create') {
+        document.getElementById('uFullHouseDraft').checked = false;
+        document.getElementById('uFullHouseQa').checked = false;
         this.applyPreset(this.defaultCreateRole());
       } else {
         document.getElementById('uEmail').value = user.email;
@@ -1085,6 +1087,8 @@
         this._setPriorityEligibility(user);
         document.getElementById('uQueueMode').value = user.queue_mode || 'disabled';
         document.getElementById('uQaTrainee').checked = !!user.is_qa_trainee;
+        document.getElementById('uFullHouseDraft').checked = user.can_draft_full_house === true;
+        document.getElementById('uFullHouseQa').checked = user.can_qa_full_house === true;
         document.getElementById('uShiftRate').value = (typeof user.shift_rate === 'number') ? user.shift_rate : 940;
 
         const isTrained = !!user.training_complete;
@@ -1264,6 +1268,8 @@
         role: document.getElementById('uRoleLabel').value,
         permissions: perms,
         is_qa_trainee: !!document.getElementById('uQaTrainee').checked,
+        can_draft_full_house: document.getElementById('uFullHouseDraft').checked,
+        can_qa_full_house: document.getElementById('uFullHouseQa').checked,
         training_complete: !!document.getElementById('uTrainingComplete').checked,
         shift_rate: Number(document.getElementById('uShiftRate').value) || 0
       };

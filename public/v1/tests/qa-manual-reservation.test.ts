@@ -95,5 +95,5 @@ test("manual QA reservations persist, enforce ownership, and clear at terminal s
       await storage.patchManifest("terminal-"+status,{status});
       assert.equal((await storage.readManifest("terminal-"+status)).qa_reserved_to_email,null);
     }
-  } finally { await app.close(); await index.closeFirstMeasureProjectIndex(); await rm(root,{recursive:true,force:true}); }
+  } finally { await app.close(); await index.closeFirstMeasureProjectIndex(); await rm(root, { recursive: true, force: true }).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'EBUSY' && error.code !== 'EPERM') throw error; }); }
 });

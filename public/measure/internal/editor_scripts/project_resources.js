@@ -15,6 +15,7 @@
    }
   };
   add('customer','order',manifest.tech_notes);
+  add('customer','walkthroughs','',manifest.exterior_reference_videos||[]);
   const elevationPhotos=manifest.elevation_photos||meta.elevation_photos||{};
   add('customer','elevations','',Array.isArray(elevationPhotos)?elevationPhotos:Object.entries(elevationPhotos).map(([slot,image])=>({...typeof image==='string'?{url:image}:image,elevation_view:slot})));
   for(const [i,r]of (manifest.resubmissions||[]).entries())add('customer','resubmission-'+i,r.notes,r.images);

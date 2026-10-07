@@ -14,5 +14,9 @@ export function managerReviewCsv(rows: Record<string, unknown>[]) {
     row.severity, Array.isArray(row.issue_categories) ? row.issue_categories.join("; ") : "",
     row.note, row.score_exclusion_reason || (row.score_excluded ? "manual" : "")
   ]);
+  if (rows.some(row => row.measurement_scope === 'full_house')) {
+    header.push('Report scope');
+    lines.forEach((line, index) => line.push(rows[index]?.measurement_scope === 'full_house' ? 'Full house' : 'Roof'));
+  }
   return '\uFEFF' + [header, ...lines].map(line => line.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }

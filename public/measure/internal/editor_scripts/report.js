@@ -1240,6 +1240,7 @@ function getLayersFromState(state) {
 }
 
 function shouldIncludeGutters(state) {
+    if (window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE === true) return true;
     if (typeof state?.includeGutterMeasurements === 'boolean') {
         return state.includeGutterMeasurements;
     }
@@ -7549,7 +7550,7 @@ async function renderFinalizePage(container) {
                 </div>
             ` : ''}
 
-            ${window.FIRSTMEASURE_FULL_HOUSE === true && !window.FIRSTMEASURE_TUTORIAL?.enabled ? '<p>Internal draft · Download from the preview above.</p>' : qaPdfReviewMode ? renderQaPdfReviewHtml(state) : `
+            ${window.FIRSTMEASURE_FULL_HOUSE === true && !window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE && !window.FIRSTMEASURE_TUTORIAL?.enabled ? '<p>Internal draft · Download from the preview above.</p>' : qaPdfReviewMode ? renderQaPdfReviewHtml(state) : `
                 <div class="fin-submit-area">
                     <button class="fin-submit-btn ${storiesReady ? 'enabled' : 'disabled'}" id="finalSubmitBtn" ${storiesReady ? '' : 'disabled'}>
                         <i class="fas fa-file-pdf"></i> Submit PDF
@@ -7633,7 +7634,7 @@ async function renderFinalizePage(container) {
                 throw new Error('The shared local PDF synchronization runtime is unavailable.');
             }
             const folderId = state.folderId || window.currentProjectId;
-            const isTutorialPreview = window.FIRSTMEASURE_FULL_HOUSE === true || !!(
+            const isTutorialPreview = (window.FIRSTMEASURE_FULL_HOUSE === true && !window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE) || !!(
                 window.FIRSTMEASURE_TUTORIAL?.enabled
                 && typeof window.firstMeasureIsTutorialProjectId === 'function'
                 && window.firstMeasureIsTutorialProjectId(folderId)
@@ -7697,6 +7698,13 @@ async function renderFinalizePage(container) {
                         }
                     }
                 );
+            }
+            if (window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE === true) {
+                setPreviewStatus('Waiting for the full-house PDF to finish synchronizing...');
+                const synchronized = await generated.monitorPromise;
+                if (!synchronized || synchronized.status !== 'completed') {
+                    throw new Error('The full-house PDF did not finish synchronizing. Regenerate the preview before submitting.');
+                }
             }
             const mainOutput = Array.isArray(generated.outputs)
                 ? generated.outputs.find((output) => output && output.mode === 'full')
@@ -8801,7 +8809,7 @@ function startSubmissionArtifactFinalization(state, reviewedSync) {
 }
 
 async function submitFinalReport() {
-    if (window.FIRSTMEASURE_FULL_HOUSE === true) { alert('This is an internal draft. Use the report preview to download it.'); return; }
+    if (window.FIRSTMEASURE_FULL_HOUSE === true && !window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE) { alert('This is an internal draft. Use the report preview to download it.'); return; }
     const btn = document.querySelector('#finalSubmitBtn');
     if (!btn) return;
 

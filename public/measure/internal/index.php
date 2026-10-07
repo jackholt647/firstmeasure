@@ -3663,6 +3663,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $uData['department'] = $department;
         $uData['complexity_preference'] = $compPref;
         $uData['drafter_rank'] = $drafterRank;
+        $uData['can_draft_full_house'] = filter_var($_POST['can_draft_full_house'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $uData['can_qa_full_house'] = filter_var($_POST['can_qa_full_house'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $uData['queue_mode'] = $qMode;
         $uData['shift_rate'] = max(0, min(100000, (int)($_POST['shift_rate'] ?? 940)));
         $uData['permissions'] = $perms;
@@ -6489,6 +6491,11 @@ $ver = time(); // cache busting
                             </label>
                         </div>
                         <div id="uPriorityEligibilityHint" style="font-size:11px; color:#777; margin-top:6px; line-height:1.4;"></div>
+                    </div>
+                    <div class="form-row">
+                        <label>Full-house qualifications</label>
+                        <label class="user-switch-row"><span class="user-switch-copy">Can draft full-house reports</span><span class="user-switch"><input class="user-switch-input" type="checkbox" role="switch" id="uFullHouseDraft"><span class="user-switch-slider" aria-hidden="true"></span></span></label>
+                        <label class="user-switch-row"><span class="user-switch-copy">Can QA full-house reports</span><span class="user-switch"><input class="user-switch-input" type="checkbox" role="switch" id="uFullHouseQa"><span class="user-switch-slider" aria-hidden="true"></span></span></label>
                     </div>
                     <div class="form-row">
                         <label>QA Review Level</label>

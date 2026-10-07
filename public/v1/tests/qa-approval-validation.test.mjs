@@ -9,7 +9,7 @@ const section=(a,b)=>{
  return ts.transpileModule(src.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 };
 let stored=null;
-const ctx=vm.createContext({readManifest:async()=>({}),asRecord:x=>x||{},readStoredPdf:async()=>stored,
+const ctx=vm.createContext({isCustomerFullHouse:()=>false,readManifest:async()=>({}),asRecord:x=>x||{},readStoredPdf:async()=>stored,
  conflict:(code,message)=>Object.assign(new Error(message),{code}),buildLegacyManifest:x=>x,drafterEmailForQaRank:()=>''});
 vm.runInContext(section('async function resolveProjectPdfSyncReference(', 'async function enqueueProjectReportDelivery(')+section('function qaBulkApprovalMatches(', 'async function approveQaProjectFromBulk('),ctx);
 await assert.rejects(vm.runInContext("resolveProjectPdfSyncReference('test')",ctx),{code:'missing_pdf'});

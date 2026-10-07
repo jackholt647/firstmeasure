@@ -335,6 +335,6 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
     if (!resolved.startsWith(path.resolve(os.tmpdir()) + path.sep) || !path.basename(resolved).startsWith("manager-review-test-")) {
       throw new Error(`Refusing to remove unexpected test path '${resolved}'.`);
     }
-    await rm(resolved, { recursive: true, force: true });
+    await rm(resolved, { recursive: true, force: true }).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'EBUSY' && error.code !== 'EPERM') throw error; });
   }
 });

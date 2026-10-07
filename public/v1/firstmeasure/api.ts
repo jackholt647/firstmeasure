@@ -1,3 +1,4 @@
+import { assertFullHouseEligible, assertFullHouseReview, assertFullHouseSnapshot, fullHouseEligible, isCustomerFullHouse } from './full_house_workflow.js';
 import { withReportPropertyMarket } from "../commerce/property-market.js";
 import { reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { resolveOrderReportPreferences, normalizeReportPreferences } from "./report_preferences.js";
@@ -625,7 +626,7 @@ const PDF_SYNC_UPLOAD_MAX_CHUNKS = 128;
 
 const PDF_SYNC_UPLOAD_MAX_PAYLOAD_BYTES = 512 * 1024 * 1024;
 
-const PDF_RENDER_RECIPE_VERSION = "2026-09-16.2";
+const PDF_RENDER_RECIPE_VERSION = "2026-10-06.1";
 
 const REPORT_RELEASE_HOLD_POLL_MS = 60_000;
 
@@ -3157,6 +3158,9 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     const current = await readManifest(projectId);
 
+    if (isCustomerFullHouse(current) && ['awaiting_review', 'awaiting_manager_review', 'completed'].includes(String(patch.status ?? ''))) {
+      throw conflict('full_house_workflow_required', 'Use report submission and QA approval to advance a full-house report.');
+    }
     const timedPatch = withRecalculatedReportExpediteTiming(current, patch);
 
     const manifest = await patchManifest(projectId, timedPatch);
@@ -3185,6 +3189,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     const body = statusUpdateSchema.parse(request.body ?? {});
 
+    const statusManifest = await readManifest(projectId);
+    if (isCustomerFullHouse(statusManifest) && body.status === 'completed') throw conflict('full_house_qa_required', 'Full-house reports must be approved through QA.');
     const reviewSubmission = isReviewSubmissionStatus(body.status);
 
     const pdfSync = reviewSubmission
@@ -3996,6 +4002,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
     const claimSelected = async (manifest: ProjectManifest, persist: boolean) => {
+      if (isCustomerFullHouse(manifest) && claimingUser?.can_draft_full_house !== true) throw new FirstMeasureError("full_house_qualification_required", 403, "This technician is not enabled to draft full-house reports.");
 
       const workflow = asRecord(manifest.workflow);
 
@@ -5395,7 +5402,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
 
-    const qaItems = Array.isArray(overview.qa) ? overview.qa.map(asRecord) : [];
+    const canFullHouse = await fullHouseEligible(actor?.email, "qa");
+    const qaItems = (Array.isArray(overview.qa) ? overview.qa.map(asRecord) : []).filter(item => canFullHouse || !isCustomerFullHouse(item));
 
     const pendingRejections = Array.isArray(overview.rejected)
 
@@ -5719,9 +5727,10 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     const limit = Math.max(1, Math.min(100, Number(body.limit ?? 50) || 50));
 
+    const canFullHouse = await fullHouseEligible(actor?.email, "qa");
     const projects = await Promise.all(
 
-      prioritizeQaReservations(ranked, String(actor?.email ?? "").toLowerCase()).slice(0, limit).map((entry) => buildQaRankedProjectRow(entry, request, "card"))
+      prioritizeQaReservations(ranked.filter(entry => canFullHouse || !isCustomerFullHouse(entry.manifest)), String(actor?.email ?? "").toLowerCase()).slice(0, limit).map((entry) => buildQaRankedProjectRow(entry, request, "card"))
 
     );
 
@@ -5960,6 +5969,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     const project = await withQaProjectClaimLock(getProjectId(request.params), async () => {
 
       let manifest = await readManifest(getProjectId(request.params));
+      if (targetEmail) await assertFullHouseEligible(manifest, targetEmail, "qa");
 
       if (!["awaiting_review", "submission_failed"].includes(String(manifest.status ?? ""))) {
 
@@ -6042,6 +6052,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     const result = await withQaProjectClaimLock(projectId, async () => {
 
       const manifest = await readManifest(projectId);
+      await assertFullHouseEligible(manifest, actorEmail, "qa");
 
       const legacy = buildLegacyManifest(manifest);
 
@@ -6322,6 +6333,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     const nowSql = toSqlDateString(new Date());
 
     const manifest = await readManifest(projectId);
+    await assertFullHouseEligible(manifest, actorEmail, "qa");
 
     const legacy = buildLegacyManifest(manifest);
 
@@ -6426,6 +6438,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
     if (decision === "approved") {
+      assertFullHouseReview(manifest, body.full_house_review);
 
       const pdfSync = await resolveProjectPdfSyncReference(
 
@@ -6457,6 +6470,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
           status: "completed",
 
+          ...(isCustomerFullHouse(manifest) ? { qa_full_house_review: { ...asRecord(body.full_house_review), revision: pdfSync?.revision, reviewed_by: actorEmail, reviewed_at: nowIso } } : {}),
           submission_status: "submitting",
 
           submission_failure: null,
@@ -6558,6 +6572,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       await patchManifest(projectId, {
 
         ...qaDecisionTracking,
+        ...(isCustomerFullHouse(manifest) ? { qa_full_house_review: { ...asRecord(body.full_house_review), revision: pdfSync?.revision, reviewed_by: actorEmail, reviewed_at: nowIso } } : {}),
 
         ...(qaDecisionTracking.qa_corrected_by_qa ? rushBonusRemovalPatch("qa_corrected", nowSql) : {}),
 
@@ -6938,6 +6953,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     const nowSql = toSqlDateString(new Date());
 
     const manifest = await readManifest(projectId);
+    await assertFullHouseEligible(manifest, actorEmail, "qa");
 
     const legacy = buildLegacyManifest(manifest);
 
@@ -6962,6 +6978,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
     if (decision === "approved") {
+      assertFullHouseReview(manifest, body.full_house_review);
 
       const pdfSync = await resolveProjectPdfSyncReference(
 
@@ -6992,6 +7009,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       await patchManifest(projectId, {
 
         ...buildCustomerReworkCompletionPatch(legacy, nowIso, actorEmail, actorName),
+        ...(isCustomerFullHouse(manifest) ? { manager_full_house_review: { ...asRecord(body.full_house_review), revision: pdfSync?.revision, reviewed_by: actorEmail, reviewed_at: nowIso } } : {}),
 
         manager_threads: threads,
 
@@ -10194,6 +10212,7 @@ async function buildLegacyProjectRow(
 
     cc_emails: Array.isArray(legacy.cc_emails) ? legacy.cc_emails : [],
 
+    ...(isCustomerFullHouse(manifest) ? { measurement_scope: "full_house" } : {}),
     include_gutter_measurements: Boolean(legacy.include_gutter_measurements),
 
     is_filler: Boolean(legacy.is_filler),
@@ -10539,6 +10558,7 @@ function buildProjectListViewRow(
 
     instant_rejection_reason: String(legacy.instant_rejection_reason ?? ""),
 
+    ...(isCustomerFullHouse(manifest) ? { measurement_scope: "full_house" } : {}),
     include_gutter_measurements: Boolean(legacy.include_gutter_measurements),
 
     is_filler: Boolean(legacy.is_filler),
@@ -14277,6 +14297,12 @@ async function processExpediteMissedPromises(app: FastifyInstance) {
 async function sendProjectEmail(projectId: string, force: boolean) {
 
   const manifest = await readManifest(projectId);
+  if (isCustomerFullHouse(manifest)) {
+    const sync = await resolveProjectPdfSyncReference(projectId);
+    const review = [manifest.manager_full_house_review, manifest.qa_full_house_review].map(asRecord).find(value => value.revision === sync?.revision);
+    if (manifest.status !== 'completed' || !review) throw conflict('full_house_qa_required', 'The current full-house PDF must pass QA before delivery.');
+    assertFullHouseReview(manifest, review);
+  }
 
   const legacy = buildLegacyManifest(manifest);
 
@@ -14470,11 +14496,8 @@ async function sendProjectEmail(projectId: string, force: boolean) {
 
   const address = String(legacy.address ?? "Project");
 
-  const subject = reworkDelivery
-
-    ? `Corrected Roof Report - ${address}`
-
-    : `Roof Report - ${address}`;
+  const reportTitle = isCustomerFullHouse(manifest) ? "Full House Report" : "Roof Report";
+  const subject = reworkDelivery ? `Corrected ${reportTitle} - ${address}` : `${reportTitle} - ${address}`;
 
   const bonusOfferTeaser = reworkDelivery
 
@@ -14482,7 +14505,7 @@ async function sendProjectEmail(projectId: string, force: boolean) {
 
     : await bonusOfferEmailTeaserForProject(manifest);
 
-  const textBody = buildReportEmailTextBody(address || "Unknown", bonusOfferTeaser, { reworkDelivery });
+  const textBody = buildReportEmailTextBody(address || "Unknown", bonusOfferTeaser, { reworkDelivery, fullHouse: isCustomerFullHouse(manifest) });
 
   const sendResult = await sendPostmarkEmail({
 
@@ -14492,7 +14515,7 @@ async function sendProjectEmail(projectId: string, force: boolean) {
 
     textBody,
 
-    htmlBody: buildReportEmailHtmlBody(address || "Unknown", bonusOfferTeaser, { reworkDelivery }),
+    htmlBody: buildReportEmailHtmlBody(address || "Unknown", bonusOfferTeaser, { reworkDelivery, fullHouse: isCustomerFullHouse(manifest) }),
 
     attachments
 
@@ -15610,7 +15633,7 @@ function buildReportEmailTextBody(
 
   bonusOfferTeaser: BonusOfferEmailTeaser | false,
 
-  options: { reworkDelivery?: Record<string, unknown> | null } = {}
+  options: { reworkDelivery?: Record<string, unknown> | null; fullHouse?: boolean } = {}
 
 ) {
 
@@ -15620,7 +15643,7 @@ function buildReportEmailTextBody(
 
     return [
 
-      "Your corrected roof report is ready.",
+      `Your corrected ${options.fullHouse ? "full-house" : "roof"} report is ready.`,
 
       `We finalized the ${label.toLowerCase()} for this project and attached the corrected report PDFs.`,
 
@@ -15648,7 +15671,7 @@ function buildReportEmailTextBody(
 
       : null,
 
-    "Your roof report is ready!",
+    `Your ${options.fullHouse ? "full-house" : "roof"} report is ready!`,
 
     `Address: ${address}`,
 
@@ -15670,7 +15693,7 @@ function buildReportEmailHtmlBody(
 
   bonusOfferTeaser: BonusOfferEmailTeaser | false,
 
-  options: { reworkDelivery?: Record<string, unknown> | null } = {}
+  options: { reworkDelivery?: Record<string, unknown> | null; fullHouse?: boolean } = {}
 
 ) {
 
@@ -15680,7 +15703,7 @@ function buildReportEmailHtmlBody(
 
     return [
 
-      "<p style=\"margin:0 0 14px;font-size:17px;line-height:1.45;font-weight:700;\">Your corrected roof report is ready.</p>",
+      `<p style="margin:0 0 14px;font-size:17px;line-height:1.45;font-weight:700;">Your corrected ${options.fullHouse ? "full-house" : "roof"} report is ready.</p>`,
 
       `<p style="margin:0 0 14px;font-size:17px;line-height:1.45;">We finalized the ${escapeHtml(label)} for this project and attached the corrected report PDFs.</p>`,
 
@@ -15722,7 +15745,7 @@ function buildReportEmailHtmlBody(
 
     bonusBanner,
 
-    "<p style=\"margin:0 0 14px;font-size:17px;line-height:1.45;font-weight:700;\">Your roof report is ready!</p>",
+    `<p style="margin:0 0 14px;font-size:17px;line-height:1.45;font-weight:700;">Your ${options.fullHouse ? "full-house" : "roof"} report is ready!</p>`,
 
     `<p style="margin:0 0 14px;font-size:17px;line-height:1.45;"><strong>Address:</strong> ${escapeHtml(address)}</p>`,
 
@@ -16545,6 +16568,11 @@ function rushBonusRemovalPatch(reason: string, nowSql: string) {
 export async function updateStatusForSubmission(projectId: string, requestedStatus: string) {
 
   const manifest = await readManifest(projectId);
+  if (isCustomerFullHouse(manifest) && isReviewSubmissionStatus(requestedStatus)) {
+    const assigned = asRecord(asRecord(manifest.workflow).assigned_to);
+    await assertFullHouseEligible(manifest, assigned.email ?? manifest.assigned_to_email, 'draft');
+    await resolveProjectPdfSyncReference(projectId);
+  }
 
   const currentStatus = String(manifest.status ?? "").trim().toLowerCase();
 
@@ -18364,6 +18392,7 @@ function qaBulkApprovalMatches(
 
 ) {
 
+  if (isCustomerFullHouse(manifest)) return false;
   const legacy = buildLegacyManifest(manifest);
 
   const maxScore = Number(criteria.max_score ?? 10);
@@ -18436,6 +18465,7 @@ async function approveQaProjectFromBulk(
 
 ) {
 
+  if (isCustomerFullHouse(manifest)) return { success: false, id: manifest.id, error: 'full_house_individual_review_required' };
   const projectId = manifest.id;
 
   const actorEmail = actor?.email ?? "";
@@ -18747,6 +18777,7 @@ async function reserveNextQaProjects(input: {
   const actorEmail = String(input.actor?.email ?? "").trim().toLowerCase();
 
   const reserved: QaRankedProject[] = [];
+  const canFullHouse = await fullHouseEligible(actorEmail, "qa");
 
   const existing = await getRankedQaQueueManifests({
 
@@ -18759,6 +18790,7 @@ async function reserveNextQaProjects(input: {
   });
 
   for (const entry of prioritizeQaReservations(existing, actorEmail)) {
+    if (isCustomerFullHouse(entry.manifest) && !canFullHouse) continue;
 
     if (qaClaimEmail(entry.manifest) !== actorEmail || isQaCorrectionReturn(entry.manifest)) continue;
 
@@ -18807,6 +18839,7 @@ async function reserveNextQaProjects(input: {
   const queueCacheAgeMs = cached ? Math.max(0, QA_TECH_QUEUE_CACHE_TTL_MS - (cached.expiresAt - Date.now())) : 0;
 
   for (const entry of prioritizeQaReservations(ranked, actorEmail)) {
+    if (isCustomerFullHouse(entry.manifest) && !canFullHouse) continue;
 
     if (reserved.length >= input.count) break;
 
@@ -18855,6 +18888,7 @@ async function reserveNextQaProjects(input: {
 
 
 async function claimQaProjectForActor(manifest: ProjectManifest, actor: ReturnType<typeof normalizeOptionalPortalActor>) {
+  await assertFullHouseEligible(manifest, actor?.email, "qa");
 
   const actorEmail = String(actor?.email ?? "").trim().toLowerCase();
 
@@ -19120,7 +19154,8 @@ async function routeProjectBackToTechnician(options: {
 
   const targetName = options.targetTech.name || options.targetTech.email || "the original tech";
 
-  const techOnline = await isTechnicianOnlineForReturn(options.manifest, options.targetTech.email);
+  const techOnline = (!isCustomerFullHouse(options.manifest) || await fullHouseEligible(options.targetTech.email, "draft"))
+    && await isTechnicianOnlineForReturn(options.manifest, options.targetTech.email);
 
 
 
@@ -19948,6 +19983,7 @@ async function resolveProjectPdfSyncReference(
 
   const revision = requestedRevision || latestRevision;
 
+  if (isCustomerFullHouse(manifest) && (!jobId || !revision)) throw conflict('full_house_pdf_sync_required', 'Generate and synchronize the full-house PDF before submitting.');
   if (!jobId || !revision) {
 
     const storedPdf = await readStoredPdf(projectId, "main").catch((error) => {
@@ -20020,6 +20056,28 @@ async function resolveProjectPdfSyncReference(
 
   }
 
+  if (isCustomerFullHouse(manifest)) {
+    assertFullHouseSnapshot(manifest, job.payload.snapshot);
+    const outputs = Array.isArray(job.payload.outputs) ? job.payload.outputs.map(asRecord) : [];
+    if (!outputs.some(output => output.mode === 'full' && (!output.slot || output.slot === 'main') && output.persist !== false)) {
+      throw conflict('full_house_main_pdf_required', 'The main PDF must be a complete full-house report.');
+    }
+    if (job.status !== 'completed' || pdfSync.status !== 'completed' || pdfSync.checksum_match === false || pdfSync.render_checksum_match === false) {
+      throw conflict('full_house_pdf_not_ready', 'Wait for the reviewed full-house PDF to finish synchronizing before submitting.');
+    }
+    const pdf = await readStoredPdf(projectId, 'main').catch(() => null);
+    if (!pdf?.content?.length) throw conflict('missing_pdf', 'The synchronized full-house PDF is missing. Regenerate it before submitting.');
+    const renderedMain = (Array.isArray(job.result?.outputs) ? job.result.outputs.map(asRecord) : []).find(output => output.slot === 'main' && output.mode === 'full');
+    if (!renderedMain?.sha256 || renderedMain.sha256 !== createHash('sha256').update(pdf.content).digest('hex')) {
+      throw conflict('full_house_pdf_changed', 'The stored PDF differs from the synchronized full-house report. Regenerate it before submitting.');
+    }
+    for (const output of outputs.filter(output => output.slot === 'main' || !output.slot)) {
+      const patch = asRecord(output.statePatch ?? output.snapshot_patch);
+      if (['folderId', 'exteriorReport', 'exteriorSettings', 'gutterSettings', 'includeGutterMeasurements'].some(key => Object.hasOwn(patch, key))) {
+        throw conflict('full_house_pdf_override', 'The full-house PDF cannot override required measurement content.');
+      }
+    }
+  }
   return { jobId, revision, status: job.status };
 
 }

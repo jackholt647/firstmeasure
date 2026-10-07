@@ -1,5 +1,6 @@
 import { mutatePlatformConfiguration } from "../platform/storage.js";
 import { assignedTutorialCourses, hasTutorialCourse, OPTIONAL_TUTORIAL_COURSES } from "./tutorial_courses.js";
+import { assertFullHouseEligible, fullHouseEligible, isCustomerFullHouse, FULL_HOUSE_QUALITY_CATEGORIES } from '../firstmeasure/full_house_workflow.js';
 import { managerReviewCsv } from "./manager_review_export.js";
 import { tutorialBridgeActor, withTutorialSource, exteriorTrainingCapability, tutorialSourceFile } from './tutorial_exteriors.js';
 import { fullHouseEnabled } from '../firstmeasure/full_house.js';
@@ -5019,6 +5020,8 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
         ...(typeof body.p1_eligible === "boolean" ? { p1_eligible: body.p1_eligible } : {}),
         ...(typeof body.p2_eligible === "boolean" ? { p2_eligible: body.p2_eligible } : {}),
         is_qa_trainee: body.is_qa_trainee === "1" || body.is_qa_trainee === true,
+        ...(typeof body.can_draft_full_house === "boolean" ? { can_draft_full_house: body.can_draft_full_house } : {}),
+        ...(typeof body.can_qa_full_house === "boolean" ? { can_qa_full_house: body.can_qa_full_house } : {}),
         queue_mode: body.queue_mode,
         role: body.role,
         permissions: parseJsonish(body.permissions, {}),
@@ -5726,6 +5729,7 @@ function managerReviewProjectRow(manifest: JsonObject, includeIdentities: boolea
     status: managerReviewText(manifest.status, "completed"),
     created_at: managerReviewText(manifest.created_at, timestamps.created_at) || null,
     completed_at: managerReviewText(manifest.completed_at, timestamps.completed_at, manifest.updated_at, timestamps.updated_at) || null,
+    measurement_scope: isCustomerFullHouse(manifest) ? "full_house" : "roof",
     project_type: managerReviewText(manifest.project_type, manifest.type, "residential"),
     complexity: manifest.complexity ?? null,
     is_filler: Boolean(manifest.is_filler),
@@ -5819,6 +5823,7 @@ function managerReviewSampleEntry(manifest: JsonObject): JsonObject {
     qa_name: qa.name || null,
     technician_email: technician.email || null,
     technician_name: technician.name || null,
+    measurement_scope: isCustomerFullHouse(manifest) ? "full_house" : "roof",
     project_type: managerReviewText(manifest.project_type, manifest.type, "residential"),
     complexity: manifest.complexity ?? null,
     team_id: managerReviewText(manifest.team_id, manifest.team, "default"),
@@ -6016,11 +6021,13 @@ async function managerReviewData(app: FastifyInstance, actor: JsonObject, includ
     }
   }, { replace: true });
 
+  const canReviewFullHouse = includeIdentities || await fullHouseEligible(actor.email, "qa");
   const queueProjectIds = new Set<string>();
   const relevantQueueEntries = allQueueEntries.filter(({ entry, sample_date: assignmentDate }) => {
     const id = managerReviewText(entry.project_id);
     const manifest = manifestsById.get(id);
     if (!id || !manifest || queueProjectIds.has(id)) return false;
+    if (isCustomerFullHouse(manifest) && !canReviewFullHouse) return false;
     if (String(manifest.status ?? "").toLowerCase() !== "completed") return false;
     const audit = managerReviewAuditRecord(manifest);
     const isCurrentAssignment = assignmentDate === sampleDate;
@@ -6134,6 +6141,7 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject, exportC
         qa_name: managerReviewText(entry.qa_name, auditSample.qa_name, entry.qa_email, auditSample.qa_email, "Unknown"),
         technician_email: managerReviewText(entry.technician_email, auditSample.technician_email).toLowerCase(),
         technician_name: managerReviewText(entry.technician_name, auditSample.technician_name, entry.technician_email, auditSample.technician_email, "Unknown"),
+        measurement_scope: managerReviewText(entry.measurement_scope, auditSample.measurement_scope, String(projectId).startsWith("exteriors_") ? "full_house" : "roof"),
         project_type: managerReviewText(entry.project_type, auditSample.project_type, "Unknown"),
         complexity: managerReviewText(entry.complexity, auditSample.complexity, "Unknown"),
         team_id: managerReviewText(entry.team_id, auditSample.team_id, "default"),
@@ -6166,6 +6174,7 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject, exportC
         qa_name: managerReviewText(sample.qa_name, sample.qa_email, "Unknown"),
         technician_email: managerReviewText(sample.technician_email).toLowerCase(),
         technician_name: managerReviewText(sample.technician_name, sample.technician_email, "Unknown"),
+        measurement_scope: managerReviewText(sample.measurement_scope, String(audit.project_id).startsWith("exteriors_") ? "full_house" : "roof"),
         project_type: managerReviewText(sample.project_type, "Unknown"),
         complexity: managerReviewText(sample.complexity, "Unknown"),
         team_id: managerReviewText(sample.team_id, "default"),
@@ -6217,7 +6226,9 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject, exportC
   if (severityFilter && !["minor", "major"].includes(severityFilter)) {
     throw badRequest("invalid_manager_audit_severity", "Issue severity must be minor or major.");
   }
+  const reportScope = ["roof", "full_house"].includes(String(body.measurement_scope)) ? String(body.measurement_scope) : "";
   const rows = dateRows.filter((row) => {
+    if (reportScope && row.measurement_scope !== reportScope) return false;
     if (qaEmail && row.qa_email !== qaEmail) return false;
     if (teamId && row.team_id !== teamId) return false;
     if (severityFilter && row.severity !== severityFilter) return false;
@@ -6247,12 +6258,12 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject, exportC
     ok: true, success: true,
     filename: `qa-quality-${start}-through-${end}.csv`,
     csv: managerReviewCsv(pageRows), count: pageRows.length,
-    filters: { date_start: start, date_end: end, qa_email: qaEmail, team_id: teamId, audit_status: auditStatus, severity: severityFilter }
+    filters: { date_start: start, date_end: end, qa_email: qaEmail, team_id: teamId, audit_status: auditStatus, severity: severityFilter, ...(reportScope ? { measurement_scope: reportScope } : {}) }
   };
   return {
     ok: true,
     success: true,
-    filters: { date_start: start, date_end: end, qa_email: qaEmail, team_id: teamId, audit_status: auditStatus, severity: severityFilter },
+    filters: { date_start: start, date_end: end, qa_email: qaEmail, team_id: teamId, audit_status: auditStatus, severity: severityFilter, ...(reportScope ? { measurement_scope: reportScope } : {}) },
     access: { can_view_all: access.isManager, can_override: access.canOverride, viewer_email: viewerEmail },
     settings,
     summary: {
@@ -6269,9 +6280,11 @@ async function managerReviewResults(body: JsonObject, actor: JsonObject, exportC
     },
     groups: {
       qa: managerReviewAggregate(rows, "qa_email", "qa_name"),
-      team: managerReviewAggregate(rows, "team_id", "team_name")
+      team: managerReviewAggregate(rows, "team_id", "team_name"),
+      ...(dateRows.some(row => row.measurement_scope === "full_house") ? { measurement_scope: managerReviewAggregate(rows, "measurement_scope", "measurement_scope").map(group => ({ ...group, label: group.key === "full_house" ? "Full house" : "Roof" })) } : {})
     },
     options: {
+      ...(dateRows.some(row => row.measurement_scope === "full_house") ? { measurement_scope: [{ value: "roof", label: "Roof" }, { value: "full_house", label: "Full house" }] } : {}),
       qa: managerReviewResultOptions(dateRows, "qa_email", "qa_name"),
       team: managerReviewResultOptions(dateRows, "team_id", "team_name")
     },
@@ -6341,6 +6354,7 @@ async function managerReviewMarkAudit(body: JsonObject, actor: JsonObject) {
   }
   const detail = await getProjectDetail(projectId);
   const manifest = asObject(detail.manifest);
+  await assertFullHouseEligible(manifest, user.email, 'qa');
   const projectStatus = String(manifest.status ?? "").trim().toLowerCase();
   if (projectStatus !== "completed") {
     throw badRequest("manager_audit_project_not_eligible", "Only completed projects can be audited.");
@@ -6355,7 +6369,8 @@ async function managerReviewMarkAudit(body: JsonObject, actor: JsonObject) {
   if (status === "flagged" && !issueCategories.length) {
     throw badRequest("manager_audit_category_required", "Select at least one issue category, or submit with none selected to pass the review.");
   }
-  if (issueCategories.some((category) => !MANAGER_REVIEW_ISSUE_CATEGORIES.has(category))) {
+  const allowedCategories = new Set([...MANAGER_REVIEW_ISSUE_CATEGORIES, ...(isCustomerFullHouse(manifest) ? FULL_HOUSE_QUALITY_CATEGORIES : [])]);
+  if (issueCategories.some((category) => !allowedCategories.has(category))) {
     throw badRequest("invalid_manager_audit_category", "One or more issue categories are invalid.");
   }
   const issueCategory = issueCategories[0] ?? null;
@@ -6415,6 +6430,7 @@ async function managerReviewMarkAudit(body: JsonObject, actor: JsonObject) {
       qa_name: qa.name || null,
       technician_email: technician.email || null,
       technician_name: technician.name || null,
+      measurement_scope: isCustomerFullHouse(manifest) ? "full_house" : "roof",
       project_type: managerReviewText(manifest.project_type, "residential"),
       complexity: manifest.complexity ?? null,
       address: managerReviewText(manifest.address, manifest.formatted_address) || null,

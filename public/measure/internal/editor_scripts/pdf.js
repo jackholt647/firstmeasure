@@ -1450,7 +1450,12 @@ async function captureStateForPDF(options = {}) {
 }
 window.captureStateForPDF = captureStateForPDF;
 
+function isCustomerFullHousePdf(state) {
+    return /^exteriors_[a-f0-9]{32}$/.test(String(state?.folderId || window.currentProjectManifest?.id || window.currentProjectId || ''));
+}
+
 function shouldIncludePdfGutters(state) {
+    if (isCustomerFullHousePdf(state)) return true;
     if (typeof state?.includeGutterMeasurements === 'boolean') {
         return state.includeGutterMeasurements;
     }
@@ -2036,7 +2041,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         s.page_materials = false;
         s.page_ventilation = false;
     }
-    s.page_gutters = guttersEnabled && !!s.page_gutters;
+    s.page_gutters = guttersEnabled && (isCustomerFullHousePdf(state) || !!s.page_gutters);
     s.page_ventilation = !isCommercialReport && !!s.page_ventilation;
     if (firstMeasurePdfQuadViewsDisabled()) {
         s.page_elevations = false;
@@ -2221,7 +2226,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         state.manualTotalFacets = countRealFacets(state);
     }
     let outlineImg = null;
-    const hasExterior = mode === 'full' && state.exteriorReport?.walls?.length && state.exteriorSettings?.include !== false;
+    const hasExterior = mode === 'full' && state.exteriorReport?.walls?.length && (isCustomerFullHousePdf(state) || state.exteriorSettings?.include !== false);
 
     let pageCount = 0;
     const beginReportPage = (title, isCover = false) => {

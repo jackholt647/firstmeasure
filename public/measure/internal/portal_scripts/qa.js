@@ -2830,7 +2830,7 @@
 
   function setQaHeaderProjectType(projectType){
     const key = String(projectType || '').trim().toLowerCase();
-    const label = QA_PROJECT_TYPE_LABELS[key] || '';
+    const label = projectType && isFullHouseReview() ? 'Full house' : (QA_PROJECT_TYPE_LABELS[key] || '');
     ['qaNavProjectType', 'qaEmbeddedProjectType'].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -5214,7 +5214,28 @@
     return [document.getElementById(primaryId), document.getElementById(embeddedId)].filter(Boolean);
   }
 
+  const fullHouseReviewFields = [['roof','Roof measurements'],['walls','Exterior walls and dimensions'],['openings','Windows and doors'],['finishes_trim','Finishes and trim'],['gutters','Gutters and stories'],['references','Customer photos and walkthroughs'],['pdf','Complete full-house PDF']];
+  function isFullHouseReview(){return currentManifest?.measurement_scope==='full_house'||/^exteriors_[a-f0-9]{32}$/.test(String(currentId||''));}
+  function renderFullHouseReview(){
+    let panel=document.getElementById('qaFullHouseReview');
+    if(!isFullHouseReview()){panel?.remove();return;}
+    const host=document.getElementById('qaActionButtons');if(!host)return;
+    const key=String(currentId)+':'+String(currentManifest?.pdf_sync?.latest_revision||'');
+    if(panel?.dataset.key===key)return;
+    panel?.remove();panel=document.createElement('fieldset');panel.id='qaFullHouseReview';panel.dataset.key=key;panel.style.cssText='margin:10px 0;padding:10px;border:1px solid #d0d5dd;border-radius:8px';
+    panel.innerHTML='<legend>Full-house review</legend>'+fullHouseReviewFields.map(([key,label])=>`<label style="display:block;margin:6px 0"><input type="checkbox" data-full-house-review="${key}"> ${label}</label>`).join('');
+    host.before(panel);
+  }
+  function fullHouseReviewPayload(){return isFullHouseReview()?{full_house_review:Object.fromEntries(fullHouseReviewFields.map(([key])=>[key,document.querySelector(`[data-full-house-review="${key}"]`)?.checked===true]))}:{};}
+  function fullHouseReviewReady(){
+    if(!isFullHouseReview())return true;
+    const checks=fullHouseReviewPayload().full_house_review;
+    if(fullHouseReviewFields.every(([key])=>checks[key]))return true;
+    document.getElementById('qaFullHouseReview')?.scrollIntoView({block:'center'});
+    alert('Complete the full-house review checks before approving this report.');return false;
+  }
   function updateActionButtons(){
+    renderFullHouseReview();
     const stats = getThreadStats();
     const summary = document.getElementById('qaThreadSummary');
     const buttonsDiv = document.getElementById('qaActionButtons');
@@ -5406,6 +5427,7 @@
     if (qaSubmitting) return;
     requestedPdfSync = resolveQaReviewedPdfSync(requestedPdfSync);
     const apiStatus = status === 'corrected_approved' ? 'approved' : status;
+    if(apiStatus==='approved'&&!fullHouseReviewReady())return;
     if (apiStatus === 'rejected' && isCurrentCustomerReworkQaJob()) {
       alert('Customer rework jobs should be corrected and approved, or approved without changes. They cannot be sent back to the technician.');
       return;
@@ -5466,6 +5488,7 @@
       const res = await fmPost(`projects/${encodeURIComponent(currentId)}/qa/decision`, {
         status: apiStatus,
         ...buildQaDecisionTracking(status),
+        ...fullHouseReviewPayload(),
         pdf_sync_job_id: reviewedPdfSync?.jobId || '',
         pdf_sync_revision: reviewedPdfSync?.revision || '',
         threads: qaThreads,
@@ -5607,6 +5630,7 @@
 
   // ----------------- MANAGER DECISION -----------------
   async function submitManagerDecision(status, requestedPdfSync){
+    if(status==='approved'&&!fullHouseReviewReady())return;
     if (!currentId || !isManagerReviewMode) return;
     requestedPdfSync = resolveQaReviewedPdfSync(requestedPdfSync);
     if (status === 'rejected' && isCurrentCustomerReworkQaJob()) {
@@ -5655,6 +5679,7 @@
       }
       const res = await fmPost(`projects/${encodeURIComponent(currentId)}/manager/decision`, {
         status: status,
+        ...fullHouseReviewPayload(),
         pdf_sync_job_id: reviewedPdfSync?.jobId || '',
         pdf_sync_revision: reviewedPdfSync?.revision || '',
         threads: qaThreads,

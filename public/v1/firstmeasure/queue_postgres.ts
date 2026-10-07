@@ -1,3 +1,5 @@
+import { assertFullHouseEligible } from './full_house_workflow.js';
+import { readManifest } from './storage.js';
 import { withPostgresClient, withPostgresTransaction } from "../src/database/postgres.js";
 import { conflict, notFound, badRequest } from "./errors.js";
 import {
@@ -104,7 +106,8 @@ function candidateSql(
   source: "reserved" | "queue",
   seniorAvailable: boolean,
   p1Eligible?: boolean,
-  p2Eligible?: boolean
+  p2Eligible?: boolean,
+  canDraftFullHouse = false
 ) {
   const allowFiller = input.allow_filler === true;
   const normalized = actor(input.actor);
@@ -113,6 +116,7 @@ function candidateSql(
   const values: unknown[] = [normalized.email ?? "", NEW_STATUSES];
   const where = ["queue_group = 'queued'", "status = ANY($2::text[])", "assigned_to_email = ''", "thumbnail_artifact_name <> ''"];
   if (!allowFiller) where.push("is_filler = 0");
+  if (!canDraftFullHouse) where.push("left(id, 9) <> 'exteriors_' AND COALESCE(manifest_json->>'measurement_scope', '') <> 'full_house'");
   if (source === "reserved") where.push("reserved_to_email = $1");
   else where.push("reserved_to_email = ''");
   if (input.team_id) { values.push(String(input.team_id).trim()); where.push(`team_id = $${values.length}`); }
@@ -140,14 +144,15 @@ async function selectCandidate(
   rankPreferences: number[],
   seniorAvailable: boolean,
   p1Eligible?: boolean,
-  p2Eligible?: boolean
+  p2Eligible?: boolean,
+  canDraftFullHouse = false
 ) {
   if (input.allow_reserved !== false && String(input.actor.email ?? "").trim()) {
-    const reserved = candidateSql(input, lock, rank, rankPreferences, "reserved", seniorAvailable, p1Eligible, p2Eligible);
+    const reserved = candidateSql(input, lock, rank, rankPreferences, "reserved", seniorAvailable, p1Eligible, p2Eligible, canDraftFullHouse);
     const reservedResult = await client.query<{ manifest_json: unknown; thumbnail_artifact_name: string }>(reserved.sql, reserved.values);
     if (reservedResult.rows[0]) return { row: reservedResult.rows[0], source: "reserved" as const };
   }
-  const available = candidateSql(input, lock, rank, rankPreferences, "queue", seniorAvailable, p1Eligible, p2Eligible);
+  const available = candidateSql(input, lock, rank, rankPreferences, "queue", seniorAvailable, p1Eligible, p2Eligible, canDraftFullHouse);
   const availableResult = await client.query<{ manifest_json: unknown; thumbnail_artifact_name: string }>(available.sql, available.values);
   return { row: availableResult.rows[0] ?? null, source: "queue" as const };
 }
@@ -184,7 +189,7 @@ export async function getPostgresClaimableQueueStatus(input: QueueClaimInput) {
     const seniorAvailable = rank === "standard" && eligibility.p1Eligible === undefined
       ? await hasAvailableSeniorTechnicianPostgres(client, onlineSeniorEmails)
       : false;
-    const candidate = await selectCandidate(client, input, false, rank, settings.priorities[rank], seniorAvailable, eligibility.p1Eligible, eligibility.p2Eligible);
+    const candidate = await selectCandidate(client, input, false, rank, settings.priorities[rank], seniorAvailable, eligibility.p1Eligible, eligibility.p2Eligible, eligibility.canDraftFullHouse);
     const manifest = candidate.row ? manifestValue(candidate.row.manifest_json) : null;
     return {
       ...status,
@@ -212,7 +217,7 @@ export async function claimNextPostgresQueue(input: QueueClaimInput) {
     const seniorAvailable = rank === "standard" && eligibility.p1Eligible === undefined
       ? await hasAvailableSeniorTechnicianPostgres(client, onlineSeniorEmails)
       : false;
-    const candidate = await selectCandidate(client, input, true, rank, settings.priorities[rank], seniorAvailable, eligibility.p1Eligible, eligibility.p2Eligible);
+    const candidate = await selectCandidate(client, input, true, rank, settings.priorities[rank], seniorAvailable, eligibility.p1Eligible, eligibility.p2Eligible, eligibility.canDraftFullHouse);
     if (!candidate.row) throw notFound("queue_empty", "No eligible project was found in the queue.");
     const manifest = manifestValue(candidate.row.manifest_json);
     const workflow = record(manifest.workflow);
@@ -239,6 +244,7 @@ export async function claimNextPostgresQueue(input: QueueClaimInput) {
 
 export async function reservePostgresProject(projectId: string, input: QueueReserveInput) {
   const reservedFor = actor(input.reserved_for);
+  await assertFullHouseEligible(await readManifest(projectId), reservedFor.email, "draft");
   const updated = await mutatePostgresManifest(projectId, (manifest) => {
     const workflow = record(manifest.workflow);
     if (email(workflow.assigned_to)) throw conflict("project_already_assigned", "Assigned projects cannot be reserved.");

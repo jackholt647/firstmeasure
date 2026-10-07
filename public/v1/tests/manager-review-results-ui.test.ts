@@ -5,7 +5,8 @@ import vm from "node:vm";
 
 const source = readFileSync(new URL("../../measure/internal/portal_scripts/manager_review.js", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const qualityHelper = source.slice(source.indexOf('  function qualityRange('), source.indexOf('\n  }', source.indexOf('  function qualityRange(')) + 4);
-const render = qualityHelper + '\n' + source.slice(source.indexOf("  function renderResultsBody(){"), source.indexOf("  async function toggleResultOverride("));
+const fullHouseHelper = source.split('\n').find(line => line.includes('const isFullHouse=')) || '';
+const render = fullHouseHelper + '\n' + qualityHelper + '\n' + source.slice(source.indexOf("  function renderResultsBody(){"), source.indexOf("  async function toggleResultOverride("));
 const esc = (value: unknown) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
 
 test("results distinguish minor no-score reviews from passed, major, and manually skipped reviews", () => {

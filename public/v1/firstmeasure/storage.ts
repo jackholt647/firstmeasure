@@ -277,7 +277,7 @@ export async function createProject(input: JsonObject & { address: string }, opt
     lat: toNullableNumber(input.lat),
     lng: toNullableNumber(input.lng),
     pins: Array.isArray(input.pins) ? (input.pins as Array<{ lat: number; lng: number }>) : [],
-    include_gutter_measurements: Boolean(
+    include_gutter_measurements: options.customerExteriors || Boolean(
       input.include_gutter_measurements
       ?? asRecord(input.gutter_profile).enabled
       ?? false
@@ -457,6 +457,9 @@ export async function patchManifest(
   reportPreferencesSchema.parse(patch);
   if (Object.prototype.hasOwnProperty.call(patch, "measurement_scope") || Object.prototype.hasOwnProperty.call(patch, "internal_only") || Object.prototype.hasOwnProperty.call(patch, "id")) throw badRequest("immutable_project_scope", "Project identity and measurement scope cannot be changed.");
   assertFullHouseProjectAccess(projectId);
+  if (isCustomerExteriorId(projectId) && Object.prototype.hasOwnProperty.call(patch, 'include_gutter_measurements') && patch.include_gutter_measurements !== true) {
+    throw badRequest('full_house_gutters_required', 'Gutters are required for full-house reports.');
+  }
   let previous: ProjectManifest | null = null;
   if (isFirstMeasurePostgresEnabled()) {
     const { mutatePostgresManifest } = await import("./project_index_postgres.js");

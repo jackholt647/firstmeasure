@@ -5,6 +5,7 @@ import vm from "node:vm";
 
 const source = readFileSync(new URL("../../measure/internal/portal_scripts/manager_review.js", import.meta.url), "utf8");
 const categories = source.slice(source.indexOf("  const ISSUE_CATEGORIES="), source.indexOf("\n", source.indexOf("  const ISSUE_CATEGORIES=")));
+const fullHouseHelpers = source.slice(source.indexOf('  const FULL_HOUSE_CATEGORIES='), source.indexOf('  // ==================== STATE'));
 const render = source.slice(source.indexOf("  function renderInfoPanel(){"), source.indexOf("  async function submitReview"));
 const submit = source.slice(source.indexOf("  async function submitReview"), source.indexOf("  async function markReviewed"));
 const escapeHtml = (value: unknown) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
@@ -29,7 +30,7 @@ class Element {
   querySelectorAll(_selector: string): Element[] { return []; }
 }
 
-function panel(storedSeverity?: string, selected = ["missing_structure"], saveAnnotations: () => Promise<boolean> = async () => true) {
+function panel(storedSeverity?: string, selected = ["missing_structure"], saveAnnotations: () => Promise<boolean> = async () => true, fullHouse = false) {
   const elements = new Map<string, Element>();
   const getElementById = (id: string) => {
     if (!elements.has(id)) elements.set(id, new Element());
@@ -52,7 +53,7 @@ function panel(storedSeverity?: string, selected = ["missing_structure"], saveAn
   };
   actions.querySelectorAll = selector => selector === ".mra-category-btn" ? categoryButtons : selector === ".mra-severity-btn" ? severityButtons : [];
   const calls: unknown[][] = [];
-  const project = { id: "test-id", address: 'Long address <script> & "name"', status: "completed", manager_audit_severity: storedSeverity, manager_audit_issue_categories: selected };
+  const project = { id: fullHouse ? "exteriors_" + "a".repeat(32) : "test-id", address: 'Long address <script> & "name"', status: "completed", manager_audit_severity: storedSeverity, manager_audit_issue_categories: selected };
   const context = vm.createContext({
     document: { getElementById, querySelectorAll: (selector: string) => selector === "#mraBiActions .mra-category-btn.selected" ? categoryButtons.filter(button => button.classes.has("selected")) : [] },
     navigator: {}, window: {}, currentProject: project,
@@ -62,7 +63,7 @@ function panel(storedSeverity?: string, selected = ["missing_structure"], saveAn
     markAudit: async (...args: unknown[]) => { calls.push(args); return { success: true }; },
     rederiveTech() {}, advanceToNext() {}, alert(message: string) { throw new Error(message); }
   });
-  vm.runInContext(categories + "\n" + render + "\n" + submit + "\nrenderInfoPanel();", context);
+  vm.runInContext(categories + "\n" + fullHouseHelpers + "\n" + render + "\n" + submit + "\nrenderInfoPanel();", context);
   return { getElementById, categoryButtons, severityButtons, calls, project, context };
 }
 
@@ -119,4 +120,11 @@ test("severity is captured at submit time, not changed while annotations save", 
   assert.equal(fixture.calls.length, 1);
   assert.equal((fixture.calls[0]![3] as { severity: string }).severity, "minor");
   assert.equal(fixture.project.manager_audit_severity, "minor");
+});
+
+ test("full-house QA Quality adds exterior fields while roof categories stay unchanged", () => {
+  const fixture = panel(undefined, [], undefined, true);
+  assert.equal(fixture.categoryButtons.length, 12);
+  assert.ok(fixture.categoryButtons.some(button => button.dataset.category === 'missing_or_incorrect_gutters'));
+  assert.match(fixture.getElementById('mraBiActions').innerHTML, /Full-house report/);
 });

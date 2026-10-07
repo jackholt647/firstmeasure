@@ -1,3 +1,4 @@
+import { assertFullHouseEligible, fullHouseEligible, isCustomerFullHouse } from './full_house_workflow.js';
 import type { SQLInputValue } from "node:sqlite";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -131,6 +132,7 @@ export async function getQueueStatus(input: QueueStatusInput) {
   await ensureFirstMeasureProjectIndexReady();
   const db = getFirstMeasureProjectIndexDb();
   const actorEmailValue = actor.email ?? "";
+  const eligibility = { canDraftFullHouse: await fullHouseEligible(actor.email, "draft") };
   const counts = {
     assigned: readQueueCount(db, `
       assigned_to_email = $actorEmail
@@ -145,6 +147,7 @@ export async function getQueueStatus(input: QueueStatusInput) {
       status IN (${sqlStringList(Array.from(NEW_QUEUE_STATUSES))})
       AND assigned_to_email = ''
       AND reserved_to_email = $actorEmail
+      ${eligibility.canDraftFullHouse ? '' : "AND substr(id, 1, 9) <> 'exteriors_' AND COALESCE(json_extract(manifest_json, '$.measurement_scope'), '') <> 'full_house'"}
       AND thumbnail_artifact_name != ''
     `, { actorEmail: actorEmailValue }),
     available_new: readQueueCount(db, `
@@ -241,6 +244,7 @@ async function getClaimableQueueStatusWithoutBreak(input: QueueClaimInput) {
     WHERE substr(id, 1, 10) <> 'fullhouse_' AND status IN (${sqlStringList(Array.from(NEW_QUEUE_STATUSES))})
       AND assigned_to_email = ''
       AND reserved_to_email = $actorEmail
+      ${eligibility.canDraftFullHouse ? '' : "AND substr(id, 1, 9) <> 'exteriors_' AND COALESCE(json_extract(manifest_json, '$.measurement_scope'), '') <> 'full_house'"}
       AND thumbnail_artifact_name != ''
       ${allowFiller ? "" : "AND is_filler = 0"}
     ORDER BY CASE WHEN is_vip != 0 OR is_expedited != 0 THEN 1 ELSE 0 END DESC, created_at_ms ASC, id ASC
@@ -335,6 +339,7 @@ export async function claimNextInQueue(input: QueueClaimInput) {
     WHERE substr(id, 1, 10) <> 'fullhouse_' AND status IN (${sqlStringList(Array.from(NEW_QUEUE_STATUSES))})
       AND assigned_to_email = ''
       AND reserved_to_email = $actorEmail
+      ${eligibility.canDraftFullHouse ? '' : "AND substr(id, 1, 9) <> 'exteriors_' AND COALESCE(json_extract(manifest_json, '$.measurement_scope'), '') <> 'full_house'"}
       AND thumbnail_artifact_name != ''
       ${allowFiller ? "" : "AND is_filler = 0"}
     ORDER BY CASE WHEN is_vip != 0 OR is_expedited != 0 THEN 1 ELSE 0 END DESC, created_at_ms ASC, id ASC
@@ -430,6 +435,7 @@ export async function reserveProject(projectId: string, input: QueueReserveInput
   const manifest = await readManifest(projectId);
   const workflow = workflowRecord(manifest);
   const reservedFor = normalizeActor(input.reserved_for);
+  await assertFullHouseEligible(manifest, reservedFor.email, "draft");
   if (hasPendingForceKickForActor(manifest, reservedFor)) {
     throw conflict("pending_force_kick", "This project still has a pending force-kick for that user.");
   }
@@ -631,11 +637,13 @@ async function firstClaimableManifestFromRows(
   }
 ) {
   const actorEmailValue = actor.email ?? "";
+  const canDraftFullHouse = await fullHouseEligible(actorEmailValue, "draft");
   for (const row of rows) {
     const projectId = String(row.id ?? "").trim();
     if (!projectId) continue;
 
     const manifest = await readManifest(projectId);
+    if (isCustomerFullHouse(manifest) && !canDraftFullHouse) continue;
     const workflow = workflowRecord(manifest);
     const reservedTo = actorEmail(workflow.reserved_to);
     if (!isClaimableNew(manifest, options.allowFiller)) continue;
@@ -1079,6 +1087,7 @@ export async function resolveTechnicianPriorityEligibility(actor: ActorRef) {
     : normalizeTechnicianRank(user?.drafter_rank).rank;
   return {
     rank,
+    canDraftFullHouse: user?.can_draft_full_house === true,
     p1Eligible: typeof actorRecord.p1_eligible === "boolean"
       ? actorRecord.p1_eligible
       : (typeof user?.p1_eligible === "boolean" ? user.p1_eligible : undefined),

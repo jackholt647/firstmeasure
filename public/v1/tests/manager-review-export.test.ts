@@ -42,6 +42,6 @@ test("export includes all filtered pages and enforces the viewer's result access
   } finally {
     await app.close(); await index.closeFirstMeasureProjectIndex();
     assert.ok(path.resolve(root).startsWith(path.resolve(os.tmpdir()) + path.sep));
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true }).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'EBUSY' && error.code !== 'EPERM') throw error; });
   }
 });

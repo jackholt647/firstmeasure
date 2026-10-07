@@ -3505,7 +3505,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         const qPType = (p.project_type || 'residential').toLowerCase();
         const qTypeColors = { residential:'#1a73e8', commercial:'#e37400', multifamily:'#7b1fa2' };
         const qTypeLabels = { residential:'RES', commercial:'COM', multifamily:'MF' };
-        const qTypeTag = `<span class="qtag" style="background:${qTypeColors[qPType]||'#1a73e8'}; color:#fff; border-color:${qTypeColors[qPType]||'#1a73e8'}; font-size:9px;">${qTypeLabels[qPType]||qPType.toUpperCase()}</span>`;
+        const qTypeTag = `<span class="qtag" style="background:${qTypeColors[qPType]||'#1a73e8'}; color:#fff; border-color:${qTypeColors[qPType]||'#1a73e8'}; font-size:9px;">${/^exteriors_[a-f0-9]{32}$/.test(String(p.id||p.folder||''))?'FULL HOUSE':(qTypeLabels[qPType]||qPType.toUpperCase())}</span>`;
         const correctionTarget = this.getCorrectionTargetTechnician(p);
         const target = correctionTarget.name || correctionTarget.email || '';
         const reservedFor = p.reserved_to_name || p.reserved_to_email || '';
@@ -7419,7 +7419,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
           const qPType = (p.project_type || 'residential').toLowerCase();
           const qTypeColors = { residential:'#1a73e8', commercial:'#e37400', multifamily:'#7b1fa2' };
           const qTypeLabels = { residential:'RES', commercial:'COM', multifamily:'MF' };
-          const typeTag = `<span class="qtag" style="background:${qTypeColors[qPType]||'#1a73e8'}; color:#fff; border-color:${qTypeColors[qPType]||'#1a73e8'}; font-size:9px;">${qTypeLabels[qPType]||qPType.toUpperCase()}</span>`;
+          const typeTag = `<span class="qtag" style="background:${qTypeColors[qPType]||'#1a73e8'}; color:#fff; border-color:${qTypeColors[qPType]||'#1a73e8'}; font-size:9px;">${/^exteriors_[a-f0-9]{32}$/.test(String(p.id||p.folder||''))?'FULL HOUSE':(qTypeLabels[qPType]||qPType.toUpperCase())}</span>`;
           const qCcArr = Array.isArray(p.cc_emails) ? p.cc_emails : [];
           const qPinsArr = Array.isArray(p.pins) ? p.pins : [];
           const ccTag = qCcArr.length ? `<span class="qtag" style="font-size:9px;">CC:${qCcArr.length}</span>` : '';

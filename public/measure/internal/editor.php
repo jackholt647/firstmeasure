@@ -452,6 +452,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
     <?php if ($fmFullHouseEditor): ?>
     <script>
     window.FIRSTMEASURE_FULL_HOUSE = true;
+    window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE = <?=json_encode($fmCustomerExteriorsEditor)?>;
     (() => {
       const originalFetch = window.fetch.bind(window);
       const csrf = <?=json_encode($_SESSION['full_house_csrf'] ?? '')?>;

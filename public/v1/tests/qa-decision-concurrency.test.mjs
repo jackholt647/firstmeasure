@@ -39,6 +39,7 @@ function createNode({ acquire = sharedLocks(), state = new Map(), deliveries = [
   const routes = new Map();
   const error = (code, message) => Object.assign(new Error(message), { code });
   const context = vm.createContext({
+    isCustomerFullHouse:()=>false, assertFullHouseEligible:async()=>{}, assertFullHouseReview:()=>{},
     structuredClone,
     process: { pid: 1234 }, // Different droplets can have the same process ID.
     qaProjectClaimLocks: new Map(), acquireFirstMeasureLock: acquire,

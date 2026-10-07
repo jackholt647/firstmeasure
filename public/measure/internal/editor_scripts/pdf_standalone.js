@@ -3,7 +3,7 @@
     const PDF_SYNC_SINGLE_REQUEST_MAX_BYTES = 20 * 1024 * 1024;
     const PDF_SYNC_UPLOAD_CHUNK_BYTES = 4 * 1024 * 1024;
     const PDF_SYNC_UPLOAD_CONCURRENCY = 3;
-    const PDF_RENDER_RECIPE_VERSION = '2026-09-16.2';
+    const PDF_RENDER_RECIPE_VERSION = '2026-10-06.1';
     let isolatedPdfRuntimePromise = null;
 
     function ensurePdfRuntimeAvailable() {
