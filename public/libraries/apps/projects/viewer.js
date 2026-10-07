@@ -733,14 +733,15 @@
         grid-template-rows:auto auto auto auto minmax(0,1fr) auto;
       }
       .v-report-search{grid-column:1 / -1;grid-row:4;margin-top:8px}
-      .v-head,.v-bar{display:contents}
-      .v-title{display:flex;grid-column:1 / -1;grid-row:1;margin-bottom:10px}
-      .v-title h1{font-size:24px}
+      .v-bar{display:contents}
+      .v-head{display:flex;grid-column:1 / -1;grid-row:1;gap:8px;padding-bottom:0;flex-wrap:wrap}
+      .v-title{display:flex;gap:8px;margin-bottom:0;flex:1 1 auto}
+      .v-title>i{width:28px;height:28px;font-size:15px;border-radius:8px}
+      .v-title h1{font-size:clamp(18px,4.5vw,24px);line-height:36px;white-space:nowrap}
       .v-actions{
-        grid-column:1 / -1;
-        grid-row:2;
         width:auto;
-        justify-content:space-between;
+        flex:0 0 auto;
+        justify-content:flex-end;
         gap:8px;
       }
 

@@ -3025,6 +3025,12 @@
       @media(max-width:1100px){.company-settings-grid{grid-template-columns:1fr}.company-document-preview{position:static}.support-color-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
       @media(max-width:700px){.company-brand-row{grid-template-columns:1fr}}
       @media(max-width:620px){.company-settings-head{align-items:stretch;flex-direction:column}.company-settings-head .cs-actions{display:grid;grid-template-columns:1fr auto}.company-info-grid,.brand-color-main{grid-template-columns:1fr}.company-info-grid .address{grid-template-columns:1fr}.company-info-grid .address>*{grid-column:auto!important}.logo-editor{grid-template-columns:108px minmax(0,1fr)}.logo-stage{width:108px}.logo-advanced-grid{grid-template-columns:1fr}.brand-palette-strip{gap:3px}.brand-palette-swatch{height:40px}.brand-palette-swatch span{display:none}.palette-tools{align-items:stretch;flex-direction:column}.palette-tools .cs-btn{width:100%;justify-content:center}}
+      @media(max-width:820px){
+        .company-settings .company-info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .company-contact-name{grid-column:1;grid-row:1}
+        .company-contact-phone{grid-column:2;grid-row:1}
+        .company-contact-email{grid-column:1 / -1;grid-row:2}
+      }
       /* Reports */
       .rp-wrap{ max-width: 980px; margin:0 auto; }
       .rp-card{
@@ -14285,9 +14291,9 @@
             <section class="company-settings-card company-info-card">
               <div class="company-settings-card-body">
                 <div class="company-info-grid">
-                  <label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_e17c4838e115e8","Company name") ?? "Company name")}</span><input id="csName" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_c23a205ed97c61","Your company name") ?? "Your company name")}"></label>
-                  <label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4d7b96eb4bf8b4","Company email") ?? "Company email")}</span><input id="csCompanyEmail" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_4665fb43c24164","billing@company.com") ?? "billing@company.com")}" inputmode="email" autocomplete="email"></label>
-                  <label class="cs-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_674849f6668e86","Company phone") ?? "Company phone")}</span><input id="csCompanyPhone" placeholder="(555) 123-4567" inputmode="tel" autocomplete="tel"></label>
+                  <label class="cs-field company-contact-name"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_e17c4838e115e8","Company name") ?? "Company name")}</span><input id="csName" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_c23a205ed97c61","Your company name") ?? "Your company name")}"></label>
+                  <label class="cs-field company-contact-email"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4d7b96eb4bf8b4","Company email") ?? "Company email")}</span><input id="csCompanyEmail" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_4665fb43c24164","billing@company.com") ?? "billing@company.com")}" inputmode="email" autocomplete="email"></label>
+                  <label class="cs-field company-contact-phone"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_674849f6668e86","Company phone") ?? "Company phone")}</span><input id="csCompanyPhone" placeholder="(555) 123-4567" inputmode="tel" autocomplete="tel"></label>
 ${String(window.PlatformAPI?.appFlags?.has?.('firstmeasure', 'report_localization') ? `
                   <div class="company-localization-grid wide">
                 <label class="cs-field"><span>${escapeHtml(window.PlatformLanguage.text('settings','company_language_label','Company language'))}</span><select id="csReportLanguage">${languageOptions(state.report_preferences?.report_language || window.PlatformLanguage?.companyContext?.().locale)}</select></label>
