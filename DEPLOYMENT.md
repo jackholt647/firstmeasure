@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 7 FirstMeasure localization correction: [Complete UI paths and responsive Billing](deploy/digitalocean/development-firstmeasure-localization-correction-20261007.md) records the expanded translation inventory, all sixteen corrective language sets, rendered German/Japanese verification, and the verified development rollout.
+
 October 6 FirstMeasure languages: [Language completion and development verification](deploy/digitalocean/development-firstmeasure-localization-20261006.md) records the sixteen completed language sets, catalog loading and report vocabulary fixes, validation, and verified four-role development rollout.
 
 October 6 FirstMeasure contact shortcuts: [Local contact links and loading header](deploy/digitalocean/development-firstmeasure-contact-links-20261006.md) records device-client links when Communications is disabled and suppression of the Money value pill throughout project loading.
