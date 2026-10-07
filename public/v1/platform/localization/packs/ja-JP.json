@@ -8284,7 +8284,9 @@
       "message": "自動チャージ：残高が{threshold}未満になったら{amount}を追加",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "クレジット自動チャージ：オフ"
+    "fm_mobile_auto_topup_off": "クレジット自動チャージ：オフ",
+    "developer_settings_title": "開発者設定",
+    "developer_settings_subtitle": "開発者ツール、機能フラグ、アプリ設定。"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "作業を追加",
@@ -9878,7 +9880,8 @@
     "billing.billing_contact": "請求先担当者",
     "billing.invoice": "請求書",
     "billing.payment_method": "支払い方法",
-    "ui.routing_mode": "ルーティング"
+    "ui.routing_mode": "ルーティング",
+    "settings.developer_settings_tab": "開発者設定"
   },
   "shared": {
     "save": "保存",

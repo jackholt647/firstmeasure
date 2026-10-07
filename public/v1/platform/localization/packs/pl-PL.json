@@ -8044,7 +8044,9 @@
       "message": "Automatyczne doładowanie: {amount}, gdy saldo spadnie poniżej {threshold}",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "Automatyczne doładowanie środków: wyłączone"
+    "fm_mobile_auto_topup_off": "Automatyczne doładowanie środków: wyłączone",
+    "developer_settings_title": "Ustawienia deweloperskie",
+    "developer_settings_subtitle": "Narzędzia deweloperskie, flagi funkcji i konfiguracja aplikacji."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Dodaj pracę",
@@ -9638,7 +9640,8 @@
     "billing.billing_contact": "Kontakt rozliczeniowy",
     "billing.invoice": "Faktura",
     "billing.payment_method": "Metoda płatności",
-    "ui.routing_mode": "Kierowanie"
+    "ui.routing_mode": "Kierowanie",
+    "settings.developer_settings_tab": "Ustawienia deweloperskie"
   },
   "shared": {
     "save": "Zapisz",

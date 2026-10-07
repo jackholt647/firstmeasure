@@ -8071,7 +8071,9 @@
       "message": "Rechargement automatique : {amount} lorsque le solde passe sous {threshold}",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "Recharge automatique du crédit : désactivée"
+    "fm_mobile_auto_topup_off": "Recharge automatique du crédit : désactivée",
+    "developer_settings_title": "Paramètres de développement",
+    "developer_settings_subtitle": "Outils de développement, indicateurs de fonctionnalités et configuration des applications."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Ajouter un travail",
@@ -9665,7 +9667,8 @@
     "billing.billing_contact": "Contact de facturation",
     "billing.invoice": "Facture",
     "billing.payment_method": "Moyen de paiement",
-    "ui.routing_mode": "Routage"
+    "ui.routing_mode": "Routage",
+    "settings.developer_settings_tab": "Paramètres de développement"
   },
   "shared": {
     "save": "Enregistrer",

@@ -8268,7 +8268,9 @@
       "message": "Automatisk saldoopfyldning: {amount}, når saldoen er under {threshold}",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "Automatisk saldoopfyldning: Fra"
+    "fm_mobile_auto_topup_off": "Automatisk saldoopfyldning: Fra",
+    "developer_settings_title": "Udviklerindstillinger",
+    "developer_settings_subtitle": "Udviklerværktøjer, funktionsflag og appkonfiguration."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Tilføj arbejde",
@@ -9862,7 +9864,8 @@
     "billing.billing_contact": "Faktureringskontakt",
     "billing.invoice": "Faktura",
     "billing.payment_method": "Betalingsmetode",
-    "ui.routing_mode": "Ruteplanlægning"
+    "ui.routing_mode": "Ruteplanlægning",
+    "settings.developer_settings_tab": "Udviklerindstillinger"
   },
   "shared": {
     "save": "Gem",

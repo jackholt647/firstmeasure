@@ -8280,7 +8280,9 @@
       "message": "Αυτόματη ανανέωση: {amount} όταν το υπόλοιπο πέσει κάτω από {threshold}",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "Αυτόματη ανανέωση πίστωσης: ανενεργή"
+    "fm_mobile_auto_topup_off": "Αυτόματη ανανέωση πίστωσης: ανενεργή",
+    "developer_settings_title": "Ρυθμίσεις προγραμματιστών",
+    "developer_settings_subtitle": "Εργαλεία προγραμματιστών, διακόπτες λειτουργιών και ρυθμίσεις εφαρμογών."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Προσθήκη εργασίας",
@@ -9874,7 +9876,8 @@
     "billing.billing_contact": "Υπεύθυνος χρέωσης",
     "billing.invoice": "Τιμολόγιο",
     "billing.payment_method": "Τρόπος πληρωμής",
-    "ui.routing_mode": "Δρομολόγηση"
+    "ui.routing_mode": "Δρομολόγηση",
+    "settings.developer_settings_tab": "Ρυθμίσεις προγραμματιστών"
   },
   "shared": {
     "save": "Αποθήκευση",

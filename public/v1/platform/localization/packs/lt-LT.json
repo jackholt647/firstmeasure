@@ -8268,7 +8268,9 @@
       "message": "Automatinis papildymas: {amount}, kai likutis nukrenta žemiau {threshold}",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "Automatinis kredito papildymas: išjungtas"
+    "fm_mobile_auto_topup_off": "Automatinis kredito papildymas: išjungtas",
+    "developer_settings_title": "Kūrėjo nustatymai",
+    "developer_settings_subtitle": "Kūrėjo įrankiai, funkcijų vėliavėlės ir programų konfigūracija."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Pridėti darbą",
@@ -9862,7 +9864,8 @@
     "billing.billing_contact": "Atsiskaitymų kontaktas",
     "billing.invoice": "Sąskaita faktūra",
     "billing.payment_method": "Mokėjimo būdas",
-    "ui.routing_mode": "Maršrutizavimas"
+    "ui.routing_mode": "Maršrutizavimas",
+    "settings.developer_settings_tab": "Kūrėjo nustatymai"
   },
   "shared": {
     "save": "Išsaugoti",

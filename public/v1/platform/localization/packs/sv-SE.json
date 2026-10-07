@@ -7951,7 +7951,9 @@
       "message": "Automatisk påfyllning: {amount} när saldot understiger {threshold}",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "Automatisk påfyllning av saldo: Av"
+    "fm_mobile_auto_topup_off": "Automatisk påfyllning av saldo: Av",
+    "developer_settings_title": "Utvecklarinställningar",
+    "developer_settings_subtitle": "Utvecklarverktyg, funktionsflaggor och appkonfiguration."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Lägg till arbete",
@@ -9461,7 +9463,8 @@
     "billing.billing_contact": "Faktureringskontakt",
     "billing.invoice": "Faktura",
     "billing.payment_method": "Betalningsmetod",
-    "ui.routing_mode": "Diagnostik"
+    "ui.routing_mode": "Diagnostik",
+    "settings.developer_settings_tab": "Utvecklarinställningar"
   },
   "shared": {
     "save": "Spara",

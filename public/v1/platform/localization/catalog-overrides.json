@@ -3685,7 +3685,9 @@
         "message": "Auto top-up: {amount} when the balance falls below {threshold}",
         "format": "icu"
       },
-      "fm_mobile_auto_topup_off": "Credit auto top-up: Off"
+      "fm_mobile_auto_topup_off": "Credit auto top-up: Off",
+      "developer_settings_title": "Developer settings",
+      "developer_settings_subtitle": "Developer tools, feature flags and app configuration."
     },
     "signatures": {
       "m_2ebfdc1730afd2": "Add work",
@@ -4002,7 +4004,8 @@
       "workforce.organization_connections_view": "Organisation connections",
       "settings.feature_flags_tab": "Feature flags",
       "billing.billing_contact": "Billing contact",
-      "billing.payment_method": "Payment method"
+      "billing.payment_method": "Payment method",
+      "settings.developer_settings_tab": "Developer settings"
     },
     "account-switcher": {
       "m_8652b533cc3e38": "Your account remains available on this device."

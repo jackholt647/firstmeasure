@@ -8268,7 +8268,9 @@
       "message": "Automaattinen täydennys: {amount}, kun saldo alittaa rajan {threshold}",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "Saldon automaattinen täydennys: ei käytössä"
+    "fm_mobile_auto_topup_off": "Saldon automaattinen täydennys: ei käytössä",
+    "developer_settings_title": "Kehittäjäasetukset",
+    "developer_settings_subtitle": "Kehittäjätyökalut, ominaisuusliput ja sovelluksen määritys."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Lisää työtä",
@@ -9862,7 +9864,8 @@
     "billing.billing_contact": "Laskutusyhteyshenkilö",
     "billing.invoice": "Lasku",
     "billing.payment_method": "Maksutapa",
-    "ui.routing_mode": "Reititys"
+    "ui.routing_mode": "Reititys",
+    "settings.developer_settings_tab": "Kehittäjäasetukset"
   },
   "shared": {
     "save": "Tallenna",

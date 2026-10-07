@@ -8280,7 +8280,9 @@
       "message": "Automatische opwaardering: {amount} bij een saldo onder {threshold}",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "Automatisch tegoed opwaarderen: uit"
+    "fm_mobile_auto_topup_off": "Automatisch tegoed opwaarderen: uit",
+    "developer_settings_title": "Ontwikkelaarsinstellingen",
+    "developer_settings_subtitle": "Ontwikkelaarstools, functievlaggen en appconfiguratie."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Werk toevoegen",
@@ -9874,7 +9876,8 @@
     "billing.billing_contact": "Factureringscontact",
     "billing.invoice": "Factuur",
     "billing.payment_method": "Betaalmethode",
-    "ui.routing_mode": "Routeplanning"
+    "ui.routing_mode": "Routeplanning",
+    "settings.developer_settings_tab": "Ontwikkelaarsinstellingen"
   },
   "shared": {
     "save": "Opslaan",

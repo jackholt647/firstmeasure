@@ -7972,7 +7972,9 @@
       "message": "Ricarica automatica: {amount} quando il saldo scende sotto {threshold}",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "Ricarica automatica del credito: disattivata"
+    "fm_mobile_auto_topup_off": "Ricarica automatica del credito: disattivata",
+    "developer_settings_title": "Impostazioni sviluppatore",
+    "developer_settings_subtitle": "Strumenti per sviluppatori, flag delle funzionalità e configurazione dell'applicazione."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Aggiungi intervento",
@@ -9526,7 +9528,8 @@
     "billing.billing_contact": "Contatto per la fatturazione",
     "billing.invoice": "Fattura",
     "billing.payment_method": "Metodo di pagamento",
-    "ui.routing_mode": "Percorsi"
+    "ui.routing_mode": "Percorsi",
+    "settings.developer_settings_tab": "Impostazioni sviluppatore"
   },
   "shared": {
     "save": "Salva",

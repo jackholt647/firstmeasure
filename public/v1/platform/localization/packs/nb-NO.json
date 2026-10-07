@@ -8276,7 +8276,9 @@
       "message": "Automatisk påfylling: {amount} når saldoen er under {threshold}",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "Automatisk kredittpåfylling: Av"
+    "fm_mobile_auto_topup_off": "Automatisk kredittpåfylling: Av",
+    "developer_settings_title": "Utviklerinnstillinger",
+    "developer_settings_subtitle": "Utviklerverktøy, funksjonsflagg og appkonfigurasjon."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Legg til arbeid",
@@ -9870,7 +9872,8 @@
     "billing.billing_contact": "Faktureringskontakt",
     "billing.invoice": "Faktura",
     "billing.payment_method": "Betalingsmåte",
-    "ui.routing_mode": "Ruting"
+    "ui.routing_mode": "Ruting",
+    "settings.developer_settings_tab": "Utviklerinnstillinger"
   },
   "shared": {
     "save": "Lagre",

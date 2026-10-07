@@ -8268,7 +8268,9 @@
       "message": "Automatische Aufladung: {amount}, sobald das Guthaben unter {threshold} fällt",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "Automatische Guthabenaufladung: Aus"
+    "fm_mobile_auto_topup_off": "Automatische Guthabenaufladung: Aus",
+    "developer_settings_title": "Entwicklereinstellungen",
+    "developer_settings_subtitle": "Entwicklerwerkzeuge, Feature-Flags und App-Konfiguration."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Arbeit hinzufügen",
@@ -9854,7 +9856,8 @@
     "billing.billing_contact": "Abrechnungskontakt",
     "billing.invoice": "Rechnung",
     "billing.payment_method": "Zahlungsmethode",
-    "ui.routing_mode": "Routenplanung"
+    "ui.routing_mode": "Routenplanung",
+    "settings.developer_settings_tab": "Entwicklereinstellungen"
   },
   "shared": {
     "save": "Speichern",

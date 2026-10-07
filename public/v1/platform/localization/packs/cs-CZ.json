@@ -7868,7 +7868,9 @@
       "message": "Automatické dobití {amount}, když zůstatek klesne pod {threshold}",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "Automatické dobíjení kreditu: vypnuto"
+    "fm_mobile_auto_topup_off": "Automatické dobíjení kreditu: vypnuto",
+    "developer_settings_title": "Nastavení pro vývojáře",
+    "developer_settings_subtitle": "Nástroje pro vývojáře, přepínače funkcí a konfigurace aplikací."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Přidat práci",
@@ -9362,7 +9364,8 @@
     "billing.billing_contact": "Fakturační kontakt",
     "billing.invoice": "Faktura",
     "billing.payment_method": "Platební metoda",
-    "ui.routing_mode": "Plánování tras"
+    "ui.routing_mode": "Plánování tras",
+    "settings.developer_settings_tab": "Nastavení pro vývojáře"
   },
   "shared": {
     "save": "Uložit",

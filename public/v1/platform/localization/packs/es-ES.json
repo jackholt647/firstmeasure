@@ -8268,7 +8268,9 @@
       "message": "Recarga automática: {amount} cuando el saldo baje de {threshold}",
       "format": "icu"
     },
-    "fm_mobile_auto_topup_off": "Recarga automática de crédito: desactivada"
+    "fm_mobile_auto_topup_off": "Recarga automática de crédito: desactivada",
+    "developer_settings_title": "Configuración de desarrollador",
+    "developer_settings_subtitle": "Herramientas para desarrolladores, indicadores de funciones y configuración de aplicaciones."
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Añadir trabajo",
@@ -9826,7 +9828,8 @@
     "billing.billing_contact": "Contacto de facturación",
     "billing.invoice": "Factura",
     "billing.payment_method": "Método de pago",
-    "ui.routing_mode": "Rutas"
+    "ui.routing_mode": "Rutas",
+    "settings.developer_settings_tab": "Configuración de desarrollador"
   },
   "shared": {
     "save": "Guardar",
