@@ -1,0 +1,42 @@
+<!doctype html>
+<!-- Presentation player harness: the roofing deck with sample prices. Open through the local stack:
+     /libraries/doc-present/dev-present.html  (?page=4&step=2 starts there, ?primary=%23d93025 sets the brand color) -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Presentation player</title>
+<style>html,body{margin:0;height:100%;background:#0b0d12;font-family:Inter,"Segoe UI",system-ui,sans-serif}#host{width:100vw;height:100vh}</style>
+</head>
+<body>
+<div id="host"></div>
+<script src="../doc-model/firstmate-doc-model.js"></script>
+<script src="../doc-renderer/firstmate-doc-renderer.js"></script>
+<script src="../doc-widgets/firstmate-doc-widgets.js"></script>
+<script src="../doc-parts/firstmate-doc-parts.js"></script>
+<script src="firstmate-doc-present.js"></script>
+<script src="templates/roofing-presentation.js"></script>
+<script>
+(function () {
+  const query = new URLSearchParams(location.search);
+  const primary = query.get('primary') || '#1f6feb';
+  const logo = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 144"><path d="M20 96 72 40l52 56" fill="none" stroke="' + primary + '" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/><text x="150" y="86" font-family="Segoe UI,Arial" font-weight="800" font-size="46" fill="#8fa3bd">Summit Roofing</text></svg>');
+  const definition = FMRoofingPresentation.build();
+  const resolved = FMDocModel.resolveBindings(definition, { org: { name: 'Summit Roofing Co.', logo_url: logo }, customer: { name: 'the Alvarez family' }, params: {}, outputs: {} });
+  const state = FMRoofingPresentation.priceSample(FMRoofingPresentation.sampleState());
+  window.player = FMDocPresent.mount(document.getElementById('host'), {
+    document: resolved.document || resolved,
+    themeContext: { overrides: { '--fm-primary': primary } },
+    start: { page: Number(query.get('page')) || 0, step: Number(query.get('step')) || 0 },
+    live: {
+      state,
+      // The server prices real estimates; the sample is priced here.
+      onInput: () => FMRoofingPresentation.priceSample(JSON.parse(JSON.stringify(window.player.state())))
+    },
+    onAction: (name) => { window.lastAction = name; },
+    onExit: () => { window.exited = true; }
+  });
+})();
+</script>
+</body>
+</html>

@@ -11,10 +11,18 @@
  *     are, and fades the rest — so "the diagram slides left" is two slides
  *     with the diagram in two places, not a hand-built animation.
  *
- *   page.steps = [{ id, name?, actions: [{ node, effect, duration_ms?, delay_ms?, easing?, direction? }] }]
+ *   page.steps = [{ id, name?, auto?, actions: [{ node, effect, duration_ms?, delay_ms?, easing?, direction? }] }]
  *     What happens on each advance before the slide changes. All actions of
  *     one step play together. Effects: FMDocPresent.EFFECTS. A node whose
- *     first action is an entrance starts the slide hidden.
+ *     first action is an entrance starts the slide hidden. An `auto` step
+ *     plays by itself after the one before it (or after the slide arrives).
+ *
+ *   node.props.action = { type: "next" | "back" | "first" | "goto" | "custom", page?, name? }
+ *     Makes any node a button while presenting. "custom" is handed to the
+ *     host (opts.onAction) — sign, send to the customer, and so on.
+ *
+ * With opts.live = { state, onInput } the slides' assemblies (FMDocParts —
+ * selections, prices, the review) are wired to that state.
  *
  * Nothing here is specific to a kind of presentation: widgets on the slides
  * (prices, selections, signature) are ordinary document widgets and keep
@@ -76,6 +84,7 @@
     return arr(obj(page).steps).map((step) => ({
       id: String(obj(step).id || ''),
       name: String(obj(step).name || ''),
+      auto: obj(step).auto === true,
       actions: arr(obj(step).actions).filter((action) => obj(action).node && EFFECT[obj(action).effect])
     })).filter((step) => step.actions.length);
   }
@@ -126,8 +135,8 @@
 .fmdp-stage [data-fmdp-hidden]{visibility:hidden!important;pointer-events:none!important}
 .fmdp-stage [data-fmdp-dim]{opacity:.22;transition:opacity .45s ease}
 .fmdp-stage [data-fmdp-highlight]{filter:drop-shadow(0 0 10px var(--fm-primary,#2563eb)) drop-shadow(0 0 2px var(--fm-primary,#2563eb));transition:filter .45s ease}
-.fmdp-top{position:absolute;left:50%;top:0;transform:translate(-50%,-110%);display:flex;align-items:center;gap:4px;padding:6px 8px;border-radius:0 0 14px 14px;background:rgba(17,20,28,.86);backdrop-filter:blur(14px);color:#fff;z-index:20;transition:transform .22s ease;box-shadow:0 8px 30px rgba(0,0,0,.35)}
-.fmdp[data-controls=on] .fmdp-top{transform:translate(-50%,0)}
+.fmdp-top{position:absolute;left:50%;top:0;transform:translate(-50%,-110%);display:flex;align-items:center;gap:4px;padding:6px 8px;border-radius:0 0 14px 14px;background:rgba(17,20,28,.86);backdrop-filter:blur(14px);color:#fff;z-index:20;transition:transform .22s ease,visibility 0s .22s;visibility:hidden}
+.fmdp[data-controls=on] .fmdp-top{transform:translate(-50%,0);visibility:visible;transition:transform .22s ease;box-shadow:0 8px 30px rgba(0,0,0,.35)}
 .fmdp-edge{position:absolute;left:0;right:0;top:0;height:14px;z-index:19}
 .fmdp-btn{border:0;background:transparent;color:#e7eaf0;min-width:34px;height:34px;padding:0 9px;border-radius:9px;font:600 12px/1 inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .fmdp-btn:hover{background:rgba(255,255,255,.14);color:#fff}
@@ -196,6 +205,10 @@
     let stepIndex = Math.max(0, Number(obj(opts.start).step) || 0);
     let running = [];
     let hideControls = null;
+    let autoTimer = null;
+    let parts = null;
+    let liveState = obj(obj(opts.live).state);
+    let actions = new Map();
 
     // ------------------------------------------------------------- layout
     const paperPx = () => {
@@ -221,6 +234,7 @@
     const nodeEl = (host, id) => host?.querySelector(`[data-node-id="${CSS_ESCAPE(id)}"]`) || null;
 
     function stop() {
+      clearTimeout(autoTimer);
       running.forEach((animation) => { try { animation.finish(); } catch (e) { /* already done */ } });
       running = [];
     }
@@ -349,9 +363,10 @@
           if (!b.width || !b.height) return;
           moved.add(id);
           source.style.visibility = 'hidden';
+          const opacity = (element) => Number(getComputedStyle(element).opacity);
           const animation = play(target, [
-            { transformOrigin: '0 0', transform: `translate(${a.left - b.left}px,${a.top - b.top}px) scale(${a.width / b.width},${a.height / b.height})` },
-            { transformOrigin: '0 0', transform: 'none' }
+            { transformOrigin: '0 0', transform: `translate(${a.left - b.left}px,${a.top - b.top}px) scale(${a.width / b.width},${a.height / b.height})`, opacity: opacity(source) },
+            { transformOrigin: '0 0', transform: 'none', opacity: opacity(target) }
           ], timing);
           animation?.finished.then(() => { animation.cancel(); source.style.visibility = ''; }, () => { source.style.visibility = ''; });
           last = animation || last;
@@ -378,36 +393,79 @@
       renderControls();
       try { opts.onNavigate?.(position()); } catch (e) { /* host callback */ }
     }
+    /** Where the slide rests at or after `count` steps: auto steps never wait for an advance. */
+    function rest(index, count) {
+      const steps = pageSteps(pages()[index]);
+      let at = clamp(count, 0, steps.length);
+      while (at < steps.length && steps[at].auto) at += 1;
+      return at;
+    }
+    function playStep() {
+      const steps = pageSteps(pages()[pageIndex]);
+      const step = steps[stepIndex];
+      if (!step) return;
+      stepIndex += 1;
+      applyState(pageIndex, stepIndex);
+      const host = pageEl(pageIndex);
+      step.actions.forEach((action) => playAction(host, action));
+      announce();
+      if (steps[stepIndex] && steps[stepIndex].auto) {
+        const wait = Math.max(0, ...step.actions.map((action) => time(action.duration_ms, DEFAULT_MS) * 0.6 + time(action.delay_ms, 0)));
+        autoTimer = setTimeout(playStep, wait);
+      }
+    }
     function goTo(page, step, { animate = true } = {}) {
       if (destroyed || !pages().length) return;
       const target = clamp(Number(page) || 0, 0, pages().length - 1);
-      const targetStep = clamp(step === 'end' ? stepCount(target) : (Number(step) || 0), 0, stepCount(target));
+      const steps = pageSteps(pages()[target]);
+      const wanted = clamp(step === 'end' ? steps.length : (Number(step) || 0), 0, steps.length);
       stop();
       const from = pageIndex;
+      // Arriving at the start of a slide plays its opening auto steps; landing
+      // anywhere else, or without animation, goes straight to the resting state.
+      const opening = animate && wanted === 0 && steps[0] && steps[0].auto && !reduced();
       pageIndex = target;
-      stepIndex = targetStep;
-      applyState(target, targetStep);
+      stepIndex = opening ? 0 : rest(target, wanted);
+      applyState(target, stepIndex);
       if (animate && from !== target) transitionTo(from, target, target < from);
       else show(target);
       announce();
+      if (opening) autoTimer = setTimeout(playStep, from !== target ? pageTransition(pages()[target]).duration_ms * 0.7 : 0);
     }
     function next() {
       if (destroyed) return;
       const steps = pageSteps(pages()[pageIndex]);
-      if (stepIndex < steps.length) {
-        stop();
-        const step = steps[stepIndex];
-        stepIndex += 1;
-        applyState(pageIndex, stepIndex);
-        const host = pageEl(pageIndex);
-        step.actions.forEach((action) => playAction(host, action));
-        announce();
-      } else if (pageIndex < pages().length - 1) goTo(pageIndex + 1, 0);
+      stop();
+      // An advance during auto steps finishes them first.
+      if (stepIndex < steps.length && steps[stepIndex].auto && stepIndex > 0) { stepIndex = rest(pageIndex, stepIndex); applyState(pageIndex, stepIndex); }
+      if (stepIndex < steps.length) playStep();
+      else if (pageIndex < pages().length - 1) goTo(pageIndex + 1, 0);
     }
     function back() {
       if (destroyed) return;
-      if (stepIndex > 0) { stop(); stepIndex -= 1; applyState(pageIndex, stepIndex); announce(); }
-      else if (pageIndex > 0) goTo(pageIndex - 1, 'end');
+      const steps = pageSteps(pages()[pageIndex]);
+      stop();
+      if (stepIndex > rest(pageIndex, 0)) {
+        let at = stepIndex - 1;
+        while (at > 0 && steps[at].auto) at -= 1;
+        stepIndex = rest(pageIndex, at);
+        applyState(pageIndex, stepIndex);
+        announce();
+      } else if (pageIndex > 0) goTo(pageIndex - 1, 'end');
+    }
+    /** Jump to the slide holding a selection ({ group } | { addons }) or a page id. */
+    function navigate(target) {
+      const id = typeof target === 'string' ? target : (root.FMDocParts?.pageForTarget(doc(), target) || '');
+      const index = pages().findIndex((page) => page.id === id);
+      if (index >= 0) goTo(index, 'end');
+    }
+    function runAction(action) {
+      const type = String(obj(action).type || '');
+      if (type === 'next') next();
+      else if (type === 'back') back();
+      else if (type === 'first') goTo(0, 0);
+      else if (type === 'goto') navigate(String(action.page || ''));
+      else if (type === 'custom') { try { opts.onAction?.(String(action.name || ''), position(), action); } catch (e) { /* host action */ } }
     }
 
     // ----------------------------------------------------------- controls
@@ -453,7 +511,15 @@
     }
     function onClick(event) {
       const button = event.target.closest?.('[data-fmdp],[data-fmdp-action],[data-fmdp-page]');
-      if (!button || !el.contains(button)) return;
+      if (!button) {
+        // A node with props.action is a button on the slide.
+        for (let node = event.target.closest?.('[data-node-id]'); node && stage.contains(node); node = node.parentElement?.closest('[data-node-id]')) {
+          const action = actions.get(node.getAttribute('data-node-id'));
+          if (action) { event.preventDefault(); runAction(action); return; }
+        }
+        return;
+      }
+      if (!el.contains(button)) return;
       if (button.dataset.fmdpPage != null) {
         const bar = event.target.closest('[data-fmdp-step]');
         goTo(Number(button.dataset.fmdpPage), bar ? Number(bar.dataset.fmdpStep) : 0, { animate: !bar });
@@ -465,6 +531,10 @@
     function onKey(event) {
       if (event.defaultPrevented || event.target.closest?.('input,textarea,select,[contenteditable="true"]')) return;
       const key = event.key;
+      if ((key === 'Enter' || key === ' ') && event.target !== el && event.target.closest?.('[data-part-action],[data-part-assembly],button,a')) {
+        if (event.target.matches?.('[data-part-action]')) { event.preventDefault(); event.target.click(); }
+        return;
+      }
       if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(key)) { if (key !== 'Enter' || event.target === el) { event.preventDefault(); next(); } }
       else if (['ArrowLeft', 'PageUp', 'Backspace'].includes(key)) { event.preventDefault(); back(); }
       else if (key === 'Home') { event.preventDefault(); goTo(0, 0); }
@@ -522,6 +592,28 @@
         applyState(pageIndex, stepIndex);
         show(pageIndex);
         renderControls();
+        actions = new Map();
+        model.walkNodes(doc(), (node) => {
+          const action = obj(obj(node.props).action);
+          if (!action.type) return;
+          actions.set(node.id, action);
+          const target = nodeEl(stage, node.id);
+          if (target) { target.setAttribute('data-part-action', String(action.type)); target.setAttribute('role', 'button'); target.tabIndex = 0; }
+        });
+        // Selections, prices and the review are assemblies wired to the live state.
+        if (root.FMDocParts && opts.live) {
+          if (parts) liveState = parts.state();
+          parts?.destroy();
+          parts = root.FMDocParts.attach(stage, {
+            document: doc(), state: liveState, readonly: obj(opts.live).readonly === true, navigate,
+            onInput: async (input) => {
+              const result = await obj(opts.live).onInput?.(input, position());
+              if (result && typeof result === 'object') liveState = result;
+              return result;
+            },
+            onError: obj(opts.live).onError
+          });
+        }
       };
       settle();
       return Promise.resolve(handle.ready?.()).then(settle, settle);
@@ -533,9 +625,15 @@
       element: el,
       ready: () => ready,
       next, back, goTo, position, fullscreen,
-      /** Re-render with new data (a selection changed a price) without losing the place. */
+      navigate,
+      /** The live state as the slides currently show it. */
+      state: () => (parts ? parts.state() : liveState),
+      /** New live state from outside (no re-render), e.g. another device changed a choice. */
+      setState(state) { liveState = obj(state); parts?.update({ state: liveState }); },
+      /** Re-render with a new document or data without losing the place. */
       update(nextOptions) {
         opts = Object.assign({}, opts, nextOptions || {});
+        if (obj(nextOptions).live && obj(nextOptions.live).state) { liveState = obj(nextOptions.live.state); parts?.update({ state: liveState }); parts?.destroy(); parts = null; }
         stop();
         ready = renderDocument();
         return ready;
@@ -545,6 +643,7 @@
         destroyed = true;
         stop();
         clearTimeout(hideControls);
+        parts?.destroy();
         resize?.disconnect();
         try { handle?.destroy(); } catch (e) { /* renderer already gone */ }
         el.remove();
