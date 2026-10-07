@@ -163,6 +163,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.locator('.fm-phone-title').click();
     assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'floating');
     assert.equal(await page.locator('[data-phone=wrap]').isVisible(),true);
+    assert.equal(await page.getByRole('option',{name:'Create follow-up'}).count(),0);
     await page.getByRole('button',{name:/Close phone/i}).click();
     assert.equal(await page.locator('.fm-phone-tray').isVisible(),true);
     await page.locator('[data-phone=wrap]').click();
