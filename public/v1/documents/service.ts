@@ -1403,9 +1403,9 @@ export function applyScopeSelections(items: unknown[], rawValue: unknown): unkno
     const item = asObject(itemValue);
     const selection = asObject(item.selection);
     const mode = cleanText(selection.mode);
-    const customerSelectable = asArray(selection.selectable_by).map(cleanText).includes("customer");
     let next = item;
-    if (customerSelectable && (mode === "choice" || mode === "optional")) {
+    // An alternative or an optional line on the document is the customer's to pick.
+    if (mode === "choice" || mode === "optional") {
       const itemId = cleanText(item.id);
       const groupId = cleanText(selection.group_id);
       let selected: boolean | null = null;

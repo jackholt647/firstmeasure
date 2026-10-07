@@ -279,7 +279,7 @@ export function scopePresentationDefinition(input: { name: string; layout: JsonO
       ...Object.fromEntries(Object.entries(extra).map(([name, field]) => [name, { path: `/inputs/${name}`, schema: field.schema, access: "write" }]))
     },
     presentation: {
-      pricing: "scope", customer: { exports: ["pricing", "offered", "customer", "project", "measurements"], contract: input.customerContract || "review" }, contract: input.contract || {},
+      pricing: "scope", customer: { exports: ["pricing", "offered", "customer", "project", "measurements"], contract: input.customerContract || "direct" }, contract: input.contract || {},
       inputs: {
         selections: { kind: "scope_selections", audience: ["internal", "customer"] }, variants: { kind: "variant", audience: ["internal", "customer"] },
         ...Object.fromEntries(Object.entries(extra).map(([name, field]) => [name, { kind: "value", audience: field.audience || ["internal"], ...(field.label ? { label: field.label } : {}), ...(field.contract_param ? { contract_param: field.contract_param } : {}) }]))

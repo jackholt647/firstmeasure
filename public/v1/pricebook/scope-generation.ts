@@ -380,8 +380,8 @@ function choiceLine(catalog: JsonObject, group: ChoiceGroup, itemId: string, mea
     group_behavior: "single",
     selected,
     default_selected: selected,
-    customer_visible: customer,
-    selectable_by: customer || selected ? ["internal", "customer"] : ["internal"]
+    customer_visible: true,
+    selectable_by: ["internal", "customer"]
   };
   // An alternative carries its own price; it is never an "included" line.
   line.included = false;

@@ -547,7 +547,7 @@
           if (cleanText(g.id)) groupTitles.set(cleanText(g.id), { title: firstNonEmpty(g.title, g.label, cleanText(g.id)), behavior: cleanText(g.behavior) || 'single' });
         }
         const sel = obj(item.selection);
-        const customer = arr(sel.selectable_by).includes('customer');
+        const customer = true;
         if (customer && cleanText(sel.mode) === 'choice' && cleanText(sel.group_id)) {
           const gid = cleanText(sel.group_id);
           if (!groups.has(gid)) groups.set(gid, []);
@@ -1493,7 +1493,8 @@
       return cleanText(sel.mode) === 'choice' ? cleanText(sel.group_id) : '';
     };
     const isOptional = (item) => cleanText(obj(item.selection).mode) === 'optional';
-    const customerPicks = (item) => arr(obj(item.selection).selectable_by).map(cleanText).includes('customer');
+    // Alternatives and optional lines left on the estimate are the customer's to pick; to send one, remove the others.
+    const customerPicks = () => true;
     const groupTitle = (groupId, options) => firstText(obj(obj(arr(options)[0]).selection).group_title, prettyKey(cleanText(groupId).split(':').pop().replace(/_(profile|group|choice)$/i, '')));
     /** How many decisions the customer is offered (choice groups + optional
      *  lines); later steps show the customer's choosing step only when > 0. */

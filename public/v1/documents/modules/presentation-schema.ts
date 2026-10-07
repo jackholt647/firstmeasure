@@ -30,7 +30,7 @@ export const presentationSpecSchema = z.object({
     exports: z.array(key).max(50).default([]),
     /** review: a customer submits choices and staff produce the contract.
      *  direct: submitting produces and sends the contract for signature. */
-    contract: z.enum(["review", "direct"]).default("review")
+    contract: z.enum(["review", "direct"]).default("direct")
   }).strict().default({}),
   contract: z.object({
     /** Used only when the presentation has no source document to update. */

@@ -73,7 +73,7 @@ before(async () => {
   await storage.upsertDocument(orgId, "projects", { id: projectId, data: { title: "Presentation test", branch_id: "default", address: "1 Ridge Road", contacts: [{ name: "Pat Homeowner", email: "pat@example.test", primary: true }] } });
   generated = (await (await import("../platform/publication/actions.js")).invokeAction(publication.userPublicationContext(auth, { executionKind: "api" }),
     { action: "pricebook.scope.generate", target: { scope: "organization", organizationId: orgId } }, { templateId: "roof_replacement", measurements: { roofSquares: 25.5, wastePercent: 10, eavesLf: 120.4, rakesLf: 80 } })).value;
-  moduleId = String((await presentations.publishPresentation(ctx, presentations.scopePresentationDefinition({ name: "Roof presentation", layout: slides({ total: "outputs.pricing.totals.total_cents", raw_lines: "params.scope_items", prepared_for: "params.customer.name" }), contract: { params: { customer_choice_count: 0 } } }))).id);
+  moduleId = String((await presentations.publishPresentation(ctx, presentations.scopePresentationDefinition({ name: "Roof presentation", customerContract: "review", layout: slides({ total: "outputs.pricing.totals.total_cents", raw_lines: "params.scope_items", prepared_for: "params.customer.name" }), contract: { params: { customer_choice_count: 0 } } }))).id);
 });
 after(async () => {
   if (app) await app.close();
