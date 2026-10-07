@@ -39,6 +39,7 @@
     groups: [],
     documents: [],
     activity: [],
+    notes: [],
     users: [],
     query: '',
     density: 'small',
@@ -357,7 +358,7 @@
     const context = activityContext(event);
     const actorId = firstText(event.actor_user_id, context.actor_user_id, payload.actor_user_id);
     const user = state.users.find((entry) => [entry.id, entry.user_id, entry.email].map(cleanText).includes(actorId));
-    return firstText(payload.actor_name, context.actor_name, user?.name, user?.display_name, context.actor_email, user?.email, 'Someone');
+    return firstText(user?.name, user?.display_name, payload.actor_name, context.actor_name, context.actor_email, user?.email, 'Someone');
   }
   function activityObjectLabel(event = {}){
     const payload = activityPayload(event);
@@ -861,7 +862,8 @@
     const mediaId = firstText(item.media_id, item.mediaId, item.id);
     if (!mediaId) return null;
     if (window.PlatformAPI?.media?.referenceFromUpload) {
-      return window.PlatformAPI.media.referenceFromUpload(item, { field: 'photos', variant: 'original' });
+      const reference = window.PlatformAPI.media.referenceFromUpload(item, { field: 'photos', variant: 'original' });
+      return { ...reference, uploaded_at:firstText(item.metadata?.uploaded_at,reference.uploaded_at) };
     }
     return {
       kind: 'media_reference',
@@ -872,7 +874,7 @@
       file_name: firstText(item.file_name, item.fileName),
       content_type: firstText(item.content_type, item.contentType),
       size_bytes: Number(item.size_bytes || item.sizeBytes || 0),
-      uploaded_at: firstText(item.created_at, item.uploaded_at, item.updated_at),
+      uploaded_at: firstText(item.metadata?.uploaded_at, item.uploaded_at, item.created_at, item.updated_at),
       updated_at: firstText(item.updated_at, item.created_at),
       metadata: item.metadata && typeof item.metadata === 'object' ? item.metadata : {},
       owner: item.owner && typeof item.owner === 'object' ? item.owner : {}
@@ -1139,6 +1141,7 @@
       });
     const activityEntries = state.activity
       .filter((event) => cleanText(event.type) !== 'work.plan.started')
+      .filter((event) => !(cleanText(event.type) === 'note.created' && activityPayload(event).synthetic && !activityPayload(event).message_id))
       .filter((event) => state.visibleActivity.has(feedActivityCategory(event)))
       .map((event) => ({
         id:`activity:${firstText(event.id, event.idempotency_key, event.type)}:${eventTimestamp(event)}`,
@@ -1150,12 +1153,18 @@
         dateKey:dateKey(eventTimestamp(event)),
         search:[feedActivitySummary(event), activityProjectLabel(event), cleanText(event.type)].join(' ').toLowerCase()
       }));
+    const noteEntries = state.visibleActivity.has('project') ? state.notes.map((note) => {
+      const project = projectForId(note.projectId);
+      return { id:`note:${note.id}`, kind:'note', note, project, projectId:note.projectId,
+        timestamp:note.created_at, dateKey:dateKey(note.created_at),
+        search:[note.text,note.author?.name,projectTitle(project),projectAddress(project)].join(' ').toLowerCase() };
+    }) : [];
     const unpaired = new Set(activityEntries.map((entry) => entry.id));
     [...mediaEntries, ...documentEntries].forEach((asset) => {
       const match = activityEntries.find((entry) => unpaired.has(entry.id) && assetEventMatch(asset, entry.event));
       if (!match) return;
       asset.pairedEvent = match.event;
-      asset.timestamp = [asset.timestamp, match.timestamp].sort().reverse()[0] || asset.timestamp;
+      asset.timestamp = asset.kind === 'media' ? asset.timestamp : ([asset.timestamp, match.timestamp].sort().reverse()[0] || asset.timestamp);
       asset.dateKey = dateKey(asset.timestamp);
       asset.search += ` ${match.search}`;
       unpaired.delete(match.id);
@@ -1163,9 +1172,9 @@
     const query = cleanText(state.query).toLowerCase();
     const entries = state.visibleTags.size
       ? mediaEntries
-      : [...mediaEntries, ...documentEntries, ...activityEntries.filter((entry) => unpaired.has(entry.id))];
+      : [...mediaEntries, ...documentEntries, ...activityEntries.filter((entry) => unpaired.has(entry.id)), ...noteEntries];
     return entries
-      .filter((entry) => options.unverified || state.authorizedSources.has(feedRefKey(entryRef(entry))))
+      .filter((entry) => entry.kind === 'note' || options.unverified || state.authorizedSources.has(feedRefKey(entryRef(entry))))
       .filter((entry) => !query || entry.search.includes(query))
       .sort((left, right) => String(right.timestamp).localeCompare(String(left.timestamp)));
   }
@@ -1176,6 +1185,28 @@
       days.get(entry.dateKey).push(entry);
     });
     return [...days.entries()];
+  }
+  async function loadFeedNotes(oid, projects = []){
+    if (!window.ChannelsAPI?.channels?.list || !window.ChannelsAPI?.messages?.list) return [];
+    try {
+      const available = new Set(projects.map((project) => cleanText(project.id)));
+      const result = await window.ChannelsAPI.channels.list(oid);
+      const channels = (result.channels || []).filter((channel) => channel.type === 'project' && available.has(cleanText(channel.project_id)));
+      const pages = await Promise.all(channels.map(async (channel) => {
+        try {
+          const page = await window.ChannelsAPI.messages.list(oid, channel.id, { view:'notes', limit:200 });
+          return (page.messages || []).filter((message) => message.metadata?.project_note === true && !message.deleted_at)
+            .map((message) => ({ ...message, projectId:cleanText(channel.project_id) }));
+        } catch (error) {
+          console.warn('Could not load project notes for Feed', error);
+          return [];
+        }
+      }));
+      return pages.flat();
+    } catch (error) {
+      console.warn('Could not list project notes for Feed', error);
+      return [];
+    }
   }
   function serializeFeedShown(){
     return [
@@ -1519,6 +1550,11 @@
       @media(max-width:1050px){.pf-wrap[data-density="small"] .pf-feed-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.pf-wrap[data-density="mosaic"] .pf-feed-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
       @media(max-width:760px){.pf-wrap:has(.pf-feed-grid) .pf-toolbar{flex-wrap:wrap}.pf-wrap:has(.pf-feed-grid) .pf-density{display:flex}.pf-wrap:has(.pf-feed-grid) .pf-tools{flex-wrap:wrap}.pf-wrap:has(.pf-feed-grid) .pf-search{flex-basis:100%}.pf-wrap[data-density="small"] .pf-feed-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.pf-wrap[data-density="large"] .pf-feed-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pf-wrap[data-density="list"] .pf-feed-grid{grid-template-columns:1fr}.pf-wrap[data-density="mosaic"] .pf-feed-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pf-post-collage{height:270px}.pf-post-collage.count-1{height:300px}.pf-wrap[data-density="posts"] .pf-scroll{padding:8px}.pf-post-head{padding:14px}.pf-wrap[data-density="list"] .pf-feed-card{grid-template-columns:90px minmax(0,1fr)}}
       @media(max-width:760px){.pf-feed-list-row{grid-template-columns:46px minmax(0,1fr);gap:10px;padding:11px}.pf-feed-list-time{grid-column:2;text-align:left;margin-top:-2px}.pf-feed-list-project{flex-wrap:wrap;gap:3px 7px}.pf-feed-list-project button{white-space:normal;text-align:left}}
+      .pf-project-identity{display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:0 7px;max-width:100%;text-align:left;line-height:1.4}.pf-project-identity span{overflow-wrap:anywhere}.pf-project-identity .pf-feed-list-address{font-weight:650}.pf-project-identity:hover span{text-decoration:underline}.pf-feed-list-project .pf-project-identity{white-space:normal;overflow:visible}
+      .pf-note{min-width:0}.pf-note-toggle{display:flex;align-items:flex-start;gap:8px;width:100%;padding:2px 0;border:0;background:none;color:#475467;font:inherit;font-size:12px;line-height:1.45;text-align:left;cursor:pointer}.pf-note-toggle:hover{color:var(--primary-readable,var(--primary,#d93025))}.pf-note-toggle .pf-note-preview{flex:1;min-width:0;overflow:hidden;max-height:4.5em;transition:max-height .24s ease,opacity .24s ease}.pf-note-toggle i{margin:3px 0 0 auto;flex:none;transition:transform .28s ease}.pf-note.expanded .pf-note-toggle i{transform:rotate(180deg)}.pf-note.expanded .pf-note-preview{max-height:0;opacity:0}.pf-note-expanded{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .32s ease,opacity .32s ease}.pf-note.expanded .pf-note-expanded{grid-template-rows:1fr;opacity:1}.pf-note-expanded>div{min-height:0;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55;color:#344054}.pf-post-note-body{padding:0 18px 16px}
+      .pf-tile-actor{display:flex;align-items:center;gap:8px;min-width:0;margin-bottom:8px}.pf-tile-actor .pf-actor-avatar{width:32px;height:32px;flex-basis:32px;font-size:12px}.pf-tile-actor .pf-actor-badge{width:16px;height:16px;font-size:7px}.pf-tile-actor>span:last-child{display:flex;flex-direction:column;min-width:0}.pf-tile-actor strong{font-size:11px;color:#182230;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-tile-actor time{font-size:10px;color:#667085}.pf-feed-activity>.pf-actor-avatar{margin-top:0}.pf-feed-activity>time{color:#667085;font-size:10px;white-space:nowrap}.pf-feed-activity-copy .pf-feed-list-project{margin-top:5px}.pf-feed-note-card .pf-note{margin-top:5px}
+      .pf-wrap[data-density="small"] .pf-tile-actor{gap:5px}.pf-wrap[data-density="small"] .pf-tile-actor .pf-actor-avatar{width:24px;height:24px;flex-basis:24px;font-size:9px}.pf-wrap[data-density="small"] .pf-tile-actor .pf-actor-badge{width:13px;height:13px;font-size:6px}.pf-wrap[data-density="small"] .pf-tile-actor time{display:none}.pf-wrap[data-density="small"] .pf-project-identity{font-size:10px}.pf-wrap[data-density="small"] .pf-feed-activity>time,.pf-wrap[data-density="large"] .pf-feed-activity>time,.pf-wrap[data-density="mosaic"] .pf-feed-activity>time{white-space:normal}
+      @media(prefers-reduced-motion:reduce){.pf-note-toggle .pf-note-preview,.pf-note-toggle i,.pf-note-expanded{transition:none}}
     `);
   }
   async function load(options = {}){
@@ -1543,7 +1579,13 @@
       state.items = buildItems(state.projects);
       state.groups = buildGroups(state.items);
       state.activity = Array.isArray(activityResult?.events) ? activityResult.events : [];
-      state.users = (Array.isArray(userResult?.documents) ? userResult.documents : []).map((entry) => objectValue(entry.data && typeof entry.data === 'object' ? { ...entry.data, id:firstText(entry.data.id, entry.id) } : entry));
+      const directoryUsers = (Array.isArray(userResult?.documents) ? userResult.documents : []).map((entry) => objectValue(entry.data && typeof entry.data === 'object' ? { ...entry.data, id:firstText(entry.data.id, entry.id) } : entry));
+      const memberResult = window.PlatformAPI?.users?.list ? await window.PlatformAPI.users.list(oid).catch(() => null) : null;
+      const members = (memberResult?.documents || []).map((entry) => ({ ...objectValue(entry.data), id:firstText(entry.id,entry.data?.id) }));
+      const byId = new Map(directoryUsers.map((user) => [cleanText(user.id), user]));
+      members.forEach((member) => byId.set(cleanText(member.id), { ...(byId.get(cleanText(member.id)) || {}), ...member }));
+      state.users = [...byId.values()];
+      state.notes = await loadFeedNotes(oid, state.projects);
       state.documents = projectDocumentsFromProjects(state.projects);
       if (state.visibleDocuments.size) await loadFeedDocuments();
       await authorizeFeedEntries();
@@ -1575,7 +1617,7 @@
     return [...days.entries()];
   }
   function photoThumb(item){
-    if (item.photo?.media_id && !isVideoMedia(item.photo) && window.PlatformAPI?.media?.markupThumbnailUrl) {
+    if (item.photo?.media_id && !isVideoMedia(item.photo) && markupThumbnailRevisions.has(item.photo.media_id) && window.PlatformAPI?.media?.markupThumbnailUrl) {
       return window.PlatformAPI.media.markupThumbnailUrl(orgId(), item.photo.media_id, 320, markupThumbnailRevisions.get(item.photo.media_id) || '');
     }
     if (item.photo?.media_id && window.PlatformAPI?.media?.thumbnailUrl) return window.PlatformAPI.media.thumbnailUrl(orgId(), item.photo.media_id, 320);
@@ -1889,18 +1931,17 @@
   function feedMediaEntryHtml(entry = {}){
     const item = entry.mediaItem;
     const up = uploader(item.photo);
+    const author = postAuthor({ kind:'media', media:item.photo, source:{ author:firstText(item.photo?.uploaded_by_user_id,item.photo?.metadata?.uploaded_by_user_id,up.id) } });
     const selected = state.selected.has(item.id);
     return `
       <article class="pf-feed-card pf-feed-media-card">
         <button type="button" class="pf-thumb${selected ? ' selected' : ''}${item.photo?.uploading ? ' uploading' : ''}${['audio','document'].includes(galleryMediaType(item.photo)) || (isVideoMedia(item.photo) && !photoThumb(item) && !photoOriginal(item)) ? ' loaded video-placeholder' : ''}" data-photo-feed-id="${escapeHtml(item.id)}" aria-pressed="${selected ? 'true' : 'false'}">
           <span class="pf-select" data-photo-select="${escapeHtml(item.id)}"><i class="fas fa-check"></i></span>
           ${mediaThumbHtml(item)}
-          <span class="pf-thumb-meta">${escapeHtml(up.name || up.email || 'Unknown')}<br>${escapeHtml(window.FirstMateMarkup?.formatDateTime?.(item.uploadedAt) || '')}</span>
         </button>
         <div class="pf-feed-card-body">
-          <div class="pf-feed-card-heading"><span class="pf-kind"><i class="fas ${isVideoMedia(item.photo) ? 'fa-video' : 'fa-image'}"></i>${isVideoMedia(item.photo) ? 'Video' : 'Photo'}</span><time>${escapeHtml(activityTime(entry.timestamp))}</time></div>
-          <button type="button" class="pf-feed-project" data-feed-project-id="${escapeHtml(entry.projectId)}">${escapeHtml(projectTitle(entry.project))}</button>
-          <span class="pf-feed-subtitle">${escapeHtml(projectSubtitle(entry.project) || item.projectAddress || '')}</span>
+          <div class="pf-tile-actor">${actorAvatarHtml(author,isVideoMedia(item.photo)?'fa-video':'fa-image')}<span><strong title="${escapeHtml(author.name)} uploaded a ${isVideoMedia(item.photo)?'video':'photo'}">${escapeHtml(author.name)} uploaded a ${isVideoMedia(item.photo)?'video':'photo'}</strong><time>${escapeHtml(feedListTime(entry.timestamp))}</time></span></div>
+          <div class="pf-feed-list-project">${feedProjectLinkHtml(entry.project,entry.projectId)}</div>
           ${pairedActivityHtml(entry.pairedEvent)}
         </div>
       </article>`;
@@ -1914,6 +1955,7 @@
   }
   function feedDocumentEntryHtml(entry = {}){
     const doc = entry.document;
+    const author = postAuthor({ kind:'document', document:doc, source:{ author:firstText(doc.uploaded_by_user_id,doc.created_by,doc.uploaded_by) } });
     return `
       <article class="pf-feed-card pf-feed-document-card">
         <button type="button" class="pf-document-preview" data-feed-document-id="${escapeHtml(entry.id)}"${doc.url ? '' : ' aria-disabled="true"'}>
@@ -1921,25 +1963,29 @@
           <span class="pf-document-badge" style="--feed-doc-color:${escapeHtml(doc.color || '#64748b')}">${escapeHtml(doc.type_label || 'Document')}</span>
         </button>
         <div class="pf-feed-card-body">
-          <div class="pf-feed-card-heading"><span class="pf-kind"><i class="fas ${escapeHtml(doc.icon || 'fa-file-lines')}"></i>${escapeHtml(doc.type_label || 'Document')}</span><time>${escapeHtml(activityTime(entry.timestamp))}</time></div>
+          <div class="pf-tile-actor">${actorAvatarHtml(author,doc.icon || 'fa-file-lines')}<span><strong>${escapeHtml(author.name)}</strong><time>${escapeHtml(feedListTime(entry.timestamp))}</time></span></div>
           <strong class="pf-document-title">${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("photos","m_9c9b98b1f4e8c9","Document") ?? "Document"))}</strong>
-          <button type="button" class="pf-feed-project" data-feed-project-id="${escapeHtml(entry.projectId)}">${escapeHtml(projectTitle(entry.project))}</button>
+          <div class="pf-feed-list-project">${feedProjectLinkHtml(entry.project,entry.projectId)}</div>
           ${pairedActivityHtml(entry.pairedEvent)}
         </div>
       </article>`;
   }
   function feedActivityEntryHtml(entry = {}){
     const event = entry.event;
-    const projectLabel = activityProjectLabel(event);
+    const author = postAuthor({ kind:'activity', event, source:{ author:cleanText(event.actor_user_id) } });
     return `
       <article class="pf-feed-activity">
-        <span class="pf-feed-activity-icon"><i class="fas ${feedActivityIcon(event)}"></i></span>
+        ${actorAvatarHtml(author,feedActivityIcon(event))}
         <div class="pf-feed-activity-copy">
           <strong>${escapeHtml(feedActivitySummary(event))}</strong>
-          <span>${escapeHtml([projectLabel, activityTime(entry.timestamp)].filter(Boolean).join(' · '))}</span>
+          <div class="pf-feed-list-project">${feedProjectLinkHtml(entry.project,entry.projectId)}</div>
         </div>
-        ${entry.projectId ? `<button type="button" class="pf-activity-link" data-feed-project-id="${String(escapeHtml(entry.projectId))}"><i class="fas fa-folder-open"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_53787840db7d1c"," Open project") ?? " Open project")}</button>` : ''}
+        <time>${escapeHtml(feedListTime(entry.timestamp))}</time>
       </article>`;
+  }
+  function feedNoteEntryHtml(entry = {}){
+    const author = postAuthor({kind:'note',note:entry.note,source:{author:entry.note?.author?.id}});
+    return `<article class="pf-feed-activity pf-feed-note-card">${actorAvatarHtml(author,'fa-note-sticky')}<div class="pf-feed-activity-copy"><strong>${escapeHtml(author.name)} added a note:</strong>${feedNoteHtml(entry.note)}<div class="pf-feed-list-project">${feedProjectLinkHtml(entry.project,entry.projectId)}</div></div><time>${escapeHtml(feedListTime(entry.timestamp))}</time></article>`;
   }
   function startFeedPolling(){
     clearInterval(state.feedTimer);
@@ -1947,6 +1993,7 @@
       if(state.density!=='posts' || document.hidden || !state.root?.isConnected)return;
       let changed=false;
       for(const post of groupedPosts(feedEntries()).slice(0,state.visible)){
+        if (post.kind === 'note') continue;
         const current=postState(post.id);if(!current.root || current.busy || current.checking)continue;
         const prior=JSON.stringify([current.root.reactions,current.root.reply_count,current.replies]);
         try{await fetchPost(post);changed ||= prior!==JSON.stringify([current.root.reactions,current.root.reply_count,current.replies]);}
@@ -1971,7 +2018,9 @@
   function groupedPosts(entries){
     const groups=new Map();
     for(const entry of entries){
-      const source=state.authorizedSources.get(feedRefKey(entryRef(entry)));
+      const source=entry.kind === 'note'
+        ? { key:`note:${entry.note.id}`, author:cleanText(entry.note.author?.id) }
+        : state.authorizedSources.get(feedRefKey(entryRef(entry)));
       if(!source)continue;
       let group=groups.get(source.key);
       if(!group){group={...entry,id:source.key,source,entries:[]};groups.set(source.key,group);}
@@ -1987,11 +2036,11 @@
     const person=state.users.find(u=>cleanText(u.id || u.user_id)===cleanText(post.source?.author));
     const up=post.kind==='media'?uploader(post.media):{};
     const profile=person?.profile && typeof person.profile==='object' ? person.profile : {};
-    return {name:firstText(person?.name,person?.display_name,up.name,up.email,post.kind==='activity'?feedActor(post.event):'', 'Company update'),
-      avatar:firstText(person?.avatar,person?.avatar_url,person?.profile_photo_url,person?.profile_photo,profile.profile_photo,profile.profile_photo_url,up.avatar)};
+    return {name:firstText(person?.name,person?.display_name,post.note?.author?.name,up.name,up.email,post.kind==='activity'?feedActor(post.event):'', 'Company update'),
+      avatar:firstText(person?.profile_photo_url,person?.profile_photo,profile.profile_photo,profile.profile_photo_url,person?.avatar_url,person?.avatar,post.note?.author?.avatar,up.avatar)};
   }
   function postIcon(post){
-    return post.kind==='media' ? 'fa-images' : post.kind==='document' ? 'fa-file-contract' : feedActivityIcon(post.event);
+    return post.kind==='media' ? 'fa-images' : post.kind==='document' ? 'fa-file-contract' : post.kind==='note' ? 'fa-note-sticky' : feedActivityIcon(post.event);
   }
   function uploadCountLabel(entries){
     const videos=entries.filter((entry)=>isVideoMedia(entry.media)).length;
@@ -2005,32 +2054,45 @@
       : `<span aria-hidden="true">${escapeHtml(author.name.slice(0,1).toUpperCase())}</span>`;
     return `<span class="pf-actor-avatar">${image}<span class="pf-actor-badge" aria-hidden="true"><i class="fas ${escapeHtml(icon)}"></i></span></span>`;
   }
+  function feedProjectLinkHtml(project = {}, projectId = ''){
+    const title = savedProjectTitle(project) || projectTitle(project);
+    const address = projectAddress(project);
+    const label = [title, address && address.toLowerCase() !== title.toLowerCase() ? address : ''].filter(Boolean).join(' · ');
+    return projectId
+      ? `<button type="button" class="pf-project-identity" data-feed-project-id="${escapeHtml(projectId)}" title="Open project" aria-label="Open project: ${escapeHtml(label)}"><span>${escapeHtml(title)}</span>${address && address.toLowerCase() !== title.toLowerCase() ? `<span class="pf-feed-list-separator" aria-hidden="true">·</span><span class="pf-feed-list-address">${escapeHtml(address)}</span>` : ''}</button>`
+      : `<span>${escapeHtml(label)}</span>`;
+  }
+  function feedNoteHtml(note = {}){
+    const body = cleanText(note.text);
+    const preview = body.length > 150 ? `${body.slice(0,147).trimEnd()}…` : body;
+    return `<div class="pf-note"><button type="button" class="pf-note-toggle" data-feed-note-toggle aria-expanded="false" aria-label="Expand note"><span class="pf-note-preview">${escapeHtml(preview)}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button><div class="pf-note-expanded"><div>${escapeHtml(body)}</div></div></div>`;
+  }
   function feedListEntryHtml(post){
     const author=postAuthor(post),photos=post.entries.filter((entry)=>entry.kind==='media');
     const action=photos.length
       ? `${author.name} uploaded ${uploadCountLabel(photos)}`
+      : post.kind==='note' ? `${author.name} added a note:`
       : post.kind==='activity' ? feedActivitySummary(post.event)
       : post.pairedEvent ? feedActivitySummary(post.pairedEvent)
       : `${author.name} added ${post.document?.type_label || 'a document'}${post.document?.title ? `: ${post.document.title}` : ''}`;
-    const title=savedProjectTitle(post.project) || projectTitle(post.project);
-    const address=projectAddress(post.project);
-    const project=post.projectId
-      ? `<button type="button" data-feed-project-id="${escapeHtml(post.projectId)}">${escapeHtml(title)}</button>${address && address.toLowerCase()!==title.toLowerCase() ? `<span class="pf-feed-list-separator">·</span><button type="button" class="pf-feed-list-address" data-feed-project-id="${escapeHtml(post.projectId)}">${escapeHtml(address)}</button>` : ''}`
-      : `<span>${escapeHtml(title)}</span>`;
-    return `<article class="pf-feed-list-row">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy"><strong>${escapeHtml(action)}</strong><div class="pf-feed-list-project">${project}</div></div><time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedListTime(post.timestamp))}</time></article>`;
+    return `<article class="pf-feed-list-row">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy"><strong>${escapeHtml(action)}</strong>${post.kind==='note' ? feedNoteHtml(post.note) : ''}<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId)}</div></div><time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedListTime(post.timestamp))}</time></article>`;
   }
   function avatarHtml(author){
     const avatar=cleanText(author.avatar);
     return /^(https?:\/\/|\/)/.test(avatar)?`<img class="pf-post-avatar" src="${escapeHtml(avatar)}" alt="${escapeHtml(author.name)}">`:`<span class="pf-post-avatar">${escapeHtml(author.name.slice(0,1).toUpperCase())}</span>`;
   }
   function feedPostHtml(post){
+    if (post.kind === 'note') {
+      const author=postAuthor(post);
+      return `<article class="pf-post pf-note-post"><header class="pf-post-head">${actorAvatarHtml(author,'fa-note-sticky')}<div><strong>${escapeHtml(author.name)} added a note:</strong><span><time>${escapeHtml(feedListTime(post.timestamp))}</time></span><div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId)}</div></div></header><div class="pf-post-note-body">${feedNoteHtml(post.note)}</div></article>`;
+    }
     const current=postState(post.id),author=postAuthor(post),photos=post.entries.filter(e=>e.kind==='media'),doc=post.document;
     const amount=doc ? firstText(doc.total_formatted,doc.amount_formatted,doc.contract_value,doc.total,doc.amount) : firstText(activityPayload(post.event || {}).amount_formatted,activityPayload(post.event || {}).amount);
     const amountCents=Number(doc?.total_cents ?? doc?.amount_cents ?? activityPayload(post.event || {}).amount_cents);
     const money=Number.isFinite(amountCents)?new Intl.NumberFormat(undefined,{style:'currency',currency:doc?.currency || activityPayload(post.event || {}).currency || 'USD'}).format(amountCents/100):amount;
     const body=photos.length ? `<p class="pf-post-caption">Uploaded ${uploadCountLabel(photos)}</p><div class="pf-post-collage count-${Math.min(photos.length,4)}">${photos.slice(0,4).map((entry,i)=>`<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media)?'video':'photo'} ${i+1}">${mediaThumbHtml(entry.mediaItem)}${i===3&&photos.length>4?`<span class="pf-post-overflow">+${photos.length-4}</span>`:''}</button>`).join('')}</div>` : post.kind==='document' ? `<div class="pf-post-document"><span class="pf-post-document-icon"><i class="fas ${escapeHtml(doc.icon || 'fa-file-contract')}"></i></span><div><small>${escapeHtml(doc.type_label || 'Document')}</small><strong>${escapeHtml(doc.title || 'Document')}</strong>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}<button type="button" class="pf-action" data-feed-document-id="${escapeHtml(doc.id)}">Open document</button></div></div>` : `<div class="pf-post-event"><i class="fas ${escapeHtml(feedActivityIcon(post.event))}"></i><p>${escapeHtml(feedActivitySummary(post.event))}</p>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}</div>`;
     const reactions=current.root?.reactions || [],liked=reactions.find(r=>r.emoji==='👍');
-    return `<article class="pf-post" data-feed-post="${escapeHtml(post.id)}"><header class="pf-post-head">${actorAvatarHtml(author,postIcon(post))}<div><strong>${escapeHtml(author.name)}</strong><span><time>${escapeHtml(activityTime(post.timestamp))}</time> · <button type="button" data-feed-project-id="${escapeHtml(post.projectId)}">${escapeHtml(projectTitle(post.project))}</button></span></div></header>${body}<div class="pf-post-stats"><span>${reactions.map(r=>`${escapeHtml(r.emoji)} ${r.count}`).join('  ') || 'Be the first to react'}</span><button type="button" data-post-comments aria-expanded="${current.open}">${current.root?.reply_count || 0} ${current.root?.reply_count===1?'comment':'comments'}</button></div><div class="pf-post-actions">${state.canReact?`<button type="button" data-post-like aria-pressed="${liked?.reacted || false}" ${current.busy?'disabled':''}><i class="${liked?.reacted?'fas':'far'} fa-thumbs-up"></i> Like</button><details class="pf-post-react"><summary aria-label="More reactions">☺</summary><div>${['❤️','😂','🎉','😮','😢'].map(emoji=>`<button type="button" data-post-emoji="${emoji}" aria-label="React ${emoji}">${emoji}</button>`).join('')}</div></details>`:''}<button type="button" data-post-comments aria-expanded="${current.open}"><i class="far fa-comment"></i> Comments</button></div>${current.open?`<section class="pf-comments" aria-label="Comments"><div data-comment-list></div>${state.canComment?`<form data-comment-form><label class="pf-comment-label">${current.replyToName?`Reply to ${escapeHtml(current.replyToName)}`:'Write a comment'}<textarea rows="2" maxlength="250000" placeholder="Write a comment…">${escapeHtml(current.draft)}</textarea></label><div class="pf-comment-tools"><span data-comment-gif></span><details><summary>Emoji</summary><div>${['👍','❤️','😂','🎉','😊','🙏'].map(emoji=>`<button type="button" data-comment-emoji="${emoji}">${emoji}</button>`).join('')}</div></details><label class="pf-action">Attach<input type="file" data-comment-file hidden multiple></label><span data-comment-attachments></span><button class="pf-action primary" type="submit" ${current.busy?'disabled':''}>Post</button></div></form>`:''}</section>`:''}</article>`;
+    return `<article class="pf-post" data-feed-post="${escapeHtml(post.id)}"><header class="pf-post-head">${actorAvatarHtml(author,postIcon(post))}<div><strong>${escapeHtml(author.name)}</strong><span><time>${escapeHtml(activityTime(post.timestamp))}</time> · ${feedProjectLinkHtml(post.project,post.projectId)}</span></div></header>${body}<div class="pf-post-stats"><span>${reactions.map(r=>`${escapeHtml(r.emoji)} ${r.count}`).join('  ') || 'Be the first to react'}</span><button type="button" data-post-comments aria-expanded="${current.open}">${current.root?.reply_count || 0} ${current.root?.reply_count===1?'comment':'comments'}</button></div><div class="pf-post-actions">${state.canReact?`<button type="button" data-post-like aria-pressed="${liked?.reacted || false}" ${current.busy?'disabled':''}><i class="${liked?.reacted?'fas':'far'} fa-thumbs-up"></i> Like</button><details class="pf-post-react"><summary aria-label="More reactions">☺</summary><div>${['❤️','😂','🎉','😮','😢'].map(emoji=>`<button type="button" data-post-emoji="${emoji}" aria-label="React ${emoji}">${emoji}</button>`).join('')}</div></details>`:''}<button type="button" data-post-comments aria-expanded="${current.open}"><i class="far fa-comment"></i> Comments</button></div>${current.open?`<section class="pf-comments" aria-label="Comments"><div data-comment-list></div>${state.canComment?`<form data-comment-form><label class="pf-comment-label">${current.replyToName?`Reply to ${escapeHtml(current.replyToName)}`:'Write a comment'}<textarea rows="2" maxlength="250000" placeholder="Write a comment…">${escapeHtml(current.draft)}</textarea></label><div class="pf-comment-tools"><span data-comment-gif></span><details><summary>Emoji</summary><div>${['👍','❤️','😂','🎉','😊','🙏'].map(emoji=>`<button type="button" data-comment-emoji="${emoji}">${emoji}</button>`).join('')}</div></details><label class="pf-action">Attach<input type="file" data-comment-file hidden multiple></label><span data-comment-attachments></span><button class="pf-action primary" type="submit" ${current.busy?'disabled':''}>Post</button></div></form>`:''}</section>`:''}</article>`;
   }
   async function fetchPost(post,create=false){
     const current=postState(post.id);
@@ -2043,6 +2105,7 @@
     const posts=new Map(groupedPosts(feedEntries()).map(p=>[p.id,p]));
     root.querySelectorAll('[data-feed-post]').forEach(card=>{
       const post=posts.get(card.dataset.feedPost);if(!post)return;
+      if(post.kind==='note')return;
       const current=postState(post.id);
       const error=e=>showToast?.('Feed',e?.message || 'Unable to update this post.',false);
       const rerender=()=>{if(state.root?.contains(card)){const scroll=state.root.querySelector('[data-feed-scroll]');const at=scroll?.scrollTop;renderDynamic();if(at!=null)state.root.querySelector('[data-feed-scroll]').scrollTop=at;}};
@@ -2114,7 +2177,7 @@
         ${state.loading && !state.loaded ? `<div class="pf-loading">${(globalThis.PlatformLanguage?.htmlText("photos","m_d9f4b62b1c74a0","Loading your feed...") ?? "Loading your feed...")}</div>` : ''}
         ${state.documentsLoading ? `<div class="pf-feed-notice"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_c134b013b4dd64"," Adding project documents…") ?? " Adding project documents…")}</div>` : ''}
         ${!state.loading && state.loaded && !entries.length ? `<div class="pf-empty"><i class="fas fa-filter-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_1a6a017a3c3609","Nothing matches what is shown") ?? "Nothing matches what is shown")}</strong><div>${(globalThis.PlatformLanguage?.htmlText("photos","m_e66cd5073679a3","Adjust the Shown menu or search to bring more items into your feed.") ?? "Adjust the Shown menu or search to bring more items into your feed.")}</div></div>` : ''}
-        ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${list.map((entry) => state.density === 'posts' ? feedPostHtml(entry) : state.density === 'list' ? feedListEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : (entry.kind === 'document' ? feedDocumentEntryHtml(entry) : feedActivityEntryHtml(entry))).join('')}</div></div>`).join('')}
+        ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${list.map((entry) => state.density === 'posts' ? feedPostHtml(entry) : state.density === 'list' ? feedListEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : entry.kind === 'document' ? feedDocumentEntryHtml(entry) : entry.kind === 'note' ? feedNoteEntryHtml(entry) : feedActivityEntryHtml(entry)).join('')}</div></div>`).join('')}
         ${entries.length > state.visible ? '<div class="pf-sentinel" data-feed-sentinel></div>' : ''}
       </div>`;
   }
@@ -2381,6 +2444,14 @@
           console.warn('Could not open project from Feed', error);
           showToast?.((globalThis.PlatformLanguage?.text("photos","m_3d2585ab4e8b80","Project issue") ?? "Project issue"), error?.message || 'Could not open that project.', false);
         });
+      });
+    });
+    rootEl.querySelectorAll('[data-feed-note-toggle]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const note = button.closest('.pf-note');
+        const expanded = note?.classList.toggle('expanded') || false;
+        button.setAttribute('aria-expanded', String(expanded));
+        button.setAttribute('aria-label', expanded ? 'Collapse note' : 'Expand note');
       });
     });
     rootEl.querySelectorAll('[data-feed-document-id]').forEach((btn) => {
@@ -2802,6 +2873,7 @@
     state.groups = [];
     state.documents = [];
     state.activity = [];
+    state.notes = [];
     state.users = [];
     state.query = '';
     state.density = 'small';
