@@ -136,3 +136,12 @@ tests use these same endpoints.
 Programmable workflow controls write `params.*` inputs. Calculated outputs are
 owned by code; publishing a control that writes `outputs.*` is rejected explicitly.
 Every present declared export is validated before an evaluation is accepted.
+
+## Presentations
+
+`presentation` is a third module kind: a slideshow between a workflow and the
+contract it produces. Its instances change only through the presentation
+routes (`/organizations/:orgId/presentations...` and
+`/public/presentations/:token...` on this plugin), which validate each choice,
+record who made it and freeze on send. The generic instance routes refuse them.
+See [presentation modules](../../../../docs/architecture/presentation-modules.md).
