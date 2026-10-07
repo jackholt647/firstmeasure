@@ -1103,6 +1103,21 @@
       .v-foot .cta{flex:0 0 auto}
     }
 
+    .v-list-firstmeasure [data-col="status"]{min-width:0}
+    .v-list-firstmeasure .v-statuspill{box-sizing:border-box;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+    @container (max-width:480px){
+      .v-list-firstmeasure .v-lhead,.v-list-firstmeasure .v-lrow{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,.8fr);gap:8px}
+      .v-list-firstmeasure .v-lhead{margin:8px 8px 0}
+      .v-list-firstmeasure .v-lcell{min-width:0;padding:8px}
+      .v-list-firstmeasure .v-lrow{padding:8px;align-items:center}
+      .v-list-firstmeasure .v-lhead [data-k]:not([data-k="address"]):not([data-k="status"]){display:none}
+      .v-list-firstmeasure .v-lrow [data-col="address"]{grid-column:1;grid-row:1}
+      .v-list-firstmeasure .v-lrow [data-col="status"]{grid-column:2;grid-row:1}
+      .v-list-firstmeasure .v-lrow [data-col]:not([data-col="address"]):not([data-col="status"]){grid-column:1 / -1}
+      .v-list-firstmeasure .v-statuspill{font-size:10px;padding:5px 8px;letter-spacing:0}
+      .v-list-firstmeasure .v-laddr{overflow-wrap:anywhere}
+    }
+
     /* Extra-small phones */
     @media (max-width: 380px){
       .v-grid{
@@ -1154,9 +1169,14 @@
   const listVisibleColumns = new Set(['address', 'resident']);
   let listColumnsBoardKey = '';
   const listColumnPreferences = new Map();
+  function firstMeasureList(){
+    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    return flags?.has?.('apps', 'firstmeasure') === true && flags?.value?.('platform', 'expanded_access', false) !== true;
+  }
   function availableProjectColumns(){
     const boards = activeWorkBoardId === 'all' ? workBoards : workBoards.filter(board => String(board.id) === activeWorkBoardId);
-    const columns = new Map(LIST_COLUMNS.map(column => [column.key, column]));
+    const baseColumns = firstMeasureList() ? [LIST_COLUMNS[0], {key:'status', label:'Report status', width:'minmax(0,.8fr)'}, ...LIST_COLUMNS.slice(1)] : LIST_COLUMNS;
+    const columns = new Map(baseColumns.map(column => [column.key, column]));
     for (const board of boards) for (const field of board.fields || []) {
       if (field?.key && !columns.has(field.key)) columns.set(field.key, field);
     }
@@ -1173,6 +1193,7 @@
       if (!saved) try { saved = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch(error) {}
       for (const key of Array.isArray(saved) ? saved : ['address','resident']) if (available.has(key)) listVisibleColumns.add(key);
     }
+    if (firstMeasureList()) { listVisibleColumns.add('address'); listVisibleColumns.add('status'); }
     if (![...listVisibleColumns].some(key => available.has(key))) listVisibleColumns.add('address');
     if (!available.has(listSortKey)) { listSortKey = 'address'; listSortDir = 'asc'; }
     if (!available.has(stageSortKey)) { stageSortKey = 'address'; stageSortDir = 'asc'; }
@@ -5648,7 +5669,7 @@
     const columns=availableProjectColumns().filter((column)=>listVisibleColumns.has(column.key));
     const layout=columns.map((column)=>column.width).join(' ');
     const head=columns.map((column)=>`<div class="v-lcell sortable" data-k="${escapeHtml(column.key)}">${escapeHtml(column.label)}<span class="sicon">${sortIcon(column.key)}</span></div>`).join('');
-    return `<div class="v-list" style="--v-list-columns:${layout}"><div class="v-lhead" id="vListHead">${head}</div><div class="v-lscroll" id="vListScroll"></div></div>`;
+    return `<div class="v-list${firstMeasureList() ? ' v-list-firstmeasure' : ''}" style="--v-list-columns:${layout}"><div class="v-lhead" id="vListHead">${head}</div><div class="v-lscroll" id="vListScroll"></div></div>`;
   }
   function wireListHeaderSort(){
     const head = $('#vListHead', panelEl);
@@ -5749,7 +5770,9 @@
     const a1 = displayAddressLine1(p); const a2 = displayAddressLine2(p);
     const expediteTag = projectIsExpedited(p) ? `<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_54ba2332f79022"," Expedited") ?? " Expedited")}</span>` : '';
     const rowTags = `${groupedByStage ? '' : stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>` : ''}`;
+    const reportStatus = statusBadgeClasses(p);
     const cells={
+      status:`<div class="v-lcell" data-col="status">${reportStatus ? `<span class="v-statuspill ${reportStatus.pill}">${statusBadgeContent(reportStatus, true)}</span>` : '\u2014'}</div>`,
       address:`<div class="v-lcell" data-col="address" style="min-width:0;"><div class="v-laddr"><div class="v-laddr1">${escapeHtml(a1)}</div><div class="v-laddr2">${escapeHtml(a2)}</div>${rowTags ? `<div class="v-meta-tags">${rowTags}</div>` : ''}</div></div>`,
       resident:`<div class="v-lcell" data-col="resident" style="min-width:0;"><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.name || '\u2014')}</div></div>`
     };
@@ -5955,13 +5978,16 @@
           if (pill.className !== want) pill.className = want;
           if (pill.innerHTML !== html) pill.innerHTML = html;
         } else if (pill && !s) {
-          pill.remove();
+          const statusCell = row.querySelector('[data-col="status"]');
+          if (statusCell) statusCell.textContent = '\u2014'; else pill.remove();
         } else if (!pill && s) {
-          row.querySelector('.v-lcell')?.insertAdjacentHTML('afterbegin', `<span class="v-statuspill ${s.pill}">${statusBadgeContent(s, true)}</span>`);
+          const target = row.querySelector('[data-col="status"]') || row.querySelector('.v-lcell');
+          if (target?.dataset.col === 'status') target.innerHTML = `<span class="v-statuspill ${s.pill}">${statusBadgeContent(s, true)}</span>`;
+          else target?.insertAdjacentHTML('afterbegin', `<span class="v-statuspill ${s.pill}">${statusBadgeContent(s, true)}</span>`);
         }
         const d = row.querySelector('[data-col="created_at"]');
         if (d) d.textContent = formatDate(project.created_at);
-        const residentCols = row.children[2]?.querySelectorAll('div');
+        const residentCols = row.querySelector('[data-col="resident"]')?.querySelectorAll('div');
         if (residentCols?.[0]) residentCols[0].textContent = resident.displayName || resident.name || '\u2014';
         if (residentCols?.[1]) residentCols[1].textContent = (resident.displayDetail || '').toString();
         const addr = row.querySelector('.v-laddr');

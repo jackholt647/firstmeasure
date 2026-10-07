@@ -86,7 +86,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
       access: managementAccess,
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/viewer.js', '20261006-docked-project-fit-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/viewer.js', '20261006-report-status-column-v1')]
     },
     {
       id: 'portal.contacts',
