@@ -19,4 +19,4 @@ This map points to the FirstMeasure files used for the Pioneer Puffin feed and s
 
 The dev feed is at <https://dev.1m8.ai/portal/?tab=photos_feed&feedDensity=list>. Replace `list` with `small`, `large`, `mosaic`, or `posts` to inspect other layouts. The readiness endpoint is <https://dev.1m8.ai/v1/health/ready>.
 
-The latest verified feed code release on all three dev frontend roles before the proposal-label follow-up is `1fc9d9f2ec35273d48d280d2c416d1810e0e8349`. See the coverage rollout record for the next release. This map is documentation only and does not require a dev deployment.
+The latest verified Feed code release on all three dev frontend roles is `26ff3b3d51f5e7004fb1bf3df1c8978111601b01`. This map is documentation only and does not require a dev deployment.
