@@ -8,6 +8,7 @@ import { createModuleInstance, evaluateModuleInstance, freezeModuleInstance, gen
 import { registerModuleDataProvider } from "./provider.js";
 import { inspectModuleGraph, refreshModuleGraph } from "./dependencies.js";
 import { updateModuleBindings, reconcileModuleCommand } from "./service.js";
+import { registerPresentationRoutes } from "./presentation-api.js";
 
 const object = z.record(z.unknown());
 const params = (request: FastifyRequest) => request.params as Record<string, string>;
@@ -22,6 +23,7 @@ export const registerDocumentModuleRoutes: FastifyPluginAsync = async app => {
     const auth = await requirePlatformAuth(request, { orgId: params(request).orgId!, permission: manage ? "manage_company_settings" : "view_projects", csrf: !["GET", "HEAD"].includes(request.method), capability: manage ? "documents.templates_studio" : "platform.documents" });
     return userPublicationContext(auth, { executionKind: "module" });
   }
+  registerPresentationRoutes(app);
   app.get("/organizations/:orgId/modules", async request => ({ modules: await listModules(await context(request)) }));
   app.post("/organizations/:orgId/modules", async request => {
     const body = z.object({ moduleId: z.string().optional(), definition: object }).parse(request.body);

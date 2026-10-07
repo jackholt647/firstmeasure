@@ -7,6 +7,7 @@ import { refreshModuleGraph } from "./dependencies.js";
 import { getRecord, EXECUTIONS } from "./storage.js";
 import { backendImplementationDigest } from "../../platform/publication/implementation.js";
 import type { PublicationContext, TargetRef, JsonSchema } from "../../platform/publication/contracts.js";
+import { registerPresentationActions } from "./presentation-publication.js";
 
 function instanceId(target: TargetRef) { if (!target.id) throw badRequest("module_instance_required", "Select a module instance."); return target.id; }
 async function publicResult(ctx: PublicationContext, id: string) {
@@ -47,6 +48,7 @@ function registerModuleActions() {
 
 export function registerModuleDataProvider() {
   registerModuleActions();
+  registerPresentationActions();
   registerAction({
     id: "document-modules.export.write", version: "1", implementation: "document-modules.export.write@1", domain: "documents",
     description: "Update a declared writable module input export at its current revision.",
