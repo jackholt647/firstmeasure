@@ -32,6 +32,7 @@
 /* Doubled class selectors + explicit background/color on EVERY state + a hex
    fallback inside every var(): survives the portal cascade (.r-win context)
    and body-level mounting where the shell's variables don't reach. */
+.fmdx-btn.fmdx-btn.fmdx-btn-icon{width:36px;padding:0;font-size:13px}
 .fmdx-btn.fmdx-btn{min-height:36px;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:11px;background:#fff;color:#344054;padding:0 13px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font:inherit;font-size:12px;font-weight:1000;cursor:pointer;white-space:nowrap;text-decoration:none;transition:border-color .12s ease,color .12s ease,background .12s ease}
 .fmdx-btn.fmdx-btn:hover{border-color:var(--fmdx-primary,#d93025);color:var(--primary-readable,var(--fmdx-primary,#d93025));background:#fff}
 .fmdx-btn.fmdx-btn.primary{background:var(--fmdx-primary,#d93025);border-color:var(--fmdx-primary,#d93025);color:var(--fmdx-on-primary,#fff)}

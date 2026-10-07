@@ -1620,7 +1620,10 @@
     // another dimension (excludes).
     const openVariants = new Set();
     const dimensionsOf = (item) => arr(item.variant_dimensions).map(obj).filter((dimension) => cleanText(dimension.id) && arr(dimension.values).length);
+    /** A dimension left off the contract: nothing offered, nothing chosen, no price change. */
+    const omittedOf = (item, dimension) => obj(item.variant_omitted)[dimension.id] === true;
     const offeredOf = (item, dimension) => {
+      if (omittedOf(item, dimension)) return [];
       const listed = obj(item.variant_offered)[dimension.id];
       return Array.isArray(listed) ? listed.map(cleanText) : arr(dimension.values).map((value) => cleanText(obj(value).id));
     };
@@ -1645,7 +1648,10 @@
         const offered = offeredOf(item, dimension);
         const ids = arr(dimension.values).map((value) => cleanText(obj(value).id));
         const allowed = ids.filter((id) => !excluded.has(id));
-        if (!allowed.includes(cleanText(selected[dimension.id]))) selected[dimension.id] = allowed.find((id) => offered.includes(id)) || allowed[0] || ids[0];
+        // "" is a real answer: no default, the customer (or nobody) decides.
+        if (omittedOf(item, dimension)) selected[dimension.id] = '';
+        else if (selected[dimension.id] === '') { /* left without a default on purpose */ }
+        else if (!allowed.includes(cleanText(selected[dimension.id]))) selected[dimension.id] = allowed.find((id) => offered.includes(id)) || allowed[0] || ids[0];
       });
       item.selected_variants = selected;
       let price = Number(item.variant_base_price);
@@ -1674,41 +1680,56 @@
       const summary = firstText(item.variant_summary, dimensions.map((dimension) => dimension.label).join(' · '));
       return `<button type="button" class="fmdw-lir-variant-chip ${openVariants.has(item.id) ? 'open' : ''}" data-fmdw-lir-variants title="Colors and options for this line">${swatch ? `<i class="fmdw-var-sw" style="background:${esc(swatch)}"></i>` : ''}<span>${esc(summary)}</span><i class="fas fa-chevron-down"></i></button>`;
     }
+    /** Black or white, whichever reads on this color. */
+    function inkOn(hex){
+      const match = /^#?([0-9a-f]{6})$/i.exec(cleanText(hex));
+      if (!match) return '#101828';
+      const value = parseInt(match[1], 16);
+      const luminance = (0.299 * (value >> 16) + 0.587 * ((value >> 8) & 255) + 0.114 * (value & 255)) / 255;
+      return luminance > 0.62 ? '#101828' : '#ffffff';
+    }
+    /** Every tile is a toggle for "offered"; the star marks the default, and there may be none. */
     function variantPanelHtml(item){
-      if (!openVariants.has(item.id)) return '';
+      const dimensions = dimensionsOf(item);
+      if (!dimensions.length) return '';
       return `
-        <div class="fmdw-lir-variants">
-          ${dimensionsOf(item).map((dimension) => {
+        <div class="fmdw-lir-variants-wrap ${openVariants.has(item.id) ? 'open' : ''}" data-fmdw-var-wrap><div class="fmdw-lir-variants-clip"><div class="fmdw-lir-variants">
+          ${dimensions.map((dimension) => {
+            const omitted = omittedOf(item, dimension);
             const offered = offeredOf(item, dimension);
             const excluded = excludedOf(item, dimension);
             const values = arr(dimension.values).map(obj);
+            const chosen = values.find((value) => cleanText(value.id) === selectedOf(item, dimension));
+            const name = cleanText(dimension.label).toLowerCase();
+            const status = omitted ? `Not part of this proposal` : `${offered.length} of ${values.length} offered \u00b7 ${chosen ? `default ${esc(chosen.label)}` : 'no default'}`;
             return `
-              <div class="fmdw-var-dim" data-fmdw-var-dim="${esc(dimension.id)}">
+              <div class="fmdw-var-dim ${omitted ? 'omitted' : ''}" data-fmdw-var-dim="${esc(dimension.id)}">
                 <div class="fmdw-var-head">
                   <strong>${esc(dimension.label)}</strong>
-                  <small title="Values the customer may be offered">${offered.length} of ${values.length} offered</small>
-                  ${ctx.readonly ? '' : `<button type="button" class="fmdw-var-all" data-fmdw-var-all>${offered.length === values.length ? 'Offer none' : 'Offer all'}</button>`}
+                  <small>${status}</small>
+                  ${ctx.readonly ? '' : `
+                    ${omitted ? '' : `<button type="button" class="fmdw-var-all" data-fmdw-var-all>${offered.length === values.length ? 'Offer none' : 'Offer all'}</button>`}
+                    <label class="fmdw-var-include" title="${omitted ? `Add ${esc(name)} to this proposal` : `Leave ${esc(name)} off this proposal entirely`}"><input type="checkbox" data-fmdw-var-include ${omitted ? '' : 'checked'}><i></i><span>Include</span></label>`}
                 </div>
                 <div class="fmdw-var-tiles">
                   ${values.map((value) => {
                     const id = cleanText(value.id);
                     const isExcluded = excluded.has(id);
                     const isOffered = offered.includes(id) && !isExcluded;
-                    const isSelected = selectedOf(item, dimension) === id;
+                    const isDefault = !omitted && selectedOf(item, dimension) === id;
+                    const face = dimension.kind === 'color' ? firstText(value.hex, '#d0d5dd') : '#eef1f6';
+                    const tip = isExcluded ? `${value.label} is not available with the options selected` : (isOffered ? `${value.label} is offered \u2014 click to stop offering it` : `${value.label} is not offered \u2014 click to offer it`);
                     return `
-                      <div class="fmdw-var-tile ${isSelected ? 'selected' : ''} ${isOffered ? '' : 'off'} ${isExcluded ? 'excluded' : ''}" data-fmdw-var-value="${esc(id)}" title="${esc(isExcluded ? `${value.label} is not available with the options selected` : value.label)}">
-                        <button type="button" class="fmdw-var-pick" data-fmdw-var-pick ${isExcluded || ctx.readonly ? 'disabled' : ''}>
-                          ${dimension.kind === 'color' ? `<i class="fmdw-var-sw" style="background:${esc(firstText(value.hex, '#d0d5dd'))}"></i>` : ''}
-                          <span>${esc(value.label)}</span>
-                          <b>${esc(valuePriceText(value))}</b>
-                        </button>
-                        ${ctx.readonly || isExcluded ? '' : `<button type="button" class="fmdw-var-offer" data-fmdw-var-offer title="${isOffered ? 'Offered to the customer — click to stop offering' : 'Not offered — click to offer'}"><i class="fas ${isOffered ? 'fa-eye' : 'fa-eye-slash'}"></i></button>`}
+                      <div class="fmdw-var-tile ${isDefault ? 'default' : ''} ${isOffered ? '' : 'off'} ${isExcluded ? 'excluded' : ''}" data-fmdw-var-value="${esc(id)}">
+                        <button type="button" class="fmdw-var-face" data-fmdw-var-toggle style="background:${esc(face)};color:${inkOn(face)}" title="${esc(tip)}" aria-pressed="${isOffered}" ${isExcluded || omitted || ctx.readonly ? 'disabled' : ''}><b>${esc(valuePriceText(value))}</b></button>
+                        ${ctx.readonly || isExcluded || omitted ? '' : `<button type="button" class="fmdw-var-star" data-fmdw-var-default title="${isDefault ? 'This is the default \u2014 click for no default' : 'Make this the default'}" aria-pressed="${isDefault}"><i class="fas fa-star"></i></button>`}
+                        <span>${esc(value.label)}</span>
                       </div>`;
                   }).join('')}
                 </div>
               </div>`;
           }).join('')}
-        </div>`;
+        </div></div></div>`;
     }
 
     // ------------------------------------------------------- add an option
@@ -1974,9 +1995,12 @@
           edit((found) => { found.list.splice(found.list.indexOf(found.item), 1); });
           render();
         });
-        row.querySelector('[data-fmdw-lir-variants]')?.addEventListener('click', () => {
-          if (openVariants.has(id)) openVariants.delete(id); else openVariants.add(id);
-          render();
+        // Opening is a class on what is already there: nothing re-renders.
+        row.querySelector('[data-fmdw-lir-variants]')?.addEventListener('click', (event) => {
+          const open = !openVariants.has(id);
+          if (open) openVariants.add(id); else openVariants.delete(id);
+          event.currentTarget.classList.toggle('open', open);
+          row.querySelector('[data-fmdw-var-wrap]')?.classList.toggle('open', open);
         });
         row.querySelectorAll('[data-fmdw-var-dim]').forEach((dimEl) => {
           const dimId = dimEl.dataset.fmdwVarDim;
@@ -1989,24 +2013,36 @@
             });
             render();
           };
-          dimEl.querySelectorAll('[data-fmdw-var-pick]').forEach((button) => button.addEventListener('click', () => {
-            const valueId = button.closest('[data-fmdw-var-value]').dataset.fmdwVarValue;
-            change((item, dimension) => {
-              item.selected_variants = { ...obj(item.selected_variants), [dimension.id]: valueId };
-              // The option you price is one you offer.
-              item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: [...new Set([...offeredOf(item, dimension), valueId])] };
-            });
-          }));
-          dimEl.querySelectorAll('[data-fmdw-var-offer]').forEach((button) => button.addEventListener('click', () => {
-            const valueId = button.closest('[data-fmdw-var-value]').dataset.fmdwVarValue;
+          const valueOf = (button) => button.closest('[data-fmdw-var-value]').dataset.fmdwVarValue;
+          dimEl.querySelectorAll('[data-fmdw-var-toggle]').forEach((button) => button.addEventListener('click', () => {
+            const valueId = valueOf(button);
             change((item, dimension) => {
               const offered = offeredOf(item, dimension);
-              item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: offered.includes(valueId) ? offered.filter((entry) => entry !== valueId) : [...offered, valueId] };
+              const on = !offered.includes(valueId);
+              item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: on ? [...offered, valueId] : offered.filter((entry) => entry !== valueId) };
+              // A default that is no longer offered is no default.
+              if (!on && selectedOf(item, dimension) === valueId) item.selected_variants = { ...obj(item.selected_variants), [dimension.id]: '' };
             });
+          }));
+          dimEl.querySelectorAll('[data-fmdw-var-default]').forEach((button) => button.addEventListener('click', () => {
+            const valueId = valueOf(button);
+            change((item, dimension) => {
+              const isDefault = selectedOf(item, dimension) === valueId;
+              item.selected_variants = { ...obj(item.selected_variants), [dimension.id]: isDefault ? '' : valueId };
+              // The default is one you offer.
+              if (!isDefault) item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: [...new Set([...offeredOf(item, dimension), valueId])] };
+            });
+          }));
+          dimEl.querySelector('[data-fmdw-var-include]')?.addEventListener('change', (event) => change((item, dimension) => {
+            const omitted = { ...obj(item.variant_omitted) };
+            if (event.target.checked) delete omitted[dimension.id]; else omitted[dimension.id] = true;
+            item.variant_omitted = omitted;
           }));
           dimEl.querySelector('[data-fmdw-var-all]')?.addEventListener('click', () => change((item, dimension) => {
             const all = arr(dimension.values).map((value) => cleanText(obj(value).id));
-            item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: offeredOf(item, dimension).length === all.length ? [] : all };
+            const none = offeredOf(item, dimension).length === all.length;
+            item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: none ? [] : all };
+            if (none) item.selected_variants = { ...obj(item.selected_variants), [dimension.id]: '' };
           }));
         });
         row.querySelector('[data-fmdw-lir-attach]')?.addEventListener('click', (event) => {
@@ -2573,7 +2609,7 @@
           <footer class="fmdw-foot">
             <button type="button" class="fmdw-btn" data-fmdw-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c5b830c019950"," Previous") ?? " Previous")}</button>
             <span class="fmdw-foot-note" data-fmdw-foot-note></span>
-            ${String(preview ? `<button type="button" class="fmdw-btn ghost fmdw-preview-toggle" data-fmdw-preview-toggle title="Show or hide the live preview"><i class="fas fa-eye"></i><span> Preview</span></button>` : '')}
+            ${String(preview && typeof services.openFullPreview !== 'function' ? `<button type="button" class="fmdw-btn ghost fmdw-preview-toggle" data-fmdw-preview-toggle title="Show or hide the live preview"><i class="fas fa-eye"></i><span> Preview</span></button>` : '')}
             <button type="button" class="fmdw-btn primary" data-fmdw-continue>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_854c72abba5166","Continue ") ?? "Continue ")}<i class="fas fa-arrow-right"></i></button>
           </footer>
         </section>
@@ -2587,6 +2623,7 @@
               <button type="button" class="fmdw-zoom-pct" data-fmdw-zoom-fit title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_b4e9fa5595e7cf","Fit width") ?? "Fit width")}" data-fmdw-zoom-pct>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_2d8510904d5879","Fit") ?? "Fit")}</button>
               <button type="button" class="fmdw-icon-btn" data-fmdw-zoom-in title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_a593d968057ce9","Zoom in") ?? "Zoom in")}"><i class="fas fa-magnifying-glass-plus"></i></button>
               <button type="button" class="fmdw-icon-btn" data-fmdw-preview-refresh title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_acf1841e689f24","Refresh preview") ?? "Refresh preview")}"><i class="fas fa-rotate"></i></button>
+              ${String(typeof services.openFullPreview === 'function' ? `<button type="button" class="fmdw-icon-btn" data-fmdw-preview-full title="Full screen"><i class="fas fa-expand"></i></button>` : '')}
               <button type="button" class="fmdw-icon-btn" data-fmdw-preview-hide title="Hide the preview"><i class="fas fa-xmark"></i></button>
             </div>
           </div>
@@ -2956,6 +2993,7 @@
       savePreviewPref();
       applyPreviewLayout();
     });
+    el.root.querySelector('[data-fmdw-preview-full]')?.addEventListener('click', () => { try { services.openFullPreview(); } catch (e) { /* host preview */ } });
     el.root.querySelector('[data-fmdw-preview-hide]')?.addEventListener('click', () => {
       previewPref.hidden = true;
       savePreviewPref();
@@ -3028,6 +3066,15 @@
       },
       /** Force a preview re-resolve now (hosts call this after out-of-band
        *  document changes: theme switch, Data-panel saves, etc.). */
+      /** Show or hide the docked live preview. Returns false when it cannot be docked (no preview, or the window is too narrow). */
+      togglePreview(){
+        if (!preview || st.destroyed || el.root.classList.contains('narrow')) return false;
+        previewPref.hidden = previewPref.hidden !== true;
+        savePreviewPref();
+        applyPreviewLayout();
+        return true;
+      },
+      previewVisible: () => previewVisible(),
       refreshPreview(){
         if (preview && !st.destroyed) refreshPreview();
       }
@@ -3208,28 +3255,43 @@
 .fmdw-lir-variant-chip.open>.fas{transform:rotate(180deg)}
 .fmdw-lir-variant-chip:hover,.fmdw-lir-variant-chip.open{border-color:var(--fmdw-primary);color:var(--fmdw-primary)}
 .fmdw-var-sw{flex:none;width:14px;height:14px;border-radius:50%;border:1px solid rgba(16,24,40,.18)}
-.fmdw-lir-variants{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:10px 22px;border-top:1px solid #f0f2f7;margin-top:6px;padding-top:9px}
-.fmdw-var-dim{flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:6px}
-.fmdw-var-head{display:flex;align-items:baseline;gap:8px}
+.fmdw-lir-variants-wrap{grid-column:1 / -1;display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .24s cubic-bezier(.3,.8,.3,1),opacity .2s ease}
+.fmdw-lir-variants-wrap.open{grid-template-rows:1fr;opacity:1}
+.fmdw-lir-variants-clip{min-height:0;overflow:hidden}
+.fmdw-lir-variants{display:flex;flex-wrap:wrap;gap:10px 22px;border-top:1px solid #f0f2f7;margin-top:6px;padding:9px 2px 3px}
+.fmdw-var-dim{flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:7px}
+.fmdw-var-head{display:flex;align-items:center;gap:4px 8px;flex-wrap:wrap}
 .fmdw-var-head strong{font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#475467}
 .fmdw-var-head small{font-size:10px;font-weight:800;color:var(--fmdw-muted)}
 .fmdw-var-all{margin-left:auto;white-space:nowrap;border:0;background:transparent;color:var(--fmdw-muted);font:inherit;font-size:10px;font-weight:900;cursor:pointer;padding:0}
 .fmdw-var-all:hover{color:var(--fmdw-primary)}
-.fmdw-var-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px}
-.fmdw-var-tile{position:relative;border:1.5px solid var(--fmdw-line);border-radius:10px;background:#fff;overflow:hidden}
-.fmdw-var-tile.selected{border-color:var(--fmdw-primary);box-shadow:0 0 0 1px var(--fmdw-primary)}
-.fmdw-var-pick{width:100%;border:0;background:transparent;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 4px 6px;color:var(--fmdw-ink)}
-.fmdw-var-pick .fmdw-var-sw{width:22px;height:22px;border-radius:7px}
-.fmdw-var-pick span{font-size:9.5px;font-weight:900;line-height:1.2;text-align:center;overflow-wrap:anywhere}
-.fmdw-var-pick b{font-size:10.5px;font-weight:1000;color:#475467;font-variant-numeric:tabular-nums}
-.fmdw-var-offer{position:absolute;top:2px;right:2px;width:18px;height:18px;border:0;border-radius:6px;background:rgba(255,255,255,.85);color:#98a2b3;font-size:9px;cursor:pointer;display:grid;place-items:center;opacity:0}
-.fmdw-var-tile:hover .fmdw-var-offer,.fmdw-var-tile.off .fmdw-var-offer{opacity:1}
-.fmdw-var-offer:hover{color:var(--fmdw-primary)}
-/* not offered: muted. ruled out by another option: hatched and inert */
-.fmdw-var-tile.off{background:#f6f7fb}
-.fmdw-var-tile.off .fmdw-var-pick{opacity:.45}
-.fmdw-var-tile.excluded{background:repeating-linear-gradient(135deg,#f2f4f7 0 6px,#e4e7ec 6px 7px)}
-.fmdw-var-tile.excluded .fmdw-var-pick{cursor:not-allowed;opacity:.4}
+.fmdw-var-include{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:900;color:var(--fmdw-muted);cursor:pointer;white-space:nowrap}
+.fmdw-var-dim.omitted .fmdw-var-include{margin-left:auto}
+.fmdw-var-include input{position:absolute;opacity:0;pointer-events:none}
+.fmdw-var-include i{width:24px;height:14px;border-radius:7px;background:#d0d5dd;position:relative;transition:background .15s ease}
+.fmdw-var-include i::after{content:"";position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:#fff;transition:transform .15s ease}
+.fmdw-var-include input:checked+i{background:var(--fmdw-primary)}
+.fmdw-var-include input:checked+i::after{transform:translateX(10px)}
+.fmdw-var-include input:focus-visible+i{outline:2px solid var(--fmdw-primary);outline-offset:2px}
+.fmdw-var-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:7px 6px}
+.fmdw-var-dim.omitted .fmdw-var-tiles{opacity:.35;filter:grayscale(1)}
+.fmdw-var-tile{position:relative;display:flex;flex-direction:column;gap:3px;min-width:0}
+.fmdw-var-face{position:relative;height:34px;border:1px solid rgba(16,24,40,.14);border-radius:9px;cursor:pointer;font:inherit;display:grid;place-items:center;padding:0;overflow:hidden;transition:transform .12s ease,box-shadow .12s ease,filter .15s ease}
+.fmdw-var-face b{position:relative;z-index:1;font-size:10.5px;font-weight:1000;font-variant-numeric:tabular-nums}
+.fmdw-var-face:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 10px rgba(16,24,40,.16)}
+.fmdw-var-face:focus-visible{outline:2px solid var(--fmdw-primary);outline-offset:2px}
+.fmdw-var-tile>span{font-size:9.5px;font-weight:800;line-height:1.2;text-align:center;color:#344054;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fmdw-var-tile.default .fmdw-var-face{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--fmdw-primary)}
+.fmdw-var-star{position:absolute;top:-5px;right:-4px;z-index:2;width:17px;height:17px;border:1px solid var(--fmdw-line);border-radius:50%;background:#fff;color:#c0c6d2;font-size:8px;cursor:pointer;display:grid;place-items:center;padding:0;opacity:0;transition:opacity .12s ease}
+.fmdw-var-tile:hover .fmdw-var-star,.fmdw-var-star:focus-visible,.fmdw-var-tile.default .fmdw-var-star{opacity:1}
+.fmdw-var-star:hover{color:var(--fmdw-primary);border-color:var(--fmdw-primary)}
+.fmdw-var-tile.default .fmdw-var-star{background:var(--fmdw-primary);border-color:var(--fmdw-primary);color:#fff}
+/* not offered, or ruled out by another option: hatched and washed out */
+.fmdw-var-tile.off .fmdw-var-face{filter:grayscale(.85) opacity(.55)}
+.fmdw-var-tile.off .fmdw-var-face::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent 0 5px,rgba(255,255,255,.75) 5px 7px)}
+.fmdw-var-tile.off>span{color:#98a2b3;text-decoration:line-through}
+.fmdw-var-tile.excluded .fmdw-var-face{cursor:not-allowed}
+@media (prefers-reduced-motion:reduce){.fmdw-lir-variants-wrap{transition:none}}
 /* add-an-option search */
 .fmdw-opt-list{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto}
 .fmdw-opt-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid transparent;border-radius:9px;background:transparent;font:inherit;text-align:left;padding:7px 8px;cursor:pointer;color:#111827}

@@ -1937,6 +1937,7 @@
         // hydrated first so formulas resolve (see generateScopeItemsForSelection).
         // Price book items that fit one choice group (line_items_review's
         // "Add option" search), priced from the same measurements.
+        openFullPreview: async () => { await flushAllWrites(); openPreview(state.doc); },
         scopeCandidates: async (templateId, group, measurements) => arrayValue((await window.PlatformAPI.publication.invoke(orgId(), 'pricebook.scope.candidates', { scope: 'organization', organizationId: orgId() }, { templateId, group, measurements: objectValue(measurements) })).value),
         // Pieces the server can price (pricebook.scope.generate) are built
         // there from the organization price book; the rest still use the
@@ -2752,13 +2753,14 @@
                 <button type="button" data-fmdx-mode="editor" title="Editor"><i class="fas fa-pen-ruler"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_cf117560db33b2"," Editor") ?? " Editor")}</button>
               </div>
               <div style="margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
-                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn ${state.dataPanelOpen ? 'active' : ''}" data-fmdx-data-toggle title="Data"><i class="fas fa-database"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_afc71019d2978d"," Data") ?? " Data")}</button>`)}
-                ${String(readOnly || !capabilityEnabled('documents.agent') ? '' : `<button type="button" class="fmdx-btn" data-fmdx-agent-btn title="Agent"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6132f8a9f6606d"," Agent") ?? " Agent")}</button>`)}
-                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn" data-fmdx-theme title="Theme"><i class="fas fa-palette"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_3f7a6d0c7b9c29"," Theme") ?? " Theme")}</button>`)}
-                <button type="button" class="fmdx-btn" data-fmdx-history title="History"><i class="fas fa-clock-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_b78c21a6c3a083"," History") ?? " History")}</button>
-                <button type="button" class="fmdx-btn" data-fmdx-preview title="Preview"><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_a48897118cb076"," Preview") ?? " Preview")}</button>
-                <button type="button" class="fmdx-btn" data-fmdx-pdf title="PDF"><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_ff8d3e1189f812"," PDF") ?? " PDF")}</button>
+                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn fmdx-btn-icon ${state.dataPanelOpen ? 'active' : ''}" data-fmdx-data-toggle title="Data"><i class="fas fa-database"></i></button>`)}
+                ${String(readOnly || !capabilityEnabled('documents.agent') ? '' : `<button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-agent-btn title="Agent"><i class="fas fa-wand-magic-sparkles"></i></button>`)}
+                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-theme title="Theme"><i class="fas fa-palette"></i></button>`)}
+                <button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-history title="History"><i class="fas fa-clock-rotate-left"></i></button>
+                <button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-preview title="Preview"><i class="fas fa-eye"></i></button>
+                <button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-pdf title="PDF"><i class="fas fa-file-pdf"></i></button>
                 <button type="button" class="fmdx-btn fmdx-btn-more" data-fmdx-more title="More actions"><i class="fas fa-ellipsis"></i></button>
+                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn" data-fmdx-present title="Present this estimate to the customer" hidden><i class="fas fa-person-chalkboard"></i> Present</button>`)}
                 ${String(readOnly && isAmendableStatus(doc.status)
                   ? `<button type="button" class="fmdx-btn primary" data-fmdx-amend><i class="fas fa-file-medical"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_4986fc99e268e8"," Amend → Change Order") ?? " Amend → Change Order")}</button>`
                   : `<button type="button" class="fmdx-btn primary" data-fmdx-send><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c66c415b0e5570"," Send") ?? " Send")}</button>`)}
@@ -2814,7 +2816,10 @@
       });
       root.querySelector('[data-fmdx-history]')?.addEventListener('click', (event) => openHistoryMenu(event.currentTarget));
       root.querySelector('[data-fmdx-more]')?.addEventListener('click', (event) => openMoreMenu(event.currentTarget));
+      // One preview: in a workflow it is the docked live preview (which has
+      // its own full-screen button); elsewhere it opens full screen.
       root.querySelector('[data-fmdx-preview]')?.addEventListener('click', async () => {
+        if (state.docView === 'workflow' && state.workflowHandle?.togglePreview?.()) return;
         await flushAllWrites();
         openPreview(state.doc);
       });
@@ -2827,6 +2832,14 @@
         await flushAllWrites();
         openSendModal(state.doc);
       });
+      const presentButton = root.querySelector('[data-fmdx-present]');
+      if (presentButton) {
+        presentButton.addEventListener('click', () => openPresentation());
+        presentationOptions(doc.id).then((options) => {
+          if (state.destroyed || state.doc?.id !== doc.id) return;
+          presentButton.hidden = !(arrayValue(options.offers).includes('present') && options.presentation && window.FMDocPresent && window.FMDocParts);
+        });
+      }
       root.querySelector('[data-fmdx-amend]')?.addEventListener('click', () => amendToChangeOrder(state.doc));
       const titleInput = root.querySelector('[data-fmdx-title]');
       titleInput?.addEventListener('change', async () => {
@@ -4180,6 +4193,83 @@
       else if (format === 'txt') { blob = new Blob([lines.join('\n')], { type:'text/plain;charset=utf-8' }); ext = 'txt'; }
       else { blob = new Blob([`<!doctype html><meta charset="utf-8"><title>${base}</title><body>${lines.map((line) => `<p>${esc(line) || '&nbsp;'}</p>`).join('')}</body>`], { type:'application/msword' }); ext = 'doc'; }
       const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${base}.${ext}`; document.body.appendChild(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // ============================================================= present
+    /** Calls the presentation routes of the document-modules API for this organization. */
+    function presentationRequest(){
+      const platform = window.PlatformAPI;
+      const base = new URL(platform.baseUrl().replace(/\/platform\/?$/, '/document-modules'), location.href).href.replace(/\/$/, '');
+      return (path, method = 'GET', body) => platform.request(`${base}/organizations/${encodeURIComponent(orgId())}${path}`, { method, ...(body === undefined ? {} : { body }) });
+    }
+    /** What this draft's last step offers: { offers, presentation, presentations }. Empty when it offers nothing. */
+    async function presentationOptions(documentId){
+      try { return objectValue(await presentationRequest()(`/documents/${encodeURIComponent(documentId)}/presentation`)); } catch (error) { return {}; }
+    }
+    /**
+     * Present the estimate: the document's presentation, full screen, on the
+     * live prices of this draft. Choices are saved on the presentation; "sign"
+     * or "send" on its last slide writes them to the draft and opens Send.
+     */
+    async function openPresentation(){
+      const request = presentationRequest();
+      const parts = window.FMDocParts;
+      const documentId = cleanText(state.doc?.id);
+      if (!documentId || !window.FMDocPresent || !parts) return;
+      const read = (response) => objectValue(objectValue(response).presentation);
+      let current;
+      try {
+        await flushAllWrites();
+        // Carry on with the presentation already started for this draft, on its latest lines.
+        const open = arrayValue((await presentationOptions(documentId)).presentations).map(objectValue).find((entry) => entry.frozen !== true);
+        if (open) {
+          current = read(await request(`/presentations/${encodeURIComponent(open.id)}`));
+          current = read(await request(`/presentations/${encodeURIComponent(open.id)}/evaluate`, 'POST', { expectedRevision: current.revision, refresh: true }));
+        } else current = read(await request('/presentations', 'POST', { documentId }));
+      } catch (error) { showToast('Present', errorMessage(error, 'The presentation could not be opened.'), false); return; }
+      if (state.destroyed || !current.id) return;
+
+      const overlay = document.createElement('div');
+      overlay.className = 'fmdx-present-overlay';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:#0b0d12';
+      document.body.appendChild(overlay);
+      let player = null;
+      // Writes go one at a time, each on the revision the one before returned.
+      let writes = Promise.resolve();
+      const close = () => { try { player?.destroy(); } catch (e) {} overlay.remove(); };
+      const finish = async () => {
+        try {
+          await writes.catch(() => {});
+          await request(`/presentations/${encodeURIComponent(current.id)}/contract`, 'POST', { expectedRevision: current.revision, documentId });
+        } catch (error) { showToast('Present', errorMessage(error, 'The estimate could not be updated from the presentation.'), false); return; }
+        close();
+        try {
+          const response = await api().documents.get(orgId(), documentId);
+          await openDocScreen(objectValue(response.document || response.doc || response));
+          openSendModal(state.doc);
+        } catch (error) { showToast('Present', errorMessage(error, 'The estimate was updated; reopen it to send.'), false); }
+      };
+      player = window.FMDocPresent.mount(overlay, {
+        document: current.layout,
+        widgetData: objectValue(current.widgetData),
+        orgId: orgId(),
+        themeContext: { branding: objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding), overrides: objectValue(state.resolved?.theme_vars) },
+        mediaUrl: (ref, variant) => mediaBridge().url(ref, variant),
+        live: {
+          state: parts.stateFromPresentation(current),
+          readonly: current.frozen === true,
+          onInput: (input) => (writes = writes.catch(() => {}).then(async () => {
+            const write = parts.inputWrite(input);
+            if (!write) return null;
+            current = read(await request(`/presentations/${encodeURIComponent(current.id)}/inputs`, 'PATCH', { expectedRevision: current.revision, ...write }));
+            return parts.stateFromPresentation(current);
+          })),
+          onError: (error) => showToast('Present', errorMessage(error, 'That choice could not be saved.'), false)
+        },
+        onAction: (name) => { if (name === 'sign' || name === 'send') finish(); },
+        onExit: close
+      });
+      try { player.fullscreen(); } catch (e) { /* needs a user gesture; the top bar has the button */ }
     }
 
     // ================================================================ send
