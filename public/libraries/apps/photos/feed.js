@@ -370,10 +370,13 @@
     const actor = feedActor(event);
     const object = activityObjectLabel(event);
     const type = cleanText(event.type);
+    const documentType = cleanText(activityPayload(event).document_type).replace(/_/g, ' ');
     if (type === 'work.plan.stage_manually_set') {
       const stage = firstText(activityPayload(event).to_stage_title, activityPayload(event).stage_title);
       return `${actor} moved the project to ${stage || 'a new stage'}`;
     }
+    if (documentType && type === 'document.sent') return `${actor} sent a ${documentType} to the customer${object ? `: ${object}` : ''}`;
+    if (documentType && type === 'document.viewed') return `${actor} had a ${documentType} viewed by the customer${object ? `: ${object}` : ''}`;
     const action = ({
       'payment.received':'took a payment',
       'proposal.payment.received':'took a proposal payment',

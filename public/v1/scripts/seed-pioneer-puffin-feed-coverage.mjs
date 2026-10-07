@@ -34,7 +34,7 @@ const examples = [
   { offset: 3, type: 'contract', title: 'Sample roofing contract', content: 'SYNTHETIC TEST CONTRACT\nScope: replace the existing roof covering and inspect deck condition.\nStatus: draft; no signatures have been collected.\n' },
   { offset: 4, type: 'document', title: 'Sample site access instructions', content: 'SYNTHETIC TEST DOCUMENT\nKeep the rear walkway open during the installation.\n' }
 ];
-const result = { mode: apply ? 'applied' : 'dry-run', org: org.org_name, documents: [], invoice: '', expense: '', inbound_message: '', call: '' };
+const result = { mode: apply ? 'applied' : 'dry-run', org: org.org_name, documents: [], invoice: '', expense: '', inbound_message: '', call: '', proposal: '' };
 for (const example of examples) {
   const project = projects[example.offset];
   const path = `${platform}/projects/${encodeURIComponent(project.id)}/documents`;
@@ -99,6 +99,33 @@ else {
     revision: call.revision, disposition: 'answered', next_action: 'none',
     notes: 'Synthetic development call record for Feed testing; no live telephone connection was made.' });
   result.call = 'created';
+}
+const proposalProject = projects[10];
+const proposalPath = `/v1/documents/organizations/${encodeURIComponent(org.org_id)}/projects/${encodeURIComponent(proposalProject.id)}/documents`;
+const proposalTitle = 'Synthetic roof replacement proposal for Feed testing';
+let proposal = (await get(proposalPath)).documents?.find((item) => item.title === proposalTitle);
+if (!proposal && apply) {
+  const created = await post(proposalPath, { document_type: 'proposal', template_id: 'tpl_proposal_default',
+    title: proposalTitle, metadata: { synthetic: true, source: 'development_feed_fixture' } });
+  proposal = created.document;
+}
+if (!proposal) result.proposal = 'would create, send, and view';
+else {
+  const docPath = `/v1/documents/organizations/${encodeURIComponent(org.org_id)}/documents/${encodeURIComponent(proposal.id)}`;
+  if (!proposal.delivery?.sent_at && apply) {
+    const sent = await post(`${docPath}/send`, { recipients: [{ name: 'Synthetic customer', email: 'feed.customer@example.test', role: 'customer' }],
+      include_pdf: false, include_portal: true, consent_contact: 'feed.customer@example.test',
+      message: 'Synthetic development proposal for Feed layout testing.' });
+    proposal = sent.document;
+    result.proposal = `sent (${sent.emailed?.[0]?.success ? 'captured email' : 'email not delivered'})`;
+  } else result.proposal = proposal.delivery?.sent_at ? 'already sent' : 'draft';
+  const token = proposal.delivery?.public_token;
+  if (token && !proposal.delivery?.first_viewed_at && apply) {
+    await post(`/v1/documents/public/${encodeURIComponent(token)}/view`, {
+      session_id: 'pioneer-puffin-feed-fixture-20261007', metadata: { synthetic: true, source: 'development_feed_fixture' }
+    });
+    result.proposal += ', viewed';
+  } else if (proposal.delivery?.first_viewed_at) result.proposal += ', already viewed';
 }
 console.log(JSON.stringify(result, null, 2));
 if (process.argv.includes('--audit')) {
