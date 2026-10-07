@@ -2026,6 +2026,14 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
     if (node.component) elm.setAttribute("data-component", String(node.component));
     if (node.component_ref_id) elm.setAttribute("data-component-ref", String(node.component_ref_id));
     if (node.repeater_index !== undefined && node.repeater_index !== null) elm.setAttribute("data-repeater-index", String(node.repeater_index));
+    // A part of an assembly (a widget built from ordinary nodes): the markers
+    // are what the assembly's behavior finds its pieces by, wherever they sit.
+    const part = node.props && node.props.part;
+    if (part && part.assembly && part.role) {
+      elm.setAttribute("data-part-assembly", String(part.assembly));
+      elm.setAttribute("data-part-role", String(part.role));
+      if (part.key !== undefined && part.key !== null) elm.setAttribute("data-part-key", String(part.key));
+    }
     applyFrame(elm, node.frame, inFlow, rctx, node);
     applyNodeStyle(elm, node, rctx);
 

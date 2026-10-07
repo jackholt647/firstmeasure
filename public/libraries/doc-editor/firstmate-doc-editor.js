@@ -597,6 +597,9 @@
           const found = M.findNode(d, cmd.node_id);
           if (!found) return reject("node_not_found");
           if (lockBlocked(found.node, "delete")) return reject("locked:delete");
+          // A required piece of a widget goes only with the whole widget.
+          const block = M.partRemovalBlock(d, [cmd.node_id]);
+          if (block) return reject("required_part:" + block.assembly);
           return { ok: true };
         }
         case "node.move": {
@@ -6083,6 +6086,35 @@
       const commands = state.selection.map(function (id) {
         return { type: "node.remove", node_id: id };
       });
+      // Deleting a required piece of a widget means deleting the widget: ask,
+      // then take every piece wherever it was moved to.
+      const d = state.doc;
+      const block = M.partRemovalBlock(d, state.selection);
+      if (block) {
+        const message = "\u201c" + block.name + "\u201d needs this piece. Delete the whole widget?";
+        if (!(typeof window !== "undefined" && window.confirm ? window.confirm(message) : false)) return;
+        const selected = new Set(state.selection);
+        const covered = function (node) {
+          for (let info = state.nodeIndex.get(node.id); info; info = info.parentId ? state.nodeIndex.get(info.parentId) : null) {
+            if (selected.has(info.node.id)) return true;
+          }
+          return false;
+        };
+        M.assemblyParts(d, block.assembly, []).forEach(function (part) {
+          if (covered(part.node)) return;
+          selected.add(part.node.id);
+          commands.push({ type: "node.remove", node_id: part.node.id });
+        });
+      }
+      // With every piece of a widget in the selection its declaration goes
+      // first, so the pieces are ordinary nodes by the time they are removed.
+      const ids = commands.map(function (command) { return command.node_id; });
+      const assemblies = Object.assign({}, d.assemblies || {});
+      let dropped = false;
+      Object.keys(assemblies).forEach(function (id) {
+        if (M.assemblyParts(d, id, []).length && !M.assemblyParts(d, id, ids).length) { delete assemblies[id]; dropped = true; }
+      });
+      if (dropped) commands.unshift({ type: "doc.set", prop: "assemblies", value: assemblies });
       const result = runCommands(commands, "delete");
       if (result.ok) setSelection([]);
     }

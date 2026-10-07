@@ -50,7 +50,10 @@
   const PAPER_SIZES = {
     letter: { w_pt: 612, h_pt: 792 },
     legal: { w_pt: 612, h_pt: 1008 },
-    a4: { w_pt: 595.28, h_pt: 841.89 }
+    a4: { w_pt: 595.28, h_pt: 841.89 },
+    // Presentation slides.
+    slide: { w_pt: 960, h_pt: 540 },
+    slide_4_3: { w_pt: 960, h_pt: 720 }
   };
 
   const EDITOR_PROFILES = ["designer", "document", "fill", "inline"];
@@ -732,6 +735,85 @@
       return undefined;
     });
     return found;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Assemblies: a functional widget made of ordinary nodes ("parts")
+  // ---------------------------------------------------------------------------
+  // doc.assemblies[id] = { type, name?, config?, required: [rule] } declares the
+  // widget; any node anywhere in the document joins it with
+  //   node.props.part = { assembly: id, role, key? }
+  // Parts can be moved, resized, restyled, regrouped or pulled out of their
+  // group. What they cannot be is deleted one by one: a required part goes only
+  // when the whole assembly goes. A rule is a role name (at least one such
+  // part), or { role, min } or { role, per } — "per" means every key that has a
+  // `per` part needs this role too (every option needs its price).
+
+  function nodePart(node) {
+    const part = node && node.props && node.props.part;
+    if (!isObject(part) || !part.assembly || !part.role) return null;
+    return { assembly: String(part.assembly), role: String(part.role), key: part.key === undefined || part.key === null ? "" : String(part.key) };
+  }
+
+  /** Every part of one assembly (or of all, when id is omitted), skipping the subtrees of `withoutIds`. */
+  function assemblyParts(doc, assemblyId, withoutIds) {
+    const skip = new Set(withoutIds || []);
+    const parts = [];
+    walkNodes(doc || {}, (node, ctx) => {
+      if (skip.has(node.id)) return false;
+      const part = nodePart(node);
+      if (part && (!assemblyId || part.assembly === assemblyId)) parts.push({ node, page: ctx.page, assembly: part.assembly, role: part.role, key: part.key });
+      return undefined;
+    });
+    return parts;
+  }
+
+  /** What an assembly is missing given the parts it has: [{ role, key }]. */
+  function assemblyMissingParts(entry, parts) {
+    const missing = [];
+    const has = (role, key) => parts.some((part) => part.role === role && (key === undefined || part.key === key));
+    for (const raw of Array.isArray(entry && entry.required) ? entry.required : []) {
+      const rule = typeof raw === "string" ? { role: raw } : (isObject(raw) ? raw : {});
+      if (!rule.role) continue;
+      if (rule.per) {
+        const keys = Array.from(new Set(parts.filter((part) => part.role === rule.per).map((part) => part.key)));
+        for (const key of keys) if (!has(rule.role, key)) missing.push({ role: rule.role, key });
+      } else if (parts.filter((part) => part.role === rule.role).length < Math.max(1, Number(rule.min) || 1)) {
+        missing.push({ role: rule.role, key: "" });
+      }
+    }
+    return missing;
+  }
+
+  /**
+   * Would removing these nodes (and what is under them) break an assembly?
+   * Returns null when it is fine — including when the removal takes every part
+   * of the assembly, which is how an assembly is deleted — else
+   * { assembly, name, missing }.
+   */
+  function partRemovalBlock(doc, nodeIds) {
+    const assemblies = isObject(doc && doc.assemblies) ? doc.assemblies : {};
+    if (!Object.keys(assemblies).length) return null;
+    const remaining = assemblyParts(doc, null, nodeIds);
+    const before = assemblyParts(doc, null, []);
+    const touched = new Set(before.filter((part) => !remaining.some((left) => left.node === part.node)).map((part) => part.assembly));
+    for (const id of touched) {
+      const entry = assemblies[id];
+      if (!isObject(entry)) continue;
+      const left = remaining.filter((part) => part.assembly === id);
+      if (!left.length) continue;
+      const missing = assemblyMissingParts(entry, left);
+      if (missing.length) return { assembly: id, name: String(entry.name || entry.type || "widget"), missing };
+    }
+    return null;
+  }
+
+  /** Drop the declarations of assemblies that no longer have any part. */
+  function pruneAssemblies(doc) {
+    if (!isObject(doc && doc.assemblies)) return doc;
+    const used = new Set(assemblyParts(doc, null, []).map((part) => part.assembly));
+    for (const id of Object.keys(doc.assemblies)) if (!used.has(id)) delete doc.assemblies[id];
+    return doc;
   }
 
   function findPage(doc, pageId) {
@@ -2108,6 +2190,20 @@
     for (const name of Object.keys(chains)) {
       if (!isObject(chains[name])) push("chains." + name, "Chain definitions must be objects");
     }
+    // An assembly with no parts left is simply gone; one with some parts must
+    // still have every part it requires.
+    if (isObject(doc.assemblies)) {
+      const parts = assemblyParts(doc, null, []);
+      for (const id of Object.keys(doc.assemblies)) {
+        const entry = doc.assemblies[id];
+        if (!isObject(entry) || !entry.type) { push("assemblies." + id, "Assemblies require a type"); continue; }
+        const own = parts.filter((part) => part.assembly === id);
+        if (!own.length) continue;
+        for (const gap of assemblyMissingParts(entry, own)) {
+          push("assemblies." + id, "Missing required part: " + gap.role + (gap.key ? " (" + gap.key + ")" : ""));
+        }
+      }
+    }
 
     return { ok: errors.length === 0, errors };
   }
@@ -2323,6 +2419,13 @@
 
     validateDocument,
     widgetRefs,
+
+    nodePart,
+    assemblyParts,
+    assemblyMissingParts,
+    partRemovalBlock,
+    pruneAssemblies,
+    PAPER_SIZES,
 
     degToRad,
     rotatePoint,
