@@ -73,6 +73,13 @@ type FormulaToken = { type: string; value: string };
  */
 export function evaluateQuantityFormula(configValue: unknown, measurements: Record<string, number>): number {
   const config = asObject(configValue);
+  let value = evaluateFormulaTokens(config, measurements);
+  if (config.includeWaste === true || config.include_waste === true) value *= 1 + (Number(measurements.wastePercent) || 0) / 100;
+  return Math.max(0, Math.round(value * 100) / 100);
+}
+
+/** The formula's own value, before any modifier or rounding. */
+function evaluateFormulaTokens(config: JsonObject, measurements: Record<string, number>): number {
   const tokens = asArray(config.tokens).map(asObject).map((token): FormulaToken => ({ type: cleanText(token.type), value: cleanText(token.value) }));
   if (!tokens.length) return 1;
   let index = 0;
@@ -113,25 +120,138 @@ export function evaluateQuantityFormula(configValue: unknown, measurements: Reco
     }
     return value;
   };
-  let value = 0;
   try {
-    value = expression();
-    if (index !== tokens.length || !Number.isFinite(value)) return 0;
+    const value = expression();
+    return index === tokens.length && Number.isFinite(value) ? Math.max(0, value) : 0;
   } catch {
     return 0;
   }
-  if (config.includeWaste === true || config.include_waste === true) value *= 1 + (Number(measurements.wastePercent) || 0) / 100;
-  return Math.max(0, Math.round(value * 100) / 100);
 }
 
-function applyQuantities(item: JsonObject, measurements: Record<string, number>) {
-  item.quantity = String(evaluateQuantityFormula(item.formula_config, measurements));
-  asArray(item.children).map(asObject).forEach((child) => applyQuantities(child, measurements));
+/**
+ * Quantity modifiers adjust a line's formula quantity by a rule the whole
+ * trade shares rather than by a line of its own. Waste is the roofing one:
+ * a percent added to every material that is cut to fit. A price book may
+ * declare its own under quantity_modifiers; without any, waste applies to
+ * lines whose formula asks for it.
+ */
+export type QuantityModifier = {
+  id: string;
+  label: string;
+  /** One or two letters shown beside an affected line. */
+  badge: string;
+  description: string;
+  /** percent: add value% · multiply: times value · add: plus value. */
+  operation: "percent" | "multiply" | "add";
+  /** Measurement that supplies the value; value is the fixed fallback. */
+  variable: string;
+  value: number;
+  applies_to: { formula_flag?: string; item_ids?: string[]; item_types?: string[]; categories?: string[]; units?: string[] };
+};
+
+const DEFAULT_MODIFIERS: QuantityModifier[] = [{
+  id: "waste",
+  label: "Waste",
+  badge: "W",
+  description: "Extra material for cuts, starter courses and offcuts.",
+  operation: "percent",
+  variable: "wastePercent",
+  value: 0,
+  applies_to: { formula_flag: "includeWaste" }
+}];
+
+function catalogModifiers(catalog: JsonObject): QuantityModifier[] {
+  const declared = asArray(catalog.quantity_modifiers || catalog.quantityModifiers || asObject(catalog.settings).quantity_modifiers).map(asObject);
+  if (!declared.length) return DEFAULT_MODIFIERS;
+  const texts = (value: unknown) => asArray(value).map(cleanText).filter(Boolean);
+  return declared.filter((entry) => cleanText(entry.id)).map((entry) => {
+    const applies = asObject(entry.applies_to || entry.appliesTo);
+    const operation = cleanText(entry.operation);
+    return {
+      id: cleanText(entry.id),
+      label: cleanText(entry.label || entry.name) || cleanText(entry.id),
+      badge: (cleanText(entry.badge) || cleanText(entry.label || entry.id).slice(0, 1)).slice(0, 2).toUpperCase(),
+      description: cleanText(entry.description),
+      operation: operation === "multiply" || operation === "add" ? operation : "percent",
+      variable: cleanText(entry.variable),
+      value: Number(entry.value) || 0,
+      applies_to: {
+        ...(cleanText(applies.formula_flag || applies.formulaFlag) ? { formula_flag: cleanText(applies.formula_flag || applies.formulaFlag) } : {}),
+        item_ids: texts(applies.item_ids || applies.itemIds),
+        item_types: texts(applies.item_types || applies.itemTypes),
+        categories: texts(applies.categories),
+        units: texts(applies.units)
+      }
+    };
+  });
+}
+
+function modifierApplies(modifier: QuantityModifier, line: JsonObject, catalogItem: JsonObject) {
+  const applies = modifier.applies_to;
+  if (asArray(catalogItem.quantity_modifiers || catalogItem.quantityModifiers).map(cleanText).includes(modifier.id)) return true;
+  if (applies.formula_flag && asObject(line.formula_config)[applies.formula_flag] === true) return true;
+  if (applies.item_ids?.includes(cleanText(catalogItem.id))) return true;
+  if (applies.item_types?.includes(cleanText(catalogItem.itemTypeId || catalogItem.item_type_id))) return true;
+  if (applies.categories?.includes(cleanText(catalogItem.category))) return true;
+  return !!applies.units?.includes(cleanText(line.unit));
+}
+
+export function applyQuantityModifier(quantity: number, operation: string, value: number) {
+  if (operation === "multiply") return quantity * value;
+  if (operation === "add") return quantity + value;
+  return quantity * (1 + value / 100);
+}
+
+/**
+ * How a quantity is rounded for the proposal. Areas and lengths are bought
+ * whole, so they round up; a price book item may set quantity_rounding
+ * ({ mode: "up" | "nearest" | "none", decimals }).
+ */
+export function quantityRounding(unit: string, catalogItem: JsonObject = {}): { mode: string; decimals: number } {
+  const declared = asObject(catalogItem.quantity_rounding || catalogItem.quantityRounding);
+  if (cleanText(declared.mode)) return { mode: cleanText(declared.mode), decimals: Math.max(0, Math.min(4, Number(declared.decimals) || 0)) };
+  const cleaned = cleanText(unit).toLowerCase();
+  if (["sq", "lf", "ft", "sf", "sqft"].includes(cleaned)) return { mode: "up", decimals: 0 };
+  if (["ea", "each", "count", "job", "scope"].includes(cleaned)) return { mode: "nearest", decimals: 0 };
+  return { mode: "nearest", decimals: 2 };
+}
+
+export function roundQuantity(value: number, rounding: { mode: string; decimals: number }) {
+  if (rounding.mode === "none") return Math.max(0, Math.round(value * 1e4) / 1e4);
+  const factor = 10 ** rounding.decimals;
+  // Binary noise must not push 25.0000001 up to 26.
+  const scaled = Math.round(value * factor * 1e6) / 1e6;
+  return Math.max(0, (rounding.mode === "up" ? Math.ceil(scaled) : Math.round(scaled)) / factor);
+}
+
+/**
+ * Quantity for one line: formula, then modifiers, then rounding. The steps
+ * are kept on the line (base_quantity, quantity_adjustments,
+ * quantity_rounding) so a reviewer can see why 25.7 squares became 29, and a
+ * modifier's value can be changed without regenerating the scope.
+ */
+function applyQuantities(catalog: JsonObject, item: JsonObject, measurements: Record<string, number>) {
+  const catalogItem = asArray(catalog.items).map(asObject).find((entry) => cleanText(entry.id) === referencedItemId(item)) || {};
+  const base = evaluateFormulaTokens(asObject(item.formula_config), measurements);
+  let quantity = base;
+  const adjustments: JsonObject[] = [];
+  for (const modifier of catalogModifiers(catalog)) {
+    if (!modifierApplies(modifier, item, catalogItem)) continue;
+    const value = modifier.variable ? Number(measurements[modifier.variable]) || 0 : modifier.value;
+    quantity = applyQuantityModifier(quantity, modifier.operation, value);
+    adjustments.push({ id: modifier.id, label: modifier.label, badge: modifier.badge, operation: modifier.operation, variable: modifier.variable, value });
+  }
+  const rounding = quantityRounding(cleanText(item.unit), catalogItem);
+  item.base_quantity = Math.round(base * 1e4) / 1e4;
+  item.quantity_adjustments = adjustments;
+  item.quantity_rounding = rounding;
+  item.quantity = String(roundQuantity(quantity, rounding));
+  asArray(item.children).map(asObject).forEach((child) => applyQuantities(catalog, child, measurements));
 }
 
 function pricedLine(catalog: JsonObject, itemId: string, measurements: Record<string, number>): JsonObject {
   const line = resolveCatalogItemToScopeItem(catalog, itemId);
-  applyQuantities(line, measurements);
+  applyQuantities(catalog, line, measurements);
   return line;
 }
 
@@ -253,5 +373,10 @@ export function generatePieceScope(catalogValue: unknown, templateIdValue: strin
   root.children = children;
   for (const group of recipe.choices) applyChoiceGroup(catalog, root, group, measurements);
   root.scope_template_id = templateId;
+  // The modifiers in play and their current values, for the review screen.
+  root.quantity_modifiers = catalogModifiers(catalog).map((modifier) => ({
+    ...modifier,
+    value: modifier.variable ? Number(measurements[modifier.variable]) || 0 : modifier.value
+  }));
   return root;
 }

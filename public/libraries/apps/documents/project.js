@@ -1974,7 +1974,10 @@
             ...photo,
             url: window.PlatformAPI?.media?.thumbnailUrl?.(orgId(), photo.media_id, 320) || ''
           })),
-          url: (mediaId) => window.PlatformAPI?.media?.thumbnailUrl?.(orgId(), mediaId, 320) || ''
+          url: (mediaId) => window.PlatformAPI?.media?.thumbnailUrl?.(orgId(), mediaId, 320) || '',
+          // The shared media library (Portal.PhotoFeed picker), the same one
+          // the document editor opens.
+          pick: () => mediaBridge().pick()
         },
         // generate_document cards: open the minted document in this screen.
         openDocument: async (documentId) => {

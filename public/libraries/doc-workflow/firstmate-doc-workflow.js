@@ -1062,75 +1062,107 @@
   // — persisted with params.scope_items, so the server line-items resolver and
   // doc.line_items / li_row repeater components can render thumbs or the
   // data-fmdoc-media-popup lightbox chip.
+  /** Place a body-level popover by its anchor: below when it fits, above when
+   *  it does not, and always inside the window. */
+  function placePopover(pop, anchor, width){
+    const rect = anchor.getBoundingClientRect?.() || { left: 40, right: 80, top: 40, bottom: 40 };
+    const w = Math.min(width, Math.max(240, window.innerWidth - 16));
+    pop.style.width = `${w}px`;
+    pop.style.left = `${Math.max(8, Math.min(rect.right - w, window.innerWidth - w - 8))}px`;
+    const height = pop.offsetHeight || 0;
+    const below = rect.bottom + 6;
+    const above = rect.top - height - 6;
+    const top = below + height <= window.innerHeight - 8 ? below : (above >= 8 ? above : Math.max(8, window.innerHeight - height - 8));
+    pop.style.top = `${top}px`;
+  }
+  const VIDEO_URL = /(youtube\.com|youtu\.be|vimeo\.com|loom\.com|wistia\.)|\.(mp4|mov|webm|m4v)(\?|#|$)/i;
+
   function openMediaAttach(options){
     if (typeof document === 'undefined') return null;
     ensureStyles();
     const opts = obj(options);
     const anchor = opts.anchor;
     const item = obj(opts.item);
-    const media = obj(opts.services).media;
+    const media = obj(obj(opts.services).media);
     document.querySelectorAll('.fmdw-attach-pop').forEach((existing) => existing.remove());
     if (!anchor || typeof opts.onSave !== 'function') return null;
 
-    let photos = [];
-    try { photos = arr(typeof media?.photos === 'function' ? media.photos() : media?.photos).map(obj).filter((p) => firstText(p.media_id, p.id)); }
-    catch (e) { photos = []; }
-    const photoUrl = (photo) => {
-      if (firstText(photo.url, photo.thumb_url, photo.src)) return firstText(photo.url, photo.thumb_url, photo.src);
-      try { return typeof media?.url === 'function' ? cleanText(media.url(firstText(photo.media_id, photo.id))) : ''; } catch (e) { return ''; }
+    const mediaUrl = (id) => {
+      try { return typeof media.url === 'function' ? cleanText(media.url(id)) : ''; } catch (e) { return ''; }
     };
     const current = obj(arr(item.media)[0]);
+    const hadAttachment = arr(item.media).length > 0 || !!firstText(obj(item.video).url);
+    // One link field holds either an image or a video; a library pick fills
+    // media_id instead.
     const state = {
       media_id: firstText(current.media_id),
-      media_url: firstText(current.url),
+      preview_url: firstText(current.url, current.media_id ? mediaUrl(current.media_id) : ''),
+      link: firstText(obj(item.video).url, current.url),
       caption: cleanText(current.caption || obj(item.video).caption),
-      video_url: firstText(obj(item.video).url),
       display: cleanText(item.display) === 'popup' ? 'popup' : 'inline'
     };
+    const canPick = typeof media.pick === 'function';
 
     const pop = document.createElement('div');
     pop.className = 'fmdw-attach-pop';
     const renderPop = () => {
+      const isVideo = !state.media_id && VIDEO_URL.test(state.link);
+      const preview = state.media_id ? state.preview_url : (isVideo ? '' : state.link);
       pop.innerHTML = `
-        <div class="fmdw-attach-head"><i class="fas fa-paperclip"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_b4c6eb9bd49fcc"," Photo & video") ?? " Photo & video")}</div>
-        ${String(photos.length ? `
-          <div class="fmdw-photo-grid fmdw-attach-grid">
-            ${photos.slice(0, 18).map((photo) => {
-              const id = firstText(photo.media_id, photo.id);
-              const active = state.media_id === id;
-              return `
-                <button type="button" class="fmdw-photo ${active ? 'active' : ''}" data-fmdw-attach-photo="${esc(id)}" title="${esc(photo.label || '')}">
-                  <img src="${esc(photoUrl(photo))}" alt="${esc(photo.label || 'Photo')}" loading="lazy">
-                  ${active ? '<i class="fas fa-circle-check"></i>' : ''}
-                </button>`;
-            }).join('')}
-          </div>` : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_4adeb3f53bdf71","No project photos available — paste an image URL below.") ?? "No project photos available — paste an image URL below.")}</p>`)}
-        <label class="fmdw-attach-field"><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_e834f5774af181","Image URL") ?? "Image URL")}</span><input type="text" data-fmdw-attach-url value="${String(esc(state.media_url))}" placeholder="https://…"></label>
-        <label class="fmdw-attach-field"><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8e5d22e5fc5931","Caption") ?? "Caption")}</span><input type="text" data-fmdw-attach-caption value="${String(esc(state.caption))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_68f76580b578dd","Optional caption") ?? "Optional caption")}"></label>
-        <label class="fmdw-attach-field"><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_ab0945e21b5b82","Video URL") ?? "Video URL")}</span><input type="text" data-fmdw-attach-video value="${String(esc(state.video_url))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_41259d9663ed29","YouTube, Vimeo, or file URL") ?? "YouTube, Vimeo, or file URL")}"></label>
-        <label class="fmdw-attach-field"><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_92999b4236dd11","Display") ?? "Display")}</span>
+        <div class="fmdw-attach-head">
+          <span><i class="fas fa-paperclip"></i> Photo or video</span>
+          <button type="button" class="fmdw-attach-x" data-fmdw-attach-cancel title="Close"><i class="fas fa-xmark"></i></button>
+        </div>
+        <div class="fmdw-attach-body">
+          <button type="button" class="fmdw-attach-thumb ${canPick ? 'pick' : ''}" data-fmdw-attach-pick ${canPick ? '' : 'disabled'} title="${canPick ? 'Choose from your photos' : ''}">
+            ${preview ? `<img src="${esc(preview)}" alt="">` : ''}
+            <i class="fas ${isVideo ? 'fa-circle-play' : (canPick ? 'fa-images' : 'fa-image')}"></i>
+            ${canPick ? '<span>Choose photo</span>' : ''}
+          </button>
+          <div class="fmdw-attach-fields">
+            <div class="fmdw-attach-link">
+              <input type="text" data-fmdw-attach-link value="${esc(state.media_id ? '' : state.link)}" placeholder="${state.media_id ? 'Photo from your library' : 'Paste an image or video link'}" title="Paste a link to an image, or to a video on YouTube, Vimeo or a video file.">
+              ${canPick ? `<button type="button" class="fmdw-icon-btn" data-fmdw-attach-pick title="Choose from your photos"><i class="fas fa-images"></i></button>` : ''}
+            </div>
+            <input type="text" data-fmdw-attach-caption value="${esc(state.caption)}" placeholder="Caption (optional)">
+          </div>
+        </div>
+        <details class="fmdw-attach-more" ${state.display === 'popup' ? 'open' : ''}>
+          <summary>Display options</summary>
           <select data-fmdw-attach-display>
-            <option value="inline" ${String(state.display === 'inline' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_05687b313f334d","Inline (row grows)") ?? "Inline (row grows)")}</option>
-            <option value="popup" ${String(state.display === 'popup' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f7737190739c74","Popup (lightbox chip)") ?? "Popup (lightbox chip)")}</option>
+            <option value="inline" ${state.display === 'inline' ? 'selected' : ''}>Show in the line on the proposal</option>
+            <option value="popup" ${state.display === 'popup' ? 'selected' : ''}>Show as a chip that opens the photo</option>
           </select>
-        </label>
+        </details>
         <div class="fmdw-attach-actions">
-          <button type="button" class="fmdw-btn ghost" data-fmdw-attach-remove><i class="fas fa-trash-can"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_09a65903b3217c"," Remove") ?? " Remove")}</button>
-          <button type="button" class="fmdw-btn" data-fmdw-attach-cancel>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-          <button type="button" class="fmdw-btn primary" data-fmdw-attach-save>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_5bab3e72de1ebf","Save") ?? "Save")}</button>
+          ${hadAttachment ? `<button type="button" class="fmdw-btn ghost" data-fmdw-attach-remove><i class="fas fa-trash-can"></i> Remove</button>` : ''}
+          <button type="button" class="fmdw-btn primary" data-fmdw-attach-save>Save</button>
         </div>`;
-      pop.querySelectorAll('[data-fmdw-attach-photo]').forEach((button) => button.addEventListener('click', () => {
-        const id = button.dataset.fmdwAttachPhoto;
-        state.media_id = state.media_id === id ? '' : id;
-        if (state.media_id) state.media_url = '';
-        renderPop();
+      // A photo that will not load shows the placeholder, never a broken image.
+      pop.querySelector('.fmdw-attach-thumb img')?.addEventListener('error', (event) => { event.target.remove(); });
+      pop.querySelectorAll('[data-fmdw-attach-pick]').forEach((button) => button.addEventListener('click', async () => {
+        if (!canPick) return;
+        picking = true;
+        try {
+          const picked = obj(await media.pick());
+          const id = firstText(picked.media_id, picked.id);
+          if (id || firstText(picked.url)) {
+            state.media_id = id;
+            state.preview_url = firstText(picked.thumb_url, id ? mediaUrl(id) : '', picked.url);
+            state.link = id ? '' : firstText(picked.url);
+            renderPop();
+            placePopover(pop, anchor, 420);
+          }
+        } catch (e) { /* picker closed */ }
+        // The library closes with a click outside this popover; keep it open.
+        setTimeout(() => { picking = false; }, 0);
       }));
-      pop.querySelector('[data-fmdw-attach-url]')?.addEventListener('change', (event) => {
-        state.media_url = cleanText(event.target.value);
-        if (state.media_url) state.media_id = '';
+      pop.querySelector('[data-fmdw-attach-link]')?.addEventListener('change', (event) => {
+        state.link = cleanText(event.target.value);
+        if (state.link) { state.media_id = ''; state.preview_url = ''; }
+        renderPop();
       });
       pop.querySelector('[data-fmdw-attach-caption]')?.addEventListener('change', (event) => { state.caption = cleanText(event.target.value); });
-      pop.querySelector('[data-fmdw-attach-video]')?.addEventListener('change', (event) => { state.video_url = cleanText(event.target.value); });
       pop.querySelector('[data-fmdw-attach-display]')?.addEventListener('change', (event) => {
         state.display = cleanText(event.target.value) === 'popup' ? 'popup' : 'inline';
       });
@@ -1141,34 +1173,30 @@
       pop.querySelector('[data-fmdw-attach-cancel]')?.addEventListener('click', () => close());
       pop.querySelector('[data-fmdw-attach-save]')?.addEventListener('click', () => {
         // Read the fields directly too, so typing without blurring still lands.
-        state.media_url = cleanText(pop.querySelector('[data-fmdw-attach-url]')?.value ?? state.media_url);
+        const typed = cleanText(pop.querySelector('[data-fmdw-attach-link]')?.value);
+        if (typed) { state.link = typed; state.media_id = ''; }
         state.caption = cleanText(pop.querySelector('[data-fmdw-attach-caption]')?.value ?? state.caption);
-        state.video_url = cleanText(pop.querySelector('[data-fmdw-attach-video]')?.value ?? state.video_url);
+        const video = !state.media_id && VIDEO_URL.test(state.link);
         const mediaEntry = state.media_id
           ? { media_id: state.media_id, variant: 'display' }
-          : (state.media_url ? { url: state.media_url } : null);
+          : (state.link && !video ? { url: state.link } : null);
         if (mediaEntry && state.caption) mediaEntry.caption = state.caption;
-        const video = state.video_url
-          ? { url: state.video_url, ...(!mediaEntry && state.caption ? { caption: state.caption } : {}) }
-          : null;
         close();
-        opts.onSave({ media: mediaEntry ? [mediaEntry] : [], video, display: state.display });
+        opts.onSave({
+          media: mediaEntry ? [mediaEntry] : [],
+          video: video ? { url: state.link, ...(state.caption ? { caption: state.caption } : {}) } : null,
+          display: state.display
+        });
       });
     };
 
-    function place(){
-      const rect = anchor.getBoundingClientRect?.() || { left: 40, bottom: 40 };
-      const width = Math.min(340, Math.max(240, window.innerWidth - 24));
-      pop.style.width = `${width}px`;
-      pop.style.left = `${Math.max(8, Math.min(rect.left - width + 34, window.innerWidth - width - 8))}px`;
-      const top = rect.bottom + 6;
-      pop.style.top = `${Math.min(top, Math.max(8, window.innerHeight - 30))}px`;
-    }
+    let picking = false;
     function onDocDown(event){
+      if (picking) return;
       if (!pop.contains(event.target) && event.target !== anchor && !anchor.contains?.(event.target)) close();
     }
     function onKey(event){
-      if (event.key === 'Escape') { event.stopPropagation(); close(); }
+      if (event.key === 'Escape' && !picking) { event.stopPropagation(); close(); }
     }
     let closed = false;
     function close(){
@@ -1181,7 +1209,7 @@
 
     renderPop();
     document.body.appendChild(pop);
-    place();
+    placePopover(pop, anchor, 420);
     // Defer so the click that opened the popover doesn't instantly close it.
     setTimeout(() => {
       if (closed) return;
@@ -1386,16 +1414,41 @@
   // ------------------------------------------------------- line items review
   // Generated line items, priced from the price book. On entry with an empty
   // value it runs services.generateScopeItems(selection, measurements), then
-  // shows the scope the way it prices: each root is a group with its
-  // subtotal; alternatives of one choice group sit together with the priced
-  // option marked; optional lines carry a checkbox. Amounts use the same rule
-  // as the server (scopeItemAmount), so the total here is the document total.
+  // shows the scope the way it prices: each root heads its group with a
+  // subtotal and its lines indent under it; alternatives of one choice group
+  // sit together with the priced option marked; optional lines carry a
+  // checkbox. Amounts use the same rule as the server (scopeItemAmount), so
+  // the total here is the document total. Lines that a quantity modifier
+  // touched (waste) carry its badge, and the Modifiers panel changes a
+  // modifier's value for every line it applies to.
   // Writes the scope-item tree (params.scope_items).
   registerKind('line_items_review', (el, ctx) => {
     const services = obj(ctx.services);
     let items = arr(ctx.value()).map(normalizeScopeItem);
     let generating = false;
     let generateNote = '';
+    const findItem = (list, id, parent = null) => {
+      for (const item of arr(list)) {
+        if (item.id === id) return { item, list, parent };
+        const found = findItem(item.children, id, item);
+        if (found) return found;
+      }
+      return null;
+    };
+    const walkItems = (list, visit) => arr(list).forEach((item) => { visit(item); walkItems(item.children, visit); });
+    const choiceGroupOf = (item) => {
+      const sel = obj(item.selection);
+      return cleanText(sel.mode) === 'choice' ? cleanText(sel.group_id) : '';
+    };
+    const isOptional = (item) => cleanText(obj(item.selection).mode) === 'optional';
+    const customerPicks = (item) => arr(obj(item.selection).selectable_by).map(cleanText).includes('customer');
+    const groupTitle = (groupId, options) => firstText(obj(obj(arr(options)[0]).selection).group_title, prettyKey(cleanText(groupId).split(':').pop().replace(/_(profile|group|choice)$/i, '')));
+    /** How many decisions the customer is offered (choice groups + optional
+     *  lines); later steps show the customer's choosing step only when > 0. */
+    function customerChoiceCount(){
+      const { groups, optionals } = collectScopeChoiceGroups(items);
+      return [...groups.values()].filter((options) => options.length > 1).length + optionals.length;
+    }
     const commit = () => {
       ctx.write(clone(items));
       ctx.writePath('params.customer_choice_count', customerChoiceCount());
@@ -1409,7 +1462,106 @@
       const stamp = cleanText(getPath(ctx.scope(), 'params.scope_generated_from'));
       return !!stamp && countScopeItems(items) > 0 && stamp !== stampOf(measurements());
     };
+    /** What the line costs when it is priced, whether or not it is selected. */
+    const lineAmount = (item) => (item.price_driving === false ? 0 : Math.max(0, Number(item.quantity || 0) || 0) * (Number(item.unit_price || 0) || 0));
+    const formatNumber = (value) => String(Math.round((Number(value) || 0) * 100) / 100);
 
+    // ------------------------------------------------------------ modifiers
+    /** Modifiers the generated scope declares, by id. */
+    function modifiers(){
+      const byId = new Map();
+      items.forEach((root) => arr(root.quantity_modifiers).map(obj).forEach((modifier) => {
+        if (cleanText(modifier.id) && !byId.has(modifier.id)) byId.set(modifier.id, modifier);
+      }));
+      return [...byId.values()];
+    }
+    const affectedBy = (modifierId) => {
+      let count = 0;
+      walkItems(items, (item) => { if (arr(item.quantity_adjustments).some((entry) => obj(entry).id === modifierId)) count += 1; });
+      return count;
+    };
+    const applyModifier = (quantity, adjustment) => {
+      const value = Number(adjustment.value) || 0;
+      if (adjustment.operation === 'multiply') return quantity * value;
+      if (adjustment.operation === 'add') return quantity + value;
+      return quantity * (1 + value / 100);
+    };
+    const roundQuantity = (value, rounding) => {
+      const rule = obj(rounding);
+      if (cleanText(rule.mode) === 'none') return Math.round(value * 1e4) / 1e4;
+      const factor = 10 ** (Number(rule.decimals) || 0);
+      const scaled = Math.round(value * factor * 1e6) / 1e6;
+      return Math.max(0, (cleanText(rule.mode) === 'up' ? Math.ceil(scaled) : Math.round(scaled)) / factor);
+    };
+    const modifierEffect = (adjustment) => {
+      const value = formatNumber(adjustment.value);
+      if (adjustment.operation === 'multiply') return `× ${value}`;
+      if (adjustment.operation === 'add') return `+ ${value}`;
+      return `+${value}%`;
+    };
+    function modifierBadges(item){
+      const adjustments = arr(item.quantity_adjustments).map(obj).filter((entry) => cleanText(entry.id));
+      if (!adjustments.length) return '';
+      const base = Number(item.base_quantity) || 0;
+      return adjustments.map((entry) => {
+        const tip = item.manual_quantity === true
+          ? `${entry.label}: this quantity was entered by hand, so ${String(entry.label).toLowerCase()} is not applied to it.`
+          : `${entry.label} ${modifierEffect(entry)}: ${formatNumber(base)} ${item.unit || ''} measured becomes ${formatNumber(item.quantity)} ${item.unit || ''}${cleanText(obj(item.quantity_rounding).mode) === 'up' ? ', rounded up' : ''}.`;
+        return `<span class="fmdw-lir-mod ${item.manual_quantity === true ? 'off' : ''}" title="${esc(tip)}">${esc(firstText(entry.badge, String(entry.label || '?').slice(0, 1)))}</span>`;
+      }).join('');
+    }
+    /** Change a modifier's value everywhere it applies. Hand-entered
+     *  quantities are left alone. */
+    function setModifierValue(modifierId, value){
+      let variable = '';
+      items.forEach((root) => arr(root.quantity_modifiers).forEach((modifier) => {
+        if (obj(modifier).id === modifierId) { modifier.value = value; variable = firstText(modifier.variable, variable); }
+      }));
+      walkItems(items, (item) => {
+        const adjustments = arr(item.quantity_adjustments);
+        if (!adjustments.some((entry) => obj(entry).id === modifierId)) return;
+        adjustments.forEach((entry) => { if (obj(entry).id === modifierId) entry.value = value; });
+        if (item.manual_quantity === true) return;
+        const next = adjustments.reduce((quantity, entry) => applyModifier(quantity, obj(entry)), Number(item.base_quantity) || 0);
+        item.quantity = String(roundQuantity(next, item.quantity_rounding));
+      });
+      commit();
+      if (variable) {
+        // The modifier's value lives with the measurements it was read from,
+        // so the Roof step and a later regenerate agree with this screen.
+        const next = { ...measurements(), [variable]: value };
+        ctx.writePath('params.measurements', next);
+        ctx.writePath('params.scope_generated_from', stampOf(next));
+      }
+      ctx.requestPreview();
+    }
+    function openModifiers(anchor){
+      document.querySelectorAll('.fmdw-mod-pop').forEach((existing) => existing.remove());
+      const pop = document.createElement('div');
+      pop.className = 'fmdw-attach-pop fmdw-mod-pop';
+      const list = modifiers();
+      pop.innerHTML = `
+        <div class="fmdw-attach-head"><span><i class="fas fa-sliders"></i> Modifiers</span><button type="button" class="fmdw-attach-x" data-fmdw-mod-close title="Close"><i class="fas fa-xmark"></i></button></div>
+        <p class="fmdw-mod-note">A modifier adjusts the quantity of every line it applies to. Lines it touched show its badge.</p>
+        ${list.length ? list.map((modifier) => `
+          <label class="fmdw-mod-row">
+            <span class="fmdw-lir-mod">${esc(firstText(modifier.badge, '?'))}</span>
+            <span class="fmdw-mod-copy"><strong>${esc(modifier.label)}</strong><small>${esc(firstText(modifier.description, ''))} ${affectedBy(modifier.id)} line${affectedBy(modifier.id) === 1 ? '' : 's'}.</small></span>
+            <span class="fmdw-lir-num"><i>${modifier.operation === 'multiply' ? '×' : '+'}</i><input type="number" step="any" min="0" data-fmdw-mod-value="${esc(modifier.id)}" value="${esc(formatNumber(modifier.value))}" ${ctx.readonly ? 'disabled' : ''}><i>${modifier.operation === 'percent' ? '%' : ''}</i></span>
+          </label>`).join('') : `<p class="fmdw-hint" style="margin:0">These lines have no modifiers. Lines generated from the price book carry the ones it defines, such as waste.</p>`}`;
+      const close = () => { document.removeEventListener('mousedown', onDown, true); pop.remove(); };
+      const onDown = (event) => { if (!pop.contains(event.target) && !anchor.contains(event.target)) close(); };
+      pop.querySelector('[data-fmdw-mod-close]')?.addEventListener('click', close);
+      pop.querySelectorAll('[data-fmdw-mod-value]').forEach((input) => input.addEventListener('change', () => {
+        setModifierValue(input.dataset.fmdwModValue, Math.max(0, Number(input.value) || 0));
+        render();
+      }));
+      document.body.appendChild(pop);
+      placePopover(pop, anchor, 380);
+      setTimeout(() => document.addEventListener('mousedown', onDown, true), 0);
+    }
+
+    // ------------------------------------------------------------ generate
     async function generate(){
       if (generating || ctx.readonly) return;
       if (typeof services.generateScopeItems !== 'function') {
@@ -1443,28 +1595,6 @@
       if (el.isConnected) render();
     }
 
-    const findItem = (list, id, parent = null) => {
-      for (const item of arr(list)) {
-        if (item.id === id) return { item, list, parent };
-        const found = findItem(item.children, id, item);
-        if (found) return found;
-      }
-      return null;
-    };
-    const choiceGroupOf = (item) => {
-      const sel = obj(item.selection);
-      return cleanText(sel.mode) === 'choice' ? cleanText(sel.group_id) : '';
-    };
-    const isOptional = (item) => cleanText(obj(item.selection).mode) === 'optional';
-    const customerPicks = (item) => arr(obj(item.selection).selectable_by).map(cleanText).includes('customer');
-    const groupTitle = (groupId, options) => firstText(obj(obj(arr(options)[0]).selection).group_title, prettyKey(cleanText(groupId).split(':').pop().replace(/_(profile|group|choice)$/i, '')));
-    /** How many decisions the customer is offered (choice groups + optional
-     *  lines); later steps show the customer's choosing step only when > 0. */
-    function customerChoiceCount(){
-      const { groups, optionals } = collectScopeChoiceGroups(items);
-      return [...groups.values()].filter((options) => options.length > 1).length + optionals.length;
-    }
-
     function attachThumbHtml(item){
       const entry = obj(arr(item.media)[0]);
       const hasVideo = !!firstText(obj(item.video).url);
@@ -1480,7 +1610,7 @@
     const hasAttachment = (item) => arr(item.media).length > 0 || !!firstText(obj(item.video).url);
 
     /** One editable line. `pick` adds the radio/checkbox that decides whether
-     *  the line is priced. */
+     *  the line is priced. The description shows on hover or focus. */
     function rowHtml(item, pick){
       const on = scopeItemSelected(item);
       const control = pick === 'choice'
@@ -1490,14 +1620,14 @@
         <div class="fmdw-lir-row ${on ? '' : 'off'} ${control ? 'pick' : ''}" data-fmdw-lir="${esc(item.id)}">
           ${control ? `<span class="fmdw-lir-pick">${control}</span>` : ''}
           <div class="fmdw-lir-name">
-            <span class="fmdw-lir-name-line">${attachThumbHtml(item)}<strong>${esc(firstText(item.display_name, item.name, 'Line item'))}</strong>${pick === 'optional' ? `<span class="fmdw-li-flag optional">Optional</span>` : ''}</span>
-            ${item.description ? `<small>${esc(item.description)}</small>` : ''}
+            <span class="fmdw-lir-name-line">${attachThumbHtml(item)}<strong>${esc(firstText(item.display_name, item.name, 'Line item'))}</strong>${modifierBadges(item)}${pick === 'optional' ? `<span class="fmdw-li-flag optional">Optional</span>` : ''}</span>
+            ${item.description ? `<small class="fmdw-lir-desc">${esc(item.description)}</small>` : ''}
           </div>
           <div class="fmdw-lir-nums">
-            <label class="fmdw-lir-num" title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c689ddee2f502","Quantity") ?? "Quantity")}"><input type="number" step="any" min="0" data-fmdw-lir-qty value="${esc(item.quantity)}" ${ctx.readonly ? 'disabled' : ''}><i>${esc(item.unit || 'ea')}</i></label>
+            <label class="fmdw-lir-num" title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c689ddee2f502","Quantity") ?? "Quantity")}"><input type="number" step="any" min="0" data-fmdw-lir-qty value="${esc(formatNumber(item.quantity))}" ${ctx.readonly ? 'disabled' : ''}><i>${esc(item.unit || 'ea')}</i></label>
             <span class="fmdw-lir-x">×</span>
             <label class="fmdw-lir-num price" title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c68827ddeaf565","Unit price ($)") ?? "Unit price ($)")}"><i>$</i><input type="number" step="0.01" min="0" data-fmdw-lir-price value="${esc(Number(item.unit_price || 0).toFixed(2))}" ${ctx.readonly ? 'disabled' : ''}></label>
-            <b class="fmdw-lir-amount" data-fmdw-lir-amount="${esc(item.id)}">${esc(moneyFromDollars(scopeItemOwnAmount(item)))}</b>
+            <b class="fmdw-lir-amount" data-fmdw-lir-amount="${esc(item.id)}" ${on ? '' : 'title="Not selected — this is what it would add"'}>${esc(moneyFromDollars(lineAmount(item)))}</b>
           </div>
           ${ctx.readonly ? '' : `<div class="fmdw-lir-actions">
             <button type="button" class="fmdw-icon-btn ${hasAttachment(item) ? 'has-media' : ''}" data-fmdw-lir-attach title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_74c8aa88118d1c","Attach photo or video") ?? "Attach photo or video")}"><i class="fas fa-camera"></i></button>
@@ -1516,12 +1646,12 @@
           if (done.has(groupId)) return;
           done.add(groupId);
           const options = arr(children).filter((other) => choiceGroupOf(other) === groupId);
+          const customer = options.some(customerPicks);
           out.push(`
             <div class="fmdw-lir-choice">
-              <div class="fmdw-lir-choice-head">
+              <div class="fmdw-lir-choice-head" title="${customer ? 'The selected option is your recommendation: the proposal prices it, and the customer can switch before approving.' : 'The selected option is the one this proposal prices and prints.'}">
                 <strong>${esc(groupTitle(groupId, options))}</strong>
-                <span class="fmdw-li-flag choice">${options.some(customerPicks) ? 'Customer can choose' : 'Choose one'}</span>
-                <small>${options.some(customerPicks) ? 'The selected option is your recommendation: the proposal prices it, and the customer can switch before approving.' : 'The selected option is the one this proposal prices and prints.'}</small>
+                <span class="fmdw-li-flag choice">${customer ? 'Customer can choose' : 'Choose one'}</span>
               </div>
               ${options.map((option) => rowHtml(option, 'choice') + nestedHtml(option)).join('')}
             </div>`);
@@ -1531,19 +1661,21 @@
       });
       return out.join('');
     }
-    const nestedHtml = (item) => (arr(item.children).length ? `<div class="fmdw-lir-nested">${childrenHtml(item.children)}</div>` : '');
+    const nestedHtml = (item) => (arr(item.children).length ? `<div class="fmdw-lir-children">${childrenHtml(item.children)}</div>` : '');
 
     function rootHtml(item){
       if (!arr(item.children).length) return rowHtml(item, isOptional(item) ? 'optional' : '');
       return `
         <section class="fmdw-lir-group" data-fmdw-lir-group="${esc(item.id)}">
-          <header class="fmdw-lir-group-head">
-            <div class="fmdw-lir-name"><strong>${esc(firstText(item.display_name, item.name, 'Scope'))}</strong>${item.description ? `<small>${esc(item.description)}</small>` : ''}</div>
-            <b data-fmdw-lir-subtotal="${esc(item.id)}">${esc(moneyFromDollars(scopeItemAmount(item)))}</b>
-            ${ctx.readonly ? '' : `<button type="button" class="fmdw-icon-btn danger" data-fmdw-lir-remove-group="${esc(item.id)}" title="Remove this whole group"><i class="fas fa-xmark"></i></button>`}
+          <header class="fmdw-lir-row fmdw-lir-group-head">
+            <div class="fmdw-lir-name"><span class="fmdw-lir-name-line"><strong>${esc(firstText(item.display_name, item.name, 'Scope'))}</strong></span>${item.description ? `<small class="fmdw-lir-desc">${esc(item.description)}</small>` : ''}</div>
+            <b class="fmdw-lir-amount" data-fmdw-lir-subtotal="${esc(item.id)}">${esc(moneyFromDollars(scopeItemAmount(item)))}</b>
+            ${ctx.readonly ? '' : `<div class="fmdw-lir-actions"><button type="button" class="fmdw-icon-btn danger" data-fmdw-lir-remove-group="${esc(item.id)}" title="Remove this whole group"><i class="fas fa-xmark"></i></button></div>`}
           </header>
-          ${Number(item.unit_price || 0) > 0 ? rowHtml({ ...item, display_name: 'Base price', description: '', children: [] }, '') : ''}
-          ${childrenHtml(item.children)}
+          <div class="fmdw-lir-children">
+            ${Number(item.unit_price || 0) > 0 ? rowHtml({ ...item, display_name: 'Base price', description: '', children: [] }, '') : ''}
+            ${childrenHtml(item.children)}
+          </div>
         </section>`;
     }
 
@@ -1551,7 +1683,7 @@
     function refreshAmounts(){
       el.querySelectorAll('[data-fmdw-lir-amount]').forEach((node) => {
         const found = findItem(items, node.dataset.fmdwLirAmount);
-        if (found) node.textContent = moneyFromDollars(scopeItemOwnAmount(found.item));
+        if (found) node.textContent = moneyFromDollars(lineAmount(found.item));
       });
       el.querySelectorAll('[data-fmdw-lir-subtotal]').forEach((node) => {
         const found = findItem(items, node.dataset.fmdwLirSubtotal);
@@ -1561,21 +1693,26 @@
       if (total) total.textContent = moneyFromDollars(scopeItemsTotal(items));
     }
 
+    // The step's own header carries the actions when this list is the step.
+    const actionsHost = ctx.stepActions || null;
+    const titled = !actionsHost || cleanText(itemLabel(ctx.item)).toLowerCase() !== cleanText(obj(ctx.step).title).toLowerCase();
+
     const render = () => {
       const count = countScopeItems(items);
+      const toolbar = ctx.readonly ? '' : `
+        ${modifiers().length ? `<button type="button" class="fmdw-btn" data-fmdw-lir-modifiers title="Rules that adjust quantities, such as waste"><i class="fas fa-sliders"></i> Modifiers</button>` : ''}
+        <button type="button" class="fmdw-btn ${count ? '' : 'primary'}" data-fmdw-lir-generate ${generating ? 'disabled' : ''} title="Rebuild every line from the roof measurements and price book">
+          <i class="fas ${generating ? 'fa-circle-notch fa-spin' : 'fa-rotate'}"></i> ${generating ? 'Generating…' : (count ? 'Regenerate' : 'Generate lines')}
+        </button>
+        ${services.pricebook && typeof services.pricebook.pick === 'function' ? `<button type="button" class="fmdw-btn" data-fmdw-lir-pricebook><i class="fas fa-book-open"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c38fcf1b64a2ea"," Pricebook") ?? " Pricebook")}</button>` : ''}
+        <button type="button" class="fmdw-btn" data-fmdw-lir-add><i class="fas fa-plus"></i> Add line</button>`;
+      if (actionsHost) actionsHost.innerHTML = toolbar;
       el.innerHTML = `
-        <div class="fmdw-field">
-          <span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>
-          ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
+        <div class="fmdw-field fmdw-lir-field">
+          ${titled ? `<span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>` : ''}
+          ${titled && ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
           <div class="fmdw-lir">
-            ${ctx.readonly ? '' : `
-              <div class="fmdw-lir-bar">
-                <button type="button" class="fmdw-btn ${count ? '' : 'primary'}" data-fmdw-lir-generate ${generating ? 'disabled' : ''}>
-                  <i class="fas ${generating ? 'fa-circle-notch fa-spin' : 'fa-rotate'}"></i> ${generating ? 'Generating…' : (count ? 'Regenerate' : 'Generate lines')}
-                </button>
-                ${services.pricebook && typeof services.pricebook.pick === 'function' ? `<button type="button" class="fmdw-btn" data-fmdw-lir-pricebook><i class="fas fa-book-open"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c38fcf1b64a2ea"," Pricebook") ?? " Pricebook")}</button>` : ''}
-                <button type="button" class="fmdw-btn" data-fmdw-lir-add><i class="fas fa-plus"></i> Add line</button>
-              </div>`}
+            ${actionsHost || !toolbar ? '' : `<div class="fmdw-lir-bar">${toolbar}</div>`}
             ${stale() ? `<p class="fmdw-lir-stale"><i class="fas fa-triangle-exclamation"></i> The roof measurements changed after these lines were generated. Regenerate to recalculate the quantities; edits made here will be replaced.</p>` : ''}
             ${generateNote ? `<p class="fmdw-hint"><i class="fas fa-circle-info"></i> ${esc(generateNote)}</p>` : ''}
             <div class="fmdw-lir-list">
@@ -1595,7 +1732,9 @@
           ctx.requestPreview();
         };
         row.querySelector('[data-fmdw-lir-qty]')?.addEventListener('change', (event) => {
-          edit((found) => { found.item.quantity = String(Math.max(0, Number(event.target.value || 0))); });
+          // A typed quantity stands on its own; modifiers no longer move it.
+          edit((found) => { found.item.quantity = String(Math.max(0, Number(event.target.value || 0))); found.item.manual_quantity = true; });
+          row.querySelectorAll('.fmdw-lir-mod').forEach((badge) => badge.classList.add('off'));
           refreshAmounts();
         });
         row.querySelector('[data-fmdw-lir-price]')?.addEventListener('change', (event) => {
@@ -1645,17 +1784,19 @@
         render();
         ctx.requestPreview();
       }));
-      el.querySelector('[data-fmdw-lir-generate]')?.addEventListener('click', () => {
+      const bar = actionsHost || el;
+      bar.querySelector('[data-fmdw-lir-modifiers]')?.addEventListener('click', (event) => openModifiers(event.currentTarget));
+      bar.querySelector('[data-fmdw-lir-generate]')?.addEventListener('click', () => {
         if (countScopeItems(items) && !root.confirm('Regenerate every line from the roof measurements and price book? Edits made here will be replaced.')) return;
         generate();
       });
-      el.querySelector('[data-fmdw-lir-add]')?.addEventListener('click', () => {
+      bar.querySelector('[data-fmdw-lir-add]')?.addEventListener('click', () => {
         items.push(makeScopeItem({ name: 'New line item', display_name: 'New line item' }));
         commit();
         render();
         ctx.requestPreview();
       });
-      el.querySelector('[data-fmdw-lir-pricebook]')?.addEventListener('click', async () => {
+      bar.querySelector('[data-fmdw-lir-pricebook]')?.addEventListener('click', async () => {
         try {
           const picked = await services.pricebook.pick();
           if (arr(picked).length) { items = [...items, ...arr(picked).map(normalizeScopeItem)]; commit(); render(); ctx.requestPreview(); }
@@ -1666,7 +1807,13 @@
     render();
     // Auto-generate on entry when nothing has been generated yet.
     if (!countScopeItems(items)) generate();
-    return { validate: () => (ctx.item.required && !countScopeItems(arr(ctx.value())) ? 'Generate or add at least one line item.' : null) };
+    return {
+      validate: () => (ctx.item.required && !countScopeItems(arr(ctx.value())) ? 'Generate or add at least one line item.' : null),
+      destroy: () => {
+        if (actionsHost) actionsHost.innerHTML = '';
+        document.querySelectorAll('.fmdw-mod-pop').forEach((existing) => existing.remove());
+      }
+    };
   });
 
   // -------------------------------------------------------- payment schedule
@@ -2253,8 +2400,11 @@
       st.currentId = cleanText(step.id);
       destroyItemHandles();
       el.stepHead.innerHTML = `
-        <h2>${esc(firstText(step.title, prettyKey(step.id)))}</h2>
-        ${cleanText(step.description) ? `<p>${esc(step.description)}</p>` : ''}`;
+        <div class="fmdw-step-heading">
+          <h2>${esc(firstText(step.title, prettyKey(step.id)))}</h2>
+          ${cleanText(step.description) ? `<p>${esc(step.description)}</p>` : ''}
+        </div>
+        <div class="fmdw-step-actions" data-fmdw-step-actions></div>`;
       el.items.innerHTML = '';
       el.footNote.textContent = '';
       const sections = stepSections(step);
@@ -2286,6 +2436,8 @@
           workflow,
           services,
           hasPreview: !!preview,
+          // A step made of one item may put its actions beside the step title.
+          stepActions: items.length === 1 ? el.stepHead.querySelector('[data-fmdw-step-actions]') : null,
           scope,
           value: () => getPath(scope(), cleanText(item.writes)),
           write: (value) => writePath(cleanText(item.writes), value),
@@ -2658,7 +2810,11 @@
 /* main — equal flex basis with the preview so the two panes split the space
    after the (thin) rail ~50/50 on wide screens. */
 .fmdw-main{flex:1 1 0;width:100%;max-width:100%;min-width:0;overflow:hidden;display:flex;flex-direction:column}
-.fmdw-step-head{flex:none;padding:18px 22px 4px}
+.fmdw-step-head{flex:none;padding:18px 22px 4px;display:flex;align-items:flex-start;gap:12px}
+.fmdw-step-heading{flex:1;min-width:0}
+.fmdw-step-actions{flex:none;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.fmdw-step-actions:empty{display:none}
+.fmdw-step-actions .fmdw-btn{min-height:34px;padding:0 12px}
 .fmdw-step-head h2{margin:0;font-size:18px;font-weight:1000;line-height:1.25}
 .fmdw-step-head p{margin:6px 0 0;font-size:12.5px;font-weight:800;color:var(--fmdw-muted);line-height:1.5}
 .fmdw-items{flex:1;min-height:0;overflow:auto;padding:14px 22px 18px;display:flex;flex-direction:column;gap:14px}
@@ -2746,52 +2902,61 @@
 .fmdw-meas-extra summary{cursor:pointer;font-size:11px;font-weight:900;color:var(--fmdw-muted)}
 .fmdw-meas-extra .fmdw-stat-grid{margin-top:8px}
 /* line items review */
+/* the lines are the content: no card around the whole list */
+.fmdw-section:has(>.fmdw-section-items>.fmdw-item>.fmdw-lir-field){border:0;background:transparent;padding:0;box-shadow:none}
 .fmdw-lir{container-type:inline-size;display:flex;flex-direction:column;gap:10px;min-width:0}
 .fmdw-lir-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .fmdw-lir-stale{margin:0;border:1px solid #f0d58a;background:#fffbea;color:#7a5b00;border-radius:10px;padding:9px 11px;font-size:11.5px;font-weight:850;line-height:1.45}
-.fmdw-lir-list{display:flex;flex-direction:column;gap:10px;min-width:0}
-.fmdw-lir-group{border:1px solid var(--fmdw-line);border-radius:13px;background:#fff;overflow:hidden;min-width:0}
-.fmdw-lir-group-head{display:flex;align-items:center;gap:10px;padding:11px 12px;background:#fafbfe;border-bottom:1px solid var(--fmdw-line)}
-.fmdw-lir-group-head b{flex:none;font-size:14px;font-weight:1000}
-.fmdw-lir-group-head .fmdw-lir-name strong{font-size:13.5px}
-.fmdw-lir-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:6px 10px;padding:9px 12px;border-top:1px solid #f0f2f7;min-width:0}
+.fmdw-lir-list,.fmdw-lir-group{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fmdw-lir-children{display:flex;flex-direction:column;gap:6px;margin-left:22px;min-width:0}
+.fmdw-lir-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:2px 10px;padding:7px 9px 7px 12px;border:1px solid var(--fmdw-line);border-radius:11px;background:#fff;min-width:0;transition:border-color .12s ease,box-shadow .12s ease}
+.fmdw-lir-row:hover,.fmdw-lir-row:focus-within{border-color:#cdd3e0;box-shadow:0 2px 10px rgba(16,24,40,.06)}
 .fmdw-lir-row.pick{grid-template-columns:auto minmax(0,1fr) auto auto}
-.fmdw-lir-list>.fmdw-lir-row{border:1px solid var(--fmdw-line);border-radius:13px;background:#fff}
-.fmdw-lir-group-head+.fmdw-lir-row{border-top:0}
+.fmdw-lir-group-head{background:#f4f6fa;padding-top:9px;padding-bottom:9px}
+.fmdw-lir-group-head .fmdw-lir-name strong{font-size:13.5px}
+.fmdw-lir-group-head .fmdw-lir-amount{font-size:14px}
 .fmdw-lir-row.off{background:#fafbfc}
 .fmdw-lir-row.off .fmdw-lir-name strong,.fmdw-lir-row.off .fmdw-lir-amount{color:#98a2b3}
 .fmdw-lir-row.off .fmdw-lir-amount{text-decoration:line-through}
 .fmdw-lir-pick{display:grid;place-items:center}
 .fmdw-lir-pick input{width:16px;height:16px;margin:0;accent-color:var(--fmdw-primary);cursor:pointer}
-.fmdw-lir-name{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
-.fmdw-lir-name-line{display:flex;align-items:center;gap:7px;min-width:0;flex-wrap:wrap}
+.fmdw-lir-name{min-width:0;flex:1;display:flex;flex-direction:column}
+.fmdw-lir-name-line{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
 .fmdw-lir-name strong{font-size:12.5px;font-weight:1000;line-height:1.3;overflow-wrap:anywhere}
-.fmdw-lir-name small{font-size:10.5px;font-weight:800;color:var(--fmdw-muted);line-height:1.35}
+/* descriptions stay out of the way until the line is hovered or focused */
+.fmdw-lir-desc{max-height:0;opacity:0;overflow:hidden;font-size:10.5px;font-weight:800;color:var(--fmdw-muted);line-height:1.35;transition:max-height .16s ease,opacity .16s ease,margin-top .16s ease}
+.fmdw-lir-row:hover .fmdw-lir-desc,.fmdw-lir-row:focus-within .fmdw-lir-desc{max-height:3.4em;opacity:1;margin-top:2px}
+.fmdw-lir-mod{flex:none;width:16px;height:16px;border-radius:50%;display:inline-grid;place-items:center;font-size:8.5px;font-weight:1000;font-style:normal;line-height:1;background:#fff3dc;color:#8a6100;border:1px solid #f0d58a;cursor:help}
+.fmdw-lir-mod.off{background:#f2f4f7;color:#98a2b3;border-color:#e4e7ec;text-decoration:line-through}
 .fmdw-lir-nums{display:flex;align-items:center;gap:6px;min-width:0}
 .fmdw-lir-num{display:flex;align-items:center;gap:4px;border:1px solid var(--fmdw-line);border-radius:8px;background:#fff;padding:0 7px;height:30px}
 .fmdw-lir-num:focus-within{border-color:var(--fmdw-primary)}
-.fmdw-lir-num input{width:54px;border:0 !important;outline:0;background:transparent;padding:0 !important;font:inherit;font-size:12px;font-weight:900;text-align:right;box-shadow:none !important;-moz-appearance:textfield}
-.fmdw-lir-num.price input{width:62px}
+.fmdw-lir-num input{width:46px;border:0 !important;outline:0;background:transparent;padding:0 !important;font:inherit;font-size:12px;font-weight:900;text-align:right;box-shadow:none !important;-moz-appearance:textfield}
+.fmdw-lir-num.price input{width:58px}
 .fmdw-lir-num input::-webkit-outer-spin-button,.fmdw-lir-num input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .fmdw-lir-num i{font-style:normal;font-size:10.5px;font-weight:900;color:var(--fmdw-muted)}
 .fmdw-lir-x{font-size:11px;color:#98a2b3}
 .fmdw-lir-amount{min-width:78px;text-align:right;font-size:12.5px;font-weight:1000;font-variant-numeric:tabular-nums}
 .fmdw-lir-actions{display:flex;align-items:center;gap:5px}
-.fmdw-lir-nested{padding-left:18px;border-top:1px solid #f0f2f7}
-.fmdw-lir-choice{border-top:1px solid var(--fmdw-line);background:#f7f9ff}
-.fmdw-lir-choice-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px 6px}
-.fmdw-lir-choice-head strong{font-size:11.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:#344054}
-.fmdw-lir-choice-head small{flex-basis:100%;font-size:10.5px;font-weight:800;color:var(--fmdw-muted)}
-.fmdw-lir-choice .fmdw-lir-row{border-top:1px solid #e6ebf7;background:transparent}
+.fmdw-lir-choice{display:flex;flex-direction:column;gap:6px;padding-top:4px}
+.fmdw-lir-choice-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 2px;cursor:help}
+.fmdw-lir-choice-head strong{font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#475467}
 .fmdw-lir-total{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:4px 12px;font-size:12px;font-weight:900;color:var(--fmdw-muted)}
 .fmdw-lir-total b{font-size:17px;font-weight:1000;color:var(--fmdw-ink);font-variant-numeric:tabular-nums}
-@container (max-width:540px){
+@container (max-width:500px){
+  .fmdw-lir-children{margin-left:12px}
   .fmdw-lir-row{grid-template-columns:minmax(0,1fr) auto}
   .fmdw-lir-row.pick{grid-template-columns:auto minmax(0,1fr) auto}
-  .fmdw-lir-nums{grid-row:2;grid-column:1 / -1;justify-content:flex-end}
+  .fmdw-lir-row:not(.fmdw-lir-group-head) .fmdw-lir-nums{grid-row:2;grid-column:1 / -1;justify-content:flex-end}
   .fmdw-lir-row.pick .fmdw-lir-nums{grid-column:2 / -1}
-  .fmdw-lir-actions{grid-row:1;grid-column:-2}
+  .fmdw-lir-row:not(.fmdw-lir-group-head) .fmdw-lir-actions{grid-row:1;grid-column:-2}
 }
+/* modifiers panel */
+.fmdw-mod-note{margin:0;font-size:11px;font-weight:800;color:#667085;line-height:1.45}
+.fmdw-mod-row{display:flex;align-items:center;gap:10px;border-top:1px solid #f0f2f7;padding-top:9px}
+.fmdw-mod-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.fmdw-mod-copy strong{font-size:12.5px;font-weight:1000}
+.fmdw-mod-copy small{font-size:10.5px;font-weight:800;color:#667085;line-height:1.35}
 /* payment schedule */
 .fmdw-sched{container-type:inline-size}
 .fmdw-sched-row{display:grid;grid-template-columns:minmax(0,1.3fr) auto minmax(0,1fr) auto auto;align-items:center;gap:8px;min-width:0}
@@ -2854,16 +3019,30 @@
 .fmdw-li-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .fmdw-li-thumb.video{background:#111827;color:#fff;font-size:10px}
 .fmdw-icon-btn.has-media{border-color:color-mix(in srgb,var(--fmdw-primary) 55%,var(--fmdw-line));color:var(--fmdw-primary);background:color-mix(in srgb,var(--fmdw-primary) 7%,#fff)}
-.fmdw-attach-pop{position:fixed;z-index:2147483550;border:1px solid var(--fmdw-line,#e4e7ec);border-radius:14px;background:#fff;box-shadow:0 18px 48px rgba(16,24,40,.22);padding:12px;display:flex;flex-direction:column;gap:9px;max-height:min(520px,80vh);overflow:auto;font-size:12px;color:#111827}
-.fmdw-attach-head{font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#667085}
+.fmdw-attach-pop{--fmdw-primary:var(--cp-primary,var(--fm-primary,var(--primary,#2563EB)));--fmdw-on-primary:var(--cp-on-primary,var(--fmdx-on-primary,#fff));--fmdw-line:#e4e7ec;--fmdw-muted:#667085;--fmdw-ink:#111827;
+  position:fixed;z-index:2147483400;box-sizing:border-box;border:1px solid var(--fmdw-line);border-radius:14px;background:#fff;box-shadow:0 18px 48px rgba(16,24,40,.22);padding:12px;display:flex;flex-direction:column;gap:10px;max-height:min(520px,calc(100vh - 16px));overflow:auto;font-size:12px;color:#111827}
+.fmdw-attach-pop *{box-sizing:border-box}
+.fmdw-attach-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#667085}
 .fmdw-attach-head i{margin-right:5px}
-.fmdw-attach-grid{grid-template-columns:repeat(auto-fill,minmax(64px,1fr));max-height:160px;overflow:auto}
-.fmdw-attach-field{display:flex;flex-direction:column;gap:3px}
-.fmdw-attach-field span{font-size:9.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:#8a94a6}
-.fmdw-attach-field input,.fmdw-attach-field select{width:100%;border:1px solid #d4d9e6;border-radius:9px;background:#fff;color:#111827;padding:7px 9px;font:inherit;font-size:12px;font-weight:800;outline:none}
-.fmdw-attach-field input:focus,.fmdw-attach-field select:focus{border-color:var(--fmdw-primary,#2563EB)}
-.fmdw-attach-actions{display:flex;align-items:center;gap:8px}
-.fmdw-attach-actions [data-fmdw-attach-save]{margin-left:auto}
+.fmdw-attach-x{border:0;background:transparent;color:#98a2b3;width:24px;height:24px;border-radius:7px;cursor:pointer;display:grid;place-items:center;font-size:12px}
+.fmdw-attach-x i{margin:0}
+.fmdw-attach-x:hover{background:#f2f4f7;color:#344054}
+.fmdw-attach-body{display:flex;align-items:stretch;gap:10px}
+.fmdw-attach-thumb{position:relative;flex:none;width:104px;min-height:78px;border:1px dashed #cfd5e2;border-radius:11px;background:#f6f7fb;color:#98a2b3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font:inherit;font-size:10px;font-weight:900;overflow:hidden;padding:0}
+.fmdw-attach-thumb.pick{cursor:pointer}
+.fmdw-attach-thumb.pick:hover{border-color:var(--fmdw-primary);color:var(--fmdw-primary)}
+.fmdw-attach-thumb i{font-size:17px}
+.fmdw-attach-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.fmdw-attach-thumb img~i,.fmdw-attach-thumb img~span{display:none}
+.fmdw-attach-fields{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.fmdw-attach-link{display:flex;align-items:center;gap:6px}
+.fmdw-attach-pop input[type=text],.fmdw-attach-pop select{width:100%;min-width:0;border:1px solid #d4d9e6;border-radius:9px;background:#fff;color:#111827;padding:8px 10px;font:inherit;font-size:12px;font-weight:800;outline:none}
+.fmdw-attach-pop input[type=text]:focus,.fmdw-attach-pop select:focus{border-color:var(--fmdw-primary)}
+.fmdw-attach-more summary{cursor:pointer;font-size:10.5px;font-weight:900;color:#667085}
+.fmdw-attach-more select{margin-top:7px}
+.fmdw-attach-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fmdw-attach-actions [data-fmdw-attach-save]{margin-left:auto;min-width:92px}
+.fmdw-attach-placeholder{display:none}
 /* content blocks */
 .fmdw-cb-list{display:flex;flex-direction:column;gap:10px}
 .fmdw-cb-card{border:1px solid var(--fmdw-line);border-radius:14px;background:#fff;padding:12px;display:flex;flex-direction:column;gap:9px}

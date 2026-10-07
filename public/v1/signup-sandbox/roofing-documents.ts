@@ -171,7 +171,7 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
 }
 
 /** Bump when the estimate layouts or their workflows change; existing packs republish. */
-export const INSTANT_ROOFING_PACK = 4;
+export const INSTANT_ROOFING_PACK = 5;
 
 /** Roof measurements the itemized proposal prices from, in the order a roofer reads a report. */
 export const ROOF_MEASUREMENT_FIELDS = [
@@ -217,7 +217,7 @@ export async function seedInstantRoofingDocuments(orgId:string, ctx:PlatformAuth
       {id:'measure',title:'Roof',description:'Measurements come from the report on this project. Correct anything that looks off; every quantity on the proposal follows from these.',audience:['internal'],items:[
         {kind:'measurements',writes:'params.measurements',label:'Roof measurements',required:true,fields:ROOF_MEASUREMENT_FIELDS,prefill:'project.measurements'},
         paramItem('structure')]},
-      {id:'items',title:'Scope & price',description:'Quantities are calculated from the roof measurements and priced from your price book.',audience:['internal'],items:[{kind:'line_items_review',writes:'params.scope_items',required:true,label:'Line items'}]},
+      {id:'items',title:'Line items',audience:['internal'],items:[{kind:'line_items_review',writes:'params.scope_items',required:true,label:'Line items'}]},
       {id:'terms',title:'Payment terms',description:'How the job is paid. The milestone due on signature is the deposit the customer pays when they approve.',audience:['internal'],items:[{kind:'payment_schedule',writes:'params.payment_schedule',label:'Payment schedule',required:true}]},
       {id:'review',title:'Review & send',audience:['internal'],items:[{kind:'review',label:'Before you send'}],preview:{template_ref:id,live:true}},
       // The customer's side, in the portal: choose, approve, pay the deposit.

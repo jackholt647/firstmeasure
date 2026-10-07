@@ -32,7 +32,9 @@ test("roof replacement scope prices from measurements and groups interchangeable
   assert.equal(refId(root), "roof_replacement");
 
   const starter = children.find((child) => refId(child) === "starter")!;
-  assert.equal(starter.quantity, "405.85", "starter follows measured eaves + rakes without rounding");
+  assert.equal(starter.base_quantity, 405.85, "the formula value keeps the measured decimals");
+  assert.equal(starter.quantity, "406", "lengths round up to whole feet");
+  assert.deepEqual(starter.quantity_adjustments, [], "starter takes no waste");
   assert.equal(starter.included, true);
 
   const groups = new Map<string, Array<Record<string, any>>>();
@@ -48,12 +50,30 @@ test("roof replacement scope prices from measurements and groups interchangeable
   }
   const shingle = groups.get("shingle_profile")!.find((option) => option.selection.selected)!;
   assert.equal(refId(shingle), "gaf_hd");
-  assert.equal(shingle.quantity, "32.56", "29.6 squares plus 10% waste");
+  assert.equal(shingle.base_quantity, 29.6);
+  assert.deepEqual(shingle.quantity_adjustments.map((entry: any) => [entry.id, entry.operation, entry.value]), [["waste", "percent", 10]]);
+  assert.deepEqual(shingle.quantity_rounding, { mode: "up", decimals: 0 });
+  assert.equal(shingle.quantity, "33", "29.6 squares plus 10% waste is 32.56, bought as 33");
+  assert.deepEqual(root.quantity_modifiers.map((modifier: any) => [modifier.id, modifier.variable, modifier.value]), [["waste", "wastePercent", 10]]);
 
   // The total is the sum of the selected lines, by the document pricing rule.
   const selectedSum = children.reduce((sum, child) => sum + scopeItemPriceResult(child).amount_cents, 0);
   assert.equal(scopeItemPriceResult(root).amount_cents, selectedSum);
   assert.ok(selectedSum > 0);
+});
+
+test("a price book can declare its own modifiers and per-item rounding", () => {
+  const custom = {
+    ...catalog,
+    quantity_modifiers: [{ id: "overage", label: "Overage", operation: "add", value: 2, applies_to: { item_ids: ["starter"] } }],
+    items: catalog.items.map((item: any) => item.id === "starter" ? { ...item, quantity_rounding: { mode: "nearest", decimals: 1 } } : item)
+  };
+  const root = record(generatePieceScope(custom, "roof_replacement", measurements));
+  const starter = (root.children as Array<Record<string, any>>).find((child) => refId(child) === "starter")!;
+  assert.equal(starter.quantity, "407.9", "405.85 + 2, to one decimal");
+  assert.equal(starter.quantity_adjustments[0].badge, "O");
+  const shingle = (root.children as Array<Record<string, any>>).find((child) => refId(child) === "gaf_hd")!;
+  assert.equal(shingle.quantity, "30", "waste no longer applies once the book declares its own modifiers");
 });
 
 test("unsupported pieces and missing assemblies fail explicitly", () => {

@@ -33,7 +33,8 @@ const project=await storage.upsertDocument(ctx.orgId,'projects',{id:'project_roo
  const options=generated.children.filter((line:any)=>line.selection?.mode==='choice'&&line.selection.group_id==='shingle_profile');
  assert.ok(options.length>1,'shingles are offered as a choice group');
  const chosen=options.find((line:any)=>line.selection.selected===true);
- assert.equal(chosen.quantity,'28.05','25.5 squares plus 10% waste, not rounded to whole squares');
+ assert.equal(chosen.quantity,'29','25.5 squares plus 10% waste is 28.05, bought as 29');
+ assert.equal(chosen.base_quantity,25.5,'the measured area is kept as measured');
  const outsider={...ctx,userId:'user_without_access',role:'member',permissions:{}} as any;
  await assert.rejects(actions.invokeAction(publication.userPublicationContext(outsider,{executionKind:'api'}),ref,input));
  const service=await import('../documents/service.js');
